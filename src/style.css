@@ -1,0 +1,25 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0f0f1a;
+}
+
+#game-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* Canvas is sized by Phaser Scale Manager; avoid CSS blur on scaled canvas */
+#game-container canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
