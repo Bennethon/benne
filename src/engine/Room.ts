@@ -1,12 +1,12 @@
-import type { RoomDefinition } from '../types/room';
+import type { RoomData } from '../types/room';
 
 /**
  * Base class for data-driven rooms. Scenes will compose engine systems with JSON definitions.
  */
 export abstract class Room {
-  readonly definition: RoomDefinition;
+  readonly definition: RoomData;
 
-  constructor(definition: RoomDefinition) {
+  constructor(definition: RoomData) {
     this.definition = definition;
   }
 

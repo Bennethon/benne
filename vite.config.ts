@@ -12,6 +12,7 @@ export default defineConfig({
   resolve: {
     alias: {
       phaser: path.join(dir, 'node_modules/phaser/dist/phaser.esm.js'),
+      '@engine': path.join(dir, 'src/engine'),
     },
   },
   build: {

@@ -9,8 +9,8 @@ globs:
 # Benne engine conventions
 
 - **Stack**: Phaser 4 (current `phaser@4.0.0-rc.7`), TypeScript (strict), Vite.
-- **Resolution**: Game logic uses fixed internal size from `src/game/constants.ts` (`INTERNAL_WIDTH` × `INTERNAL_HEIGHT`, default 352×198).
+- **Resolution**: Internal size comes from `src/game/game-config.json` (`resolution.width` × `resolution.height`). Use `getGameSettings()` or `getInternalWidth()` / `getInternalHeight()` from `src/game/constants.ts`.
 - **Pixel art**: Preserve `pixelArt`, `roundPixels`, and `scale.zoom: Phaser.Scale.MAX_ZOOM` patterns in `gameConfig` unless the user asks to change rendering.
-- **Data vs code**: Put room definitions, inventory, and dialogue in JSON under `data/` or `assets/json/`; keep `src/engine/` generic and put game-specific content under `src/game/`.
+- **Data vs code**: Put room/character/dialogue JSON and `*.room.ts` scripts under `src/game/`. Keep game media under `src/game/assets/`; room JSON uses paths relative to that folder (e.g. `images/backgrounds/room.png`). Resolve loader URLs with `resolveGameAssetUrl()` (`import.meta.glob` under the hood).
 - **Interactions**: Emit gameplay events through `EventBus` (`src/engine/events/EventBus.ts`); do not couple puzzles directly to Phaser input handlers in large monoliths — thin handlers dispatch to events or services.
 - **Post-processing**: Camera effects use Phaser 4 `camera.filters.internal` / `FilterList`; custom GLSL via `BaseShader` and render nodes. Keep shader hooks in `src/engine/postfx/` unless scoped to one scene.

@@ -1,0 +1,39 @@
+{
+  "id": "office",
+  "name": "Office",
+  "background": {
+    "image": "images/backgrounds/office.png"
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "office-floor",
+        "points": [
+          { "x": 10, "y": 188 },
+          { "x": 342, "y": 188 },
+          { "x": 322, "y": 136 },
+          { "x": 28, "y": 136 }
+        ]
+      }
+    ]
+  },
+  "hotspots": [
+    {
+      "id": "office-desk",
+      "label": "Desk",
+      "x": 188,
+      "y": 106,
+      "width": 56,
+      "height": 30,
+      "onLook": "look:office-desk"
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "clerk-1",
+      "definition": "clerk/clerk.character.json",
+      "x": 96,
+      "y": 170
+    }
+  ]
+}

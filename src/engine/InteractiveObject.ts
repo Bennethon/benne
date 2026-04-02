@@ -1,12 +1,12 @@
-import type { InteractiveObjectDefinition } from '../types/room';
+import type { RoomHotspotData } from '../types/room';
 
 /**
  * Runtime handle for a hotspot / use / look target (backed by JSON definitions).
  */
 export class InteractiveObject {
-  readonly definition: InteractiveObjectDefinition;
+  readonly definition: RoomHotspotData;
 
-  constructor(definition: InteractiveObjectDefinition) {
+  constructor(definition: RoomHotspotData) {
     this.definition = definition;
   }
 

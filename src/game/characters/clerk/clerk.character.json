@@ -1,0 +1,11 @@
+{
+  "id": "clerk",
+  "name": "Clerk",
+  "description": "A tired office clerk shuffling papers.",
+  "walkSpeed": 88,
+  "clickable": false,
+  "display": {
+    "aseprite": true
+  },
+  "onLook": "look:clerk"
+}

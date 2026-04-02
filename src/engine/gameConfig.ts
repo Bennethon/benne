@@ -1,14 +1,16 @@
 import * as Phaser from 'phaser';
+import { getGameSettings } from './ConfigManager';
 import { BootScene } from './scenes/BootScene';
-import { DemoRoomScene } from './scenes/DemoRoomScene';
-import { INTERNAL_HEIGHT, INTERNAL_WIDTH } from '../game/constants';
+import { RoomScene } from './scenes/RoomScene';
 
 export function createGameConfig(parent: HTMLElement | string): Phaser.Types.Core.GameConfig {
+  const { width, height } = getGameSettings().resolution;
+
   return {
     type: Phaser.WEBGL,
     parent,
-    width: INTERNAL_WIDTH,
-    height: INTERNAL_HEIGHT,
+    width,
+    height,
     backgroundColor: '#1a1a2e',
     pixelArt: true,
     roundPixels: true,
@@ -17,12 +19,12 @@ export function createGameConfig(parent: HTMLElement | string): Phaser.Types.Cor
       parent,
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
-      width: INTERNAL_WIDTH,
-      height: INTERNAL_HEIGHT,
+      width,
+      height,
       zoom: Phaser.Scale.MAX_ZOOM,
       autoRound: true,
     },
-    scene: [BootScene, DemoRoomScene],
+    scene: [BootScene, RoomScene],
     render: {
       powerPreference: 'high-performance',
     },

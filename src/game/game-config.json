@@ -1,0 +1,14 @@
+{
+  "resolution": {
+    "width": 352,
+    "height": 198
+  },
+  "startingPlayerCharacter": "clerk",
+  "startingRoomId": "office",
+  "audio": {
+    "masterVolume": 1,
+    "sfxVolume": 1,
+    "musicVolume": 0.75,
+    "dialogueVolume": 1
+  }
+}
