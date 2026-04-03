@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 export async function findBenneGameFolders(): Promise<vscode.WorkspaceFolder[]> {
@@ -89,6 +90,22 @@ export async function listCharacterDefinitions(
     return result;
 }
 
+export async function readCharacterHooks(
+    uri: vscode.Uri
+): Promise<{ onLook?: string; onUse?: string }> {
+    try {
+        const raw = await vscode.workspace.fs.readFile(uri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as { onLook?: string; onUse?: string };
+        return {
+            onLook: typeof data.onLook === 'string' ? data.onLook : undefined,
+            onUse: typeof data.onUse === 'string' ? data.onUse : undefined
+        };
+    } catch {
+        return {};
+    }
+}
+
 async function readCharacterMeta(uri: vscode.Uri, fallbackId: string): Promise<{ name: string }> {
     try {
         const raw = await vscode.workspace.fs.readFile(uri);
@@ -106,6 +123,14 @@ export interface RoomPropEntry {
     tag?: string;
     zIndex?: number;
     visible?: boolean;
+    clickable?: boolean;
+    onLook?: string;
+    onUse?: string;
+}
+
+/** Folder name for `rooms/<id>/<id>.room.json` (e.g. `office`). */
+export function getRoomIdFromRoomJsonUri(roomJsonUri: vscode.Uri): string {
+    return path.basename(path.dirname(roomJsonUri.fsPath));
 }
 
 export async function readRoomProps(uri: vscode.Uri): Promise<RoomPropEntry[]> {
@@ -123,7 +148,10 @@ export async function readRoomProps(uri: vscode.Uri): Promise<RoomPropEntry[]> {
                 id: o.id as string,
                 tag: typeof o.tag === 'string' ? o.tag : undefined,
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : undefined,
-                visible: typeof o.visible === 'boolean' ? o.visible : undefined
+                visible: typeof o.visible === 'boolean' ? o.visible : undefined,
+                clickable: typeof o.clickable === 'boolean' ? o.clickable : undefined,
+                onLook: typeof o.onLook === 'string' ? o.onLook : undefined,
+                onUse: typeof o.onUse === 'string' ? o.onUse : undefined
             });
         }
     }

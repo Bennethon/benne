@@ -6,7 +6,16 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Launch BENNE Editor",
+			"name": "Launch BENNE Editor (watch)",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
+			"preLaunchTask": "npm: watch"
+		},
+		{
+			"name": "Launch BENNE Editor (compile once)",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",

@@ -12,7 +12,21 @@
 		{
 			"type": "npm",
 			"script": "watch",
-			"problemMatcher": "$ts-webpack-watch",
+			"problemMatcher": {
+				"owner": "webpack",
+				"source": "webpack",
+				"fileLocation": ["relative", "${workspaceFolder}"],
+				"pattern": {
+					"regexp": "^ERROR in (.+)$",
+					"file": 1,
+					"message": 1
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "\\[webpack-cli\\] Compiler starting",
+					"endsPattern": "compiled successfully|compiled with \\d+ errors?"
+				}
+			},
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never",

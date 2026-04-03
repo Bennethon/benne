@@ -12,7 +12,7 @@
   ],
   "activationEvents": [
     "onView:benne-editor.main",
-    "onView:benne-editor.room",
+    "onView:benne-editor.actions",
     "onCommand:benne-editor.openEditor",
     "onCommand:benne-editor.showSidebar"
   ],
@@ -31,13 +31,13 @@
       "benne-editor": [
         {
           "id": "benne-editor.main",
-          "name": "Main",
-          "contextualTitle": "BENNE — Main"
+          "name": "BENNE",
+          "contextualTitle": "BENNE"
         },
         {
-          "id": "benne-editor.room",
-          "name": "Room",
-          "contextualTitle": "BENNE — Room"
+          "id": "benne-editor.actions",
+          "name": "Actions",
+          "contextualTitle": "BENNE — Actions"
         }
       ]
     },
@@ -50,6 +50,31 @@
       {
         "command": "benne-editor.showSidebar",
         "title": "Show BENNE Sidebar",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.openUriPreview",
+        "title": "Open URI (preview)",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.openRoomScriptPreview",
+        "title": "Open room script",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.revealRegisterRoomScript",
+        "title": "Go to registerRoomScript",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.revealRoomScriptEvent",
+        "title": "Reveal room script event",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.revealCharacterScriptEvent",
+        "title": "Reveal character script event",
         "category": "BENNE"
       }
     ]

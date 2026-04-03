@@ -1,44 +1,123 @@
 import * as vscode from 'vscode';
+import { ActionsTreeProvider } from './actionsTreeProvider';
 import { EditorSelection } from './editorSelection';
-import { MainTreeProvider } from './mainTreeProvider';
-import { RoomTreeProvider } from './roomTreeProvider';
+import { MainTreeProvider, type MainTreeNode } from './mainTreeProvider';
+import { openDocumentUri, openSinglePreview, revealEventInDocument } from './roomScriptNavigation';
 
 export function activate(context: vscode.ExtensionContext): void {
     const selection = new EditorSelection();
     const mainProvider = new MainTreeProvider();
-    const roomProvider = new RoomTreeProvider(selection);
+    const actionsProvider = new ActionsTreeProvider(selection);
 
     const mainTreeView = vscode.window.createTreeView('benne-editor.main', {
         treeDataProvider: mainProvider,
         showCollapseAll: true
     });
 
-    const roomTreeView = vscode.window.createTreeView('benne-editor.room', {
-        treeDataProvider: roomProvider,
+    const actionsTreeView = vscode.window.createTreeView('benne-editor.actions', {
+        treeDataProvider: actionsProvider,
         showCollapseAll: false
     });
 
     context.subscriptions.push(
         mainTreeView,
-        roomTreeView,
+        actionsTreeView,
         selection,
         mainTreeView.onDidChangeSelection((e) => {
-            const node = e.selection[0];
+            const node = e.selection[0] as MainTreeNode | undefined;
             if (!node) {
                 return;
             }
             if (node.kind === 'room') {
                 selection.setRoom(node.uri, node.name);
+                void openRoomJsonAndScript(node.uri, node.id);
+            } else if (node.kind === 'prop') {
+                selection.setRoomWithProp(
+                    node.roomJsonUri,
+                    node.roomName,
+                    node.roomId,
+                    node.prop
+                );
+                void openSinglePreview(node.roomJsonUri, vscode.ViewColumn.Active);
             } else if (node.kind === 'character') {
                 selection.setCharacter(node.uri, node.name);
+                void openSinglePreview(node.uri, vscode.ViewColumn.Active);
             }
         })
     );
 
     const refreshTrees = (): void => {
         mainProvider.refresh();
-        roomProvider.refresh();
+        actionsProvider.refresh();
     };
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'benne-editor.openUriPreview',
+            async (uriStr?: string, preview?: boolean) => {
+                if (typeof uriStr !== 'string') {
+                    return;
+                }
+                await openDocumentUri(vscode.Uri.parse(uriStr), preview !== false);
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.openRoomScriptPreview',
+            async (roomJsonUriStr?: string, roomId?: string) => {
+                if (typeof roomJsonUriStr !== 'string' || typeof roomId !== 'string') {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(roomJsonUriStr);
+                const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
+                await openDocumentUri(scriptUri, true, vscode.ViewColumn.Beside);
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.revealRegisterRoomScript',
+            async (roomJsonUriStr?: string, roomId?: string) => {
+                if (typeof roomJsonUriStr !== 'string' || typeof roomId !== 'string') {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(roomJsonUriStr);
+                const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
+                await revealEventInDocument(scriptUri, 'registerRoomScript');
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.revealRoomScriptEvent',
+            async (roomJsonUriStr?: string, roomId?: string, eventId?: string) => {
+                if (
+                    typeof roomJsonUriStr !== 'string' ||
+                    typeof roomId !== 'string' ||
+                    typeof eventId !== 'string'
+                ) {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(roomJsonUriStr);
+                const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
+                await revealEventInDocument(scriptUri, eventId);
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.revealCharacterScriptEvent',
+            async (characterJsonUriStr?: string, characterId?: string, eventId?: string) => {
+                if (
+                    typeof characterJsonUriStr !== 'string' ||
+                    typeof characterId !== 'string' ||
+                    typeof eventId !== 'string'
+                ) {
+                    return;
+                }
+                const charJsonUri = vscode.Uri.parse(characterJsonUriStr);
+                const scriptUri = vscode.Uri.joinPath(
+                    charJsonUri,
+                    '..',
+                    `${characterId}.character.ts`
+                );
+                await revealEventInDocument(scriptUri, eventId);
+            }
+        )
+    );
 
     const jsonWatcher = vscode.workspace.createFileSystemWatcher('**/src/game/**/*.json');
     context.subscriptions.push(
@@ -132,7 +211,7 @@ function getWebviewContent(): string {
         </head>
         <body>
             <h1>BENNE Editor</h1>
-            <p>Use the <strong>BENNE</strong> activity bar for <em>Main</em> (rooms &amp; characters) and <em>Room</em> (props). This panel will host the visual canvas later.</p>
+            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree (rooms &amp; props under each room, plus characters) and <em>Actions</em>. This panel will host the visual canvas later.</p>
             
             <button id="create-room-btn">Create New Room</button>
 
@@ -148,3 +227,14 @@ function getWebviewContent(): string {
 }
 
 export function deactivate(): void {}
+
+async function openRoomJsonAndScript(roomJsonUri: vscode.Uri, roomId: string): Promise<void> {
+    await openSinglePreview(roomJsonUri, vscode.ViewColumn.Active);
+    const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
+    try {
+        await vscode.workspace.fs.stat(scriptUri);
+        await openSinglePreview(scriptUri, vscode.ViewColumn.Beside);
+    } catch {
+        /* optional *.room.ts */
+    }
+}

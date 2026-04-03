@@ -1,5 +1,11 @@
 import * as vscode from 'vscode';
-import { findBenneGameFolders, listCharacterDefinitions, listRoomDefinitions } from './gameDiscovery';
+import {
+    findBenneGameFolders,
+    listCharacterDefinitions,
+    listRoomDefinitions,
+    readRoomProps,
+    type RoomPropEntry
+} from './gameDiscovery';
 
 export type MainTreeNode =
     | { kind: 'hint'; key: string; message: string }
@@ -7,6 +13,14 @@ export type MainTreeNode =
     | { kind: 'roomsGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'charsGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'room'; folder: vscode.WorkspaceFolder; id: string; name: string; uri: vscode.Uri }
+    | {
+          kind: 'prop';
+          folder: vscode.WorkspaceFolder;
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+          roomName: string;
+          prop: RoomPropEntry;
+      }
     | { kind: 'character'; folder: vscode.WorkspaceFolder; id: string; name: string; uri: vscode.Uri };
 
 export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
@@ -46,18 +60,25 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 return item;
             }
             case 'room': {
-                const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
+                const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.Collapsed);
                 item.id = `room:${element.uri.toString()}`;
-                item.description = element.id !== element.name ? element.id : undefined;
                 item.resourceUri = element.uri;
                 item.iconPath = new vscode.ThemeIcon('symbol-structure');
                 item.contextValue = 'benneRoom';
                 return item;
             }
+            case 'prop': {
+                const label = element.prop.tag ?? element.prop.id;
+                const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
+                item.id = `prop:${element.roomJsonUri.toString()}:${element.prop.id}`;
+                item.description = element.prop.clickable === true ? 'clickable' : undefined;
+                item.iconPath = new vscode.ThemeIcon('symbol-misc');
+                item.contextValue = 'benneRoomProp';
+                return item;
+            }
             case 'character': {
                 const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
                 item.id = `character:${element.uri.toString()}`;
-                item.description = element.id !== element.name ? element.id : undefined;
                 item.resourceUri = element.uri;
                 item.iconPath = new vscode.ThemeIcon('person');
                 item.contextValue = 'benneCharacter';
@@ -108,6 +129,25 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 name: r.name,
                 uri: r.uri
             }));
+        }
+
+        if (element.kind === 'room') {
+            try {
+                const props = await readRoomProps(element.uri);
+                if (props.length === 0) {
+                    return [{ kind: 'hint', key: `no-props:${element.uri}`, message: '(no props)' }];
+                }
+                return props.map((prop) => ({
+                    kind: 'prop',
+                    folder: element.folder,
+                    roomJsonUri: element.uri,
+                    roomId: element.id,
+                    roomName: element.name,
+                    prop
+                }));
+            } catch {
+                return [{ kind: 'hint', key: `props-err:${element.uri}`, message: 'Could not read room JSON' }];
+            }
         }
 
         if (element.kind === 'charsGroup') {

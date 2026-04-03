@@ -29,7 +29,21 @@
         "type": "npm",
         "script": "watch",
         "path": "benne-editor",
-        "problemMatcher": "$ts-webpack-watch",
+        "problemMatcher": {
+          "owner": "webpack",
+          "source": "webpack",
+          "fileLocation": ["relative", "${workspaceFolder:BENNE Editor Extension}"],
+          "pattern": {
+            "regexp": "^ERROR in (.+)$",
+            "file": 1,
+            "message": 1
+          },
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "\\[webpack-cli\\] Compiler starting",
+            "endsPattern": "compiled successfully|compiled with \\d+ errors?"
+          }
+        },
         "isBackground": true,
         "presentation": {
           "reveal": "silent",
@@ -42,7 +56,20 @@
     "version": "0.2.0",
     "configurations": [
       {
-        "name": "Launch BENNE Editor (workspace)",
+        "name": "Launch BENNE Editor (workspace + watch)",
+        "type": "extensionHost",
+        "request": "launch",
+        "runtimeExecutable": "${execPath}",
+        "args": [
+          "--extensionDevelopmentPath=${workspaceFolder:BENNE Editor Extension}"
+        ],
+        "outFiles": [
+          "${workspaceFolder:BENNE Editor Extension}/dist/**/*.js"
+        ],
+        "preLaunchTask": "benne-editor: npm watch"
+      },
+      {
+        "name": "Launch BENNE Editor (workspace, compile once)",
         "type": "extensionHost",
         "request": "launch",
         "runtimeExecutable": "${execPath}",
