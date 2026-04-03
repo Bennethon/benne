@@ -1,0 +1,12 @@
+{
+  "folders": [
+    {
+      "name": "BENNE Game Engine",
+      "path": "."
+    },
+    {
+      "name": "BENNE Editor Extension",
+      "path": "benne-editor"
+    }
+  ]
+}
