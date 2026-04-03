@@ -8,12 +8,12 @@ const roomJsonModules = import.meta.glob('./assets/images/rooms/**/*.json', {
   eager: true,
 }) as Record<string, { default?: Record<string, unknown> } | Record<string, unknown>>;
 
-/** Inventory / item icons using the same `images/items/<id>/<id>.json` + `.png` convention as characters. */
-const itemJsonModules = import.meta.glob('./assets/images/items/**/*.json', {
+/** Aseprite sheets for collectibles / inventory UI: `images/inventory/<id>/<id>.json` + `.png` (same layout as characters). */
+const inventoryJsonModules = import.meta.glob('./assets/images/inventory/**/*.json', {
   eager: true,
 }) as Record<string, { default?: Record<string, unknown> } | Record<string, unknown>>;
 
-export type AsepriteAssetSheetKind = 'character' | 'room' | 'item';
+export type AsepriteAssetSheetKind = 'character' | 'room' | 'inventory';
 
 function rawJsonFromModule(mod: { default?: Record<string, unknown> } | Record<string, unknown>): Record<string, unknown> {
   if (mod && typeof mod === 'object' && 'default' in mod && mod.default && typeof mod.default === 'object') {
@@ -28,8 +28,8 @@ function bundledAsepriteJsonKey(kind: AsepriteAssetSheetKind, id: string): strin
       return `./assets/images/characters/${id}/${id}.json`;
     case 'room':
       return `./assets/images/rooms/${id}/${id}.json`;
-    case 'item':
-      return `./assets/images/items/${id}/${id}.json`;
+    case 'inventory':
+      return `./assets/images/inventory/${id}/${id}.json`;
   }
 }
 
@@ -39,8 +39,8 @@ function moduleMapForKind(kind: AsepriteAssetSheetKind): Record<string, { defaul
       return characterJsonModules;
     case 'room':
       return roomJsonModules;
-    case 'item':
-      return itemJsonModules;
+    case 'inventory':
+      return inventoryJsonModules;
   }
 }
 
@@ -50,8 +50,8 @@ function kindLabel(kind: AsepriteAssetSheetKind): string {
       return 'character';
     case 'room':
       return 'room';
-    case 'item':
-      return 'item';
+    case 'inventory':
+      return 'inventory';
   }
 }
 
@@ -69,7 +69,7 @@ function getBundledAsepriteRawJson(kind: AsepriteAssetSheetKind, id: string): Re
 
 /**
  * Names from Aseprite `meta.frameTags`. Cels with no tag do not appear — only tagged clips can be referenced
- * as prop `tag`, character animation keys, item animations, etc.
+ * as prop `tag`, character animation keys, inventory sheet tags, etc.
  */
 export function readAsepriteFrameTagNamesFromRawJson(raw: Record<string, unknown>): readonly string[] {
   const meta = raw.meta;
@@ -84,7 +84,7 @@ export function readAsepriteFrameTagNamesFromRawJson(raw: Record<string, unknown
 }
 
 /**
- * Frame-tag names for a bundled character, room, or item Aseprite sheet (`images/<kind folder>/<id>/<id>.json`).
+ * Frame-tag names for a bundled character, room, or inventory Aseprite sheet (`images/<kind folder>/<id>/<id>.json`).
  */
 export function getAsepriteFrameTagNames(kind: AsepriteAssetSheetKind, id: string): readonly string[] {
   const raw = getBundledAsepriteRawJson(kind, id);
@@ -102,8 +102,8 @@ export function getRoomAsepriteFrameTagNames(roomId: string): readonly string[] 
 }
 
 /** @see getAsepriteFrameTagNames */
-export function getItemAsepriteFrameTagNames(itemId: string): readonly string[] {
-  return getAsepriteFrameTagNames('item', itemId);
+export function getInventoryAsepriteFrameTagNames(inventoryId: string): readonly string[] {
+  return getAsepriteFrameTagNames('inventory', inventoryId);
 }
 
 /**
@@ -146,8 +146,8 @@ export function getNormalizedRoomAsepriteAtlasData(roomId: string): Record<strin
 }
 
 /**
- * Loads bundled Aseprite JSON for `images/items/<itemId>/<itemId>.json` (same normalization as characters).
+ * Loads bundled Aseprite JSON for `images/inventory/<id>/<id>.json` (same normalization as characters).
  */
-export function getNormalizedItemAsepriteAtlasData(itemId: string): Record<string, unknown> {
-  return normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('item', itemId)) as Record<string, unknown>;
+export function getNormalizedInventoryAsepriteAtlasData(inventoryId: string): Record<string, unknown> {
+  return normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('inventory', inventoryId)) as Record<string, unknown>;
 }
