@@ -7,5 +7,14 @@
   "display": {
     "aseprite": true
   },
+  "animations": {
+    "WalkL": { "loop": true, "frameDuration": 83 },
+    "WalkD": { "loop": true, "frameDuration": 83 },
+    "WalkU": { "loop": true, "frameDuration": 83 },
+    "IdleD": { "loop": true },
+    "IdleU": { "loop": true },
+    "IdleL": { "loop": true },
+    "IdleR": { "loop": true }
+  },
   "onLook": "look:clerk"
 }

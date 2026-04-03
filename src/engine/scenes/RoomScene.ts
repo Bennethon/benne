@@ -14,8 +14,9 @@ import {
   type PlayerWalkStartPayload,
   type PlayerWalkStopPayload,
 } from '../events/playerWalkEvents';
+import { setupCharacterAsepritePlayback } from '../characterAnimationPlayback';
 import { attachPostProcessingPlaceholder } from '../postfx/PostEffects';
-import { isPointInWalkableArea } from '../walkable';
+import { clampWalkDestinationTowardClick } from '../walkable';
 import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants';
 import type { RoomData, RoomHotspotData } from '../../types/room';
 import type { RoomCharacterSpawn, RoomSceneStartData } from './BootScene';
@@ -73,11 +74,18 @@ export class RoomScene extends Phaser.Scene {
 
     const { x: worldX, y: worldY } = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
 
-    if (!isPointInWalkableArea(worldX, worldY, this.roomData.walkable.polygons)) {
+    const dest = clampWalkDestinationTowardClick(
+      this.player.x,
+      this.player.y,
+      worldX,
+      worldY,
+      this.roomData.walkable.polygons,
+    );
+    if (!dest) {
       return;
     }
 
-    this.movePlayerToward(worldX, worldY);
+    this.movePlayerToward(dest.x, dest.y);
   };
 
   /**
@@ -207,6 +215,7 @@ export class RoomScene extends Phaser.Scene {
     const sprite = this.add.image(spawn.x, spawn.y, spawn.textureKey).setOrigin(0.5, 1);
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
+    sprite.setData('instanceId', spawn.instanceId);
     this.attachCharacterInteraction(roomId, spawn, sprite);
   }
 
@@ -214,10 +223,12 @@ export class RoomScene extends Phaser.Scene {
     const sprite = this.add.sprite(spawn.x, spawn.y, spawn.textureKey).setOrigin(0.5, 1);
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
+    sprite.setData('instanceId', spawn.instanceId);
     const isPlayer = spawn.data.id === getStartingPlayerCharacterId();
     sprite.setData('isPlayer', isPlayer);
 
-    sprite.anims.createFromAseprite(spawn.textureKey);
+    const createdAnims = sprite.anims.createFromAseprite(spawn.textureKey);
+    setupCharacterAsepritePlayback(sprite, spawn.data, createdAnims);
     attachDirectionalAnimationApi(sprite);
 
     const facing = resolveInitialIdleFacing(sprite);

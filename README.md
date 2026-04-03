@@ -1,4 +1,6 @@
-# Benne
+# BENNE
+
+## Bennethon Engine for Nifty Narrative Experiences
 
 Web-based point-and-click adventure engine (Phaser 4 + TypeScript + Vite). Internal resolution and other bootstrap settings live in **`src/game/game-config.json`** (default **352×198**).
 

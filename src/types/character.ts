@@ -1,4 +1,31 @@
 /**
+ * Frame-synced marker from character JSON (footsteps, SFX hooks, dialogue beats, etc.).
+ */
+export interface CharacterAnimationFrameEvent {
+  /** 0-based index within the Aseprite tag / Phaser animation sequence. */
+  frame: number;
+  type: string;
+  data?: unknown;
+}
+
+/**
+ * Per-tag animation policy (keys match Aseprite frame tag names, e.g. `WalkL`, `IdleD`).
+ */
+export interface CharacterAnimationClipConfig {
+  /** When true, repeat forever (`repeat: -1` in Phaser). When false or omitted, play once. */
+  loop?: boolean;
+  /**
+   * Milliseconds each frame is shown (uniform for this tag). Applied to every frame in the clip.
+   * When omitted, keeps per-frame durations from the Aseprite export.
+   */
+  frameDuration?: number;
+  events?: CharacterAnimationFrameEvent[];
+  // Future: pingPong?: boolean; reverse?: boolean;
+}
+
+export type CharacterAnimationsConfig = Record<string, CharacterAnimationClipConfig>;
+
+/**
  * Character template loaded from `src/game/characters/` as `*.character.json` files.
  */
 export interface CharacterDisplayData {
@@ -21,6 +48,8 @@ export interface CharacterData {
   walkSpeed: number;
   clickable: boolean;
   display: CharacterDisplayData;
+  /** Optional per Aseprite-tag playback (loop, frame duration, frame events). */
+  animations?: CharacterAnimationsConfig;
   /** Event id for look / examine (optional). */
   onLook?: string;
 }

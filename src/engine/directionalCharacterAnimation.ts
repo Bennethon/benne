@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { playCharacterAnimation, type CharacterAnimSprite } from './characterAnimationPlayback';
 
 /** Matches Aseprite frame-tag suffix convention (IdleL, WalkR, …). */
 export type CardinalFacing = 'L' | 'R' | 'D' | 'U';
@@ -14,7 +15,7 @@ export function facingFromWorldDelta(dx: number, dy: number): CardinalFacing {
   return dy > 0 ? 'D' : 'U';
 }
 
-export interface DirectionalCharacterSprite extends Phaser.GameObjects.Sprite {
+export interface DirectionalCharacterSprite extends CharacterAnimSprite {
   playDirectionalAnimation(baseName: string, direction: CardinalFacing): void;
 }
 
@@ -51,7 +52,7 @@ export function playDirectionalAnimation(
       return false;
     }
     sprite.setFlipX(flipX);
-    sprite.play(key);
+    playCharacterAnimation(sprite, key);
     sprite.setData('facing', direction);
     sprite.setData('facingBase', baseName);
     return true;
@@ -76,7 +77,10 @@ export function playDirectionalAnimation(
   tryPlay(`${baseName}R`, true);
 }
 
-/** Attaches `playDirectionalAnimation` on the sprite instance (local method style). */
+/**
+ * Attaches `playDirectionalAnimation` on the sprite. Call after {@link setupCharacterAsepritePlayback}
+ * so `playCharacterAnimation` is available.
+ */
 export function attachDirectionalAnimationApi(sprite: Phaser.GameObjects.Sprite): DirectionalCharacterSprite {
   const extended = sprite as DirectionalCharacterSprite;
   extended.playDirectionalAnimation = (baseName: string, direction: CardinalFacing): void => {
