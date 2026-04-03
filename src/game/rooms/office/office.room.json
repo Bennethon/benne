@@ -1,31 +1,172 @@
 {
   "id": "office",
   "name": "Office",
-  "background": {
-    "image": "images/backgrounds/office.png"
-  },
   "walkable": {
     "polygons": [
       {
         "id": "office-floor",
         "points": [
-          { "x": 10, "y": 188 },
-          { "x": 342, "y": 188 },
-          { "x": 322, "y": 136 },
-          { "x": 28, "y": 136 }
+          { "x": 10, "y": 160 },
+          { "x": 342, "y": 160 },
+          { "x": 322, "y": 95 },
+          { "x": 28, "y": 95 }
         ]
       }
     ]
   },
-  "hotspots": [
+  "hotspots": [],
+  "props": [
     {
-      "id": "office-desk",
-      "label": "Desk",
-      "x": 188,
-      "y": 106,
-      "width": 56,
-      "height": 30,
+      "id": "office-prop-background",
+      "tag": "Background",
+      "zIndex": 1,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "office-prop-shadow",
+      "tag": "Shadow",
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "office-prop-backlight",
+      "tag": "Backlight",
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "office-prop-fan",
+      "tag": "Fan",
+      "zIndex": 6,
+      "visible": true,
+      "alpha": 1,
+      "animations": {
+        "Fan": { "loop": true, "frameDuration": 150 }
+      }
+    },
+    {
+      "id": "office-prop-chair",
+      "tag": "Chair",
+      "zIndex": 10,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "office-prop-desk",
+      "tag": "Desk",
+      "zIndex": 14,
+      "clickable": true,
+      "visible": true,
+      "alpha": 1,
+      "walkToPoint": { "x": 175, "y": 172 },
+      "lookAtPoint": { "x": 205, "y": 112 },
+      "description": "Paperwork, coffee stains, and a blinking answering machine light.",
+      "collider": {
+        "points": [
+          { "x": 152, "y": 92 },
+          { "x": 258, "y": 92 },
+          { "x": 258, "y": 140 },
+          { "x": 152, "y": 140 }
+        ]
+      },
       "onLook": "look:office-desk"
+    },
+    {
+      "id": "office-prop-door",
+      "tag": "DoorClosed",
+      "zIndex": 12,
+      "clickable": true,
+      "visible": true,
+      "alpha": 1,
+      "walkToPoint": { "x": 48, "y": 170 },
+      "lookAtPoint": { "x": 44, "y": 110 },
+      "description": "A heavy door. The frosted glass reads something about \"Synergy.\"",
+      "collider": {
+        "points": [
+          { "x": 26, "y": 58 },
+          { "x": 62, "y": 58 },
+          { "x": 62, "y": 168 },
+          { "x": 26, "y": 168 }
+        ]
+      },
+      "onLook": "look:office-door"
+    },
+    {
+      "id": "office-prop-coatrack",
+      "tag": "Coatrack",
+      "zIndex": 16,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "office-prop-jacket",
+      "tag": "Jacket",
+      "zIndex": 18,
+      "clickable": true,
+      "visible": true,
+      "alpha": 1,
+      "walkToPoint": { "x": 285, "y": 172 },
+      "lookAtPoint": { "x": 300, "y": 105 },
+      "description": "Someone’s jacket — still holding a faint smell of rain and toner.",
+      "collider": {
+        "points": [
+          { "x": 268, "y": 88 },
+          { "x": 332, "y": 88 },
+          { "x": 332, "y": 128 },
+          { "x": 268, "y": 128 }
+        ]
+      },
+      "onLook": "look:office-jacket"
+    },
+    {
+      "id": "office-prop-phone-cutaway",
+      "tag": "PhoneCutaway",
+      "zIndex": 20,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "office-prop-glasses",
+      "tag": "Glasses",
+      "zIndex": 22,
+      "clickable": true,
+      "visible": true,
+      "alpha": 1,
+      "walkToPoint": { "x": 165, "y": 172 },
+      "lookAtPoint": { "x": 198, "y": 118 },
+      "description": "Reading glasses abandoned next to a stack of forms.",
+      "collider": {
+        "points": [
+          { "x": 184, "y": 108 },
+          { "x": 228, "y": 108 },
+          { "x": 228, "y": 126 },
+          { "x": 184, "y": 126 }
+        ]
+      },
+      "onLook": "look:office-glasses"
+    },
+    {
+      "id": "office-prop-cyberbuddy",
+      "tag": "CyberBuddy",
+      "zIndex": 24,
+      "clickable": true,
+      "visible": true,
+      "alpha": 1,
+      "walkToPoint": { "x": 155, "y": 172 },
+      "lookAtPoint": { "x": 192, "y": 102 },
+      "description": "A cheerful plastic desk mascot from a forgotten trade show.",
+      "collider": {
+        "points": [
+          { "x": 230, "y": 80 },
+          { "x": 270, "y": 80 },
+          { "x": 270, "y": 100 },
+          { "x": 230, "y": 100 }
+        ]
+      },
+      "onLook": "look:office-cyberbuddy"
     }
   ],
   "characters": [

@@ -10,5 +10,9 @@
     "sfxVolume": 1,
     "musicVolume": 0.75,
     "dialogueVolume": 1
+  },
+  "debug": {
+    "showWalkable": true,
+    "showPropOutlines": true
   }
 }

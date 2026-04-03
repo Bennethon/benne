@@ -1,13 +1,19 @@
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../applyAudioFromSettings';
 import { getAsepriteAssetPaths, getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/characterAseprite';
-import { getNormalizedAsepriteAtlasData } from '../../game/loadAsepriteAtlasData';
+import {
+  getAsepriteFrameTagNames,
+  getNormalizedAsepriteAtlasData,
+  getNormalizedRoomAsepriteAtlasData,
+  warnIfAnimationConfigKeysMissingFromFrameTags,
+} from '../../game/loadAsepriteAtlasData';
+import { getRoomAsepriteAssetPaths, getRoomAsepriteTextureKey } from '../../game/roomAseprite';
 import { loadCharacterData } from '../../game/loadCharacterData';
 import { loadStartRoomData } from '../../game/loadStartRoom';
 import { resolveGameAssetUrl } from '../../game/resolveGameAssetUrl';
 import { SCENE_BOOT, SCENE_ROOM } from '../../game/constants';
 import type { CharacterData } from '../../types/character';
-import type { RoomCharacterInstance, RoomData } from '../../types/room';
+import type { RoomCharacterInstance, RoomData, RoomPropInstance } from '../../types/room';
 
 export type CharacterSpawnLoadKind = 'aseprite' | 'image';
 
@@ -21,10 +27,22 @@ export interface RoomCharacterSpawn {
   textureKey: string;
 }
 
+export interface RoomPropSpawn {
+  id: string;
+  textureKey: string;
+  tag: string;
+  x: number;
+  y: number;
+  data: RoomPropInstance;
+}
+
 export interface RoomSceneStartData {
   room: RoomData;
-  backgroundTextureKey: string;
+  backgroundTextureKey: string | null;
   characters: RoomCharacterSpawn[];
+  props: RoomPropSpawn[];
+  /** Aseprite key for `room.props`; null when the room has no props. */
+  roomPropsTextureKey: string | null;
 }
 
 export class BootScene extends Phaser.Scene {
@@ -36,9 +54,49 @@ export class BootScene extends Phaser.Scene {
     applyBootAudioSettings(this);
 
     const room = loadStartRoomData();
-    const backgroundTextureKey = `bg:${room.id}`;
+    const backgroundTextureKey = room.background?.image ? `bg:${room.id}` : null;
+    if (room.background?.image && backgroundTextureKey) {
+      this.load.image(backgroundTextureKey, resolveGameAssetUrl(room.background.image));
+    }
 
-    this.load.image(backgroundTextureKey, resolveGameAssetUrl(room.background.image));
+    const sheetTagNames = room.props?.length ? getAsepriteFrameTagNames('room', room.id) : [];
+    const sheetTagSet = new Set(sheetTagNames);
+
+    if (room.props?.length && sheetTagNames.length === 0) {
+      console.warn(
+        `[Benne] Room '${room.id}' lists props but '${room.id}.json' has no meta.frameTags — no room props will load.`,
+      );
+    }
+
+    const propsWithSheetTags =
+      room.props?.filter((p) => {
+        if (sheetTagSet.has(p.tag)) {
+          return true;
+        }
+        console.warn(
+          `[Benne] Room '${room.id}' prop '${p.id}' tag '${p.tag}' is not an Aseprite frame tag on this sheet (untagged cels are not props) — skipped.`,
+        );
+        return false;
+      }) ?? [];
+
+    for (const p of propsWithSheetTags) {
+      warnIfAnimationConfigKeysMissingFromFrameTags(
+        `Room '${room.id}' prop '${p.id}'`,
+        sheetTagNames,
+        p.animations as Record<string, unknown> | undefined,
+      );
+    }
+
+    const roomPropsTextureKey =
+      propsWithSheetTags.length > 0 ? getRoomAsepriteTextureKey(room.id) : null;
+    if (roomPropsTextureKey) {
+      const paths = getRoomAsepriteAssetPaths(room.id);
+      this.load.aseprite({
+        key: roomPropsTextureKey,
+        textureURL: resolveGameAssetUrl(paths.png),
+        atlasURL: getNormalizedRoomAsepriteAtlasData(room.id),
+      });
+    }
 
     const spawns: RoomCharacterSpawn[] = [];
     const loadedAsepriteCharacterIds = new Set<string>();
@@ -47,11 +105,25 @@ export class BootScene extends Phaser.Scene {
       this.queueCharacterLoads(inst, spawns, loadedAsepriteCharacterIds);
     }
 
+    const propSpawns: RoomPropSpawn[] =
+      propsWithSheetTags.length > 0 && roomPropsTextureKey
+        ? propsWithSheetTags.map((p) => ({
+            id: p.id,
+            textureKey: roomPropsTextureKey,
+            tag: p.tag,
+            x: p.x ?? 0,
+            y: p.y ?? 0,
+            data: p,
+          }))
+        : [];
+
     this.load.once(Phaser.Loader.Events.COMPLETE, () => {
       this.scene.start(SCENE_ROOM, {
         room,
         backgroundTextureKey,
         characters: spawns,
+        props: propSpawns,
+        roomPropsTextureKey,
       } satisfies RoomSceneStartData);
     });
     this.load.start();
@@ -67,6 +139,12 @@ export class BootScene extends Phaser.Scene {
     if (usesAsepriteDisplay(data)) {
       const textureKey = getAsepriteTextureKey(data.id);
       if (!loadedAsepriteCharacterIds.has(data.id)) {
+        const characterFrameTags = getAsepriteFrameTagNames('character', data.id);
+        warnIfAnimationConfigKeysMissingFromFrameTags(
+          `Character '${data.id}'`,
+          characterFrameTags,
+          data.animations as Record<string, unknown> | undefined,
+        );
         const paths = getAsepriteAssetPaths(data.id);
         this.load.aseprite({
           key: textureKey,

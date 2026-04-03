@@ -1,3 +1,5 @@
+import type { CharacterAnimationsConfig } from './character';
+
 export interface Point2 {
   x: number;
   y: number;
@@ -28,10 +30,52 @@ export interface RoomCharacterInstance {
   y: number;
 }
 
+/** Clickable / hit-test region for a room prop, in room pixel space (same as walkable polygons). */
+export interface RoomPropCollider {
+  points: Point2[];
+}
+
+/**
+ * One placed prop in a room: Aseprite tag on this room’s sheet (`images/rooms/<roomId>/`), draw order, and interaction.
+ */
+export interface RoomPropInstance {
+  id: string;
+  /**
+   * Aseprite frame-tag name for this prop. Must appear in `meta.frameTags` on the room sheet
+   * (see `getAsepriteFrameTagNames('room', roomId)`); cels with no tag are not props.
+   */
+  tag: string;
+  /** Sprite position in room pixels (default top-left 0,0 for full-room composite frames). */
+  x?: number;
+  y?: number;
+  /** Draw order: higher values render in front of lower values. */
+  zIndex?: number;
+  /** When true, the prop may receive clicks and run `onLook` / walk-to logic. */
+  clickable?: boolean;
+  visible?: boolean;
+  /** 0–1; default 1. */
+  alpha?: number;
+  /** Where the player walks when this prop is used (required when `clickable` is true). */
+  walkToPoint?: Point2;
+  /** Facing target after walking (required when `clickable` is true). */
+  lookAtPoint?: Point2;
+  description?: string;
+  /** Hit area in room space; required when `clickable` is true. */
+  collider?: RoomPropCollider;
+  /** Event id emitted on the global event bus when the player looks at this prop (after walk + face). */
+  onLook?: string;
+  onUse?: string;
+  /** Per-tag playback (loop, frameDuration); keys match Aseprite tags on this room’s sheet. */
+  animations?: CharacterAnimationsConfig;
+}
+
 export interface RoomData {
   id: string;
   name: string;
-  background: {
+  /**
+   * Optional static backdrop under props. When omitted, only props (and game backgroundColor) show.
+   */
+  background?: {
     /** Path under `src/game/assets/` (e.g. `images/backgrounds/office.png`). Resolved by Vite at build time. */
     image: string;
   };
@@ -39,6 +83,10 @@ export interface RoomData {
     polygons: WalkablePolygon[];
   };
   hotspots: RoomHotspotData[];
+  /**
+   * Layered Aseprite props from `images/rooms/<id>/<id>.png` + `.json` (one sheet per room).
+   */
+  props?: RoomPropInstance[];
   /** NPCs / props that use a character definition. */
   characters?: RoomCharacterInstance[];
 }

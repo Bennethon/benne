@@ -14,15 +14,39 @@ import {
   type PlayerWalkStartPayload,
   type PlayerWalkStopPayload,
 } from '../events/playerWalkEvents';
-import { setupCharacterAsepritePlayback } from '../characterAnimationPlayback';
+import { applyCharacterAnimationClips, setupCharacterAsepritePlayback } from '../characterAnimationPlayback';
+import { getGameSettings } from '../ConfigManager';
 import { attachPostProcessingPlaceholder } from '../postfx/PostEffects';
 import { clampWalkDestinationTowardClick } from '../walkable';
+import type { RoomPropInteractPayload } from '../events/propInteractionEvents';
 import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants';
+import type { CharacterAnimationsConfig } from '../../types/character';
 import type { RoomData, RoomHotspotData } from '../../types/room';
-import type { RoomCharacterSpawn, RoomSceneStartData } from './BootScene';
+import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
 
 /** Ignore walk clicks when already within this many pixels of the target. */
 const MIN_WALK_DISTANCE_PX = 6;
+
+/** Props use `zIndex`; characters render above this baseline. */
+const CHARACTER_SCENE_DEPTH = 10_000;
+
+/** Walkable / prop debug strokes render above characters. */
+const DEBUG_OVERLAY_DEPTH = 20_000;
+
+/** Outline color for `debug.showWalkable` (green). */
+const DEBUG_WALKABLE_STROKE = 0x33dd66;
+/** Outline color for `debug.showPropOutlines` (magenta). */
+const DEBUG_PROP_COLLIDER_STROKE = 0xff44cc;
+
+function mergeRoomPropAnimationClips(spawns: readonly RoomPropSpawn[]): CharacterAnimationsConfig {
+  const out: CharacterAnimationsConfig = {};
+  for (const s of spawns) {
+    if (s.data.animations) {
+      Object.assign(out, s.data.animations);
+    }
+  }
+  return out;
+}
 
 export class RoomScene extends Phaser.Scene {
   private roomData!: RoomData;
@@ -31,6 +55,9 @@ export class RoomScene extends Phaser.Scene {
   player: DirectionalCharacterSprite | null = null;
 
   private playerMoveTween: Phaser.Tweens.Tween | null = null;
+
+  /** Fired once when a walk tween completes successfully (instant walks may call it without a tween). */
+  private walkArriveCallback: (() => void) | null = null;
 
   constructor() {
     super(SCENE_ROOM);
@@ -46,10 +73,18 @@ export class RoomScene extends Phaser.Scene {
     const w = getInternalWidth();
     const h = getInternalHeight();
 
-    this.add.image(0, 0, data.backgroundTextureKey).setOrigin(0, 0).setDisplaySize(w, h);
+    if (data.backgroundTextureKey) {
+      this.add.image(0, 0, data.backgroundTextureKey).setOrigin(0, 0).setDisplaySize(w, h);
+    }
+
+    this.spawnRoomProps(data, w, h);
 
     data.room.hotspots.forEach((hotspot) => this.createHotspot(data.room.id, hotspot));
     data.characters.forEach((spawn) => this.spawnCharacter(data.room.id, spawn));
+
+    this.drawRoomDebugOverlays(data);
+
+    this.input.mouse?.disableContextMenu();
 
     this.input.on('pointerdown', this.handleRoomPointerDown);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -93,6 +128,7 @@ export class RoomScene extends Phaser.Scene {
    * with reason `interrupted` (used when tearing down the scene).
    */
   private stopPlayerMoveTween(emitStop: boolean): void {
+    this.walkArriveCallback = null;
     if (!this.playerMoveTween) {
       return;
     }
@@ -109,7 +145,7 @@ export class RoomScene extends Phaser.Scene {
     }
   }
 
-  private movePlayerToward(destX: number, destY: number): void {
+  private movePlayerToward(destX: number, destY: number, onArrive?: () => void): void {
     const sprite = this.player;
     if (!sprite) {
       return;
@@ -122,6 +158,7 @@ export class RoomScene extends Phaser.Scene {
     const dy = destY - sprite.y;
     const distance = Math.hypot(dx, dy);
     if (distance < MIN_WALK_DISTANCE_PX) {
+      onArrive?.();
       return;
     }
 
@@ -132,6 +169,8 @@ export class RoomScene extends Phaser.Scene {
       } satisfies PlayerWalkStopPayload);
     }
     this.stopPlayerMoveTween(false);
+
+    this.walkArriveCallback = onArrive ?? null;
 
     const facing = facingFromWorldDelta(dx, dy);
     playDirectionalAnimation(sprite, 'Walk', facing);
@@ -173,6 +212,9 @@ export class RoomScene extends Phaser.Scene {
       roomId: this.roomData.id,
       reason: 'complete',
     } satisfies PlayerWalkStopPayload);
+    const arrive = this.walkArriveCallback;
+    this.walkArriveCallback = null;
+    arrive?.();
   }
 
   private onPlayerWalkTweenStopped(tween: Phaser.Tweens.Tween): void {
@@ -191,11 +233,191 @@ export class RoomScene extends Phaser.Scene {
     } satisfies PlayerWalkStopPayload);
   }
 
+  private drawRoomDebugOverlays(data: RoomSceneStartData): void {
+    const debug = getGameSettings().debug;
+    if (!debug?.showWalkable && !debug?.showPropOutlines) {
+      return;
+    }
+
+    const lineWidth = 1;
+
+    if (debug.showWalkable) {
+      const g = this.add.graphics();
+      g.lineStyle(lineWidth, DEBUG_WALKABLE_STROKE, 1);
+      for (const poly of this.roomData.walkable.polygons) {
+        if (poly.points.length < 3) {
+          continue;
+        }
+        const vecs = poly.points.map((p) => new Phaser.Math.Vector2(p.x, p.y));
+        g.strokePoints(vecs, true);
+      }
+      g.setDepth(DEBUG_OVERLAY_DEPTH);
+    }
+
+    if (debug.showPropOutlines) {
+      const g = this.add.graphics();
+      g.lineStyle(lineWidth, DEBUG_PROP_COLLIDER_STROKE, 1);
+      for (const spawn of data.props) {
+        const pts = spawn.data.collider?.points;
+        if (!pts || pts.length < 3) {
+          continue;
+        }
+        const vecs = pts.map((p) => new Phaser.Math.Vector2(p.x, p.y));
+        g.strokePoints(vecs, true);
+      }
+      g.setDepth(DEBUG_OVERLAY_DEPTH + 1);
+    }
+  }
+
+  private spawnRoomProps(data: RoomSceneStartData, w: number, h: number): void {
+    const textureKey = data.roomPropsTextureKey;
+    if (!textureKey || data.props.length === 0) {
+      return;
+    }
+
+    const mergedClips = mergeRoomPropAnimationClips(data.props);
+    const sorted = [...data.props].sort((a, b) => (a.data.zIndex ?? 0) - (b.data.zIndex ?? 0));
+
+    // Must use the scene AnimationManager (no `target` sprite). Passing a sprite registers clips only on
+    // that sprite; other props would never get `play()` and would stay on atlas frame 0 (often untagged).
+    const created = this.anims.createFromAseprite(textureKey);
+    applyCharacterAnimationClips(created, mergedClips);
+
+    for (const spawn of sorted) {
+      const sprite = this.add.sprite(spawn.x, spawn.y, textureKey).setOrigin(0, 0);
+      sprite.setDisplaySize(w, h);
+      sprite.setVisible(spawn.data.visible !== false);
+      sprite.setAlpha(spawn.data.alpha ?? 1);
+      sprite.setDepth(spawn.data.zIndex ?? 0);
+
+      if (!this.anims.exists(spawn.tag)) {
+        console.warn(`[Benne] Room prop '${spawn.id}' uses unknown Aseprite tag '${spawn.tag}'.`);
+      } else {
+        sprite.play(spawn.tag);
+      }
+
+      this.setupRoomProp(data.room.id, spawn, sprite);
+    }
+  }
+
+  private setupRoomProp(roomId: string, spawn: RoomPropSpawn, sprite: Phaser.GameObjects.Sprite): void {
+    const d = spawn.data;
+    if (!d.clickable) {
+      return;
+    }
+    if (d.visible === false) {
+      return;
+    }
+
+    const pts = d.collider?.points;
+    if (!pts || pts.length < 3) {
+      console.warn(`[Benne] Clickable prop '${spawn.id}' needs a collider polygon (at least 3 points).`);
+      return;
+    }
+    if (!d.walkToPoint || !d.lookAtPoint) {
+      console.warn(`[Benne] Clickable prop '${spawn.id}' needs walkToPoint and lookAtPoint.`);
+      return;
+    }
+
+    const flat = pts.flatMap((p) => [p.x - spawn.x, p.y - spawn.y]);
+    const poly = new Phaser.Geom.Polygon(flat);
+    sprite.setInteractive({
+      hitArea: poly,
+      hitAreaCallback: Phaser.Geom.Polygon.Contains,
+      useHandCursor: true,
+    });
+
+    sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (pointer.leftButtonDown() && spawn.data.onLook) {
+        this.beginPropInteraction(roomId, spawn, spawn.data.onLook, 'look');
+        return;
+      }
+      if (pointer.rightButtonDown() && spawn.data.onUse) {
+        this.beginPropInteraction(roomId, spawn, spawn.data.onUse, 'use');
+      }
+    });
+  }
+
+  /**
+   * Walks the player to the prop’s `walkToPoint`, faces `lookAtPoint`, then emits the given event id.
+   * Use from room scripts when triggering the same path as a click.
+   */
+  tryBeginPropLook(roomId: string, spawn: RoomPropSpawn): void {
+    const ev = spawn.data.onLook;
+    if (!ev) {
+      return;
+    }
+    this.beginPropInteraction(roomId, spawn, ev, 'look');
+  }
+
+  private beginPropInteraction(
+    roomId: string,
+    spawn: RoomPropSpawn,
+    eventId: string,
+    kind: 'look' | 'use',
+  ): void {
+    const player = this.player;
+    if (!player || !spawn.data.clickable) {
+      return;
+    }
+
+    const walk = spawn.data.walkToPoint;
+    const look = spawn.data.lookAtPoint;
+    if (!walk || !look) {
+      return;
+    }
+
+    const dest = clampWalkDestinationTowardClick(
+      player.x,
+      player.y,
+      walk.x,
+      walk.y,
+      this.roomData.walkable.polygons,
+    );
+    if (!dest) {
+      return;
+    }
+
+    const runArrival = (): void => {
+      this.finishPropInteractionAfterWalk(roomId, spawn, look.x, look.y, eventId, kind);
+    };
+
+    this.movePlayerToward(dest.x, dest.y, runArrival);
+  }
+
+  private finishPropInteractionAfterWalk(
+    roomId: string,
+    spawn: RoomPropSpawn,
+    lookAtX: number,
+    lookAtY: number,
+    eventId: string,
+    kind: 'look' | 'use',
+  ): void {
+    const player = this.player;
+    if (!player) {
+      return;
+    }
+
+    const facing = facingFromWorldDelta(lookAtX - player.x, lookAtY - player.y);
+    playDirectionalAnimation(player, 'Idle', facing);
+
+    const label = kind === 'use' ? 'USE' : 'LOOK';
+    console.log(`[Benne] ${label} prop ${spawn.id} -> ${eventId}`);
+    gameEvents.emit(eventId, {
+      propId: spawn.id,
+      roomId,
+      tag: spawn.tag,
+      description: spawn.data.description,
+      kind,
+    } satisfies RoomPropInteractPayload);
+  }
+
   private createHotspot(roomId: string, hotspot: RoomHotspotData): void {
     const centerX = hotspot.x + hotspot.width / 2;
     const centerY = hotspot.y + hotspot.height / 2;
     const zone = this.add
       .zone(centerX, centerY, hotspot.width, hotspot.height)
+      .setDepth(8000)
       .setInteractive({ useHandCursor: true });
 
     zone.on('pointerdown', () => {
@@ -213,6 +435,7 @@ export class RoomScene extends Phaser.Scene {
     }
 
     const sprite = this.add.image(spawn.x, spawn.y, spawn.textureKey).setOrigin(0.5, 1);
+    sprite.setDepth(CHARACTER_SCENE_DEPTH);
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
     sprite.setData('instanceId', spawn.instanceId);
@@ -221,6 +444,7 @@ export class RoomScene extends Phaser.Scene {
 
   private spawnAsepriteCharacter(roomId: string, spawn: RoomCharacterSpawn): void {
     const sprite = this.add.sprite(spawn.x, spawn.y, spawn.textureKey).setOrigin(0.5, 1);
+    sprite.setDepth(CHARACTER_SCENE_DEPTH);
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
     sprite.setData('instanceId', spawn.instanceId);

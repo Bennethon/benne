@@ -21,6 +21,13 @@ export interface GameSettingsAudio {
   dialogueVolume: number;
 }
 
+export interface GameSettingsDebug {
+  /** When true, stroke walkable polygons in the room scene (distinct color from prop colliders). */
+  showWalkable?: boolean;
+  /** When true, stroke prop `collider` polygons for props that define one. */
+  showPropOutlines?: boolean;
+}
+
 /**
  * Central game configuration (not Phaser’s `GameConfig`).
  * Add optional fields here as the engine grows (language, shaders, accessibility, etc.).
@@ -35,4 +42,6 @@ export interface GameSettings {
    */
   startingRoomId?: string;
   audio: GameSettingsAudio;
+  /** Editor / QA toggles (polygon overlays, etc.). */
+  debug?: GameSettingsDebug;
 }

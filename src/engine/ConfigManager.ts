@@ -20,6 +20,18 @@ function assertGameSettings(data: GameSettings): void {
   if (typeof data.startingPlayerCharacter !== 'string' || data.startingPlayerCharacter.length === 0) {
     throw new Error('game-config startingPlayerCharacter must be a non-empty string');
   }
+  if (data.debug !== undefined) {
+    const d = data.debug;
+    if (typeof d !== 'object' || d === null) {
+      throw new Error('game-config debug must be an object when present');
+    }
+    for (const key of ['showWalkable', 'showPropOutlines'] as const) {
+      const v = d[key];
+      if (v !== undefined && typeof v !== 'boolean') {
+        throw new Error(`game-config debug.${key} must be a boolean when present`);
+      }
+    }
+  }
 }
 
 const settings = rawSettings as GameSettings;

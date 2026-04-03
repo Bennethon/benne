@@ -132,20 +132,25 @@ function closestPointInWalkableUnion(
 }
 
 /**
- * Resolves a walk target from a screen click in a forgiving, “classic adventure” way:
+ * Resolves a walk target from a screen click in a forgiving, “classic adventure” way.
  *
+ * **Intent (where the player wants to go on the floor mesh):**
  * - If the click lies inside any walkable polygon, the target is the click.
- * - Otherwise the target is the **closest point inside the walkable union** to the click
- *   (per polygon: inside → click; outside → closest point on that polygon’s edges; then take
- *   the candidate nearest to the click). This pulls off-screen or “past the edge” clicks onto
- *   the nearest reachable spot so the character slides along the boundary toward intent instead
- *   of refusing to move.
+ * - Otherwise the target is the **closest point in the walkable union** to the click
+ *   (per polygon: inside → click; outside → closest point on edges; then pick the nearest).
  *
- * `playerX` / `playerY` are only used to ensure the character is currently on walkable ground;
- * destination resolution is driven by the click.
+ * **Starting position:**
+ * - If the character is **inside** walkable, that intent point is the tween destination (always
+ *   on or inside the mesh).
+ * - If the character is **outside** walkable (e.g. spawn or cutscene placement), they still get
+ *   the same intent target and may move in a straight line across non-walkable space until they
+ *   reach the floor; once inside, later clicks keep using this mesh-aware resolution.
  *
- * @returns `null` if the player is not inside any walkable polygon, or if there is no usable
- *          polygon geometry (e.g. all regions have fewer than three vertices).
+ * `playerX` / `playerY` are unused but kept for a stable call signature and future rules (e.g. bias
+ * toward the player-side of the mesh).
+ *
+ * @returns `null` only if there is no usable polygon geometry (e.g. all regions have fewer than
+ *          three vertices).
  */
 export function clampWalkDestinationTowardClick(
   playerX: number,
@@ -154,9 +159,8 @@ export function clampWalkDestinationTowardClick(
   clickY: number,
   polygons: readonly WalkablePolygon[],
 ): { x: number; y: number } | null {
-  if (!isPointInWalkableArea(playerX, playerY, polygons)) {
-    return null;
-  }
+  void playerX;
+  void playerY;
 
   if (isPointInWalkableArea(clickX, clickY, polygons)) {
     return { x: clickX, y: clickY };

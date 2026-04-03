@@ -48,7 +48,7 @@ export interface CharacterData {
   walkSpeed: number;
   clickable: boolean;
   display: CharacterDisplayData;
-  /** Optional per Aseprite-tag playback (loop, frame duration, frame events). */
+  /** Optional per Aseprite-tag playback (keys must match `meta.frameTags` on `images/characters/<id>/<id>.json`). */
   animations?: CharacterAnimationsConfig;
   /** Event id for look / examine (optional). */
   onLook?: string;
