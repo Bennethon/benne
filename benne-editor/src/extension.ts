@@ -1,59 +1,107 @@
 import * as vscode from 'vscode';
+import { EditorSelection } from './editorSelection';
+import { MainTreeProvider } from './mainTreeProvider';
+import { RoomTreeProvider } from './roomTreeProvider';
 
-export function activate(context: vscode.ExtensionContext) {
-    console.log('BENNE Editor is now active!');
+export function activate(context: vscode.ExtensionContext): void {
+    const selection = new EditorSelection();
+    const mainProvider = new MainTreeProvider();
+    const roomProvider = new RoomTreeProvider(selection);
 
-    const disposable = vscode.commands.registerCommand('benne-editor.openEditor', async () => {
-        // Create the webview panel
-        const panel = vscode.window.createWebviewPanel(
-            'benneEditor',           // Internal ID
-            'BENNE Editor',         // Title shown in tab
-            vscode.ViewColumn.One,       // Where to show the panel
-            {
-                enableScripts: true,     // Allow JavaScript in the webview
-                retainContextWhenHidden: true
-            }
-        );
-
-        // Simple initial HTML with "Create Room" button
-        panel.webview.html = getWebviewContent();
-
-        // Handle messages from the webview
-        panel.webview.onDidReceiveMessage(
-            async (message) => {
-                switch (message.command) {
-                    case 'createRoom':
-                        const roomName = await vscode.window.showInputBox({
-                            prompt: 'Enter the new room name (e.g. kitchen, hallway, bedroom)',
-                            placeHolder: 'kitchen',
-                            validateInput: (value) => {
-                                if (!value || !/^[a-z0-9_-]+$/i.test(value)) {
-                                    return 'Room name must contain only letters, numbers, underscore or hyphen';
-                                }
-                                return null;
-                            }
-                        });
-
-                        if (roomName) {
-                            vscode.window.showInformationMessage(`Creating room: ${roomName}`);
-                            // TODO: Later we will create the folder + .room.json here
-                            panel.webview.postMessage({ 
-                                command: 'roomCreated', 
-                                roomName 
-                            });
-                        }
-                        break;
-                }
-            },
-            undefined,
-            context.subscriptions
-        );
+    const mainTreeView = vscode.window.createTreeView('benne-editor.main', {
+        treeDataProvider: mainProvider,
+        showCollapseAll: true
     });
 
-    context.subscriptions.push(disposable);
+    const roomTreeView = vscode.window.createTreeView('benne-editor.room', {
+        treeDataProvider: roomProvider,
+        showCollapseAll: false
+    });
+
+    context.subscriptions.push(
+        mainTreeView,
+        roomTreeView,
+        selection,
+        mainTreeView.onDidChangeSelection((e) => {
+            const node = e.selection[0];
+            if (!node) {
+                return;
+            }
+            if (node.kind === 'room') {
+                selection.setRoom(node.uri, node.name);
+            } else if (node.kind === 'character') {
+                selection.setCharacter(node.uri, node.name);
+            }
+        })
+    );
+
+    const refreshTrees = (): void => {
+        mainProvider.refresh();
+        roomProvider.refresh();
+    };
+
+    const jsonWatcher = vscode.workspace.createFileSystemWatcher('**/src/game/**/*.json');
+    context.subscriptions.push(
+        jsonWatcher,
+        jsonWatcher.onDidChange(refreshTrees),
+        jsonWatcher.onDidCreate(refreshTrees),
+        jsonWatcher.onDidDelete(refreshTrees)
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('benne-editor.showSidebar', async () => {
+            await vscode.commands.executeCommand('workbench.view.extension.benne-editor');
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('benne-editor.openEditor', async () => {
+            const panel = vscode.window.createWebviewPanel(
+                'benneEditor',
+                'BENNE Editor',
+                vscode.ViewColumn.One,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true
+                }
+            );
+
+            panel.webview.html = getWebviewContent();
+
+            panel.webview.onDidReceiveMessage(
+                async (message: { command?: string }) => {
+                    switch (message.command) {
+                        case 'createRoom': {
+                            const roomName = await vscode.window.showInputBox({
+                                prompt: 'Enter the new room name (e.g. kitchen, hallway, bedroom)',
+                                placeHolder: 'kitchen',
+                                validateInput: (value) => {
+                                    if (!value || !/^[a-z0-9_-]+$/i.test(value)) {
+                                        return 'Room name must contain only letters, numbers, underscore or hyphen';
+                                    }
+                                    return null;
+                                }
+                            });
+
+                            if (roomName) {
+                                vscode.window.showInformationMessage(`Creating room: ${roomName}`);
+                                panel.webview.postMessage({
+                                    command: 'roomCreated',
+                                    roomName
+                                });
+                            }
+                            break;
+                        }
+                    }
+                },
+                undefined,
+                context.subscriptions
+            );
+        })
+    );
 }
 
-function getWebviewContent() {
+function getWebviewContent(): string {
     return `
         <!DOCTYPE html>
         <html lang="en">
@@ -84,7 +132,7 @@ function getWebviewContent() {
         </head>
         <body>
             <h1>BENNE Editor</h1>
-            <p>This is the starting point for the visual point-and-click editor.</p>
+            <p>Use the <strong>BENNE</strong> activity bar for <em>Main</em> (rooms &amp; characters) and <em>Room</em> (props). This panel will host the visual canvas later.</p>
             
             <button id="create-room-btn">Create New Room</button>
 
@@ -99,4 +147,4 @@ function getWebviewContent() {
         </html>`;
 }
 
-export function deactivate() {}
+export function deactivate(): void {}

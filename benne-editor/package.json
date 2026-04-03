@@ -5,20 +5,51 @@
   "publisher": "bennethon",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.110.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
   ],
   "activationEvents": [
-    "onCommand:benne-editor.openEditor"
+    "onView:benne-editor.main",
+    "onView:benne-editor.room",
+    "onCommand:benne-editor.openEditor",
+    "onCommand:benne-editor.showSidebar"
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "benne-editor",
+          "title": "BENNE",
+          "icon": "media/benne.svg"
+        }
+      ]
+    },
+    "views": {
+      "benne-editor": [
+        {
+          "id": "benne-editor.main",
+          "name": "Main",
+          "contextualTitle": "BENNE — Main"
+        },
+        {
+          "id": "benne-editor.room",
+          "name": "Room",
+          "contextualTitle": "BENNE — Room"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "benne-editor.openEditor",
-        "title": "BENNE: Open Editor",
+        "title": "Open Editor",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.showSidebar",
+        "title": "Show BENNE Sidebar",
         "category": "BENNE"
       }
     ]
@@ -35,7 +66,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.110.0",
+    "@types/vscode": "^1.85.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "typescript-eslint": "^8.56.1",

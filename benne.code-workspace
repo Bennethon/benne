@@ -8,5 +8,52 @@
       "name": "BENNE Editor Extension",
       "path": "benne-editor"
     }
-  ]
+  ],
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "benne-editor: compile",
+        "type": "npm",
+        "script": "compile",
+        "path": "benne-editor",
+        "problemMatcher": [],
+        "group": "build",
+        "presentation": {
+          "reveal": "silent",
+          "panel": "shared"
+        }
+      },
+      {
+        "label": "benne-editor: npm watch",
+        "type": "npm",
+        "script": "watch",
+        "path": "benne-editor",
+        "problemMatcher": "$ts-webpack-watch",
+        "isBackground": true,
+        "presentation": {
+          "reveal": "silent",
+          "group": "watchers"
+        }
+      }
+    ]
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Launch BENNE Editor (workspace)",
+        "type": "extensionHost",
+        "request": "launch",
+        "runtimeExecutable": "${execPath}",
+        "args": [
+          "--extensionDevelopmentPath=${workspaceFolder:BENNE Editor Extension}"
+        ],
+        "outFiles": [
+          "${workspaceFolder:BENNE Editor Extension}/dist/**/*.js"
+        ],
+        "preLaunchTask": "benne-editor: compile"
+      }
+    ]
+  }
 }
