@@ -20,6 +20,10 @@ export class RoomPreviewPanelController implements vscode.Disposable {
     private readonly disposables: vscode.Disposable[] = [];
     /** Serializes preview loads so rapid saves do not post overlapping `loadRoom` messages. */
     private previewPushTail: Promise<void> = Promise.resolve();
+    /** Serializes `onSelectionChanged` so overlapping runs cannot post `clear` after a refresh `loadRoom`. */
+    private selectionReactionChain: Promise<void> = Promise.resolve();
+    /** Delayed `clear` when leaving room preview — avoids wiping the canvas on transient selection glitches. */
+    private clearPreviewDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 
     constructor(
         private readonly extensionUri: vscode.Uri,
@@ -27,12 +31,18 @@ export class RoomPreviewPanelController implements vscode.Disposable {
     ) {
         this.disposables.push(
             this.selection.onDidChange(() => {
-                void this.onSelectionChanged();
+                this.selectionReactionChain = this.selectionReactionChain
+                    .then(() => this.onSelectionChanged())
+                    .catch(() => undefined);
             })
         );
     }
 
     dispose(): void {
+        if (this.clearPreviewDebounceTimer !== undefined) {
+            clearTimeout(this.clearPreviewDebounceTimer);
+            this.clearPreviewDebounceTimer = undefined;
+        }
         this.panel?.dispose();
         this.panel = undefined;
         vscode.Disposable.from(...this.disposables).dispose();
@@ -40,6 +50,10 @@ export class RoomPreviewPanelController implements vscode.Disposable {
 
     /** Close the Phaser preview webview before resetting the editor area for a new tree selection. */
     resetPreviewPanel(): void {
+        if (this.clearPreviewDebounceTimer !== undefined) {
+            clearTimeout(this.clearPreviewDebounceTimer);
+            this.clearPreviewDebounceTimer = undefined;
+        }
         if (!this.panel) {
             return;
         }
@@ -56,6 +70,8 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         return this.panel !== undefined && this.webviewReady;
     }
 
+    private readonly clearPreviewDebounceMs = 180;
+
     private async onSelectionChanged(): Promise<void> {
         const focus = this.selection.focus;
         const roomPanel = this.selection.roomPanel;
@@ -64,12 +80,28 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             roomPanel.kind === 'prop' || focus.kind === 'room';
 
         if (!wantRoomPreview) {
-            if (this.panel && this.webviewReady) {
-                void this.panel.webview.postMessage({ type: 'benne/preview/clear' });
+            if (this.clearPreviewDebounceTimer !== undefined) {
+                clearTimeout(this.clearPreviewDebounceTimer);
             }
-            this.lastPushedRoomJsonUri = null;
-            this.lastToolbarUiKey = null;
+            this.clearPreviewDebounceTimer = setTimeout(() => {
+                this.clearPreviewDebounceTimer = undefined;
+                const f = this.selection.focus;
+                const rp = this.selection.roomPanel;
+                if (rp.kind === 'prop' || f.kind === 'room') {
+                    return;
+                }
+                if (this.panel && this.webviewReady) {
+                    void this.panel.webview.postMessage({ type: 'benne/preview/clear' });
+                }
+                this.lastPushedRoomJsonUri = null;
+                this.lastToolbarUiKey = null;
+            }, this.clearPreviewDebounceMs);
             return;
+        }
+
+        if (this.clearPreviewDebounceTimer !== undefined) {
+            clearTimeout(this.clearPreviewDebounceTimer);
+            this.clearPreviewDebounceTimer = undefined;
         }
 
         const createdNew = this.ensurePanel();
@@ -160,10 +192,19 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         this.panel.webview.html = buildRoomPreviewHtml(this.panel.webview, this.extensionUri);
 
         this.disposables.push(
-            this.panel.webview.onDidReceiveMessage((m: { type?: string; roomJsonUri?: string; patch?: unknown }) => {
+            this.panel.webview.onDidReceiveMessage(
+                (m: { type?: string; roomJsonUri?: string; patch?: unknown }) => {
                 if (m?.type === 'benne/preview/ready') {
                     this.webviewReady = true;
                     void this.pushPreview();
+                    return;
+                }
+                if (m?.type === 'benne/preview/requestRefresh') {
+                    const explicit =
+                        typeof m.roomJsonUri === 'string' && m.roomJsonUri.length > 0
+                            ? m.roomJsonUri
+                            : undefined;
+                    void this.pushPreview({ fromRefreshRequest: true, explicitRoomJsonUri: explicit });
                     return;
                 }
                 if (m?.type === 'benne/preview/polygonPatch') {
@@ -226,21 +267,38 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         });
     }
 
-    private pushPreview(): Promise<void> {
-        const started = this.previewPushTail.then(() => this.doPushPreview());
+    private pushPreview(opts?: { fromRefreshRequest?: boolean; explicitRoomJsonUri?: string }): Promise<void> {
+        const started = this.previewPushTail.then(() => this.doPushPreview(opts));
         this.previewPushTail = started.catch(() => undefined);
         return started;
     }
 
-    private async doPushPreview(): Promise<void> {
+    private async doPushPreview(opts?: { fromRefreshRequest?: boolean; explicitRoomJsonUri?: string }): Promise<void> {
         const webview = this.panel?.webview;
         if (!webview) {
             return;
         }
 
-        const roomJsonUri = this.previewRoomJsonUriForSelection();
+        let roomJsonUri: vscode.Uri | undefined;
+        if (opts?.explicitRoomJsonUri) {
+            try {
+                roomJsonUri = vscode.Uri.parse(opts.explicitRoomJsonUri);
+            } catch {
+                roomJsonUri = undefined;
+            }
+        }
         if (!roomJsonUri) {
-            webview.postMessage({ type: 'benne/preview/clear' });
+            roomJsonUri = this.previewRoomJsonUriForSelection();
+        }
+        if (!roomJsonUri) {
+            if (opts?.fromRefreshRequest) {
+                webview.postMessage({
+                    type: 'benne/preview/error',
+                    message: 'No room context for preview — select a room or prop in the BENNE tree.',
+                });
+            } else {
+                webview.postMessage({ type: 'benne/preview/clear' });
+            }
             return;
         }
 
@@ -265,8 +323,8 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         }
 
         try {
-            const raw = await vscode.workspace.fs.readFile(roomJsonUri);
-            const room = JSON.parse(Buffer.from(raw).toString('utf8')) as Record<string, unknown>;
+            const jsonText = await this.readRoomJsonAsUtf8(roomJsonUri);
+            const room = JSON.parse(jsonText) as Record<string, unknown>;
             const gameSrcWebviewUri = webview.asWebviewUri(gameSrc).toString();
             const uriStr = roomJsonUri.toString();
             const tb = this.getPreviewToolbarState();
@@ -286,6 +344,17 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 message: e instanceof Error ? e.message : String(e),
             });
         }
+    }
+
+    /** Prefer in-memory buffer when the room JSON is open in an editor (matches unsaved edits on Refresh). */
+    private async readRoomJsonAsUtf8(uri: vscode.Uri): Promise<string> {
+        const uriStr = uri.toString();
+        const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uriStr);
+        if (open) {
+            return open.getText();
+        }
+        const raw = await vscode.workspace.fs.readFile(uri);
+        return Buffer.from(raw).toString('utf8');
     }
 }
 
@@ -311,7 +380,10 @@ function buildRoomPreviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri)
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 </head>
 <body style="margin:0;padding:0;background:#1a1a2e;height:100vh;display:flex;flex-direction:column;">
-  <div id="benne-polygon-toolbar" style="flex-shrink:0;"></div>
+  <div id="benne-preview-topbar" style="display:flex;align-items:flex-start;gap:10px;flex-shrink:0;padding:6px 10px;border-bottom:1px solid #2e2e44;background:#222230;">
+    <div id="benne-polygon-toolbar" style="flex:1;min-width:0;"></div>
+    <button type="button" id="benne-refresh-preview" title="Reload room JSON from disk" style="flex-shrink:0;margin-top:1px;background:#3a3a52;color:#e8ecff;border:1px solid #5a5a70;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:system-ui,sans-serif;">Refresh</button>
+  </div>
   <div id="benne-preview-root" style="flex:1;min-height:0;width:100%;"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

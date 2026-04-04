@@ -1,0 +1,10 @@
+{
+  "id": "henry",
+  "name": "Henry",
+  "description": "",
+  "walkSpeed": 88,
+  "clickable": false,
+  "display": {
+    "aseprite": true
+  }
+}

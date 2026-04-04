@@ -19,6 +19,7 @@ export type ActionTreeNode =
           roomJsonUri: vscode.Uri;
           roomId: string;
       }
+    | { kind: 'addRoomProp' }
     | {
           kind: 'charVerb';
           verbLabel: string;
@@ -58,6 +59,18 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                     command: 'benne-editor.revealRoomScriptEvent',
                     title: 'Open handler',
                     arguments: [element.roomJsonUri.toString(), element.roomId, element.eventId]
+                };
+                return item;
+            }
+            case 'addRoomProp': {
+                const item = new vscode.TreeItem('Add Prop', vscode.TreeItemCollapsibleState.None);
+                item.id = 'action:addRoomProp';
+                item.iconPath = new vscode.ThemeIcon('add');
+                item.contextValue = 'benneActionAddProp';
+                item.command = {
+                    command: 'benne-editor.addRoomProp',
+                    title: 'Add Prop',
+                    arguments: []
                 };
                 return item;
             }
@@ -120,32 +133,36 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         const main = this.selection.focus;
         const roomPanel = this.selection.roomPanel;
 
-        if (roomPanel.kind === 'prop') {
-            return this.propActionNodes(roomPanel.prop, roomPanel.roomJsonUri, roomPanel.roomId);
-        }
-
         if (main.kind === 'room') {
+            const addProp: ActionTreeNode = { kind: 'addRoomProp' };
+            const roomId = getRoomIdFromRoomJsonUri(main.uri);
+
+            if (roomPanel.kind === 'prop') {
+                return [addProp, ...this.propActionNodes(roomPanel.prop, roomPanel.roomJsonUri, roomPanel.roomId)];
+            }
+
             return [
+                addProp,
                 {
                     kind: 'roomOpen',
                     label: 'Open room JSON',
                     target: 'json',
                     roomJsonUri: main.uri,
-                    roomId: getRoomIdFromRoomJsonUri(main.uri)
+                    roomId
                 },
                 {
                     kind: 'roomOpen',
                     label: 'Open room script',
                     target: 'script',
                     roomJsonUri: main.uri,
-                    roomId: getRoomIdFromRoomJsonUri(main.uri)
+                    roomId
                 },
                 {
                     kind: 'roomOpen',
                     label: 'Go to registerRoomScript',
                     target: 'registerFn',
                     roomJsonUri: main.uri,
-                    roomId: getRoomIdFromRoomJsonUri(main.uri)
+                    roomId
                 }
             ];
         }

@@ -8,6 +8,10 @@
     {
       "id": "outside",
       "definition": "outside/outside.room.json"
+    },
+    {
+      "id": "outsideOffice",
+      "definition": "outsideOffice/outsideOffice.room.json"
     }
   ]
 }

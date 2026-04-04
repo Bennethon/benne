@@ -1,0 +1,9 @@
+{
+  "id": "outsideOffice",
+  "name": "Outside Office",
+  "walkable": {
+    "polygons": []
+  },
+  "hotspots": [],
+  "props": []
+}

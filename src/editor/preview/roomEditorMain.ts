@@ -156,6 +156,31 @@ function buildPropTreeNonClickableToolbarHtml(propLabel: string): string {
   `;
 }
 
+/**
+ * Ensure `walkable.polygons` and arrays exist so toolbar wiring and Phaser never throw on partial JSON
+ * (e.g. unsaved edits) or odd structured-clone payloads from the host.
+ */
+function normalizeRoomForPreview(raw: unknown): RoomData {
+    const r =
+        raw && typeof raw === 'object' ? ({ ...(raw as Record<string, unknown>) } as Record<string, unknown>) : {};
+    const id = typeof r.id === 'string' && r.id.length > 0 ? r.id : 'room';
+    const name = typeof r.name === 'string' && r.name.length > 0 ? r.name : id;
+    let polygons: RoomData['walkable']['polygons'] = [];
+    const w = r.walkable;
+    if (w && typeof w === 'object') {
+        const polys = (w as { polygons?: unknown }).polygons;
+        if (Array.isArray(polys)) {
+            polygons = polys as RoomData['walkable']['polygons'];
+        }
+    }
+    r.id = id;
+    r.name = name;
+    r.walkable = { polygons };
+    r.hotspots = Array.isArray(r.hotspots) ? r.hotspots : [];
+    r.props = Array.isArray(r.props) ? r.props : [];
+    return r as unknown as RoomData;
+}
+
 function wireRoomToolbar(room: RoomData): void {
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
@@ -170,7 +195,9 @@ function wireRoomToolbar(room: RoomData): void {
 
     polygonEditBridge.setPropId('');
     walkSel.innerHTML = '';
-    for (const p of room.walkable.polygons) {
+    const polygons = room.walkable?.polygons;
+    const safePolygons = Array.isArray(polygons) ? polygons : [];
+    for (const p of safePolygons) {
         const optOuter = document.createElement('option');
         optOuter.value = encodeWalkableSelectValue({ polygonId: p.id, holeId: null });
         optOuter.textContent = `${p.id} (walkable)`;
@@ -348,56 +375,44 @@ async function resetToPlaceholder(): Promise<void> {
     currentRoomJsonUri = '';
 }
 
-window.addEventListener('message', async (event: MessageEvent) => {
-    const msg = event.data as {
-        type?: string;
-        room?: RoomData;
-        gameSrcWebviewUri?: string;
-        roomJsonUri?: string;
-        message?: string;
-        ok?: boolean;
-        appliedPatch?: RoomPolygonPatch;
-        previewFocus?: string;
-        propColliderId?: string;
-    };
+/**
+ * Serialize `clear` / `error` / `loadRoom` so they never overlap. A fire-and-forget `clear` could
+ * otherwise finish after a concurrent `loadRoom` and wipe the canvas (e.g. after Refresh).
+ */
+let previewLifecycleChain: Promise<void> = Promise.resolve();
 
-    if (msg?.type === 'benne/preview/polygonPatchResult') {
-        if (msg.ok && msg.appliedPatch) {
-            applyAppliedPatchToPreviewRoom(msg.appliedPatch);
-        }
-        setStatus(msg.ok ? 'Saved.' : `Error: ${msg.message ?? ''}`);
-        return;
+function enqueuePreviewLifecycle(work: () => Promise<void>): void {
+    previewLifecycleChain = previewLifecycleChain
+        .then(() => work())
+        .catch((e) => {
+            console.error('[Benne preview] lifecycle', e);
+        });
+}
+
+type HostPreviewMessage = {
+    type?: string;
+    room?: RoomData;
+    gameSrcWebviewUri?: string;
+    roomJsonUri?: string;
+    message?: string;
+    ok?: boolean;
+    appliedPatch?: RoomPolygonPatch;
+    previewFocus?: string;
+    propColliderId?: string;
+};
+
+async function runPreviewError(msg: HostPreviewMessage): Promise<void> {
+    lastLoadedRoom = null;
+    await destroyPreviewGameAsync();
+    const root = document.getElementById('benne-preview-root');
+    if (root) {
+        root.innerHTML = '';
     }
+    clearToolbar();
+    showError(msg.message ?? 'Preview error');
+}
 
-    if (msg?.type === 'benne/preview/toolbarUi') {
-        if (!lastLoadedRoom) {
-            return;
-        }
-        wireToolbarFromPreviewState(lastLoadedRoom, parsePreviewToolbarPayload(msg));
-        return;
-    }
-
-    if (msg?.type === 'benne/preview/clear') {
-        void resetToPlaceholder();
-        return;
-    }
-
-    if (msg?.type === 'benne/preview/error') {
-        lastLoadedRoom = null;
-        await destroyPreviewGameAsync();
-        const root = document.getElementById('benne-preview-root');
-        if (root) {
-            root.innerHTML = '';
-        }
-        clearToolbar();
-        showError(msg.message ?? 'Preview error');
-        return;
-    }
-
-    if (msg?.type !== 'benne/preview/loadRoom') {
-        return;
-    }
-
+async function runLoadRoom(msg: HostPreviewMessage): Promise<void> {
     if (!document.getElementById('benne-preview-root')?.parentElement) {
         return;
     }
@@ -425,16 +440,27 @@ window.addEventListener('message', async (event: MessageEvent) => {
     }
     root.innerHTML = '';
 
-    const room = msg.room as RoomData;
+    let room: RoomData;
+    try {
+        room = normalizeRoomForPreview(msg.room);
+    } catch (e) {
+        showError(e instanceof Error ? e.message : String(e));
+        return;
+    }
     currentRoomJsonUri = msg.roomJsonUri;
     lastLoadedRoom = room;
-    wireToolbarFromPreviewState(room, parsePreviewToolbarPayload(msg));
+
+    try {
+        wireToolbarFromPreviewState(room, parsePreviewToolbarPayload(msg));
+    } catch (e) {
+        showError(
+            `Preview toolbar: ${e instanceof Error ? e.message : String(e)}`,
+        );
+        return;
+    }
 
     try {
         const manifest = await buildPreviewManifest(room, msg.gameSrcWebviewUri);
-        if (gen !== loadRoomGeneration) {
-            return;
-        }
         const onPolygonPatch = (patch: RoomPolygonPatch): void => {
             vscodeApi?.postMessage({
                 type: 'benne/preview/polygonPatch',
@@ -447,11 +473,64 @@ window.addEventListener('message', async (event: MessageEvent) => {
             onPolygonPatch,
         });
     } catch (e) {
-        if (gen !== loadRoomGeneration) {
+        showError(e instanceof Error ? e.message : String(e));
+    }
+}
+
+window.addEventListener('message', (event: MessageEvent) => {
+    const msg = event.data as HostPreviewMessage;
+
+    if (msg?.type === 'benne/preview/polygonPatchResult') {
+        if (msg.ok && msg.appliedPatch) {
+            applyAppliedPatchToPreviewRoom(msg.appliedPatch);
+        }
+        setStatus(msg.ok ? 'Saved.' : `Error: ${msg.message ?? ''}`);
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/toolbarUi') {
+        if (!lastLoadedRoom) {
             return;
         }
-        showError(e instanceof Error ? e.message : String(e));
+        wireToolbarFromPreviewState(lastLoadedRoom, parsePreviewToolbarPayload(msg));
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/clear') {
+        enqueuePreviewLifecycle(async () => {
+            await resetToPlaceholder();
+        });
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/error') {
+        enqueuePreviewLifecycle(async () => {
+            await runPreviewError(msg);
+        });
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/loadRoom') {
+        enqueuePreviewLifecycle(async () => {
+            await runLoadRoom(msg);
+        });
+        return;
     }
 });
 
+function wireRefreshPreviewButton(): void {
+    const btn = document.getElementById('benne-refresh-preview');
+    if (!btn || btn.dataset.benneRefreshWired === '1') {
+        return;
+    }
+    btn.dataset.benneRefreshWired = '1';
+    btn.addEventListener('click', () => {
+        vscodeApi?.postMessage({
+            type: 'benne/preview/requestRefresh',
+            roomJsonUri: currentRoomJsonUri,
+        });
+    });
+}
+
+wireRefreshPreviewButton();
 vscodeApi?.postMessage({ type: 'benne/preview/ready' });
