@@ -32,6 +32,40 @@ function decodeWalkableSelectValue(s: string): WalkableSelectTarget | null {
 let game: Game | null = null;
 let vscodeApi: ReturnType<typeof acquireVsCodeApi> | null = null;
 let currentRoomJsonUri = '';
+/** Latest room from the host; used for `toolbarUi` updates without reloading Phaser. */
+let lastLoadedRoom: RoomData | null = null;
+
+type PreviewToolbarPayload =
+    | { previewFocus: 'room' }
+    | { previewFocus: 'prop'; propColliderId: string };
+
+function parsePreviewToolbarPayload(msg: {
+    previewFocus?: string;
+    propColliderId?: string;
+}): PreviewToolbarPayload {
+    if (
+        msg.previewFocus === 'prop' &&
+        typeof msg.propColliderId === 'string' &&
+        msg.propColliderId.length > 0
+    ) {
+        return { previewFocus: 'prop', propColliderId: msg.propColliderId };
+    }
+    return { previewFocus: 'room' };
+}
+
+function propColliderLabel(room: RoomData, propId: string): string {
+    const p = room.props?.find((x) => x.id === propId);
+    if (!p) {
+        return propId;
+    }
+    return p.tag ? `${p.tag} (${propId})` : propId;
+}
+
+/** Collider authoring is only for interactive props (matches runtime expectations). */
+function isPropColliderEditable(room: RoomData, propId: string): boolean {
+    const p = room.props?.find((x) => x.id === propId);
+    return p?.clickable === true;
+}
 
 /** Bumps on each `loadRoom` so stale `buildPreviewManifest` completions (e.g. double save) cannot create a game after a newer load cleared the DOM. */
 let loadRoomGeneration = 0;
@@ -76,9 +110,11 @@ function clearToolbar(): void {
         bar.innerHTML = '';
     }
     polygonEditBridge.setMode('navigate');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setWalkableEditTarget('', '');
 }
 
-function buildToolbarHtml(): string {
+function buildRoomToolbarHtml(): string {
     return `
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
       <div style="display:inline-flex;align-items:center;gap:6px;">
@@ -86,38 +122,53 @@ function buildToolbarHtml(): string {
         <select id="benne-edit-mode" style="background:#2a2a3e;color:#eee;border:1px solid #4a4a60;padding:2px 6px;">
           <option value="navigate">Navigate</option>
           <option value="walkable">Edit walkable</option>
-          <option value="propCollider">Edit prop collider</option>
         </select>
       </div>
       <div id="benne-walkable-row" hidden style="align-items:center;gap:6px;display:inline-flex;">
         <label for="benne-walkable-id">Walkable/Holes</label>
         <select id="benne-walkable-id" style="background:#2a2a3e;color:#eee;border:1px solid #4a4a60;padding:2px 6px;max-width:280px;"></select>
       </div>
-      <div id="benne-prop-row" hidden style="align-items:center;gap:6px;display:inline-flex;">
-        <label for="benne-prop-id">Prop</label>
-        <select id="benne-prop-id" style="background:#2a2a3e;color:#eee;border:1px solid #4a4a60;padding:2px 6px;"></select>
-      </div>
       <button type="button" id="benne-save-polygon" hidden style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
       <span id="benne-polygon-status" style="opacity:0.85;"></span>
     </div>
-    <div style="font-size:11px;opacity:0.75;margin-top:4px;">New polygon: click ${MIN_POLY_POINTS} times to place vertices. Then double-click an edge to add more. Delete removes the selected vertex (min ${MIN_POLY_POINTS} points).</div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">New polygon: click ${MIN_POLY_POINTS} times to place vertices. Then double-click an edge to add more. Delete removes the selected vertex (min ${MIN_POLY_POINTS} points).</div>
   `;
 }
 
-function wireToolbar(room: RoomData): void {
+function buildPropTreeToolbarHtml(propLabel: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Prop collider — <strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Editing collider for the prop selected in the BENNE tree. New polygon: click ${MIN_POLY_POINTS} times to place vertices, then double-click edges to add vertices.</div>
+  `;
+}
+
+function buildPropTreeNonClickableToolbarHtml(propLabel: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;"><strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong> — not clickable</span>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Collider editing is only available when <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">"clickable": true</code> is set on this prop in the room JSON.</div>
+  `;
+}
+
+function wireRoomToolbar(room: RoomData): void {
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
     }
-    bar.innerHTML = buildToolbarHtml();
+    bar.innerHTML = buildRoomToolbarHtml();
 
     const modeSel = document.getElementById('benne-edit-mode') as HTMLSelectElement;
     const walkRow = document.getElementById('benne-walkable-row')!;
-    const propRow = document.getElementById('benne-prop-row')!;
     const walkSel = document.getElementById('benne-walkable-id') as HTMLSelectElement;
-    const propSel = document.getElementById('benne-prop-id') as HTMLSelectElement;
     const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
 
+    polygonEditBridge.setPropId('');
     walkSel.innerHTML = '';
     for (const p of room.walkable.polygons) {
         const optOuter = document.createElement('option');
@@ -140,27 +191,10 @@ function wireToolbar(room: RoomData): void {
         polygonEditBridge.setWalkableEditTarget('', '');
     }
 
-    propSel.innerHTML = '';
-    const propsWithCollider = (room.props ?? []).filter(
-        (p) => p.collider?.points && p.collider.points.length >= MIN_POLY_POINTS,
-    );
-    for (const p of propsWithCollider) {
-        const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = p.tag ? `${p.tag} (${p.id})` : p.id;
-        propSel.appendChild(opt);
-    }
-    if (propSel.options.length > 0) {
-        polygonEditBridge.setPropId(propSel.value);
-    } else {
-        polygonEditBridge.setPropId('');
-    }
-
     const syncModeUI = (): void => {
-        const m = modeSel.value as 'navigate' | 'walkable' | 'propCollider';
+        const m = modeSel.value as 'navigate' | 'walkable';
         polygonEditBridge.setMode(m);
         walkRow.hidden = m !== 'walkable';
-        propRow.hidden = m !== 'propCollider';
         saveBtn.hidden = m === 'navigate';
     };
 
@@ -179,14 +213,51 @@ function wireToolbar(room: RoomData): void {
         }
         setStatus('');
     });
-    propSel.addEventListener('change', () => {
-        polygonEditBridge.setPropId(propSel.value);
-        setStatus('');
-    });
     saveBtn.addEventListener('click', () => {
         setStatus('Saving…');
         window.dispatchEvent(new Event('benne-save-polygon'));
     });
+}
+
+function wirePropTreeToolbarNonClickable(room: RoomData, propColliderId: string): void {
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildPropTreeNonClickableToolbarHtml(propColliderLabel(room, propColliderId));
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setMode('navigate');
+}
+
+function wirePropTreeToolbar(room: RoomData, propColliderId: string): void {
+    if (!isPropColliderEditable(room, propColliderId)) {
+        wirePropTreeToolbarNonClickable(room, propColliderId);
+        return;
+    }
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildPropTreeToolbarHtml(propColliderLabel(room, propColliderId));
+
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId(propColliderId);
+    polygonEditBridge.setMode('propCollider');
+
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireToolbarFromPreviewState(room: RoomData, preview: PreviewToolbarPayload): void {
+    if (preview.previewFocus === 'prop') {
+        wirePropTreeToolbar(room, preview.propColliderId);
+    } else {
+        wireRoomToolbar(room);
+    }
 }
 
 /** Sync Phaser registry room after disk save (integer-rounded points); avoids full game rebuild. */
@@ -266,6 +337,7 @@ function escapeHtml(s: string): string {
 }
 
 async function resetToPlaceholder(): Promise<void> {
+    lastLoadedRoom = null;
     clearToolbar();
     await destroyPreviewGameAsync();
     const root = document.getElementById('benne-preview-root');
@@ -285,6 +357,8 @@ window.addEventListener('message', async (event: MessageEvent) => {
         message?: string;
         ok?: boolean;
         appliedPatch?: RoomPolygonPatch;
+        previewFocus?: string;
+        propColliderId?: string;
     };
 
     if (msg?.type === 'benne/preview/polygonPatchResult') {
@@ -295,12 +369,21 @@ window.addEventListener('message', async (event: MessageEvent) => {
         return;
     }
 
+    if (msg?.type === 'benne/preview/toolbarUi') {
+        if (!lastLoadedRoom) {
+            return;
+        }
+        wireToolbarFromPreviewState(lastLoadedRoom, parsePreviewToolbarPayload(msg));
+        return;
+    }
+
     if (msg?.type === 'benne/preview/clear') {
         void resetToPlaceholder();
         return;
     }
 
     if (msg?.type === 'benne/preview/error') {
+        lastLoadedRoom = null;
         await destroyPreviewGameAsync();
         const root = document.getElementById('benne-preview-root');
         if (root) {
@@ -344,7 +427,8 @@ window.addEventListener('message', async (event: MessageEvent) => {
 
     const room = msg.room as RoomData;
     currentRoomJsonUri = msg.roomJsonUri;
-    wireToolbar(room);
+    lastLoadedRoom = room;
+    wireToolbarFromPreviewState(room, parsePreviewToolbarPayload(msg));
 
     try {
         const manifest = await buildPreviewManifest(room, msg.gameSrcWebviewUri);

@@ -224,7 +224,16 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         if (polygonEditBridge.mode === 'propCollider') {
             const id = polygonEditBridge.propId;
             const p = this.room.props?.find((x) => x.id === id);
-            return p?.collider?.points ?? null;
+            if (!p || p.clickable !== true) {
+                return null;
+            }
+            if (!p.collider) {
+                p.collider = { points: [] };
+            }
+            if (!p.collider.points) {
+                p.collider.points = [];
+            }
+            return p.collider.points;
         }
         return null;
     }
