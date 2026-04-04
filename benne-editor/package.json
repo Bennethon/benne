@@ -14,7 +14,11 @@
     "onView:benne-editor.main",
     "onView:benne-editor.actions",
     "onCommand:benne-editor.openEditor",
-    "onCommand:benne-editor.showSidebar"
+    "onCommand:benne-editor.showSidebar",
+    "onCommand:benne-editor.createRoom",
+    "onCommand:benne-editor.addRoomProp",
+    "onCommand:benne-editor.importPropsFromAsepriteTags",
+    "onCommand:benne-editor.createCharacter"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -76,8 +80,88 @@
         "command": "benne-editor.revealCharacterScriptEvent",
         "title": "Reveal character script event",
         "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.createRoom",
+        "title": "Create New Room",
+        "category": "BENNE",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "benne-editor.addRoomProp",
+        "title": "Add Prop",
+        "category": "BENNE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "benne-editor.importPropsFromAsepriteTags",
+        "title": "Import Props from Aseprite Tags",
+        "category": "BENNE",
+        "icon": "$(tag)"
+      },
+      {
+        "command": "benne-editor.createCharacter",
+        "title": "Create Character",
+        "category": "BENNE",
+        "icon": "$(person-add)"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "benne-editor.createRoom",
+          "when": "view == benne-editor.main",
+          "group": "navigation@1"
+        },
+        {
+          "command": "benne-editor.addRoomProp",
+          "when": "view == benne-editor.main",
+          "group": "navigation@2"
+        },
+        {
+          "command": "benne-editor.createCharacter",
+          "when": "view == benne-editor.main",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "benne-editor.createRoom",
+          "when": "view == benne-editor.main && viewItem == benneRoomsGroup",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.createRoom",
+          "when": "view == benne-editor.main && viewItem == benneWorkspace",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.createCharacter",
+          "when": "view == benne-editor.main && viewItem == benneCharsGroup",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.createCharacter",
+          "when": "view == benne-editor.main && viewItem == benneWorkspace",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.addRoomProp",
+          "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomProp",
+          "when": "view == benne-editor.main && viewItem == benneRoomProp",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.importPropsFromAsepriteTags",
+          "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "benne@3"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

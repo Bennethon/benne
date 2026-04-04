@@ -118,6 +118,23 @@ async function readCharacterMeta(uri: vscode.Uri, fallbackId: string): Promise<{
     }
 }
 
+/** Same as `getAsepriteAssetPaths` in `src/game/characterAseprite.ts`. */
+export function getCharacterAsepriteAssetRelativePaths(characterId: string): { png: string; json: string } {
+    const base = `images/characters/${characterId}/${characterId}`;
+    return { png: `${base}.png`, json: `${base}.json` };
+}
+
+export async function readCharacterUsesAsepriteDisplay(uri: vscode.Uri): Promise<boolean> {
+    try {
+        const raw = await vscode.workspace.fs.readFile(uri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as { display?: { aseprite?: unknown } };
+        return data.display?.aseprite === true;
+    } catch {
+        return false;
+    }
+}
+
 export interface RoomPropEntry {
     id: string;
     tag?: string;
@@ -131,6 +148,123 @@ export interface RoomPropEntry {
 /** Folder name for `rooms/<id>/<id>.room.json` (e.g. `office`). */
 export function getRoomIdFromRoomJsonUri(roomJsonUri: vscode.Uri): string {
     return path.basename(path.dirname(roomJsonUri.fsPath));
+}
+
+/** Same layout as `getRoomAsepriteAssetPaths` in the game (`src/game/roomAseprite.ts`). */
+export function getRoomAsepriteAssetRelativePaths(roomId: string): { png: string; json: string } {
+    const base = `images/rooms/${roomId}/${roomId}`;
+    return { png: `${base}.png`, json: `${base}.json` };
+}
+
+function assetPathSegments(relativeUnderAssets: string): string[] {
+    return relativeUnderAssets.split('/').filter(Boolean);
+}
+
+async function gameAssetExists(gameRoot: vscode.Uri, relativeUnderAssets: string): Promise<boolean> {
+    const uri = vscode.Uri.joinPath(
+        gameRoot,
+        'src',
+        'game',
+        'assets',
+        ...assetPathSegments(relativeUnderAssets)
+    );
+    try {
+        await vscode.workspace.fs.stat(uri);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/** True when both expected room sheet files exist under `src/game/assets/`. */
+export async function roomAsepriteSheetFilesComplete(
+    gameRoot: vscode.Uri,
+    roomId: string
+): Promise<boolean> {
+    const { png, json } = getRoomAsepriteAssetRelativePaths(roomId);
+    return (await gameAssetExists(gameRoot, png)) && (await gameAssetExists(gameRoot, json));
+}
+
+/** True when both expected character Aseprite files exist (for `display.aseprite: true`). */
+export async function characterAsepriteSheetFilesComplete(
+    gameRoot: vscode.Uri,
+    characterId: string
+): Promise<boolean> {
+    const { png, json } = getCharacterAsepriteAssetRelativePaths(characterId);
+    return (await gameAssetExists(gameRoot, png)) && (await gameAssetExists(gameRoot, json));
+}
+
+function readAsepriteFrameTagNames(raw: Record<string, unknown>): readonly string[] {
+    const meta = raw.meta;
+    if (!meta || typeof meta !== 'object') {
+        return [];
+    }
+    const frameTags = (meta as { frameTags?: readonly { name?: string }[] }).frameTags;
+    if (!Array.isArray(frameTags) || frameTags.length === 0) {
+        return [];
+    }
+    return frameTags.map((t) => (typeof t?.name === 'string' ? t.name : '')).filter(Boolean);
+}
+
+export type RoomAsepriteSheetResolution = {
+    pngExists: boolean;
+    jsonExists: boolean;
+    /** Tag names when JSON exists and parses; `null` when JSON is missing or invalid JSON. */
+    frameTags: readonly string[] | null;
+};
+
+/**
+ * For prop validation: whether png/json exist, and frame tag names from JSON when readable.
+ */
+export async function resolveRoomAsepriteSheetForProps(
+    gameRoot: vscode.Uri,
+    roomId: string
+): Promise<RoomAsepriteSheetResolution> {
+    const { png, json } = getRoomAsepriteAssetRelativePaths(roomId);
+    const pngExists = await gameAssetExists(gameRoot, png);
+    const jsonExists = await gameAssetExists(gameRoot, json);
+    if (!jsonExists) {
+        return { pngExists, jsonExists, frameTags: null };
+    }
+    try {
+        const jsonUri = vscode.Uri.joinPath(
+            gameRoot,
+            'src',
+            'game',
+            'assets',
+            ...assetPathSegments(json)
+        );
+        const raw = await vscode.workspace.fs.readFile(jsonUri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as Record<string, unknown>;
+        return { pngExists, jsonExists, frameTags: readAsepriteFrameTagNames(data) };
+    } catch {
+        return { pngExists, jsonExists, frameTags: null };
+    }
+}
+
+export function propAsepriteAssetTooltip(
+    sheet: RoomAsepriteSheetResolution,
+    prop: RoomPropEntry,
+    roomId: string
+): string | undefined {
+    const tag = prop.tag?.trim() ?? '';
+    if (!tag) {
+        return 'This prop has no Aseprite tag — add one that matches a frame tag on the room sheet export.';
+    }
+    if (!sheet.pngExists || !sheet.jsonExists) {
+        return `Missing room sheet files — add src/game/assets/images/rooms/${roomId}/${roomId}.png and ${roomId}.json (Aseprite export).`;
+    }
+    if (sheet.frameTags === null) {
+        return 'Room Aseprite JSON is missing or invalid — fix or re-export from Aseprite.';
+    }
+    if (sheet.frameTags.length === 0) {
+        return 'Room sheet has no meta.frameTags — tag layers in Aseprite and re-export JSON.';
+    }
+    if (!sheet.frameTags.includes(tag)) {
+        return `No frame tag "${tag}" on this room's sheet — use an exported tag name or update the prop.`;
+    }
+    return undefined;
 }
 
 export async function readRoomProps(uri: vscode.Uri): Promise<RoomPropEntry[]> {

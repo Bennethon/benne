@@ -1,9 +1,14 @@
 import * as vscode from 'vscode';
 import {
+    characterAsepriteSheetFilesComplete,
     findBenneGameFolders,
     listCharacterDefinitions,
     listRoomDefinitions,
+    propAsepriteAssetTooltip,
+    readCharacterUsesAsepriteDisplay,
     readRoomProps,
+    resolveRoomAsepriteSheetForProps,
+    roomAsepriteSheetFilesComplete,
     type RoomPropEntry
 } from './gameDiscovery';
 
@@ -12,7 +17,15 @@ export type MainTreeNode =
     | { kind: 'workspace'; folder: vscode.WorkspaceFolder }
     | { kind: 'roomsGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'charsGroup'; folder: vscode.WorkspaceFolder }
-    | { kind: 'room'; folder: vscode.WorkspaceFolder; id: string; name: string; uri: vscode.Uri }
+    | {
+          kind: 'room';
+          folder: vscode.WorkspaceFolder;
+          id: string;
+          name: string;
+          uri: vscode.Uri;
+          /** Missing or incomplete `images/rooms/<id>/<id>.{png,json}` under assets. */
+          roomSheetIncomplete?: boolean;
+      }
     | {
           kind: 'prop';
           folder: vscode.WorkspaceFolder;
@@ -20,8 +33,20 @@ export type MainTreeNode =
           roomId: string;
           roomName: string;
           prop: RoomPropEntry;
+          /** When set, prop has no matching sheet export or tag — show warning in tree. */
+          propAssetTooltip?: string;
       }
-    | { kind: 'character'; folder: vscode.WorkspaceFolder; id: string; name: string; uri: vscode.Uri };
+    | {
+          kind: 'character';
+          folder: vscode.WorkspaceFolder;
+          id: string;
+          name: string;
+          uri: vscode.Uri;
+          /** `display.aseprite` is true but PNG/JSON export is missing under assets. */
+          characterSheetIncomplete?: boolean;
+      };
+
+const warningIcon = new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.warningForeground'));
 
 export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
     private readonly _onDidChangeTreeData = new vscode.EventEmitter<MainTreeNode | undefined | void>();
@@ -63,7 +88,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.Collapsed);
                 item.id = `room:${element.uri.toString()}`;
                 item.resourceUri = element.uri;
-                item.iconPath = new vscode.ThemeIcon('symbol-structure');
+                if (element.roomSheetIncomplete) {
+                    item.iconPath = warningIcon;
+                    item.tooltip = `Missing room Aseprite export: src/game/assets/images/rooms/${element.id}/${element.id}.png and ${element.id}.json`;
+                } else {
+                    item.iconPath = new vscode.ThemeIcon('symbol-structure');
+                }
                 item.contextValue = 'benneRoom';
                 return item;
             }
@@ -72,7 +102,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
                 item.id = `prop:${element.roomJsonUri.toString()}:${element.prop.id}`;
                 item.description = element.prop.clickable === true ? 'clickable' : undefined;
-                item.iconPath = new vscode.ThemeIcon('symbol-misc');
+                if (element.propAssetTooltip) {
+                    item.iconPath = warningIcon;
+                    item.tooltip = element.propAssetTooltip;
+                } else {
+                    item.iconPath = new vscode.ThemeIcon('symbol-misc');
+                }
                 item.contextValue = 'benneRoomProp';
                 return item;
             }
@@ -80,7 +115,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
                 item.id = `character:${element.uri.toString()}`;
                 item.resourceUri = element.uri;
-                item.iconPath = new vscode.ThemeIcon('person');
+                if (element.characterSheetIncomplete) {
+                    item.iconPath = warningIcon;
+                    item.tooltip = `Missing character Aseprite export: src/game/assets/images/characters/${element.id}/${element.id}.png and ${element.id}.json`;
+                } else {
+                    item.iconPath = new vscode.ThemeIcon('person');
+                }
                 item.contextValue = 'benneCharacter';
                 return item;
             }
@@ -122,13 +162,20 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
             if (rooms.length === 0) {
                 return [{ kind: 'hint', key: `no-rooms:${element.folder.uri}`, message: '(no rooms found)' }];
             }
-            return rooms.map((r) => ({
-                kind: 'room',
-                folder: element.folder,
-                id: r.id,
-                name: r.name,
-                uri: r.uri
-            }));
+            const gameRoot = element.folder.uri;
+            return Promise.all(
+                rooms.map(async (r) => {
+                    const sheetOk = await roomAsepriteSheetFilesComplete(gameRoot, r.id);
+                    return {
+                        kind: 'room' as const,
+                        folder: element.folder,
+                        id: r.id,
+                        name: r.name,
+                        uri: r.uri,
+                        roomSheetIncomplete: !sheetOk
+                    };
+                })
+            );
         }
 
         if (element.kind === 'room') {
@@ -137,14 +184,19 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 if (props.length === 0) {
                     return [{ kind: 'hint', key: `no-props:${element.uri}`, message: '(no props)' }];
                 }
-                return props.map((prop) => ({
-                    kind: 'prop',
-                    folder: element.folder,
-                    roomJsonUri: element.uri,
-                    roomId: element.id,
-                    roomName: element.name,
-                    prop
-                }));
+                const sheet = await resolveRoomAsepriteSheetForProps(element.folder.uri, element.id);
+                return props.map((prop) => {
+                    const propAssetTooltip = propAsepriteAssetTooltip(sheet, prop, element.id);
+                    return {
+                        kind: 'prop' as const,
+                        folder: element.folder,
+                        roomJsonUri: element.uri,
+                        roomId: element.id,
+                        roomName: element.name,
+                        prop,
+                        propAssetTooltip
+                    };
+                });
             } catch {
                 return [{ kind: 'hint', key: `props-err:${element.uri}`, message: 'Could not read room JSON' }];
             }
@@ -155,13 +207,23 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
             if (chars.length === 0) {
                 return [{ kind: 'hint', key: `no-chars:${element.folder.uri}`, message: '(no characters found)' }];
             }
-            return chars.map((c) => ({
-                kind: 'character',
-                folder: element.folder,
-                id: c.id,
-                name: c.name,
-                uri: c.uri
-            }));
+            const gameRoot = element.folder.uri;
+            return Promise.all(
+                chars.map(async (c) => {
+                    const usesAseprite = await readCharacterUsesAsepriteDisplay(c.uri);
+                    const sheetOk = usesAseprite
+                        ? await characterAsepriteSheetFilesComplete(gameRoot, c.id)
+                        : true;
+                    return {
+                        kind: 'character' as const,
+                        folder: element.folder,
+                        id: c.id,
+                        name: c.name,
+                        uri: c.uri,
+                        characterSheetIncomplete: usesAseprite && !sheetOk
+                    };
+                })
+            );
         }
 
         return [];

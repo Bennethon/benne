@@ -4,6 +4,10 @@
     {
       "id": "office",
       "definition": "office/office.room.json"
+    },
+    {
+      "id": "outside",
+      "definition": "outside/outside.room.json"
     }
   ]
 }
