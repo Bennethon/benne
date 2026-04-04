@@ -6,11 +6,14 @@ import type { RoomPolygonPatch } from './polygonPatchTypes';
 
 export const BENNE_POLYGON_EDIT_SCENE = 'BennePolygonEdit';
 
-const HANDLE_R = 8;
+/** Hit/draw radius; was 8px, reduced to one-third (~2.67 → 3). */
+const HANDLE_R = 3;
 const EDGE_HIT = 10;
 const MIN_POINTS = 3;
 
 const COL_WALK = 0x44eedd;
+/** Walkable hole ring (distinct from outer mesh). */
+const COL_WALK_HOLE = 0xffaa66;
 const COL_PROP = 0xff66cc;
 const COL_HANDLE = 0xffee44;
 const COL_SEL = 0xffffff;
@@ -146,22 +149,36 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             return;
         }
         const pts = this.getActivePoints();
-        if (!pts || pts.length < 2) {
+        if (!pts || pts.length === 0) {
             this.gPoly.clear();
             this.gHandles.clear();
             return;
         }
-        const stroke = polygonEditBridge.mode === 'walkable' ? COL_WALK : COL_PROP;
+
+        const stroke =
+            polygonEditBridge.mode === 'walkable'
+                ? polygonEditBridge.walkableHoleId
+                    ? COL_WALK_HOLE
+                    : COL_WALK
+                : COL_PROP;
         this.gPoly.clear();
-        this.gPoly.lineStyle(2, stroke, 0.95);
-        const vecs = pts.map((p) => new Phaser.Math.Vector2(p.x, p.y));
-        this.gPoly.strokePoints(vecs, true);
+        this.gPoly.lineStyle(1, stroke, 0.95);
+
+        if (pts.length === 1) {
+            /* single vertex: no stroke yet */
+        } else if (pts.length === 2) {
+            const vecsOpen = [new Phaser.Math.Vector2(pts[0]!.x, pts[0]!.y), new Phaser.Math.Vector2(pts[1]!.x, pts[1]!.y)];
+            this.gPoly.strokePoints(vecsOpen, false);
+        } else {
+            const vecs = pts.map((p) => new Phaser.Math.Vector2(p.x, p.y));
+            this.gPoly.strokePoints(vecs, true);
+        }
 
         this.gHandles.clear();
         for (let i = 0; i < pts.length; i++) {
             const p = pts[i];
             const sel = i === this.selectedVertexIndex;
-            const r = sel ? HANDLE_R + 2 : HANDLE_R;
+            const r = sel ? HANDLE_R + 1 : HANDLE_R;
             const col = sel ? COL_SEL : COL_HANDLE;
             this.gHandles.fillStyle(col, 0.95);
             this.gHandles.fillCircle(p.x, p.y, r);
@@ -188,7 +205,21 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         if (polygonEditBridge.mode === 'walkable') {
             const id = polygonEditBridge.walkablePolygonId;
             const poly = this.room.walkable.polygons.find((p) => p.id === id);
-            return poly?.points ?? null;
+            if (!poly) {
+                return null;
+            }
+            const hid = polygonEditBridge.walkableHoleId;
+            if (!hid) {
+                return poly.points ?? null;
+            }
+            const hole = poly.holes?.find((h) => h.id === hid);
+            if (!hole) {
+                return null;
+            }
+            if (!hole.points) {
+                hole.points = [];
+            }
+            return hole.points;
         }
         if (polygonEditBridge.mode === 'propCollider') {
             const id = polygonEditBridge.propId;
@@ -217,9 +248,11 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         }
         const copy = pts.map((p) => ({ x: p.x, y: p.y }));
         if (polygonEditBridge.mode === 'walkable') {
+            const hid = polygonEditBridge.walkableHoleId;
             this.postPatch({
                 kind: 'walkable',
                 polygonId: polygonEditBridge.walkablePolygonId,
+                ...(hid ? { holeId: hid } : {}),
                 points: copy,
             });
         } else if (polygonEditBridge.mode === 'propCollider') {
@@ -238,7 +271,17 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         const cam = this.cameras.main;
         const { x: wx, y: wy } = cam.getWorldPoint(pointer.x, pointer.y);
         const pts = this.getActivePoints();
-        if (!pts || pts.length < MIN_POINTS) {
+        if (!pts) {
+            return;
+        }
+
+        if (pts.length < MIN_POINTS) {
+            const vi = pts.length > 0 ? hitVertex(wx, wy, pts) : -1;
+            if (vi >= 0) {
+                this.downOnVertex = true;
+                this.dragVertexIndex = vi;
+                this.selectedVertexIndex = vi;
+            }
             return;
         }
 
@@ -258,7 +301,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             return;
         }
         const pts = this.getActivePoints();
-        if (!pts) {
+        if (!pts || this.dragVertexIndex >= pts.length) {
             return;
         }
         const cam = this.cameras.main;
@@ -283,6 +326,23 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         if (this.downOnVertex || this.dragVertexIndex !== null) {
             this.dragVertexIndex = null;
             this.downOnVertex = false;
+            return;
+        }
+
+        if (
+            pointer.leftButtonReleased() &&
+            pts &&
+            pts.length < MIN_POINTS &&
+            !this.downOnVertex &&
+            this.dragVertexIndex === null
+        ) {
+            const w = getInternalWidth();
+            const h = getInternalHeight();
+            pts.push({
+                x: Phaser.Math.Clamp(wx, 0, w),
+                y: Phaser.Math.Clamp(wy, 0, h),
+            });
+            this.tapEdge = null;
             return;
         }
 

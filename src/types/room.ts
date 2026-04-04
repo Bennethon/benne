@@ -5,9 +5,21 @@ export interface Point2 {
   y: number;
 }
 
+/** Inner ring subtracted from a walkable polygon when `active` is not false. */
+export interface WalkableHole {
+  id: string;
+  /** When false, this ring does not cut a hole (ignored for walk tests and debug). Omitted = active. */
+  active?: boolean;
+  points: Point2[];
+}
+
 export interface WalkablePolygon {
   id: string;
+  /** When false, this polygon is ignored for walking and debug overlays. Omitted = active. */
+  active?: boolean;
   points: Point2[];
+  /** Optional holes (each an inner closed ring). Inactive holes are ignored. */
+  holes?: WalkableHole[];
 }
 
 export interface RoomHotspotData {
