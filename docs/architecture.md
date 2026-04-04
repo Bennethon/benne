@@ -144,4 +144,50 @@ registerGameContent (*.room.ts, globalScript)─┘
 
 ---
 
+## 8. VS Code extension & room preview (implementation detail)
+
+This subsection documents **what exists today** for the **BENNE Editor** (`benne-editor/`) and the **room preview bundle** (`src/editor/preview/`). It does not replace earlier high-level notes; it adds concrete modules, messages, and rules.
+
+### Purpose and build output
+
+- **`npm run build:room-preview`** (repo root) runs **`vite.room-preview.config.ts`**, entry **`room-editor.html`**, and emits **`benne-editor/media/room-preview/room-preview.js`** (and assets). The extension loads that script from **`RoomPreviewPanelController`** HTML.
+- The preview is **not** the same bundle as **`vite build`** for the playable game; it is a **separate** client that embeds Phaser with **`RoomScene`** and editor-only scenes.
+
+### Preview runtime (`src/editor/preview/`)
+
+| Module | Role |
+|--------|------|
+| **`roomEditorMain.ts`** | Webview entry: `window` **`message`** handler for host commands; **`acquireVsCodeApi`** for `postMessage` to the extension; DOM **toolbar** (Mode, walkable target, prop target, Save); **`wireToolbar`** / **`polygonEditBridge`** sync; **`loadRoomGeneration`** to ignore stale async **`buildPreviewManifest`** results when **`loadRoom`** overlaps; **`destroyPreviewGameAsync()`** calls **`Phaser.Game.destroy(true)`** then **`setTimeout(150ms)`** before reusing **`#benne-preview-root`** (webview **rAF** throttling makes listening for Phaser’s internal destroy event unreliable). |
+| **`createRoomPreviewGame.ts`** | Constructs **`Phaser.Game`** with **`getBennePhaserGameConfigBase`**, **`callbacks.preBoot`** registry keys **`bennePreviewRoom`**, **`bennePreviewRoomJsonUri`**, **`bennePreviewPostPatch`**; scenes **`BennePreviewLoader`**, **`RoomScene`**, **`RoomPolygonEditScene`**. Loader **`create()`** starts **`RoomScene`**, **`launch`**es the polygon scene, then **`URL.revokeObjectURL`** for preview-only blob atlas URLs. |
+| **`buildPreviewManifest.ts`** | **`fetch`**-based analogue of boot loading: builds **`PreviewManifest`** (`loads`, **`RoomSceneStartData`**, **`revokeObjectUrls`**) from **`RoomData`** + webview **`gameSrcWebviewUri`**. |
+| **`RoomPolygonEditScene.ts`** | Overlay scene: when toolbar mode is **walkable** or **prop collider**, draws the active polygon, **drags** vertices (room pixel bounds), **double-tap edge** inserts a vertex, **Delete/Backspace** removes selected vertex (minimum **3** points), **`window`** **`benne-save-polygon`** dispatches **Save**; **`polygonEditBridge`** toggles **`RoomScene`** input off while editing. |
+| **`polygonEditBridge.ts`** | Shared toolbar ↔ Phaser **mode** and selected **walkable polygon id** / **prop id** (`subscribe` for scene refresh). |
+| **`polygonPatchTypes.ts`** | **`RoomPolygonPatch`** union sent to the extension (**Option A** payloads). |
+
+### Webview ↔ extension protocol
+
+| Message (direction) | Role |
+|---------------------|------|
+| **`benne/preview/ready`** (webview → host) | Preview script booted; host then **`pushPreview`**. |
+| **`benne/preview/loadRoom`** (host → webview) | **`room`** (parsed **`RoomData`**), **`gameSrcWebviewUri`**, **`roomJsonUri`** (string for patch target identity). |
+| **`benne/preview/clear`**, **`benne/preview/error`** | Reset or error string in the preview root. |
+| **`benne/preview/polygonPatch`** (webview → host) | **`roomJsonUri`** + **`patch`** (`walkable` \| `propCollider` + ids + **`points`**). |
+| **`benne/preview/polygonPatchResult`** (host → webview) | **`ok`**, optional **`message`**; when **`ok`**, optional **`appliedPatch`** (rounded polygon) for in-memory sync; webview updates status (no full game reload on save). |
+
+**Persistence**: **`benne-editor/src/roomPolygonPatch.ts`** — **`parseRoomPolygonPatch`**, **`applyRoomPolygonPatch`**: merges patch into **`*.room.json`** on disk, **`JSON.stringify(…, null, 2)`**, integer-rounded **`Point2`**. On success the host sends **`polygonPatchResult`** with **`appliedPatch`** (rounded coordinates); the webview updates the live registry **`RoomData`** so the preview stays mounted. A full **`pushPreview` → `loadRoom`** rebuild is reserved for room selection changes and other host-driven refreshes — not for every polygon save (destroy/recreate in the webview was brittle).
+
+### Extension panel behavior (summary)
+
+- **`RoomPreviewPanelController`** (`benne-editor/src/roomPreviewPanel.ts`): **`WebviewPanel`** **`benneRoomPreview`**, **`localResourceRoots`** include workspace **`src/game`**; **`pushPreview`** reads room JSON from disk and posts **`loadRoom`**; handles **`polygonPatch`** and replies **`polygonPatchResult`** then **`pushPreview`**.
+- Tree-driven **editor area** reset, **two-row** layout for room/prop selection, **pinned** text documents, and **serialized** preview pushes live in **`extension.ts`** / **`roomScriptNavigation.ts`** (see extension sources for exact commands — not duplicated here to avoid drift).
+
+### Data flow (preview save)
+
+```
+Toolbar Save → postMessage(polygonPatch) → applyRoomPolygonPatch(uri) → polygonPatchResult(ok, appliedPatch)
+     → webview applies appliedPatch to registry room (Phaser game stays alive)
+```
+
+---
+
 *This document reflects the repository as of the last update; when behavior changes, prefer updating this file over stale comments scattered in code.*

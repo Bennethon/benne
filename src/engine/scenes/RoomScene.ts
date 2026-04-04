@@ -35,6 +35,8 @@ const DEBUG_OVERLAY_DEPTH = 20_000;
 
 /** Outline color for `debug.showWalkable` (green). */
 const DEBUG_WALKABLE_STROKE = 0x33dd66;
+/** Hole rings under an active walkable polygon (debug). */
+const DEBUG_WALKABLE_HOLE_STROKE = 0x229955;
 /** Outline color for `debug.showPropOutlines` (magenta). */
 const DEBUG_PROP_COLLIDER_STROKE = 0xff44cc;
 
@@ -242,16 +244,26 @@ export class RoomScene extends Phaser.Scene {
     const lineWidth = 1;
 
     if (debug.showWalkable) {
-      const g = this.add.graphics();
-      g.lineStyle(lineWidth, DEBUG_WALKABLE_STROKE, 1);
+      const gOuter = this.add.graphics();
+      const gHoles = this.add.graphics();
+      gOuter.lineStyle(lineWidth, DEBUG_WALKABLE_STROKE, 1);
+      gHoles.lineStyle(lineWidth, DEBUG_WALKABLE_HOLE_STROKE, 1);
       for (const poly of this.roomData.walkable.polygons) {
-        if (poly.points.length < 3) {
+        if (poly.active === false || poly.points.length < 3) {
           continue;
         }
         const vecs = poly.points.map((p) => new Phaser.Math.Vector2(p.x, p.y));
-        g.strokePoints(vecs, true);
+        gOuter.strokePoints(vecs, true);
+        for (const h of poly.holes ?? []) {
+          if (h.active === false || h.points.length < 3) {
+            continue;
+          }
+          const hv = h.points.map((p) => new Phaser.Math.Vector2(p.x, p.y));
+          gHoles.strokePoints(hv, true);
+        }
       }
-      g.setDepth(DEBUG_OVERLAY_DEPTH);
+      gOuter.setDepth(DEBUG_OVERLAY_DEPTH);
+      gHoles.setDepth(DEBUG_OVERLAY_DEPTH);
     }
 
     if (debug.showPropOutlines) {

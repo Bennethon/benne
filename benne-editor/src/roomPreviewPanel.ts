@@ -1,7 +1,11 @@
 import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
-import { applyRoomPolygonPatch, parseRoomPolygonPatch } from './roomPolygonPatch';
+import {
+    applyRoomPolygonPatch,
+    parseRoomPolygonPatch,
+    type RoomPolygonPatch,
+} from './roomPolygonPatch';
 
 /**
  * Phaser room preview in a {@link vscode.WebviewPanel} (editor area), driven by BENNE tree selection.
@@ -9,7 +13,11 @@ import { applyRoomPolygonPatch, parseRoomPolygonPatch } from './roomPolygonPatch
 export class RoomPreviewPanelController implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
     private webviewReady = false;
+    /** Last room JSON URI successfully sent with `loadRoom`; used to skip redundant reloads when only the prop selection changes. */
+    private lastPushedRoomJsonUri: string | null = null;
     private readonly disposables: vscode.Disposable[] = [];
+    /** Serializes preview loads so rapid saves do not post overlapping `loadRoom` messages. */
+    private previewPushTail: Promise<void> = Promise.resolve();
 
     constructor(
         private readonly extensionUri: vscode.Uri,
@@ -36,7 +44,13 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         const p = this.panel;
         this.panel = undefined;
         this.webviewReady = false;
+        this.lastPushedRoomJsonUri = null;
         p.dispose();
+    }
+
+    /** True when the room preview webview exists and has completed its initial `ready` handshake. */
+    isRoomPreviewActive(): boolean {
+        return this.panel !== undefined && this.webviewReady;
     }
 
     private async onSelectionChanged(): Promise<void> {
@@ -50,6 +64,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             if (this.panel && this.webviewReady) {
                 void this.panel.webview.postMessage({ type: 'benne/preview/clear' });
             }
+            this.lastPushedRoomJsonUri = null;
             return;
         }
 
@@ -61,8 +76,25 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         if (createdNew) {
             this.webviewReady = false;
         } else if (this.webviewReady) {
+            const nextUri = this.previewRoomJsonUriForSelection();
+            const nextStr = nextUri?.toString() ?? '';
+            if (nextStr && nextStr === this.lastPushedRoomJsonUri) {
+                return;
+            }
             await this.pushPreview();
         }
+    }
+
+    private previewRoomJsonUriForSelection(): vscode.Uri | undefined {
+        const focus = this.selection.focus;
+        const roomPanel = this.selection.roomPanel;
+        if (roomPanel.kind === 'prop') {
+            return roomPanel.roomJsonUri;
+        }
+        if (focus.kind === 'room') {
+            return focus.uri;
+        }
+        return undefined;
     }
 
     /** Creates the panel if needed. Returns true if the panel was just created. */
@@ -110,6 +142,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             this.panel.onDidDispose(() => {
                 this.panel = undefined;
                 this.webviewReady = false;
+                this.lastPushedRoomJsonUri = null;
             })
         );
 
@@ -141,8 +174,9 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             });
             return;
         }
+        let appliedPatch: RoomPolygonPatch;
         try {
-            await applyRoomPolygonPatch(uri, patch);
+            appliedPatch = await applyRoomPolygonPatch(uri, patch);
         } catch (e) {
             webview.postMessage({
                 type: 'benne/preview/polygonPatchResult',
@@ -151,25 +185,29 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             });
             return;
         }
-        webview.postMessage({ type: 'benne/preview/polygonPatchResult', ok: true });
-        await this.pushPreview();
+        // Do not pushPreview here: full destroy/recreate is brittle in the webview and unnecessary —
+        // the preview already mutates live RoomData; appliedPatch syncs integer-rounded coordinates.
+        webview.postMessage({
+            type: 'benne/preview/polygonPatchResult',
+            ok: true,
+            appliedPatch,
+        });
     }
 
-    private async pushPreview(): Promise<void> {
+    private pushPreview(): Promise<void> {
+        const started = this.previewPushTail.then(() => this.doPushPreview());
+        this.previewPushTail = started.catch(() => undefined);
+        return started;
+    }
+
+    private async doPushPreview(): Promise<void> {
         const webview = this.panel?.webview;
         if (!webview) {
             return;
         }
 
-        const focus = this.selection.focus;
-        const roomPanel = this.selection.roomPanel;
-
-        let roomJsonUri: vscode.Uri | undefined;
-        if (roomPanel.kind === 'prop') {
-            roomJsonUri = roomPanel.roomJsonUri;
-        } else if (focus.kind === 'room') {
-            roomJsonUri = focus.uri;
-        } else {
+        const roomJsonUri = this.previewRoomJsonUriForSelection();
+        if (!roomJsonUri) {
             webview.postMessage({ type: 'benne/preview/clear' });
             return;
         }
@@ -198,12 +236,14 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             const raw = await vscode.workspace.fs.readFile(roomJsonUri);
             const room = JSON.parse(Buffer.from(raw).toString('utf8')) as Record<string, unknown>;
             const gameSrcWebviewUri = webview.asWebviewUri(gameSrc).toString();
+            const uriStr = roomJsonUri.toString();
             webview.postMessage({
                 type: 'benne/preview/loadRoom',
                 room,
                 gameSrcWebviewUri,
-                roomJsonUri: roomJsonUri.toString(),
+                roomJsonUri: uriStr,
             });
+            this.lastPushedRoomJsonUri = uriStr;
         } catch (e) {
             webview.postMessage({
                 type: 'benne/preview/error',

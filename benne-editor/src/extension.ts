@@ -47,15 +47,27 @@ export function activate(context: vscode.ExtensionContext): void {
             selection.setRoom(node.uri, node.name);
             await openRoomJsonAndScript(node.uri, node.id);
         } else if (node.kind === 'prop') {
-            await resetBenneEditorSurface();
-            await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            const sameRoomContext =
+                selection.focus.kind === 'room' &&
+                selection.focus.uri.toString() === node.roomJsonUri.toString();
+
+            if (!sameRoomContext) {
+                await resetBenneEditorSurface();
+                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            } else if (!roomPreview.isRoomPreviewActive()) {
+                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            }
+
             selection.setRoomWithProp(
                 node.roomJsonUri,
                 node.roomName,
                 node.roomId,
                 node.prop
             );
-            await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+
+            if (!sameRoomContext) {
+                await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+            }
         } else if (node.kind === 'character') {
             await resetBenneEditorSurface();
             await vscode.commands.executeCommand('workbench.action.editorLayoutSingle');

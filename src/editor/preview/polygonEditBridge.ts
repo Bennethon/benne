@@ -3,6 +3,8 @@ export type EditToolbarMode = 'navigate' | 'walkable' | 'propCollider';
 class PolygonEditBridgeImpl {
     mode: EditToolbarMode = 'navigate';
     walkablePolygonId = '';
+    /** Empty string = edit outer ring of {@link walkablePolygonId}; otherwise hole id under that polygon. */
+    walkableHoleId = '';
     propId = '';
     private readonly listeners = new Set<() => void>();
 
@@ -26,6 +28,14 @@ class PolygonEditBridgeImpl {
 
     setWalkablePolygonId(id: string): void {
         this.walkablePolygonId = id;
+        this.walkableHoleId = '';
+        this.notify();
+    }
+
+    /** Outer ring when `holeId` is empty. */
+    setWalkableEditTarget(polygonId: string, holeId: string): void {
+        this.walkablePolygonId = polygonId;
+        this.walkableHoleId = holeId;
         this.notify();
     }
 
