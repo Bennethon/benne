@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import { ActionsTreeProvider } from './actionsTreeProvider';
 import { EditorSelection } from './editorSelection';
 import { MainTreeProvider, type MainTreeNode } from './mainTreeProvider';
-import { openDocumentUri, openSinglePreview, revealEventInDocument } from './roomScriptNavigation';
+import { RoomPreviewPanelController } from './roomPreviewPanel';
+import { openDocumentPinned, openDocumentUri, revealEventInDocument } from './roomScriptNavigation';
 
 export function activate(context: vscode.ExtensionContext): void {
     const selection = new EditorSelection();
@@ -19,32 +20,49 @@ export function activate(context: vscode.ExtensionContext): void {
         showCollapseAll: false
     });
 
+    const roomPreview = new RoomPreviewPanelController(context.extensionUri, selection);
+
     context.subscriptions.push(
+        roomPreview,
         mainTreeView,
         actionsTreeView,
         selection,
         mainTreeView.onDidChangeSelection((e) => {
-            const node = e.selection[0] as MainTreeNode | undefined;
-            if (!node) {
-                return;
-            }
-            if (node.kind === 'room') {
-                selection.setRoom(node.uri, node.name);
-                void openRoomJsonAndScript(node.uri, node.id);
-            } else if (node.kind === 'prop') {
-                selection.setRoomWithProp(
-                    node.roomJsonUri,
-                    node.roomName,
-                    node.roomId,
-                    node.prop
-                );
-                void openSinglePreview(node.roomJsonUri, vscode.ViewColumn.Active);
-            } else if (node.kind === 'character') {
-                selection.setCharacter(node.uri, node.name);
-                void openSinglePreview(node.uri, vscode.ViewColumn.Active);
-            }
+            void onMainTreeSelection(e.selection[0] as MainTreeNode | undefined);
         })
     );
+
+    async function resetBenneEditorSurface(): Promise<void> {
+        roomPreview.resetPreviewPanel();
+        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    }
+
+    async function onMainTreeSelection(node: MainTreeNode | undefined): Promise<void> {
+        if (!node) {
+            return;
+        }
+        if (node.kind === 'room') {
+            await resetBenneEditorSurface();
+            await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            selection.setRoom(node.uri, node.name);
+            await openRoomJsonAndScript(node.uri, node.id);
+        } else if (node.kind === 'prop') {
+            await resetBenneEditorSurface();
+            await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            selection.setRoomWithProp(
+                node.roomJsonUri,
+                node.roomName,
+                node.roomId,
+                node.prop
+            );
+            await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+        } else if (node.kind === 'character') {
+            await resetBenneEditorSurface();
+            await vscode.commands.executeCommand('workbench.action.editorLayoutSingle');
+            selection.setCharacter(node.uri, node.name);
+            await openCharacterJsonAndScript(node.uri, node.id);
+        }
+    }
 
     const refreshTrees = (): void => {
         mainProvider.refresh();
@@ -58,7 +76,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 if (typeof uriStr !== 'string') {
                     return;
                 }
-                await openDocumentUri(vscode.Uri.parse(uriStr), preview !== false);
+                await openDocumentUri(vscode.Uri.parse(uriStr), preview === true);
             }
         ),
         vscode.commands.registerCommand(
@@ -69,7 +87,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 }
                 const jsonUri = vscode.Uri.parse(roomJsonUriStr);
                 const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
-                await openDocumentUri(scriptUri, true, vscode.ViewColumn.Beside);
+                await openDocumentPinned(scriptUri, vscode.ViewColumn.Active);
             }
         ),
         vscode.commands.registerCommand(
@@ -211,7 +229,7 @@ function getWebviewContent(): string {
         </head>
         <body>
             <h1>BENNE Editor</h1>
-            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree (rooms &amp; props under each room, plus characters) and <em>Actions</em>. This panel will host the visual canvas later.</p>
+            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree and <em>Actions</em>. Each tree choice resets the editor area, then opens the right layout: rooms and props — two rows with <em>BENNE Room preview</em> on top and pinned room JSON + <code>*.room.ts</code> below; characters — single group with pinned character JSON + <code>*.character.ts</code>.</p>
             
             <button id="create-room-btn">Create New Room</button>
 
@@ -228,13 +246,27 @@ function getWebviewContent(): string {
 
 export function deactivate(): void {}
 
+/** Bottom editor group after `workbench.action.editorLayoutTwoRows` (JSON + *.room.ts as tabs). */
+const ROOM_SOURCES_VIEW_COLUMN = vscode.ViewColumn.Two;
+
 async function openRoomJsonAndScript(roomJsonUri: vscode.Uri, roomId: string): Promise<void> {
-    await openSinglePreview(roomJsonUri, vscode.ViewColumn.Active);
+    await openDocumentPinned(roomJsonUri, ROOM_SOURCES_VIEW_COLUMN);
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
     try {
         await vscode.workspace.fs.stat(scriptUri);
-        await openSinglePreview(scriptUri, vscode.ViewColumn.Beside);
+        await openDocumentPinned(scriptUri, ROOM_SOURCES_VIEW_COLUMN);
     } catch {
         /* optional *.room.ts */
+    }
+}
+
+async function openCharacterJsonAndScript(characterJsonUri: vscode.Uri, characterId: string): Promise<void> {
+    await openDocumentPinned(characterJsonUri, vscode.ViewColumn.One);
+    const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
+    try {
+        await vscode.workspace.fs.stat(scriptUri);
+        await openDocumentPinned(scriptUri, vscode.ViewColumn.One);
+    } catch {
+        /* optional *.character.ts */
     }
 }

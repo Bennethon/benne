@@ -3,7 +3,10 @@ import { getGameSettings } from './ConfigManager';
 import { BootScene } from './scenes/BootScene';
 import { RoomScene } from './scenes/RoomScene';
 
-export function createGameConfig(parent: HTMLElement | string): Phaser.Types.Core.GameConfig {
+/** Shared Phaser settings (resolution, scale, render) — scenes are added per entrypoint. */
+export function getBennePhaserGameConfigBase(
+  parent: HTMLElement | string,
+): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
   const { width, height } = getGameSettings().resolution;
 
   return {
@@ -24,9 +27,15 @@ export function createGameConfig(parent: HTMLElement | string): Phaser.Types.Cor
       zoom: Phaser.Scale.MAX_ZOOM,
       autoRound: true,
     },
-    scene: [BootScene, RoomScene],
     render: {
       powerPreference: 'high-performance',
     },
+  };
+}
+
+export function createGameConfig(parent: HTMLElement | string): Phaser.Types.Core.GameConfig {
+  return {
+    ...getBennePhaserGameConfigBase(parent),
+    scene: [BootScene, RoomScene],
   };
 }
