@@ -1,0 +1,39 @@
+{
+  "id": "outside",
+  "name": "Outside",
+  "walkable": {
+    "polygons": []
+  },
+  "hotspots": [],
+  "props": [
+    {
+      "id": "outside-prop-car",
+      "tag": "Car",
+      "zIndex": 5,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "outside-prop-bush",
+      "tag": "Bush",
+      "zIndex": 1,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "outside-prop-background",
+      "tag": "Background",
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "outside-prop-gate",
+      "tag": "Gate",
+      "zIndex": 3,
+      "visible": true,
+      "alpha": 1
+    }
+  ]
+}

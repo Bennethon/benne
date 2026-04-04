@@ -2,8 +2,21 @@ import * as vscode from 'vscode';
 import { ActionsTreeProvider } from './actionsTreeProvider';
 import { EditorSelection } from './editorSelection';
 import { MainTreeProvider, type MainTreeNode } from './mainTreeProvider';
+import { runCreateCharacterWizard } from './characterScaffolding';
+import {
+    runAddRoomPropWizard,
+    runCreateRoomWizard,
+    runImportPropsFromAsepriteTags
+} from './roomScaffolding';
 import { RoomPreviewPanelController } from './roomPreviewPanel';
 import { openDocumentPinned, openDocumentUri, revealEventInDocument } from './roomScriptNavigation';
+
+function firstTreeContextArg(arg: MainTreeNode | MainTreeNode[] | undefined): MainTreeNode | undefined {
+    if (arg === undefined) {
+        return undefined;
+    }
+    return Array.isArray(arg) ? arg[0] : arg;
+}
 
 export function activate(context: vscode.ExtensionContext): void {
     const selection = new EditorSelection();
@@ -83,6 +96,42 @@ export function activate(context: vscode.ExtensionContext): void {
 
     context.subscriptions.push(
         vscode.commands.registerCommand(
+            'benne-editor.createRoom',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                const preferredFolder =
+                    node?.kind === 'roomsGroup' || node?.kind === 'workspace' ? node.folder : undefined;
+                await runCreateRoomWizard(preferredFolder);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.createCharacter',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                const preferredFolder =
+                    node?.kind === 'charsGroup' || node?.kind === 'workspace' ? node.folder : undefined;
+                await runCreateCharacterWizard(preferredFolder);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addRoomProp',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                await runAddRoomPropWizard(selection, node);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.importPropsFromAsepriteTags',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                await runImportPropsFromAsepriteTags(selection, node);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
             'benne-editor.openUriPreview',
             async (uriStr?: string, preview?: boolean) => {
                 if (typeof uriStr !== 'string') {
@@ -150,11 +199,25 @@ export function activate(context: vscode.ExtensionContext): void {
     );
 
     const jsonWatcher = vscode.workspace.createFileSystemWatcher('**/src/game/**/*.json');
+    const roomSheetAssetWatcher = vscode.workspace.createFileSystemWatcher(
+        '**/src/game/assets/images/rooms/**'
+    );
+    const characterSheetAssetWatcher = vscode.workspace.createFileSystemWatcher(
+        '**/src/game/assets/images/characters/**'
+    );
     context.subscriptions.push(
         jsonWatcher,
         jsonWatcher.onDidChange(refreshTrees),
         jsonWatcher.onDidCreate(refreshTrees),
-        jsonWatcher.onDidDelete(refreshTrees)
+        jsonWatcher.onDidDelete(refreshTrees),
+        roomSheetAssetWatcher,
+        roomSheetAssetWatcher.onDidChange(refreshTrees),
+        roomSheetAssetWatcher.onDidCreate(refreshTrees),
+        roomSheetAssetWatcher.onDidDelete(refreshTrees),
+        characterSheetAssetWatcher,
+        characterSheetAssetWatcher.onDidChange(refreshTrees),
+        characterSheetAssetWatcher.onDidCreate(refreshTrees),
+        characterSheetAssetWatcher.onDidDelete(refreshTrees)
     );
 
     context.subscriptions.push(
@@ -181,24 +244,15 @@ export function activate(context: vscode.ExtensionContext): void {
                 async (message: { command?: string }) => {
                     switch (message.command) {
                         case 'createRoom': {
-                            const roomName = await vscode.window.showInputBox({
-                                prompt: 'Enter the new room name (e.g. kitchen, hallway, bedroom)',
-                                placeHolder: 'kitchen',
-                                validateInput: (value) => {
-                                    if (!value || !/^[a-z0-9_-]+$/i.test(value)) {
-                                        return 'Room name must contain only letters, numbers, underscore or hyphen';
-                                    }
-                                    return null;
-                                }
-                            });
-
-                            if (roomName) {
-                                vscode.window.showInformationMessage(`Creating room: ${roomName}`);
-                                panel.webview.postMessage({
-                                    command: 'roomCreated',
-                                    roomName
-                                });
-                            }
+                            await vscode.commands.executeCommand('benne-editor.createRoom');
+                            break;
+                        }
+                        case 'addRoomProp': {
+                            await vscode.commands.executeCommand('benne-editor.addRoomProp');
+                            break;
+                        }
+                        case 'createCharacter': {
+                            await vscode.commands.executeCommand('benne-editor.createCharacter');
                             break;
                         }
                     }
@@ -243,13 +297,23 @@ function getWebviewContent(): string {
             <h1>BENNE Editor</h1>
             <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree and <em>Actions</em>. Each tree choice resets the editor area, then opens the right layout: rooms and props — two rows with <em>BENNE Room preview</em> on top and pinned room JSON + <code>*.room.ts</code> below; characters — single group with pinned character JSON + <code>*.character.ts</code>.</p>
             
-            <button id="create-room-btn">Create New Room</button>
+            <p>
+                <button id="create-room-btn" type="button">Create New Room</button>
+                <button id="add-prop-btn" type="button" style="margin-left:8px">Add Prop</button>
+                <button id="create-character-btn" type="button" style="margin-left:8px">Create Character</button>
+            </p>
 
             <script>
                 const vscode = acquireVsCodeApi();
                 
                 document.getElementById('create-room-btn').addEventListener('click', () => {
                     vscode.postMessage({ command: 'createRoom' });
+                });
+                document.getElementById('add-prop-btn').addEventListener('click', () => {
+                    vscode.postMessage({ command: 'addRoomProp' });
+                });
+                document.getElementById('create-character-btn').addEventListener('click', () => {
+                    vscode.postMessage({ command: 'createCharacter' });
                 });
             </script>
         </body>
