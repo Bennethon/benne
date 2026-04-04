@@ -191,7 +191,27 @@
       "tag": "Coatrack",
       "zIndex": 16,
       "visible": true,
-      "alpha": 1
+      "alpha": 1,
+      "collider": {
+        "points": [
+          {
+            "x": 298,
+            "y": 60
+          },
+          {
+            "x": 308,
+            "y": 61
+          },
+          {
+            "x": 308,
+            "y": 130
+          },
+          {
+            "x": 300,
+            "y": 131
+          }
+        ]
+      }
     },
     {
       "id": "office-prop-jacket",

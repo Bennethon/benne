@@ -65,7 +65,7 @@ The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build 
 
 ### Input system
 
-- **Walk**: **Left click** on empty space (no hit-test targets) moves the **player** character toward the click, **clamped** into **walkable polygons** (`walkable.ts` — point-in-polygon + segment clamping toward destination).
+- **Walk**: **Left click** on empty space (no hit-test targets) moves the **player** character toward the click, **clamped** into **walkable regions** (`walkable.ts` — each **`WalkablePolygon`** is an outer ring minus optional **active** hole rings; union across polygons; point-in-polygon + closest-point clamping toward the click).
 - **Props**: **Polygon hit area** per clickable prop; **left** = look (`onLook` string), **right** = use (`onUse`) when defined. Requires `walkToPoint`, `lookAtPoint`, and collider in JSON.
 - **Characters / hotspots**: **Zones or sprites** with `pointerdown`; characters emit look events without the walk-to-stand flow unless extended later.
 - **Context menu** disabled on mouse in `RoomScene`.
@@ -129,6 +129,7 @@ registerGameContent (*.room.ts, globalScript)─┘
 - **Engine vs game**: Do not put **game-specific narrative or room logic** under `src/engine/` except through **generic hooks** (events, helpers). Put reactions in **`src/game/`** (`*.room.ts`, future modules).
 - **Config**: **`game-config.json`** is the **single source** for resolution, default character, start room override, audio, debug flags — read via **`getGameSettings()`**, not duplicated literals.
 - **Room data**: Follow **`RoomData`** / **`RoomPropInstance`** in **`src/types/room.ts`**; keep **`walkToPoint` / `lookAtPoint` / `collider`** consistent for clickable props.
+- **Walkable mesh**: **`walkable.polygons[]`** entries support optional **`holes[]`** (inner rings subtracted when **`active`** is not **`false`**). Each polygon and hole may set **`active`**; omitted or non-**`false`** means included in tests and debug draw. See **`walkable.ts`** and **`RoomScene`** debug overlays (outer vs hole stroke colors).
 - **Registration**: New room scripts must live under **`src/game/rooms/`** as **`*.room.ts`** exporting **`registerRoomScript`** to be picked up by **`registerGameContent`**.
 - **Strict TypeScript**: Project uses **strict** compiler options; new code should preserve typings for payloads and JSON-shaped types.
 
@@ -140,7 +141,7 @@ registerGameContent (*.room.ts, globalScript)─┘
 - **Post-processing**: `PostEffects.ts` is ready for **camera filter** composition (CRT, dither, etc.).
 - **Audio**: Volume helpers exist; **music loops, voice, and SFX triggers** from events are **future work**.
 - **Dialogue / inventory**: Types exist under `src/types/` in places; **not integrated** into `RoomScene` flow yet.
-- **Editor**: VS Code extension + **`build:room-preview`** targets **live `RoomScene` preview** in a webview; **polygon editing** in-editor is **planned**, not implemented in the engine repo beyond debug drawing.
+- **Editor**: VS Code extension + **`build:room-preview`** ship a **live `RoomScene` preview** in a webview with **polygon editing** (walkable outer rings, holes, and prop colliders) via **`RoomPolygonEditScene`** — see **§8**.
 
 ---
 
@@ -157,36 +158,50 @@ This subsection documents **what exists today** for the **BENNE Editor** (`benne
 
 | Module | Role |
 |--------|------|
-| **`roomEditorMain.ts`** | Webview entry: `window` **`message`** handler for host commands; **`acquireVsCodeApi`** for `postMessage` to the extension; DOM **toolbar** (Mode, walkable target, prop target, Save); **`wireToolbar`** / **`polygonEditBridge`** sync; **`loadRoomGeneration`** to ignore stale async **`buildPreviewManifest`** results when **`loadRoom`** overlaps; **`destroyPreviewGameAsync()`** calls **`Phaser.Game.destroy(true)`** then **`setTimeout(150ms)`** before reusing **`#benne-preview-root`** (webview **rAF** throttling makes listening for Phaser’s internal destroy event unreliable). |
+| **`roomEditorMain.ts`** | Webview entry: `window` **`message`** handler; **`acquireVsCodeApi`**; **`lastLoadedRoom`** for lightweight toolbar updates; **`wireToolbarFromPreviewState`** builds **room** vs **prop-tree** toolbars; **`loadRoomGeneration`** + **`destroyPreviewGameAsync()`** (same **150ms** delay after **`Phaser.Game.destroy(true)`** as before). |
 | **`createRoomPreviewGame.ts`** | Constructs **`Phaser.Game`** with **`getBennePhaserGameConfigBase`**, **`callbacks.preBoot`** registry keys **`bennePreviewRoom`**, **`bennePreviewRoomJsonUri`**, **`bennePreviewPostPatch`**; scenes **`BennePreviewLoader`**, **`RoomScene`**, **`RoomPolygonEditScene`**. Loader **`create()`** starts **`RoomScene`**, **`launch`**es the polygon scene, then **`URL.revokeObjectURL`** for preview-only blob atlas URLs. |
 | **`buildPreviewManifest.ts`** | **`fetch`**-based analogue of boot loading: builds **`PreviewManifest`** (`loads`, **`RoomSceneStartData`**, **`revokeObjectUrls`**) from **`RoomData`** + webview **`gameSrcWebviewUri`**. |
-| **`RoomPolygonEditScene.ts`** | Overlay scene: when toolbar mode is **walkable** or **prop collider**, draws the active polygon, **drags** vertices (room pixel bounds), **double-tap edge** inserts a vertex, **Delete/Backspace** removes selected vertex (minimum **3** points), **`window`** **`benne-save-polygon`** dispatches **Save**; **`polygonEditBridge`** toggles **`RoomScene`** input off while editing. |
-| **`polygonEditBridge.ts`** | Shared toolbar ↔ Phaser **mode** and selected **walkable polygon id** / **prop id** (`subscribe` for scene refresh). |
-| **`polygonPatchTypes.ts`** | **`RoomPolygonPatch`** union sent to the extension (**Option A** payloads). |
+| **`RoomPolygonEditScene.ts`** | Overlay: **walkable** (outer or hole ring), or **prop collider** when allowed. **Drags** vertices, **double-tap edge** adds a vertex (closed rings with ≥3 points), **click-to-add** bootstraps the first three vertices on empty or short rings; **Delete/Backspace** respects minimum **3** points; **`benne-save-polygon`** → patch; **`polygonEditBridge`** disables **`RoomScene`** input while editing. Prop collider points are only edited when **`clickable === true`** (toolbar and **`getActivePoints`** both enforce). |
+| **`polygonEditBridge.ts`** | **Mode** (`navigate` \| `walkable` \| `propCollider`), **`walkablePolygonId`**, **`walkableHoleId`** (empty = outer ring), **`propId`**; **`subscribe`** notifies the polygon scene. |
+| **`polygonPatchTypes.ts`** | **`RoomPolygonPatch`**: **`walkable`** (**`polygonId`**, optional **`holeId`**, **`points`**) \| **`propCollider`** (**`propId`**, **`points`**). |
 
 ### Webview ↔ extension protocol
 
 | Message (direction) | Role |
 |---------------------|------|
 | **`benne/preview/ready`** (webview → host) | Preview script booted; host then **`pushPreview`**. |
-| **`benne/preview/loadRoom`** (host → webview) | **`room`** (parsed **`RoomData`**), **`gameSrcWebviewUri`**, **`roomJsonUri`** (string for patch target identity). |
+| **`benne/preview/loadRoom`** (host → webview) | **`room`**, **`gameSrcWebviewUri`**, **`roomJsonUri`**, plus **`previewFocus`**: **`room`** \| **`prop`**, and **`propColliderId`** when focus is **`prop`** (drives toolbar layout without extra round-trips). |
+| **`benne/preview/toolbarUi`** (host → webview) | Same **`previewFocus`** / **`propColliderId`** fields when the **room JSON URI is unchanged** (e.g. switching **room node** ↔ **prop node** under the same room) so the webview rewires the toolbar and **`polygonEditBridge`** **without** tearing down Phaser. |
 | **`benne/preview/clear`**, **`benne/preview/error`** | Reset or error string in the preview root. |
-| **`benne/preview/polygonPatch`** (webview → host) | **`roomJsonUri`** + **`patch`** (`walkable` \| `propCollider` + ids + **`points`**). |
-| **`benne/preview/polygonPatchResult`** (host → webview) | **`ok`**, optional **`message`**; when **`ok`**, optional **`appliedPatch`** (rounded polygon) for in-memory sync; webview updates status (no full game reload on save). |
+| **`benne/preview/polygonPatch`** (webview → host) | **`roomJsonUri`** + **`patch`**. |
+| **`benne/preview/polygonPatchResult`** (host → webview) | **`ok`**, optional **`message`**; when **`ok`**, **`appliedPatch`** mirrors what was written (including **`walkable.holeId`** when applicable); webview applies it to registry **`RoomData`** — **no** follow-up **`pushPreview`** on save. |
 
-**Persistence**: **`benne-editor/src/roomPolygonPatch.ts`** — **`parseRoomPolygonPatch`**, **`applyRoomPolygonPatch`**: merges patch into **`*.room.json`** on disk, **`JSON.stringify(…, null, 2)`**, integer-rounded **`Point2`**. On success the host sends **`polygonPatchResult`** with **`appliedPatch`** (rounded coordinates); the webview updates the live registry **`RoomData`** so the preview stays mounted. A full **`pushPreview` → `loadRoom`** rebuild is reserved for room selection changes and other host-driven refreshes — not for every polygon save (destroy/recreate in the webview was brittle).
+**Persistence**: **`benne-editor/src/roomPolygonPatch.ts`** — **`applyRoomPolygonPatch`** merges into **`*.room.json`**, rounds **`Point2`** to integers, supports **`walkable`** patches on the **outer ring** or on a **hole** under **`polygonId`** via optional **`holeId`**.
+
+### Toolbar UX (tree selection)
+
+| BENNE tree selection | Preview toolbar |
+|----------------------|-----------------|
+| **Room** node (not a prop) | **Mode**: Navigate or **Edit walkable**. **Walkable/Holes** dropdown lists each polygon’s **outer** ring and each **hole** (JSON-encoded option values). **Save** when editing walkables. No prop collider mode here — colliders are edited only via prop selection. |
+| **Prop** under a room | If **`clickable: true`**: **Prop collider** line + **Save** only; scene stays in **prop collider** edit mode for that **`propId`**. If not clickable: short message that **`"clickable": true`** is required; **Navigate** (no polygon edit). |
 
 ### Extension panel behavior (summary)
 
-- **`RoomPreviewPanelController`** (`benne-editor/src/roomPreviewPanel.ts`): **`WebviewPanel`** **`benneRoomPreview`**, **`localResourceRoots`** include workspace **`src/game`**; **`pushPreview`** reads room JSON from disk and posts **`loadRoom`**; handles **`polygonPatch`** and replies **`polygonPatchResult`** then **`pushPreview`**.
-- Tree-driven **editor area** reset, **two-row** layout for room/prop selection, **pinned** text documents, and **serialized** preview pushes live in **`extension.ts`** / **`roomScriptNavigation.ts`** (see extension sources for exact commands — not duplicated here to avoid drift).
+- **`RoomPreviewPanelController`** (`benne-editor/src/roomPreviewPanel.ts`): **`WebviewPanel`** **`benneRoomPreview`**; **`pushPreview`** posts **`loadRoom`** with toolbar fields; **`lastPushedRoomJsonUri`** skips redundant **`loadRoom`** when only the **prop vs room** tree focus changes (same file), and **`postToolbarUiIfNeeded`** sends **`toolbarUi`** instead; **`polygonPatch`** → **`polygonPatchResult`** (**no** automatic **`pushPreview`** after a successful save).
+- Selecting another **prop** under the **same** room does **not** reset the editor surface (see **`extension.ts`**); the preview panel updates via **`toolbarUi`** / **`loadRoom`** as above.
+- **Two-row** layout, **pinned** documents, and tree commands remain in **`extension.ts`** / **`roomScriptNavigation.ts`**.
 
 ### Data flow (preview save)
 
 ```
 Toolbar Save → postMessage(polygonPatch) → applyRoomPolygonPatch(uri) → polygonPatchResult(ok, appliedPatch)
-     → webview applies appliedPatch to registry room (Phaser game stays alive)
+     → webview applies appliedPatch to registry room (Phaser game stays alive; no pushPreview)
 ```
+
+### Runtime walk mesh (engine)
+
+- **`src/engine/walkable.ts`**: **`isPointInWalkablePolygon`** — inside **active** outer, not inside any **active** hole; **`isPointInWalkableArea`** unions polygons; **`clampWalkDestinationTowardClick`** uses holed closest-point logic.
+- **`RoomScene`** debug **`showWalkable`**: strokes **active** outers and **active** hole rings (distinct colors).
 
 ---
 
