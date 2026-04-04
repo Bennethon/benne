@@ -263,7 +263,7 @@
       "tag": "Glasses",
       "zIndex": 22,
       "clickable": true,
-      "visible": true,
+      "visible": false,
       "alpha": 1,
       "walkToPoint": {
         "x": 165,
@@ -301,7 +301,7 @@
       "tag": "CyberBuddy",
       "zIndex": 24,
       "clickable": true,
-      "visible": true,
+      "visible": false,
       "alpha": 1,
       "walkToPoint": {
         "x": 155,
@@ -333,6 +333,20 @@
         ]
       },
       "onLook": "look:office-cyberbuddy"
+    },
+    {
+      "id": "office-prop-plant",
+      "tag": "Plant",
+      "zIndex": 25,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "office-prop-plant2",
+      "tag": "Plant2",
+      "zIndex": 26,
+      "visible": true,
+      "alpha": 1
     }
   ],
   "characters": [

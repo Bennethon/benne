@@ -129,6 +129,10 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         this.input.keyboard?.on('keydown-BACKSPACE', this.onDeleteKey);
 
         this.unsubBridge = polygonEditBridge.subscribe(() => {
+            /* During game.destroy(), manager may be null; toolbar wiring notifies before the next game boots. */
+            if (!this.scene?.manager) {
+                return;
+            }
             this.syncRoomInput();
             this.selectedVertexIndex = null;
             this.tapEdge = null;
@@ -195,7 +199,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         this.input.keyboard?.off('keydown-BACKSPACE', this.onDeleteKey);
         window.removeEventListener('benne-save-polygon', this.onSaveBound);
         this.unsubBridge?.();
-        const roomSc = this.scene.get(SCENE_ROOM);
+        const roomSc = this.scene?.manager?.getScene(SCENE_ROOM);
         if (roomSc) {
             roomSc.input.enabled = true;
         }
@@ -239,7 +243,11 @@ export class RoomPolygonEditScene extends Phaser.Scene {
     }
 
     private syncRoomInput(): void {
-        const roomSc = this.scene.get(SCENE_ROOM);
+        const mgr = this.scene?.manager;
+        if (!mgr) {
+            return;
+        }
+        const roomSc = mgr.getScene(SCENE_ROOM);
         const editing = polygonEditBridge.isEditing();
         if (roomSc) {
             roomSc.input.enabled = !editing;

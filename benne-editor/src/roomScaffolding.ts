@@ -5,8 +5,9 @@ import {
     listRoomDefinitions,
     resolveRoomAsepriteSheetForProps
 } from './gameDiscovery';
-import type { MainTreeNode } from './mainTreeProvider';
 import type { EditorSelection } from './editorSelection';
+import type { MainTreeNode } from './mainTreeProvider';
+import { openRoomJsonAndScriptBottomGroup } from './roomScriptNavigation';
 
 const SLUG_RE = /^[a-z0-9_-]+$/i;
 
@@ -306,7 +307,8 @@ export async function runAddRoomPropWizard(
     void vscode.window.showInformationMessage(
         `Added prop "${id}" (tag "${tagTrimmed}", ${clickable ? 'clickable' : 'not clickable'}) to room ${target.roomId}.`
     );
-    await vscode.window.showTextDocument(target.roomJsonUri, { preview: false });
+    await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+    await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
 }
 
 function defaultPropIdForImportedTag(roomId: string, tag: string): string {
@@ -503,5 +505,6 @@ export async function runImportPropsFromAsepriteTags(
         parts.push(`Skipped ${skipped} already in room.`);
     }
     void vscode.window.showInformationMessage(parts.join(' '));
-    await vscode.window.showTextDocument(roomRef.roomJsonUri, { preview: false });
+    await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+    await openRoomJsonAndScriptBottomGroup(roomRef.roomJsonUri, roomRef.roomId);
 }

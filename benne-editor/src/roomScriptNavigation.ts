@@ -1,5 +1,26 @@
 import * as vscode from 'vscode';
 
+/**
+ * Editor group for room JSON + `*.room.ts` after `workbench.action.editorLayoutTwoRows`
+ * (preview / first row uses the primary group).
+ */
+export const BENNE_ROOM_SOURCES_VIEW_COLUMN = vscode.ViewColumn.Two;
+
+/** Open room JSON and optional `*.room.ts` pinned in the bottom row editor group. */
+export async function openRoomJsonAndScriptBottomGroup(
+    roomJsonUri: vscode.Uri,
+    roomId: string
+): Promise<void> {
+    await openDocumentPinned(roomJsonUri, BENNE_ROOM_SOURCES_VIEW_COLUMN);
+    const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
+    try {
+        await vscode.workspace.fs.stat(scriptUri);
+        await openDocumentPinned(scriptUri, BENNE_ROOM_SOURCES_VIEW_COLUMN);
+    } catch {
+        /* optional *.room.ts */
+    }
+}
+
 /** Open a normal (pinned) editor tab; multiple documents can stay open in the same group. */
 export async function openDocumentPinned(
     uri: vscode.Uri,

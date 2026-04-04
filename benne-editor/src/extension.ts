@@ -9,7 +9,7 @@ import {
     runImportPropsFromAsepriteTags
 } from './roomScaffolding';
 import { RoomPreviewPanelController } from './roomPreviewPanel';
-import { openDocumentPinned, openDocumentUri, revealEventInDocument } from './roomScriptNavigation';
+import { openDocumentPinned, openDocumentUri, openRoomJsonAndScriptBottomGroup, revealEventInDocument } from './roomScriptNavigation';
 
 function firstTreeContextArg(arg: MainTreeNode | MainTreeNode[] | undefined): MainTreeNode | undefined {
     if (arg === undefined) {
@@ -322,18 +322,8 @@ function getWebviewContent(): string {
 
 export function deactivate(): void {}
 
-/** Bottom editor group after `workbench.action.editorLayoutTwoRows` (JSON + *.room.ts as tabs). */
-const ROOM_SOURCES_VIEW_COLUMN = vscode.ViewColumn.Two;
-
 async function openRoomJsonAndScript(roomJsonUri: vscode.Uri, roomId: string): Promise<void> {
-    await openDocumentPinned(roomJsonUri, ROOM_SOURCES_VIEW_COLUMN);
-    const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
-    try {
-        await vscode.workspace.fs.stat(scriptUri);
-        await openDocumentPinned(scriptUri, ROOM_SOURCES_VIEW_COLUMN);
-    } catch {
-        /* optional *.room.ts */
-    }
+    await openRoomJsonAndScriptBottomGroup(roomJsonUri, roomId);
 }
 
 async function openCharacterJsonAndScript(characterJsonUri: vscode.Uri, characterId: string): Promise<void> {
