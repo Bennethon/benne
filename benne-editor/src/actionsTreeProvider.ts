@@ -2,7 +2,6 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
 import { getRoomIdFromRoomJsonUri, readCharacterHooks, type RoomPropEntry } from './gameDiscovery';
-import { openDocumentUri, revealEventInDocument } from './roomScriptNavigation';
 
 export type ActionTreeNode =
     | { kind: 'hint'; message: string }
@@ -80,7 +79,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                     title: element.label,
                     arguments:
                         element.target === 'json'
-                            ? [uriStr, true]
+                            ? [uriStr]
                             : [uriStr, element.roomId]
                 };
                 return item;
@@ -110,7 +109,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 item.command = {
                     command: 'benne-editor.openUriPreview',
                     title: element.label,
-                    arguments: [element.characterJsonUri.toString(), true]
+                    arguments: [element.characterJsonUri.toString()]
                 };
                 return item;
             }

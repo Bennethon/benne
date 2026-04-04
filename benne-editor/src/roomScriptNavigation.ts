@@ -1,34 +1,12 @@
 import * as vscode from 'vscode';
 
-/** Close preview (italic) tabs for this URI so tree navigation never leaves duplicate previews of the same file. */
-export async function closePreviewTabsForUri(uri: vscode.Uri): Promise<void> {
-    const uriStr = uri.toString();
-    for (const group of vscode.window.tabGroups.all) {
-        for (const tab of group.tabs) {
-            if (!(tab.input instanceof vscode.TabInputText)) {
-                continue;
-            }
-            if (tab.input.uri.toString() !== uriStr) {
-                continue;
-            }
-            if (tab.isPreview) {
-                await vscode.window.tabGroups.close(tab);
-            }
-        }
-    }
-}
-
-/**
- * Open a document as preview after removing any existing preview tabs for the same URI.
- * Pinned / saved editors for that URI are left alone; `showTextDocument` will reveal them.
- */
-export async function openSinglePreview(
+/** Open a normal (pinned) editor tab; multiple documents can stay open in the same group. */
+export async function openDocumentPinned(
     uri: vscode.Uri,
     viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active
 ): Promise<vscode.TextEditor> {
-    await closePreviewTabsForUri(uri);
     const doc = await vscode.workspace.openTextDocument(uri);
-    return vscode.window.showTextDocument(doc, { preview: true, viewColumn });
+    return vscode.window.showTextDocument(doc, { preview: false, viewColumn });
 }
 
 export async function openDocumentUri(uri: vscode.Uri, preview: boolean, viewColumn?: vscode.ViewColumn): Promise<void> {
@@ -39,7 +17,11 @@ export async function openDocumentUri(uri: vscode.Uri, preview: boolean, viewCol
     });
 }
 
-export async function revealEventInDocument(scriptUri: vscode.Uri, eventId: string): Promise<boolean> {
+export async function revealEventInDocument(
+    scriptUri: vscode.Uri,
+    eventId: string,
+    viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active
+): Promise<boolean> {
     try {
         await vscode.workspace.fs.stat(scriptUri);
     } catch {
@@ -49,8 +31,8 @@ export async function revealEventInDocument(scriptUri: vscode.Uri, eventId: stri
 
     const doc = await vscode.workspace.openTextDocument(scriptUri);
     const editor = await vscode.window.showTextDocument(doc, {
-        preview: true,
-        viewColumn: vscode.ViewColumn.Beside
+        preview: false,
+        viewColumn
     });
 
     const text = doc.getText();
