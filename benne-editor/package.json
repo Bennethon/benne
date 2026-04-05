@@ -18,6 +18,9 @@
     "onCommand:benne-editor.createRoom",
     "onCommand:benne-editor.addRoomProp",
     "onCommand:benne-editor.importPropsFromAsepriteTags",
+    "onCommand:benne-editor.addRoomHotspot",
+    "onCommand:benne-editor.addRoomPoint",
+    "onCommand:benne-editor.addRoomRegion",
     "onCommand:benne-editor.createCharacter",
     "onCommand:benne-editor.importAnimationsFromAsepriteTags"
   ],
@@ -92,13 +95,31 @@
         "command": "benne-editor.addRoomProp",
         "title": "Add Prop",
         "category": "BENNE",
-        "icon": "$(add)"
+        "icon": "$(symbol-misc)"
       },
       {
         "command": "benne-editor.importPropsFromAsepriteTags",
         "title": "Import Props from Aseprite Tags",
         "category": "BENNE",
         "icon": "$(tag)"
+      },
+      {
+        "command": "benne-editor.addRoomHotspot",
+        "title": "Add Hotspot",
+        "category": "BENNE",
+        "icon": "$(map)"
+      },
+      {
+        "command": "benne-editor.addRoomPoint",
+        "title": "Add Point",
+        "category": "BENNE",
+        "icon": "$(target)"
+      },
+      {
+        "command": "benne-editor.addRoomRegion",
+        "title": "Add Region",
+        "category": "BENNE",
+        "icon": "$(layout-panel)"
       },
       {
         "command": "benne-editor.createCharacter",
@@ -121,14 +142,9 @@
           "group": "navigation@1"
         },
         {
-          "command": "benne-editor.addRoomProp",
-          "when": "view == benne-editor.main",
-          "group": "navigation@2"
-        },
-        {
           "command": "benne-editor.createCharacter",
           "when": "view == benne-editor.main",
-          "group": "navigation@3"
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
@@ -153,8 +169,38 @@
           "group": "benne@1"
         },
         {
+          "command": "benne-editor.addRoomHotspot",
+          "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomPoint",
+          "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomRegion",
+          "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "benne@2"
+        },
+        {
           "command": "benne-editor.addRoomProp",
           "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomHotspot",
+          "when": "view == benne-editor.main && viewItem == benneRoomHotspot",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomPoint",
+          "when": "view == benne-editor.main && viewItem == benneRoomPoint",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomRegion",
+          "when": "view == benne-editor.main && viewItem == benneRoomRegion",
           "group": "benne@2"
         },
         {

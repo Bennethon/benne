@@ -77,7 +77,11 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         const roomPanel = this.selection.roomPanel;
 
         const wantRoomPreview =
-            roomPanel.kind === 'prop' || focus.kind === 'room';
+            roomPanel.kind === 'prop' ||
+            roomPanel.kind === 'hotspot' ||
+            roomPanel.kind === 'roomPoint' ||
+            roomPanel.kind === 'region' ||
+            focus.kind === 'room';
 
         if (!wantRoomPreview) {
             if (this.clearPreviewDebounceTimer !== undefined) {
@@ -87,7 +91,13 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 this.clearPreviewDebounceTimer = undefined;
                 const f = this.selection.focus;
                 const rp = this.selection.roomPanel;
-                if (rp.kind === 'prop' || f.kind === 'room') {
+                if (
+                    rp.kind === 'prop' ||
+                    rp.kind === 'hotspot' ||
+                    rp.kind === 'roomPoint' ||
+                    rp.kind === 'region' ||
+                    f.kind === 'room'
+                ) {
                     return;
                 }
                 if (this.panel && this.webviewReady) {
@@ -122,12 +132,51 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         }
     }
 
-    private getPreviewToolbarState(): { focus: 'room' | 'prop'; propId: string } {
+    private getPreviewToolbarState(): {
+        focus: 'room' | 'prop' | 'hotspot' | 'region' | 'roomPoint';
+        propId: string;
+        hotspotId: string;
+        regionId: string;
+        roomPointId: string;
+    } {
         const roomPanel = this.selection.roomPanel;
         if (roomPanel.kind === 'prop') {
-            return { focus: 'prop', propId: roomPanel.prop.id };
+            return {
+                focus: 'prop',
+                propId: roomPanel.prop.id,
+                hotspotId: '',
+                regionId: '',
+                roomPointId: ''
+            };
         }
-        return { focus: 'room', propId: '' };
+        if (roomPanel.kind === 'hotspot') {
+            return {
+                focus: 'hotspot',
+                propId: '',
+                hotspotId: roomPanel.hotspotId,
+                regionId: '',
+                roomPointId: ''
+            };
+        }
+        if (roomPanel.kind === 'region') {
+            return {
+                focus: 'region',
+                propId: '',
+                hotspotId: '',
+                regionId: roomPanel.regionId,
+                roomPointId: ''
+            };
+        }
+        if (roomPanel.kind === 'roomPoint') {
+            return {
+                focus: 'roomPoint',
+                propId: '',
+                hotspotId: '',
+                regionId: '',
+                roomPointId: roomPanel.pointId
+            };
+        }
+        return { focus: 'room', propId: '', hotspotId: '', regionId: '', roomPointId: '' };
     }
 
     private postToolbarUiIfNeeded(): void {
@@ -136,7 +185,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             return;
         }
         const ui = this.getPreviewToolbarState();
-        const key = `${ui.focus}:${ui.propId}`;
+        const key = `${ui.focus}:${ui.propId}:${ui.hotspotId}:${ui.regionId}:${ui.roomPointId}`;
         if (this.lastToolbarUiKey === key) {
             return;
         }
@@ -145,6 +194,9 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             type: 'benne/preview/toolbarUi',
             previewFocus: ui.focus,
             ...(ui.focus === 'prop' ? { propColliderId: ui.propId } : {}),
+            ...(ui.focus === 'hotspot' ? { hotspotId: ui.hotspotId } : {}),
+            ...(ui.focus === 'region' ? { regionId: ui.regionId } : {}),
+            ...(ui.focus === 'roomPoint' ? { roomPointId: ui.roomPointId } : {}),
         });
     }
 
@@ -152,6 +204,15 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         const focus = this.selection.focus;
         const roomPanel = this.selection.roomPanel;
         if (roomPanel.kind === 'prop') {
+            return roomPanel.roomJsonUri;
+        }
+        if (roomPanel.kind === 'hotspot') {
+            return roomPanel.roomJsonUri;
+        }
+        if (roomPanel.kind === 'roomPoint') {
+            return roomPanel.roomJsonUri;
+        }
+        if (roomPanel.kind === 'region') {
             return roomPanel.roomJsonUri;
         }
         if (focus.kind === 'room') {
@@ -328,7 +389,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             const gameSrcWebviewUri = webview.asWebviewUri(gameSrc).toString();
             const uriStr = roomJsonUri.toString();
             const tb = this.getPreviewToolbarState();
-            this.lastToolbarUiKey = `${tb.focus}:${tb.propId}`;
+            this.lastToolbarUiKey = `${tb.focus}:${tb.propId}:${tb.hotspotId}:${tb.regionId}:${tb.roomPointId}`;
             webview.postMessage({
                 type: 'benne/preview/loadRoom',
                 room,
@@ -336,6 +397,9 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 roomJsonUri: uriStr,
                 previewFocus: tb.focus,
                 ...(tb.focus === 'prop' ? { propColliderId: tb.propId } : {}),
+                ...(tb.focus === 'hotspot' ? { hotspotId: tb.hotspotId } : {}),
+                ...(tb.focus === 'region' ? { regionId: tb.regionId } : {}),
+                ...(tb.focus === 'roomPoint' ? { roomPointId: tb.roomPointId } : {}),
             });
             this.lastPushedRoomJsonUri = uriStr;
         } catch (e) {

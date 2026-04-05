@@ -95,6 +95,8 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
         name,
         walkable: { polygons: [] },
         hotspots: [],
+        points: [],
+        regions: [],
         props: []
     };
 
@@ -176,6 +178,15 @@ async function resolveRoomTarget(
         return { roomJsonUri: node.uri, roomId: node.id };
     }
     if (node?.kind === 'prop') {
+        return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
+    }
+    if (node?.kind === 'hotspot') {
+        return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
+    }
+    if (node?.kind === 'roomPoint') {
+        return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
+    }
+    if (node?.kind === 'region') {
         return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
     }
 
@@ -340,6 +351,15 @@ async function resolveRoomNodeForImport(
 ): Promise<RoomNodeRef | undefined> {
     if (node?.kind === 'room') {
         return { folder: node.folder, roomJsonUri: node.uri, roomId: node.id };
+    }
+    if (node?.kind === 'hotspot') {
+        return { folder: node.folder, roomJsonUri: node.roomJsonUri, roomId: node.roomId };
+    }
+    if (node?.kind === 'roomPoint') {
+        return { folder: node.folder, roomJsonUri: node.roomJsonUri, roomId: node.roomId };
+    }
+    if (node?.kind === 'region') {
+        return { folder: node.folder, roomJsonUri: node.roomJsonUri, roomId: node.roomId };
     }
     if (selection.focus.kind === 'room') {
         const uri = selection.focus.uri;
@@ -507,4 +527,202 @@ export async function runImportPropsFromAsepriteTags(
     void vscode.window.showInformationMessage(parts.join(' '));
     await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
     await openRoomJsonAndScriptBottomGroup(roomRef.roomJsonUri, roomRef.roomId);
+}
+
+function nextHotspotZIndex(hotspots: Record<string, unknown>[]): number {
+    let max = -1;
+    for (const h of hotspots) {
+        const z = h.zIndex;
+        if (typeof z === 'number' && z > max) {
+            max = z;
+        }
+    }
+    return max + 1;
+}
+
+/** Matches default `game-config.json` resolution so new geometry lines up with the room preview. */
+const DEFAULT_ROOM_WIDTH = 352;
+const DEFAULT_ROOM_HEIGHT = 198;
+
+function defaultRoomCenter(): { cx: number; cy: number } {
+    return {
+        cx: Math.round(DEFAULT_ROOM_WIDTH / 2),
+        cy: Math.round(DEFAULT_ROOM_HEIGHT / 2)
+    };
+}
+
+/** Axis-aligned square centered in room space (4 vertices). */
+function defaultCenteredSquarePoints(halfSide: number): { x: number; y: number }[] {
+    const { cx, cy } = defaultRoomCenter();
+    const s = halfSide;
+    return [
+        { x: cx - s, y: cy - s },
+        { x: cx + s, y: cy - s },
+        { x: cx + s, y: cy + s },
+        { x: cx - s, y: cy + s }
+    ];
+}
+
+/**
+ * Append a hotspot with a small default square polygon and walk/look hints (editable in the preview).
+ */
+export async function runAddRoomHotspotWizard(
+    selection: EditorSelection,
+    node?: MainTreeNode
+): Promise<void> {
+    const target = await resolveRoomTarget(node, selection);
+    if (!target) {
+        return;
+    }
+
+    const defaultId = `${target.roomId}-hotspot`;
+    const hotspotId = await vscode.window.showInputBox({
+        prompt: 'Hotspot id (unique in this room JSON)',
+        value: defaultId,
+        validateInput: (v) => validateSlug(v?.trim() ?? '', 'Hotspot id')
+    });
+    if (!hotspotId) {
+        return;
+    }
+    const id = hotspotId.trim();
+
+    const raw = await vscode.workspace.fs.readFile(target.roomJsonUri);
+    const text = new TextDecoder('utf-8').decode(raw);
+    let data: Record<string, unknown>;
+    try {
+        data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        void vscode.window.showErrorMessage('Room JSON is not valid; cannot add hotspot.');
+        return;
+    }
+
+    const listUnknown = data.hotspots;
+    const hotspots: Record<string, unknown>[] = Array.isArray(listUnknown)
+        ? (listUnknown as Record<string, unknown>[])
+        : [];
+    if (hotspots.some((h) => typeof h.id === 'string' && h.id === id)) {
+        void vscode.window.showErrorMessage(`A hotspot with id "${id}" already exists in this room.`);
+        return;
+    }
+
+    const zIndex = nextHotspotZIndex(hotspots);
+    const { cx, cy } = defaultRoomCenter();
+    const halfSide = 24;
+    hotspots.push({
+        id,
+        active: true,
+        description: '',
+        zIndex,
+        points: defaultCenteredSquarePoints(halfSide),
+        walkToPoint: {
+            x: cx,
+            y: Math.min(Math.max(cy + 36, 0), DEFAULT_ROOM_HEIGHT)
+        },
+        lookAtPoint: { x: cx, y: cy }
+    });
+    data.hotspots = hotspots;
+    await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
+
+    void vscode.window.showInformationMessage(`Added hotspot "${id}" to room ${target.roomId}.`);
+    await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+    await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
+}
+
+/** Append a room `points[]` entry at the default room center (matches `game-config` resolution). */
+export async function runAddRoomPointWizard(
+    selection: EditorSelection,
+    node?: MainTreeNode
+): Promise<void> {
+    const target = await resolveRoomTarget(node, selection);
+    if (!target) {
+        return;
+    }
+
+    const defaultId = `${target.roomId}-point`;
+    const pointId = await vscode.window.showInputBox({
+        prompt: 'Point id (unique in this room JSON)',
+        value: defaultId,
+        validateInput: (v) => validateSlug(v?.trim() ?? '', 'Point id')
+    });
+    if (!pointId) {
+        return;
+    }
+    const id = pointId.trim();
+
+    const raw = await vscode.workspace.fs.readFile(target.roomJsonUri);
+    const text = new TextDecoder('utf-8').decode(raw);
+    let data: Record<string, unknown>;
+    try {
+        data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        void vscode.window.showErrorMessage('Room JSON is not valid; cannot add point.');
+        return;
+    }
+
+    const listUnknown = data.points;
+    const points: Record<string, unknown>[] = Array.isArray(listUnknown)
+        ? (listUnknown as Record<string, unknown>[])
+        : [];
+    if (points.some((p) => typeof p.id === 'string' && p.id === id)) {
+        void vscode.window.showErrorMessage(`A point with id "${id}" already exists in this room.`);
+        return;
+    }
+
+    const { cx, cy } = defaultRoomCenter();
+    points.push({ id, x: cx, y: cy });
+    data.points = points;
+    await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
+
+    void vscode.window.showInformationMessage(`Added point "${id}" to room ${target.roomId}.`);
+    await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+    await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
+}
+
+/** Append a `regions[]` entry with a small default square polygon (editable in the preview). */
+export async function runAddRoomRegionWizard(
+    selection: EditorSelection,
+    node?: MainTreeNode
+): Promise<void> {
+    const target = await resolveRoomTarget(node, selection);
+    if (!target) {
+        return;
+    }
+
+    const defaultId = `${target.roomId}-region`;
+    const regionId = await vscode.window.showInputBox({
+        prompt: 'Region id (unique in this room JSON)',
+        value: defaultId,
+        validateInput: (v) => validateSlug(v?.trim() ?? '', 'Region id')
+    });
+    if (!regionId) {
+        return;
+    }
+    const id = regionId.trim();
+
+    const raw = await vscode.workspace.fs.readFile(target.roomJsonUri);
+    const text = new TextDecoder('utf-8').decode(raw);
+    let data: Record<string, unknown>;
+    try {
+        data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        void vscode.window.showErrorMessage('Room JSON is not valid; cannot add region.');
+        return;
+    }
+
+    const listUnknown = data.regions;
+    const regions: Record<string, unknown>[] = Array.isArray(listUnknown)
+        ? (listUnknown as Record<string, unknown>[])
+        : [];
+    if (regions.some((r) => typeof r.id === 'string' && r.id === id)) {
+        void vscode.window.showErrorMessage(`A region with id "${id}" already exists in this room.`);
+        return;
+    }
+
+    regions.push({ id, active: true, points: defaultCenteredSquarePoints(24) });
+    data.regions = regions;
+    await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
+
+    void vscode.window.showInformationMessage(`Added region "${id}" to room ${target.roomId}.`);
+    await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+    await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
 }

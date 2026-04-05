@@ -2,6 +2,10 @@
   "startRoomId": "office",
   "rooms": [
     {
+      "id": "kitchen",
+      "definition": "kitchen/kitchen.room.json"
+    },
+    {
       "id": "office",
       "definition": "office/office.room.json"
     },

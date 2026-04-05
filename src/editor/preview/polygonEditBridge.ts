@@ -1,4 +1,10 @@
-export type EditToolbarMode = 'navigate' | 'walkable' | 'propCollider';
+export type EditToolbarMode =
+    | 'navigate'
+    | 'walkable'
+    | 'propCollider'
+    | 'hotspotPolygon'
+    | 'regionPolygon'
+    | 'roomPoint';
 
 class PolygonEditBridgeImpl {
     mode: EditToolbarMode = 'navigate';
@@ -6,6 +12,9 @@ class PolygonEditBridgeImpl {
     /** Empty string = edit outer ring of {@link walkablePolygonId}; otherwise hole id under that polygon. */
     walkableHoleId = '';
     propId = '';
+    hotspotId = '';
+    regionId = '';
+    roomPointId = '';
     private readonly listeners = new Set<() => void>();
 
     subscribe(fn: () => void): () => void {
@@ -41,6 +50,21 @@ class PolygonEditBridgeImpl {
 
     setPropId(id: string): void {
         this.propId = id;
+        this.notify();
+    }
+
+    setHotspotId(id: string): void {
+        this.hotspotId = id;
+        this.notify();
+    }
+
+    setRegionId(id: string): void {
+        this.regionId = id;
+        this.notify();
+    }
+
+    setRoomPointId(id: string): void {
+        this.roomPointId = id;
         this.notify();
     }
 

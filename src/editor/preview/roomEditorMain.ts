@@ -37,11 +37,17 @@ let lastLoadedRoom: RoomData | null = null;
 
 type PreviewToolbarPayload =
     | { previewFocus: 'room' }
-    | { previewFocus: 'prop'; propColliderId: string };
+    | { previewFocus: 'prop'; propColliderId: string }
+    | { previewFocus: 'hotspot'; hotspotId: string }
+    | { previewFocus: 'region'; regionId: string }
+    | { previewFocus: 'roomPoint'; roomPointId: string };
 
 function parsePreviewToolbarPayload(msg: {
     previewFocus?: string;
     propColliderId?: string;
+    hotspotId?: string;
+    regionId?: string;
+    roomPointId?: string;
 }): PreviewToolbarPayload {
     if (
         msg.previewFocus === 'prop' &&
@@ -49,6 +55,27 @@ function parsePreviewToolbarPayload(msg: {
         msg.propColliderId.length > 0
     ) {
         return { previewFocus: 'prop', propColliderId: msg.propColliderId };
+    }
+    if (
+        msg.previewFocus === 'hotspot' &&
+        typeof msg.hotspotId === 'string' &&
+        msg.hotspotId.length > 0
+    ) {
+        return { previewFocus: 'hotspot', hotspotId: msg.hotspotId };
+    }
+    if (
+        msg.previewFocus === 'region' &&
+        typeof msg.regionId === 'string' &&
+        msg.regionId.length > 0
+    ) {
+        return { previewFocus: 'region', regionId: msg.regionId };
+    }
+    if (
+        msg.previewFocus === 'roomPoint' &&
+        typeof msg.roomPointId === 'string' &&
+        msg.roomPointId.length > 0
+    ) {
+        return { previewFocus: 'roomPoint', roomPointId: msg.roomPointId };
     }
     return { previewFocus: 'room' };
 }
@@ -60,6 +87,18 @@ function propColliderLabel(room: RoomData, propId: string): string {
     }
     return p.tag ? `${p.tag} (${propId})` : propId;
 }
+
+function hotspotToolbarLabel(room: RoomData, hotspotId: string): string {
+    const h = room.hotspots?.find((x) => x.id === hotspotId);
+    if (!h) {
+        return hotspotId;
+    }
+    if (h.description && h.description.trim()) {
+        return `${h.description.trim()} (${hotspotId})`;
+    }
+    return hotspotId;
+}
+
 
 /** Collider authoring is only for interactive props (matches runtime expectations). */
 function isPropColliderEditable(room: RoomData, propId: string): boolean {
@@ -111,6 +150,9 @@ function clearToolbar(): void {
     }
     polygonEditBridge.setMode('navigate');
     polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
     polygonEditBridge.setWalkableEditTarget('', '');
 }
 
@@ -146,6 +188,39 @@ function buildPropTreeToolbarHtml(propLabel: string): string {
   `;
 }
 
+function buildHotspotToolbarHtml(label: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Hotspot — <strong style="color:#e8ecff;">${escapeHtml(label)}</strong> (polygon, walk, look)</span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Orange polygon, cyan <strong>Walk to</strong>, amber <strong>Look at</strong>. Place ${MIN_POLY_POINTS}+ vertices like prop colliders; double-click an edge to add a vertex.</div>
+  `;
+}
+
+function buildRegionToolbarHtml(regionId: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Region — <strong style="color:#e8ecff;">${escapeHtml(regionId)}</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Green polygon. New shape: click ${MIN_POLY_POINTS} times, then double-click edges to add vertices. Delete removes a selected vertex (min ${MIN_POLY_POINTS}).</div>
+  `;
+}
+
+function buildRoomPointToolbarHtml(pointId: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Point — <strong style="color:#e8ecff;">${escapeHtml(pointId)}</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the handle to move this point. Save writes integer <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">x</code> / <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">y</code> to JSON.</div>
+  `;
+}
+
 function buildPropTreeNonClickableToolbarHtml(propLabel: string): string {
     return `
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
@@ -177,6 +252,8 @@ function normalizeRoomForPreview(raw: unknown): RoomData {
     r.name = name;
     r.walkable = { polygons };
     r.hotspots = Array.isArray(r.hotspots) ? r.hotspots : [];
+    r.points = Array.isArray(r.points) ? r.points : [];
+    r.regions = Array.isArray(r.regions) ? r.regions : [];
     r.props = Array.isArray(r.props) ? r.props : [];
     r.characters = Array.isArray(r.characters) ? r.characters : [];
     return r as unknown as RoomData;
@@ -195,6 +272,9 @@ function wireRoomToolbar(room: RoomData): void {
     const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
 
     polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
     walkSel.innerHTML = '';
     const polygons = room.walkable?.polygons;
     const safePolygons = Array.isArray(polygons) ? polygons : [];
@@ -255,7 +335,67 @@ function wirePropTreeToolbarNonClickable(room: RoomData, propColliderId: string)
     bar.innerHTML = buildPropTreeNonClickableToolbarHtml(propColliderLabel(room, propColliderId));
     polygonEditBridge.setWalkableEditTarget('', '');
     polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
     polygonEditBridge.setMode('navigate');
+}
+
+function wireHotspotToolbar(room: RoomData, hotspotId: string): void {
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildHotspotToolbarHtml(hotspotToolbarLabel(room, hotspotId));
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setHotspotId(hotspotId);
+    polygonEditBridge.setMode('hotspotPolygon');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireRegionToolbar(_room: RoomData, regionId: string): void {
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildRegionToolbarHtml(regionId);
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setRegionId(regionId);
+    polygonEditBridge.setMode('regionPolygon');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireRoomPointToolbar(_room: RoomData, roomPointId: string): void {
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildRoomPointToolbarHtml(roomPointId);
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId(roomPointId);
+    polygonEditBridge.setMode('roomPoint');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
 }
 
 function wirePropTreeToolbar(room: RoomData, propColliderId: string): void {
@@ -271,6 +411,9 @@ function wirePropTreeToolbar(room: RoomData, propColliderId: string): void {
 
     const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
     polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
     polygonEditBridge.setPropId(propColliderId);
     polygonEditBridge.setMode('propCollider');
 
@@ -283,6 +426,12 @@ function wirePropTreeToolbar(room: RoomData, propColliderId: string): void {
 function wireToolbarFromPreviewState(room: RoomData, preview: PreviewToolbarPayload): void {
     if (preview.previewFocus === 'prop') {
         wirePropTreeToolbar(room, preview.propColliderId);
+    } else if (preview.previewFocus === 'hotspot') {
+        wireHotspotToolbar(room, preview.hotspotId);
+    } else if (preview.previewFocus === 'region') {
+        wireRegionToolbar(room, preview.regionId);
+    } else if (preview.previewFocus === 'roomPoint') {
+        wireRoomPointToolbar(room, preview.roomPointId);
     } else {
         wireRoomToolbar(room);
     }
@@ -297,8 +446,16 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
     if (!room) {
         return;
     }
-    const src = patch.points;
+    if (patch.kind === 'roomPoint') {
+        const p = room.points?.find((x) => x.id === patch.pointId);
+        if (p) {
+            p.x = patch.x;
+            p.y = patch.y;
+        }
+        return;
+    }
     if (patch.kind === 'walkable') {
+        const src = patch.points;
         const poly = room.walkable.polygons.find((p) => p.id === patch.polygonId);
         if (!poly) {
             return;
@@ -322,7 +479,7 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
                     dest[i].y = src[i].y;
                 }
             } else {
-                hole.points = src.map((p) => ({ x: p.x, y: p.y }));
+                hole.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
             }
             return;
         }
@@ -332,10 +489,49 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
                 poly.points[i].y = src[i].y;
             }
         } else {
-            poly.points = src.map((p) => ({ x: p.x, y: p.y }));
+            poly.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
         }
         return;
     }
+    if (patch.kind === 'regionPolygon') {
+        const src = patch.points;
+        const reg = room.regions?.find((r) => r.id === patch.regionId);
+        if (!reg) {
+            return;
+        }
+        if (reg.points.length === src.length) {
+            for (let i = 0; i < src.length; i++) {
+                reg.points[i].x = src[i].x;
+                reg.points[i].y = src[i].y;
+            }
+        } else {
+            reg.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
+        }
+        return;
+    }
+    if (patch.kind === 'hotspotPolygon') {
+        const src = patch.points;
+        const hs = room.hotspots?.find((h) => h.id === patch.hotspotId);
+        if (!hs) {
+            return;
+        }
+        if (!hs.points) {
+            hs.points = [];
+        }
+        const dest = hs.points;
+        if (dest.length === src.length) {
+            for (let i = 0; i < src.length; i++) {
+                dest[i].x = src[i].x;
+                dest[i].y = src[i].y;
+            }
+        } else {
+            hs.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
+        }
+        hs.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
+        hs.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
+        return;
+    }
+    const src = patch.points;
     const prop = room.props?.find((p) => p.id === patch.propId);
     if (!prop) {
         return;
@@ -350,7 +546,7 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
             dest[i].y = src[i].y;
         }
     } else {
-        prop.collider.points = src.map((p) => ({ x: p.x, y: p.y }));
+        prop.collider.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
     }
     prop.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
     prop.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
@@ -405,6 +601,9 @@ type HostPreviewMessage = {
     appliedPatch?: RoomPolygonPatch;
     previewFocus?: string;
     propColliderId?: string;
+    hotspotId?: string;
+    regionId?: string;
+    roomPointId?: string;
 };
 
 async function runPreviewError(msg: HostPreviewMessage): Promise<void> {

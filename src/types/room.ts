@@ -22,15 +22,46 @@ export interface WalkablePolygon {
   holes?: WalkableHole[];
 }
 
+/**
+ * Clickable room hotspot. Prefer `points` (≥3 vertices in room space); legacy `x`/`y`/`width`/`height`
+ * defines an axis-aligned rectangle when `points` is missing or has fewer than three vertices.
+ */
 export interface RoomHotspotData {
   id: string;
+  /** When false, ignored for interaction. Omitted = active. */
+  active?: boolean;
+  description?: string;
+  /** Draw / hit stacking vs other hotspots (higher tested later, tends to sit on top). */
+  zIndex?: number;
+  /** Polygon hit area in room pixels (same space as walkable meshes). */
+  points?: Point2[];
+  /** Where the player walks when this hotspot is used (optional; editor + future walk-to flow). */
+  walkToPoint?: Point2;
+  /** Facing target after walking (optional; pairs with `walkToPoint`). */
+  lookAtPoint?: Point2;
+  /** Legacy rectangular hotspot (used when `points` is missing or has fewer than three vertices). */
   label?: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
   onLook?: string;
   onUse?: string;
+}
+
+/** Named marker in room space (spawns, triggers, script anchors). */
+export interface RoomPointData {
+  id: string;
+  x: number;
+  y: number;
+}
+
+/** Non-walkable logical area (puzzle bounds, triggers) as a closed polygon in room space. */
+export interface RoomRegionData {
+  id: string;
+  /** When false, ignored by tooling/runtime that respects regions. Omitted = active. */
+  active?: boolean;
+  points: Point2[];
 }
 
 export interface RoomCharacterInstance {
@@ -103,6 +134,10 @@ export interface RoomData {
     polygons: WalkablePolygon[];
   };
   hotspots: RoomHotspotData[];
+  /** Named points in room space (optional; used by editor and future systems). */
+  points?: RoomPointData[];
+  /** Closed polygons for regions (optional; editor + future gameplay). */
+  regions?: RoomRegionData[];
   /**
    * Layered Aseprite props from `images/rooms/<id>/<id>.png` + `.json` (one sheet per room).
    */

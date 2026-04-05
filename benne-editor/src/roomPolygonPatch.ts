@@ -10,9 +10,18 @@ export type RoomPolygonPatch =
           points: Point2[];
           walkToPoint: Point2;
           lookAtPoint: Point2;
-      };
+      }
+    | {
+          kind: 'hotspotPolygon';
+          hotspotId: string;
+          points: Point2[];
+          walkToPoint: Point2;
+          lookAtPoint: Point2;
+      }
+    | { kind: 'regionPolygon'; regionId: string; points: Point2[] }
+    | { kind: 'roomPoint'; pointId: string; x: number; y: number };
 
-const MIN_POINTS = 3;
+const MIN_POLY_POINTS = 3;
 
 function isPoint2(v: unknown): v is Point2 {
     if (!v || typeof v !== 'object') {
@@ -55,6 +64,37 @@ export function parseRoomPolygonPatch(body: unknown): RoomPolygonPatch | null {
             lookAtPoint: { x: o.lookAtPoint.x, y: o.lookAtPoint.y },
         };
     }
+    if (o.kind === 'hotspotPolygon' && typeof o.hotspotId === 'string' && Array.isArray(o.points)) {
+        const pts = o.points.filter(isPoint2);
+        if (pts.length !== o.points.length) {
+            return null;
+        }
+        if (!isPoint2(o.walkToPoint) || !isPoint2(o.lookAtPoint)) {
+            return null;
+        }
+        return {
+            kind: 'hotspotPolygon',
+            hotspotId: o.hotspotId,
+            points: pts,
+            walkToPoint: { x: o.walkToPoint.x, y: o.walkToPoint.y },
+            lookAtPoint: { x: o.lookAtPoint.x, y: o.lookAtPoint.y },
+        };
+    }
+    if (o.kind === 'regionPolygon' && typeof o.regionId === 'string' && Array.isArray(o.points)) {
+        const pts = o.points.filter(isPoint2);
+        if (pts.length !== o.points.length) {
+            return null;
+        }
+        return { kind: 'regionPolygon', regionId: o.regionId, points: pts };
+    }
+    if (
+        o.kind === 'roomPoint' &&
+        typeof o.pointId === 'string' &&
+        typeof o.x === 'number' &&
+        typeof o.y === 'number'
+    ) {
+        return { kind: 'roomPoint', pointId: o.pointId, x: o.x, y: o.y };
+    }
     return null;
 }
 
@@ -68,15 +108,34 @@ function roundPoint(p: Point2): Point2 {
  * sync in-memory room data without a full Phaser teardown.
  */
 export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonPatch): Promise<RoomPolygonPatch> {
-    if (patch.points.length < MIN_POINTS) {
-        throw new Error(`A polygon needs at least ${MIN_POINTS} points.`);
-    }
-
     const raw = await vscode.workspace.fs.readFile(uri);
     const text = Buffer.from(raw).toString('utf8');
     const room = JSON.parse(text) as Record<string, unknown>;
 
+    if (patch.kind === 'roomPoint') {
+        const list = room.points;
+        if (!Array.isArray(list)) {
+            throw new Error('Room JSON has no points array.');
+        }
+        const row = list.find(
+            (p: unknown) => p && typeof p === 'object' && (p as { id?: string }).id === patch.pointId,
+        ) as { id: string; x: number; y: number } | undefined;
+        if (!row) {
+            throw new Error(`Room point "${patch.pointId}" not found.`);
+        }
+        const xr = Math.round(patch.x);
+        const yr = Math.round(patch.y);
+        row.x = xr;
+        row.y = yr;
+        const out = `${JSON.stringify(room, null, 2)}\n`;
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
+        return { kind: 'roomPoint', pointId: patch.pointId, x: xr, y: yr };
+    }
+
     if (patch.kind === 'walkable') {
+        if (patch.points.length < MIN_POLY_POINTS) {
+            throw new Error(`A polygon needs at least ${MIN_POLY_POINTS} points.`);
+        }
         type HoleRow = { id: string; active?: boolean; points: Point2[] };
         type PolyRow = { id: string; active?: boolean; points: Point2[]; holes?: HoleRow[] };
         const walkable = room.walkable as { polygons?: PolyRow[] } | undefined;
@@ -123,37 +182,102 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
         return outPayload();
     }
 
-    const props = room.props as
-        | {
-              id: string;
-              collider?: { points: Point2[] };
-              walkToPoint?: Point2;
-              lookAtPoint?: Point2;
-          }[]
-        | undefined;
-    if (!Array.isArray(props)) {
-        throw new Error('Room JSON has no props array.');
+    if (patch.kind === 'regionPolygon') {
+        if (patch.points.length < MIN_POLY_POINTS) {
+            throw new Error(`A polygon needs at least ${MIN_POLY_POINTS} points.`);
+        }
+        const regions = room.regions as { id: string; active?: boolean; points: Point2[] }[] | undefined;
+        if (!Array.isArray(regions)) {
+            throw new Error('Room JSON has no regions array.');
+        }
+        const reg = regions.find((r) => r.id === patch.regionId);
+        if (!reg) {
+            throw new Error(`Region "${patch.regionId}" not found.`);
+        }
+        const rounded = patch.points.map(roundPoint);
+        reg.points = rounded;
+        const out = `${JSON.stringify(room, null, 2)}\n`;
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
+        return { kind: 'regionPolygon', regionId: patch.regionId, points: rounded.map((p) => ({ ...p })) };
     }
-    const prop = props.find((p) => p.id === patch.propId);
-    if (!prop) {
-        throw new Error(`Prop "${patch.propId}" not found.`);
+
+    if (patch.kind === 'hotspotPolygon') {
+        if (patch.points.length < MIN_POLY_POINTS) {
+            throw new Error(`A polygon needs at least ${MIN_POLY_POINTS} points.`);
+        }
+        const hotspots = room.hotspots as
+            | {
+                  id: string;
+                  points?: Point2[];
+                  walkToPoint?: Point2;
+                  lookAtPoint?: Point2;
+              }[]
+            | undefined;
+        if (!Array.isArray(hotspots)) {
+            throw new Error('Room JSON has no hotspots array.');
+        }
+        const hs = hotspots.find((h) => h.id === patch.hotspotId);
+        if (!hs) {
+            throw new Error(`Hotspot "${patch.hotspotId}" not found.`);
+        }
+        const rounded = patch.points.map(roundPoint);
+        hs.points = rounded;
+        const w = roundPoint(patch.walkToPoint);
+        const l = roundPoint(patch.lookAtPoint);
+        hs.walkToPoint = w;
+        hs.lookAtPoint = l;
+        const out = `${JSON.stringify(room, null, 2)}\n`;
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
+        return {
+            kind: 'hotspotPolygon',
+            hotspotId: patch.hotspotId,
+            points: rounded.map((p) => ({ ...p })),
+            walkToPoint: { ...w },
+            lookAtPoint: { ...l },
+        };
     }
-    if (!prop.collider) {
-        prop.collider = { points: [] };
+
+    if (patch.kind === 'propCollider') {
+        if (patch.points.length < MIN_POLY_POINTS) {
+            throw new Error(`A polygon needs at least ${MIN_POLY_POINTS} points.`);
+        }
+        const props = room.props as
+            | {
+                  id: string;
+                  collider?: { points: Point2[] };
+                  walkToPoint?: Point2;
+                  lookAtPoint?: Point2;
+              }[]
+            | undefined;
+        if (!Array.isArray(props)) {
+            throw new Error('Room JSON has no props array.');
+        }
+
+        const prop = props.find((p) => p.id === patch.propId);
+        if (!prop) {
+            throw new Error(`Prop "${patch.propId}" not found.`);
+        }
+        if (!prop.collider) {
+            prop.collider = { points: [] };
+        }
+        const rounded = patch.points.map(roundPoint);
+        prop.collider.points = rounded;
+        const w = roundPoint(patch.walkToPoint);
+        const l = roundPoint(patch.lookAtPoint);
+        prop.walkToPoint = w;
+        prop.lookAtPoint = l;
+        const out = `${JSON.stringify(room, null, 2)}\n`;
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
+        return {
+            kind: 'propCollider',
+            propId: patch.propId,
+            points: rounded.map((p) => ({ ...p })),
+            walkToPoint: { ...w },
+            lookAtPoint: { ...l },
+        };
     }
-    const rounded = patch.points.map(roundPoint);
-    prop.collider.points = rounded;
-    const w = roundPoint(patch.walkToPoint);
-    const l = roundPoint(patch.lookAtPoint);
-    prop.walkToPoint = w;
-    prop.lookAtPoint = l;
-    const out = `${JSON.stringify(room, null, 2)}\n`;
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
-    return {
-        kind: 'propCollider',
-        propId: patch.propId,
-        points: rounded.map((p) => ({ ...p })),
-        walkToPoint: { ...w },
-        lookAtPoint: { ...l },
-    };
+
+    const _never: never = patch;
+    void _never;
+    throw new Error('Unsupported polygon patch.');
 }
