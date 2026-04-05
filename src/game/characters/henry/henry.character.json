@@ -6,5 +6,49 @@
   "clickable": false,
   "display": {
     "aseprite": true
+  },
+  "animations": {
+    "IdleDR": {
+      "loop": true
+    },
+    "IdleDL": {
+      "loop": true
+    },
+    "IdleL": {
+      "loop": true
+    },
+    "IdleU": {
+      "loop": true
+    },
+    "WalkDR": {
+      "loop": true
+    },
+    "WalkDL": {
+      "loop": true
+    },
+    "WalkL": {
+      "loop": true
+    },
+    "WalkU": {
+      "loop": true
+    },
+    "GrabL": {
+      "loop": true
+    },
+    "GrabU": {
+      "loop": true
+    },
+    "TalkDR": {
+      "loop": true
+    },
+    "TalkDL": {
+      "loop": true
+    },
+    "TalkL": {
+      "loop": true
+    },
+    "TalkU": {
+      "loop": true
+    }
   }
 }

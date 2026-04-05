@@ -150,6 +150,11 @@ export function getRoomIdFromRoomJsonUri(roomJsonUri: vscode.Uri): string {
     return path.basename(path.dirname(roomJsonUri.fsPath));
 }
 
+/** Folder name for `characters/<id>/<id>.character.json` (e.g. `clerk`). */
+export function getCharacterIdFromCharacterJsonUri(characterJsonUri: vscode.Uri): string {
+    return path.basename(path.dirname(characterJsonUri.fsPath));
+}
+
 /** Same layout as `getRoomAsepriteAssetPaths` in the game (`src/game/roomAseprite.ts`). */
 export function getRoomAsepriteAssetRelativePaths(roomId: string): { png: string; json: string } {
     const base = `images/rooms/${roomId}/${roomId}`;
@@ -221,6 +226,36 @@ export async function resolveRoomAsepriteSheetForProps(
     roomId: string
 ): Promise<RoomAsepriteSheetResolution> {
     const { png, json } = getRoomAsepriteAssetRelativePaths(roomId);
+    const pngExists = await gameAssetExists(gameRoot, png);
+    const jsonExists = await gameAssetExists(gameRoot, json);
+    if (!jsonExists) {
+        return { pngExists, jsonExists, frameTags: null };
+    }
+    try {
+        const jsonUri = vscode.Uri.joinPath(
+            gameRoot,
+            'src',
+            'game',
+            'assets',
+            ...assetPathSegments(json)
+        );
+        const raw = await vscode.workspace.fs.readFile(jsonUri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as Record<string, unknown>;
+        return { pngExists, jsonExists, frameTags: readAsepriteFrameTagNames(data) };
+    } catch {
+        return { pngExists, jsonExists, frameTags: null };
+    }
+}
+
+/**
+ * Character sheet under `images/characters/<id>/<id>.json` — same resolution shape as room props.
+ */
+export async function resolveCharacterAsepriteSheetForAnimations(
+    gameRoot: vscode.Uri,
+    characterId: string
+): Promise<RoomAsepriteSheetResolution> {
+    const { png, json } = getCharacterAsepriteAssetRelativePaths(characterId);
     const pngExists = await gameAssetExists(gameRoot, png);
     const jsonExists = await gameAssetExists(gameRoot, json);
     if (!jsonExists) {

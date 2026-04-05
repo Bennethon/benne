@@ -55,7 +55,7 @@ async function fetchCharacterData(gameRootUri: string, definitionRelativePath: s
 }
 
 /**
- * Build loader manifest + RoomScene payload using the same rules as {@link BootScene},
+ * Build loader manifest + RoomScene payload using the same character/prop rules as {@link BootScene},
  * resolving assets via `fetch` against `gameRootWebviewUri` (webview URI for `src/game`).
  */
 export async function buildPreviewManifest(
@@ -208,6 +208,10 @@ async function queueCharacterLoads(
             data,
             loadKind: 'aseprite',
             textureKey,
+            initialFacing: inst.initialFacing,
+            initialAnimation: inst.initialAnimation,
+            visible: inst.visible,
+            zIndex: inst.zIndex,
         });
         return;
     }
@@ -225,5 +229,9 @@ async function queueCharacterLoads(
         data,
         loadKind: 'image',
         textureKey,
+        initialFacing: inst.initialFacing,
+        initialAnimation: inst.initialAnimation,
+        visible: inst.visible,
+        zIndex: inst.zIndex,
     });
 }

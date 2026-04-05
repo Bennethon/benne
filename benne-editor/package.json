@@ -18,7 +18,8 @@
     "onCommand:benne-editor.createRoom",
     "onCommand:benne-editor.addRoomProp",
     "onCommand:benne-editor.importPropsFromAsepriteTags",
-    "onCommand:benne-editor.createCharacter"
+    "onCommand:benne-editor.createCharacter",
+    "onCommand:benne-editor.importAnimationsFromAsepriteTags"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -104,6 +105,12 @@
         "title": "Create Character",
         "category": "BENNE",
         "icon": "$(person-add)"
+      },
+      {
+        "command": "benne-editor.importAnimationsFromAsepriteTags",
+        "title": "Import Animations from Aseprite Tags",
+        "category": "BENNE",
+        "icon": "$(cloud-download)"
       }
     ],
     "menus": {
@@ -158,6 +165,11 @@
         {
           "command": "benne-editor.importPropsFromAsepriteTags",
           "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "benne@3"
+        },
+        {
+          "command": "benne-editor.importAnimationsFromAsepriteTags",
+          "when": "view == benne-editor.main && viewItem == benneCharacter",
           "group": "benne@3"
         }
       ]

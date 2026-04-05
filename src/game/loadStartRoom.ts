@@ -9,7 +9,8 @@ const roomJsonModules = import.meta.glob('./rooms/**/*.room.json', { eager: true
 >;
 
 /**
- * Resolves the start room from `game-config.json` (when `startingRoomId` is set) or `rooms.manifest.json`.
+ * Resolves the start room from `game-config.json` (`startingRoomId`) when set, otherwise
+ * `startRoomId` in `rooms.manifest.json`.
  */
 export function loadStartRoomData(): RoomData {
   const manifest = manifestJson as RoomsManifestData;

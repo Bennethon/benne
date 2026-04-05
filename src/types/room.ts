@@ -1,4 +1,4 @@
-import type { CharacterAnimationsConfig } from './character';
+import type { CardinalFacingLetter, CharacterAnimationsConfig } from './character';
 
 export interface Point2 {
   x: number;
@@ -40,6 +40,14 @@ export interface RoomCharacterInstance {
   definition: string;
   x: number;
   y: number;
+  /** Facing for the first directional animation (e.g. `Idle` + `L` → `IdleL`). */
+  initialFacing?: CardinalFacingLetter;
+  /** Base name before direction suffix; default `Idle`. */
+  initialAnimation?: string;
+  /** When false, sprite is hidden and not interactive. Default true. */
+  visible?: boolean;
+  /** Added to the engine character layer base depth; higher draws in front of lower. */
+  zIndex?: number;
 }
 
 /** Clickable / hit-test region for a room prop, in room pixel space (same as walkable polygons). */
