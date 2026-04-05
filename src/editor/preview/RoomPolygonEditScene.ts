@@ -1,34 +1,32 @@
 import * as Phaser from 'phaser';
 import { getInternalHeight, getInternalWidth, SCENE_ROOM } from '../../game/constants';
-import type { Point2, RoomData } from '../../types/room';
+import type { Point2, RoomData, RoomPropInstance } from '../../types/room';
 import { polygonEditBridge } from './polygonEditBridge';
+import { PreviewPolygonOverlay } from './previewPolygonOverlay';
 import type { RoomPolygonPatch } from './polygonPatchTypes';
 
 export const BENNE_POLYGON_EDIT_SCENE = 'BennePolygonEdit';
 
-/** Hit/draw radius; was 8px, reduced to one-third (~2.67 → 3). */
-const HANDLE_R = 3;
-const EDGE_HIT = 10;
+/** Handle hit radius in CSS pixels (overlay is high-DPI; this stays comfortable on screen). */
+const HANDLE_R_CSS = 6;
+/** Walk / look markers: slightly larger for picking. */
+const AUX_HANDLE_R_CSS = 7;
+const EDGE_HIT_CSS = 14;
+const LINE_WIDTH_CSS = 2;
 const MIN_POINTS = 3;
 
 const COL_WALK = 0x44eedd;
 /** Walkable hole ring (distinct from outer mesh). */
 const COL_WALK_HOLE = 0xffaa66;
 const COL_PROP = 0xff66cc;
-const COL_HANDLE = 0xffee44;
-const COL_SEL = 0xffffff;
+const COL_HANDLE = '#ffee44';
+const COL_HANDLE_STROKE = '#000000';
+const COL_WALK_TO = '#3db8e8';
+const COL_LOOK_AT = '#e8a438';
+const COL_AUX_STROKE = '#1a1a24';
 
-function hitVertex(wx: number, wy: number, pts: Point2[]): number {
-    let best = -1;
-    let bestD = HANDLE_R + 1;
-    for (let i = 0; i < pts.length; i++) {
-        const d = Phaser.Math.Distance.Between(wx, wy, pts[i].x, pts[i].y);
-        if (d <= HANDLE_R && d < bestD) {
-            bestD = d;
-            best = i;
-        }
-    }
-    return best;
+function hexToCss(hex: number): string {
+    return `#${hex.toString(16).padStart(6, '0')}`;
 }
 
 function distPointToSegment(
@@ -52,22 +50,60 @@ function distPointToSegment(
     return { d, t, ix, iy };
 }
 
+function hitVertexCss(
+    cx: number,
+    cy: number,
+    pts: Point2[],
+    handleR: number,
+    toCss: (p: Point2) => { x: number; y: number },
+): number {
+    let best = -1;
+    let bestD = handleR + 1;
+    for (let i = 0; i < pts.length; i++) {
+        const p = toCss(pts[i]!);
+        const d = Phaser.Math.Distance.Between(cx, cy, p.x, p.y);
+        if (d <= handleR && d < bestD) {
+            bestD = d;
+            best = i;
+        }
+    }
+    return best;
+}
+
+function hitAuxCss(
+    cx: number,
+    cy: number,
+    pt: Point2,
+    handleR: number,
+    toCss: (p: Point2) => { x: number; y: number },
+): boolean {
+    const p = toCss(pt);
+    return Phaser.Math.Distance.Between(cx, cy, p.x, p.y) <= handleR;
+}
+
 /** Index `i` is edge from `pts[i]` to `pts[(i+1)%n]`. */
-function hitEdge(wx: number, wy: number, pts: Point2[], vertexClear: number): number {
+function hitEdgeCss(
+    cx: number,
+    cy: number,
+    pts: Point2[],
+    edgeHit: number,
+    vertexClear: number,
+    toCss: (p: Point2) => { x: number; y: number },
+): number {
     const n = pts.length;
     let best = -1;
-    let bestD = EDGE_HIT + 1;
+    let bestD = edgeHit + 1;
     for (let i = 0; i < n; i++) {
-        const a = pts[i];
-        const b = pts[(i + 1) % n];
-        const { d, t } = distPointToSegment(wx, wy, a.x, a.y, b.x, b.y);
-        if (d > EDGE_HIT) {
+        const a = toCss(pts[i]!);
+        const b = toCss(pts[(i + 1) % n]!);
+        const { d, t } = distPointToSegment(cx, cy, a.x, a.y, b.x, b.y);
+        if (d > edgeHit) {
             continue;
         }
-        if (Phaser.Math.Distance.Between(wx, wy, a.x, a.y) < vertexClear) {
+        if (Phaser.Math.Distance.Between(cx, cy, a.x, a.y) < vertexClear) {
             continue;
         }
-        if (Phaser.Math.Distance.Between(wx, wy, b.x, b.y) < vertexClear) {
+        if (Phaser.Math.Distance.Between(cx, cy, b.x, b.y) < vertexClear) {
             continue;
         }
         if (t <= 0.05 || t >= 0.95) {
@@ -88,16 +124,34 @@ function insertPointOnEdge(pts: Point2[], edgeIdx: number, wx: number, wy: numbe
     pts.splice(edgeIdx + 1, 0, { x: ix, y: iy });
 }
 
+function defaultStandPointForProp(prop: RoomPropInstance): Point2 {
+    const c = prop.collider?.points;
+    if (c && c.length > 0) {
+        let sx = 0;
+        let sy = 0;
+        for (const p of c) {
+            sx += p.x;
+            sy += p.y;
+        }
+        return { x: Math.round(sx / c.length), y: Math.round(sy / c.length) };
+    }
+    const x = prop.x ?? 0;
+    const y = prop.y ?? 0;
+    return { x, y };
+}
+
 export class RoomPolygonEditScene extends Phaser.Scene {
     private room!: RoomData;
     private postPatch!: (p: RoomPolygonPatch) => void;
 
-    private gPoly!: Phaser.GameObjects.Graphics;
-    private gHandles!: Phaser.GameObjects.Graphics;
+    private overlay?: PreviewPolygonOverlay;
 
     private dragVertexIndex: number | null = null;
     private selectedVertexIndex: number | null = null;
     private downOnVertex = false;
+
+    private dragAux: 'walk' | 'look' | null = null;
+    private selectedAux: 'walk' | 'look' | null = null;
 
     private tapEdge: { t: number; edgeIdx: number } | null = null;
 
@@ -118,12 +172,15 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             return;
         }
 
-        this.gPoly = this.add.graphics().setDepth(25_000);
-        this.gHandles = this.add.graphics().setDepth(25_001);
-
-        this.input.on('pointerdown', this.onPointerDown);
-        this.input.on('pointermove', this.onPointerMove);
-        this.input.on('pointerup', this.onPointerUp);
+        const mount = this.game.canvas.parentElement;
+        if (!mount) {
+            return;
+        }
+        this.overlay = new PreviewPolygonOverlay(this.game, mount);
+        this.overlay.canvas.addEventListener('pointerdown', this.onOverlayPointerDown);
+        this.overlay.canvas.addEventListener('pointermove', this.onOverlayPointerMove);
+        this.overlay.canvas.addEventListener('pointerup', this.onOverlayPointerUp);
+        this.overlay.canvas.addEventListener('pointercancel', this.onOverlayPointerUp);
 
         this.input.keyboard?.on('keydown-DELETE', this.onDeleteKey);
         this.input.keyboard?.on('keydown-BACKSPACE', this.onDeleteKey);
@@ -135,6 +192,8 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             }
             this.syncRoomInput();
             this.selectedVertexIndex = null;
+            this.selectedAux = null;
+            this.dragAux = null;
             this.tapEdge = null;
         });
         this.syncRoomInput();
@@ -147,61 +206,143 @@ export class RoomPolygonEditScene extends Phaser.Scene {
     }
 
     update(): void {
-        if (!polygonEditBridge.isEditing()) {
-            this.gPoly.clear();
-            this.gHandles.clear();
+        if (!this.overlay) {
             return;
         }
-        const pts = this.getActivePoints();
-        if (!pts || pts.length === 0) {
-            this.gPoly.clear();
-            this.gHandles.clear();
+        this.overlay.syncLayout();
+        if (!polygonEditBridge.isEditing()) {
+            this.overlay.clearAndDraw({
+                pts: [],
+                strokeStyle: '#000000',
+                handleFill: COL_HANDLE,
+                handleStroke: COL_HANDLE_STROKE,
+                selectedIndex: null,
+                handleRadiusCss: HANDLE_R_CSS,
+                lineWidthCss: LINE_WIDTH_CSS,
+            });
             return;
         }
 
-        const stroke =
+        if (polygonEditBridge.mode === 'propCollider') {
+            const prop = this.getActiveProp();
+            if (!prop) {
+                this.overlay.clearAndDraw({
+                    pts: [],
+                    strokeStyle: '#000000',
+                    handleFill: COL_HANDLE,
+                    handleStroke: COL_HANDLE_STROKE,
+                    selectedIndex: null,
+                    handleRadiusCss: HANDLE_R_CSS,
+                    lineWidthCss: LINE_WIDTH_CSS,
+                });
+                return;
+            }
+            this.ensurePropWalkLook(prop);
+            const pts = prop.collider!.points!;
+            const labeledPoints = [
+                {
+                    point: prop.walkToPoint!,
+                    label: 'Walk to',
+                    fillStyle: COL_WALK_TO,
+                    strokeStyle: COL_AUX_STROKE,
+                    selected: this.selectedAux === 'walk',
+                    radiusCss: AUX_HANDLE_R_CSS,
+                },
+                {
+                    point: prop.lookAtPoint!,
+                    label: 'Look at',
+                    fillStyle: COL_LOOK_AT,
+                    strokeStyle: COL_AUX_STROKE,
+                    selected: this.selectedAux === 'look',
+                    radiusCss: AUX_HANDLE_R_CSS,
+                },
+            ];
+            this.overlay.clearAndDraw({
+                pts,
+                strokeStyle: hexToCss(COL_PROP),
+                handleFill: COL_HANDLE,
+                handleStroke: COL_HANDLE_STROKE,
+                selectedIndex: this.selectedVertexIndex,
+                handleRadiusCss: HANDLE_R_CSS,
+                lineWidthCss: LINE_WIDTH_CSS,
+                labeledPoints,
+            });
+            return;
+        }
+
+        const pts = this.getActivePoints();
+        if (!pts || pts.length === 0) {
+            this.overlay.clearAndDraw({
+                pts: [],
+                strokeStyle: '#000000',
+                handleFill: COL_HANDLE,
+                handleStroke: COL_HANDLE_STROKE,
+                selectedIndex: null,
+                handleRadiusCss: HANDLE_R_CSS,
+                lineWidthCss: LINE_WIDTH_CSS,
+            });
+            return;
+        }
+
+        const strokeHex =
             polygonEditBridge.mode === 'walkable'
                 ? polygonEditBridge.walkableHoleId
                     ? COL_WALK_HOLE
                     : COL_WALK
                 : COL_PROP;
-        this.gPoly.clear();
-        this.gPoly.lineStyle(1, stroke, 0.95);
 
-        if (pts.length === 1) {
-            /* single vertex: no stroke yet */
-        } else if (pts.length === 2) {
-            const vecsOpen = [new Phaser.Math.Vector2(pts[0]!.x, pts[0]!.y), new Phaser.Math.Vector2(pts[1]!.x, pts[1]!.y)];
-            this.gPoly.strokePoints(vecsOpen, false);
-        } else {
-            const vecs = pts.map((p) => new Phaser.Math.Vector2(p.x, p.y));
-            this.gPoly.strokePoints(vecs, true);
-        }
-
-        this.gHandles.clear();
-        for (let i = 0; i < pts.length; i++) {
-            const p = pts[i];
-            const sel = i === this.selectedVertexIndex;
-            const r = sel ? HANDLE_R + 1 : HANDLE_R;
-            const col = sel ? COL_SEL : COL_HANDLE;
-            this.gHandles.fillStyle(col, 0.95);
-            this.gHandles.fillCircle(p.x, p.y, r);
-            this.gHandles.lineStyle(1, 0x000000, 0.5);
-            this.gHandles.strokeCircle(p.x, p.y, r);
-        }
+        this.overlay.clearAndDraw({
+            pts,
+            strokeStyle: hexToCss(strokeHex),
+            handleFill: COL_HANDLE,
+            handleStroke: COL_HANDLE_STROKE,
+            selectedIndex: this.selectedVertexIndex,
+            handleRadiusCss: HANDLE_R_CSS,
+            lineWidthCss: LINE_WIDTH_CSS,
+        });
     }
 
     private shutdownScene(): void {
-        this.input.off('pointerdown', this.onPointerDown);
-        this.input.off('pointermove', this.onPointerMove);
-        this.input.off('pointerup', this.onPointerUp);
+        this.overlay?.canvas.removeEventListener('pointerdown', this.onOverlayPointerDown);
+        this.overlay?.canvas.removeEventListener('pointermove', this.onOverlayPointerMove);
+        this.overlay?.canvas.removeEventListener('pointerup', this.onOverlayPointerUp);
+        this.overlay?.canvas.removeEventListener('pointercancel', this.onOverlayPointerUp);
         this.input.keyboard?.off('keydown-DELETE', this.onDeleteKey);
         this.input.keyboard?.off('keydown-BACKSPACE', this.onDeleteKey);
         window.removeEventListener('benne-save-polygon', this.onSaveBound);
         this.unsubBridge?.();
+        this.overlay?.destroy();
         const roomSc = this.scene?.manager?.getScene(SCENE_ROOM);
         if (roomSc) {
             roomSc.input.enabled = true;
+        }
+    }
+
+    private getActiveProp(): RoomPropInstance | null {
+        if (polygonEditBridge.mode !== 'propCollider') {
+            return null;
+        }
+        const id = polygonEditBridge.propId;
+        const p = this.room.props?.find((x) => x.id === id);
+        if (!p || p.clickable !== true) {
+            return null;
+        }
+        return p;
+    }
+
+    private ensurePropWalkLook(prop: RoomPropInstance): void {
+        if (!prop.collider) {
+            prop.collider = { points: [] };
+        }
+        if (!prop.collider.points) {
+            prop.collider.points = [];
+        }
+        const base = defaultStandPointForProp(prop);
+        if (!prop.walkToPoint) {
+            prop.walkToPoint = { x: base.x, y: base.y };
+        }
+        if (!prop.lookAtPoint) {
+            prop.lookAtPoint = { x: base.x + 12, y: base.y };
         }
     }
 
@@ -226,18 +367,12 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             return hole.points;
         }
         if (polygonEditBridge.mode === 'propCollider') {
-            const id = polygonEditBridge.propId;
-            const p = this.room.props?.find((x) => x.id === id);
-            if (!p || p.clickable !== true) {
+            const prop = this.getActiveProp();
+            if (!prop) {
                 return null;
             }
-            if (!p.collider) {
-                p.collider = { points: [] };
-            }
-            if (!p.collider.points) {
-                p.collider.points = [];
-            }
-            return p.collider.points;
+            this.ensurePropWalkLook(prop);
+            return prop.collider!.points!;
         }
         return null;
     }
@@ -253,10 +388,31 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             roomSc.input.enabled = !editing;
         }
         this.input.enabled = editing;
+        this.overlay?.setPointerEventsEnabled(editing);
     }
 
     private saveActivePolygon(): void {
         if (!polygonEditBridge.isEditing()) {
+            return;
+        }
+        if (polygonEditBridge.mode === 'propCollider') {
+            const prop = this.getActiveProp();
+            if (!prop) {
+                return;
+            }
+            this.ensurePropWalkLook(prop);
+            const pts = prop.collider!.points!;
+            if (pts.length < MIN_POINTS) {
+                return;
+            }
+            const copy = pts.map((p) => ({ x: p.x, y: p.y }));
+            this.postPatch({
+                kind: 'propCollider',
+                propId: polygonEditBridge.propId,
+                points: copy,
+                walkToPoint: { x: prop.walkToPoint!.x, y: prop.walkToPoint!.y },
+                lookAtPoint: { x: prop.lookAtPoint!.x, y: prop.lookAtPoint!.y },
+            });
             return;
         }
         const pts = this.getActivePoints();
@@ -272,28 +428,98 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 ...(hid ? { holeId: hid } : {}),
                 points: copy,
             });
-        } else if (polygonEditBridge.mode === 'propCollider') {
-            this.postPatch({
-                kind: 'propCollider',
-                propId: polygonEditBridge.propId,
-                points: copy,
-            });
         }
     }
 
-    private readonly onPointerDown = (pointer: Phaser.Input.Pointer): void => {
-        if (!polygonEditBridge.isEditing() || !pointer.leftButtonDown()) {
+    private pointerCss(e: PointerEvent): { cx: number; cy: number } {
+        const rect = this.game.canvas.getBoundingClientRect();
+        return { cx: e.clientX - rect.left, cy: e.clientY - rect.top };
+    }
+
+    private tryPickWalkLook(
+        cx: number,
+        cy: number,
+        prop: RoomPropInstance,
+        toCss: (p: Point2) => { x: number; y: number },
+    ): boolean {
+        if (hitAuxCss(cx, cy, prop.walkToPoint!, AUX_HANDLE_R_CSS, toCss)) {
+            this.dragAux = 'walk';
+            this.selectedAux = 'walk';
+            this.selectedVertexIndex = null;
+            this.downOnVertex = false;
+            this.dragVertexIndex = null;
+            return true;
+        }
+        if (hitAuxCss(cx, cy, prop.lookAtPoint!, AUX_HANDLE_R_CSS, toCss)) {
+            this.dragAux = 'look';
+            this.selectedAux = 'look';
+            this.selectedVertexIndex = null;
+            this.downOnVertex = false;
+            this.dragVertexIndex = null;
+            return true;
+        }
+        return false;
+    }
+
+    private readonly onOverlayPointerDown = (e: PointerEvent): void => {
+        const ov = this.overlay;
+        if (!ov || !polygonEditBridge.isEditing() || e.button !== 0) {
             return;
         }
-        const cam = this.cameras.main;
-        const { x: wx, y: wy } = cam.getWorldPoint(pointer.x, pointer.y);
+        e.preventDefault();
+        ov.canvas.setPointerCapture(e.pointerId);
+        const { cx, cy } = this.pointerCss(e);
+        const toCss = (p: Point2): { x: number; y: number } => ov.worldToCanvasCss(p);
+
+        if (polygonEditBridge.mode === 'propCollider') {
+            const prop = this.getActiveProp();
+            if (!prop) {
+                return;
+            }
+            this.ensurePropWalkLook(prop);
+            const pts = prop.collider!.points!;
+
+            if (pts.length >= MIN_POINTS && this.tryPickWalkLook(cx, cy, prop, toCss)) {
+                return;
+            }
+
+            if (pts.length < MIN_POINTS) {
+                const vi = pts.length > 0 ? hitVertexCss(cx, cy, pts, HANDLE_R_CSS, toCss) : -1;
+                if (vi >= 0) {
+                    this.downOnVertex = true;
+                    this.dragVertexIndex = vi;
+                    this.selectedVertexIndex = vi;
+                    this.dragAux = null;
+                    this.selectedAux = null;
+                    return;
+                }
+                if (this.tryPickWalkLook(cx, cy, prop, toCss)) {
+                    return;
+                }
+                return;
+            }
+
+            const vi = hitVertexCss(cx, cy, pts, HANDLE_R_CSS, toCss);
+            if (vi >= 0) {
+                this.downOnVertex = true;
+                this.dragVertexIndex = vi;
+                this.selectedVertexIndex = vi;
+                this.dragAux = null;
+                this.selectedAux = null;
+                return;
+            }
+            this.downOnVertex = false;
+            this.dragVertexIndex = null;
+            return;
+        }
+
         const pts = this.getActivePoints();
         if (!pts) {
             return;
         }
 
         if (pts.length < MIN_POINTS) {
-            const vi = pts.length > 0 ? hitVertex(wx, wy, pts) : -1;
+            const vi = pts.length > 0 ? hitVertexCss(cx, cy, pts, HANDLE_R_CSS, toCss) : -1;
             if (vi >= 0) {
                 this.downOnVertex = true;
                 this.dragVertexIndex = vi;
@@ -302,7 +528,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             return;
         }
 
-        const vi = hitVertex(wx, wy, pts);
+        const vi = hitVertexCss(cx, cy, pts, HANDLE_R_CSS, toCss);
         if (vi >= 0) {
             this.downOnVertex = true;
             this.dragVertexIndex = vi;
@@ -313,7 +539,31 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         this.dragVertexIndex = null;
     };
 
-    private readonly onPointerMove = (pointer: Phaser.Input.Pointer): void => {
+    private readonly onOverlayPointerMove = (e: PointerEvent): void => {
+        const ov = this.overlay;
+        if (!ov) {
+            return;
+        }
+        if (this.dragAux === 'walk' || this.dragAux === 'look') {
+            const prop = this.getActiveProp();
+            if (!prop) {
+                return;
+            }
+            const cam = this.cameras.main;
+            const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, cam);
+            const w = getInternalWidth();
+            const h = getInternalHeight();
+            const cx = Phaser.Math.Clamp(wx, 0, w);
+            const cy = Phaser.Math.Clamp(wy, 0, h);
+            if (this.dragAux === 'walk') {
+                prop.walkToPoint!.x = cx;
+                prop.walkToPoint!.y = cy;
+            } else {
+                prop.lookAtPoint!.x = cx;
+                prop.lookAtPoint!.y = cy;
+            }
+            return;
+        }
         if (this.dragVertexIndex === null) {
             return;
         }
@@ -322,23 +572,41 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             return;
         }
         const cam = this.cameras.main;
-        const { x: wx, y: wy } = cam.getWorldPoint(pointer.x, pointer.y);
+        const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, cam);
         const w = getInternalWidth();
         const h = getInternalHeight();
         pts[this.dragVertexIndex].x = Phaser.Math.Clamp(wx, 0, w);
         pts[this.dragVertexIndex].y = Phaser.Math.Clamp(wy, 0, h);
     };
 
-    private readonly onPointerUp = (pointer: Phaser.Input.Pointer): void => {
-        if (!polygonEditBridge.isEditing()) {
+    private readonly onOverlayPointerUp = (e: PointerEvent): void => {
+        const ov = this.overlay;
+        if (e.button === 0 && ov) {
+            try {
+                ov.canvas.releasePointerCapture(e.pointerId);
+            } catch {
+                /* not captured */
+            }
+        }
+        if (!polygonEditBridge.isEditing() || !ov) {
             this.dragVertexIndex = null;
             this.downOnVertex = false;
+            this.dragAux = null;
+            return;
+        }
+
+        if (this.dragAux) {
+            this.dragAux = null;
+            this.downOnVertex = false;
+            this.dragVertexIndex = null;
             return;
         }
 
         const pts = this.getActivePoints();
         const cam = this.cameras.main;
-        const { x: wx, y: wy } = cam.getWorldPoint(pointer.x, pointer.y);
+        const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, cam);
+        const { cx, cy } = this.pointerCss(e);
+        const toCss = (p: Point2): { x: number; y: number } => ov.worldToCanvasCss(p);
 
         if (this.downOnVertex || this.dragVertexIndex !== null) {
             this.dragVertexIndex = null;
@@ -346,8 +614,50 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             return;
         }
 
+        if (polygonEditBridge.mode === 'walkable') {
+            if (
+                e.button === 0 &&
+                pts &&
+                pts.length < MIN_POINTS &&
+                !this.downOnVertex &&
+                this.dragVertexIndex === null
+            ) {
+                const w = getInternalWidth();
+                const h = getInternalHeight();
+                pts.push({
+                    x: Phaser.Math.Clamp(wx, 0, w),
+                    y: Phaser.Math.Clamp(wy, 0, h),
+                });
+                this.tapEdge = null;
+                return;
+            }
+
+            if (e.button === 0 && pts && pts.length >= MIN_POINTS) {
+                const vertexClear = HANDLE_R_CSS + 3;
+                const edgeIdx = hitEdgeCss(cx, cy, pts, EDGE_HIT_CSS, vertexClear, toCss);
+                if (edgeIdx >= 0) {
+                    const now = this.time.now;
+                    if (
+                        this.tapEdge &&
+                        this.tapEdge.edgeIdx === edgeIdx &&
+                        now - this.tapEdge.t < 450
+                    ) {
+                        insertPointOnEdge(pts, edgeIdx, wx, wy);
+                        this.tapEdge = null;
+                    } else {
+                        this.tapEdge = { t: now, edgeIdx };
+                    }
+                } else {
+                    this.tapEdge = null;
+                    this.selectedVertexIndex = null;
+                }
+            }
+            return;
+        }
+
+        /* propCollider */
         if (
-            pointer.leftButtonReleased() &&
+            e.button === 0 &&
             pts &&
             pts.length < MIN_POINTS &&
             !this.downOnVertex &&
@@ -363,8 +673,9 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             return;
         }
 
-        if (pointer.leftButtonReleased() && pts && pts.length >= MIN_POINTS) {
-            const edgeIdx = hitEdge(wx, wy, pts, HANDLE_R + 3);
+        if (e.button === 0 && pts && pts.length >= MIN_POINTS) {
+            const vertexClear = HANDLE_R_CSS + 3;
+            const edgeIdx = hitEdgeCss(cx, cy, pts, EDGE_HIT_CSS, vertexClear, toCss);
             if (edgeIdx >= 0) {
                 const now = this.time.now;
                 if (
@@ -380,6 +691,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             } else {
                 this.tapEdge = null;
                 this.selectedVertexIndex = null;
+                this.selectedAux = null;
             }
         }
     };
