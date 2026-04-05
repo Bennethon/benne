@@ -4,7 +4,13 @@ export type Point2 = { x: number; y: number };
 
 export type RoomPolygonPatch =
     | { kind: 'walkable'; polygonId: string; points: Point2[]; holeId?: string }
-    | { kind: 'propCollider'; propId: string; points: Point2[] };
+    | {
+          kind: 'propCollider';
+          propId: string;
+          points: Point2[];
+          walkToPoint: Point2;
+          lookAtPoint: Point2;
+      };
 
 const MIN_POINTS = 3;
 
@@ -38,7 +44,16 @@ export function parseRoomPolygonPatch(body: unknown): RoomPolygonPatch | null {
         if (pts.length !== o.points.length) {
             return null;
         }
-        return { kind: 'propCollider', propId: o.propId, points: pts };
+        if (!isPoint2(o.walkToPoint) || !isPoint2(o.lookAtPoint)) {
+            return null;
+        }
+        return {
+            kind: 'propCollider',
+            propId: o.propId,
+            points: pts,
+            walkToPoint: { x: o.walkToPoint.x, y: o.walkToPoint.y },
+            lookAtPoint: { x: o.lookAtPoint.x, y: o.lookAtPoint.y },
+        };
     }
     return null;
 }
@@ -108,7 +123,14 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
         return outPayload();
     }
 
-    const props = room.props as { id: string; collider?: { points: Point2[] } }[] | undefined;
+    const props = room.props as
+        | {
+              id: string;
+              collider?: { points: Point2[] };
+              walkToPoint?: Point2;
+              lookAtPoint?: Point2;
+          }[]
+        | undefined;
     if (!Array.isArray(props)) {
         throw new Error('Room JSON has no props array.');
     }
@@ -121,7 +143,17 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
     }
     const rounded = patch.points.map(roundPoint);
     prop.collider.points = rounded;
+    const w = roundPoint(patch.walkToPoint);
+    const l = roundPoint(patch.lookAtPoint);
+    prop.walkToPoint = w;
+    prop.lookAtPoint = l;
     const out = `${JSON.stringify(room, null, 2)}\n`;
     await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
-    return { kind: 'propCollider', propId: patch.propId, points: rounded.map((p) => ({ ...p })) };
+    return {
+        kind: 'propCollider',
+        propId: patch.propId,
+        points: rounded.map((p) => ({ ...p })),
+        walkToPoint: { ...w },
+        lookAtPoint: { ...l },
+    };
 }

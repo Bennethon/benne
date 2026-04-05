@@ -138,11 +138,11 @@ function buildRoomToolbarHtml(): string {
 function buildPropTreeToolbarHtml(propLabel: string): string {
     return `
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;">Prop collider — <strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong></span>
+      <span style="opacity:0.95;">Prop — <strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong> (collider, walk, look)</span>
       <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
       <span id="benne-polygon-status" style="opacity:0.85;"></span>
     </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Editing collider for the prop selected in the BENNE tree. New polygon: click ${MIN_POLY_POINTS} times to place vertices, then double-click edges to add vertices.</div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Collider (magenta), cyan <strong>Walk to</strong>, amber <strong>Look at</strong>. New collider: click ${MIN_POLY_POINTS} times, then double-click edges. Delete removes a selected collider vertex only.</div>
   `;
 }
 
@@ -337,8 +337,11 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
         return;
     }
     const prop = room.props?.find((p) => p.id === patch.propId);
-    if (!prop?.collider) {
+    if (!prop) {
         return;
+    }
+    if (!prop.collider) {
+        prop.collider = { points: [] };
     }
     const dest = prop.collider.points;
     if (dest.length === src.length) {
@@ -349,6 +352,8 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
     } else {
         prop.collider.points = src.map((p) => ({ x: p.x, y: p.y }));
     }
+    prop.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
+    prop.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
 }
 
 function showError(text: string): void {
@@ -440,6 +445,12 @@ async function runLoadRoom(msg: HostPreviewMessage): Promise<void> {
         return;
     }
     root.innerHTML = '';
+    const stack = document.createElement('div');
+    stack.style.cssText = 'position:relative;width:100%;height:100%;min-height:0';
+    const phaserMount = document.createElement('div');
+    phaserMount.style.cssText = 'width:100%;height:100%';
+    stack.appendChild(phaserMount);
+    root.appendChild(stack);
 
     let room: RoomData;
     try {
@@ -469,7 +480,7 @@ async function runLoadRoom(msg: HostPreviewMessage): Promise<void> {
                 patch,
             });
         };
-        game = createRoomPreviewPhaserGame(root, manifest, {
+        game = createRoomPreviewPhaserGame(phaserMount, manifest, {
             roomJsonUri: currentRoomJsonUri,
             onPolygonPatch,
         });
