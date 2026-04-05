@@ -20,6 +20,7 @@ export type ActionTreeNode =
           roomId: string;
       }
     | { kind: 'addRoomProp' }
+    | { kind: 'importPropsFromAseprite' }
     | {
           kind: 'charVerb';
           verbLabel: string;
@@ -27,7 +28,8 @@ export type ActionTreeNode =
           characterJsonUri: vscode.Uri;
           characterId: string;
       }
-    | { kind: 'charOpen'; label: string; characterJsonUri: vscode.Uri };
+    | { kind: 'charOpen'; label: string; characterJsonUri: vscode.Uri }
+    | { kind: 'importCharAnimationsFromAseprite' };
 
 export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNode> {
     private readonly _onDidChangeTreeData = new vscode.EventEmitter<ActionTreeNode | undefined | void>();
@@ -70,6 +72,21 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 item.command = {
                     command: 'benne-editor.addRoomProp',
                     title: 'Add Prop',
+                    arguments: []
+                };
+                return item;
+            }
+            case 'importPropsFromAseprite': {
+                const item = new vscode.TreeItem(
+                    'Import Props from Aseprite Tags',
+                    vscode.TreeItemCollapsibleState.None
+                );
+                item.id = 'action:importPropsFromAseprite';
+                item.iconPath = new vscode.ThemeIcon('cloud-download');
+                item.contextValue = 'benneActionImportAseprite';
+                item.command = {
+                    command: 'benne-editor.importPropsFromAsepriteTags',
+                    title: 'Import Props from Aseprite Tags',
                     arguments: []
                 };
                 return item;
@@ -126,6 +143,21 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 };
                 return item;
             }
+            case 'importCharAnimationsFromAseprite': {
+                const item = new vscode.TreeItem(
+                    'Import Animations from Aseprite Tags',
+                    vscode.TreeItemCollapsibleState.None
+                );
+                item.id = 'action:importCharAnimationsFromAseprite';
+                item.iconPath = new vscode.ThemeIcon('cloud-download');
+                item.contextValue = 'benneActionImportCharAnimations';
+                item.command = {
+                    command: 'benne-editor.importAnimationsFromAsepriteTags',
+                    title: 'Import Animations from Aseprite Tags',
+                    arguments: []
+                };
+                return item;
+            }
         }
     }
 
@@ -135,14 +167,20 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
 
         if (main.kind === 'room') {
             const addProp: ActionTreeNode = { kind: 'addRoomProp' };
+            const importAseprite: ActionTreeNode = { kind: 'importPropsFromAseprite' };
             const roomId = getRoomIdFromRoomJsonUri(main.uri);
 
             if (roomPanel.kind === 'prop') {
-                return [addProp, ...this.propActionNodes(roomPanel.prop, roomPanel.roomJsonUri, roomPanel.roomId)];
+                return [
+                    addProp,
+                    importAseprite,
+                    ...this.propActionNodes(roomPanel.prop, roomPanel.roomJsonUri, roomPanel.roomId)
+                ];
             }
 
             return [
                 addProp,
+                importAseprite,
                 {
                     kind: 'roomOpen',
                     label: 'Open room JSON',
@@ -221,6 +259,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         const hooks = await readCharacterHooks(characterJsonUri);
         const characterId = this.inferCharacterId(characterJsonUri);
         const out: ActionTreeNode[] = [
+            { kind: 'importCharAnimationsFromAseprite' },
             { kind: 'charOpen', label: 'Open character JSON', characterJsonUri }
         ];
 

@@ -2,14 +2,20 @@ import * as vscode from 'vscode';
 import { ActionsTreeProvider } from './actionsTreeProvider';
 import { EditorSelection } from './editorSelection';
 import { MainTreeProvider, type MainTreeNode } from './mainTreeProvider';
-import { runCreateCharacterWizard } from './characterScaffolding';
+import { runCreateCharacterWizard, runImportAnimationsFromAsepriteTags } from './characterScaffolding';
 import {
     runAddRoomPropWizard,
     runCreateRoomWizard,
     runImportPropsFromAsepriteTags
 } from './roomScaffolding';
 import { RoomPreviewPanelController } from './roomPreviewPanel';
-import { openDocumentPinned, openDocumentUri, openRoomJsonAndScriptBottomGroup, revealEventInDocument } from './roomScriptNavigation';
+import {
+    openCharacterJsonAndScriptPinned,
+    openDocumentPinned,
+    openDocumentUri,
+    openRoomJsonAndScriptBottomGroup,
+    revealEventInDocument
+} from './roomScriptNavigation';
 
 function firstTreeContextArg(arg: MainTreeNode | MainTreeNode[] | undefined): MainTreeNode | undefined {
     if (arg === undefined) {
@@ -128,6 +134,14 @@ export function activate(context: vscode.ExtensionContext): void {
             async (arg?: MainTreeNode | MainTreeNode[]) => {
                 const node = firstTreeContextArg(arg);
                 await runImportPropsFromAsepriteTags(selection, node);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.importAnimationsFromAsepriteTags',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                await runImportAnimationsFromAsepriteTags(selection, node);
                 refreshTrees();
             }
         ),
@@ -327,12 +341,5 @@ async function openRoomJsonAndScript(roomJsonUri: vscode.Uri, roomId: string): P
 }
 
 async function openCharacterJsonAndScript(characterJsonUri: vscode.Uri, characterId: string): Promise<void> {
-    await openDocumentPinned(characterJsonUri, vscode.ViewColumn.One);
-    const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
-    try {
-        await vscode.workspace.fs.stat(scriptUri);
-        await openDocumentPinned(scriptUri, vscode.ViewColumn.One);
-    } catch {
-        /* optional *.character.ts */
-    }
+    await openCharacterJsonAndScriptPinned(characterJsonUri, characterId);
 }

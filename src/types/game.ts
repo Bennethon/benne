@@ -38,7 +38,7 @@ export interface GameSettings {
   startingPlayerCharacter: string;
   /**
    * Which room id to load first. When set, overrides `startRoomId` in `rooms.manifest.json`.
-   * Omit to use the manifest value.
+   * When omitted, the manifest value is used.
    */
   startingRoomId?: string;
   audio: GameSettingsAudio;

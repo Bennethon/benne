@@ -178,6 +178,7 @@ function normalizeRoomForPreview(raw: unknown): RoomData {
     r.walkable = { polygons };
     r.hotspots = Array.isArray(r.hotspots) ? r.hotspots : [];
     r.props = Array.isArray(r.props) ? r.props : [];
+    r.characters = Array.isArray(r.characters) ? r.characters : [];
     return r as unknown as RoomData;
 }
 

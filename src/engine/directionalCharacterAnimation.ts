@@ -34,6 +34,19 @@ export function resolveInitialIdleFacing(sprite: Phaser.GameObjects.Sprite): Car
 }
 
 /**
+ * Uses room placement `initialFacing` when it is L/R/U/D; otherwise same fallback as {@link resolveInitialIdleFacing}.
+ */
+export function resolveSpawnIdleFacing(
+  sprite: Phaser.GameObjects.Sprite,
+  initialFacing: string | undefined,
+): CardinalFacing {
+  if (initialFacing === 'L' || initialFacing === 'R' || initialFacing === 'U' || initialFacing === 'D') {
+    return initialFacing;
+  }
+  return resolveInitialIdleFacing(sprite);
+}
+
+/**
  * Plays `<baseName><direction>` (e.g. IdleR). Horizontal mirroring: if R (or L) variant is missing,
  * uses the opposite horizontal tag with `setFlipX`.
  */

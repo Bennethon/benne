@@ -24,8 +24,8 @@
             "y": 96
           },
           {
-            "x": 81,
-            "y": 101
+            "x": 87,
+            "y": 35
           },
           {
             "x": 51,
@@ -180,7 +180,7 @@
           },
           {
             "x": 273,
-            "y": 108
+            "y": 105
           }
         ]
       },
@@ -354,7 +354,21 @@
       "instanceId": "clerk-1",
       "definition": "clerk/clerk.character.json",
       "x": 96,
-      "y": 170
+      "y": 170,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 100
+    },
+    {
+      "instanceId": "henry-1",
+      "definition": "henry/henry.character.json",
+      "x": 200,
+      "y": 148,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 101
     }
   ]
 }

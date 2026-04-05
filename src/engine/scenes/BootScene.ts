@@ -8,11 +8,11 @@ import {
   warnIfAnimationConfigKeysMissingFromFrameTags,
 } from '../../game/loadAsepriteAtlasData';
 import { getRoomAsepriteAssetPaths, getRoomAsepriteTextureKey } from '../../game/roomAseprite';
+import { SCENE_BOOT, SCENE_ROOM } from '../../game/constants';
 import { loadCharacterData } from '../../game/loadCharacterData';
 import { loadStartRoomData } from '../../game/loadStartRoom';
 import { resolveGameAssetUrl } from '../../game/resolveGameAssetUrl';
-import { SCENE_BOOT, SCENE_ROOM } from '../../game/constants';
-import type { CharacterData } from '../../types/character';
+import type { CardinalFacingLetter, CharacterData } from '../../types/character';
 import type { RoomCharacterInstance, RoomData, RoomPropInstance } from '../../types/room';
 
 export type CharacterSpawnLoadKind = 'aseprite' | 'image';
@@ -25,6 +25,10 @@ export interface RoomCharacterSpawn {
   loadKind: CharacterSpawnLoadKind;
   /** `aseprite:<id>` or `char:<instanceId>` */
   textureKey: string;
+  initialFacing?: CardinalFacingLetter;
+  initialAnimation?: string;
+  visible?: boolean;
+  zIndex?: number;
 }
 
 export interface RoomPropSpawn {
@@ -160,6 +164,10 @@ export class BootScene extends Phaser.Scene {
         data,
         loadKind: 'aseprite',
         textureKey,
+        initialFacing: inst.initialFacing,
+        initialAnimation: inst.initialAnimation,
+        visible: inst.visible,
+        zIndex: inst.zIndex,
       });
       return;
     }
@@ -173,6 +181,10 @@ export class BootScene extends Phaser.Scene {
       data,
       loadKind: 'image',
       textureKey,
+      initialFacing: inst.initialFacing,
+      initialAnimation: inst.initialAnimation,
+      visible: inst.visible,
+      zIndex: inst.zIndex,
     });
   }
 }

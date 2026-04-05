@@ -4,6 +4,7 @@ import {
   facingFromWorldDelta,
   playDirectionalAnimation,
   resolveInitialIdleFacing,
+  resolveSpawnIdleFacing,
   type CardinalFacing,
   type DirectionalCharacterSprite,
 } from '../directionalCharacterAnimation';
@@ -447,7 +448,8 @@ export class RoomScene extends Phaser.Scene {
     }
 
     const sprite = this.add.image(spawn.x, spawn.y, spawn.textureKey).setOrigin(0.5, 1);
-    sprite.setDepth(CHARACTER_SCENE_DEPTH);
+    sprite.setDepth(CHARACTER_SCENE_DEPTH + (spawn.zIndex ?? 0));
+    sprite.setVisible(spawn.visible !== false);
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
     sprite.setData('instanceId', spawn.instanceId);
@@ -456,7 +458,8 @@ export class RoomScene extends Phaser.Scene {
 
   private spawnAsepriteCharacter(roomId: string, spawn: RoomCharacterSpawn): void {
     const sprite = this.add.sprite(spawn.x, spawn.y, spawn.textureKey).setOrigin(0.5, 1);
-    sprite.setDepth(CHARACTER_SCENE_DEPTH);
+    sprite.setDepth(CHARACTER_SCENE_DEPTH + (spawn.zIndex ?? 0));
+    sprite.setVisible(spawn.visible !== false);
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
     sprite.setData('instanceId', spawn.instanceId);
@@ -467,8 +470,9 @@ export class RoomScene extends Phaser.Scene {
     setupCharacterAsepritePlayback(sprite, spawn.data, createdAnims);
     attachDirectionalAnimationApi(sprite);
 
-    const facing = resolveInitialIdleFacing(sprite);
-    playDirectionalAnimation(sprite, 'Idle', facing);
+    const animBase = spawn.initialAnimation ?? 'Idle';
+    const facing = resolveSpawnIdleFacing(sprite, spawn.initialFacing);
+    playDirectionalAnimation(sprite, animBase, facing);
 
     this.attachCharacterInteraction(roomId, spawn, sprite);
 
@@ -482,6 +486,9 @@ export class RoomScene extends Phaser.Scene {
     spawn: RoomCharacterSpawn,
     sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite,
   ): void {
+    if (spawn.visible === false) {
+      return;
+    }
     const onLook = spawn.data.onLook;
     if (!spawn.data.clickable || !onLook) {
       return;
