@@ -82,7 +82,10 @@ export class RoomScene extends Phaser.Scene {
 
     this.spawnRoomProps(data, w, h);
 
-    data.room.hotspots.forEach((hotspot) => this.createHotspot(data.room.id, hotspot));
+    const sortedHotspots = [...data.room.hotspots].sort(
+      (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0),
+    );
+    sortedHotspots.forEach((hotspot) => this.createHotspot(data.room.id, hotspot));
     data.characters.forEach((spawn) => this.spawnCharacter(data.room.id, spawn));
 
     this.drawRoomDebugOverlays(data);
@@ -426,19 +429,50 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private createHotspot(roomId: string, hotspot: RoomHotspotData): void {
-    const centerX = hotspot.x + hotspot.width / 2;
-    const centerY = hotspot.y + hotspot.height / 2;
-    const zone = this.add
-      .zone(centerX, centerY, hotspot.width, hotspot.height)
-      .setDepth(8000)
-      .setInteractive({ useHandCursor: true });
+    if (hotspot.active === false) {
+      return;
+    }
 
-    zone.on('pointerdown', () => {
+    const pts = hotspot.points;
+    const usePoly = pts !== undefined && pts.length >= 3;
+
+    const w = getInternalWidth();
+    const h = getInternalHeight();
+    const depth = 8000 + (hotspot.zIndex ?? 0);
+
+    const emitLook = (): void => {
       if (hotspot.onLook) {
         console.log(`[Benne] LOOK ${hotspot.id} -> ${hotspot.onLook}`);
         gameEvents.emit(hotspot.onLook, { hotspotId: hotspot.id, roomId });
       }
-    });
+    };
+
+    if (usePoly) {
+      const zone = this.add.zone(0, 0, w, h).setOrigin(0, 0).setDepth(depth);
+      const flat: number[] = [];
+      for (const p of pts) {
+        flat.push(p.x, p.y);
+      }
+      const geom = new Phaser.Geom.Polygon(flat);
+      zone.setInteractive(geom, Phaser.Geom.Polygon.Contains);
+      zone.input!.cursor = 'pointer';
+      zone.on('pointerdown', emitLook);
+      return;
+    }
+
+    const x = hotspot.x ?? 0;
+    const y = hotspot.y ?? 0;
+    const bw = hotspot.width ?? 0;
+    const bh = hotspot.height ?? 0;
+    if (bw <= 0 || bh <= 0) {
+      return;
+    }
+    const zone = this.add
+      .zone(x + bw / 2, y + bh / 2, bw, bh)
+      .setDepth(depth)
+      .setInteractive({ useHandCursor: true });
+
+    zone.on('pointerdown', emitLook);
   }
 
   private spawnCharacter(roomId: string, spawn: RoomCharacterSpawn): void {

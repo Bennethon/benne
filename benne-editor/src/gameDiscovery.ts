@@ -327,3 +327,80 @@ export async function readRoomProps(uri: vscode.Uri): Promise<RoomPropEntry[]> {
     props.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
     return props;
 }
+
+export interface RoomHotspotListEntry {
+    id: string;
+    description?: string;
+    zIndex?: number;
+    active?: boolean;
+}
+
+export interface RoomPointListEntry {
+    id: string;
+}
+
+export interface RoomRegionListEntry {
+    id: string;
+    active?: boolean;
+}
+
+export async function readRoomHotspots(uri: vscode.Uri): Promise<RoomHotspotListEntry[]> {
+    const raw = await vscode.workspace.fs.readFile(uri);
+    const text = new TextDecoder('utf-8').decode(raw);
+    const data = JSON.parse(text) as { hotspots?: unknown };
+    if (!Array.isArray(data.hotspots)) {
+        return [];
+    }
+    const out: RoomHotspotListEntry[] = [];
+    for (const h of data.hotspots) {
+        if (h && typeof h === 'object' && typeof (h as { id?: unknown }).id === 'string') {
+            const o = h as Record<string, unknown>;
+            out.push({
+                id: o.id as string,
+                description: typeof o.description === 'string' ? o.description : undefined,
+                zIndex: typeof o.zIndex === 'number' ? o.zIndex : undefined,
+                active: typeof o.active === 'boolean' ? o.active : undefined
+            });
+        }
+    }
+    out.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0) || a.id.localeCompare(b.id));
+    return out;
+}
+
+export async function readRoomPoints(uri: vscode.Uri): Promise<RoomPointListEntry[]> {
+    const raw = await vscode.workspace.fs.readFile(uri);
+    const text = new TextDecoder('utf-8').decode(raw);
+    const data = JSON.parse(text) as { points?: unknown };
+    if (!Array.isArray(data.points)) {
+        return [];
+    }
+    const out: RoomPointListEntry[] = [];
+    for (const p of data.points) {
+        if (p && typeof p === 'object' && typeof (p as { id?: unknown }).id === 'string') {
+            out.push({ id: (p as { id: string }).id });
+        }
+    }
+    out.sort((a, b) => a.id.localeCompare(b.id));
+    return out;
+}
+
+export async function readRoomRegions(uri: vscode.Uri): Promise<RoomRegionListEntry[]> {
+    const raw = await vscode.workspace.fs.readFile(uri);
+    const text = new TextDecoder('utf-8').decode(raw);
+    const data = JSON.parse(text) as { regions?: unknown };
+    if (!Array.isArray(data.regions)) {
+        return [];
+    }
+    const out: RoomRegionListEntry[] = [];
+    for (const r of data.regions) {
+        if (r && typeof r === 'object' && typeof (r as { id?: unknown }).id === 'string') {
+            const o = r as Record<string, unknown>;
+            out.push({
+                id: o.id as string,
+                active: typeof o.active === 'boolean' ? o.active : undefined
+            });
+        }
+    }
+    out.sort((a, b) => a.id.localeCompare(b.id));
+    return out;
+}

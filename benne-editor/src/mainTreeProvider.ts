@@ -6,7 +6,10 @@ import {
     listRoomDefinitions,
     propAsepriteAssetTooltip,
     readCharacterUsesAsepriteDisplay,
+    readRoomHotspots,
+    readRoomPoints,
     readRoomProps,
+    readRoomRegions,
     resolveRoomAsepriteSheetForProps,
     roomAsepriteSheetFilesComplete,
     type RoomPropEntry
@@ -35,6 +38,32 @@ export type MainTreeNode =
           prop: RoomPropEntry;
           /** When set, prop has no matching sheet export or tag — show warning in tree. */
           propAssetTooltip?: string;
+      }
+    | {
+          kind: 'hotspot';
+          folder: vscode.WorkspaceFolder;
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+          roomName: string;
+          hotspotId: string;
+          description?: string;
+          zIndex?: number;
+      }
+    | {
+          kind: 'roomPoint';
+          folder: vscode.WorkspaceFolder;
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+          roomName: string;
+          pointId: string;
+      }
+    | {
+          kind: 'region';
+          folder: vscode.WorkspaceFolder;
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+          roomName: string;
+          regionId: string;
       }
     | {
           kind: 'character';
@@ -111,6 +140,32 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.contextValue = 'benneRoomProp';
                 return item;
             }
+            case 'hotspot': {
+                const item = new vscode.TreeItem(element.hotspotId, vscode.TreeItemCollapsibleState.None);
+                item.id = `hotspot:${element.roomJsonUri.toString()}:${element.hotspotId}`;
+                const desc = element.description?.trim();
+                item.description = typeof element.zIndex === 'number' ? `z ${element.zIndex}` : undefined;
+                item.tooltip = desc ? `${element.hotspotId} — ${desc}` : element.hotspotId;
+                item.iconPath = new vscode.ThemeIcon('map');
+                item.contextValue = 'benneRoomHotspot';
+                return item;
+            }
+            case 'roomPoint': {
+                const item = new vscode.TreeItem(element.pointId, vscode.TreeItemCollapsibleState.None);
+                item.id = `roomPoint:${element.roomJsonUri.toString()}:${element.pointId}`;
+                item.description = 'point';
+                item.iconPath = new vscode.ThemeIcon('target');
+                item.contextValue = 'benneRoomPoint';
+                return item;
+            }
+            case 'region': {
+                const item = new vscode.TreeItem(element.regionId, vscode.TreeItemCollapsibleState.None);
+                item.id = `region:${element.roomJsonUri.toString()}:${element.regionId}`;
+                item.description = 'region';
+                item.iconPath = new vscode.ThemeIcon('layout-panel');
+                item.contextValue = 'benneRoomRegion';
+                return item;
+            }
             case 'character': {
                 const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
                 item.id = `character:${element.uri.toString()}`;
@@ -180,23 +235,68 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
 
         if (element.kind === 'room') {
             try {
-                const props = await readRoomProps(element.uri);
-                if (props.length === 0) {
-                    return [{ kind: 'hint', key: `no-props:${element.uri}`, message: '(no props)' }];
-                }
+                const [hotspots, points, regions, props] = await Promise.all([
+                    readRoomHotspots(element.uri),
+                    readRoomPoints(element.uri),
+                    readRoomRegions(element.uri),
+                    readRoomProps(element.uri)
+                ]);
                 const sheet = await resolveRoomAsepriteSheetForProps(element.folder.uri, element.id);
-                return props.map((prop) => {
+                const children: MainTreeNode[] = [];
+                for (const h of hotspots) {
+                    children.push({
+                        kind: 'hotspot',
+                        folder: element.folder,
+                        roomJsonUri: element.uri,
+                        roomId: element.id,
+                        roomName: element.name,
+                        hotspotId: h.id,
+                        description: h.description,
+                        zIndex: h.zIndex
+                    });
+                }
+                for (const p of points) {
+                    children.push({
+                        kind: 'roomPoint',
+                        folder: element.folder,
+                        roomJsonUri: element.uri,
+                        roomId: element.id,
+                        roomName: element.name,
+                        pointId: p.id
+                    });
+                }
+                for (const r of regions) {
+                    children.push({
+                        kind: 'region',
+                        folder: element.folder,
+                        roomJsonUri: element.uri,
+                        roomId: element.id,
+                        roomName: element.name,
+                        regionId: r.id
+                    });
+                }
+                for (const prop of props) {
                     const propAssetTooltip = propAsepriteAssetTooltip(sheet, prop, element.id);
-                    return {
-                        kind: 'prop' as const,
+                    children.push({
+                        kind: 'prop',
                         folder: element.folder,
                         roomJsonUri: element.uri,
                         roomId: element.id,
                         roomName: element.name,
                         prop,
                         propAssetTooltip
-                    };
-                });
+                    });
+                }
+                if (children.length === 0) {
+                    return [
+                        {
+                            kind: 'hint',
+                            key: `no-room-content:${element.uri}`,
+                            message: '(no hotspots, points, regions, or props)'
+                        }
+                    ];
+                }
+                return children;
             } catch {
                 return [{ kind: 'hint', key: `props-err:${element.uri}`, message: 'Could not read room JSON' }];
             }

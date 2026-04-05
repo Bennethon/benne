@@ -1,0 +1,17 @@
+{
+  "id": "kitchen",
+  "name": "Kitchen",
+  "walkable": {
+    "polygons": []
+  },
+  "hotspots": [],
+  "points": [
+    {
+      "id": "kitchen-point",
+      "x": 176,
+      "y": 99
+    }
+  ],
+  "regions": [],
+  "props": []
+}

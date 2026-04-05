@@ -4,7 +4,10 @@ import { EditorSelection } from './editorSelection';
 import { MainTreeProvider, type MainTreeNode } from './mainTreeProvider';
 import { runCreateCharacterWizard, runImportAnimationsFromAsepriteTags } from './characterScaffolding';
 import {
+    runAddRoomHotspotWizard,
+    runAddRoomPointWizard,
     runAddRoomPropWizard,
+    runAddRoomRegionWizard,
     runCreateRoomWizard,
     runImportPropsFromAsepriteTags
 } from './roomScaffolding';
@@ -87,6 +90,72 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!sameRoomContext) {
                 await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
             }
+        } else if (node.kind === 'hotspot') {
+            const sameRoomContext =
+                selection.focus.kind === 'room' &&
+                selection.focus.uri.toString() === node.roomJsonUri.toString();
+
+            if (!sameRoomContext) {
+                await resetBenneEditorSurface();
+                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            } else if (!roomPreview.isRoomPreviewActive()) {
+                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            }
+
+            selection.setRoomWithHotspot(
+                node.roomJsonUri,
+                node.roomName,
+                node.roomId,
+                node.hotspotId
+            );
+
+            if (!sameRoomContext) {
+                await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+            }
+        } else if (node.kind === 'roomPoint') {
+            const sameRoomContext =
+                selection.focus.kind === 'room' &&
+                selection.focus.uri.toString() === node.roomJsonUri.toString();
+
+            if (!sameRoomContext) {
+                await resetBenneEditorSurface();
+                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            } else if (!roomPreview.isRoomPreviewActive()) {
+                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            }
+
+            selection.setRoomWithRoomPoint(
+                node.roomJsonUri,
+                node.roomName,
+                node.roomId,
+                node.pointId
+            );
+
+            if (!sameRoomContext) {
+                await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+            }
+        } else if (node.kind === 'region') {
+            const sameRoomContext =
+                selection.focus.kind === 'room' &&
+                selection.focus.uri.toString() === node.roomJsonUri.toString();
+
+            if (!sameRoomContext) {
+                await resetBenneEditorSurface();
+                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            } else if (!roomPreview.isRoomPreviewActive()) {
+                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            }
+
+            selection.setRoomWithRegion(
+                node.roomJsonUri,
+                node.roomName,
+                node.roomId,
+                node.regionId
+            );
+
+            if (!sameRoomContext) {
+                await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+            }
         } else if (node.kind === 'character') {
             await resetBenneEditorSurface();
             await vscode.commands.executeCommand('workbench.action.editorLayoutSingle');
@@ -126,6 +195,30 @@ export function activate(context: vscode.ExtensionContext): void {
             async (arg?: MainTreeNode | MainTreeNode[]) => {
                 const node = firstTreeContextArg(arg);
                 await runAddRoomPropWizard(selection, node);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addRoomHotspot',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                await runAddRoomHotspotWizard(selection, node);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addRoomPoint',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                await runAddRoomPointWizard(selection, node);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addRoomRegion',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                await runAddRoomRegionWizard(selection, node);
                 refreshTrees();
             }
         ),

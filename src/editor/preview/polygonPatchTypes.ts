@@ -9,4 +9,13 @@ export type RoomPolygonPatch =
           points: Point2[];
           walkToPoint: Point2;
           lookAtPoint: Point2;
-      };
+      }
+    | {
+          kind: 'hotspotPolygon';
+          hotspotId: string;
+          points: Point2[];
+          walkToPoint: Point2;
+          lookAtPoint: Point2;
+      }
+    | { kind: 'regionPolygon'; regionId: string; points: Point2[] }
+    | { kind: 'roomPoint'; pointId: string; x: number; y: number };

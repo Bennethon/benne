@@ -59,7 +59,40 @@
       }
     ]
   },
-  "hotspots": [],
+  "hotspots": [
+    {
+      "id": "office-hotspot-1",
+      "active": true,
+      "description": "",
+      "zIndex": 0,
+      "points": [
+        {
+          "x": 100,
+          "y": 62
+        },
+        {
+          "x": 178,
+          "y": 77
+        },
+        {
+          "x": 200,
+          "y": 123
+        },
+        {
+          "x": 131,
+          "y": 138
+        }
+      ],
+      "walkToPoint": {
+        "x": 228,
+        "y": 129
+      },
+      "lookAtPoint": {
+        "x": 148,
+        "y": 100
+      }
+    }
+  ],
   "props": [
     {
       "id": "office-prop-background",
@@ -369,6 +402,41 @@
       "initialAnimation": "Idle",
       "visible": true,
       "zIndex": 101
+    }
+  ],
+  "points": [
+    {
+      "id": "office-point-1",
+      "x": 143,
+      "y": 115
+    }
+  ],
+  "regions": [
+    {
+      "id": "office-region-1",
+      "active": true,
+      "points": [
+        {
+          "x": 123,
+          "y": 98
+        },
+        {
+          "x": 121,
+          "y": 47
+        },
+        {
+          "x": 200,
+          "y": 75
+        },
+        {
+          "x": 200,
+          "y": 123
+        },
+        {
+          "x": 152,
+          "y": 123
+        }
+      ]
     }
   ]
 }

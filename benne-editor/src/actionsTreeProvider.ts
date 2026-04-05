@@ -20,6 +20,9 @@ export type ActionTreeNode =
           roomId: string;
       }
     | { kind: 'addRoomProp' }
+    | { kind: 'addRoomHotspot' }
+    | { kind: 'addRoomPoint' }
+    | { kind: 'addRoomRegion' }
     | { kind: 'importPropsFromAseprite' }
     | {
           kind: 'charVerb';
@@ -67,11 +70,47 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             case 'addRoomProp': {
                 const item = new vscode.TreeItem('Add Prop', vscode.TreeItemCollapsibleState.None);
                 item.id = 'action:addRoomProp';
-                item.iconPath = new vscode.ThemeIcon('add');
+                item.iconPath = new vscode.ThemeIcon('symbol-misc');
                 item.contextValue = 'benneActionAddProp';
                 item.command = {
                     command: 'benne-editor.addRoomProp',
                     title: 'Add Prop',
+                    arguments: []
+                };
+                return item;
+            }
+            case 'addRoomHotspot': {
+                const item = new vscode.TreeItem('Add Hotspot', vscode.TreeItemCollapsibleState.None);
+                item.id = 'action:addRoomHotspot';
+                item.iconPath = new vscode.ThemeIcon('map');
+                item.contextValue = 'benneActionAddHotspot';
+                item.command = {
+                    command: 'benne-editor.addRoomHotspot',
+                    title: 'Add Hotspot',
+                    arguments: []
+                };
+                return item;
+            }
+            case 'addRoomPoint': {
+                const item = new vscode.TreeItem('Add Point', vscode.TreeItemCollapsibleState.None);
+                item.id = 'action:addRoomPoint';
+                item.iconPath = new vscode.ThemeIcon('target');
+                item.contextValue = 'benneActionAddPoint';
+                item.command = {
+                    command: 'benne-editor.addRoomPoint',
+                    title: 'Add Point',
+                    arguments: []
+                };
+                return item;
+            }
+            case 'addRoomRegion': {
+                const item = new vscode.TreeItem('Add Region', vscode.TreeItemCollapsibleState.None);
+                item.id = 'action:addRoomRegion';
+                item.iconPath = new vscode.ThemeIcon('layout-panel');
+                item.contextValue = 'benneActionAddRegion';
+                item.command = {
+                    command: 'benne-editor.addRoomRegion',
+                    title: 'Add Region',
                     arguments: []
                 };
                 return item;
@@ -166,21 +205,14 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         const roomPanel = this.selection.roomPanel;
 
         if (main.kind === 'room') {
+            const addHotspot: ActionTreeNode = { kind: 'addRoomHotspot' };
+            const addPoint: ActionTreeNode = { kind: 'addRoomPoint' };
+            const addRegion: ActionTreeNode = { kind: 'addRoomRegion' };
             const addProp: ActionTreeNode = { kind: 'addRoomProp' };
             const importAseprite: ActionTreeNode = { kind: 'importPropsFromAseprite' };
             const roomId = getRoomIdFromRoomJsonUri(main.uri);
 
-            if (roomPanel.kind === 'prop') {
-                return [
-                    addProp,
-                    importAseprite,
-                    ...this.propActionNodes(roomPanel.prop, roomPanel.roomJsonUri, roomPanel.roomId)
-                ];
-            }
-
-            return [
-                addProp,
-                importAseprite,
+            const roomOpenNodes: ActionTreeNode[] = [
                 {
                     kind: 'roomOpen',
                     label: 'Open room JSON',
@@ -203,6 +235,20 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                     roomId
                 }
             ];
+
+            const scaffold: ActionTreeNode[] = [
+                addHotspot,
+                addPoint,
+                addRegion,
+                addProp,
+                importAseprite
+            ];
+
+            if (roomPanel.kind === 'prop') {
+                return [...scaffold, ...this.propActionNodes(roomPanel.prop, roomPanel.roomJsonUri, roomPanel.roomId)];
+            }
+
+            return [...scaffold, ...roomOpenNodes];
         }
 
         if (main.kind === 'character') {

@@ -17,6 +17,9 @@ export class PreviewPolygonOverlay {
         canvas.style.pointerEvents = 'none';
         canvas.style.zIndex = '10';
         canvas.style.touchAction = 'none';
+        canvas.style.outline = 'none';
+        /** So Delete/Backspace reach the overlay after pointer interaction (Phaser keyboard targets the game canvas below). */
+        canvas.tabIndex = 0;
         canvas.setAttribute('aria-hidden', 'true');
         const ctx = canvas.getContext('2d');
         if (!ctx) {
