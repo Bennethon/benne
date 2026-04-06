@@ -3,8 +3,8 @@
     "width": 352,
     "height": 198
   },
-  "startingPlayerCharacter": "clerk",
-  "startingRoomId": "office",
+  "startingPlayerCharacter": "henry",
+  "startingRoomId": "outsideOffice",
   "audio": {
     "masterVolume": 1,
     "sfxVolume": 1,

@@ -81,14 +81,24 @@
       "tag": "OceanSky",
       "zIndex": 0,
       "visible": true,
-      "alpha": 1
+      "alpha": 1,
+      "parallax": {
+        "depth": 0.5,
+        "alignX": 0.5,
+        "alignY": -1.1
+      }
     },
     {
       "id": "outsideOffice-prop-mountains",
       "tag": "Mountains",
       "zIndex": 1,
       "visible": true,
-      "alpha": 1
+      "alpha": 1,
+      "parallax": {
+        "depth": 0.8,
+        "alignX": -1,
+        "alignY": -1
+      }
     },
     {
       "id": "outsideOffice-prop-nearground",
@@ -107,44 +117,44 @@
       "collider": {
         "points": [
           {
-            "x": 240,
-            "y": 115
+            "x": 262,
+            "y": 116
           },
           {
-            "x": 287,
-            "y": 92
+            "x": 310,
+            "y": 94
           },
           {
-            "x": 307,
-            "y": 75
+            "x": 333,
+            "y": 74
           },
           {
-            "x": 344,
-            "y": 80
+            "x": 375,
+            "y": 78
           },
           {
-            "x": 388,
-            "y": 96
+            "x": 424,
+            "y": 97
           },
           {
-            "x": 374,
-            "y": 125
+            "x": 414,
+            "y": 121
           },
           {
-            "x": 360,
+            "x": 395,
             "y": 124
           },
           {
-            "x": 341,
-            "y": 131
+            "x": 375,
+            "y": 129
           },
           {
-            "x": 330,
+            "x": 361,
             "y": 142
           },
           {
-            "x": 249,
-            "y": 127
+            "x": 276,
+            "y": 128
           }
         ]
       },
