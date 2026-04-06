@@ -9,6 +9,7 @@
 - **Data-first**: Rooms, characters, and game tuning live in **JSON** (and Aseprite exports) under `src/game/`; TypeScript supplies **room scripts** and engine code, not hand-authored level blobs in code.
 - **Separation**: **`src/engine/`** is reusable; **`src/game/`** is project-specific content and registration (`registerGameContent`).
 - **Retro display**: Internal resolution defaults to **352×198**; Phaser scale mode **FIT** + **MAX_ZOOM** + **pixelArt** for crisp integer scaling. **Post-processing** is wired as a **camera hook** (`attachPostProcessingPlaceholder`) — currently a no-op, reserved for CRT / dissolve-style effects.
+- **Scrolling rooms**: Rooms wider or taller than the viewport declare `size` in `RoomData` (e.g. `"size": { "width": 704, "height": 198 }`). `RoomScene` reads this and sets `cameras.main.setBounds` + `startFollow` on the player so the camera tracks movement within the room. An optional `scrollBounds` field further restricts how far the camera pans (PowerQuest-style).
 - **Simplicity over frameworks**: One primary gameplay scene (`RoomScene`), a thin boot loader (`BootScene`), and a **global `EventBus`** for script-facing events instead of a heavy ECS.
 
 ---
@@ -48,6 +49,15 @@ The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build 
 ---
 
 ## 3. Core Systems
+
+### Scrolling room camera
+
+- **Room size** (`RoomData.size`): optional explicit width/height for rooms larger than the viewport. When omitted the room is viewport-sized and the camera does not scroll.
+- **Scroll bounds** (`RoomData.scrollBounds`): optional `{ x, y, width, height }` in room space that restricts how far `cameras.main` may pan. When omitted the camera is bounded by the full room size. This mirrors PowerQuest's "scroll bounds" concept.
+- **`RoomScene.setupRoomCamera`** (private): called at the end of `create` after characters spawn. Sets `cameras.main.setBounds` from `scrollBounds` (or room size) and calls `cameras.main.startFollow(player, true)` when the room is larger than the viewport and a player exists.
+- **`RoomScene.setEditorCameraMode(mode)`** (public): called by the editor's `RoomPolygonEditScene` to switch between `'navigate'` (game camera — player follow, bounds apply) and `'edit'` (full-room view — camera zoomed out to fit the entire room so all content is visible for authoring). Only meaningful when the room is larger than the viewport.
+- **Background and props** in `RoomScene` now use the room's actual dimensions (`size.width × size.height`) for `setDisplaySize`, not the viewport size, so oversized Aseprite prop sheets render at their true extent.
+- **Hotspot zones** are also sized to the room dimensions so polygon hit areas work anywhere in a large room.
 
 ### Scene / room system
 

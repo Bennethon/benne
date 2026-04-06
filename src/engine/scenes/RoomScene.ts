@@ -73,21 +73,24 @@ export class RoomScene extends Phaser.Scene {
 
     attachPostProcessingPlaceholder(this.cameras.main);
 
-    const w = getInternalWidth();
-    const h = getInternalHeight();
+    const vW = getInternalWidth();
+    const vH = getInternalHeight();
+    const roomW = data.room.size?.width ?? vW;
+    const roomH = data.room.size?.height ?? vH;
 
     if (data.backgroundTextureKey) {
-      this.add.image(0, 0, data.backgroundTextureKey).setOrigin(0, 0).setDisplaySize(w, h);
+      this.add.image(0, 0, data.backgroundTextureKey).setOrigin(0, 0).setDisplaySize(roomW, roomH);
     }
 
-    this.spawnRoomProps(data, w, h);
+    this.spawnRoomProps(data, roomW, roomH);
 
     const sortedHotspots = [...data.room.hotspots].sort(
       (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0),
     );
-    sortedHotspots.forEach((hotspot) => this.createHotspot(data.room.id, hotspot));
+    sortedHotspots.forEach((hotspot) => this.createHotspot(data.room.id, hotspot, roomW, roomH));
     data.characters.forEach((spawn) => this.spawnCharacter(data.room.id, spawn));
 
+    this.setupRoomCamera(roomW, roomH);
     this.drawRoomDebugOverlays(data);
 
     this.input.mouse?.disableContextMenu();
@@ -97,6 +100,54 @@ export class RoomScene extends Phaser.Scene {
       this.input.off('pointerdown', this.handleRoomPointerDown);
       this.stopPlayerMoveTween(true);
     });
+  }
+
+  /** Configures camera bounds and player follow for the current room. */
+  private setupRoomCamera(roomW: number, roomH: number): void {
+    const vW = getInternalWidth();
+    const vH = getInternalHeight();
+    const sb = this.roomData.scrollBounds;
+    this.cameras.main.setBounds(
+      sb?.x ?? 0,
+      sb?.y ?? 0,
+      sb?.width ?? roomW,
+      sb?.height ?? roomH,
+    );
+    if (this.player && (roomW > vW || roomH > vH)) {
+      this.cameras.main.startFollow(this.player, true);
+    }
+  }
+
+  /**
+   * Switches the camera between game-play (navigate) mode and full-room editor view.
+   * Called by the editor's `RoomPolygonEditScene`; not used at runtime.
+   */
+  setEditorCameraMode(mode: 'navigate' | 'edit'): void {
+    const vW = getInternalWidth();
+    const vH = getInternalHeight();
+    const roomW = this.roomData.size?.width ?? vW;
+    const roomH = this.roomData.size?.height ?? vH;
+    const cam = this.cameras.main;
+
+    if (mode === 'edit' && (roomW > vW || roomH > vH)) {
+      cam.stopFollow();
+      const zoom = Math.min(vW / roomW, vH / roomH);
+      cam.setZoom(zoom);
+      cam.scrollX = 0;
+      cam.scrollY = 0;
+    } else {
+      cam.setZoom(1);
+      const sb = this.roomData.scrollBounds;
+      cam.setBounds(
+        sb?.x ?? 0,
+        sb?.y ?? 0,
+        sb?.width ?? roomW,
+        sb?.height ?? roomH,
+      );
+      if (this.player && (roomW > vW || roomH > vH)) {
+        cam.startFollow(this.player, true);
+      }
+    }
   }
 
   private readonly handleRoomPointerDown = (pointer: Phaser.Input.Pointer): void => {
@@ -428,7 +479,7 @@ export class RoomScene extends Phaser.Scene {
     } satisfies RoomPropInteractPayload);
   }
 
-  private createHotspot(roomId: string, hotspot: RoomHotspotData): void {
+  private createHotspot(roomId: string, hotspot: RoomHotspotData, roomW: number, roomH: number): void {
     if (hotspot.active === false) {
       return;
     }
@@ -436,8 +487,6 @@ export class RoomScene extends Phaser.Scene {
     const pts = hotspot.points;
     const usePoly = pts !== undefined && pts.length >= 3;
 
-    const w = getInternalWidth();
-    const h = getInternalHeight();
     const depth = 8000 + (hotspot.zIndex ?? 0);
 
     const emitLook = (): void => {
@@ -448,7 +497,7 @@ export class RoomScene extends Phaser.Scene {
     };
 
     if (usePoly) {
-      const zone = this.add.zone(0, 0, w, h).setOrigin(0, 0).setDepth(depth);
+      const zone = this.add.zone(0, 0, roomW, roomH).setOrigin(0, 0).setDepth(depth);
       const flat: number[] = [];
       for (const p of pts) {
         flat.push(p.x, p.y);
