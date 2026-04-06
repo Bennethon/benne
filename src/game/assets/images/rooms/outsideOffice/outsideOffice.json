@@ -1,0 +1,140 @@
+{ "frames": {
+   "outsideOffice 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
+   },
+   "outsideOffice 1.aseprite": {
+    "frame": { "x": 768, "y": 0, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
+   },
+   "outsideOffice 2.aseprite": {
+    "frame": { "x": 1536, "y": 0, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
+   },
+   "outsideOffice 3.aseprite": {
+    "frame": { "x": 2304, "y": 0, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
+   },
+   "outsideOffice 4.aseprite": {
+    "frame": { "x": 0, "y": 198, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
+   },
+   "outsideOffice 5.aseprite": {
+    "frame": { "x": 768, "y": 198, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
+   },
+   "outsideOffice 6.aseprite": {
+    "frame": { "x": 1536, "y": 198, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
+   },
+   "outsideOffice 7.aseprite": {
+    "frame": { "x": 2304, "y": 198, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
+   },
+   "outsideOffice 8.aseprite": {
+    "frame": { "x": 0, "y": 396, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
+   },
+   "outsideOffice 9.aseprite": {
+    "frame": { "x": 768, "y": 396, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
+   },
+   "outsideOffice 10.aseprite": {
+    "frame": { "x": 0, "y": 396, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
+   },
+   "outsideOffice 11.aseprite": {
+    "frame": { "x": 1536, "y": 396, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta1-x64",
+  "image": "outsideOffice.png",
+  "format": "RGBA8888",
+  "size": { "w": 3072, "h": 594 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "OceanSky", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "Mountains", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
+   { "name": "Nearground", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
+   { "name": "Car", "from": 6, "to": 6, "direction": "forward", "color": "#000000ff" },
+   { "name": "Bug", "from": 7, "to": 10, "direction": "forward", "color": "#000000ff" },
+   { "name": "Break", "from": 11, "to": 11, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "screen width line", "opacity": 255, "blendMode": "normal" },
+   { "name": "AI Dusk 2", "opacity": 255, "blendMode": "normal" },
+   { "name": "AI Dusk 1", "opacity": 255, "blendMode": "normal" },
+   { "name": "Night" },
+   { "name": "Sky Water", "group": "Night", "opacity": 255, "blendMode": "normal" },
+   { "name": "Sky Evdr", "group": "Night", "opacity": 255, "blendMode": "normal" },
+   { "name": "Mtns City", "group": "Night", "opacity": 255, "blendMode": "normal" },
+   { "name": "road night", "group": "Night", "opacity": 255, "blendMode": "normal" },
+   { "name": "Foreground", "group": "Night", "opacity": 255, "blendMode": "normal" },
+   { "name": "Day" },
+   { "name": "Sky Water Day", "group": "Day", "opacity": 255, "blendMode": "normal" },
+   { "name": "Sky Evdr Copy", "group": "Day", "opacity": 255, "blendMode": "normal" },
+   { "name": "Mtns Day", "group": "Day", "opacity": 255, "blendMode": "normal" },
+   { "name": "City Day", "group": "Day", "opacity": 255, "blendMode": "normal" },
+   { "name": "road Day", "group": "Day", "opacity": 255, "blendMode": "normal" },
+   { "name": "Foreground Day", "group": "Day", "opacity": 255, "blendMode": "normal" },
+   { "name": "Landlord", "opacity": 255, "blendMode": "normal" },
+   { "name": "Car" },
+   { "name": "Car", "group": "Car", "opacity": 255, "blendMode": "normal" },
+   { "name": "bug", "group": "Car", "opacity": 255, "blendMode": "normal" },
+   { "name": "window break", "group": "Car", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}

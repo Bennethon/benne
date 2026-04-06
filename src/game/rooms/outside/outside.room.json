@@ -1,6 +1,16 @@
 {
   "id": "outside",
   "name": "Outside",
+  "size": {
+    "width": 352,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 352,
+    "height": 198
+  },
   "walkable": {
     "polygons": []
   },

@@ -81,11 +81,29 @@ export class PreviewPolygonOverlay {
         return cam.getWorldPoint(px, py);
     }
 
-    /** World point → overlay/CSS pixel offset relative to game canvas top-left. */
-    worldToCanvasCss(p: Point2): { x: number; y: number } {
+    /**
+     * World point → overlay/CSS pixel offset relative to game canvas top-left.
+     *
+     * Mirrors the transform Phaser 4's `Camera.preRender` applies:
+     *   screen = zoom * (world − scroll − origin) + origin + cam.offset
+     *
+     * Phaser 4 cameras default to `originX = originY = 0.5` (zoom from the viewport
+     * centre), so the simple `(world − scroll) * zoom` formula is only correct when
+     * zoom = 1. When the editor zooms out to show a large room, the origin correction
+     * `origin * (1 − zoom)` is essential to keep handles aligned with the Phaser
+     * render output.
+     */
+    worldToCanvasCss(p: Point2, cam: Cameras.Scene2D.Camera): { x: number; y: number } {
         const sx = this.game.scale.displayScale.x;
         const sy = this.game.scale.displayScale.y;
-        return { x: p.x / sx, y: p.y / sy };
+        const originX = cam.width * cam.originX;
+        const originY = cam.height * cam.originY;
+        const screenX = cam.zoomX * (p.x - cam.scrollX - originX) + originX + cam.x;
+        const screenY = cam.zoomY * (p.y - cam.scrollY - originY) + originY + cam.y;
+        return {
+            x: screenX / sx,
+            y: screenY / sy,
+        };
     }
 
     clearAndDraw(state: {
@@ -105,7 +123,7 @@ export class PreviewPolygonOverlay {
             selected: boolean;
             radiusCss: number;
         }[];
-    }): void {
+    }, cam: Cameras.Scene2D.Camera): void {
         const c = this.game.canvas;
         const cssW = c.clientWidth;
         const cssH = c.clientHeight;
@@ -124,7 +142,7 @@ export class PreviewPolygonOverlay {
             this.ctx.globalAlpha = 0.95;
             this.ctx.beginPath();
             for (let i = 0; i < pts.length; i++) {
-                const q = this.worldToCanvasCss(pts[i]!);
+                const q = this.worldToCanvasCss(pts[i]!, cam);
                 if (i === 0) {
                     this.ctx.moveTo(q.x, q.y);
                 } else {
@@ -138,7 +156,7 @@ export class PreviewPolygonOverlay {
         }
 
         for (let i = 0; i < pts.length; i++) {
-            const q = this.worldToCanvasCss(pts[i]!);
+            const q = this.worldToCanvasCss(pts[i]!, cam);
             const sel = i === state.selectedIndex;
             const r = sel ? state.handleRadiusCss + 2 : state.handleRadiusCss;
             this.ctx.beginPath();
@@ -157,7 +175,7 @@ export class PreviewPolygonOverlay {
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'bottom';
             for (const lp of extras) {
-                const q = this.worldToCanvasCss(lp.point);
+                const q = this.worldToCanvasCss(lp.point, cam);
                 const r = lp.selected ? lp.radiusCss + 2 : lp.radiusCss;
                 this.ctx.beginPath();
                 this.ctx.fillStyle = lp.selected ? '#ffffff' : lp.fillStyle;

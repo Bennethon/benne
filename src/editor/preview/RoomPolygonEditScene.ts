@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { getInternalHeight, getInternalWidth, SCENE_ROOM } from '../../game/constants';
+import type { RoomScene } from '../../engine/scenes/RoomScene';
 import type {
     Point2,
     RoomData,
@@ -157,6 +158,9 @@ export class RoomPolygonEditScene extends Phaser.Scene {
     private room!: RoomData;
     private postPatch!: (p: RoomPolygonPatch) => void;
 
+    /** Cached reference to the sibling RoomScene (set in create, cleared on shutdown). */
+    private roomScene: RoomScene | null = null;
+
     private overlay?: PreviewPolygonOverlay;
 
     private dragVertexIndex: number | null = null;
@@ -185,6 +189,8 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             return;
         }
 
+        this.roomScene = (this.scene?.manager?.getScene(SCENE_ROOM) as RoomScene | null) ?? null;
+
         const mount = this.game.canvas.parentElement;
         if (!mount) {
             return;
@@ -202,12 +208,14 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 return;
             }
             this.syncRoomInput();
+            this.syncEditorCameraMode();
             this.selectedVertexIndex = null;
             this.selectedAux = null;
             this.dragAux = null;
             this.tapEdge = null;
         });
         this.syncRoomInput();
+        this.syncEditorCameraMode();
 
         window.addEventListener('benne-save-polygon', this.onSaveBound);
 
@@ -216,11 +224,34 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         });
     }
 
+    /**
+     * Returns the active camera from RoomScene for coordinate transforms.
+     * Falls back to this scene's own camera when RoomScene isn't available.
+     */
+    private getRoomCamera(): Phaser.Cameras.Scene2D.Camera {
+        return this.roomScene?.cameras.main ?? this.cameras.main;
+    }
+
+    /**
+     * Tells RoomScene to switch between game-play camera (navigate) and full-room
+     * editor view (any edit mode). Only has an effect when the room is larger than the viewport.
+     */
+    private syncEditorCameraMode(): void {
+        if (!this.roomScene || typeof this.roomScene.setEditorCameraMode !== 'function') {
+            return;
+        }
+        this.roomScene.setEditorCameraMode(
+            polygonEditBridge.mode === 'navigate' ? 'navigate' : 'edit',
+        );
+    }
+
     update(): void {
         if (!this.overlay) {
             return;
         }
         this.overlay.syncLayout();
+        const roomCam = this.getRoomCamera();
+
         if (!polygonEditBridge.isEditing()) {
             this.overlay.clearAndDraw({
                 pts: [],
@@ -230,7 +261,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 selectedIndex: null,
                 handleRadiusCss: HANDLE_R_CSS,
                 lineWidthCss: LINE_WIDTH_CSS,
-            });
+            }, roomCam);
             return;
         }
 
@@ -264,7 +295,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 handleRadiusCss: HANDLE_R_CSS,
                 lineWidthCss: LINE_WIDTH_CSS,
                 labeledPoints,
-            });
+            }, roomCam);
             return;
         }
 
@@ -279,7 +310,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                     selectedIndex: null,
                     handleRadiusCss: HANDLE_R_CSS,
                     lineWidthCss: LINE_WIDTH_CSS,
-                });
+                }, roomCam);
                 return;
             }
             this.overlay.clearAndDraw({
@@ -290,7 +321,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 selectedIndex: this.selectedVertexIndex,
                 handleRadiusCss: HANDLE_R_CSS,
                 lineWidthCss: LINE_WIDTH_CSS,
-            });
+            }, roomCam);
             return;
         }
 
@@ -305,7 +336,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 selectedIndex: this.selectedVertexIndex,
                 handleRadiusCss: HANDLE_R_CSS + 1,
                 lineWidthCss: LINE_WIDTH_CSS,
-            });
+            }, roomCam);
             return;
         }
 
@@ -319,7 +350,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 selectedIndex: null,
                 handleRadiusCss: HANDLE_R_CSS,
                 lineWidthCss: LINE_WIDTH_CSS,
-            });
+            }, roomCam);
             return;
         }
 
@@ -338,7 +369,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             selectedIndex: this.selectedVertexIndex,
             handleRadiusCss: HANDLE_R_CSS,
             lineWidthCss: LINE_WIDTH_CSS,
-        });
+        }, roomCam);
     }
 
     private shutdownScene(): void {
@@ -354,6 +385,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         if (roomSc) {
             roomSc.input.enabled = true;
         }
+        this.roomScene = null;
     }
 
     private getActiveProp(): RoomPropInstance | null {
@@ -397,12 +429,12 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         if (!h.points) {
             h.points = [];
         }
-        const w = getInternalWidth();
-        const hgt = getInternalHeight();
+        const roomW = this.room.size?.width ?? getInternalWidth();
+        const roomH = this.room.size?.height ?? getInternalHeight();
         const base =
             h.points.length > 0
                 ? centroidFromPoints(h.points)
-                : { x: Math.round(w / 2), y: Math.round(hgt / 2) };
+                : { x: Math.round(roomW / 2), y: Math.round(roomH / 2) };
         if (!h.walkToPoint) {
             h.walkToPoint = { x: base.x, y: base.y };
         }
@@ -656,7 +688,8 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         ov.canvas.setPointerCapture(e.pointerId);
         ov.canvas.focus({ preventScroll: true });
         const { cx, cy } = this.pointerCss(e);
-        const toCss = (p: Point2): { x: number; y: number } => ov.worldToCanvasCss(p);
+        const roomCam = this.getRoomCamera();
+        const toCss = (p: Point2): { x: number; y: number } => ov.worldToCanvasCss(p, roomCam);
 
         if (polygonEditBridge.mode === 'roomPoint') {
             const p = this.getActiveRoomPoint();
@@ -746,17 +779,18 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         if (!ov) {
             return;
         }
+        const roomCam = this.getRoomCamera();
+        const roomW = this.room.size?.width ?? getInternalWidth();
+        const roomH = this.room.size?.height ?? getInternalHeight();
+
         if (this.dragAux === 'walk' || this.dragAux === 'look') {
             const auxEd = this.getPolygonAuxEditor();
             if (!auxEd) {
                 return;
             }
-            const cam = this.cameras.main;
-            const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, cam);
-            const w = getInternalWidth();
-            const h = getInternalHeight();
-            const cx = Phaser.Math.Clamp(wx, 0, w);
-            const cy = Phaser.Math.Clamp(wy, 0, h);
+            const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, roomCam);
+            const cx = Phaser.Math.Clamp(wx, 0, roomW);
+            const cy = Phaser.Math.Clamp(wy, 0, roomH);
             if (this.dragAux === 'walk') {
                 auxEd.walk.x = cx;
                 auxEd.walk.y = cy;
@@ -774,24 +808,18 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             if (!p || this.dragVertexIndex !== 0) {
                 return;
             }
-            const cam = this.cameras.main;
-            const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, cam);
-            const w = getInternalWidth();
-            const h = getInternalHeight();
-            p.x = Phaser.Math.Clamp(wx, 0, w);
-            p.y = Phaser.Math.Clamp(wy, 0, h);
+            const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, roomCam);
+            p.x = Phaser.Math.Clamp(wx, 0, roomW);
+            p.y = Phaser.Math.Clamp(wy, 0, roomH);
             return;
         }
         const pts = this.getActivePoints();
         if (!pts || this.dragVertexIndex >= pts.length) {
             return;
         }
-        const cam = this.cameras.main;
-        const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, cam);
-        const w = getInternalWidth();
-        const h = getInternalHeight();
-        pts[this.dragVertexIndex].x = Phaser.Math.Clamp(wx, 0, w);
-        pts[this.dragVertexIndex].y = Phaser.Math.Clamp(wy, 0, h);
+        const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, roomCam);
+        pts[this.dragVertexIndex].x = Phaser.Math.Clamp(wx, 0, roomW);
+        pts[this.dragVertexIndex].y = Phaser.Math.Clamp(wy, 0, roomH);
     };
 
     private readonly onOverlayPointerUp = (e: PointerEvent): void => {
@@ -818,10 +846,12 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         }
 
         const pts = this.getActivePoints();
-        const cam = this.cameras.main;
-        const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, cam);
+        const roomCam = this.getRoomCamera();
+        const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, roomCam);
         const { cx, cy } = this.pointerCss(e);
-        const toCss = (p: Point2): { x: number; y: number } => ov.worldToCanvasCss(p);
+        const toCss = (p: Point2): { x: number; y: number } => ov.worldToCanvasCss(p, roomCam);
+        const roomW = this.room.size?.width ?? getInternalWidth();
+        const roomH = this.room.size?.height ?? getInternalHeight();
 
         if (this.downOnVertex || this.dragVertexIndex !== null) {
             this.dragVertexIndex = null;
@@ -842,11 +872,9 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 !this.downOnVertex &&
                 this.dragVertexIndex === null
             ) {
-                const w = getInternalWidth();
-                const h = getInternalHeight();
                 pts.push({
-                    x: Phaser.Math.Clamp(wx, 0, w),
-                    y: Phaser.Math.Clamp(wy, 0, h),
+                    x: Phaser.Math.Clamp(wx, 0, roomW),
+                    y: Phaser.Math.Clamp(wy, 0, roomH),
                 });
                 this.tapEdge = null;
                 return;
@@ -883,11 +911,9 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             !this.downOnVertex &&
             this.dragVertexIndex === null
         ) {
-            const w = getInternalWidth();
-            const h = getInternalHeight();
             pts.push({
-                x: Phaser.Math.Clamp(wx, 0, w),
-                y: Phaser.Math.Clamp(wy, 0, h),
+                x: Phaser.Math.Clamp(wx, 0, roomW),
+                y: Phaser.Math.Clamp(wy, 0, roomH),
             });
             this.tapEdge = null;
             return;

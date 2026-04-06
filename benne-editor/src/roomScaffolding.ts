@@ -93,6 +93,8 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
     const roomJson = {
         id,
         name,
+        size: { width: DEFAULT_ROOM_WIDTH, height: DEFAULT_ROOM_HEIGHT },
+        scrollBounds: { x: 0, y: 0, width: DEFAULT_ROOM_WIDTH, height: DEFAULT_ROOM_HEIGHT },
         walkable: { polygons: [] },
         hotspots: [],
         points: [],

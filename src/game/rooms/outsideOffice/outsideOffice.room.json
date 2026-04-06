@@ -1,9 +1,139 @@
 {
   "id": "outsideOffice",
   "name": "Outside Office",
+  "size": {
+    "width": 704,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 704,
+    "height": 198
+  },
   "walkable": {
-    "polygons": []
+    "polygons": [
+      {
+        "id": "outsideOffice-floor",
+        "active": true,
+        "points": [
+          {
+            "x": 21,
+            "y": 183
+          },
+          {
+            "x": 696,
+            "y": 192
+          },
+          {
+            "x": 695,
+            "y": 153
+          },
+          {
+            "x": 455,
+            "y": 136
+          },
+          {
+            "x": 379,
+            "y": 118
+          },
+          {
+            "x": 330,
+            "y": 146
+          },
+          {
+            "x": 234,
+            "y": 126
+          },
+          {
+            "x": 229,
+            "y": 87
+          },
+          {
+            "x": 124,
+            "y": 111
+          },
+          {
+            "x": 47,
+            "y": 149
+          },
+          {
+            "x": 20,
+            "y": 166
+          }
+        ],
+        "holes": []
+      }
+    ]
   },
   "hotspots": [],
-  "props": []
+  "props": [
+    {
+      "id": "outsideOffice-prop-oceansky",
+      "tag": "OceanSky",
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "outsideOffice-prop-mountains",
+      "tag": "Mountains",
+      "zIndex": 1,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "outsideOffice-prop-nearground",
+      "tag": "Nearground",
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "outsideOffice-prop-car",
+      "tag": "Car",
+      "zIndex": 3,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "outsideOffice-prop-bug",
+      "tag": "Bug",
+      "zIndex": 4,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "outsideOffice-prop-break",
+      "tag": "Break",
+      "zIndex": 5,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "clerk-1",
+      "definition": "clerk/clerk.character.json",
+      "x": 96,
+      "y": 170,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 40
+    },
+    {
+      "instanceId": "henry-1",
+      "definition": "henry/henry.character.json",
+      "x": 200,
+      "y": 148,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 101
+    }
+  ]
 }

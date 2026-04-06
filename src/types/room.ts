@@ -130,6 +130,19 @@ export interface RoomData {
     /** Path under `src/game/assets/` (e.g. `images/backgrounds/office.png`). Resolved by Vite at build time. */
     image: string;
   };
+  /**
+   * Explicit room dimensions in pixels. When omitted the room is assumed to be the same size as the
+   * game viewport (e.g. 352×198). Set this when the background or prop sheet is wider or taller than
+   * the game resolution so the camera can scroll.
+   */
+  size?: { width: number; height: number };
+  /**
+   * Camera scroll bounds in room pixel space. Restricts how far the camera can pan within the room.
+   * When omitted the camera is bounded by the full room `size`.
+   * Equivalent to "scroll bounds" in PowerQuest: the character can walk beyond scroll bounds but the
+   * camera stops panning before reaching the room edge.
+   */
+  scrollBounds?: { x: number; y: number; width: number; height: number };
   walkable: {
     polygons: WalkablePolygon[];
   };
