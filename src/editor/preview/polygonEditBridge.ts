@@ -4,7 +4,9 @@ export type EditToolbarMode =
     | 'propCollider'
     | 'hotspotPolygon'
     | 'regionPolygon'
-    | 'roomPoint';
+    | 'roomPoint'
+    | 'roomSize'
+    | 'scrollBounds';
 
 class PolygonEditBridgeImpl {
     mode: EditToolbarMode = 'navigate';

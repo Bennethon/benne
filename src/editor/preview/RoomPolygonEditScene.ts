@@ -163,6 +163,17 @@ export class RoomPolygonEditScene extends Phaser.Scene {
 
     private overlay?: PreviewPolygonOverlay;
 
+    // ── Pan state (middle-mouse drag) ────────────────────────────────────────
+    private isPanning = false;
+    private panLastX = 0;
+    private panLastY = 0;
+
+    // ── Rect edit state (roomSize / scrollBounds modes) ──────────────────────
+    /** Which of the 8 handles is currently being dragged (-1 = none). */
+    private dragRectHandle = -1;
+    /** Which handle is visually selected/highlighted. */
+    private selectedRectHandle = -1;
+
     private dragVertexIndex: number | null = null;
     private selectedVertexIndex: number | null = null;
     private downOnVertex = false;
@@ -201,6 +212,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         this.overlay.canvas.addEventListener('pointerup', this.onOverlayPointerUp);
         this.overlay.canvas.addEventListener('pointercancel', this.onOverlayPointerUp);
         this.overlay.canvas.addEventListener('keydown', this.onOverlayKeyDown);
+        this.overlay.canvas.addEventListener('wheel', this.onOverlayWheel, { passive: false });
 
         this.unsubBridge = polygonEditBridge.subscribe(() => {
             /* During game.destroy(), manager may be null; toolbar wiring notifies before the next game boots. */
@@ -213,6 +225,8 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             this.selectedAux = null;
             this.dragAux = null;
             this.tapEdge = null;
+            this.dragRectHandle = -1;
+            this.selectedRectHandle = -1;
         });
         this.syncRoomInput();
         this.syncEditorCameraMode();
@@ -231,6 +245,142 @@ export class RoomPolygonEditScene extends Phaser.Scene {
     private getRoomCamera(): Phaser.Cameras.Scene2D.Camera {
         return this.roomScene?.cameras.main ?? this.cameras.main;
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Rect editing helpers (roomSize / scrollBounds)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Returns the current edit rectangle for the active mode in world space,
+     * or null if the mode is not a rect mode.
+     */
+    private getRectFromRoom(): { left: number; top: number; right: number; bottom: number } | null {
+        const vW = getInternalWidth();
+        const vH = getInternalHeight();
+        if (polygonEditBridge.mode === 'roomSize') {
+            const w = this.room.size?.width ?? vW;
+            const h = this.room.size?.height ?? vH;
+            return { left: 0, top: 0, right: w, bottom: h };
+        }
+        if (polygonEditBridge.mode === 'scrollBounds') {
+            const roomW = this.room.size?.width ?? vW;
+            const roomH = this.room.size?.height ?? vH;
+            const sb = this.room.scrollBounds;
+            const x = sb?.x ?? 0;
+            const y = sb?.y ?? 0;
+            const bw = sb?.width ?? roomW;
+            const bh = sb?.height ?? roomH;
+            return { left: x, top: y, right: x + bw, bottom: y + bh };
+        }
+        return null;
+    }
+
+    /** 8 handle world positions for a rect (clockwise from top-left). */
+    private static rectHandlePositions(
+        r: { left: number; top: number; right: number; bottom: number },
+    ): { x: number; y: number }[] {
+        const mx = (r.left + r.right) / 2;
+        const my = (r.top + r.bottom) / 2;
+        return [
+            { x: r.left,  y: r.top    },  // 0 top-left
+            { x: mx,      y: r.top    },  // 1 top-mid
+            { x: r.right, y: r.top    },  // 2 top-right
+            { x: r.right, y: my       },  // 3 mid-right
+            { x: r.right, y: r.bottom },  // 4 bottom-right
+            { x: mx,      y: r.bottom },  // 5 bottom-mid
+            { x: r.left,  y: r.bottom },  // 6 bottom-left
+            { x: r.left,  y: my       },  // 7 mid-left
+        ];
+    }
+
+    /**
+     * Returns which handles are locked (cannot be dragged) for the current mode.
+     * For `roomSize` the top-left origin is fixed at (0,0), so any handle that
+     * would move left or top is locked.
+     */
+    private static lockedHandlesForMode(mode: string): ReadonlySet<number> {
+        if (mode === 'roomSize') {
+            // Handles that affect left (0,6,7) or top (0,1,2) — union = 0,1,2,6,7
+            return new Set([0, 1, 2, 6, 7]);
+        }
+        return new Set<number>();
+    }
+
+    /** Hit-test CSS pointer coords against handle circles; returns handle index or -1. */
+    private hitRectHandle(
+        cx: number,
+        cy: number,
+        handles: { x: number; y: number }[],
+        radiusCss: number,
+        toCss: (p: { x: number; y: number }) => { x: number; y: number },
+        locked: ReadonlySet<number>,
+    ): number {
+        let best = -1;
+        let bestD = radiusCss + 1;
+        for (let i = 0; i < handles.length; i++) {
+            if (locked.has(i)) continue;
+            const q = toCss(handles[i]!);
+            const d = Phaser.Math.Distance.Between(cx, cy, q.x, q.y);
+            if (d <= radiusCss && d < bestD) {
+                bestD = d;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Apply a drag of handle `idx` to (wx, wy) in world space.
+     * Directly mutates `room.size` or `room.scrollBounds`.
+     */
+    private applyRectHandleDrag(idx: number, wx: number, wy: number): void {
+        const vW = getInternalWidth();
+        const vH = getInternalHeight();
+
+        if (polygonEditBridge.mode === 'roomSize') {
+            if (!this.room.size) {
+                this.room.size = { width: vW, height: vH };
+            }
+            const affectsRight  = idx === 2 || idx === 3 || idx === 4;
+            const affectsBottom = idx === 4 || idx === 5 || idx === 6;
+            if (affectsRight)  this.room.size.width  = Math.max(1, wx);
+            if (affectsBottom) this.room.size.height = Math.max(1, wy);
+            return;
+        }
+
+        if (polygonEditBridge.mode === 'scrollBounds') {
+            const roomW = this.room.size?.width ?? vW;
+            const roomH = this.room.size?.height ?? vH;
+            if (!this.room.scrollBounds) {
+                this.room.scrollBounds = { x: 0, y: 0, width: roomW, height: roomH };
+            }
+            const sb = this.room.scrollBounds;
+            const curRight  = sb.x + sb.width;
+            const curBottom = sb.y + sb.height;
+
+            const affectsLeft   = idx === 0 || idx === 6 || idx === 7;
+            const affectsTop    = idx === 0 || idx === 1 || idx === 2;
+            const affectsRight  = idx === 2 || idx === 3 || idx === 4;
+            const affectsBottom = idx === 4 || idx === 5 || idx === 6;
+
+            let left   = sb.x;
+            let top    = sb.y;
+            let right  = curRight;
+            let bottom = curBottom;
+
+            if (affectsLeft)   left   = Math.min(wx, right - 1);
+            if (affectsTop)    top    = Math.min(wy, bottom - 1);
+            if (affectsRight)  right  = Math.max(wx, left + 1);
+            if (affectsBottom) bottom = Math.max(wy, top + 1);
+
+            sb.x = left;
+            sb.y = top;
+            sb.width  = right - left;
+            sb.height = bottom - top;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     /**
      * Tells RoomScene to switch between game-play camera (navigate) and full-room
@@ -262,6 +412,37 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 handleRadiusCss: HANDLE_R_CSS,
                 lineWidthCss: LINE_WIDTH_CSS,
             }, roomCam);
+            return;
+        }
+
+        // ── Rect modes ────────────────────────────────────────────────────────
+        if (polygonEditBridge.mode === 'roomSize' || polygonEditBridge.mode === 'scrollBounds') {
+            const rect = this.getRectFromRoom();
+            const isRoomSize = polygonEditBridge.mode === 'roomSize';
+            const strokeStyle = isRoomSize ? '#22ddff' : '#ff9944';
+            if (rect) {
+                this.overlay.clearAndDrawRect({
+                    rect,
+                    strokeStyle,
+                    fillStyle: strokeStyle,
+                    handleFill: COL_HANDLE,
+                    handleStroke: COL_HANDLE_STROKE,
+                    selectedHandleIndex: this.selectedRectHandle,
+                    lockedHandles: RoomPolygonEditScene.lockedHandlesForMode(polygonEditBridge.mode),
+                    handleRadiusCss: HANDLE_R_CSS,
+                    lineWidthCss: LINE_WIDTH_CSS,
+                }, roomCam);
+            } else {
+                this.overlay.clearAndDraw({
+                    pts: [],
+                    strokeStyle: '#000000',
+                    handleFill: COL_HANDLE,
+                    handleStroke: COL_HANDLE_STROKE,
+                    selectedIndex: null,
+                    handleRadiusCss: HANDLE_R_CSS,
+                    lineWidthCss: LINE_WIDTH_CSS,
+                }, roomCam);
+            }
             return;
         }
 
@@ -378,6 +559,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         this.overlay?.canvas.removeEventListener('pointerup', this.onOverlayPointerUp);
         this.overlay?.canvas.removeEventListener('pointercancel', this.onOverlayPointerUp);
         this.overlay?.canvas.removeEventListener('keydown', this.onOverlayKeyDown);
+        this.overlay?.canvas.removeEventListener('wheel', this.onOverlayWheel);
         window.removeEventListener('benne-save-polygon', this.onSaveBound);
         this.unsubBridge?.();
         this.overlay?.destroy();
@@ -632,6 +814,29 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             });
             return;
         }
+        if (polygonEditBridge.mode === 'roomSize') {
+            const vW = getInternalWidth();
+            const vH = getInternalHeight();
+            const w = Math.max(1, Math.round(this.room.size?.width ?? vW));
+            const h = Math.max(1, Math.round(this.room.size?.height ?? vH));
+            this.postPatch({ kind: 'roomSize', width: w, height: h });
+            return;
+        }
+        if (polygonEditBridge.mode === 'scrollBounds') {
+            const vW = getInternalWidth();
+            const vH = getInternalHeight();
+            const roomW = this.room.size?.width ?? vW;
+            const roomH = this.room.size?.height ?? vH;
+            const sb = this.room.scrollBounds;
+            this.postPatch({
+                kind: 'scrollBounds',
+                x: Math.round(sb?.x ?? 0),
+                y: Math.round(sb?.y ?? 0),
+                width: Math.max(1, Math.round(sb?.width ?? roomW)),
+                height: Math.max(1, Math.round(sb?.height ?? roomH)),
+            });
+            return;
+        }
         const pts = this.getActivePoints();
         if (!pts || pts.length < MIN_POINTS) {
             return;
@@ -647,6 +852,57 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             });
         }
     }
+
+    /**
+     * Mouse-wheel zoom centred on the cursor.
+     *
+     * Uses the Phaser 4 camera's world-to-screen formula (which includes the viewport
+     * origin) to keep the world point under the cursor fixed after the zoom change.
+     *
+     *   newScrollX = worldX − originX − (screenX − originX − cam.x) / newZoom
+     *
+     * Press **F** to reset zoom to the initial fit view at any time.
+     */
+    private readonly onOverlayWheel = (e: WheelEvent): void => {
+        if (!polygonEditBridge.isEditing()) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+
+        const ov = this.overlay;
+        if (!ov) {
+            return;
+        }
+        const roomCam = this.getRoomCamera();
+
+        // World point currently under the cursor — must be captured before changing zoom.
+        const worldPt = ov.domToWorld(e.pageX, e.pageY, roomCam);
+
+        // Normalise scroll delta across devices (mouse wheel sends large values; trackpad small).
+        let delta = e.deltaY;
+        if (e.deltaMode === 1) delta *= 40;   // line → pixel approx
+        if (e.deltaMode === 2) delta *= 400;  // page → pixel approx
+
+        const zoomFactor = 1 - Math.max(-0.3, Math.min(0.3, delta * 0.001));
+        const newZoom = Math.max(0.05, Math.min(20, roomCam.zoom * zoomFactor));
+        if (Math.abs(newZoom - roomCam.zoom) < 0.0001) {
+            return;
+        }
+
+        // Cursor position in Phaser internal screen pixels (= CSS px with Scale.RESIZE).
+        this.game.scale.updateBounds();
+        const screenX = this.game.scale.transformX(e.pageX);
+        const screenY = this.game.scale.transformY(e.pageY);
+
+        const originX = roomCam.width * roomCam.originX;
+        const originY = roomCam.height * roomCam.originY;
+
+        roomCam.setZoom(newZoom);
+        // Adjust scroll so the world point stays under the cursor.
+        roomCam.scrollX = worldPt.x - originX - (screenX - originX - roomCam.x) / newZoom;
+        roomCam.scrollY = worldPt.y - originY - (screenY - originY - roomCam.y) / newZoom;
+    };
 
     private pointerCss(e: PointerEvent): { cx: number; cy: number } {
         const rect = this.game.canvas.getBoundingClientRect();
@@ -681,7 +937,22 @@ export class RoomPolygonEditScene extends Phaser.Scene {
 
     private readonly onOverlayPointerDown = (e: PointerEvent): void => {
         const ov = this.overlay;
-        if (!ov || !polygonEditBridge.isEditing() || e.button !== 0) {
+        if (!ov || !polygonEditBridge.isEditing()) {
+            return;
+        }
+
+        // Middle mouse — start camera pan.
+        if (e.button === 1) {
+            e.preventDefault();
+            this.isPanning = true;
+            this.panLastX = e.clientX;
+            this.panLastY = e.clientY;
+            ov.canvas.setPointerCapture(e.pointerId);
+            ov.canvas.style.cursor = 'grabbing';
+            return;
+        }
+
+        if (e.button !== 0) {
             return;
         }
         e.preventDefault();
@@ -702,6 +973,19 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 this.downOnVertex = true;
                 this.dragVertexIndex = vi;
                 this.selectedVertexIndex = vi;
+            }
+            return;
+        }
+
+        // ── Rect handle hit test ──────────────────────────────────────────────
+        if (polygonEditBridge.mode === 'roomSize' || polygonEditBridge.mode === 'scrollBounds') {
+            const rect = this.getRectFromRoom();
+            if (rect) {
+                const handles = RoomPolygonEditScene.rectHandlePositions(rect);
+                const locked = RoomPolygonEditScene.lockedHandlesForMode(polygonEditBridge.mode);
+                const hit = this.hitRectHandle(cx, cy, handles, HANDLE_R_CSS + 2, toCss, locked);
+                this.dragRectHandle = hit;
+                this.selectedRectHandle = hit;
             }
             return;
         }
@@ -779,9 +1063,31 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         if (!ov) {
             return;
         }
+
+        // Middle-mouse pan.
+        if (this.isPanning) {
+            const roomCam = this.getRoomCamera();
+            const dx = e.clientX - this.panLastX;
+            const dy = e.clientY - this.panLastY;
+            // Moving mouse right pans camera left (world shifts right on screen): scrollX -= dx/zoom.
+            roomCam.scrollX -= dx / roomCam.zoom;
+            roomCam.scrollY -= dy / roomCam.zoom;
+            this.panLastX = e.clientX;
+            this.panLastY = e.clientY;
+            return;
+        }
+
         const roomCam = this.getRoomCamera();
         const roomW = this.room.size?.width ?? getInternalWidth();
         const roomH = this.room.size?.height ?? getInternalHeight();
+
+        // ── Rect handle drag ─────────────────────────────────────────────────
+        if (this.dragRectHandle >= 0 &&
+            (polygonEditBridge.mode === 'roomSize' || polygonEditBridge.mode === 'scrollBounds')) {
+            const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, roomCam);
+            this.applyRectHandleDrag(this.dragRectHandle, wx, wy);
+            return;
+        }
 
         if (this.dragAux === 'walk' || this.dragAux === 'look') {
             const auxEd = this.getPolygonAuxEditor();
@@ -824,6 +1130,19 @@ export class RoomPolygonEditScene extends Phaser.Scene {
 
     private readonly onOverlayPointerUp = (e: PointerEvent): void => {
         const ov = this.overlay;
+
+        // Stop middle-mouse pan.
+        if (e.button === 1) {
+            if (this.isPanning) {
+                this.isPanning = false;
+                if (ov) {
+                    ov.canvas.style.cursor = '';
+                    try { ov.canvas.releasePointerCapture(e.pointerId); } catch { /* not captured */ }
+                }
+            }
+            return;
+        }
+
         if (e.button === 0 && ov) {
             try {
                 ov.canvas.releasePointerCapture(e.pointerId);
@@ -842,6 +1161,17 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             this.dragAux = null;
             this.downOnVertex = false;
             this.dragVertexIndex = null;
+            return;
+        }
+
+        // ── Rect drag end ─────────────────────────────────────────────────────
+        if (this.dragRectHandle >= 0) {
+            this.dragRectHandle = -1;
+            return;
+        }
+        if (polygonEditBridge.mode === 'roomSize' || polygonEditBridge.mode === 'scrollBounds') {
+            // Click in rect area with no handle hit — deselect.
+            this.selectedRectHandle = -1;
             return;
         }
 
@@ -955,6 +1285,12 @@ export class RoomPolygonEditScene extends Phaser.Scene {
      */
     private readonly onOverlayKeyDown = (e: KeyboardEvent): void => {
         if (!polygonEditBridge.isEditing()) {
+            return;
+        }
+        // F key: reset camera to fit-room zoom.
+        if (e.key === 'f' || e.key === 'F') {
+            this.syncEditorCameraMode();
+            e.preventDefault();
             return;
         }
         if (e.key !== 'Delete' && e.key !== 'Backspace') {

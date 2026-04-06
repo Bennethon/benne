@@ -57,6 +57,12 @@ export class RoomScene extends Phaser.Scene {
   /** Player Aseprite sprite; null if no matching `startingPlayerCharacter` in the room. */
   player: DirectionalCharacterSprite | null = null;
 
+  /**
+   * Tracks the current editor camera mode so the camera can be reconfigured when the
+   * panel resizes (`Scale.RESIZE` fires a resize event). Null = game runtime (no editor).
+   */
+  private editorCameraMode: 'navigate' | 'edit' | null = null;
+
   private playerMoveTween: Phaser.Tweens.Tween | null = null;
 
   /** Fired once when a walk tween completes successfully (instant walks may call it without a tween). */
@@ -79,10 +85,12 @@ export class RoomScene extends Phaser.Scene {
     const roomH = data.room.size?.height ?? vH;
 
     if (data.backgroundTextureKey) {
-      this.add.image(0, 0, data.backgroundTextureKey).setOrigin(0, 0).setDisplaySize(roomW, roomH);
+      // Render the background at its natural pixel dimensions — room.size controls camera
+      // bounds and walkable extent, not how large the art appears.
+      this.add.image(0, 0, data.backgroundTextureKey).setOrigin(0, 0);
     }
 
-    this.spawnRoomProps(data, roomW, roomH);
+    this.spawnRoomProps(data);
 
     const sortedHotspots = [...data.room.hotspots].sort(
       (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0),
@@ -95,8 +103,10 @@ export class RoomScene extends Phaser.Scene {
 
     this.input.mouse?.disableContextMenu();
 
+    this.scale.on('resize', this.onScaleResize, this);
     this.input.on('pointerdown', this.handleRoomPointerDown);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off('resize', this.onScaleResize, this);
       this.input.off('pointerdown', this.handleRoomPointerDown);
       this.stopPlayerMoveTween(true);
     });
@@ -118,25 +128,49 @@ export class RoomScene extends Phaser.Scene {
     }
   }
 
+  /** Re-applies the current editor camera mode when the preview panel is resized. */
+  private readonly onScaleResize = (): void => {
+    if (this.editorCameraMode !== null) {
+      this.setEditorCameraMode(this.editorCameraMode);
+    }
+  };
+
   /**
-   * Switches the camera between game-play (navigate) mode and full-room editor view.
-   * Called by the editor's `RoomPolygonEditScene`; not used at runtime.
+   * Configures the camera for the editor preview panel (called by `RoomPolygonEditScene`).
+   * Not used at game runtime.
+   *
+   * **Navigate mode** — letterboxes the game's virtual resolution (e.g. 352×198) inside the
+   * panel using a camera viewport, maintaining the exact in-game look with player follow.
+   *
+   * **Edit mode** — expands the camera to fill the entire panel and fits the full room art
+   * at the largest zoom that shows everything.  The camera viewport covers the whole canvas
+   * so the room art is not constrained to the 16:9 frame.
    */
   setEditorCameraMode(mode: 'navigate' | 'edit'): void {
-    const vW = getInternalWidth();
-    const vH = getInternalHeight();
-    const roomW = this.roomData.size?.width ?? vW;
-    const roomH = this.roomData.size?.height ?? vH;
+    this.editorCameraMode = mode;
+
+    const panelW = this.scale.width;
+    const panelH = this.scale.height;
+    if (panelW <= 0 || panelH <= 0) {
+      return;
+    }
+
+    const gameW = getInternalWidth();   // game's virtual resolution (e.g. 352)
+    const gameH = getInternalHeight();  // game's virtual resolution (e.g. 198)
+    const roomW = this.roomData.size?.width ?? gameW;
+    const roomH = this.roomData.size?.height ?? gameH;
     const cam = this.cameras.main;
 
-    if (mode === 'edit' && (roomW > vW || roomH > vH)) {
-      cam.stopFollow();
-      const zoom = Math.min(vW / roomW, vH / roomH);
-      cam.setZoom(zoom);
-      cam.scrollX = 0;
-      cam.scrollY = 0;
-    } else {
-      cam.setZoom(1);
+    if (mode === 'navigate') {
+      // Letterbox: scale the game viewport (gameW × gameH) to fit the panel, centred.
+      const scale = Math.min(panelW / gameW, panelH / gameH);
+      const viewW = Math.round(gameW * scale);
+      const viewH = Math.round(gameH * scale);
+      const viewX = Math.round((panelW - viewW) / 2);
+      const viewY = Math.round((panelH - viewH) / 2);
+      cam.setViewport(viewX, viewY, viewW, viewH);
+      cam.setZoom(scale);
+
       const sb = this.roomData.scrollBounds;
       cam.setBounds(
         sb?.x ?? 0,
@@ -144,9 +178,24 @@ export class RoomScene extends Phaser.Scene {
         sb?.width ?? roomW,
         sb?.height ?? roomH,
       );
-      if (this.player && (roomW > vW || roomH > vH)) {
+
+      if (this.player && (roomW > gameW || roomH > gameH)) {
         cam.startFollow(this.player, true);
+      } else {
+        cam.stopFollow();
       }
+    } else {
+      // Edit mode: full panel viewport, fit the room art inside it.
+      cam.stopFollow();
+      cam.setViewport(0, 0, panelW, panelH);
+
+      const zoom = Math.min(panelW / roomW, panelH / roomH);
+      cam.setZoom(zoom);
+
+      // Room bounds — Phaser's clampX/Y will position the room at the canvas top-left.
+      cam.setBounds(0, 0, roomW, roomH);
+      cam.scrollX = 0;
+      cam.scrollY = 0;
     }
   }
 
@@ -336,7 +385,7 @@ export class RoomScene extends Phaser.Scene {
     }
   }
 
-  private spawnRoomProps(data: RoomSceneStartData, w: number, h: number): void {
+  private spawnRoomProps(data: RoomSceneStartData): void {
     const textureKey = data.roomPropsTextureKey;
     if (!textureKey || data.props.length === 0) {
       return;
@@ -351,8 +400,10 @@ export class RoomScene extends Phaser.Scene {
     applyCharacterAnimationClips(created, mergedClips);
 
     for (const spawn of sorted) {
+      // Props render at their natural Aseprite frame dimensions. For full-room composite
+      // sheets (the typical BENNE workflow) each frame already covers the full room width
+      // and height, so no explicit setDisplaySize is needed.
       const sprite = this.add.sprite(spawn.x, spawn.y, textureKey).setOrigin(0, 0);
-      sprite.setDisplaySize(w, h);
       sprite.setVisible(spawn.data.visible !== false);
       sprite.setAlpha(spawn.data.alpha ?? 1);
       sprite.setDepth(spawn.data.zIndex ?? 0);

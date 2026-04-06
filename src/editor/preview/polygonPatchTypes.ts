@@ -18,4 +18,6 @@ export type RoomPolygonPatch =
           lookAtPoint: Point2;
       }
     | { kind: 'regionPolygon'; regionId: string; points: Point2[] }
-    | { kind: 'roomPoint'; pointId: string; x: number; y: number };
+    | { kind: 'roomPoint'; pointId: string; x: number; y: number }
+    | { kind: 'roomSize'; width: number; height: number }
+    | { kind: 'scrollBounds'; x: number; y: number; width: number; height: number };

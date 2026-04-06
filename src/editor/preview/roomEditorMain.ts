@@ -164,6 +164,8 @@ function buildRoomToolbarHtml(): string {
         <select id="benne-edit-mode" style="background:#2a2a3e;color:#eee;border:1px solid #4a4a60;padding:2px 6px;">
           <option value="navigate">Navigate</option>
           <option value="walkable">Edit walkable</option>
+          <option value="roomSize">Room Size</option>
+          <option value="scrollBounds">Scroll Bounds</option>
         </select>
       </div>
       <div id="benne-walkable-row" hidden style="align-items:center;gap:6px;display:inline-flex;">
@@ -300,10 +302,23 @@ function wireRoomToolbar(room: RoomData): void {
     }
 
     const syncModeUI = (): void => {
-        const m = modeSel.value as 'navigate' | 'walkable';
+        const m = modeSel.value as 'navigate' | 'walkable' | 'roomSize' | 'scrollBounds';
         polygonEditBridge.setMode(m);
         walkRow.hidden = m !== 'walkable';
         saveBtn.hidden = m === 'navigate';
+
+        const hint = document.getElementById('benne-toolbar-hint');
+        if (hint) {
+            if (m === 'roomSize') {
+                hint.textContent = 'Drag the cyan handles to resize the room art canvas. The origin (top-left) is always 0,0. Press F to fit view. Save writes to room JSON.';
+            } else if (m === 'scrollBounds') {
+                hint.textContent = 'Drag the orange handles to set the camera scroll bounds — the area within which the camera pans. Press F to fit view. Save writes to room JSON.';
+            } else if (m === 'walkable') {
+                hint.textContent = `New polygon: click ${MIN_POLY_POINTS} times to place vertices. Then double-click an edge to add more. Delete removes the selected vertex (min ${MIN_POLY_POINTS} points).`;
+            } else {
+                hint.textContent = '';
+            }
+        }
     };
 
     modeSel.value = 'navigate';
@@ -452,6 +467,18 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
             p.x = patch.x;
             p.y = patch.y;
         }
+        return;
+    }
+    if (patch.kind === 'roomSize') {
+        room.size = { width: patch.width, height: patch.height };
+        // Re-sync camera so the edit-mode zoom adjusts to the new room dimensions.
+        polygonEditBridge.setMode(polygonEditBridge.mode);
+        return;
+    }
+    if (patch.kind === 'scrollBounds') {
+        room.scrollBounds = { x: patch.x, y: patch.y, width: patch.width, height: patch.height };
+        // Re-sync camera so the scroll bounds update takes effect.
+        polygonEditBridge.setMode(polygonEditBridge.mode);
         return;
     }
     if (patch.kind === 'walkable') {
