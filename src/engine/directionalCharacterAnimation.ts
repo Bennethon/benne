@@ -1,30 +1,108 @@
 import * as Phaser from 'phaser';
 import { playCharacterAnimation, type CharacterAnimSprite } from './characterAnimationPlayback';
 
-/** Matches Aseprite frame-tag suffix convention (IdleL, WalkR, …). */
-export type CardinalFacing = 'L' | 'R' | 'D' | 'U';
+/** Matches Aseprite frame-tag suffix convention (IdleL, WalkDR, …). */
+export type CharacterFacing = 'L' | 'R' | 'U' | 'D' | 'UL' | 'UR' | 'DL' | 'DR';
 
-/** 4-way facing from a world movement vector (y+ is down on screen). */
-export function facingFromWorldDelta(dx: number, dy: number): CardinalFacing {
-  if (dx === 0 && dy === 0) {
+const SQRT1_2 = Math.SQRT1_2;
+
+/** Screen-space unit dirs (y+ down). */
+const FACING_UNIT: Record<CharacterFacing, [number, number]> = {
+  R: [1, 0],
+  DR: [SQRT1_2, SQRT1_2],
+  D: [0, 1],
+  DL: [-SQRT1_2, SQRT1_2],
+  L: [-1, 0],
+  UL: [-SQRT1_2, -SQRT1_2],
+  U: [0, -1],
+  UR: [SQRT1_2, -SQRT1_2],
+};
+
+/** Radians from +x toward +y (clockwise from R through D). */
+const FACING_ANGLE_RAD: Record<CharacterFacing, number> = {
+  R: 0,
+  DR: Math.PI / 4,
+  D: Math.PI / 2,
+  DL: (3 * Math.PI) / 4,
+  L: Math.PI,
+  UL: (-3 * Math.PI) / 4,
+  U: -Math.PI / 2,
+  UR: -Math.PI / 4,
+};
+
+/** Authoring / stable tie-break order (matches `CharacterFacingLetter`). */
+const ALL_FACINGS: CharacterFacing[] = ['L', 'R', 'U', 'D', 'UL', 'UR', 'DL', 'DR'];
+
+function angleDistRad(a: number, b: number): number {
+  let d = Math.abs(a - b) % (2 * Math.PI);
+  if (d > Math.PI) {
+    d = 2 * Math.PI - d;
+  }
+  return d;
+}
+
+/** Horizontal mirror partner for flipX fallbacks; U/D have none. */
+export function mirrorHorizontalFacing(dir: CharacterFacing): CharacterFacing | null {
+  switch (dir) {
+    case 'L':
+      return 'R';
+    case 'R':
+      return 'L';
+    case 'UL':
+      return 'UR';
+    case 'UR':
+      return 'UL';
+    case 'DL':
+      return 'DR';
+    case 'DR':
+      return 'DL';
+    default:
+      return null;
+  }
+}
+
+function facingFallbackOrder(requested: CharacterFacing): CharacterFacing[] {
+  const ra = FACING_ANGLE_RAD[requested];
+  return [...ALL_FACINGS].sort((a, b) => {
+    const da = angleDistRad(FACING_ANGLE_RAD[a], ra);
+    const db = angleDistRad(FACING_ANGLE_RAD[b], ra);
+    if (Math.abs(da - db) < 1e-9) {
+      return ALL_FACINGS.indexOf(a) - ALL_FACINGS.indexOf(b);
+    }
+    return da - db;
+  });
+}
+
+/** 8-way facing from a world movement vector (y+ is down on screen). */
+export function facingFromWorldDelta(dx: number, dy: number): CharacterFacing {
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-9) {
     return 'D';
   }
-  if (Math.abs(dx) >= Math.abs(dy)) {
-    return dx > 0 ? 'R' : 'L';
+  const nx = dx / len;
+  const ny = dy / len;
+  let best: CharacterFacing = 'D';
+  let bestDot = -Infinity;
+  for (const dir of ALL_FACINGS) {
+    const [vx, vy] = FACING_UNIT[dir];
+    const dot = nx * vx + ny * vy;
+    if (dot > bestDot + 1e-9) {
+      bestDot = dot;
+      best = dir;
+    }
   }
-  return dy > 0 ? 'D' : 'U';
+  return best;
 }
 
 export interface DirectionalCharacterSprite extends CharacterAnimSprite {
-  playDirectionalAnimation(baseName: string, direction: CardinalFacing): void;
+  playDirectionalAnimation(baseName: string, direction: CharacterFacing): void;
 }
 
 /**
- * Picks IdleR, else IdleD, else IdleL, else IdleU — first tag that exists on this sprite’s local anims.
- * Aligns with “start facing right or down” when tags exist.
+ * Picks the first existing `Idle*` tag in a sensible default order (cardinals, then diagonals).
  */
-export function resolveInitialIdleFacing(sprite: Phaser.GameObjects.Sprite): CardinalFacing {
-  const order: CardinalFacing[] = ['R', 'D', 'L', 'U'];
+export function resolveInitialIdleFacing(sprite: Phaser.GameObjects.Sprite): CharacterFacing {
+  const order: CharacterFacing[] = ['R', 'D', 'L', 'U', 'DR', 'DL', 'UR', 'UL'];
   for (const dir of order) {
     if (sprite.anims.exists(`Idle${dir}`)) {
       return dir;
@@ -33,27 +111,29 @@ export function resolveInitialIdleFacing(sprite: Phaser.GameObjects.Sprite): Car
   return 'D';
 }
 
+const VALID_SPAWN_FACING = new Set<string>(ALL_FACINGS);
+
 /**
- * Uses room placement `initialFacing` when it is L/R/U/D; otherwise same fallback as {@link resolveInitialIdleFacing}.
+ * Uses room placement `initialFacing` when valid; otherwise same fallback as {@link resolveInitialIdleFacing}.
  */
 export function resolveSpawnIdleFacing(
   sprite: Phaser.GameObjects.Sprite,
   initialFacing: string | undefined,
-): CardinalFacing {
-  if (initialFacing === 'L' || initialFacing === 'R' || initialFacing === 'U' || initialFacing === 'D') {
-    return initialFacing;
+): CharacterFacing {
+  if (initialFacing !== undefined && VALID_SPAWN_FACING.has(initialFacing)) {
+    return initialFacing as CharacterFacing;
   }
   return resolveInitialIdleFacing(sprite);
 }
 
 /**
- * Plays `<baseName><direction>` (e.g. IdleR). Horizontal mirroring: if R (or L) variant is missing,
- * uses the opposite horizontal tag with `setFlipX`.
+ * Plays `<baseName><facing>` (e.g. `IdleR`). If that tag is missing, tries the next closest facing (by angle),
+ * then horizontal mirror (L/R, UL/UR, DL/DR) with `setFlipX` when the mirrored tag exists.
  */
 export function playDirectionalAnimation(
   sprite: Phaser.GameObjects.Sprite,
   baseName: string,
-  direction: CardinalFacing,
+  direction: CharacterFacing,
 ): void {
   const tryPlay = (key: string, flipX: boolean): boolean => {
     if (!sprite.anims.exists(key)) {
@@ -71,23 +151,15 @@ export function playDirectionalAnimation(
     return true;
   };
 
-  if (direction === 'D' || direction === 'U') {
-    tryPlay(`${baseName}${direction}`, false);
-    return;
-  }
-
-  if (direction === 'R') {
-    if (tryPlay(`${baseName}R`, false)) {
+  for (const d of facingFallbackOrder(direction)) {
+    if (tryPlay(`${baseName}${d}`, false)) {
       return;
     }
-    tryPlay(`${baseName}L`, true);
-    return;
+    const m = mirrorHorizontalFacing(d);
+    if (m !== null && tryPlay(`${baseName}${m}`, true)) {
+      return;
+    }
   }
-
-  if (tryPlay(`${baseName}L`, false)) {
-    return;
-  }
-  tryPlay(`${baseName}R`, true);
 }
 
 /**
@@ -96,7 +168,7 @@ export function playDirectionalAnimation(
  */
 export function attachDirectionalAnimationApi(sprite: Phaser.GameObjects.Sprite): DirectionalCharacterSprite {
   const extended = sprite as DirectionalCharacterSprite;
-  extended.playDirectionalAnimation = (baseName: string, direction: CardinalFacing): void => {
+  extended.playDirectionalAnimation = (baseName: string, direction: CharacterFacing): void => {
     playDirectionalAnimation(extended, baseName, direction);
   };
   return extended;

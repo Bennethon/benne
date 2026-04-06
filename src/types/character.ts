@@ -25,8 +25,11 @@ export interface CharacterAnimationClipConfig {
 
 export type CharacterAnimationsConfig = Record<string, CharacterAnimationClipConfig>;
 
-/** Cardinal facing; matches Aseprite `IdleL` / `WalkR`-style tag suffixes. */
-export type CardinalFacingLetter = 'L' | 'R' | 'U' | 'D';
+/** Facing suffix on directional clips (`IdleL`, `WalkDR`, …). */
+export type CharacterFacingLetter = 'L' | 'R' | 'U' | 'D' | 'UL' | 'UR' | 'DL' | 'DR';
+
+/** @deprecated Use {@link CharacterFacingLetter}. */
+export type CardinalFacingLetter = CharacterFacingLetter;
 
 /**
  * Character template loaded from `src/game/characters/` as `*.character.json` files.
