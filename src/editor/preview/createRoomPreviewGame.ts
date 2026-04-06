@@ -1,6 +1,5 @@
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
-import { getBennePhaserGameConfigBase } from '../../engine/gameConfig';
 import { RoomScene } from '../../engine/scenes/RoomScene';
 import { SCENE_ROOM } from '../../game/constants';
 import type { PreviewManifest } from './buildPreviewManifest';
@@ -13,8 +12,31 @@ export type RoomPreviewGameOptions = {
 };
 
 /**
- * Runs the real {@link RoomScene} with the same game config (scale, pixel art, post placeholder) as the player build.
+ * Editor-specific Phaser config.
+ *
+ * Uses `Scale.RESIZE` so the canvas always fills the preview panel. Camera management
+ * (navigate letterbox vs edit full-panel view) is handled by `RoomScene.setEditorCameraMode`.
+ * This differs from the playable game which uses `Scale.FIT` with integer zoom.
  */
+function getEditorPhaserGameConfig(
+    parent: HTMLElement,
+): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
+    return {
+        type: Phaser.WEBGL,
+        parent,
+        backgroundColor: '#1a1a2e',
+        pixelArt: true,
+        antialias: false,
+        scale: {
+            parent,
+            mode: Phaser.Scale.RESIZE,
+        },
+        render: {
+            powerPreference: 'high-performance',
+        },
+    };
+}
+
 export function createRoomPreviewPhaserGame(
     parent: HTMLElement,
     manifest: PreviewManifest,
@@ -52,7 +74,7 @@ export function createRoomPreviewPhaserGame(
     }
 
     return new Phaser.Game({
-        ...getBennePhaserGameConfigBase(parent),
+        ...getEditorPhaserGameConfig(parent),
         callbacks: {
             preBoot: (game: Phaser.Game) => {
                 game.registry.set('bennePreviewRoom', manifestRef.startData.room);

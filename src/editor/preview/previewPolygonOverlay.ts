@@ -197,4 +197,86 @@ export class PreviewPolygonOverlay {
         }
         this.ctx.globalAlpha = 1;
     }
+
+    /**
+     * Clear the overlay and draw an interactive rectangle with 8 resize handles.
+     *
+     * Handles are numbered clockwise from the top-left corner:
+     * ```
+     * 0 ─ 1 ─ 2
+     * │       │
+     * 7       3
+     * │       │
+     * 6 ─ 5 ─ 4
+     * ```
+     * `lockedHandles` — indices whose handles are drawn dimmed and cannot be interacted with
+     * (used for `roomSize` where the top-left origin is always 0,0).
+     */
+    clearAndDrawRect(state: {
+        rect: { left: number; top: number; right: number; bottom: number };
+        strokeStyle: string;
+        fillStyle: string;
+        handleFill: string;
+        handleStroke: string;
+        selectedHandleIndex: number | null;
+        lockedHandles: ReadonlySet<number>;
+        handleRadiusCss: number;
+        lineWidthCss: number;
+    }, cam: Cameras.Scene2D.Camera): void {
+        const c = this.game.canvas;
+        const cssW = c.clientWidth;
+        const cssH = c.clientHeight;
+        this.ctx.clearRect(0, 0, cssW, cssH);
+
+        const { rect } = state;
+        const tl = this.worldToCanvasCss({ x: rect.left, y: rect.top }, cam);
+        const br = this.worldToCanvasCss({ x: rect.right, y: rect.bottom }, cam);
+        const rw = br.x - tl.x;
+        const rh = br.y - tl.y;
+
+        // Semi-transparent fill
+        this.ctx.fillStyle = state.fillStyle;
+        this.ctx.globalAlpha = 0.12;
+        this.ctx.fillRect(tl.x, tl.y, rw, rh);
+
+        // Border stroke
+        this.ctx.strokeStyle = state.strokeStyle;
+        this.ctx.lineWidth = state.lineWidthCss;
+        this.ctx.lineJoin = 'round';
+        this.ctx.globalAlpha = 0.9;
+        this.ctx.strokeRect(tl.x, tl.y, rw, rh);
+
+        // 8 handle positions in world space → CSS
+        const midX = (rect.left + rect.right) / 2;
+        const midY = (rect.top + rect.bottom) / 2;
+        const worldHandles: { x: number; y: number }[] = [
+            { x: rect.left,  y: rect.top    },  // 0 top-left
+            { x: midX,       y: rect.top    },  // 1 top-mid
+            { x: rect.right, y: rect.top    },  // 2 top-right
+            { x: rect.right, y: midY        },  // 3 mid-right
+            { x: rect.right, y: rect.bottom },  // 4 bottom-right
+            { x: midX,       y: rect.bottom },  // 5 bottom-mid
+            { x: rect.left,  y: rect.bottom },  // 6 bottom-left
+            { x: rect.left,  y: midY        },  // 7 mid-left
+        ];
+
+        for (let i = 0; i < 8; i++) {
+            const q = this.worldToCanvasCss(worldHandles[i]!, cam);
+            const sel = i === state.selectedHandleIndex;
+            const locked = state.lockedHandles.has(i);
+            const r = sel ? state.handleRadiusCss + 2 : state.handleRadiusCss;
+
+            this.ctx.beginPath();
+            this.ctx.fillStyle = sel ? '#ffffff' : locked ? '#888888' : state.handleFill;
+            this.ctx.strokeStyle = state.handleStroke;
+            this.ctx.lineWidth = 1;
+            this.ctx.globalAlpha = locked ? 0.35 : 0.95;
+            this.ctx.arc(q.x, q.y, r, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.globalAlpha = locked ? 0.2 : 0.5;
+            this.ctx.stroke();
+        }
+
+        this.ctx.globalAlpha = 1;
+    }
 }

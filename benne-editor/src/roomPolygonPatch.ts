@@ -19,7 +19,9 @@ export type RoomPolygonPatch =
           lookAtPoint: Point2;
       }
     | { kind: 'regionPolygon'; regionId: string; points: Point2[] }
-    | { kind: 'roomPoint'; pointId: string; x: number; y: number };
+    | { kind: 'roomPoint'; pointId: string; x: number; y: number }
+    | { kind: 'roomSize'; width: number; height: number }
+    | { kind: 'scrollBounds'; x: number; y: number; width: number; height: number };
 
 const MIN_POLY_POINTS = 3;
 
@@ -94,6 +96,22 @@ export function parseRoomPolygonPatch(body: unknown): RoomPolygonPatch | null {
         typeof o.y === 'number'
     ) {
         return { kind: 'roomPoint', pointId: o.pointId, x: o.x, y: o.y };
+    }
+    if (
+        o.kind === 'roomSize' &&
+        typeof o.width === 'number' &&
+        typeof o.height === 'number'
+    ) {
+        return { kind: 'roomSize', width: o.width, height: o.height };
+    }
+    if (
+        o.kind === 'scrollBounds' &&
+        typeof o.x === 'number' &&
+        typeof o.y === 'number' &&
+        typeof o.width === 'number' &&
+        typeof o.height === 'number'
+    ) {
+        return { kind: 'scrollBounds', x: o.x, y: o.y, width: o.width, height: o.height };
     }
     return null;
 }
@@ -275,6 +293,26 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
             walkToPoint: { ...w },
             lookAtPoint: { ...l },
         };
+    }
+
+    if (patch.kind === 'roomSize') {
+        const w = Math.max(1, Math.round(patch.width));
+        const h = Math.max(1, Math.round(patch.height));
+        (room as Record<string, unknown>).size = { width: w, height: h };
+        const out = `${JSON.stringify(room, null, 2)}\n`;
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
+        return { kind: 'roomSize', width: w, height: h };
+    }
+
+    if (patch.kind === 'scrollBounds') {
+        const x = Math.round(patch.x);
+        const y = Math.round(patch.y);
+        const w = Math.max(1, Math.round(patch.width));
+        const h = Math.max(1, Math.round(patch.height));
+        (room as Record<string, unknown>).scrollBounds = { x, y, width: w, height: h };
+        const out = `${JSON.stringify(room, null, 2)}\n`;
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
+        return { kind: 'scrollBounds', x, y, width: w, height: h };
     }
 
     const _never: never = patch;
