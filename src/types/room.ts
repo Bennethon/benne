@@ -1,4 +1,4 @@
-import type { CardinalFacingLetter, CharacterAnimationsConfig } from './character';
+﻿import type { CardinalFacingLetter, CharacterAnimationsConfig } from './character';
 
 export interface Point2 {
   x: number;
@@ -23,7 +23,7 @@ export interface WalkablePolygon {
 }
 
 /**
- * Clickable room hotspot. Prefer `points` (≥3 vertices in room space); legacy `x`/`y`/`width`/`height`
+ * Clickable room hotspot. Prefer `points` (>=3 vertices in room space); legacy `x`/`y`/`width`/`height`
  * defines an axis-aligned rectangle when `points` is missing or has fewer than three vertices.
  */
 export interface RoomHotspotData {
@@ -71,7 +71,7 @@ export interface RoomCharacterInstance {
   definition: string;
   x: number;
   y: number;
-  /** Facing for the first directional animation (e.g. `Idle` + `L` → `IdleL`). */
+  /** Facing for the first directional animation (e.g. `Idle` + `L` -> `IdleL`). */
   initialFacing?: CardinalFacingLetter;
   /** Base name before direction suffix; default `Idle`. */
   initialAnimation?: string;
@@ -87,7 +87,32 @@ export interface RoomPropCollider {
 }
 
 /**
- * One placed prop in a room: Aseprite tag on this room’s sheet (`images/rooms/<roomId>/`), draw order, and interaction.
+ * Parallax configuration for a room prop.
+ *
+ * **`depth`** controls how much the prop moves relative to the camera scroll:
+ * - `0`   — fully screen-locked (infinitely distant, e.g. sky layer)
+ * - `0–1` — distant; moves slower than the camera
+ * - `1`   — no parallax; stays at its world position (default)
+ * - `>1`  — closer than the world plane; moves faster than the camera
+ *
+ * **`alignX` / `alignY`** set the screen-space anchor the prop converges toward as `depth`
+ * approaches `0`. At `depth = 1` the anchor has no effect.
+ * - `alignX`: `-1` = left edge, `0` = horizontal center, `1` = right edge
+ * - `alignY`: `-1` = bottom, `0` = vertical center, `1` = top (PowerQuest / Unity Y-up convention)
+ *
+ * Example — sky layer locked to the top-left corner of the screen:
+ * `{ "depth": 0, "alignX": -1, "alignY": 1 }`
+ */
+export interface RoomPropParallax {
+  depth: number;
+  /** Screen-space X anchor: -1 = left edge, 0 = center (default), 1 = right edge. */
+  alignX?: number;
+  /** Screen-space Y anchor: -1 = bottom, 0 = center (default), 1 = top (Y-up convention). */
+  alignY?: number;
+}
+
+/**
+ * One placed prop in a room: Aseprite tag on this room's sheet (`images/rooms/<roomId>/`), draw order, and interaction.
  */
 export interface RoomPropInstance {
   id: string;
@@ -116,8 +141,13 @@ export interface RoomPropInstance {
   /** Event id emitted on the global event bus when the player looks at this prop (after walk + face). */
   onLook?: string;
   onUse?: string;
-  /** Per-tag playback (loop, frameDuration); keys match Aseprite tags on this room’s sheet. */
+  /** Per-tag playback (loop, frameDuration); keys match Aseprite tags on this room's sheet. */
   animations?: CharacterAnimationsConfig;
+  /**
+   * When present, the prop's position is updated every frame based on camera scroll.
+   * Omit entirely (or set `depth: 1`) for normal world-fixed props.
+   */
+  parallax?: RoomPropParallax;
 }
 
 export interface RoomData {
@@ -132,7 +162,7 @@ export interface RoomData {
   };
   /**
    * Explicit room dimensions in pixels. When omitted the room is assumed to be the same size as the
-   * game viewport (e.g. 352×198). Set this when the background or prop sheet is wider or taller than
+   * game viewport (e.g. 352x198). Set this when the background or prop sheet is wider or taller than
    * the game resolution so the camera can scroll.
    */
   size?: { width: number; height: number };

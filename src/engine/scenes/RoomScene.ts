@@ -22,7 +22,7 @@ import { clampWalkDestinationTowardClick } from '../walkable';
 import type { RoomPropInteractPayload } from '../events/propInteractionEvents';
 import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
-import type { RoomData, RoomHotspotData } from '../../types/room';
+import type { RoomData, RoomHotspotData, RoomPropParallax } from '../../types/room';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
 
 /** Ignore walk clicks when already within this many pixels of the target. */
@@ -68,6 +68,14 @@ export class RoomScene extends Phaser.Scene {
   /** Fired once when a walk tween completes successfully (instant walks may call it without a tween). */
   private walkArriveCallback: (() => void) | null = null;
 
+  /** Props that need per-frame position updates for parallax scrolling. */
+  private parallaxProps: Array<{
+    sprite: Phaser.GameObjects.Sprite;
+    baseX: number;
+    baseY: number;
+    parallax: RoomPropParallax;
+  }> = [];
+
   constructor() {
     super(SCENE_ROOM);
   }
@@ -76,6 +84,7 @@ export class RoomScene extends Phaser.Scene {
     this.roomData = data.room;
     this.player = null;
     this.playerMoveTween = null;
+    this.parallaxProps = [];
 
     attachPostProcessingPlaceholder(this.cameras.main);
 
@@ -125,6 +134,49 @@ export class RoomScene extends Phaser.Scene {
     );
     if (this.player && (roomW > vW || roomH > vH)) {
       this.cameras.main.startFollow(this.player, true);
+    }
+  }
+
+  update(): void {
+    this.updateParallaxProps();
+  }
+
+  /**
+   * Repositions parallax props based on the current camera scroll.
+   *
+   * The formula blends between the prop's fixed world position (`depth = 1`) and a
+   * fully screen-locked position (`depth = 0`):
+   *
+   *   worldX = depth * baseX + (1 - depth) * (scrollX + screenAnchorX)
+   *
+   * `screenAnchorX` is derived from `alignX`: -1 = left edge (0), 0 = center (vW/2), 1 = right edge (vW).
+   * `screenAnchorY` is derived from `alignY` with the Y-up convention: -1 = bottom (vH), 1 = top (0).
+   */
+  private updateParallaxProps(): void {
+    if (this.parallaxProps.length === 0) {
+      return;
+    }
+
+    const cam = this.cameras.main;
+    const scrollX = cam.scrollX;
+    const scrollY = cam.scrollY;
+    const vW = getInternalWidth();
+    const vH = getInternalHeight();
+
+    for (const entry of this.parallaxProps) {
+      const { sprite, baseX, baseY, parallax } = entry;
+      const depth = parallax.depth;
+      const alignX = parallax.alignX ?? 0;
+      const alignY = parallax.alignY ?? 0;
+
+      // Screen-space anchor: where the prop converges as depth -> 0.
+      // alignX: -1 -> left (0), 0 -> center (vW/2), 1 -> right (vW)
+      // alignY: -1 -> bottom (vH in Phaser Y-down), 0 -> center, 1 -> top (0)
+      const screenAnchorX = vW / 2 * (1 + alignX);
+      const screenAnchorY = vH / 2 * (1 - alignY);
+
+      sprite.x = depth * baseX + (1 - depth) * (scrollX + screenAnchorX);
+      sprite.y = depth * baseY + (1 - depth) * (scrollY + screenAnchorY);
     }
   }
 
@@ -391,6 +443,8 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
 
+    this.parallaxProps = [];
+
     const mergedClips = mergeRoomPropAnimationClips(data.props);
     const sorted = [...data.props].sort((a, b) => (a.data.zIndex ?? 0) - (b.data.zIndex ?? 0));
 
@@ -412,6 +466,15 @@ export class RoomScene extends Phaser.Scene {
         console.warn(`[Benne] Room prop '${spawn.id}' uses unknown Aseprite tag '${spawn.tag}'.`);
       } else {
         sprite.play(spawn.tag);
+      }
+
+      if (spawn.data.parallax !== undefined && spawn.data.parallax.depth !== 1) {
+        this.parallaxProps.push({
+          sprite,
+          baseX: spawn.x,
+          baseY: spawn.y,
+          parallax: spawn.data.parallax,
+        });
       }
 
       this.setupRoomProp(data.room.id, spawn, sprite);

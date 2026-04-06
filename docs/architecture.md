@@ -74,6 +74,46 @@ The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build 
 - **Layers**: Background image (optional, full-frame) → props sorted by **`zIndex`** (Aseprite tags as frames) → characters at fixed high depth → debug graphics on top when enabled.
 - **`PostEffects.ts`**: **`attachPostProcessingPlaceholder(this.cameras.main)`** — extension point for Phaser 4 camera filters; **no shaders shipped yet**.
 
+### Prop parallax
+
+Room props support a **`parallax`** field (`RoomPropParallax` in `src/types/room.ts`) that drives per-frame position updates in `RoomScene.update()`.
+
+**`depth`** — how much the prop moves relative to the camera scroll:
+| `depth` | Effect |
+|---------|--------|
+| `0` | Fully screen-locked (infinitely distant — e.g. sky). |
+| `0–1` | Distant; slides slower than the camera. |
+| `1` | No parallax (default world-fixed position). |
+| `>1` | Closer than the world plane; moves faster than the camera. |
+
+**`alignX` / `alignY`** — the screen-space anchor the prop converges toward as `depth → 0`.  At `depth = 1` these have no effect.
+- `alignX`: `-1` = left edge · `0` = horizontal center · `1` = right edge
+- `alignY`: `-1` = bottom · `0` = vertical center · `1` = top  (PowerQuest / Unity Y-up convention)
+
+**Formula** (computed every frame in `RoomScene.updateParallaxProps`):
+```
+screenAnchorX = viewportW / 2 * (1 + alignX)   // 0 → left, vW/2 → center, vW → right
+screenAnchorY = viewportH / 2 * (1 - alignY)   // vH → bottom, vH/2 → center, 0 → top
+
+worldX = depth * baseX + (1 − depth) * (cameraScrollX + screenAnchorX)
+worldY = depth * baseY + (1 − depth) * (cameraScrollY + screenAnchorY)
+```
+
+At `depth = 1`: `worldX = baseX` (world-fixed, identical to no parallax).  
+At `depth = 0`: `worldX = cameraScrollX + screenAnchorX` (sprite pinned to screen anchor).
+
+**Example** — sky layer that stays fixed at the top-left corner of the screen:
+```json
+"parallax": { "depth": 0, "alignX": -1, "alignY": 1 }
+```
+
+**Example** — slowly scrolling distant mountains anchored to screen left:
+```json
+"parallax": { "depth": 0.3, "alignX": -1, "alignY": 1 }
+```
+
+**Performance**: Props with `depth === 1` (or no `parallax` field) are never added to the update list — only props that actually move incur per-frame work.  The scene's `update()` is a no-op when the list is empty.
+
 ### Input system
 
 - **Walk**: **Left click** on empty space (no hit-test targets) moves the **player** character toward the click, **clamped** into **walkable regions** (`walkable.ts` — each **`WalkablePolygon`** is an outer ring minus optional **active** hole rings; union across polygons; point-in-polygon + closest-point clamping toward the click).
