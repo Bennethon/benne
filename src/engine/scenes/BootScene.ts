@@ -12,7 +12,7 @@ import { SCENE_BOOT, SCENE_ROOM } from '../../game/constants';
 import { loadCharacterData } from '../../game/loadCharacterData';
 import { loadStartRoomData } from '../../game/loadStartRoom';
 import { resolveGameAssetUrl } from '../../game/resolveGameAssetUrl';
-import type { CardinalFacingLetter, CharacterData } from '../../types/character';
+import type { CharacterFacingLetter, CharacterData } from '../../types/character';
 import type { RoomCharacterInstance, RoomData, RoomPropInstance } from '../../types/room';
 
 export type CharacterSpawnLoadKind = 'aseprite' | 'image';
@@ -25,7 +25,7 @@ export interface RoomCharacterSpawn {
   loadKind: CharacterSpawnLoadKind;
   /** `aseprite:<id>` or `char:<instanceId>` */
   textureKey: string;
-  initialFacing?: CardinalFacingLetter;
+  initialFacing?: CharacterFacingLetter;
   initialAnimation?: string;
   visible?: boolean;
   zIndex?: number;

@@ -1,4 +1,4 @@
-﻿import type { CardinalFacingLetter, CharacterAnimationsConfig } from './character';
+﻿import type { CharacterFacingLetter, CharacterAnimationsConfig } from './character';
 
 export interface Point2 {
   x: number;
@@ -72,7 +72,7 @@ export interface RoomCharacterInstance {
   x: number;
   y: number;
   /** Facing for the first directional animation (e.g. `Idle` + `L` -> `IdleL`). */
-  initialFacing?: CardinalFacingLetter;
+  initialFacing?: CharacterFacingLetter;
   /** Base name before direction suffix; default `Idle`. */
   initialAnimation?: string;
   /** When false, sprite is hidden and not interactive. Default true. */

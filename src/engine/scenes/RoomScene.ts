@@ -5,7 +5,7 @@ import {
   playDirectionalAnimation,
   resolveInitialIdleFacing,
   resolveSpawnIdleFacing,
-  type CardinalFacing,
+  type CharacterFacing,
   type DirectionalCharacterSprite,
 } from '../directionalCharacterAnimation';
 import { gameEvents } from '../events/EventBus';
@@ -294,7 +294,7 @@ export class RoomScene extends Phaser.Scene {
     this.playerMoveTween = null;
     tween.stop();
     if (emitStop && this.player) {
-      const facing = (this.player.getData('facing') as CardinalFacing | undefined) ?? resolveInitialIdleFacing(this.player);
+      const facing = (this.player.getData('facing') as CharacterFacing | undefined) ?? resolveInitialIdleFacing(this.player);
       playDirectionalAnimation(this.player, 'Idle', facing);
       gameEvents.emit(PLAYER_WALK_STOP, {
         roomId: this.roomData.id,
@@ -358,7 +358,7 @@ export class RoomScene extends Phaser.Scene {
     this.playerMoveTween = moveTween;
   }
 
-  private onPlayerWalkTweenComplete(tween: Phaser.Tweens.Tween, facing: CardinalFacing): void {
+  private onPlayerWalkTweenComplete(tween: Phaser.Tweens.Tween, facing: CharacterFacing): void {
     if (this.playerMoveTween !== tween) {
       return;
     }
@@ -382,7 +382,7 @@ export class RoomScene extends Phaser.Scene {
     this.playerMoveTween = null;
     if (this.player) {
       const facing =
-        (this.player.getData('facing') as CardinalFacing | undefined) ?? resolveInitialIdleFacing(this.player);
+        (this.player.getData('facing') as CharacterFacing | undefined) ?? resolveInitialIdleFacing(this.player);
       playDirectionalAnimation(this.player, 'Idle', facing);
     }
     gameEvents.emit(PLAYER_WALK_STOP, {
