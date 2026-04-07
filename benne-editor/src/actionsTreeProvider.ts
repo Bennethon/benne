@@ -96,7 +96,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             case 'addRoomPoint': {
                 const item = new vscode.TreeItem('Add Point', vscode.TreeItemCollapsibleState.None);
                 item.id = 'action:addRoomPoint';
-                item.iconPath = new vscode.ThemeIcon('target');
+                item.iconPath = new vscode.ThemeIcon('pinned');
                 item.contextValue = 'benneActionAddPoint';
                 item.command = {
                     command: 'benne-editor.addRoomPoint',

@@ -154,7 +154,7 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 const item = new vscode.TreeItem(element.pointId, vscode.TreeItemCollapsibleState.None);
                 item.id = `roomPoint:${element.roomJsonUri.toString()}:${element.pointId}`;
                 item.description = 'point';
-                item.iconPath = new vscode.ThemeIcon('target');
+                item.iconPath = new vscode.ThemeIcon('pinned');
                 item.contextValue = 'benneRoomPoint';
                 return item;
             }

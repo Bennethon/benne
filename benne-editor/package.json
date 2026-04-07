@@ -115,7 +115,7 @@
         "command": "benne-editor.addRoomPoint",
         "title": "Add Point",
         "category": "BENNE",
-        "icon": "$(target)"
+        "icon": "$(pinned)"
       },
       {
         "command": "benne-editor.addRoomRegion",
