@@ -27,6 +27,25 @@ export type VerbInteractTarget =
   | { type: 'hotspot'; hotspotId: string; roomId: string; description?: string }
   | { type: 'character'; characterId: string; instanceId: string; roomId: string; description?: string };
 
+/**
+ * Payload for {@link VERB_GLOBAL_FALLBACK_EVENT} and {@link globalVerbHandlerEventId} emissions
+ * (flat object from `dispatchVerb`; which optional ids are set depends on target type).
+ */
+export type VerbGlobalFallbackPayload = {
+  verbId: string;
+  roomId: string;
+  description?: string;
+  propId?: string;
+  tag?: string;
+  hotspotId?: string;
+  characterId?: string;
+  instanceId?: string;
+  walkToPoint?: Point2;
+  lookAtPoint?: Point2;
+  kind?: 'look' | 'use';
+  verbFallback?: boolean;
+};
+
 export type VerbUnhandledPayload = {
   verbId: string;
   target: VerbInteractTarget;
