@@ -55,7 +55,7 @@ The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build 
 - **Room size** (`RoomData.size`): the physical extent of the room in game-world pixels.  Controls camera bounds, walkable-area extent, and whether `startFollow` is activated.  The background image and Aseprite prop sheets render at their **own natural dimensions** — `size` does **not** scale the art.  Setting `size` smaller than the art restricts the camera to a sub-region of the art, which is valid (e.g. the art bleeds beyond the playable area).  Matches PowerQuest's "Room Bounds."
 
 - **Scroll bounds** (`RoomData.scrollBounds`): optional `{ x, y, width, height }` in room space that restricts how far `cameras.main` may pan within the room.  When omitted the camera pans anywhere within `size`.  Making `scrollBounds` narrower than `size` keeps the camera away from room edges (the camera is "less eager" to scroll to the edge).  Making `scrollBounds` equal to `size` lets the camera pan all the way to the edge.  Implemented via `cameras.main.setBounds(scrollBounds)`.  Matches PowerQuest's "Scroll Bounds."
-- **`RoomScene.setupRoomCamera`** (private): called at the end of `create` after characters spawn. Sets `cameras.main.setBounds` from `scrollBounds` (or room size) and calls `cameras.main.startFollow(player, true)` when the room is larger than the viewport and a player exists.
+- **`RoomScene.setupRoomCamera`** (private): called at the end of `create` after characters spawn. Sets `cameras.main.setBounds` from `scrollBounds` (or room size). When the room is larger than the viewport and a player exists, **`applyPlayerCameraFollow`** calls `startFollow` with an offset derived from **`CharacterData.feet`** so the camera tracks the character’s **feet** (see **`src/engine/characterFeet.ts`**), not the sprite’s top-left.
 - **`RoomScene.setEditorCameraMode(mode)`** (public): called by the editor's `RoomPolygonEditScene` whenever the toolbar mode changes. Stores the current mode so it can be re-applied on panel resize. Two behaviours: `'navigate'` — letterboxes the game's virtual resolution (352×198) inside the panel using `cameras.main.setViewport`, sets zoom to fill that box, and re-activates player follow + scroll bounds for game-accurate preview; `'edit'` — expands the camera to fill the entire panel (`setViewport(0,0,panelW,panelH)`), computes `zoom = min(panelW/roomW, panelH/roomH)` to fit the full room art, sets bounds to room bounds, and disables player follow so the authoring view is stable. The `scale.on('resize')` hook re-invokes `setEditorCameraMode` automatically when the VS Code panel is resized.
 - **Background and props** render at their **natural texture dimensions** — `room.size` does **not** call `setDisplaySize`. Art that extends beyond `room.size` is simply not scrolled into view.
 - **Hotspot zones** are sized to `room.size` so polygon hit areas only cover the playable area.
@@ -76,43 +76,28 @@ The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build 
 
 ### Prop parallax
 
-Room props support a **`parallax`** field (`RoomPropParallax` in `src/types/room.ts`) that drives per-frame position updates in `RoomScene.update()`.
+Room props may set **`parallaxDepth`** (`RoomPropInstance` in `src/types/room.ts`). Each frame, `RoomScene.updateParallaxProps` blends the prop’s authored position with the **top-left of the camera’s visible world rectangle** (`camera.worldView`), not raw `scrollX` / `scrollY` (those diverge from the visible corner when zoom ≠ 1, which breaks editor navigate mode):
 
-**`depth`** — how much the prop moves relative to the camera scroll:
-| `depth` | Effect |
-|---------|--------|
-| `0` | Fully screen-locked (infinitely distant — e.g. sky). |
-| `0–1` | Distant; slides slower than the camera. |
-| `1` | No parallax (default world-fixed position). |
-| `>1` | Closer than the world plane; moves faster than the camera. |
-
-**`alignX` / `alignY`** — the screen-space anchor the prop converges toward as `depth → 0`.  At `depth = 1` these have no effect.
-- `alignX`: `-1` = left edge · `0` = horizontal center · `1` = right edge
-- `alignY`: `-1` = bottom · `0` = vertical center · `1` = top  (PowerQuest / Unity Y-up convention)
-
-**Formula** (computed every frame in `RoomScene.updateParallaxProps`):
 ```
-screenAnchorX = viewportW / 2 * (1 + alignX)   // 0 → left, vW/2 → center, vW → right
-screenAnchorY = viewportH / 2 * (1 - alignY)   // vH → bottom, vH/2 → center, 0 → top
-
-worldX = depth * baseX + (1 − depth) * (cameraScrollX + screenAnchorX)
-worldY = depth * baseY + (1 − depth) * (cameraScrollY + screenAnchorY)
+worldX = parallaxDepth * baseX + (1 − parallaxDepth) * camera.worldView.x
+worldY = parallaxDepth * baseY + (1 − parallaxDepth) * camera.worldView.y
 ```
 
-At `depth = 1`: `worldX = baseX` (world-fixed, identical to no parallax).  
-At `depth = 0`: `worldX = cameraScrollX + screenAnchorX` (sprite pinned to screen anchor).
+(`baseX` / `baseY` are the prop’s authored `x` / `y` in room space.)
 
-**Example** — sky layer that stays fixed at the top-left corner of the screen:
+| `parallaxDepth` | Effect |
+|-----------------|--------|
+| `0` | Sprite position tracks camera scroll origin (moves fully with the camera). |
+| `0–1` | Distant; moves slower than the camera. |
+| `1` | No parallax (default if the field is omitted); world-fixed at authored position. |
+| `>1` | Foreground; moves faster than the camera. |
+
+**Example** — distant layer at half camera coupling:
 ```json
-"parallax": { "depth": 0, "alignX": -1, "alignY": 1 }
+"parallaxDepth": 0.5
 ```
 
-**Example** — slowly scrolling distant mountains anchored to screen left:
-```json
-"parallax": { "depth": 0.3, "alignX": -1, "alignY": 1 }
-```
-
-**Performance**: Props with `depth === 1` (or no `parallax` field) are never added to the update list — only props that actually move incur per-frame work.  The scene's `update()` is a no-op when the list is empty.
+**Performance**: Props with `parallaxDepth === 1` or no `parallaxDepth` are not added to the parallax update list. The scene’s `update()` skips work when that list is empty.
 
 ### Input system
 
@@ -120,6 +105,10 @@ At `depth = 0`: `worldX = cameraScrollX + screenAnchorX` (sprite pinned to scree
 - **Props**: **Polygon hit area** per clickable prop; **left** = look (`onLook` string), **right** = use (`onUse`) when defined. Requires `walkToPoint`, `lookAtPoint`, and collider in JSON.
 - **Characters / hotspots**: **Zones or sprites** with `pointerdown`; characters emit look events without the walk-to-stand flow unless extended later. **Hotspots** in JSON may use a **`points`** polygon (≥3 vertices, room space) with optional **`active`**, **`zIndex`**, **`walkToPoint`**, **`lookAtPoint`**, **`description`**, and **`onLook`** / **`onUse`**; legacy axis-aligned **`x` / `y` / `width` / `height`** still work when there is no usable polygon (**`src/types/room.ts`**, **`RoomScene.createHotspot`**).
 - **Context menu** disabled on mouse in `RoomScene`.
+
+### Character feet (walk / camera)
+
+Optional **`feet`** on **`CharacterData`** (`src/types/character.ts`): **`{ "x", "y" }`** in **frame pixel space** from the cel’s **top-left** to the ground contact. The runtime places Aseprite sprites with **`origin (0,0)`** and offsets position so room spawn **`(x, y)`** is where the feet stand; walk tweens and camera follow use the same point. If **`feet`** is omitted, the engine uses the **bottom-centre** of the **current** frame (works best when cels share a consistent size). The VS Code **BENNE Character preview** webview (`npm run build:character-preview`) plays a default idle (prefers **`IdleD`**, then other **`Idle*`** tags), shows a draggable feet marker, and **Save feet to JSON** writes **`feet`** into **`*.character.json`**.
 
 ### Character directional animation (facing)
 
@@ -237,7 +226,7 @@ The extension can **generate files** under **`src/game/`** so new content matche
 | **Add Region** | **`runAddRoomRegionWizard`**: appends **`regions[]`** with **`active`** and the same **default centered square** polygon as **Add Hotspot** (no walk/look). |
 | **Import Props from Aseprite Tags** | **`runImportPropsFromAsepriteTags`**: resolves room (tree or picker); reads **`meta.frameTags`** from **`src/game/assets/images/rooms/<roomId>/<roomId>.json`**. Multi-select quick pick (existing tags labeled); optional **clickable** for the whole batch; unique **`${roomId}-prop-…`** ids via **`allocateUniquePropId`**. Same post-step layout + **`openRoomJsonAndScriptBottomGroup`** as **Add Prop**. |
 | **Create Character** | **`runCreateCharacterWizard`**: folder pick, **display name**, **character id** (slug); creates **`src/game/characters/<id>/`**, **`<id>.character.json`** (minimal fields incl. **`display.aseprite: true`**), **`<id>.character.ts`** stub (runtime does **not** auto-load **`*.character.ts`** yet — comment in file), and **`src/game/assets/images/characters/<id>/`**. Opens JSON + TS. |
-| **Import Animations from Aseprite Tags** | **`runImportAnimationsFromAsepriteTags`**: requires **`display.aseprite: true`**; resolves character (tree or picker); reads **`meta.frameTags`** from **`src/game/assets/images/characters/<id>/<id>.json`**. Multi-select quick pick (keys already in **`animations`** labeled). New clips use **`{ "loop": true }`** per **`CharacterAnimationClipConfig`** (`src/types/character.ts` — keys **must match** Aseprite tag names). Merges into **`animations`**; then single-column layout + **`openCharacterJsonAndScriptPinned`**. |
+| **Import Animations from Aseprite Tags** | **`runImportAnimationsFromAsepriteTags`**: requires **`display.aseprite: true`**; resolves character (tree or picker); reads **`meta.frameTags`** from **`src/game/assets/images/characters/<id>/<id>.json`**. Multi-select quick pick (keys already in **`animations`** labeled). New clips use **`{ "loop": true }`** per **`CharacterAnimationClipConfig`** (`src/types/character.ts` — keys **must match** Aseprite tag names). Merges into **`animations`**; then **two-row** layout + **`openCharacterJsonAndScriptBottomGroup`** (character preview on top when a character is selected in the tree). |
 
 **UI entry points**: BENNE **main tree** view title (**Create New Room**, **Create Character**), context menus on **Rooms** / **workspace** / **room** / **hotspot** / **point** / **region** / **prop** / **character** nodes (see **`package.json`** **`menus`** — includes **Add Hotspot** / **Add Point** / **Add Region** on **room** and those child types). Under each **room** node, the tree lists **hotspots**, **points**, **regions**, then **props** (distinct icons: e.g. **map** / **target** / **layout-panel** / **symbol-misc**); **`mainTreeProvider.ts`** reads **`hotspots`**, **`points`**, and **`regions`** from JSON via **`readRoomHotspots`**, **`readRoomPoints`**, and **`readRoomRegions`** in **`gameDiscovery.ts`**. **Actions** tree when a **room** is focused: **Add Hotspot**, **Add Point**, **Add Region**, **Add Prop**, **Import Props from Aseprite Tags**, then room-open shortcuts; **prop**-focused actions still prepend the same scaffold commands and append prop verb rows (**`actionsTreeProvider.ts`**). Tree selection for **hotspot** / **point** / **region** updates **`EditorSelection.roomPanel`** (**`editorSelection.ts`**) so the preview toolbar matches. Commands **`benne-editor.addRoomHotspot`**, **`addRoomPoint`**, **`addRoomRegion`** are registered in **`extension.ts`** / **`package.json`**. **`validateSlug`** / **`pickWorkspaceFolder`** are shared helpers (**`roomScaffolding.ts`**).
 
@@ -252,6 +241,9 @@ The extension can **generate files** under **`src/game/`** so new content matche
 | **`previewPolygonOverlay.ts`** | Stacked `<canvas>` above the Phaser canvas. **`worldToCanvasCss(p, cam)`** uses the Phaser 4 origin-aware formula `(cam.zoomX * (world - scroll - origin) + origin + cam.x) / displayScale` — critical because Phaser 4 cameras default to `originX = originY = 0.5` (zoom from viewport centre); the simpler `(world - scroll) * zoom` formula only works at zoom = 1. **`domToWorld(pageX, pageY, cam)`** uses `scale.transformX/Y` + `cam.getWorldPoint`. **`clearAndDraw(state, cam)`** draws polygon handles. **`clearAndDrawRect(state, cam)`** draws an 8-handle resize rectangle with optional locked handles (used for room size where the origin corner is fixed). |
 | **`polygonEditBridge.ts`** | **Mode** (`navigate` \| `walkable` \| `propCollider` \| `hotspotPolygon` \| `regionPolygon` \| `roomPoint` \| **`roomSize`** \| **`scrollBounds`**); **`walkablePolygonId`**, **`walkableHoleId`** (empty = outer ring); **`propId`**, **`hotspotId`**, **`regionId`**, **`roomPointId`**; **`subscribe`** notifies the polygon scene. Mode changes drive both input gating and `RoomScene.setEditorCameraMode`. |
 | **`polygonPatchTypes.ts`** | **`RoomPolygonPatch`**: `walkable` \| `propCollider` \| `hotspotPolygon` \| `regionPolygon` \| `roomPoint` \| **`roomSize`** (`{ width, height }`) \| **`scrollBounds`** (`{ x, y, width, height }`). All kinds mirrored in **`benne-editor/src/roomPolygonPatch.ts`** which validates, integer-rounds, and persists to `*.room.json`. |
+| **`characterEditorMain.ts`** | Character preview webview: loads **`benne/charPreview/loadCharacter`** (JSON + **`gameSrcWebviewUri`** + **`characterId`**), **`createCharacterPreviewPhaserGame`**, draggable feet marker, **`Save feet`** → **`benne/charPreview/saveFeet`**; **`pickCharacterPreviewIdleTag`** prefers **`IdleD`** then other **`Idle*`** tags. |
+| **`createCharacterPreviewGame.ts`** | Minimal **`Phaser.Game`** (**`Scale.RESIZE`**) with boot loader + **`CharacterPreviewScene`** (Aseprite idle + feet drag). |
+| **`characterPreviewPanel.ts`** (extension) | **`CharacterPreviewPanelController`**: webview panel **`benneCharacterPreview`**, **`applyCharacterFeetPatch`** (**`characterFeetPatch.ts`**) on save. Rebuild via **`npm run build:character-preview`** (**`benne-editor.rebuildCharacterPreview`**). |
 
 ### High-DPI editor overlay
 

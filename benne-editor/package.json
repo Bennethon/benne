@@ -23,7 +23,8 @@
     "onCommand:benne-editor.addRoomRegion",
     "onCommand:benne-editor.createCharacter",
     "onCommand:benne-editor.importAnimationsFromAsepriteTags",
-    "onCommand:benne-editor.rebuildRoomPreview"
+    "onCommand:benne-editor.rebuildRoomPreview",
+    "onCommand:benne-editor.rebuildCharacterPreview"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -139,6 +140,12 @@
         "title": "Rebuild Room Preview Bundle",
         "category": "BENNE",
         "icon": "$(sync)"
+      },
+      {
+        "command": "benne-editor.rebuildCharacterPreview",
+        "title": "Rebuild Character Preview Bundle",
+        "category": "BENNE",
+        "icon": "$(sync)"
       }
     ],
     "configuration": {
@@ -161,24 +168,34 @@
     "menus": {
       "view/title": [
         {
-          "command": "benne-editor.rebuildRoomPreview",
+          "command": "benne-editor.createRoom",
           "when": "view == benne-editor.main",
           "group": "navigation@0"
+        },
+        {
+          "command": "benne-editor.rebuildRoomPreview",
+          "when": "view == benne-editor.main",
+          "group": "navigation@1"
         },
         {
           "command": "benne-editor.rebuildRoomPreview",
           "when": "view == benne-editor.actions",
-          "group": "navigation@0"
-        },
-        {
-          "command": "benne-editor.createRoom",
-          "when": "view == benne-editor.main",
           "group": "navigation@1"
         },
         {
           "command": "benne-editor.createCharacter",
           "when": "view == benne-editor.main",
           "group": "navigation@2"
+        },
+        {
+          "command": "benne-editor.rebuildCharacterPreview",
+          "when": "view == benne-editor.main",
+          "group": "navigation@3"
+        },
+        {
+          "command": "benne-editor.rebuildCharacterPreview",
+          "when": "view == benne-editor.actions",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -258,6 +275,7 @@
   "scripts": {
     "vscode:prepublish": "npm run package",
     "build:room-preview": "npm --prefix .. run build:room-preview",
+    "build:character-preview": "npm --prefix .. run build:character-preview",
     "compile": "webpack",
     "watch": "webpack --watch",
     "package": "webpack --mode production --devtool hidden-source-map",

@@ -18,11 +18,18 @@ import {
 import { applyCharacterAnimationClips, setupCharacterAsepritePlayback } from '../characterAnimationPlayback';
 import { getGameSettings } from '../ConfigManager';
 import { attachPostProcessingPlaceholder } from '../postfx/PostEffects';
+import {
+  cameraFollowOffsetForFeet,
+  getCharacterWorldFeet,
+  placeSpriteByFeet,
+  resolveCharacterFeetLocal,
+} from '../characterFeet';
 import { clampWalkDestinationTowardClick } from '../walkable';
 import type { RoomPropInteractPayload } from '../events/propInteractionEvents';
 import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
-import type { RoomData, RoomHotspotData, RoomPropParallax } from '../../types/room';
+import type { CharacterData } from '../../types/character';
+import type { RoomData, RoomHotspotData } from '../../types/room';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
 
 /** Ignore walk clicks when already within this many pixels of the target. */
@@ -33,6 +40,18 @@ const CHARACTER_SCENE_DEPTH = 10_000;
 
 /** Walkable / prop debug strokes render above characters. */
 const DEBUG_OVERLAY_DEPTH = 20_000;
+
+/** `startFollow` offset so the camera tracks {@link getCharacterWorldFeet}, not the sprite top-left. */
+function getFeetFollowOffset(player: Phaser.GameObjects.Sprite): { x: number; y: number } {
+  const lx = player.getData('feetLocalX') as number | undefined;
+  const ly = player.getData('feetLocalY') as number | undefined;
+  if (typeof lx === 'number' && typeof ly === 'number') {
+    return cameraFollowOffsetForFeet({ x: lx, y: ly });
+  }
+  const data = player.getData('character') as CharacterData | undefined;
+  const feet = data ? resolveCharacterFeetLocal(data, player) : { x: player.frame.width * 0.5, y: player.frame.height };
+  return cameraFollowOffsetForFeet(feet);
+}
 
 /** Outline color for `debug.showWalkable` (green). */
 const DEBUG_WALKABLE_STROKE = 0x33dd66;
@@ -73,7 +92,7 @@ export class RoomScene extends Phaser.Scene {
     sprite: Phaser.GameObjects.Sprite;
     baseX: number;
     baseY: number;
-    parallax: RoomPropParallax;
+    parallaxDepth: number;
   }> = [];
 
   constructor() {
@@ -108,6 +127,7 @@ export class RoomScene extends Phaser.Scene {
     data.characters.forEach((spawn) => this.spawnCharacter(data.room.id, spawn));
 
     this.setupRoomCamera(roomW, roomH);
+    this.applyPlayerCameraFollow(roomW, roomH);
     this.drawRoomDebugOverlays(data);
 
     this.input.mouse?.disableContextMenu();
@@ -123,8 +143,6 @@ export class RoomScene extends Phaser.Scene {
 
   /** Configures camera bounds and player follow for the current room. */
   private setupRoomCamera(roomW: number, roomH: number): void {
-    const vW = getInternalWidth();
-    const vH = getInternalHeight();
     const sb = this.roomData.scrollBounds;
     this.cameras.main.setBounds(
       sb?.x ?? 0,
@@ -132,9 +150,17 @@ export class RoomScene extends Phaser.Scene {
       sb?.width ?? roomW,
       sb?.height ?? roomH,
     );
-    if (this.player && (roomW > vW || roomH > vH)) {
-      this.cameras.main.startFollow(this.player, true);
+  }
+
+  /** Starts follow on the player’s feet (see `CharacterData.feet`). */
+  private applyPlayerCameraFollow(roomW: number, roomH: number): void {
+    const vW = getInternalWidth();
+    const vH = getInternalHeight();
+    if (!this.player || (roomW <= vW && roomH <= vH)) {
+      return;
     }
+    const feet = getFeetFollowOffset(this.player);
+    this.cameras.main.startFollow(this.player, true, 1, 1, feet.x, feet.y);
   }
 
   update(): void {
@@ -142,15 +168,10 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Repositions parallax props based on the current camera scroll.
-   *
-   * The formula blends between the prop's fixed world position (`depth = 1`) and a
-   * fully screen-locked position (`depth = 0`):
-   *
-   *   worldX = depth * baseX + (1 - depth) * (scrollX + screenAnchorX)
-   *
-   * `screenAnchorX` is derived from `alignX`: -1 = left edge (0), 0 = center (vW/2), 1 = right edge (vW).
-   * `screenAnchorY` is derived from `alignY` with the Y-up convention: -1 = bottom (vH), 1 = top (0).
+   * Repositions parallax props: blends authored world `(x,y)` with the top-left of the visible
+   * world rect (`camera.worldView`). Using `scrollX`/`scrollY` is wrong when zoom ≠ 1 (e.g. editor
+   * navigate mode letterboxes with `setZoom(scale)`); `worldView` matches what the player sees and
+   * stays stable when only the preview panel size changes.
    */
   private updateParallaxProps(): void {
     if (this.parallaxProps.length === 0) {
@@ -158,25 +179,13 @@ export class RoomScene extends Phaser.Scene {
     }
 
     const cam = this.cameras.main;
-    const scrollX = cam.scrollX;
-    const scrollY = cam.scrollY;
-    const vW = getInternalWidth();
-    const vH = getInternalHeight();
+    const anchorX = cam.worldView.x;
+    const anchorY = cam.worldView.y;
 
     for (const entry of this.parallaxProps) {
-      const { sprite, baseX, baseY, parallax } = entry;
-      const depth = parallax.depth;
-      const alignX = parallax.alignX ?? 0;
-      const alignY = parallax.alignY ?? 0;
-
-      // Screen-space anchor: where the prop converges as depth -> 0.
-      // alignX: -1 -> left (0), 0 -> center (vW/2), 1 -> right (vW)
-      // alignY: -1 -> bottom (vH in Phaser Y-down), 0 -> center, 1 -> top (0)
-      const screenAnchorX = vW / 2 * (1 + alignX);
-      const screenAnchorY = vH / 2 * (1 - alignY);
-
-      sprite.x = depth * baseX + (1 - depth) * (scrollX + screenAnchorX);
-      sprite.y = depth * baseY + (1 - depth) * (scrollY + screenAnchorY);
+      const { sprite, baseX, baseY, parallaxDepth: d } = entry;
+      sprite.x = d * baseX + (1 - d) * anchorX;
+      sprite.y = d * baseY + (1 - d) * anchorY;
     }
   }
 
@@ -232,7 +241,8 @@ export class RoomScene extends Phaser.Scene {
       );
 
       if (this.player && (roomW > gameW || roomH > gameH)) {
-        cam.startFollow(this.player, true);
+        const feet = getFeetFollowOffset(this.player);
+        cam.startFollow(this.player, true, 1, 1, feet.x, feet.y);
       } else {
         cam.stopFollow();
       }
@@ -267,9 +277,10 @@ export class RoomScene extends Phaser.Scene {
 
     const { x: worldX, y: worldY } = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
 
+    const feet = getCharacterWorldFeet(this.player);
     const dest = clampWalkDestinationTowardClick(
-      this.player.x,
-      this.player.y,
+      feet.x,
+      feet.y,
       worldX,
       worldY,
       this.roomData.walkable.polygons,
@@ -312,8 +323,22 @@ export class RoomScene extends Phaser.Scene {
     const walkSpeed = sprite.getData('walkSpeed') as number | undefined;
     const speed = typeof walkSpeed === 'number' && walkSpeed > 0 ? walkSpeed : 88;
 
-    const dx = destX - sprite.x;
-    const dy = destY - sprite.y;
+    let lx = sprite.getData('feetLocalX') as number | undefined;
+    let ly = sprite.getData('feetLocalY') as number | undefined;
+    if (typeof lx !== 'number' || typeof ly !== 'number') {
+      const data = sprite.getData('character') as CharacterData | undefined;
+      const resolved = data
+        ? resolveCharacterFeetLocal(data, sprite)
+        : { x: sprite.frame.width * 0.5, y: sprite.frame.height };
+      lx = resolved.x;
+      ly = resolved.y;
+      sprite.setData('feetLocalX', lx);
+      sprite.setData('feetLocalY', ly);
+    }
+
+    const feetNow = getCharacterWorldFeet(sprite);
+    const dx = destX - feetNow.x;
+    const dy = destY - feetNow.y;
     const distance = Math.hypot(dx, dy);
     if (distance < MIN_WALK_DISTANCE_PX) {
       onArrive?.();
@@ -343,8 +368,8 @@ export class RoomScene extends Phaser.Scene {
 
     const moveTween = this.tweens.add({
       targets: sprite,
-      x: destX,
-      y: destY,
+      x: destX - lx,
+      y: destY - ly,
       duration: durationMs,
       ease: 'Linear',
       onComplete: () => {
@@ -468,12 +493,13 @@ export class RoomScene extends Phaser.Scene {
         sprite.play(spawn.tag);
       }
 
-      if (spawn.data.parallax !== undefined && spawn.data.parallax.depth !== 1) {
+      const pd = spawn.data.parallaxDepth;
+      if (pd !== undefined && pd !== 1) {
         this.parallaxProps.push({
           sprite,
           baseX: spawn.x,
           baseY: spawn.y,
-          parallax: spawn.data.parallax,
+          parallaxDepth: pd,
         });
       }
 
@@ -548,9 +574,10 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
 
+    const feet = getCharacterWorldFeet(player);
     const dest = clampWalkDestinationTowardClick(
-      player.x,
-      player.y,
+      feet.x,
+      feet.y,
       walk.x,
       walk.y,
       this.roomData.walkable.polygons,
@@ -579,7 +606,8 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
 
-    const facing = facingFromWorldDelta(lookAtX - player.x, lookAtY - player.y);
+    const pf = getCharacterWorldFeet(player);
+    const facing = facingFromWorldDelta(lookAtX - pf.x, lookAtY - pf.y);
     playDirectionalAnimation(player, 'Idle', facing);
 
     const label = kind === 'use' ? 'USE' : 'LOOK';
@@ -644,7 +672,9 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
 
-    const sprite = this.add.image(spawn.x, spawn.y, spawn.textureKey).setOrigin(0.5, 1);
+    const sprite = this.add.image(0, 0, spawn.textureKey);
+    const feet = resolveCharacterFeetLocal(spawn.data, sprite as Phaser.GameObjects.Sprite);
+    placeSpriteByFeet(sprite as Phaser.GameObjects.Sprite, feet, spawn.x, spawn.y);
     sprite.setDepth(CHARACTER_SCENE_DEPTH + (spawn.zIndex ?? 0));
     sprite.setVisible(spawn.visible !== false);
     sprite.setData('character', spawn.data);
@@ -654,7 +684,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private spawnAsepriteCharacter(roomId: string, spawn: RoomCharacterSpawn): void {
-    const sprite = this.add.sprite(spawn.x, spawn.y, spawn.textureKey).setOrigin(0.5, 1);
+    const sprite = this.add.sprite(0, 0, spawn.textureKey);
     sprite.setDepth(CHARACTER_SCENE_DEPTH + (spawn.zIndex ?? 0));
     sprite.setVisible(spawn.visible !== false);
     sprite.setData('character', spawn.data);
@@ -670,6 +700,9 @@ export class RoomScene extends Phaser.Scene {
     const animBase = spawn.initialAnimation ?? 'Idle';
     const facing = resolveSpawnIdleFacing(sprite, spawn.initialFacing);
     playDirectionalAnimation(sprite, animBase, facing);
+
+    const feet = resolveCharacterFeetLocal(spawn.data, sprite);
+    placeSpriteByFeet(sprite, feet, spawn.x, spawn.y);
 
     this.attachCharacterInteraction(roomId, spawn, sprite);
 

@@ -36,6 +36,21 @@ export async function openCharacterJsonAndScriptPinned(
     }
 }
 
+/** Character preview row + JSON / `*.character.ts` in the bottom editor group (same as room layout). */
+export async function openCharacterJsonAndScriptBottomGroup(
+    characterJsonUri: vscode.Uri,
+    characterId: string
+): Promise<void> {
+    await openDocumentPinned(characterJsonUri, BENNE_ROOM_SOURCES_VIEW_COLUMN);
+    const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
+    try {
+        await vscode.workspace.fs.stat(scriptUri);
+        await openDocumentPinned(scriptUri, BENNE_ROOM_SOURCES_VIEW_COLUMN);
+    } catch {
+        /* optional *.character.ts */
+    }
+}
+
 /** Open a normal (pinned) editor tab; multiple documents can stay open in the same group. */
 export async function openDocumentPinned(
     uri: vscode.Uri,

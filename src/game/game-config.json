@@ -3,7 +3,7 @@
     "width": 352,
     "height": 198
   },
-  "startingPlayerCharacter": "clerk",
+  "startingPlayerCharacter": "henry",
   "startingRoomId": "outsideOffice",
   "audio": {
     "masterVolume": 1,
@@ -12,7 +12,7 @@
     "dialogueVolume": 1
   },
   "debug": {
-    "showWalkable": false,
+    "showWalkable": true,
     "showPropOutlines": false
   }
 }

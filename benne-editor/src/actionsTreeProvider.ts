@@ -33,7 +33,8 @@ export type ActionTreeNode =
       }
     | { kind: 'charOpen'; label: string; characterJsonUri: vscode.Uri }
     | { kind: 'importCharAnimationsFromAseprite' }
-    | { kind: 'rebuildRoomPreviewBundle' };
+    | { kind: 'rebuildRoomPreviewBundle' }
+    | { kind: 'rebuildCharacterPreviewBundle' };
 
 export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNode> {
     private readonly _onDidChangeTreeData = new vscode.EventEmitter<ActionTreeNode | undefined | void>();
@@ -214,6 +215,22 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 };
                 return item;
             }
+            case 'rebuildCharacterPreviewBundle': {
+                const item = new vscode.TreeItem(
+                    'Rebuild character preview bundle',
+                    vscode.TreeItemCollapsibleState.None
+                );
+                item.id = 'action:rebuildCharacterPreviewBundle';
+                item.iconPath = new vscode.ThemeIcon('sync');
+                item.contextValue = 'benneActionRebuildCharacterPreview';
+                item.description = 'npm run build:character-preview';
+                item.command = {
+                    command: 'benne-editor.rebuildCharacterPreview',
+                    title: 'Rebuild character preview bundle',
+                    arguments: []
+                };
+                return item;
+            }
         }
     }
 
@@ -272,7 +289,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
 
         if (main.kind === 'character') {
             return [
-                { kind: 'rebuildRoomPreviewBundle' },
+                { kind: 'rebuildCharacterPreviewBundle' },
                 ...(await this.characterActionNodes(main.uri))
             ];
         }
