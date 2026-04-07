@@ -32,7 +32,8 @@ export type ActionTreeNode =
           characterId: string;
       }
     | { kind: 'charOpen'; label: string; characterJsonUri: vscode.Uri }
-    | { kind: 'importCharAnimationsFromAseprite' };
+    | { kind: 'importCharAnimationsFromAseprite' }
+    | { kind: 'rebuildRoomPreviewBundle' };
 
 export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNode> {
     private readonly _onDidChangeTreeData = new vscode.EventEmitter<ActionTreeNode | undefined | void>();
@@ -197,6 +198,22 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 };
                 return item;
             }
+            case 'rebuildRoomPreviewBundle': {
+                const item = new vscode.TreeItem(
+                    'Rebuild room preview bundle',
+                    vscode.TreeItemCollapsibleState.None
+                );
+                item.id = 'action:rebuildRoomPreviewBundle';
+                item.iconPath = new vscode.ThemeIcon('sync');
+                item.contextValue = 'benneActionRebuildRoomPreview';
+                item.description = 'npm run build:room-preview';
+                item.command = {
+                    command: 'benne-editor.rebuildRoomPreview',
+                    title: 'Rebuild room preview bundle',
+                    arguments: []
+                };
+                return item;
+            }
         }
     }
 
@@ -205,6 +222,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         const roomPanel = this.selection.roomPanel;
 
         if (main.kind === 'room') {
+            const rebuild: ActionTreeNode = { kind: 'rebuildRoomPreviewBundle' };
             const addHotspot: ActionTreeNode = { kind: 'addRoomHotspot' };
             const addPoint: ActionTreeNode = { kind: 'addRoomPoint' };
             const addRegion: ActionTreeNode = { kind: 'addRoomRegion' };
@@ -237,6 +255,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             ];
 
             const scaffold: ActionTreeNode[] = [
+                rebuild,
                 addHotspot,
                 addPoint,
                 addRegion,
@@ -252,10 +271,14 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         }
 
         if (main.kind === 'character') {
-            return this.characterActionNodes(main.uri);
+            return [
+                { kind: 'rebuildRoomPreviewBundle' },
+                ...(await this.characterActionNodes(main.uri))
+            ];
         }
 
         return [
+            { kind: 'rebuildRoomPreviewBundle' },
             {
                 kind: 'hint',
                 message: 'Select a room, character, or prop (under a room) in BENNE'
