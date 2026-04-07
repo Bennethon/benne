@@ -3,6 +3,16 @@
     "width": 352,
     "height": 198
   },
+  "verbs": [
+    { "id": "look", "label": "Look at" },
+    { "id": "use", "label": "Use" }
+  ],
+  "inputProfile": {
+    "kind": "twoVerb",
+    "primaryButtonVerb": "use",
+    "secondaryButtonVerb": "look"
+  },
+  "defaultFallbackLine": "You can't do that.",
   "startingPlayerCharacter": "clerk",
   "startingRoomId": "office",
   "audio": {

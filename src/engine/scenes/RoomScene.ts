@@ -25,7 +25,14 @@ import {
   resolveCharacterFeetLocal,
 } from '../characterFeet';
 import { clampWalkDestinationTowardClick } from '../walkable';
-import type { RoomPropInteractPayload } from '../events/propInteractionEvents';
+import { dispatchVerbInteraction } from '../verbs/dispatchVerb';
+import {
+  getCharacterVerbHandlers,
+  getHotspotVerbHandlers,
+  getPropVerbHandlers,
+} from '../verbs/normalizeHandlers';
+import { getEffectiveTwoVerbProfile } from '../verbs/verbConfig';
+import { resolveVerbIdFromPointer } from '../verbs/resolvePointerVerb';
 import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
@@ -521,10 +528,6 @@ export class RoomScene extends Phaser.Scene {
       console.warn(`[Benne] Clickable prop '${spawn.id}' needs a collider polygon (at least 3 points).`);
       return;
     }
-    if (!d.walkToPoint || !d.lookAtPoint) {
-      console.warn(`[Benne] Clickable prop '${spawn.id}' needs walkToPoint and lookAtPoint.`);
-      return;
-    }
 
     const flat = pts.flatMap((p) => [p.x - spawn.x, p.y - spawn.y]);
     const poly = new Phaser.Geom.Polygon(flat);
@@ -535,90 +538,33 @@ export class RoomScene extends Phaser.Scene {
     });
 
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.leftButtonDown() && spawn.data.onLook) {
-        this.beginPropInteraction(roomId, spawn, spawn.data.onLook, 'look');
+      const profile = getEffectiveTwoVerbProfile(getGameSettings());
+      const verbId = resolveVerbIdFromPointer(pointer, profile);
+      if (!verbId) {
         return;
       }
-      if (pointer.rightButtonDown() && spawn.data.onUse) {
-        this.beginPropInteraction(roomId, spawn, spawn.data.onUse, 'use');
-      }
+      this.emitPropVerbInteraction(roomId, spawn, verbId);
     });
   }
 
   /**
-   * Walks the player to the prop’s `walkToPoint`, faces `lookAtPoint`, then emits the given event id.
-   * Use from room scripts when triggering the same path as a click.
+   * Dispatches the **look** verb on this prop (same as a primary-button look click). Does not move or rotate the player.
    */
   tryBeginPropLook(roomId: string, spawn: RoomPropSpawn): void {
-    const ev = spawn.data.onLook;
-    if (!ev) {
-      return;
-    }
-    this.beginPropInteraction(roomId, spawn, ev, 'look');
+    this.emitPropVerbInteraction(roomId, spawn, 'look');
   }
 
-  private beginPropInteraction(
-    roomId: string,
-    spawn: RoomPropSpawn,
-    eventId: string,
-    kind: 'look' | 'use',
-  ): void {
-    const player = this.player;
-    if (!player || !spawn.data.clickable) {
-      return;
-    }
-
-    const walk = spawn.data.walkToPoint;
-    const look = spawn.data.lookAtPoint;
-    if (!walk || !look) {
-      return;
-    }
-
-    const feet = getCharacterWorldFeet(player);
-    const dest = clampWalkDestinationTowardClick(
-      feet.x,
-      feet.y,
-      walk.x,
-      walk.y,
-      this.roomData.walkable.polygons,
-    );
-    if (!dest) {
-      return;
-    }
-
-    const runArrival = (): void => {
-      this.finishPropInteractionAfterWalk(roomId, spawn, look.x, look.y, eventId, kind);
-    };
-
-    this.movePlayerToward(dest.x, dest.y, runArrival);
-  }
-
-  private finishPropInteractionAfterWalk(
-    roomId: string,
-    spawn: RoomPropSpawn,
-    lookAtX: number,
-    lookAtY: number,
-    eventId: string,
-    kind: 'look' | 'use',
-  ): void {
-    const player = this.player;
-    if (!player) {
-      return;
-    }
-
-    const pf = getCharacterWorldFeet(player);
-    const facing = facingFromWorldDelta(lookAtX - pf.x, lookAtY - pf.y);
-    playDirectionalAnimation(player, 'Idle', facing);
-
-    const label = kind === 'use' ? 'USE' : 'LOOK';
-    console.log(`[Benne] ${label} prop ${spawn.id} -> ${eventId}`);
-    gameEvents.emit(eventId, {
+  private emitPropVerbInteraction(roomId: string, spawn: RoomPropSpawn, verbId: string): void {
+    console.log(`[Benne] verb "${verbId}" prop ${spawn.id}`);
+    dispatchVerbInteraction(gameEvents, verbId, getPropVerbHandlers(spawn.data), {
+      type: 'prop',
       propId: spawn.id,
-      roomId,
       tag: spawn.tag,
+      roomId,
       description: spawn.data.description,
-      kind,
-    } satisfies RoomPropInteractPayload);
+      walkToPoint: spawn.data.walkToPoint,
+      lookAtPoint: spawn.data.lookAtPoint,
+    });
   }
 
   private createHotspot(roomId: string, hotspot: RoomHotspotData, roomW: number, roomH: number): void {
@@ -631,11 +577,23 @@ export class RoomScene extends Phaser.Scene {
 
     const depth = 8000 + (hotspot.zIndex ?? 0);
 
-    const emitLook = (): void => {
-      if (hotspot.onLook) {
-        console.log(`[Benne] LOOK ${hotspot.id} -> ${hotspot.onLook}`);
-        gameEvents.emit(hotspot.onLook, { hotspotId: hotspot.id, roomId });
+    const onHotspotPointer = (pointer: Phaser.Input.Pointer): void => {
+      const handlers = getHotspotVerbHandlers(hotspot);
+      if (Object.keys(handlers.onVerb).length === 0 && handlers.onVerbFallback === undefined) {
+        return;
       }
+      const profile = getEffectiveTwoVerbProfile(getGameSettings());
+      const verbId = resolveVerbIdFromPointer(pointer, profile);
+      if (!verbId) {
+        return;
+      }
+      console.log(`[Benne] verb "${verbId}" hotspot ${hotspot.id}`);
+      dispatchVerbInteraction(gameEvents, verbId, handlers, {
+        type: 'hotspot',
+        hotspotId: hotspot.id,
+        roomId,
+        description: hotspot.description,
+      });
     };
 
     if (usePoly) {
@@ -647,7 +605,7 @@ export class RoomScene extends Phaser.Scene {
       const geom = new Phaser.Geom.Polygon(flat);
       zone.setInteractive(geom, Phaser.Geom.Polygon.Contains);
       zone.input!.cursor = 'pointer';
-      zone.on('pointerdown', emitLook);
+      zone.on('pointerdown', onHotspotPointer);
       return;
     }
 
@@ -663,7 +621,7 @@ export class RoomScene extends Phaser.Scene {
       .setDepth(depth)
       .setInteractive({ useHandCursor: true });
 
-    zone.on('pointerdown', emitLook);
+    zone.on('pointerdown', onHotspotPointer);
   }
 
   private spawnCharacter(roomId: string, spawn: RoomCharacterSpawn): void {
@@ -719,15 +677,24 @@ export class RoomScene extends Phaser.Scene {
     if (spawn.visible === false) {
       return;
     }
-    const onLook = spawn.data.onLook;
-    if (!spawn.data.clickable || !onLook) {
+    const handlers = getCharacterVerbHandlers(spawn.data);
+    if (
+      !spawn.data.clickable ||
+      (Object.keys(handlers.onVerb).length === 0 && handlers.onVerbFallback === undefined)
+    ) {
       return;
     }
 
     sprite.setInteractive({ useHandCursor: true });
-    sprite.on('pointerdown', () => {
-      console.log(`[Benne] LOOK character ${spawn.data.id} -> ${onLook}`);
-      gameEvents.emit(onLook, {
+    sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const profile = getEffectiveTwoVerbProfile(getGameSettings());
+      const verbId = resolveVerbIdFromPointer(pointer, profile);
+      if (!verbId) {
+        return;
+      }
+      console.log(`[Benne] verb "${verbId}" character ${spawn.data.id}`);
+      dispatchVerbInteraction(gameEvents, verbId, handlers, {
+        type: 'character',
         characterId: spawn.data.id,
         instanceId: spawn.instanceId,
         roomId,
