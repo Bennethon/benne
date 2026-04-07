@@ -10,7 +10,7 @@ export function registerRoomScript(events: EventBus): void {
     console.log(`[Office] ${payload.description ?? 'You look at the desk.'}`);
   });
 
-  events.on('use:office-desk', (payload: RoomPropInteractPayload) => {
+  events.on('use:office-desk', () => {
     console.log(`[Office] The desk is unusable.`);
   });
 

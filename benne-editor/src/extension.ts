@@ -20,7 +20,9 @@ import {
     runCharacterPreviewBuild,
     runRoomPreviewBuild
 } from './roomPreviewBuild';
+import { revealRoomJsonElement } from './roomJsonReveal';
 import {
+    BENNE_SCRIPT_VIEW_COLUMN,
     openCharacterJsonAndScriptBottomGroup,
     openDocumentPinned,
     openDocumentUri,
@@ -124,6 +126,23 @@ export function activate(context: vscode.ExtensionContext): void {
             await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
             selection.setRoom(node.uri, node.name);
             await openRoomJsonAndScript(node.uri, node.id);
+        } else if (node.kind === 'roomSubGroup') {
+            const sameRoomContext =
+                selection.focus.kind === 'room' &&
+                selection.focus.uri.toString() === node.roomJsonUri.toString();
+
+            if (!sameRoomContext) {
+                await resetBenneEditorSurface();
+                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            } else if (!roomPreview.isRoomPreviewActive()) {
+                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            }
+
+            selection.setRoom(node.roomJsonUri, node.roomName);
+
+            if (!sameRoomContext) {
+                await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+            }
         } else if (node.kind === 'prop') {
             const sameRoomContext =
                 selection.focus.kind === 'room' &&
@@ -146,6 +165,7 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!sameRoomContext) {
                 await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
             }
+            await revealRoomJsonElement(node.roomJsonUri, 'prop', node.prop.id);
         } else if (node.kind === 'hotspot') {
             const sameRoomContext =
                 selection.focus.kind === 'room' &&
@@ -168,6 +188,7 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!sameRoomContext) {
                 await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
             }
+            await revealRoomJsonElement(node.roomJsonUri, 'hotspot', node.hotspotId);
         } else if (node.kind === 'roomPoint') {
             const sameRoomContext =
                 selection.focus.kind === 'room' &&
@@ -190,6 +211,7 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!sameRoomContext) {
                 await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
             }
+            await revealRoomJsonElement(node.roomJsonUri, 'roomPoint', node.pointId);
         } else if (node.kind === 'region') {
             const sameRoomContext =
                 selection.focus.kind === 'room' &&
@@ -212,6 +234,7 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!sameRoomContext) {
                 await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
             }
+            await revealRoomJsonElement(node.roomJsonUri, 'region', node.regionId);
         } else if (node.kind === 'character') {
             await resetBenneEditorSurface();
             await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
@@ -341,7 +364,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 }
                 const jsonUri = vscode.Uri.parse(roomJsonUriStr);
                 const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
-                await openDocumentPinned(scriptUri, vscode.ViewColumn.Active);
+                await openDocumentPinned(scriptUri, BENNE_SCRIPT_VIEW_COLUMN);
             }
         ),
         vscode.commands.registerCommand(
@@ -352,7 +375,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 }
                 const jsonUri = vscode.Uri.parse(roomJsonUriStr);
                 const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
-                await revealEventInDocument(scriptUri, 'registerRoomScript');
+                await revealEventInDocument(scriptUri, 'registerRoomScript', BENNE_SCRIPT_VIEW_COLUMN);
             }
         ),
         vscode.commands.registerCommand(
@@ -367,7 +390,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 }
                 const jsonUri = vscode.Uri.parse(roomJsonUriStr);
                 const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
-                await revealEventInDocument(scriptUri, eventId);
+                await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
             }
         ),
         vscode.commands.registerCommand(
@@ -386,7 +409,7 @@ export function activate(context: vscode.ExtensionContext): void {
                     '..',
                     `${characterId}.character.ts`
                 );
-                await revealEventInDocument(scriptUri, eventId);
+                await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
             }
         )
     );
@@ -499,7 +522,7 @@ function getWebviewContent(): string {
         </head>
         <body>
             <h1>BENNE Editor</h1>
-            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree and <em>Actions</em>. Each tree choice resets the editor area, then opens the right layout: rooms and props — two rows with <em>BENNE Room preview</em> on top and room JSON + <code>*.room.ts</code> below; characters — two rows with <em>BENNE Character preview</em> (feet placement) on top and character JSON + <code>*.character.ts</code> below.</p>
+            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree and <em>Actions</em>. Each tree choice resets the editor area, then opens the right layout: rooms and props — two rows with <em>BENNE Room preview</em> on top and room JSON beside <code>*.room.ts</code> on the bottom; characters — two rows with <em>BENNE Character preview</em> (feet placement) on top and character JSON beside <code>*.character.ts</code> on the bottom.</p>
             
             <p>
                 <button id="create-room-btn" type="button">Create New Room</button>

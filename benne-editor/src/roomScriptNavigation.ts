@@ -1,12 +1,19 @@
 import * as vscode from 'vscode';
 
 /**
- * Editor group for room JSON + `*.room.ts` after `workbench.action.editorLayoutTwoRows`
- * (preview / first row uses the primary group).
+ * Bottom-row editor group for room/character JSON after `workbench.action.editorLayoutTwoRows`
+ * (preview uses the primary/top group). The script is opened with {@link vscode.ViewColumn.Beside}
+ * so JSON and `*.room.ts` / `*.character.ts` sit in two columns on the bottom row.
  */
 export const BENNE_ROOM_SOURCES_VIEW_COLUMN = vscode.ViewColumn.Two;
 
-/** Open room JSON and optional `*.room.ts` pinned in the bottom row editor group. */
+/**
+ * The usual column for the room/character script after JSON + Beside split
+ * (top = preview = One, bottom-left JSON = Two, bottom-right script = Three).
+ */
+export const BENNE_SCRIPT_VIEW_COLUMN = vscode.ViewColumn.Three;
+
+/** Open room JSON and optional `*.room.ts` pinned in the bottom row (JSON | script columns). */
 export async function openRoomJsonAndScriptBottomGroup(
     roomJsonUri: vscode.Uri,
     roomId: string
@@ -15,13 +22,14 @@ export async function openRoomJsonAndScriptBottomGroup(
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
     try {
         await vscode.workspace.fs.stat(scriptUri);
-        await openDocumentPinned(scriptUri, BENNE_ROOM_SOURCES_VIEW_COLUMN);
     } catch {
-        /* optional *.room.ts */
+        return;
     }
+    const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);
+    await vscode.window.showTextDocument(scriptDoc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
 }
 
-/** Pinned character JSON + optional `*.character.ts` in the primary column (character editing layout). */
+/** Pinned character JSON + optional `*.character.ts` beside it in the primary row. */
 export async function openCharacterJsonAndScriptPinned(
     characterJsonUri: vscode.Uri,
     characterId: string
@@ -30,13 +38,14 @@ export async function openCharacterJsonAndScriptPinned(
     const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
     try {
         await vscode.workspace.fs.stat(scriptUri);
-        await openDocumentPinned(scriptUri, vscode.ViewColumn.One);
     } catch {
-        /* optional *.character.ts */
+        return;
     }
+    const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);
+    await vscode.window.showTextDocument(scriptDoc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
 }
 
-/** Character preview row + JSON / `*.character.ts` in the bottom editor group (same as room layout). */
+/** Character preview row + JSON / `*.character.ts` in the bottom row (JSON | script columns). */
 export async function openCharacterJsonAndScriptBottomGroup(
     characterJsonUri: vscode.Uri,
     characterId: string
@@ -45,10 +54,11 @@ export async function openCharacterJsonAndScriptBottomGroup(
     const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
     try {
         await vscode.workspace.fs.stat(scriptUri);
-        await openDocumentPinned(scriptUri, BENNE_ROOM_SOURCES_VIEW_COLUMN);
     } catch {
-        /* optional *.character.ts */
+        return;
     }
+    const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);
+    await vscode.window.showTextDocument(scriptDoc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
 }
 
 /** Open a normal (pinned) editor tab; multiple documents can stay open in the same group. */

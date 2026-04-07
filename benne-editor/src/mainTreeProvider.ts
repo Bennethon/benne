@@ -30,6 +30,15 @@ export type MainTreeNode =
           roomSheetIncomplete?: boolean;
       }
     | {
+          kind: 'roomSubGroup';
+          folder: vscode.WorkspaceFolder;
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+          roomName: string;
+          subGroup: 'hotspots' | 'props' | 'points' | 'regions';
+          itemCount: number;
+      }
+    | {
           kind: 'prop';
           folder: vscode.WorkspaceFolder;
           roomJsonUri: vscode.Uri;
@@ -124,6 +133,29 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     item.iconPath = new vscode.ThemeIcon('symbol-structure');
                 }
                 item.contextValue = 'benneRoom';
+                return item;
+            }
+            case 'roomSubGroup': {
+                const labels: Record<(typeof element)['subGroup'], string> = {
+                    hotspots: 'Hotspots',
+                    props: 'Props',
+                    points: 'Points',
+                    regions: 'Regions'
+                };
+                const icons: Record<(typeof element)['subGroup'], string> = {
+                    hotspots: 'map',
+                    props: 'symbol-misc',
+                    points: 'pinned',
+                    regions: 'layout-panel'
+                };
+                const item = new vscode.TreeItem(
+                    labels[element.subGroup],
+                    vscode.TreeItemCollapsibleState.Collapsed
+                );
+                item.description = String(element.itemCount);
+                item.id = `roomSubGroup:${element.roomJsonUri.toString()}:${element.subGroup}`;
+                item.iconPath = new vscode.ThemeIcon(icons[element.subGroup]);
+                item.contextValue = 'benneRoomSubGroup';
                 return item;
             }
             case 'prop': {
@@ -241,50 +273,43 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     readRoomRegions(element.uri),
                     readRoomProps(element.uri)
                 ]);
-                const sheet = await resolveRoomAsepriteSheetForProps(element.folder.uri, element.id);
                 const children: MainTreeNode[] = [];
-                for (const h of hotspots) {
+                const base = {
+                    folder: element.folder,
+                    roomJsonUri: element.uri,
+                    roomId: element.id,
+                    roomName: element.name
+                };
+                if (hotspots.length > 0) {
                     children.push({
-                        kind: 'hotspot',
-                        folder: element.folder,
-                        roomJsonUri: element.uri,
-                        roomId: element.id,
-                        roomName: element.name,
-                        hotspotId: h.id,
-                        description: h.description,
-                        zIndex: h.zIndex
+                        kind: 'roomSubGroup' as const,
+                        subGroup: 'hotspots',
+                        itemCount: hotspots.length,
+                        ...base
                     });
                 }
-                for (const p of points) {
+                if (props.length > 0) {
                     children.push({
-                        kind: 'roomPoint',
-                        folder: element.folder,
-                        roomJsonUri: element.uri,
-                        roomId: element.id,
-                        roomName: element.name,
-                        pointId: p.id
+                        kind: 'roomSubGroup' as const,
+                        subGroup: 'props',
+                        itemCount: props.length,
+                        ...base
                     });
                 }
-                for (const r of regions) {
+                if (points.length > 0) {
                     children.push({
-                        kind: 'region',
-                        folder: element.folder,
-                        roomJsonUri: element.uri,
-                        roomId: element.id,
-                        roomName: element.name,
-                        regionId: r.id
+                        kind: 'roomSubGroup' as const,
+                        subGroup: 'points',
+                        itemCount: points.length,
+                        ...base
                     });
                 }
-                for (const prop of props) {
-                    const propAssetTooltip = propAsepriteAssetTooltip(sheet, prop, element.id);
+                if (regions.length > 0) {
                     children.push({
-                        kind: 'prop',
-                        folder: element.folder,
-                        roomJsonUri: element.uri,
-                        roomId: element.id,
-                        roomName: element.name,
-                        prop,
-                        propAssetTooltip
+                        kind: 'roomSubGroup' as const,
+                        subGroup: 'regions',
+                        itemCount: regions.length,
+                        ...base
                     });
                 }
                 if (children.length === 0) {
@@ -299,6 +324,66 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 return children;
             } catch {
                 return [{ kind: 'hint', key: `props-err:${element.uri}`, message: 'Could not read room JSON' }];
+            }
+        }
+
+        if (element.kind === 'roomSubGroup') {
+            try {
+                const { folder, roomJsonUri, roomId, roomName, subGroup } = element;
+                switch (subGroup) {
+                    case 'hotspots': {
+                        const hotspots = await readRoomHotspots(roomJsonUri);
+                        return hotspots.map((h) => ({
+                            kind: 'hotspot' as const,
+                            folder,
+                            roomJsonUri,
+                            roomId,
+                            roomName,
+                            hotspotId: h.id,
+                            description: h.description,
+                            zIndex: h.zIndex
+                        }));
+                    }
+                    case 'points': {
+                        const plist = await readRoomPoints(roomJsonUri);
+                        return plist.map((p) => ({
+                            kind: 'roomPoint' as const,
+                            folder,
+                            roomJsonUri,
+                            roomId,
+                            roomName,
+                            pointId: p.id
+                        }));
+                    }
+                    case 'regions': {
+                        const rlist = await readRoomRegions(roomJsonUri);
+                        return rlist.map((r) => ({
+                            kind: 'region' as const,
+                            folder,
+                            roomJsonUri,
+                            roomId,
+                            roomName,
+                            regionId: r.id
+                        }));
+                    }
+                    case 'props': {
+                        const props = await readRoomProps(roomJsonUri);
+                        const sheet = await resolveRoomAsepriteSheetForProps(folder.uri, roomId);
+                        return props.map((prop) => ({
+                            kind: 'prop' as const,
+                            folder,
+                            roomJsonUri,
+                            roomId,
+                            roomName,
+                            prop,
+                            propAssetTooltip: propAsepriteAssetTooltip(sheet, prop, roomId)
+                        }));
+                    }
+                }
+            } catch {
+                return [
+                    { kind: 'hint', key: `subgroup-err:${element.roomJsonUri}`, message: 'Could not read room JSON' }
+                ];
             }
         }
 
