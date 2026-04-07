@@ -121,6 +121,25 @@ At `depth = 0`: `worldX = cameraScrollX + screenAnchorX` (sprite pinned to scree
 - **Characters / hotspots**: **Zones or sprites** with `pointerdown`; characters emit look events without the walk-to-stand flow unless extended later. **Hotspots** in JSON may use a **`points`** polygon (≥3 vertices, room space) with optional **`active`**, **`zIndex`**, **`walkToPoint`**, **`lookAtPoint`**, **`description`**, and **`onLook`** / **`onUse`**; legacy axis-aligned **`x` / `y` / `width` / `height`** still work when there is no usable polygon (**`src/types/room.ts`**, **`RoomScene.createHotspot`**).
 - **Context menu** disabled on mouse in `RoomScene`.
 
+### Character directional animation (facing)
+
+Directional clips use **Aseprite frame-tag names** built as **`<base><facing>`** (e.g. `IdleL`, `WalkDR`, `TalkUL`). Implementation lives in **`src/engine/directionalCharacterAnimation.ts`**; types for room JSON use **`CharacterFacingLetter`** in **`src/types/character.ts`**.
+
+**Facings (eight-way)** — left, right, up, down, and diagonals: **`L`**, **`R`**, **`U`**, **`D`**, **`UL`**, **`UR`**, **`DL`**, **`DR`**. World space matches the rest of the engine (**y increases downward** on screen).
+
+**Choosing facing from movement** — **`facingFromWorldDelta(dx, dy)`** normalizes the walk (or look) vector and picks the facing whose **unit direction** has the **largest dot product** with that vector, so purely horizontal or vertical motion maps to a **cardinal** (e.g. straight down → **`D`**), and diagonal motion maps to a **diagonal** when both components matter. A **zero** delta defaults to **`D`**.
+
+**Playing a clip when some facings are missing** — **`playDirectionalAnimation(sprite, baseName, facing)`** first tries **`${baseName}${facing}`**. If that Phaser animation does not exist (or has no frames), it walks **other facings in order of smallest angular distance** from the requested facing, and for each candidate tries:
+
+1. The **unflipped** tag for that facing.
+2. If a **horizontal mirror partner** exists — **`L`↔`R`**, **`UL`↔`UR`**, **`DL`↔`DR`** — the partner’s tag with **`flipX`**, so a character can ship only **`WalkDL`** and still satisfy a **`DR`** request. **`U`** and **`D`** have **no** mirror pair in this scheme.
+
+The sprite’s **`facing`** data stores the **logical** facing the gameplay asked for (walk end, look-at, spawn), not necessarily the suffix of the clip that ended up playing.
+
+**Spawn and idle defaults** — **`resolveSpawnIdleFacing`** honors **`initialFacing`** on room character instances when it is one of the eight letters; otherwise it falls back like **`resolveInitialIdleFacing`**, which prefers an existing **`Idle*`** in a default order (**cardinals** `R`, `D`, `L`, `U`, then **diagonals** `DR`, `DL`, `UR`, `UL`), and finally **`D`** if nothing matches.
+
+**RoomScene** uses this for **player walk**, **idle after walk**, **prop look-at**, and **NPC spawn** animation bases (`Idle`, `Walk`, etc.).
+
 ### Scripting / interaction system
 
 - **String event ids** in JSON (e.g. `"look:office-desk"`) are **`gameEvents.emit(...)`** after walk + face (props) or immediately (hotspots / simple character look).

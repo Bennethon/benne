@@ -22,7 +22,8 @@
     "onCommand:benne-editor.addRoomPoint",
     "onCommand:benne-editor.addRoomRegion",
     "onCommand:benne-editor.createCharacter",
-    "onCommand:benne-editor.importAnimationsFromAsepriteTags"
+    "onCommand:benne-editor.importAnimationsFromAsepriteTags",
+    "onCommand:benne-editor.rebuildRoomPreview"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -132,10 +133,43 @@
         "title": "Import Animations from Aseprite Tags",
         "category": "BENNE",
         "icon": "$(cloud-download)"
+      },
+      {
+        "command": "benne-editor.rebuildRoomPreview",
+        "title": "Rebuild Room Preview Bundle",
+        "category": "BENNE",
+        "icon": "$(sync)"
       }
     ],
+    "configuration": {
+      "title": "BENNE Editor",
+      "properties": {
+        "benneEditor.roomPreview.autoRebuildOnGameConfigChange": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When `src/game/game-config.json` changes, run `npm run build:room-preview` (debounced) so bundled settings such as `startingPlayerCharacter` stay aligned with the room preview."
+        },
+        "benneEditor.roomPreview.autoRebuildDebounceMs": {
+          "type": "number",
+          "default": 1500,
+          "minimum": 300,
+          "maximum": 60000,
+          "description": "Wait time after the last game-config.json change before starting an automatic room preview rebuild."
+        }
+      }
+    },
     "menus": {
       "view/title": [
+        {
+          "command": "benne-editor.rebuildRoomPreview",
+          "when": "view == benne-editor.main",
+          "group": "navigation@0"
+        },
+        {
+          "command": "benne-editor.rebuildRoomPreview",
+          "when": "view == benne-editor.actions",
+          "group": "navigation@0"
+        },
         {
           "command": "benne-editor.createRoom",
           "when": "view == benne-editor.main",

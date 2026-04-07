@@ -13,6 +13,12 @@ import {
 } from './roomScaffolding';
 import { RoomPreviewPanelController } from './roomPreviewPanel';
 import {
+    getRoomPreviewBuildOutputChannel,
+    resolveGameFolderForRoomPreviewBuild,
+    roomPreviewBuildHintUri,
+    runRoomPreviewBuild
+} from './roomPreviewBuild';
+import {
     openCharacterJsonAndScriptPinned,
     openDocumentPinned,
     openDocumentUri,
@@ -43,6 +49,51 @@ export function activate(context: vscode.ExtensionContext): void {
     });
 
     const roomPreview = new RoomPreviewPanelController(context.extensionUri, selection);
+
+    let gameConfigRebuildTimer: ReturnType<typeof setTimeout> | undefined;
+    let pendingGameConfigUri: vscode.Uri | undefined;
+
+    const scheduleAutoRoomPreviewRebuild = (uri: vscode.Uri): void => {
+        const cfg = vscode.workspace.getConfiguration('benneEditor');
+        if (!cfg.get('roomPreview.autoRebuildOnGameConfigChange', true)) {
+            return;
+        }
+        pendingGameConfigUri = uri;
+        if (gameConfigRebuildTimer !== undefined) {
+            clearTimeout(gameConfigRebuildTimer);
+        }
+        const msRaw = cfg.get<number>('roomPreview.autoRebuildDebounceMs', 1500);
+        const ms = Math.min(60000, Math.max(300, msRaw));
+        gameConfigRebuildTimer = setTimeout(() => {
+            gameConfigRebuildTimer = undefined;
+            const u = pendingGameConfigUri;
+            pendingGameConfigUri = undefined;
+            void (async () => {
+                if (!u) {
+                    return;
+                }
+                const folder = await resolveGameFolderForRoomPreviewBuild(u);
+                if (!folder) {
+                    return;
+                }
+                const ch = getRoomPreviewBuildOutputChannel();
+                const ok = await runRoomPreviewBuild(folder, ch, {
+                    title: 'Auto-rebuilding room preview (game-config.json)'
+                });
+                if (ok) {
+                    roomPreview.reloadRoomPreviewBundle();
+                }
+            })();
+        }, ms);
+    };
+
+    context.subscriptions.push(
+        new vscode.Disposable(() => {
+            if (gameConfigRebuildTimer !== undefined) {
+                clearTimeout(gameConfigRebuildTimer);
+            }
+        })
+    );
 
     context.subscriptions.push(
         roomPreview,
@@ -238,6 +289,21 @@ export function activate(context: vscode.ExtensionContext): void {
                 refreshTrees();
             }
         ),
+        vscode.commands.registerCommand('benne-editor.rebuildRoomPreview', async () => {
+            const ch = getRoomPreviewBuildOutputChannel();
+            const folder = await resolveGameFolderForRoomPreviewBuild(roomPreviewBuildHintUri(selection));
+            if (!folder) {
+                void vscode.window.showErrorMessage(
+                    'No BENNE game in the workspace (need a folder with src/game/rooms and npm script build:room-preview).'
+                );
+                return;
+            }
+            const ok = await runRoomPreviewBuild(folder, ch);
+            if (ok) {
+                roomPreview.reloadRoomPreviewBundle();
+                void vscode.window.showInformationMessage('Room preview bundle rebuilt.');
+            }
+        }),
         vscode.commands.registerCommand(
             'benne-editor.openUriPreview',
             async (uriStr?: string, preview?: boolean) => {
@@ -303,6 +369,17 @@ export function activate(context: vscode.ExtensionContext): void {
                 await revealEventInDocument(scriptUri, eventId);
             }
         )
+    );
+
+    const gameConfigWatcher = vscode.workspace.createFileSystemWatcher('**/src/game/game-config.json');
+    context.subscriptions.push(
+        gameConfigWatcher,
+        gameConfigWatcher.onDidChange((uri) => {
+            scheduleAutoRoomPreviewRebuild(uri);
+        }),
+        gameConfigWatcher.onDidCreate((uri) => {
+            scheduleAutoRoomPreviewRebuild(uri);
+        })
     );
 
     const jsonWatcher = vscode.workspace.createFileSystemWatcher('**/src/game/**/*.json');

@@ -410,6 +410,20 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         }
     }
 
+    /**
+     * Reassign webview HTML so `room-preview.js` is fetched again from disk (new CSP nonce).
+     * Call after `npm run build:room-preview` updates the extension media bundle.
+     */
+    reloadRoomPreviewBundle(): void {
+        if (!this.panel) {
+            return;
+        }
+        this.webviewReady = false;
+        this.lastPushedRoomJsonUri = null;
+        this.lastToolbarUiKey = null;
+        this.panel.webview.html = buildRoomPreviewHtml(this.panel.webview, this.extensionUri);
+    }
+
     /** Prefer in-memory buffer when the room JSON is open in an editor (matches unsaved edits on Refresh). */
     private async readRoomJsonAsUtf8(uri: vscode.Uri): Promise<string> {
         const uriStr = uri.toString();
