@@ -9,7 +9,7 @@ import {
 } from './gameDiscovery';
 import type { MainTreeNode } from './mainTreeProvider';
 import { pickWorkspaceFolder, validateSlug } from './roomScaffolding';
-import { openCharacterJsonAndScriptPinned } from './roomScriptNavigation';
+import { openCharacterJsonAndScriptBottomGroup } from './roomScriptNavigation';
 
 function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
@@ -254,6 +254,6 @@ export async function runImportAnimationsFromAsepriteTags(
         parts.push(`Skipped ${skipped} already defined.`);
     }
     void vscode.window.showInformationMessage(parts.join(' '));
-    await vscode.commands.executeCommand('workbench.action.editorLayoutSingle');
-    await openCharacterJsonAndScriptPinned(charRef.characterJsonUri, charRef.characterId);
+    await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+    await openCharacterJsonAndScriptBottomGroup(charRef.characterJsonUri, charRef.characterId);
 }

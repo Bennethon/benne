@@ -11,15 +11,17 @@ import {
     runCreateRoomWizard,
     runImportPropsFromAsepriteTags
 } from './roomScaffolding';
+import { CharacterPreviewPanelController } from './characterPreviewPanel';
 import { RoomPreviewPanelController } from './roomPreviewPanel';
 import {
     getRoomPreviewBuildOutputChannel,
     resolveGameFolderForRoomPreviewBuild,
     roomPreviewBuildHintUri,
+    runCharacterPreviewBuild,
     runRoomPreviewBuild
 } from './roomPreviewBuild';
 import {
-    openCharacterJsonAndScriptPinned,
+    openCharacterJsonAndScriptBottomGroup,
     openDocumentPinned,
     openDocumentUri,
     openRoomJsonAndScriptBottomGroup,
@@ -49,6 +51,7 @@ export function activate(context: vscode.ExtensionContext): void {
     });
 
     const roomPreview = new RoomPreviewPanelController(context.extensionUri, selection);
+    const characterPreview = new CharacterPreviewPanelController(context.extensionUri, selection);
 
     let gameConfigRebuildTimer: ReturnType<typeof setTimeout> | undefined;
     let pendingGameConfigUri: vscode.Uri | undefined;
@@ -97,6 +100,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     context.subscriptions.push(
         roomPreview,
+        characterPreview,
         mainTreeView,
         actionsTreeView,
         selection,
@@ -107,6 +111,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     async function resetBenneEditorSurface(): Promise<void> {
         roomPreview.resetPreviewPanel();
+        characterPreview.resetPreviewPanel();
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
     }
 
@@ -209,7 +214,7 @@ export function activate(context: vscode.ExtensionContext): void {
             }
         } else if (node.kind === 'character') {
             await resetBenneEditorSurface();
-            await vscode.commands.executeCommand('workbench.action.editorLayoutSingle');
+            await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
             selection.setCharacter(node.uri, node.name);
             await openCharacterJsonAndScript(node.uri, node.id);
         }
@@ -302,6 +307,21 @@ export function activate(context: vscode.ExtensionContext): void {
             if (ok) {
                 roomPreview.reloadRoomPreviewBundle();
                 void vscode.window.showInformationMessage('Room preview bundle rebuilt.');
+            }
+        }),
+        vscode.commands.registerCommand('benne-editor.rebuildCharacterPreview', async () => {
+            const ch = getRoomPreviewBuildOutputChannel();
+            const folder = await resolveGameFolderForRoomPreviewBuild(roomPreviewBuildHintUri(selection));
+            if (!folder) {
+                void vscode.window.showErrorMessage(
+                    'No BENNE game in the workspace (need a folder with src/game and npm script build:character-preview).'
+                );
+                return;
+            }
+            const ok = await runCharacterPreviewBuild(folder, ch);
+            if (ok) {
+                characterPreview.reloadCharacterPreviewBundle();
+                void vscode.window.showInformationMessage('Character preview bundle rebuilt.');
             }
         }),
         vscode.commands.registerCommand(
@@ -479,7 +499,7 @@ function getWebviewContent(): string {
         </head>
         <body>
             <h1>BENNE Editor</h1>
-            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree and <em>Actions</em>. Each tree choice resets the editor area, then opens the right layout: rooms and props — two rows with <em>BENNE Room preview</em> on top and pinned room JSON + <code>*.room.ts</code> below; characters — single group with pinned character JSON + <code>*.character.ts</code>.</p>
+            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree and <em>Actions</em>. Each tree choice resets the editor area, then opens the right layout: rooms and props — two rows with <em>BENNE Room preview</em> on top and room JSON + <code>*.room.ts</code> below; characters — two rows with <em>BENNE Character preview</em> (feet placement) on top and character JSON + <code>*.character.ts</code> below.</p>
             
             <p>
                 <button id="create-room-btn" type="button">Create New Room</button>
@@ -511,5 +531,5 @@ async function openRoomJsonAndScript(roomJsonUri: vscode.Uri, roomId: string): P
 }
 
 async function openCharacterJsonAndScript(characterJsonUri: vscode.Uri, characterId: string): Promise<void> {
-    await openCharacterJsonAndScriptPinned(characterJsonUri, characterId);
+    await openCharacterJsonAndScriptBottomGroup(characterJsonUri, characterId);
 }

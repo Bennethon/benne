@@ -87,31 +87,6 @@ export interface RoomPropCollider {
 }
 
 /**
- * Parallax configuration for a room prop.
- *
- * **`depth`** controls how much the prop moves relative to the camera scroll:
- * - `0`   — fully screen-locked (infinitely distant, e.g. sky layer)
- * - `0–1` — distant; moves slower than the camera
- * - `1`   — no parallax; stays at its world position (default)
- * - `>1`  — closer than the world plane; moves faster than the camera
- *
- * **`alignX` / `alignY`** set the screen-space anchor the prop converges toward as `depth`
- * approaches `0`. At `depth = 1` the anchor has no effect.
- * - `alignX`: `-1` = left edge, `0` = horizontal center, `1` = right edge
- * - `alignY`: `-1` = bottom, `0` = vertical center, `1` = top (PowerQuest / Unity Y-up convention)
- *
- * Example — sky layer locked to the top-left corner of the screen:
- * `{ "depth": 0, "alignX": -1, "alignY": 1 }`
- */
-export interface RoomPropParallax {
-  depth: number;
-  /** Screen-space X anchor: -1 = left edge, 0 = center (default), 1 = right edge. */
-  alignX?: number;
-  /** Screen-space Y anchor: -1 = bottom, 0 = center (default), 1 = top (Y-up convention). */
-  alignY?: number;
-}
-
-/**
  * One placed prop in a room: Aseprite tag on this room's sheet (`images/rooms/<roomId>/`), draw order, and interaction.
  */
 export interface RoomPropInstance {
@@ -144,10 +119,14 @@ export interface RoomPropInstance {
   /** Per-tag playback (loop, frameDuration); keys match Aseprite tags on this room's sheet. */
   animations?: CharacterAnimationsConfig;
   /**
-   * When present, the prop's position is updated every frame based on camera scroll.
-   * Omit entirely (or set `depth: 1`) for normal world-fixed props.
+   * Parallax multiplier vs camera view. Each frame:
+   * `sprite position = parallaxDepth * (x,y) + (1 - parallaxDepth) * (worldView.x, worldView.y)`.
+   * - `0` — moves fully with the camera (world position tracks scroll origin)
+   * - `0–1` — distant; moves slower than the camera
+   * - `1` — no parallax (default if omitted); stays at authored `(x, y)`
+   * - `>1` — foreground; moves faster than the camera
    */
-  parallax?: RoomPropParallax;
+  parallaxDepth?: number;
 }
 
 export interface RoomData {

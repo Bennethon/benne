@@ -50,6 +50,11 @@ export interface CharacterData {
   id: string;
   name: string;
   description: string;
+  /**
+   * Ground contact in **texture / frame pixel space**: from the top-left of each cel to the feet
+   * (Y increases downward). When omitted, the engine uses the bottom-centre of the current frame.
+   */
+  feet?: { x: number; y: number };
   /** Game pixels per second when walking (used when movement is implemented). */
   walkSpeed: number;
   clickable: boolean;

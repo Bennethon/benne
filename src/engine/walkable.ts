@@ -237,8 +237,8 @@ function closestPointInWalkableUnion(
  *   the same intent target and may move in a straight line across non-walkable space until they
  *   reach the floor; once inside, later clicks keep using this mesh-aware resolution.
  *
- * `playerX` / `playerY` are unused but kept for a stable call signature and future rules (e.g. bias
- * toward the player-side of the mesh).
+ * `playerX` / `playerY` are the player’s **feet** in room space (see `CharacterData.feet`); kept for
+ * a stable call signature — the current resolver ignores them but callers pass feet for future rules.
  *
  * @returns `null` only if there is no usable polygon geometry (e.g. all regions have fewer than
  *          three vertices).

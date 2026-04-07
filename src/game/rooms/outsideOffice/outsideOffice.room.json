@@ -74,7 +74,40 @@
       }
     ]
   },
-  "hotspots": [],
+  "hotspots": [
+    {
+      "id": "outsideOffice-hotspot-sky",
+      "active": true,
+      "description": "",
+      "zIndex": 0,
+      "points": [
+        {
+          "x": 143,
+          "y": 10
+        },
+        {
+          "x": 277,
+          "y": 13
+        },
+        {
+          "x": 311,
+          "y": 62
+        },
+        {
+          "x": 135,
+          "y": 57
+        }
+      ],
+      "walkToPoint": {
+        "x": 222,
+        "y": 95
+      },
+      "lookAtPoint": {
+        "x": 216,
+        "y": 53
+      }
+    }
+  ],
   "props": [
     {
       "id": "outsideOffice-prop-oceansky",
@@ -82,11 +115,7 @@
       "zIndex": 0,
       "visible": true,
       "alpha": 1,
-      "parallax": {
-        "depth": 0.5,
-        "alignX": 0.5,
-        "alignY": -1.1
-      }
+      "parallaxDepth": 0.5
     },
     {
       "id": "outsideOffice-prop-mountains",
@@ -94,11 +123,7 @@
       "zIndex": 1,
       "visible": true,
       "alpha": 1,
-      "parallax": {
-        "depth": 0.8,
-        "alignX": -1,
-        "alignY": -1
-      }
+      "parallaxDepth": 0.8
     },
     {
       "id": "outsideOffice-prop-nearground",
