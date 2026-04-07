@@ -189,7 +189,10 @@
           }
         ]
       },
-      "onLook": "look:office-desk"
+      "onVerb": {
+        "look": "look:office-desk",
+        "use": "use:office-desk"
+      }
     },
     {
       "id": "office-prop-door",

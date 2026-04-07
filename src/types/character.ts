@@ -63,4 +63,12 @@ export interface CharacterData {
   animations?: CharacterAnimationsConfig;
   /** Event id for look / examine (optional). */
   onLook?: string;
+  /** Event id for use (optional; same walk-free click path as look in the engine today). */
+  onUse?: string;
+  /**
+   * Per-verb event ids (keys match `game-config.json` `verbs[].id`). Preferred over legacy `onLook` / `onUse`.
+   */
+  onVerb?: Record<string, string>;
+  /** Runs when no `onVerb` entry exists for the attempted verb. */
+  onVerbFallback?: string;
 }

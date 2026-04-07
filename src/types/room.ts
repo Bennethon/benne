@@ -47,6 +47,12 @@ export interface RoomHotspotData {
   height?: number;
   onLook?: string;
   onUse?: string;
+  /**
+   * Per-verb event ids (keys match `game-config.json` `verbs[].id`). Preferred over legacy `onLook` / `onUse`.
+   */
+  onVerb?: Record<string, string>;
+  /** Runs when no `onVerb` entry exists for the attempted verb. */
+  onVerbFallback?: string;
 }
 
 /** Named marker in room space (spawns, triggers, script anchors). */
@@ -101,21 +107,32 @@ export interface RoomPropInstance {
   y?: number;
   /** Draw order: higher values render in front of lower values. */
   zIndex?: number;
-  /** When true, the prop may receive clicks and run `onLook` / walk-to logic. */
+  /** When true, the prop may receive clicks; the engine dispatches verb scripts immediately (no auto walk/face). */
   clickable?: boolean;
   visible?: boolean;
   /** 0–1; default 1. */
   alpha?: number;
-  /** Where the player walks when this prop is used (required when `clickable` is true). */
+  /**
+   * Optional stand position for script-driven movement (not used by the engine for clicks).
+   * Game scripts may read this from payloads / room data when implementing walk-to-object behavior.
+   */
   walkToPoint?: Point2;
-  /** Facing target after walking (required when `clickable` is true). */
+  /**
+   * Optional facing target for script-driven facing (not used by the engine for clicks).
+   */
   lookAtPoint?: Point2;
   description?: string;
   /** Hit area in room space; required when `clickable` is true. */
   collider?: RoomPropCollider;
-  /** Event id emitted on the global event bus when the player looks at this prop (after walk + face). */
+  /** Event id for the **look** verb (legacy); emitted on click with no prior walk/face. */
   onLook?: string;
   onUse?: string;
+  /**
+   * Per-verb event ids (keys match `game-config.json` `verbs[].id`). Preferred over legacy `onLook` / `onUse`.
+   */
+  onVerb?: Record<string, string>;
+  /** Runs when no `onVerb` entry exists for the attempted verb (before global verb handlers). */
+  onVerbFallback?: string;
   /** Per-tag playback (loop, frameDuration); keys match Aseprite tags on this room's sheet. */
   animations?: CharacterAnimationsConfig;
   /**
