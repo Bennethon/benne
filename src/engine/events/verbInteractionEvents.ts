@@ -42,7 +42,6 @@ export type VerbGlobalFallbackPayload = {
   instanceId?: string;
   walkToPoint?: Point2;
   lookAtPoint?: Point2;
-  kind?: 'look' | 'use';
   verbFallback?: boolean;
 };
 

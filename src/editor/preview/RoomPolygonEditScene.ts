@@ -608,15 +608,20 @@ export class RoomPolygonEditScene extends Phaser.Scene {
     }
 
     private ensureHotspotWalkLook(h: RoomHotspotData): void {
-        if (!h.points) {
-            h.points = [];
-        }
         const roomW = this.room.size?.width ?? getInternalWidth();
         const roomH = this.room.size?.height ?? getInternalHeight();
-        const base =
-            h.points.length > 0
-                ? centroidFromPoints(h.points)
-                : { x: Math.round(roomW / 2), y: Math.round(roomH / 2) };
+        if (!h.points || h.points.length < MIN_POINTS) {
+            const cx = Math.round(roomW / 2);
+            const cy = Math.round(roomH / 2);
+            const s = 24;
+            h.points = [
+                { x: cx - s, y: cy - s },
+                { x: cx + s, y: cy - s },
+                { x: cx + s, y: cy + s },
+                { x: cx - s, y: cy + s },
+            ];
+        }
+        const base = centroidFromPoints(h.points);
         if (!h.walkToPoint) {
             h.walkToPoint = { x: base.x, y: base.y };
         }

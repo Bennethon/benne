@@ -28,9 +28,6 @@ export type CharacterAnimationsConfig = Record<string, CharacterAnimationClipCon
 /** Facing suffix on directional clips (`IdleL`, `WalkDR`, …). */
 export type CharacterFacingLetter = 'L' | 'R' | 'U' | 'D' | 'UL' | 'UR' | 'DL' | 'DR';
 
-/** @deprecated Use {@link CharacterFacingLetter}. */
-export type CardinalFacingLetter = CharacterFacingLetter;
-
 /**
  * Character template loaded from `src/game/characters/` as `*.character.json` files.
  */
@@ -61,13 +58,7 @@ export interface CharacterData {
   display: CharacterDisplayData;
   /** Optional per Aseprite-tag playback (keys must match `meta.frameTags` on `images/characters/<id>/<id>.json`). */
   animations?: CharacterAnimationsConfig;
-  /** Event id for look / examine (optional). */
-  onLook?: string;
-  /** Event id for use (optional; same walk-free click path as look in the engine today). */
-  onUse?: string;
-  /**
-   * Per-verb event ids (keys match `game-config.json` `verbs[].id`). Preferred over legacy `onLook` / `onUse`.
-   */
+  /** Per-verb event ids (keys match `game-config.json` `verbs[].id`). */
   onVerb?: Record<string, string>;
   /** Runs when no `onVerb` entry exists for the attempted verb. */
   onVerbFallback?: string;

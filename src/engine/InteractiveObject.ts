@@ -1,7 +1,7 @@
 import type { RoomHotspotData } from '../types/room';
 
 /**
- * Runtime handle for a hotspot / use / look target (backed by JSON definitions).
+ * Runtime handle for a hotspot interaction target (backed by JSON definitions).
  */
 export class InteractiveObject {
   readonly definition: RoomHotspotData;

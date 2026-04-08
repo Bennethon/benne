@@ -1,7 +1,7 @@
 import type { Point2 } from '../../types/room';
 
 /**
- * Payload for prop interaction events (`onVerb`, legacy `onLook` / `onUse`).
+ * Payload for prop interaction events (`onVerb` map in room JSON).
  * Handlers subscribe to the same event id the prop references.
  */
 export type RoomPropInteractPayload = {
@@ -17,6 +17,4 @@ export type RoomPropInteractPayload = {
   verbId: string;
   /** True when this run used the prop’s `onVerbFallback` handler. */
   verbFallback?: boolean;
-  /** Present for legacy verbs when `verbId` is `look` or `use`. */
-  kind?: 'look' | 'use';
 };

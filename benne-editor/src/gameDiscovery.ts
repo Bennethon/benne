@@ -90,16 +90,32 @@ export async function listCharacterDefinitions(
     return result;
 }
 
+function parseOnVerbRecord(raw: unknown): Record<string, string> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return undefined;
+    }
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+        if (typeof v === 'string' && v.length > 0) {
+            out[k] = v;
+        }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export async function readCharacterHooks(
     uri: vscode.Uri
-): Promise<{ onLook?: string; onUse?: string }> {
+): Promise<{ onVerb?: Record<string, string>; onVerbFallback?: string }> {
     try {
         const raw = await vscode.workspace.fs.readFile(uri);
         const text = new TextDecoder('utf-8').decode(raw);
-        const data = JSON.parse(text) as { onLook?: string; onUse?: string };
+        const data = JSON.parse(text) as Record<string, unknown>;
         return {
-            onLook: typeof data.onLook === 'string' ? data.onLook : undefined,
-            onUse: typeof data.onUse === 'string' ? data.onUse : undefined
+            onVerb: parseOnVerbRecord(data.onVerb),
+            onVerbFallback:
+                typeof data.onVerbFallback === 'string' && data.onVerbFallback.length > 0
+                    ? data.onVerbFallback
+                    : undefined
         };
     } catch {
         return {};
@@ -141,8 +157,8 @@ export interface RoomPropEntry {
     zIndex?: number;
     visible?: boolean;
     clickable?: boolean;
-    onLook?: string;
-    onUse?: string;
+    onVerb?: Record<string, string>;
+    onVerbFallback?: string;
 }
 
 /** Folder name for `rooms/<id>/<id>.room.json` (e.g. `office`). */
@@ -319,8 +335,11 @@ export async function readRoomProps(uri: vscode.Uri): Promise<RoomPropEntry[]> {
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : undefined,
                 visible: typeof o.visible === 'boolean' ? o.visible : undefined,
                 clickable: typeof o.clickable === 'boolean' ? o.clickable : undefined,
-                onLook: typeof o.onLook === 'string' ? o.onLook : undefined,
-                onUse: typeof o.onUse === 'string' ? o.onUse : undefined
+                onVerb: parseOnVerbRecord(o.onVerb),
+                onVerbFallback:
+                    typeof o.onVerbFallback === 'string' && o.onVerbFallback.length > 0
+                        ? o.onVerbFallback
+                        : undefined
             });
         }
     }

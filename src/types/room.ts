@@ -23,8 +23,8 @@ export interface WalkablePolygon {
 }
 
 /**
- * Clickable room hotspot. Prefer `points` (>=3 vertices in room space); legacy `x`/`y`/`width`/`height`
- * defines an axis-aligned rectangle when `points` is missing or has fewer than three vertices.
+ * Clickable room hotspot: closed polygon in room pixels (same space as walkable meshes).
+ * The engine requires at least three vertices in `points` for hit-testing.
  */
 export interface RoomHotspotData {
   id: string;
@@ -33,23 +33,13 @@ export interface RoomHotspotData {
   description?: string;
   /** Draw / hit stacking vs other hotspots (higher tested later, tends to sit on top). */
   zIndex?: number;
-  /** Polygon hit area in room pixels (same space as walkable meshes). */
-  points?: Point2[];
+  /** Polygon hit area in room pixels (at least three vertices). */
+  points: Point2[];
   /** Where the player walks when this hotspot is used (optional; editor + future walk-to flow). */
   walkToPoint?: Point2;
   /** Facing target after walking (optional; pairs with `walkToPoint`). */
   lookAtPoint?: Point2;
-  /** Legacy rectangular hotspot (used when `points` is missing or has fewer than three vertices). */
-  label?: string;
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  onLook?: string;
-  onUse?: string;
-  /**
-   * Per-verb event ids (keys match `game-config.json` `verbs[].id`). Preferred over legacy `onLook` / `onUse`.
-   */
+  /** Per-verb event ids (keys match `game-config.json` `verbs[].id`). */
   onVerb?: Record<string, string>;
   /** Runs when no `onVerb` entry exists for the attempted verb. */
   onVerbFallback?: string;
@@ -124,12 +114,7 @@ export interface RoomPropInstance {
   description?: string;
   /** Hit area in room space; required when `clickable` is true. */
   collider?: RoomPropCollider;
-  /** Event id for the **look** verb (legacy); emitted on click with no prior walk/face. */
-  onLook?: string;
-  onUse?: string;
-  /**
-   * Per-verb event ids (keys match `game-config.json` `verbs[].id`). Preferred over legacy `onLook` / `onUse`.
-   */
+  /** Per-verb event ids (keys match `game-config.json` `verbs[].id`). */
   onVerb?: Record<string, string>;
   /** Runs when no `onVerb` entry exists for the attempted verb (before global verb handlers). */
   onVerbFallback?: string;

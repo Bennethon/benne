@@ -25,7 +25,7 @@
 | **`ConfigManager.ts`** | Reads bundled `game-config.json` (`getGameSettings`). |
 | **`BootScene`** | Loads assets for the **start room** (manifest + globbed JSON), then `scene.start(Room, startData)`. |
 | **`RoomScene`** | Renders one room: background, Aseprite props, hotspots, characters, player walk, prop/character hit tests, debug overlays. |
-| **`EventBus` (`gameEvents`)`** | `Phaser.Events.EventEmitter` — verb dispatch turns JSON handlers (`onVerb`, legacy `onLook` / `onUse`) plus optional global fallbacks into emitted events. |
+| **`EventBus` (`gameEvents`)`** | `Phaser.Events.EventEmitter` — verb dispatch turns JSON handlers (`onVerb` / `onVerbFallback`) plus optional global fallbacks into emitted events. |
 | **`registerGameContent`** | Eager `import.meta.glob` of `globalScript` + `*.room.ts` registering handlers on `gameEvents`. |
 | **`src/game/assets/`** | Images + Aseprite JSON; URLs resolved at build time via Vite `import.meta.glob` (`resolveGameAssetUrl`). |
 
@@ -103,16 +103,16 @@ worldY = parallaxDepth * baseY + (1 − parallaxDepth) * camera.worldView.y
 
 - **Walk**: **Left click** on empty space (no hit-test targets) moves the **player** character toward the click, **clamped** into **walkable regions** (`walkable.ts` — each **`WalkablePolygon`** is an outer ring minus optional **active** hole rings; union across polygons; point-in-polygon + closest-point clamping toward the click).
 - **Props**: **Polygon hit area** per clickable prop; **pointerdown** runs **verb dispatch** immediately (no engine walk/face). Walk and facing toward an object are implemented in **`*.room.ts`** if desired (optional **`walkToPoint`** / **`lookAtPoint`** on the prop are hints for scripts, not used by the engine on click). Default **`inputProfile`**: **primary (left)** → **`look`**, **secondary (right)** → **`use`**. Requires a **collider** when **`clickable`**.
-- **Characters / hotspots**: **`pointerdown`** uses the same two-button **verb resolution**; no walk-to-stand for these targets yet (dispatch is immediate). **Hotspots** support **`points`** polygons or legacy rectangles; **`onVerb`** / **`onVerbFallback`** (or **`onLook`** / **`onUse`**) define reactions.
+- **Characters / hotspots**: **`pointerdown`** uses the same two-button **verb resolution**; no walk-to-stand for these targets yet (dispatch is immediate). **Hotspots** use closed **`points`** polygons (at least three vertices); **`onVerb`** / **`onVerbFallback`** define reactions.
 - **Context menu** disabled on mouse in `RoomScene`.
 
 ### Verb system
 
 - **Config** (`src/game/game-config.json`, types **`src/types/game.ts`**): optional **`verbs`** (`{ id, label? }` each), optional **`inputProfile`** (only **`kind: "twoVerb"`** today: **`primaryButtonVerb`**, **`secondaryButtonVerb`**), optional **`defaultFallbackLine`** (used for **`verb:unhandled`**).
-- **Defaults**: Omitting **`verbs`** implies ids **`look`** and **`use`**. Omitting **`inputProfile`** keeps legacy behavior: **left → `look`**, **right → `use`**.
-- **Per-object data** (**`RoomPropInstance`**, **`RoomHotspotData`**, **`CharacterData`**): prefer **`onVerb`**: map from verb **id** → **event id**. **`onVerbFallback`** runs when there is no entry for the attempted verb. Legacy **`onLook`** / **`onUse`** populate **`look`** / **`use`** when those keys are absent in **`onVerb`**.
+- **Defaults**: Omitting **`verbs`** implies ids **`look`** and **`use`**. Omitting **`inputProfile`** defaults to **left → `look`**, **right → `use`**.
+- **Per-object data** (**`RoomPropInstance`**, **`RoomHotspotData`**, **`CharacterData`**): **`onVerb`** maps verb **id** → **event id**. **`onVerbFallback`** runs when there is no entry for the attempted verb.
 - **Dispatch** (`src/engine/verbs/dispatchVerb.ts`): **`onVerb[verbId]`** → **`onVerbFallback`** → **`verb:global:<verbId>`** (emitted only if a listener exists — see `globalVerbHandlerEventId` in **`verbInteractionEvents.ts`**) → **`verb:global:fallback`** → **`verb:unhandled`**. In **Vite dev**, unhandled verbs also **`console.warn`**. Wire globals in **`globalScript.ts`**; content reactions stay on ids from JSON (e.g. **`look:office-desk`**) inside **`*.room.ts`**. **`RoomScene.tryBeginPropLook`** dispatches the look verb on a prop without moving the player.
-- **Payloads**: Props include **`verbId`**, optional **`walkToPoint`** / **`lookAtPoint`** from JSON (for scripts), and legacy **`kind`** when **`verbId`** is **`look`** or **`use`** (`propInteractionEvents.ts`). Object fallback emissions add **`verbFallback: true`**.
+- **Payloads**: Props include **`verbId`**, optional **`walkToPoint`** / **`lookAtPoint`** from JSON (for scripts) (`propInteractionEvents.ts`). Object fallback emissions add **`verbFallback: true`**.
 
 ### Character feet (walk / camera)
 
@@ -196,7 +196,7 @@ registerGameContent (*.room.ts, globalScript)─┘
 
 - **Engine vs game**: Do not put **game-specific narrative or room logic** under `src/engine/` except through **generic hooks** (events, helpers). Put reactions in **`src/game/`** (`*.room.ts`, future modules).
 - **Config**: **`game-config.json`** is the **single source** for resolution, default character, start room override, **verbs**, **inputProfile**, **defaultFallbackLine**, audio, debug flags — read via **`getGameSettings()`**, not duplicated literals.
-- **Room data**: Follow **`RoomData`** / **`RoomPropInstance`** in **`src/types/room.ts`**; **`collider`** is required for **`clickable`** props. **`walkToPoint`** / **`lookAtPoint`** are optional script hints (not applied by the engine on click). Use **`onVerb` / `onVerbFallback`** (or legacy **`onLook` / `onUse`**) for interactions. Optional **`points`** (**`RoomPointData[]`**, named **`x` / `y`**) and **`regions`** (**`RoomRegionData[]`**, closed polygons + **`active`**) are **authoring / future-system** fields; the runtime **`RoomScene`** does not consume them yet beyond **hotspots**.
+- **Room data**: Follow **`RoomData`** / **`RoomPropInstance`** in **`src/types/room.ts`**; **`collider`** is required for **`clickable`** props. **`walkToPoint`** / **`lookAtPoint`** are optional script hints (not applied by the engine on click). Use **`onVerb` / `onVerbFallback`** for interactions. Room-level **`points`** (**`RoomPointData[]`**, named **`x` / `y`**) and **`regions`** (**`RoomRegionData[]`**, closed polygons + **`active`**) are **authoring / future-system** fields; the runtime **`RoomScene`** does not consume them yet beyond **hotspot** polygons (which are separate **`hotspots[].points`**).
 - **Walkable mesh**: **`walkable.polygons[]`** entries support optional **`holes[]`** (inner rings subtracted when **`active`** is not **`false`**). Each polygon and hole may set **`active`**; omitted or non-**`false`** means included in tests and debug draw. See **`walkable.ts`** and **`RoomScene`** debug overlays (outer vs hole stroke colors).
 - **Registration**: New room scripts must live under **`src/game/rooms/`** as **`*.room.ts`** exporting **`registerRoomScript`** to be picked up by **`registerGameContent`**.
 - **Strict TypeScript**: Project uses **strict** compiler options; new code should preserve typings for payloads and JSON-shaped types.
