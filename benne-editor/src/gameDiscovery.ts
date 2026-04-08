@@ -490,3 +490,42 @@ export async function readRoomRegions(uri: vscode.Uri): Promise<RoomRegionListEn
     out.sort((a, b) => a.id.localeCompare(b.id));
     return out;
 }
+
+/** Folder id from `definition` (e.g. `clerk/clerk.character.json` → `clerk`). */
+export function characterIdFromRoomDefinition(definition: string): string | undefined {
+    const d = definition.trim();
+    if (!d) {
+        return undefined;
+    }
+    const seg = d.split('/')[0]?.trim();
+    return seg && seg.length > 0 ? seg : undefined;
+}
+
+export interface RoomCharacterListEntry {
+    instanceId: string;
+    definition: string;
+    characterId: string;
+}
+
+export async function readRoomCharacters(uri: vscode.Uri): Promise<RoomCharacterListEntry[]> {
+    const raw = await vscode.workspace.fs.readFile(uri);
+    const text = new TextDecoder('utf-8').decode(raw);
+    const data = JSON.parse(text) as { characters?: unknown };
+    if (!Array.isArray(data.characters)) {
+        return [];
+    }
+    const out: RoomCharacterListEntry[] = [];
+    for (const c of data.characters) {
+        if (c && typeof c === 'object') {
+            const o = c as Record<string, unknown>;
+            const instanceId = typeof o.instanceId === 'string' ? o.instanceId.trim() : '';
+            const definition = typeof o.definition === 'string' ? o.definition.trim() : '';
+            const characterId = characterIdFromRoomDefinition(definition);
+            if (instanceId && characterId) {
+                out.push({ instanceId, definition, characterId });
+            }
+        }
+    }
+    out.sort((a, b) => a.instanceId.localeCompare(b.instanceId));
+    return out;
+}

@@ -22,6 +22,7 @@ import {
 } from './roomPreviewBuild';
 import { addCharacterVerbEvent, makeCharacterClickable } from './characterVerbScaffolding';
 import { readRoomProps } from './gameDiscovery';
+import { addRoomCharacterVerbEvent } from './roomCharacterVerbScaffolding';
 import {
     addHotspotVerbEvent,
     addPropVerbEvent,
@@ -242,6 +243,30 @@ export function activate(context: vscode.ExtensionContext): void {
                 await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
             }
             await revealRoomJsonElement(node.roomJsonUri, 'region', node.regionId);
+        } else if (node.kind === 'roomCharacter') {
+            const sameRoomContext =
+                selection.focus.kind === 'room' &&
+                selection.focus.uri.toString() === node.roomJsonUri.toString();
+
+            if (!sameRoomContext) {
+                await resetBenneEditorSurface();
+                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            } else if (!roomPreview.isRoomPreviewActive()) {
+                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            }
+
+            selection.setRoomWithRoomCharacter(
+                node.roomJsonUri,
+                node.roomName,
+                node.roomId,
+                node.instanceId,
+                node.characterId
+            );
+
+            if (!sameRoomContext) {
+                await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+            }
+            await revealRoomJsonElement(node.roomJsonUri, 'roomCharacter', node.instanceId);
         } else if (node.kind === 'character') {
             await resetBenneEditorSurface();
             await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
@@ -474,6 +499,32 @@ export function activate(context: vscode.ExtensionContext): void {
                 refreshTrees();
                 if (ok) {
                     const eventId = `verb:room:${roomId}:hotspot:${hotspotId}:${verbId}`;
+                    const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
+                    await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+                }
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addRoomCharacterVerbEvent',
+            async (roomJsonUriStr?: string, roomId?: string, characterId?: string, verbId?: string) => {
+                if (
+                    typeof roomJsonUriStr !== 'string' ||
+                    typeof roomId !== 'string' ||
+                    typeof characterId !== 'string' ||
+                    typeof verbId !== 'string'
+                ) {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(roomJsonUriStr);
+                const folder = vscode.workspace.getWorkspaceFolder(jsonUri);
+                if (!folder) {
+                    void vscode.window.showErrorMessage('Could not resolve workspace folder for room JSON.');
+                    return;
+                }
+                const ok = await addRoomCharacterVerbEvent(folder.uri, jsonUri, roomId, characterId, verbId);
+                refreshTrees();
+                if (ok) {
+                    const eventId = `verb:room:${roomId}:character:${characterId}:${verbId}`;
                     const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
                     await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
                 }

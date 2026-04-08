@@ -1,7 +1,6 @@
 import type { EventBus } from '@engine/events/EventBus';
-import type { RoomPropInteractPayload } from '@engine/events/propInteractionEvents';
-import { roomPropVerbEventId } from '@engine/events/verbInteractionEvents';
-
+import type { RoomPropInteractPayload, CharacterVerbInteractPayload } from '@engine/events/propInteractionEvents';
+import { roomPropVerbEventId, roomCharacterVerbEventId } from '@engine/events/verbInteractionEvents';
 /**
  * Room script for `outsideOffice` — keep all handlers for this room here (PowerQuest-style).
  * Export name is fixed so `registerGameContent` can discover files via `*.room.ts` glob.
@@ -15,5 +14,9 @@ export function registerRoomScript(_events: EventBus): void {
 
   _events.on(roomPropVerbEventId('outsideOffice', 'desk', 'use'), (payload: RoomPropInteractPayload) => {
     console.log(`[Outside Office] The desk is unusable.`);
+  });
+
+  _events.on(roomCharacterVerbEventId('outsideOffice', 'henry', 'look'), (payload: CharacterVerbInteractPayload) => {
+    console.log(`[Outside Office] It looks like Henry outside the office!`);
   });
 }

@@ -7,6 +7,7 @@ import {
     propAsepriteAssetTooltip,
     readCharacterUsesAsepriteDisplay,
     readRoomHotspots,
+    readRoomCharacters,
     readRoomPoints,
     readRoomProps,
     readRoomRegions,
@@ -35,7 +36,7 @@ export type MainTreeNode =
           roomJsonUri: vscode.Uri;
           roomId: string;
           roomName: string;
-          subGroup: 'hotspots' | 'props' | 'points' | 'regions';
+          subGroup: 'hotspots' | 'props' | 'characters' | 'points' | 'regions';
           itemCount: number;
       }
     | {
@@ -73,6 +74,15 @@ export type MainTreeNode =
           roomId: string;
           roomName: string;
           regionId: string;
+      }
+    | {
+          kind: 'roomCharacter';
+          folder: vscode.WorkspaceFolder;
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+          roomName: string;
+          instanceId: string;
+          characterId: string;
       }
     | {
           kind: 'character';
@@ -139,12 +149,14 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 const labels: Record<(typeof element)['subGroup'], string> = {
                     hotspots: 'Hotspots',
                     props: 'Props',
+                    characters: 'Characters',
                     points: 'Points',
                     regions: 'Regions'
                 };
                 const icons: Record<(typeof element)['subGroup'], string> = {
                     hotspots: 'map',
                     props: 'symbol-misc',
+                    characters: 'person',
                     points: 'pinned',
                     regions: 'layout-panel'
                 };
@@ -196,6 +208,15 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.description = 'region';
                 item.iconPath = new vscode.ThemeIcon('layout-panel');
                 item.contextValue = 'benneRoomRegion';
+                return item;
+            }
+            case 'roomCharacter': {
+                const item = new vscode.TreeItem(element.characterId, vscode.TreeItemCollapsibleState.None);
+                item.id = `roomChar:${element.roomJsonUri.toString()}:${element.instanceId}`;
+                item.description = element.instanceId;
+                item.tooltip = `${element.characterId} — instance ${element.instanceId}`;
+                item.iconPath = new vscode.ThemeIcon('person');
+                item.contextValue = 'benneRoomCharacter';
                 return item;
             }
             case 'character': {
@@ -267,11 +288,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
 
         if (element.kind === 'room') {
             try {
-                const [hotspots, points, regions, props] = await Promise.all([
+                const [hotspots, points, regions, props, characters] = await Promise.all([
                     readRoomHotspots(element.uri),
                     readRoomPoints(element.uri),
                     readRoomRegions(element.uri),
-                    readRoomProps(element.uri)
+                    readRoomProps(element.uri),
+                    readRoomCharacters(element.uri)
                 ]);
                 const children: MainTreeNode[] = [];
                 const base = {
@@ -296,6 +318,14 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                         ...base
                     });
                 }
+                if (characters.length > 0) {
+                    children.push({
+                        kind: 'roomSubGroup' as const,
+                        subGroup: 'characters',
+                        itemCount: characters.length,
+                        ...base
+                    });
+                }
                 if (points.length > 0) {
                     children.push({
                         kind: 'roomSubGroup' as const,
@@ -317,7 +347,7 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                         {
                             kind: 'hint',
                             key: `no-room-content:${element.uri}`,
-                            message: '(no hotspots, points, regions, or props)'
+                            message: '(no hotspots, props, characters, points, or regions)'
                         }
                     ];
                 }
@@ -377,6 +407,18 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                             roomName,
                             prop,
                             propAssetTooltip: propAsepriteAssetTooltip(sheet, prop, roomId)
+                        }));
+                    }
+                    case 'characters': {
+                        const list = await readRoomCharacters(roomJsonUri);
+                        return list.map((c) => ({
+                            kind: 'roomCharacter' as const,
+                            folder,
+                            roomJsonUri,
+                            roomId,
+                            roomName,
+                            instanceId: c.instanceId,
+                            characterId: c.characterId
                         }));
                     }
                 }

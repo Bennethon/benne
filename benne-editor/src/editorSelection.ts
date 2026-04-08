@@ -11,6 +11,13 @@ export type RoomPanelFocus =
     | { kind: 'none' }
     | { kind: 'prop'; roomJsonUri: vscode.Uri; roomId: string; prop: RoomPropEntry }
     | { kind: 'hotspot'; roomJsonUri: vscode.Uri; roomId: string; hotspotId: string }
+    | {
+          kind: 'roomCharacter';
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+          instanceId: string;
+          characterId: string;
+      }
     | { kind: 'roomPoint'; roomJsonUri: vscode.Uri; roomId: string; pointId: string }
     | { kind: 'region'; roomJsonUri: vscode.Uri; roomId: string; regionId: string };
 
@@ -81,6 +88,18 @@ export class EditorSelection {
         this._onDidChange.fire();
     }
 
+    setRoomWithRoomCharacter(
+        roomJsonUri: vscode.Uri,
+        roomLabel: string,
+        roomId: string,
+        instanceId: string,
+        characterId: string
+    ): void {
+        this._main = { kind: 'room', uri: roomJsonUri, label: roomLabel };
+        this._roomPanel = { kind: 'roomCharacter', roomJsonUri, roomId, instanceId, characterId };
+        this._onDidChange.fire();
+    }
+
     setCharacter(uri: vscode.Uri, label: string): void {
         this._main = { kind: 'character', uri, label };
         this._roomPanel = { kind: 'none' };
@@ -104,6 +123,16 @@ export class EditorSelection {
 
     setRoomPanelRegion(roomJsonUri: vscode.Uri, roomId: string, regionId: string): void {
         this._roomPanel = { kind: 'region', roomJsonUri, roomId, regionId };
+        this._onDidChange.fire();
+    }
+
+    setRoomPanelRoomCharacter(
+        roomJsonUri: vscode.Uri,
+        roomId: string,
+        instanceId: string,
+        characterId: string
+    ): void {
+        this._roomPanel = { kind: 'roomCharacter', roomJsonUri, roomId, instanceId, characterId };
         this._onDidChange.fire();
     }
 

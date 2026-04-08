@@ -29,7 +29,8 @@
     "onCommand:benne-editor.makePropClickable",
     "onCommand:benne-editor.addHotspotVerbEvent",
     "onCommand:benne-editor.makeCharacterClickable",
-    "onCommand:benne-editor.addCharacterVerbEvent"
+    "onCommand:benne-editor.addCharacterVerbEvent",
+    "onCommand:benne-editor.addRoomCharacterVerbEvent"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -112,6 +113,12 @@
       {
         "command": "benne-editor.addCharacterVerbEvent",
         "title": "Add character verb handler (character JSON + script)",
+        "category": "BENNE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "benne-editor.addRoomCharacterVerbEvent",
+        "title": "Add room-scoped character verb handler (character JSON + room script)",
         "category": "BENNE",
         "icon": "$(add)"
       },
