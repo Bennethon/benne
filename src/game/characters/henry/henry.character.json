@@ -56,7 +56,7 @@
     "y": 120
   },
   "onVerb": {
-    "look": "look:henry"
+    "look": true
   },
   "collider": {
     "points": [

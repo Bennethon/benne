@@ -209,14 +209,42 @@
       "clickable": true
     },
     {
-      "id": "outsideOffice-prop-desk-2",
+      "id": "desk",
       "tag": "desk",
       "zIndex": 7,
       "visible": true,
       "alpha": 1,
       "clickable": true,
       "onVerb": {
-        "use": "use:outsideOffice-prop-desk-2"
+        "use": true
+      },
+      "collider": {
+        "points": [
+          {
+            "x": 168,
+            "y": 90
+          },
+          {
+            "x": 216,
+            "y": 83
+          },
+          {
+            "x": 225,
+            "y": 107
+          },
+          {
+            "x": 168,
+            "y": 119
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 201,
+        "y": 121
+      },
+      "lookAtPoint": {
+        "x": 195,
+        "y": 103
       }
     }
   ],

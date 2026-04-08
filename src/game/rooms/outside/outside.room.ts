@@ -5,5 +5,5 @@ import type { EventBus } from '@engine/events/EventBus';
  * Export name is fixed so `registerGameContent` can discover files via `*.room.ts` glob.
  */
 export function registerRoomScript(_events: EventBus): void {
-  // Example: _events.on('look:outside-desk', () => { ... });
+  // Example: use roomPropVerbEventId('outside', 'outside-desk', 'look') for room-scoped handlers.
 }

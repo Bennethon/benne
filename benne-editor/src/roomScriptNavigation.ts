@@ -97,7 +97,10 @@ export async function revealEventInDocument(
     });
 
     const text = doc.getText();
-    const idx = text.indexOf(eventId);
+    let idx = text.indexOf(eventId);
+    if (idx < 0) {
+        idx = findCanonicalHelperCallIndex(text, eventId);
+    }
     if (idx < 0) {
         void vscode.window.showInformationMessage(`Could not find "${eventId}" in ${scriptUri.path.split('/').pop()}`);
         const start = doc.positionAt(0);
@@ -111,4 +114,94 @@ export async function revealEventInDocument(
     editor.selection = new vscode.Selection(pos, end);
     editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
     return true;
+}
+
+function canonicalRoomVerbRegex(
+    roomId: string,
+    targetType: 'prop' | 'hotspot' | 'character',
+    targetId: string,
+    verbId: string
+): RegExp {
+    const fn =
+        targetType === 'prop'
+            ? 'roomPropVerbEventId'
+            : targetType === 'hotspot'
+              ? 'roomHotspotVerbEventId'
+              : 'roomCharacterVerbEventId';
+    return new RegExp(
+        `${fn}\\s*\\(\\s*['"\`]${escapeRegex(roomId)}['"\`]\\s*,\\s*['"\`]${escapeRegex(targetId)}['"\`]\\s*,\\s*['"\`]${escapeRegex(verbId)}['"\`]\\s*\\)`,
+        'm'
+    );
+}
+
+function canonicalRoomFallbackRegex(
+    roomId: string,
+    targetType: 'prop' | 'hotspot' | 'character',
+    targetId: string
+): RegExp {
+    const fn =
+        targetType === 'prop'
+            ? 'roomPropVerbFallbackEventId'
+            : targetType === 'hotspot'
+              ? 'roomHotspotVerbFallbackEventId'
+              : 'roomCharacterVerbFallbackEventId';
+    return new RegExp(
+        `${fn}\\s*\\(\\s*['"\`]${escapeRegex(roomId)}['"\`]\\s*,\\s*['"\`]${escapeRegex(targetId)}['"\`]\\s*\\)`,
+        'm'
+    );
+}
+
+function canonicalCharacterVerbRegex(characterId: string, verbId: string): RegExp {
+    return new RegExp(
+        `characterVerbEventId\\s*\\(\\s*['"\`]${escapeRegex(characterId)}['"\`]\\s*,\\s*['"\`]${escapeRegex(verbId)}['"\`]\\s*\\)`,
+        'm'
+    );
+}
+
+function canonicalCharacterFallbackRegex(characterId: string): RegExp {
+    return new RegExp(
+        `characterVerbFallbackEventId\\s*\\(\\s*['"\`]${escapeRegex(characterId)}['"\`]\\s*\\)`,
+        'm'
+    );
+}
+
+function findCanonicalHelperCallIndex(source: string, eventId: string): number {
+    const roomVerb = eventId.match(/^verb:room:([^:]+):(prop|hotspot|character):([^:]+):([^:]+)$/);
+    if (roomVerb) {
+        const rx = canonicalRoomVerbRegex(
+            roomVerb[1],
+            roomVerb[2] as 'prop' | 'hotspot' | 'character',
+            roomVerb[3],
+            roomVerb[4]
+        );
+        const m = rx.exec(source);
+        return m?.index ?? -1;
+    }
+    const roomFallback = eventId.match(/^verb:room:([^:]+):(prop|hotspot|character):([^:]+):fallback$/);
+    if (roomFallback) {
+        const rx = canonicalRoomFallbackRegex(
+            roomFallback[1],
+            roomFallback[2] as 'prop' | 'hotspot' | 'character',
+            roomFallback[3]
+        );
+        const m = rx.exec(source);
+        return m?.index ?? -1;
+    }
+    const charVerb = eventId.match(/^verb:character:([^:]+):([^:]+)$/);
+    if (charVerb) {
+        const rx = canonicalCharacterVerbRegex(charVerb[1], charVerb[2]);
+        const m = rx.exec(source);
+        return m?.index ?? -1;
+    }
+    const charFallback = eventId.match(/^verb:character:([^:]+):fallback$/);
+    if (charFallback) {
+        const rx = canonicalCharacterFallbackRegex(charFallback[1]);
+        const m = rx.exec(source);
+        return m?.index ?? -1;
+    }
+    return -1;
+}
+
+function escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

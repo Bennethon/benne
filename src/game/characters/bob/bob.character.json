@@ -8,6 +8,6 @@
     "aseprite": true
   },
   "onVerb": {
-    "use": "use:bob"
+    "use": true
   }
 }

@@ -1,9 +1,12 @@
 import * as vscode from 'vscode';
 import { formatJson } from './roomScaffolding';
 
-/** Default event id for scaffolded `onVerb` entries — opaque string; must stay unique on the game EventBus if handlers should not stack. */
-export function defaultVerbEventId(verbId: string, targetId: string): string {
-    return `${verbId}:${targetId}`;
+function roomPropVerbEventId(roomId: string, propId: string, verbId: string): string {
+    return `verb:room:${roomId}:prop:${propId}:${verbId}`;
+}
+
+function roomHotspotVerbEventId(roomId: string, hotspotId: string, verbId: string): string {
+    return `verb:room:${roomId}:hotspot:${hotspotId}:${verbId}`;
 }
 
 export function parseRegisterRoomScriptBusParam(source: string): string {
@@ -21,6 +24,11 @@ function scriptAlreadyRegistersEvent(source: string, eventId: string): boolean {
     const stripped = stripLineAndBlockComments(source);
     const patterns = [`'${eventId}'`, `"${eventId}"`, `\`${eventId}\``];
     return patterns.some((p) => stripped.includes(p));
+}
+
+function scriptAlreadyRegistersCall(source: string, callExpr: string): boolean {
+    const stripped = stripLineAndBlockComments(source);
+    return stripped.includes(callExpr);
 }
 
 function ensureRoomVerbPayloadImports(
@@ -55,9 +63,41 @@ function ensureRoomVerbPayloadImports(
     return newImport + source;
 }
 
+function ensureRoomVerbEventHelperImports(
+    source: string,
+    helperName: 'roomPropVerbEventId' | 'roomHotspotVerbEventId'
+): string {
+    if (new RegExp(`\\b${helperName}\\b`).test(source)) {
+        return source;
+    }
+    const existing = source.match(
+        /^import \{([^}]+)\} from ['"]@engine\/events\/verbInteractionEvents['"];\s*$/m
+    );
+    if (existing) {
+        const inner = existing[1]
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        if (!inner.includes(helperName)) {
+            inner.push(helperName);
+        }
+        return source.replace(
+            existing[0],
+            `import { ${inner.join(', ')} } from '@engine/events/verbInteractionEvents';`
+        );
+    }
+    const newImport = `import { ${helperName} } from '@engine/events/verbInteractionEvents';\n`;
+    const eventBusImport =
+        /^import\s+type\s+\{\s*EventBus\s*\}\s+from\s+['"]@engine\/events\/EventBus['"];\s*$/m;
+    if (eventBusImport.test(source)) {
+        return source.replace(eventBusImport, (line) => `${line}\n${newImport.trimEnd()}`);
+    }
+    return newImport + source;
+}
+
 function insertHandlerBeforeRegisterRoomScriptClose(
     source: string,
-    eventId: string,
+    eventExpr: string,
     eventsVar: string,
     payloadType: 'RoomPropInteractPayload' | 'RoomHotspotInteractPayload'
 ): string | null {
@@ -78,7 +118,7 @@ function insertHandlerBeforeRegisterRoomScriptClose(
         } else if (c === '}') {
             depth--;
             if (depth === 0) {
-                const snippet = `\n  ${eventsVar}.on('${eventId}', (payload: ${payloadType}) => {\n    // TODO\n  });\n`;
+                const snippet = `\n  ${eventsVar}.on(${eventExpr}, (payload: ${payloadType}) => {\n    // TODO\n  });\n`;
                 return source.slice(0, i) + snippet + source.slice(i);
             }
         }
@@ -90,7 +130,9 @@ async function appendRoomScriptHandler(
     roomJsonUri: vscode.Uri,
     roomId: string,
     eventId: string,
-    payloadType: 'RoomPropInteractPayload' | 'RoomHotspotInteractPayload'
+    payloadType: 'RoomPropInteractPayload' | 'RoomHotspotInteractPayload',
+    eventCallExpr: string,
+    helperName: 'roomPropVerbEventId' | 'roomHotspotVerbEventId'
 ): Promise<void> {
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
     let scriptText: string;
@@ -104,13 +146,14 @@ async function appendRoomScriptHandler(
         return;
     }
 
-    if (scriptAlreadyRegistersEvent(scriptText, eventId)) {
+    if (scriptAlreadyRegistersEvent(scriptText, eventId) || scriptAlreadyRegistersCall(scriptText, eventCallExpr)) {
         return;
     }
 
     let next = ensureRoomVerbPayloadImports(scriptText, payloadType);
+    next = ensureRoomVerbEventHelperImports(next, helperName);
     const eventsVar = parseRegisterRoomScriptBusParam(next);
-    const inserted = insertHandlerBeforeRegisterRoomScriptClose(next, eventId, eventsVar, payloadType);
+    const inserted = insertHandlerBeforeRegisterRoomScriptClose(next, eventCallExpr, eventsVar, payloadType);
     if (inserted === null) {
         void vscode.window.showWarningMessage(
             `Room JSON was updated; could not find registerRoomScript in ${roomId}.room.ts — add the handler manually.`
@@ -166,7 +209,7 @@ export async function makeRoomPropClickable(
 }
 
 /**
- * Adds `onVerb[verbId]` to the prop in room JSON and appends a stub in `*.room.ts` when missing.
+ * Adds `onVerb[verbId] = true` to the prop in room JSON and appends a stub in `*.room.ts` when missing.
  */
 export async function addPropVerbEvent(
     roomJsonUri: vscode.Uri,
@@ -200,28 +243,35 @@ export async function addPropVerbEvent(
         return false;
     }
 
-    const eventId = defaultVerbEventId(verbId, propId);
+    const eventId = roomPropVerbEventId(roomId, propId, verbId);
     const existingOnVerb =
         prop.onVerb && typeof prop.onVerb === 'object' && !Array.isArray(prop.onVerb)
             ? { ...(prop.onVerb as Record<string, unknown>) }
             : {};
-    if (typeof existingOnVerb[verbId] === 'string' && (existingOnVerb[verbId] as string).length > 0) {
+    if (existingOnVerb[verbId] === true) {
         void vscode.window.showInformationMessage(`Verb "${verbId}" is already mapped for this prop.`);
         return false;
     }
-    existingOnVerb[verbId] = eventId;
+    existingOnVerb[verbId] = true;
     prop.onVerb = existingOnVerb;
     data.props = props;
     await vscode.workspace.fs.writeFile(roomJsonUri, formatJson(data));
 
-    await appendRoomScriptHandler(roomJsonUri, roomId, eventId, 'RoomPropInteractPayload');
+    await appendRoomScriptHandler(
+        roomJsonUri,
+        roomId,
+        eventId,
+        'RoomPropInteractPayload',
+        `roomPropVerbEventId('${roomId}', '${propId}', '${verbId}')`,
+        'roomPropVerbEventId'
+    );
 
     void vscode.window.showInformationMessage(`Added ${verbId} → ${eventId} for prop "${propId}".`);
     return true;
 }
 
 /**
- * Adds `onVerb[verbId]` to a hotspot in room JSON and appends a stub in `*.room.ts` when missing.
+ * Adds `onVerb[verbId] = true` to a hotspot in room JSON and appends a stub in `*.room.ts` when missing.
  */
 export async function addHotspotVerbEvent(
     roomJsonUri: vscode.Uri,
@@ -255,21 +305,28 @@ export async function addHotspotVerbEvent(
         return false;
     }
 
-    const eventId = defaultVerbEventId(verbId, hotspotId);
+    const eventId = roomHotspotVerbEventId(roomId, hotspotId, verbId);
     const existingOnVerb =
         hotspot.onVerb && typeof hotspot.onVerb === 'object' && !Array.isArray(hotspot.onVerb)
             ? { ...(hotspot.onVerb as Record<string, unknown>) }
             : {};
-    if (typeof existingOnVerb[verbId] === 'string' && (existingOnVerb[verbId] as string).length > 0) {
+    if (existingOnVerb[verbId] === true) {
         void vscode.window.showInformationMessage(`Verb "${verbId}" is already mapped for this hotspot.`);
         return false;
     }
-    existingOnVerb[verbId] = eventId;
+    existingOnVerb[verbId] = true;
     hotspot.onVerb = existingOnVerb;
     data.hotspots = hotspots;
     await vscode.workspace.fs.writeFile(roomJsonUri, formatJson(data));
 
-    await appendRoomScriptHandler(roomJsonUri, roomId, eventId, 'RoomHotspotInteractPayload');
+    await appendRoomScriptHandler(
+        roomJsonUri,
+        roomId,
+        eventId,
+        'RoomHotspotInteractPayload',
+        `roomHotspotVerbEventId('${roomId}', '${hotspotId}', '${verbId}')`,
+        'roomHotspotVerbEventId'
+    );
 
     void vscode.window.showInformationMessage(`Added ${verbId} → ${eventId} for hotspot "${hotspotId}".`);
     return true;

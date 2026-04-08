@@ -63,8 +63,8 @@ export interface CharacterData {
   display: CharacterDisplayData;
   /** Optional per Aseprite-tag playback (keys must match `meta.frameTags` on `images/characters/<id>/<id>.json`). */
   animations?: CharacterAnimationsConfig;
-  /** Per-verb event ids (keys match `game-config.json` `verbs[].id`). */
-  onVerb?: Record<string, string>;
-  /** Runs when no `onVerb` entry exists for the attempted verb. */
-  onVerbFallback?: string;
+  /** Supported verbs for this character definition (keys match `game-config.json` `verbs[].id`). */
+  onVerb?: Record<string, boolean>;
+  /** Enables character fallback dispatch when no supported verb matches. */
+  onVerbFallback?: boolean;
 }

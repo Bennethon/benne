@@ -5,7 +5,7 @@ import type { VerbGlobalFallbackPayload, VerbUnhandledPayload } from '@engine/ev
 /**
  * Handlers for events that are not tied to a single room (inventory, UI, global flags, verbs, etc.).
  *
- * Verb fallback chain (engine): object `onVerb[id]` → object `onVerbFallback` →
+ * Verb fallback chain (engine): object scoped handler (room/character channels) → object fallback →
  * `verb:global:<id>` → `verb:global:fallback` → `verb:unhandled`.
  */
 export function registerGlobalScript(events: EventBus): void {

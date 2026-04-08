@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import { formatJson } from './roomScaffolding';
-import { defaultVerbEventId } from './propVerbScaffolding';
+
+function characterVerbEventId(characterId: string, verbId: string): string {
+    return `verb:character:${characterId}:${verbId}`;
+}
 
 export function parseRegisterCharacterScriptBusParam(source: string): string {
     const m = source.match(/export\s+function\s+registerCharacterScript\s*\(\s*(\w+)\s*:/);
@@ -22,12 +25,13 @@ function scriptAlreadyRegistersEvent(source: string, eventId: string): boolean {
 function characterScriptTemplate(characterId: string): string {
     return `import type { EventBus } from '@engine/events/EventBus';
 import type { CharacterVerbInteractPayload } from '@engine/events/propInteractionEvents';
+import { characterVerbEventId } from '@engine/events/verbInteractionEvents';
 
 /**
  * Character script for \`${characterId}\` — register verb handlers on the game EventBus.
  */
 export function registerCharacterScript(_events: EventBus): void {
-  // Example: _events.on('verbName:characterId', (payload: CharacterVerbInteractPayload) => { ... });
+  // Example global: _events.on(characterVerbEventId('${characterId}', 'look'), (payload: CharacterVerbInteractPayload) => { ... });
 }
 `;
 }
@@ -75,9 +79,38 @@ function ensureCharacterVerbPayloadImport(source: string): string {
     return newImport + source;
 }
 
+function ensureCharacterVerbEventHelperImport(source: string): string {
+    if (/\bcharacterVerbEventId\b/.test(source)) {
+        return source;
+    }
+    const existing = source.match(
+        /^import \{([^}]+)\} from ['"]@engine\/events\/verbInteractionEvents['"];\s*$/m
+    );
+    if (existing) {
+        const inner = existing[1]
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        if (!inner.includes('characterVerbEventId')) {
+            inner.push('characterVerbEventId');
+        }
+        return source.replace(
+            existing[0],
+            `import { ${inner.join(', ')} } from '@engine/events/verbInteractionEvents';`
+        );
+    }
+    const newImport = `import { characterVerbEventId } from '@engine/events/verbInteractionEvents';\n`;
+    const eventBusImport =
+        /^import\s+type\s+\{\s*EventBus\s*\}\s+from\s+['"]@engine\/events\/EventBus['"];\s*$/m;
+    if (eventBusImport.test(source)) {
+        return source.replace(eventBusImport, (line) => `${line}\n${newImport.trimEnd()}`);
+    }
+    return newImport + source;
+}
+
 function insertHandlerBeforeRegisterCharacterScriptClose(
     source: string,
-    eventId: string,
+    eventExpr: string,
     eventsVar: string
 ): string | null {
     const marker = 'export function registerCharacterScript';
@@ -97,7 +130,7 @@ function insertHandlerBeforeRegisterCharacterScriptClose(
         } else if (c === '}') {
             depth--;
             if (depth === 0) {
-                const snippet = `\n  ${eventsVar}.on('${eventId}', (payload: CharacterVerbInteractPayload) => {\n    // TODO\n  });\n`;
+                const snippet = `\n  ${eventsVar}.on(${eventExpr}, (payload: CharacterVerbInteractPayload) => {\n    // TODO\n  });\n`;
                 return source.slice(0, i) + snippet + source.slice(i);
             }
         }
@@ -152,16 +185,16 @@ export async function addCharacterVerbEvent(
         return false;
     }
 
-    const eventId = defaultVerbEventId(verbId, characterId);
+    const eventId = characterVerbEventId(characterId, verbId);
     const existingOnVerb =
         data.onVerb && typeof data.onVerb === 'object' && !Array.isArray(data.onVerb)
             ? { ...(data.onVerb as Record<string, unknown>) }
             : {};
-    if (typeof existingOnVerb[verbId] === 'string' && (existingOnVerb[verbId] as string).length > 0) {
+    if (existingOnVerb[verbId] === true) {
         void vscode.window.showInformationMessage(`Verb "${verbId}" is already mapped for this character.`);
         return false;
     }
-    existingOnVerb[verbId] = eventId;
+    existingOnVerb[verbId] = true;
     data.onVerb = existingOnVerb;
     await vscode.workspace.fs.writeFile(characterJsonUri, formatJson(data));
 
@@ -175,8 +208,13 @@ export async function addCharacterVerbEvent(
         let next = shell;
         if (!scriptAlreadyRegistersEvent(next, eventId)) {
             next = ensureCharacterVerbPayloadImport(next);
+            next = ensureCharacterVerbEventHelperImport(next);
             const eventsVar = parseRegisterCharacterScriptBusParam(next);
-            const inserted = insertHandlerBeforeRegisterCharacterScriptClose(next, eventId, eventsVar);
+            const inserted = insertHandlerBeforeRegisterCharacterScriptClose(
+                next,
+                `characterVerbEventId('${characterId}', '${verbId}')`,
+                eventsVar
+            );
             if (inserted !== null) {
                 next = inserted;
             }
@@ -189,8 +227,13 @@ export async function addCharacterVerbEvent(
     let nextScript = ensureRegisterCharacterScriptShell(scriptText, characterId);
     if (!scriptAlreadyRegistersEvent(nextScript, eventId)) {
         nextScript = ensureCharacterVerbPayloadImport(nextScript);
+        nextScript = ensureCharacterVerbEventHelperImport(nextScript);
         const eventsVar = parseRegisterCharacterScriptBusParam(nextScript);
-        const inserted = insertHandlerBeforeRegisterCharacterScriptClose(nextScript, eventId, eventsVar);
+        const inserted = insertHandlerBeforeRegisterCharacterScriptClose(
+            nextScript,
+            `characterVerbEventId('${characterId}', '${verbId}')`,
+            eventsVar
+        );
         if (inserted === null) {
             void vscode.window.showWarningMessage(
                 `Character JSON was updated; could not find registerCharacterScript in ${characterId}.character.ts — add the handler manually.`

@@ -39,10 +39,10 @@ export interface RoomHotspotData {
   walkToPoint?: Point2;
   /** Facing target after walking (optional; pairs with `walkToPoint`). */
   lookAtPoint?: Point2;
-  /** Per-verb event ids (keys match `game-config.json` `verbs[].id`). */
-  onVerb?: Record<string, string>;
-  /** Runs when no `onVerb` entry exists for the attempted verb. */
-  onVerbFallback?: string;
+  /** Supported verbs for this hotspot (keys match `game-config.json` `verbs[].id`). */
+  onVerb?: Record<string, boolean>;
+  /** Enables object-level fallback dispatch when no supported verb matches. */
+  onVerbFallback?: boolean;
 }
 
 /** Named marker in room space (spawns, triggers, script anchors). */
@@ -114,10 +114,10 @@ export interface RoomPropInstance {
   description?: string;
   /** Hit area in room space; required when `clickable` is true. */
   collider?: RoomPropCollider;
-  /** Per-verb event ids (keys match `game-config.json` `verbs[].id`). */
-  onVerb?: Record<string, string>;
-  /** Runs when no `onVerb` entry exists for the attempted verb (before global verb handlers). */
-  onVerbFallback?: string;
+  /** Supported verbs for this prop (keys match `game-config.json` `verbs[].id`). */
+  onVerb?: Record<string, boolean>;
+  /** Enables object-level fallback dispatch when no supported verb matches (before global handlers). */
+  onVerbFallback?: boolean;
   /** Per-tag playback (loop, frameDuration); keys match Aseprite tags on this room's sheet. */
   animations?: CharacterAnimationsConfig;
   /**

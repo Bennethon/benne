@@ -34,7 +34,7 @@
     }
   },
   "onVerb": {
-    "look": "look:clerk"
+    "look": true
   },
   "feet": {
     "x": 18,
