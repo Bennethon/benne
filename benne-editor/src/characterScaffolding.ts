@@ -24,6 +24,71 @@ function defaultCharacterIdFromDisplayName(displayName: string): string {
     return slug.length > 0 ? slug : 'character';
 }
 
+/** Property line for `BenneKnownCharacters` — quote the key when it is not a valid JS identifier. */
+function formatKnownCharacterPropertyLine(characterId: string): string {
+    const isBareId = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(characterId);
+    const key = isBareId ? characterId : JSON.stringify(characterId);
+    return `    ${key}: CharacterScriptHandle;`;
+}
+
+/** How authors reference this id in scripts (dot vs bracket). */
+function characterIdToScriptAccessor(characterId: string): string {
+    return /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(characterId)
+        ? `C.${characterId}`
+        : `C[${JSON.stringify(characterId)}]`;
+}
+
+/**
+ * Append this character id to `src/game/scripting/known-characters.d.ts` (create file + dirs if needed).
+ * Skips if the id is already listed.
+ */
+export async function appendKnownCharacterAugmentation(gameRoot: vscode.Uri, characterId: string): Promise<void> {
+    const scriptingDir = vscode.Uri.joinPath(gameRoot, 'src', 'game', 'scripting');
+    const knownUri = vscode.Uri.joinPath(scriptingDir, 'known-characters.d.ts');
+    const newLine = formatKnownCharacterPropertyLine(characterId);
+
+    let text: string;
+    try {
+        const raw = await vscode.workspace.fs.readFile(knownUri);
+        text = new TextDecoder('utf-8').decode(raw);
+    } catch {
+        text = '';
+    }
+
+    const needle = formatKnownCharacterPropertyLine(characterId).trim();
+    if (text.split(/\r?\n/).some((line) => line.trim() === needle)) {
+        return;
+    }
+
+    const blockRe = /(interface BenneKnownCharacters \{)([\s\S]*?)(\r?\n  \}\r?\n\}\r?\n?)/;
+    if (text.trim().length === 0) {
+        const initial = `import type { CharacterScriptHandle } from '@engine/scripting';
+
+declare module '@engine/scripting' {
+  interface BenneKnownCharacters {
+${newLine}
+  }
+}
+`;
+        await vscode.workspace.fs.createDirectory(scriptingDir);
+        await vscode.workspace.fs.writeFile(knownUri, new TextEncoder().encode(initial));
+        return;
+    }
+    if (!blockRe.test(text)) {
+        void vscode.window.showWarningMessage(
+            'Could not parse src/game/scripting/known-characters.d.ts — add this character id to BenneKnownCharacters manually.'
+        );
+        return;
+    }
+
+    text = text.replace(blockRe, (_full, open: string, body: string, close: string) => {
+        const inner = body.trimEnd();
+        const nextInner = inner.length > 0 ? `${inner}\n${newLine}` : `\n${newLine}`;
+        return `${open}${nextInner}${close}`;
+    });
+    await vscode.workspace.fs.writeFile(knownUri, new TextEncoder().encode(text));
+}
+
 /**
  * Create `src/game/characters/<id>/`, `<id>.character.json`, optional `<id>.character.ts`, and asset folder.
  */
@@ -84,14 +149,30 @@ export async function runCreateCharacterWizard(preferredFolder?: vscode.Workspac
         }
     };
 
+    const cAccessor = characterIdToScriptAccessor(id);
+
     const charTs = `import type { EventBus } from '@engine/events/EventBus';
 import type { CharacterVerbInteractPayload } from '@engine/events/propInteractionEvents';
+import { characterVerbEventId } from '@engine/events/verbInteractionEvents';
+import { E, C, I, R } from '@engine/scripting';
 
 /**
  * Character script for \`${id}\` — register verb handlers on the game EventBus.
+ *
+ * BenneScript (\`E\`, \`C\`, \`I\`, \`R\`) — \`${cAccessor}\` is registered in \`src/game/scripting/known-characters.d.ts\` for autocomplete.
+ *
+ * @example
+ * _events.on(characterVerbEventId('${id}', 'look'), async (payload: CharacterVerbInteractPayload) => {
+ *   if (E.firstOccurrence(\`${id}:looked\`)) {
+ *     await E.wait(0.3);
+ *     void C.Player.say(payload.description ?? '…');
+ *   }
+ * });
  */
 export function registerCharacterScript(_events: EventBus): void {
-  // Example global: _events.on(characterVerbEventId('${id}', 'look'), (payload: CharacterVerbInteractPayload) => { ... });
+  void [_events, E, C, I, R, characterVerbEventId];
+  void (0 as unknown as CharacterVerbInteractPayload);
+  // Example: _events.on(characterVerbEventId('${id}', 'look'), (payload: CharacterVerbInteractPayload) => { ... });
 }
 `;
 
@@ -99,6 +180,7 @@ export function registerCharacterScript(_events: EventBus): void {
     await vscode.workspace.fs.createDirectory(assetsDir);
     await vscode.workspace.fs.writeFile(charJsonUri, formatJson(characterJson));
     await vscode.workspace.fs.writeFile(charTsUri, new TextEncoder().encode(charTs));
+    await appendKnownCharacterAugmentation(folder.uri, id);
 
     void vscode.window.showInformationMessage(`Created character "${name}" (${id}). Export Aseprite to assets/images/characters/${id}/ when ready.`);
     await vscode.window.showTextDocument(charJsonUri, { preview: false });

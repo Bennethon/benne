@@ -20,6 +20,10 @@
     {
       "id": "outsideOffice",
       "definition": "outsideOffice/outsideOffice.room.json"
+    },
+    {
+      "id": "test-room",
+      "definition": "test-room/test-room.room.json"
     }
   ]
 }

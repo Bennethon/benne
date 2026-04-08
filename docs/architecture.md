@@ -74,7 +74,7 @@ The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build 
 
 - **`BootScene`**: Entry after game creation. Uses `loadStartRoomData()` — **`startingRoomId` in `game-config.json` overrides** `rooms.manifest.json` — resolves the room’s `*.room.json` via Vite glob. Queues background image (optional), room Aseprite sheet, and character assets, then starts **`RoomScene`** with **`RoomSceneStartData`** (room JSON, spawn lists, texture keys).
 - **`RoomScene`**: Single active gameplay view for that room. No second “room manager” type is used at runtime; the abstract **`Room`** class in `Room.ts` is a **placeholder** for future data-driven room types, not wired into Phaser yet.
-- **Room switching**: **Not implemented** in-engine today — only the initial `BootScene` → `RoomScene` transition exists.
+- **Room switching**: **Not implemented** in-engine today — only the initial `BootScene` → `RoomScene` transition exists. Scripts may call **`E.changeRoom`** from the BenneScript facade; that emits **`game:roomChangeRequested`** and updates facade state, but nothing in `RoomScene` consumes it until phase 2 wiring lands.
 
 **Boundaries**: Room **layout and flags** come from JSON; **reactions** for room-scoped content (props, hotspots) typically live in **`registerRoomScript`** in `*.room.ts`. **Character-definition** verb handlers may live in **`registerCharacterScript`** in `*.character.ts` (also registered at startup); authors may still keep handlers in room scripts if they prefer one file per room.
 
@@ -156,6 +156,41 @@ The sprite’s **`facing`** data stores the **logical** facing the gameplay aske
 - **Payloads**: Typed payloads for prop interaction (`propInteractionEvents.ts`), player walk start/stop, etc.
 - **Boundary**: Scenes should not embed game-specific puzzle logic; they **emit** and **listen** only through agreed event names and small shared types.
 
+### Scripting facade (BenneScript)
+
+**Purpose:** A PowerQuest-inspired, autocomplete-friendly surface for room and character scripts. Authors import **`@engine/scripting`** (`E`, **`C`**, `I`, `R`, `Audio`, `Camera`). The facade stays **thin**: in-memory stubs + **`gameEvents`** emissions.
+
+**`C` (characters):** A single **`Proxy`** in [`facade.ts`](src/engine/scripting/facade.ts):
+
+- **`C.Player`** — alias for the default PC: same handle as **`C[startingPlayerCharacter]`** from **`game-config.json`** (e.g. `clerk`). Stays correct when you change the default.
+- **Any other property** — the **exact** character **`id`** from **`*.character.json`**: **`C.henry`**, **`C['shop-keeper']`** / **`C["shop-keeper"]`** for hyphenated ids. No automatic renaming.
+
+Each id gets a stable **`CharacterScriptHandle`** (**`say`**, **`walkTo`**, **`playAnimation`**, **`addToInventory`**, **`characterId`**). Phase 1: **`addToInventory`** calls global **`I.add`**.
+
+**Typing:** Augment **`BenneKnownCharacters`** in one place: [`src/game/scripting/known-characters.d.ts`](src/game/scripting/known-characters.d.ts). The **Create Character** wizard appends a line there. Ids you omit still work at runtime and type-check as **`CharacterScriptHandle`** via **`Record<string, CharacterScriptHandle>`** on **`C`**.
+
+**Phase 1 (today):** Flags, first-occurrence keys, inventory item ids, and “current room” / visit tracking live in module state inside [`src/engine/scripting/facade.ts`](src/engine/scripting/facade.ts). **`E.changeRoom`** updates that state and emits **`game:roomChangeRequested`**; **`RoomScene` does not yet switch rooms** until a listener implements the transition (see §7). **`E.fadeOut` / `E.fadeIn`** emit **`game:fadeOutRequested` / `game:fadeInRequested`** only (no visual fade yet).
+
+**Phase 2:** Replace internals with a **serializable `GameState`** (save/load, boot hydration) while keeping the same **`E` / `C` / `I` / `R`** shape where possible. **`R.Current`** and visit flags should then sync from the real active room when the game starts, not only after the first `changeRoom` call.
+
+**Event ids** (payload types in [`src/engine/scripting/scriptingEvents.ts`](src/engine/scripting/scriptingEvents.ts)): `game:roomChangeRequested`, `flag:changed`, `inventory:changed`, `firstOccurrence:consumed`, `game:fadeOutRequested`, `game:fadeInRequested`.
+
+**Example** — async prop handler using the facade (also reflected in new-room / new-character VS Code templates):
+
+```ts
+import { roomPropVerbEventId } from '@engine/events/verbInteractionEvents';
+import { E, C, I } from '@engine/scripting';
+
+_events.on(roomPropVerbEventId('office', 'desk', 'look'), async () => {
+  if (E.firstOccurrence('sawDesk')) {
+    await E.wait(0.5);
+    void C.Player.say('A messy desk.');
+    void C.henry.say('…');
+  }
+  if (I.has('key')) E.changeRoom('hallway', 'fromOffice');
+});
+```
+
 ### Asset management / loading
 
 - **Room & character JSON** for Aseprite: **eager globs** in `loadAsepriteAtlasData.ts` (and friends); **normalized** for Phaser frame indices (`normalizeAsepriteJson.ts`).
@@ -218,7 +253,7 @@ registerGameContent (*.room.ts, globalScript)─┘
 
 ## 7. Future Considerations
 
-- **Room transitions**: Loading another room likely means **restarting `RoomScene`** (or a thin orchestrator) with new `RoomSceneStartData`; persistence of inventory/state across rooms is **not defined** in code yet.
+- **Room transitions**: Loading another room likely means **restarting `RoomScene`** (or a thin orchestrator) with new `RoomSceneStartData`; persistence of inventory/state across rooms is **not defined** in code yet. **`E.changeRoom`** already signals intent via **`game:roomChangeRequested`** (BenneScript facade); orchestration and **`GameState`** persistence are the next steps.
 - **Post-processing**: `PostEffects.ts` is ready for **camera filter** composition (CRT, dither, etc.).
 - **Audio**: Volume helpers exist; **music loops, voice, and SFX triggers** from events are **future work**.
 - **Dialogue / inventory**: Types exist under `src/types/` in places; **not integrated** into `RoomScene` flow yet.
@@ -247,7 +282,7 @@ The extension can **generate files** under **`src/game/`** so new content matche
 | **Add Point** | **`runAddRoomPointWizard`**: appends **`points[]`** with **`id`** and **`x` / `y`** at **room center** (same default resolution as above). |
 | **Add Region** | **`runAddRoomRegionWizard`**: appends **`regions[]`** with **`active`** and the same **default centered square** polygon as **Add Hotspot** (no walk/look). |
 | **Import Props from Aseprite Tags** | **`runImportPropsFromAsepriteTags`**: resolves room (tree or picker); reads **`meta.frameTags`** from **`src/game/assets/images/rooms/<roomId>/<roomId>.json`**. Multi-select quick pick (existing tags labeled); optional **clickable** for the whole batch; unique **`${roomId}-prop-…`** ids via **`allocateUniquePropId`**. Same post-step layout + **`openRoomJsonAndScriptBottomGroup`** as **Add Prop**. |
-| **Create Character** | **`runCreateCharacterWizard`**: folder pick, **display name**, **character id** (slug); creates **`src/game/characters/<id>/`**, **`<id>.character.json`** (minimal fields incl. **`display.aseprite: true`**), **`<id>.character.ts`** stub exporting **`registerCharacterScript`** with **`import type { CharacterVerbInteractPayload } from '@engine/events/propInteractionEvents'`** (and **`EventBus`**) so verb stubs type-check, and **`src/game/assets/images/characters/<id>/`**. **`registerGameContent`** eagerly loads all **`./characters/**/*.character.ts`**. Opens JSON + TS. |
+| **Create Character** | **`runCreateCharacterWizard`**: folder pick, **display name**, **character id** (slug); creates **`src/game/characters/<id>/`**, **`<id>.character.json`**, **`<id>.character.ts`**, appends **`src/game/scripting/known-characters.d.ts`** ( **`BenneKnownCharacters`** — see §3 BenneScript), **`src/game/assets/images/characters/<id>/`**, stubs with **`@engine/scripting`**. **`registerGameContent`** loads **`./characters/**/*.character.ts`**. Opens JSON + TS. |
 | **Import Animations from Aseprite Tags** | **`runImportAnimationsFromAsepriteTags`**: requires **`display.aseprite: true`**; resolves character (tree or picker); reads **`meta.frameTags`** from **`src/game/assets/images/characters/<id>/<id>.json`**. Multi-select quick pick (keys already in **`animations`** labeled). New clips use **`{ "loop": true }`** per **`CharacterAnimationClipConfig`** (`src/types/character.ts` — keys **must match** Aseprite tag names). Merges into **`animations`**; then **two-row** layout + **`openCharacterJsonAndScriptBottomGroup`** (character preview on top when a character is selected in the tree). |
 
 **UI entry points**: BENNE **main tree** view title (**Create New Room**, **Create Character**), context menus on **Rooms** / **workspace** / **room** / **hotspot** / **point** / **region** / **prop** / **character** nodes (see **`package.json`** **`menus`** — includes **Add Hotspot** / **Add Point** / **Add Region** on **room** and those child types). Under each **room** node, the tree lists **hotspots**, **points**, **regions**, then **props** (distinct icons: e.g. **map** / **target** / **layout-panel** / **symbol-misc**); **`mainTreeProvider.ts`** reads **`hotspots`**, **`points`**, and **`regions`** from JSON via **`readRoomHotspots`**, **`readRoomPoints`**, and **`readRoomRegions`** in **`gameDiscovery.ts`**. **Actions** tree when a **room** is focused: **Add Hotspot**, **Add Point**, **Add Region**, **Add Prop**, **Import Props from Aseprite Tags**, then room-open shortcuts; **prop**-focused actions still prepend the same scaffold commands and append prop verb rows (**`actionsTreeProvider.ts`**). Tree selection for **hotspot** / **point** / **region** updates **`EditorSelection.roomPanel`** (**`editorSelection.ts`**) so the preview toolbar matches. Commands **`benne-editor.addRoomHotspot`**, **`addRoomPoint`**, **`addRoomRegion`** are registered in **`extension.ts`** / **`package.json`**. **`validateSlug`** / **`pickWorkspaceFolder`** are shared helpers (**`roomScaffolding.ts`**).
