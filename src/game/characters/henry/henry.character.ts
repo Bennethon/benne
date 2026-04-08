@@ -1,4 +1,13 @@
+import type { EventBus } from '@engine/events/EventBus';
+import type { CharacterVerbInteractPayload } from '@engine/events/propInteractionEvents';
+
 /**
- * Optional script for `henry` — the runtime does not auto-load *.character.ts yet; keep hooks here for tooling.
+ * Character script for `henry` — register verb handlers on the game EventBus.
  */
-export {};
+export function registerCharacterScript(_events: EventBus): void {
+  // Example: _events.on('verbName:characterId', (_payload) => { ... }); // CharacterVerbInteractPayload
+
+  _events.on('look:henry', (payload: CharacterVerbInteractPayload) => {
+    console.log("It looks like Henry!");
+  });
+}

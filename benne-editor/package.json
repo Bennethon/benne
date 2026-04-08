@@ -24,7 +24,12 @@
     "onCommand:benne-editor.createCharacter",
     "onCommand:benne-editor.importAnimationsFromAsepriteTags",
     "onCommand:benne-editor.rebuildRoomPreview",
-    "onCommand:benne-editor.rebuildCharacterPreview"
+    "onCommand:benne-editor.rebuildCharacterPreview",
+    "onCommand:benne-editor.addPropVerbEvent",
+    "onCommand:benne-editor.makePropClickable",
+    "onCommand:benne-editor.addHotspotVerbEvent",
+    "onCommand:benne-editor.makeCharacterClickable",
+    "onCommand:benne-editor.addCharacterVerbEvent"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -81,6 +86,34 @@
         "command": "benne-editor.revealRoomScriptEvent",
         "title": "Reveal room script event",
         "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.addPropVerbEvent",
+        "title": "Add prop verb handler (room JSON + script)",
+        "category": "BENNE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "benne-editor.makePropClickable",
+        "title": "Make room prop clickable",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.addHotspotVerbEvent",
+        "title": "Add hotspot verb handler (room JSON + script)",
+        "category": "BENNE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "benne-editor.makeCharacterClickable",
+        "title": "Make character clickable",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.addCharacterVerbEvent",
+        "title": "Add character verb handler (character JSON + script)",
+        "category": "BENNE",
+        "icon": "$(add)"
       },
       {
         "command": "benne-editor.revealCharacterScriptEvent",

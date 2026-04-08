@@ -94,6 +94,14 @@
     "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
     "sourceSize": { "w": 768, "h": 198 },
     "duration": 100
+   },
+   "outsideOffice 12.aseprite": {
+    "frame": { "x": 2304, "y": 396, "w": 768, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 198 },
+    "sourceSize": { "w": 768, "h": 198 },
+    "duration": 100
    }
  },
  "meta": {
@@ -109,7 +117,8 @@
    { "name": "Nearground", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
    { "name": "Car", "from": 6, "to": 6, "direction": "forward", "color": "#000000ff" },
    { "name": "Bug", "from": 7, "to": 10, "direction": "forward", "color": "#000000ff" },
-   { "name": "Break", "from": 11, "to": 11, "direction": "forward", "color": "#000000ff" }
+   { "name": "Break", "from": 11, "to": 11, "direction": "forward", "color": "#000000ff" },
+   { "name": "desk", "from": 12, "to": 12, "direction": "forward", "color": "#000000ff" }
   ],
   "layers": [
    { "name": "screen width line", "opacity": 255, "blendMode": "normal" },
@@ -132,7 +141,8 @@
    { "name": "Car" },
    { "name": "Car", "group": "Car", "opacity": 255, "blendMode": "normal" },
    { "name": "bug", "group": "Car", "opacity": 255, "blendMode": "normal" },
-   { "name": "window break", "group": "Car", "opacity": 255, "blendMode": "normal" }
+   { "name": "window break", "group": "Car", "opacity": 255, "blendMode": "normal" },
+   { "name": "Layer 4", "opacity": 255, "blendMode": "normal" }
   ],
   "slices": [
   ]

@@ -18,3 +18,26 @@ export type RoomPropInteractPayload = {
   /** True when this run used the prop’s `onVerbFallback` handler. */
   verbFallback?: boolean;
 };
+
+/**
+ * Payload for hotspot interaction events (`onVerb` on `RoomHotspotData`).
+ */
+export type RoomHotspotInteractPayload = {
+  hotspotId: string;
+  roomId: string;
+  description?: string;
+  verbId: string;
+  verbFallback?: boolean;
+};
+
+/**
+ * Payload for character interaction events (`onVerb` on `CharacterData`).
+ */
+export type CharacterVerbInteractPayload = {
+  characterId: string;
+  instanceId: string;
+  roomId: string;
+  description?: string;
+  verbId: string;
+  verbFallback?: boolean;
+};

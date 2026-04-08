@@ -207,6 +207,17 @@
       "visible": true,
       "alpha": 1,
       "clickable": true
+    },
+    {
+      "id": "outsideOffice-prop-desk-2",
+      "tag": "desk",
+      "zIndex": 7,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "onVerb": {
+        "use": "use:outsideOffice-prop-desk-2"
+      }
     }
   ],
   "characters": [
@@ -223,7 +234,7 @@
     {
       "instanceId": "henry-1",
       "definition": "henry/henry.character.json",
-      "x": 200,
+      "x": 400,
       "y": 148,
       "initialFacing": "L",
       "initialAnimation": "Idle",

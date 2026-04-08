@@ -1,0 +1,13 @@
+{
+  "id": "bob",
+  "name": "Bob",
+  "description": "",
+  "walkSpeed": 88,
+  "clickable": true,
+  "display": {
+    "aseprite": true
+  },
+  "onVerb": {
+    "use": "use:bob"
+  }
+}

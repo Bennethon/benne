@@ -52,6 +52,11 @@ export interface CharacterData {
    * (Y increases downward). When omitted, the engine uses the bottom-centre of the current frame.
    */
   feet?: { x: number; y: number };
+  /**
+   * Click hit area in **texture / frame pixel space** (same origin as `feet`). When omitted and the
+   * character is clickable, the full sprite rectangle is used. Requires at least three vertices.
+   */
+  collider?: { points: { x: number; y: number }[] };
   /** Game pixels per second when walking (used when movement is implemented). */
   walkSpeed: number;
   clickable: boolean;

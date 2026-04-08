@@ -670,7 +670,18 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
 
-    sprite.setInteractive({ useHandCursor: true });
+    const colliderPts = spawn.data.collider?.points;
+    if (colliderPts && colliderPts.length >= 3) {
+      const flat = colliderPts.flatMap((p) => [p.x, p.y]);
+      const poly = new Phaser.Geom.Polygon(flat);
+      sprite.setInteractive({
+        hitArea: poly,
+        hitAreaCallback: Phaser.Geom.Polygon.Contains,
+        useHandCursor: true,
+      });
+    } else {
+      sprite.setInteractive({ useHandCursor: true });
+    }
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       const profile = getEffectiveTwoVerbProfile(getGameSettings());
       const verbId = resolveVerbIdFromPointer(pointer, profile);
