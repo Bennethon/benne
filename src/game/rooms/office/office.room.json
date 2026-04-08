@@ -100,6 +100,9 @@
       "lookAtPoint": {
         "x": 169,
         "y": 79
+      },
+      "onVerb": {
+        "look": "look:office-hotspot-1"
       }
     }
   ],
@@ -146,7 +149,7 @@
       "alpha": 1
     },
     {
-      "id": "office-prop-desk",
+      "id": "desk",
       "tag": "Desk",
       "zIndex": 50,
       "clickable": true,
@@ -190,8 +193,8 @@
         ]
       },
       "onVerb": {
-        "look": "look:office-desk",
-        "use": "use:office-desk"
+        "look": "look:desk",
+        "use": "use:desk"
       }
     },
     {
@@ -298,7 +301,8 @@
         ]
       },
       "onVerb": {
-        "look": "look:office-jacket"
+        "look": "look:office-jacket",
+        "use": "use:office-jacket"
       }
     },
     {

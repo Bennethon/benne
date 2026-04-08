@@ -103,19 +103,79 @@ function parseOnVerbRecord(raw: unknown): Record<string, string> | undefined {
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/** Matches engine defaults when `verbs` is omitted in game-config.json. */
+export const DEFAULT_GAME_VERBS: { id: string; label?: string }[] = [
+    { id: 'look', label: 'Look at' },
+    { id: 'use', label: 'Use' }
+];
+
+/**
+ * Verb ids (and optional labels) from `src/game/game-config.json`, in file order.
+ * Falls back to {@link DEFAULT_GAME_VERBS} when the file is missing or has no valid `verbs`.
+ */
+export async function readGameConfigVerbs(gameRoot: vscode.Uri): Promise<{ id: string; label?: string }[]> {
+    const uri = vscode.Uri.joinPath(gameRoot, 'src', 'game', 'game-config.json');
+    try {
+        const raw = await vscode.workspace.fs.readFile(uri);
+        const data = JSON.parse(new TextDecoder('utf-8').decode(raw)) as { verbs?: unknown };
+        if (!Array.isArray(data.verbs) || data.verbs.length === 0) {
+            return DEFAULT_GAME_VERBS;
+        }
+        const out: { id: string; label?: string }[] = [];
+        for (const v of data.verbs) {
+            if (!v || typeof v !== 'object' || Array.isArray(v)) {
+                continue;
+            }
+            const o = v as Record<string, unknown>;
+            const id = typeof o.id === 'string' && o.id.length > 0 ? o.id : undefined;
+            if (!id) {
+                continue;
+            }
+            out.push({
+                id,
+                label: typeof o.label === 'string' && o.label.length > 0 ? o.label : undefined
+            });
+        }
+        return out.length > 0 ? out : DEFAULT_GAME_VERBS;
+    } catch {
+        return DEFAULT_GAME_VERBS;
+    }
+}
+
+function colliderPointCount(data: Record<string, unknown>): number {
+    const c = data.collider;
+    if (!c || typeof c !== 'object' || Array.isArray(c)) {
+        return 0;
+    }
+    const pts = (c as { points?: unknown }).points;
+    if (!Array.isArray(pts)) {
+        return 0;
+    }
+    return pts.filter((p) => p && typeof p === 'object' && 'x' in p && 'y' in p).length;
+}
+
 export async function readCharacterHooks(
     uri: vscode.Uri
-): Promise<{ onVerb?: Record<string, string>; onVerbFallback?: string }> {
+): Promise<{
+    onVerb?: Record<string, string>;
+    onVerbFallback?: string;
+    clickable?: boolean;
+    /** True when `collider.points` has at least three vertices (engine hit-test). */
+    hasColliderPolygon?: boolean;
+}> {
     try {
         const raw = await vscode.workspace.fs.readFile(uri);
         const text = new TextDecoder('utf-8').decode(raw);
         const data = JSON.parse(text) as Record<string, unknown>;
+        const n = colliderPointCount(data);
         return {
             onVerb: parseOnVerbRecord(data.onVerb),
             onVerbFallback:
                 typeof data.onVerbFallback === 'string' && data.onVerbFallback.length > 0
                     ? data.onVerbFallback
-                    : undefined
+                    : undefined,
+            clickable: typeof data.clickable === 'boolean' ? data.clickable : undefined,
+            hasColliderPolygon: n >= 3
         };
     } catch {
         return {};
@@ -352,6 +412,8 @@ export interface RoomHotspotListEntry {
     description?: string;
     zIndex?: number;
     active?: boolean;
+    onVerb?: Record<string, string>;
+    onVerbFallback?: string;
 }
 
 export interface RoomPointListEntry {
@@ -378,7 +440,12 @@ export async function readRoomHotspots(uri: vscode.Uri): Promise<RoomHotspotList
                 id: o.id as string,
                 description: typeof o.description === 'string' ? o.description : undefined,
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : undefined,
-                active: typeof o.active === 'boolean' ? o.active : undefined
+                active: typeof o.active === 'boolean' ? o.active : undefined,
+                onVerb: parseOnVerbRecord(o.onVerb),
+                onVerbFallback:
+                    typeof o.onVerbFallback === 'string' && o.onVerbFallback.length > 0
+                        ? o.onVerbFallback
+                        : undefined
             });
         }
     }

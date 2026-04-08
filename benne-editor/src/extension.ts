@@ -20,6 +20,14 @@ import {
     runCharacterPreviewBuild,
     runRoomPreviewBuild
 } from './roomPreviewBuild';
+import { addCharacterVerbEvent, makeCharacterClickable } from './characterVerbScaffolding';
+import { readRoomProps } from './gameDiscovery';
+import {
+    addHotspotVerbEvent,
+    addPropVerbEvent,
+    defaultVerbEventId,
+    makeRoomPropClickable
+} from './propVerbScaffolding';
 import { revealRoomJsonElement } from './roomJsonReveal';
 import {
     BENNE_SCRIPT_VIEW_COLUMN,
@@ -391,6 +399,116 @@ export function activate(context: vscode.ExtensionContext): void {
                 const jsonUri = vscode.Uri.parse(roomJsonUriStr);
                 const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
                 await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addPropVerbEvent',
+            async (roomJsonUriStr?: string, roomId?: string, propId?: string, verbId?: string) => {
+                if (
+                    typeof roomJsonUriStr !== 'string' ||
+                    typeof roomId !== 'string' ||
+                    typeof propId !== 'string' ||
+                    typeof verbId !== 'string'
+                ) {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(roomJsonUriStr);
+                const ok = await addPropVerbEvent(jsonUri, roomId, propId, verbId);
+                if (selection.roomPanel.kind === 'prop' && selection.roomPanel.prop.id === propId) {
+                    try {
+                        const props = await readRoomProps(jsonUri);
+                        const next = props.find((p) => p.id === propId);
+                        if (next) {
+                            selection.setRoomPanelProp(jsonUri, roomId, next);
+                        }
+                    } catch {
+                        /* keep previous selection */
+                    }
+                }
+                refreshTrees();
+                if (ok) {
+                    const eventId = defaultVerbEventId(verbId, propId);
+                    const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
+                    await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+                }
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.makePropClickable',
+            async (roomJsonUriStr?: string, roomId?: string, propId?: string) => {
+                if (
+                    typeof roomJsonUriStr !== 'string' ||
+                    typeof roomId !== 'string' ||
+                    typeof propId !== 'string'
+                ) {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(roomJsonUriStr);
+                await makeRoomPropClickable(jsonUri, propId);
+                if (selection.roomPanel.kind === 'prop' && selection.roomPanel.prop.id === propId) {
+                    try {
+                        const props = await readRoomProps(jsonUri);
+                        const next = props.find((p) => p.id === propId);
+                        if (next) {
+                            selection.setRoomPanelProp(jsonUri, roomId, next);
+                        }
+                    } catch {
+                        /* keep */
+                    }
+                }
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addHotspotVerbEvent',
+            async (roomJsonUriStr?: string, roomId?: string, hotspotId?: string, verbId?: string) => {
+                if (
+                    typeof roomJsonUriStr !== 'string' ||
+                    typeof roomId !== 'string' ||
+                    typeof hotspotId !== 'string' ||
+                    typeof verbId !== 'string'
+                ) {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(roomJsonUriStr);
+                const ok = await addHotspotVerbEvent(jsonUri, roomId, hotspotId, verbId);
+                refreshTrees();
+                if (ok) {
+                    const eventId = defaultVerbEventId(verbId, hotspotId);
+                    const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
+                    await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+                }
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.makeCharacterClickable',
+            async (characterJsonUriStr?: string, characterId?: string) => {
+                if (typeof characterJsonUriStr !== 'string' || typeof characterId !== 'string') {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(characterJsonUriStr);
+                await makeCharacterClickable(jsonUri);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addCharacterVerbEvent',
+            async (characterJsonUriStr?: string, characterId?: string, verbId?: string) => {
+                if (
+                    typeof characterJsonUriStr !== 'string' ||
+                    typeof characterId !== 'string' ||
+                    typeof verbId !== 'string'
+                ) {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(characterJsonUriStr);
+                const ok = await addCharacterVerbEvent(jsonUri, characterId, verbId);
+                refreshTrees();
+                if (ok) {
+                    const eventId = defaultVerbEventId(verbId, characterId);
+                    const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${characterId}.character.ts`);
+                    await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+                }
             }
         ),
         vscode.commands.registerCommand(

@@ -18,7 +18,7 @@ export function validateSlug(value: string, label: string): string | null {
     return null;
 }
 
-function formatJson(value: unknown): Uint8Array {
+export function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
 }
 
@@ -108,8 +108,8 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
  * Room script for \`${id}\` — keep all handlers for this room here (PowerQuest-style).
  * Export name is fixed so \`registerGameContent\` can discover files via \`*.room.ts\` glob.
  */
-export function registerRoomScript(events: EventBus): void {
-  // Example: events.on('look:${id}-desk', () => { ... });
+export function registerRoomScript(_events: EventBus): void {
+  // Example: _events.on('look:propName', () => { ... });
 }
 `;
 

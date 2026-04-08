@@ -1,36 +1,39 @@
 import type { EventBus } from '@engine/events/EventBus';
-import type { RoomPropInteractPayload } from '@engine/events/propInteractionEvents';
-
+import type { RoomPropInteractPayload, RoomHotspotInteractPayload } from '@engine/events/propInteractionEvents';
 /**
  * Room script for `office` — keep all handlers for this room here (PowerQuest-style).
  * Export name is fixed so `registerGameContent` can discover files via `*.room.ts` glob.
  */
-export function registerRoomScript(events: EventBus): void {
-  events.on('look:office-desk', (payload: RoomPropInteractPayload) => {
+export function registerRoomScript(_events: EventBus): void {
+  _events.on('look:desk', (payload: RoomPropInteractPayload) => {
     console.log(`[Office] ${payload.description ?? 'You look at the desk.'}`);
   });
 
-  events.on('use:office-desk', () => {
+  _events.on('use:desk', () => {
     console.log(`[Office] The desk is unusable.`);
   });
 
-  events.on('look:office-door', (payload: RoomPropInteractPayload) => {
+  _events.on('look:office-door', (payload: RoomPropInteractPayload) => {
     console.log(`[Office] ${payload.description ?? 'You look at the door.'}`);
   });
 
-  events.on('look:office-jacket', (payload: RoomPropInteractPayload) => {
+  _events.on('look:office-jacket', (payload: RoomPropInteractPayload) => {
     console.log(`[Office] ${payload.description ?? 'You look at the jacket.'}`);
   });
 
-  events.on('look:office-glasses', (payload: RoomPropInteractPayload) => {
+  _events.on('look:office-glasses', (payload: RoomPropInteractPayload) => {
     console.log(`[Office] ${payload.description ?? 'You look at the glasses.'}`);
   });
 
-  events.on('look:office-cyberbuddy', (payload: RoomPropInteractPayload) => {
+  _events.on('look:office-cyberbuddy', (payload: RoomPropInteractPayload) => {
     console.log(`[Office] ${payload.description ?? 'You look at the desk toy.'}`);
   });
 
-  events.on('look:clerk', (payload: { description?: string }) => {
-    console.log(`[Office] ${payload.description ?? 'Someone is working here.'}`);
+  _events.on('use:office-jacket', (_payload: RoomPropInteractPayload) => {
+    // TODO
+  });
+
+  _events.on('look:office-hotspot-1', (payload: RoomHotspotInteractPayload) => {
+    console.log(`[Office] Looks like a window`);
   });
 }

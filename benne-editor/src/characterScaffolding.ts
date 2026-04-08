@@ -84,10 +84,15 @@ export async function runCreateCharacterWizard(preferredFolder?: vscode.Workspac
         }
     };
 
-    const charTs = `/**
- * Optional script for \`${id}\` — the runtime does not auto-load *.character.ts yet; keep hooks here for tooling.
+    const charTs = `import type { EventBus } from '@engine/events/EventBus';
+import type { CharacterVerbInteractPayload } from '@engine/events/propInteractionEvents';
+
+/**
+ * Character script for \`${id}\` — register verb handlers on the game EventBus.
  */
-export {};
+export function registerCharacterScript(_events: EventBus): void {
+  // Example: _events.on('verbName:characterId', (payload: CharacterVerbInteractPayload) => { ... });
+}
 `;
 
     await vscode.workspace.fs.createDirectory(charDir);
