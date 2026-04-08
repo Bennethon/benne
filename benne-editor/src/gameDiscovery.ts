@@ -90,14 +90,14 @@ export async function listCharacterDefinitions(
     return result;
 }
 
-function parseOnVerbRecord(raw: unknown): Record<string, string> | undefined {
+function parseOnVerbRecord(raw: unknown): Record<string, boolean> | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
         return undefined;
     }
-    const out: Record<string, string> = {};
+    const out: Record<string, boolean> = {};
     for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-        if (typeof v === 'string' && v.length > 0) {
-            out[k] = v;
+        if (v === true) {
+            out[k] = true;
         }
     }
     return Object.keys(out).length > 0 ? out : undefined;
@@ -157,8 +157,8 @@ function colliderPointCount(data: Record<string, unknown>): number {
 export async function readCharacterHooks(
     uri: vscode.Uri
 ): Promise<{
-    onVerb?: Record<string, string>;
-    onVerbFallback?: string;
+    onVerb?: Record<string, boolean>;
+    onVerbFallback?: boolean;
     clickable?: boolean;
     /** True when `collider.points` has at least three vertices (engine hit-test). */
     hasColliderPolygon?: boolean;
@@ -171,7 +171,7 @@ export async function readCharacterHooks(
         return {
             onVerb: parseOnVerbRecord(data.onVerb),
             onVerbFallback:
-                typeof data.onVerbFallback === 'string' && data.onVerbFallback.length > 0
+                typeof data.onVerbFallback === 'boolean'
                     ? data.onVerbFallback
                     : undefined,
             clickable: typeof data.clickable === 'boolean' ? data.clickable : undefined,
@@ -217,8 +217,8 @@ export interface RoomPropEntry {
     zIndex?: number;
     visible?: boolean;
     clickable?: boolean;
-    onVerb?: Record<string, string>;
-    onVerbFallback?: string;
+    onVerb?: Record<string, boolean>;
+    onVerbFallback?: boolean;
 }
 
 /** Folder name for `rooms/<id>/<id>.room.json` (e.g. `office`). */
@@ -397,7 +397,7 @@ export async function readRoomProps(uri: vscode.Uri): Promise<RoomPropEntry[]> {
                 clickable: typeof o.clickable === 'boolean' ? o.clickable : undefined,
                 onVerb: parseOnVerbRecord(o.onVerb),
                 onVerbFallback:
-                    typeof o.onVerbFallback === 'string' && o.onVerbFallback.length > 0
+                    typeof o.onVerbFallback === 'boolean'
                         ? o.onVerbFallback
                         : undefined
             });
@@ -412,8 +412,8 @@ export interface RoomHotspotListEntry {
     description?: string;
     zIndex?: number;
     active?: boolean;
-    onVerb?: Record<string, string>;
-    onVerbFallback?: string;
+    onVerb?: Record<string, boolean>;
+    onVerbFallback?: boolean;
 }
 
 export interface RoomPointListEntry {
@@ -443,7 +443,7 @@ export async function readRoomHotspots(uri: vscode.Uri): Promise<RoomHotspotList
                 active: typeof o.active === 'boolean' ? o.active : undefined,
                 onVerb: parseOnVerbRecord(o.onVerb),
                 onVerbFallback:
-                    typeof o.onVerbFallback === 'string' && o.onVerbFallback.length > 0
+                    typeof o.onVerbFallback === 'boolean'
                         ? o.onVerbFallback
                         : undefined
             });

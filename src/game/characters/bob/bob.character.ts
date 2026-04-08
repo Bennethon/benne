@@ -1,13 +1,14 @@
 import type { EventBus } from '@engine/events/EventBus';
 import type { CharacterVerbInteractPayload } from '@engine/events/propInteractionEvents';
+import { characterVerbEventId } from '@engine/events/verbInteractionEvents';
 
 /**
  * Character script for `bob` — register verb handlers on the game EventBus.
  */
 export function registerCharacterScript(_events: EventBus): void {
-  // Example: _events.on('verbName:characterId', (_payload) => { ... }); // CharacterVerbInteractPayload
+  // Example global: _events.on(characterVerbEventId('bob', 'look'), (_payload) => { ... });
 
-  _events.on('use:bob', (payload: CharacterVerbInteractPayload) => {
+  _events.on(characterVerbEventId('bob', 'use'), (_payload: CharacterVerbInteractPayload) => {
     // TODO
   });
 }

@@ -11,6 +11,69 @@ import {
     type RoomPropEntry
 } from './gameDiscovery';
 
+function roomPropVerbEventId(roomId: string, propId: string, verbId: string): string {
+    return `verb:room:${roomId}:prop:${propId}:${verbId}`;
+}
+
+function roomHotspotVerbEventId(roomId: string, hotspotId: string, verbId: string): string {
+    return `verb:room:${roomId}:hotspot:${hotspotId}:${verbId}`;
+}
+
+function roomPropVerbFallbackEventId(roomId: string, propId: string): string {
+    return `verb:room:${roomId}:prop:${propId}:fallback`;
+}
+
+function roomHotspotVerbFallbackEventId(roomId: string, hotspotId: string): string {
+    return `verb:room:${roomId}:hotspot:${hotspotId}:fallback`;
+}
+
+function characterVerbEventId(characterId: string, verbId: string): string {
+    return `verb:character:${characterId}:${verbId}`;
+}
+
+function characterVerbFallbackEventId(characterId: string): string {
+    return `verb:character:${characterId}:fallback`;
+}
+
+function eventIdDescription(eventId: string): string {
+    const roomVerb = eventId.match(/^verb:room:([^:]+):(prop|hotspot|character):([^:]+):([^:]+)$/);
+    if (roomVerb) {
+        const roomId = roomVerb[1];
+        const targetType = roomVerb[2];
+        const targetId = roomVerb[3];
+        const verbId = roomVerb[4];
+        if (targetType === 'prop') {
+            return `roomPropVerbEventId(${roomId}, ${targetId}, ${verbId})`;
+        }
+        if (targetType === 'hotspot') {
+            return `roomHotspotVerbEventId(${roomId}, ${targetId}, ${verbId})`;
+        }
+        return `roomCharacterVerbEventId(${roomId}, ${targetId}, ${verbId})`;
+    }
+    const roomFallback = eventId.match(/^verb:room:([^:]+):(prop|hotspot|character):([^:]+):fallback$/);
+    if (roomFallback) {
+        const roomId = roomFallback[1];
+        const targetType = roomFallback[2];
+        const targetId = roomFallback[3];
+        if (targetType === 'prop') {
+            return `roomPropVerbFallbackEventId(${roomId}, ${targetId})`;
+        }
+        if (targetType === 'hotspot') {
+            return `roomHotspotVerbFallbackEventId(${roomId}, ${targetId})`;
+        }
+        return `roomCharacterVerbFallbackEventId(${roomId}, ${targetId})`;
+    }
+    const characterVerb = eventId.match(/^verb:character:([^:]+):([^:]+)$/);
+    if (characterVerb) {
+        return `characterVerbEventId(${characterVerb[1]}, ${characterVerb[2]})`;
+    }
+    const characterFallback = eventId.match(/^verb:character:([^:]+):fallback$/);
+    if (characterFallback) {
+        return `characterVerbFallbackEventId(${characterFallback[1]})`;
+    }
+    return eventId;
+}
+
 export type ActionTreeNode =
     | { kind: 'hint'; message: string }
     | {
@@ -104,7 +167,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             case 'propVerb': {
                 const item = new vscode.TreeItem(element.verbLabel, vscode.TreeItemCollapsibleState.None);
                 item.id = `verb:${element.roomJsonUri}:${element.eventId}`;
-                item.description = element.eventId;
+                item.description = eventIdDescription(element.eventId);
                 item.iconPath = new vscode.ThemeIcon('symbol-event');
                 item.contextValue = 'benneActionVerb';
                 item.command = {
@@ -151,7 +214,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             case 'hotspotVerb': {
                 const item = new vscode.TreeItem(element.verbLabel, vscode.TreeItemCollapsibleState.None);
                 item.id = `hotspot-verb:${element.roomJsonUri}:${element.eventId}`;
-                item.description = element.eventId;
+                item.description = eventIdDescription(element.eventId);
                 item.iconPath = new vscode.ThemeIcon('symbol-event');
                 item.contextValue = 'benneActionHotspotVerb';
                 item.command = {
@@ -271,7 +334,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             case 'charVerb': {
                 const item = new vscode.TreeItem(element.verbLabel, vscode.TreeItemCollapsibleState.None);
                 item.id = `char-verb:${element.characterJsonUri}:${element.eventId}`;
-                item.description = element.eventId;
+                item.description = eventIdDescription(element.eventId);
                 item.iconPath = new vscode.ThemeIcon('symbol-event');
                 item.contextValue = 'benneActionCharVerb';
                 item.command = {
@@ -509,12 +572,11 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         const gameVerbIds = new Set(gameVerbs.map((v) => v.id));
 
         for (const v of gameVerbs) {
-            const eventId = onVerb[v.id];
-            if (eventId !== undefined && eventId.length > 0) {
+            if (onVerb[v.id] === true) {
                 out.push({
                     kind: 'propVerb',
                     verbLabel: `${v.id} — ${title}`,
-                    eventId,
+                    eventId: roomPropVerbEventId(roomId, prop.id, v.id),
                     roomJsonUri,
                     roomId
                 });
@@ -534,23 +596,22 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             if (gameVerbIds.has(verbId)) {
                 continue;
             }
-            const eventId = onVerb[verbId];
-            if (eventId !== undefined && eventId.length > 0) {
+            if (onVerb[verbId] === true) {
                 out.push({
                     kind: 'propVerb',
                     verbLabel: `${verbId} — ${title}`,
-                    eventId,
+                    eventId: roomPropVerbEventId(roomId, prop.id, verbId),
                     roomJsonUri,
                     roomId
                 });
             }
         }
 
-        if (prop.onVerbFallback) {
+        if (prop.onVerbFallback === true) {
             out.push({
                 kind: 'propVerb',
                 verbLabel: `fallback — ${title}`,
-                eventId: prop.onVerbFallback,
+                eventId: roomPropVerbFallbackEventId(roomId, prop.id),
                 roomJsonUri,
                 roomId
             });
@@ -584,12 +645,11 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         const gameVerbIds = new Set(gameVerbs.map((v) => v.id));
 
         for (const v of gameVerbs) {
-            const eventId = onVerb[v.id];
-            if (eventId !== undefined && eventId.length > 0) {
+            if (onVerb[v.id] === true) {
                 out.push({
                     kind: 'hotspotVerb',
                     verbLabel: `${v.id} — ${title}`,
-                    eventId,
+                    eventId: roomHotspotVerbEventId(roomId, hotspot.id, v.id),
                     roomJsonUri,
                     roomId
                 });
@@ -609,23 +669,22 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             if (gameVerbIds.has(verbId)) {
                 continue;
             }
-            const eventId = onVerb[verbId];
-            if (eventId !== undefined && eventId.length > 0) {
+            if (onVerb[verbId] === true) {
                 out.push({
                     kind: 'hotspotVerb',
                     verbLabel: `${verbId} — ${title}`,
-                    eventId,
+                    eventId: roomHotspotVerbEventId(roomId, hotspot.id, verbId),
                     roomJsonUri,
                     roomId
                 });
             }
         }
 
-        if (hotspot.onVerbFallback) {
+        if (hotspot.onVerbFallback === true) {
             out.push({
                 kind: 'hotspotVerb',
                 verbLabel: `fallback — ${title}`,
-                eventId: hotspot.onVerbFallback,
+                eventId: roomHotspotVerbFallbackEventId(roomId, hotspot.id),
                 roomJsonUri,
                 roomId
             });
@@ -674,12 +733,11 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         const gameVerbIds = new Set(gameVerbs.map((v) => v.id));
 
         for (const v of gameVerbs) {
-            const eventId = onVerb[v.id];
-            if (eventId !== undefined && eventId.length > 0) {
+            if (onVerb[v.id] === true) {
                 out.push({
                     kind: 'charVerb',
                     verbLabel: `${v.id} — ${characterId}`,
-                    eventId,
+                    eventId: characterVerbEventId(characterId, v.id),
                     characterJsonUri,
                     characterId,
                 });
@@ -698,23 +756,22 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             if (gameVerbIds.has(verbId)) {
                 continue;
             }
-            const eventId = onVerb[verbId];
-            if (eventId !== undefined && eventId.length > 0) {
+            if (onVerb[verbId] === true) {
                 out.push({
                     kind: 'charVerb',
                     verbLabel: `${verbId} — ${characterId}`,
-                    eventId,
+                    eventId: characterVerbEventId(characterId, verbId),
                     characterJsonUri,
                     characterId,
                 });
             }
         }
 
-        if (hooks.onVerbFallback) {
+        if (hooks.onVerbFallback === true) {
             out.push({
                 kind: 'charVerb',
                 verbLabel: `fallback — ${characterId}`,
-                eventId: hooks.onVerbFallback,
+                eventId: characterVerbFallbackEventId(characterId),
                 characterJsonUri,
                 characterId,
             });

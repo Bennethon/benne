@@ -4,12 +4,16 @@ import type { VerbInteractTarget, VerbUnhandledPayload } from '../events/verbInt
 import {
   VERB_GLOBAL_FALLBACK_EVENT,
   VERB_UNHANDLED_EVENT,
+  characterVerbEventId,
+  characterVerbFallbackEventId,
   globalVerbHandlerEventId,
+  roomObjectVerbEventId,
+  roomObjectVerbFallbackEventId,
 } from '../events/verbInteractionEvents';
 
 export type VerbHandlerMap = {
-  onVerb: Record<string, string>;
-  onVerbFallback?: string;
+  onVerb: Record<string, boolean>;
+  onVerbFallback: boolean;
 };
 
 function listenerCount(bus: EventBus, event: string): number {
@@ -61,14 +65,42 @@ export function dispatchVerbInteraction(
   const settings = getGameSettings();
   const payload = buildEmitPayload(target, verbId);
 
-  const specific = handlers.onVerb[verbId];
-  if (specific !== undefined) {
-    bus.emit(specific, payload);
+  const supportsVerb = handlers.onVerb[verbId] === true;
+  if (supportsVerb) {
+    if (target.type === 'character') {
+      const roomScoped = roomObjectVerbEventId(target, verbId);
+      if (listenerCount(bus, roomScoped) > 0) {
+        bus.emit(roomScoped, payload);
+        return;
+      }
+      const globalCharacter = characterVerbEventId(target.characterId, verbId);
+      if (listenerCount(bus, globalCharacter) > 0) {
+        bus.emit(globalCharacter, payload);
+        return;
+      }
+      bus.emit(roomScoped, payload);
+      return;
+    }
+    bus.emit(roomObjectVerbEventId(target, verbId), payload);
     return;
   }
 
-  if (handlers.onVerbFallback !== undefined) {
-    bus.emit(handlers.onVerbFallback, { ...payload, verbFallback: true });
+  if (handlers.onVerbFallback) {
+    if (target.type === 'character') {
+      const roomScopedFallback = roomObjectVerbFallbackEventId(target);
+      if (listenerCount(bus, roomScopedFallback) > 0) {
+        bus.emit(roomScopedFallback, { ...payload, verbFallback: true });
+        return;
+      }
+      const globalCharacterFallback = characterVerbFallbackEventId(target.characterId);
+      if (listenerCount(bus, globalCharacterFallback) > 0) {
+        bus.emit(globalCharacterFallback, { ...payload, verbFallback: true });
+        return;
+      }
+      bus.emit(roomScopedFallback, { ...payload, verbFallback: true });
+      return;
+    }
+    bus.emit(roomObjectVerbFallbackEventId(target), { ...payload, verbFallback: true });
     return;
   }
 

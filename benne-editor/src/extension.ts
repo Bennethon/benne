@@ -25,7 +25,6 @@ import { readRoomProps } from './gameDiscovery';
 import {
     addHotspotVerbEvent,
     addPropVerbEvent,
-    defaultVerbEventId,
     makeRoomPropClickable
 } from './propVerbScaffolding';
 import { revealRoomJsonElement } from './roomJsonReveal';
@@ -427,7 +426,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 }
                 refreshTrees();
                 if (ok) {
-                    const eventId = defaultVerbEventId(verbId, propId);
+                    const eventId = `verb:room:${roomId}:prop:${propId}:${verbId}`;
                     const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
                     await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
                 }
@@ -474,7 +473,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 const ok = await addHotspotVerbEvent(jsonUri, roomId, hotspotId, verbId);
                 refreshTrees();
                 if (ok) {
-                    const eventId = defaultVerbEventId(verbId, hotspotId);
+                    const eventId = `verb:room:${roomId}:hotspot:${hotspotId}:${verbId}`;
                     const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
                     await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
                 }
@@ -505,7 +504,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 const ok = await addCharacterVerbEvent(jsonUri, characterId, verbId);
                 refreshTrees();
                 if (ok) {
-                    const eventId = defaultVerbEventId(verbId, characterId);
+                    const eventId = `verb:character:${characterId}:${verbId}`;
                     const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${characterId}.character.ts`);
                     await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
                 }

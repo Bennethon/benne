@@ -109,7 +109,7 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
  * Export name is fixed so \`registerGameContent\` can discover files via \`*.room.ts\` glob.
  */
 export function registerRoomScript(_events: EventBus): void {
-  // Example: _events.on('look:propName', () => { ... });
+  // Example: _events.on(roomPropVerbEventId('${id}', 'propName', 'look'), () => { ... });
 }
 `;
 

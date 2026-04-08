@@ -1,8 +1,8 @@
 import type { Point2 } from '../../types/room';
 
 /**
- * Payload for prop interaction events (`onVerb` map in room JSON).
- * Handlers subscribe to the same event id the prop references.
+ * Payload for prop interaction events (verb-enabled props in room JSON).
+ * Handlers subscribe to canonical scoped event ids from `verbInteractionEvents.ts`.
  */
 export type RoomPropInteractPayload = {
   propId: string;
@@ -20,7 +20,7 @@ export type RoomPropInteractPayload = {
 };
 
 /**
- * Payload for hotspot interaction events (`onVerb` on `RoomHotspotData`).
+ * Payload for hotspot interaction events (verb-enabled `RoomHotspotData`).
  */
 export type RoomHotspotInteractPayload = {
   hotspotId: string;
@@ -31,7 +31,7 @@ export type RoomHotspotInteractPayload = {
 };
 
 /**
- * Payload for character interaction events (`onVerb` on `CharacterData`).
+ * Payload for character interaction events (verb-enabled `CharacterData`).
  */
 export type CharacterVerbInteractPayload = {
   characterId: string;

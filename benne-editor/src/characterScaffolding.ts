@@ -91,7 +91,7 @@ import type { CharacterVerbInteractPayload } from '@engine/events/propInteractio
  * Character script for \`${id}\` — register verb handlers on the game EventBus.
  */
 export function registerCharacterScript(_events: EventBus): void {
-  // Example: _events.on('verbName:characterId', (payload: CharacterVerbInteractPayload) => { ... });
+  // Example global: _events.on(characterVerbEventId('${id}', 'look'), (payload: CharacterVerbInteractPayload) => { ... });
 }
 `;
 
