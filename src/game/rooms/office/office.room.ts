@@ -53,7 +53,7 @@ export function registerRoomScript(_events: EventBus): void {
   _events.on(roomHotspotVerbEventId('office', 'office-hotspot-1', 'look'), (_payload: RoomHotspotInteractPayload) => {
     console.log(`[Office] Looks like a window`);
     C.Player.say('Looks like a window');
-    C.henry.say('Looks like a window');
+    // C.henry.say('Looks like a window');
   });
 
   _events.on(roomHotspotVerbEventId('office', 'desk', 'use'), (_payload: RoomHotspotInteractPayload) => {

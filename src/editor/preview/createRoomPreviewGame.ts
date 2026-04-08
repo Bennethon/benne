@@ -53,12 +53,14 @@ export function createRoomPreviewPhaserGame(
             for (const L of manifestRef.loads) {
                 if (L.kind === 'image') {
                     this.load.image(L.key, L.url);
-                } else {
+                } else if (L.kind === 'aseprite') {
                     this.load.aseprite({
                         key: L.key,
                         textureURL: L.textureURL,
                         atlasURL: L.atlasURL,
                     });
+                } else {
+                    this.load.font(L.key, L.url, L.format);
                 }
             }
         }

@@ -8,6 +8,8 @@ import {
     warnIfAnimationConfigKeysMissingFromFrameTags,
 } from '../../game/loadAsepriteAtlasData';
 import { normalizeAsepriteJsonForPhaser } from '../../game/normalizeAsepriteJson';
+import { getGameSettings } from '../../engine/ConfigManager';
+import { BENNE_SPEECH_FONT_CACHE_KEY, speechFontLoaderFormat } from '../../engine/speechFontKey';
 import { joinGameWebviewUri } from './previewUrls';
 import type { CharacterData } from '../../types/character';
 import type { RoomCharacterInstance, RoomData, RoomPropInstance } from '../../types/room';
@@ -25,7 +27,8 @@ export type PreviewManifest = {
 
 type PreviewLoadEntry =
     | { kind: 'image'; key: string; url: string }
-    | { kind: 'aseprite'; key: string; textureURL: string; atlasURL: string };
+    | { kind: 'aseprite'; key: string; textureURL: string; atlasURL: string }
+    | { kind: 'font'; key: string; url: string; format: string };
 
 async function fetchJson(url: string): Promise<Record<string, unknown>> {
     const res = await fetch(url);
@@ -70,6 +73,18 @@ export async function buildPreviewManifest(
 
     const assetsBase = joinGameWebviewUri(gameRootWebviewUri, 'assets');
     const loads: PreviewLoadEntry[] = [];
+
+    const speechFontPath = getGameSettings().speech?.font?.trim();
+    let speechFontLoaded = false;
+    if (speechFontPath && speechFontPath.length > 0) {
+        loads.push({
+            kind: 'font',
+            key: BENNE_SPEECH_FONT_CACHE_KEY,
+            url: joinGameWebviewUri(assetsBase, speechFontPath),
+            format: speechFontLoaderFormat(speechFontPath),
+        });
+        speechFontLoaded = true;
+    }
 
     const backgroundTextureKey = room.background?.image ? `bg:${room.id}` : null;
     if (room.background?.image && backgroundTextureKey) {
@@ -161,6 +176,7 @@ export async function buildPreviewManifest(
         characters: spawns,
         props: propSpawns,
         roomPropsTextureKey,
+        speechFontLoaded,
     };
 
     return { loads, startData, revokeObjectUrls };

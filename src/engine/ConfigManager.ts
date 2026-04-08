@@ -100,6 +100,32 @@ function assertGameSettings(data: GameSettings): void {
       }
     }
   }
+  if (data.speech !== undefined) {
+    const s = data.speech;
+    if (typeof s !== 'object' || s === null) {
+      throw new Error('game-config speech must be an object when present');
+    }
+    if (s.lineDurationScale !== undefined) {
+      if (!Number.isFinite(s.lineDurationScale) || s.lineDurationScale <= 0) {
+        throw new Error('game-config speech.lineDurationScale must be a finite number > 0 when present');
+      }
+    }
+    if (s.font !== undefined) {
+      if (typeof s.font !== 'string' || s.font.length === 0) {
+        throw new Error('game-config speech.font must be a non-empty string when present');
+      }
+    }
+    if (s.fontSize !== undefined) {
+      if (!Number.isFinite(s.fontSize) || s.fontSize < 1) {
+        throw new Error('game-config speech.fontSize must be a finite number >= 1 when present');
+      }
+    }
+    if (s.maxWidth !== undefined) {
+      if (!Number.isFinite(s.maxWidth) || s.maxWidth < 8) {
+        throw new Error('game-config speech.maxWidth must be a finite number >= 8 when present');
+      }
+    }
+  }
   assertVerbSettings(data);
 }
 

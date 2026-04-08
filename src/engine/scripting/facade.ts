@@ -1,12 +1,14 @@
 import { getGameSettings } from '../ConfigManager';
 import { gameEvents } from '../events/EventBus';
 import {
+  CHARACTER_SAY_REQUESTED_EVENT,
   FIRST_OCCURRENCE_CONSUMED_EVENT,
   FLAG_CHANGED_EVENT,
   GAME_FADE_IN_REQUESTED_EVENT,
   GAME_FADE_OUT_REQUESTED_EVENT,
   GAME_ROOM_CHANGE_REQUESTED_EVENT,
   INVENTORY_CHANGED_EVENT,
+  type CharacterSayRequestedPayload,
   type FirstOccurrenceConsumedPayload,
   type FlagChangedPayload,
   type GameFadePayload,
@@ -146,8 +148,8 @@ export type CharacterScriptHandle = {
    */
   walkTo(target: unknown): void;
 
-  /** Dialogue / caption (UI not wired yet). */
-  say(text: string): void;
+  /** Overhead line + Talk animation; resolves when the line dismisses or a newer `say` replaces it. */
+  say(text: string): Promise<void>;
 
   /** Play an animation clip by logical name (phase 2). */
   playAnimation(name: string): void;
@@ -210,8 +212,14 @@ function createCharacterScriptHandle(characterId: string): CharacterScriptHandle
     walkTo(_target: unknown): void {
       // TODO: phase 2 — emit walk / tween with `characterId`.
     },
-    say(_text: string): void {
-      // TODO: phase 2 — dialogue UI + `characterId`.
+    say(text: string): Promise<void> {
+      return new Promise((resolve) => {
+        gameEvents.emit(CHARACTER_SAY_REQUESTED_EVENT, {
+          characterId,
+          text,
+          complete: resolve,
+        } satisfies CharacterSayRequestedPayload);
+      });
     },
     playAnimation(_name: string): void {
       // TODO: phase 2 — RoomScene animation with `characterId`.

@@ -1,5 +1,7 @@
 import * as Phaser from 'phaser';
+import { getGameSettings } from '../ConfigManager';
 import { applyBootAudioSettings } from '../applyAudioFromSettings';
+import { BENNE_SPEECH_FONT_CACHE_KEY, speechFontLoaderFormat } from '../speechFontKey';
 import { getAsepriteAssetPaths, getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/characterAseprite';
 import {
   getAsepriteFrameTagNames,
@@ -12,6 +14,7 @@ import { SCENE_BOOT, SCENE_ROOM } from '../../game/constants';
 import { loadCharacterData } from '../../game/loadCharacterData';
 import { loadStartRoomData } from '../../game/loadStartRoom';
 import { resolveGameAssetUrl } from '../../game/resolveGameAssetUrl';
+import { resolveGameFontUrl } from '../../game/resolveGameFontUrl';
 import type { CharacterFacingLetter, CharacterData } from '../../types/character';
 import type { RoomCharacterInstance, RoomData, RoomPropInstance } from '../../types/room';
 
@@ -47,6 +50,8 @@ export interface RoomSceneStartData {
   props: RoomPropSpawn[];
   /** Aseprite key for `room.props`; null when the room has no props. */
   roomPropsTextureKey: string | null;
+  /** True after BootScene queued `load.font` for speech (see `BENNE_SPEECH_FONT_CACHE_KEY`). */
+  speechFontLoaded?: boolean;
 }
 
 export class BootScene extends Phaser.Scene {
@@ -56,6 +61,17 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     applyBootAudioSettings(this);
+
+    const speechFontPath = getGameSettings().speech?.font?.trim();
+    let speechFontLoaded = false;
+    if (speechFontPath && speechFontPath.length > 0) {
+      this.load.font(
+        BENNE_SPEECH_FONT_CACHE_KEY,
+        resolveGameFontUrl(speechFontPath),
+        speechFontLoaderFormat(speechFontPath),
+      );
+      speechFontLoaded = true;
+    }
 
     const room = loadStartRoomData();
     const backgroundTextureKey = room.background?.image ? `bg:${room.id}` : null;
@@ -128,6 +144,7 @@ export class BootScene extends Phaser.Scene {
         characters: spawns,
         props: propSpawns,
         roomPropsTextureKey,
+        speechFontLoaded,
       } satisfies RoomSceneStartData);
     });
     this.load.start();

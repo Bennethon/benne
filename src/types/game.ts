@@ -28,6 +28,23 @@ export interface GameSettingsDebug {
   showPropOutlines?: boolean;
 }
 
+/** Subtitle / overhead line tuning (see BenneScript `C.*.say`). */
+export interface GameSettingsSpeech {
+  /**
+   * Multiplier for computed read time (`baseMs + length * perCharMs`, clamped).
+   * Default 1 when omitted.
+   */
+  lineDurationScale?: number;
+  /**
+   * Path under `src/game/assets/` (e.g. `fonts/foo.ttf`). When omitted, speech uses a generic web font family.
+   */
+  font?: string;
+  /** Pixel size in internal resolution. Default ~9 when omitted. */
+  fontSize?: number;
+  /** Max subtitle width for word wrap (game pixels). Default 220 when omitted. */
+  maxWidth?: number;
+}
+
 /** One verb the game exposes (ids power `onVerb`, `inputProfile`, and global handler events). */
 export interface GameVerbDefinition {
   /** Stable id used in room JSON (`onVerb`), `inputProfile`, and scripts. */
@@ -80,4 +97,6 @@ export interface GameSettings {
    * Suggested line when no handler handles the verb; emitted on the `verb:unhandled` bus event.
    */
   defaultFallbackLine?: string;
+  /** Overhead speech lines (`say`) — font, duration scale, etc. */
+  speech?: GameSettingsSpeech;
 }

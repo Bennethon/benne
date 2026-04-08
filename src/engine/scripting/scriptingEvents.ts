@@ -39,3 +39,13 @@ export type GameFadePayload = {
   /** Duration in milliseconds; omitted means engine default when wired. */
   durationMs?: number;
 };
+
+/** `RoomScene` shows overhead text + Talk anim; call {@link CharacterSayRequestedPayload.complete} exactly once. */
+export const CHARACTER_SAY_REQUESTED_EVENT = 'character:sayRequested';
+
+export type CharacterSayRequestedPayload = {
+  characterId: string;
+  text: string;
+  /** In-process only; resolves the `Promise` from `C.<id>.say(text)`. */
+  complete: () => void;
+};

@@ -13,6 +13,12 @@
     "secondaryButtonVerb": "look"
   },
   "defaultFallbackLine": "You can't do that.",
+  "speech": {
+    "lineDurationScale": 1,
+    "font": "fonts/lucasfont-alternate.ttf",
+    "fontSize": 8,
+    "maxWidth": 220
+  },
   "startingPlayerCharacter": "clerk",
   "startingRoomId": "office",
   "audio": {

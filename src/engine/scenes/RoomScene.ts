@@ -10,6 +10,12 @@ import {
 } from '../directionalCharacterAnimation';
 import { gameEvents } from '../events/EventBus';
 import {
+  CHARACTER_SAY_REQUESTED_EVENT,
+  type CharacterSayRequestedPayload,
+} from '../scripting/scriptingEvents';
+import { computeSpeechDurationMs } from '../speechTiming';
+import { BENNE_SPEECH_FONT_CACHE_KEY } from '../speechFontKey';
+import {
   PLAYER_WALK_START,
   PLAYER_WALK_STOP,
   type PlayerWalkStartPayload,
@@ -38,6 +44,9 @@ import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
 import type { RoomData, RoomHotspotData } from '../../types/room';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
+
+/** Overhead subtitles sit above character sprites but below debug overlays. */
+const SPEECH_SUBTITLE_DEPTH = 15_000;
 
 /** Ignore walk clicks when already within this many pixels of the target. */
 const MIN_WALK_DISTANCE_PX = 6;
@@ -102,6 +111,25 @@ export class RoomScene extends Phaser.Scene {
     parallaxDepth: number;
   }> = [];
 
+  /**
+   * Last spawned sprite per `CharacterData.id` (same id twice → last wins).
+   * Used by {@link CHARACTER_SAY_REQUESTED_EVENT}.
+   */
+  private readonly characterSpritesByCharacterId = new Map<
+    string,
+    Phaser.GameObjects.Sprite | Phaser.GameObjects.Image
+  >();
+
+  private speechFontLoaded = false;
+
+  private activeSpeechLine: {
+    subtitle: Phaser.GameObjects.Text;
+    target: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
+    facing: CharacterFacing;
+    complete: () => void;
+    endTimer: Phaser.Time.TimerEvent;
+  } | null = null;
+
   constructor() {
     super(SCENE_ROOM);
   }
@@ -111,6 +139,9 @@ export class RoomScene extends Phaser.Scene {
     this.player = null;
     this.playerMoveTween = null;
     this.parallaxProps = [];
+    this.characterSpritesByCharacterId.clear();
+    this.speechFontLoaded = data.speechFontLoaded === true;
+    this.activeSpeechLine = null;
 
     attachPostProcessingPlaceholder(this.cameras.main);
 
@@ -141,9 +172,12 @@ export class RoomScene extends Phaser.Scene {
 
     this.scale.on('resize', this.onScaleResize, this);
     this.input.on('pointerdown', this.handleRoomPointerDown);
+    gameEvents.on(CHARACTER_SAY_REQUESTED_EVENT, this.onCharacterSayRequested, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.onScaleResize, this);
       this.input.off('pointerdown', this.handleRoomPointerDown);
+      gameEvents.off(CHARACTER_SAY_REQUESTED_EVENT, this.onCharacterSayRequested, this);
+      this.teardownActiveSpeechLine(true);
       this.stopPlayerMoveTween(true);
     });
   }
@@ -172,6 +206,145 @@ export class RoomScene extends Phaser.Scene {
 
   update(): void {
     this.updateParallaxProps();
+    this.updateSpeechSubtitlePosition();
+  }
+
+  private canPlayDirectionalCharacter(
+    go: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+  ): go is DirectionalCharacterSprite {
+    return (
+      go instanceof Phaser.GameObjects.Sprite &&
+      typeof (go as DirectionalCharacterSprite).playDirectionalAnimation === 'function'
+    );
+  }
+
+  private resolveSpeechFacing(
+    go: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+  ): CharacterFacing {
+    const fromData = go.getData('facing') as CharacterFacing | undefined;
+    if (fromData !== undefined) {
+      return fromData;
+    }
+    if (this.canPlayDirectionalCharacter(go)) {
+      return resolveInitialIdleFacing(go);
+    }
+    return 'D';
+  }
+
+  private updateSpeechSubtitlePosition(): void {
+    const line = this.activeSpeechLine;
+    if (!line) {
+      return;
+    }
+    const { subtitle, target } = line;
+    if (!subtitle.active || !target.active) {
+      return;
+    }
+    const cx = target.x + target.displayWidth * 0.5;
+    const cy = target.y - 4;
+    subtitle.setPosition(cx, cy);
+  }
+
+  private readonly onCharacterSayRequested = (payload: CharacterSayRequestedPayload): void => {
+    const target = this.characterSpritesByCharacterId.get(payload.characterId);
+    if (!target) {
+      console.warn(`[Benne] say(): no character '${payload.characterId}' in this room.`);
+      payload.complete();
+      return;
+    }
+
+    this.replaceOrFinishPriorSpeechLine(target);
+
+    if (
+      payload.characterId === getStartingPlayerCharacterId() &&
+      this.player &&
+      target === this.player
+    ) {
+      this.stopPlayerMoveTween(true);
+    }
+
+    const facing = this.resolveSpeechFacing(target);
+    if (this.canPlayDirectionalCharacter(target)) {
+      playDirectionalAnimation(target, 'Talk', facing);
+    }
+
+    const speechCfg = getGameSettings().speech;
+    const fontSize = speechCfg?.fontSize ?? 9;
+    const maxWidth = speechCfg?.maxWidth ?? 220;
+    const scale = speechCfg?.lineDurationScale ?? 1;
+    const durationMs = computeSpeechDurationMs(payload.text, scale);
+
+    const subtitle = this.add.text(0, 0, payload.text, {
+      fontFamily: this.speechFontLoaded ? BENNE_SPEECH_FONT_CACHE_KEY : 'monospace',
+      fontSize: `${fontSize}px`,
+      color: '#f5f5f5',
+      align: 'center',
+      stroke: '#0a0a0a',
+      strokeThickness: 4,
+      wordWrap: { width: maxWidth, useAdvancedWrap: true },
+    });
+    subtitle.setOrigin(0.5, 1);
+    subtitle.setDepth(SPEECH_SUBTITLE_DEPTH);
+    subtitle.setScrollFactor(1);
+    this.updateSpeechSubtitlePosition();
+
+    const endTimer = this.time.delayedCall(durationMs, () => {
+      this.finishSpeechLineNaturally();
+    });
+
+    this.activeSpeechLine = {
+      subtitle,
+      target,
+      facing,
+      complete: payload.complete,
+      endTimer,
+    };
+  };
+
+  /**
+   * Completes a prior `say()` promise, removes UI, and returns the previous speaker to `Idle`
+   * when the new line is spoken by someone else.
+   */
+  private replaceOrFinishPriorSpeechLine(nextTarget: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image): void {
+    const cur = this.activeSpeechLine;
+    if (!cur) {
+      return;
+    }
+    cur.endTimer.remove(false);
+    cur.subtitle.destroy();
+    this.activeSpeechLine = null;
+    const sameSpeaker = cur.target === nextTarget;
+    if (!sameSpeaker && this.canPlayDirectionalCharacter(cur.target)) {
+      playDirectionalAnimation(cur.target, 'Idle', cur.facing);
+    }
+    cur.complete();
+  }
+
+  private finishSpeechLineNaturally(): void {
+    const cur = this.activeSpeechLine;
+    if (!cur) {
+      return;
+    }
+    this.activeSpeechLine = null;
+    cur.subtitle.destroy();
+    if (this.canPlayDirectionalCharacter(cur.target)) {
+      playDirectionalAnimation(cur.target, 'Idle', cur.facing);
+    }
+    cur.complete();
+  }
+
+  /** Scene shutdown: dismiss line without restoring Idle (scene is leaving). */
+  private teardownActiveSpeechLine(callComplete: boolean): void {
+    const cur = this.activeSpeechLine;
+    if (!cur) {
+      return;
+    }
+    cur.endTimer.remove(false);
+    cur.subtitle.destroy();
+    this.activeSpeechLine = null;
+    if (callComplete) {
+      cur.complete();
+    }
   }
 
   /**
@@ -624,6 +797,7 @@ export class RoomScene extends Phaser.Scene {
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
     sprite.setData('instanceId', spawn.instanceId);
     this.attachCharacterInteraction(roomId, spawn, sprite);
+    this.characterSpritesByCharacterId.set(spawn.data.id, sprite);
   }
 
   private spawnAsepriteCharacter(roomId: string, spawn: RoomCharacterSpawn): void {
@@ -652,6 +826,8 @@ export class RoomScene extends Phaser.Scene {
     if (isPlayer) {
       this.player = sprite as DirectionalCharacterSprite;
     }
+
+    this.characterSpritesByCharacterId.set(spawn.data.id, sprite);
   }
 
   private attachCharacterInteraction(
