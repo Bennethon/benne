@@ -13,8 +13,15 @@ import {
 export class RoomPreviewPanelController implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
     private webviewReady = false;
-    /** Last room JSON URI successfully sent with `loadRoom`; used to skip redundant reloads when only the prop selection changes. */
+    /** Last room JSON URI successfully sent with `loadRoom`. */
     private lastPushedRoomJsonUri: string | null = null;
+    /**
+     * URI + preview toolbar identity from the last successful `loadRoom`.
+     * Reload when the URI is unchanged but the focused prop/hotspot/region/point changes — otherwise the webview keeps stale room JSON.
+     */
+    private lastPushedPreviewLoadKey: string | null = null;
+    /** Debounced reload when the active room JSON file changes on disk (e.g. add-hotspot wizard uses `writeFile`). */
+    private roomJsonDiskChangeTimer: ReturnType<typeof setTimeout> | undefined;
     /** Dedupes `toolbarUi` posts when focus is already reflected in the webview. */
     private lastToolbarUiKey: string | null = null;
     private readonly disposables: vscode.Disposable[] = [];
@@ -43,6 +50,10 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             clearTimeout(this.clearPreviewDebounceTimer);
             this.clearPreviewDebounceTimer = undefined;
         }
+        if (this.roomJsonDiskChangeTimer !== undefined) {
+            clearTimeout(this.roomJsonDiskChangeTimer);
+            this.roomJsonDiskChangeTimer = undefined;
+        }
         this.panel?.dispose();
         this.panel = undefined;
         vscode.Disposable.from(...this.disposables).dispose();
@@ -54,6 +65,10 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             clearTimeout(this.clearPreviewDebounceTimer);
             this.clearPreviewDebounceTimer = undefined;
         }
+        if (this.roomJsonDiskChangeTimer !== undefined) {
+            clearTimeout(this.roomJsonDiskChangeTimer);
+            this.roomJsonDiskChangeTimer = undefined;
+        }
         if (!this.panel) {
             return;
         }
@@ -61,6 +76,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         this.panel = undefined;
         this.webviewReady = false;
         this.lastPushedRoomJsonUri = null;
+        this.lastPushedPreviewLoadKey = null;
         this.lastToolbarUiKey = null;
         p.dispose();
     }
@@ -104,6 +120,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                     void this.panel.webview.postMessage({ type: 'benne/preview/clear' });
                 }
                 this.lastPushedRoomJsonUri = null;
+                this.lastPushedPreviewLoadKey = null;
                 this.lastToolbarUiKey = null;
             }, this.clearPreviewDebounceMs);
             return;
@@ -121,10 +138,16 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         }
         if (createdNew) {
             this.webviewReady = false;
+            this.lastPushedPreviewLoadKey = null;
         } else if (this.webviewReady) {
             const nextUri = this.previewRoomJsonUriForSelection();
             const nextStr = nextUri?.toString() ?? '';
-            if (nextStr && nextStr === this.lastPushedRoomJsonUri) {
+            const tb = this.getPreviewToolbarState();
+            const loadKey =
+                nextStr.length > 0
+                    ? `${nextStr}\0${tb.focus}\0${tb.propId}\0${tb.hotspotId}\0${tb.regionId}\0${tb.roomPointId}`
+                    : '';
+            if (nextStr && loadKey === this.lastPushedPreviewLoadKey) {
                 this.postToolbarUiIfNeeded();
                 return;
             }
@@ -177,6 +200,44 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             };
         }
         return { focus: 'room', propId: '', hotspotId: '', regionId: '', roomPointId: '' };
+    }
+
+    private previewLoadKey(
+        roomJsonUriStr: string,
+        tb: {
+            focus: 'room' | 'prop' | 'hotspot' | 'region' | 'roomPoint';
+            propId: string;
+            hotspotId: string;
+            regionId: string;
+            roomPointId: string;
+        }
+    ): string {
+        return `${roomJsonUriStr}\0${tb.focus}\0${tb.propId}\0${tb.hotspotId}\0${tb.regionId}\0${tb.roomPointId}`;
+    }
+
+    /**
+     * When a `*.room.json` file changes on disk, reload the preview if that room is currently shown.
+     * (Wizards use `fs.writeFile`, which does not always change tree selection.)
+     */
+    onWorkspaceRoomJsonChanged(uri: vscode.Uri): void {
+        if (!uri.fsPath.endsWith('.room.json')) {
+            return;
+        }
+        if (!this.panel || !this.webviewReady) {
+            return;
+        }
+        const uriStr = uri.toString();
+        const cur = this.previewRoomJsonUriForSelection()?.toString();
+        if (uriStr !== cur && uriStr !== this.lastPushedRoomJsonUri) {
+            return;
+        }
+        if (this.roomJsonDiskChangeTimer !== undefined) {
+            clearTimeout(this.roomJsonDiskChangeTimer);
+        }
+        this.roomJsonDiskChangeTimer = setTimeout(() => {
+            this.roomJsonDiskChangeTimer = undefined;
+            void this.pushPreview();
+        }, 250);
     }
 
     private postToolbarUiIfNeeded(): void {
@@ -276,6 +337,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 this.panel = undefined;
                 this.webviewReady = false;
                 this.lastPushedRoomJsonUri = null;
+                this.lastPushedPreviewLoadKey = null;
                 this.lastToolbarUiKey = null;
             })
         );
@@ -402,6 +464,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 ...(tb.focus === 'roomPoint' ? { roomPointId: tb.roomPointId } : {}),
             });
             this.lastPushedRoomJsonUri = uriStr;
+            this.lastPushedPreviewLoadKey = this.previewLoadKey(uriStr, tb);
         } catch (e) {
             webview.postMessage({
                 type: 'benne/preview/error',
@@ -420,6 +483,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         }
         this.webviewReady = false;
         this.lastPushedRoomJsonUri = null;
+        this.lastPushedPreviewLoadKey = null;
         this.lastToolbarUiKey = null;
         this.panel.webview.html = buildRoomPreviewHtml(this.panel.webview, this.extensionUri);
     }

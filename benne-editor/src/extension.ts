@@ -434,8 +434,14 @@ export function activate(context: vscode.ExtensionContext): void {
     );
     context.subscriptions.push(
         jsonWatcher,
-        jsonWatcher.onDidChange(refreshTrees),
-        jsonWatcher.onDidCreate(refreshTrees),
+        jsonWatcher.onDidChange((uri) => {
+            refreshTrees();
+            roomPreview.onWorkspaceRoomJsonChanged(uri);
+        }),
+        jsonWatcher.onDidCreate((uri) => {
+            refreshTrees();
+            roomPreview.onWorkspaceRoomJsonChanged(uri);
+        }),
         jsonWatcher.onDidDelete(refreshTrees),
         roomSheetAssetWatcher,
         roomSheetAssetWatcher.onDidChange(refreshTrees),
