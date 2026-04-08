@@ -11,7 +11,7 @@ export function getEffectiveVerbDefinitions(settings: GameSettings): GameVerbDef
 }
 
 /**
- * Two-button profile. When `inputProfile` is omitted, matches legacy RoomScene behavior:
+ * Two-button profile. When `inputProfile` is omitted, defaults to
  * left (primary) → `look`, right (secondary) → `use`.
  */
 export function getEffectiveTwoVerbProfile(settings: GameSettings): VerbInputProfileTwoVerb {

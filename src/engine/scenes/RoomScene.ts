@@ -573,7 +573,9 @@ export class RoomScene extends Phaser.Scene {
     }
 
     const pts = hotspot.points;
-    const usePoly = pts !== undefined && pts.length >= 3;
+    if (!pts || pts.length < 3) {
+      return;
+    }
 
     const depth = 8000 + (hotspot.zIndex ?? 0);
 
@@ -596,31 +598,14 @@ export class RoomScene extends Phaser.Scene {
       });
     };
 
-    if (usePoly) {
-      const zone = this.add.zone(0, 0, roomW, roomH).setOrigin(0, 0).setDepth(depth);
-      const flat: number[] = [];
-      for (const p of pts) {
-        flat.push(p.x, p.y);
-      }
-      const geom = new Phaser.Geom.Polygon(flat);
-      zone.setInteractive(geom, Phaser.Geom.Polygon.Contains);
-      zone.input!.cursor = 'pointer';
-      zone.on('pointerdown', onHotspotPointer);
-      return;
+    const zone = this.add.zone(0, 0, roomW, roomH).setOrigin(0, 0).setDepth(depth);
+    const flat: number[] = [];
+    for (const p of pts) {
+      flat.push(p.x, p.y);
     }
-
-    const x = hotspot.x ?? 0;
-    const y = hotspot.y ?? 0;
-    const bw = hotspot.width ?? 0;
-    const bh = hotspot.height ?? 0;
-    if (bw <= 0 || bh <= 0) {
-      return;
-    }
-    const zone = this.add
-      .zone(x + bw / 2, y + bh / 2, bw, bh)
-      .setDepth(depth)
-      .setInteractive({ useHandCursor: true });
-
+    const geom = new Phaser.Geom.Polygon(flat);
+    zone.setInteractive(geom, Phaser.Geom.Polygon.Contains);
+    zone.input!.cursor = 'pointer';
     zone.on('pointerdown', onHotspotPointer);
   }
 

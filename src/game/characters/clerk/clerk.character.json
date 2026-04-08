@@ -33,7 +33,9 @@
       "loop": true
     }
   },
-  "onLook": "look:clerk",
+  "onVerb": {
+    "look": "look:clerk"
+  },
   "feet": {
     "x": 18,
     "y": 62

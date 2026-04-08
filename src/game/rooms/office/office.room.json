@@ -230,7 +230,9 @@
           }
         ]
       },
-      "onLook": "look:office-door"
+      "onVerb": {
+        "look": "look:office-door"
+      }
     },
     {
       "id": "office-prop-coatrack",
@@ -295,7 +297,9 @@
           }
         ]
       },
-      "onLook": "look:office-jacket"
+      "onVerb": {
+        "look": "look:office-jacket"
+      }
     },
     {
       "id": "office-prop-phone-cutaway",
@@ -340,7 +344,9 @@
           }
         ]
       },
-      "onLook": "look:office-glasses"
+      "onVerb": {
+        "look": "look:office-glasses"
+      }
     },
     {
       "id": "office-prop-cyberbuddy",
@@ -378,7 +384,9 @@
           }
         ]
       },
-      "onLook": "look:office-cyberbuddy"
+      "onVerb": {
+        "look": "look:office-cyberbuddy"
+      }
     },
     {
       "id": "office-prop-plant",

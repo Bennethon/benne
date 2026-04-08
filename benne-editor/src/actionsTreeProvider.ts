@@ -311,31 +311,36 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         const out: ActionTreeNode[] = [];
         const title = prop.tag ?? prop.id;
 
-        if (prop.clickable === false && !prop.onLook && !prop.onUse) {
+        const verbKeys = Object.keys(prop.onVerb ?? {}).sort();
+        const hasVerbConfig =
+            verbKeys.length > 0 || (prop.onVerbFallback !== undefined && prop.onVerbFallback.length > 0);
+
+        if (prop.clickable === false && !hasVerbConfig) {
             return [{ kind: 'hint', message: `${title} — not clickable` }];
         }
 
-        if (prop.onLook) {
+        for (const verbId of verbKeys) {
+            const eventId = prop.onVerb![verbId];
             out.push({
                 kind: 'propVerb',
-                verbLabel: `Look — ${title}`,
-                eventId: prop.onLook,
+                verbLabel: `${verbId} — ${title}`,
+                eventId,
                 roomJsonUri,
                 roomId
             });
         }
-        if (prop.onUse) {
+        if (prop.onVerbFallback) {
             out.push({
                 kind: 'propVerb',
-                verbLabel: `Use — ${title}`,
-                eventId: prop.onUse,
+                verbLabel: `fallback — ${title}`,
+                eventId: prop.onVerbFallback,
                 roomJsonUri,
                 roomId
             });
         }
 
         if (out.length === 0) {
-            return [{ kind: 'hint', message: `${title} — no onLook / onUse` }];
+            return [{ kind: 'hint', message: `${title} — no onVerb handlers` }];
         }
 
         return out;
@@ -349,20 +354,22 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             { kind: 'charOpen', label: 'Open character JSON', characterJsonUri }
         ];
 
-        if (hooks.onLook) {
+        const verbKeys = Object.keys(hooks.onVerb ?? {}).sort();
+        for (const verbId of verbKeys) {
+            const eventId = hooks.onVerb![verbId];
             out.push({
                 kind: 'charVerb',
-                verbLabel: 'Look',
-                eventId: hooks.onLook,
+                verbLabel: `${verbId} — ${characterId}`,
+                eventId,
                 characterJsonUri,
                 characterId
             });
         }
-        if (hooks.onUse) {
+        if (hooks.onVerbFallback) {
             out.push({
                 kind: 'charVerb',
-                verbLabel: 'Use',
-                eventId: hooks.onUse,
+                verbLabel: `fallback — ${characterId}`,
+                eventId: hooks.onVerbFallback,
                 characterJsonUri,
                 characterId
             });

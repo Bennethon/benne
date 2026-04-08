@@ -16,19 +16,7 @@ function listenerCount(bus: EventBus, event: string): number {
   return bus.listeners(event).length;
 }
 
-/** For backward compatibility with existing `kind?: 'look' | 'use'` on prop payloads. */
-function kindFromVerbId(verbId: string): 'look' | 'use' | undefined {
-  if (verbId === 'look') {
-    return 'look';
-  }
-  if (verbId === 'use') {
-    return 'use';
-  }
-  return undefined;
-}
-
 function buildEmitPayload(target: VerbInteractTarget, verbId: string): Record<string, unknown> {
-  const kind = kindFromVerbId(verbId);
   switch (target.type) {
     case 'prop':
       return {
@@ -39,7 +27,6 @@ function buildEmitPayload(target: VerbInteractTarget, verbId: string): Record<st
         verbId,
         ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
         ...(target.lookAtPoint !== undefined ? { lookAtPoint: target.lookAtPoint } : {}),
-        ...(kind !== undefined ? { kind } : {}),
       };
     case 'hotspot':
       return {

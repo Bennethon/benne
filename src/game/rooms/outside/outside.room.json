@@ -14,7 +14,40 @@
   "walkable": {
     "polygons": []
   },
-  "hotspots": [],
+  "hotspots": [
+    {
+      "id": "outside-hotspot-1",
+      "active": true,
+      "description": "",
+      "zIndex": 0,
+      "points": [
+        {
+          "x": 152,
+          "y": 75
+        },
+        {
+          "x": 200,
+          "y": 75
+        },
+        {
+          "x": 200,
+          "y": 123
+        },
+        {
+          "x": 152,
+          "y": 123
+        }
+      ],
+      "walkToPoint": {
+        "x": 176,
+        "y": 135
+      },
+      "lookAtPoint": {
+        "x": 176,
+        "y": 99
+      }
+    }
+  ],
   "props": [
     {
       "id": "outside-prop-car",
@@ -29,7 +62,31 @@
       "zIndex": 1,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 107,
+            "y": 86
+          },
+          {
+            "x": 93,
+            "y": 113
+          },
+          {
+            "x": 124,
+            "y": 127
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 0,
+        "y": 0
+      },
+      "lookAtPoint": {
+        "x": 12,
+        "y": 0
+      }
     },
     {
       "id": "outside-prop-background",
@@ -44,6 +101,13 @@
       "zIndex": 3,
       "visible": true,
       "alpha": 1
+    }
+  ],
+  "points": [
+    {
+      "id": "outside-point-1",
+      "x": 176,
+      "y": 99
     }
   ]
 }
