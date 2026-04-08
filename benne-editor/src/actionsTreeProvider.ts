@@ -10,6 +10,7 @@ import {
     type RoomHotspotListEntry,
     type RoomPropEntry
 } from './gameDiscovery';
+import { roomScriptHasRoomCharacterVerb } from './roomCharacterVerbScaffolding';
 
 function roomPropVerbEventId(roomId: string, propId: string, verbId: string): string {
     return `verb:room:${roomId}:prop:${propId}:${verbId}`;
@@ -33,6 +34,10 @@ function characterVerbEventId(characterId: string, verbId: string): string {
 
 function characterVerbFallbackEventId(characterId: string): string {
     return `verb:character:${characterId}:fallback`;
+}
+
+function roomCharacterVerbEventId(roomId: string, characterId: string, verbId: string): string {
+    return `verb:room:${roomId}:character:${characterId}:${verbId}`;
 }
 
 function eventIdDescription(eventId: string): string {
@@ -138,6 +143,22 @@ export type ActionTreeNode =
           characterJsonUri: vscode.Uri;
           characterId: string;
       }
+    | {
+          kind: 'roomCharVerb';
+          verbLabel: string;
+          eventId: string;
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+      }
+    | {
+          kind: 'roomCharVerbAdd';
+          verbId: string;
+          verbLabel: string;
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+          characterId: string;
+      }
+    | { kind: 'roomCharMakeClickable'; characterJsonUri: vscode.Uri; characterId: string }
     | { kind: 'charMakeClickable'; characterJsonUri: vscode.Uri; characterId: string }
     | { kind: 'charOpen'; label: string; characterJsonUri: vscode.Uri }
     | { kind: 'importCharAnimationsFromAseprite' }
@@ -368,6 +389,53 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 };
                 return item;
             }
+            case 'roomCharVerb': {
+                const item = new vscode.TreeItem(element.verbLabel, vscode.TreeItemCollapsibleState.None);
+                item.id = `room-char-verb:${element.roomJsonUri}:${element.eventId}`;
+                item.description = eventIdDescription(element.eventId);
+                item.iconPath = new vscode.ThemeIcon('symbol-event');
+                item.contextValue = 'benneActionRoomCharVerb';
+                item.command = {
+                    command: 'benne-editor.revealRoomScriptEvent',
+                    title: 'Open room handler',
+                    arguments: [element.roomJsonUri.toString(), element.roomId, element.eventId]
+                };
+                return item;
+            }
+            case 'roomCharVerbAdd': {
+                const item = new vscode.TreeItem(element.verbLabel, vscode.TreeItemCollapsibleState.None);
+                item.id = `room-char-verb-add:${element.roomJsonUri}:${element.characterId}:${element.verbId}`;
+                item.description = 'add room handler';
+                item.iconPath = new vscode.ThemeIcon(
+                    'add',
+                    new vscode.ThemeColor('testing.iconPassed')
+                );
+                item.contextValue = 'benneActionRoomCharVerbAdd';
+                item.command = {
+                    command: 'benne-editor.addRoomCharacterVerbEvent',
+                    title: 'Add room-scoped character verb handler',
+                    arguments: [
+                        element.roomJsonUri.toString(),
+                        element.roomId,
+                        element.characterId,
+                        element.verbId
+                    ]
+                };
+                return item;
+            }
+            case 'roomCharMakeClickable': {
+                const item = new vscode.TreeItem('Make character clickable', vscode.TreeItemCollapsibleState.None);
+                item.id = `room-char-clickable:${element.characterJsonUri}`;
+                item.description = 'required for verbs';
+                item.iconPath = new vscode.ThemeIcon('inspect');
+                item.contextValue = 'benneActionRoomCharMakeClickable';
+                item.command = {
+                    command: 'benne-editor.makeCharacterClickable',
+                    title: 'Make character clickable',
+                    arguments: [element.characterJsonUri.toString(), element.characterId]
+                };
+                return item;
+            }
             case 'charMakeClickable': {
                 const item = new vscode.TreeItem('Make clickable', vscode.TreeItemCollapsibleState.None);
                 item.id = `char-clickable:${element.characterJsonUri}`;
@@ -523,6 +591,18 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 ];
             }
 
+            if (roomPanel.kind === 'roomCharacter') {
+                return [
+                    ...scaffold,
+                    ...(await this.roomCharacterActionNodes(
+                        roomPanel.roomJsonUri,
+                        roomPanel.roomId,
+                        roomPanel.characterId,
+                        roomPanel.instanceId
+                    ))
+                ];
+            }
+
             return [...scaffold, ...roomOpenNodes];
         }
 
@@ -537,7 +617,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             { kind: 'rebuildRoomPreviewBundle' },
             {
                 kind: 'hint',
-                message: 'Select a room, character, prop, or hotspot in BENNE'
+                message: 'Select a room, character, prop, hotspot, or room character in BENNE'
             }
         ];
     }
@@ -691,6 +771,136 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         }
 
         const hasVerbRows = out.some((n) => n.kind === 'hotspotVerb' || n.kind === 'hotspotVerbAdd');
+        if (!hasVerbRows) {
+            out.push({
+                kind: 'hint',
+                message: `${title} — no verbs in game-config.json`
+            });
+        }
+
+        return out;
+    }
+
+    private async roomCharacterActionNodes(
+        roomJsonUri: vscode.Uri,
+        roomId: string,
+        characterId: string,
+        instanceId: string
+    ): Promise<ActionTreeNode[]> {
+        const folder = vscode.workspace.getWorkspaceFolder(roomJsonUri);
+        if (!folder) {
+            return [{ kind: 'hint', message: 'Could not resolve workspace folder for this room' }];
+        }
+        const characterJsonUri = vscode.Uri.joinPath(
+            folder.uri,
+            'src',
+            'game',
+            'characters',
+            characterId,
+            `${characterId}.character.json`
+        );
+        let hooks;
+        try {
+            await vscode.workspace.fs.stat(characterJsonUri);
+            hooks = await readCharacterHooks(characterJsonUri);
+        } catch {
+            return [
+                {
+                    kind: 'hint',
+                    message: `Character definition not found for "${characterId}" (expected under src/game/characters/)`
+                }
+            ];
+        }
+
+        const title = `${characterId} (${instanceId})`;
+        const out: ActionTreeNode[] = [];
+
+        if (hooks.clickable !== true) {
+            return [
+                {
+                    kind: 'roomCharMakeClickable',
+                    characterJsonUri,
+                    characterId
+                },
+                {
+                    kind: 'hint',
+                    message: `${title} — set clickable on the character before room-scoped verb handlers`
+                }
+            ];
+        }
+
+        if (hooks.hasColliderPolygon !== true) {
+            out.push({
+                kind: 'hint',
+                message: `${title} — add a collider (3+ points) in the character preview for precise clicks`
+            });
+        }
+
+        const gameVerbs = await readGameConfigVerbs(folder.uri);
+        const onVerb = hooks.onVerb ?? {};
+        const gameVerbIds = new Set(gameVerbs.map((v) => v.id));
+
+        for (const v of gameVerbs) {
+            const hasRoom = await roomScriptHasRoomCharacterVerb(
+                roomJsonUri,
+                roomId,
+                characterId,
+                v.id
+            );
+            if (hasRoom) {
+                out.push({
+                    kind: 'roomCharVerb',
+                    verbLabel: `${v.id} — ${title}`,
+                    eventId: roomCharacterVerbEventId(roomId, characterId, v.id),
+                    roomJsonUri,
+                    roomId
+                });
+            } else {
+                out.push({
+                    kind: 'roomCharVerbAdd',
+                    verbId: v.id,
+                    verbLabel: `${v.id} — ${title}`,
+                    roomJsonUri,
+                    roomId,
+                    characterId
+                });
+            }
+        }
+
+        for (const verbId of Object.keys(onVerb).sort()) {
+            if (gameVerbIds.has(verbId)) {
+                continue;
+            }
+            if (onVerb[verbId] !== true) {
+                continue;
+            }
+            const hasRoom = await roomScriptHasRoomCharacterVerb(
+                roomJsonUri,
+                roomId,
+                characterId,
+                verbId
+            );
+            if (hasRoom) {
+                out.push({
+                    kind: 'roomCharVerb',
+                    verbLabel: `${verbId} — ${title}`,
+                    eventId: roomCharacterVerbEventId(roomId, characterId, verbId),
+                    roomJsonUri,
+                    roomId
+                });
+            } else {
+                out.push({
+                    kind: 'roomCharVerbAdd',
+                    verbId,
+                    verbLabel: `${verbId} — ${title}`,
+                    roomJsonUri,
+                    roomId,
+                    characterId
+                });
+            }
+        }
+
+        const hasVerbRows = out.some((n) => n.kind === 'roomCharVerb' || n.kind === 'roomCharVerbAdd');
         if (!hasVerbRows) {
             out.push({
                 kind: 'hint',

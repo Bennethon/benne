@@ -95,6 +95,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         const wantRoomPreview =
             roomPanel.kind === 'prop' ||
             roomPanel.kind === 'hotspot' ||
+            roomPanel.kind === 'roomCharacter' ||
             roomPanel.kind === 'roomPoint' ||
             roomPanel.kind === 'region' ||
             focus.kind === 'room';
@@ -110,6 +111,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 if (
                     rp.kind === 'prop' ||
                     rp.kind === 'hotspot' ||
+                    rp.kind === 'roomCharacter' ||
                     rp.kind === 'roomPoint' ||
                     rp.kind === 'region' ||
                     f.kind === 'room'
@@ -274,6 +276,9 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             return roomPanel.roomJsonUri;
         }
         if (roomPanel.kind === 'region') {
+            return roomPanel.roomJsonUri;
+        }
+        if (roomPanel.kind === 'roomCharacter') {
             return roomPanel.roomJsonUri;
         }
         if (focus.kind === 'room') {

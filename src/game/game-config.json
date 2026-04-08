@@ -14,7 +14,7 @@
   },
   "defaultFallbackLine": "You can't do that.",
   "startingPlayerCharacter": "clerk",
-  "startingRoomId": "outsideOffice",
+  "startingRoomId": "office",
   "audio": {
     "masterVolume": 1,
     "sfxVolume": 1,

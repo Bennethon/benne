@@ -1,13 +1,14 @@
 import * as vscode from 'vscode';
 import { BENNE_ROOM_SOURCES_VIEW_COLUMN } from './roomScriptNavigation';
 
-export type RoomJsonElementKind = 'hotspot' | 'prop' | 'roomPoint' | 'region';
+export type RoomJsonElementKind = 'hotspot' | 'prop' | 'roomPoint' | 'region' | 'roomCharacter';
 
 const ARRAY_KEY: Record<RoomJsonElementKind, string> = {
     hotspot: 'hotspots',
     prop: 'props',
     roomPoint: 'points',
-    region: 'regions'
+    region: 'regions',
+    roomCharacter: 'characters'
 };
 
 function escapeRegex(s: string): string {
@@ -167,7 +168,8 @@ export function findRoomJsonElementIdRange(
 ): { start: number; end: number } | undefined {
     const key = ARRAY_KEY[kind];
     const openBracket = findRootArrayOpenBracket(text, key);
-    const idRe = new RegExp(`"id"\\s*:\\s*"${escapeRegex(elementId)}"`);
+    const idKey = kind === 'roomCharacter' ? 'instanceId' : 'id';
+    const idRe = new RegExp(`"${idKey}"\\s*:\\s*"${escapeRegex(elementId)}"`);
     if (openBracket >= 0) {
         const closeBracket = findMatchingClose(text, openBracket, '[', ']');
         if (closeBracket < 0) {
