@@ -1,29 +1,46 @@
 import type { EventBus } from '../engine/events/EventBus';
 import { gameEvents } from '../engine/events/EventBus';
 import { registerGlobalScript } from './globalScript';
-
-const roomScriptModules = import.meta.glob<{ registerRoomScript?: (events: EventBus) => void }>(
-  './rooms/**/*.room.ts',
-  { eager: true },
-);
-
-const characterScriptModules = import.meta.glob<{
-  registerCharacterScript?: (events: EventBus) => void;
-}>(
-  './characters/**/*.character.ts',
-  { eager: true },
-);
+import type { RoomScriptContext } from '../engine/scripting/types';
+import { createRoomScriptContext } from '../engine/scripting/RoomScriptContext';
+import { getBenneRoomScriptRegistrations } from '../engine/scripting/registerRoomScript';
 
 /**
- * Registers globalScript, every `*.room.ts` that exports registerRoomScript, then every
- * `*.character.ts` under `characters/` that exports registerCharacterScript.
+ * BENNE scripting registration.
+ * Supports both old-style (exported registerRoomScript) and new Bennescript style.
  */
 export function registerGameContent(): void {
   registerGlobalScript(gameEvents);
 
-  for (const mod of Object.values(roomScriptModules)) {
-    mod.registerRoomScript?.(gameEvents);
+  // === NEW BENNE SCRIPT STYLE ===
+  const benneRoomScripts = getBenneRoomScriptRegistrations();
+  if (benneRoomScripts.length > 0) {
+    console.log(`[Benne] ✅ Collected ${benneRoomScripts.length} new-style Bennescript room handler(s)`);
   }
+  (window as any).__benneRoomScripts = benneRoomScripts;
+
+  // === OLD STYLE FALLBACK (for other rooms) ===
+  const roomScriptModules = import.meta.glob<{
+    registerRoomScript?: (events: EventBus) => void;
+  }>('./rooms/**/*.room.ts', { eager: true });
+
+  for (const [path, mod] of Object.entries(roomScriptModules)) {
+    const fn = mod.registerRoomScript;
+    if (!fn) continue;
+
+    // Skip if this room already used the new style
+    if (benneRoomScripts.length > 0 && path.includes('office')) {
+      continue;
+    }
+
+    console.warn(`[Benne] Old-style script found: ${path} — falling back to raw events`);
+    fn(gameEvents);
+  }
+
+  // Character scripts (unchanged)
+  const characterScriptModules = import.meta.glob<{
+    registerCharacterScript?: (events: EventBus) => void;
+  }>('./characters/**/*.character.ts', { eager: true });
 
   for (const mod of Object.values(characterScriptModules)) {
     mod.registerCharacterScript?.(gameEvents);
