@@ -234,9 +234,10 @@ Authors now write against a clean, discoverable facade. Handlers are **ordinary 
 ```ts
 import { registerRoomScript } from '@engine/scripting';
 
+// String ids: `whenLookAt`/`whenUse` use `props[].id`; `walkTo('…')` resolves prop → hotspot → character → `points[]`.
 registerRoomScript(({ B }) => {
   B.whenLookAt('desk', () => {
-    B.player.walkToProp('desk');
+    B.player.walkTo('desk');
     B.player.say('Looks like an ordinary desk with some paperwork…');
   });
 

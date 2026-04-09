@@ -102,15 +102,18 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
         props: []
     };
 
-    const roomTs = `import type { EventBus } from '@engine/events/EventBus';
+    const roomTs = `import { registerRoomScript } from '@engine/scripting';
 
 /**
- * Room script for \`${id}\` — keep all handlers for this room here (PowerQuest-style).
- * Export name is fixed so \`registerGameContent\` can discover files via \`*.room.ts\` glob.
+ * Room script for \`${id}\` — keep handlers for this room here (PowerQuest-style).
+ *
+ * String ids must match your \`${id}.room.json\` (and character JSON where noted):
+ * - \`whenLookAt\` / \`whenUse\` / … / \`B.prop('…')\`: \`props[].id\` (not hotspots — use \`B.raw.on\` + \`roomHotspotVerbEventId\` if needed).
+ * - \`B.character('…')\` / \`whenTalkTo('…')\`: \`CharacterData.id\` for a character placed in this room.
+ * - \`walkTo('…')\`: unified target — prop id → hotspot id → character id → \`points[].id\`, or \`{ x, y }\` in room pixels.
  */
-export function registerRoomScript(_events: EventBus): void {
-  // Example: _events.on(roomPropVerbEventId('${id}', 'propName', 'look'), () => { ... });
-}
+registerRoomScript(({ B }) => {
+});
 `;
 
     await vscode.workspace.fs.createDirectory(roomDir);
