@@ -2,7 +2,10 @@ import type { RoomScene } from '../scenes/RoomScene.js';
 import type { BenneScript } from './BenneScript.js';
 
 export interface RoomScriptContext {
-  /** Main facade — authors use `B` */
+  /**
+   * Main authoring facade (`whenLookAt`, `B.player.walkTo`, …).
+   * String ids for props, characters, and `walkTo` targets are documented in the **module comment** at the top of `BenneScript.ts`.
+   */
   readonly B: BenneScript;
 
   /** Raw access (advanced use only) */
