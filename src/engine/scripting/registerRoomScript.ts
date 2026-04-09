@@ -11,6 +11,5 @@ export function getBenneRoomScriptRegistrations(): ReadonlyArray<(context: RoomS
  * Call this at the top level of your *.room.ts files to register Bennescript handlers.
  */
 export function registerRoomScript(registerFn: (context: RoomScriptContext) => void): void {
-  console.log('🔧 registerRoomScript called — Bennescript handler registered');
   benneRoomScriptRegistrations.push(registerFn);
 }

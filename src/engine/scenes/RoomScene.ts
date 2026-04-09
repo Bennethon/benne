@@ -24,7 +24,7 @@ import {
   placeSpriteByFeet,
   resolveCharacterFeetLocal,
 } from '../characterFeet';
-import { clampWalkDestinationTowardClick } from '../walkable';
+import { clampWalkDestinationTowardClick, pointInPolygon } from '../walkable';
 import { dispatchVerbInteraction } from '../verbs/dispatchVerb';
 import {
   getCharacterVerbHandlers,
@@ -36,7 +36,7 @@ import { resolveVerbIdFromPointer } from '../verbs/resolvePointerVerb';
 import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
-import type { RoomData, RoomHotspotData } from '../../types/room';
+import type { Point2, RoomData, RoomHotspotData, RoomPropInstance } from '../../types/room';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
 import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
 import type { RoomScriptContext } from '@engine/scripting/types.js';
@@ -104,6 +104,27 @@ export class RoomScene extends Phaser.Scene {
     parallaxDepth: number;
   }> = [];
 
+  /** Prop id → sprite (every placed prop, for Bennescript). */
+  private propSpritesById = new Map<string, Phaser.GameObjects.Sprite>();
+
+  /** Runtime-only description overrides for props (B.prop(id).description). */
+  private propDescriptionOverrides = new Map<string, string>();
+
+  /** Character definition id → first spawned sprite/image in this room. */
+  private characterSpritesByDefId = new Map<
+    string,
+    Phaser.GameObjects.Sprite | Phaser.GameObjects.Image
+  >();
+
+  /** Active scripted walks for non-player characters (by sprite identity). */
+  private npcWalkTweens = new Map<
+    Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+    Phaser.Tweens.Tween
+  >();
+
+  /** String ids that already triggered `walkTo` resolution warnings (warn once per id per room load). */
+  private unresolvedWalkTargetIdsWarned = new Set<string>();
+
   constructor() {
     super(SCENE_ROOM);
   }
@@ -113,24 +134,11 @@ export class RoomScene extends Phaser.Scene {
     this.player = null;
     this.playerMoveTween = null;
     this.parallaxProps = [];
-
-    // ─────────────────────────────────────────────────────────────
-    // Run Bennescript room scripts with proper context
-    // ─────────────────────────────────────────────────────────────
-    const roomScripts = (window as any).__benneRoomScripts as Array<(ctx: RoomScriptContext) => void> | undefined;
-    if (roomScripts && roomScripts.length > 0) {
-      console.log(`[Benne] Running ${roomScripts.length} Bennescript room handler(s) for room "${data.room.id}"`);
-      const ctx = createRoomScriptContext(gameEvents, data.room.id, this);
-      for (const registerFn of roomScripts) {
-        try {
-          registerFn(ctx);
-        } catch (err) {
-          console.error(`[Benne] Error in room script for ${data.room.id}:`, err);
-        }
-      }
-    } else {
-      console.warn(`[Benne] No Bennescript handlers found for room "${data.room.id}"`);
-    }
+    this.propSpritesById.clear();
+    this.propDescriptionOverrides.clear();
+    this.characterSpritesByDefId.clear();
+    this.npcWalkTweens.clear();
+    this.unresolvedWalkTargetIdsWarned.clear();
 
     attachPostProcessingPlaceholder(this.cameras.main);
 
@@ -157,15 +165,215 @@ export class RoomScene extends Phaser.Scene {
     this.applyPlayerCameraFollow(roomW, roomH);
     this.drawRoomDebugOverlays(data);
 
+    // ─────────────────────────────────────────────────────────────
+    // Bennescript: after props, characters, player, and camera exist
+    // ─────────────────────────────────────────────────────────────
+    const roomScripts = (window as unknown as { __benneRoomScripts?: Array<(ctx: RoomScriptContext) => void> })
+      .__benneRoomScripts;
+    let benneDispose: (() => void) | null = null;
+    if (roomScripts && roomScripts.length > 0) {
+      const ctx = createRoomScriptContext(gameEvents, data.room.id, this);
+      benneDispose = () => ctx.B.dispose();
+      for (const registerFn of roomScripts) {
+        try {
+          registerFn(ctx);
+        } catch (err) {
+          console.error(`[Benne] Error in room script for ${data.room.id}:`, err);
+        }
+      }
+    }
+
     this.input.mouse?.disableContextMenu();
 
     this.scale.on('resize', this.onScaleResize, this);
     this.input.on('pointerdown', this.handleRoomPointerDown);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      benneDispose?.();
       this.scale.off('resize', this.onScaleResize, this);
       this.input.off('pointerdown', this.handleRoomPointerDown);
       this.stopPlayerMoveTween(true);
+      for (const t of this.npcWalkTweens.values()) {
+        t.stop();
+      }
+      this.npcWalkTweens.clear();
     });
+  }
+
+  getRoomPropInstance(propId: string): RoomPropInstance | undefined {
+    return this.roomData.props?.find((p) => p.id === propId);
+  }
+
+  getPropSprite(propId: string): Phaser.GameObjects.Sprite | undefined {
+    return this.propSpritesById.get(propId);
+  }
+
+  getCharacterSprite(definitionId: string): Phaser.GameObjects.Sprite | Phaser.GameObjects.Image | undefined {
+    return this.characterSpritesByDefId.get(definitionId);
+  }
+
+  getPropScriptDescription(propId: string): string {
+    if (this.propDescriptionOverrides.has(propId)) {
+      return this.propDescriptionOverrides.get(propId) ?? '';
+    }
+    return this.getRoomPropInstance(propId)?.description ?? '';
+  }
+
+  setPropScriptDescription(propId: string, value: string): void {
+    this.propDescriptionOverrides.set(propId, value);
+  }
+
+  getPropScriptVisible(propId: string): boolean {
+    const sprite = this.propSpritesById.get(propId);
+    if (sprite) {
+      return sprite.visible;
+    }
+    const inst = this.getRoomPropInstance(propId);
+    return inst?.visible !== false;
+  }
+
+  setPropScriptVisible(propId: string, visible: boolean): void {
+    this.propSpritesById.get(propId)?.setVisible(visible);
+  }
+
+  /**
+   * Walk the player’s feet to a clamped point in walkable space. Resolves when the tween completes
+   * or immediately if there is no player / no valid destination / already at target.
+   */
+  walkPlayerToWorldPoint(worldX: number, worldY: number): Promise<void> {
+    const sprite = this.player;
+    if (!sprite) {
+      return Promise.resolve();
+    }
+    const feet = getCharacterWorldFeet(sprite);
+    const dest = clampWalkDestinationTowardClick(
+      feet.x,
+      feet.y,
+      worldX,
+      worldY,
+      this.roomData.walkable.polygons,
+    );
+    if (!dest) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.movePlayerToward(dest.x, dest.y, resolve);
+    });
+  }
+
+  /**
+   * Walk the player to an explicit point or a named target (prop, hotspot, character, or room point id).
+   */
+  walkPlayerTo(target: Point2 | string): Promise<void> {
+    const sprite = this.player;
+    if (!sprite) {
+      return Promise.resolve();
+    }
+    const feet = getCharacterWorldFeet(sprite);
+    const dest = this.resolveWalkTarget(target, feet);
+    return this.walkPlayerToWorldPoint(dest.x, dest.y);
+  }
+
+  /**
+   * Walk a room character (by definition id) to an explicit point or a named target.
+   */
+  walkCharacterTo(definitionId: string, target: Point2 | string): Promise<void> {
+    const sprite = this.characterSpritesByDefId.get(definitionId);
+    if (!sprite) {
+      return Promise.resolve();
+    }
+    const feet = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
+    const dest = this.resolveWalkTarget(target, feet);
+    return this.walkCharacterToWorldPoint(sprite, dest.x, dest.y);
+  }
+
+  walkCharacterToWorldPoint(
+    sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+    worldX: number,
+    worldY: number,
+  ): Promise<void> {
+    const feet = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
+    const dest = clampWalkDestinationTowardClick(
+      feet.x,
+      feet.y,
+      worldX,
+      worldY,
+      this.roomData.walkable.polygons,
+    );
+    if (!dest) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.moveNpcToward(sprite, dest.x, dest.y, resolve);
+    });
+  }
+
+  /**
+   * Resolve a walk destination in room space. String ids: prop → hotspot → character → `room.points`,
+   * first match wins; unknown id warns once and returns `walkerFeet`.
+   */
+  private resolveWalkTarget(target: Point2 | string, walkerFeet: Point2): Point2 {
+    if (typeof target !== 'string') {
+      return { x: target.x, y: target.y };
+    }
+    const id = target;
+
+    const propInst = this.getRoomPropInstance(id);
+    if (propInst) {
+      if (propInst.walkToPoint) {
+        return { x: propInst.walkToPoint.x, y: propInst.walkToPoint.y };
+      }
+      const colliderPts = propInst.collider?.points;
+      if (colliderPts && colliderPts.length >= 3) {
+        const onPoly = closestPointInOrOnSimplePolygon(walkerFeet.x, walkerFeet.y, colliderPts);
+        if (onPoly) {
+          return onPoly;
+        }
+      }
+      const propSprite = this.propSpritesById.get(id);
+      if (propSprite) {
+        const f = propSprite.frame;
+        return { x: propSprite.x + f.width * 0.5, y: propSprite.y + f.height * 0.5 };
+      }
+      return walkerFeet;
+    }
+
+    const hotspot = this.roomData.hotspots.find((h) => h.id === id);
+    if (hotspot) {
+      if (hotspot.walkToPoint) {
+        return { x: hotspot.walkToPoint.x, y: hotspot.walkToPoint.y };
+      }
+      const hp = hotspot.points;
+      if (hp.length >= 3) {
+        const c = polygonRingCentroid(hp);
+        if (c) {
+          return c;
+        }
+      }
+      return walkerFeet;
+    }
+
+    const charSprite = this.characterSpritesByDefId.get(id);
+    if (charSprite) {
+      const data = charSprite.getData('character') as CharacterData | undefined;
+      if (data?.walkToPoint) {
+        return {
+          x: charSprite.x + data.walkToPoint.x,
+          y: charSprite.y + data.walkToPoint.y,
+        };
+      }
+      return getCharacterWorldFeet(charSprite as Phaser.GameObjects.Sprite);
+    }
+
+    const namedPoint = this.roomData.points?.find((p) => p.id === id);
+    if (namedPoint) {
+      return { x: namedPoint.x, y: namedPoint.y };
+    }
+
+    if (!this.unresolvedWalkTargetIdsWarned.has(id)) {
+      this.unresolvedWalkTargetIdsWarned.add(id);
+      console.warn(`[Benne] walkTo: unresolved target "${id}"`);
+    }
+    return walkerFeet;
   }
 
   /** Configures camera bounds and player follow for the current room. */
@@ -344,6 +552,7 @@ export class RoomScene extends Phaser.Scene {
   private movePlayerToward(destX: number, destY: number, onArrive?: () => void): void {
     const sprite = this.player;
     if (!sprite) {
+      onArrive?.();
       return;
     }
 
@@ -408,6 +617,84 @@ export class RoomScene extends Phaser.Scene {
     });
 
     this.playerMoveTween = moveTween;
+  }
+
+  private moveNpcToward(
+    sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+    destX: number,
+    destY: number,
+    onArrive?: () => void,
+  ): void {
+    const walkSpeed = sprite.getData('walkSpeed') as number | undefined;
+    const speed = typeof walkSpeed === 'number' && walkSpeed > 0 ? walkSpeed : 88;
+
+    let lx = sprite.getData('feetLocalX') as number | undefined;
+    let ly = sprite.getData('feetLocalY') as number | undefined;
+    if (typeof lx !== 'number' || typeof ly !== 'number') {
+      const data = sprite.getData('character') as CharacterData | undefined;
+      const resolved = data
+        ? resolveCharacterFeetLocal(data, sprite as Phaser.GameObjects.Sprite)
+        : {
+            x: (sprite as Phaser.GameObjects.Sprite).frame.width * 0.5,
+            y: (sprite as Phaser.GameObjects.Sprite).frame.height,
+          };
+      lx = resolved.x;
+      ly = resolved.y;
+      sprite.setData('feetLocalX', lx);
+      sprite.setData('feetLocalY', ly);
+    }
+
+    const feetNow = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
+    const dx = destX - feetNow.x;
+    const dy = destY - feetNow.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < MIN_WALK_DISTANCE_PX) {
+      onArrive?.();
+      return;
+    }
+
+    const prev = this.npcWalkTweens.get(sprite);
+    if (prev) {
+      prev.stop();
+      this.npcWalkTweens.delete(sprite);
+    }
+
+    const facing = facingFromWorldDelta(dx, dy);
+    if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
+      playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Walk', facing);
+    }
+
+    const durationMs = Math.max(1, Math.round((distance / speed) * 1000));
+
+    const moveTween = this.tweens.add({
+      targets: sprite,
+      x: destX - lx!,
+      y: destY - ly!,
+      duration: durationMs,
+      ease: 'Linear',
+      onComplete: () => {
+        this.npcWalkTweens.delete(sprite);
+        if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
+          playDirectionalAnimation(
+            sprite as DirectionalCharacterSprite,
+            'Idle',
+            facing,
+          );
+        }
+        onArrive?.();
+      },
+      onStop: () => {
+        this.npcWalkTweens.delete(sprite);
+        if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
+          const idleFacing =
+            (sprite.getData('facing') as CharacterFacing | undefined) ??
+            resolveInitialIdleFacing(sprite as DirectionalCharacterSprite);
+          playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Idle', idleFacing);
+        }
+      },
+    });
+
+    this.npcWalkTweens.set(sprite, moveTween);
   }
 
   private onPlayerWalkTweenComplete(tween: Phaser.Tweens.Tween, facing: CharacterFacing): void {
@@ -530,6 +817,7 @@ export class RoomScene extends Phaser.Scene {
         });
       }
 
+      this.propSpritesById.set(spawn.id, sprite);
       this.setupRoomProp(data.room.id, spawn, sprite);
     }
   }
@@ -574,6 +862,13 @@ export class RoomScene extends Phaser.Scene {
     this.emitPropVerbInteraction(roomId, spawn, 'look');
   }
 
+  private resolvePropDescriptionForDispatch(spawn: RoomPropSpawn): string | undefined {
+    if (this.propDescriptionOverrides.has(spawn.id)) {
+      return this.propDescriptionOverrides.get(spawn.id);
+    }
+    return spawn.data.description;
+  }
+
   private emitPropVerbInteraction(roomId: string, spawn: RoomPropSpawn, verbId: string): void {
     console.log(`[Benne] verb "${verbId}" prop ${spawn.id}`);
     dispatchVerbInteraction(gameEvents, verbId, getPropVerbHandlers(spawn.data), {
@@ -581,7 +876,7 @@ export class RoomScene extends Phaser.Scene {
       propId: spawn.id,
       tag: spawn.tag,
       roomId,
-      description: spawn.data.description,
+      description: this.resolvePropDescriptionForDispatch(spawn),
       walkToPoint: spawn.data.walkToPoint,
       lookAtPoint: spawn.data.lookAtPoint,
     });
@@ -643,6 +938,9 @@ export class RoomScene extends Phaser.Scene {
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
     sprite.setData('instanceId', spawn.instanceId);
+    if (!this.characterSpritesByDefId.has(spawn.data.id)) {
+      this.characterSpritesByDefId.set(spawn.data.id, sprite);
+    }
     this.attachCharacterInteraction(roomId, spawn, sprite);
   }
 
@@ -671,6 +969,9 @@ export class RoomScene extends Phaser.Scene {
 
     if (isPlayer) {
       this.player = sprite as DirectionalCharacterSprite;
+    }
+    if (!this.characterSpritesByDefId.has(spawn.data.id)) {
+      this.characterSpritesByDefId.set(spawn.data.id, sprite);
     }
   }
 
@@ -718,4 +1019,88 @@ export class RoomScene extends Phaser.Scene {
       });
     });
   }
+}
+
+function closestPointOnSegment(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): Point2 {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const abLenSq = abx * abx + aby * aby;
+  if (abLenSq < 1e-18) {
+    return { x: ax, y: ay };
+  }
+  let t = (apx * abx + apy * aby) / abLenSq;
+  t = Math.max(0, Math.min(1, t));
+  return { x: ax + abx * t, y: ay + aby * t };
+}
+
+/** Closest point in or on a simple closed polygon (room space). */
+function closestPointInOrOnSimplePolygon(
+  px: number,
+  py: number,
+  vertices: readonly Point2[],
+): Point2 | null {
+  if (vertices.length < 3) {
+    return null;
+  }
+  if (pointInPolygon(px, py, vertices)) {
+    return { x: px, y: py };
+  }
+  let bestX = 0;
+  let bestY = 0;
+  let bestD = Infinity;
+  const n = vertices.length;
+  for (let i = 0; i < n; i++) {
+    const a = vertices[i]!;
+    const b = vertices[(i + 1) % n]!;
+    const q = closestPointOnSegment(px, py, a.x, a.y, b.x, b.y);
+    const d = (px - q.x) * (px - q.x) + (py - q.y) * (py - q.y);
+    if (d < bestD) {
+      bestD = d;
+      bestX = q.x;
+      bestY = q.y;
+    }
+  }
+  return { x: bestX, y: bestY };
+}
+
+/** Centroid of a simple polygon; falls back to vertex average when area is degenerate. */
+function polygonRingCentroid(pts: readonly Point2[]): Point2 | null {
+  const n = pts.length;
+  if (n < 3) {
+    return null;
+  }
+  let twiceArea = 0;
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const xi = pts[i]!.x;
+    const yi = pts[i]!.y;
+    const xj = pts[j]!.x;
+    const yj = pts[j]!.y;
+    const cross = xi * yj - xj * yi;
+    twiceArea += cross;
+    cx += (xi + xj) * cross;
+    cy += (yi + yj) * cross;
+  }
+  if (Math.abs(twiceArea) < 1e-10) {
+    let sx = 0;
+    let sy = 0;
+    for (const p of pts) {
+      sx += p.x;
+      sy += p.y;
+    }
+    return { x: sx / n, y: sy / n };
+  }
+  const k = 1 / (3 * twiceArea);
+  return { x: cx * k, y: cy * k };
 }

@@ -17,6 +17,14 @@ export function createRoomScriptContext(
     onProp: B.onProp.bind(B),
     whenLookAt: B.whenLookAt.bind(B),
     whenUse: B.whenUse.bind(B),
+    whenPickUp: B.whenPickUp.bind(B),
+    whenGive: B.whenGive.bind(B),
+    whenPush: B.whenPush.bind(B),
+    whenPull: B.whenPull.bind(B),
+    whenOpen: B.whenOpen.bind(B),
+    whenClose: B.whenClose.bind(B),
+    whenVerb: B.whenVerb.bind(B),
+    whenTalkTo: B.whenTalkTo.bind(B),
   };
 
   return context;

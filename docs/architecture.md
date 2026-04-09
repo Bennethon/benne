@@ -128,6 +128,8 @@ worldY = parallaxDepth * baseY + (1 − parallaxDepth) * camera.worldView.y
 
 Optional **`feet`** on **`CharacterData`** (`src/types/character.ts`): **`{ "x", "y" }`** in **frame pixel space** from the cel’s **top-left** to the ground contact. The runtime places Aseprite sprites with **`origin (0,0)`** and offsets position so room spawn **`(x, y)`** is where the feet stand; walk tweens and camera follow use the same point. If **`feet`** is omitted, the engine uses the **bottom-centre** of the **current** frame (works best when cels share a consistent size). The VS Code **BENNE Character preview** webview (`npm run build:character-preview`) plays a default idle (prefers **`IdleD`**, then other **`Idle*`** tags), shows a draggable feet marker, and **Save feet** writes **`feet`** into **`*.character.json`**.
 
+Optional **`walkToPoint`** on **`CharacterData`**: same **frame space** as **`feet`**; world stand = sprite position + offset (like prop **`walkToPoint`**). Used when **`RoomScene`** resolves script **`walkTo('<characterId>')`** to that character.
+
 **Click collider (authoring)** — Optional **`collider: { "points": [ { "x", "y" }, … ] }`** on **`CharacterData`**, same **frame space** as **`feet`**. The preview reuses the room editor’s **`PreviewPolygonOverlay`** stack: **Feet** vs **Collider** toolbar modes (so the feet handle and polygon handles do not compete for input), **Save collider** persists to JSON, and fewer than three points on save **removes** **`collider`** so the engine falls back to the full-sprite hit test. Verbs and scaffolding in the extension use **`CharacterVerbInteractPayload`** from **`propInteractionEvents.ts`**; **Create Character** and verb-handler insertion ensure that **import** is present in new **`*.character.ts`** files.
 
 ### Character directional animation (facing)
@@ -154,6 +156,7 @@ The sprite’s **`facing`** data stores the **logical** facing the gameplay aske
 - **Canonical scoped event ids** are emitted by **`dispatchVerbInteraction`** from runtime target context; JSON no longer stores ad-hoc event-id strings. Props/hotspots/room-scoped characters use `verb:room:...`, character-global uses `verb:character:...` (props still dispatch immediately; no auto-walk first).
 - **`registerGameContent()`** (called before `createBenneGame`) loads **`globalScript.ts`** (global / verb fallback hooks) and every **`./rooms/**/*.room.ts`** that exports **`registerRoomScript(events)`**.
 - **Payloads**: Typed payloads for prop interaction (`propInteractionEvents.ts`), player walk start/stop, etc.
+- **`BenneScript` movement**: **`B.player.walkTo(target)`** and **`B.character(id).walkTo(target)`** accept **`Point2`** or a **string id**. Resolution order for strings (first match): **prop** in the room → **hotspot** → **character** in the room → **`room.points`** entry; props use **`walkToPoint`**, else closest point in/on the **collider** to the walker, else the prop frame **center**; hotspots use **`walkToPoint`** or polygon **centroid**; characters use **`CharacterData.walkToPoint`** or **feet** world position. Unknown ids **`console.warn`** once per id and fall back to the walker’s current feet (no move).
 - **Boundary**: Scenes should not embed game-specific puzzle logic; they **emit** and **listen** only through agreed event names and small shared types.
 
 ### Asset management / loading
@@ -208,7 +211,7 @@ registerGameContent (*.room.ts, globalScript)─┘
 
 - **Engine vs game**: Do not put **game-specific narrative or room logic** under `src/engine/` except through **generic hooks** (events, helpers). Put reactions in **`src/game/`** (`*.room.ts`, future modules).
 - **Config**: **`game-config.json`** is the **single source** for resolution, default character, start room override, **verbs**, **inputProfile**, **defaultFallbackLine**, audio, debug flags — read via **`getGameSettings()`**, not duplicated literals.
-- **Room data**: Follow **`RoomData`** / **`RoomPropInstance`** in **`src/types/room.ts`**; **`collider`** is required for **`clickable`** props. **`walkToPoint`** / **`lookAtPoint`** are optional script hints (not applied by the engine on click). Use **`onVerb` / `onVerbFallback`** for interactions. Room-level **`points`** (**`RoomPointData[]`**, named **`x` / `y`**) and **`regions`** (**`RoomRegionData[]`**, closed polygons + **`active`**) are **authoring / future-system** fields; the runtime **`RoomScene`** does not consume them yet beyond **hotspot** polygons (which are separate **`hotspots[].points`**).
+- **Room data**: Follow **`RoomData`** / **`RoomPropInstance`** in **`src/types/room.ts`**; **`collider`** is required for **`clickable`** props. **`walkToPoint`** / **`lookAtPoint`** are optional script hints (not applied by the engine on click). Use **`onVerb` / `onVerbFallback`** for interactions. Room-level **`points`** (**`RoomPointData[]`**, named **`x` / `y`**) are used by **`RoomScene`** when **`BenneScript`** resolves **`walkTo('pointId')`**; **`regions`** (**`RoomRegionData[]`**, closed polygons + **`active`**) remain **authoring / future-system** for gameplay that opts in. **Hotspot** polygons are separate **`hotspots[].points`**.
 - **Character data**: Follow **`CharacterData`** in **`src/types/character.ts`**. Optional **`collider`** (≥3 **`points`** in frame space) restricts **click** hit-testing for **`clickable`** characters; omit it or save fewer than three points in the preview to use the **full sprite** bounds.
 - **Walkable mesh**: **`walkable.polygons[]`** entries support optional **`holes[]`** (inner rings subtracted when **`active`** is not **`false`**). Each polygon and hole may set **`active`**; omitted or non-**`false`** means included in tests and debug draw. See **`walkable.ts`** and **`RoomScene`** debug overlays (outer vs hole stroke colors).
 - **Registration**: New room scripts must live under **`src/game/rooms/`** as **`*.room.ts`** exporting **`registerRoomScript`** to be picked up by **`registerGameContent`**.
@@ -226,35 +229,42 @@ BENNE uses a **two-layer scripting architecture** that keeps the engine data-fir
 
 **Layer 2 – Bennescript Facade (new authoring surface)**
 
-Authors now write against a clean, discoverable facade:
+Authors now write against a clean, discoverable facade. Handlers are **ordinary sync functions**; the engine registers `async` listeners and chains real `Promise`s (walk, short `say` delays, etc.) so linear scripts work **without** author `async`/`await`:
 
 ```ts
 import { registerRoomScript } from '@engine/scripting';
 
 registerRoomScript(({ B }) => {
-  B.whenLookAt('desk', async () => {
-    await B.player.walkToProp('desk');
-    B.say("Looks like an ordinary desk with some paperwork...");
+  B.whenLookAt('desk', () => {
+    B.player.walkToProp('desk');
+    B.player.say('Looks like an ordinary desk with some paperwork…');
   });
 
-  B.whenUse('desk', async () => {
-    B.say("I don't know what to do with that yet.");
+  B.whenUse('desk', () => {
+    B.player.say("I don't know what to do with that yet.");
   });
 });
 ```
 
 **Core files**  
 - `src/engine/scripting/registerRoomScript.ts` — side-effect registration helper that collects callbacks into a module-level array.  
-- `src/engine/scripting/BenneScript.ts` — the main `B` facade (`whenLookAt`, `whenUse`, `player.walkToProp`, `say`, etc.).  
+- `src/engine/scripting/BenneScript.ts` — the main `B` facade (`whenLookAt`, `whenUse`, `player`, `prop`, `character`, etc.).  
 - `src/engine/scripting/RoomScriptContext.ts` — creates a typed context per room (passes real `roomId` + `RoomScene` instance).  
-- `src/game/registerGameContent.ts` — collects new-style handlers via `getBenneRoomScriptRegistrations()` and runs them in `RoomScene.create()` with `createRoomScriptContext`.
+- `src/game/registerGameContent.ts` — collects new-style handlers via `getBenneRoomScriptRegistrations()` and assigns them to `window.__benneRoomScripts` for `RoomScene`.
+
+**Runtime wiring**  
+- Room scripts run **after** props, characters, the player, and the camera are set up in `RoomScene.create()` (so `B.prop` / `B.player` resolve real scene objects).  
+- On scene shutdown, `B.dispose()` removes listeners this `BenneScript` instance registered (avoids duplicate handlers if the room scene is recreated).  
+- Opt in to payload-typed handlers with `(payload) => { … }` when you need `RoomPropInteractPayload` / `CharacterVerbInteractPayload`.
 
 **Key Design Decisions**  
 - Single `B.` namespace → excellent Cursor IntelliSense and discoverability (better than multiple `C.`, `H.`, `P.` prefixes for a modern TS codebase).  
-- `registerRoomScript(({ B }) => { ... })` → natural, minimal boilerplate, feels like PowerQuest but with real `async/await`.  
+- `registerRoomScript(({ B }) => { ... })` → natural, minimal boilerplate; Promise chaining is internal to the facade.  
 - Side-effect registration via module-level array → works reliably with Vite `import.meta.glob` (avoids marker propagation issues).  
 - Old-style raw `EventBus` handlers are still supported during transition.  
 - All real work still flows through the existing `EventBus` and verb dispatch system — zero runtime cost for the facade.
+
+**Multi-room note:** every `registerRoomScript` callback runs once per room load with that room’s `ctx`. Scripts meant for a single room should guard with `if (ctx.roomId !== 'myRoom') return` at the top until a tighter binding exists.
 
 **Future extensions** (easy to add under `B.`):  
 - `B.inventory.give(itemId)`  
