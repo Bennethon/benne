@@ -216,13 +216,54 @@ registerGameContent (*.room.ts, globalScript)─┘
 
 ---
 
-## 7. Future Considerations
+## 7. Scripting / interaction system (Bennescript)
 
-- **Room transitions**: Loading another room likely means **restarting `RoomScene`** (or a thin orchestrator) with new `RoomSceneStartData`; persistence of inventory/state across rooms is **not defined** in code yet.
-- **Post-processing**: `PostEffects.ts` is ready for **camera filter** composition (CRT, dither, etc.).
-- **Audio**: Volume helpers exist; **music loops, voice, and SFX triggers** from events are **future work**.
-- **Dialogue / inventory**: Types exist under `src/types/` in places; **not integrated** into `RoomScene` flow yet.
-- **Editor**: VS Code extension + **`build:room-preview`** ship a **live `RoomScene` preview** in a webview with **polygon editing** (walkable, prop colliders, **hotspots**, **regions**, and **room points**) via **`RoomPolygonEditScene`**. **`build:character-preview`** adds a separate webview for **feet** + **click collider** polygons — see **§8**.
+BENNE uses a **two-layer scripting architecture** that keeps the engine data-first while giving authors a clean, modern, PowerQuest-inspired authoring experience.
+
+**Layer 1 – Engine Core (unchanged)**  
+- Verb dispatch still emits canonical scoped event IDs via `dispatchVerbInteraction` (`verb:room:office:prop:desk:look`, etc.).
+- Raw `EventBus` (`gameEvents`) and typed payloads (`RoomPropInteractPayload`, etc.) remain the foundation.
+
+**Layer 2 – Bennescript Facade (new authoring surface)**
+
+Authors now write against a clean, discoverable facade:
+
+```ts
+import { registerRoomScript } from '@engine/scripting';
+
+registerRoomScript(({ B }) => {
+  B.whenLookAt('desk', async () => {
+    await B.player.walkToProp('desk');
+    B.say("Looks like an ordinary desk with some paperwork...");
+  });
+
+  B.whenUse('desk', async () => {
+    B.say("I don't know what to do with that yet.");
+  });
+});
+```
+
+**Core files**  
+- `src/engine/scripting/registerRoomScript.ts` — side-effect registration helper that collects callbacks into a module-level array.  
+- `src/engine/scripting/BenneScript.ts` — the main `B` facade (`whenLookAt`, `whenUse`, `player.walkToProp`, `say`, etc.).  
+- `src/engine/scripting/RoomScriptContext.ts` — creates a typed context per room (passes real `roomId` + `RoomScene` instance).  
+- `src/game/registerGameContent.ts` — collects new-style handlers via `getBenneRoomScriptRegistrations()` and runs them in `RoomScene.create()` with `createRoomScriptContext`.
+
+**Key Design Decisions**  
+- Single `B.` namespace → excellent Cursor IntelliSense and discoverability (better than multiple `C.`, `H.`, `P.` prefixes for a modern TS codebase).  
+- `registerRoomScript(({ B }) => { ... })` → natural, minimal boilerplate, feels like PowerQuest but with real `async/await`.  
+- Side-effect registration via module-level array → works reliably with Vite `import.meta.glob` (avoids marker propagation issues).  
+- Old-style raw `EventBus` handlers are still supported during transition.  
+- All real work still flows through the existing `EventBus` and verb dispatch system — zero runtime cost for the facade.
+
+**Future extensions** (easy to add under `B.`):  
+- `B.inventory.give(itemId)`  
+- `B.sequence(...)` for parallel/cutscene actions  
+- `B.changeRoom(...)`  
+- `B.dialogue.showChoices(...)`
+
+This layer turns BENNE from "wiring events" into "telling a story" while keeping the engine clean and data-driven.
+
 
 ---
 
@@ -323,6 +364,17 @@ A full **Refresh** or **`loadRoom`** **destroys** the previous **`Phaser.Game`**
 
 - **`src/engine/walkable.ts`**: **`isPointInWalkablePolygon`** — inside **active** outer, not inside any **active** hole; **`isPointInWalkableArea`** unions polygons; **`clampWalkDestinationTowardClick`** uses holed closest-point logic.
 - **`RoomScene`** debug **`showWalkable`**: strokes **active** outers and **active** hole rings (distinct colors).
+
+
+---
+
+## 9. Future Considerations
+
+- **Room transitions**: Loading another room likely means **restarting `RoomScene`** (or a thin orchestrator) with new `RoomSceneStartData`; persistence of inventory/state across rooms is **not defined** in code yet.
+- **Post-processing**: `PostEffects.ts` is ready for **camera filter** composition (CRT, dither, etc.).
+- **Audio**: Volume helpers exist; **music loops, voice, and SFX triggers** from events are **future work**.
+- **Dialogue / inventory**: Types exist under `src/types/` in places; **not integrated** into `RoomScene` flow yet.
+- **Editor**: VS Code extension + **`build:room-preview`** ship a **live `RoomScene` preview** in a webview with **polygon editing** (walkable, prop colliders, **hotspots**, **regions**, and **room points**) via **`RoomPolygonEditScene`**. **`build:character-preview`** adds a separate webview for **feet** + **click collider** polygons — see **§8**.
 
 ---
 

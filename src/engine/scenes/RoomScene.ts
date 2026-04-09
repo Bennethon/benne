@@ -38,6 +38,8 @@ import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
 import type { RoomData, RoomHotspotData } from '../../types/room';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
+import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
+import type { RoomScriptContext } from '@engine/scripting/types.js';
 
 /** Ignore walk clicks when already within this many pixels of the target. */
 const MIN_WALK_DISTANCE_PX = 6;
@@ -111,6 +113,24 @@ export class RoomScene extends Phaser.Scene {
     this.player = null;
     this.playerMoveTween = null;
     this.parallaxProps = [];
+
+    // ─────────────────────────────────────────────────────────────
+    // Run Bennescript room scripts with proper context
+    // ─────────────────────────────────────────────────────────────
+    const roomScripts = (window as any).__benneRoomScripts as Array<(ctx: RoomScriptContext) => void> | undefined;
+    if (roomScripts && roomScripts.length > 0) {
+      console.log(`[Benne] Running ${roomScripts.length} Bennescript room handler(s) for room "${data.room.id}"`);
+      const ctx = createRoomScriptContext(gameEvents, data.room.id, this);
+      for (const registerFn of roomScripts) {
+        try {
+          registerFn(ctx);
+        } catch (err) {
+          console.error(`[Benne] Error in room script for ${data.room.id}:`, err);
+        }
+      }
+    } else {
+      console.warn(`[Benne] No Bennescript handlers found for room "${data.room.id}"`);
+    }
 
     attachPostProcessingPlaceholder(this.cameras.main);
 
