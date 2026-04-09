@@ -1,8 +1,6 @@
 import type { EventBus } from '../engine/events/EventBus';
 import { gameEvents } from '../engine/events/EventBus';
 import { registerGlobalScript } from './globalScript';
-import type { RoomScriptContext } from '../engine/scripting/types';
-import { createRoomScriptContext } from '../engine/scripting/RoomScriptContext';
 import { getBenneRoomScriptRegistrations } from '../engine/scripting/registerRoomScript';
 
 /**

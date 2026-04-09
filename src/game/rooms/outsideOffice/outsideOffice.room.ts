@@ -12,11 +12,11 @@ export function registerRoomScript(_events: EventBus): void {
     console.log(`[Outside Office] ${payload.description ?? 'You look at the car.'}`);
   });
 
-  _events.on(roomPropVerbEventId('outsideOffice', 'desk', 'use'), (payload: RoomPropInteractPayload) => {
+  _events.on(roomPropVerbEventId('outsideOffice', 'desk', 'use'), (_payload: RoomPropInteractPayload) => {
     console.log(`[Outside Office] The desk is unusable.`);
   });
 
-  _events.on(roomCharacterVerbEventId('outsideOffice', 'henry', 'look'), (payload: CharacterVerbInteractPayload) => {
+  _events.on(roomCharacterVerbEventId('outsideOffice', 'henry', 'look'), (_payload: CharacterVerbInteractPayload) => {
     console.log(`[Outside Office] It looks like Henry outside the office!`);
   });
 }

@@ -1,3 +1,5 @@
+import type { Point2 } from './room';
+
 /**
  * Frame-synced marker from character JSON (footsteps, SFX hooks, dialogue beats, etc.).
  */
@@ -57,6 +59,12 @@ export interface CharacterData {
    * character is clickable, the full sprite rectangle is used. Requires at least three vertices.
    */
   collider?: { points: { x: number; y: number }[] };
+  /**
+   * Optional stand position in **texture / frame pixel space** (same origin as `feet`).
+   * World stand = sprite position + this offset. Used when scripts call `walkTo('<this id>')` targeting
+   * this character, or when resolving another walker’s target to this character — same idea as prop `walkToPoint`.
+   */
+  walkToPoint?: Point2;
   /** Game pixels per second when walking (used when movement is implemented). */
   walkSpeed: number;
   clickable: boolean;

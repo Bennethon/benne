@@ -1,4 +1,3 @@
-import type { RoomPropInteractPayload } from '../events/propInteractionEvents.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import type { BenneScript } from './BenneScript.js';
 
@@ -15,4 +14,12 @@ export interface RoomScriptContext {
   onProp: BenneScript['onProp'];
   whenLookAt: BenneScript['whenLookAt'];
   whenUse: BenneScript['whenUse'];
+  whenPickUp: BenneScript['whenPickUp'];
+  whenGive: BenneScript['whenGive'];
+  whenPush: BenneScript['whenPush'];
+  whenPull: BenneScript['whenPull'];
+  whenOpen: BenneScript['whenOpen'];
+  whenClose: BenneScript['whenClose'];
+  whenVerb: BenneScript['whenVerb'];
+  whenTalkTo: BenneScript['whenTalkTo'];
 }

@@ -5,10 +5,13 @@ registerRoomScript(({ B }) => {
 
   B.whenLookAt('desk', () => {
     console.log('✅ B.whenLookAt("desk") fired!');
-    B.say("Hello from Bennescript!");
+    B.player.say('Hello from Bennescript!');
   });
 
   B.whenUse('desk', () => {
     console.log('✅ B.whenUse("desk") fired!');
+
+    B.character('henry').walkTo('office-point-1');
+    B.player.say('Hello from Bennescript!');
   });
 });
