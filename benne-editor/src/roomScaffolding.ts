@@ -108,8 +108,11 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
  * Room script for \`${id}\` — keep handlers for this room here (PowerQuest-style).
  *
  * String ids must match your \`${id}.room.json\` (and character JSON where noted):
- * - \`whenLookAt\` / \`whenUse\` / … / \`B.prop('…')\`: \`props[].id\` (not hotspots — use \`B.raw.on\` + \`roomHotspotVerbEventId\` if needed).
- * - \`B.character('…')\` / \`whenTalkTo('…')\`: \`CharacterData.id\` for a character placed in this room.
+ * - \`whenLookAt\` / \`whenUse\` / \`whenTalkTo\` / \`whenPickUp\` / \`whenPush\` / \`whenPull\` / \`whenOpen\` / \`whenClose\`: work on props, hotspots, and characters — same string id, resolution order \`props[]\` → \`hotspots[]\` → \`CharacterData.id\` in this room.
+ * - \`whenVerb(verbId, targetId, …)\`: any verb id from game config; same target resolution.
+ * - \`whenGive\`: prop recipient only (for now).
+ * - \`B.prop('…')\` / \`onProp\`: \`props[].id\` only.
+ * - \`B.character('…')\`: \`CharacterData.id\` for a character in this room.
  * - \`walkTo('…')\`: unified target — prop id → hotspot id → character id → \`points[].id\`, or \`{ x, y }\` in room pixels.
  */
 registerRoomScript(({ B }) => {

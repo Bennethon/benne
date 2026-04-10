@@ -157,6 +157,7 @@ The sprite’s **`facing`** data stores the **logical** facing the gameplay aske
 - **`registerGameContent()`** (called before `createBenneGame`) loads **`globalScript.ts`** (global / verb fallback hooks) and every **`./rooms/**/*.room.ts`** that exports **`registerRoomScript(events)`**.
 - **Payloads**: Typed payloads for prop interaction (`propInteractionEvents.ts`), player walk start/stop, etc.
 - **`BenneScript` movement**: **`B.player.walkTo(target)`** and **`B.character(id).walkTo(target)`** accept **`Point2`** or a **string id**. Resolution order for strings (first match): **prop** in the room → **hotspot** → **character** in the room → **`room.points`** entry; props use **`walkToPoint`**, else closest point in/on the **collider** to the walker, else the prop frame **center**; hotspots use **`walkToPoint`** or polygon **centroid**; characters use **`CharacterData.walkToPoint`** or **feet** world position. Unknown ids **`console.warn`** once per id and fall back to the walker’s current feet (no move).
+- **`BenneScript` verb sugar** (**`whenLookAt`**, **`whenUse`**, **`whenPickUp`**, **`whenPush`**, **`whenPull`**, **`whenOpen`**, **`whenClose`**, **`whenVerb`**, **`whenTalkTo`**) registers handlers using the same **prop → hotspot → character** rule for the string id (room **`props`** / **`hotspots`** / spawned **`CharacterData.id`**). **`B.onProp`** and **`B.prop`** stay **prop-only**; **`whenGive`** remains **prop-only** for the recipient id.
 - **Boundary**: Scenes should not embed game-specific puzzle logic; they **emit** and **listen** only through agreed event names and small shared types.
 
 ### Asset management / loading
@@ -234,7 +235,8 @@ Authors now write against a clean, discoverable facade. Handlers are **ordinary 
 ```ts
 import { registerRoomScript } from '@engine/scripting';
 
-// String ids: `whenLookAt`/`whenUse` use `props[].id`; `walkTo('…')` resolves prop → hotspot → character → `points[]`.
+// Sugar verbs (`whenLookAt`, `whenUse`, `whenTalkTo`, …) use one string id: `props[]` → `hotspots[]` → character in room.
+// `walkTo('…')` resolves prop → hotspot → character → `points[]`.
 registerRoomScript(({ B }) => {
   B.whenLookAt('desk', () => {
     B.player.walkTo('desk');
@@ -256,7 +258,7 @@ registerRoomScript(({ B }) => {
 **Runtime wiring**  
 - Room scripts run **after** props, characters, the player, and the camera are set up in `RoomScene.create()` (so `B.prop` / `B.player` resolve real scene objects).  
 - On scene shutdown, `B.dispose()` removes listeners this `BenneScript` instance registered (avoids duplicate handlers if the room scene is recreated).  
-- Opt in to payload-typed handlers with `(payload) => { … }` when you need `RoomPropInteractPayload` / `CharacterVerbInteractPayload`.
+- Optional payload-typed handlers use `(p: any)` for unified **`when*`** methods (runtime shape depends on prop vs hotspot vs character), or import specific payload types from `propInteractionEvents.ts` when wiring **`onProp`** / raw events.
 
 **Key Design Decisions**  
 - Single `B.` namespace → excellent Cursor IntelliSense and discoverability (better than multiple `C.`, `H.`, `P.` prefixes for a modern TS codebase).  

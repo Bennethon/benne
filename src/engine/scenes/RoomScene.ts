@@ -203,6 +203,10 @@ export class RoomScene extends Phaser.Scene {
     return this.roomData.props?.find((p) => p.id === propId);
   }
 
+  getRoomHotspotInstance(hotspotId: string): RoomHotspotData | undefined {
+    return this.roomData.hotspots.find((h) => h.id === hotspotId);
+  }
+
   getPropSprite(propId: string): Phaser.GameObjects.Sprite | undefined {
     return this.propSpritesById.get(propId);
   }
