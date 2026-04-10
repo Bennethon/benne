@@ -1,17 +1,27 @@
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
+import { buildGuiOverlay, GUI_TEXT_OVERLAY_DEPTH } from '../../engine/gui/buildGuiOverlay';
+import type { GuiData } from '../../types/gui';
+import type { GuiFontLoadRequest } from '../../game/collectFontLoadsForGui';
 
 const BOOT = 'BenneGuiPreviewBoot';
 const PREVIEW = 'BenneGuiPreview';
 
-export type GuiPreviewGamePayload = {
+export type GuiPreviewAsepritePayload = {
   textureKey: string;
   textureURL: string;
   atlasURL: string;
   tagToPlay: string;
+};
+
+export type GuiPreviewGamePayload = {
+  guiData: GuiData;
+  fontLoads: GuiFontLoadRequest[];
   internalWidth: number;
   internalHeight: number;
   revokeObjectUrls: string[];
+  /** When set, loads and plays the Aseprite sheet; otherwise text-only preview. */
+  aseprite: GuiPreviewAsepritePayload | null;
 };
 
 function editorGameConfig(
@@ -49,70 +59,75 @@ class BenneGuiPreviewBoot extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.aseprite({
-      key: this.payload.textureKey,
-      textureURL: this.payload.textureURL,
-      atlasURL: this.payload.atlasURL,
-    });
+    for (const f of this.payload.fontLoads) {
+      this.load.font(f.fontId, f.url, f.format);
+    }
+    const a = this.payload.aseprite;
+    if (a) {
+      this.load.aseprite({
+        key: a.textureKey,
+        textureURL: a.textureURL,
+        atlasURL: a.atlasURL,
+      });
+    }
   }
 
   create(): void {
     applyBootAudioSettings(this);
-    this.scene.start(PREVIEW, {
-      textureKey: this.payload.textureKey,
-      tagToPlay: this.payload.tagToPlay,
-      internalWidth: this.payload.internalWidth,
-      internalHeight: this.payload.internalHeight,
-    });
+    this.scene.start(PREVIEW, this.payload);
     for (const u of this.payload.revokeObjectUrls) {
       URL.revokeObjectURL(u);
     }
   }
 }
 
+const PREVIEW_RESOLUTION_LABEL_DEPTH = 100;
+/** Above Aseprite sprite so authored text is readable in the editor. */
+const PREVIEW_GUI_TEXT_DEPTH = Math.max(GUI_TEXT_OVERLAY_DEPTH, PREVIEW_RESOLUTION_LABEL_DEPTH + 1);
+
 class GuiPreviewScene extends Phaser.Scene {
-  private textureKey!: string;
-  private tagToPlay!: string;
-  private internalWidth = 352;
-  private internalHeight = 198;
+  private payload!: GuiPreviewGamePayload;
 
   constructor() {
     super(PREVIEW);
   }
 
-  init(data: {
-    textureKey: string;
-    tagToPlay: string;
-    internalWidth: number;
-    internalHeight: number;
-  }): void {
-    this.textureKey = data.textureKey;
-    this.tagToPlay = data.tagToPlay;
-    this.internalWidth = data.internalWidth;
-    this.internalHeight = data.internalHeight;
+  init(data: GuiPreviewGamePayload): void {
+    this.payload = data;
   }
 
   create(): void {
+    const { internalWidth, internalHeight, guiData, aseprite } = this.payload;
     const cam = this.cameras.main;
     cam.setBackgroundColor(0x1a1a2e);
 
-    const sprite = this.add.sprite(this.internalWidth / 2, this.internalHeight / 2, this.textureKey).setOrigin(0.5, 0.5);
+    if (aseprite) {
+      const sprite = this.add
+        .sprite(internalWidth / 2, internalHeight / 2, aseprite.textureKey)
+        .setOrigin(0.5, 0.5);
 
-    if (!this.anims.exists(this.tagToPlay)) {
-      this.anims.createFromAseprite(this.textureKey);
+      if (!this.anims.exists(aseprite.tagToPlay)) {
+        this.anims.createFromAseprite(aseprite.textureKey);
+      }
+      if (this.anims.exists(aseprite.tagToPlay)) {
+        sprite.play(aseprite.tagToPlay);
+      }
     }
-    if (this.anims.exists(this.tagToPlay)) {
-      sprite.play(this.tagToPlay);
-    }
+
+    buildGuiOverlay(this, guiData, {
+      depth: PREVIEW_GUI_TEXT_DEPTH,
+      startVisible: true,
+      emptyTextPlaceholder: 'Lorem ipsum dolor sit amet.',
+    });
 
     this.add
-      .text(8, 6, `${this.internalWidth}×${this.internalHeight} · game resolution`, {
+      .text(8, 6, `${internalWidth}×${internalHeight} · game resolution`, {
         fontFamily: 'system-ui, sans-serif',
         fontSize: '11px',
         color: '#8892a8',
       })
       .setScrollFactor(0)
-      .setDepth(100);
+      .setDepth(PREVIEW_RESOLUTION_LABEL_DEPTH);
   }
 }
 

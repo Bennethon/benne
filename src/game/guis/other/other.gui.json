@@ -1,0 +1,22 @@
+{
+  "id": "other",
+  "name": "Other",
+  "description": "",
+  "display": {
+    "aseprite": false
+  },
+  "controls": [
+    {
+      "type": "text",
+      "id": "line",
+      "x": 176,
+      "y": 170,
+      "text": "",
+      "font": "dialog",
+      "fontSize": 8,
+      "color": "#f5f5dc",
+      "align": "center",
+      "wordWrapWidth": 320
+    }
+  ]
+}

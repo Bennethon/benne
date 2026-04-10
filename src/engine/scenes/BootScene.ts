@@ -11,6 +11,7 @@ import { getRoomAsepriteAssetPaths, getRoomAsepriteTextureKey } from '../../game
 import { SCENE_BOOT, SCENE_ROOM } from '../../game/constants';
 import { loadCharacterData } from '../../game/loadCharacterData';
 import { loadStartRoomData } from '../../game/loadStartRoom';
+import { queueGuiFontsForBootLoader } from '../../game/queueGuiFontsForBootLoader';
 import { resolveGameAssetUrl } from '../../game/resolveGameAssetUrl';
 import type { CharacterFacingLetter, CharacterData } from '../../types/character';
 import type { RoomCharacterInstance, RoomData, RoomPropInstance } from '../../types/room';
@@ -108,6 +109,8 @@ export class BootScene extends Phaser.Scene {
     for (const inst of room.characters ?? []) {
       this.queueCharacterLoads(inst, spawns, loadedAsepriteCharacterIds);
     }
+
+    queueGuiFontsForBootLoader(this.load);
 
     const propSpawns: RoomPropSpawn[] =
       propsWithSheetTags.length > 0 && roomPropsTextureKey
