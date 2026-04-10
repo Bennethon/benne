@@ -22,7 +22,7 @@ import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
  * | **`whenLookAt` / `whenUse` / `whenPickUp` / … / `onProp` / `B.prop(id)`** | **`props[].id`** (the prop’s `id` field). Hotspots are **not** registered through these helpers — subscribe with `B.raw.on` and `roomHotspotVerbEventId` if needed. |
  * | **`whenTalkTo` / `B.character(id)`** | **`CharacterData.id`** of a character **placed in this room** (`characters[].definition` → that JSON’s `id`). |
  * | **`whenGive(itemId, targetId, …)`** | **`itemId`**: inventory item id (future). **`targetId`**: **`props[].id`** of the prop that receives the give verb. |
- * | **`walkTo('…')`** on **`B.player`** or **`B.character('…')`** | **Unified target string** (first match wins): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (character in room) → **`points[].id`**. Or pass **`{ x, y }`** in **room pixels**. Unknown ids warn once and behave as a no-move. |
+ * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | **Unified target string** (first match wins): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (character in room) → **`points[].id`**. Or pass **`{ x, y }`** in **room pixels**. **`walkTo`** queues after prior steps; **`walkTo.now`** starts immediately without blocking the queue. **`say.now`**, **`face.now`**, **`playAnimation.now`**, **`B.wait.now`** behave the same. |
  * | **`playAnimation(tag)`** | Aseprite **frame tag** on the character sheet (e.g. `'Idle'`, `'WalkL'`). |
  * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
  * | **`whenVerb(verbId, propId, …)`** | **`verbId`**: exact id from **`game-config.json`** `verbs[]`. **`propId`**: **`props[].id`**. |
@@ -60,6 +60,23 @@ const VERB_ALIAS_CANDIDATES: Record<VerbAlias, readonly string[]> = {
 };
 
 /**
+ * Callable that participates in the interaction queue; **`fn.now`** runs the same action immediately
+ * without blocking subsequent chained steps (fire-and-forget).
+ */
+export type BlockingWithNow<TArgs extends readonly unknown[] = readonly unknown[]> = ((
+  ...args: TArgs
+) => void) & { now: (...args: TArgs) => void };
+
+function withNow<TArgs extends readonly unknown[]>(
+  blocking: (...args: TArgs) => void,
+  nowImpl: (...args: TArgs) => void,
+): BlockingWithNow<TArgs> {
+  const fn = blocking as BlockingWithNow<TArgs>;
+  fn.now = nowImpl;
+  return fn;
+}
+
+/**
  * High-level API passed as **`B`** in the `registerRoomScript` callback. Chains async steps (walk, delays) in order; use **`await`** only if you expose promises yourself.
  *
  * @see The module comment above for which string ids to use with each method.
@@ -73,10 +90,32 @@ export class BenneScript {
   private disposers: Array<() => void> = [];
   private interactionTail: Promise<void> = Promise.resolve();
 
+  /**
+   * Pause the interaction chain for **`seconds`**. **`B.wait.now(seconds)`** schedules the delay only (does not block the queue).
+   */
+  readonly wait: BlockingWithNow<[number]>;
+
   constructor(events: Phaser.Events.EventEmitter, roomId: string, roomScene: RoomScene) {
     this.events = events;
     this.roomId = roomId;
     this.roomScene = roomScene;
+
+    this.wait = withNow(
+      (seconds: number) => {
+        const ms = Math.max(0, seconds * 1000);
+        const scene = this.roomScene;
+        this.chain(
+          () =>
+            new Promise<void>((resolve) => {
+              scene.time.delayedCall(ms, () => resolve());
+            }),
+        );
+      },
+      (seconds: number) => {
+        const ms = Math.max(0, seconds * 1000);
+        this.roomScene.time.delayedCall(ms, () => {});
+      },
+    );
   }
 
   /** Remove all listeners this instance registered on the bus (called from the active {@link RoomScene} on shutdown). */
@@ -95,8 +134,12 @@ export class BenneScript {
     return this.interactionTail;
   }
 
-  private chain(promise: Promise<unknown>): void {
-    this.interactionTail = this.interactionTail.then(() => promise).then(() => undefined);
+  /**
+   * Queue async work so it runs only after prior chained steps finish. Pass a **factory** so
+   * `walkTo` / `say` / timers do not start until their turn (eager `Promise`s would fire every tween in one sync handler).
+   */
+  private chain(factory: () => Promise<unknown>): void {
+    this.interactionTail = this.interactionTail.then(factory).then(() => undefined);
   }
 
   /**
@@ -442,36 +485,71 @@ export class BenneScript {
 
   private makeCharacterFacade(definitionId: string): BenneScriptCharacterFacade {
     const scene = this.roomScene;
+
+    const runCharacterPlayAnimation = (tag: string): void => {
+      const sprite = scene.getCharacterSprite(definitionId);
+      if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
+        if (scene.anims.exists(tag)) {
+          sprite.play(tag);
+        } else {
+          console.warn(`[Benne] Unknown animation tag "${tag}" for character "${definitionId}"`);
+        }
+      }
+    };
+
+    const runCharacterFace = (direction: CharacterFacingLetter): void => {
+      const sprite = scene.getCharacterSprite(definitionId) as DirectionalCharacterSprite | undefined;
+      if (sprite?.anims) {
+        playDirectionalAnimation(sprite, 'Idle', direction);
+      }
+    };
+
+    const logCharacterSay = (line: string): void => {
+      console.log(`[Character ${definitionId}] ${line}`);
+    };
+
     return {
-      walkTo: (target: Point2 | string) => {
-        this.chain(scene.walkCharacterTo(definitionId, target));
-      },
-      playAnimation: (tag: string) => {
-        const sprite = scene.getCharacterSprite(definitionId);
-        if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
-          if (scene.anims.exists(tag)) {
-            sprite.play(tag);
-          } else {
-            console.warn(`[Benne] Unknown animation tag "${tag}" for character "${definitionId}"`);
-          }
-        }
-        this.chain(Promise.resolve());
-      },
-      say: (line: string) => {
-        console.log(`[Character ${definitionId}] ${line}`);
-        this.chain(
-          new Promise<void>((resolve) => {
-            scene.time.delayedCall(DEFAULT_SAY_MS, () => resolve());
-          }),
-        );
-      },
-      face: (direction: CharacterFacingLetter) => {
-        const sprite = scene.getCharacterSprite(definitionId) as DirectionalCharacterSprite | undefined;
-        if (sprite?.anims) {
-          playDirectionalAnimation(sprite, 'Idle', direction);
-        }
-        this.chain(Promise.resolve());
-      },
+      walkTo: withNow(
+        (target: Point2 | string) => {
+          this.chain(() => scene.walkCharacterTo(definitionId, target));
+        },
+        (target: Point2 | string) => {
+          void scene.walkCharacterTo(definitionId, target);
+        },
+      ),
+      playAnimation: withNow(
+        (tag: string) => {
+          this.chain(() => {
+            runCharacterPlayAnimation(tag);
+            return Promise.resolve();
+          });
+        },
+        runCharacterPlayAnimation,
+      ),
+      say: withNow(
+        (line: string) => {
+          logCharacterSay(line);
+          this.chain(
+            () =>
+              new Promise<void>((resolve) => {
+                scene.time.delayedCall(DEFAULT_SAY_MS, () => resolve());
+              }),
+          );
+        },
+        (line: string) => {
+          logCharacterSay(line);
+          scene.time.delayedCall(DEFAULT_SAY_MS, () => {});
+        },
+      ),
+      face: withNow(
+        (direction: CharacterFacingLetter) => {
+          this.chain(() => {
+            runCharacterFace(direction);
+            return Promise.resolve();
+          });
+        },
+        runCharacterFace,
+      ),
     };
   }
 
@@ -496,51 +574,72 @@ export class BenneScript {
    */
   get player(): BenneScriptPlayerFacade {
     const scene = this.roomScene;
-    return {
-      walkTo: (target: Point2 | string) => {
-        this.chain(scene.walkPlayerTo(target));
-      },
-      playAnimation: (tag: string) => {
-        const pl = scene.player;
-        if (pl?.anims) {
-          if (scene.anims.exists(tag)) {
-            pl.play(tag);
-          } else {
-            console.warn(`[Benne] Unknown animation tag "${tag}" for player`);
-          }
-        }
-        this.chain(Promise.resolve());
-      },
-      say: (line: string) => {
-        console.log(`[Player] ${line}`);
-        this.chain(
-          new Promise<void>((resolve) => {
-            scene.time.delayedCall(DEFAULT_SAY_MS, () => resolve());
-          }),
-        );
-      },
-      face: (direction: CharacterFacingLetter) => {
-        const pl = scene.player;
-        if (pl) {
-          playDirectionalAnimation(pl, 'Idle', direction);
-        }
-        this.chain(Promise.resolve());
-      },
-    };
-  }
 
-  /**
-   * Pause the interaction chain for **`seconds`** (for pacing cutscenes).
-   *
-   * @param seconds - Non-negative duration in seconds.
-   */
-  wait(seconds: number): void {
-    const ms = Math.max(0, seconds * 1000);
-    this.chain(
-      new Promise<void>((resolve) => {
-        this.roomScene.time.delayedCall(ms, () => resolve());
-      }),
-    );
+    const runPlayerPlayAnimation = (tag: string): void => {
+      const pl = scene.player;
+      if (pl?.anims) {
+        if (scene.anims.exists(tag)) {
+          pl.play(tag);
+        } else {
+          console.warn(`[Benne] Unknown animation tag "${tag}" for player`);
+        }
+      }
+    };
+
+    const runPlayerFace = (direction: CharacterFacingLetter): void => {
+      const pl = scene.player;
+      if (pl) {
+        playDirectionalAnimation(pl, 'Idle', direction);
+      }
+    };
+
+    const logPlayerSay = (line: string): void => {
+      console.log(`[Player] ${line}`);
+    };
+
+    return {
+      walkTo: withNow(
+        (target: Point2 | string) => {
+          this.chain(() => scene.walkPlayerTo(target));
+        },
+        (target: Point2 | string) => {
+          void scene.walkPlayerTo(target);
+        },
+      ),
+      playAnimation: withNow(
+        (tag: string) => {
+          this.chain(() => {
+            runPlayerPlayAnimation(tag);
+            return Promise.resolve();
+          });
+        },
+        runPlayerPlayAnimation,
+      ),
+      say: withNow(
+        (line: string) => {
+          logPlayerSay(line);
+          this.chain(
+            () =>
+              new Promise<void>((resolve) => {
+                scene.time.delayedCall(DEFAULT_SAY_MS, () => resolve());
+              }),
+          );
+        },
+        (line: string) => {
+          logPlayerSay(line);
+          scene.time.delayedCall(DEFAULT_SAY_MS, () => {});
+        },
+      ),
+      face: withNow(
+        (direction: CharacterFacingLetter) => {
+          this.chain(() => {
+            runPlayerFace(direction);
+            return Promise.resolve();
+          });
+        },
+        runPlayerFace,
+      ),
+    };
   }
 
   /**
@@ -579,24 +678,24 @@ export interface BenneScriptPlayerFacade {
    * B.player.walkTo('mySpawnPoint');
    * B.player.walkTo({ x: 180, y: 140 });
    */
-  walkTo(target: Point2 | string): void;
+  walkTo: BlockingWithNow<[Point2 | string]>;
 
   /**
    * Play an Aseprite animation tag on the player (e.g. **`'WalkL'`**, **`'IdleD'`**).
    *
    * @param tag - Frame tag on the player character sheet.
    */
-  playAnimation(tag: string): void;
+  playAnimation: BlockingWithNow<[string]>;
 
   /** Placeholder dialogue (logs + short delay until dialogue UI exists). */
-  say(line: string): void;
+  say: BlockingWithNow<[string]>;
 
   /**
    * Face a direction using the **`Idle*`** clip family.
    *
    * @param direction - **`'L'`** | **`'R'`** | **`'U'`** | **`'D'`** | **`'UL'`** | **`'UR'`** | **`'DL'`** | **`'DR'`**
    */
-  face(direction: CharacterFacingLetter): void;
+  face: BlockingWithNow<[CharacterFacingLetter]>;
 }
 
 /** Movement + animation + facing for an NPC; see {@link BenneScript.character}. */
@@ -610,22 +709,22 @@ export interface BenneScriptCharacterFacade {
    * B.character('guard').walkTo('lever');
    * B.character('guard').walkTo({ x: 200, y: 100 });
    */
-  walkTo(target: Point2 | string): void;
+  walkTo: BlockingWithNow<[Point2 | string]>;
 
   /**
    * Play an Aseprite tag on this character (e.g. **`'WalkL'`**, **`'IdleD'`**).
    *
    * @param tag - Frame tag from this character’s sheet JSON.
    */
-  playAnimation(tag: string): void;
+  playAnimation: BlockingWithNow<[string]>;
 
   /** Placeholder dialogue (logs + short delay). */
-  say(line: string): void;
+  say: BlockingWithNow<[string]>;
 
   /**
    * Set facing via **`Idle` + direction** (e.g. **`IdleR`**).
    *
    * @param direction - **`'L'`** | **`'R'`** | **`'U'`** | **`'D'`** | **`'UL'`** | **`'UR'`** | **`'DL'`** | **`'DR'`**
    */
-  face(direction: CharacterFacingLetter): void;
+  face: BlockingWithNow<[CharacterFacingLetter]>;
 }
