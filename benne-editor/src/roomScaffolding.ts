@@ -6,6 +6,7 @@ import {
     resolveRoomAsepriteSheetForProps
 } from './gameDiscovery';
 import type { EditorSelection } from './editorSelection';
+import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import type { MainTreeNode } from './mainTreeProvider';
 import { openRoomJsonAndScriptBottomGroup } from './roomScriptNavigation';
 
@@ -326,7 +327,7 @@ export async function runAddRoomPropWizard(
     void vscode.window.showInformationMessage(
         `Added prop "${id}" (tag "${tagTrimmed}", ${clickable ? 'clickable' : 'not clickable'}) to room ${target.roomId}.`
     );
-    await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+    await applyBenneTwoRowJsonScriptLayout();
     await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
 }
 
@@ -533,7 +534,7 @@ export async function runImportPropsFromAsepriteTags(
         parts.push(`Skipped ${skipped} already in room.`);
     }
     void vscode.window.showInformationMessage(parts.join(' '));
-    await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+    await applyBenneTwoRowJsonScriptLayout();
     await openRoomJsonAndScriptBottomGroup(roomRef.roomJsonUri, roomRef.roomId);
 }
 
@@ -632,7 +633,7 @@ export async function runAddRoomHotspotWizard(
     await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
 
     void vscode.window.showInformationMessage(`Added hotspot "${id}" to room ${target.roomId}.`);
-    await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+    await applyBenneTwoRowJsonScriptLayout();
     await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
 }
 
@@ -682,7 +683,7 @@ export async function runAddRoomPointWizard(
     await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
 
     void vscode.window.showInformationMessage(`Added point "${id}" to room ${target.roomId}.`);
-    await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+    await applyBenneTwoRowJsonScriptLayout();
     await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
 }
 
@@ -731,6 +732,6 @@ export async function runAddRoomRegionWizard(
     await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
 
     void vscode.window.showInformationMessage(`Added region "${id}" to room ${target.roomId}.`);
-    await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+    await applyBenneTwoRowJsonScriptLayout();
     await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
 }

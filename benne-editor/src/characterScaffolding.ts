@@ -7,6 +7,7 @@ import {
     readCharacterUsesAsepriteDisplay,
     resolveCharacterAsepriteSheetForAnimations
 } from './gameDiscovery';
+import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import type { MainTreeNode } from './mainTreeProvider';
 import { pickWorkspaceFolder, validateSlug } from './roomScaffolding';
 import { openCharacterJsonAndScriptBottomGroup } from './roomScriptNavigation';
@@ -259,6 +260,6 @@ export async function runImportAnimationsFromAsepriteTags(
         parts.push(`Skipped ${skipped} already defined.`);
     }
     void vscode.window.showInformationMessage(parts.join(' '));
-    await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+    await applyBenneTwoRowJsonScriptLayout();
     await openCharacterJsonAndScriptBottomGroup(charRef.characterJsonUri, charRef.characterId);
 }

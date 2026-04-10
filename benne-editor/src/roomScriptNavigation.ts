@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
+import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 
 /**
- * Bottom-row editor group for room/character JSON after `workbench.action.editorLayoutTwoRows`
+ * Bottom-row editor group for room/character JSON after {@link applyBenneTwoRowJsonScriptLayout}
  * (preview uses the primary/top group). The script is opened with {@link vscode.ViewColumn.Beside}
  * so JSON and `*.room.ts` / `*.character.ts` sit in two columns on the bottom row.
  */
@@ -23,10 +24,12 @@ export async function openRoomJsonAndScriptBottomGroup(
     try {
         await vscode.workspace.fs.stat(scriptUri);
     } catch {
+        await applyBenneTwoRowJsonScriptLayout();
         return;
     }
     const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);
     await vscode.window.showTextDocument(scriptDoc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+    await applyBenneTwoRowJsonScriptLayout();
 }
 
 /** Pinned character JSON + optional `*.character.ts` beside it in the primary row. */
@@ -55,10 +58,12 @@ export async function openCharacterJsonAndScriptBottomGroup(
     try {
         await vscode.workspace.fs.stat(scriptUri);
     } catch {
+        await applyBenneTwoRowJsonScriptLayout();
         return;
     }
     const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);
     await vscode.window.showTextDocument(scriptDoc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+    await applyBenneTwoRowJsonScriptLayout();
 }
 
 /** Open a normal (pinned) editor tab; multiple documents can stay open in the same group. */
