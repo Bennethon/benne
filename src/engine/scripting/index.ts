@@ -3,6 +3,7 @@ export {
   type BenneScriptCharacterFacade,
   type BenneScriptPlayerFacade,
   type BenneScriptPropFacade,
+  type BlockingWithNow,
   type GivePropInteractPayload,
 } from './BenneScript.js';
 export * from './RoomScriptContext.js';

@@ -17,7 +17,9 @@ registerRoomScript(({ B }) => {
     console.log('✅ B.whenUse("desk") fired!');
 
     B.character('henry').walkTo('office-point-1');
-    
+
+    B.player.walkTo('henry');
+
     B.player.say('Hello from Bennescript!');
   });
 });

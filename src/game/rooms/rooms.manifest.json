@@ -6,6 +6,14 @@
       "definition": "bathroom/bathroom.room.json"
     },
     {
+      "id": "diningRoom",
+      "definition": "diningRoom/diningRoom.room.json"
+    },
+    {
+      "id": "garage",
+      "definition": "garage/garage.room.json"
+    },
+    {
       "id": "kitchen",
       "definition": "kitchen/kitchen.room.json"
     },
