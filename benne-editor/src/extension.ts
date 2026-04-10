@@ -28,6 +28,7 @@ import {
     addPropVerbEvent,
     makeRoomPropClickable
 } from './propVerbScaffolding';
+import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import { revealRoomJsonElement } from './roomJsonReveal';
 import {
     BENNE_SCRIPT_VIEW_COLUMN,
@@ -131,7 +132,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         if (node.kind === 'room') {
             await resetBenneEditorSurface();
-            await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            await applyBenneTwoRowJsonScriptLayout();
             selection.setRoom(node.uri, node.name);
             await openRoomJsonAndScript(node.uri, node.id);
         } else if (node.kind === 'roomSubGroup') {
@@ -141,9 +142,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
             if (!sameRoomContext) {
                 await resetBenneEditorSurface();
-                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+                await applyBenneTwoRowJsonScriptLayout();
             } else if (!roomPreview.isRoomPreviewActive()) {
-                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+                await applyBenneTwoRowJsonScriptLayout();
             }
 
             selection.setRoom(node.roomJsonUri, node.roomName);
@@ -158,9 +159,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
             if (!sameRoomContext) {
                 await resetBenneEditorSurface();
-                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+                await applyBenneTwoRowJsonScriptLayout();
             } else if (!roomPreview.isRoomPreviewActive()) {
-                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+                await applyBenneTwoRowJsonScriptLayout();
             }
 
             selection.setRoomWithProp(
@@ -181,9 +182,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
             if (!sameRoomContext) {
                 await resetBenneEditorSurface();
-                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+                await applyBenneTwoRowJsonScriptLayout();
             } else if (!roomPreview.isRoomPreviewActive()) {
-                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+                await applyBenneTwoRowJsonScriptLayout();
             }
 
             selection.setRoomWithHotspot(
@@ -204,9 +205,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
             if (!sameRoomContext) {
                 await resetBenneEditorSurface();
-                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+                await applyBenneTwoRowJsonScriptLayout();
             } else if (!roomPreview.isRoomPreviewActive()) {
-                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+                await applyBenneTwoRowJsonScriptLayout();
             }
 
             selection.setRoomWithRoomPoint(
@@ -227,9 +228,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
             if (!sameRoomContext) {
                 await resetBenneEditorSurface();
-                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+                await applyBenneTwoRowJsonScriptLayout();
             } else if (!roomPreview.isRoomPreviewActive()) {
-                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+                await applyBenneTwoRowJsonScriptLayout();
             }
 
             selection.setRoomWithRegion(
@@ -250,9 +251,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
             if (!sameRoomContext) {
                 await resetBenneEditorSurface();
-                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+                await applyBenneTwoRowJsonScriptLayout();
             } else if (!roomPreview.isRoomPreviewActive()) {
-                await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+                await applyBenneTwoRowJsonScriptLayout();
             }
 
             selection.setRoomWithRoomCharacter(
@@ -269,7 +270,7 @@ export function activate(context: vscode.ExtensionContext): void {
             await revealRoomJsonElement(node.roomJsonUri, 'roomCharacter', node.instanceId);
         } else if (node.kind === 'character') {
             await resetBenneEditorSurface();
-            await vscode.commands.executeCommand('workbench.action.editorLayoutTwoRows');
+            await applyBenneTwoRowJsonScriptLayout();
             selection.setCharacter(node.uri, node.name);
             await openCharacterJsonAndScript(node.uri, node.id);
         }
@@ -696,7 +697,7 @@ function getWebviewContent(): string {
         </head>
         <body>
             <h1>BENNE Editor</h1>
-            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree and <em>Actions</em>. Each tree choice resets the editor area, then opens the right layout: rooms and props — two rows with <em>BENNE Room preview</em> on top and room JSON beside <code>*.room.ts</code> on the bottom; characters — two rows with <em>BENNE Character preview</em> (feet placement) on top and character JSON beside <code>*.character.ts</code> on the bottom.</p>
+            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree and <em>Actions</em>. Each tree choice resets the editor area, then opens the right layout: rooms and props — two rows with <em>BENNE Room preview</em> on top and a narrow room JSON column (~30%) next to <code>*.room.ts</code> (~70%) on the bottom; characters — two rows with <em>BENNE Character preview</em> (feet placement) on top and the same JSON / script split on the bottom.</p>
             
             <p>
                 <button id="create-room-btn" type="button">Create New Room</button>
