@@ -11,6 +11,11 @@ const jsonUrls = import.meta.glob('./assets/**/*.json', {
   as: 'url',
 }) as Record<string, string>;
 
+const fontUrls = import.meta.glob('./assets/fonts/**/*.{ttf,otf,woff,woff2}', {
+  eager: true,
+  as: 'url',
+}) as Record<string, string>;
+
 function normalizeAssetPath(relativePath: string): string {
   return relativePath.replace(/^\.?\/+/, '').replaceAll('\\', '/');
 }
@@ -38,6 +43,21 @@ export function resolveGameAssetJsonUrl(relativePath: string): string {
   if (!url) {
     throw new Error(
       `Missing JSON asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(jsonUrls).sort().join(', ')}`,
+    );
+  }
+
+  return url;
+}
+
+/** Font binaries under `src/game/assets/fonts/` (paths like `fonts/MyFont.ttf`). */
+export function resolveGameFontUrl(relativePath: string): string {
+  const normalized = normalizeAssetPath(relativePath);
+  const key = `./assets/${normalized}`;
+  const url = fontUrls[key];
+
+  if (!url) {
+    throw new Error(
+      `Missing font asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(fontUrls).sort().join(', ')}`,
     );
   }
 

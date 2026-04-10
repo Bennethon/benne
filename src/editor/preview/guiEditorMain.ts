@@ -1,5 +1,10 @@
 import type { Game } from 'phaser';
 import {
+  collectFontLoadsForGui,
+  guiHasTextControls,
+} from '../../game/collectFontLoadsForGui';
+import gameFontsManifest from '../../game/assets/fonts/fonts.json';
+import {
   getAsepriteAssetPaths,
   getAsepriteTextureKey,
   usesAsepriteDisplay,
@@ -7,8 +12,13 @@ import {
 import { pickCharacterPreviewIdleTag } from '../../game/characterPreviewIdleTag';
 import { readAsepriteFrameTagNamesFromRawJson } from '../../game/loadAsepriteAtlasData';
 import { normalizeAsepriteJsonForPhaser } from '../../game/normalizeAsepriteJson';
+import type { GameFontsManifest } from '../../types/fonts';
 import type { GuiData } from '../../types/gui';
-import { createGuiPreviewPhaserGame, type GuiPreviewGamePayload } from './createGuiPreviewGame';
+import {
+  createGuiPreviewPhaserGame,
+  type GuiPreviewAsepritePayload,
+  type GuiPreviewGamePayload,
+} from './createGuiPreviewGame';
 import { joinGameWebviewUri } from './previewUrls';
 
 declare function acquireVsCodeApi(): { postMessage(data: unknown): void };
@@ -72,47 +82,73 @@ async function runLoadGui(msg: {
     /* defaults */
   }
 
-  if (!usesAsepriteDisplay(msg.gui)) {
-    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code>.</div>`;
+  const hasText = guiHasTextControls(msg.gui);
+  const wantsAseprite = usesAsepriteDisplay(msg.gui);
+
+  if (!hasText && !wantsAseprite) {
+    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code> and/or at least one <code>text</code> control in <code>controls</code>.</div>`;
     return;
   }
 
-  const paths = getAsepriteAssetPaths(msg.guiId);
   const assetsBase = joinGameWebviewUri(msg.gameSrcWebviewUri, 'assets');
-  const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
-  const jsonUrl = joinGameWebviewUri(assetsBase, paths.json);
+  const manifest = gameFontsManifest as GameFontsManifest;
+  const fontLoads = collectFontLoadsForGui(msg.gui, manifest, (rel) =>
+    joinGameWebviewUri(assetsBase, rel),
+  );
 
-  let raw: Record<string, unknown>;
-  try {
-    raw = await fetchJson(jsonUrl);
-  } catch (e) {
-    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">Could not load sheet JSON: ${e instanceof Error ? e.message : String(e)}</div>`;
+  let aseprite: GuiPreviewAsepritePayload | null = null;
+  const revokeObjectUrls: string[] = [];
+  let asepriteError: string | null = null;
+
+  if (wantsAseprite) {
+    const paths = getAsepriteAssetPaths(msg.guiId);
+    const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
+    const jsonUrl = joinGameWebviewUri(assetsBase, paths.json);
+
+    try {
+      const raw = await fetchJson(jsonUrl);
+      const tags = readAsepriteFrameTagNamesFromRawJson(raw);
+      const tagToPlay = pickGuiPreviewTag(tags);
+      if (!tagToPlay) {
+        asepriteError =
+          'No frame tags on this sheet — tag at least one animation in Aseprite (or rely on text-only preview).';
+      } else {
+        const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+        const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
+        const atlasURL = URL.createObjectURL(blob);
+        revokeObjectUrls.push(atlasURL);
+        aseprite = {
+          textureKey: getAsepriteTextureKey(msg.guiId),
+          textureURL: pngUrl,
+          atlasURL,
+          tagToPlay,
+        };
+      }
+    } catch (e) {
+      asepriteError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  if (!aseprite && !hasText) {
+    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">Could not load sheet: ${asepriteError ?? 'unknown error'}</div>`;
     return;
   }
 
-  const tags = readAsepriteFrameTagNamesFromRawJson(raw);
-  const tagToPlay = pickGuiPreviewTag(tags);
-  if (!tagToPlay) {
-    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">No frame tags on this sheet — tag at least one animation in Aseprite.</div>`;
-    return;
+  if (wantsAseprite && !aseprite && hasText) {
+    console.warn('[BENNE GUI preview] Aseprite sheet unavailable; showing text controls only.', asepriteError);
   }
-
-  const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
-  const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
-  const atlasURL = URL.createObjectURL(blob);
 
   const inner = document.createElement('div');
   inner.style.cssText = 'position:relative;width:100%;height:100%;min-height:180px;';
   root.appendChild(inner);
 
   const payload: GuiPreviewGamePayload = {
-    textureKey: getAsepriteTextureKey(msg.guiId),
-    textureURL: pngUrl,
-    atlasURL,
-    tagToPlay,
+    guiData: msg.gui,
+    fontLoads,
     internalWidth,
     internalHeight,
-    revokeObjectUrls: [atlasURL],
+    revokeObjectUrls,
+    aseprite,
   };
 
   game = createGuiPreviewPhaserGame(inner, payload);

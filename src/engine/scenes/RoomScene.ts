@@ -40,6 +40,8 @@ import type { Point2, RoomData, RoomHotspotData, RoomPropInstance } from '../../
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
 import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
 import type { RoomScriptContext } from '@engine/scripting/types.js';
+import { buildGuiOverlay, type GuiOverlayHandle } from '../gui/buildGuiOverlay';
+import { getGuiDataById } from '../../game/loadGuiData';
 
 /** Ignore walk clicks when already within this many pixels of the target. */
 const MIN_WALK_DISTANCE_PX = 6;
@@ -125,6 +127,9 @@ export class RoomScene extends Phaser.Scene {
   /** String ids that already triggered `walkTo` resolution warnings (warn once per id per room load). */
   private unresolvedWalkTargetIdsWarned = new Set<string>();
 
+  /** Screen-fixed dialogue text from `guis/dialog-text/dialog-text.gui.json`. */
+  private dialogTextOverlay: GuiOverlayHandle | null = null;
+
   constructor() {
     super(SCENE_ROOM);
   }
@@ -165,6 +170,9 @@ export class RoomScene extends Phaser.Scene {
     this.applyPlayerCameraFollow(roomW, roomH);
     this.drawRoomDebugOverlays(data);
 
+    const dialogGui = getGuiDataById('dialog-text');
+    this.dialogTextOverlay = dialogGui ? buildGuiOverlay(this, dialogGui) : null;
+
     // ─────────────────────────────────────────────────────────────
     // Bennescript: after props, characters, player, and camera exist
     // ─────────────────────────────────────────────────────────────
@@ -189,6 +197,8 @@ export class RoomScene extends Phaser.Scene {
     this.input.on('pointerdown', this.handleRoomPointerDown);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       benneDispose?.();
+      this.dialogTextOverlay?.destroy();
+      this.dialogTextOverlay = null;
       this.scale.off('resize', this.onScaleResize, this);
       this.input.off('pointerdown', this.handleRoomPointerDown);
       this.stopPlayerMoveTween(true);
@@ -197,6 +207,20 @@ export class RoomScene extends Phaser.Scene {
       }
       this.npcWalkTweens.clear();
     });
+  }
+
+  /**
+   * Shows or hides the `dialog-text` GUI line (`controls` text with `id: line` or the first text control).
+   */
+  setDialogTextOverlay(state: { visible: boolean; text?: string }): void {
+    const h = this.dialogTextOverlay;
+    if (!h) {
+      return;
+    }
+    if (state.text !== undefined) {
+      h.setPrimaryText(state.text);
+    }
+    h.setVisible(state.visible);
   }
 
   getRoomPropInstance(propId: string): RoomPropInstance | undefined {

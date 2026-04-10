@@ -612,13 +612,20 @@ export class BenneScript {
           this.chain(
             () =>
               new Promise<void>((resolve) => {
-                scene.time.delayedCall(DEFAULT_SAY_MS, () => resolve());
+                scene.setDialogTextOverlay({ visible: true, text: line });
+                scene.time.delayedCall(DEFAULT_SAY_MS, () => {
+                  scene.setDialogTextOverlay({ visible: false });
+                  resolve();
+                });
               }),
           );
         },
         (line: string) => {
           logCharacterSay(line);
-          scene.time.delayedCall(DEFAULT_SAY_MS, () => {});
+          scene.setDialogTextOverlay({ visible: true, text: line });
+          scene.time.delayedCall(DEFAULT_SAY_MS, () => {
+            scene.setDialogTextOverlay({ visible: false });
+          });
         },
       ),
       face: withNow(
@@ -701,13 +708,20 @@ export class BenneScript {
           this.chain(
             () =>
               new Promise<void>((resolve) => {
-                scene.time.delayedCall(DEFAULT_SAY_MS, () => resolve());
+                scene.setDialogTextOverlay({ visible: true, text: line });
+                scene.time.delayedCall(DEFAULT_SAY_MS, () => {
+                  scene.setDialogTextOverlay({ visible: false });
+                  resolve();
+                });
               }),
           );
         },
         (line: string) => {
           logPlayerSay(line);
-          scene.time.delayedCall(DEFAULT_SAY_MS, () => {});
+          scene.setDialogTextOverlay({ visible: true, text: line });
+          scene.time.delayedCall(DEFAULT_SAY_MS, () => {
+            scene.setDialogTextOverlay({ visible: false });
+          });
         },
       ),
       face: withNow(
@@ -767,7 +781,7 @@ export interface BenneScriptPlayerFacade {
    */
   playAnimation: BlockingWithNow<[string]>;
 
-  /** Placeholder dialogue (logs + short delay until dialogue UI exists). */
+  /** Shows line on the `dialog-text` GUI; hides after a short delay (see `DEFAULT_SAY_MS`). */
   say: BlockingWithNow<[string]>;
 
   /**
@@ -798,7 +812,7 @@ export interface BenneScriptCharacterFacade {
    */
   playAnimation: BlockingWithNow<[string]>;
 
-  /** Placeholder dialogue (logs + short delay). */
+  /** Shows line on the `dialog-text` GUI; hides after a short delay. */
   say: BlockingWithNow<[string]>;
 
   /**

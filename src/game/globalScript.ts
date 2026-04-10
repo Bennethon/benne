@@ -21,7 +21,7 @@ export function registerGlobalScript(events: EventBus): void {
   });
 
   events.on(VERB_UNHANDLED_EVENT, (p: VerbUnhandledPayload) => {
-    // No dialogue UI yet: surface the configured line in dev; hook UI here later.
+    // `B.say` uses the dialog-text GUI; unhandled verbs still log the fallback line in dev only.
     if (import.meta.env.DEV) {
       console.info(`[Benne] verb:unhandled → "${p.fallbackLine}"`, p.target);
     }

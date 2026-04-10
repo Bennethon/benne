@@ -3,6 +3,20 @@
   "name": "Dialog Text",
   "description": "",
   "display": {
-    "aseprite": true
-  }
+    "aseprite": false
+  },
+  "controls": [
+    {
+      "type": "text",
+      "id": "line",
+      "x": 176,
+      "y": 170,
+      "text": "Even if a woodchuck could chuck wood and even if a woodchuck would chuck wood, should a woodchuck chuck wood?",
+      "font": "dialog",
+      "fontSize": 8,
+      "color": "#f5f5dc",
+      "align": "center",
+      "wordWrapWidth": 320
+    }
+  ]
 }
