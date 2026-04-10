@@ -66,6 +66,24 @@ export async function openCharacterJsonAndScriptBottomGroup(
     await applyBenneTwoRowJsonScriptLayout();
 }
 
+/** GUI preview row + JSON / `*.gui.ts` in the bottom row (JSON | script columns). */
+export async function openGuiJsonAndScriptBottomGroup(
+    guiJsonUri: vscode.Uri,
+    guiId: string
+): Promise<void> {
+    await openDocumentPinned(guiJsonUri, BENNE_ROOM_SOURCES_VIEW_COLUMN);
+    const scriptUri = vscode.Uri.joinPath(guiJsonUri, '..', `${guiId}.gui.ts`);
+    try {
+        await vscode.workspace.fs.stat(scriptUri);
+    } catch {
+        await applyBenneTwoRowJsonScriptLayout();
+        return;
+    }
+    const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);
+    await vscode.window.showTextDocument(scriptDoc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+    await applyBenneTwoRowJsonScriptLayout();
+}
+
 /** Open a normal (pinned) editor tab; multiple documents can stay open in the same group. */
 export async function openDocumentPinned(
     uri: vscode.Uri,

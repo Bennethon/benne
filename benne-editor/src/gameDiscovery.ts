@@ -62,6 +62,46 @@ async function readRoomMeta(uri: vscode.Uri, fallbackId: string): Promise<{ name
     }
 }
 
+export async function listGuiDefinitions(
+    gameFolder: vscode.WorkspaceFolder
+): Promise<{ id: string; name: string; uri: vscode.Uri }[]> {
+    const guisDir = vscode.Uri.joinPath(gameFolder.uri, 'src', 'game', 'guis');
+    let entries: [string, vscode.FileType][];
+    try {
+        entries = await vscode.workspace.fs.readDirectory(guisDir);
+    } catch {
+        return [];
+    }
+    const result: { id: string; name: string; uri: vscode.Uri }[] = [];
+    for (const [name, type] of entries) {
+        if (type !== vscode.FileType.Directory) {
+            continue;
+        }
+        const uri = vscode.Uri.joinPath(guisDir, name, `${name}.gui.json`);
+        try {
+            await vscode.workspace.fs.stat(uri);
+        } catch {
+            continue;
+        }
+        const meta = await readGuiMeta(uri, name);
+        result.push({ id: name, name: meta.name, uri });
+    }
+    result.sort((a, b) => a.id.localeCompare(b.id));
+    return result;
+}
+
+async function readGuiMeta(uri: vscode.Uri, fallbackId: string): Promise<{ name: string }> {
+    try {
+        const raw = await vscode.workspace.fs.readFile(uri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as { name?: string };
+        const name = typeof data.name === 'string' && data.name.length > 0 ? data.name : fallbackId;
+        return { name };
+    } catch {
+        return { name: fallbackId };
+    }
+}
+
 export async function listCharacterDefinitions(
     gameFolder: vscode.WorkspaceFolder
 ): Promise<{ id: string; name: string; uri: vscode.Uri }[]> {
@@ -200,7 +240,24 @@ export function getCharacterAsepriteAssetRelativePaths(characterId: string): { p
     return { png: `${base}.png`, json: `${base}.json` };
 }
 
+/** Same layout as `getAsepriteAssetPaths` in `src/game/guiAseprite.ts`. */
+export function getGuiAsepriteAssetRelativePaths(guiId: string): { png: string; json: string } {
+    const base = `images/guis/${guiId}/${guiId}`;
+    return { png: `${base}.png`, json: `${base}.json` };
+}
+
 export async function readCharacterUsesAsepriteDisplay(uri: vscode.Uri): Promise<boolean> {
+    try {
+        const raw = await vscode.workspace.fs.readFile(uri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as { display?: { aseprite?: unknown } };
+        return data.display?.aseprite === true;
+    } catch {
+        return false;
+    }
+}
+
+export async function readGuiUsesAsepriteDisplay(uri: vscode.Uri): Promise<boolean> {
     try {
         const raw = await vscode.workspace.fs.readFile(uri);
         const text = new TextDecoder('utf-8').decode(raw);
@@ -229,6 +286,11 @@ export function getRoomIdFromRoomJsonUri(roomJsonUri: vscode.Uri): string {
 /** Folder name for `characters/<id>/<id>.character.json` (e.g. `clerk`). */
 export function getCharacterIdFromCharacterJsonUri(characterJsonUri: vscode.Uri): string {
     return path.basename(path.dirname(characterJsonUri.fsPath));
+}
+
+/** Folder name for `guis/<id>/<id>.gui.json` (e.g. `inventoryBar`). */
+export function getGuiIdFromGuiJsonUri(guiJsonUri: vscode.Uri): string {
+    return path.basename(path.dirname(guiJsonUri.fsPath));
 }
 
 /** Same layout as `getRoomAsepriteAssetPaths` in the game (`src/game/roomAseprite.ts`). */
@@ -272,6 +334,15 @@ export async function characterAsepriteSheetFilesComplete(
     characterId: string
 ): Promise<boolean> {
     const { png, json } = getCharacterAsepriteAssetRelativePaths(characterId);
+    return (await gameAssetExists(gameRoot, png)) && (await gameAssetExists(gameRoot, json));
+}
+
+/** True when both expected GUI Aseprite files exist (for `display.aseprite: true`). */
+export async function guiAsepriteSheetFilesComplete(
+    gameRoot: vscode.Uri,
+    guiId: string
+): Promise<boolean> {
+    const { png, json } = getGuiAsepriteAssetRelativePaths(guiId);
     return (await gameAssetExists(gameRoot, png)) && (await gameAssetExists(gameRoot, json));
 }
 

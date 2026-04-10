@@ -6,7 +6,7 @@
 
 **Core design goals**
 
-- **Data-first**: Rooms, characters, and game tuning live in **JSON** (and Aseprite exports) under `src/game/`; TypeScript supplies **room scripts** and engine code, not hand-authored level blobs in code.
+- **Data-first**: Rooms, characters, **GUIs** (overlay UI definitions), and game tuning live in **JSON** (and Aseprite exports) under `src/game/`; TypeScript supplies **room** / **character** / **GUI** scripts and engine code, not hand-authored level blobs in code.
 - **Separation**: **`src/engine/`** is reusable; **`src/game/`** is project-specific content and registration (`registerGameContent`).
 - **Retro display**: Internal resolution defaults to **352×198**; Phaser scale mode **FIT** + **MAX_ZOOM** + **pixelArt** for crisp integer scaling. **Post-processing** is wired as a **camera hook** (`attachPostProcessingPlaceholder`) — currently a no-op, reserved for CRT / dissolve-style effects.
 - **Scrolling rooms**: Rooms wider or taller than the viewport declare `size` in `RoomData` (e.g. `"size": { "width": 704, "height": 198 }`). `RoomScene` reads this and sets `cameras.main.setBounds` + `startFollow` on the player so the camera tracks movement within the room. An optional `scrollBounds` field further restricts how far the camera pans (PowerQuest-style).
@@ -26,7 +26,7 @@
 | **`BootScene`** | Loads assets for the **start room** (manifest + globbed JSON), then `scene.start(Room, startData)`. |
 | **`RoomScene`** | Renders one room: background, Aseprite props, hotspots, characters, player walk, prop/character hit tests, debug overlays. |
 | **`EventBus` (`gameEvents`)`** | `Phaser.Events.EventEmitter` — verb dispatch turns JSON handlers (`onVerb` / `onVerbFallback`) plus optional global fallbacks into emitted events. |
-| **`registerGameContent`** | Eager `import.meta.glob` of `globalScript`, `*.room.ts` (`registerRoomScript`), and `*.character.ts` under `characters/` (`registerCharacterScript`), registering handlers on `gameEvents`. |
+| **`registerGameContent`** | Eager `import.meta.glob` of `globalScript`, `*.room.ts` (`registerRoomScript`), `*.character.ts` under `characters/` (`registerCharacterScript`), and `*.gui.ts` under `guis/` (`registerGuiScript`), registering handlers on `gameEvents`. |
 | **`src/game/assets/`** | Images + Aseprite JSON; URLs resolved at build time via Vite `import.meta.glob` (`resolveGameAssetUrl`). |
 
 **Interaction sketch**
@@ -39,12 +39,12 @@
          │  game-config.json / rooms.manifest            │ pointer → walk / prop / character
          ▼                                               ▼
 ┌─────────────────┐                            ┌─────────────────┐
-│ ConfigManager   │                            │ EventBus        │◄── *.room.ts, *.character.ts, globalScript
+│ ConfigManager   │                            │ EventBus        │◄── *.room.ts, *.character.ts, *.gui.ts, globalScript
 └─────────────────┘                            └─────────────────┘
 ```
 
 **Editor (out of runtime path)**  
-The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build a **bundled Phaser preview** that reuses `RoomScene` and fetches the same assets via webview URIs — tooling only, not part of the shipped game loop.
+The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build **bundled Phaser previews** (room, character, GUI) that fetch game assets via webview URIs — tooling only, not part of the shipped game loop. The room preview reuses **`RoomScene`**.
 
 **BENNE — Actions view** (`benne-editor`): Verb rows use **`game-config.json`** `verbs` (same order and defaults as the engine if `verbs` is omitted).
 
@@ -53,6 +53,8 @@ The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build 
 - **Hotspots**: Same verb / add-verb flow when a hotspot is selected; **`onVerb`** lives on room JSON; handlers in **`*.room.ts`**. Inactive hotspots show a reminder that they are not hit-tested.
 
 - **Characters**: When a character is selected, **`clickable: true`** is required before verb rows (same as the engine). **Make clickable** updates **`*.character.json`**. Verbs add **`onVerb`** there and stubs in **`registerCharacterScript`** in **`*.character.ts`** (loaded by **`registerGameContent`**). For **precise clicks** on sprites with transparent padding, authors add **`collider`** (≥3 points in **frame space**, like **`feet`**) in **`*.character.json`** or in the **BENNE Character preview** (polygon editor, same interaction model as **prop colliders**). The **Actions** view may remind you to add a collider when the character is clickable but none is defined.
+
+- **GUIs**: **Main tree** lists **`src/game/guis/<id>/<id>.gui.json`** under a **GUIs** group (below **Characters**). **Create GUI** scaffolds **`*.gui.json`**, **`*.gui.ts`** (`registerGuiScript`), and **`src/game/assets/images/guis/<id>/`** (Aseprite export target). Selecting a GUI opens the **two-row** layout with **BENNE GUI preview** on top (sheet at **`game-config.json`** internal resolution) and **`*.gui.json` | `*.gui.ts`** on the bottom. **Runtime** does not yet composite GUI overlays in **`RoomScene`** — scripts load at boot for future wiring; **`GuiData`** lives in **`src/types/gui.ts`**.
 
 **Add Prop / Hotspot / Point / Region** and **Import Props from Aseprite Tags** appear only when the **room** node or a **category** row (Props, Hotspots, Points, Regions) is selected; they are hidden when a specific prop, hotspot, point, or region item is selected.
 
@@ -154,7 +156,7 @@ The sprite’s **`facing`** data stores the **logical** facing the gameplay aske
 ### Scripting / interaction system
 
 - **Canonical scoped event ids** are emitted by **`dispatchVerbInteraction`** from runtime target context; JSON no longer stores ad-hoc event-id strings. Props/hotspots/room-scoped characters use `verb:room:...`, character-global uses `verb:character:...` (props still dispatch immediately; no auto-walk first).
-- **`registerGameContent()`** (called before `createBenneGame`) loads **`globalScript.ts`** (global / verb fallback hooks) and every **`./rooms/**/*.room.ts`** that exports **`registerRoomScript(events)`**.
+- **`registerGameContent()`** (called before `createBenneGame`) loads **`globalScript.ts`** (global / verb fallback hooks), every **`./rooms/**/*.room.ts`** that exports **`registerRoomScript(events)`**, **`./characters/**/*.character.ts`** with **`registerCharacterScript`**, and **`./guis/**/*.gui.ts`** with **`registerGuiScript`**.
 - **Payloads**: Typed payloads for prop interaction (`propInteractionEvents.ts`), player walk start/stop, etc.
 - **`BenneScript` movement**: **`B.player.walkTo(target)`** and **`B.character(id).walkTo(target)`** accept **`Point2`** or a **string id**. Resolution order for strings (first match): **prop** in the room → **hotspot** → **character** in the room → **`room.points`** entry; props use **`walkToPoint`**, else closest point in/on the **collider** to the walker, else the prop frame **center**; hotspots use **`walkToPoint`** or polygon **centroid**; characters use **`CharacterData.walkToPoint`** or **feet** world position. Unknown ids **`console.warn`** once per id and fall back to the walker’s current feet (no move).
 - **`BenneScript` verb sugar** (**`whenLookAt`**, **`whenUse`**, **`whenPickUp`**, **`whenPush`**, **`whenPull`**, **`whenOpen`**, **`whenClose`**, **`whenVerb`**, **`whenTalkTo`**) registers handlers using the same **prop → hotspot → character** rule for the string id (room **`props`** / **`hotspots`** / spawned **`CharacterData.id`**). **`B.onProp`** and **`B.prop`** stay **prop-only**; **`whenGive`** remains **prop-only** for the recipient id.
@@ -189,7 +191,7 @@ Pointer / keys ─────────────────────�
                                               ▼
                                     gameEvents (EventBus)
                                               ▲
-registerGameContent (*.room.ts, globalScript)─┘
+registerGameContent (*.room.ts, *.character.ts, *.gui.ts, globalScript)─┘
 ```
 
 ---
@@ -214,8 +216,9 @@ registerGameContent (*.room.ts, globalScript)─┘
 - **Config**: **`game-config.json`** is the **single source** for resolution, default character, start room override, **verbs**, **inputProfile**, **defaultFallbackLine**, audio, debug flags — read via **`getGameSettings()`**, not duplicated literals.
 - **Room data**: Follow **`RoomData`** / **`RoomPropInstance`** in **`src/types/room.ts`**; **`collider`** is required for **`clickable`** props. **`walkToPoint`** / **`lookAtPoint`** are optional script hints (not applied by the engine on click). Use **`onVerb` / `onVerbFallback`** for interactions. Room-level **`points`** (**`RoomPointData[]`**, named **`x` / `y`**) are used by **`RoomScene`** when **`BenneScript`** resolves **`walkTo('pointId')`**; **`regions`** (**`RoomRegionData[]`**, closed polygons + **`active`**) remain **authoring / future-system** for gameplay that opts in. **Hotspot** polygons are separate **`hotspots[].points`**.
 - **Character data**: Follow **`CharacterData`** in **`src/types/character.ts`**. Optional **`collider`** (≥3 **`points`** in frame space) restricts **click** hit-testing for **`clickable`** characters; omit it or save fewer than three points in the preview to use the **full sprite** bounds.
+- **GUI data**: Follow **`GuiData`** in **`src/types/gui.ts`**. Aseprite sheets use **`images/guis/<guiId>/<guiId>.png`** and **`.json`** when **`display.aseprite`** is true (same export pattern as characters). **Overlay rendering** in the playable game is **not implemented** yet.
 - **Walkable mesh**: **`walkable.polygons[]`** entries support optional **`holes[]`** (inner rings subtracted when **`active`** is not **`false`**). Each polygon and hole may set **`active`**; omitted or non-**`false`** means included in tests and debug draw. See **`walkable.ts`** and **`RoomScene`** debug overlays (outer vs hole stroke colors).
-- **Registration**: New room scripts must live under **`src/game/rooms/`** as **`*.room.ts`** exporting **`registerRoomScript`** to be picked up by **`registerGameContent`**.
+- **Registration**: New room scripts must live under **`src/game/rooms/`** as **`*.room.ts`** exporting **`registerRoomScript`** to be picked up by **`registerGameContent`**. GUI scripts live under **`src/game/guis/<id>/`** as **`*.gui.ts`** exporting **`registerGuiScript`**.
 - **Strict TypeScript**: Project uses **strict** compiler options; new code should preserve typings for payloads and JSON-shaped types.
 
 ---
@@ -287,11 +290,13 @@ This subsection documents **what exists today** for the **BENNE Editor** (`benne
 ### Purpose and build output
 
 - **`npm run build:room-preview`** (repo root) runs **`vite.room-preview.config.ts`**, entry **`room-editor.html`**, and emits **`benne-editor/media/room-preview/room-preview.js`** (and assets). The extension loads that script from **`RoomPreviewPanelController`** HTML.
-- The preview is **not** the same bundle as **`vite build`** for the playable game; it is a **separate** client that embeds Phaser with **`RoomScene`** and editor-only scenes.
+- **`npm run build:character-preview`** → **`vite.character-preview.config.ts`**, **`character-editor.html`**, **`benne-editor/media/character-preview/character-preview.js`**.
+- **`npm run build:gui-preview`** → **`vite.gui-preview.config.ts`**, **`gui-editor.html`**, **`benne-editor/media/gui-preview/gui-preview.js`**.
+- These previews are **not** the same bundle as **`vite build`** for the playable game; they are **separate** clients. The room preview embeds Phaser with **`RoomScene`** and editor-only scenes; character and GUI previews are smaller standalone Phaser apps.
 
-### Content scaffolding (create room, prop, character)
+### Content scaffolding (create room, prop, character, GUI)
 
-The extension can **generate files** under **`src/game/`** so new content matches engine expectations. Implementation lives in **`benne-editor/src/roomScaffolding.ts`** and **`benne-editor/src/characterScaffolding.ts`**; commands are registered in **`extension.ts`** and **`package.json`** (**`benne-editor.createRoom`**, **`benne-editor.addRoomProp`**, **`benne-editor.importPropsFromAsepriteTags`**, **`benne-editor.createCharacter`**, **`benne-editor.importAnimationsFromAsepriteTags`**).
+The extension can **generate files** under **`src/game/`** so new content matches engine expectations. Implementation lives in **`benne-editor/src/roomScaffolding.ts`**, **`benne-editor/src/characterScaffolding.ts`**, and **`benne-editor/src/guiScaffolding.ts`**; commands are registered in **`extension.ts`** and **`package.json`** (**`benne-editor.createRoom`**, **`benne-editor.addRoomProp`**, **`benne-editor.importPropsFromAsepriteTags`**, **`benne-editor.createCharacter`**, **`benne-editor.importAnimationsFromAsepriteTags`**, **`benne-editor.createGui`**).
 
 | Action | What it does |
 |--------|----------------|
@@ -303,8 +308,9 @@ The extension can **generate files** under **`src/game/`** so new content matche
 | **Import Props from Aseprite Tags** | **`runImportPropsFromAsepriteTags`**: resolves room (tree or picker); reads **`meta.frameTags`** from **`src/game/assets/images/rooms/<roomId>/<roomId>.json`**. Multi-select quick pick (existing tags labeled); optional **clickable** for the whole batch; unique **`${roomId}-prop-…`** ids via **`allocateUniquePropId`**. Same post-step layout + **`openRoomJsonAndScriptBottomGroup`** as **Add Prop**. |
 | **Create Character** | **`runCreateCharacterWizard`**: folder pick, **display name**, **character id** (slug); creates **`src/game/characters/<id>/`**, **`<id>.character.json`** (minimal fields incl. **`display.aseprite: true`**), **`<id>.character.ts`** stub exporting **`registerCharacterScript`** with **`import type { CharacterVerbInteractPayload } from '@engine/events/propInteractionEvents'`** (and **`EventBus`**) so verb stubs type-check, and **`src/game/assets/images/characters/<id>/`**. **`registerGameContent`** eagerly loads all **`./characters/**/*.character.ts`**. Opens JSON + TS. |
 | **Import Animations from Aseprite Tags** | **`runImportAnimationsFromAsepriteTags`**: requires **`display.aseprite: true`**; resolves character (tree or picker); reads **`meta.frameTags`** from **`src/game/assets/images/characters/<id>/<id>.json`**. Multi-select quick pick (keys already in **`animations`** labeled). New clips use **`{ "loop": true }`** per **`CharacterAnimationClipConfig`** (`src/types/character.ts` — keys **must match** Aseprite tag names). Merges into **`animations`**; then **two-row** layout + **`openCharacterJsonAndScriptBottomGroup`** (character preview on top when a character is selected in the tree). |
+| **Create GUI** | **`runCreateGuiWizard`**: folder pick, **display name**, **GUI id** (slug); creates **`src/game/guis/<id>/`**, **`<id>.gui.json`** (minimal **`GuiData`**, **`display.aseprite: true`**), **`<id>.gui.ts`** stub exporting **`registerGuiScript`**, and **`src/game/assets/images/guis/<id>/`**. Opens JSON + TS via **`openGuiJsonAndScriptBottomGroup`**. |
 
-**UI entry points**: BENNE **main tree** view title (**Create New Room**, **Create Character**), context menus on **Rooms** / **workspace** / **room** / **hotspot** / **point** / **region** / **prop** / **character** nodes (see **`package.json`** **`menus`** — includes **Add Hotspot** / **Add Point** / **Add Region** on **room** and those child types). Under each **room** node, the tree lists **hotspots**, **points**, **regions**, then **props** (distinct icons: e.g. **map** / **target** / **layout-panel** / **symbol-misc**); **`mainTreeProvider.ts`** reads **`hotspots`**, **`points`**, and **`regions`** from JSON via **`readRoomHotspots`**, **`readRoomPoints`**, and **`readRoomRegions`** in **`gameDiscovery.ts`**. **Actions** tree when a **room** is focused: **Add Hotspot**, **Add Point**, **Add Region**, **Add Prop**, **Import Props from Aseprite Tags**, then room-open shortcuts; **prop**-focused actions still prepend the same scaffold commands and append prop verb rows (**`actionsTreeProvider.ts`**). Tree selection for **hotspot** / **point** / **region** updates **`EditorSelection.roomPanel`** (**`editorSelection.ts`**) so the preview toolbar matches. Commands **`benne-editor.addRoomHotspot`**, **`addRoomPoint`**, **`addRoomRegion`** are registered in **`extension.ts`** / **`package.json`**. **`validateSlug`** / **`pickWorkspaceFolder`** are shared helpers (**`roomScaffolding.ts`**).
+**UI entry points**: BENNE **main tree** view title (**Create New Room**, **Create Character**, **Create GUI**, rebuild preview bundles), context menus on **Rooms** / **GUIs** / **workspace** / **room** / **hotspot** / **point** / **region** / **prop** / **character** nodes (see **`package.json`** **`menus`** — includes **Add Hotspot** / **Add Point** / **Add Region** on **room** and those child types). Under each **room** node, the tree lists **hotspots**, **points**, **regions**, then **props** (distinct icons: e.g. **map** / **target** / **layout-panel** / **symbol-misc**); **`mainTreeProvider.ts`** reads **`hotspots`**, **`points`**, and **`regions`** from JSON via **`readRoomHotspots`**, **`readRoomPoints`**, and **`readRoomRegions`** in **`gameDiscovery.ts`**. **Actions** tree when a **room** is focused: **Add Hotspot**, **Add Point**, **Add Region**, **Add Prop**, **Import Props from Aseprite Tags**, then room-open shortcuts; **prop**-focused actions still prepend the same scaffold commands and append prop verb rows (**`actionsTreeProvider.ts`**). Tree selection for **hotspot** / **point** / **region** updates **`EditorSelection.roomPanel`** (**`editorSelection.ts`**) so the preview toolbar matches. Commands **`benne-editor.addRoomHotspot`**, **`addRoomPoint`**, **`addRoomRegion`** are registered in **`extension.ts`** / **`package.json`**. **`validateSlug`** / **`pickWorkspaceFolder`** are shared helpers (**`roomScaffolding.ts`**).
 
 ### Preview runtime (`src/editor/preview/`)
 
@@ -320,6 +326,9 @@ The extension can **generate files** under **`src/game/`** so new content matche
 | **`characterEditorMain.ts`** | Character preview webview: loads **`benne/charPreview/loadCharacter`** (JSON + **`gameSrcWebviewUri`** + **`characterId`**), **`createCharacterPreviewPhaserGame`**, toolbar **Feet** / **Collider** modes, **`Save feet`** → **`benne/charPreview/saveFeet`**, **`Save collider`** → **`benne/charPreview/saveCollider`**; **`pickCharacterPreviewIdleTag`** prefers **`IdleD`** then other **`Idle*`** tags. |
 | **`createCharacterPreviewGame.ts`** | **`Phaser.Game`** (**`Scale.RESIZE`**) with boot loader + **`CharacterPreviewScene`**: Aseprite idle, draggable feet marker, and **`PreviewPolygonOverlay`** for **collider** editing (aligned with **`RoomPolygonEditScene`** prop workflow: vertex place/drag, double-click edge, Delete, middle pan, wheel zoom). |
 | **`characterPreviewPanel.ts`** (extension) | **`CharacterPreviewPanelController`**: webview **`benneCharacterPreview`**, **`applyCharacterFeetPatch`** (**`characterFeetPatch.ts`**) and **`applyCharacterColliderPatch`** (**`characterColliderPatch.ts`**). Rebuild via **`npm run build:character-preview`** (**`benne-editor.rebuildCharacterPreview`**). |
+| **`guiEditorMain.ts`** | GUI preview webview: **`benne/guiPreview/loadGui`** / **`clear`** / **`ready`**; loads sheet via **`guiAseprite`** paths; **`pickCharacterPreviewIdleTag`** (or first tag) for a default animation; letterboxed Phaser canvas at **`game-config.json`** **`resolution`**. |
+| **`createGuiPreviewGame.ts`** | **`Phaser.Game`** with **`Scale.FIT`** at internal width/height; boot scene loads Aseprite; main scene centers sprite and plays the chosen tag. |
+| **`guiPreviewPanel.ts`** (extension) | **`GuiPreviewPanelController`**: webview **`benneGuiPreview`**. Rebuild via **`npm run build:gui-preview`** (**`benne-editor.rebuildGuiPreview`**). |
 
 ### High-DPI editor overlay
 
@@ -338,6 +347,8 @@ The editor preview uses **`Scale.RESIZE`** (not `Scale.FIT`) so the Phaser canva
 | **`benne/preview/polygonPatchResult`** (host → webview) | **`ok`**, optional **`message`**; when **`ok`**, **`appliedPatch`** mirrors what was written (including **`walkable.holeId`** when applicable); webview applies it to registry **`RoomData`** — **no** follow-up **`pushPreview`** on save. |
 
 **Character preview** (same extension, separate panel): **`benne/charPreview/ready`** → host **`loadCharacter`**; **`benne/charPreview/saveFeet`** / **`saveCollider`** → **`characterFeetPatch.ts`** / **`characterColliderPatch.ts`**; **`benne/charPreview/feetSaveResult`** / **`colliderSaveResult`**; **`benne/charPreview/requestRefresh`** re-pushes JSON from the host (unsaved-buffer-aware like room JSON).
+
+**GUI preview**: **`benne/guiPreview/ready`** → host **`loadGui`** (**`gui`**, **`guiId`**, **`gameSrcWebviewUri`**, **`guiJsonUri`**); **`benne/guiPreview/clear`** when focus leaves a GUI.
 
 **Persistence**: **`benne-editor/src/roomPolygonPatch.ts`** — **`applyRoomPolygonPatch`** merges into `*.room.json`, rounds `Point2` to integers; supports **`walkable`** (outer or `holeId`), **`propCollider`**, **`hotspotPolygon`**, **`regionPolygon`**, **`roomPoint`** (`x`/`y`), **`roomSize`** (`width`/`height`), and **`scrollBounds`** (`x`/`y`/`width`/`height`). **`parseRoomPolygonPatch`** validates all payloads from the webview.
 

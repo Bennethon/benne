@@ -43,4 +43,12 @@ export function registerGameContent(): void {
   for (const mod of Object.values(characterScriptModules)) {
     mod.registerCharacterScript?.(gameEvents);
   }
+
+  const guiScriptModules = import.meta.glob<{
+    registerGuiScript?: (events: EventBus) => void;
+  }>('./guis/**/*.gui.ts', { eager: true });
+
+  for (const mod of Object.values(guiScriptModules)) {
+    mod.registerGuiScript?.(gameEvents);
+  }
 }

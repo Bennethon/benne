@@ -2,7 +2,9 @@ import * as vscode from 'vscode';
 import {
     characterAsepriteSheetFilesComplete,
     findBenneGameFolders,
+    guiAsepriteSheetFilesComplete,
     listCharacterDefinitions,
+    listGuiDefinitions,
     listRoomDefinitions,
     propAsepriteAssetTooltip,
     readCharacterUsesAsepriteDisplay,
@@ -10,6 +12,7 @@ import {
     readRoomCharacters,
     readRoomPoints,
     readRoomProps,
+    readGuiUsesAsepriteDisplay,
     readRoomRegions,
     resolveRoomAsepriteSheetForProps,
     roomAsepriteSheetFilesComplete,
@@ -21,6 +24,7 @@ export type MainTreeNode =
     | { kind: 'workspace'; folder: vscode.WorkspaceFolder }
     | { kind: 'roomsGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'charsGroup'; folder: vscode.WorkspaceFolder }
+    | { kind: 'guisGroup'; folder: vscode.WorkspaceFolder }
     | {
           kind: 'room';
           folder: vscode.WorkspaceFolder;
@@ -92,6 +96,15 @@ export type MainTreeNode =
           uri: vscode.Uri;
           /** `display.aseprite` is true but PNG/JSON export is missing under assets. */
           characterSheetIncomplete?: boolean;
+      }
+    | {
+          kind: 'gui';
+          folder: vscode.WorkspaceFolder;
+          id: string;
+          name: string;
+          uri: vscode.Uri;
+          /** `display.aseprite` is true but PNG/JSON export is missing under assets. */
+          guiSheetIncomplete?: boolean;
       };
 
 const warningIcon = new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.warningForeground'));
@@ -130,6 +143,13 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.id = `charsGroup:${element.folder.uri.toString()}`;
                 item.iconPath = new vscode.ThemeIcon('person');
                 item.contextValue = 'benneCharsGroup';
+                return item;
+            }
+            case 'guisGroup': {
+                const item = new vscode.TreeItem('GUIs', vscode.TreeItemCollapsibleState.Expanded);
+                item.id = `guisGroup:${element.folder.uri.toString()}`;
+                item.iconPath = new vscode.ThemeIcon('window');
+                item.contextValue = 'benneGuisGroup';
                 return item;
             }
             case 'room': {
@@ -232,6 +252,19 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.contextValue = 'benneCharacter';
                 return item;
             }
+            case 'gui': {
+                const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
+                item.id = `gui:${element.uri.toString()}`;
+                item.resourceUri = element.uri;
+                if (element.guiSheetIncomplete) {
+                    item.iconPath = warningIcon;
+                    item.tooltip = `Missing GUI Aseprite export: src/game/assets/images/guis/${element.id}/${element.id}.png and ${element.id}.json`;
+                } else {
+                    item.iconPath = new vscode.ThemeIcon('window');
+                }
+                item.contextValue = 'benneGui';
+                return item;
+            }
         }
     }
 
@@ -252,7 +285,8 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 const f = gameFolders[0];
                 return [
                     { kind: 'roomsGroup', folder: f },
-                    { kind: 'charsGroup', folder: f }
+                    { kind: 'charsGroup', folder: f },
+                    { kind: 'guisGroup', folder: f }
                 ];
             }
             return gameFolders.map((folder) => ({ kind: 'workspace', folder }));
@@ -261,7 +295,8 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
         if (element.kind === 'workspace') {
             return [
                 { kind: 'roomsGroup', folder: element.folder },
-                { kind: 'charsGroup', folder: element.folder }
+                { kind: 'charsGroup', folder: element.folder },
+                { kind: 'guisGroup', folder: element.folder }
             ];
         }
 
@@ -448,6 +483,30 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                         name: c.name,
                         uri: c.uri,
                         characterSheetIncomplete: usesAseprite && !sheetOk
+                    };
+                })
+            );
+        }
+
+        if (element.kind === 'guisGroup') {
+            const guis = await listGuiDefinitions(element.folder);
+            if (guis.length === 0) {
+                return [{ kind: 'hint', key: `no-guis:${element.folder.uri}`, message: '(no GUIs found)' }];
+            }
+            const gameRoot = element.folder.uri;
+            return Promise.all(
+                guis.map(async (g) => {
+                    const usesAseprite = await readGuiUsesAsepriteDisplay(g.uri);
+                    const sheetOk = usesAseprite
+                        ? await guiAsepriteSheetFilesComplete(gameRoot, g.id)
+                        : true;
+                    return {
+                        kind: 'gui' as const,
+                        folder: element.folder,
+                        id: g.id,
+                        name: g.name,
+                        uri: g.uri,
+                        guiSheetIncomplete: usesAseprite && !sheetOk
                     };
                 })
             );
