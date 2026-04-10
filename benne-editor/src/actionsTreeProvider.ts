@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
 import {
     DEFAULT_GAME_VERBS,
+    getGuiIdFromGuiJsonUri,
     getRoomIdFromRoomJsonUri,
     readCharacterHooks,
     readGameConfigVerbs,
@@ -163,7 +164,9 @@ export type ActionTreeNode =
     | { kind: 'charOpen'; label: string; characterJsonUri: vscode.Uri }
     | { kind: 'importCharAnimationsFromAseprite' }
     | { kind: 'rebuildRoomPreviewBundle' }
-    | { kind: 'rebuildCharacterPreviewBundle' };
+    | { kind: 'rebuildCharacterPreviewBundle' }
+    | { kind: 'rebuildGuiPreviewBundle' }
+    | { kind: 'guiOpen'; label: string; targetUri: vscode.Uri };
 
 export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNode> {
     private readonly _onDidChangeTreeData = new vscode.EventEmitter<ActionTreeNode | undefined | void>();
@@ -508,6 +511,34 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 };
                 return item;
             }
+            case 'rebuildGuiPreviewBundle': {
+                const item = new vscode.TreeItem(
+                    'Rebuild GUI preview bundle',
+                    vscode.TreeItemCollapsibleState.None
+                );
+                item.id = 'action:rebuildGuiPreviewBundle';
+                item.iconPath = new vscode.ThemeIcon('sync');
+                item.contextValue = 'benneActionRebuildGuiPreview';
+                item.description = 'npm run build:gui-preview';
+                item.command = {
+                    command: 'benne-editor.rebuildGuiPreview',
+                    title: 'Rebuild GUI preview bundle',
+                    arguments: []
+                };
+                return item;
+            }
+            case 'guiOpen': {
+                const item = new vscode.TreeItem(element.label, vscode.TreeItemCollapsibleState.None);
+                item.id = `gui-open:${element.targetUri.toString()}`;
+                item.iconPath = new vscode.ThemeIcon('window');
+                item.contextValue = 'benneActionGui';
+                item.command = {
+                    command: 'benne-editor.openUriPreview',
+                    title: element.label,
+                    arguments: [element.targetUri.toString()]
+                };
+                return item;
+            }
         }
     }
 
@@ -613,12 +644,26 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             ];
         }
 
+        if (main.kind === 'gui') {
+            return this.guiActionNodes(main.uri);
+        }
+
         return [
             { kind: 'rebuildRoomPreviewBundle' },
             {
                 kind: 'hint',
-                message: 'Select a room, character, prop, hotspot, or room character in BENNE'
+                message: 'Select a room, character, GUI, prop, hotspot, or room character in BENNE'
             }
+        ];
+    }
+
+    private guiActionNodes(guiJsonUri: vscode.Uri): ActionTreeNode[] {
+        const guiId = getGuiIdFromGuiJsonUri(guiJsonUri);
+        const scriptUri = vscode.Uri.joinPath(guiJsonUri, '..', `${guiId}.gui.ts`);
+        return [
+            { kind: 'rebuildGuiPreviewBundle' },
+            { kind: 'guiOpen', label: 'Open GUI JSON', targetUri: guiJsonUri },
+            { kind: 'guiOpen', label: 'Open GUI script', targetUri: scriptUri }
         ];
     }
 

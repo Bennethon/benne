@@ -26,6 +26,9 @@ export function roomPreviewBuildHintUri(selection: EditorSelection): vscode.Uri 
     if (main.kind === 'character') {
         return main.uri;
     }
+    if (main.kind === 'gui') {
+        return main.uri;
+    }
     return undefined;
 }
 
@@ -54,7 +57,7 @@ export async function resolveGameFolderForRoomPreviewBuild(
 
 async function readPackageNpmScript(
     gameRoot: vscode.Uri,
-    scriptName: 'build:room-preview' | 'build:character-preview',
+    scriptName: 'build:room-preview' | 'build:character-preview' | 'build:gui-preview',
 ): Promise<string | undefined> {
     const pkgUri = vscode.Uri.joinPath(gameRoot, 'package.json');
     try {
@@ -188,6 +191,70 @@ export async function runCharacterPreviewBuild(
     if (exitCode !== 0) {
         void vscode.window.showErrorMessage(
             'Character preview rebuild failed (non-zero exit). See the "BENNE room preview build" output channel.',
+        );
+        return false;
+    }
+    return true;
+}
+
+export async function runGuiPreviewBuild(
+    gameFolder: vscode.WorkspaceFolder,
+    channel: vscode.OutputChannel,
+    opts?: { title?: string },
+): Promise<boolean> {
+    const cwd = gameFolder.uri.fsPath;
+    const script = await readPackageNpmScript(gameFolder.uri, 'build:gui-preview');
+    if (!script) {
+        void vscode.window.showErrorMessage(
+            'No npm script "build:gui-preview" in this folder\'s package.json.',
+        );
+        return false;
+    }
+
+    const title = opts?.title ?? 'Rebuilding GUI preview bundle';
+
+    const exitCode = await vscode.window.withProgress(
+        {
+            location: vscode.ProgressLocation.Notification,
+            title,
+            cancellable: false,
+        },
+        () =>
+            new Promise<number>((resolve) => {
+                channel.show(true);
+                channel.appendLine('');
+                channel.appendLine(`$ npm run build:gui-preview`);
+                channel.appendLine(`  (cwd: ${cwd})`);
+
+                const proc = spawn('npm', ['run', 'build:gui-preview'], {
+                    cwd,
+                    shell: true,
+                    env: process.env,
+                });
+
+                proc.stdout?.on('data', (d: Buffer) => {
+                    const s = d.toString();
+                    if (s.trim()) {
+                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
+                    }
+                });
+                proc.stderr?.on('data', (d: Buffer) => {
+                    const s = d.toString();
+                    if (s.trim()) {
+                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
+                    }
+                });
+                proc.on('error', (e) => {
+                    channel.appendLine(e instanceof Error ? e.message : String(e));
+                    resolve(1);
+                });
+                proc.on('close', (code) => resolve(code ?? 1));
+            }),
+    );
+
+    if (exitCode !== 0) {
+        void vscode.window.showErrorMessage(
+            'GUI preview rebuild failed (non-zero exit). See the "BENNE room preview build" output channel.',
         );
         return false;
     }

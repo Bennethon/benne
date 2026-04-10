@@ -22,9 +22,11 @@
     "onCommand:benne-editor.addRoomPoint",
     "onCommand:benne-editor.addRoomRegion",
     "onCommand:benne-editor.createCharacter",
+    "onCommand:benne-editor.createGui",
     "onCommand:benne-editor.importAnimationsFromAsepriteTags",
     "onCommand:benne-editor.rebuildRoomPreview",
     "onCommand:benne-editor.rebuildCharacterPreview",
+    "onCommand:benne-editor.rebuildGuiPreview",
     "onCommand:benne-editor.addPropVerbEvent",
     "onCommand:benne-editor.makePropClickable",
     "onCommand:benne-editor.addHotspotVerbEvent",
@@ -170,6 +172,12 @@
         "icon": "$(person-add)"
       },
       {
+        "command": "benne-editor.createGui",
+        "title": "Create GUI",
+        "category": "BENNE",
+        "icon": "$(window)"
+      },
+      {
         "command": "benne-editor.importAnimationsFromAsepriteTags",
         "title": "Import Animations from Aseprite Tags",
         "category": "BENNE",
@@ -184,6 +192,12 @@
       {
         "command": "benne-editor.rebuildCharacterPreview",
         "title": "Rebuild Character Preview Bundle",
+        "category": "BENNE",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "benne-editor.rebuildGuiPreview",
+        "title": "Rebuild GUI Preview Bundle",
         "category": "BENNE",
         "icon": "$(sync)"
       }
@@ -228,14 +242,29 @@
           "group": "navigation@2"
         },
         {
-          "command": "benne-editor.rebuildCharacterPreview",
+          "command": "benne-editor.createGui",
           "when": "view == benne-editor.main",
           "group": "navigation@3"
         },
         {
           "command": "benne-editor.rebuildCharacterPreview",
+          "when": "view == benne-editor.main",
+          "group": "navigation@4"
+        },
+        {
+          "command": "benne-editor.rebuildGuiPreview",
+          "when": "view == benne-editor.main",
+          "group": "navigation@5"
+        },
+        {
+          "command": "benne-editor.rebuildCharacterPreview",
           "when": "view == benne-editor.actions",
           "group": "navigation@3"
+        },
+        {
+          "command": "benne-editor.rebuildGuiPreview",
+          "when": "view == benne-editor.actions",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [
@@ -256,6 +285,16 @@
         },
         {
           "command": "benne-editor.createCharacter",
+          "when": "view == benne-editor.main && viewItem == benneWorkspace",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.createGui",
+          "when": "view == benne-editor.main && viewItem == benneGuisGroup",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.createGui",
           "when": "view == benne-editor.main && viewItem == benneWorkspace",
           "group": "benne@1"
         },
@@ -316,6 +355,7 @@
     "vscode:prepublish": "npm run package",
     "build:room-preview": "npm --prefix .. run build:room-preview",
     "build:character-preview": "npm --prefix .. run build:character-preview",
+    "build:gui-preview": "npm --prefix .. run build:gui-preview",
     "compile": "webpack",
     "watch": "webpack --watch",
     "package": "webpack --mode production --devtool hidden-source-map",

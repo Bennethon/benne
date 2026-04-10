@@ -1,0 +1,8 @@
+{
+  "id": "dialog-text",
+  "name": "Dialog Text",
+  "description": "",
+  "display": {
+    "aseprite": true
+  }
+}

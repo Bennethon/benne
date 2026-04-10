@@ -4,7 +4,8 @@ import type { RoomPropEntry } from './gameDiscovery';
 export type EditorFocus =
     | { kind: 'none' }
     | { kind: 'room'; uri: vscode.Uri; label: string }
-    | { kind: 'character'; uri: vscode.Uri; label: string };
+    | { kind: 'character'; uri: vscode.Uri; label: string }
+    | { kind: 'gui'; uri: vscode.Uri; label: string };
 
 /** Prop selected under a room in the BENNE tree (drives Actions). */
 export type RoomPanelFocus =
@@ -102,6 +103,12 @@ export class EditorSelection {
 
     setCharacter(uri: vscode.Uri, label: string): void {
         this._main = { kind: 'character', uri, label };
+        this._roomPanel = { kind: 'none' };
+        this._onDidChange.fire();
+    }
+
+    setGui(uri: vscode.Uri, label: string): void {
+        this._main = { kind: 'gui', uri, label };
         this._roomPanel = { kind: 'none' };
         this._onDidChange.fire();
     }

@@ -13,7 +13,12 @@ const inventoryJsonModules = import.meta.glob('./assets/images/inventory/**/*.js
   eager: true,
 }) as Record<string, { default?: Record<string, unknown> } | Record<string, unknown>>;
 
-export type AsepriteAssetSheetKind = 'character' | 'room' | 'inventory';
+/** GUI overlay sheets: `images/guis/<id>/<id>.json` + `.png`. */
+const guiJsonModules = import.meta.glob('./assets/images/guis/**/*.json', {
+  eager: true,
+}) as Record<string, { default?: Record<string, unknown> } | Record<string, unknown>>;
+
+export type AsepriteAssetSheetKind = 'character' | 'room' | 'inventory' | 'gui';
 
 function rawJsonFromModule(mod: { default?: Record<string, unknown> } | Record<string, unknown>): Record<string, unknown> {
   if (mod && typeof mod === 'object' && 'default' in mod && mod.default && typeof mod.default === 'object') {
@@ -30,6 +35,8 @@ function bundledAsepriteJsonKey(kind: AsepriteAssetSheetKind, id: string): strin
       return `./assets/images/rooms/${id}/${id}.json`;
     case 'inventory':
       return `./assets/images/inventory/${id}/${id}.json`;
+    case 'gui':
+      return `./assets/images/guis/${id}/${id}.json`;
   }
 }
 
@@ -41,6 +48,8 @@ function moduleMapForKind(kind: AsepriteAssetSheetKind): Record<string, { defaul
       return roomJsonModules;
     case 'inventory':
       return inventoryJsonModules;
+    case 'gui':
+      return guiJsonModules;
   }
 }
 
@@ -52,6 +61,8 @@ function kindLabel(kind: AsepriteAssetSheetKind): string {
       return 'room';
     case 'inventory':
       return 'inventory';
+    case 'gui':
+      return 'gui';
   }
 }
 
@@ -84,7 +95,7 @@ export function readAsepriteFrameTagNamesFromRawJson(raw: Record<string, unknown
 }
 
 /**
- * Frame-tag names for a bundled character, room, or inventory Aseprite sheet (`images/<kind folder>/<id>/<id>.json`).
+ * Frame-tag names for a bundled character, room, inventory, or GUI Aseprite sheet (`images/<kind folder>/<id>/<id>.json`).
  */
 export function getAsepriteFrameTagNames(kind: AsepriteAssetSheetKind, id: string): readonly string[] {
   const raw = getBundledAsepriteRawJson(kind, id);
@@ -104,6 +115,11 @@ export function getRoomAsepriteFrameTagNames(roomId: string): readonly string[] 
 /** @see getAsepriteFrameTagNames */
 export function getInventoryAsepriteFrameTagNames(inventoryId: string): readonly string[] {
   return getAsepriteFrameTagNames('inventory', inventoryId);
+}
+
+/** @see getAsepriteFrameTagNames */
+export function getGuiAsepriteFrameTagNames(guiId: string): readonly string[] {
+  return getAsepriteFrameTagNames('gui', guiId);
 }
 
 /**
@@ -150,4 +166,11 @@ export function getNormalizedRoomAsepriteAtlasData(roomId: string): Record<strin
  */
 export function getNormalizedInventoryAsepriteAtlasData(inventoryId: string): Record<string, unknown> {
   return normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('inventory', inventoryId)) as Record<string, unknown>;
+}
+
+/**
+ * Loads bundled Aseprite JSON for `images/guis/<id>/<id>.json` (same normalization as characters).
+ */
+export function getNormalizedGuiAsepriteAtlasData(guiId: string): Record<string, unknown> {
+  return normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('gui', guiId)) as Record<string, unknown>;
 }

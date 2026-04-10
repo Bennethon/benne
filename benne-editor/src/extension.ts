@@ -3,6 +3,7 @@ import { ActionsTreeProvider } from './actionsTreeProvider';
 import { EditorSelection } from './editorSelection';
 import { MainTreeProvider, type MainTreeNode } from './mainTreeProvider';
 import { runCreateCharacterWizard, runImportAnimationsFromAsepriteTags } from './characterScaffolding';
+import { runCreateGuiWizard } from './guiScaffolding';
 import {
     runAddRoomHotspotWizard,
     runAddRoomPointWizard,
@@ -12,12 +13,14 @@ import {
     runImportPropsFromAsepriteTags
 } from './roomScaffolding';
 import { CharacterPreviewPanelController } from './characterPreviewPanel';
+import { GuiPreviewPanelController } from './guiPreviewPanel';
 import { RoomPreviewPanelController } from './roomPreviewPanel';
 import {
     getRoomPreviewBuildOutputChannel,
     resolveGameFolderForRoomPreviewBuild,
     roomPreviewBuildHintUri,
     runCharacterPreviewBuild,
+    runGuiPreviewBuild,
     runRoomPreviewBuild
 } from './roomPreviewBuild';
 import { addCharacterVerbEvent, makeCharacterClickable } from './characterVerbScaffolding';
@@ -33,6 +36,7 @@ import { revealRoomJsonElement } from './roomJsonReveal';
 import {
     BENNE_SCRIPT_VIEW_COLUMN,
     openCharacterJsonAndScriptBottomGroup,
+    openGuiJsonAndScriptBottomGroup,
     openDocumentPinned,
     openDocumentUri,
     openRoomJsonAndScriptBottomGroup,
@@ -63,6 +67,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const roomPreview = new RoomPreviewPanelController(context.extensionUri, selection);
     const characterPreview = new CharacterPreviewPanelController(context.extensionUri, selection);
+    const guiPreview = new GuiPreviewPanelController(context.extensionUri, selection);
 
     let gameConfigRebuildTimer: ReturnType<typeof setTimeout> | undefined;
     let pendingGameConfigUri: vscode.Uri | undefined;
@@ -112,6 +117,7 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         roomPreview,
         characterPreview,
+        guiPreview,
         mainTreeView,
         actionsTreeView,
         selection,
@@ -123,6 +129,7 @@ export function activate(context: vscode.ExtensionContext): void {
     async function resetBenneEditorSurface(): Promise<void> {
         roomPreview.resetPreviewPanel();
         characterPreview.resetPreviewPanel();
+        guiPreview.resetPreviewPanel();
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
     }
 
@@ -273,6 +280,11 @@ export function activate(context: vscode.ExtensionContext): void {
             await applyBenneTwoRowJsonScriptLayout();
             selection.setCharacter(node.uri, node.name);
             await openCharacterJsonAndScript(node.uri, node.id);
+        } else if (node.kind === 'gui') {
+            await resetBenneEditorSurface();
+            await applyBenneTwoRowJsonScriptLayout();
+            selection.setGui(node.uri, node.name);
+            await openGuiJsonAndScript(node.uri, node.id);
         }
     }
 
@@ -299,6 +311,16 @@ export function activate(context: vscode.ExtensionContext): void {
                 const preferredFolder =
                     node?.kind === 'charsGroup' || node?.kind === 'workspace' ? node.folder : undefined;
                 await runCreateCharacterWizard(preferredFolder);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.createGui',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                const preferredFolder =
+                    node?.kind === 'guisGroup' || node?.kind === 'workspace' ? node.folder : undefined;
+                await runCreateGuiWizard(preferredFolder);
                 refreshTrees();
             }
         ),
@@ -378,6 +400,21 @@ export function activate(context: vscode.ExtensionContext): void {
             if (ok) {
                 characterPreview.reloadCharacterPreviewBundle();
                 void vscode.window.showInformationMessage('Character preview bundle rebuilt.');
+            }
+        }),
+        vscode.commands.registerCommand('benne-editor.rebuildGuiPreview', async () => {
+            const ch = getRoomPreviewBuildOutputChannel();
+            const folder = await resolveGameFolderForRoomPreviewBuild(roomPreviewBuildHintUri(selection));
+            if (!folder) {
+                void vscode.window.showErrorMessage(
+                    'No BENNE game in the workspace (need a folder with src/game and npm script build:gui-preview).'
+                );
+                return;
+            }
+            const ok = await runGuiPreviewBuild(folder, ch);
+            if (ok) {
+                guiPreview.reloadGuiPreviewBundle();
+                void vscode.window.showInformationMessage('GUI preview bundle rebuilt.');
             }
         }),
         vscode.commands.registerCommand(
@@ -601,6 +638,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const characterSheetAssetWatcher = vscode.workspace.createFileSystemWatcher(
         '**/src/game/assets/images/characters/**'
     );
+    const guiSheetAssetWatcher = vscode.workspace.createFileSystemWatcher(
+        '**/src/game/assets/images/guis/**'
+    );
     context.subscriptions.push(
         jsonWatcher,
         jsonWatcher.onDidChange((uri) => {
@@ -619,7 +659,11 @@ export function activate(context: vscode.ExtensionContext): void {
         characterSheetAssetWatcher,
         characterSheetAssetWatcher.onDidChange(refreshTrees),
         characterSheetAssetWatcher.onDidCreate(refreshTrees),
-        characterSheetAssetWatcher.onDidDelete(refreshTrees)
+        characterSheetAssetWatcher.onDidDelete(refreshTrees),
+        guiSheetAssetWatcher,
+        guiSheetAssetWatcher.onDidChange(refreshTrees),
+        guiSheetAssetWatcher.onDidCreate(refreshTrees),
+        guiSheetAssetWatcher.onDidDelete(refreshTrees)
     );
 
     context.subscriptions.push(
@@ -730,4 +774,8 @@ async function openRoomJsonAndScript(roomJsonUri: vscode.Uri, roomId: string): P
 
 async function openCharacterJsonAndScript(characterJsonUri: vscode.Uri, characterId: string): Promise<void> {
     await openCharacterJsonAndScriptBottomGroup(characterJsonUri, characterId);
+}
+
+async function openGuiJsonAndScript(guiJsonUri: vscode.Uri, guiId: string): Promise<void> {
+    await openGuiJsonAndScriptBottomGroup(guiJsonUri, guiId);
 }
