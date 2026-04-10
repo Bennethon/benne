@@ -4,7 +4,7 @@ import type { BenneScript } from './BenneScript.js';
 export interface RoomScriptContext {
   /**
    * Main authoring facade (`whenLookAt`, `B.player.walkTo`, …).
-   * String ids for props, characters, and `walkTo` targets are documented in the **module comment** at the top of `BenneScript.ts`.
+   * String ids for verb sugar (prop → hotspot → character), `walkTo`, and prop-only helpers are documented in the **module comment** at the top of `BenneScript.ts`.
    */
   readonly B: BenneScript;
 

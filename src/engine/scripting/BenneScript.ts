@@ -2,11 +2,16 @@ import * as Phaser from 'phaser';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { Point2 } from '../../types/room.js';
 import { getGameSettings } from '../ConfigManager.js';
-import type { RoomPropInteractPayload, CharacterVerbInteractPayload } from '../events/propInteractionEvents.js';
+import type {
+  CharacterVerbInteractPayload,
+  RoomHotspotInteractPayload,
+  RoomPropInteractPayload,
+} from '../events/propInteractionEvents.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
   characterVerbEventId,
   roomCharacterVerbEventId,
+  roomHotspotVerbEventId,
   roomPropVerbEventId,
 } from '../events/verbInteractionEvents.js';
 import { playDirectionalAnimation, type DirectionalCharacterSprite } from '../directionalCharacterAnimation.js';
@@ -19,15 +24,15 @@ import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
  *
  * | Kind | Where it comes from |
  * |------|---------------------|
- * | **`whenLookAt` / `whenUse` / `whenPickUp` / … / `onProp` / `B.prop(id)`** | **`props[].id`** (the prop’s `id` field). Hotspots are **not** registered through these helpers — subscribe with `B.raw.on` and `roomHotspotVerbEventId` if needed. |
- * | **`whenTalkTo` / `B.character(id)`** | **`CharacterData.id`** of a character **placed in this room** (`characters[].definition` → that JSON’s `id`). |
- * | **`whenGive(itemId, targetId, …)`** | **`itemId`**: inventory item id (future). **`targetId`**: **`props[].id`** of the prop that receives the give verb. |
- * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | **Unified target string** (first match wins): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (character in room) → **`points[].id`**. Or pass **`{ x, y }`** in **room pixels**. **`walkTo`** queues after prior steps; **`walkTo.now`** starts immediately without blocking the queue. **`say.now`**, **`face.now`**, **`playAnimation.now`**, **`B.wait.now`** behave the same. |
+ * | **`whenLookAt`**, **`whenUse`**, **`whenTalkTo`**, **`whenPickUp`**, **`whenPush`**, **`whenPull`**, **`whenOpen`**, **`whenClose`**, **`whenVerb`** | One **`targetId`** per room: **prop** (`props[].id`) → **hotspot** (`hotspots[].id`) → **character** (`CharacterData.id` spawned here, including the player). Optional **`(p: any)`** payload — shape depends on which kind matched; see **`registerVerbForTarget`**. |
+ * | **`whenGive`** | **`targetId`** is the receiving **prop** only (`props[].id`; inventory **`itemId`** is separate). |
+ * | **`onProp`**, **`B.prop(id)`** | **`props[].id`** only (explicit prop wiring). |
+ * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | **Unified target string** (first match): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** → **`points[].id`**, or **`{ x, y }`** in **room pixels**. **`walkTo`** queues; **`walkTo.now`** and **`say.now`**, **`face.now`**, **`playAnimation.now`**, **`B.wait.now`** can run without blocking the queue. |
  * | **`playAnimation(tag)`** | Aseprite **frame tag** on the character sheet (e.g. `'Idle'`, `'WalkL'`). |
  * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
- * | **`whenVerb(verbId, propId, …)`** | **`verbId`**: exact id from **`game-config.json`** `verbs[]`. **`propId`**: **`props[].id`**. |
+ * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
  *
- * Sugar verbs (`whenLookAt`, `whenUse`, …) map to config verbs by alias (e.g. look → `look` or `examine`); see **`VERB_ALIAS_CANDIDATES`** in this file.
+ * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in this file. **`whenVerb`** uses an exact verb id.
  */
 
 const DEFAULT_SAY_MS = 400;
@@ -83,6 +88,7 @@ function withNow<TArgs extends readonly unknown[]>(
  */
 export class BenneScript {
   private static unresolvedVerbWarnings = new Set<string>();
+  private static unresolvedTargetVerbWarnings = new Set<string>();
 
   private events: Phaser.Events.EventEmitter;
   private roomId: string;
@@ -185,7 +191,7 @@ export class BenneScript {
   }
 
   /**
-   * Direct Phaser / EventBus access. Prefer **`B.whenLookAt`** etc. for props; use this for hotspot events or custom ids.
+   * Direct Phaser / EventBus access. Prefer **`B.whenLookAt`**, **`whenVerb`**, etc.; use this for custom event ids or tiers the facade does not wrap.
    *
    * @example
    * import { roomHotspotVerbEventId } from '@engine/events/verbInteractionEvents';
@@ -223,7 +229,7 @@ export class BenneScript {
   };
 
   /**
-   * Subscribe to a **prop** verb event for this room. Usually prefer **`whenLookAt`**, **`whenUse`**, etc.
+   * Subscribe to a **prop** verb event for this room (**prop id only**). Prefer **`when*`** / **`whenVerb`** for prop → hotspot → character resolution.
    *
    * @param propId - **`props[].id`** in this room’s `.room.json`.
    * @param verbId - Verb id from **`game-config.json`** `verbs[]` (must match **`onVerb`** on the prop).
@@ -249,6 +255,100 @@ export class BenneScript {
     });
   }
 
+  /**
+   * Subscribe to a **hotspot** verb event for this room (hotspot id only). Prefer **`when*`** / **`whenVerb`** for automatic resolution.
+   */
+  private onHotspot(
+    hotspotId: string,
+    verbId: string,
+    handler: ((payload: RoomHotspotInteractPayload) => void) | (() => void),
+  ): void {
+    const eventId = roomHotspotVerbEventId(this.roomId, hotspotId, verbId);
+    this.subscribe(eventId, (payload) => {
+      const p = payload as RoomHotspotInteractPayload;
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: RoomHotspotInteractPayload) => void)(p);
+      }
+    });
+  }
+
+  /**
+   * Subscribes to **both** room-scoped and character-global verb events for a **character** target.
+   * Used only when {@link registerVerbForTarget} resolves **`targetId`** to a spawned character — not for props or hotspots.
+   *
+   * Handlers use **`(p: any)`** for the same reason as {@link registerVerbForTarget}.
+   */
+  private subscribeCharacterVerb(
+    characterId: string,
+    verbId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    const inner = (payload: unknown) => {
+      const p = payload as CharacterVerbInteractPayload;
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: any) => void)(p);
+      }
+    };
+    this.subscribe(roomCharacterVerbEventId(this.roomId, characterId, verbId), inner);
+    this.subscribe(characterVerbEventId(characterId, verbId), inner);
+  }
+
+  /**
+   * Registers **`handler`** for **`verbId`** on **`targetId`** by resolving the target in order:
+   *
+   * 1. **Prop** — if `props[]` has this id: single room event via {@link onProp}.
+   * 2. **Hotspot** — else if `hotspots[]` has this id: single room event via {@link onHotspot}.
+   * 3. **Character** — else if a character with this **definition id** is spawned in the room: {@link subscribeCharacterVerb}
+   *    (room + character-global events, matching **`dispatchVerbInteraction`** for characters).
+   *
+   * If nothing matches, calls {@link warnNoVerbTarget} once per (`roomId`, `targetId`, `verbId`).
+   *
+   * Handlers use **`(p: any)`** so one API can cover prop, hotspot, and character payloads without a public exported union;
+   * use **`onProp`** or types from **`propInteractionEvents`** when you want strict typing.
+   */
+  private registerVerbForTarget(
+    verbId: string,
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    if (this.roomScene.getRoomPropInstance(targetId)) {
+      this.onProp(
+        targetId,
+        verbId,
+        handler as ((payload: RoomPropInteractPayload) => void) | (() => void),
+      );
+      return;
+    }
+    if (this.roomScene.getRoomHotspotInstance(targetId)) {
+      this.onHotspot(
+        targetId,
+        verbId,
+        handler as ((payload: RoomHotspotInteractPayload) => void) | (() => void),
+      );
+      return;
+    }
+    if (this.roomScene.getCharacterSprite(targetId)) {
+      this.subscribeCharacterVerb(targetId, verbId, handler);
+      return;
+    }
+    this.warnNoVerbTarget(targetId, verbId);
+  }
+
+  private warnNoVerbTarget(targetId: string, verbId: string): void {
+    const key = `${this.roomId}:${targetId}:${verbId}`;
+    if (BenneScript.unresolvedTargetVerbWarnings.has(key)) {
+      return;
+    }
+    BenneScript.unresolvedTargetVerbWarnings.add(key);
+    console.warn(
+      `[Benne] No prop, hotspot, or character found with id '${targetId}' for verb '${verbId}' in room '${this.roomId}'. Handler was not registered.`,
+    );
+  }
+
   /** Like {@link onProp} but passes a transformed payload (e.g. {@link whenGive}). */
   private onPropMapped<P>(
     propId: string,
@@ -269,51 +369,51 @@ export class BenneScript {
   }
 
   /**
-   * Runs when the player **looks** at this prop (primary mouse button by default).
+   * Runs when the player **looks** at this target (primary mouse button by default).
    *
-   * @param propId - **`props[].id`** (clickable prop with look verb enabled in JSON).
+   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
    *
    * @example
    * B.whenLookAt('desk', () => B.player.say('Ink stains.'));
    */
-  whenLookAt(propId: string, handler: () => void): void;
-  whenLookAt(propId: string, handler: (payload: RoomPropInteractPayload) => void): void;
+  whenLookAt(targetId: string, handler: () => void): void;
+  whenLookAt(targetId: string, handler: (p: any) => void): void;
   whenLookAt(
-    propId: string,
-    handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
   ): void {
-    this.onProp(propId, this.resolveVerbId('look'), handler);
+    this.registerVerbForTarget(this.resolveVerbId('look'), targetId, handler);
   }
 
   /**
-   * Runs when the player **uses** this prop (secondary mouse button by default).
+   * Runs when the player **uses** this target (secondary mouse button by default).
    *
-   * @param propId - **`props[].id`**.
+   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
    *
    * @example
    * B.whenUse('lever', () => B.player.walkTo('door'));
    */
-  whenUse(propId: string, handler: () => void): void;
-  whenUse(propId: string, handler: (payload: RoomPropInteractPayload) => void): void;
+  whenUse(targetId: string, handler: () => void): void;
+  whenUse(targetId: string, handler: (p: any) => void): void;
   whenUse(
-    propId: string,
-    handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
   ): void {
-    this.onProp(propId, this.resolveVerbId('use'), handler);
+    this.registerVerbForTarget(this.resolveVerbId('use'), targetId, handler);
   }
 
   /**
-   * Runs when the player **pick-ups** this prop (verb must exist in config + prop **`onVerb`**).
+   * Runs when the player **pick-ups** this target (verb must exist in config + target **`onVerb`**).
    *
-   * @param propId - **`props[].id`**.
+   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
    */
-  whenPickUp(propId: string, handler: () => void): void;
-  whenPickUp(propId: string, handler: (payload: RoomPropInteractPayload) => void): void;
+  whenPickUp(targetId: string, handler: () => void): void;
+  whenPickUp(targetId: string, handler: (p: any) => void): void;
   whenPickUp(
-    propId: string,
-    handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
   ): void {
-    this.onProp(propId, this.resolveVerbId('pickUp'), handler);
+    this.registerVerbForTarget(this.resolveVerbId('pickUp'), targetId, handler);
   }
 
   /**
@@ -337,117 +437,97 @@ export class BenneScript {
   }
 
   /**
-   * Runs when the player **pushes** this prop.
+   * Runs when the player **pushes** this target.
    *
-   * @param propId - **`props[].id`**.
+   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
    */
-  whenPush(propId: string, handler: () => void): void;
-  whenPush(propId: string, handler: (payload: RoomPropInteractPayload) => void): void;
+  whenPush(targetId: string, handler: () => void): void;
+  whenPush(targetId: string, handler: (p: any) => void): void;
   whenPush(
-    propId: string,
-    handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
   ): void {
-    this.onProp(propId, this.resolveVerbId('push'), handler);
+    this.registerVerbForTarget(this.resolveVerbId('push'), targetId, handler);
   }
 
   /**
-   * Runs when the player **pulls** this prop.
+   * Runs when the player **pulls** this target.
    *
-   * @param propId - **`props[].id`**.
+   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
    */
-  whenPull(propId: string, handler: () => void): void;
-  whenPull(propId: string, handler: (payload: RoomPropInteractPayload) => void): void;
+  whenPull(targetId: string, handler: () => void): void;
+  whenPull(targetId: string, handler: (p: any) => void): void;
   whenPull(
-    propId: string,
-    handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
   ): void {
-    this.onProp(propId, this.resolveVerbId('pull'), handler);
+    this.registerVerbForTarget(this.resolveVerbId('pull'), targetId, handler);
   }
 
   /**
-   * Runs when the player **opens** this prop.
+   * Runs when the player **opens** this target.
    *
-   * @param propId - **`props[].id`**.
+   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
    */
-  whenOpen(propId: string, handler: () => void): void;
-  whenOpen(propId: string, handler: (payload: RoomPropInteractPayload) => void): void;
+  whenOpen(targetId: string, handler: () => void): void;
+  whenOpen(targetId: string, handler: (p: any) => void): void;
   whenOpen(
-    propId: string,
-    handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
   ): void {
-    this.onProp(propId, this.resolveVerbId('open'), handler);
+    this.registerVerbForTarget(this.resolveVerbId('open'), targetId, handler);
   }
 
   /**
-   * Runs when the player **closes** this prop.
+   * Runs when the player **closes** this target.
    *
-   * @param propId - **`props[].id`**.
+   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
    */
-  whenClose(propId: string, handler: () => void): void;
-  whenClose(propId: string, handler: (payload: RoomPropInteractPayload) => void): void;
+  whenClose(targetId: string, handler: () => void): void;
+  whenClose(targetId: string, handler: (p: any) => void): void;
   whenClose(
-    propId: string,
-    handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
   ): void {
-    this.onProp(propId, this.resolveVerbId('close'), handler);
+    this.registerVerbForTarget(this.resolveVerbId('close'), targetId, handler);
   }
 
   /**
-   * Runs when the player applies a specific **verb** to this prop.
+   * Runs when the player applies a specific **verb** to this target (escape hatch for verbs without sugar).
    *
    * @param verbId - Exact **`verbs[].id`** from **`game-config.json`** (not an alias).
-   * @param propId - **`props[].id`**.
+   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
    *
    * @example
    * B.whenVerb('look', 'desk', () => { ... });
    */
-  whenVerb(verbId: string, propId: string, handler: () => void): void;
-  whenVerb(verbId: string, propId: string, handler: (payload: RoomPropInteractPayload) => void): void;
+  whenVerb(verbId: string, targetId: string, handler: () => void): void;
+  whenVerb(verbId: string, targetId: string, handler: (p: any) => void): void;
   whenVerb(
     verbId: string,
-    propId: string,
-    handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
   ): void {
-    this.onProp(propId, verbId, handler);
+    this.registerVerbForTarget(verbId, targetId, handler);
   }
 
   /**
-   * Runs when the player **talks** to this character (room-scoped + character-global channels).
+   * Runs when the player **talks** to this target — same **prop → hotspot → character** resolution as **`whenLookAt`** / **`whenUse`** (talk / speak verb alias).
+   * Room + character-global event subscription applies only when **`targetId`** resolves to a **character**; props and hotspots use one room-scoped channel each.
    *
-   * @param characterId - **`CharacterData.id`** for a character placed in this room.
+   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
    *
    * @example
    * B.whenTalkTo('clerk', () => B.player.walkTo({ x: 120, y: 140 }));
+   * B.whenTalkTo('computer', () => B.player.say('No response.'));
    */
-  whenTalkTo(characterId: string, handler: () => void): void;
-  whenTalkTo(characterId: string, handler: (payload: CharacterVerbInteractPayload) => void): void;
+  whenTalkTo(targetId: string, handler: () => void): void;
+  whenTalkTo(targetId: string, handler: (p: any) => void): void;
   whenTalkTo(
-    characterId: string,
-    handler: ((payload: CharacterVerbInteractPayload) => void) | (() => void),
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
   ): void {
-    const verbId = this.resolveVerbId('talkTo');
-    const roomEv = roomCharacterVerbEventId(this.roomId, characterId, verbId);
-    const charEv = characterVerbEventId(characterId, verbId);
-    const wrapped = async (payload: unknown) => {
-      this.beginInteraction();
-      try {
-        const p = payload as CharacterVerbInteractPayload;
-        if (handler.length === 0) {
-          (handler as () => void)();
-        } else {
-          (handler as (x: CharacterVerbInteractPayload) => void)(p);
-        }
-        await this.endInteraction();
-      } catch (err) {
-        console.error(`[Benne] Error in character talk handler (${characterId}):`, err);
-      }
-    };
-    this.events.on(roomEv, wrapped);
-    this.events.on(charEv, wrapped);
-    this.disposers.push(() => {
-      this.events.off(roomEv, wrapped);
-      this.events.off(charEv, wrapped);
-    });
+    this.registerVerbForTarget(this.resolveVerbId('talkTo'), targetId, handler);
   }
 
   /**

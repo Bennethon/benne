@@ -71,7 +71,7 @@
   },
   "hotspots": [
     {
-      "id": "office-hotspot-1",
+      "id": "window",
       "active": true,
       "description": "",
       "zIndex": 0,

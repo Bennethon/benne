@@ -1,15 +1,14 @@
 import { registerRoomScript } from '@engine/scripting';
 
 /**
- * String ids: `when*` / `B.prop` → `props[].id` in this room JSON (not hotspots — use `B.raw.on` +
- * `roomHotspotVerbEventId` if needed). `B.character` / `whenTalkTo` → `CharacterData.id` in the room.
- * `walkTo('…')` → prop id → hotspot id → character id → `points[].id`, or `{ x, y }` room pixels.
+ * `whenLookAt` / `whenUse` / `whenTalkTo` / `whenPickUp` / … / `whenVerb` → prop → hotspot → character id. `B.prop` / `onProp` → props only.
+ * `walkTo('…')` → same order, then `points[].id`, or `{ x, y }` room pixels.
  */
 registerRoomScript(({ B }) => {
   console.log('🚀 Bennescript office.room.ts is being EXECUTED!');
 
-  B.whenLookAt('desk', () => {
-    console.log('✅ B.whenLookAt("desk") fired!');
+  B.whenLookAt('henry', () => {
+    console.log('✅ B.whenLookAt("henry") fired!');
     B.player.say('Hello from Bennescript!');
   });
 
