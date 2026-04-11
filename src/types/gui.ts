@@ -25,6 +25,11 @@ export interface GuiTextControl {
   align?: GuiTextAlign;
   /** When set, enables word wrap at this width in screen pixels. */
   wordWrapWidth?: number;
+  /**
+   * Extra horizontal gap between glyphs (Phaser `BitmapText` letter spacing).
+   * When omitted, `defaultLetterSpacing` for this control's `font` in `src/game/assets/fonts/fonts.json` is used, else 0.
+   */
+  letterSpacing?: number;
 }
 
 export type GuiControl = GuiTextControl;

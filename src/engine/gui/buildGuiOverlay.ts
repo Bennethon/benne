@@ -1,6 +1,11 @@
+/**
+ * Composes GUI `BitmapText` overlays. The shipped game uses the **Canvas** renderer (`gameConfig.ts`) so glyphs
+ * respect `roundPixels`; Phaser’s **WebGL** `BitmapText` path does not round per character — avoid switching the
+ * main game to WebGL without revisiting dialogue crispness.
+ */
 import * as Phaser from 'phaser';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
-import type { GameFontsManifest } from '../../types/fonts';
+import type { GameBitmapFontDefinition, GameFontsManifest } from '../../types/fonts';
 import type { GuiData, GuiTextAlign, GuiTextControl } from '../../types/gui';
 
 const manifest = gameFontsManifest as GameFontsManifest;
@@ -37,6 +42,19 @@ function hexStringToTint(hex: string): number {
   }
 }
 
+/**
+ * Phaser WebGL `BitmapText` uses unrounded per-glyph positions from `GetBitmapTextSize`; center/right alignment
+ * often adds half-pixel offsets. For wrapped text, using an **even** max width makes longest-line metrics more
+ * often land on whole pixels (debug: compare `align: left` vs `center` on the same string).
+ */
+function evenWordWrapWidth(width: number): number {
+  const w = Math.floor(width);
+  if (w < 2) {
+    return 0;
+  }
+  return w % 2 === 0 ? w : w - 1;
+}
+
 function bitmapTextLineAlign(align: GuiTextAlign | undefined): number {
   switch (align) {
     case 'center':
@@ -68,7 +86,8 @@ function addGuiBitmapLine(
   depth: number,
   startVisible: boolean,
 ): Phaser.GameObjects.BitmapText | null {
-  if (!manifest[c.font]) {
+  const fontEntry = manifest[c.font] as GameBitmapFontDefinition | undefined;
+  if (!fontEntry) {
     console.warn(`[Benne] Unknown GUI font id "${c.font}" — add it to src/game/assets/fonts/fonts.json.`);
     return null;
   }
@@ -88,7 +107,14 @@ function addGuiBitmapLine(
   bt.clearTint();
   bt.setTint(hexStringToTint(c.color));
   if (c.wordWrapWidth != null && c.wordWrapWidth > 0) {
-    bt.setMaxWidth(c.wordWrapWidth);
+    const maxW = evenWordWrapWidth(c.wordWrapWidth);
+    if (maxW > 0) {
+      bt.setMaxWidth(maxW);
+    }
+  }
+  const letterSpacing = c.letterSpacing ?? fontEntry.defaultLetterSpacing ?? 0;
+  if (letterSpacing !== 0) {
+    bt.setLetterSpacing(letterSpacing);
   }
   bt.setScrollFactor(0, 0);
   bt.setDepth(depth);
@@ -168,15 +194,3 @@ export function buildGuiOverlay(
   };
 }
 
-/**
- * After `buildGuiOverlay`, apply the same post-build tweaks `RoomScene` uses for that GUI id so the
- * VS Code GUI preview matches in-game pixels. Add new branches here whenever runtime adjusts an overlay.
- */
-export function applyRuntimeGuiOverlayParity(guiId: string, handle: GuiOverlayHandle | null): void {
-  if (!handle) {
-    return;
-  }
-  if (guiId === 'dialog-text') {
-    handle.setLetterSpacing(1);
-  }
-}
