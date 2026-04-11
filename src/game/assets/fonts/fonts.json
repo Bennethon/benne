@@ -1,6 +1,10 @@
 {
-  "dialog": {
-    "file": "lucasfont-alternate.ttf",
-    "format": "truetype"
+  "lucasarts-scumm-solid": {
+    "textureFile": "lucasarts-scumm-solid_0.png",
+    "dataFile": "lucasarts-scumm-solid.xml"
+  },
+  "lucasfont-alternate": {
+    "textureFile": "lucasfont-alternate_0.png",
+    "dataFile": "lucasfont-alternate.xml"
   }
 }

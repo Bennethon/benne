@@ -1,11 +1,11 @@
 import type { GameFontsManifest } from '../types/fonts';
 import type { GuiData } from '../types/gui';
 
-export type GuiFontLoadRequest = { fontId: string; url: string; format: string };
+export type GuiFontLoadRequest = { fontId: string; textureUrl: string; dataUrl: string };
 
 /**
- * Font files to load for one GUI's `text` controls (deduped by font id).
- * `resolveAssetUrl` maps paths under `src/game/assets/` (e.g. `fonts/foo.ttf`) to a fetchable URL.
+ * Bitmap font files to load for one GUI's `text` controls (deduped by font id).
+ * `resolveAssetUrl` maps paths under `src/game/assets/` to a fetchable URL.
  */
 export function collectFontLoadsForGui(
   gui: GuiData,
@@ -30,11 +30,11 @@ export function collectFontLoadsForGui(
     try {
       out.push({
         fontId: c.font,
-        url: resolveAssetUrl(`fonts/${def.file}`),
-        format: def.format,
+        textureUrl: resolveAssetUrl(`fonts/${def.textureFile}`),
+        dataUrl: resolveAssetUrl(`fonts/${def.dataFile}`),
       });
     } catch (e) {
-      console.warn(`[BENNE GUI preview] Could not resolve font file for "${c.font}":`, e);
+      console.warn(`[BENNE GUI preview] Could not resolve font files for "${c.font}":`, e);
     }
   }
   return out;

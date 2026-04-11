@@ -40,7 +40,7 @@ import type { Point2, RoomData, RoomHotspotData, RoomPropInstance } from '../../
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
 import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
 import type { RoomScriptContext } from '@engine/scripting/types.js';
-import { buildGuiOverlay, type GuiOverlayHandle } from '../gui/buildGuiOverlay';
+import { applyRuntimeGuiOverlayParity, buildGuiOverlay, type GuiOverlayHandle } from '../gui/buildGuiOverlay';
 import { getGuiDataById } from '../../game/loadGuiData';
 
 /** Ignore walk clicks when already within this many pixels of the target. */
@@ -172,6 +172,9 @@ export class RoomScene extends Phaser.Scene {
 
     const dialogGui = getGuiDataById('dialog-text');
     this.dialogTextOverlay = dialogGui ? buildGuiOverlay(this, dialogGui) : null;
+    if (dialogGui) {
+      applyRuntimeGuiOverlayParity(dialogGui.id, this.dialogTextOverlay);
+    }
 
     // ─────────────────────────────────────────────────────────────
     // Bennescript: after props, characters, player, and camera exist

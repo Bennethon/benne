@@ -2,11 +2,11 @@ import type * as Phaser from 'phaser';
 import type { GameFontsManifest } from '../types/fonts';
 import { collectFontIdsReferencedByGuiControls } from './loadGuiData';
 import gameFontsManifest from './assets/fonts/fonts.json';
-import { resolveGameFontUrl } from './resolveGameAssetUrl';
+import { resolveGameAssetUrl, resolveGameAssetXmlUrl } from './resolveGameAssetUrl';
 
 const manifest = gameFontsManifest as GameFontsManifest;
 
-/** Queue `load.font` for every font id used by GUI text controls (see `fonts/fonts.json`). */
+/** Queue `load.bitmapFont` for every font id used by GUI text controls (see `fonts/fonts.json`). */
 export function queueGuiFontsForBootLoader(loader: Phaser.Loader.LoaderPlugin): void {
   for (const fontId of collectFontIdsReferencedByGuiControls()) {
     const def = manifest[fontId];
@@ -17,10 +17,11 @@ export function queueGuiFontsForBootLoader(loader: Phaser.Loader.LoaderPlugin): 
       continue;
     }
     try {
-      const url = resolveGameFontUrl(`fonts/${def.file}`);
-      loader.font(fontId, url, def.format);
+      const tex = resolveGameAssetUrl(`fonts/${def.textureFile}`);
+      const xml = resolveGameAssetXmlUrl(`fonts/${def.dataFile}`);
+      loader.bitmapFont(fontId, tex, xml);
     } catch (e) {
-      console.error(`[Benne] Failed to resolve font file for id "${fontId}":`, e);
+      console.error(`[Benne] Failed to resolve bitmap font files for id "${fontId}":`, e);
     }
   }
 }
