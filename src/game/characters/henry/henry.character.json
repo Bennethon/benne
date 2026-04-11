@@ -56,15 +56,16 @@
     "y": 120
   },
   "walkToPoint": {
-    "x": -11,
-    "y": 139
+    "x": 34,
+    "y": 125
   },
   "talkPoint": {
     "x": 80,
     "y": 22
   },
   "onVerb": {
-    "look": true
+    "look": true,
+    "use": true
   },
   "collider": {
     "points": [

@@ -28,6 +28,18 @@ export interface GameSettingsDebug {
   showPropOutlines?: boolean;
 }
 
+/** Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults. */
+export interface GameSettingsDialog {
+  /** When false, `.say()` timing still runs but no dialog-text GUI (reserved for future spoken-only lines). */
+  showText: boolean;
+  /** Extra offset in **game canvas pixels** (same space as GUI `controls[].x` / `y`) applied after projecting the character `talkPoint`. */
+  defaultTalkOffset: { x: number; y: number };
+  minDurationMs: number;
+  msPerCharacter: number;
+  maxDurationMs: number;
+  durationMultiplier: number;
+}
+
 /** One verb the game exposes (ids power `onVerb`, `inputProfile`, and global handler events). */
 export interface GameVerbDefinition {
   /** Stable id used in room JSON (`onVerb`), `inputProfile`, and scripts. */
@@ -80,4 +92,6 @@ export interface GameSettings {
    * Suggested line when no handler handles the verb; emitted on the `verb:unhandled` bus event.
    */
   defaultFallbackLine?: string;
+  /** In-game dialog line timing and `dialog-text` GUI placement (see `getDialogSettings()`). */
+  dialog?: Partial<GameSettingsDialog>;
 }
