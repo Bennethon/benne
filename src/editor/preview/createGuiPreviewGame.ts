@@ -1,10 +1,6 @@
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
-import {
-  applyRuntimeGuiOverlayParity,
-  buildGuiOverlay,
-  GUI_TEXT_OVERLAY_DEPTH,
-} from '../../engine/gui/buildGuiOverlay';
+import { buildGuiOverlay, GUI_TEXT_OVERLAY_DEPTH } from '../../engine/gui/buildGuiOverlay';
 import type { GuiData } from '../../types/gui';
 import type { GuiFontLoadRequest } from '../../game/collectFontLoadsForGui';
 
@@ -34,7 +30,8 @@ function editorGameConfig(
   height: number,
 ): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
   return {
-    type: Phaser.WEBGL,
+    /** Same renderer as `getBennePhaserGameConfigBase` (`gameConfig.ts`) — see that file for rationale. */
+    type: Phaser.CANVAS,
     parent,
     width,
     height,
@@ -122,12 +119,11 @@ class GuiPreviewScene extends Phaser.Scene {
       }
     }
 
-    const guiOverlay = buildGuiOverlay(this, guiData, {
+    buildGuiOverlay(this, guiData, {
       depth: PREVIEW_GUI_TEXT_DEPTH,
       startVisible: true,
       emptyTextPlaceholder: 'Lorem ipsum dolor sit amet.',
     });
-    applyRuntimeGuiOverlayParity(guiData.id, guiOverlay);
 
     this.add
       .text(8, 6, `${internalWidth}×${internalHeight} · game resolution`, {

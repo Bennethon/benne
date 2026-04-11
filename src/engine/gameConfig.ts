@@ -10,7 +10,11 @@ export function getBennePhaserGameConfigBase(
   const { width, height } = getGameSettings().resolution;
 
   return {
-    type: Phaser.WEBGL,
+    /**
+     * Canvas (not WebGL): matches the VS Code GUI preview and rounds `BitmapText` glyph draws when `roundPixels`
+     * is on; Phaser’s WebGL `BitmapText` path does not, which showed as uneven pixels on wrapped dialogue.
+     */
+    type: Phaser.CANVAS,
     parent,
     width,
     height,
