@@ -344,6 +344,31 @@
           "group": "benne@3"
         },
         {
+          "command": "benne-editor.addRoomHotspot",
+          "when": "view == benne-editor.main && viewItem == benneRoomSubGroupHotspots",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomProp",
+          "when": "view == benne-editor.main && viewItem == benneRoomSubGroupProps",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.importPropsFromAsepriteTags",
+          "when": "view == benne-editor.main && viewItem == benneRoomSubGroupProps",
+          "group": "benne@3"
+        },
+        {
+          "command": "benne-editor.addRoomPoint",
+          "when": "view == benne-editor.main && viewItem == benneRoomSubGroupPoints",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomRegion",
+          "when": "view == benne-editor.main && viewItem == benneRoomSubGroupRegions",
+          "group": "benne@2"
+        },
+        {
           "command": "benne-editor.importAnimationsFromAsepriteTags",
           "when": "view == benne-editor.main && viewItem == benneCharacter",
           "group": "benne@3"

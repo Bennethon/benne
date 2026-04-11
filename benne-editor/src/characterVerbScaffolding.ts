@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { formatJson } from './roomScaffolding';
+import { characterScriptRegistersVerb, readConfiguredVerbIdSet } from './verbHandlerPresence';
 
 function characterVerbEventId(characterId: string, verbId: string): string {
     return `verb:character:${characterId}:${verbId}`;
@@ -8,18 +9,6 @@ function characterVerbEventId(characterId: string, verbId: string): string {
 export function parseRegisterCharacterScriptBusParam(source: string): string {
     const m = source.match(/export\s+function\s+registerCharacterScript\s*\(\s*(\w+)\s*:/);
     return m?.[1] ?? '_events';
-}
-
-function stripLineAndBlockComments(src: string): string {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/\/\/.*$/gm, '');
-}
-
-function scriptAlreadyRegistersEvent(source: string, eventId: string): boolean {
-    const stripped = stripLineAndBlockComments(source);
-    const patterns = [`'${eventId}'`, `"${eventId}"`, `\`${eventId}\``];
-    return patterns.some((p) => stripped.includes(p));
 }
 
 function characterScriptTemplate(characterId: string): string {
@@ -186,27 +175,48 @@ export async function addCharacterVerbEvent(
     }
 
     const eventId = characterVerbEventId(characterId, verbId);
+    const folder = vscode.workspace.getWorkspaceFolder(characterJsonUri);
+    const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
+
     const existingOnVerb =
         data.onVerb && typeof data.onVerb === 'object' && !Array.isArray(data.onVerb)
             ? { ...(data.onVerb as Record<string, unknown>) }
             : {};
-    if (existingOnVerb[verbId] === true) {
-        void vscode.window.showInformationMessage(`Verb "${verbId}" is already mapped for this character.`);
-        return false;
-    }
-    existingOnVerb[verbId] = true;
-    data.onVerb = existingOnVerb;
-    await vscode.workspace.fs.writeFile(characterJsonUri, formatJson(data));
+    const jsonAlready = existingOnVerb[verbId] === true;
 
     const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
-    let scriptText: string;
+    let scriptText = '';
     try {
-        const scriptRaw = await vscode.workspace.fs.readFile(scriptUri);
-        scriptText = new TextDecoder('utf-8').decode(scriptRaw);
+        scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
     } catch {
+        /* new file branch below */
+    }
+    if (scriptText && characterScriptRegistersVerb(scriptText, characterId, verbId, configured)) {
+        if (jsonAlready) {
+            void vscode.window.showInformationMessage(
+                `A ${verbId} handler for "${characterId}" is already registered in ${characterId}.character.ts.`
+            );
+            return false;
+        }
+        existingOnVerb[verbId] = true;
+        data.onVerb = existingOnVerb;
+        await vscode.workspace.fs.writeFile(characterJsonUri, formatJson(data));
+        void vscode.window.showInformationMessage(
+            `Enabled "${verbId}" in character JSON (handler was already present in ${characterId}.character.ts).`
+        );
+        return true;
+    }
+
+    if (!jsonAlready) {
+        existingOnVerb[verbId] = true;
+        data.onVerb = existingOnVerb;
+        await vscode.workspace.fs.writeFile(characterJsonUri, formatJson(data));
+    }
+
+    if (!scriptText) {
         const shell = characterScriptTemplate(characterId);
         let next = shell;
-        if (!scriptAlreadyRegistersEvent(next, eventId)) {
+        if (!characterScriptRegistersVerb(next, characterId, verbId, configured)) {
             next = ensureCharacterVerbPayloadImport(next);
             next = ensureCharacterVerbEventHelperImport(next);
             const eventsVar = parseRegisterCharacterScriptBusParam(next);
@@ -220,12 +230,12 @@ export async function addCharacterVerbEvent(
             }
         }
         await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(next));
-        void vscode.window.showInformationMessage(`Added ${verbId} → ${eventId} for character "${characterId}".`);
+        void vscode.window.showInformationMessage(`Added ${verbId} handler for character "${characterId}".`);
         return true;
     }
 
     let nextScript = ensureRegisterCharacterScriptShell(scriptText, characterId);
-    if (!scriptAlreadyRegistersEvent(nextScript, eventId)) {
+    if (!characterScriptRegistersVerb(nextScript, characterId, verbId, configured)) {
         nextScript = ensureCharacterVerbPayloadImport(nextScript);
         nextScript = ensureCharacterVerbEventHelperImport(nextScript);
         const eventsVar = parseRegisterCharacterScriptBusParam(nextScript);
@@ -238,13 +248,12 @@ export async function addCharacterVerbEvent(
             void vscode.window.showWarningMessage(
                 `Character JSON was updated; could not find registerCharacterScript in ${characterId}.character.ts — add the handler manually.`
             );
-            void vscode.window.showInformationMessage(`Added ${verbId} → ${eventId} for character "${characterId}".`);
             return true;
         }
         nextScript = inserted;
     }
     await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(nextScript));
 
-    void vscode.window.showInformationMessage(`Added ${verbId} → ${eventId} for character "${characterId}".`);
+    void vscode.window.showInformationMessage(`Added ${verbId} handler for character "${characterId}".`);
     return true;
 }

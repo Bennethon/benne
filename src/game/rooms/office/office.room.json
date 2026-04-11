@@ -350,9 +350,9 @@
     {
       "id": "office-prop-glasses",
       "tag": "Glasses",
-      "zIndex": 22,
+      "zIndex": 55,
       "clickable": true,
-      "visible": false,
+      "visible": true,
       "alpha": 1,
       "walkToPoint": {
         "x": 165,
@@ -384,7 +384,8 @@
         ]
       },
       "onVerb": {
-        "look": true
+        "look": true,
+        "use": true
       }
     },
     {
@@ -392,7 +393,7 @@
       "tag": "CyberBuddy",
       "zIndex": 24,
       "clickable": true,
-      "visible": false,
+      "visible": true,
       "alpha": 1,
       "walkToPoint": {
         "x": 155,
@@ -424,7 +425,8 @@
         ]
       },
       "onVerb": {
-        "look": true
+        "look": true,
+        "use": true
       }
     },
     {

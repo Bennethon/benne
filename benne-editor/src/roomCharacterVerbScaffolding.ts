@@ -1,53 +1,22 @@
 import * as vscode from 'vscode';
 import { formatJson } from './roomScaffolding';
 import { makeCharacterClickable } from './characterVerbScaffolding';
-import { parseRegisterRoomScriptBusParam } from './propVerbScaffolding';
-
-function stripLineAndBlockComments(src: string): string {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/\/\/.*$/gm, '');
-}
-
-function escapeRegex(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/** True when `*.room.ts` already registers this room-scoped character verb. */
-export async function roomScriptHasRoomCharacterVerb(
-    roomJsonUri: vscode.Uri,
-    roomId: string,
-    characterId: string,
-    verbId: string
-): Promise<boolean> {
-    const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
-    let text: string;
-    try {
-        const raw = await vscode.workspace.fs.readFile(scriptUri);
-        text = new TextDecoder('utf-8').decode(raw);
-    } catch {
-        return false;
-    }
-    const stripped = stripLineAndBlockComments(text);
-    const rx = new RegExp(
-        `roomCharacterVerbEventId\\s*\\(\\s*['"\`]${escapeRegex(roomId)}['"\`]\\s*,\\s*['"\`]${escapeRegex(characterId)}['"\`]\\s*,\\s*['"\`]${escapeRegex(verbId)}['"\`]\\s*\\)`,
-        'm'
-    );
-    return rx.test(stripped);
-}
+import { insertIntoBenneRegisterRoomScript, parseRegisterRoomScriptBusParam } from './propVerbScaffolding';
+import {
+    benneRoomScriptQualifier,
+    benneStubCallLine,
+    readConfiguredVerbIdSet,
+    roomScriptRegistersRoomCharacterVerb
+} from './verbHandlerPresence';
 
 function scriptAlreadyRegistersRoomCharacterVerb(
     source: string,
     roomId: string,
     characterId: string,
-    verbId: string
+    verbId: string,
+    configured: ReadonlySet<string>
 ): boolean {
-    const stripped = stripLineAndBlockComments(source);
-    const rx = new RegExp(
-        `roomCharacterVerbEventId\\s*\\(\\s*['"\`]${escapeRegex(roomId)}['"\`]\\s*,\\s*['"\`]${escapeRegex(characterId)}['"\`]\\s*,\\s*['"\`]${escapeRegex(verbId)}['"\`]\\s*\\)`,
-        'm'
-    );
-    return rx.test(stripped);
+    return roomScriptRegistersRoomCharacterVerb(source, roomId, characterId, verbId, configured);
 }
 
 function ensureRoomCharacterVerbImports(source: string): string {
@@ -216,7 +185,11 @@ export async function addRoomCharacterVerbEvent(
         return true;
     }
 
-    if (scriptAlreadyRegistersRoomCharacterVerb(scriptText, roomId, characterId, verbId)) {
+    const folderForCfg = vscode.workspace.getWorkspaceFolder(roomJsonUri);
+    const configured = folderForCfg
+        ? await readConfiguredVerbIdSet(folderForCfg.uri)
+        : new Set<string>();
+    if (scriptAlreadyRegistersRoomCharacterVerb(scriptText, roomId, characterId, verbId, configured)) {
         void vscode.window.showInformationMessage(
             `Room script already has a handler for ${verbId} on "${characterId}" in this room.`
         );
@@ -224,15 +197,22 @@ export async function addRoomCharacterVerbEvent(
     }
 
     let next = ensureRoomCharacterVerbImports(scriptText);
-    const eventsVar = parseRegisterRoomScriptBusParam(next);
-    const inserted = insertRoomCharacterHandler(next, roomId, characterId, verbId, eventsVar);
-    if (inserted === null) {
-        void vscode.window.showWarningMessage(
-            `Could not find registerRoomScript in ${roomId}.room.ts — add the handler manually.`
-        );
-        return true;
+    const qualifier = benneRoomScriptQualifier(next);
+    const stub = benneStubCallLine('character', characterId, verbId, configured, qualifier);
+    const benneInserted = insertIntoBenneRegisterRoomScript(next, `\n  ${stub}\n`);
+    if (benneInserted !== null) {
+        await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(benneInserted));
+    } else {
+        const eventsVar = parseRegisterRoomScriptBusParam(next);
+        const inserted = insertRoomCharacterHandler(next, roomId, characterId, verbId, eventsVar);
+        if (inserted === null) {
+            void vscode.window.showWarningMessage(
+                `Could not find registerRoomScript in ${roomId}.room.ts — add the handler manually.`
+            );
+            return true;
+        }
+        await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(inserted));
     }
-    await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(inserted));
 
     void vscode.window.showInformationMessage(
         `Added room-scoped ${verbId} handler for "${characterId}" in ${roomId}.room.ts (character JSON updated if needed).`
