@@ -1,5 +1,12 @@
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
+import { readRoomProps } from './gameDiscovery';
+import {
+    findCharacterScriptVerbRangeForEventId,
+    findRoomScriptVerbRangeForEventId,
+    readConfiguredVerbIdSet
+} from './verbHandlerPresence';
 
 /**
  * Bottom-row editor group for room/character JSON after {@link applyBenneTwoRowJsonScriptLayout}
@@ -120,11 +127,46 @@ export async function revealEventInDocument(
     });
 
     const text = doc.getText();
-    let idx = text.indexOf(eventId);
-    if (idx < 0) {
-        idx = findCanonicalHelperCallIndex(text, eventId);
+    let selStart = text.indexOf(eventId);
+    let selEnd = selStart >= 0 ? selStart + eventId.length : -1;
+
+    if (selStart < 0) {
+        const helper = findCanonicalHelperRange(text, eventId);
+        if (helper) {
+            selStart = helper.start;
+            selEnd = helper.end;
+        }
     }
-    if (idx < 0) {
+
+    if (selStart < 0) {
+        const folder = vscode.workspace.getWorkspaceFolder(scriptUri);
+        const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
+        const baseName = path.basename(scriptUri.fsPath);
+        if (baseName.endsWith('.room.ts')) {
+            const roomId = path.basename(scriptUri.fsPath, '.room.ts');
+            const roomJsonUri = vscode.Uri.joinPath(scriptUri, '..', `${roomId}.room.json`);
+            let roomPropIds = new Set<string>();
+            try {
+                const props = await readRoomProps(roomJsonUri);
+                roomPropIds = new Set(props.map((p) => p.id));
+            } catch {
+                /* room JSON missing — still try Bennescript patterns that do not need prop ids */
+            }
+            const br = findRoomScriptVerbRangeForEventId(text, eventId, configured, roomPropIds);
+            if (br) {
+                selStart = br.start;
+                selEnd = br.end;
+            }
+        } else if (baseName.endsWith('.character.ts')) {
+            const cr = findCharacterScriptVerbRangeForEventId(text, eventId, configured);
+            if (cr) {
+                selStart = cr.start;
+                selEnd = cr.end;
+            }
+        }
+    }
+
+    if (selStart < 0 || selEnd < 0) {
         void vscode.window.showInformationMessage(`Could not find "${eventId}" in ${scriptUri.path.split('/').pop()}`);
         const start = doc.positionAt(0);
         editor.selection = new vscode.Selection(start, start);
@@ -132,9 +174,9 @@ export async function revealEventInDocument(
         return false;
     }
 
-    const pos = doc.positionAt(idx);
-    const end = doc.positionAt(idx + eventId.length);
-    editor.selection = new vscode.Selection(pos, end);
+    const pos = doc.positionAt(selStart);
+    const endPos = doc.positionAt(selEnd);
+    editor.selection = new vscode.Selection(pos, endPos);
     editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
     return true;
 }
@@ -188,7 +230,7 @@ function canonicalCharacterFallbackRegex(characterId: string): RegExp {
     );
 }
 
-function findCanonicalHelperCallIndex(source: string, eventId: string): number {
+function findCanonicalHelperRange(source: string, eventId: string): { start: number; end: number } | null {
     const roomVerb = eventId.match(/^verb:room:([^:]+):(prop|hotspot|character):([^:]+):([^:]+)$/);
     if (roomVerb) {
         const rx = canonicalRoomVerbRegex(
@@ -198,7 +240,10 @@ function findCanonicalHelperCallIndex(source: string, eventId: string): number {
             roomVerb[4]
         );
         const m = rx.exec(source);
-        return m?.index ?? -1;
+        if (m?.index !== undefined) {
+            return { start: m.index, end: m.index + m[0].length };
+        }
+        return null;
     }
     const roomFallback = eventId.match(/^verb:room:([^:]+):(prop|hotspot|character):([^:]+):fallback$/);
     if (roomFallback) {
@@ -208,21 +253,30 @@ function findCanonicalHelperCallIndex(source: string, eventId: string): number {
             roomFallback[3]
         );
         const m = rx.exec(source);
-        return m?.index ?? -1;
+        if (m?.index !== undefined) {
+            return { start: m.index, end: m.index + m[0].length };
+        }
+        return null;
     }
     const charVerb = eventId.match(/^verb:character:([^:]+):([^:]+)$/);
     if (charVerb) {
         const rx = canonicalCharacterVerbRegex(charVerb[1], charVerb[2]);
         const m = rx.exec(source);
-        return m?.index ?? -1;
+        if (m?.index !== undefined) {
+            return { start: m.index, end: m.index + m[0].length };
+        }
+        return null;
     }
     const charFallback = eventId.match(/^verb:character:([^:]+):fallback$/);
     if (charFallback) {
         const rx = canonicalCharacterFallbackRegex(charFallback[1]);
         const m = rx.exec(source);
-        return m?.index ?? -1;
+        if (m?.index !== undefined) {
+            return { start: m.index, end: m.index + m[0].length };
+        }
+        return null;
     }
-    return -1;
+    return null;
 }
 
 function escapeRegex(value: string): string {

@@ -1,0 +1,29 @@
+---
+description: BENNE — editor Phaser previews must match shipped game rendering; sync gameConfig and preview configs.
+alwaysApply: true
+---
+
+# Editor preview ↔ shipped game rendering parity
+
+Whenever you change **how the game draws** (Phaser renderer, scale mode, `pixelArt` / `roundPixels` / `antialias`, camera defaults, or anything that affects pixels on screen), treat **VS Code webview previews** as the **same product surface** as the runtime.
+
+## Canonical pairs (keep in sync)
+
+| Shipped game | Editor preview(s) |
+|---------------|-------------------|
+| `src/engine/gameConfig.ts` — `getBennePhaserGameConfigBase` | `src/editor/preview/createGuiPreviewGame.ts` (`editorGameConfig`) |
+| Same `gameConfig` fields where previews mirror the room | `src/editor/preview/createRoomPreviewGame.ts` |
+| Same where previews mirror characters | `src/editor/preview/createCharacterPreviewGame.ts` |
+
+GUI overlay composition is already shared: `src/engine/gui/buildGuiOverlay.ts` (used by `RoomScene` and GUI preview).
+
+## Required behavior
+
+1. **Change both sides** — If you edit preview-only Phaser config, apply the **equivalent** change to `gameConfig.ts` (or vice versa). Do not leave one path “better” than the other unless the user explicitly wants a deliberate difference.
+2. **Prefer one source of truth** — If the same numbers or flags appear in two places, **extract** a small shared module or import from `gameConfig` / a shared `previewPhaserBase.ts`-style helper so previews cannot drift.
+3. **Document real exceptions** — If a preview *must* differ (e.g. webview-only workaround), add a **short comment** next to the divergence stating why; default is **no** divergence.
+4. **Bundled previews** — After changing preview entry code under `src/editor/preview/`, remind the user to rebuild the extension bundle when needed (`npm run build:gui-preview`, `build:room-preview`, `build:character-preview` from repo root) so `benne-editor/media/*-preview/` stays current.
+
+## Renderer note
+
+`BitmapText` glyph snapping differs between Phaser **Canvas** and **WebGL** paths. If you switch the main game or any preview between them, **align all previews that show the same UI** and update this rule’s table if new preview entrypoints are added.

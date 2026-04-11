@@ -21,4 +21,20 @@ registerRoomScript(({ B }) => {
 
     B.player.say('Hello from Bennescript!');
   });
+
+  B.whenLookAt('office-prop-cyberbuddy', () => {
+    // TODO
+  });
+
+  B.whenUse('office-prop-cyberbuddy', () => {
+    // TODO
+  });
+
+  B.whenLookAt('office-prop-glasses', () => {
+    // TODO
+  });
+
+  B.whenUse('office-prop-glasses', () => {
+    // TODO
+  });
 });

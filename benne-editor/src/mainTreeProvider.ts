@@ -187,7 +187,14 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.description = String(element.itemCount);
                 item.id = `roomSubGroup:${element.roomJsonUri.toString()}:${element.subGroup}`;
                 item.iconPath = new vscode.ThemeIcon(icons[element.subGroup]);
-                item.contextValue = 'benneRoomSubGroup';
+                const contextBySub: Record<(typeof element)['subGroup'], string> = {
+                    hotspots: 'benneRoomSubGroupHotspots',
+                    props: 'benneRoomSubGroupProps',
+                    characters: 'benneRoomSubGroupCharacters',
+                    points: 'benneRoomSubGroupPoints',
+                    regions: 'benneRoomSubGroupRegions'
+                };
+                item.contextValue = contextBySub[element.subGroup];
                 return item;
             }
             case 'prop': {

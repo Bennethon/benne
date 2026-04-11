@@ -198,6 +198,9 @@ async function resolveRoomTarget(
     if (node?.kind === 'region') {
         return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
     }
+    if (node?.kind === 'roomSubGroup') {
+        return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
+    }
 
     if (selection.focus.kind === 'room') {
         const uri = selection.focus.uri;
@@ -368,6 +371,12 @@ async function resolveRoomNodeForImport(
         return { folder: node.folder, roomJsonUri: node.roomJsonUri, roomId: node.roomId };
     }
     if (node?.kind === 'region') {
+        return { folder: node.folder, roomJsonUri: node.roomJsonUri, roomId: node.roomId };
+    }
+    if (node?.kind === 'prop') {
+        return { folder: node.folder, roomJsonUri: node.roomJsonUri, roomId: node.roomId };
+    }
+    if (node?.kind === 'roomSubGroup') {
         return { folder: node.folder, roomJsonUri: node.roomJsonUri, roomId: node.roomId };
     }
     if (selection.focus.kind === 'room') {
