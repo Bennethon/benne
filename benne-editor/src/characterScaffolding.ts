@@ -79,6 +79,8 @@ export async function runCreateCharacterWizard(preferredFolder?: vscode.Workspac
         name,
         description: '',
         walkSpeed: 88,
+        walkToPoint: { x: 48, y: 96 },
+        talkPoint: { x: 48, y: 40 },
         clickable: false,
         display: {
             aseprite: true
