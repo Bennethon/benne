@@ -65,6 +65,12 @@ export interface CharacterData {
    * this character, or when resolving another walker’s target to this character — same idea as prop `walkToPoint`.
    */
   walkToPoint?: Point2;
+  /**
+   * Optional “face / dialogue” point in **texture / frame pixel space** (same origin as `feet`).
+   * World position = sprite position + offset. Verb payloads expose this as **world** `talkPoint`
+   * for scripts (similar role to prop `lookAtPoint` in room space).
+   */
+  talkPoint?: Point2;
   /** Game pixels per second when walking (used when movement is implemented). */
   walkSpeed: number;
   clickable: boolean;

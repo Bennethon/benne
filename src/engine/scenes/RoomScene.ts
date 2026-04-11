@@ -1038,12 +1038,21 @@ export class RoomScene extends Phaser.Scene {
         return;
       }
       console.log(`[Benne] verb "${verbId}" character ${spawn.data.id}`);
+      const sx = sprite.x;
+      const sy = sprite.y;
+      const d = spawn.data;
       dispatchVerbInteraction(gameEvents, verbId, handlers, {
         type: 'character',
-        characterId: spawn.data.id,
+        characterId: d.id,
         instanceId: spawn.instanceId,
         roomId,
-        description: spawn.data.description,
+        description: d.description,
+        ...(d.walkToPoint !== undefined
+          ? { walkToPoint: { x: sx + d.walkToPoint.x, y: sy + d.walkToPoint.y } }
+          : {}),
+        ...(d.talkPoint !== undefined
+          ? { talkPoint: { x: sx + d.talkPoint.x, y: sy + d.talkPoint.y } }
+          : {}),
       });
     });
   }

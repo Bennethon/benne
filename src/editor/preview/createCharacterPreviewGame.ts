@@ -14,17 +14,19 @@ const PREVIEW = 'BenneCharacterPreview';
 
 /** Padding around the sprite frame in world pixels (matches room editor “fit art” feel). */
 const WORLD_PAD = 56;
-/** Room-editor-style vertex handle: yellow fill, dark stroke (`RoomPolygonEditScene`). */
-const HANDLE_FILL = 0xffee44;
-const HANDLE_STROKE = 0x1a1a24;
-const HANDLE_RADIUS = 3.5;
 
 /** Collider overlay editing (same CSS radii as `RoomPolygonEditScene`). */
 const HANDLE_R_CSS = 6;
+const AUX_HANDLE_R_CSS = 7;
 const EDGE_HIT_CSS = 14;
 const LINE_WIDTH_CSS = 2;
 const MIN_COLLIDER_POINTS = 3;
 const COL_COLLIDER = 0xff66cc;
+
+const COL_FEET_AUX = '#ffee44';
+const COL_WALK_TO_AUX = '#3db8e8';
+const COL_TALK_AUX = '#e8a438';
+const COL_AUX_STROKE = '#1a1a24';
 
 function hexToCss(hex: number): string {
   return `#${hex.toString(16).padStart(6, '0')}`;
@@ -114,6 +116,17 @@ function insertPointOnEdgeLocal(pts: Point2[], edgeIdx: number, lx: number, ly: 
   pts.splice(edgeIdx + 1, 0, { x: ix, y: iy });
 }
 
+function hitAuxCss(
+  cx: number,
+  cy: number,
+  pt: Point2,
+  handleR: number,
+  toCss: (p: Point2) => { x: number; y: number },
+): boolean {
+  const p = toCss(pt);
+  return Phaser.Math.Distance.Between(cx, cy, p.x, p.y) <= handleR;
+}
+
 export type CharacterPreviewGamePayload = {
   textureKey: string;
   textureURL: string;
@@ -174,8 +187,9 @@ class CharacterPreviewScene extends Phaser.Scene {
   private character!: CharacterData;
   private idleTag!: string;
   private sprite!: Phaser.GameObjects.Sprite;
-  private marker!: Phaser.GameObjects.Arc;
   private feetLocal!: CharacterFeetLocal;
+  private walkLocal!: Point2;
+  private talkLocal!: Point2;
   private worldW = 0;
   private worldH = 0;
   private isPanning = false;
@@ -185,9 +199,10 @@ class CharacterPreviewScene extends Phaser.Scene {
   private overlay?: PreviewPolygonOverlay;
   /** Collider vertices in frame-local space (same as `feet` / character JSON). */
   private colliderLocal: Point2[] = [];
-  private editMode: 'feet' | 'collider' = 'feet';
   private selectedVertexIndex: number | null = null;
+  private selectedAux: 'feet' | 'walk' | 'talk' | null = null;
   private dragVertexIndex: number | null = null;
+  private dragAux: 'feet' | 'walk' | 'talk' | null = null;
   private downOnVertex = false;
   private tapEdge: { t: number; edgeIdx: number } | null = null;
   private isOverlayPanning = false;
@@ -279,6 +294,7 @@ class CharacterPreviewScene extends Phaser.Scene {
   };
 
   private readonly onScaleResize = (): void => {
+    this.refreshAuthoringWorldBounds();
     this.applyFitCamera();
   };
 
@@ -310,42 +326,21 @@ class CharacterPreviewScene extends Phaser.Scene {
     this.sprite.play(this.idleTag);
 
     this.feetLocal = { ...resolveCharacterFeetLocal(this.character, this.sprite) };
-    const fw = this.sprite.frame.width;
-    const fh = this.sprite.frame.height;
-    this.worldW = fw + WORLD_PAD * 2;
-    this.worldH = fh + WORLD_PAD * 2;
+    const wtp = this.character.walkToPoint;
+    this.walkLocal = wtp ? { x: wtp.x, y: wtp.y } : { ...this.feetLocal };
+    const ttp = this.character.talkPoint;
+    this.talkLocal = ttp
+      ? { x: ttp.x, y: ttp.y }
+      : { x: this.feetLocal.x, y: this.feetLocal.y - 48 };
 
     const feetWx = WORLD_PAD + this.feetLocal.x;
     const feetWy = WORLD_PAD + this.feetLocal.y;
     placeSpriteByFeet(this.sprite, this.feetLocal, feetWx, feetWy);
 
-    this.marker = this.add
-      .circle(feetWx, feetWy, HANDLE_RADIUS, HANDLE_FILL, 1)
-      .setStrokeStyle(2, HANDLE_STROKE, 0.55)
-      .setDepth(100);
-
-    this.marker.setInteractive({ draggable: true });
-    this.input.setDraggable(this.marker);
-    this.input.on(
-      'drag',
-      (
-        _pointer: Phaser.Input.Pointer,
-        obj: Phaser.GameObjects.GameObject,
-        dragX: number,
-        dragY: number,
-      ) => {
-        if (obj !== this.marker) {
-          return;
-        }
-        this.marker.setPosition(dragX, dragY);
-        this.clampMarkerToFrame();
-      },
-    );
-
     const mount = this.game.canvas.parentElement;
     if (mount) {
       this.overlay = new PreviewPolygonOverlay(this.game, mount);
-      this.overlay.setPointerEventsEnabled(false);
+      this.overlay.setPointerEventsEnabled(true);
       this.overlay.canvas.addEventListener('pointerdown', this.onOverlayPointerDown);
       this.overlay.canvas.addEventListener('pointermove', this.onOverlayPointerMove);
       this.overlay.canvas.addEventListener('pointerup', this.onOverlayPointerUp);
@@ -354,15 +349,11 @@ class CharacterPreviewScene extends Phaser.Scene {
       this.overlay.canvas.addEventListener('wheel', this.onOverlayWheel, { passive: false });
     }
 
-    this.game.registry.set('benneCharacterPreviewReadFeet', () => ({ ...this.feetLocal }));
-    this.game.registry.set('benneCharacterPreviewReadCollider', () => this.readColliderForSave());
-    this.game.registry.set('benneCharacterPreviewSetMode', (m: 'feet' | 'collider') => {
-      this.setEditMode(m);
-    });
+    this.syncGeometryRegistry();
 
     const cam = this.cameras.main;
     cam.setBackgroundColor(0x1a1a2e);
-    cam.setBounds(0, 0, this.worldW, this.worldH);
+    this.refreshAuthoringWorldBounds();
     this.applyFitCamera();
 
     const canvas = this.game.canvas;
@@ -395,13 +386,95 @@ class CharacterPreviewScene extends Phaser.Scene {
     });
 
     this.add
-      .text(10, 10, 'Wheel = zoom · middle-drag = pan · F = fit · Collider mode: magenta polygon', {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '12px',
-        color: '#c8c8d8',
-      })
+      .text(
+        10,
+        10,
+        'Wheel = zoom · middle-drag = pan · F = fit · Feet (on cel) / Walk & Talk (may be off-sprite) · Magenta collider stays on cel (3+ pts, double-click edge to add vertex)',
+        {
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: '12px',
+          color: '#c8c8d8',
+        },
+      )
       .setScrollFactor(0)
       .setDepth(200);
+  }
+
+  private syncGeometryRegistry(): void {
+    this.game.registry.set('benneCharacterPreviewReadGeometry', () => ({
+      feet: { ...this.feetLocal },
+      walkToPoint: { ...this.walkLocal },
+      talkPoint: { ...this.talkLocal },
+      collider: this.readColliderForSave(),
+    }));
+  }
+
+  /** World-space AABB of sprite, feet/walk/talk handles, and collider (for camera bounds). */
+  private computeContentAabbWorld(): { minX: number; minY: number; maxX: number; maxY: number } {
+    const sx = this.sprite.x;
+    const sy = this.sprite.y;
+    const fw = this.sprite.frame.width;
+    const fh = this.sprite.frame.height;
+    let minX = sx;
+    let minY = sy;
+    let maxX = sx + fw;
+    let maxY = sy + fh;
+    const merge = (p: Point2): void => {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    };
+    const { feet, walk, talk } = this.feetWalkTalkWorld();
+    merge(feet);
+    merge(walk);
+    merge(talk);
+    for (const p of this.colliderWorldPoints()) {
+      merge(p);
+    }
+    return { minX, minY, maxX, maxY };
+  }
+
+  /** Expand scroll bounds so off-sprite walk/talk handles remain visible and pannable. */
+  private refreshAuthoringWorldBounds(): void {
+    const cam = this.cameras.main;
+    const { minX, minY, maxX, maxY } = this.computeContentAabbWorld();
+    const pad = WORLD_PAD;
+    const bx = minX - pad;
+    const by = minY - pad;
+    const bw = Math.max(1, maxX - minX + pad * 2);
+    const bh = Math.max(1, maxY - minY + pad * 2);
+    this.worldW = bw;
+    this.worldH = bh;
+    cam.setBounds(bx, by, bw, bh);
+  }
+
+  private feetWalkTalkWorld(): { feet: Point2; walk: Point2; talk: Point2 } {
+    const sx = this.sprite.x;
+    const sy = this.sprite.y;
+    return {
+      feet: { x: sx + this.feetLocal.x, y: sy + this.feetLocal.y },
+      walk: { x: sx + this.walkLocal.x, y: sy + this.walkLocal.y },
+      talk: { x: sx + this.talkLocal.x, y: sy + this.talkLocal.y },
+    };
+  }
+
+  private tryPickAux(
+    cx: number,
+    cy: number,
+    toCss: (p: Point2) => { x: number; y: number },
+  ): 'feet' | 'walk' | 'talk' | null {
+    const { feet, walk, talk } = this.feetWalkTalkWorld();
+    if (hitAuxCss(cx, cy, feet, AUX_HANDLE_R_CSS, toCss)) {
+      return 'feet';
+    }
+    if (hitAuxCss(cx, cy, walk, AUX_HANDLE_R_CSS, toCss)) {
+      return 'walk';
+    }
+    if (hitAuxCss(cx, cy, talk, AUX_HANDLE_R_CSS, toCss)) {
+      return 'talk';
+    }
+    return null;
   }
 
   private readColliderForSave(): { points: Point2[] } | null {
@@ -423,26 +496,16 @@ class CharacterPreviewScene extends Phaser.Scene {
     return this.colliderLocal.map((p) => ({ x: sx + p.x, y: sy + p.y }));
   }
 
-  private clampLocalPoint(lx: number, ly: number): Point2 {
+  /** Feet and collider vertices stay inside the cel (texture hit-test space). */
+  private clampFeetOrColliderLocal(lx: number, ly: number): Point2 {
     const fw = this.sprite.frame.width;
     const fh = this.sprite.frame.height;
     return { x: Phaser.Math.Clamp(lx, 0, fw), y: Phaser.Math.Clamp(ly, 0, fh) };
   }
 
-  setEditMode(mode: 'feet' | 'collider'): void {
-    this.editMode = mode;
-    if (mode === 'feet') {
-      this.marker.setInteractive({ draggable: true });
-      this.input.setDraggable(this.marker);
-      this.overlay?.setPointerEventsEnabled(false);
-    } else {
-      this.marker.disableInteractive();
-      this.overlay?.setPointerEventsEnabled(true);
-      this.selectedVertexIndex = null;
-      this.dragVertexIndex = null;
-      this.downOnVertex = false;
-      this.tapEdge = null;
-    }
+  /** Walk / talk may use frame-relative offsets outside the sprite rectangle. */
+  private unclampedWalkTalkLocal(lx: number, ly: number): Point2 {
+    return { x: Math.round(lx), y: Math.round(ly) };
   }
 
   update(): void {
@@ -451,17 +514,46 @@ class CharacterPreviewScene extends Phaser.Scene {
       return;
     }
     ov.syncLayout();
+    this.refreshAuthoringWorldBounds();
     const cam = this.cameras.main;
     const worldPts = this.colliderWorldPoints();
+    const { feet, walk, talk } = this.feetWalkTalkWorld();
+    const labeledPoints = [
+      {
+        point: feet,
+        label: 'Feet',
+        fillStyle: COL_FEET_AUX,
+        strokeStyle: COL_AUX_STROKE,
+        selected: this.selectedAux === 'feet',
+        radiusCss: AUX_HANDLE_R_CSS,
+      },
+      {
+        point: walk,
+        label: 'Walk to',
+        fillStyle: COL_WALK_TO_AUX,
+        strokeStyle: COL_AUX_STROKE,
+        selected: this.selectedAux === 'walk',
+        radiusCss: AUX_HANDLE_R_CSS,
+      },
+      {
+        point: talk,
+        label: 'Talk',
+        fillStyle: COL_TALK_AUX,
+        strokeStyle: COL_AUX_STROKE,
+        selected: this.selectedAux === 'talk',
+        radiusCss: AUX_HANDLE_R_CSS,
+      },
+    ];
     ov.clearAndDraw(
       {
         pts: worldPts,
         strokeStyle: hexToCss(COL_COLLIDER),
         handleFill: '#ffee44',
         handleStroke: '#1a1a24',
-        selectedIndex: this.editMode === 'collider' ? this.selectedVertexIndex : null,
+        selectedIndex: this.selectedVertexIndex,
         handleRadiusCss: HANDLE_R_CSS,
         lineWidthCss: LINE_WIDTH_CSS,
+        labeledPoints,
       },
       cam,
     );
@@ -473,9 +565,6 @@ class CharacterPreviewScene extends Phaser.Scene {
   }
 
   private readonly onOverlayWheel = (e: WheelEvent): void => {
-    if (this.editMode !== 'collider') {
-      return;
-    }
     e.preventDefault();
     e.stopPropagation();
     const ov = this.overlay;
@@ -507,9 +596,6 @@ class CharacterPreviewScene extends Phaser.Scene {
   };
 
   private readonly onOverlayPointerDown = (e: PointerEvent): void => {
-    if (this.editMode !== 'collider') {
-      return;
-    }
     const ov = this.overlay;
     if (!ov) {
       return;
@@ -537,12 +623,25 @@ class CharacterPreviewScene extends Phaser.Scene {
     const toCss = (p: Point2): { x: number; y: number } => ov.worldToCanvasCss(p, cam);
     const pts = this.colliderLocal;
 
+    const aux = this.tryPickAux(cx, cy, toCss);
+    if (aux) {
+      this.dragAux = aux;
+      this.selectedAux = aux;
+      this.selectedVertexIndex = null;
+      this.downOnVertex = false;
+      this.dragVertexIndex = null;
+      this.tapEdge = null;
+      return;
+    }
+
     if (pts.length < MIN_COLLIDER_POINTS) {
       const vi = pts.length > 0 ? hitVertexCss(cx, cy, worldPts, HANDLE_R_CSS, toCss) : -1;
       if (vi >= 0) {
         this.downOnVertex = true;
         this.dragVertexIndex = vi;
         this.selectedVertexIndex = vi;
+        this.selectedAux = null;
+        this.dragAux = null;
         return;
       }
       return;
@@ -553,6 +652,8 @@ class CharacterPreviewScene extends Phaser.Scene {
       this.downOnVertex = true;
       this.dragVertexIndex = vi;
       this.selectedVertexIndex = vi;
+      this.selectedAux = null;
+      this.dragAux = null;
       return;
     }
     this.downOnVertex = false;
@@ -561,7 +662,7 @@ class CharacterPreviewScene extends Phaser.Scene {
 
   private readonly onOverlayPointerMove = (e: PointerEvent): void => {
     const ov = this.overlay;
-    if (!ov || this.editMode !== 'collider') {
+    if (!ov) {
       return;
     }
 
@@ -576,6 +677,22 @@ class CharacterPreviewScene extends Phaser.Scene {
       return;
     }
 
+    if (this.dragAux) {
+      const cam = this.cameras.main;
+      const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, cam);
+      const lx = wx - this.sprite.x;
+      const ly = wy - this.sprite.y;
+      if (this.dragAux === 'feet') {
+        this.feetLocal = this.clampFeetOrColliderLocal(lx, ly);
+      } else if (this.dragAux === 'walk') {
+        this.walkLocal = this.unclampedWalkTalkLocal(lx, ly);
+      } else {
+        this.talkLocal = this.unclampedWalkTalkLocal(lx, ly);
+      }
+      this.syncGeometryRegistry();
+      return;
+    }
+
     if (this.dragVertexIndex === null) {
       return;
     }
@@ -583,11 +700,12 @@ class CharacterPreviewScene extends Phaser.Scene {
     const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, cam);
     const lx = wx - this.sprite.x;
     const ly = wy - this.sprite.y;
-    const c = this.clampLocalPoint(lx, ly);
+    const c = this.clampFeetOrColliderLocal(lx, ly);
     const i = this.dragVertexIndex;
     if (i >= 0 && i < this.colliderLocal.length) {
       this.colliderLocal[i] = c;
     }
+    this.syncGeometryRegistry();
   };
 
   private readonly onOverlayPointerUp = (e: PointerEvent): void => {
@@ -616,9 +734,10 @@ class CharacterPreviewScene extends Phaser.Scene {
       }
     }
 
-    if (!ov || this.editMode !== 'collider') {
+    if (!ov) {
       this.dragVertexIndex = null;
       this.downOnVertex = false;
+      this.dragAux = null;
       return;
     }
 
@@ -631,6 +750,12 @@ class CharacterPreviewScene extends Phaser.Scene {
     const toCss = (p: Point2): { x: number; y: number } => ov.worldToCanvasCss(p, cam);
     const pts = this.colliderLocal;
 
+    if (this.dragAux) {
+      this.dragAux = null;
+      this.tapEdge = null;
+      return;
+    }
+
     if (this.downOnVertex || this.dragVertexIndex !== null) {
       this.dragVertexIndex = null;
       this.downOnVertex = false;
@@ -638,8 +763,9 @@ class CharacterPreviewScene extends Phaser.Scene {
     }
 
     if (pts.length < MIN_COLLIDER_POINTS && !this.downOnVertex && this.dragVertexIndex === null) {
-      pts.push(this.clampLocalPoint(lx, ly));
+      pts.push(this.clampFeetOrColliderLocal(lx, ly));
       this.tapEdge = null;
+      this.syncGeometryRegistry();
       return;
     }
 
@@ -653,9 +779,10 @@ class CharacterPreviewScene extends Phaser.Scene {
           this.tapEdge.edgeIdx === edgeIdx &&
           now - this.tapEdge.t < 450
         ) {
-          const cl = this.clampLocalPoint(lx, ly);
+          const cl = this.clampFeetOrColliderLocal(lx, ly);
           insertPointOnEdgeLocal(pts, edgeIdx, cl.x, cl.y);
           this.tapEdge = null;
+          this.syncGeometryRegistry();
         } else {
           this.tapEdge = { t: now, edgeIdx };
         }
@@ -667,9 +794,6 @@ class CharacterPreviewScene extends Phaser.Scene {
   };
 
   private readonly onOverlayKeyDown = (e: KeyboardEvent): void => {
-    if (this.editMode !== 'collider') {
-      return;
-    }
     if (e.key === 'f' || e.key === 'F') {
       e.preventDefault();
       this.applyFitCamera();
@@ -687,6 +811,7 @@ class CharacterPreviewScene extends Phaser.Scene {
     }
     pts.splice(this.selectedVertexIndex, 1);
     this.selectedVertexIndex = null;
+    this.syncGeometryRegistry();
     e.preventDefault();
     e.stopPropagation();
   };
@@ -708,18 +833,6 @@ class CharacterPreviewScene extends Phaser.Scene {
     const zoom = Math.min(panelW / this.worldW, panelH / this.worldH) * 0.92;
     cam.setZoom(zoom);
     cam.centerToBounds();
-  }
-
-  private clampMarkerToFrame(): void {
-    const fw = this.sprite.frame.width;
-    const fh = this.sprite.frame.height;
-    let fx = this.marker.x - this.sprite.x;
-    let fy = this.marker.y - this.sprite.y;
-    fx = Phaser.Math.Clamp(fx, 0, fw);
-    fy = Phaser.Math.Clamp(fy, 0, fh);
-    this.feetLocal = { x: fx, y: fy };
-    this.marker.setPosition(this.sprite.x + fx, this.sprite.y + fy);
-    this.game.registry.set('benneCharacterPreviewReadFeet', () => ({ ...this.feetLocal }));
   }
 }
 

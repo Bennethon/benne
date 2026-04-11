@@ -40,4 +40,8 @@ export type CharacterVerbInteractPayload = {
   description?: string;
   verbId: string;
   verbFallback?: boolean;
+  /** World coordinates when character JSON defines `walkToPoint` (frame offset applied at click time). */
+  walkToPoint?: Point2;
+  /** World coordinates when character JSON defines `talkPoint` (frame offset applied at click time). */
+  talkPoint?: Point2;
 };

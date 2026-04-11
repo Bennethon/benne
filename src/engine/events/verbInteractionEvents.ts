@@ -84,7 +84,17 @@ export type VerbInteractTarget =
       lookAtPoint?: Point2;
     }
   | { type: 'hotspot'; hotspotId: string; roomId: string; description?: string }
-  | { type: 'character'; characterId: string; instanceId: string; roomId: string; description?: string };
+  | {
+      type: 'character';
+      characterId: string;
+      instanceId: string;
+      roomId: string;
+      description?: string;
+      /** World / room pixel stand hint when `CharacterData.walkToPoint` is set (sprite origin + offset). */
+      walkToPoint?: Point2;
+      /** World / room pixel look-at hint when `CharacterData.talkPoint` is set (sprite origin + offset). */
+      talkPoint?: Point2;
+    };
 
 /**
  * Payload for {@link VERB_GLOBAL_FALLBACK_EVENT} and {@link globalVerbHandlerEventId} emissions
@@ -101,6 +111,7 @@ export type VerbGlobalFallbackPayload = {
   instanceId?: string;
   walkToPoint?: Point2;
   lookAtPoint?: Point2;
+  talkPoint?: Point2;
   verbFallback?: boolean;
 };
 

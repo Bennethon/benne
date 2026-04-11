@@ -3,6 +3,14 @@
   "name": "Bob",
   "description": "",
   "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 48,
+    "y": 96
+  },
+  "talkPoint": {
+    "x": 48,
+    "y": 40
+  },
   "clickable": true,
   "display": {
     "aseprite": true

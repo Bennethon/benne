@@ -741,7 +741,7 @@ function getWebviewContent(): string {
         </head>
         <body>
             <h1>BENNE Editor</h1>
-            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree and <em>Actions</em>. Each tree choice resets the editor area, then opens the right layout: rooms and props — two rows with <em>BENNE Room preview</em> on top and a narrow room JSON column (~30%) next to <code>*.room.ts</code> (~70%) on the bottom; characters — two rows with <em>BENNE Character preview</em> (feet placement) on top and the same JSON / script split on the bottom.</p>
+            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree and <em>Actions</em>. Each tree choice resets the editor area, then opens the right layout: rooms and props — two rows with <em>BENNE Room preview</em> on top and a narrow room JSON column (~30%) next to <code>*.room.ts</code> (~70%) on the bottom; characters — two rows with <em>BENNE Character preview</em> (feet, walk/talk points, collider) on top and the same JSON / script split on the bottom.</p>
             
             <p>
                 <button id="create-room-btn" type="button">Create New Room</button>

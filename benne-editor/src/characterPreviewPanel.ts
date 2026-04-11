@@ -2,11 +2,10 @@ import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
 import { getCharacterIdFromCharacterJsonUri } from './gameDiscovery';
-import { applyCharacterColliderPatch, type CharacterColliderPayload } from './characterColliderPatch';
-import { applyCharacterFeetPatch, type CharacterFeetPayload } from './characterFeetPatch';
+import { applyCharacterGeometryPatch, type CharacterGeometryPayload } from './characterGeometryPatch';
 
 /**
- * Phaser character preview (feet + click collider) in a {@link vscode.WebviewPanel}.
+ * Phaser character preview (feet, walk/talk points, collider) in a {@link vscode.WebviewPanel}.
  */
 export class CharacterPreviewPanelController implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
@@ -93,8 +92,7 @@ export class CharacterPreviewPanelController implements vscode.Disposable {
         (m: {
           type?: string;
           characterJsonUri?: string;
-          feet?: CharacterFeetPayload;
-          collider?: CharacterColliderPayload | null;
+          geometry?: CharacterGeometryPayload;
         }) => {
           if (m?.type === 'benne/charPreview/ready') {
             this.webviewReady = true;
@@ -109,12 +107,8 @@ export class CharacterPreviewPanelController implements vscode.Disposable {
             void this.pushCharacterPreview(u);
             return;
           }
-          if (m?.type === 'benne/charPreview/saveFeet') {
-            void this.handleSaveFeet(m.characterJsonUri, m.feet);
-            return;
-          }
-          if (m?.type === 'benne/charPreview/saveCollider') {
-            void this.handleSaveCollider(m.characterJsonUri, m.collider);
+          if (m?.type === 'benne/charPreview/saveCharacter') {
+            void this.handleSaveCharacter(m.characterJsonUri, m.geometry);
           }
         },
       ),
@@ -176,70 +170,12 @@ export class CharacterPreviewPanelController implements vscode.Disposable {
     }
   }
 
-  private async handleSaveCollider(
+  private async handleSaveCharacter(
     characterJsonUriStr: string | undefined,
-    collider: CharacterColliderPayload | null | undefined,
+    geometry: CharacterGeometryPayload | undefined,
   ): Promise<void> {
     const webview = this.panel?.webview;
-    if (!webview || typeof characterJsonUriStr !== 'string') {
-      return;
-    }
-    const payload: CharacterColliderPayload =
-      collider && Array.isArray(collider.points) ? { points: collider.points } : { points: [] };
-    let uri: vscode.Uri;
-    try {
-      uri = vscode.Uri.parse(characterJsonUriStr);
-    } catch {
-      webview.postMessage({
-        type: 'benne/charPreview/colliderSaveResult',
-        ok: false,
-        message: 'Invalid character JSON URI.',
-      });
-      return;
-    }
-    try {
-      const applied = await applyCharacterColliderPatch(uri, payload);
-      if (applied) {
-        void vscode.window.showInformationMessage(
-          `Saved character collider (${applied.points.length} points).`,
-        );
-      } else {
-        void vscode.window.showInformationMessage(
-          'Removed character collider — full sprite is clickable.',
-        );
-      }
-      webview.postMessage({
-        type: 'benne/charPreview/colliderSaveResult',
-        ok: true,
-      });
-    } catch (e) {
-      webview.postMessage({
-        type: 'benne/charPreview/colliderSaveResult',
-        ok: false,
-        message: e instanceof Error ? e.message : String(e),
-      });
-    }
-  }
-
-  private async handleSaveFeet(
-    characterJsonUriStr: string | undefined,
-    feet: CharacterFeetPayload | undefined,
-  ): Promise<void> {
-    const webview = this.panel?.webview;
-    if (!webview || typeof characterJsonUriStr !== 'string' || !feet) {
-      return;
-    }
-    if (
-      typeof feet.x !== 'number' ||
-      typeof feet.y !== 'number' ||
-      !Number.isFinite(feet.x) ||
-      !Number.isFinite(feet.y)
-    ) {
-      webview.postMessage({
-        type: 'benne/charPreview/feetSaveResult',
-        ok: false,
-        message: 'Invalid feet coordinates.',
-      });
+    if (!webview || typeof characterJsonUriStr !== 'string' || !geometry) {
       return;
     }
     let uri: vscode.Uri;
@@ -247,25 +183,22 @@ export class CharacterPreviewPanelController implements vscode.Disposable {
       uri = vscode.Uri.parse(characterJsonUriStr);
     } catch {
       webview.postMessage({
-        type: 'benne/charPreview/feetSaveResult',
+        type: 'benne/charPreview/saveCharacterResult',
         ok: false,
         message: 'Invalid character JSON URI.',
       });
       return;
     }
     try {
-      const applied = await applyCharacterFeetPatch(uri, feet);
-      void vscode.window.showInformationMessage(
-        `Saved character feet to JSON (${applied.x}, ${applied.y}).`,
-      );
+      await applyCharacterGeometryPatch(uri, geometry);
+      void vscode.window.showInformationMessage('Saved character geometry to JSON.');
       webview.postMessage({
-        type: 'benne/charPreview/feetSaveResult',
+        type: 'benne/charPreview/saveCharacterResult',
         ok: true,
-        appliedFeet: applied,
       });
     } catch (e) {
       webview.postMessage({
-        type: 'benne/charPreview/feetSaveResult',
+        type: 'benne/charPreview/saveCharacterResult',
         ok: false,
         message: e instanceof Error ? e.message : String(e),
       });
