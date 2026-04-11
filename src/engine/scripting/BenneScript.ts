@@ -1,7 +1,8 @@
 import * as Phaser from 'phaser';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { Point2 } from '../../types/room.js';
-import { getGameSettings } from '../ConfigManager.js';
+import { computeDialogLineDurationMs, getGameSettings } from '../ConfigManager.js';
+import { getStartingPlayerCharacterId } from '../../game/constants.js';
 import type {
   CharacterVerbInteractPayload,
   RoomHotspotInteractPayload,
@@ -34,8 +35,6 @@ import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
  *
  * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in this file. **`whenVerb`** uses an exact verb id.
  */
-
-const DEFAULT_SAY_MS = 400;
 
 /** Payload for {@link BenneScript.whenGive} — prop interaction plus the item id from the sugar API. */
 export type GivePropInteractPayload = RoomPropInteractPayload & { itemId: string };
@@ -609,11 +608,16 @@ export class BenneScript {
       say: withNow(
         (line: string) => {
           logCharacterSay(line);
+          const ms = computeDialogLineDurationMs(line);
           this.chain(
             () =>
               new Promise<void>((resolve) => {
-                scene.setDialogTextOverlay({ visible: true, text: line });
-                scene.time.delayedCall(DEFAULT_SAY_MS, () => {
+                scene.setDialogTextOverlay({
+                  visible: true,
+                  text: line,
+                  talkCharacterDefinitionId: definitionId,
+                });
+                scene.time.delayedCall(ms, () => {
                   scene.setDialogTextOverlay({ visible: false });
                   resolve();
                 });
@@ -622,8 +626,13 @@ export class BenneScript {
         },
         (line: string) => {
           logCharacterSay(line);
-          scene.setDialogTextOverlay({ visible: true, text: line });
-          scene.time.delayedCall(DEFAULT_SAY_MS, () => {
+          const ms = computeDialogLineDurationMs(line);
+          scene.setDialogTextOverlay({
+            visible: true,
+            text: line,
+            talkCharacterDefinitionId: definitionId,
+          });
+          scene.time.delayedCall(ms, () => {
             scene.setDialogTextOverlay({ visible: false });
           });
         },
@@ -705,11 +714,17 @@ export class BenneScript {
       say: withNow(
         (line: string) => {
           logPlayerSay(line);
+          const ms = computeDialogLineDurationMs(line);
+          const talkCharacterDefinitionId = getStartingPlayerCharacterId();
           this.chain(
             () =>
               new Promise<void>((resolve) => {
-                scene.setDialogTextOverlay({ visible: true, text: line });
-                scene.time.delayedCall(DEFAULT_SAY_MS, () => {
+                scene.setDialogTextOverlay({
+                  visible: true,
+                  text: line,
+                  talkCharacterDefinitionId,
+                });
+                scene.time.delayedCall(ms, () => {
                   scene.setDialogTextOverlay({ visible: false });
                   resolve();
                 });
@@ -718,8 +733,14 @@ export class BenneScript {
         },
         (line: string) => {
           logPlayerSay(line);
-          scene.setDialogTextOverlay({ visible: true, text: line });
-          scene.time.delayedCall(DEFAULT_SAY_MS, () => {
+          const ms = computeDialogLineDurationMs(line);
+          const talkCharacterDefinitionId = getStartingPlayerCharacterId();
+          scene.setDialogTextOverlay({
+            visible: true,
+            text: line,
+            talkCharacterDefinitionId,
+          });
+          scene.time.delayedCall(ms, () => {
             scene.setDialogTextOverlay({ visible: false });
           });
         },
@@ -781,7 +802,7 @@ export interface BenneScriptPlayerFacade {
    */
   playAnimation: BlockingWithNow<[string]>;
 
-  /** Shows line on the `dialog-text` GUI; hides after a short delay (see `DEFAULT_SAY_MS`). */
+  /** Shows line on the `dialog-text` GUI above the player’s `talkPoint`; hides per `game-config.json` `dialog` timing. */
   say: BlockingWithNow<[string]>;
 
   /**
@@ -812,7 +833,7 @@ export interface BenneScriptCharacterFacade {
    */
   playAnimation: BlockingWithNow<[string]>;
 
-  /** Shows line on the `dialog-text` GUI; hides after a short delay. */
+  /** Shows line on the `dialog-text` GUI above this character’s `talkPoint`; hides per `game-config.json` `dialog` timing. */
   say: BlockingWithNow<[string]>;
 
   /**

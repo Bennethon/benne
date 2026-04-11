@@ -1,3 +1,5 @@
+import { roomCharacterVerbEventId } from '@engine/events/verbInteractionEvents';
+import type { CharacterVerbInteractPayload } from '@engine/events/propInteractionEvents';
 import { registerRoomScript } from '@engine/scripting';
 
 /**
@@ -19,7 +21,7 @@ registerRoomScript(({ B }) => {
 
     B.player.walkTo('henry');
 
-    B.player.say('Hello from Bennescript!');
+    B.player.say('Hello from Bennescript! Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.');
   });
 
   B.whenLookAt('office-prop-cyberbuddy', () => {
@@ -35,6 +37,10 @@ registerRoomScript(({ B }) => {
   });
 
   B.whenUse('office-prop-glasses', () => {
+    // TODO
+  });
+
+  B.whenUse('henry', () => {
     // TODO
   });
 });

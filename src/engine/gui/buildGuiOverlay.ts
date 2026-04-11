@@ -16,6 +16,13 @@ export const GUI_TEXT_OVERLAY_DEPTH = 25_000;
 export interface GuiOverlayHandle {
   /** Updates the dialogue line control (`id: line`) if present, else the first text control. */
   setPrimaryText(text: string): void;
+  /**
+   * Places the **bottom-center** of the primary line (after word wrap) at `(x, y)` in game-canvas space,
+   * then rounds. Restores authored origin/position via {@link resetPrimaryScreenPosition}.
+   */
+  setPrimaryScreenPositionBottomCenter(x: number, y: number): void;
+  /** Restores the primary line to its authored GUI position and display origin. */
+  resetPrimaryScreenPosition(): void;
   setControlText(id: string, text: string): void;
   setVisible(visible: boolean): void;
   /** Extra horizontal gap between glyphs (Phaser `BitmapText` letter spacing). */
@@ -166,10 +173,22 @@ export function buildGuiOverlay(
   }
 
   const primaryLine = linesById.get('line') ?? allLines[0]!;
+  const primaryInitialX = primaryLine.x;
+  const primaryInitialY = primaryLine.y;
+  const primaryInitialOriginX = primaryLine.originX;
+  const primaryInitialOriginY = primaryLine.originY;
 
   return {
     setPrimaryText(text: string) {
       primaryLine.setText(text);
+    },
+    setPrimaryScreenPositionBottomCenter(x: number, y: number) {
+      primaryLine.setOrigin(0.5, 1);
+      primaryLine.setPosition(Math.round(x), Math.round(y));
+    },
+    resetPrimaryScreenPosition() {
+      primaryLine.setOrigin(primaryInitialOriginX, primaryInitialOriginY);
+      primaryLine.setPosition(primaryInitialX, primaryInitialY);
     },
     setControlText(id: string, text: string) {
       linesById.get(id)?.setText(text);

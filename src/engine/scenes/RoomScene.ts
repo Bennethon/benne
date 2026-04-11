@@ -16,7 +16,7 @@ import {
   type PlayerWalkStopPayload,
 } from '../events/playerWalkEvents';
 import { applyCharacterAnimationClips, setupCharacterAsepritePlayback } from '../characterAnimationPlayback';
-import { getGameSettings } from '../ConfigManager';
+import { getDialogSettings, getGameSettings } from '../ConfigManager';
 import { attachPostProcessingPlaceholder } from '../postfx/PostEffects';
 import {
   cameraFollowOffsetForFeet,
@@ -130,6 +130,8 @@ export class RoomScene extends Phaser.Scene {
   /** Screen-fixed dialogue text from `guis/dialog-text/dialog-text.gui.json`. */
   private dialogTextOverlay: GuiOverlayHandle | null = null;
 
+  private readonly dialogOverlayScreenScratch = new Phaser.Math.Vector2();
+
   constructor() {
     super(SCENE_ROOM);
   }
@@ -211,16 +213,66 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Shows or hides the `dialog-text` GUI line (`controls` text with `id: line` or the first text control).
+   * With `talkCharacterDefinitionId`, places the line so its **bottom-center** sits on the character’s `talkPoint`
+   * projected into GUI space (plus `game-config.json` `dialog.defaultTalkOffset`), including wrapped height.
    */
-  setDialogTextOverlay(state: { visible: boolean; text?: string }): void {
+  setDialogTextOverlay(state: {
+    visible: boolean;
+    text?: string;
+    talkCharacterDefinitionId?: string;
+  }): void {
     const h = this.dialogTextOverlay;
     if (!h) {
       return;
     }
-    if (state.text !== undefined) {
+    const dialog = getDialogSettings();
+    if (!state.visible) {
+      h.resetPrimaryScreenPosition();
+      h.setVisible(false);
+      return;
+    }
+    if (state.text !== undefined && dialog.showText) {
       h.setPrimaryText(state.text);
     }
-    h.setVisible(state.visible);
+    if (!dialog.showText) {
+      return;
+    }
+    const id = state.talkCharacterDefinitionId;
+    if (id) {
+      const anchor = this.getTalkAnchorWorldForCharacterDefinition(id);
+      if (anchor) {
+        const p = this.worldPointToDialogOverlayScreen(anchor.x, anchor.y);
+        h.setPrimaryScreenPositionBottomCenter(
+          p.x + dialog.defaultTalkOffset.x,
+          p.y + dialog.defaultTalkOffset.y,
+        );
+      } else {
+        h.resetPrimaryScreenPosition();
+      }
+    } else {
+      h.resetPrimaryScreenPosition();
+    }
+    h.setVisible(true);
+  }
+
+  /** World position of `CharacterData.talkPoint` for the first spawned sprite of this definition, or a default above the sprite top. */
+  private getTalkAnchorWorldForCharacterDefinition(definitionId: string): Point2 | null {
+    const sprite = this.getCharacterSprite(definitionId);
+    if (!sprite) {
+      return null;
+    }
+    const data = sprite.getData('character') as CharacterData | undefined;
+    const f = sprite.frame;
+    if (data?.talkPoint) {
+      return { x: sprite.x + data.talkPoint.x, y: sprite.y + data.talkPoint.y };
+    }
+    return { x: sprite.x + f.width * 0.5, y: sprite.y - 4 };
+  }
+
+  /** Maps room/world pixels to coordinates in the same space as GUI `controls[].x` / `y` for this camera. */
+  private worldPointToDialogOverlayScreen(wx: number, wy: number): Point2 {
+    this.cameras.main.matrixCombined.transformPoint(wx, wy, this.dialogOverlayScreenScratch);
+    return { x: this.dialogOverlayScreenScratch.x, y: this.dialogOverlayScreenScratch.y };
   }
 
   getRoomPropInstance(propId: string): RoomPropInstance | undefined {
