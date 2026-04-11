@@ -11,7 +11,7 @@ const jsonUrls = import.meta.glob('./assets/**/*.json', {
   as: 'url',
 }) as Record<string, string>;
 
-const fontUrls = import.meta.glob('./assets/fonts/**/*.{ttf,otf,woff,woff2}', {
+const xmlUrls = import.meta.glob('./assets/**/*.xml', {
   eager: true,
   as: 'url',
 }) as Record<string, string>;
@@ -49,15 +49,15 @@ export function resolveGameAssetJsonUrl(relativePath: string): string {
   return url;
 }
 
-/** Font binaries under `src/game/assets/fonts/` (paths like `fonts/MyFont.ttf`). */
-export function resolveGameFontUrl(relativePath: string): string {
+/** BMFont XML and other `.xml` under `src/game/assets/` (paths like `fonts/MyFont.xml`). */
+export function resolveGameAssetXmlUrl(relativePath: string): string {
   const normalized = normalizeAssetPath(relativePath);
   const key = `./assets/${normalized}`;
-  const url = fontUrls[key];
+  const url = xmlUrls[key];
 
   if (!url) {
     throw new Error(
-      `Missing font asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(fontUrls).sort().join(', ')}`,
+      `Missing XML asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(xmlUrls).sort().join(', ')}`,
     );
   }
 

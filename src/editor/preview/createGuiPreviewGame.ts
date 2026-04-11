@@ -1,6 +1,10 @@
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
-import { buildGuiOverlay, GUI_TEXT_OVERLAY_DEPTH } from '../../engine/gui/buildGuiOverlay';
+import {
+  applyRuntimeGuiOverlayParity,
+  buildGuiOverlay,
+  GUI_TEXT_OVERLAY_DEPTH,
+} from '../../engine/gui/buildGuiOverlay';
 import type { GuiData } from '../../types/gui';
 import type { GuiFontLoadRequest } from '../../game/collectFontLoadsForGui';
 
@@ -36,6 +40,7 @@ function editorGameConfig(
     height,
     backgroundColor: '#1a1a2e',
     pixelArt: true,
+    roundPixels: true,
     antialias: false,
     scale: {
       parent,
@@ -43,6 +48,9 @@ function editorGameConfig(
       width,
       height,
       autoCenter: Phaser.Scale.CENTER_BOTH,
+      /** Match runtime (`gameConfig.ts`): largest integer zoom that fits — avoids bilinear stretch blur. */
+      zoom: Phaser.Scale.MAX_ZOOM,
+      autoRound: true,
     },
     render: {
       powerPreference: 'high-performance',
@@ -60,7 +68,7 @@ class BenneGuiPreviewBoot extends Phaser.Scene {
 
   preload(): void {
     for (const f of this.payload.fontLoads) {
-      this.load.font(f.fontId, f.url, f.format);
+      this.load.bitmapFont(f.fontId, f.textureUrl, f.dataUrl);
     }
     const a = this.payload.aseprite;
     if (a) {
@@ -114,11 +122,12 @@ class GuiPreviewScene extends Phaser.Scene {
       }
     }
 
-    buildGuiOverlay(this, guiData, {
+    const guiOverlay = buildGuiOverlay(this, guiData, {
       depth: PREVIEW_GUI_TEXT_DEPTH,
       startVisible: true,
       emptyTextPlaceholder: 'Lorem ipsum dolor sit amet.',
     });
+    applyRuntimeGuiOverlayParity(guiData.id, guiOverlay);
 
     this.add
       .text(8, 6, `${internalWidth}×${internalHeight} · game resolution`, {

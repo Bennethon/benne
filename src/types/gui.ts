@@ -18,7 +18,7 @@ export interface GuiTextControl {
   x: number;
   y: number;
   text?: string;
-  /** Key in `src/game/assets/fonts/fonts.json`. */
+  /** Key in `src/game/assets/fonts/fonts.json` (bitmap font). */
   font: string;
   fontSize: number;
   color: string;

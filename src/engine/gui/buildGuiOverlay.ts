@@ -1,5 +1,9 @@
 import * as Phaser from 'phaser';
+import gameFontsManifest from '../../game/assets/fonts/fonts.json';
+import type { GameFontsManifest } from '../../types/fonts';
 import type { GuiData, GuiTextAlign, GuiTextControl } from '../../types/gui';
+
+const manifest = gameFontsManifest as GameFontsManifest;
 
 /** Renders above room characters (`CHARACTER_SCENE_DEPTH` is 10_000). */
 export const GUI_TEXT_OVERLAY_DEPTH = 25_000;
@@ -9,6 +13,8 @@ export interface GuiOverlayHandle {
   setPrimaryText(text: string): void;
   setControlText(id: string, text: string): void;
   setVisible(visible: boolean): void;
+  /** Extra horizontal gap between glyphs (Phaser `BitmapText` letter spacing). */
+  setLetterSpacing(spacing: number): void;
   destroy(): void;
 }
 
@@ -23,18 +29,71 @@ function originFromAlign(align: GuiTextAlign | undefined): { x: number; y: numbe
   }
 }
 
-function textStyleForControl(c: GuiTextControl): Phaser.Types.GameObjects.Text.TextStyle {
-  const align = c.align ?? 'left';
-  const style: Phaser.Types.GameObjects.Text.TextStyle = {
-    fontFamily: c.font,
-    fontSize: `${c.fontSize}px`,
-    color: c.color,
-    align: align === 'center' ? 'center' : align === 'right' ? 'right' : 'left',
-  };
-  if (c.wordWrapWidth != null && c.wordWrapWidth > 0) {
-    style.wordWrap = { width: c.wordWrapWidth };
+function hexStringToTint(hex: string): number {
+  try {
+    return Phaser.Display.Color.HexStringToColor(hex).color;
+  } catch {
+    return 0xffffff;
   }
-  return style;
+}
+
+function bitmapTextLineAlign(align: GuiTextAlign | undefined): number {
+  switch (align) {
+    case 'center':
+      return 1;
+    case 'right':
+      return 2;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * BMFont XML often uses a negative `info size` (e.g. -8). Phaser scales with `fontSize / fontData.size`; if signs
+ * disagree, scale becomes negative and flips/mirrors glyphs. Match the sign of `fontData.size`.
+ */
+function effectiveBitmapFontRenderSize(scene: Phaser.Scene, fontKey: string, fontSize: number): number {
+  const entry = scene.cache.bitmapFont.get(fontKey) as { data?: { size?: number } } | null;
+  const dataSize = entry?.data?.size;
+  if (dataSize == null || dataSize === 0) {
+    return fontSize;
+  }
+  return dataSize < 0 ? -Math.abs(fontSize) : Math.abs(fontSize);
+}
+
+function addGuiBitmapLine(
+  scene: Phaser.Scene,
+  c: GuiTextControl,
+  initial: string,
+  depth: number,
+  startVisible: boolean,
+): Phaser.GameObjects.BitmapText | null {
+  if (!manifest[c.font]) {
+    console.warn(`[Benne] Unknown GUI font id "${c.font}" — add it to src/game/assets/fonts/fonts.json.`);
+    return null;
+  }
+
+  if (!scene.cache.bitmapFont.exists(c.font)) {
+    console.warn(`[Benne] Bitmap font "${c.font}" is not in the cache (preload order?).`);
+    return null;
+  }
+
+  const o = originFromAlign(c.align);
+  const x = Math.round(c.x);
+  const y = Math.round(c.y);
+  const lineAlign = bitmapTextLineAlign(c.align);
+  const renderSize = effectiveBitmapFontRenderSize(scene, c.font, c.fontSize);
+  const bt = scene.add.bitmapText(x, y, c.font, initial, renderSize, lineAlign);
+  bt.setOrigin(o.x, o.y);
+  bt.clearTint();
+  bt.setTint(hexStringToTint(c.color));
+  if (c.wordWrapWidth != null && c.wordWrapWidth > 0) {
+    bt.setMaxWidth(c.wordWrapWidth);
+  }
+  bt.setScrollFactor(0, 0);
+  bt.setDepth(depth);
+  bt.setVisible(startVisible);
+  return bt;
 }
 
 export interface BuildGuiOverlayOptions {
@@ -46,8 +105,8 @@ export interface BuildGuiOverlayOptions {
 }
 
 /**
- * Builds screen-space text controls from `gui.controls`. Non-`text` entries are skipped.
- * Starts hidden unless `startVisible`. Uses `fontFamily` equal to Phaser `load.font` keys from `fonts/fonts.json`.
+ * Builds screen-space bitmap text controls from `gui.controls`. Non-`text` entries are skipped.
+ * Starts hidden unless `startVisible`. Font ids resolve via `fonts/fonts.json` (`load.bitmapFont` keys).
  */
 export function buildGuiOverlay(
   scene: Phaser.Scene,
@@ -57,8 +116,8 @@ export function buildGuiOverlay(
   const depth = options?.depth ?? GUI_TEXT_OVERLAY_DEPTH;
   const startVisible = options?.startVisible ?? false;
   const placeholder = options?.emptyTextPlaceholder;
-  const allTexts: Phaser.GameObjects.Text[] = [];
-  const textsById = new Map<string, Phaser.GameObjects.Text>();
+  const allLines: Phaser.GameObjects.BitmapText[] = [];
+  const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
 
   for (const c of gui.controls ?? []) {
     if (c.type !== 'text') {
@@ -66,42 +125,58 @@ export function buildGuiOverlay(
     }
     const raw = c.text?.trim() ?? '';
     const initial = raw.length > 0 ? (c.text ?? '') : (placeholder ?? '');
-    const t = scene.add.text(c.x, c.y, initial, textStyleForControl(c));
-    const o = originFromAlign(c.align);
-    t.setOrigin(o.x, o.y);
-    t.setScrollFactor(0, 0);
-    t.setDepth(depth);
-    t.setVisible(startVisible);
-    allTexts.push(t);
+    const line = addGuiBitmapLine(scene, c, initial, depth, startVisible);
+    if (!line) {
+      continue;
+    }
+    allLines.push(line);
     if (c.id) {
-      textsById.set(c.id, t);
+      linesById.set(c.id, line);
     }
   }
 
-  if (allTexts.length === 0) {
+  if (allLines.length === 0) {
     return null;
   }
 
-  const primaryText: Phaser.GameObjects.Text = textsById.get('line') ?? allTexts[0]!;
+  const primaryLine = linesById.get('line') ?? allLines[0]!;
 
   return {
     setPrimaryText(text: string) {
-      primaryText.setText(text);
+      primaryLine.setText(text);
     },
     setControlText(id: string, text: string) {
-      textsById.get(id)?.setText(text);
+      linesById.get(id)?.setText(text);
     },
     setVisible(visible: boolean) {
-      for (const t of allTexts) {
-        t.setVisible(visible);
+      for (const line of allLines) {
+        line.setVisible(visible);
+      }
+    },
+    setLetterSpacing(spacing: number) {
+      for (const line of allLines) {
+        line.setLetterSpacing(spacing);
       }
     },
     destroy() {
-      for (const t of allTexts) {
-        t.destroy();
+      for (const line of allLines) {
+        line.destroy();
       }
-      allTexts.length = 0;
-      textsById.clear();
+      allLines.length = 0;
+      linesById.clear();
     },
   };
+}
+
+/**
+ * After `buildGuiOverlay`, apply the same post-build tweaks `RoomScene` uses for that GUI id so the
+ * VS Code GUI preview matches in-game pixels. Add new branches here whenever runtime adjusts an overlay.
+ */
+export function applyRuntimeGuiOverlayParity(guiId: string, handle: GuiOverlayHandle | null): void {
+  if (!handle) {
+    return;
+  }
+  if (guiId === 'dialog-text') {
+    handle.setLetterSpacing(1);
+  }
 }
