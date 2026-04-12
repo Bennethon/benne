@@ -1,5 +1,3 @@
-import { roomCharacterVerbEventId } from '@engine/events/verbInteractionEvents';
-import type { CharacterVerbInteractPayload } from '@engine/events/propInteractionEvents';
 import { registerRoomScript } from '@engine/scripting';
 
 /**
@@ -40,7 +38,10 @@ registerRoomScript(({ B }) => {
     // TODO
   });
 
+
   B.whenUse('henry', () => {
-    // TODO
+    B.player.walkTo('henry');
+    B.player.say('Hello from Bennescript! Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.');
+    B.character('henry').say('SUP DUDE!');
   });
 });

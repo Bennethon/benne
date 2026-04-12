@@ -957,7 +957,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                     eventId: roomCharacterVerbEventId(roomId, characterId, v.id),
                     roomJsonUri,
                     roomId,
-                    verbHandlerHint: benneHandlerDescriptionForRoomCharacter(characterId, v.id, configured)
+                    verbHandlerHint: `${benneHandlerDescriptionForRoomCharacter(characterId, v.id, configured)} (in room script)`
                 });
             } else {
                 out.push({
@@ -992,7 +992,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                     eventId: roomCharacterVerbEventId(roomId, characterId, verbId),
                     roomJsonUri,
                     roomId,
-                    verbHandlerHint: benneHandlerDescriptionForRoomCharacter(characterId, verbId, configured)
+                    verbHandlerHint: `${benneHandlerDescriptionForRoomCharacter(characterId, verbId, configured)} (in room script)`
                 });
             } else {
                 out.push({
