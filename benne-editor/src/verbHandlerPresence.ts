@@ -1,9 +1,9 @@
 /**
  * Detect verb handler registrations in room / character scripts, including
- * {@link registerRoomScript} Bennescript (`B.whenLookAt`, …) and legacy
- * `roomPropVerbEventId` / `_events.on` patterns. Keep alias resolution aligned
- * with `src/engine/scripting/BenneScript.ts` (`VERB_ALIAS_CANDIDATES` +
- * `resolveVerbId`).
+ * {@link registerRoomScript} Bennescript (`B.whenLookAt`, …) and direct
+ * `roomPropVerbEventId` / `_events.on` patterns in existing sources. Keep alias
+ * resolution aligned with `src/engine/scripting/BenneScript.ts`
+ * (`VERB_ALIAS_CANDIDATES` + `resolveVerbId`).
  */
 
 import * as vscode from 'vscode';
