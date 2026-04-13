@@ -26,6 +26,7 @@
     "showPropOutlines": false
   },
   "dialog": {
+    "clickToSkip": true,
     "showText": true,
     "defaultTalkOffset": {
       "x": 0,

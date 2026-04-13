@@ -61,7 +61,7 @@
   },
   "talkPoint": {
     "x": 80,
-    "y": 22
+    "y": 34
   },
   "onVerb": {
     "look": true,

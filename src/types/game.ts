@@ -30,6 +30,13 @@ export interface GameSettingsDebug {
 
 /** Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults. */
 export interface GameSettingsDialog {
+  /**
+   * Default for timed Bennescript `.say` / `.say.now` lines when the call omits **`clickToSkip`** in the options object.
+   * When true, a **left**-click ends the line early (same cleanup as the timer). Per-line overrides:
+   * `say('…', { clickToSkip: false })` always disables skip; `say('…', { clickToSkip: true })` always enables skip even
+   * when this global flag is false.
+   */
+  clickToSkip: boolean;
   /** When false, `.say()` timing still runs but no dialog-text GUI (reserved for future spoken-only lines). */
   showText: boolean;
   /** Extra offset in **game canvas pixels** (same space as GUI `controls[].x` / `y`) applied after projecting the character `talkPoint`. */

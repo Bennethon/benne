@@ -3,17 +3,20 @@
  */
 const imageUrls = import.meta.glob('./assets/**/*.{png,jpg,jpeg,webp,gif}', {
   eager: true,
-  as: 'url',
+  query: '?url',
+  import: 'default',
 }) as Record<string, string>;
 
 const jsonUrls = import.meta.glob('./assets/**/*.json', {
   eager: true,
-  as: 'url',
+  query: '?url',
+  import: 'default',
 }) as Record<string, string>;
 
 const xmlUrls = import.meta.glob('./assets/**/*.xml', {
   eager: true,
-  as: 'url',
+  query: '?url',
+  import: 'default',
 }) as Record<string, string>;
 
 function normalizeAssetPath(relativePath: string): string {

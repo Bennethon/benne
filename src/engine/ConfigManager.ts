@@ -2,6 +2,7 @@ import type { GameSettings, GameSettingsDialog } from '../types/game';
 import rawSettings from '../game/game-config.json';
 
 const DIALOG_DEFAULTS: GameSettingsDialog = {
+  clickToSkip: false,
   showText: true,
   defaultTalkOffset: { x: 0, y: 0 },
   minDurationMs: 800,
@@ -17,6 +18,7 @@ function mergeDialogSettings(data: GameSettings): GameSettingsDialog {
   }
   const off = d.defaultTalkOffset;
   return {
+    clickToSkip: d.clickToSkip ?? DIALOG_DEFAULTS.clickToSkip,
     showText: d.showText ?? DIALOG_DEFAULTS.showText,
     defaultTalkOffset:
       off != null && typeof off === 'object' && Number.isFinite(off.x) && Number.isFinite(off.y)
@@ -36,6 +38,9 @@ function assertDialogSettings(data: GameSettings): void {
   }
   if (typeof d !== 'object' || d === null) {
     throw new Error('game-config dialog must be an object when present');
+  }
+  if (d.clickToSkip !== undefined && typeof d.clickToSkip !== 'boolean') {
+    throw new Error('game-config dialog.clickToSkip must be a boolean when present');
   }
   if (d.showText !== undefined && typeof d.showText !== 'boolean') {
     throw new Error('game-config dialog.showText must be a boolean when present');

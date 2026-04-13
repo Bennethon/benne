@@ -41,7 +41,7 @@ registerRoomScript(({ B }) => {
 
   B.whenUse('henry', () => {
     B.player.walkTo('henry');
-    B.player.say('Hello from Bennescript! Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.');
+    B.player.say('Hello from Bennescript! Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', { clickToSkip: false });
     B.character('henry').say('SUP DUDE!');
   });
 });
