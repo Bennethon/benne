@@ -13,6 +13,7 @@
   "activationEvents": [
     "onView:benne-editor.main",
     "onView:benne-editor.actions",
+    "onView:benne-editor.inspector",
     "onCommand:benne-editor.openEditor",
     "onCommand:benne-editor.showSidebar",
     "onCommand:benne-editor.createRoom",
@@ -58,6 +59,12 @@
           "id": "benne-editor.actions",
           "name": "Actions",
           "contextualTitle": "BENNE — Actions"
+        },
+        {
+          "id": "benne-editor.inspector",
+          "type": "webview",
+          "name": "Inspector",
+          "contextualTitle": "BENNE — Inspector"
         }
       ]
     },

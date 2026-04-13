@@ -710,6 +710,7 @@ async function runLoadRoom(msg: HostPreviewMessage): Promise<void> {
             roomJsonUri: currentRoomJsonUri,
             onPolygonPatch,
         });
+        vscodeApi?.postMessage({ type: 'benne/preview/roomLoadComplete', roomJsonUri: currentRoomJsonUri });
     } catch (e) {
         showError(e instanceof Error ? e.message : String(e));
     }
@@ -727,6 +728,14 @@ window.addEventListener('message', (event: MessageEvent) => {
     }
 
     if (msg?.type === 'benne/preview/toolbarUi') {
+        if (!lastLoadedRoom) {
+            return;
+        }
+        wireToolbarFromPreviewState(lastLoadedRoom, parsePreviewToolbarPayload(msg));
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/inspectorFocus') {
         if (!lastLoadedRoom) {
             return;
         }

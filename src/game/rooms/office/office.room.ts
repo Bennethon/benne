@@ -44,4 +44,8 @@ registerRoomScript(({ B }) => {
     B.player.say('Hello from Bennescript! Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', { clickToSkip: false });
     B.character('henry').say('SUP DUDE!');
   });
+
+  B.onProp('office-prop-cyberbuddy', 'slap', () => {
+    // TODO
+  });
 });
