@@ -15,7 +15,12 @@ import {
   roomHotspotVerbEventId,
   roomPropVerbEventId,
 } from '../events/verbInteractionEvents.js';
-import { playDirectionalAnimation, type DirectionalCharacterSprite } from '../directionalCharacterAnimation.js';
+import {
+  playDirectionalAnimation,
+  resolveInitialIdleFacing,
+  type CharacterFacing,
+  type DirectionalCharacterSprite,
+} from '../directionalCharacterAnimation.js';
 import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
 
 /**
@@ -32,7 +37,7 @@ import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
  * | **`playAnimation(tag)`** | Aseprite **frame tag** on the character sheet (e.g. `'Idle'`, `'WalkL'`). |
  * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
  * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
- * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Timed **`dialog-text`** line from **`game-config.json`** **`dialog`** (duration, **`clickToSkip`**, …). Optional second argument **`{ clickToSkip: false }`** forces no advance-on-click for that line; **`{ clickToSkip: true }`** forces skippable even when global **`dialog.clickToSkip`** is **`false`**. |
+ * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Timed **`dialog-text`** line from **`game-config.json`** **`dialog`** (duration, **`clickToSkip`**, …). Speaker plays **`Talk*`** then **`Idle*`** (Aseprite tags, current **`facing`**). Optional second argument **`{ clickToSkip: false }`** forces no advance-on-click for that line; **`{ clickToSkip: true }`** forces skippable even when global **`dialog.clickToSkip`** is **`false`**. |
  *
  * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in this file. **`whenVerb`** uses an exact verb id.
  */
@@ -161,6 +166,21 @@ export class BenneScript {
     this.interactionTail = this.interactionTail.then(factory).then(() => undefined);
   }
 
+  /** Aseprite directional **`Talk*`** / **`Idle*`** for the character who owns this `.say` line (no-op if not a keyed sprite). */
+  private applySayLineDirectionalBase(
+    scene: RoomScene,
+    characterDefinitionId: string,
+    baseName: 'Talk' | 'Idle',
+  ): void {
+    const sprite = scene.getCharacterSprite(characterDefinitionId);
+    if (!sprite || !(sprite instanceof Phaser.GameObjects.Sprite) || !sprite.anims) {
+      return;
+    }
+    const facing: CharacterFacing =
+      (sprite.getData('facing') as CharacterFacing | undefined) ?? resolveInitialIdleFacing(sprite);
+    playDirectionalAnimation(sprite, baseName, facing);
+  }
+
   /**
    * Timed dialog line: suppresses room walks and verb clicks until the line duration elapses.
    * When **`chain`** is true, participates in {@link chain}; when false (`say.now`), only the timer runs.
@@ -191,6 +211,7 @@ export class BenneScript {
         timer?.remove(false);
         timer = null;
         scene.clearScriptedDialogClickToSkip();
+        this.applySayLineDirectionalBase(scene, talkCharacterDefinitionId, 'Idle');
         scene.setDialogTextOverlay({ visible: false });
         scene.popScriptedDialogInputSuppression();
         resolve?.();
@@ -202,6 +223,7 @@ export class BenneScript {
         text: line,
         talkCharacterDefinitionId,
       });
+      this.applySayLineDirectionalBase(scene, talkCharacterDefinitionId, 'Talk');
 
       timer = scene.time.delayedCall(ms, finish);
 
@@ -832,6 +854,7 @@ export interface BenneScriptPlayerFacade {
 
   /**
    * Shows line on the `dialog-text` GUI above the player’s `talkPoint`; hides per `game-config.json` `dialog` timing.
+   * While the line is up, plays directional **`Talk*`** Aseprite tags (current **`facing`**), then **`Idle*`** when the line ends.
    * Left-click ends the line early when enabled: global **`dialog.clickToSkip`**, or **`options.clickToSkip: true`**;
    * disabled for a line with **`options.clickToSkip: false`**.
    */
@@ -867,6 +890,7 @@ export interface BenneScriptCharacterFacade {
 
   /**
    * Shows line on the `dialog-text` GUI above this character’s `talkPoint`; hides per `game-config.json` `dialog` timing.
+   * While the line is up, plays directional **`Talk*`** Aseprite tags (current **`facing`**), then **`Idle*`** when the line ends.
    * Left-click ends the line early when enabled: global **`dialog.clickToSkip`**, or **`options.clickToSkip: true`**;
    * disabled for a line with **`options.clickToSkip: false`**.
    */

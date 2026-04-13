@@ -446,8 +446,8 @@
   ],
   "characters": [
     {
-      "instanceId": "clerk-1",
-      "definition": "clerk/clerk.character.json",
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
       "x": 96,
       "y": 170,
       "initialFacing": "L",

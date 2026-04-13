@@ -13,7 +13,7 @@
     "secondaryButtonVerb": "look"
   },
   "defaultFallbackLine": "You can't do that.",
-  "startingPlayerCharacter": "clerk",
+  "startingPlayerCharacter": "hank",
   "startingRoomId": "office",
   "audio": {
     "masterVolume": 1,
