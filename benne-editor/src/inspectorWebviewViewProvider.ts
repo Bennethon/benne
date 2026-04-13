@@ -29,7 +29,6 @@ import {
 } from './inspectorMutations';
 import { getRoomIdFromRoomJsonUri } from './gameDiscovery';
 import type { RoomPreviewPanelController } from './roomPreviewPanel';
-import { openCharacterJsonAndScriptBottomGroup } from './roomScriptNavigation';
 
 function resolveRoomJsonUri(selection: EditorSelection): vscode.Uri | undefined {
     const focus = selection.focus;
@@ -65,40 +64,325 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
   <meta http-equiv="Content-Security-Policy" content="${csp}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    :root { color: var(--vscode-editor-foreground); background: var(--vscode-sideBar-background); font-size: 12px; }
+    :root {
+      color: var(--vscode-editor-foreground);
+      background: var(--vscode-sideBar-background);
+      font-size: 12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
     body { margin: 0; padding: 0; font-family: var(--vscode-font-family); }
-    #benne-inspector-app { box-sizing: border-box; min-height: 100vh; display: flex; flex-direction: column; }
+    #benne-inspector-app { min-height: 100vh; display: flex; flex-direction: column; }
     .inspector-root { display: flex; flex-direction: column; flex: 1; min-height: 0; }
     .scroll { flex: 1; overflow: auto; padding: 8px 10px 72px; }
-    .footer { position: sticky; bottom: 0; display: flex; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--vscode-widget-border); background: var(--vscode-sideBar-background); }
-    .footer button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 6px 12px; cursor: pointer; border-radius: 2px; }
-    .section { border: 1px solid var(--vscode-widget-border); border-radius: 4px; margin-bottom: 8px; background: var(--vscode-editor-background); }
-    .section > summary { padding: 6px 8px; cursor: pointer; font-weight: 600; }
-    .section-body { padding: 8px; border-top: 1px solid var(--vscode-widget-border); }
+
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 2px;
+      padding: 4px 6px;
+      font-family: inherit;
+      font-size: inherit;
+    }
+    input::placeholder,
+    textarea::placeholder {
+      color: var(--vscode-input-placeholderForeground);
+    }
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    textarea:focus,
+    select:focus {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: -1px;
+    }
+
+    .btn-primary {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: 1px solid transparent;
+      padding: 6px 12px;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: inherit;
+      font-family: inherit;
+    }
+    .btn-primary:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 1px;
+    }
+    .btn-secondary {
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      border: 1px solid var(--vscode-panel-border);
+      padding: 5px 10px;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: inherit;
+      font-family: inherit;
+    }
+    .btn-secondary:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 1px;
+    }
+    .btn-secondary:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .btn-link {
+      background: transparent;
+      color: var(--vscode-textLink-foreground);
+      border: none;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: inherit;
+      font-family: inherit;
+      text-decoration: none;
+    }
+    .btn-link:hover { text-decoration: underline; }
+    .btn-danger {
+      background: transparent;
+      color: var(--vscode-errorForeground);
+      border: 1px solid var(--vscode-input-border);
+      padding: 5px 10px;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: inherit;
+      font-family: inherit;
+    }
+    .btn-danger:hover {
+      border-color: var(--vscode-errorForeground);
+      background: color-mix(in srgb, var(--vscode-errorForeground) 12%, transparent);
+    }
+    .btn-danger:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 1px;
+    }
+
+    .footer {
+      position: sticky;
+      bottom: 0;
+      display: flex;
+      gap: 8px;
+      padding: 8px 10px;
+      border-top: 1px solid var(--vscode-panel-border);
+      background: var(--vscode-sideBar-background);
+    }
+
+    .section {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      margin-bottom: 10px;
+      background: var(--vscode-editor-background);
+      box-shadow: 0 1px 2px var(--vscode-widget-shadow);
+    }
+    .section > summary {
+      padding: 8px 10px;
+      cursor: pointer;
+      font-weight: 600;
+      list-style: none;
+    }
+    .section > summary::-webkit-details-marker { display: none; }
+    .section-body {
+      padding: 10px 12px 12px;
+      border-top: 1px solid var(--vscode-panel-border);
+    }
+
     .block { display: block; margin-bottom: 8px; }
-    .block input, .block textarea { width: 100%; box-sizing: border-box; margin-top: 4px; }
+    .block input, .block textarea { width: 100%; margin-top: 4px; }
     .row { margin: 6px 0; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .benne-scroll-bounds-label { margin-top: 12px; margin-bottom: 4px; }
+    .benne-scroll-bounds-grids { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
     .wrap { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .muted { color: var(--vscode-descriptionForeground); }
     .small { font-size: 11px; }
-    .badge { padding: 2px 6px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); border-radius: 4px; }
+    .badge {
+      padding: 2px 6px;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      border-radius: 4px;
+    }
     table.grid { width: 100%; border-collapse: collapse; }
-    table.grid th, table.grid td { border: 1px solid var(--vscode-widget-border); padding: 4px 6px; text-align: left; }
-    .cards { display: flex; flex-direction: column; gap: 8px; }
-    .card { border: 1px solid var(--vscode-widget-border); border-radius: 4px; padding: 4px 6px; background: var(--vscode-editor-background); }
-    .card > summary { cursor: pointer; font-weight: 500; }
-    .card-body { padding: 6px 4px 8px; }
-    .banner { background: var(--vscode-inputValidation-warningBackground); color: var(--vscode-inputValidation-warningForeground); padding: 4px 6px; border-radius: 2px; margin-bottom: 6px; font-size: 11px; }
-    .verb-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-    .verb-chip { border: 1px solid var(--vscode-button-border); border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 11px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
-    .verb-defined { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-color: var(--vscode-button-border); }
-    .verb-add { opacity: 0.75; }
-    .actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
-    .linkish { background: transparent; color: var(--vscode-textLink-foreground); border: none; cursor: pointer; padding: 4px 0; }
-    .danger { background: var(--vscode-errorForeground); color: var(--vscode-editor-background); border: none; padding: 4px 8px; border-radius: 2px; cursor: pointer; }
+    table.grid th, table.grid td {
+      border: 1px solid var(--vscode-panel-border);
+      padding: 4px 6px;
+      text-align: left;
+    }
+
+    .benne-card-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .benne-card {
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      padding: 12px 14px;
+      box-shadow: 0 1px 3px var(--vscode-widget-shadow);
+      transition: border-color 0.12s ease, box-shadow 0.12s ease;
+    }
+    .benne-card:hover {
+      border-color: var(--vscode-focusBorder);
+      box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+    }
+    .benne-card.benne-card--prop-clickable {
+      background: color-mix(
+        in srgb,
+        var(--vscode-editor-inactiveSelectionBackground) 30%,
+        var(--vscode-editor-background)
+      );
+    }
+    .benne-card.benne-card--prop-clickable:hover {
+      background: color-mix(
+        in srgb,
+        var(--vscode-editor-inactiveSelectionBackground) 42%,
+        var(--vscode-editor-background)
+      );
+    }
+
+    .benne-card-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 8px 12px;
+      margin-bottom: 8px;
+    }
+    .benne-card-titles { flex: 1 1 120px; min-width: 0; }
+    .benne-card-title { font-weight: 600; line-height: 1.25; word-break: break-word; }
+    .benne-card-sub { font-size: 11px; margin-top: 2px; }
+    .benne-card-checks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      align-items: center;
+      margin-left: auto;
+    }
+    .benne-inline-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+    .benne-inline-check input { cursor: pointer; }
+
+    .benne-card-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .benne-card-metrics label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      min-width: 0;
+    }
+    .benne-card-metrics input {
+      flex: 1;
+      min-width: 0;
+      width: 100%;
+    }
+    .benne-card-metrics--1 {
+      grid-template-columns: 1fr;
+      max-width: 160px;
+    }
+    .benne-card-metrics--2 {
+      grid-template-columns: repeat(2, 1fr);
+      max-width: 320px;
+    }
+
+    .benne-field-label { display: block; margin-bottom: 4px; }
+    .benne-char-grid { margin-bottom: 8px; }
+    .benne-char-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .benne-char-field input { width: 100%; }
+
+    .benne-verb-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .verb-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 12px;
+      padding: 6px 12px 6px 10px;
+      font-size: 12px;
+      line-height: 1.45;
+      cursor: pointer;
+      font-family: inherit;
+      border: 1px solid var(--vscode-panel-border);
+      transition: border-color 0.1s ease, background 0.1s ease, color 0.1s ease;
+    }
+    .verb-chip:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 1px;
+    }
+    .verb-chip-glyph { margin-right: 0; font-size: 14px; line-height: 1; }
+    .verb-chip-txt { font-weight: 600; letter-spacing: 0.01em; }
+    .verb-defined {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border-color: var(--vscode-button-border, var(--vscode-contrastBorder, var(--vscode-panel-border)));
+    }
+    .verb-defined:hover {
+      border-color: var(--vscode-focusBorder);
+    }
+    .verb-add {
+      background: var(--vscode-input-background);
+      color: var(--vscode-editor-foreground);
+      border-style: dashed;
+      opacity: 0.92;
+    }
+    .verb-add:hover {
+      border-color: var(--vscode-focusBorder);
+      color: var(--vscode-editor-foreground);
+      opacity: 1;
+    }
+
+    .benne-card-desc {
+      width: 100%;
+      resize: vertical;
+      min-height: 2.6em;
+      max-height: 4.8em;
+      margin-bottom: 10px;
+      line-height: 1.35;
+      overflow: auto;
+    }
+
+    .benne-card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--vscode-panel-border);
+    }
+    .benne-card-actions-inner { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .benne-card-actions--end { justify-content: flex-end; }
+
+    .banner {
+      background: var(--vscode-inputValidation-warningBackground);
+      color: var(--vscode-inputValidation-warningForeground);
+      padding: 6px 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      font-size: 11px;
+      border: 1px solid var(--vscode-inputValidation-warningBorder, var(--vscode-panel-border));
+    }
+
     .empty { padding: 12px; color: var(--vscode-descriptionForeground); }
     .tag { font-weight: 600; }
   </style>
@@ -307,15 +591,10 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 await this.roomPreview.focusInspectorGeometry(uri, { kind: 'prop', id });
             } else if (kind === 'hotspot' && id) {
                 await this.roomPreview.focusInspectorGeometry(uri, { kind: 'hotspot', id });
-            }
-            return;
-        }
-
-        if (msg.action === 'editCharacterPreview') {
-            const characterJsonUriStr = typeof msg.characterJsonUri === 'string' ? msg.characterJsonUri : '';
-            const characterId = typeof msg.characterId === 'string' ? msg.characterId : '';
-            if (characterJsonUriStr && characterId) {
-                await openCharacterJsonAndScriptBottomGroup(vscode.Uri.parse(characterJsonUriStr), characterId);
+            } else if (kind === 'point' && id) {
+                await this.roomPreview.focusInspectorGeometry(uri, { kind: 'roomPoint', id });
+            } else if (kind === 'region' && id) {
+                await this.roomPreview.focusInspectorGeometry(uri, { kind: 'region', id });
             }
             return;
         }

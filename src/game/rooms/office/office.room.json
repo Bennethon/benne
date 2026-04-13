@@ -396,12 +396,12 @@
       "visible": true,
       "alpha": 1,
       "walkToPoint": {
-        "x": 155,
-        "y": 172
+        "x": 219,
+        "y": 102
       },
       "lookAtPoint": {
-        "x": 192,
-        "y": 102
+        "x": 249,
+        "y": 96
       },
       "description": "A cheerful plastic desk mascot from a forgotten trade show.",
       "collider": {
@@ -470,8 +470,8 @@
   "points": [
     {
       "id": "office-point-1",
-      "x": 271,
-      "y": 121
+      "x": 179,
+      "y": 100
     }
   ],
   "regions": [
