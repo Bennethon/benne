@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { Point2 } from '../../types/room.js';
-import { computeDialogLineDurationMs, getGameSettings } from '../ConfigManager.js';
+import { computeDialogLineDurationMs, getDialogSettings, getGameSettings } from '../ConfigManager.js';
 import { getStartingPlayerCharacterId } from '../../game/constants.js';
 import type {
   CharacterVerbInteractPayload,
@@ -28,10 +28,11 @@ import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
  * | **`whenLookAt`**, **`whenUse`**, **`whenTalkTo`**, **`whenPickUp`**, **`whenPush`**, **`whenPull`**, **`whenOpen`**, **`whenClose`**, **`whenVerb`** | One **`targetId`** per room: **prop** (`props[].id`) → **hotspot** (`hotspots[].id`) → **character** (`CharacterData.id` spawned here, including the player). Optional **`(p: any)`** payload — shape depends on which kind matched; see **`registerVerbForTarget`**. Character verb payloads may include **world** **`walkToPoint`** / **`talkPoint`** when authored in **`*.character.json`**. |
  * | **`whenGive`** | **`targetId`** is the receiving **prop** only (`props[].id`; inventory **`itemId`** is separate). |
  * | **`onProp`**, **`B.prop(id)`** | **`props[].id`** only (explicit prop wiring). |
- * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | **Unified target string** (first match): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** → **`points[].id`**, or **`{ x, y }`** in **room pixels**. **`walkTo`** queues; **`walkTo.now`** and **`say.now`**, **`face.now`**, **`playAnimation.now`**, **`B.wait.now`** can run without blocking the queue. |
+ * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | **Unified target string** (first match): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** → **`points[].id`**, or **`{ x, y }`** in **room pixels**. **`walkTo`** queues; **`walkTo.now`** and **`face.now`**, **`playAnimation.now`**, **`B.wait.now`** can run without blocking the queue. **`say.now`** also skips the queue but still uses the same per-line room input lock as **`say`**. |
  * | **`playAnimation(tag)`** | Aseprite **frame tag** on the character sheet (e.g. `'Idle'`, `'WalkL'`). |
  * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
  * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
+ * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Timed **`dialog-text`** line from **`game-config.json`** **`dialog`** (duration, **`clickToSkip`**, …). Optional second argument **`{ clickToSkip: false }`** forces no advance-on-click for that line; **`{ clickToSkip: true }`** forces skippable even when global **`dialog.clickToSkip`** is **`false`**. |
  *
  * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in this file. **`whenVerb`** uses an exact verb id.
  */
@@ -79,6 +80,19 @@ function withNow<TArgs extends readonly unknown[]>(
   fn.now = nowImpl;
   return fn;
 }
+
+/** Optional flags for `B.player.say` / `B.character(…).say` and `.say.now`. */
+export interface BenneScriptSayLineOptions {
+  /**
+   * **`false`** — never advance this line by click (even if global **`dialog.clickToSkip`** is **`true`**).
+   * **`true`** — always allow click-to-advance for this line (even if global **`dialog.clickToSkip`** is **`false`**).
+   * Omitted — use the global **`dialog.clickToSkip`** setting only.
+   */
+  clickToSkip?: boolean;
+}
+
+/** Arguments for {@link BenneScriptPlayerFacade.say} / {@link BenneScriptCharacterFacade.say}. */
+export type BenneScriptSayArgs = [line: string, options?: BenneScriptSayLineOptions];
 
 /**
  * High-level API passed as **`B`** in the `registerRoomScript` callback. Chains async steps (walk, delays) in order; use **`await`** only if you expose promises yourself.
@@ -145,6 +159,66 @@ export class BenneScript {
    */
   private chain(factory: () => Promise<unknown>): void {
     this.interactionTail = this.interactionTail.then(factory).then(() => undefined);
+  }
+
+  /**
+   * Timed dialog line: suppresses room walks and verb clicks until the line duration elapses.
+   * When **`chain`** is true, participates in {@link chain}; when false (`say.now`), only the timer runs.
+   * Click-to-skip (left button): per-line **`{ clickToSkip: true }`** always enables it; **`{ clickToSkip: false }`**
+   * always disables it; otherwise {@link getDialogSettings}.`clickToSkip` applies.
+   */
+  private queueSayDialogWithInputLock(
+    scene: RoomScene,
+    line: string,
+    talkCharacterDefinitionId: string,
+    chain: boolean,
+    options?: BenneScriptSayLineOptions,
+  ): void {
+    const ms = computeDialogLineDurationMs(line);
+    const lineOpt = options?.clickToSkip;
+    const allowClickToSkip =
+      lineOpt === true || (lineOpt !== false && getDialogSettings().clickToSkip);
+
+    const runLine = (resolve?: () => void): void => {
+      let completed = false;
+      let timer: Phaser.Time.TimerEvent | null = null;
+
+      const finish = (): void => {
+        if (completed) {
+          return;
+        }
+        completed = true;
+        timer?.remove(false);
+        timer = null;
+        scene.clearScriptedDialogClickToSkip();
+        scene.setDialogTextOverlay({ visible: false });
+        scene.popScriptedDialogInputSuppression();
+        resolve?.();
+      };
+
+      scene.pushScriptedDialogInputSuppression();
+      scene.setDialogTextOverlay({
+        visible: true,
+        text: line,
+        talkCharacterDefinitionId,
+      });
+
+      timer = scene.time.delayedCall(ms, finish);
+
+      if (allowClickToSkip) {
+        scene.setScriptedDialogClickToSkip(() => {
+          timer?.remove(false);
+          timer = null;
+          finish();
+        });
+      }
+    };
+
+    if (chain) {
+      this.chain(() => new Promise<void>((resolve) => runLine(resolve)));
+    } else {
+      runLine();
+    }
   }
 
   /**
@@ -606,35 +680,13 @@ export class BenneScript {
         runCharacterPlayAnimation,
       ),
       say: withNow(
-        (line: string) => {
+        (line: string, options?: BenneScriptSayLineOptions) => {
           logCharacterSay(line);
-          const ms = computeDialogLineDurationMs(line);
-          this.chain(
-            () =>
-              new Promise<void>((resolve) => {
-                scene.setDialogTextOverlay({
-                  visible: true,
-                  text: line,
-                  talkCharacterDefinitionId: definitionId,
-                });
-                scene.time.delayedCall(ms, () => {
-                  scene.setDialogTextOverlay({ visible: false });
-                  resolve();
-                });
-              }),
-          );
+          this.queueSayDialogWithInputLock(scene, line, definitionId, true, options);
         },
-        (line: string) => {
+        (line: string, options?: BenneScriptSayLineOptions) => {
           logCharacterSay(line);
-          const ms = computeDialogLineDurationMs(line);
-          scene.setDialogTextOverlay({
-            visible: true,
-            text: line,
-            talkCharacterDefinitionId: definitionId,
-          });
-          scene.time.delayedCall(ms, () => {
-            scene.setDialogTextOverlay({ visible: false });
-          });
+          this.queueSayDialogWithInputLock(scene, line, definitionId, false, options);
         },
       ),
       face: withNow(
@@ -712,37 +764,13 @@ export class BenneScript {
         runPlayerPlayAnimation,
       ),
       say: withNow(
-        (line: string) => {
+        (line: string, options?: BenneScriptSayLineOptions) => {
           logPlayerSay(line);
-          const ms = computeDialogLineDurationMs(line);
-          const talkCharacterDefinitionId = getStartingPlayerCharacterId();
-          this.chain(
-            () =>
-              new Promise<void>((resolve) => {
-                scene.setDialogTextOverlay({
-                  visible: true,
-                  text: line,
-                  talkCharacterDefinitionId,
-                });
-                scene.time.delayedCall(ms, () => {
-                  scene.setDialogTextOverlay({ visible: false });
-                  resolve();
-                });
-              }),
-          );
+          this.queueSayDialogWithInputLock(scene, line, getStartingPlayerCharacterId(), true, options);
         },
-        (line: string) => {
+        (line: string, options?: BenneScriptSayLineOptions) => {
           logPlayerSay(line);
-          const ms = computeDialogLineDurationMs(line);
-          const talkCharacterDefinitionId = getStartingPlayerCharacterId();
-          scene.setDialogTextOverlay({
-            visible: true,
-            text: line,
-            talkCharacterDefinitionId,
-          });
-          scene.time.delayedCall(ms, () => {
-            scene.setDialogTextOverlay({ visible: false });
-          });
+          this.queueSayDialogWithInputLock(scene, line, getStartingPlayerCharacterId(), false, options);
         },
       ),
       face: withNow(
@@ -802,8 +830,12 @@ export interface BenneScriptPlayerFacade {
    */
   playAnimation: BlockingWithNow<[string]>;
 
-  /** Shows line on the `dialog-text` GUI above the player’s `talkPoint`; hides per `game-config.json` `dialog` timing. */
-  say: BlockingWithNow<[string]>;
+  /**
+   * Shows line on the `dialog-text` GUI above the player’s `talkPoint`; hides per `game-config.json` `dialog` timing.
+   * Left-click ends the line early when enabled: global **`dialog.clickToSkip`**, or **`options.clickToSkip: true`**;
+   * disabled for a line with **`options.clickToSkip: false`**.
+   */
+  say: BlockingWithNow<BenneScriptSayArgs>;
 
   /**
    * Face a direction using the **`Idle*`** clip family.
@@ -833,8 +865,12 @@ export interface BenneScriptCharacterFacade {
    */
   playAnimation: BlockingWithNow<[string]>;
 
-  /** Shows line on the `dialog-text` GUI above this character’s `talkPoint`; hides per `game-config.json` `dialog` timing. */
-  say: BlockingWithNow<[string]>;
+  /**
+   * Shows line on the `dialog-text` GUI above this character’s `talkPoint`; hides per `game-config.json` `dialog` timing.
+   * Left-click ends the line early when enabled: global **`dialog.clickToSkip`**, or **`options.clickToSkip: true`**;
+   * disabled for a line with **`options.clickToSkip: false`**.
+   */
+  say: BlockingWithNow<BenneScriptSayArgs>;
 
   /**
    * Set facing via **`Idle` + direction** (e.g. **`IdleR`**).

@@ -132,6 +132,15 @@ export class RoomScene extends Phaser.Scene {
 
   private readonly dialogOverlayScreenScratch = new Phaser.Math.Vector2();
 
+  /**
+   * When non-zero, a Bennescript `say` / `say.now` line timer is active — ignore room background walks
+   * and prop/hotspot/character verb clicks so the player cannot act until the line ends.
+   */
+  private scriptedDialogInputSuppressionDepth = 0;
+
+  /** When set, a left-click should end the active scripted dialog line early (global or per-line `say` options). */
+  private scriptedDialogClickToSkip: (() => void) | null = null;
+
   constructor() {
     super(SCENE_ROOM);
   }
@@ -201,6 +210,8 @@ export class RoomScene extends Phaser.Scene {
       benneDispose?.();
       this.dialogTextOverlay?.destroy();
       this.dialogTextOverlay = null;
+      this.scriptedDialogInputSuppressionDepth = 0;
+      this.scriptedDialogClickToSkip = null;
       this.scale.off('resize', this.onScaleResize, this);
       this.input.off('pointerdown', this.handleRoomPointerDown);
       this.stopPlayerMoveTween(true);
@@ -253,6 +264,50 @@ export class RoomScene extends Phaser.Scene {
       h.resetPrimaryScreenPosition();
     }
     h.setVisible(true);
+  }
+
+  /**
+   * Called when a timed Bennescript dialog line starts (including `say.now`). Paired with
+   * {@link popScriptedDialogInputSuppression} when the line timer ends.
+   */
+  pushScriptedDialogInputSuppression(): void {
+    this.scriptedDialogInputSuppressionDepth++;
+  }
+
+  popScriptedDialogInputSuppression(): void {
+    this.scriptedDialogInputSuppressionDepth = Math.max(0, this.scriptedDialogInputSuppressionDepth - 1);
+  }
+
+  private isScriptedDialogInputSuppressed(): boolean {
+    return this.scriptedDialogInputSuppressionDepth > 0;
+  }
+
+  /**
+   * While a skippable scripted dialog line is showing, left-clicks invoke **`fn`** once (same cleanup as the timer).
+   * Cleared when the line ends or when {@link clearScriptedDialogClickToSkip} runs.
+   */
+  setScriptedDialogClickToSkip(fn: (() => void) | null): void {
+    this.scriptedDialogClickToSkip = fn;
+  }
+
+  clearScriptedDialogClickToSkip(): void {
+    this.scriptedDialogClickToSkip = null;
+  }
+
+  /**
+   * If a click-to-skip handler is registered and this is a primary-button down, runs the handler and returns true.
+   */
+  tryConsumeScriptedDialogClickToSkip(pointer: Phaser.Input.Pointer): boolean {
+    if (!this.scriptedDialogClickToSkip) {
+      return false;
+    }
+    if (!pointer.leftButtonDown()) {
+      return false;
+    }
+    const fn = this.scriptedDialogClickToSkip;
+    this.scriptedDialogClickToSkip = null;
+    fn();
+    return true;
   }
 
   /** World position of `CharacterData.talkPoint` for the first spawned sprite of this definition, or a default above the sprite top. */
@@ -578,6 +633,12 @@ export class RoomScene extends Phaser.Scene {
 
   private readonly handleRoomPointerDown = (pointer: Phaser.Input.Pointer): void => {
     if (!pointer.leftButtonDown()) {
+      return;
+    }
+    if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
+      return;
+    }
+    if (this.isScriptedDialogInputSuppressed()) {
       return;
     }
 
@@ -926,6 +987,9 @@ export class RoomScene extends Phaser.Scene {
     });
 
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
+        return;
+      }
       const profile = getEffectiveTwoVerbProfile(getGameSettings());
       const verbId = resolveVerbIdFromPointer(pointer, profile);
       if (!verbId) {
@@ -950,6 +1014,9 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private emitPropVerbInteraction(roomId: string, spawn: RoomPropSpawn, verbId: string): void {
+    if (this.isScriptedDialogInputSuppressed()) {
+      return;
+    }
     console.log(`[Benne] verb "${verbId}" prop ${spawn.id}`);
     dispatchVerbInteraction(gameEvents, verbId, getPropVerbHandlers(spawn.data), {
       type: 'prop',
@@ -975,6 +1042,12 @@ export class RoomScene extends Phaser.Scene {
     const depth = 8000 + (hotspot.zIndex ?? 0);
 
     const onHotspotPointer = (pointer: Phaser.Input.Pointer): void => {
+      if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
+        return;
+      }
+      if (this.isScriptedDialogInputSuppressed()) {
+        return;
+      }
       const handlers = getHotspotVerbHandlers(hotspot);
       if (Object.keys(handlers.onVerb).length === 0 && handlers.onVerbFallback === undefined) {
         return;
@@ -1084,6 +1157,12 @@ export class RoomScene extends Phaser.Scene {
       sprite.setInteractive({ useHandCursor: true });
     }
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
+        return;
+      }
+      if (this.isScriptedDialogInputSuppressed()) {
+        return;
+      }
       const profile = getEffectiveTwoVerbProfile(getGameSettings());
       const verbId = resolveVerbIdFromPointer(pointer, profile);
       if (!verbId) {

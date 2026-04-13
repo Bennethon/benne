@@ -236,7 +236,7 @@ BENNE uses a **two-layer scripting architecture** that keeps the engine data-fir
 
 **Layer 2 – Bennescript Facade (new authoring surface)**
 
-Authors now write against a clean, discoverable facade. Handlers are **ordinary sync functions**; the engine registers `async` listeners and chains real `Promise`s (walk, short `say` delays, etc.) so linear scripts work **without** author `async`/`await`:
+Authors now write against a clean, discoverable facade. Handlers are **ordinary sync functions**; the engine registers `async` listeners and, for queued actions, awaits an internal **interaction tail** built from `Promise`s so linear scripts work **without** author `async`/`await` (see **Blocking interaction queue vs `.now`** below).
 
 ```ts
 import { registerRoomScript } from '@engine/scripting';
@@ -255,9 +255,34 @@ registerRoomScript(({ B }) => {
 });
 ```
 
+**Blocking interaction queue vs `.now` (core Bennescript behavior)**  
+
+Room and character verb handlers are written as **ordinary synchronous functions**, but several `B` methods represent **time** (movement tweens, short `say` pacing delays, `wait`, etc.). Those methods participate in an **internal interaction queue** (`interactionTail` in `BenneScript.ts`): each step is a `Promise` that must finish before the **next** queued step **starts**. That makes linear scripts read top-to-bottom while still driving real async engine work (e.g. `RoomScene.walkPlayerTo` resolves when the walk tween completes).
+
+**Important implementation detail:** queued steps are registered with **lazy factories** (`() => Promise<…>`), not pre-created promises. If the queue were fed eager promises, every `walkTo` / `say` in one handler body would **start immediately** in the same synchronous tick; only **completion** order would be serialized. Lazy registration ensures the **next** walk (or delay) does not begin until the previous step’s promise has settled.
+
+**Methods that use the queue today (blocking by default)**  
+
+These schedule work on the queue when called from a handler (or any code path using the same `BenneScript` instance). Not every facade method is queued; only ones that need ordering relative to time or prior steps.
+
+| API | Blocking call | Non-blocking (same effect, no queue) |
+|-----|----------------|--------------------------------------|
+| `B.player` / `B.character(id)` — walk | `walkTo(target)` | `walkTo.now(target)` |
+| `B.player` / `B.character(id)` — line | `say(text)` | `say.now(text)` |
+| `B.player` / `B.character(id)` — clip | `playAnimation(tag)` | `playAnimation.now(tag)` |
+| `B.player` / `B.character(id)` — facing | `face(dir)` | `face.now(dir)` |
+| Room pacing | `B.wait(seconds)` | `B.wait.now(seconds)` |
+
+**`.now` semantics**  
+
+- **`.now`** runs the **same** underlying behavior (walk tween, `delayedCall` for `say` / `wait`, sync animation or facing).  
+- It does **not** append to `interactionTail`; later **blocking** lines in the same handler still run in source order, but **without waiting** for the `.now` action to finish.  
+- Return type is **`void`** (same as the blocking form); the engine does not surface promises to authors for the default API.  
+- TypeScript models blocking methods as **`BlockingWithNow<…>`** — the callable plus a **`now`** property with the same parameters (good autocomplete).
+
 **Core files**  
 - `src/engine/scripting/registerRoomScript.ts` — side-effect registration helper that collects callbacks into a module-level array.  
-- `src/engine/scripting/BenneScript.ts` — the main `B` facade (`whenLookAt`, `whenUse`, `player`, `prop`, `character`, etc.).  
+- `src/engine/scripting/BenneScript.ts` — the main `B` facade (`whenLookAt`, `whenUse`, `player`, `prop`, `character`, interaction queue, `BlockingWithNow`, etc.).  
 - `src/engine/scripting/RoomScriptContext.ts` — creates a typed context per room (passes real `roomId` + `RoomScene` instance).  
 - `src/game/registerGameContent.ts` — collects new-style handlers via `getBenneRoomScriptRegistrations()` and assigns them to `window.__benneRoomScripts` for `RoomScene`.
 
@@ -268,7 +293,7 @@ registerRoomScript(({ B }) => {
 
 **Key Design Decisions**  
 - Single `B.` namespace → excellent Cursor IntelliSense and discoverability (better than multiple `C.`, `H.`, `P.` prefixes for a modern TS codebase).  
-- `registerRoomScript(({ B }) => { ... })` → natural, minimal boilerplate; Promise chaining is internal to the facade.  
+- `registerRoomScript(({ B }) => { ... })` → natural, minimal boilerplate; **blocking** timing is internal (`async` listener + `await` on the tail after the sync handler body); **`.now`** opts out per call.  
 - Side-effect registration via module-level array → works reliably with Vite `import.meta.glob` (avoids marker propagation issues).  
 - Old-style raw `EventBus` handlers are still supported during transition.  
 - All real work still flows through the existing `EventBus` and verb dispatch system — zero runtime cost for the facade.
