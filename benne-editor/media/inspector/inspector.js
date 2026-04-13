@@ -21,24 +21,27 @@ function esc(s) {
 function post(action, payload) {
     vscodeApi?.postMessage({ action, ...payload });
 }
-function renderVerbChips(roomJsonUri, roomId, verbs, ctx) {
+function renderVerbChipRow(roomJsonUri, roomId, verbs, ctx) {
     void roomJsonUri;
     void roomId;
-    return verbs
+    if (verbs.length === 0) {
+        return '<div class="benne-verb-chips benne-verb-chips--empty"><span class="muted small">No verbs</span></div>';
+    }
+    const inner = verbs
         .map((v) => {
         const def = v.defined;
         const icon = def ? '⚡' : '+';
         const cls = def ? 'verb-chip verb-defined' : 'verb-chip verb-add';
         const dataReveal = def ? `data-reveal="1" data-event="${esc(v.eventId)}"` : '';
         const dataAdd = !def && !v.isFallback ? `data-add="1" data-verb="${esc(v.verbId)}"` : '';
-        return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} data-ctx="${esc(ctx)}" title="${esc(v.label)}">${icon} ${esc(v.verbId)}</button>`;
+        return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} data-ctx="${esc(ctx)}" title="${esc(v.label)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(v.verbId)}</span></button>`;
     })
         .join('');
+    return `<div class="benne-verb-chips">${inner}</div>`;
 }
 function renderRoom(state) {
     const sz = state.size;
     const sb = state.scrollBounds;
-    const exp = state.expanded;
     const walkRows = state.walkableRows
         .map((r) => {
         return `<tr>
@@ -54,109 +57,147 @@ function renderRoom(state) {
         .join('');
     const propCards = state.props
         .map((p) => {
-        const open = exp?.entity === 'prop' && exp.id === p.id;
-        const verbHtml = p.clickable && p.verbs.length > 0
-            ? `<div class="verb-row">${renderVerbChips(state.roomJsonUri, state.roomId, p.verbs, `prop:${p.id}`)}</div>`
-            : '';
-        return `<details class="card" ${open ? 'open' : ''} data-entity="prop" data-id="${esc(p.id)}">
-      <summary><span class="tag">${esc(p.tag ?? p.id)}</span> <span class="muted">${esc(p.id)}</span></summary>
-      <div class="card-body">
-        <label class="row"><span>Visible</span><input type="checkbox" class="prop-visible" data-id="${esc(p.id)}" ${p.visible ? 'checked' : ''} /></label>
-        <label class="row"><span>Clickable</span><input type="checkbox" class="prop-clickable" data-id="${esc(p.id)}" ${p.clickable ? 'checked' : ''} /></label>
-        <label class="row">Description<textarea class="prop-desc" data-id="${esc(p.id)}" rows="2">${esc(p.description)}</textarea></label>
-        <div class="row grid3">
-          <label>zIndex <input type="number" class="prop-z" data-id="${esc(p.id)}" value="${p.zIndex}" /></label>
-          <label>Parallax <input type="number" step="0.05" class="prop-par" data-id="${esc(p.id)}" value="${p.parallaxDepth}" /></label>
-          <label>Alpha <input type="number" step="0.05" min="0" max="1" class="prop-alpha" data-id="${esc(p.id)}" value="${p.alpha}" /></label>
+        const title = esc(p.tag ?? p.id);
+        const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, p.verbs, `prop:${p.id}`);
+        const propClickableCls = p.clickable ? ' benne-card--prop-clickable' : '';
+        const propActions = p.clickable
+            ? `<div class="benne-card-actions">
+        <div class="benne-card-actions-inner">
+          <button type="button" class="btn-link" data-edit-preview="prop" data-id="${esc(p.id)}">Edit in Preview →</button>
         </div>
-        ${verbHtml}
-        <div class="row actions">
-          <button type="button" class="linkish" data-edit-preview="prop" data-id="${esc(p.id)}">Edit in Preview →</button>
-          <button type="button" class="danger" data-delete="prop" data-id="${esc(p.id)}">Delete</button>
+        <button type="button" class="btn-danger" data-delete="prop" data-id="${esc(p.id)}">Delete</button>
+      </div>`
+            : `<div class="benne-card-actions benne-card-actions--end">
+        <button type="button" class="btn-danger" data-delete="prop" data-id="${esc(p.id)}">Delete</button>
+      </div>`;
+        return `<div class="benne-card benne-card--prop${propClickableCls}" data-entity="prop" data-id="${esc(p.id)}">
+      <div class="benne-card-head">
+        <div class="benne-card-titles">
+          <div class="benne-card-title tag">${title}</div>
+          <div class="benne-card-sub muted">${esc(p.id)}</div>
+        </div>
+        <div class="benne-card-checks">
+          <label class="benne-inline-check"><input type="checkbox" class="prop-visible" data-id="${esc(p.id)}" ${p.visible ? 'checked' : ''} /> Visible</label>
+          <label class="benne-inline-check"><input type="checkbox" class="prop-clickable" data-id="${esc(p.id)}" ${p.clickable ? 'checked' : ''} /> Clickable</label>
         </div>
       </div>
-    </details>`;
+      <div class="benne-card-metrics">
+        <label><span>z</span> <input type="number" class="prop-z" data-id="${esc(p.id)}" value="${p.zIndex}" /></label>
+        <label><span>Parallax</span> <input type="number" step="0.05" class="prop-par" data-id="${esc(p.id)}" value="${p.parallaxDepth}" /></label>
+        <label><span>Alpha</span> <input type="number" step="0.05" min="0" max="1" class="prop-alpha" data-id="${esc(p.id)}" value="${p.alpha}" /></label>
+      </div>
+      <label class="benne-field-label muted small">Description</label>
+      <textarea class="benne-card-desc prop-desc" data-id="${esc(p.id)}" rows="2" title="${esc(p.description)}">${esc(p.description)}</textarea>
+      <label class="benne-field-label muted small">Verbs</label>
+      ${verbHtml}
+      ${propActions}
+    </div>`;
     })
         .join('');
     const hotspotCards = state.hotspots
         .map((h) => {
-        const open = exp?.entity === 'hotspot' && exp.id === h.id;
         const inactive = !h.active ? '<div class="banner">Inactive (not hit-tested)</div>' : '';
-        const verbHtml = h.verbs.length > 0
-            ? `<div class="verb-row">${renderVerbChips(state.roomJsonUri, state.roomId, h.verbs, `hotspot:${h.id}`)}</div>`
-            : '';
-        return `<details class="card" ${open ? 'open' : ''} data-entity="hotspot" data-id="${esc(h.id)}">
-      <summary>${esc(h.description || h.id)} <span class="muted">${esc(h.id)}</span></summary>
-      <div class="card-body">${inactive}
-        <label class="row"><span>Active</span><input type="checkbox" class="hs-active" data-id="${esc(h.id)}" ${h.active ? 'checked' : ''} /></label>
-        <label class="row">Description<textarea class="hs-desc" data-id="${esc(h.id)}" rows="2">${esc(h.description)}</textarea></label>
-        <label class="row">zIndex <input type="number" class="hs-z" data-id="${esc(h.id)}" value="${h.zIndex}" /></label>
-        ${verbHtml}
-        <div class="row actions">
-          <button type="button" class="linkish" data-edit-preview="hotspot" data-id="${esc(h.id)}">Edit in Preview →</button>
-          <button type="button" class="danger" data-delete="hotspot" data-id="${esc(h.id)}">Delete</button>
+        const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, h.verbs, `hotspot:${h.id}`);
+        const headTitle = esc(h.description.trim() ? h.description.trim() : h.id);
+        return `<div class="benne-card benne-card--hotspot" data-entity="hotspot" data-id="${esc(h.id)}">
+      <div class="benne-card-head">
+        <div class="benne-card-titles">
+          <div class="benne-card-title">${headTitle}</div>
+          <div class="benne-card-sub muted">${esc(h.id)}</div>
+        </div>
+        <div class="benne-card-checks">
+          <label class="benne-inline-check"><input type="checkbox" class="hs-active" data-id="${esc(h.id)}" ${h.active ? 'checked' : ''} /> Active</label>
         </div>
       </div>
-    </details>`;
+      ${inactive}
+      <div class="benne-card-metrics benne-card-metrics--1">
+        <label><span>zIndex</span> <input type="number" class="hs-z" data-id="${esc(h.id)}" value="${h.zIndex}" /></label>
+      </div>
+      <label class="benne-field-label muted small">Description</label>
+      <textarea class="benne-card-desc hs-desc" data-id="${esc(h.id)}" rows="2" title="${esc(h.description)}">${esc(h.description)}</textarea>
+      <label class="benne-field-label muted small">Verbs</label>
+      ${verbHtml}
+      <div class="benne-card-actions">
+        <div class="benne-card-actions-inner">
+          <button type="button" class="btn-link" data-edit-preview="hotspot" data-id="${esc(h.id)}">Edit in Preview →</button>
+        </div>
+        <button type="button" class="btn-danger" data-delete="hotspot" data-id="${esc(h.id)}">Delete</button>
+      </div>
+    </div>`;
     })
         .join('');
     const charCards = state.characters
         .map((c) => {
-        const open = exp?.entity === 'character' && exp.id === c.instanceId;
-        const verbHtml = c.characterClickable && c.verbs.length > 0
-            ? `<div class="verb-row">${renderVerbChips(state.roomJsonUri, state.roomId, c.verbs, `char:${c.instanceId}:${c.characterId}`)}</div>`
-            : '';
+        const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, c.verbs, `char:${c.instanceId}:${c.characterId}`);
         const clickHint = !c.characterClickable
             ? '<div class="banner">Character definition is not clickable — enable in character JSON first.</div>'
             : '';
-        return `<details class="card" ${open ? 'open' : ''} data-entity="character" data-id="${esc(c.instanceId)}">
-      <summary>${esc(c.characterId)} <span class="muted">${esc(c.instanceId)}</span></summary>
-      <div class="card-body">${clickHint}
-        <label class="row"><span>Visible</span><input type="checkbox" class="ch-visible" data-id="${esc(c.instanceId)}" ${c.visible ? 'checked' : ''} /></label>
-        <div class="row grid2">
-          <label>x <input type="number" class="ch-x" data-id="${esc(c.instanceId)}" value="${c.x}" /></label>
-          <label>y <input type="number" class="ch-y" data-id="${esc(c.instanceId)}" value="${c.y}" /></label>
+        return `<div class="benne-card benne-card--character" data-entity="character" data-id="${esc(c.instanceId)}">
+      <div class="benne-card-head">
+        <div class="benne-card-titles">
+          <div class="benne-card-title">${esc(c.characterId)}</div>
+          <div class="benne-card-sub muted">${esc(c.instanceId)}</div>
         </div>
-        <label class="row">zIndex <input type="number" class="ch-z" data-id="${esc(c.instanceId)}" value="${c.zIndex}" /></label>
-        <div class="row grid2">
-          <label>initialFacing <input type="text" class="ch-face" data-id="${esc(c.instanceId)}" value="${esc(c.initialFacing ?? '')}" /></label>
-          <label>initialAnimation <input type="text" class="ch-anim" data-id="${esc(c.instanceId)}" value="${esc(c.initialAnimation ?? '')}" /></label>
-        </div>
-        ${verbHtml}
-        <div class="row actions">
-          <button type="button" class="linkish" data-edit-preview="character" data-char-json="${esc(c.characterJsonUri)}" data-char-id="${esc(c.characterId)}">Edit in Preview →</button>
-          <button type="button" class="danger" data-delete="character" data-id="${esc(c.instanceId)}">Delete</button>
+        <div class="benne-card-checks">
+          <label class="benne-inline-check"><input type="checkbox" class="ch-visible" data-id="${esc(c.instanceId)}" ${c.visible ? 'checked' : ''} /> Visible</label>
+          <label class="benne-inline-check" title="Defined in character JSON"><input type="checkbox" ${c.characterClickable ? 'checked' : ''} disabled /> Clickable</label>
         </div>
       </div>
-    </details>`;
+      ${clickHint}
+      <div class="benne-card-metrics">
+        <label><span>z</span> <input type="number" class="ch-z" data-id="${esc(c.instanceId)}" value="${c.zIndex}" /></label>
+        <label><span>x</span> <input type="number" class="ch-x" data-id="${esc(c.instanceId)}" value="${c.x}" /></label>
+        <label><span>y</span> <input type="number" class="ch-y" data-id="${esc(c.instanceId)}" value="${c.y}" /></label>
+      </div>
+      <div class="grid2 benne-char-grid">
+        <label class="benne-char-field muted small">Facing<input type="text" class="ch-face" data-id="${esc(c.instanceId)}" value="${esc(c.initialFacing ?? '')}" /></label>
+        <label class="benne-char-field muted small">Anim<input type="text" class="ch-anim" data-id="${esc(c.instanceId)}" value="${esc(c.initialAnimation ?? '')}" /></label>
+      </div>
+      ${verbHtml}
+      <div class="benne-card-actions benne-card-actions--end">
+        <button type="button" class="btn-danger" data-delete="character" data-id="${esc(c.instanceId)}">Delete</button>
+      </div>
+    </div>`;
     })
         .join('');
     const pointCards = state.points
-        .map((pt) => {
-        const open = exp?.entity === 'point' && exp.id === pt.id;
-        return `<details class="card" ${open ? 'open' : ''} data-entity="point" data-id="${esc(pt.id)}">
-      <summary>${esc(pt.id)}</summary>
-      <div class="card-body">
-        <div class="row grid2">
-          <label>x <input type="number" class="pt-x" data-id="${esc(pt.id)}" value="${pt.x}" /></label>
-          <label>y <input type="number" class="pt-y" data-id="${esc(pt.id)}" value="${pt.y}" /></label>
+        .map((pt) => `<div class="benne-card benne-card--point" data-entity="point" data-id="${esc(pt.id)}">
+      <div class="benne-card-head">
+        <div class="benne-card-titles">
+          <div class="benne-card-title">${esc(pt.id)}</div>
+          <div class="benne-card-sub muted">Room point</div>
         </div>
-        <button type="button" class="danger" data-delete="point" data-id="${esc(pt.id)}">Delete</button>
       </div>
-    </details>`;
-    })
+      <div class="benne-card-metrics benne-card-metrics--2">
+        <label><span>x</span> <input type="number" class="pt-x" data-id="${esc(pt.id)}" value="${pt.x}" /></label>
+        <label><span>y</span> <input type="number" class="pt-y" data-id="${esc(pt.id)}" value="${pt.y}" /></label>
+      </div>
+      <div class="benne-card-actions">
+        <div class="benne-card-actions-inner">
+          <button type="button" class="btn-link" data-edit-preview="point" data-id="${esc(pt.id)}">Edit in Preview →</button>
+        </div>
+        <button type="button" class="btn-danger" data-delete="point" data-id="${esc(pt.id)}">Delete</button>
+      </div>
+    </div>`)
         .join('');
     const regionCards = state.regions
-        .map((r) => {
-        const open = exp?.entity === 'region' && exp.id === r.id;
-        return `<details class="card" ${open ? 'open' : ''} data-entity="region" data-id="${esc(r.id)}">
-      <summary>${esc(r.id)} <span class="muted">${r.pointCount} pts</span></summary>
-      <div class="card-body">
-        <label class="row"><span>Active</span><input type="checkbox" class="rg-active" data-id="${esc(r.id)}" ${r.active ? 'checked' : ''} /></label>
-        <button type="button" class="danger" data-delete="region" data-id="${esc(r.id)}">Delete</button>
+        .map((r) => `<div class="benne-card benne-card--region" data-entity="region" data-id="${esc(r.id)}">
+      <div class="benne-card-head">
+        <div class="benne-card-titles">
+          <div class="benne-card-title">${esc(r.id)}</div>
+          <div class="benne-card-sub muted">${r.pointCount} points</div>
+        </div>
+        <div class="benne-card-checks">
+          <label class="benne-inline-check"><input type="checkbox" class="rg-active" data-id="${esc(r.id)}" ${r.active ? 'checked' : ''} /> Active</label>
+        </div>
       </div>
-    </details>`;
-    })
+      <div class="benne-card-actions">
+        <div class="benne-card-actions-inner">
+          <button type="button" class="btn-link" data-edit-preview="region" data-id="${esc(r.id)}">Edit in Preview →</button>
+        </div>
+        <button type="button" class="btn-danger" data-delete="region" data-id="${esc(r.id)}">Delete</button>
+      </div>
+    </div>`)
         .join('');
     return `
 <div class="inspector-root">
@@ -170,15 +211,19 @@ function renderRoom(state) {
           <label>Width <input type="number" id="fld-w" value="${sz ? sz.width : ''}" placeholder="352" /></label>
           <label>Height <input type="number" id="fld-h" value="${sz ? sz.height : ''}" placeholder="198" /></label>
         </div>
-        <button type="button" id="btn-fit-bg" ${state.canFitBackground ? '' : 'disabled'} title="Set room size from PNG background dimensions">Fit to background</button>
-        <div class="muted small">Scroll bounds (leave blank to omit)</div>
-        <div class="row grid4">
-          <label>x <input type="number" id="sb-x" value="${sb ? sb.x : ''}" /></label>
-          <label>y <input type="number" id="sb-y" value="${sb ? sb.y : ''}" /></label>
-          <label>w <input type="number" id="sb-w" value="${sb ? sb.width : ''}" /></label>
-          <label>h <input type="number" id="sb-h" value="${sb ? sb.height : ''}" /></label>
+        <button type="button" class="btn-secondary" id="btn-fit-bg" ${state.canFitBackground ? '' : 'disabled'} title="Set room size from PNG background dimensions">Fit to background</button>
+        <div class="benne-scroll-bounds-label muted small">Scroll bounds (leave blank to omit)</div>
+        <div class="benne-scroll-bounds-grids">
+          <div class="grid2">
+            <label>x <input type="number" id="sb-x" value="${sb ? sb.x : ''}" /></label>
+            <label>y <input type="number" id="sb-y" value="${sb ? sb.y : ''}" /></label>
+          </div>
+          <div class="grid2">
+            <label>w <input type="number" id="sb-w" value="${sb ? sb.width : ''}" /></label>
+            <label>h <input type="number" id="sb-h" value="${sb ? sb.height : ''}" /></label>
+          </div>
         </div>
-        <button type="button" id="btn-clear-sb">Clear scroll bounds</button>
+        <button type="button" class="btn-secondary" id="btn-clear-sb">Clear scroll bounds</button>
       </div>
     </details>
 
@@ -190,22 +235,47 @@ function renderRoom(state) {
           <tbody>${walkRows || '<tr><td colspan="3" class="muted">None</td></tr>'}</tbody>
         </table>
         <div class="row wrap">
-          <button type="button" id="btn-add-poly">Add walkable polygon</button>
-          <button type="button" id="btn-add-hole">Add hole to</button>
+          <button type="button" class="btn-secondary" id="btn-add-poly">Add walkable polygon</button>
+          <button type="button" class="btn-secondary" id="btn-add-hole">Add hole to</button>
           <select id="hole-parent">${polyOptions || '<option value="">(add polygon first)</option>'}</select>
         </div>
       </div>
     </details>
 
-    <details class="section"><summary>Hotspots (${state.hotspots.length})</summary><div class="section-body cards">${hotspotCards || '<p class="muted">None</p>'}</div></details>
-    <details class="section"><summary>Props (${state.props.length})</summary><div class="section-body cards">${propCards || '<p class="muted">None</p>'}</div></details>
-    <details class="section"><summary>Spawned characters (${state.characters.length})</summary><div class="section-body cards">${charCards || '<p class="muted">None</p>'}</div></details>
-    <details class="section"><summary>Points (${state.points.length})</summary><div class="section-body cards">${pointCards || '<p class="muted">None</p>'}</div></details>
-    <details class="section"><summary>Regions (${state.regions.length})</summary><div class="section-body cards">${regionCards || '<p class="muted">None</p>'}</div></details>
+    <details class="section">
+      <summary>Hotspots (${state.hotspots.length})</summary>
+      <div class="section-body">
+        <div class="benne-card-list">${hotspotCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+    <details class="section">
+      <summary>Props (${state.props.length})</summary>
+      <div class="section-body">
+        <div class="benne-card-list">${propCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+    <details class="section">
+      <summary>Spawned characters (${state.characters.length})</summary>
+      <div class="section-body">
+        <div class="benne-card-list">${charCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+    <details class="section">
+      <summary>Points (${state.points.length})</summary>
+      <div class="section-body">
+        <div class="benne-card-list">${pointCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+    <details class="section">
+      <summary>Regions (${state.regions.length})</summary>
+      <div class="section-body">
+        <div class="benne-card-list">${regionCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
   </div>
   <div class="footer">
-    <button type="button" id="btn-save">Save</button>
-    <button type="button" id="btn-open-json">Open raw JSON</button>
+    <button type="button" class="btn-primary" id="btn-save">Save</button>
+    <button type="button" class="btn-secondary" id="btn-open-json">Open raw JSON</button>
   </div>
 </div>`;
 }
@@ -398,15 +468,11 @@ function mountHandlers(state) {
     root.querySelectorAll('[data-edit-preview]').forEach((btn) => {
         btn.addEventListener('click', () => {
             const kind = btn.dataset.editPreview;
-            if (kind === 'character') {
-                const charJson = btn.dataset.charJson;
-                const charId = btn.dataset.charId;
-                post('editCharacterPreview', { characterJsonUri: charJson, characterId: charId });
+            const id = btn.dataset.id;
+            if (!kind || !id) {
+                return;
             }
-            else {
-                const id = btn.dataset.id;
-                post('editRoomPreview', { roomJsonUri: state.roomJsonUri, roomId: state.roomId, kind, id });
-            }
+            post('editRoomPreview', { roomJsonUri: state.roomJsonUri, roomId: state.roomId, kind, id });
         });
     });
     root.querySelectorAll('.verb-chip').forEach((btn) => {

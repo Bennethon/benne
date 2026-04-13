@@ -24,10 +24,14 @@ export class RoomPreviewPanelController implements vscode.Disposable {
     private roomJsonDiskChangeTimer: ReturnType<typeof setTimeout> | undefined;
     /** Dedupes `toolbarUi` posts when focus is already reflected in the webview. */
     private lastToolbarUiKey: string | null = null;
-    /** One-shot geometry focus from the Inspector (consumed after `roomLoadComplete` or immediate flush). */
+    /**
+     * One-shot edit target from the Inspector "Edit in Preview" (merged into the next `loadRoom` when URI matches).
+     */
     private pendingInspectorFocus:
         | { roomJsonUriStr: string; kind: 'prop'; id: string }
         | { roomJsonUriStr: string; kind: 'hotspot'; id: string }
+        | { roomJsonUriStr: string; kind: 'roomPoint'; id: string }
+        | { roomJsonUriStr: string; kind: 'region'; id: string }
         | undefined;
     private readonly disposables: vscode.Disposable[] = [];
     /** Serializes preview loads so rapid saves do not post overlapping `loadRoom` messages. */
@@ -138,6 +142,9 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             clearTimeout(this.clearPreviewDebounceTimer);
             this.clearPreviewDebounceTimer = undefined;
         }
+
+        // BENNE tree navigation supersedes a pending Inspector "Edit in Preview" one-shot.
+        this.pendingInspectorFocus = undefined;
 
         const createdNew = this.ensurePanel();
         const roomOnly = focus.kind === 'room' && roomPanel.kind === 'none';
@@ -363,12 +370,16 @@ export class RoomPreviewPanelController implements vscode.Disposable {
     }
 
     /**
-     * Opens the room preview (if needed) and switches polygon edit mode for the given prop/hotspot.
-     * Used by the BENNE Inspector “Edit in Preview” action.
+     * Opens the room preview (if needed) and loads it in the same edit mode as selecting that entity in the BENNE tree.
+     * Used by the Inspector “Edit in Preview” action.
      */
     async focusInspectorGeometry(
         roomJsonUri: vscode.Uri,
-        target: { kind: 'prop'; id: string } | { kind: 'hotspot'; id: string }
+        target:
+            | { kind: 'prop'; id: string }
+            | { kind: 'hotspot'; id: string }
+            | { kind: 'roomPoint'; id: string }
+            | { kind: 'region'; id: string }
     ): Promise<void> {
         this.pendingInspectorFocus = {
             roomJsonUriStr: roomJsonUri.toString(),
@@ -378,6 +389,27 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         this.panel?.reveal(vscode.ViewColumn.Beside, false);
         await this.pushPreview();
         this.flushPendingInspectorFocusIfReady();
+    }
+
+    private toolbarStateFromInspectorPending(
+        pending: NonNullable<RoomPreviewPanelController['pendingInspectorFocus']>
+    ): {
+        focus: 'room' | 'prop' | 'hotspot' | 'region' | 'roomPoint';
+        propId: string;
+        hotspotId: string;
+        regionId: string;
+        roomPointId: string;
+    } {
+        switch (pending.kind) {
+            case 'prop':
+                return { focus: 'prop', propId: pending.id, hotspotId: '', regionId: '', roomPointId: '' };
+            case 'hotspot':
+                return { focus: 'hotspot', propId: '', hotspotId: pending.id, regionId: '', roomPointId: '' };
+            case 'roomPoint':
+                return { focus: 'roomPoint', propId: '', hotspotId: '', regionId: '', roomPointId: pending.id };
+            case 'region':
+                return { focus: 'region', propId: '', hotspotId: '', regionId: pending.id, roomPointId: '' };
+        }
     }
 
     private flushPendingInspectorFocusIfReady(): void {
@@ -395,11 +427,23 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 previewFocus: 'prop',
                 propColliderId: pending.id
             });
-        } else {
+        } else if (pending.kind === 'hotspot') {
             webview.postMessage({
                 type: 'benne/preview/inspectorFocus',
                 previewFocus: 'hotspot',
                 hotspotId: pending.id
+            });
+        } else if (pending.kind === 'roomPoint') {
+            webview.postMessage({
+                type: 'benne/preview/inspectorFocus',
+                previewFocus: 'roomPoint',
+                roomPointId: pending.id
+            });
+        } else {
+            webview.postMessage({
+                type: 'benne/preview/inspectorFocus',
+                previewFocus: 'region',
+                regionId: pending.id
             });
         }
         this.pendingInspectorFocus = undefined;
@@ -510,7 +554,9 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             const room = JSON.parse(jsonText) as Record<string, unknown>;
             const gameSrcWebviewUri = webview.asWebviewUri(gameSrc).toString();
             const uriStr = roomJsonUri.toString();
-            const tb = this.getPreviewToolbarState();
+            const pend = this.pendingInspectorFocus;
+            const usePending = !!(pend && pend.roomJsonUriStr === uriStr);
+            const tb = usePending ? this.toolbarStateFromInspectorPending(pend) : this.getPreviewToolbarState();
             this.lastToolbarUiKey = `${tb.focus}:${tb.propId}:${tb.hotspotId}:${tb.regionId}:${tb.roomPointId}`;
             webview.postMessage({
                 type: 'benne/preview/loadRoom',
@@ -525,6 +571,9 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             });
             this.lastPushedRoomJsonUri = uriStr;
             this.lastPushedPreviewLoadKey = this.previewLoadKey(uriStr, tb);
+            if (usePending) {
+                this.pendingInspectorFocus = undefined;
+            }
         } catch (e) {
             webview.postMessage({
                 type: 'benne/preview/error',
