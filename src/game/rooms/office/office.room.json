@@ -426,7 +426,8 @@
       },
       "onVerb": {
         "look": true,
-        "use": true
+        "use": true,
+        "slap": true
       }
     },
     {

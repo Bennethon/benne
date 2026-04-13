@@ -5,7 +5,8 @@
   },
   "verbs": [
     { "id": "look", "label": "Look at" },
-    { "id": "use", "label": "Use" }
+    { "id": "use", "label": "Use" },
+    { "id": "slap", "label": "Slap" }
   ],
   "inputProfile": {
     "kind": "twoVerb",

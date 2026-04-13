@@ -24,6 +24,11 @@ export class RoomPreviewPanelController implements vscode.Disposable {
     private roomJsonDiskChangeTimer: ReturnType<typeof setTimeout> | undefined;
     /** Dedupes `toolbarUi` posts when focus is already reflected in the webview. */
     private lastToolbarUiKey: string | null = null;
+    /** One-shot geometry focus from the Inspector (consumed after `roomLoadComplete` or immediate flush). */
+    private pendingInspectorFocus:
+        | { roomJsonUriStr: string; kind: 'prop'; id: string }
+        | { roomJsonUriStr: string; kind: 'hotspot'; id: string }
+        | undefined;
     private readonly disposables: vscode.Disposable[] = [];
     /** Serializes preview loads so rapid saves do not post overlapping `loadRoom` messages. */
     private previewPushTail: Promise<void> = Promise.resolve();
@@ -78,6 +83,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         this.lastPushedRoomJsonUri = null;
         this.lastPushedPreviewLoadKey = null;
         this.lastToolbarUiKey = null;
+        this.pendingInspectorFocus = undefined;
         p.dispose();
     }
 
@@ -336,6 +342,11 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 }
                 if (m?.type === 'benne/preview/polygonPatch') {
                     void this.handlePolygonPatchFromWebview(m.roomJsonUri, m.patch);
+                    return;
+                }
+                if (m?.type === 'benne/preview/roomLoadComplete') {
+                    this.flushPendingInspectorFocusIfReady();
+                    return;
                 }
             }),
             this.panel.onDidDispose(() => {
@@ -344,10 +355,54 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 this.lastPushedRoomJsonUri = null;
                 this.lastPushedPreviewLoadKey = null;
                 this.lastToolbarUiKey = null;
+                this.pendingInspectorFocus = undefined;
             })
         );
 
         return true;
+    }
+
+    /**
+     * Opens the room preview (if needed) and switches polygon edit mode for the given prop/hotspot.
+     * Used by the BENNE Inspector “Edit in Preview” action.
+     */
+    async focusInspectorGeometry(
+        roomJsonUri: vscode.Uri,
+        target: { kind: 'prop'; id: string } | { kind: 'hotspot'; id: string }
+    ): Promise<void> {
+        this.pendingInspectorFocus = {
+            roomJsonUriStr: roomJsonUri.toString(),
+            ...target
+        };
+        this.ensurePanel();
+        this.panel?.reveal(vscode.ViewColumn.Beside, false);
+        await this.pushPreview();
+        this.flushPendingInspectorFocusIfReady();
+    }
+
+    private flushPendingInspectorFocusIfReady(): void {
+        const webview = this.panel?.webview;
+        const pending = this.pendingInspectorFocus;
+        if (!webview || !this.webviewReady || !pending) {
+            return;
+        }
+        if (this.lastPushedRoomJsonUri !== pending.roomJsonUriStr) {
+            return;
+        }
+        if (pending.kind === 'prop') {
+            webview.postMessage({
+                type: 'benne/preview/inspectorFocus',
+                previewFocus: 'prop',
+                propColliderId: pending.id
+            });
+        } else {
+            webview.postMessage({
+                type: 'benne/preview/inspectorFocus',
+                previewFocus: 'hotspot',
+                hotspotId: pending.id
+            });
+        }
+        this.pendingInspectorFocus = undefined;
     }
 
     private async handlePolygonPatchFromWebview(roomJsonUriStr: string | undefined, patchBody: unknown): Promise<void> {
