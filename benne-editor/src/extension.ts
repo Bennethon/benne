@@ -60,6 +60,15 @@ export function activate(context: vscode.ExtensionContext): void {
         showCollapseAll: true
     });
 
+    const syncMainTreeFilterUi = async (): Promise<void> => {
+        const raw = mainProvider.getTreeFilter();
+        await vscode.commands.executeCommand('setContext', 'benneEditor.mainTreeFilterActive', raw.length > 0);
+        mainTreeView.description = raw.length > 0 ? `filter: ${raw}` : undefined;
+        mainTreeView.message = undefined;
+    };
+
+    void syncMainTreeFilterUi();
+
     const actionsTreeView = vscode.window.createTreeView('benne-editor.actions', {
         treeDataProvider: actionsProvider,
         showCollapseAll: false
@@ -291,9 +300,27 @@ export function activate(context: vscode.ExtensionContext): void {
     const refreshTrees = (): void => {
         mainProvider.refresh();
         actionsProvider.refresh();
+        void syncMainTreeFilterUi();
     };
 
     context.subscriptions.push(
+        vscode.commands.registerCommand('benne-editor.filterMainTree', async () => {
+            const value = await vscode.window.showInputBox({
+                title: 'Filter BENNE tree',
+                prompt:
+                    'Show only rooms, props, characters, and other entries whose name or id contains this text (case-insensitive). Leave empty and press Enter to clear the filter.',
+                value: mainProvider.getTreeFilter()
+            });
+            if (value === undefined) {
+                return;
+            }
+            mainProvider.setTreeFilter(value);
+            await syncMainTreeFilterUi();
+        }),
+        vscode.commands.registerCommand('benne-editor.clearMainTreeFilter', async () => {
+            mainProvider.clearTreeFilter();
+            await syncMainTreeFilterUi();
+        }),
         vscode.commands.registerCommand(
             'benne-editor.createRoom',
             async (arg?: MainTreeNode | MainTreeNode[]) => {

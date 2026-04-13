@@ -32,7 +32,9 @@
     "onCommand:benne-editor.addHotspotVerbEvent",
     "onCommand:benne-editor.makeCharacterClickable",
     "onCommand:benne-editor.addCharacterVerbEvent",
-    "onCommand:benne-editor.addRoomCharacterVerbEvent"
+    "onCommand:benne-editor.addRoomCharacterVerbEvent",
+    "onCommand:benne-editor.filterMainTree",
+    "onCommand:benne-editor.clearMainTreeFilter"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -200,6 +202,18 @@
         "title": "Rebuild GUI Preview Bundle",
         "category": "BENNE",
         "icon": "$(sync)"
+      },
+      {
+        "command": "benne-editor.filterMainTree",
+        "title": "Filter BENNE tree",
+        "category": "BENNE",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "benne-editor.clearMainTreeFilter",
+        "title": "Clear BENNE tree filter",
+        "category": "BENNE",
+        "icon": "$(clear-all)"
       }
     ],
     "configuration": {
@@ -222,14 +236,24 @@
     "menus": {
       "view/title": [
         {
-          "command": "benne-editor.createRoom",
+          "command": "benne-editor.filterMainTree",
           "when": "view == benne-editor.main",
           "group": "navigation@0"
         },
         {
+          "command": "benne-editor.clearMainTreeFilter",
+          "when": "view == benne-editor.main && benneEditor.mainTreeFilterActive",
+          "group": "navigation@1"
+        },
+        {
+          "command": "benne-editor.createRoom",
+          "when": "view == benne-editor.main",
+          "group": "navigation@2"
+        },
+        {
           "command": "benne-editor.rebuildRoomPreview",
           "when": "view == benne-editor.main",
-          "group": "navigation@1"
+          "group": "navigation@3"
         },
         {
           "command": "benne-editor.rebuildRoomPreview",
@@ -239,22 +263,22 @@
         {
           "command": "benne-editor.createCharacter",
           "when": "view == benne-editor.main",
-          "group": "navigation@2"
+          "group": "navigation@4"
         },
         {
           "command": "benne-editor.createGui",
           "when": "view == benne-editor.main",
-          "group": "navigation@3"
+          "group": "navigation@5"
         },
         {
           "command": "benne-editor.rebuildCharacterPreview",
           "when": "view == benne-editor.main",
-          "group": "navigation@4"
+          "group": "navigation@6"
         },
         {
           "command": "benne-editor.rebuildGuiPreview",
           "when": "view == benne-editor.main",
-          "group": "navigation@5"
+          "group": "navigation@7"
         },
         {
           "command": "benne-editor.rebuildCharacterPreview",

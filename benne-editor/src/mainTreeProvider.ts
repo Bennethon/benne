@@ -109,12 +109,142 @@ export type MainTreeNode =
 
 const warningIcon = new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.warningForeground'));
 
+function normalizeTreeFilter(raw: string): string {
+    return raw.trim().toLowerCase();
+}
+
+function textMatches(haystack: string, needle: string): boolean {
+    return needle.length === 0 || haystack.toLowerCase().includes(needle);
+}
+
 export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
     private readonly _onDidChangeTreeData = new vscode.EventEmitter<MainTreeNode | undefined | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
+    /** Raw filter text (trimmed for storage); empty means no filter. */
+    private treeFilterText = '';
+
     refresh(): void {
         this._onDidChangeTreeData.fire();
+    }
+
+    getTreeFilter(): string {
+        return this.treeFilterText;
+    }
+
+    setTreeFilter(raw: string): void {
+        this.treeFilterText = raw.trim();
+        this.refresh();
+    }
+
+    clearTreeFilter(): void {
+        this.treeFilterText = '';
+        this.refresh();
+    }
+
+    private filterNeedle(): string {
+        return normalizeTreeFilter(this.treeFilterText);
+    }
+
+    private isFiltering(): boolean {
+        return this.filterNeedle().length > 0;
+    }
+
+    private filterRoomItems<T>(
+        items: T[],
+        itemMatch: (item: T) => boolean,
+        roomNameOrIdMatches: boolean
+    ): T[] {
+        const q = this.filterNeedle();
+        if (!q) {
+            return items;
+        }
+        const filtered = items.filter(itemMatch);
+        if (filtered.length > 0) {
+            return filtered;
+        }
+        if (roomNameOrIdMatches && items.length > 0) {
+            return items;
+        }
+        return [];
+    }
+
+    private async folderHasAnyMatchingRoom(folder: vscode.WorkspaceFolder, q: string): Promise<boolean> {
+        if (!q) {
+            return true;
+        }
+        const rooms = await listRoomDefinitions(folder);
+        for (const r of rooms) {
+            if (await this.roomDeepMatches(r, q)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private async folderHasAnyMatchingCharacter(folder: vscode.WorkspaceFolder, q: string): Promise<boolean> {
+        if (!q) {
+            return true;
+        }
+        const chars = await listCharacterDefinitions(folder);
+        return chars.some((c) => textMatches(c.name, q) || textMatches(c.id, q));
+    }
+
+    private async folderHasAnyMatchingGui(folder: vscode.WorkspaceFolder, q: string): Promise<boolean> {
+        if (!q) {
+            return true;
+        }
+        const guis = await listGuiDefinitions(folder);
+        return guis.some((g) => textMatches(g.name, q) || textMatches(g.id, q));
+    }
+
+    private async roomDeepMatches(
+        room: { uri: vscode.Uri; id: string; name: string },
+        q: string
+    ): Promise<boolean> {
+        if (!q) {
+            return true;
+        }
+        if (textMatches(room.name, q) || textMatches(room.id, q)) {
+            return true;
+        }
+        try {
+            const [hotspots, points, regions, props, characters] = await Promise.all([
+                readRoomHotspots(room.uri),
+                readRoomPoints(room.uri),
+                readRoomRegions(room.uri),
+                readRoomProps(room.uri),
+                readRoomCharacters(room.uri)
+            ]);
+            for (const h of hotspots) {
+                if (textMatches(h.id, q) || textMatches(h.description ?? '', q)) {
+                    return true;
+                }
+            }
+            for (const p of points) {
+                if (textMatches(p.id, q)) {
+                    return true;
+                }
+            }
+            for (const r of regions) {
+                if (textMatches(r.id, q)) {
+                    return true;
+                }
+            }
+            for (const p of props) {
+                if (textMatches(p.id, q) || textMatches(p.tag ?? '', q)) {
+                    return true;
+                }
+            }
+            for (const c of characters) {
+                if (textMatches(c.instanceId, q) || textMatches(c.characterId, q)) {
+                    return true;
+                }
+            }
+        } catch {
+            return false;
+        }
+        return false;
     }
 
     getTreeItem(element: MainTreeNode): vscode.TreeItem {
@@ -153,7 +283,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 return item;
             }
             case 'room': {
-                const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.Collapsed);
+                const item = new vscode.TreeItem(
+                    element.name,
+                    this.isFiltering()
+                        ? vscode.TreeItemCollapsibleState.Expanded
+                        : vscode.TreeItemCollapsibleState.Collapsed
+                );
                 item.id = `room:${element.uri.toString()}`;
                 item.resourceUri = element.uri;
                 if (element.roomSheetIncomplete) {
@@ -182,7 +317,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 };
                 const item = new vscode.TreeItem(
                     labels[element.subGroup],
-                    vscode.TreeItemCollapsibleState.Collapsed
+                    this.isFiltering()
+                        ? vscode.TreeItemCollapsibleState.Expanded
+                        : vscode.TreeItemCollapsibleState.Collapsed
                 );
                 item.description = String(element.itemCount);
                 item.id = `roomSubGroup:${element.roomJsonUri.toString()}:${element.subGroup}`;
@@ -287,34 +424,104 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
             ];
         }
 
+        const fq = this.filterNeedle();
+
         if (!element) {
             if (gameFolders.length === 1) {
                 const f = gameFolders[0];
-                return [
-                    { kind: 'roomsGroup', folder: f },
-                    { kind: 'charsGroup', folder: f },
-                    { kind: 'guisGroup', folder: f }
-                ];
+                const nodes: MainTreeNode[] = [];
+                if (!fq || (await this.folderHasAnyMatchingRoom(f, fq))) {
+                    nodes.push({ kind: 'roomsGroup', folder: f });
+                }
+                if (!fq || (await this.folderHasAnyMatchingCharacter(f, fq))) {
+                    nodes.push({ kind: 'charsGroup', folder: f });
+                }
+                if (!fq || (await this.folderHasAnyMatchingGui(f, fq))) {
+                    nodes.push({ kind: 'guisGroup', folder: f });
+                }
+                if (fq && nodes.length === 0) {
+                    return [
+                        {
+                            kind: 'hint',
+                            key: 'filter-empty',
+                            message: '(no tree items match the filter)'
+                        }
+                    ];
+                }
+                return nodes;
+            }
+            if (fq) {
+                const kept: MainTreeNode[] = [];
+                for (const folder of gameFolders) {
+                    const any =
+                        (await this.folderHasAnyMatchingRoom(folder, fq)) ||
+                        (await this.folderHasAnyMatchingCharacter(folder, fq)) ||
+                        (await this.folderHasAnyMatchingGui(folder, fq));
+                    if (any) {
+                        kept.push({ kind: 'workspace', folder });
+                    }
+                }
+                if (kept.length === 0) {
+                    return [
+                        {
+                            kind: 'hint',
+                            key: 'filter-empty',
+                            message: '(no tree items match the filter)'
+                        }
+                    ];
+                }
+                return kept;
             }
             return gameFolders.map((folder) => ({ kind: 'workspace', folder }));
         }
 
         if (element.kind === 'workspace') {
-            return [
-                { kind: 'roomsGroup', folder: element.folder },
-                { kind: 'charsGroup', folder: element.folder },
-                { kind: 'guisGroup', folder: element.folder }
-            ];
+            const nodes: MainTreeNode[] = [];
+            if (!fq || (await this.folderHasAnyMatchingRoom(element.folder, fq))) {
+                nodes.push({ kind: 'roomsGroup', folder: element.folder });
+            }
+            if (!fq || (await this.folderHasAnyMatchingCharacter(element.folder, fq))) {
+                nodes.push({ kind: 'charsGroup', folder: element.folder });
+            }
+            if (!fq || (await this.folderHasAnyMatchingGui(element.folder, fq))) {
+                nodes.push({ kind: 'guisGroup', folder: element.folder });
+            }
+            if (fq && nodes.length === 0) {
+                return [
+                    {
+                        kind: 'hint',
+                        key: `filter-empty-ws:${element.folder.uri}`,
+                        message: '(no tree items match the filter)'
+                    }
+                ];
+            }
+            return nodes;
         }
 
         if (element.kind === 'roomsGroup') {
             const rooms = await listRoomDefinitions(element.folder);
-            if (rooms.length === 0) {
-                return [{ kind: 'hint', key: `no-rooms:${element.folder.uri}`, message: '(no rooms found)' }];
+            let roomList = rooms;
+            if (fq) {
+                const matched: typeof rooms = [];
+                for (const r of rooms) {
+                    if (await this.roomDeepMatches(r, fq)) {
+                        matched.push(r);
+                    }
+                }
+                roomList = matched;
+            }
+            if (roomList.length === 0) {
+                return [
+                    {
+                        kind: 'hint',
+                        key: `no-rooms:${element.folder.uri}`,
+                        message: fq ? '(no matching rooms)' : '(no rooms found)'
+                    }
+                ];
             }
             const gameRoot = element.folder.uri;
             return Promise.all(
-                rooms.map(async (r) => {
+                roomList.map(async (r) => {
                     const sheetOk = await roomAsepriteSheetFilesComplete(gameRoot, r.id);
                     return {
                         kind: 'room' as const,
@@ -337,6 +544,8 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     readRoomProps(element.uri),
                     readRoomCharacters(element.uri)
                 ]);
+                const roomNameHit =
+                    fq.length > 0 && (textMatches(element.name, fq) || textMatches(element.id, fq));
                 const children: MainTreeNode[] = [];
                 const base = {
                     folder: element.folder,
@@ -344,43 +553,68 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     roomId: element.id,
                     roomName: element.name
                 };
-                if (hotspots.length > 0) {
+                const hotspotShow = this.filterRoomItems(
+                    hotspots,
+                    (h) => textMatches(h.id, fq) || textMatches(h.description ?? '', fq),
+                    roomNameHit
+                );
+                if (hotspotShow.length > 0) {
                     children.push({
                         kind: 'roomSubGroup' as const,
                         subGroup: 'hotspots',
-                        itemCount: hotspots.length,
+                        itemCount: hotspotShow.length,
                         ...base
                     });
                 }
-                if (props.length > 0) {
+                const propsShow = this.filterRoomItems(
+                    props,
+                    (p) => textMatches(p.id, fq) || textMatches(p.tag ?? '', fq),
+                    roomNameHit
+                );
+                if (propsShow.length > 0) {
                     children.push({
                         kind: 'roomSubGroup' as const,
                         subGroup: 'props',
-                        itemCount: props.length,
+                        itemCount: propsShow.length,
                         ...base
                     });
                 }
-                if (characters.length > 0) {
+                const charactersShow = this.filterRoomItems(
+                    characters,
+                    (c) => textMatches(c.instanceId, fq) || textMatches(c.characterId, fq),
+                    roomNameHit
+                );
+                if (charactersShow.length > 0) {
                     children.push({
                         kind: 'roomSubGroup' as const,
                         subGroup: 'characters',
-                        itemCount: characters.length,
+                        itemCount: charactersShow.length,
                         ...base
                     });
                 }
-                if (points.length > 0) {
+                const pointsShow = this.filterRoomItems(
+                    points,
+                    (p) => textMatches(p.id, fq),
+                    roomNameHit
+                );
+                if (pointsShow.length > 0) {
                     children.push({
                         kind: 'roomSubGroup' as const,
                         subGroup: 'points',
-                        itemCount: points.length,
+                        itemCount: pointsShow.length,
                         ...base
                     });
                 }
-                if (regions.length > 0) {
+                const regionsShow = this.filterRoomItems(
+                    regions,
+                    (r) => textMatches(r.id, fq),
+                    roomNameHit
+                );
+                if (regionsShow.length > 0) {
                     children.push({
                         kind: 'roomSubGroup' as const,
                         subGroup: 'regions',
-                        itemCount: regions.length,
+                        itemCount: regionsShow.length,
                         ...base
                     });
                 }
@@ -389,7 +623,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                         {
                             kind: 'hint',
                             key: `no-room-content:${element.uri}`,
-                            message: '(no hotspots, props, characters, points, or regions)'
+                            message: fq
+                                ? '(no matching hotspots, props, characters, points, or regions)'
+                                : '(no hotspots, props, characters, points, or regions)'
                         }
                     ];
                 }
@@ -402,10 +638,17 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
         if (element.kind === 'roomSubGroup') {
             try {
                 const { folder, roomJsonUri, roomId, roomName, subGroup } = element;
+                const roomNameHit =
+                    fq.length > 0 && (textMatches(roomName, fq) || textMatches(roomId, fq));
                 switch (subGroup) {
                     case 'hotspots': {
                         const hotspots = await readRoomHotspots(roomJsonUri);
-                        return hotspots.map((h) => ({
+                        const list = this.filterRoomItems(
+                            hotspots,
+                            (h) => textMatches(h.id, fq) || textMatches(h.description ?? '', fq),
+                            roomNameHit
+                        );
+                        return list.map((h) => ({
                             kind: 'hotspot' as const,
                             folder,
                             roomJsonUri,
@@ -418,7 +661,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     }
                     case 'points': {
                         const plist = await readRoomPoints(roomJsonUri);
-                        return plist.map((p) => ({
+                        const list = this.filterRoomItems(
+                            plist,
+                            (p) => textMatches(p.id, fq),
+                            roomNameHit
+                        );
+                        return list.map((p) => ({
                             kind: 'roomPoint' as const,
                             folder,
                             roomJsonUri,
@@ -429,7 +677,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     }
                     case 'regions': {
                         const rlist = await readRoomRegions(roomJsonUri);
-                        return rlist.map((r) => ({
+                        const list = this.filterRoomItems(
+                            rlist,
+                            (r) => textMatches(r.id, fq),
+                            roomNameHit
+                        );
+                        return list.map((r) => ({
                             kind: 'region' as const,
                             folder,
                             roomJsonUri,
@@ -440,8 +693,13 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     }
                     case 'props': {
                         const props = await readRoomProps(roomJsonUri);
+                        const list = this.filterRoomItems(
+                            props,
+                            (p) => textMatches(p.id, fq) || textMatches(p.tag ?? '', fq),
+                            roomNameHit
+                        );
                         const sheet = await resolveRoomAsepriteSheetForProps(folder.uri, roomId);
-                        return props.map((prop) => ({
+                        return list.map((prop) => ({
                             kind: 'prop' as const,
                             folder,
                             roomJsonUri,
@@ -453,7 +711,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     }
                     case 'characters': {
                         const list = await readRoomCharacters(roomJsonUri);
-                        return list.map((c) => ({
+                        const filtered = this.filterRoomItems(
+                            list,
+                            (c) => textMatches(c.instanceId, fq) || textMatches(c.characterId, fq),
+                            roomNameHit
+                        );
+                        return filtered.map((c) => ({
                             kind: 'roomCharacter' as const,
                             folder,
                             roomJsonUri,
@@ -473,12 +736,21 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
 
         if (element.kind === 'charsGroup') {
             const chars = await listCharacterDefinitions(element.folder);
-            if (chars.length === 0) {
-                return [{ kind: 'hint', key: `no-chars:${element.folder.uri}`, message: '(no characters found)' }];
+            const charList = fq
+                ? chars.filter((c) => textMatches(c.name, fq) || textMatches(c.id, fq))
+                : chars;
+            if (charList.length === 0) {
+                return [
+                    {
+                        kind: 'hint',
+                        key: `no-chars:${element.folder.uri}`,
+                        message: fq ? '(no matching characters)' : '(no characters found)'
+                    }
+                ];
             }
             const gameRoot = element.folder.uri;
             return Promise.all(
-                chars.map(async (c) => {
+                charList.map(async (c) => {
                     const usesAseprite = await readCharacterUsesAsepriteDisplay(c.uri);
                     const sheetOk = usesAseprite
                         ? await characterAsepriteSheetFilesComplete(gameRoot, c.id)
@@ -497,12 +769,21 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
 
         if (element.kind === 'guisGroup') {
             const guis = await listGuiDefinitions(element.folder);
-            if (guis.length === 0) {
-                return [{ kind: 'hint', key: `no-guis:${element.folder.uri}`, message: '(no GUIs found)' }];
+            const guiList = fq
+                ? guis.filter((g) => textMatches(g.name, fq) || textMatches(g.id, fq))
+                : guis;
+            if (guiList.length === 0) {
+                return [
+                    {
+                        kind: 'hint',
+                        key: `no-guis:${element.folder.uri}`,
+                        message: fq ? '(no matching GUIs)' : '(no GUIs found)'
+                    }
+                ];
             }
             const gameRoot = element.folder.uri;
             return Promise.all(
-                guis.map(async (g) => {
+                guiList.map(async (g) => {
                     const usesAseprite = await readGuiUsesAsepriteDisplay(g.uri);
                     const sheetOk = usesAseprite
                         ? await guiAsepriteSheetFilesComplete(gameRoot, g.id)
