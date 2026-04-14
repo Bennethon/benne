@@ -435,7 +435,8 @@
       "tag": "Plant",
       "zIndex": 25,
       "visible": true,
-      "alpha": 1
+      "alpha": 1,
+      "clickable": false
     },
     {
       "id": "office-prop-plant2",
@@ -461,7 +462,7 @@
       "definition": "henry/henry.character.json",
       "x": 200,
       "y": 148,
-      "initialFacing": "L",
+      "initialFacing": "R",
       "initialAnimation": "Idle",
       "visible": true,
       "zIndex": 101
