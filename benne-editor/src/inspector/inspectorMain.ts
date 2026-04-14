@@ -87,6 +87,47 @@ try {
     /* */
 }
 
+/** Avoid re-scrolling when the same tree item stays selected but room state `rev` bumps. */
+let lastInspectorScrollRoomUri: string | null = null;
+let lastInspectorScrollExpandedKey: string | null = null;
+
+function scrollExpandedCardIntoView(state: InspectorRoomState): void {
+    if (state.roomJsonUri !== lastInspectorScrollRoomUri) {
+        lastInspectorScrollRoomUri = state.roomJsonUri;
+        lastInspectorScrollExpandedKey = null;
+    }
+    const ex = state.expanded;
+    if (!ex) {
+        return;
+    }
+    const key = `${ex.entity}\0${ex.id}`;
+    if (key === lastInspectorScrollExpandedKey) {
+        return;
+    }
+    lastInspectorScrollExpandedKey = key;
+
+    const run = (): void => {
+        let card: HTMLElement | null = null;
+        const nodes = document.querySelectorAll('.benne-card');
+        for (let i = 0; i < nodes.length; i++) {
+            const el = nodes.item(i);
+            if (el instanceof HTMLElement && el.dataset.entity === ex.entity && el.dataset.id === ex.id) {
+                card = el;
+                break;
+            }
+        }
+        if (!card) {
+            return;
+        }
+        const section = card.closest('details.section');
+        if (section && !section.hasAttribute('open')) {
+            section.setAttribute('open', '');
+        }
+        card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
+    requestAnimationFrame(run);
+}
+
 function esc(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 }
@@ -156,13 +197,17 @@ function renderRoom(state: InspectorRoomState): string {
         </div>
         <div class="benne-card-checks">
           <label class="benne-inline-check"><input type="checkbox" class="prop-visible" data-id="${esc(p.id)}" ${p.visible ? 'checked' : ''} /> Visible</label>
-          <label class="benne-inline-check"><input type="checkbox" class="prop-clickable" data-id="${esc(p.id)}" ${p.clickable ? 'checked' : ''} /> Clickable</label>
         </div>
       </div>
-      <div class="benne-card-metrics">
-        <label><span>z</span> <input type="number" class="prop-z" data-id="${esc(p.id)}" value="${p.zIndex}" /></label>
-        <label><span>Parallax</span> <input type="number" step="0.05" class="prop-par" data-id="${esc(p.id)}" value="${p.parallaxDepth}" /></label>
-        <label><span>Alpha</span> <input type="number" step="0.05" min="0" max="1" class="prop-alpha" data-id="${esc(p.id)}" value="${p.alpha}" /></label>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">zIndex</span>
+        <input type="number" class="prop-z" data-id="${esc(p.id)}" value="${p.zIndex}" />
+        <span class="benne-pg-lbl">Parallax</span>
+        <input type="number" step="0.05" class="prop-par" data-id="${esc(p.id)}" value="${p.parallaxDepth}" />
+        <span class="benne-pg-lbl">Alpha</span>
+        <input type="number" step="0.05" min="0" max="1" class="prop-alpha" data-id="${esc(p.id)}" value="${p.alpha}" />
+        <span class="benne-pg-lbl">Clickable</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-clickable" data-id="${esc(p.id)}" ${p.clickable ? 'checked' : ''} /></label>
       </div>
       <label class="benne-field-label muted small">Description</label>
       <textarea class="benne-card-desc prop-desc" data-id="${esc(p.id)}" rows="2" title="${esc(p.description)}">${esc(p.description)}</textarea>
@@ -189,8 +234,9 @@ function renderRoom(state: InspectorRoomState): string {
         </div>
       </div>
       ${inactive}
-      <div class="benne-card-metrics benne-card-metrics--1">
-        <label><span>zIndex</span> <input type="number" class="hs-z" data-id="${esc(h.id)}" value="${h.zIndex}" /></label>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">zIndex</span>
+        <input type="number" class="hs-z" data-id="${esc(h.id)}" value="${h.zIndex}" />
       </div>
       <label class="benne-field-label muted small">Description</label>
       <textarea class="benne-card-desc hs-desc" data-id="${esc(h.id)}" rows="2" title="${esc(h.description)}">${esc(h.description)}</textarea>
@@ -220,18 +266,24 @@ function renderRoom(state: InspectorRoomState): string {
         </div>
         <div class="benne-card-checks">
           <label class="benne-inline-check"><input type="checkbox" class="ch-visible" data-id="${esc(c.instanceId)}" ${c.visible ? 'checked' : ''} /> Visible</label>
-          <label class="benne-inline-check" title="Defined in character JSON"><input type="checkbox" ${c.characterClickable ? 'checked' : ''} disabled /> Clickable</label>
         </div>
       </div>
       ${clickHint}
-      <div class="benne-card-metrics">
-        <label><span>z</span> <input type="number" class="ch-z" data-id="${esc(c.instanceId)}" value="${c.zIndex}" /></label>
-        <label><span>x</span> <input type="number" class="ch-x" data-id="${esc(c.instanceId)}" value="${c.x}" /></label>
-        <label><span>y</span> <input type="number" class="ch-y" data-id="${esc(c.instanceId)}" value="${c.y}" /></label>
+      <div class="benne-dim-grid" role="group" aria-label="Position">
+        <span class="benne-dim-lbl">X</span>
+        <input type="number" class="ch-x" data-id="${esc(c.instanceId)}" value="${c.x}" />
+        <span class="benne-dim-lbl">Y</span>
+        <input type="number" class="ch-y" data-id="${esc(c.instanceId)}" value="${c.y}" />
       </div>
-      <div class="grid2 benne-char-grid">
-        <label class="benne-char-field muted small">Facing<input type="text" class="ch-face" data-id="${esc(c.instanceId)}" value="${esc(c.initialFacing ?? '')}" /></label>
-        <label class="benne-char-field muted small">Anim<input type="text" class="ch-anim" data-id="${esc(c.instanceId)}" value="${esc(c.initialAnimation ?? '')}" /></label>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">Clickable</span>
+        <label class="benne-pg-check benne-inline-check" title="Defined in character JSON"><input type="checkbox" ${c.characterClickable ? 'checked' : ''} disabled /></label>
+        <span class="benne-pg-lbl">zIndex</span>
+        <input type="number" class="ch-z" data-id="${esc(c.instanceId)}" value="${c.zIndex}" />
+        <span class="benne-pg-lbl">Facing</span>
+        <input type="text" class="ch-face" data-id="${esc(c.instanceId)}" value="${esc(c.initialFacing ?? '')}" />
+        <span class="benne-pg-lbl">Animation</span>
+        <input type="text" class="ch-anim" data-id="${esc(c.instanceId)}" value="${esc(c.initialAnimation ?? '')}" />
       </div>
       ${verbHtml}
       <div class="benne-card-actions benne-card-actions--end">
@@ -250,9 +302,11 @@ function renderRoom(state: InspectorRoomState): string {
           <div class="benne-card-sub muted">Room point</div>
         </div>
       </div>
-      <div class="benne-card-metrics benne-card-metrics--2">
-        <label><span>x</span> <input type="number" class="pt-x" data-id="${esc(pt.id)}" value="${pt.x}" /></label>
-        <label><span>y</span> <input type="number" class="pt-y" data-id="${esc(pt.id)}" value="${pt.y}" /></label>
+      <div class="benne-dim-grid" role="group" aria-label="Position">
+        <span class="benne-dim-lbl">X</span>
+        <input type="number" class="pt-x" data-id="${esc(pt.id)}" value="${pt.x}" />
+        <span class="benne-dim-lbl">Y</span>
+        <input type="number" class="pt-y" data-id="${esc(pt.id)}" value="${pt.y}" />
       </div>
       <div class="benne-card-actions">
         <div class="benne-card-actions-inner">
@@ -292,23 +346,30 @@ function renderRoom(state: InspectorRoomState): string {
     <details class="section" open>
       <summary>Room metadata</summary>
       <div class="section-body">
-        <label class="block">Display name <input type="text" id="fld-name" value="${esc(state.displayName)}" /></label>
-        <div class="row">Room id <code class="badge">${esc(state.roomId)}</code></div>
-        <div class="row grid2">
-          <label>Width <input type="number" id="fld-w" value="${sz ? sz.width : ''}" placeholder="352" /></label>
-          <label>Height <input type="number" id="fld-h" value="${sz ? sz.height : ''}" placeholder="198" /></label>
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">Display name</span>
+          <input type="text" id="fld-name" value="${esc(state.displayName)}" />
+          <span class="benne-pg-lbl">Room ID</span>
+          <div class="benne-pg-val"><code class="badge">${esc(state.roomId)}</code></div>
+        </div>
+        <div class="benne-room-size-hint muted small">Room size</div>
+        <div class="benne-dim-grid" role="group" aria-label="Room size">
+          <span class="benne-dim-lbl">W</span>
+          <input type="number" id="fld-w" value="${sz ? sz.width : ''}" placeholder="352" />
+          <span class="benne-dim-lbl">H</span>
+          <input type="number" id="fld-h" value="${sz ? sz.height : ''}" placeholder="198" />
         </div>
         <button type="button" class="btn-secondary" id="btn-fit-bg" ${state.canFitBackground ? '' : 'disabled'} title="Set room size from PNG background dimensions">Fit to background</button>
         <div class="benne-scroll-bounds-label muted small">Scroll bounds (leave blank to omit)</div>
-        <div class="benne-scroll-bounds-grids">
-          <div class="grid2">
-            <label>x <input type="number" id="sb-x" value="${sb ? sb.x : ''}" /></label>
-            <label>y <input type="number" id="sb-y" value="${sb ? sb.y : ''}" /></label>
-          </div>
-          <div class="grid2">
-            <label>w <input type="number" id="sb-w" value="${sb ? sb.width : ''}" /></label>
-            <label>h <input type="number" id="sb-h" value="${sb ? sb.height : ''}" /></label>
-          </div>
+        <div class="benne-dim-grid" role="group" aria-label="Scroll bounds">
+          <span class="benne-dim-lbl">X</span>
+          <input type="number" id="sb-x" value="${sb ? sb.x : ''}" />
+          <span class="benne-dim-lbl">Y</span>
+          <input type="number" id="sb-y" value="${sb ? sb.y : ''}" />
+          <span class="benne-dim-lbl">W</span>
+          <input type="number" id="sb-w" value="${sb ? sb.width : ''}" />
+          <span class="benne-dim-lbl">H</span>
+          <input type="number" id="sb-h" value="${sb ? sb.height : ''}" />
         </div>
         <button type="button" class="btn-secondary" id="btn-clear-sb">Clear scroll bounds</button>
       </div>
@@ -638,6 +699,7 @@ function render(state: InspectorStatePayload): void {
     }
     root.innerHTML = renderRoom(state);
     mountHandlers(state);
+    scrollExpandedCardIntoView(state);
 }
 
 window.addEventListener('message', (event: MessageEvent) => {

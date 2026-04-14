@@ -194,8 +194,72 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
     .block input, .block textarea { width: 100%; margin-top: 4px; }
     .row { margin: 6px 0; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .benne-scroll-bounds-label { margin-top: 12px; margin-bottom: 4px; }
-    .benne-scroll-bounds-grids { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+
+    /* Property grid: label column (right-aligned) + control column */
+    .benne-prop-grid {
+      display: grid;
+      grid-template-columns: minmax(6.75rem, 34%) 1fr;
+      column-gap: 10px;
+      row-gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .benne-prop-grid--tight { margin-bottom: 8px; }
+    .benne-pg-lbl {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      text-align: right;
+      padding-right: 2px;
+      line-height: 1.3;
+    }
+    .benne-pg-val {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      min-height: 22px;
+    }
+    .benne-pg-val input,
+    .benne-pg-val select,
+    .benne-pg-val textarea {
+      width: 100%;
+    }
+    .benne-prop-grid > input[type="text"],
+    .benne-prop-grid > input[type="number"] {
+      width: 100%;
+      min-width: 0;
+    }
+    .benne-pg-check {
+      justify-self: start;
+      display: flex;
+      align-items: center;
+    }
+    .benne-pg-check input { cursor: pointer; }
+
+    /* Grouped dimension grid: X | x | Y | y / W | w | H | h */
+    .benne-dim-grid {
+      display: grid;
+      grid-template-columns: auto 1fr auto 1fr;
+      column-gap: 8px;
+      row-gap: 6px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .benne-dim-lbl {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--vscode-descriptionForeground);
+      text-align: right;
+      min-width: 1.1rem;
+      padding-right: 2px;
+    }
+    .benne-dim-grid input { width: 100%; min-width: 0; }
+
+    .benne-scroll-bounds-label { margin-top: 12px; margin-bottom: 6px; }
+    .benne-room-size-hint {
+      font-size: 11px;
+      margin-bottom: 4px;
+      margin-top: 2px;
+    }
     .wrap { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .muted { color: var(--vscode-descriptionForeground); }
     .small { font-size: 11px; }
@@ -269,42 +333,7 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
     }
     .benne-inline-check input { cursor: pointer; }
 
-    .benne-card-metrics {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-    .benne-card-metrics label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      min-width: 0;
-    }
-    .benne-card-metrics input {
-      flex: 1;
-      min-width: 0;
-      width: 100%;
-    }
-    .benne-card-metrics--1 {
-      grid-template-columns: 1fr;
-      max-width: 160px;
-    }
-    .benne-card-metrics--2 {
-      grid-template-columns: repeat(2, 1fr);
-      max-width: 320px;
-    }
-
     .benne-field-label { display: block; margin-bottom: 4px; }
-    .benne-char-grid { margin-bottom: 8px; }
-    .benne-char-field {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .benne-char-field input { width: 100%; }
 
     .benne-verb-chips {
       display: flex;
