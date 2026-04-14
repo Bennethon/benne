@@ -1,8 +1,6 @@
-import type { EventBus } from '@engine/events/EventBus';
+import { registerGuiScript } from '@engine/scripting';
 
 /**
- * GUI script for `other` — register handlers on the game EventBus.
- * Future: Bennescript will add a room-style `registerGuiScript(({ B }) => { ... })` facade here.
+ * GUI script for `other` — extend with `B.raw` or future GUI lifecycle / control hooks on `B`.
  */
-export function registerGuiScript(_events: EventBus): void {
-}
+registerGuiScript('other', ({ B: _B }) => {});

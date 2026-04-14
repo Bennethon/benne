@@ -2,14 +2,14 @@
  * Detect verb handler registrations in room / character scripts, including
  * {@link registerRoomScript} Bennescript (`B.whenLookAt`, …) and direct
  * `roomPropVerbEventId` / `_events.on` patterns in existing sources. Keep alias
- * resolution aligned with `src/engine/scripting/BenneScript.ts`
+ * resolution aligned with `src/engine/scripting/BenneScriptCore.ts`
  * (`VERB_ALIAS_CANDIDATES` + `resolveVerbId`).
  */
 
 import * as vscode from 'vscode';
 import { readGameConfigVerbs } from './gameDiscovery';
 
-/** Mirrors `VERB_ALIAS_CANDIDATES` in `BenneScript.ts` — update both if this map changes. */
+/** Mirrors `VERB_ALIAS_CANDIDATES` in `BenneScriptCore.ts` — update both if this map changes. */
 const VERB_ALIAS_CANDIDATES: Record<
     'look' | 'use' | 'pickUp' | 'give' | 'talkTo' | 'push' | 'pull' | 'open' | 'close',
     readonly string[]
@@ -275,8 +275,36 @@ export function characterScriptRegistersVerb(
         if (firstMatchIndex(stripped, rxWhenSugar(SUGAR_METHOD[sugar], characterId)) >= 0) {
             return true;
         }
+        const idLit = escapeRegex(characterId);
+        if (
+            new RegExp(`registerCharacterScript\\s*\\(\\s*['\`]${idLit}['\`]`).test(stripped) &&
+            new RegExp(`\\bB\\.${SUGAR_METHOD[sugar]}\\s*\\(\\s*\\(`).test(stripped)
+        ) {
+            return true;
+        }
+    }
+    if (
+        new RegExp(`registerCharacterScript\\s*\\(\\s*['\`]${escapeRegex(characterId)}['\`]`).test(
+            stripped
+        ) &&
+        new RegExp(`\\bB\\.whenVerb\\s*\\(\\s*['"\`]${escapeRegex(verbId)}['"\`]`).test(stripped)
+    ) {
+        return true;
     }
     return false;
+}
+
+/** One-line Bennescript stub for inserting into `registerCharacterScript('id', ({ B }) => { … })`. */
+export function characterBenneHandlerSnippet(
+    verbId: string,
+    configuredVerbIds: ReadonlySet<string>
+): string {
+    const sugar = benneSugarMethodForVerbId(verbId, configuredVerbIds);
+    if (sugar && sugar !== 'give') {
+        const m = SUGAR_METHOD[sugar];
+        return `  B.${m}(() => {\n    // TODO\n  });`;
+    }
+    return `  B.whenVerb(${JSON.stringify(verbId)}, () => {\n    // TODO\n  });`;
 }
 
 export function findRoomPropVerbHandlerRange(
