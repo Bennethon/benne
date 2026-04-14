@@ -29,6 +29,7 @@
     "onCommand:benne-editor.rebuildRoomPreview",
     "onCommand:benne-editor.rebuildCharacterPreview",
     "onCommand:benne-editor.rebuildGuiPreview",
+    "onCommand:benne-editor.rebuildEditorPreviewBundles",
     "onCommand:benne-editor.addPropVerbEvent",
     "onCommand:benne-editor.makePropClickable",
     "onCommand:benne-editor.addHotspotVerbEvent",
@@ -218,6 +219,12 @@
         "icon": "$(sync)"
       },
       {
+        "command": "benne-editor.rebuildEditorPreviewBundles",
+        "title": "Rebuild Editor Preview Bundles",
+        "category": "BENNE",
+        "icon": "$(sync)"
+      },
+      {
         "command": "benne-editor.filterMainTree",
         "title": "Filter BENNE tree",
         "category": "BENNE",
@@ -266,11 +273,6 @@
         },
         {
           "command": "benne-editor.rebuildRoomPreview",
-          "when": "view == benne-editor.main",
-          "group": "navigation@3"
-        },
-        {
-          "command": "benne-editor.rebuildRoomPreview",
           "when": "view == benne-editor.actions",
           "group": "navigation@1"
         },
@@ -286,16 +288,6 @@
         },
         {
           "command": "benne-editor.rebuildCharacterPreview",
-          "when": "view == benne-editor.main",
-          "group": "navigation@6"
-        },
-        {
-          "command": "benne-editor.rebuildGuiPreview",
-          "when": "view == benne-editor.main",
-          "group": "navigation@7"
-        },
-        {
-          "command": "benne-editor.rebuildCharacterPreview",
           "when": "view == benne-editor.actions",
           "group": "navigation@3"
         },
@@ -303,6 +295,11 @@
           "command": "benne-editor.rebuildGuiPreview",
           "when": "view == benne-editor.actions",
           "group": "navigation@4"
+        },
+        {
+          "command": "benne-editor.rebuildEditorPreviewBundles",
+          "when": "view == benne-editor.main",
+          "group": "navigation@8"
         }
       ],
       "view/item/context": [

@@ -20,6 +20,15 @@ let lastInspectorScrollRoomUri = null;
 let lastInspectorScrollExpandedKey = null;
 /** Last room URI we preserved accordion state for (same file, new `rev`). */
 let lastInspectorPreserveRoomUri = null;
+function inspectorStateKey(state) {
+    if (state.kind === 'room') {
+        return `room:${state.roomJsonUri}`;
+    }
+    if (state.kind === 'character') {
+        return `character:${state.characterJsonUri}`;
+    }
+    return `gui:${state.guiJsonUri}`;
+}
 function captureInspectorOpenState(root) {
     const scroll = root.querySelector('.scroll');
     if (!scroll) {
@@ -406,6 +415,122 @@ function renderRoom(state) {
   </div>
 </div>`;
 }
+function pointInputs(prefix, value) {
+    return `<div class="benne-dim-grid" role="group" aria-label="${esc(prefix)}">
+  <span class="benne-dim-lbl">X</span>
+  <input type="number" id="${esc(prefix)}-x" value="${value ? value.x : ''}" />
+  <span class="benne-dim-lbl">Y</span>
+  <input type="number" id="${esc(prefix)}-y" value="${value ? value.y : ''}" />
+</div>`;
+}
+function renderCharacter(state) {
+    const verbHtml = renderVerbChipRow(state.characterJsonUri, state.characterId, state.verbs, `characterDef:${state.characterId}`);
+    const animationCards = state.animations
+        .map((anim) => {
+        const summary = `<div class="benne-card-titles">
+        <div class="benne-card-title">${esc(anim.id)}</div>
+        <div class="benne-card-sub muted">Animation clip</div>
+      </div>`;
+        const body = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">name</span>
+        <div class="benne-pg-val"><code class="badge">${esc(anim.id)}</code></div>
+        <span class="benne-pg-lbl">loop</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="char-anim-loop" data-id="${esc(anim.id)}" ${anim.loop ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">frameDuration</span>
+        <input type="number" class="char-anim-dur" data-id="${esc(anim.id)}" value="${anim.frameDuration ?? ''}" />
+      </div>`;
+        return renderInspectorItem({}, 'animation', anim.id, ' benne-card--character', summary, body);
+    })
+        .join('');
+    return `<div class="inspector-root">
+  <div class="scroll">
+    <details class="section" open>
+      <summary>Character metadata</summary>
+      <div class="section-body">
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">id</span>
+          <div class="benne-pg-val"><code class="badge">${esc(state.characterId)}</code></div>
+          <span class="benne-pg-lbl">name</span>
+          <input type="text" id="char-name" value="${esc(state.name)}" />
+          <span class="benne-pg-lbl">walkSpeed</span>
+          <input type="number" id="char-walk-speed" value="${state.walkSpeed}" />
+          <span class="benne-pg-lbl">clickable</span>
+          <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="char-clickable" ${state.clickable ? 'checked' : ''} /></label>
+        </div>
+        <label class="benne-field-label muted small">Description</label>
+        <textarea id="char-description" rows="3">${esc(state.description)}</textarea>
+        <div class="benne-scroll-bounds-label muted small">walkToPoint</div>
+        ${pointInputs('char-walk', state.walkToPoint)}
+        <div class="benne-scroll-bounds-label muted small">talkPoint</div>
+        ${pointInputs('char-talk', state.talkPoint)}
+        <div class="benne-scroll-bounds-label muted small">feet</div>
+        ${pointInputs('char-feet', state.feet)}
+      </div>
+    </details>
+
+    <details class="section" open>
+      <summary>Verbs</summary>
+      <div class="section-body">
+        ${verbHtml}
+      </div>
+    </details>
+
+    <details class="section" open>
+      <summary>Animations (${state.animations.length})</summary>
+      <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" id="btn-import-char-anims">Import Animations from Aseprite Tags</button>
+        </div>
+        <div class="benne-card-list">${animationCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+  </div>
+  <div class="footer">
+    <button type="button" class="btn-primary" id="btn-save-char">Save</button>
+    <button type="button" class="btn-secondary" id="btn-open-json-char">Open raw JSON</button>
+  </div>
+</div>`;
+}
+function renderGui(state) {
+    const cards = state.controls
+        .map((control, index) => {
+        const summary = `<div class="benne-card-titles">
+        <div class="benne-card-title">${esc(control.summary)}</div>
+        <div class="benne-card-sub muted">${esc(control.type)}</div>
+      </div>`;
+        const body = `<label class="benne-field-label muted small">Control JSON</label>
+      <textarea class="gui-control-payload" data-index="${index}" rows="6">${esc(control.payload)}</textarea>`;
+        return renderInspectorItem({}, 'guiControl', control.key, ' benne-card--region', summary, body);
+    })
+        .join('');
+    return `<div class="inspector-root">
+  <div class="scroll">
+    <details class="section" open>
+      <summary>GUI metadata</summary>
+      <div class="section-body">
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">id</span>
+          <div class="benne-pg-val"><code class="badge">${esc(state.guiId)}</code></div>
+          <span class="benne-pg-lbl">name</span>
+          <input type="text" id="gui-name" value="${esc(state.name)}" />
+        </div>
+        <label class="benne-field-label muted small">Description</label>
+        <textarea id="gui-description" rows="3">${esc(state.description)}</textarea>
+      </div>
+    </details>
+    <details class="section" open>
+      <summary>Controls (${state.controls.length})</summary>
+      <div class="section-body">
+        <div class="benne-card-list">${cards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+  </div>
+  <div class="footer">
+    <button type="button" class="btn-primary" id="btn-save-gui">Save</button>
+    <button type="button" class="btn-secondary" id="btn-open-json-gui">Open raw JSON</button>
+  </div>
+</div>`;
+}
 function renderEmpty(msg) {
     return `<p class="empty">${esc(msg)}</p>`;
 }
@@ -658,6 +783,118 @@ function mountHandlers(state) {
         });
     });
 }
+function readPointFields(prefix) {
+    const xStr = document.getElementById(`${prefix}-x`)?.value ?? '';
+    const yStr = document.getElementById(`${prefix}-y`)?.value ?? '';
+    if (xStr === '' || yStr === '') {
+        return null;
+    }
+    const x = Number(xStr);
+    const y = Number(yStr);
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+}
+function collectCharacterMeta() {
+    return {
+        type: 'characterMeta',
+        name: document.getElementById('char-name')?.value ?? '',
+        walkSpeed: Number(document.getElementById('char-walk-speed')?.value ?? '0'),
+        clickable: document.getElementById('char-clickable')?.checked ?? false,
+        description: document.getElementById('char-description')?.value ?? '',
+        walkToPoint: readPointFields('char-walk'),
+        talkPoint: readPointFields('char-talk'),
+        feet: readPointFields('char-feet')
+    };
+}
+function mountCharacterHandlers(state) {
+    const flush = () => {
+        post('applyPatches', { patches: [collectCharacterMeta()] });
+    };
+    document.getElementById('btn-save-char')?.addEventListener('click', flush);
+    document.getElementById('btn-open-json-char')?.addEventListener('click', () => {
+        post('openRawJson', { characterJsonUri: state.characterJsonUri });
+    });
+    ['char-name', 'char-walk-speed', 'char-clickable', 'char-description', 'char-walk-x', 'char-walk-y', 'char-talk-x', 'char-talk-y', 'char-feet-x', 'char-feet-y'].forEach((id) => {
+        document.getElementById(id)?.addEventListener('blur', flush);
+        document.getElementById(id)?.addEventListener('change', flush);
+    });
+    document.querySelectorAll('.char-anim-loop, .char-anim-dur').forEach((el) => {
+        el.addEventListener('change', () => {
+            const id = el.dataset.id ?? '';
+            if (!id) {
+                return;
+            }
+            const loop = document.querySelector(`.char-anim-loop[data-id="${id}"]`)?.checked ?? false;
+            const durRaw = document.querySelector(`.char-anim-dur[data-id="${id}"]`)?.value ?? '';
+            const frameDuration = durRaw === '' ? null : Number(durRaw);
+            post('applyPatches', { patches: [{ type: 'characterAnimation', id, loop, frameDuration }] });
+        });
+    });
+    document.getElementById('btn-import-char-anims')?.addEventListener('click', () => {
+        post('importCharacterAnimations');
+    });
+    document.querySelectorAll('.verb-chip').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn;
+            const ctx = b.dataset.ctx ?? '';
+            if (b.dataset.reveal) {
+                post('verbReveal', {
+                    characterJsonUri: state.characterJsonUri,
+                    characterId: state.characterId,
+                    eventId: b.dataset.event
+                });
+                return;
+            }
+            if (!b.dataset.add || !ctx.startsWith('characterDef:')) {
+                return;
+            }
+            const verbId = b.dataset.verb ?? '';
+            post('verbAdd', {
+                characterJsonUri: state.characterJsonUri,
+                target: 'characterDef',
+                characterId: state.characterId,
+                verbId
+            });
+        });
+    });
+}
+function collectGuiMeta() {
+    return {
+        type: 'guiMeta',
+        name: document.getElementById('gui-name')?.value ?? '',
+        description: document.getElementById('gui-description')?.value ?? ''
+    };
+}
+function mountGuiHandlers(state) {
+    const flushMeta = () => {
+        post('applyPatches', { patches: [collectGuiMeta()] });
+    };
+    document.getElementById('btn-save-gui')?.addEventListener('click', () => {
+        const payloadPatches = [];
+        document.querySelectorAll('.gui-control-payload').forEach((el) => {
+            const ta = el;
+            const idx = Number(ta.dataset.index ?? '-1');
+            if (Number.isInteger(idx) && idx >= 0) {
+                payloadPatches.push({ type: 'guiControlPayload', index: idx, payload: ta.value });
+            }
+        });
+        post('applyPatches', { patches: [collectGuiMeta(), ...payloadPatches] });
+    });
+    document.getElementById('btn-open-json-gui')?.addEventListener('click', () => {
+        post('openRawJson', { guiJsonUri: state.guiJsonUri });
+    });
+    document.getElementById('gui-name')?.addEventListener('blur', flushMeta);
+    document.getElementById('gui-description')?.addEventListener('blur', flushMeta);
+    document.querySelectorAll('.gui-control-payload').forEach((el) => {
+        el.addEventListener('blur', () => {
+            const ta = el;
+            const idx = Number(ta.dataset.index ?? '-1');
+            if (!Number.isInteger(idx) || idx < 0) {
+                return;
+            }
+            post('applyPatches', { patches: [{ type: 'guiControlPayload', index: idx, payload: ta.value }] });
+        });
+    });
+}
 function render(state) {
     const root = document.getElementById('benne-inspector-app');
     if (!root) {
@@ -670,16 +907,33 @@ function render(state) {
     }
     let preserved = null;
     const hadRoomShell = root.querySelector('.inspector-root') !== null;
-    if (hadRoomShell && lastInspectorPreserveRoomUri === state.roomJsonUri) {
+    const stateKey = inspectorStateKey(state);
+    if (hadRoomShell && lastInspectorPreserveRoomUri === stateKey) {
         preserved = captureInspectorOpenState(root);
     }
-    root.innerHTML = renderRoom(state);
-    lastInspectorPreserveRoomUri = state.roomJsonUri;
+    if (state.kind === 'room') {
+        root.innerHTML = renderRoom(state);
+    }
+    else if (state.kind === 'character') {
+        root.innerHTML = renderCharacter(state);
+    }
+    else {
+        root.innerHTML = renderGui(state);
+    }
+    lastInspectorPreserveRoomUri = stateKey;
     if (preserved) {
         restoreInspectorOpenState(root, preserved);
     }
-    mountHandlers(state);
-    scrollExpandedCardIntoView(state);
+    if (state.kind === 'room') {
+        mountHandlers(state);
+        scrollExpandedCardIntoView(state);
+    }
+    else if (state.kind === 'character') {
+        mountCharacterHandlers(state);
+    }
+    else {
+        mountGuiHandlers(state);
+    }
 }
 window.addEventListener('message', (event) => {
     const msg = event.data;
