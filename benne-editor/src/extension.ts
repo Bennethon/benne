@@ -9,6 +9,7 @@ import {
     runAddRoomPointWizard,
     runAddRoomPropWizard,
     runAddRoomRegionWizard,
+    runAddRoomSpawnedCharacterWizard,
     runCreateRoomWizard,
     runImportPropsFromAsepriteTags
 } from './roomScaffolding';
@@ -40,7 +41,8 @@ import {
     openDocumentPinned,
     openDocumentUri,
     openRoomJsonAndScriptBottomGroup,
-    revealEventInDocument
+    revealEventInDocument,
+    revealSourceRangeInDocument
 } from './roomScriptNavigation';
 import { InspectorWebviewViewProvider } from './inspectorWebviewViewProvider';
 
@@ -403,6 +405,14 @@ export function activate(context: vscode.ExtensionContext): void {
             }
         ),
         vscode.commands.registerCommand(
+            'benne-editor.addRoomSpawnedCharacter',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                await runAddRoomSpawnedCharacterWizard(selection, node);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
             'benne-editor.importPropsFromAsepriteTags',
             async (arg?: MainTreeNode | MainTreeNode[]) => {
                 const node = firstTreeContextArg(arg);
@@ -521,7 +531,7 @@ export function activate(context: vscode.ExtensionContext): void {
                     return;
                 }
                 const jsonUri = vscode.Uri.parse(roomJsonUriStr);
-                const ok = await addPropVerbEvent(jsonUri, roomId, propId, verbId);
+                const r = await addPropVerbEvent(jsonUri, roomId, propId, verbId);
                 if (selection.roomPanel.kind === 'prop' && selection.roomPanel.prop.id === propId) {
                     try {
                         const props = await readRoomProps(jsonUri);
@@ -534,10 +544,19 @@ export function activate(context: vscode.ExtensionContext): void {
                     }
                 }
                 refreshTrees();
-                if (ok) {
+                if (r.ok) {
                     const eventId = `verb:room:${roomId}:prop:${propId}:${verbId}`;
                     const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
-                    await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+                    if (r.insertedStubRange) {
+                        await revealSourceRangeInDocument(
+                            scriptUri,
+                            r.insertedStubRange.start,
+                            r.insertedStubRange.end,
+                            BENNE_SCRIPT_VIEW_COLUMN
+                        );
+                    } else {
+                        await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+                    }
                 }
             }
         ),
@@ -579,12 +598,21 @@ export function activate(context: vscode.ExtensionContext): void {
                     return;
                 }
                 const jsonUri = vscode.Uri.parse(roomJsonUriStr);
-                const ok = await addHotspotVerbEvent(jsonUri, roomId, hotspotId, verbId);
+                const r = await addHotspotVerbEvent(jsonUri, roomId, hotspotId, verbId);
                 refreshTrees();
-                if (ok) {
+                if (r.ok) {
                     const eventId = `verb:room:${roomId}:hotspot:${hotspotId}:${verbId}`;
                     const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
-                    await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+                    if (r.insertedStubRange) {
+                        await revealSourceRangeInDocument(
+                            scriptUri,
+                            r.insertedStubRange.start,
+                            r.insertedStubRange.end,
+                            BENNE_SCRIPT_VIEW_COLUMN
+                        );
+                    } else {
+                        await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+                    }
                 }
             }
         ),
@@ -605,12 +633,21 @@ export function activate(context: vscode.ExtensionContext): void {
                     void vscode.window.showErrorMessage('Could not resolve workspace folder for room JSON.');
                     return;
                 }
-                const ok = await addRoomCharacterVerbEvent(folder.uri, jsonUri, roomId, characterId, verbId);
+                const r = await addRoomCharacterVerbEvent(folder.uri, jsonUri, roomId, characterId, verbId);
                 refreshTrees();
-                if (ok) {
+                if (r.ok) {
                     const eventId = `verb:room:${roomId}:character:${characterId}:${verbId}`;
                     const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
-                    await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+                    if (r.insertedStubRange) {
+                        await revealSourceRangeInDocument(
+                            scriptUri,
+                            r.insertedStubRange.start,
+                            r.insertedStubRange.end,
+                            BENNE_SCRIPT_VIEW_COLUMN
+                        );
+                    } else {
+                        await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+                    }
                 }
             }
         ),

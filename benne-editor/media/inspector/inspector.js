@@ -18,6 +18,59 @@ catch {
 /** Avoid re-scrolling when the same tree item stays selected but room state `rev` bumps. */
 let lastInspectorScrollRoomUri = null;
 let lastInspectorScrollExpandedKey = null;
+/** Last room URI we preserved accordion state for (same file, new `rev`). */
+let lastInspectorPreserveRoomUri = null;
+function captureInspectorOpenState(root) {
+    const scroll = root.querySelector('.scroll');
+    if (!scroll) {
+        return null;
+    }
+    const sections = [];
+    scroll.querySelectorAll(':scope > details.section').forEach((el) => {
+        if (el instanceof HTMLDetailsElement) {
+            sections.push(el.open);
+        }
+    });
+    const items = {};
+    scroll.querySelectorAll('details.benne-inspector-item').forEach((node) => {
+        if (!(node instanceof HTMLDetailsElement)) {
+            return;
+        }
+        const entity = node.dataset.entity;
+        const id = node.dataset.id;
+        if (entity && id) {
+            items[`${entity}\0${id}`] = node.open;
+        }
+    });
+    return { sections, items };
+}
+function restoreInspectorOpenState(root, captured) {
+    const scroll = root.querySelector('.scroll');
+    if (!scroll) {
+        return;
+    }
+    const sectionEls = scroll.querySelectorAll(':scope > details.section');
+    for (let i = 0; i < captured.sections.length && i < sectionEls.length; i++) {
+        const el = sectionEls.item(i);
+        if (el instanceof HTMLDetailsElement) {
+            el.open = captured.sections[i];
+        }
+    }
+    scroll.querySelectorAll('details.benne-inspector-item').forEach((node) => {
+        if (!(node instanceof HTMLDetailsElement)) {
+            return;
+        }
+        const entity = node.dataset.entity;
+        const id = node.dataset.id;
+        if (!entity || !id) {
+            return;
+        }
+        const key = `${entity}\0${id}`;
+        if (Object.prototype.hasOwnProperty.call(captured.items, key)) {
+            node.open = captured.items[key];
+        }
+    });
+}
 function scrollExpandedCardIntoView(state) {
     if (state.roomJsonUri !== lastInspectorScrollRoomUri) {
         lastInspectorScrollRoomUri = state.roomJsonUri;
@@ -33,23 +86,26 @@ function scrollExpandedCardIntoView(state) {
     }
     lastInspectorScrollExpandedKey = key;
     const run = () => {
-        let card = null;
-        const nodes = document.querySelectorAll('.benne-card');
+        let item = null;
+        const nodes = document.querySelectorAll('.benne-inspector-item');
         for (let i = 0; i < nodes.length; i++) {
             const el = nodes.item(i);
             if (el instanceof HTMLElement && el.dataset.entity === ex.entity && el.dataset.id === ex.id) {
-                card = el;
+                item = el;
                 break;
             }
         }
-        if (!card) {
+        if (!item) {
             return;
         }
-        const section = card.closest('details.section');
+        const section = item.closest('details.section');
         if (section && !section.hasAttribute('open')) {
             section.setAttribute('open', '');
         }
-        card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        if (!item.hasAttribute('open')) {
+            item.setAttribute('open', '');
+        }
+        item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     };
     requestAnimationFrame(run);
 }
@@ -58,6 +114,17 @@ function esc(s) {
 }
 function post(action, payload) {
     vscodeApi?.postMessage({ action, ...payload });
+}
+function inspectorItemExpanded(state, entity, id) {
+    const ex = state.expanded;
+    return !!(ex && ex.entity === entity && ex.id === id);
+}
+function renderInspectorItem(state, entity, id, cardModifierClasses, summaryInnerHtml, bodyInnerHtml) {
+    const open = inspectorItemExpanded(state, entity, id) ? ' open' : '';
+    return `<details class="benne-inspector-item benne-card${cardModifierClasses}" data-entity="${esc(entity)}" data-id="${esc(id)}"${open}>
+  <summary class="benne-inspector-item-summary">${summaryInnerHtml}</summary>
+  <div class="benne-inspector-item-body">${bodyInnerHtml}</div>
+</details>`;
 }
 function renderVerbChipRow(roomJsonUri, roomId, verbs, ctx) {
     void roomJsonUri;
@@ -108,17 +175,13 @@ function renderRoom(state) {
             : `<div class="benne-card-actions benne-card-actions--end">
         <button type="button" class="btn-danger" data-delete="prop" data-id="${esc(p.id)}">Delete</button>
       </div>`;
-        return `<div class="benne-card benne-card--prop${propClickableCls}" data-entity="prop" data-id="${esc(p.id)}">
-      <div class="benne-card-head">
-        <div class="benne-card-titles">
+        const summary = `<div class="benne-card-titles">
           <div class="benne-card-title tag">${title}</div>
           <div class="benne-card-sub muted">${esc(p.id)}</div>
-        </div>
-        <div class="benne-card-checks">
-          <label class="benne-inline-check"><input type="checkbox" class="prop-visible" data-id="${esc(p.id)}" ${p.visible ? 'checked' : ''} /> Visible</label>
-        </div>
-      </div>
-      <div class="benne-prop-grid benne-prop-grid--tight">
+        </div>`;
+        const body = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">Visible</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-visible" data-id="${esc(p.id)}" ${p.visible ? 'checked' : ''} /></label>
         <span class="benne-pg-lbl">zIndex</span>
         <input type="number" class="prop-z" data-id="${esc(p.id)}" value="${p.zIndex}" />
         <span class="benne-pg-lbl">Parallax</span>
@@ -132,8 +195,8 @@ function renderRoom(state) {
       <textarea class="benne-card-desc prop-desc" data-id="${esc(p.id)}" rows="2" title="${esc(p.description)}">${esc(p.description)}</textarea>
       <label class="benne-field-label muted small">Verbs</label>
       ${verbHtml}
-      ${propActions}
-    </div>`;
+      ${propActions}`;
+        return renderInspectorItem(state, 'prop', p.id, ` benne-card--prop${propClickableCls}`, summary, body);
     })
         .join('');
     const hotspotCards = state.hotspots
@@ -141,18 +204,14 @@ function renderRoom(state) {
         const inactive = !h.active ? '<div class="banner">Inactive (not hit-tested)</div>' : '';
         const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, h.verbs, `hotspot:${h.id}`);
         const headTitle = esc(h.description.trim() ? h.description.trim() : h.id);
-        return `<div class="benne-card benne-card--hotspot" data-entity="hotspot" data-id="${esc(h.id)}">
-      <div class="benne-card-head">
-        <div class="benne-card-titles">
+        const summary = `<div class="benne-card-titles">
           <div class="benne-card-title">${headTitle}</div>
           <div class="benne-card-sub muted">${esc(h.id)}</div>
-        </div>
-        <div class="benne-card-checks">
-          <label class="benne-inline-check"><input type="checkbox" class="hs-active" data-id="${esc(h.id)}" ${h.active ? 'checked' : ''} /> Active</label>
-        </div>
-      </div>
-      ${inactive}
+        </div>`;
+        const body = `${inactive}
       <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">Active</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="hs-active" data-id="${esc(h.id)}" ${h.active ? 'checked' : ''} /></label>
         <span class="benne-pg-lbl">zIndex</span>
         <input type="number" class="hs-z" data-id="${esc(h.id)}" value="${h.zIndex}" />
       </div>
@@ -165,8 +224,8 @@ function renderRoom(state) {
           <button type="button" class="btn-link" data-edit-preview="hotspot" data-id="${esc(h.id)}">Edit in Preview →</button>
         </div>
         <button type="button" class="btn-danger" data-delete="hotspot" data-id="${esc(h.id)}">Delete</button>
-      </div>
-    </div>`;
+      </div>`;
+        return renderInspectorItem(state, 'hotspot', h.id, ' benne-card--hotspot', summary, body);
     })
         .join('');
     const charCards = state.characters
@@ -175,17 +234,11 @@ function renderRoom(state) {
         const clickHint = !c.characterClickable
             ? '<div class="banner">Character definition is not clickable — enable in character JSON first.</div>'
             : '';
-        return `<div class="benne-card benne-card--character" data-entity="character" data-id="${esc(c.instanceId)}">
-      <div class="benne-card-head">
-        <div class="benne-card-titles">
+        const summary = `<div class="benne-card-titles">
           <div class="benne-card-title">${esc(c.characterId)}</div>
           <div class="benne-card-sub muted">${esc(c.instanceId)}</div>
-        </div>
-        <div class="benne-card-checks">
-          <label class="benne-inline-check"><input type="checkbox" class="ch-visible" data-id="${esc(c.instanceId)}" ${c.visible ? 'checked' : ''} /> Visible</label>
-        </div>
-      </div>
-      ${clickHint}
+        </div>`;
+        const body = `${clickHint}
       <div class="benne-dim-grid" role="group" aria-label="Position">
         <span class="benne-dim-lbl">X</span>
         <input type="number" class="ch-x" data-id="${esc(c.instanceId)}" value="${c.x}" />
@@ -193,6 +246,8 @@ function renderRoom(state) {
         <input type="number" class="ch-y" data-id="${esc(c.instanceId)}" value="${c.y}" />
       </div>
       <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">Visible</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="ch-visible" data-id="${esc(c.instanceId)}" ${c.visible ? 'checked' : ''} /></label>
         <span class="benne-pg-lbl">Clickable</span>
         <label class="benne-pg-check benne-inline-check" title="Defined in character JSON"><input type="checkbox" ${c.characterClickable ? 'checked' : ''} disabled /></label>
         <span class="benne-pg-lbl">zIndex</span>
@@ -205,19 +260,17 @@ function renderRoom(state) {
       ${verbHtml}
       <div class="benne-card-actions benne-card-actions--end">
         <button type="button" class="btn-danger" data-delete="character" data-id="${esc(c.instanceId)}">Delete</button>
-      </div>
-    </div>`;
+      </div>`;
+        return renderInspectorItem(state, 'character', c.instanceId, ' benne-card--character', summary, body);
     })
         .join('');
     const pointCards = state.points
-        .map((pt) => `<div class="benne-card benne-card--point" data-entity="point" data-id="${esc(pt.id)}">
-      <div class="benne-card-head">
-        <div class="benne-card-titles">
+        .map((pt) => {
+        const summary = `<div class="benne-card-titles">
           <div class="benne-card-title">${esc(pt.id)}</div>
           <div class="benne-card-sub muted">Room point</div>
-        </div>
-      </div>
-      <div class="benne-dim-grid" role="group" aria-label="Position">
+        </div>`;
+        const body = `<div class="benne-dim-grid" role="group" aria-label="Position">
         <span class="benne-dim-lbl">X</span>
         <input type="number" class="pt-x" data-id="${esc(pt.id)}" value="${pt.x}" />
         <span class="benne-dim-lbl">Y</span>
@@ -228,27 +281,28 @@ function renderRoom(state) {
           <button type="button" class="btn-link" data-edit-preview="point" data-id="${esc(pt.id)}">Edit in Preview →</button>
         </div>
         <button type="button" class="btn-danger" data-delete="point" data-id="${esc(pt.id)}">Delete</button>
-      </div>
-    </div>`)
+      </div>`;
+        return renderInspectorItem(state, 'point', pt.id, ' benne-card--point', summary, body);
+    })
         .join('');
     const regionCards = state.regions
-        .map((r) => `<div class="benne-card benne-card--region" data-entity="region" data-id="${esc(r.id)}">
-      <div class="benne-card-head">
-        <div class="benne-card-titles">
+        .map((r) => {
+        const summary = `<div class="benne-card-titles">
           <div class="benne-card-title">${esc(r.id)}</div>
           <div class="benne-card-sub muted">${r.pointCount} points</div>
-        </div>
-        <div class="benne-card-checks">
-          <label class="benne-inline-check"><input type="checkbox" class="rg-active" data-id="${esc(r.id)}" ${r.active ? 'checked' : ''} /> Active</label>
-        </div>
+        </div>`;
+        const body = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">Active</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-active" data-id="${esc(r.id)}" ${r.active ? 'checked' : ''} /></label>
       </div>
       <div class="benne-card-actions">
         <div class="benne-card-actions-inner">
           <button type="button" class="btn-link" data-edit-preview="region" data-id="${esc(r.id)}">Edit in Preview →</button>
         </div>
         <button type="button" class="btn-danger" data-delete="region" data-id="${esc(r.id)}">Delete</button>
-      </div>
-    </div>`)
+      </div>`;
+        return renderInspectorItem(state, 'region', r.id, ' benne-card--region', summary, body);
+    })
         .join('');
     return `
 <div class="inspector-root">
@@ -303,30 +357,45 @@ function renderRoom(state) {
     <details class="section">
       <summary>Hotspots (${state.hotspots.length})</summary>
       <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" data-add-room-item="hotspot">Add Hotspot</button>
+        </div>
         <div class="benne-card-list">${hotspotCards || '<p class="muted">None</p>'}</div>
       </div>
     </details>
     <details class="section">
       <summary>Props (${state.props.length})</summary>
       <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" data-add-room-item="prop">Add Prop</button>
+        </div>
         <div class="benne-card-list">${propCards || '<p class="muted">None</p>'}</div>
       </div>
     </details>
     <details class="section">
       <summary>Spawned characters (${state.characters.length})</summary>
       <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" data-add-room-item="character">Add Character</button>
+        </div>
         <div class="benne-card-list">${charCards || '<p class="muted">None</p>'}</div>
       </div>
     </details>
     <details class="section">
       <summary>Points (${state.points.length})</summary>
       <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" data-add-room-item="point">Add Point</button>
+        </div>
         <div class="benne-card-list">${pointCards || '<p class="muted">None</p>'}</div>
       </div>
     </details>
     <details class="section">
       <summary>Regions (${state.regions.length})</summary>
       <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" data-add-room-item="region">Add Region</button>
+        </div>
         <div class="benne-card-list">${regionCards || '<p class="muted">None</p>'}</div>
       </div>
     </details>
@@ -394,6 +463,15 @@ function mountHandlers(state) {
             return;
         }
         post('applyPatches', { patches: [{ type: 'addWalkableHole', polygonId }] });
+    });
+    root.querySelectorAll('[data-add-room-item]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const kind = btn.dataset.addRoomItem ?? '';
+            if (!kind) {
+                return;
+            }
+            post('addRoomItem', { kind });
+        });
     });
     ['fld-name', 'fld-w', 'fld-h', 'sb-x', 'sb-y', 'sb-w', 'sb-h'].forEach((id) => {
         document.getElementById(id)?.addEventListener('blur', flushMeta);
@@ -586,10 +664,20 @@ function render(state) {
         return;
     }
     if (state.kind === 'empty') {
+        lastInspectorPreserveRoomUri = null;
         root.innerHTML = renderEmpty(state.message);
         return;
     }
+    let preserved = null;
+    const hadRoomShell = root.querySelector('.inspector-root') !== null;
+    if (hadRoomShell && lastInspectorPreserveRoomUri === state.roomJsonUri) {
+        preserved = captureInspectorOpenState(root);
+    }
     root.innerHTML = renderRoom(state);
+    lastInspectorPreserveRoomUri = state.roomJsonUri;
+    if (preserved) {
+        restoreInspectorOpenState(root, preserved);
+    }
     mountHandlers(state);
     scrollExpandedCardIntoView(state);
 }

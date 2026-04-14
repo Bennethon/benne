@@ -436,6 +436,42 @@ export function findRoomScriptVerbRangeForEventId(
     return null;
 }
 
+/**
+ * Like {@link findRoomScriptVerbRangeForEventId}, but if the match only appears after stripping
+ * comments (while registration detection uses stripped text), map the range back into `source`.
+ */
+export function findRoomScriptVerbRangeForEventIdRobust(
+    source: string,
+    eventId: string,
+    configuredVerbIds: ReadonlySet<string>,
+    roomPropIds: ReadonlySet<string>
+): { start: number; end: number } | null {
+    const primary = findRoomScriptVerbRangeForEventId(source, eventId, configuredVerbIds, roomPropIds);
+    if (primary) {
+        return primary;
+    }
+    const stripped = stripLineAndBlockComments(source);
+    const sec = findRoomScriptVerbRangeForEventId(stripped, eventId, configuredVerbIds, roomPropIds);
+    if (!sec) {
+        return null;
+    }
+    const snippet = stripped.slice(sec.start, sec.end);
+    let i = source.indexOf(snippet);
+    if (i >= 0) {
+        return { start: i, end: i + snippet.length };
+    }
+    const firstLine = snippet.trim().split('\n')[0] ?? '';
+    if (firstLine.length < 4) {
+        return null;
+    }
+    i = source.indexOf(firstLine);
+    if (i < 0) {
+        return null;
+    }
+    const endGuess = Math.min(source.length, i + snippet.length);
+    return { start: i, end: endGuess };
+}
+
 export function findCharacterScriptVerbRangeForEventId(
     source: string,
     eventId: string,

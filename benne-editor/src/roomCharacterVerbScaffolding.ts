@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { formatJson } from './roomScaffolding';
 import { makeCharacterClickable } from './characterVerbScaffolding';
-import { insertIntoBenneRegisterRoomScript } from './propVerbScaffolding';
+import { insertIntoBenneRegisterRoomScript, type AddRoomVerbHandlerResult } from './propVerbScaffolding';
 import {
     benneRoomScriptQualifier,
     benneStubCallLine,
@@ -37,7 +37,7 @@ export async function addRoomCharacterVerbEvent(
     roomId: string,
     characterId: string,
     verbId: string
-): Promise<boolean> {
+): Promise<AddRoomVerbHandlerResult> {
     const charUri = characterJsonUriForId(gameRoot, characterId);
     try {
         await vscode.workspace.fs.stat(charUri);
@@ -45,7 +45,7 @@ export async function addRoomCharacterVerbEvent(
         void vscode.window.showErrorMessage(
             `Character "${characterId}" not found (expected ${charUri.fsPath}).`
         );
-        return false;
+        return { ok: false };
     }
 
     let charRaw: Uint8Array;
@@ -53,14 +53,14 @@ export async function addRoomCharacterVerbEvent(
         charRaw = await vscode.workspace.fs.readFile(charUri);
     } catch {
         void vscode.window.showErrorMessage('Could not read character JSON.');
-        return false;
+        return { ok: false };
     }
     let charData: Record<string, unknown>;
     try {
         charData = JSON.parse(new TextDecoder('utf-8').decode(charRaw)) as Record<string, unknown>;
     } catch {
         void vscode.window.showErrorMessage('Character JSON is not valid.');
-        return false;
+        return { ok: false };
     }
 
     if (charData.clickable !== true) {
@@ -72,7 +72,7 @@ export async function addRoomCharacterVerbEvent(
         charData = JSON.parse(new TextDecoder('utf-8').decode(rawAfterClickable)) as Record<string, unknown>;
     } catch {
         void vscode.window.showErrorMessage('Character JSON is not valid after update.');
-        return false;
+        return { ok: false };
     }
 
     const existingOnVerb =
@@ -94,7 +94,7 @@ export async function addRoomCharacterVerbEvent(
         void vscode.window.showWarningMessage(
             `Character JSON was updated; ${roomId}.room.ts was not found — create the room script, then ${BENNE_ROOM_SCRIPT_HINT}`
         );
-        return true;
+        return { ok: true };
     }
 
     const folderForCfg = vscode.workspace.getWorkspaceFolder(roomJsonUri);
@@ -105,7 +105,7 @@ export async function addRoomCharacterVerbEvent(
         void vscode.window.showInformationMessage(
             `Room script already has a handler for ${verbId} on "${characterId}" in this room.`
         );
-        return false;
+        return { ok: false };
     }
 
     const qualifier = benneRoomScriptQualifier(scriptText);
@@ -115,13 +115,16 @@ export async function addRoomCharacterVerbEvent(
         void vscode.window.showErrorMessage(
             `Could not add a handler to ${roomId}.room.ts. ${BENNE_ROOM_SCRIPT_HINT}`
         );
-        return false;
+        return { ok: false };
     }
 
-    await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(benneInserted));
+    await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(benneInserted.text));
 
     void vscode.window.showInformationMessage(
         `Added room-scoped ${verbId} handler for "${characterId}" in ${roomId}.room.ts (character JSON updated if needed).`
     );
-    return true;
+    return {
+        ok: true,
+        insertedStubRange: { start: benneInserted.start, end: benneInserted.end }
+    };
 }

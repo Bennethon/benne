@@ -2,9 +2,10 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import { readRoomProps } from './gameDiscovery';
+import { ensureRoomVerbHandlerStubForReveal } from './propVerbScaffolding';
 import {
     findCharacterScriptVerbRangeForEventId,
-    findRoomScriptVerbRangeForEventId,
+    findRoomScriptVerbRangeForEventIdRobust,
     readConfiguredVerbIdSet
 } from './verbHandlerPresence';
 
@@ -108,6 +109,34 @@ export async function openDocumentUri(uri: vscode.Uri, preview: boolean, viewCol
     });
 }
 
+/** Select `[start, end)` UTF-16 offsets in `scriptUri` and scroll the range into view. */
+export async function revealSourceRangeInDocument(
+    scriptUri: vscode.Uri,
+    start: number,
+    end: number,
+    viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active
+): Promise<boolean> {
+    try {
+        await vscode.workspace.fs.stat(scriptUri);
+    } catch {
+        void vscode.window.showWarningMessage(`Script not found: ${scriptUri.fsPath}`);
+        return false;
+    }
+    const doc = await vscode.workspace.openTextDocument(scriptUri);
+    const editor = await vscode.window.showTextDocument(doc, {
+        preview: false,
+        viewColumn
+    });
+    const len = doc.getText().length;
+    const s = Math.max(0, Math.min(start, len));
+    const e = Math.max(s, Math.min(end, len));
+    const pos = doc.positionAt(s);
+    const endPos = doc.positionAt(e);
+    editor.selection = new vscode.Selection(pos, endPos);
+    editor.revealRange(new vscode.Range(pos, endPos), vscode.TextEditorRevealType.InCenter);
+    return true;
+}
+
 export async function revealEventInDocument(
     scriptUri: vscode.Uri,
     eventId: string,
@@ -152,7 +181,7 @@ export async function revealEventInDocument(
             } catch {
                 /* room JSON missing — still try Bennescript patterns that do not need prop ids */
             }
-            const br = findRoomScriptVerbRangeForEventId(text, eventId, configured, roomPropIds);
+            const br = findRoomScriptVerbRangeForEventIdRobust(text, eventId, configured, roomPropIds);
             if (br) {
                 selStart = br.start;
                 selEnd = br.end;
@@ -167,6 +196,20 @@ export async function revealEventInDocument(
     }
 
     if (selStart < 0 || selEnd < 0) {
+        const baseName = path.basename(scriptUri.fsPath);
+        if (baseName.endsWith('.room.ts')) {
+            const roomId = path.basename(scriptUri.fsPath, '.room.ts');
+            const roomJsonUri = vscode.Uri.joinPath(scriptUri, '..', `${roomId}.room.json`);
+            const stubResult = await ensureRoomVerbHandlerStubForReveal(roomJsonUri, roomId, eventId);
+            if (stubResult.stubInserted && stubResult.insertedStubRange) {
+                const { start: rs, end: re } = stubResult.insertedStubRange;
+                await revealSourceRangeInDocument(scriptUri, rs, re, viewColumn);
+                void vscode.window.showInformationMessage(
+                    `Added a stub handler for this verb in ${baseName}.`
+                );
+                return true;
+            }
+        }
         void vscode.window.showInformationMessage(`Could not find "${eventId}" in ${scriptUri.path.split('/').pop()}`);
         const start = doc.positionAt(0);
         editor.selection = new vscode.Selection(start, start);

@@ -22,6 +22,7 @@
     "onCommand:benne-editor.addRoomHotspot",
     "onCommand:benne-editor.addRoomPoint",
     "onCommand:benne-editor.addRoomRegion",
+    "onCommand:benne-editor.addRoomSpawnedCharacter",
     "onCommand:benne-editor.createCharacter",
     "onCommand:benne-editor.createGui",
     "onCommand:benne-editor.importAnimationsFromAsepriteTags",
@@ -173,6 +174,12 @@
         "title": "Add Region",
         "category": "BENNE",
         "icon": "$(layout-panel)"
+      },
+      {
+        "command": "benne-editor.addRoomSpawnedCharacter",
+        "title": "Add Spawned Character",
+        "category": "BENNE",
+        "icon": "$(person-add)"
       },
       {
         "command": "benne-editor.createCharacter",
@@ -350,6 +357,16 @@
           "group": "benne@2"
         },
         {
+          "command": "benne-editor.addRoomSpawnedCharacter",
+          "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomSpawnedCharacter",
+          "when": "view == benne-editor.main && viewItem == benneRoomCharacter",
+          "group": "benne@2"
+        },
+        {
           "command": "benne-editor.addRoomHotspot",
           "when": "view == benne-editor.main && viewItem == benneRoomHotspot",
           "group": "benne@2"
@@ -397,6 +414,11 @@
         {
           "command": "benne-editor.addRoomRegion",
           "when": "view == benne-editor.main && viewItem == benneRoomSubGroupRegions",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomSpawnedCharacter",
+          "when": "view == benne-editor.main && viewItem == benneRoomSubGroupCharacters",
           "group": "benne@2"
         },
         {

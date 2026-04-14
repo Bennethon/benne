@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import {
     findBenneGameFolders,
     getRoomIdFromRoomJsonUri,
+    listCharacterDefinitions,
     listRoomDefinitions,
     resolveRoomAsepriteSheetForProps
 } from './gameDiscovery';
@@ -177,7 +178,34 @@ function nextPropZIndexFromProps(props: Record<string, unknown>[]): number {
     return max + 1;
 }
 
+function nextCharacterZIndex(characters: Record<string, unknown>[]): number {
+    let max = -1;
+    for (const c of characters) {
+        const z = c.zIndex;
+        if (typeof z === 'number' && z > max) {
+            max = z;
+        }
+    }
+    return max + 1;
+}
+
 type RoomTarget = { roomJsonUri: vscode.Uri; roomId: string };
+
+/** Lets add-* wizards target a room when invoked from the Inspector (no tree node). */
+export async function mainTreeRoomNodeFromRoomJson(
+    roomJsonUri: vscode.Uri,
+    roomId: string
+): Promise<MainTreeNode | undefined> {
+    const folders = await findBenneGameFolders();
+    const folder = folders.find((f) => roomJsonUri.fsPath.startsWith(f.uri.fsPath));
+    if (!folder) {
+        return undefined;
+    }
+    const rooms = await listRoomDefinitions(folder);
+    const match = rooms.find((r) => r.uri.toString() === roomJsonUri.toString());
+    const name = match?.name ?? roomId;
+    return { kind: 'room', folder, id: roomId, name, uri: roomJsonUri };
+}
 
 async function resolveRoomTarget(
     node: MainTreeNode | undefined,
@@ -196,6 +224,9 @@ async function resolveRoomTarget(
         return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
     }
     if (node?.kind === 'region') {
+        return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
+    }
+    if (node?.kind === 'roomCharacter') {
         return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
     }
     if (node?.kind === 'roomSubGroup') {
@@ -741,6 +772,97 @@ export async function runAddRoomRegionWizard(
     await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
 
     void vscode.window.showInformationMessage(`Added region "${id}" to room ${target.roomId}.`);
+    await applyBenneTwoRowJsonScriptLayout();
+    await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
+}
+
+/** Append a `characters[]` instance referencing an existing character definition. */
+export async function runAddRoomSpawnedCharacterWizard(
+    selection: EditorSelection,
+    node?: MainTreeNode
+): Promise<void> {
+    const target = await resolveRoomTarget(node, selection);
+    if (!target) {
+        return;
+    }
+
+    const folders = await findBenneGameFolders();
+    const folder = folders.find((f) => target.roomJsonUri.fsPath.startsWith(f.uri.fsPath));
+    if (!folder) {
+        void vscode.window.showErrorMessage('No BENNE game folder contains this room.');
+        return;
+    }
+
+    const defs = await listCharacterDefinitions(folder);
+    if (defs.length === 0) {
+        void vscode.window.showErrorMessage('No character definitions found. Create a character first.');
+        return;
+    }
+
+    const picked = await vscode.window.showQuickPick(
+        defs.map((d) => ({ label: d.name, description: d.id, char: d })),
+        { placeHolder: 'Choose character to place in this room', matchOnDescription: true }
+    );
+    if (!picked) {
+        return;
+    }
+
+    const char = picked.char;
+    const definition = `${char.id}/${char.id}.character.json`;
+
+    const raw = await vscode.workspace.fs.readFile(target.roomJsonUri);
+    const text = new TextDecoder('utf-8').decode(raw);
+    let data: Record<string, unknown>;
+    try {
+        data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        void vscode.window.showErrorMessage('Room JSON is not valid; cannot add character.');
+        return;
+    }
+
+    const listUnknown = data.characters;
+    const characters: Record<string, unknown>[] = Array.isArray(listUnknown)
+        ? (listUnknown as Record<string, unknown>[])
+        : [];
+
+    let n = 1;
+    while (characters.some((c) => typeof c.instanceId === 'string' && (c.instanceId as string) === `${char.id}-${n}`)) {
+        n += 1;
+    }
+    const defaultInstanceId = `${char.id}-${n}`;
+
+    const instanceId = await vscode.window.showInputBox({
+        prompt: 'Instance id (unique placement in this room JSON)',
+        value: defaultInstanceId,
+        validateInput: (v) => validateSlug(v?.trim() ?? '', 'Instance id')
+    });
+    if (!instanceId) {
+        return;
+    }
+    const id = instanceId.trim();
+
+    if (characters.some((c) => typeof c.instanceId === 'string' && (c.instanceId as string) === id)) {
+        void vscode.window.showErrorMessage(`A character instance with id "${id}" already exists in this room.`);
+        return;
+    }
+
+    const zIndex = nextCharacterZIndex(characters);
+    const { cx, cy } = defaultRoomCenter();
+
+    characters.push({
+        instanceId: id,
+        definition,
+        x: cx,
+        y: cy,
+        initialFacing: 'L',
+        initialAnimation: 'Idle',
+        visible: true,
+        zIndex
+    });
+    data.characters = characters;
+    await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
+
+    void vscode.window.showInformationMessage(`Added character instance "${id}" (${char.id}) to room ${target.roomId}.`);
     await applyBenneTwoRowJsonScriptLayout();
     await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
 }
