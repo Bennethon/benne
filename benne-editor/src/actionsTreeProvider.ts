@@ -103,6 +103,7 @@ export type ActionTreeNode =
     | { kind: 'addRoomHotspot' }
     | { kind: 'addRoomPoint' }
     | { kind: 'addRoomRegion' }
+    | { kind: 'addRoomSpawnedCharacter' }
     | { kind: 'importPropsFromAseprite' }
     | {
           kind: 'charVerb';
@@ -289,6 +290,18 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 item.command = {
                     command: 'benne-editor.addRoomRegion',
                     title: 'Add Region',
+                    arguments: []
+                };
+                return item;
+            }
+            case 'addRoomSpawnedCharacter': {
+                const item = new vscode.TreeItem('Add Spawned Character', vscode.TreeItemCollapsibleState.None);
+                item.id = 'action:addRoomSpawnedCharacter';
+                item.iconPath = new vscode.ThemeIcon('person-add');
+                item.contextValue = 'benneActionAddRoomSpawnedCharacter';
+                item.command = {
+                    command: 'benne-editor.addRoomSpawnedCharacter',
+                    title: 'Add Spawned Character',
                     arguments: []
                 };
                 return item;
@@ -560,6 +573,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                           { kind: 'addRoomPoint' } as const,
                           { kind: 'addRoomRegion' } as const,
                           { kind: 'addRoomProp' } as const,
+                          { kind: 'addRoomSpawnedCharacter' } as const,
                           { kind: 'importPropsFromAseprite' } as const
                       ]
                     : [])

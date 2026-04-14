@@ -153,7 +153,7 @@
       "id": "office-prop-shadow",
       "tag": "Shadow",
       "zIndex": 2,
-      "visible": true,
+      "visible": false,
       "alpha": 1
     },
     {
@@ -229,7 +229,8 @@
       },
       "onVerb": {
         "look": true,
-        "use": true
+        "use": true,
+        "slap": true
       }
     },
     {
@@ -269,7 +270,9 @@
         ]
       },
       "onVerb": {
-        "look": true
+        "look": true,
+        "use": true,
+        "slap": true
       }
     },
     {
@@ -473,6 +476,11 @@
       "id": "office-point-1",
       "x": 179,
       "y": 100
+    },
+    {
+      "id": "office-point-2",
+      "x": 72,
+      "y": 135
     }
   ],
   "regions": [

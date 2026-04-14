@@ -48,4 +48,20 @@ registerRoomScript(({ B }) => {
   B.onProp('office-prop-cyberbuddy', 'slap', () => {
     // TODO
   });
+
+  B.whenLookAt('office-prop-door', () => {
+    // TODO
+  });
+
+  B.whenUse('office-prop-door', () => {
+    // TODO
+  });
+
+  B.onProp('office-prop-door', 'slap', () => {
+    // TODO
+  });
+
+  B.onProp('desk', 'slap', () => {
+    // TODO
+  });
 });

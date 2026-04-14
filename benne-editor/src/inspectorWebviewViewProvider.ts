@@ -29,6 +29,14 @@ import {
 } from './inspectorMutations';
 import { getRoomIdFromRoomJsonUri } from './gameDiscovery';
 import type { RoomPreviewPanelController } from './roomPreviewPanel';
+import {
+    mainTreeRoomNodeFromRoomJson,
+    runAddRoomHotspotWizard,
+    runAddRoomPointWizard,
+    runAddRoomPropWizard,
+    runAddRoomRegionWizard,
+    runAddRoomSpawnedCharacterWizard
+} from './roomScaffolding';
 
 function resolveRoomJsonUri(selection: EditorSelection): vscode.Uri | undefined {
     const focus = selection.focus;
@@ -68,12 +76,15 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
       color: var(--vscode-editor-foreground);
       background: var(--vscode-sideBar-background);
       font-size: 12px;
+      --benne-inspector-border: color-mix(in srgb, var(--vscode-panel-border) 72%, var(--vscode-widget-border, var(--vscode-panel-border)));
+      --benne-inspector-surface: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-sideBar-background));
+      --benne-inspector-well: color-mix(in srgb, var(--vscode-sideBar-background) 40%, var(--vscode-editor-background));
     }
     *, *::before, *::after { box-sizing: border-box; }
     body { margin: 0; padding: 0; font-family: var(--vscode-font-family); }
     #benne-inspector-app { min-height: 100vh; display: flex; flex-direction: column; }
     .inspector-root { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-    .scroll { flex: 1; overflow: auto; padding: 8px 10px 72px; }
+    .scroll { flex: 1; overflow: auto; padding: 8px 10px 72px; background: var(--vscode-sideBar-background); }
 
     input[type="text"],
     input[type="number"],
@@ -81,7 +92,7 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
     select {
       background: var(--vscode-input-background);
       color: var(--vscode-input-foreground);
-      border: 1px solid var(--vscode-input-border);
+      border: 1px solid color-mix(in srgb, var(--vscode-input-border) 55%, var(--benne-inspector-border));
       border-radius: 2px;
       padding: 4px 6px;
       font-family: inherit;
@@ -167,27 +178,36 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
       display: flex;
       gap: 8px;
       padding: 8px 10px;
-      border-top: 1px solid var(--vscode-panel-border);
-      background: var(--vscode-sideBar-background);
+      border-top: 1px solid var(--benne-inspector-border);
+      background: color-mix(in srgb, var(--vscode-sideBar-background) 94%, var(--vscode-editor-background));
+      box-shadow: 0 -4px 12px color-mix(in srgb, var(--vscode-widget-shadow) 55%, transparent);
     }
 
     .section {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 4px;
+      border: 1px solid var(--benne-inspector-border);
+      border-radius: 6px;
       margin-bottom: 10px;
-      background: var(--vscode-editor-background);
-      box-shadow: 0 1px 2px var(--vscode-widget-shadow);
+      background: var(--benne-inspector-surface);
+      box-shadow: 0 1px 0 color-mix(in srgb, var(--vscode-widget-shadow) 35%, transparent), 0 2px 8px color-mix(in srgb, var(--vscode-widget-shadow) 25%, transparent);
     }
     .section > summary {
       padding: 8px 10px;
       cursor: pointer;
       font-weight: 600;
       list-style: none;
+      background: var(--vscode-sideBarSectionHeader-background, color-mix(in srgb, var(--vscode-sideBar-background) 55%, var(--vscode-editor-background)));
+      border-radius: 6px 6px 0 0;
+      border-bottom: 1px solid var(--benne-inspector-border);
+    }
+    .section:not([open]) > summary {
+      border-bottom: none;
+      border-radius: 6px;
     }
     .section > summary::-webkit-details-marker { display: none; }
     .section-body {
       padding: 10px 12px 12px;
-      border-top: 1px solid var(--vscode-panel-border);
+      border-top: 1px solid var(--benne-inspector-border);
+      background: var(--benne-inspector-well);
     }
 
     .block { display: block; margin-bottom: 8px; }
@@ -271,57 +291,111 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
     }
     table.grid { width: 100%; border-collapse: collapse; }
     table.grid th, table.grid td {
-      border: 1px solid var(--vscode-panel-border);
+      border: 1px solid var(--benne-inspector-border);
       padding: 4px 6px;
       text-align: left;
     }
+    table.grid thead th {
+      background: color-mix(in srgb, var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)) 65%, var(--vscode-editor-background));
+      font-weight: 600;
+    }
 
-    .benne-card-list { display: flex; flex-direction: column; gap: 10px; }
+    .benne-section-add-row {
+      margin-bottom: 10px;
+    }
+    .benne-section-add-row .btn-secondary {
+      width: 100%;
+    }
+
+    .benne-card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 2px 0;
+    }
 
     .benne-card {
       background: var(--vscode-editor-background);
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 4px;
-      padding: 12px 14px;
-      box-shadow: 0 1px 3px var(--vscode-widget-shadow);
+      border: 1px solid var(--benne-inspector-border);
+      border-radius: 5px;
+      padding: 0;
+      box-shadow: 0 1px 0 color-mix(in srgb, var(--vscode-widget-shadow) 40%, transparent);
       transition: border-color 0.12s ease, box-shadow 0.12s ease;
     }
     .benne-card:hover {
-      border-color: var(--vscode-focusBorder);
-      box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+      border-color: color-mix(in srgb, var(--vscode-focusBorder) 55%, var(--benne-inspector-border));
+      box-shadow: 0 2px 10px color-mix(in srgb, var(--vscode-widget-shadow) 45%, transparent);
     }
+
+    /* Collapsible entity rows (Hotspots, Props, …) */
+    details.benne-inspector-item.benne-card { overflow: hidden; }
+    .benne-inspector-item > .benne-inspector-item-summary {
+      list-style: none;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 10px 12px 10px 10px;
+      margin: 0;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid transparent;
+    }
+    .benne-inspector-item > .benne-inspector-item-summary::-webkit-details-marker { display: none; }
+    .benne-inspector-item > .benne-inspector-item-summary::before {
+      content: '';
+      display: block;
+      width: 0;
+      height: 0;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+      border-left: 6px solid color-mix(in srgb, var(--vscode-foreground) 72%, var(--vscode-descriptionForeground));
+      margin-top: 5px;
+      flex-shrink: 0;
+      transform: rotate(0deg);
+      transition: transform 0.14s ease;
+    }
+    .benne-inspector-item[open] > .benne-inspector-item-summary::before {
+      transform: rotate(90deg);
+    }
+    .benne-inspector-item[open] > .benne-inspector-item-summary {
+      border-bottom-color: var(--benne-inspector-border);
+      background: color-mix(in srgb, var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)) 35%, var(--vscode-editor-background));
+    }
+    .benne-inspector-item > .benne-inspector-item-summary:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: -1px;
+    }
+    .benne-inspector-item-body {
+      padding: 12px 14px 14px;
+    }
+
     .benne-card.benne-card--prop-clickable {
+      border-left: 3px solid var(--vscode-textLink-foreground);
       background: color-mix(
         in srgb,
-        var(--vscode-editor-inactiveSelectionBackground) 30%,
+        var(--vscode-textLink-foreground) 16%,
         var(--vscode-editor-background)
       );
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vscode-textLink-foreground) 12%, transparent);
     }
     .benne-card.benne-card--prop-clickable:hover {
       background: color-mix(
         in srgb,
-        var(--vscode-editor-inactiveSelectionBackground) 42%,
+        var(--vscode-textLink-foreground) 22%,
         var(--vscode-editor-background)
       );
+      border-color: color-mix(in srgb, var(--vscode-textLink-foreground) 35%, var(--benne-inspector-border));
+    }
+    .benne-card.benne-card--prop-clickable > .benne-inspector-item-summary {
+      background: color-mix(in srgb, var(--vscode-textLink-foreground) 8%, var(--vscode-editor-background));
+    }
+    .benne-card.benne-card--prop-clickable[open] > .benne-inspector-item-summary {
+      background: color-mix(in srgb, var(--vscode-textLink-foreground) 12%, var(--vscode-editor-background));
     }
 
-    .benne-card-head {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-start;
-      gap: 8px 12px;
-      margin-bottom: 8px;
-    }
     .benne-card-titles { flex: 1 1 120px; min-width: 0; }
     .benne-card-title { font-weight: 600; line-height: 1.25; word-break: break-word; }
     .benne-card-sub { font-size: 11px; margin-top: 2px; }
-    .benne-card-checks {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px 14px;
-      align-items: center;
-      margin-left: auto;
-    }
     .benne-inline-check {
       display: inline-flex;
       align-items: center;
@@ -351,7 +425,7 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
       line-height: 1.45;
       cursor: pointer;
       font-family: inherit;
-      border: 1px solid var(--vscode-panel-border);
+      border: 1px solid var(--benne-inspector-border);
       transition: border-color 0.1s ease, background 0.1s ease, color 0.1s ease;
     }
     .verb-chip:focus-visible {
@@ -397,7 +471,7 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
       justify-content: space-between;
       gap: 8px;
       padding-top: 8px;
-      border-top: 1px solid var(--vscode-panel-border);
+      border-top: 1px solid var(--benne-inspector-border);
     }
     .benne-card-actions-inner { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .benne-card-actions--end { justify-content: flex-end; }
@@ -538,6 +612,38 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
 
         if (msg.action === 'openRawJson') {
             await vscode.window.showTextDocument(uri, { preview: false });
+            return;
+        }
+
+        if (msg.action === 'addRoomItem') {
+            const kind = typeof msg.kind === 'string' ? msg.kind : '';
+            const node = await mainTreeRoomNodeFromRoomJson(uri, roomId);
+            if (!node) {
+                void vscode.window.showErrorMessage('Could not resolve this room for adding content.');
+                return;
+            }
+            switch (kind) {
+                case 'hotspot':
+                    await runAddRoomHotspotWizard(this.selection, node);
+                    break;
+                case 'prop':
+                    await runAddRoomPropWizard(this.selection, node);
+                    break;
+                case 'point':
+                    await runAddRoomPointWizard(this.selection, node);
+                    break;
+                case 'region':
+                    await runAddRoomRegionWizard(this.selection, node);
+                    break;
+                case 'character':
+                    await runAddRoomSpawnedCharacterWizard(this.selection, node);
+                    break;
+                default:
+                    return;
+            }
+            this.roomPreview.onWorkspaceRoomJsonChanged(uri);
+            this.refreshMainAndActions();
+            await this.pushState();
             return;
         }
 
