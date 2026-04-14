@@ -33,7 +33,6 @@ import {
     makeRoomPropClickable
 } from './propVerbScaffolding';
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
-import { revealRoomJsonElement } from './roomJsonReveal';
 import {
     BENNE_SCRIPT_VIEW_COLUMN,
     openCharacterJsonAndScriptBottomGroup,
@@ -193,7 +192,6 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!sameRoomContext) {
                 await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
             }
-            await revealRoomJsonElement(node.roomJsonUri, 'prop', node.prop.id);
         } else if (node.kind === 'hotspot') {
             const sameRoomContext =
                 selection.focus.kind === 'room' &&
@@ -216,7 +214,6 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!sameRoomContext) {
                 await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
             }
-            await revealRoomJsonElement(node.roomJsonUri, 'hotspot', node.hotspotId);
         } else if (node.kind === 'roomPoint') {
             const sameRoomContext =
                 selection.focus.kind === 'room' &&
@@ -239,7 +236,6 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!sameRoomContext) {
                 await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
             }
-            await revealRoomJsonElement(node.roomJsonUri, 'roomPoint', node.pointId);
         } else if (node.kind === 'region') {
             const sameRoomContext =
                 selection.focus.kind === 'room' &&
@@ -262,7 +258,6 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!sameRoomContext) {
                 await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
             }
-            await revealRoomJsonElement(node.roomJsonUri, 'region', node.regionId);
         } else if (node.kind === 'roomCharacter') {
             const sameRoomContext =
                 selection.focus.kind === 'room' &&
@@ -286,7 +281,6 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!sameRoomContext) {
                 await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
             }
-            await revealRoomJsonElement(node.roomJsonUri, 'roomCharacter', node.instanceId);
         } else if (node.kind === 'character') {
             await resetBenneEditorSurface();
             await applyBenneTwoRowJsonScriptLayout();
@@ -472,6 +466,44 @@ export function activate(context: vscode.ExtensionContext): void {
                 guiPreview.reloadGuiPreviewBundle();
                 void vscode.window.showInformationMessage('GUI preview bundle rebuilt.');
             }
+        }),
+        vscode.commands.registerCommand('benne-editor.rebuildEditorPreviewBundles', async () => {
+            const ch = getRoomPreviewBuildOutputChannel();
+            const folder = await resolveGameFolderForRoomPreviewBuild(roomPreviewBuildHintUri(selection));
+            if (!folder) {
+                void vscode.window.showErrorMessage(
+                    'No BENNE game in the workspace (need a folder with src/game and preview build scripts).'
+                );
+                return;
+            }
+
+            const roomOk = await runRoomPreviewBuild(folder, ch, {
+                title: 'Rebuilding editor preview bundles (1/3: room)'
+            });
+            if (!roomOk) {
+                return;
+            }
+
+            const characterOk = await runCharacterPreviewBuild(folder, ch, {
+                title: 'Rebuilding editor preview bundles (2/3: character)'
+            });
+            if (!characterOk) {
+                return;
+            }
+
+            const guiOk = await runGuiPreviewBuild(folder, ch, {
+                title: 'Rebuilding editor preview bundles (3/3: GUI)'
+            });
+            if (!guiOk) {
+                return;
+            }
+
+            roomPreview.reloadRoomPreviewBundle();
+            characterPreview.reloadCharacterPreviewBundle();
+            guiPreview.reloadGuiPreviewBundle();
+            void vscode.window.showInformationMessage(
+                'Editor preview bundles rebuilt (room, character, GUI).'
+            );
         }),
         vscode.commands.registerCommand(
             'benne-editor.openUriPreview',
@@ -824,7 +856,7 @@ function getWebviewContent(): string {
         </head>
         <body>
             <h1>BENNE Editor</h1>
-            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree, <em>Actions</em>, and <em>Inspector</em>. Each tree choice resets the editor area, then opens the right layout: rooms and props — two rows with <em>BENNE Room preview</em> on top and a narrow room JSON column (~30%) next to <code>*.room.ts</code> (~70%) on the bottom; characters — two rows with <em>BENNE Character preview</em> (feet, walk/talk points, collider) on top and the same JSON / script split on the bottom.</p>
+            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree, <em>Actions</em>, and <em>Inspector</em>. Each tree choice resets the editor area, then opens the right layout: rooms, characters, and GUIs use two rows with the live preview on top and the corresponding TypeScript source file on the bottom.</p>
             
             <p>
                 <button id="create-room-btn" type="button">Create New Room</button>

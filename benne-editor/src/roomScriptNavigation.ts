@@ -9,25 +9,17 @@ import {
     readConfiguredVerbIdSet
 } from './verbHandlerPresence';
 
-/**
- * Bottom-row editor group for room/character JSON after {@link applyBenneTwoRowJsonScriptLayout}
- * (preview uses the primary/top group). The script is opened with {@link vscode.ViewColumn.Beside}
- * so JSON and `*.room.ts` / `*.character.ts` sit in two columns on the bottom row.
- */
+/** Bottom-row editor group for source files after {@link applyBenneTwoRowJsonScriptLayout}. */
 export const BENNE_ROOM_SOURCES_VIEW_COLUMN = vscode.ViewColumn.Two;
 
-/**
- * The usual column for the room/character script after JSON + Beside split
- * (top = preview = One, bottom-left JSON = Two, bottom-right script = Three).
- */
-export const BENNE_SCRIPT_VIEW_COLUMN = vscode.ViewColumn.Three;
+/** The usual column for room/character/gui script beneath the preview row. */
+export const BENNE_SCRIPT_VIEW_COLUMN = vscode.ViewColumn.Two;
 
-/** Open room JSON and optional `*.room.ts` pinned in the bottom row (JSON | script columns). */
+/** Open `*.room.ts` pinned in the bottom row. */
 export async function openRoomJsonAndScriptBottomGroup(
     roomJsonUri: vscode.Uri,
     roomId: string
 ): Promise<void> {
-    await openDocumentPinned(roomJsonUri, BENNE_ROOM_SOURCES_VIEW_COLUMN);
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
     try {
         await vscode.workspace.fs.stat(scriptUri);
@@ -35,8 +27,7 @@ export async function openRoomJsonAndScriptBottomGroup(
         await applyBenneTwoRowJsonScriptLayout();
         return;
     }
-    const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);
-    await vscode.window.showTextDocument(scriptDoc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+    await openDocumentPinned(scriptUri, BENNE_SCRIPT_VIEW_COLUMN);
     await applyBenneTwoRowJsonScriptLayout();
 }
 
@@ -56,12 +47,11 @@ export async function openCharacterJsonAndScriptPinned(
     await vscode.window.showTextDocument(scriptDoc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
 }
 
-/** Character preview row + JSON / `*.character.ts` in the bottom row (JSON | script columns). */
+/** Character preview row + `*.character.ts` in the bottom row. */
 export async function openCharacterJsonAndScriptBottomGroup(
     characterJsonUri: vscode.Uri,
     characterId: string
 ): Promise<void> {
-    await openDocumentPinned(characterJsonUri, BENNE_ROOM_SOURCES_VIEW_COLUMN);
     const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
     try {
         await vscode.workspace.fs.stat(scriptUri);
@@ -69,17 +59,15 @@ export async function openCharacterJsonAndScriptBottomGroup(
         await applyBenneTwoRowJsonScriptLayout();
         return;
     }
-    const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);
-    await vscode.window.showTextDocument(scriptDoc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+    await openDocumentPinned(scriptUri, BENNE_SCRIPT_VIEW_COLUMN);
     await applyBenneTwoRowJsonScriptLayout();
 }
 
-/** GUI preview row + JSON / `*.gui.ts` in the bottom row (JSON | script columns). */
+/** GUI preview row + `*.gui.ts` in the bottom row. */
 export async function openGuiJsonAndScriptBottomGroup(
     guiJsonUri: vscode.Uri,
     guiId: string
 ): Promise<void> {
-    await openDocumentPinned(guiJsonUri, BENNE_ROOM_SOURCES_VIEW_COLUMN);
     const scriptUri = vscode.Uri.joinPath(guiJsonUri, '..', `${guiId}.gui.ts`);
     try {
         await vscode.workspace.fs.stat(scriptUri);
@@ -87,8 +75,7 @@ export async function openGuiJsonAndScriptBottomGroup(
         await applyBenneTwoRowJsonScriptLayout();
         return;
     }
-    const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);
-    await vscode.window.showTextDocument(scriptDoc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+    await openDocumentPinned(scriptUri, BENNE_SCRIPT_VIEW_COLUMN);
     await applyBenneTwoRowJsonScriptLayout();
 }
 

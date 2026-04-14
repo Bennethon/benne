@@ -39,6 +39,10 @@ export async function writeRoomJson(uri: vscode.Uri, data: Record<string, unknow
     await vscode.workspace.fs.writeFile(uri, formatJson(data));
 }
 
+export async function writeDataJson(uri: vscode.Uri, data: Record<string, unknown>): Promise<void> {
+    await vscode.workspace.fs.writeFile(uri, formatJson(data));
+}
+
 export async function loadRoomData(uri: vscode.Uri): Promise<Record<string, unknown> | null> {
     try {
         const text = await readRoomJsonText(uri);
@@ -420,4 +424,117 @@ export function updateRegionActive(
 
 export function deleteRegion(data: Record<string, unknown>, regionId: string): void {
     data.regions = regionsArray(data).filter((r) => !(typeof r.id === 'string' && (r.id as string) === regionId));
+}
+
+export function updateCharacterFields(
+    data: Record<string, unknown>,
+    fields: {
+        name?: string;
+        walkSpeed?: number;
+        clickable?: boolean;
+        description?: string;
+        walkToPoint?: { x: number; y: number } | null;
+        talkPoint?: { x: number; y: number } | null;
+        feet?: { x: number; y: number } | null;
+    }
+): { ok: true } {
+    if (fields.name !== undefined) {
+        data.name = fields.name;
+    }
+    if (fields.walkSpeed !== undefined && Number.isFinite(fields.walkSpeed)) {
+        data.walkSpeed = fields.walkSpeed;
+    }
+    if (fields.clickable !== undefined) {
+        data.clickable = fields.clickable;
+    }
+    if (fields.description !== undefined) {
+        data.description = fields.description;
+    }
+    if (fields.walkToPoint !== undefined) {
+        if (fields.walkToPoint) {
+            data.walkToPoint = fields.walkToPoint;
+        } else {
+            delete data.walkToPoint;
+        }
+    }
+    if (fields.talkPoint !== undefined) {
+        if (fields.talkPoint) {
+            data.talkPoint = fields.talkPoint;
+        } else {
+            delete data.talkPoint;
+        }
+    }
+    if (fields.feet !== undefined) {
+        if (fields.feet) {
+            data.feet = fields.feet;
+        } else {
+            delete data.feet;
+        }
+    }
+    return { ok: true };
+}
+
+export function updateCharacterAnimationFields(
+    data: Record<string, unknown>,
+    animationId: string,
+    fields: { loop?: boolean; frameDuration?: number | null }
+): { ok: true } | { ok: false; message: string } {
+    const animationsRaw = data.animations;
+    if (!animationsRaw || typeof animationsRaw !== 'object' || Array.isArray(animationsRaw)) {
+        return { ok: false, message: 'Character has no animations object.' };
+    }
+    const animations = animationsRaw as Record<string, unknown>;
+    const entryRaw = animations[animationId];
+    if (!entryRaw || typeof entryRaw !== 'object' || Array.isArray(entryRaw)) {
+        return { ok: false, message: 'Animation entry not found.' };
+    }
+    const entry = entryRaw as Record<string, unknown>;
+    if (fields.loop !== undefined) {
+        entry.loop = fields.loop;
+    }
+    if (fields.frameDuration !== undefined) {
+        if (fields.frameDuration === null) {
+            delete entry.frameDuration;
+        } else if (Number.isFinite(fields.frameDuration)) {
+            entry.frameDuration = fields.frameDuration;
+        }
+    }
+    return { ok: true };
+}
+
+export function updateGuiFields(
+    data: Record<string, unknown>,
+    fields: { name?: string; description?: string }
+): { ok: true } {
+    if (fields.name !== undefined) {
+        data.name = fields.name;
+    }
+    if (fields.description !== undefined) {
+        data.description = fields.description;
+    }
+    return { ok: true };
+}
+
+export function updateGuiControlPayload(
+    data: Record<string, unknown>,
+    controlIndex: number,
+    payload: string
+): { ok: true } | { ok: false; message: string } {
+    const controls = data.controls;
+    if (!Array.isArray(controls)) {
+        return { ok: false, message: 'GUI has no controls array.' };
+    }
+    if (!Number.isInteger(controlIndex) || controlIndex < 0 || controlIndex >= controls.length) {
+        return { ok: false, message: 'Control index out of range.' };
+    }
+    try {
+        const parsed = JSON.parse(payload) as unknown;
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return { ok: false, message: 'Control payload must be a JSON object.' };
+        }
+        controls[controlIndex] = parsed;
+        return { ok: true };
+    } catch {
+        return { ok: false, message: 'Control payload is not valid JSON.' };
+    }
 }

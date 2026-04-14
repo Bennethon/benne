@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import {
     characterIdFromRoomDefinition,
     DEFAULT_GAME_VERBS,
+    getCharacterIdFromCharacterJsonUri,
+    getGuiIdFromGuiJsonUri,
     getRoomIdFromRoomJsonUri,
     readCharacterHooks,
     readGameConfigVerbs,
@@ -12,6 +14,7 @@ import {
 } from './gameDiscovery';
 import { readPngDimensions } from './inspectorPngDimensions';
 import {
+    buildCharacterVerbChips,
     buildHotspotVerbChips,
     buildPropVerbChips,
     buildRoomCharacterVerbChips,
@@ -87,7 +90,47 @@ export type InspectorRoomState = {
 
 export type InspectorEmptyState = { kind: 'empty'; message: string };
 
-export type InspectorStatePayload = InspectorRoomState | InspectorEmptyState;
+export type InspectorCharacterAnimationCard = {
+    id: string;
+    loop: boolean;
+    frameDuration: number | null;
+};
+
+export type InspectorCharacterState = {
+    kind: 'character';
+    rev: number;
+    characterJsonUri: string;
+    characterId: string;
+    name: string;
+    walkSpeed: number;
+    clickable: boolean;
+    description: string;
+    walkToPoint: { x: number; y: number } | null;
+    talkPoint: { x: number; y: number } | null;
+    feet: { x: number; y: number } | null;
+    animations: InspectorCharacterAnimationCard[];
+    verbs: InspectorVerbChip[];
+};
+
+export type InspectorGuiControlCard = {
+    key: string;
+    type: string;
+    id: string;
+    summary: string;
+    payload: string;
+};
+
+export type InspectorGuiState = {
+    kind: 'gui';
+    rev: number;
+    guiJsonUri: string;
+    guiId: string;
+    name: string;
+    description: string;
+    controls: InspectorGuiControlCard[];
+};
+
+export type InspectorStatePayload = InspectorRoomState | InspectorCharacterState | InspectorGuiState | InspectorEmptyState;
 
 function readRoomJsonFromBuffer(uri: vscode.Uri): string | undefined {
     const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
@@ -123,6 +166,21 @@ function expandedFromRoomPanel(
 }
 
 export async function buildInspectorState(
+    jsonUri: vscode.Uri,
+    focus: import('./editorSelection').EditorFocus,
+    roomPanel: import('./editorSelection').RoomPanelFocus,
+    rev: number
+): Promise<InspectorStatePayload> {
+    if (focus.kind === 'character') {
+        return buildCharacterInspectorState(jsonUri, rev);
+    }
+    if (focus.kind === 'gui') {
+        return buildGuiInspectorState(jsonUri, rev);
+    }
+    return buildRoomInspectorState(jsonUri, roomPanel, rev);
+}
+
+async function buildRoomInspectorState(
     roomJsonUri: vscode.Uri,
     roomPanel: import('./editorSelection').RoomPanelFocus,
     rev: number
@@ -460,5 +518,137 @@ export async function buildInspectorState(
         points,
         regions,
         expanded: expandedFromRoomPanel(roomPanel)
+    };
+}
+
+async function buildCharacterInspectorState(
+    characterJsonUri: vscode.Uri,
+    rev: number
+): Promise<InspectorStatePayload> {
+    let text: string;
+    try {
+        text = await readRoomJsonText(characterJsonUri);
+    } catch {
+        return { kind: 'empty', message: 'Could not read character JSON.' };
+    }
+    let data: Record<string, unknown>;
+    try {
+        data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        return { kind: 'empty', message: 'Character JSON is not valid JSON.' };
+    }
+
+    const characterId = getCharacterIdFromCharacterJsonUri(characterJsonUri);
+    const name = typeof data.name === 'string' ? data.name : characterId;
+    const walkSpeed = typeof data.walkSpeed === 'number' ? data.walkSpeed : 0;
+    const clickable = data.clickable === true;
+    const description = typeof data.description === 'string' ? data.description : '';
+
+    const toPoint = (v: unknown): { x: number; y: number } | null => {
+        if (!v || typeof v !== 'object') {
+            return null;
+        }
+        const o = v as { x?: unknown; y?: unknown };
+        return typeof o.x === 'number' && typeof o.y === 'number' ? { x: o.x, y: o.y } : null;
+    };
+
+    const anims: InspectorCharacterAnimationCard[] = [];
+    const animationsRaw = data.animations;
+    if (animationsRaw && typeof animationsRaw === 'object' && !Array.isArray(animationsRaw)) {
+        for (const [id, raw] of Object.entries(animationsRaw as Record<string, unknown>)) {
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+                continue;
+            }
+            const anim = raw as { loop?: unknown; frameDuration?: unknown };
+            anims.push({
+                id,
+                loop: anim.loop === true,
+                frameDuration: typeof anim.frameDuration === 'number' ? anim.frameDuration : null
+            });
+        }
+    }
+
+    let scriptText = '';
+    const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
+    try {
+        scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
+    } catch {
+        /* */
+    }
+    const folder = vscode.workspace.getWorkspaceFolder(characterJsonUri);
+    const gameVerbs = folder ? await readGameConfigVerbs(folder.uri) : DEFAULT_GAME_VERBS;
+    const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
+    const verbs = buildCharacterVerbChips(
+        characterId,
+        gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS,
+        configured,
+        text,
+        scriptText
+    );
+
+    return {
+        kind: 'character',
+        rev,
+        characterJsonUri: characterJsonUri.toString(),
+        characterId,
+        name,
+        walkSpeed,
+        clickable,
+        description,
+        walkToPoint: toPoint(data.walkToPoint),
+        talkPoint: toPoint(data.talkPoint),
+        feet: toPoint(data.feet),
+        animations: anims.sort((a, b) => a.id.localeCompare(b.id)),
+        verbs
+    };
+}
+
+async function buildGuiInspectorState(guiJsonUri: vscode.Uri, rev: number): Promise<InspectorStatePayload> {
+    let text: string;
+    try {
+        text = await readRoomJsonText(guiJsonUri);
+    } catch {
+        return { kind: 'empty', message: 'Could not read GUI JSON.' };
+    }
+    let data: Record<string, unknown>;
+    try {
+        data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        return { kind: 'empty', message: 'GUI JSON is not valid JSON.' };
+    }
+
+    const guiId = getGuiIdFromGuiJsonUri(guiJsonUri);
+    const name = typeof data.name === 'string' ? data.name : guiId;
+    const description = typeof data.description === 'string' ? data.description : '';
+    const controls: InspectorGuiControlCard[] = [];
+    const controlsRaw = data.controls;
+    if (Array.isArray(controlsRaw)) {
+        for (let i = 0; i < controlsRaw.length; i++) {
+            const raw = controlsRaw[i];
+            if (!raw || typeof raw !== 'object') {
+                continue;
+            }
+            const o = raw as Record<string, unknown>;
+            const type = typeof o.type === 'string' ? o.type : 'control';
+            const id = typeof o.id === 'string' ? o.id : '';
+            const summary = id ? `${type} (${id})` : `${type} (#${i + 1})`;
+            controls.push({
+                key: `${type}:${id}:${i}`,
+                type,
+                id,
+                summary,
+                payload: JSON.stringify(o, null, 2)
+            });
+        }
+    }
+
+    return {
+        kind: 'gui',
+        rev,
+        guiJsonUri: guiJsonUri.toString(),
+        guiId,
+        name,
+        description,
+        controls
     };
 }

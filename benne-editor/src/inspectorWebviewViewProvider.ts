@@ -6,6 +6,10 @@ import {
     addWalkableHole,
     addWalkablePolygon,
     applyFitBackground,
+    updateCharacterAnimationFields,
+    updateCharacterFields,
+    updateGuiControlPayload,
+    updateGuiFields,
     applyRoomDisplayName,
     applyRoomSize,
     applyScrollBounds,
@@ -25,6 +29,7 @@ import {
     updatePropFields,
     updateRegionActive,
     updateRoomCharacterFields,
+    writeDataJson,
     writeRoomJson
 } from './inspectorMutations';
 import { getRoomIdFromRoomJsonUri } from './gameDiscovery';
@@ -38,10 +43,13 @@ import {
     runAddRoomSpawnedCharacterWizard
 } from './roomScaffolding';
 
-function resolveRoomJsonUri(selection: EditorSelection): vscode.Uri | undefined {
+function resolveInspectorJsonUri(selection: EditorSelection): vscode.Uri | undefined {
     const focus = selection.focus;
     const rp = selection.roomPanel;
     if (focus.kind === 'room') {
+        return focus.uri;
+    }
+    if (focus.kind === 'character' || focus.kind === 'gui') {
         return focus.uri;
     }
     if (
@@ -529,6 +537,19 @@ type WebviewPatch =
       }
     | { type: 'pointField'; id?: string; x?: number; y?: number }
     | { type: 'regionActive'; id?: string; active?: boolean }
+    | {
+          type: 'characterMeta';
+          name?: string;
+          walkSpeed?: number;
+          clickable?: boolean;
+          description?: string;
+          walkToPoint?: { x: number; y: number } | null;
+          talkPoint?: { x: number; y: number } | null;
+          feet?: { x: number; y: number } | null;
+      }
+    | { type: 'characterAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
+    | { type: 'guiMeta'; name?: string; description?: string }
+    | { type: 'guiControlPayload'; index?: number; payload?: string }
     | { type: 'delete'; entity?: string; id?: string };
 
 export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
@@ -565,15 +586,17 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 void this.pushState();
             }),
             vscode.workspace.onDidChangeTextDocument((e) => {
-                const uri = resolveRoomJsonUri(this.selection);
+                const uri = resolveInspectorJsonUri(this.selection);
                 if (uri && e.document.uri.toString() === uri.toString()) {
                     void this.pushState();
                 }
             }),
             vscode.workspace.onDidSaveTextDocument((doc) => {
-                const uri = resolveRoomJsonUri(this.selection);
+                const uri = resolveInspectorJsonUri(this.selection);
                 if (uri && doc.uri.toString() === uri.toString()) {
-                    this.roomPreview.onWorkspaceRoomJsonChanged(doc.uri);
+                    if (this.selection.focus.kind === 'room') {
+                        this.roomPreview.onWorkspaceRoomJsonChanged(doc.uri);
+                    }
                     void this.pushState();
                 }
             }),
@@ -591,23 +614,24 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
 
     /** Public so `extension.ts` can refresh the Inspector after tree/workspace updates. */
     async pushState(): Promise<void> {
-        const uri = resolveRoomJsonUri(this.selection);
+        const uri = resolveInspectorJsonUri(this.selection);
         if (!uri) {
             this.postState({
                 kind: 'empty',
-                message: 'Select a room or an item under a room in the BENNE tree to edit room data.'
+                message: 'Select a room, character, or GUI in the BENNE tree to edit data.'
             });
             return;
         }
-        const state = await buildInspectorState(uri, this.selection.roomPanel, ++this.rev);
+        const state = await buildInspectorState(uri, this.selection.focus, this.selection.roomPanel, ++this.rev);
         this.postState(state);
     }
 
     private async handleWebviewMessage(msg: { action?: string } & Record<string, unknown>): Promise<void> {
-        const uri = resolveRoomJsonUri(this.selection);
+        const uri = resolveInspectorJsonUri(this.selection);
         if (!uri || msg.action === undefined) {
             return;
         }
+        const focusKind = this.selection.focus.kind;
         const roomId = getRoomIdFromRoomJsonUri(uri);
 
         if (msg.action === 'openRawJson') {
@@ -616,6 +640,9 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         }
 
         if (msg.action === 'addRoomItem') {
+            if (focusKind !== 'room') {
+                return;
+            }
             const kind = typeof msg.kind === 'string' ? msg.kind : '';
             const node = await mainTreeRoomNodeFromRoomJson(uri, roomId);
             if (!node) {
@@ -648,6 +675,9 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         }
 
         if (msg.action === 'fitBackground') {
+            if (focusKind !== 'room') {
+                return;
+            }
             const data = await loadRoomData(uri);
             if (!data) {
                 return;
@@ -666,13 +696,23 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
 
         if (msg.action === 'verbReveal') {
             const eventId = typeof msg.eventId === 'string' ? msg.eventId : '';
-            if (eventId) {
+            if (eventId && focusKind === 'room') {
                 await vscode.commands.executeCommand(
                     'benne-editor.revealRoomScriptEvent',
                     uri.toString(),
                     roomId,
                     eventId
                 );
+            } else if (eventId && focusKind === 'character') {
+                const characterId = typeof msg.characterId === 'string' ? msg.characterId : '';
+                if (characterId) {
+                    await vscode.commands.executeCommand(
+                        'benne-editor.revealCharacterScriptEvent',
+                        uri.toString(),
+                        characterId,
+                        eventId
+                    );
+                }
             }
             return;
         }
@@ -680,7 +720,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         if (msg.action === 'verbAdd') {
             const target = msg.target;
             const verbId = typeof msg.verbId === 'string' ? msg.verbId : '';
-            if (target === 'prop') {
+            if (focusKind === 'room' && target === 'prop') {
                 const propId = typeof msg.targetId === 'string' ? msg.targetId : '';
                 if (propId && verbId) {
                     await vscode.commands.executeCommand(
@@ -691,7 +731,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                         verbId
                     );
                 }
-            } else if (target === 'hotspot') {
+            } else if (focusKind === 'room' && target === 'hotspot') {
                 const hotspotId = typeof msg.targetId === 'string' ? msg.targetId : '';
                 if (hotspotId && verbId) {
                     await vscode.commands.executeCommand(
@@ -702,7 +742,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                         verbId
                     );
                 }
-            } else if (target === 'character') {
+            } else if (focusKind === 'room' && target === 'character') {
                 const characterId = typeof msg.characterId === 'string' ? msg.characterId : '';
                 if (characterId && verbId) {
                     await vscode.commands.executeCommand(
@@ -713,13 +753,35 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                         verbId
                     );
                 }
+            } else if (focusKind === 'character' && target === 'characterDef') {
+                const characterId = typeof msg.characterId === 'string' ? msg.characterId : '';
+                if (characterId && verbId) {
+                    await vscode.commands.executeCommand(
+                        'benne-editor.addCharacterVerbEvent',
+                        uri.toString(),
+                        characterId,
+                        verbId
+                    );
+                }
             }
             this.refreshMainAndActions();
             await this.pushState();
             return;
         }
 
+        if (msg.action === 'importCharacterAnimations') {
+            if (focusKind === 'character') {
+                await vscode.commands.executeCommand('benne-editor.importAnimationsFromAsepriteTags');
+                this.refreshMainAndActions();
+                await this.pushState();
+            }
+            return;
+        }
+
         if (msg.action === 'editRoomPreview') {
+            if (focusKind !== 'room') {
+                return;
+            }
             const kind = msg.kind;
             const id = typeof msg.id === 'string' ? msg.id : '';
             if (kind === 'prop' && id) {
@@ -741,21 +803,34 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             }
             const data = await loadRoomData(uri);
             if (!data) {
-                void vscode.window.showErrorMessage('Could not load room JSON.');
+                void vscode.window.showErrorMessage('Could not load JSON.');
                 return;
             }
             for (const p of patchesUnknown as WebviewPatch[]) {
-                this.applyOnePatch(data, uri, p);
+                this.applyOnePatch(data, uri, p, focusKind);
             }
-            await writeRoomJson(uri, data);
-            this.roomPreview.onWorkspaceRoomJsonChanged(uri);
+            if (focusKind === 'room') {
+                await writeRoomJson(uri, data);
+                this.roomPreview.onWorkspaceRoomJsonChanged(uri);
+            } else {
+                await writeDataJson(uri, data);
+            }
             this.refreshMainAndActions();
             await this.pushState();
         }
     }
 
-    private applyOnePatch(data: Record<string, unknown>, uri: vscode.Uri, p: WebviewPatch): void {
+    private applyOnePatch(
+        data: Record<string, unknown>,
+        uri: vscode.Uri,
+        p: WebviewPatch,
+        focusKind: 'none' | 'room' | 'character' | 'gui'
+    ): void {
+        void uri;
         if (p.type === 'roomMeta') {
+            if (focusKind !== 'room') {
+                return;
+            }
             applyRoomDisplayName(data, p.displayName);
             if (p.size && Number.isFinite(p.size.width) && Number.isFinite(p.size.height)) {
                 applyRoomSize(data, p.size.width, p.size.height);
@@ -782,10 +857,16 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             return;
         }
         if (p.type === 'clearScrollBounds') {
+            if (focusKind !== 'room') {
+                return;
+            }
             clearScrollBounds(data);
             return;
         }
         if (p.type === 'walkableActive') {
+            if (focusKind !== 'room') {
+                return;
+            }
             const kind = p.kind === 'hole' ? 'hole' : 'polygon';
             const polygonId = typeof p.polygonId === 'string' ? p.polygonId : '';
             const rowId = typeof p.rowId === 'string' ? p.rowId : '';
@@ -795,16 +876,25 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             return;
         }
         if (p.type === 'addWalkablePolygon') {
+            if (focusKind !== 'room') {
+                return;
+            }
             addWalkablePolygon(data);
             return;
         }
         if (p.type === 'addWalkableHole') {
+            if (focusKind !== 'room') {
+                return;
+            }
             if (typeof p.polygonId === 'string') {
                 addWalkableHole(data, p.polygonId);
             }
             return;
         }
         if (p.type === 'propField' && typeof p.id === 'string') {
+            if (focusKind !== 'room') {
+                return;
+            }
             updatePropFields(data, p.id, {
                 description: p.description,
                 visible: p.visible,
@@ -816,6 +906,9 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             return;
         }
         if (p.type === 'hotspotField' && typeof p.id === 'string') {
+            if (focusKind !== 'room') {
+                return;
+            }
             updateHotspotFields(data, p.id, {
                 description: p.description,
                 active: p.active,
@@ -824,6 +917,9 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             return;
         }
         if (p.type === 'characterField' && typeof p.instanceId === 'string') {
+            if (focusKind !== 'room') {
+                return;
+            }
             updateRoomCharacterFields(data, p.instanceId, {
                 x: p.x,
                 y: p.y,
@@ -835,14 +931,59 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             return;
         }
         if (p.type === 'pointField' && typeof p.id === 'string' && typeof p.x === 'number' && typeof p.y === 'number') {
+            if (focusKind !== 'room') {
+                return;
+            }
             updatePointFields(data, p.id, p.x, p.y);
             return;
         }
         if (p.type === 'regionActive' && typeof p.id === 'string' && typeof p.active === 'boolean') {
+            if (focusKind !== 'room') {
+                return;
+            }
             updateRegionActive(data, p.id, p.active);
             return;
         }
+        if (p.type === 'characterMeta') {
+            if (focusKind !== 'character') {
+                return;
+            }
+            updateCharacterFields(data, {
+                name: p.name,
+                walkSpeed: p.walkSpeed,
+                clickable: p.clickable,
+                description: p.description,
+                walkToPoint: p.walkToPoint,
+                talkPoint: p.talkPoint,
+                feet: p.feet
+            });
+            return;
+        }
+        if (p.type === 'characterAnimation' && typeof p.id === 'string') {
+            if (focusKind !== 'character') {
+                return;
+            }
+            updateCharacterAnimationFields(data, p.id, { loop: p.loop, frameDuration: p.frameDuration });
+            return;
+        }
+        if (p.type === 'guiMeta') {
+            if (focusKind !== 'gui') {
+                return;
+            }
+            updateGuiFields(data, { name: p.name, description: p.description });
+            return;
+        }
+        if (p.type === 'guiControlPayload' && typeof p.index === 'number' && typeof p.payload === 'string') {
+            if (focusKind !== 'gui') {
+                return;
+            }
+            updateGuiControlPayload(data, p.index, p.payload);
+            return;
+        }
         if (p.type === 'delete' && typeof p.entity === 'string' && typeof p.id === 'string') {
+            if (focusKind !== 'room') {
+                return;
+            }
             if (p.entity === 'prop') {
                 deleteProp(data, p.id);
             } else if (p.entity === 'hotspot') {

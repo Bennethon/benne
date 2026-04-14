@@ -64,4 +64,8 @@ registerRoomScript(({ B }) => {
   B.onProp('desk', 'slap', () => {
     // TODO
   });
+
+  B.whenLookAt('desk', () => {
+    // TODO
+  });
 });
