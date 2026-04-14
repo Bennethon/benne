@@ -44,6 +44,15 @@ import {
     revealSourceRangeInDocument
 } from './roomScriptNavigation';
 import { InspectorWebviewViewProvider } from './inspectorWebviewViewProvider';
+import { resolveDeleteTargetFromMainTreeNode } from './delete/deleteTarget';
+import {
+    applySelectionAfterDelete,
+    buildDeleteImpactSummary,
+    closeOpenEditorsForTarget,
+    deleteGameEntity,
+    promptDeleteConfirmation,
+    showReferenceHitsPicker
+} from './delete/deleteService';
 
 function firstTreeContextArg(arg: MainTreeNode | MainTreeNode[] | undefined): MainTreeNode | undefined {
     if (arg === undefined) {
@@ -336,6 +345,74 @@ export function activate(context: vscode.ExtensionContext): void {
             mainProvider.clearTreeFilter();
             await syncMainTreeFilterUi();
         }),
+        vscode.commands.registerCommand(
+            'benne-editor.deleteGameEntity',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const fromArg = firstTreeContextArg(arg);
+                const fromTree =
+                    fromArg ??
+                    (mainTreeView.selection.length > 0
+                        ? (mainTreeView.selection[0] as MainTreeNode)
+                        : undefined);
+                const target = resolveDeleteTargetFromMainTreeNode(fromTree);
+                if (!target) {
+                    void vscode.window.showInformationMessage(
+                        'Choose a room, character, GUI, prop, hotspot, point, region, or spawned character in the BENNE tree (or run this from its context menu), then try again.'
+                    );
+                    return;
+                }
+                let summary = await buildDeleteImpactSummary(target);
+                for (;;) {
+                    const choice = await promptDeleteConfirmation(summary);
+                    if (choice === 'cancel') {
+                        return;
+                    }
+                    if (choice === 'showReferences') {
+                        await showReferenceHitsPicker(summary.referenceHits);
+                        summary = await buildDeleteImpactSummary(target);
+                        continue;
+                    }
+                    break;
+                }
+                try {
+                    await closeOpenEditorsForTarget(target);
+                    await deleteGameEntity(target);
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    void vscode.window.showErrorMessage(`Delete failed: ${msg}`);
+                    return;
+                }
+                applySelectionAfterDelete(selection, target);
+                if (target.type === 'room' || target.type === 'character' || target.type === 'gui') {
+                    roomPreview.resetPreviewPanel();
+                    characterPreview.resetPreviewPanel();
+                    guiPreview.resetPreviewPanel();
+                } else if ('roomJsonUri' in target) {
+                    roomPreview.onWorkspaceRoomJsonChanged(target.roomJsonUri);
+                }
+                refreshTrees();
+                void inspectorProvider.pushState();
+                let kindLabel: string;
+                switch (target.type) {
+                    case 'room':
+                        kindLabel = 'room';
+                        break;
+                    case 'character':
+                        kindLabel = 'character';
+                        break;
+                    case 'gui':
+                        kindLabel = 'GUI';
+                        break;
+                    case 'spawnedCharacter':
+                        kindLabel = 'spawned character';
+                        break;
+                    default:
+                        kindLabel = target.type;
+                        break;
+                }
+                void vscode.window.showInformationMessage(`Deleted ${kindLabel} “${target.displayLabel}”.`);
+            }
+        ),
         vscode.commands.registerCommand(
             'benne-editor.createRoom',
             async (arg?: MainTreeNode | MainTreeNode[]) => {
