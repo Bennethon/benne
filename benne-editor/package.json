@@ -37,7 +37,8 @@
     "onCommand:benne-editor.addCharacterVerbEvent",
     "onCommand:benne-editor.addRoomCharacterVerbEvent",
     "onCommand:benne-editor.filterMainTree",
-    "onCommand:benne-editor.clearMainTreeFilter"
+    "onCommand:benne-editor.clearMainTreeFilter",
+    "onCommand:benne-editor.deleteGameEntity"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -235,6 +236,12 @@
         "title": "Clear BENNE tree filter",
         "category": "BENNE",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "benne-editor.deleteGameEntity",
+        "title": "Delete…",
+        "category": "BENNE",
+        "icon": "$(trash)"
       }
     ],
     "configuration": {
@@ -422,6 +429,46 @@
           "command": "benne-editor.importAnimationsFromAsepriteTags",
           "when": "view == benne-editor.main && viewItem == benneCharacter",
           "group": "benne@3"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneCharacter",
+          "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneGui",
+          "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneRoomProp",
+          "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneRoomHotspot",
+          "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneRoomPoint",
+          "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneRoomRegion",
+          "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneRoomCharacter",
+          "group": "modification@benneDelete"
         }
       ]
     }

@@ -159,6 +159,25 @@ export class EditorSelection {
         }
     }
 
+    /** Clears room / character / GUI primary focus (e.g. after deleting the active entity). */
+    clearFocus(): void {
+        if (this._main.kind === 'none' && this._roomPanel.kind === 'none') {
+            return;
+        }
+        this._main = { kind: 'none' };
+        this._roomPanel = { kind: 'none' };
+        this._onDidChange.fire();
+    }
+
+    /** Clears prop / hotspot / point / region / spawned-character row focus under a room. */
+    clearRoomPanelFocus(): void {
+        if (this._roomPanel.kind === 'none') {
+            return;
+        }
+        this._roomPanel = { kind: 'none' };
+        this._onDidChange.fire();
+    }
+
     dispose(): void {
         this._onDidChange.dispose();
     }

@@ -14,10 +14,6 @@
       "definition": "garage/garage.room.json"
     },
     {
-      "id": "kitchen",
-      "definition": "kitchen/kitchen.room.json"
-    },
-    {
       "id": "office",
       "definition": "office/office.room.json"
     },
