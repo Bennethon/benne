@@ -39,7 +39,8 @@ import type { CharacterData } from '../../types/character';
 import type { Point2, RoomData, RoomHotspotData, RoomPropInstance } from '../../types/room';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
 import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
-import type { RoomScriptContext } from '@engine/scripting/types.js';
+import { createCharacterScriptContext } from '../scripting/CharacterScriptContext.js';
+import type { CharacterScriptContext, RoomScriptContext } from '@engine/scripting/types.js';
 import { buildGuiOverlay, type GuiOverlayHandle } from '../gui/buildGuiOverlay';
 import { getGuiDataById } from '../../game/loadGuiData';
 
@@ -189,10 +190,19 @@ export class RoomScene extends Phaser.Scene {
     // ─────────────────────────────────────────────────────────────
     const roomScripts = (window as unknown as { __benneRoomScripts?: Array<(ctx: RoomScriptContext) => void> })
       .__benneRoomScripts;
-    let benneDispose: (() => void) | null = null;
+    const characterScripts = (
+      window as unknown as {
+        __benneCharacterScripts?: ReadonlyArray<{
+          characterId: string;
+          registerFn: (ctx: CharacterScriptContext) => void;
+        }>;
+      }
+    ).__benneCharacterScripts;
+
+    const benneDisposers: Array<() => void> = [];
     if (roomScripts && roomScripts.length > 0) {
       const ctx = createRoomScriptContext(gameEvents, data.room.id, this);
-      benneDispose = () => ctx.B.dispose();
+      benneDisposers.push(() => ctx.B.dispose());
       for (const registerFn of roomScripts) {
         try {
           registerFn(ctx);
@@ -201,6 +211,27 @@ export class RoomScene extends Phaser.Scene {
         }
       }
     }
+
+    if (characterScripts && characterScripts.length > 0) {
+      const spawnedCharacterIds = new Set(data.characters.map((c) => c.data.id));
+      for (const { characterId, registerFn } of characterScripts) {
+        if (!spawnedCharacterIds.has(characterId)) {
+          continue;
+        }
+        const ctx = createCharacterScriptContext(gameEvents, characterId, data.room.id, this);
+        benneDisposers.push(() => ctx.B.dispose());
+        try {
+          registerFn(ctx);
+        } catch (err) {
+          console.error(
+            `[Benne] Error in character script for ${characterId} in room ${data.room.id}:`,
+            err,
+          );
+        }
+      }
+    }
+
+    const benneDispose = benneDisposers.length > 0 ? () => benneDisposers.forEach((d) => d()) : null;
 
     this.input.mouse?.disableContextMenu();
 

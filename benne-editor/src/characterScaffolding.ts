@@ -87,15 +87,15 @@ export async function runCreateCharacterWizard(preferredFolder?: vscode.Workspac
         }
     };
 
-    const charTs = `import type { EventBus } from '@engine/events/EventBus';
-import type { CharacterVerbInteractPayload } from '@engine/events/propInteractionEvents';
+    const charTs = `import { registerCharacterScript } from '@engine/scripting';
 
 /**
- * Character script for \`${id}\` — register verb handlers on the game EventBus.
+ * Character script for \`${id}\` — self-only Bennescript (\`B.whenLookAt(() => …)\`).
+ * Room-scoped handlers in \`*.room.ts\` still run first for the same verb.
  */
-export function registerCharacterScript(_events: EventBus): void {
-  // Example global: _events.on(characterVerbEventId('${id}', 'look'), (payload: CharacterVerbInteractPayload) => { ... });
-}
+registerCharacterScript('${id}', ({ B }) => {
+  // Example: B.whenLookAt(() => { B.player.say('…'); });
+});
 `;
 
     await vscode.workspace.fs.createDirectory(charDir);

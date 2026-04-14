@@ -73,14 +73,13 @@ export async function runCreateGuiWizard(preferredFolder?: vscode.WorkspaceFolde
         }
     };
 
-    const guiTs = `import type { EventBus } from '@engine/events/EventBus';
+    const guiTs = `import { registerGuiScript } from '@engine/scripting';
 
 /**
- * GUI script for \`${id}\` — register handlers on the game EventBus.
- * Future: Bennescript will add a room-style \`registerGuiScript(({ B }) => { ... })\` facade here.
+ * GUI script for \`${id}\` — Bennescript entry (\`B.raw\`, future onShow/onHide/control hooks on \`B\`).
  */
-export function registerGuiScript(_events: EventBus): void {
-}
+registerGuiScript('${id}', ({ B: _B }) => {
+});
 `;
 
     await vscode.workspace.fs.createDirectory(guiDir);

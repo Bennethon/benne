@@ -1,5 +1,7 @@
 import './style.css';
 import { createBenneGame } from './engine/Game';
+import { gameEvents } from './engine/events/EventBus';
+import { wireBenneGlobalScripts } from './engine/scripting/wireBenneGlobalScripts';
 import { registerGameContent } from './game/registerGameContent';
 
 const parent = document.querySelector<HTMLElement>('#game-container');
@@ -8,4 +10,5 @@ if (!parent) {
 }
 
 registerGameContent();
-createBenneGame(parent);
+const game = createBenneGame(parent);
+wireBenneGlobalScripts(game, gameEvents);

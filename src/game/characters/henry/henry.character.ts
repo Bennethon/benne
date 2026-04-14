@@ -1,14 +1,10 @@
-import type { EventBus } from '@engine/events/EventBus';
-import type { CharacterVerbInteractPayload } from '@engine/events/propInteractionEvents';
-import { characterVerbEventId } from '@engine/events/verbInteractionEvents';
+import { registerCharacterScript } from '@engine/scripting';
 
 /**
- * Character script for `henry` — register verb handlers on the game EventBus.
+ * Character script for `henry` — Bennescript on this character’s global verb channel (room-scoped handlers win first).
  */
-export function registerCharacterScript(_events: EventBus): void {
-  // Example global: _events.on(characterVerbEventId('henry', 'look'), (_payload) => { ... });
-
-  _events.on(characterVerbEventId('henry', 'look'), (_payload: CharacterVerbInteractPayload) => {
-    console.log("It looks like Henry!");
+registerCharacterScript('henry', ({ B }) => {
+  B.whenLookAt(() => {
+    // TODO
   });
-}
+});

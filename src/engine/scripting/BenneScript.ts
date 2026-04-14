@@ -1,13 +1,13 @@
 import * as Phaser from 'phaser';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { Point2 } from '../../types/room.js';
-import { computeDialogLineDurationMs, getDialogSettings, getGameSettings } from '../ConfigManager.js';
 import { getStartingPlayerCharacterId } from '../../game/constants.js';
 import type {
   CharacterVerbInteractPayload,
   RoomHotspotInteractPayload,
   RoomPropInteractPayload,
 } from '../events/propInteractionEvents.js';
+import type { GivePropInteractPayload } from './benneScriptPayloads.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
   characterVerbEventId,
@@ -17,11 +17,26 @@ import {
 } from '../events/verbInteractionEvents.js';
 import {
   playDirectionalAnimation,
-  resolveInitialIdleFacing,
-  type CharacterFacing,
   type DirectionalCharacterSprite,
 } from '../directionalCharacterAnimation.js';
-import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
+import type {
+  BenneScriptCharacterFacade,
+  BenneScriptPlayerFacade,
+  BenneScriptPropFacade,
+} from './benneScriptFacades.js';
+import {
+  BenneScriptCore,
+  withNow,
+  type BenneScriptSayLineOptions,
+} from './BenneScriptCore.js';
+
+export type {
+  BenneScriptCharacterFacade,
+  BenneScriptPlayerFacade,
+  BenneScriptPropFacade,
+} from './benneScriptFacades.js';
+export type { BenneScriptSayArgs, BenneScriptSayLineOptions, BlockingWithNow } from './BenneScriptCore.js';
+export { withNow } from './BenneScriptCore.js';
 
 /**
  * # Bennescript — valid string ids for this room
@@ -39,268 +54,25 @@ import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
  * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
  * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Timed **`dialog-text`** line from **`game-config.json`** **`dialog`** (duration, **`clickToSkip`**, …). Speaker plays **`Talk*`** then **`Idle*`** (Aseprite tags, current **`facing`**). Optional second argument **`{ clickToSkip: false }`** forces no advance-on-click for that line; **`{ clickToSkip: true }`** forces skippable even when global **`dialog.clickToSkip`** is **`false`**. |
  *
- * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in this file. **`whenVerb`** uses an exact verb id.
+ * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in `BenneScriptCore`. **`whenVerb`** uses an exact verb id.
  */
-
-/** Payload for {@link BenneScript.whenGive} — prop interaction plus the item id from the sugar API. */
-export type GivePropInteractPayload = RoomPropInteractPayload & { itemId: string };
-
-/** Internal keys for {@link BenneScript.resolveVerbId}. */
-type VerbAlias =
-  | 'look'
-  | 'use'
-  | 'pickUp'
-  | 'give'
-  | 'talkTo'
-  | 'push'
-  | 'pull'
-  | 'open'
-  | 'close';
-
-const VERB_ALIAS_CANDIDATES: Record<VerbAlias, readonly string[]> = {
-  look: ['look', 'examine'],
-  use: ['use', 'interact'],
-  pickUp: ['pickUp', 'pickup', 'take'],
-  give: ['give'],
-  talkTo: ['talkTo', 'talk', 'speak'],
-  push: ['push'],
-  pull: ['pull'],
-  open: ['open'],
-  close: ['close'],
-};
-
-/**
- * Callable that participates in the interaction queue; **`fn.now`** runs the same action immediately
- * without blocking subsequent chained steps (fire-and-forget).
- */
-export type BlockingWithNow<TArgs extends readonly unknown[] = readonly unknown[]> = ((
-  ...args: TArgs
-) => void) & { now: (...args: TArgs) => void };
-
-function withNow<TArgs extends readonly unknown[]>(
-  blocking: (...args: TArgs) => void,
-  nowImpl: (...args: TArgs) => void,
-): BlockingWithNow<TArgs> {
-  const fn = blocking as BlockingWithNow<TArgs>;
-  fn.now = nowImpl;
-  return fn;
-}
-
-/** Optional flags for `B.player.say` / `B.character(…).say` and `.say.now`. */
-export interface BenneScriptSayLineOptions {
-  /**
-   * **`false`** — never advance this line by click (even if global **`dialog.clickToSkip`** is **`true`**).
-   * **`true`** — always allow click-to-advance for this line (even if global **`dialog.clickToSkip`** is **`false`**).
-   * Omitted — use the global **`dialog.clickToSkip`** setting only.
-   */
-  clickToSkip?: boolean;
-}
-
-/** Arguments for {@link BenneScriptPlayerFacade.say} / {@link BenneScriptCharacterFacade.say}. */
-export type BenneScriptSayArgs = [line: string, options?: BenneScriptSayLineOptions];
 
 /**
  * High-level API passed as **`B`** in the `registerRoomScript` callback. Chains async steps (walk, delays) in order; use **`await`** only if you expose promises yourself.
  *
  * @see The module comment above for which string ids to use with each method.
  */
-export class BenneScript {
-  private static unresolvedVerbWarnings = new Set<string>();
+export class BenneScript extends BenneScriptCore {
   private static unresolvedTargetVerbWarnings = new Set<string>();
 
-  private events: Phaser.Events.EventEmitter;
   private roomId: string;
   private roomScene: RoomScene;
-  private disposers: Array<() => void> = [];
-  private interactionTail: Promise<void> = Promise.resolve();
-
-  /**
-   * Pause the interaction chain for **`seconds`**. **`B.wait.now(seconds)`** schedules the delay only (does not block the queue).
-   */
-  readonly wait: BlockingWithNow<[number]>;
 
   constructor(events: Phaser.Events.EventEmitter, roomId: string, roomScene: RoomScene) {
-    this.events = events;
+    super(events, () => roomScene.time);
     this.roomId = roomId;
     this.roomScene = roomScene;
-
-    this.wait = withNow(
-      (seconds: number) => {
-        const ms = Math.max(0, seconds * 1000);
-        const scene = this.roomScene;
-        this.chain(
-          () =>
-            new Promise<void>((resolve) => {
-              scene.time.delayedCall(ms, () => resolve());
-            }),
-        );
-      },
-      (seconds: number) => {
-        const ms = Math.max(0, seconds * 1000);
-        this.roomScene.time.delayedCall(ms, () => {});
-      },
-    );
   }
-
-  /** Remove all listeners this instance registered on the bus (called from the active {@link RoomScene} on shutdown). */
-  dispose(): void {
-    for (const off of this.disposers) {
-      off();
-    }
-    this.disposers = [];
-  }
-
-  private beginInteraction(): void {
-    this.interactionTail = Promise.resolve();
-  }
-
-  private endInteraction(): Promise<void> {
-    return this.interactionTail;
-  }
-
-  /**
-   * Queue async work so it runs only after prior chained steps finish. Pass a **factory** so
-   * `walkTo` / `say` / timers do not start until their turn (eager `Promise`s would fire every tween in one sync handler).
-   */
-  private chain(factory: () => Promise<unknown>): void {
-    this.interactionTail = this.interactionTail.then(factory).then(() => undefined);
-  }
-
-  /** Aseprite directional **`Talk*`** / **`Idle*`** for the character who owns this `.say` line (no-op if not a keyed sprite). */
-  private applySayLineDirectionalBase(
-    scene: RoomScene,
-    characterDefinitionId: string,
-    baseName: 'Talk' | 'Idle',
-  ): void {
-    const sprite = scene.getCharacterSprite(characterDefinitionId);
-    if (!sprite || !(sprite instanceof Phaser.GameObjects.Sprite) || !sprite.anims) {
-      return;
-    }
-    const facing: CharacterFacing =
-      (sprite.getData('facing') as CharacterFacing | undefined) ?? resolveInitialIdleFacing(sprite);
-    playDirectionalAnimation(sprite, baseName, facing);
-  }
-
-  /**
-   * Timed dialog line: suppresses room walks and verb clicks until the line duration elapses.
-   * When **`chain`** is true, participates in {@link chain}; when false (`say.now`), only the timer runs.
-   * Click-to-skip (left button): per-line **`{ clickToSkip: true }`** always enables it; **`{ clickToSkip: false }`**
-   * always disables it; otherwise {@link getDialogSettings}.`clickToSkip` applies.
-   */
-  private queueSayDialogWithInputLock(
-    scene: RoomScene,
-    line: string,
-    talkCharacterDefinitionId: string,
-    chain: boolean,
-    options?: BenneScriptSayLineOptions,
-  ): void {
-    const ms = computeDialogLineDurationMs(line);
-    const lineOpt = options?.clickToSkip;
-    const allowClickToSkip =
-      lineOpt === true || (lineOpt !== false && getDialogSettings().clickToSkip);
-
-    const runLine = (resolve?: () => void): void => {
-      let completed = false;
-      let timer: Phaser.Time.TimerEvent | null = null;
-
-      const finish = (): void => {
-        if (completed) {
-          return;
-        }
-        completed = true;
-        timer?.remove(false);
-        timer = null;
-        scene.clearScriptedDialogClickToSkip();
-        this.applySayLineDirectionalBase(scene, talkCharacterDefinitionId, 'Idle');
-        scene.setDialogTextOverlay({ visible: false });
-        scene.popScriptedDialogInputSuppression();
-        resolve?.();
-      };
-
-      scene.pushScriptedDialogInputSuppression();
-      scene.setDialogTextOverlay({
-        visible: true,
-        text: line,
-        talkCharacterDefinitionId,
-      });
-      this.applySayLineDirectionalBase(scene, talkCharacterDefinitionId, 'Talk');
-
-      timer = scene.time.delayedCall(ms, finish);
-
-      if (allowClickToSkip) {
-        scene.setScriptedDialogClickToSkip(() => {
-          timer?.remove(false);
-          timer = null;
-          finish();
-        });
-      }
-    };
-
-    if (chain) {
-      this.chain(() => new Promise<void>((resolve) => runLine(resolve)));
-    } else {
-      runLine();
-    }
-  }
-
-  /**
-   * Maps a Bennescript alias to the first matching `verbs[].id` from `game-config.json`
-   * (via {@link getEffectiveVerbDefinitions}). If none match, logs once and returns the alias
-   * so listeners still register (align your JSON ids with the tried candidates when possible).
-   */
-  private resolveVerbId(alias: VerbAlias): string {
-    const settings = getGameSettings();
-    const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
-    const candidates = VERB_ALIAS_CANDIDATES[alias];
-    for (const id of candidates) {
-      if (configured.has(id)) {
-        return id;
-      }
-    }
-    const warnKey = alias;
-    if (!BenneScript.unresolvedVerbWarnings.has(warnKey)) {
-      BenneScript.unresolvedVerbWarnings.add(warnKey);
-      console.warn(
-        `[Benne] No verb in game-config matches alias "${alias}" (tried: ${candidates.join(', ')}). ` +
-          `Handlers register under id "${alias}". Add a matching verb to game-config.json.`,
-      );
-    }
-    return alias;
-  }
-
-  private subscribe(
-    eventId: string,
-    run: (payload: unknown) => void,
-  ): void {
-    const wrapped = async (payload: unknown) => {
-      this.beginInteraction();
-      try {
-        run(payload);
-        await this.endInteraction();
-      } catch (err) {
-        console.error(`[Benne] Error in ${eventId} handler:`, err);
-      }
-    };
-    this.events.on(eventId, wrapped);
-    this.disposers.push(() => this.events.off(eventId, wrapped));
-  }
-
-  /**
-   * Direct Phaser / EventBus access. Prefer **`B.whenLookAt`**, **`whenVerb`**, etc.; use this for custom event ids or tiers the facade does not wrap.
-   *
-   * @example
-   * import { roomHotspotVerbEventId } from '@engine/events/verbInteractionEvents';
-   * B.raw.on(roomHotspotVerbEventId(roomId, 'exitDoor', 'look'), () => { ... });
-   */
-  readonly raw = {
-    on: (event: string | symbol, fn: (...args: unknown[]) => void, context?: unknown) =>
-      this.events.on(event, fn as (...args: unknown[]) => void, context),
-    once: (event: string | symbol, fn: (...args: unknown[]) => void, context?: unknown) =>
-      this.events.once(event, fn as (...args: unknown[]) => void, context),
-    off: (event: string | symbol, fn?: (...args: unknown[]) => void, context?: unknown) =>
-      this.events.off(event, fn as never, context),
-    emit: (event: string | symbol, ...args: unknown[]) => this.events.emit(event, ...args),
-  };
 
   /**
    * Room-level actions (stub / future).
@@ -463,14 +235,6 @@ export class BenneScript {
     });
   }
 
-  /**
-   * Runs when the player **looks** at this target (primary mouse button by default).
-   *
-   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
-   *
-   * @example
-   * B.whenLookAt('desk', () => B.player.say('Ink stains.'));
-   */
   whenLookAt(targetId: string, handler: () => void): void;
   whenLookAt(targetId: string, handler: (p: any) => void): void;
   whenLookAt(
@@ -480,14 +244,6 @@ export class BenneScript {
     this.registerVerbForTarget(this.resolveVerbId('look'), targetId, handler);
   }
 
-  /**
-   * Runs when the player **uses** this target (secondary mouse button by default).
-   *
-   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
-   *
-   * @example
-   * B.whenUse('lever', () => B.player.walkTo('door'));
-   */
   whenUse(targetId: string, handler: () => void): void;
   whenUse(targetId: string, handler: (p: any) => void): void;
   whenUse(
@@ -497,11 +253,6 @@ export class BenneScript {
     this.registerVerbForTarget(this.resolveVerbId('use'), targetId, handler);
   }
 
-  /**
-   * Runs when the player **pick-ups** this target (verb must exist in config + target **`onVerb`**).
-   *
-   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
-   */
   whenPickUp(targetId: string, handler: () => void): void;
   whenPickUp(targetId: string, handler: (p: any) => void): void;
   whenPickUp(
@@ -511,15 +262,6 @@ export class BenneScript {
     this.registerVerbForTarget(this.resolveVerbId('pickUp'), targetId, handler);
   }
 
-  /**
-   * Runs when the player **gives** **`itemId`** to prop **`targetId`**.
-   *
-   * @param itemId - Inventory item id (when inventory is implemented).
-   * @param targetId - **`props[].id`** of the prop that receives the give verb.
-   *
-   * @example
-   * B.whenGive('key', 'door', () => { ... });
-   */
   whenGive(itemId: string, targetId: string, handler: () => void): void;
   whenGive(itemId: string, targetId: string, handler: (payload: GivePropInteractPayload) => void): void;
   whenGive(
@@ -531,11 +273,6 @@ export class BenneScript {
     this.onPropMapped(targetId, verbId, handler, (base) => ({ ...base, itemId }));
   }
 
-  /**
-   * Runs when the player **pushes** this target.
-   *
-   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
-   */
   whenPush(targetId: string, handler: () => void): void;
   whenPush(targetId: string, handler: (p: any) => void): void;
   whenPush(
@@ -545,11 +282,6 @@ export class BenneScript {
     this.registerVerbForTarget(this.resolveVerbId('push'), targetId, handler);
   }
 
-  /**
-   * Runs when the player **pulls** this target.
-   *
-   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
-   */
   whenPull(targetId: string, handler: () => void): void;
   whenPull(targetId: string, handler: (p: any) => void): void;
   whenPull(
@@ -559,11 +291,6 @@ export class BenneScript {
     this.registerVerbForTarget(this.resolveVerbId('pull'), targetId, handler);
   }
 
-  /**
-   * Runs when the player **opens** this target.
-   *
-   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
-   */
   whenOpen(targetId: string, handler: () => void): void;
   whenOpen(targetId: string, handler: (p: any) => void): void;
   whenOpen(
@@ -573,11 +300,6 @@ export class BenneScript {
     this.registerVerbForTarget(this.resolveVerbId('open'), targetId, handler);
   }
 
-  /**
-   * Runs when the player **closes** this target.
-   *
-   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
-   */
   whenClose(targetId: string, handler: () => void): void;
   whenClose(targetId: string, handler: (p: any) => void): void;
   whenClose(
@@ -587,15 +309,6 @@ export class BenneScript {
     this.registerVerbForTarget(this.resolveVerbId('close'), targetId, handler);
   }
 
-  /**
-   * Runs when the player applies a specific **verb** to this target (escape hatch for verbs without sugar).
-   *
-   * @param verbId - Exact **`verbs[].id`** from **`game-config.json`** (not an alias).
-   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
-   *
-   * @example
-   * B.whenVerb('look', 'desk', () => { ... });
-   */
   whenVerb(verbId: string, targetId: string, handler: () => void): void;
   whenVerb(verbId: string, targetId: string, handler: (p: any) => void): void;
   whenVerb(
@@ -606,16 +319,6 @@ export class BenneScript {
     this.registerVerbForTarget(verbId, targetId, handler);
   }
 
-  /**
-   * Runs when the player **talks** to this target — same **prop → hotspot → character** resolution as **`whenLookAt`** / **`whenUse`** (talk / speak verb alias).
-   * Room + character-global event subscription applies only when **`targetId`** resolves to a **character**; props and hotspots use one room-scoped channel each.
-   *
-   * @param targetId - **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (first match in this room).
-   *
-   * @example
-   * B.whenTalkTo('clerk', () => B.player.walkTo({ x: 120, y: 140 }));
-   * B.whenTalkTo('computer', () => B.player.say('No response.'));
-   */
   whenTalkTo(targetId: string, handler: () => void): void;
   whenTalkTo(targetId: string, handler: (p: any) => void): void;
   whenTalkTo(
@@ -625,15 +328,6 @@ export class BenneScript {
     this.registerVerbForTarget(this.resolveVerbId('talkTo'), targetId, handler);
   }
 
-  /**
-   * Script control for one prop: visibility and runtime description overrides.
-   *
-   * @param propId - **`props[].id`** in this room’s `.room.json`.
-   *
-   * @example
-   * B.prop('desk').hide();
-   * B.prop('desk').description = 'Empty.';
-   */
   prop(propId: string): BenneScriptPropFacade {
     const scene = this.roomScene;
     return {
@@ -723,25 +417,10 @@ export class BenneScript {
     };
   }
 
-  /**
-   * Facade for one character **definition** present in this room (first instance wins at runtime).
-   *
-   * @param definitionId - **`CharacterData.id`** from the character’s `*.character.json`.
-   *
-   * @example
-   * B.character('henry').walkTo('desk');
-   */
   character(definitionId: string): BenneScriptCharacterFacade {
     return this.makeCharacterFacade(definitionId);
   }
 
-  /**
-   * The playable character in this room (from **`game-config.json`** starting player id).
-   *
-   * @example
-   * B.player.walkTo('exitDoor');
-   * B.player.face('R');
-   */
   get player(): BenneScriptPlayerFacade {
     const scene = this.roomScene;
 
@@ -807,99 +486,7 @@ export class BenneScript {
     };
   }
 
-  /**
-   * Reserved hook for future cutscene boundaries (currently runs **`callback`** immediately).
-   */
   cutscene(callback: () => void): void {
     callback();
   }
-}
-
-/** Visibility + description overrides for one prop; see {@link BenneScript.prop}. */
-export interface BenneScriptPropFacade {
-  /** Hide the prop sprite in the room. */
-  hide(): void;
-  /** Show the prop sprite. */
-  show(): void;
-  /** Whether the prop is currently visible. */
-  get visible(): boolean;
-  set visible(v: boolean);
-  /** Runtime description string (script override). */
-  get description(): string;
-  set description(v: string);
-}
-
-/** Movement + animation + facing for the player; see {@link BenneScript.player}. */
-export interface BenneScriptPlayerFacade {
-  /**
-   * Walk the player’s feet to a room point or resolve a **string** id (first match): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** (in room) → **`points[].id`**. Room pixel coordinates.
-   *
-   * @param target - **`{ x, y }`** or one id string from the table in the `BenneScript` module doc.
-   *
-   * @example
-   * B.player.walkTo('desk');
-   * B.player.walkTo('exitDoor');
-   * B.player.walkTo('guard');
-   * B.player.walkTo('mySpawnPoint');
-   * B.player.walkTo({ x: 180, y: 140 });
-   */
-  walkTo: BlockingWithNow<[Point2 | string]>;
-
-  /**
-   * Play an Aseprite animation tag on the player (e.g. **`'WalkL'`**, **`'IdleD'`**).
-   *
-   * @param tag - Frame tag on the player character sheet.
-   */
-  playAnimation: BlockingWithNow<[string]>;
-
-  /**
-   * Shows line on the `dialog-text` GUI above the player’s `talkPoint`; hides per `game-config.json` `dialog` timing.
-   * While the line is up, plays directional **`Talk*`** Aseprite tags (current **`facing`**), then **`Idle*`** when the line ends.
-   * Left-click ends the line early when enabled: global **`dialog.clickToSkip`**, or **`options.clickToSkip: true`**;
-   * disabled for a line with **`options.clickToSkip: false`**.
-   */
-  say: BlockingWithNow<BenneScriptSayArgs>;
-
-  /**
-   * Face a direction using the **`Idle*`** clip family.
-   *
-   * @param direction - **`'L'`** | **`'R'`** | **`'U'`** | **`'D'`** | **`'UL'`** | **`'UR'`** | **`'DL'`** | **`'DR'`**
-   */
-  face: BlockingWithNow<[CharacterFacingLetter]>;
-}
-
-/** Movement + animation + facing for an NPC; see {@link BenneScript.character}. */
-export interface BenneScriptCharacterFacade {
-  /**
-   * Walk this character to **`{ x, y }`** or the same string resolution order as {@link BenneScriptPlayerFacade.walkTo}.
-   *
-   * @param target - Room pixels or unified walk id (prop → hotspot → character → point).
-   *
-   * @example
-   * B.character('guard').walkTo('lever');
-   * B.character('guard').walkTo({ x: 200, y: 100 });
-   */
-  walkTo: BlockingWithNow<[Point2 | string]>;
-
-  /**
-   * Play an Aseprite tag on this character (e.g. **`'WalkL'`**, **`'IdleD'`**).
-   *
-   * @param tag - Frame tag from this character’s sheet JSON.
-   */
-  playAnimation: BlockingWithNow<[string]>;
-
-  /**
-   * Shows line on the `dialog-text` GUI above this character’s `talkPoint`; hides per `game-config.json` `dialog` timing.
-   * While the line is up, plays directional **`Talk*`** Aseprite tags (current **`facing`**), then **`Idle*`** when the line ends.
-   * Left-click ends the line early when enabled: global **`dialog.clickToSkip`**, or **`options.clickToSkip: true`**;
-   * disabled for a line with **`options.clickToSkip: false`**.
-   */
-  say: BlockingWithNow<BenneScriptSayArgs>;
-
-  /**
-   * Set facing via **`Idle` + direction** (e.g. **`IdleR`**).
-   *
-   * @param direction - **`'L'`** | **`'R'`** | **`'U'`** | **`'D'`** | **`'UL'`** | **`'UR'`** | **`'DL'`** | **`'DR'`**
-   */
-  face: BlockingWithNow<[CharacterFacingLetter]>;
 }
