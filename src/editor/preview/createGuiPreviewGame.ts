@@ -1,8 +1,14 @@
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
 import { buildGuiOverlay, GUI_TEXT_OVERLAY_DEPTH } from '../../engine/gui/buildGuiOverlay';
-import type { GuiData } from '../../types/gui';
+import {
+  GameStateManager,
+  normalizeSerializedInventory,
+} from '../../engine/gameState/GameStateManager';
+import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKey';
 import type { GuiFontLoadRequest } from '../../game/collectFontLoadsForGui';
+import type { GuiData } from '../../types/gui';
+import type { GameSettingsInitialGameState } from '../../types/game';
 
 const BOOT = 'BenneGuiPreviewBoot';
 const PREVIEW = 'BenneGuiPreview';
@@ -22,6 +28,18 @@ export type GuiPreviewGamePayload = {
   revokeObjectUrls: string[];
   /** When set, loads and plays the Aseprite sheet; otherwise text-only preview. */
   aseprite: GuiPreviewAsepritePayload | null;
+  /**
+   * Same slice as `game-config.json` `initialGameState` — used so GUI inventory panels match runtime starting inventory.
+   */
+  previewInitialGameState?: GameSettingsInitialGameState;
+  /**
+   * When set, preloads the shared inventory sheet (`images/inventory/inventory.{png,json}`) for `inventoryPanel` icons.
+   */
+  sharedInventoryAseprite?: {
+    textureKey: string;
+    textureURL: string;
+    atlasURL: string;
+  } | null;
 };
 
 function editorGameConfig(
@@ -75,10 +93,30 @@ class BenneGuiPreviewBoot extends Phaser.Scene {
         atlasURL: a.atlasURL,
       });
     }
+    const inv = this.payload.sharedInventoryAseprite;
+    if (inv) {
+      this.load.aseprite({
+        key: inv.textureKey,
+        textureURL: inv.textureURL,
+        atlasURL: inv.atlasURL,
+      });
+    }
   }
 
   create(): void {
     applyBootAudioSettings(this);
+    const rawInit = this.payload.previewInitialGameState;
+    const initial =
+      rawInit != null
+        ? {
+            flags: rawInit.flags,
+            variables: rawInit.variables,
+            inventory:
+              rawInit.inventory !== undefined ? normalizeSerializedInventory(rawInit.inventory) : undefined,
+          }
+        : undefined;
+    const gameState = new GameStateManager(this.game.events, initial);
+    this.game.registry.set(BENNE_GAME_STATE_REGISTRY_KEY, gameState);
     this.scene.start(PREVIEW, this.payload);
     for (const u of this.payload.revokeObjectUrls) {
       URL.revokeObjectURL(u);

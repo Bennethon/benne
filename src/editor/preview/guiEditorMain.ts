@@ -9,17 +9,25 @@ import {
   getAsepriteTextureKey,
   usesAsepriteDisplay,
 } from '../../game/guiAseprite';
+import {
+  sharedInventoryAssetPaths,
+  sharedInventoryTextureKey,
+} from '../../game/inventoryAseprite';
 import { pickCharacterPreviewIdleTag } from '../../game/characterPreviewIdleTag';
 import { readAsepriteFrameTagNamesFromRawJson } from '../../game/loadAsepriteAtlasData';
 import { normalizeAsepriteJsonForPhaser } from '../../game/normalizeAsepriteJson';
 import type { GameFontsManifest } from '../../types/fonts';
-import type { GuiData } from '../../types/gui';
+import type { GameSettingsInitialGameState } from '../../types/game';
+import type { GuiData, GuiInventoryPanelControl } from '../../types/gui';
 import {
   createGuiPreviewPhaserGame,
   type GuiPreviewAsepritePayload,
   type GuiPreviewGamePayload,
 } from './createGuiPreviewGame';
+import { registerInventoryDefinitionsFromGame } from '../../game/registerInventoryDefinitions';
 import { joinGameWebviewUri } from './previewUrls';
+
+registerInventoryDefinitionsFromGame();
 
 declare function acquireVsCodeApi(): { postMessage(data: unknown): void };
 
@@ -55,6 +63,38 @@ async function fetchJson(url: string): Promise<Record<string, unknown>> {
   return res.json() as Promise<Record<string, unknown>>;
 }
 
+function guiHasInventoryPanel(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c): c is GuiInventoryPanelControl => c.type === 'inventoryPanel');
+}
+
+function ensureSharedInventoryTagPrefixes(normalized: Record<string, unknown>): void {
+  const meta = normalized.meta;
+  if (!meta || typeof meta !== 'object') {
+    return;
+  }
+  const frameTags = (meta as { frameTags?: { name: string }[] }).frameTags;
+  if (!Array.isArray(frameTags)) {
+    return;
+  }
+  for (const tag of frameTags) {
+    if (tag && typeof tag.name === 'string' && tag.name.length > 0 && !tag.name.startsWith('inventory:')) {
+      tag.name = `inventory:${tag.name}`;
+    }
+  }
+}
+
+function initialInventoryHasStartingItems(
+  inventory: GameSettingsInitialGameState['inventory'] | undefined,
+): boolean {
+  if (inventory == null) {
+    return false;
+  }
+  if (Array.isArray(inventory)) {
+    return inventory.length > 0;
+  }
+  return Object.keys(inventory).length > 0;
+}
+
 async function runLoadGui(msg: {
   gui: GuiData;
   guiId: string;
@@ -70,6 +110,7 @@ async function runLoadGui(msg: {
 
   let internalWidth = 352;
   let internalHeight = 198;
+  let previewInitialGameState: GameSettingsInitialGameState | undefined;
   try {
     const configUrl = joinGameWebviewUri(msg.gameSrcWebviewUri, 'game-config.json');
     const cfg = await fetchJson(configUrl);
@@ -78,15 +119,20 @@ async function runLoadGui(msg: {
       internalWidth = res.width;
       internalHeight = res.height;
     }
+    const init = cfg.initialGameState;
+    if (init && typeof init === 'object' && !Array.isArray(init)) {
+      previewInitialGameState = init as GameSettingsInitialGameState;
+    }
   } catch {
     /* defaults */
   }
 
   const hasText = guiHasTextControls(msg.gui);
+  const hasInventoryPanel = guiHasInventoryPanel(msg.gui);
   const wantsAseprite = usesAsepriteDisplay(msg.gui);
 
-  if (!hasText && !wantsAseprite) {
-    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code> and/or at least one <code>text</code> control in <code>controls</code>.</div>`;
+  if (!hasText && !hasInventoryPanel && !wantsAseprite) {
+    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code>, at least one <code>text</code> control, or an <code>inventoryPanel</code> control in <code>controls</code>.</div>`;
     return;
   }
 
@@ -129,13 +175,41 @@ async function runLoadGui(msg: {
     }
   }
 
-  if (!aseprite && !hasText) {
+  if (!aseprite && !hasText && !hasInventoryPanel) {
     root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">Could not load sheet: ${asepriteError ?? 'unknown error'}</div>`;
     return;
   }
 
-  if (wantsAseprite && !aseprite && hasText) {
-    console.warn('[BENNE GUI preview] Aseprite sheet unavailable; showing text controls only.', asepriteError);
+  if (wantsAseprite && !aseprite && (hasText || hasInventoryPanel)) {
+    console.warn('[BENNE GUI preview] Aseprite sheet unavailable; showing available controls only.', asepriteError);
+  }
+
+  let sharedInventoryAseprite: GuiPreviewGamePayload['sharedInventoryAseprite'] = null;
+  if (
+    hasInventoryPanel &&
+    initialInventoryHasStartingItems(previewInitialGameState?.inventory)
+  ) {
+    try {
+      const paths = sharedInventoryAssetPaths();
+      const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
+      const jsonUrl = joinGameWebviewUri(assetsBase, paths.json);
+      const raw = await fetchJson(jsonUrl);
+      const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+      ensureSharedInventoryTagPrefixes(norm);
+      const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
+      const atlasURL = URL.createObjectURL(blob);
+      revokeObjectUrls.push(atlasURL);
+      sharedInventoryAseprite = {
+        textureKey: sharedInventoryTextureKey,
+        textureURL: pngUrl,
+        atlasURL,
+      };
+    } catch (e) {
+      console.warn(
+        '[BENNE GUI preview] Could not load shared inventory sheet; inventory HUD icons may use placeholders.',
+        e,
+      );
+    }
   }
 
   const inner = document.createElement('div');
@@ -149,6 +223,8 @@ async function runLoadGui(msg: {
     internalHeight,
     revokeObjectUrls,
     aseprite,
+    previewInitialGameState,
+    sharedInventoryAseprite,
   };
 
   game = createGuiPreviewPhaserGame(inner, payload);

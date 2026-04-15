@@ -2,6 +2,7 @@
   "id": "dialog-text",
   "name": "Dialog Text",
   "description": "",
+  "visible": false,
   "display": {
     "aseprite": false
   },
