@@ -350,14 +350,16 @@ This layer turns BENNE from "wiring events" into "telling a story" while keeping
 
 ## 8. VS Code extension & room preview (implementation detail)
 
-This subsection documents **what exists today** for the **BENNE Editor** (`benne-editor/`) and the **room preview bundle** (`src/editor/preview/`). It does not replace earlier high-level notes; it adds concrete modules, messages, and rules.
+This subsection documents **what exists today** for the **BENNE Editor** (`benne-editor/`) and the preview bundles (`src/editor/preview/`). It does not replace earlier high-level notes; it adds concrete modules, messages, and rules.
 
 ### Purpose and build output
 
 - **`npm run build:room-preview`** (repo root) runs **`vite.room-preview.config.ts`**, entry **`room-editor.html`**, and emits **`benne-editor/media/room-preview/room-preview.js`** (and assets). The extension loads that script from **`RoomPreviewPanelController`** HTML.
 - **`npm run build:character-preview`** → **`vite.character-preview.config.ts`**, **`character-editor.html`**, **`benne-editor/media/character-preview/character-preview.js`**.
 - **`npm run build:gui-preview`** → **`vite.gui-preview.config.ts`**, **`gui-editor.html`**, **`benne-editor/media/gui-preview/gui-preview.js`**.
-- These previews are **not** the same bundle as **`vite build`** for the playable game; they are **separate** clients. The room preview embeds Phaser with **`RoomScene`** and editor-only scenes; character and GUI previews are smaller standalone Phaser apps.
+- **`npm run build:inventory-preview`** → **`vite.inventory-preview.config.ts`**, **`inventory-editor.html`**, **`benne-editor/media/inventory-preview/inventory-preview.js`**.
+- The BENNE extension exposes one-off rebuild commands (**`benne-editor.rebuildRoomPreview`**, **`benne-editor.rebuildCharacterPreview`**, **`benne-editor.rebuildGuiPreview`**, **`benne-editor.rebuildInventoryPreview`**) plus **`benne-editor.rebuildEditorPreviewBundles`** to rebuild all preview bundles in order.
+- These previews are **not** the same bundle as **`vite build`** for the playable game; they are **separate** clients. The room preview embeds Phaser with **`RoomScene`** and editor-only scenes; character, GUI, and inventory previews are smaller standalone Phaser apps.
 
 ### Content scaffolding (create room, prop, character, GUI)
 
@@ -394,6 +396,9 @@ The extension can **generate files** under **`src/game/`** so new content matche
 | **`guiEditorMain.ts`** | GUI preview webview: **`benne/guiPreview/loadGui`** / **`clear`** / **`ready`**; resolves **`fonts/fonts.json`** + **`collectFontLoadsForGui`** for webview font URLs; optional Aseprite PNG/JSON via **`guiAseprite`** (text-only fallback when the sheet fails but **`controls`** has **`text`**); **`pickCharacterPreviewIdleTag`** (or first tag) for a default animation; letterboxed Phaser canvas at **`game-config.json`** **`resolution`**. |
 | **`createGuiPreviewGame.ts`** | **`Phaser.Game`** with **`Scale.FIT`** at internal width/height; boot loads fonts + optional Aseprite; main scene plays the sheet (if any) and composes **`text`** controls with **`buildGuiOverlay`** (visible, sample placeholder for empty strings). |
 | **`guiPreviewPanel.ts`** (extension) | **`GuiPreviewPanelController`**: webview **`benneGuiPreview`**. Rebuild via **`npm run build:gui-preview`** (**`benne-editor.rebuildGuiPreview`**). |
+| **`inventoryEditorMain.ts`** | Inventory preview webview: **`benne/inventoryPreview/loadInventory`** / **`clear`** / **`ready`**; resolves shared or per-item Aseprite JSON via inventory display mode, picks default clip (`defaultAnimation` else `id`), and loads a standalone Phaser preview. |
+| **`createInventoryPreviewGame.ts`** | **`Phaser.Game`** (**`Scale.FIT`**, game resolution) that loads the selected inventory Aseprite sheet, plays the chosen animation key, and renders an item/tag label for quick verification. |
+| **`inventoryPreviewPanel.ts`** (extension) | **`InventoryPreviewPanelController`**: webview **`benneInventoryPreview`**. Rebuild via **`npm run build:inventory-preview`** (**`benne-editor.rebuildInventoryPreview`**). |
 
 ### High-DPI editor overlay
 

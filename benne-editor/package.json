@@ -31,6 +31,7 @@
     "onCommand:benne-editor.rebuildRoomPreview",
     "onCommand:benne-editor.rebuildCharacterPreview",
     "onCommand:benne-editor.rebuildGuiPreview",
+    "onCommand:benne-editor.rebuildInventoryPreview",
     "onCommand:benne-editor.rebuildEditorPreviewBundles",
     "onCommand:benne-editor.addPropVerbEvent",
     "onCommand:benne-editor.makePropClickable",
@@ -234,6 +235,12 @@
         "icon": "$(sync)"
       },
       {
+        "command": "benne-editor.rebuildInventoryPreview",
+        "title": "Rebuild Inventory Preview Bundle",
+        "category": "BENNE",
+        "icon": "$(sync)"
+      },
+      {
         "command": "benne-editor.rebuildEditorPreviewBundles",
         "title": "Rebuild Editor Preview Bundles",
         "category": "BENNE",
@@ -326,6 +333,11 @@
           "command": "benne-editor.rebuildGuiPreview",
           "when": "view == benne-editor.actions",
           "group": "navigation@4"
+        },
+        {
+          "command": "benne-editor.rebuildInventoryPreview",
+          "when": "view == benne-editor.actions",
+          "group": "navigation@5"
         },
         {
           "command": "benne-editor.rebuildEditorPreviewBundles",
@@ -532,6 +544,7 @@
     "build:room-preview": "npm --prefix .. run build:room-preview",
     "build:character-preview": "npm --prefix .. run build:character-preview",
     "build:gui-preview": "npm --prefix .. run build:gui-preview",
+    "build:inventory-preview": "npm --prefix .. run build:inventory-preview",
     "compile": "webpack",
     "watch": "webpack --watch",
     "package": "webpack --mode production --devtool hidden-source-map",
