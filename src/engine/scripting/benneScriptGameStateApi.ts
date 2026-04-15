@@ -24,6 +24,7 @@ export interface BenneScriptInventoryNamespace {
   remove(id: string, quantity?: number): boolean;
   has(id: string): boolean;
   quantityOf(id: string): number;
+  /** Legacy accessor for inventory entries; prefer `add`/`remove`/`has`/`quantityOf` for gameplay logic. */
   readonly items: ReadonlyArray<{ id: string; quantity: number }>;
   clearInventory(): void;
 }

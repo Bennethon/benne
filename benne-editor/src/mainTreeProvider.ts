@@ -859,7 +859,7 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     {
                         kind: 'hint',
                         key: `no-inventory:${element.folder.uri}`,
-                        message: fq ? '(no matching inventory items)' : '(no inventory items found)'
+                        message: fq ? '(no matching inventory entries)' : '(no inventory entries found)'
                     }
                 ];
             }

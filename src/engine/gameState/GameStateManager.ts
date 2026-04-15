@@ -182,7 +182,7 @@ export class GameStateManager {
   }
 
   /**
-   * Adds items. Non-stackable definitions cap at quantity 1. Unknown ids default to non-stackable.
+   * Adds inventory entries. Non-stackable definitions cap at quantity 1. Unknown ids default to non-stackable.
    */
   addInventory(itemId: string, quantity = 1): boolean {
     if (itemId.length === 0) {
@@ -216,7 +216,7 @@ export class GameStateManager {
   }
 
   /**
-   * Removes quantity (default 1). Non-stackable items are fully removed when present.
+   * Removes quantity (default 1). Non-stackable inventory entries are fully removed when present.
    */
   removeFromInventory(itemId: string, quantity = 1): boolean {
     if (itemId.length === 0) {

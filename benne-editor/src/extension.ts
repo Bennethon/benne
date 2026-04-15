@@ -400,7 +400,7 @@ export function activate(context: vscode.ExtensionContext): void {
             const value = await vscode.window.showInputBox({
                 title: 'Filter BENNE tree',
                 prompt:
-                    'Show only rooms, props, characters, GUIs, inventory items, and other entries whose name or id contains this text (case-insensitive). Leave empty and press Enter to clear the filter.',
+                    'Show only rooms, props, characters, GUIs, inventory entries, and other entries whose name or id contains this text (case-insensitive). Leave empty and press Enter to clear the filter.',
                 value: mainProvider.getTreeFilter()
             });
             if (value === undefined) {
@@ -1091,7 +1091,7 @@ function getWebviewContent(): string {
         </head>
         <body>
             <h1>BENNE Editor</h1>
-            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree, <em>Actions</em>, and <em>Inspector</em>. Each tree choice resets the editor area, then opens the right layout: rooms, characters, GUIs, and inventory items use two rows with the live preview on top and the corresponding TypeScript source file on the bottom.</p>
+            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree, <em>Actions</em>, and <em>Inspector</em>. Each tree choice resets the editor area, then opens the right layout: rooms, characters, GUIs, and inventory entries use two rows with the live preview on top and the corresponding TypeScript source file on the bottom.</p>
             
             <p>
                 <button id="create-room-btn" type="button">Create New Room</button>

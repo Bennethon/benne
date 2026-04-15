@@ -93,7 +93,7 @@ registerInventoryScript('${id}', ({ B }) => {
     await vscode.workspace.fs.writeFile(invTsUri, new TextEncoder().encode(invTs));
 
     void vscode.window.showInformationMessage(
-        `Created inventory item "${name}" (${id}). Frame tags live in assets/images/inventory/inventory.json (tag name = item id unless defaultAnimation is set).`
+        `Created inventory entry "${name}" (${id}). Frame tags live in assets/images/inventory/inventory.json (tag name = inventory id unless defaultAnimation is set).`
     );
     await vscode.window.showTextDocument(invJsonUri, { preview: false });
     await vscode.window.showTextDocument(invTsUri, { preview: false });
@@ -147,7 +147,7 @@ export async function runImportInventoryItemsFromAsepriteTags(
     const picked = await vscode.window.showQuickPick(
         tags.map((t) => ({ label: t, picked: false })),
         {
-            placeHolder: 'Select one or more tags (each becomes an inventory item id)',
+            placeHolder: 'Select one or more tags (each becomes an inventory id)',
             canPickMany: true
         }
     );
@@ -195,7 +195,7 @@ registerInventoryScript('${id}', ({ B }) => {
     const sheetOk = await sharedInventorySheetFilesComplete(folder.uri);
     if (!sheetOk) {
         void vscode.window.showWarningMessage(
-            'Some items reference the shared sheet; ensure inventory.png + inventory.json exist under assets/images/inventory/.'
+            'Some inventory entries reference the shared sheet; ensure inventory.png + inventory.json exist under assets/images/inventory/.'
         );
     }
 
