@@ -18,6 +18,8 @@ const guiJsonModules = import.meta.glob('./assets/images/guis/**/*.json', {
   eager: true,
 }) as Record<string, { default?: Record<string, unknown> } | Record<string, unknown>>;
 
+const SHARED_INVENTORY_JSON_KEY = './assets/images/inventory/inventory.json';
+
 export type AsepriteAssetSheetKind = 'character' | 'room' | 'inventory' | 'gui';
 
 function rawJsonFromModule(mod: { default?: Record<string, unknown> } | Record<string, unknown>): Record<string, unknown> {
@@ -166,6 +168,56 @@ export function getNormalizedRoomAsepriteAtlasData(roomId: string): Record<strin
  */
 export function getNormalizedInventoryAsepriteAtlasData(inventoryId: string): Record<string, unknown> {
   return normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('inventory', inventoryId)) as Record<string, unknown>;
+}
+
+function prefixSharedInventoryFrameTagNames(data: Record<string, unknown>): void {
+  const meta = data.meta;
+  if (!meta || typeof meta !== 'object') {
+    return;
+  }
+  const frameTags = (meta as { frameTags?: { name: string }[] }).frameTags;
+  if (!Array.isArray(frameTags)) {
+    return;
+  }
+  for (const tag of frameTags) {
+    if (tag && typeof tag.name === 'string' && tag.name.length > 0 && !tag.name.startsWith('inventory:')) {
+      tag.name = `inventory:${tag.name}`;
+    }
+  }
+}
+
+export function hasBundledSharedInventorySheet(): boolean {
+  return SHARED_INVENTORY_JSON_KEY in inventoryJsonModules;
+}
+
+function getBundledSharedInventoryRawJson(): Record<string, unknown> {
+  const mod = inventoryJsonModules[SHARED_INVENTORY_JSON_KEY];
+  if (!mod) {
+    throw new Error(
+      `Missing shared inventory Aseprite JSON (expected Vite glob key '${SHARED_INVENTORY_JSON_KEY}').`,
+    );
+  }
+  return rawJsonFromModule(mod);
+}
+
+/**
+ * Shared `inventory.json` normalized for Phaser, with each `meta.frameTags[].name` prefixed as `inventory:<tag>`
+ * so animations do not collide with per-item sheets or room/character tags.
+ */
+export function getNormalizedSharedInventoryAsepriteAtlasData(): Record<string, unknown> {
+  const normalized = normalizeAsepriteJsonForPhaser(getBundledSharedInventoryRawJson()) as Record<
+    string,
+    unknown
+  >;
+  prefixSharedInventoryFrameTagNames(normalized);
+  return normalized;
+}
+
+/** Frame-tag names after the `inventory:` prefix applied for the shared sheet. */
+export function getSharedInventoryAsepriteFrameTagNames(): readonly string[] {
+  const raw = getBundledSharedInventoryRawJson();
+  const names = readAsepriteFrameTagNamesFromRawJson(raw);
+  return names.map((n) => (n.startsWith('inventory:') ? n : `inventory:${n}`));
 }
 
 /**

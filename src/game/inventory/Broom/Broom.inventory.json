@@ -1,0 +1,9 @@
+{
+  "id": "Broom",
+  "name": "Broom",
+  "description": "",
+  "stackable": false,
+  "display": {
+    "aseprite": "shared"
+  }
+}

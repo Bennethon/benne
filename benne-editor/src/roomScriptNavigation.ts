@@ -79,6 +79,22 @@ export async function openGuiJsonAndScriptBottomGroup(
     await applyBenneTwoRowJsonScriptLayout();
 }
 
+/** Inventory JSON + `*.inventory.ts` in the bottom row (no preview bundle yet). */
+export async function openInventoryJsonAndScriptBottomGroup(
+    inventoryJsonUri: vscode.Uri,
+    itemId: string
+): Promise<void> {
+    const scriptUri = vscode.Uri.joinPath(inventoryJsonUri, '..', `${itemId}.inventory.ts`);
+    try {
+        await vscode.workspace.fs.stat(scriptUri);
+    } catch {
+        await applyBenneTwoRowJsonScriptLayout();
+        return;
+    }
+    await openDocumentPinned(scriptUri, BENNE_SCRIPT_VIEW_COLUMN);
+    await applyBenneTwoRowJsonScriptLayout();
+}
+
 /** Open a normal (pinned) editor tab; multiple documents can stay open in the same group. */
 export async function openDocumentPinned(
     uri: vscode.Uri,

@@ -600,3 +600,130 @@ export async function readRoomCharacters(uri: vscode.Uri): Promise<RoomCharacter
     out.sort((a, b) => a.instanceId.localeCompare(b.instanceId));
     return out;
 }
+
+export async function listInventoryDefinitions(
+    gameFolder: vscode.WorkspaceFolder
+): Promise<{ id: string; name: string; uri: vscode.Uri }[]> {
+    const invDir = vscode.Uri.joinPath(gameFolder.uri, 'src', 'game', 'inventory');
+    let entries: [string, vscode.FileType][];
+    try {
+        entries = await vscode.workspace.fs.readDirectory(invDir);
+    } catch {
+        return [];
+    }
+    const result: { id: string; name: string; uri: vscode.Uri }[] = [];
+    for (const [name, type] of entries) {
+        if (type !== vscode.FileType.Directory) {
+            continue;
+        }
+        const uri = vscode.Uri.joinPath(invDir, name, `${name}.inventory.json`);
+        try {
+            await vscode.workspace.fs.stat(uri);
+        } catch {
+            continue;
+        }
+        const meta = await readInventoryMeta(uri, name);
+        result.push({ id: name, name: meta.name, uri });
+    }
+    result.sort((a, b) => a.id.localeCompare(b.id));
+    return result;
+}
+
+async function readInventoryMeta(uri: vscode.Uri, fallbackId: string): Promise<{ name: string }> {
+    try {
+        const raw = await vscode.workspace.fs.readFile(uri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as { name?: string };
+        const name = typeof data.name === 'string' && data.name.length > 0 ? data.name : fallbackId;
+        return { name };
+    } catch {
+        return { name: fallbackId };
+    }
+}
+
+/** `display.aseprite` from `*.inventory.json` when readable. */
+export async function readInventoryDisplayAseprite(
+    inventoryJsonUri: vscode.Uri
+): Promise<boolean | 'shared' | undefined> {
+    try {
+        const raw = await vscode.workspace.fs.readFile(inventoryJsonUri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as { display?: { aseprite?: unknown } };
+        const a = data.display?.aseprite;
+        if (a === 'shared') {
+            return 'shared';
+        }
+        if (a === true) {
+            return true;
+        }
+        return undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+export function sharedInventoryJsonUri(gameRoot: vscode.Uri): vscode.Uri {
+    return vscode.Uri.joinPath(gameRoot, 'src', 'game', 'assets', 'images', 'inventory', 'inventory.json');
+}
+
+export async function sharedInventorySheetFilesComplete(gameRoot: vscode.Uri): Promise<boolean> {
+    const png = vscode.Uri.joinPath(gameRoot, 'src', 'game', 'assets', 'images', 'inventory', 'inventory.png');
+    const json = sharedInventoryJsonUri(gameRoot);
+    try {
+        await Promise.all([vscode.workspace.fs.stat(png), vscode.workspace.fs.stat(json)]);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export async function perItemInventorySheetFilesComplete(
+    gameRoot: vscode.Uri,
+    itemId: string
+): Promise<boolean> {
+    const png = vscode.Uri.joinPath(
+        gameRoot,
+        'src',
+        'game',
+        'assets',
+        'images',
+        'inventory',
+        itemId,
+        `${itemId}.png`
+    );
+    const json = vscode.Uri.joinPath(
+        gameRoot,
+        'src',
+        'game',
+        'assets',
+        'images',
+        'inventory',
+        itemId,
+        `${itemId}.json`
+    );
+    try {
+        await Promise.all([vscode.workspace.fs.stat(png), vscode.workspace.fs.stat(json)]);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export function readAsepriteFrameTagNamesFromJsonText(text: string): string[] {
+    try {
+        const data = JSON.parse(text) as { meta?: { frameTags?: { name?: string }[] } };
+        const tags = data.meta?.frameTags;
+        if (!Array.isArray(tags)) {
+            return [];
+        }
+        const out: string[] = [];
+        for (const t of tags) {
+            if (t && typeof t.name === 'string' && t.name.length > 0) {
+                out.push(t.name);
+            }
+        }
+        return out;
+    } catch {
+        return [];
+    }
+}

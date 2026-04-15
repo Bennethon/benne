@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import type {
   BenneGameStateFlagValue,
   GameStateFlagChangedPayload,
@@ -18,17 +19,39 @@ export type GameStateInitialSlice = Partial<
   Pick<SerializableBenneGameState, 'flags' | 'variables' | 'inventory'>
 >;
 
-function uniqueInventoryIds(ids: readonly string[]): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const id of ids) {
-    if (id.length === 0 || seen.has(id)) {
-      continue;
+/** Accepts v1 map, legacy string[], or empty. */
+export function normalizeSerializedInventory(raw: unknown): Record<string, number> {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (k.length === 0) {
+        continue;
+      }
+      const n = typeof v === 'number' ? v : Number(v);
+      if (!Number.isFinite(n)) {
+        continue;
+      }
+      const q = Math.floor(n);
+      if (q > 0) {
+        out[k] = q;
+      }
     }
-    seen.add(id);
-    out.push(id);
+    return out;
   }
-  return out;
+  if (Array.isArray(raw)) {
+    const out: Record<string, number> = {};
+    for (const id of raw) {
+      if (typeof id === 'string' && id.length > 0) {
+        out[id] = (out[id] ?? 0) + 1;
+      }
+    }
+    return out;
+  }
+  return {};
+}
+
+function cloneInventory(inv: Record<string, number>): Record<string, number> {
+  return { ...inv };
 }
 
 function cloneSnapshot(state: SerializableBenneGameState): SerializableBenneGameState {
@@ -36,7 +59,7 @@ function cloneSnapshot(state: SerializableBenneGameState): SerializableBenneGame
     version: 1,
     flags: { ...state.flags },
     variables: { ...state.variables },
-    inventory: [...state.inventory],
+    inventory: cloneInventory(state.inventory),
   };
 }
 
@@ -57,7 +80,7 @@ export class GameStateManager {
       version: 1,
       flags: initial?.flags != null ? { ...initial.flags } : {},
       variables: initial?.variables != null ? { ...initial.variables } : {},
-      inventory: uniqueInventoryIds(initial?.inventory ?? []),
+      inventory: normalizeSerializedInventory(initial?.inventory),
     };
   }
 
@@ -77,7 +100,7 @@ export class GameStateManager {
       version: 1,
       flags: { ...snapshot.flags },
       variables: { ...snapshot.variables },
-      inventory: uniqueInventoryIds(snapshot.inventory),
+      inventory: normalizeSerializedInventory(snapshot.inventory),
     };
     const payload: GameStateReplacedPayload = { snapshot: this.getSnapshot() };
     this.events.emit(GAME_STATE_REPLACED_EVENT, payload);
@@ -89,8 +112,11 @@ export class GameStateManager {
 
   importSnapshotJson(json: string): void {
     try {
-      const parsed = JSON.parse(json) as SerializableBenneGameState;
-      this.applySnapshot(parsed);
+      const parsed = JSON.parse(json) as SerializableBenneGameState & { inventory?: unknown };
+      if (parsed && typeof parsed === 'object') {
+        parsed.inventory = normalizeSerializedInventory(parsed.inventory);
+      }
+      this.applySnapshot(parsed as SerializableBenneGameState);
     } catch (err) {
       console.error('[Benne] GameStateManager.importSnapshotJson failed:', err);
     }
@@ -146,53 +172,91 @@ export class GameStateManager {
     this.events.emit(GAME_STATE_VARIABLE_CHANGED_EVENT, payload);
   }
 
-  addToInventory(itemId: string): boolean {
-    if (itemId.length === 0 || this.state.inventory.includes(itemId)) {
-      return false;
-    }
-    this.state.inventory.push(itemId);
+  private emitInventory(reason: 'add' | 'remove' | 'clear', itemId?: string): void {
     const payload: GameStateInventoryChangedPayload = {
-      reason: 'add',
+      reason,
       itemId,
-      inventory: [...this.state.inventory],
+      inventory: cloneInventory(this.state.inventory),
     };
     this.events.emit(GAME_STATE_INVENTORY_CHANGED_EVENT, payload);
+  }
+
+  /**
+   * Adds items. Non-stackable definitions cap at quantity 1. Unknown ids default to non-stackable.
+   */
+  addInventory(itemId: string, quantity = 1): boolean {
+    if (itemId.length === 0) {
+      return false;
+    }
+    const q = Math.max(1, Math.floor(quantity));
+    const def = getInventoryDefinition(itemId);
+    const stackable = def?.stackable ?? false;
+    const current = this.state.inventory[itemId] ?? 0;
+
+    if (!stackable) {
+      if (current >= 1) {
+        return false;
+      }
+      this.state.inventory[itemId] = 1;
+      this.emitInventory('add', itemId);
+      return true;
+    }
+
+    this.state.inventory[itemId] = current + q;
+    this.emitInventory('add', itemId);
     return true;
   }
 
   hasInInventory(itemId: string): boolean {
-    return this.state.inventory.includes(itemId);
+    return (this.state.inventory[itemId] ?? 0) > 0;
   }
 
-  removeFromInventory(itemId: string): boolean {
-    const i = this.state.inventory.indexOf(itemId);
-    if (i < 0) {
+  quantityOf(itemId: string): number {
+    return this.state.inventory[itemId] ?? 0;
+  }
+
+  /**
+   * Removes quantity (default 1). Non-stackable items are fully removed when present.
+   */
+  removeFromInventory(itemId: string, quantity = 1): boolean {
+    if (itemId.length === 0) {
       return false;
     }
-    this.state.inventory.splice(i, 1);
-    const payload: GameStateInventoryChangedPayload = {
-      reason: 'remove',
-      itemId,
-      inventory: [...this.state.inventory],
-    };
-    this.events.emit(GAME_STATE_INVENTORY_CHANGED_EVENT, payload);
+    const current = this.state.inventory[itemId] ?? 0;
+    if (current <= 0) {
+      return false;
+    }
+    const def = getInventoryDefinition(itemId);
+    const stackable = def?.stackable ?? false;
+    if (!stackable) {
+      delete this.state.inventory[itemId];
+      this.emitInventory('remove', itemId);
+      return true;
+    }
+    const q = Math.max(1, Math.floor(quantity));
+    const next = current - q;
+    if (next <= 0) {
+      delete this.state.inventory[itemId];
+    } else {
+      this.state.inventory[itemId] = next;
+    }
+    this.emitInventory('remove', itemId);
     return true;
   }
 
   clearInventory(): void {
-    if (this.state.inventory.length === 0) {
+    if (Object.keys(this.state.inventory).length === 0) {
       return;
     }
-    this.state.inventory = [];
-    const payload: GameStateInventoryChangedPayload = {
-      reason: 'clear',
-      inventory: [],
-    };
-    this.events.emit(GAME_STATE_INVENTORY_CHANGED_EVENT, payload);
+    this.state.inventory = {};
+    this.emitInventory('clear');
   }
 
-  getInventorySnapshot(): string[] {
-    return [...this.state.inventory];
+  getInventoryItems(): ReadonlyArray<{ id: string; quantity: number }> {
+    return Object.entries(this.state.inventory)
+      .filter(([, q]) => q > 0)
+      .map(([id, quantity]) => ({ id, quantity }))
+      .sort((a, b) => a.id.localeCompare(b.id));
   }
 
   saveToLocalStorage(slot = 0): void {

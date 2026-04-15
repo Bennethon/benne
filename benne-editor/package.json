@@ -25,6 +25,8 @@
     "onCommand:benne-editor.addRoomSpawnedCharacter",
     "onCommand:benne-editor.createCharacter",
     "onCommand:benne-editor.createGui",
+    "onCommand:benne-editor.createInventoryItem",
+    "onCommand:benne-editor.importInventoryItemsFromAsepriteTags",
     "onCommand:benne-editor.importAnimationsFromAsepriteTags",
     "onCommand:benne-editor.rebuildRoomPreview",
     "onCommand:benne-editor.rebuildCharacterPreview",
@@ -196,6 +198,18 @@
         "icon": "$(window)"
       },
       {
+        "command": "benne-editor.createInventoryItem",
+        "title": "Create Inventory Item",
+        "category": "BENNE",
+        "icon": "$(package)"
+      },
+      {
+        "command": "benne-editor.importInventoryItemsFromAsepriteTags",
+        "title": "Import Inventory Items from Aseprite Tags",
+        "category": "BENNE",
+        "icon": "$(tag)"
+      },
+      {
         "command": "benne-editor.importAnimationsFromAsepriteTags",
         "title": "Import Animations from Aseprite Tags",
         "category": "BENNE",
@@ -294,6 +308,16 @@
           "group": "navigation@5"
         },
         {
+          "command": "benne-editor.createInventoryItem",
+          "when": "view == benne-editor.main",
+          "group": "navigation@6"
+        },
+        {
+          "command": "benne-editor.importInventoryItemsFromAsepriteTags",
+          "when": "view == benne-editor.main",
+          "group": "navigation@7"
+        },
+        {
           "command": "benne-editor.rebuildCharacterPreview",
           "when": "view == benne-editor.actions",
           "group": "navigation@3"
@@ -336,9 +360,29 @@
           "group": "benne@1"
         },
         {
+          "command": "benne-editor.createInventoryItem",
+          "when": "view == benne-editor.main && viewItem == benneInventoryGroup",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.importInventoryItemsFromAsepriteTags",
+          "when": "view == benne-editor.main && viewItem == benneInventoryGroup",
+          "group": "benne@2"
+        },
+        {
           "command": "benne-editor.createGui",
           "when": "view == benne-editor.main && viewItem == benneWorkspace",
           "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.createInventoryItem",
+          "when": "view == benne-editor.main && viewItem == benneWorkspace",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.importInventoryItemsFromAsepriteTags",
+          "when": "view == benne-editor.main && viewItem == benneWorkspace",
+          "group": "benne@2"
         },
         {
           "command": "benne-editor.addRoomHotspot",
@@ -431,6 +475,11 @@
           "group": "benne@3"
         },
         {
+          "command": "benne-editor.importInventoryItemsFromAsepriteTags",
+          "when": "view == benne-editor.main && viewItem == benneInventoryItem",
+          "group": "benne@3"
+        },
+        {
           "command": "benne-editor.deleteGameEntity",
           "when": "view == benne-editor.main && viewItem == benneRoom",
           "group": "modification@benneDelete"
@@ -443,6 +492,11 @@
         {
           "command": "benne-editor.deleteGameEntity",
           "when": "view == benne-editor.main && viewItem == benneGui",
+          "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneInventoryItem",
           "group": "modification@benneDelete"
         },
         {

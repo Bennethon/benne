@@ -4,9 +4,21 @@ import { getAsepriteAssetPaths, getAsepriteTextureKey, usesAsepriteDisplay } fro
 import {
   getAsepriteFrameTagNames,
   getNormalizedAsepriteAtlasData,
+  getNormalizedInventoryAsepriteAtlasData,
   getNormalizedRoomAsepriteAtlasData,
+  getNormalizedSharedInventoryAsepriteAtlasData,
+  hasBundledSharedInventorySheet,
   warnIfAnimationConfigKeysMissingFromFrameTags,
 } from '../../game/loadAsepriteAtlasData';
+import {
+  getPerItemInventoryAsepritePaths,
+  getPerItemInventoryTextureKey,
+  sharedInventoryAssetPaths,
+  sharedInventoryTextureKey,
+  usesPerItemInventoryAseprite,
+  usesSharedInventoryAseprite,
+} from '../../game/inventoryAseprite';
+import { getInventoryDefinition, getRegisteredInventoryDefinitionIds } from '../inventory/inventoryDefinitionRegistry.js';
 import { getRoomAsepriteAssetPaths, getRoomAsepriteTextureKey } from '../../game/roomAseprite';
 import { SCENE_BOOT, SCENE_ROOM } from '../../game/constants';
 import { loadCharacterData } from '../../game/loadCharacterData';
@@ -108,6 +120,54 @@ export class BootScene extends Phaser.Scene {
 
     for (const inst of room.characters ?? []) {
       this.queueCharacterLoads(inst, spawns, loadedAsepriteCharacterIds);
+    }
+
+    let queuedSharedInventory = false;
+    const queuedPerItemInventoryIds = new Set<string>();
+    for (const id of getRegisteredInventoryDefinitionIds()) {
+      const def = getInventoryDefinition(id);
+      if (!def) {
+        continue;
+      }
+      if (usesSharedInventoryAseprite(def)) {
+        if (queuedSharedInventory) {
+          continue;
+        }
+        if (hasBundledSharedInventorySheet()) {
+          const paths = sharedInventoryAssetPaths();
+          this.load.aseprite({
+            key: sharedInventoryTextureKey,
+            textureURL: resolveGameAssetUrl(paths.png),
+            atlasURL: getNormalizedSharedInventoryAsepriteAtlasData(),
+          });
+          queuedSharedInventory = true;
+        } else {
+          console.warn(
+            `[Benne] Inventory item "${id}" uses display.aseprite "shared" but assets/images/inventory/inventory.json is not bundled — export the shared sheet from Aseprite.`,
+          );
+        }
+      } else if (usesPerItemInventoryAseprite(def)) {
+        if (queuedPerItemInventoryIds.has(id)) {
+          continue;
+        }
+        queuedPerItemInventoryIds.add(id);
+        try {
+          const sheetTags = getAsepriteFrameTagNames('inventory', id);
+          warnIfAnimationConfigKeysMissingFromFrameTags(
+            `Inventory '${id}'`,
+            sheetTags,
+            undefined,
+          );
+          const paths = getPerItemInventoryAsepritePaths(id);
+          this.load.aseprite({
+            key: getPerItemInventoryTextureKey(id),
+            textureURL: resolveGameAssetUrl(paths.png),
+            atlasURL: getNormalizedInventoryAsepriteAtlasData(id),
+          });
+        } catch (err) {
+          console.warn(`[Benne] Could not queue per-item inventory Aseprite for "${id}":`, err);
+        }
+      }
     }
 
     queueGuiFontsForBootLoader(this.load);

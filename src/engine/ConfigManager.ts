@@ -169,20 +169,35 @@ function assertInitialGameState(data: GameSettings): void {
     }
   }
   if (init.inventory !== undefined) {
-    if (!Array.isArray(init.inventory)) {
-      throw new Error('game-config initialGameState.inventory must be an array when present');
-    }
-    const seen = new Set<string>();
-    for (const item of init.inventory) {
-      if (typeof item !== 'string' || item.length === 0) {
-        throw new Error('game-config initialGameState.inventory entries must be non-empty strings');
+    if (Array.isArray(init.inventory)) {
+      const seen = new Set<string>();
+      for (const item of init.inventory) {
+        if (typeof item !== 'string' || item.length === 0) {
+          throw new Error('game-config initialGameState.inventory entries must be non-empty strings');
+        }
+        if (seen.has(item)) {
+          console.warn(
+            `[Benne] game-config initialGameState.inventory: duplicate "${item}" — quantities merge at runtime`,
+          );
+        }
+        seen.add(item);
       }
-      if (seen.has(item)) {
-        console.warn(
-          `[Benne] game-config initialGameState.inventory: duplicate "${item}" — GameStateManager will dedupe at runtime`,
-        );
+    } else if (typeof init.inventory === 'object' && init.inventory !== null && !Array.isArray(init.inventory)) {
+      for (const [k, v] of Object.entries(init.inventory as Record<string, unknown>)) {
+        if (k.length === 0) {
+          throw new Error('game-config initialGameState.inventory keys must be non-empty strings');
+        }
+        const n = typeof v === 'number' ? v : Number(v);
+        if (!Number.isFinite(n) || n < 0) {
+          throw new Error(
+            `game-config initialGameState.inventory["${k}"] must be a non-negative finite number when present`,
+          );
+        }
       }
-      seen.add(item);
+    } else {
+      throw new Error(
+        'game-config initialGameState.inventory must be a string[] id list or Record<string, number> when present',
+      );
     }
   }
 }

@@ -40,7 +40,8 @@ import type { Point2, RoomData, RoomHotspotData, RoomPropInstance } from '../../
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
 import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
 import { createCharacterScriptContext } from '../scripting/CharacterScriptContext.js';
-import type { CharacterScriptContext, RoomScriptContext } from '@engine/scripting/types.js';
+import { createInventoryScriptContext } from '../scripting/InventoryScriptContext.js';
+import type { CharacterScriptContext, InventoryScriptContext, RoomScriptContext } from '@engine/scripting/types.js';
 import { buildGuiOverlay, type GuiOverlayHandle } from '../gui/buildGuiOverlay';
 import { getGuiDataById } from '../../game/loadGuiData';
 
@@ -198,6 +199,14 @@ export class RoomScene extends Phaser.Scene {
         }>;
       }
     ).__benneCharacterScripts;
+    const inventoryScripts = (
+      window as unknown as {
+        __benneInventoryScripts?: ReadonlyArray<{
+          itemId: string;
+          registerFn: (ctx: InventoryScriptContext) => void;
+        }>;
+      }
+    ).__benneInventoryScripts;
 
     const benneDisposers: Array<() => void> = [];
     if (roomScripts && roomScripts.length > 0) {
@@ -227,6 +236,18 @@ export class RoomScene extends Phaser.Scene {
             `[Benne] Error in character script for ${characterId} in room ${data.room.id}:`,
             err,
           );
+        }
+      }
+    }
+
+    if (inventoryScripts && inventoryScripts.length > 0) {
+      for (const { itemId, registerFn } of inventoryScripts) {
+        const ctx = createInventoryScriptContext(gameEvents, itemId, data.room.id, this);
+        benneDisposers.push(() => ctx.B.dispose());
+        try {
+          registerFn(ctx);
+        } catch (err) {
+          console.error(`[Benne] Error in inventory script for ${itemId} in room ${data.room.id}:`, err);
         }
       }
     }

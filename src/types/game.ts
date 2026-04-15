@@ -14,7 +14,10 @@ export interface RoomsManifestData {
 export interface GameSettingsInitialGameState {
   flags?: Record<string, BenneGameStateFlagValue>;
   variables?: Record<string, unknown>;
-  inventory?: string[];
+  /**
+   * Starting inventory: either unique id list (legacy; each becomes quantity 1) or id → quantity map.
+   */
+  inventory?: string[] | Record<string, number>;
 }
 
 /** Loaded from `src/game/game-config.json` (authoritative game bootstrap settings). */
