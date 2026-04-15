@@ -10,7 +10,7 @@ import {
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import type { MainTreeNode } from './mainTreeProvider';
 import { pickWorkspaceFolder, validateSlug } from './roomScaffolding';
-import { openCharacterJsonAndScriptBottomGroup } from './roomScriptNavigation';
+import { openBenneCharacterTypeScript } from './roomScriptNavigation';
 
 function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
@@ -263,5 +263,5 @@ export async function runImportAnimationsFromAsepriteTags(
     }
     void vscode.window.showInformationMessage(parts.join(' '));
     await applyBenneTwoRowJsonScriptLayout();
-    await openCharacterJsonAndScriptBottomGroup(charRef.characterJsonUri, charRef.characterId);
+    await openBenneCharacterTypeScript(charRef.characterJsonUri, charRef.characterId);
 }

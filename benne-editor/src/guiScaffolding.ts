@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { pickWorkspaceFolder, validateSlug } from './roomScaffolding';
-import { openGuiJsonAndScriptBottomGroup } from './roomScriptNavigation';
+import { openBenneGuiTypeScript } from './roomScriptNavigation';
 
 function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
@@ -90,5 +90,5 @@ registerGuiScript('${id}', ({ B: _B }) => {
     void vscode.window.showInformationMessage(
         `Created GUI "${name}" (${id}). Export Aseprite to assets/images/guis/${id}/ when ready.`
     );
-    await openGuiJsonAndScriptBottomGroup(guiJsonUri, id);
+    await openBenneGuiTypeScript(guiJsonUri, id);
 }

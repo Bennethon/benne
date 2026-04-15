@@ -36,12 +36,12 @@ import {
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import {
     BENNE_SCRIPT_VIEW_COLUMN,
-    openCharacterJsonAndScriptBottomGroup,
-    openGuiJsonAndScriptBottomGroup,
-    openInventoryJsonAndScriptBottomGroup,
+    openBenneCharacterTypeScript,
+    openBenneGuiTypeScript,
+    openBenneInventoryTypeScript,
     openDocumentPinned,
     openDocumentUri,
-    openRoomJsonAndScriptBottomGroup,
+    openBenneRoomTypeScript,
     revealEventInDocument,
     revealSourceRangeInDocument
 } from './roomScriptNavigation';
@@ -163,7 +163,7 @@ export function activate(context: vscode.ExtensionContext): void {
             await resetBenneEditorSurface();
             await applyBenneTwoRowJsonScriptLayout();
             selection.setRoom(node.uri, node.name);
-            await openRoomJsonAndScript(node.uri, node.id);
+            await openBenneRoomTypeScript(node.uri, node.id);
         } else if (node.kind === 'roomSubGroup') {
             const sameRoomContext =
                 selection.focus.kind === 'room' &&
@@ -179,7 +179,7 @@ export function activate(context: vscode.ExtensionContext): void {
             selection.setRoom(node.roomJsonUri, node.roomName);
 
             if (!sameRoomContext) {
-                await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+                await openBenneRoomTypeScript(node.roomJsonUri, node.roomId);
             }
         } else if (node.kind === 'prop') {
             const sameRoomContext =
@@ -201,7 +201,7 @@ export function activate(context: vscode.ExtensionContext): void {
             );
 
             if (!sameRoomContext) {
-                await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+                await openBenneRoomTypeScript(node.roomJsonUri, node.roomId);
             }
         } else if (node.kind === 'hotspot') {
             const sameRoomContext =
@@ -223,7 +223,7 @@ export function activate(context: vscode.ExtensionContext): void {
             );
 
             if (!sameRoomContext) {
-                await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+                await openBenneRoomTypeScript(node.roomJsonUri, node.roomId);
             }
         } else if (node.kind === 'roomPoint') {
             const sameRoomContext =
@@ -245,7 +245,7 @@ export function activate(context: vscode.ExtensionContext): void {
             );
 
             if (!sameRoomContext) {
-                await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+                await openBenneRoomTypeScript(node.roomJsonUri, node.roomId);
             }
         } else if (node.kind === 'region') {
             const sameRoomContext =
@@ -267,7 +267,7 @@ export function activate(context: vscode.ExtensionContext): void {
             );
 
             if (!sameRoomContext) {
-                await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+                await openBenneRoomTypeScript(node.roomJsonUri, node.roomId);
             }
         } else if (node.kind === 'roomCharacter') {
             const sameRoomContext =
@@ -290,23 +290,23 @@ export function activate(context: vscode.ExtensionContext): void {
             );
 
             if (!sameRoomContext) {
-                await openRoomJsonAndScript(node.roomJsonUri, node.roomId);
+                await openBenneRoomTypeScript(node.roomJsonUri, node.roomId);
             }
         } else if (node.kind === 'character') {
             await resetBenneEditorSurface();
             await applyBenneTwoRowJsonScriptLayout();
             selection.setCharacter(node.uri, node.name);
-            await openCharacterJsonAndScript(node.uri, node.id);
+            await openBenneCharacterTypeScript(node.uri, node.id);
         } else if (node.kind === 'gui') {
             await resetBenneEditorSurface();
             await applyBenneTwoRowJsonScriptLayout();
             selection.setGui(node.uri, node.name);
-            await openGuiJsonAndScript(node.uri, node.id);
+            await openBenneGuiTypeScript(node.uri, node.id);
         } else if (node.kind === 'inventoryItem') {
             await resetBenneEditorSurface();
             await applyBenneTwoRowJsonScriptLayout();
             selection.setInventory(node.uri, node.name);
-            await openInventoryJsonAndScript(node.uri, node.id);
+            await openInventoryDefinitionEditors(node.uri, node.id);
         }
     }
 
@@ -993,19 +993,8 @@ function getWebviewContent(): string {
 
 export function deactivate(): void {}
 
-async function openRoomJsonAndScript(roomJsonUri: vscode.Uri, roomId: string): Promise<void> {
-    await openRoomJsonAndScriptBottomGroup(roomJsonUri, roomId);
-}
-
-async function openCharacterJsonAndScript(characterJsonUri: vscode.Uri, characterId: string): Promise<void> {
-    await openCharacterJsonAndScriptBottomGroup(characterJsonUri, characterId);
-}
-
-async function openGuiJsonAndScript(guiJsonUri: vscode.Uri, guiId: string): Promise<void> {
-    await openGuiJsonAndScriptBottomGroup(guiJsonUri, guiId);
-}
-
-async function openInventoryJsonAndScript(inventoryJsonUri: vscode.Uri, itemId: string): Promise<void> {
+/** Tree selection: open definition JSON in column one, companion `*.inventory.ts` in the Benne script row. */
+async function openInventoryDefinitionEditors(inventoryJsonUri: vscode.Uri, itemId: string): Promise<void> {
     await openDocumentPinned(inventoryJsonUri, vscode.ViewColumn.One);
-    await openInventoryJsonAndScriptBottomGroup(inventoryJsonUri, itemId);
+    await openBenneInventoryTypeScript(inventoryJsonUri, itemId);
 }
