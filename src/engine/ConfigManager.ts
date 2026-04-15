@@ -139,6 +139,54 @@ function assertVerbSettings(data: GameSettings): void {
   }
 }
 
+function assertInitialGameState(data: GameSettings): void {
+  const init = data.initialGameState;
+  if (init === undefined) {
+    return;
+  }
+  if (typeof init !== 'object' || init === null || Array.isArray(init)) {
+    throw new Error('game-config initialGameState must be an object when present');
+  }
+  if (init.flags !== undefined) {
+    if (typeof init.flags !== 'object' || init.flags === null || Array.isArray(init.flags)) {
+      throw new Error('game-config initialGameState.flags must be a plain object when present');
+    }
+    for (const [k, v] of Object.entries(init.flags)) {
+      if (k.length === 0) {
+        throw new Error('game-config initialGameState.flags keys must be non-empty strings');
+      }
+      const ok = typeof v === 'boolean' || typeof v === 'number' || typeof v === 'string';
+      if (!ok) {
+        throw new Error(
+          `game-config initialGameState.flags["${k}"] must be a boolean, number, or string when present`,
+        );
+      }
+    }
+  }
+  if (init.variables !== undefined) {
+    if (typeof init.variables !== 'object' || init.variables === null || Array.isArray(init.variables)) {
+      throw new Error('game-config initialGameState.variables must be a plain object when present');
+    }
+  }
+  if (init.inventory !== undefined) {
+    if (!Array.isArray(init.inventory)) {
+      throw new Error('game-config initialGameState.inventory must be an array when present');
+    }
+    const seen = new Set<string>();
+    for (const item of init.inventory) {
+      if (typeof item !== 'string' || item.length === 0) {
+        throw new Error('game-config initialGameState.inventory entries must be non-empty strings');
+      }
+      if (seen.has(item)) {
+        console.warn(
+          `[Benne] game-config initialGameState.inventory: duplicate "${item}" — GameStateManager will dedupe at runtime`,
+        );
+      }
+      seen.add(item);
+    }
+  }
+}
+
 function assertGameSettings(data: GameSettings): void {
   const { width, height } = data.resolution;
   if (!Number.isFinite(width) || width < 1 || !Number.isFinite(height) || height < 1) {
@@ -170,6 +218,7 @@ function assertGameSettings(data: GameSettings): void {
       }
     }
   }
+  assertInitialGameState(data);
   assertVerbSettings(data);
   assertDialogSettings(data);
 }

@@ -19,3 +19,4 @@ export { wireBenneGlobalScripts } from './wireBenneGlobalScripts.js';
 export { GlobalBenneScript } from './GlobalBenneScript.js';
 export { registerGuiScript, getBenneGuiScriptRegistrations } from './registerGuiScript.js';
 export { GuiBenneScript } from './GuiBenneScript.js';
+export type { BenneScriptGameStateNamespace, BenneScriptInventoryNamespace } from './benneScriptGameStateApi.js';

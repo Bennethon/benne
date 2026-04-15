@@ -4,6 +4,7 @@ import type { Point2 } from '../../types/room.js';
 import { getStartingPlayerCharacterId } from '../../game/constants.js';
 import type { CharacterVerbInteractPayload } from '../events/propInteractionEvents.js';
 import { characterVerbEventId } from '../events/verbInteractionEvents.js';
+import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
   playDirectionalAnimation,
@@ -14,6 +15,12 @@ import {
   withNow,
   type BenneScriptSayLineOptions,
 } from './BenneScriptCore.js';
+import {
+  createBenneScriptGameStateNamespace,
+  createBenneScriptInventoryNamespace,
+  type BenneScriptGameStateNamespace,
+  type BenneScriptInventoryNamespace,
+} from './benneScriptGameStateApi.js';
 import type {
   BenneScriptCharacterFacade,
   BenneScriptPlayerFacade,
@@ -27,10 +34,16 @@ export class CharacterBenneScript extends BenneScriptCore {
   private readonly characterId: string;
   private readonly roomScene: RoomScene;
 
+  readonly state: BenneScriptGameStateNamespace;
+  readonly inventory: BenneScriptInventoryNamespace;
+
   constructor(events: Phaser.Events.EventEmitter, characterId: string, roomScene: RoomScene) {
     super(events, () => roomScene.time);
     this.characterId = characterId;
     this.roomScene = roomScene;
+    const manager = resolveGameStateManager(roomScene.game);
+    this.state = createBenneScriptGameStateNamespace(manager);
+    this.inventory = createBenneScriptInventoryNamespace(manager);
   }
 
   private subscribeSelfVerb(

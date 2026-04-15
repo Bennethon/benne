@@ -6,18 +6,31 @@ import {
 } from '../events/verbInteractionEvents.js';
 import type { VerbGlobalFallbackPayload, VerbUnhandledPayload } from '../events/verbInteractionEvents.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
+import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { SCENE_ROOM } from '../../game/constants.js';
 import { BenneScriptCore } from './BenneScriptCore.js';
+import {
+  createBenneScriptGameStateNamespace,
+  createBenneScriptInventoryNamespace,
+  type BenneScriptGameStateNamespace,
+  type BenneScriptInventoryNamespace,
+} from './benneScriptGameStateApi.js';
 
 /**
  * Bennescript facade for `globalScript.ts`: global verb fallback chain and `raw` bus access.
  */
 export class GlobalBenneScript extends BenneScriptCore {
+  readonly state: BenneScriptGameStateNamespace;
+  readonly inventory: BenneScriptInventoryNamespace;
+
   constructor(events: Phaser.Events.EventEmitter, game: Phaser.Game) {
     super(events, () => {
       const room = game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
       return room?.time ?? null;
     });
+    const manager = resolveGameStateManager(game);
+    this.state = createBenneScriptGameStateNamespace(manager);
+    this.inventory = createBenneScriptInventoryNamespace(manager);
   }
 
   whenGlobalFallback(
