@@ -26,6 +26,11 @@
     "showWalkable": false,
     "showPropOutlines": false
   },
+  "initialGameState": {
+    "flags": {},
+    "variables": {},
+    "inventory": []
+  },
   "dialog": {
     "clickToSkip": true,
     "showText": true,

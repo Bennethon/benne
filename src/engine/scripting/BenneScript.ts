@@ -8,6 +8,7 @@ import type {
   RoomPropInteractPayload,
 } from '../events/propInteractionEvents.js';
 import type { GivePropInteractPayload } from './benneScriptPayloads.js';
+import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
   characterVerbEventId,
@@ -29,6 +30,12 @@ import {
   withNow,
   type BenneScriptSayLineOptions,
 } from './BenneScriptCore.js';
+import {
+  createBenneScriptGameStateNamespace,
+  createBenneScriptInventoryNamespace,
+  type BenneScriptGameStateNamespace,
+  type BenneScriptInventoryNamespace,
+} from './benneScriptGameStateApi.js';
 
 export type {
   BenneScriptCharacterFacade,
@@ -68,32 +75,19 @@ export class BenneScript extends BenneScriptCore {
   private roomId: string;
   private roomScene: RoomScene;
 
+  /** Cross-room flags and variables (see `GameStateManager`). */
+  readonly state: BenneScriptGameStateNamespace;
+  /** Unique item ids; survives room loads (see `GameStateManager`). */
+  readonly inventory: BenneScriptInventoryNamespace;
+
   constructor(events: Phaser.Events.EventEmitter, roomId: string, roomScene: RoomScene) {
     super(events, () => roomScene.time);
     this.roomId = roomId;
     this.roomScene = roomScene;
+    const manager = resolveGameStateManager(roomScene.game);
+    this.state = createBenneScriptGameStateNamespace(manager);
+    this.inventory = createBenneScriptInventoryNamespace(manager);
   }
-
-  /**
-   * Room-level actions (stub / future).
-   * @param _roomId - Target room id from `rooms.manifest.json` / manifest.
-   */
-  readonly room = {
-    changeTo: (_roomId: string, _options?: { spawn?: string; transition?: string }) => {
-      console.warn('[Benne] B.room.changeTo is not implemented yet.');
-    },
-  };
-
-  /**
-   * Inventory helpers (stub / future).
-   * @param _itemId - Item id from game data (when implemented).
-   */
-  readonly inventory = {
-    give: (_itemId: string) => {
-      console.warn('[Benne] B.inventory.give is not implemented yet.');
-    },
-    has: (_itemId: string) => false,
-  };
 
   /**
    * Subscribe to a **prop** verb event for this room (**prop id only**). Prefer **`when*`** / **`whenVerb`** for prop → hotspot → character resolution.

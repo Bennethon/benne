@@ -20,7 +20,7 @@
 
 | Area | Role |
 |------|------|
-| **`main.ts` + `Game.ts`** | DOM mount, `Phaser.Game` from `createGameConfig`. |
+| **`main.ts` + `Game.ts`** | DOM mount, `Phaser.Game` from `createGameConfig`; **`createBenneGame`** registers **`GameStateManager`** on **`game.registry`**. |
 | **`gameConfig.ts`** | Phaser `GameConfig`: resolution from JSON, scale, `BootScene` + `RoomScene`. |
 | **`ConfigManager.ts`** | Reads bundled `game-config.json` (`getGameSettings`). |
 | **`BootScene`** | Loads assets for the **start room** (manifest + globbed JSON), then `scene.start(Room, startData)`. |
@@ -178,11 +178,19 @@ The sprite’s **`facing`** data stores the **logical** facing the gameplay aske
 - **`applyBootAudioSettings`**: Sets Phaser sound manager volume from **`masterVolume`**.
 - **Helpers**: `getEffectiveSfxVolume`, `getEffectiveMusicVolume`, `getEffectiveDialogueVolume` — for future SFX/music/dialogue; **no music/dialogue pipeline** is implemented in scenes yet beyond volume knobs in config.
 
+### Game state (v1)
+
+- **`GameStateManager`** (`src/engine/gameState/GameStateManager.ts`): in-memory **flags** (`Record<string, boolean | number | string>`), **variables** (`Record<string, unknown>`), and **inventory** (unique `string[]` item ids). Constructed in **`createBenneGame`** (`src/engine/Game.ts`) and stored on **`Phaser.Game.registry`** under **`benneGameState`** (`BENNE_GAME_STATE_REGISTRY_KEY`) so the same instance survives **`RoomScene`** teardown.
+- **Data-first bootstrap**: optional **`initialGameState`** on **`game-config.json`** (merged at startup; validated in **`ConfigManager.ts`**).
+- **EventBus**: incremental changes emit **`gameState:flagChanged`**, **`gameState:variableChanged`**, **`gameState:inventoryChanged`**; wholesale replace (**`applySnapshot`**, successful browser load) emits **`gameState:replaced`** only. Scripts listen with **`B.raw.on(...)`** (payload types in **`src/types/gameState.ts`**).
+- **Bennescript**: **`B.state`** (set/get/has/clear flag and variable, **`saveToBrowser` / `loadFromBrowser` / `clearBrowserSave`**, **`exportJson` / `importJson`**) and **`B.inventory`** (`addToInventory`, `hasInInventory`, `removeFromInventory`, `clearInventory`, `items`) on **`BenneScript`**, **`CharacterBenneScript`**, and **`GlobalBenneScript`**. Mutations are **synchronous** (not queued on the interaction tail). **`GuiBenneScript`** has no `game` handle at registration time — no **`B.state`** / **`B.inventory`** there yet.
+- **Persistence v1**: **`localStorage`** keys **`benne-save-<slot>`** (default slot **`0`**); **`exportSnapshotJson` / `importSnapshotJson`** on the manager are the extension point for future file-based saves.
+
 ---
 
 ## 4. Data Flow
 
-1. **Bootstrap**: `game-config.json` → resolution, start room id, **verbs / input profile / fallback line**, audio caps, debug flags.
+1. **Bootstrap**: `game-config.json` → resolution, start room id, **verbs / input profile / fallback line**, audio caps, debug flags, optional **`initialGameState`** for **`GameStateManager`**.
 2. **Boot**: Manifest + glob pick **`RoomData`** → **`BootScene`** builds load list → loader completes → **`RoomSceneStartData`** passed into **`RoomScene.create`**.
 3. **Frame loop**: Phaser updates tweens / anims; **input** → hit tests → background **walk** on empty space, or **prop/hotspot/character** hit → **`dispatchVerbInteraction`** → **`gameEvents.emit`** on the chosen event id.
 4. **Scripts**: **`*.room.ts`** / **`*.character.ts`** / **`*.gui.ts`** / **`globalScript.ts`** register on **`gameEvents`** (or receive **`B`** from `@engine/scripting`) and run side effects when their lifecycle runs (per room load for room + character Bennescript; after game create for global; at content registration for GUI).
@@ -205,7 +213,7 @@ registerGameContent (*.room.ts, *.character.ts, *.gui.ts, globalScript)─┘
 
 | Decision | Why | Tradeoff |
 |----------|-----|----------|
-| **One `RoomScene` + boot loader** | Keeps startup and asset story simple. | Room-to-room transition and state carryover **not built yet** — would add scene restart or sub-state machine. |
+| **One `RoomScene` + boot loader** | Keeps startup and asset story simple. | Room-to-room **scene** transition is still future work; **cross-room data** (flags / variables / inventory) is carried by **`GameStateManager`** on **`game.registry`**. |
 | **Global `gameEvents` singleton** | Fast to wire; matches stringly event ids from JSON. | Global coupling; tests need discipline or indirection later. |
 | **JSON string event ids** | Editable in data; matches classic adventure “verb” naming. | Typos fail at runtime; editor/tooling (e.g. VS Code extension) helps. |
 | **Central verb dispatch** | One precedence chain (object → global → unhandled) and one place for future 9-verb / coin UIs to plug in. | Handlers must register **`verb:global:*`** if they rely on global overrides; listener counts drive whether the global tier runs. |
@@ -218,7 +226,7 @@ registerGameContent (*.room.ts, *.character.ts, *.gui.ts, globalScript)─┘
 ## 6. Constraints and Rules
 
 - **Engine vs game**: Do not put **game-specific narrative or room logic** under `src/engine/` except through **generic hooks** (events, helpers). Put reactions in **`src/game/`** (`*.room.ts`, future modules).
-- **Config**: **`game-config.json`** is the **single source** for resolution, default character, start room override, **verbs**, **inputProfile**, **defaultFallbackLine**, audio, debug flags — read via **`getGameSettings()`**, not duplicated literals.
+- **Config**: **`game-config.json`** is the **single source** for resolution, default character, start room override, **verbs**, **inputProfile**, **defaultFallbackLine**, audio, debug flags, optional **`initialGameState`** — read via **`getGameSettings()`**, not duplicated literals.
 - **Room data**: Follow **`RoomData`** / **`RoomPropInstance`** in **`src/types/room.ts`**; **`collider`** is required for **`clickable`** props. **`walkToPoint`** / **`lookAtPoint`** are optional script hints (not applied by the engine on click). Use **`onVerb` / `onVerbFallback`** for interactions. Room-level **`points`** (**`RoomPointData[]`**, named **`x` / `y`**) are used by **`RoomScene`** when **`BenneScript`** resolves **`walkTo('pointId')`**; **`regions`** (**`RoomRegionData[]`**, closed polygons + **`active`**) remain **authoring / future-system** for gameplay that opts in. **Hotspot** polygons are separate **`hotspots[].points`**.
 - **Character data**: Follow **`CharacterData`** in **`src/types/character.ts`**. Optional **`collider`** (≥3 **`points`** in frame space) restricts **click** hit-testing for **`clickable`** characters; omit it or save fewer than three points in the preview to use the **full sprite** bounds.
 - **GUI data**: Follow **`GuiData`** in **`src/types/gui.ts`**. Optional **`controls`** describe screen-space widgets (today: **`type: 'text'`** only). Aseprite sheets use **`images/guis/<guiId>/<guiId>.png`** and **`.json`** when **`display.aseprite`** is true (same export pattern as characters). **Bitmap fonts** for text controls: PNG atlas + BMFont **`.xml`** under **`src/game/assets/fonts/`**, logical ids and paths in **`fonts/fonts.json`** (Phaser **`load.bitmapFont`** key = id = GUI control **`font`**). **`RoomScene`** builds the **`dialog-text`** overlay from JSON. The **GUI preview** renders **`text`** controls; further control types (buttons, 9-slice images, etc.) are future work.
@@ -303,6 +311,7 @@ These schedule work on the queue when called from a handler (or any code path us
 - `src/engine/scripting/BenneScript.ts` — room `B` (`whenLookAt('target', …)`, `player`, `prop`, …).  
 - `src/engine/scripting/CharacterBenneScript.ts` — character `B` with **self-only** `whenLookAt(() => …)` (character-global bus ids).  
 - `src/engine/scripting/GlobalBenneScript.ts` / `GuiBenneScript.ts` — global and GUI facades.  
+- `src/engine/gameState/GameStateManager.ts` — cross-room state; **`src/engine/Game.ts`** registers it on **`game.registry`**.  
 - `src/engine/scripting/RoomScriptContext.ts` / `CharacterScriptContext.ts` — typed contexts.  
 - `src/game/registerGameContent.ts` — eager globs, `window.__benneRoomScripts` / `__benneCharacterScripts`, GUI callback invocation, DEV warnings if a module still **exports** legacy `register*Script`.
 
@@ -321,9 +330,8 @@ These schedule work on the queue when called from a handler (or any code path us
 **Multi-room note:** every `registerRoomScript` callback runs once per room load with that room’s `ctx`. Scripts meant for a single room should guard with `if (ctx.roomId !== 'myRoom') return` at the top until a tighter binding exists.
 
 **Future extensions** (easy to add under `B.`):  
-- `B.inventory.give(itemId)`  
 - `B.sequence(...)` for parallel/cutscene actions  
-- `B.changeRoom(...)`  
+- `B.room.changeTo(...)` (or equivalent) for room transitions  
 - `B.dialogue.showChoices(...)`
 
 This layer turns BENNE from "wiring events" into "telling a story" while keeping the engine clean and data-driven.
@@ -442,10 +450,10 @@ A full **Refresh** or **`loadRoom`** **destroys** the previous **`Phaser.Game`**
 
 ## 9. Future Considerations
 
-- **Room transitions**: Loading another room likely means **restarting `RoomScene`** (or a thin orchestrator) with new `RoomSceneStartData`; persistence of inventory/state across rooms is **not defined** in code yet.
+- **Room transitions**: Loading another room likely means **restarting `RoomScene`** (or a thin orchestrator) with new `RoomSceneStartData`. **Global narrative state** (flags, variables, inventory) already persists across room loads via **`GameStateManager`**; a future transition API should **not** replace that manager unless the game explicitly resets it.
 - **Post-processing**: `PostEffects.ts` is ready for **camera filter** composition (CRT, dither, etc.).
 - **Audio**: Volume helpers exist; **music loops, voice, and SFX triggers** from events are **future work**.
-- **Dialogue / inventory**: **`say`** shows the **`dialog-text`** text overlay; **inventory** and richer dialogue (choices, portraits) are **not** integrated yet.
+- **Dialogue / inventory UI**: **`say`** shows the **`dialog-text`** text overlay; **inventory item lists** in GUI and richer dialogue (choices, portraits) are **future work** — **`B.inventory`** / **`gameState:inventoryChanged`** are available for wiring.
 - **Editor**: VS Code extension + **`build:room-preview`** ship a **live `RoomScene` preview** in a webview with **polygon editing** (walkable, prop colliders, **hotspots**, **regions**, and **room points**) via **`RoomPolygonEditScene`**. **`build:character-preview`** adds a separate webview for **feet** + **click collider** polygons — see **§8**.
 
 ---

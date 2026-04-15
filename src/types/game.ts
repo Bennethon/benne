@@ -1,3 +1,5 @@
+import type { BenneGameStateFlagValue } from './gameState';
+
 export interface RoomManifestEntry {
   id: string;
   definition: string;
@@ -6,6 +8,13 @@ export interface RoomManifestEntry {
 export interface RoomsManifestData {
   startRoomId: string;
   rooms: RoomManifestEntry[];
+}
+
+/** Optional starting slice for {@link import('../engine/gameState/GameStateManager.js').GameStateManager}. */
+export interface GameSettingsInitialGameState {
+  flags?: Record<string, BenneGameStateFlagValue>;
+  variables?: Record<string, unknown>;
+  inventory?: string[];
 }
 
 /** Loaded from `src/game/game-config.json` (authoritative game bootstrap settings). */
@@ -101,4 +110,6 @@ export interface GameSettings {
   defaultFallbackLine?: string;
   /** In-game dialog line timing and `dialog-text` GUI placement (see `getDialogSettings()`). */
   dialog?: Partial<GameSettingsDialog>;
+  /** Starting flags, variables, and inventory merged at game creation (see `GameStateManager`). */
+  initialGameState?: GameSettingsInitialGameState;
 }
