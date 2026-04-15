@@ -2,7 +2,11 @@
   "id": "Broom",
   "name": "Broom",
   "description": "",
+  "onVerb": {
+    "look": true
+  },
   "stackable": false,
+  "animations": {},
   "display": {
     "aseprite": "shared"
   }

@@ -74,7 +74,9 @@ export async function runCreateInventoryItemWizard(preferredFolder?: vscode.Work
         id,
         name,
         description: '',
+        onVerb: {},
         stackable: false,
+        animations: {},
         display: {
             aseprite: 'shared' as const
         }
@@ -83,13 +85,6 @@ export async function runCreateInventoryItemWizard(preferredFolder?: vscode.Work
     const invTs = `import { registerInventoryScript } from '@engine/scripting';
 
 registerInventoryScript('${id}', ({ B }) => {
-  B.whenLookAt(() => {
-    B.player.say('…');
-  });
-
-  B.whenUse(() => {
-    B.player.say('…');
-  });
 });
 `;
 
@@ -98,7 +93,7 @@ registerInventoryScript('${id}', ({ B }) => {
     await vscode.workspace.fs.writeFile(invTsUri, new TextEncoder().encode(invTs));
 
     void vscode.window.showInformationMessage(
-        `Created inventory item "${name}" (${id}). Frame tags live in assets/images/inventory/inventory.json (tag name = item id unless display.tag is set).`
+        `Created inventory item "${name}" (${id}). Frame tags live in assets/images/inventory/inventory.json (tag name = item id unless defaultAnimation is set).`
     );
     await vscode.window.showTextDocument(invJsonUri, { preview: false });
     await vscode.window.showTextDocument(invTsUri, { preview: false });
@@ -176,7 +171,9 @@ export async function runImportInventoryItemsFromAsepriteTags(
             id,
             name: id,
             description: '',
+            onVerb: {},
             stackable: false,
+            animations: {},
             display: {
                 aseprite: 'shared' as const
             }
@@ -189,13 +186,6 @@ export async function runImportInventoryItemsFromAsepriteTags(
             const invTs = `import { registerInventoryScript } from '@engine/scripting';
 
 registerInventoryScript('${id}', ({ B }) => {
-  B.whenLookAt(() => {
-    B.player.say('…');
-  });
-
-  B.whenUse(() => {
-    B.player.say('…');
-  });
 });
 `;
             await vscode.workspace.fs.writeFile(invTsUri, new TextEncoder().encode(invTs));

@@ -455,15 +455,28 @@ export async function closeOpenEditorsForUris(uris: vscode.Uri[]): Promise<void>
         return;
     }
     const want = new Set(uris.map((u) => u.toString()));
+    const tabsToClose: vscode.Tab[] = [];
     for (const group of vscode.window.tabGroups.all) {
         for (const tab of group.tabs) {
             const input = tab.input;
             if (input instanceof vscode.TabInputText && want.has(input.uri.toString())) {
-                await vscode.window.tabGroups.close(tab);
+                tabsToClose.push(tab);
             } else if (input instanceof vscode.TabInputTextDiff) {
                 if (want.has(input.original.toString()) || want.has(input.modified.toString())) {
-                    await vscode.window.tabGroups.close(tab);
+                    tabsToClose.push(tab);
                 }
+            }
+        }
+    }
+    for (const tab of tabsToClose) {
+        try {
+            await vscode.window.tabGroups.close(tab);
+        } catch (err) {
+            // VS Code may invalidate tab handles while other tabs are closing.
+            // Ignore this specific race so entity deletion can continue.
+            const msg = err instanceof Error ? err.message : String(err);
+            if (!msg.includes('Invalid tab') && !msg.includes('not found')) {
+                throw err;
             }
         }
     }

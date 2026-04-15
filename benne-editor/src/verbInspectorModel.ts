@@ -1,5 +1,6 @@
 import type { RoomHotspotListEntry, RoomPropEntry } from './gameDiscovery';
 import {
+    inventoryScriptRegistersVerb,
     characterScriptRegistersVerb,
     readConfiguredVerbIdSet,
     roomScriptRegistersHotspotVerb,
@@ -30,6 +31,10 @@ function roomCharacterVerbEventId(roomId: string, characterId: string, verbId: s
 
 function characterVerbEventId(characterId: string, verbId: string): string {
     return `verb:character:${characterId}:${verbId}`;
+}
+
+function inventoryVerbEventId(itemId: string, verbId: string): string {
+    return `verb:inventory:${itemId}:${verbId}`;
 }
 
 function roomPropVerbEventId(roomId: string, propId: string, verbId: string): string {
@@ -288,6 +293,53 @@ export function buildCharacterVerbChips(
             label: verbId,
             defined: onVerb[verbId] === true || inTs,
             eventId: characterVerbEventId(characterId, verbId)
+        });
+    }
+    return out;
+}
+
+export function buildInventoryVerbChips(
+    itemId: string,
+    gameVerbs: readonly { id: string; label?: string }[],
+    configured: ReadonlySet<string>,
+    inventoryJsonText: string,
+    inventoryScriptText: string
+): InspectorVerbChip[] {
+    let data: Record<string, unknown>;
+    try {
+        data = JSON.parse(inventoryJsonText) as Record<string, unknown>;
+    } catch {
+        return [];
+    }
+    const onVerbUnknown = data.onVerb;
+    const onVerb =
+        onVerbUnknown && typeof onVerbUnknown === 'object' && !Array.isArray(onVerbUnknown)
+            ? (onVerbUnknown as Record<string, boolean>)
+            : {};
+    const gameVerbIds = new Set(gameVerbs.map((v) => v.id));
+    const out: InspectorVerbChip[] = [];
+
+    for (const v of gameVerbs) {
+        const inJson = onVerb[v.id] === true;
+        const inTs = inventoryScriptRegistersVerb(inventoryScriptText, itemId, v.id, configured);
+        out.push({
+            verbId: v.id,
+            label: v.label?.trim() ? v.label : v.id,
+            defined: inJson || inTs,
+            eventId: inventoryVerbEventId(itemId, v.id)
+        });
+    }
+
+    for (const verbId of Object.keys(onVerb).sort()) {
+        if (gameVerbIds.has(verbId) || onVerb[verbId] !== true) {
+            continue;
+        }
+        const inTs = inventoryScriptRegistersVerb(inventoryScriptText, itemId, verbId, configured);
+        out.push({
+            verbId,
+            label: verbId,
+            defined: onVerb[verbId] === true || inTs,
+            eventId: inventoryVerbEventId(itemId, verbId)
         });
     }
     return out;

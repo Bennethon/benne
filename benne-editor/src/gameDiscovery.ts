@@ -293,6 +293,11 @@ export function getGuiIdFromGuiJsonUri(guiJsonUri: vscode.Uri): string {
     return path.basename(path.dirname(guiJsonUri.fsPath));
 }
 
+/** Folder name for `inventory/<id>/<id>.inventory.json` (e.g. `bucket`). */
+export function getInventoryIdFromInventoryJsonUri(inventoryJsonUri: vscode.Uri): string {
+    return path.basename(path.dirname(inventoryJsonUri.fsPath));
+}
+
 /** Same layout as `getRoomAsepriteAssetPaths` in the game (`src/game/roomAseprite.ts`). */
 export function getRoomAsepriteAssetRelativePaths(roomId: string): { png: string; json: string } {
     const base = `images/rooms/${roomId}/${roomId}`;
@@ -674,6 +679,36 @@ export async function sharedInventorySheetFilesComplete(gameRoot: vscode.Uri): P
         return true;
     } catch {
         return false;
+    }
+}
+
+/**
+ * Shared inventory sheet under `images/inventory/inventory.json` — same resolution shape as room/character helpers.
+ */
+export async function resolveSharedInventoryAsepriteSheet(
+    gameRoot: vscode.Uri
+): Promise<RoomAsepriteSheetResolution> {
+    const png = 'images/inventory/inventory.png';
+    const json = 'images/inventory/inventory.json';
+    const pngExists = await gameAssetExists(gameRoot, png);
+    const jsonExists = await gameAssetExists(gameRoot, json);
+    if (!jsonExists) {
+        return { pngExists, jsonExists, frameTags: null };
+    }
+    try {
+        const jsonUri = vscode.Uri.joinPath(
+            gameRoot,
+            'src',
+            'game',
+            'assets',
+            ...assetPathSegments(json)
+        );
+        const raw = await vscode.workspace.fs.readFile(jsonUri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as Record<string, unknown>;
+        return { pngExists, jsonExists, frameTags: readAsepriteFrameTagNames(data) };
+    } catch {
+        return { pngExists, jsonExists, frameTags: null };
     }
 }
 

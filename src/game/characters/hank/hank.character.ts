@@ -7,4 +7,8 @@ registerCharacterScript('hank', ({ B }) => {
   B.whenLookAt(() => {
     // TODO
   });
+
+  B.whenUse(() => {
+    // TODO
+  });
 });
