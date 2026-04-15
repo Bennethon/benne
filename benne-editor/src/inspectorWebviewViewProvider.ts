@@ -49,7 +49,7 @@ function resolveInspectorJsonUri(selection: EditorSelection): vscode.Uri | undef
     if (focus.kind === 'room') {
         return focus.uri;
     }
-    if (focus.kind === 'character' || focus.kind === 'gui') {
+    if (focus.kind === 'character' || focus.kind === 'gui' || focus.kind === 'inventory') {
         return focus.uri;
     }
     if (
@@ -618,7 +618,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         if (!uri) {
             this.postState({
                 kind: 'empty',
-                message: 'Select a room, character, or GUI in the BENNE tree to edit data.'
+                message: 'Select a room, character, GUI, or inventory item in the BENNE tree to edit data.'
             });
             return;
         }
@@ -797,6 +797,9 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         }
 
         if (msg.action === 'applyPatches') {
+            if (focusKind === 'inventory') {
+                return;
+            }
             const patchesUnknown = msg.patches;
             if (!Array.isArray(patchesUnknown)) {
                 return;
@@ -824,7 +827,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         data: Record<string, unknown>,
         uri: vscode.Uri,
         p: WebviewPatch,
-        focusKind: 'none' | 'room' | 'character' | 'gui'
+        focusKind: 'none' | 'room' | 'character' | 'gui' | 'inventory'
     ): void {
         void uri;
         if (p.type === 'roomMeta') {

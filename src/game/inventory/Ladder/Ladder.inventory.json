@@ -1,0 +1,9 @@
+{
+  "id": "Ladder",
+  "name": "Ladder",
+  "description": "",
+  "stackable": false,
+  "display": {
+    "aseprite": "shared"
+  }
+}

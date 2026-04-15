@@ -6,8 +6,8 @@ export interface SerializableBenneGameState {
   version: 1;
   flags: Record<string, BenneGameStateFlagValue>;
   variables: Record<string, unknown>;
-  /** Unique item ids (stable strings). */
-  inventory: string[];
+  /** Item id → quantity (omitted or zero means not carried). */
+  inventory: Record<string, number>;
 }
 
 export const GAME_STATE_FLAG_CHANGED_EVENT = 'gameState:flagChanged' as const;
@@ -30,7 +30,7 @@ export interface GameStateVariableChangedPayload {
 export interface GameStateInventoryChangedPayload {
   reason: 'add' | 'remove' | 'clear';
   itemId?: string;
-  inventory: string[];
+  inventory: Record<string, number>;
 }
 
 export interface GameStateReplacedPayload {

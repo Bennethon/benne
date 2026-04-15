@@ -77,7 +77,7 @@ export class BenneScript extends BenneScriptCore {
 
   /** Cross-room flags and variables (see `GameStateManager`). */
   readonly state: BenneScriptGameStateNamespace;
-  /** Unique item ids; survives room loads (see `GameStateManager`). */
+  /** Item quantities; survives room loads (see `GameStateManager`). */
   readonly inventory: BenneScriptInventoryNamespace;
 
   constructor(events: Phaser.Events.EventEmitter, roomId: string, roomScene: RoomScene) {

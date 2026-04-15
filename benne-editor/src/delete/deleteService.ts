@@ -56,10 +56,11 @@ async function findScriptScanUris(folder: vscode.WorkspaceFolder): Promise<vscod
     const base = folder.uri;
     const roomTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/**/*.room.ts'));
     const charTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/**/*.character.ts'));
+    const invTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/**/*.inventory.ts'));
     const globalTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/globalScript.ts'));
     const seen = new Set<string>();
     const out: vscode.Uri[] = [];
-    for (const u of [...roomTs, ...charTs, ...globalTs]) {
+    for (const u of [...roomTs, ...charTs, ...invTs, ...globalTs]) {
         const k = u.toString();
         if (!seen.has(k)) {
             seen.add(k);
@@ -87,6 +88,14 @@ function regexesForDeleteTarget(target: DeleteTarget): RegExp[] {
         case 'gui': {
             const g = escapeRe(target.guiId);
             return [new RegExp(`registerGuiScript\\s*\\(\\s*['\`]${g}['\`]`)];
+        }
+        case 'inventory': {
+            const i = escapeRe(target.itemId);
+            return [
+                new RegExp(`registerInventoryScript\\s*\\(\\s*['\`]${i}['\`]`),
+                new RegExp(`verb:room:[^'"\`]+:inventory:${i}:`),
+                new RegExp(`verb:inventory:${i}:`)
+            ];
         }
         case 'prop': {
             const rr = escapeRe(target.roomId);
@@ -242,6 +251,13 @@ async function gameConfigDependencyLines(folder: vscode.WorkspaceFolder, target:
                 lines.push(`• game-config.json may reference GUI id "${target.guiId}" (heuristic string match).`);
             }
         }
+        if (target.type === 'inventory') {
+            if (text.includes(`"${target.itemId}"`) || text.includes(`'${target.itemId}'`)) {
+                lines.push(
+                    `• game-config.json may list "${target.itemId}" under initialGameState.inventory (will be stripped on delete).`
+                );
+            }
+        }
     } catch {
         lines.push('• game-config.json — invalid JSON; dependency hints skipped.');
     }
@@ -288,6 +304,11 @@ function collectUrisToClose(target: DeleteTarget): vscode.Uri[] {
                 target.guiJsonUri,
                 vscode.Uri.joinPath(target.guiJsonUri, '..', `${target.guiId}.gui.ts`)
             ];
+        case 'inventory':
+            return [
+                target.inventoryJsonUri,
+                vscode.Uri.joinPath(target.inventoryJsonUri, '..', `${target.itemId}.inventory.ts`)
+            ];
         case 'prop':
         case 'hotspot':
         case 'point':
@@ -307,6 +328,8 @@ function entityKindLabel(target: DeleteTarget): string {
             return 'character';
         case 'gui':
             return 'GUI';
+        case 'inventory':
+            return 'inventory item';
         case 'prop':
             return 'prop';
         case 'hotspot':
@@ -359,6 +382,13 @@ export async function buildDeleteImpactSummary(target: DeleteTarget): Promise<De
                 '• Script scan below covers *.room.ts, *.character.ts, and globalScript.ts only — search *.gui.ts by hand if unsure.'
             );
             break;
+        case 'inventory':
+            detailLines.push(`• Inventory folder src/game/inventory/${target.itemId}/`);
+            detailLines.push(
+                `• Per-item asset folder src/game/assets/images/inventory/${target.itemId}/ (if present; ignored when using the shared sheet)`
+            );
+            detailLines.push(...(await gameConfigDependencyLines(target.folder, target)));
+            break;
         case 'prop':
             detailLines.push(
                 `• Prop “${target.prop.tag ?? target.prop.id}” (${target.prop.id}) from room “${target.roomName}” (${target.roomId}) in room JSON`
@@ -401,7 +431,7 @@ export async function buildDeleteImpactSummary(target: DeleteTarget): Promise<De
     detailLines.push('');
     detailLines.push(
         referenceHits.length > 0
-            ? `Possible script references (heuristic, *.room.ts / *.character.ts / globalScript.ts): ${referenceHits.length} line(s).`
+            ? `Possible script references (heuristic, *.room.ts / *.character.ts / *.inventory.ts / globalScript.ts): ${referenceHits.length} line(s).`
             : 'No obvious script references matched those file patterns (still review manually).'
     );
     detailLines.push('Deletion is not blocked by references — you stay in control of cleanup.');
@@ -577,6 +607,45 @@ async function patchGameConfigAfterCharacterDelete(
     }
 }
 
+async function patchGameConfigAfterInventoryDelete(folder: vscode.WorkspaceFolder, itemId: string): Promise<void> {
+    const uri = gameConfigUri(folder);
+    const text = await readUtf8(uri);
+    if (!text) {
+        return;
+    }
+    try {
+        const cfg = JSON.parse(text) as Record<string, unknown>;
+        const init = cfg.initialGameState;
+        if (!init || typeof init !== 'object' || Array.isArray(init)) {
+            return;
+        }
+        const initObj = init as Record<string, unknown>;
+        const inv = initObj.inventory;
+        let changed = false;
+        if (Array.isArray(inv)) {
+            const next = inv.filter((x) => x !== itemId);
+            if (next.length !== inv.length) {
+                initObj.inventory = next;
+                changed = true;
+            }
+        } else if (inv && typeof inv === 'object' && !Array.isArray(inv)) {
+            const rec = { ...(inv as Record<string, unknown>) };
+            if (Object.prototype.hasOwnProperty.call(rec, itemId)) {
+                delete rec[itemId];
+                initObj.inventory = rec;
+                changed = true;
+            }
+        }
+        if (changed) {
+            await vscode.workspace.fs.writeFile(uri, formatJson(cfg));
+        }
+    } catch {
+        void vscode.window.showWarningMessage(
+            'Could not adjust game-config.json initialGameState.inventory after inventory delete.'
+        );
+    }
+}
+
 async function removeCharacterSpawnsFromAllRooms(folder: vscode.WorkspaceFolder, characterId: string): Promise<void> {
     const suffix = characterSpawnDefinitionSuffix(characterId);
     const rooms = await listRoomDefinitions(folder);
@@ -673,6 +742,22 @@ export async function deleteGameEntity(target: DeleteTarget): Promise<void> {
             await deleteDirectoryIfPresent(assetsDir);
             break;
         }
+        case 'inventory': {
+            await patchGameConfigAfterInventoryDelete(target.folder, target.itemId);
+            const invDir = vscode.Uri.joinPath(root, 'src', 'game', 'inventory', target.itemId);
+            const assetsDir = vscode.Uri.joinPath(
+                root,
+                'src',
+                'game',
+                'assets',
+                'images',
+                'inventory',
+                target.itemId
+            );
+            await deleteDirectoryIfPresent(invDir);
+            await deleteDirectoryIfPresent(assetsDir);
+            break;
+        }
         case 'prop': {
             const data = await readRoomJsonRecord(target.roomJsonUri);
             if (!data) {
@@ -750,6 +835,14 @@ export function applySelectionAfterDelete(selection: EditorSelection, target: De
             break;
         case 'gui':
             if (selection.focus.kind === 'gui' && selection.focus.uri.toString() === target.guiJsonUri.toString()) {
+                selection.clearFocus();
+            }
+            break;
+        case 'inventory':
+            if (
+                selection.focus.kind === 'inventory' &&
+                selection.focus.uri.toString() === target.inventoryJsonUri.toString()
+            ) {
                 selection.clearFocus();
             }
             break;

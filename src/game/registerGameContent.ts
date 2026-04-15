@@ -2,14 +2,17 @@ import { gameEvents } from '../engine/events/EventBus';
 import { GuiBenneScript } from '../engine/scripting/GuiBenneScript';
 import { getBenneCharacterScriptRegistrations } from '../engine/scripting/registerCharacterScript';
 import { getBenneGuiScriptRegistrations } from '../engine/scripting/registerGuiScript';
+import { getBenneInventoryScriptRegistrations } from '../engine/scripting/registerInventoryScript';
 import { getBenneRoomScriptRegistrations } from '../engine/scripting/registerRoomScript';
 import type { GuiScriptContext } from '../engine/scripting/types';
+import { registerInventoryDefinitionsFromGame } from './registerInventoryDefinitions';
 
 const LEGACY_REGISTER_EXPORTS = [
   'registerRoomScript',
   'registerCharacterScript',
   'registerGuiScript',
   'registerGlobalScript',
+  'registerInventoryScript',
 ] as const;
 
 function warnLegacyRegisterExports(path: string, mod: Record<string, unknown>): void {
@@ -31,6 +34,8 @@ function warnLegacyRegisterExports(path: string, mod: Record<string, unknown>): 
  * run from {@link import('../engine/scripting/wireBenneGlobalScripts.js').wireBenneGlobalScripts} after the Phaser game exists.
  */
 export function registerGameContent(): void {
+  registerInventoryDefinitionsFromGame();
+
   const roomModules = import.meta.glob('./rooms/**/*.room.ts', { eager: true });
   for (const [path, mod] of Object.entries(roomModules)) {
     warnLegacyRegisterExports(path, mod as Record<string, unknown>);
@@ -46,6 +51,11 @@ export function registerGameContent(): void {
     warnLegacyRegisterExports(path, mod as Record<string, unknown>);
   }
 
+  const inventoryModules = import.meta.glob('./inventory/**/*.inventory.ts', { eager: true });
+  for (const [path, mod] of Object.entries(inventoryModules)) {
+    warnLegacyRegisterExports(path, mod as Record<string, unknown>);
+  }
+
   const globalModules = import.meta.glob('./globalScript.ts', { eager: true });
   for (const [path, mod] of Object.entries(globalModules)) {
     warnLegacyRegisterExports(path, mod as Record<string, unknown>);
@@ -55,6 +65,8 @@ export function registerGameContent(): void {
     getBenneRoomScriptRegistrations();
   (window as unknown as { __benneCharacterScripts?: unknown }).__benneCharacterScripts =
     getBenneCharacterScriptRegistrations();
+  (window as unknown as { __benneInventoryScripts?: unknown }).__benneInventoryScripts =
+    getBenneInventoryScriptRegistrations();
 
   for (const { guiId, registerFn } of getBenneGuiScriptRegistrations()) {
     const B = new GuiBenneScript(gameEvents);

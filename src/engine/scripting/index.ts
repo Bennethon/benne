@@ -14,6 +14,11 @@ export {
   getBenneCharacterScriptRegistrations,
 } from './registerCharacterScript.js';
 export { CharacterBenneScript } from './CharacterBenneScript.js';
+export {
+  registerInventoryScript,
+  getBenneInventoryScriptRegistrations,
+} from './registerInventoryScript.js';
+export { InventoryBenneScript } from './InventoryBenneScript.js';
 export { registerGlobalScript, getBenneGlobalScriptRegistrations } from './registerGlobalScript.js';
 export { wireBenneGlobalScripts } from './wireBenneGlobalScripts.js';
 export { GlobalBenneScript } from './GlobalBenneScript.js';

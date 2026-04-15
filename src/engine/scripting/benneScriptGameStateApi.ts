@@ -18,13 +18,14 @@ export interface BenneScriptGameStateNamespace {
   importJson(json: string): void;
 }
 
-/** `B.inventory` — unique string item ids (see `GameStateManager`). */
+/** `B.inventory` — quantities per item id (see `GameStateManager`). */
 export interface BenneScriptInventoryNamespace {
-  addToInventory(itemId: string): boolean;
-  hasInInventory(itemId: string): boolean;
-  removeFromInventory(itemId: string): boolean;
+  add(id: string, quantity?: number): boolean;
+  remove(id: string, quantity?: number): boolean;
+  has(id: string): boolean;
+  quantityOf(id: string): number;
+  readonly items: ReadonlyArray<{ id: string; quantity: number }>;
   clearInventory(): void;
-  items(): readonly string[];
 }
 
 export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneScriptGameStateNamespace {
@@ -47,10 +48,13 @@ export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneS
 
 export function createBenneScriptInventoryNamespace(m: GameStateManager): BenneScriptInventoryNamespace {
   return {
-    addToInventory: (itemId) => m.addToInventory(itemId),
-    hasInInventory: (itemId) => m.hasInInventory(itemId),
-    removeFromInventory: (itemId) => m.removeFromInventory(itemId),
+    add: (id, quantity) => m.addInventory(id, quantity),
+    remove: (id, quantity) => m.removeFromInventory(id, quantity),
+    has: (id) => m.hasInInventory(id),
+    quantityOf: (id) => m.quantityOf(id),
+    get items() {
+      return m.getInventoryItems();
+    },
     clearInventory: () => m.clearInventory(),
-    items: () => m.getInventorySnapshot(),
   };
 }

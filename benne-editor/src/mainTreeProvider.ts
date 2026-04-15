@@ -5,6 +5,7 @@ import {
     guiAsepriteSheetFilesComplete,
     listCharacterDefinitions,
     listGuiDefinitions,
+    listInventoryDefinitions,
     listRoomDefinitions,
     propAsepriteAssetTooltip,
     readCharacterUsesAsepriteDisplay,
@@ -13,9 +14,12 @@ import {
     readRoomPoints,
     readRoomProps,
     readGuiUsesAsepriteDisplay,
+    readInventoryDisplayAseprite,
     readRoomRegions,
     resolveRoomAsepriteSheetForProps,
+    perItemInventorySheetFilesComplete,
     roomAsepriteSheetFilesComplete,
+    sharedInventorySheetFilesComplete,
     type RoomPropEntry
 } from './gameDiscovery';
 
@@ -25,6 +29,7 @@ export type MainTreeNode =
     | { kind: 'roomsGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'charsGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'guisGroup'; folder: vscode.WorkspaceFolder }
+    | { kind: 'inventoryGroup'; folder: vscode.WorkspaceFolder }
     | {
           kind: 'room';
           folder: vscode.WorkspaceFolder;
@@ -105,6 +110,15 @@ export type MainTreeNode =
           uri: vscode.Uri;
           /** `display.aseprite` is true but PNG/JSON export is missing under assets. */
           guiSheetIncomplete?: boolean;
+      }
+    | {
+          kind: 'inventoryItem';
+          folder: vscode.WorkspaceFolder;
+          id: string;
+          name: string;
+          uri: vscode.Uri;
+          /** Shared sheet missing when `display.aseprite` is `"shared"`, or per-item export missing when `true`. */
+          inventorySheetIncomplete?: boolean;
       };
 
 const warningIcon = new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.warningForeground'));
@@ -198,6 +212,14 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
         return guis.some((g) => textMatches(g.name, q) || textMatches(g.id, q));
     }
 
+    private async folderHasAnyMatchingInventory(folder: vscode.WorkspaceFolder, q: string): Promise<boolean> {
+        if (!q) {
+            return true;
+        }
+        const items = await listInventoryDefinitions(folder);
+        return items.some((it) => textMatches(it.name, q) || textMatches(it.id, q));
+    }
+
     private async roomDeepMatches(
         room: { uri: vscode.Uri; id: string; name: string },
         q: string
@@ -280,6 +302,13 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.id = `guisGroup:${element.folder.uri.toString()}`;
                 item.iconPath = new vscode.ThemeIcon('window');
                 item.contextValue = 'benneGuisGroup';
+                return item;
+            }
+            case 'inventoryGroup': {
+                const item = new vscode.TreeItem('Inventory', vscode.TreeItemCollapsibleState.Expanded);
+                item.id = `inventoryGroup:${element.folder.uri.toString()}`;
+                item.iconPath = new vscode.ThemeIcon('package');
+                item.contextValue = 'benneInventoryGroup';
                 return item;
             }
             case 'room': {
@@ -409,6 +438,19 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.contextValue = 'benneGui';
                 return item;
             }
+            case 'inventoryItem': {
+                const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
+                item.id = `inventory:${element.uri.toString()}`;
+                item.resourceUri = element.uri;
+                if (element.inventorySheetIncomplete) {
+                    item.iconPath = warningIcon;
+                    item.tooltip = `Missing inventory Aseprite export for "${element.id}" (shared or per-item sheet)`;
+                } else {
+                    item.iconPath = new vscode.ThemeIcon('package');
+                }
+                item.contextValue = 'benneInventoryItem';
+                return item;
+            }
         }
     }
 
@@ -439,6 +481,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 if (!fq || (await this.folderHasAnyMatchingGui(f, fq))) {
                     nodes.push({ kind: 'guisGroup', folder: f });
                 }
+                if (!fq || (await this.folderHasAnyMatchingInventory(f, fq))) {
+                    nodes.push({ kind: 'inventoryGroup', folder: f });
+                }
                 if (fq && nodes.length === 0) {
                     return [
                         {
@@ -456,7 +501,8 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     const any =
                         (await this.folderHasAnyMatchingRoom(folder, fq)) ||
                         (await this.folderHasAnyMatchingCharacter(folder, fq)) ||
-                        (await this.folderHasAnyMatchingGui(folder, fq));
+                        (await this.folderHasAnyMatchingGui(folder, fq)) ||
+                        (await this.folderHasAnyMatchingInventory(folder, fq));
                     if (any) {
                         kept.push({ kind: 'workspace', folder });
                     }
@@ -485,6 +531,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
             }
             if (!fq || (await this.folderHasAnyMatchingGui(element.folder, fq))) {
                 nodes.push({ kind: 'guisGroup', folder: element.folder });
+            }
+            if (!fq || (await this.folderHasAnyMatchingInventory(element.folder, fq))) {
+                nodes.push({ kind: 'inventoryGroup', folder: element.folder });
             }
             if (fq && nodes.length === 0) {
                 return [
@@ -795,6 +844,42 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                         name: g.name,
                         uri: g.uri,
                         guiSheetIncomplete: usesAseprite && !sheetOk
+                    };
+                })
+            );
+        }
+
+        if (element.kind === 'inventoryGroup') {
+            const items = await listInventoryDefinitions(element.folder);
+            const itemList = fq
+                ? items.filter((it) => textMatches(it.name, fq) || textMatches(it.id, fq))
+                : items;
+            if (itemList.length === 0) {
+                return [
+                    {
+                        kind: 'hint',
+                        key: `no-inventory:${element.folder.uri}`,
+                        message: fq ? '(no matching inventory items)' : '(no inventory items found)'
+                    }
+                ];
+            }
+            const gameRoot = element.folder.uri;
+            return Promise.all(
+                itemList.map(async (it) => {
+                    const mode = await readInventoryDisplayAseprite(it.uri);
+                    let sheetOk = true;
+                    if (mode === 'shared') {
+                        sheetOk = await sharedInventorySheetFilesComplete(gameRoot);
+                    } else if (mode === true) {
+                        sheetOk = await perItemInventorySheetFilesComplete(gameRoot, it.id);
+                    }
+                    return {
+                        kind: 'inventoryItem' as const,
+                        folder: element.folder,
+                        id: it.id,
+                        name: it.name,
+                        uri: it.uri,
+                        inventorySheetIncomplete: mode !== undefined && !sheetOk
                     };
                 })
             );

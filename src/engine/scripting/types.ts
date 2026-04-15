@@ -2,6 +2,7 @@ import type * as Phaser from 'phaser';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import type { BenneScript } from './BenneScript.js';
 import type { CharacterBenneScript } from './CharacterBenneScript.js';
+import type { InventoryBenneScript } from './InventoryBenneScript.js';
 import type { GlobalBenneScript } from './GlobalBenneScript.js';
 import type { GuiBenneScript } from './GuiBenneScript.js';
 
@@ -37,6 +38,16 @@ export interface CharacterScriptContext {
   readonly B: CharacterBenneScript;
   readonly events: Phaser.Events.EventEmitter;
   readonly characterId: string;
+  readonly roomId: string;
+  readonly roomScene: RoomScene;
+}
+
+/** Context passed to each `registerInventoryScript` callback when a room is active. */
+export interface InventoryScriptContext {
+  /** Item-scoped verb sugar (`whenLookAt(() => …)`); subscribes to room + global inventory verb ids. */
+  readonly B: InventoryBenneScript;
+  readonly events: Phaser.Events.EventEmitter;
+  readonly itemId: string;
   readonly roomId: string;
   readonly roomScene: RoomScene;
 }

@@ -3,6 +3,7 @@ import { ActionsTreeProvider } from './actionsTreeProvider';
 import { EditorSelection } from './editorSelection';
 import { MainTreeProvider, type MainTreeNode } from './mainTreeProvider';
 import { runCreateCharacterWizard, runImportAnimationsFromAsepriteTags } from './characterScaffolding';
+import { runCreateInventoryItemWizard, runImportInventoryItemsFromAsepriteTags } from './inventoryScaffolding';
 import { runCreateGuiWizard } from './guiScaffolding';
 import {
     runAddRoomHotspotWizard,
@@ -37,6 +38,7 @@ import {
     BENNE_SCRIPT_VIEW_COLUMN,
     openCharacterJsonAndScriptBottomGroup,
     openGuiJsonAndScriptBottomGroup,
+    openInventoryJsonAndScriptBottomGroup,
     openDocumentPinned,
     openDocumentUri,
     openRoomJsonAndScriptBottomGroup,
@@ -300,6 +302,11 @@ export function activate(context: vscode.ExtensionContext): void {
             await applyBenneTwoRowJsonScriptLayout();
             selection.setGui(node.uri, node.name);
             await openGuiJsonAndScript(node.uri, node.id);
+        } else if (node.kind === 'inventoryItem') {
+            await resetBenneEditorSurface();
+            await applyBenneTwoRowJsonScriptLayout();
+            selection.setInventory(node.uri, node.name);
+            await openInventoryJsonAndScript(node.uri, node.id);
         }
     }
 
@@ -332,7 +339,7 @@ export function activate(context: vscode.ExtensionContext): void {
             const value = await vscode.window.showInputBox({
                 title: 'Filter BENNE tree',
                 prompt:
-                    'Show only rooms, props, characters, and other entries whose name or id contains this text (case-insensitive). Leave empty and press Enter to clear the filter.',
+                    'Show only rooms, props, characters, GUIs, inventory items, and other entries whose name or id contains this text (case-insensitive). Leave empty and press Enter to clear the filter.',
                 value: mainProvider.getTreeFilter()
             });
             if (value === undefined) {
@@ -357,7 +364,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 const target = resolveDeleteTargetFromMainTreeNode(fromTree);
                 if (!target) {
                     void vscode.window.showInformationMessage(
-                        'Choose a room, character, GUI, prop, hotspot, point, region, or spawned character in the BENNE tree (or run this from its context menu), then try again.'
+                        'Choose a room, character, GUI, inventory item, prop, hotspot, point, region, or spawned character in the BENNE tree (or run this from its context menu), then try again.'
                     );
                     return;
                 }
@@ -383,7 +390,12 @@ export function activate(context: vscode.ExtensionContext): void {
                     return;
                 }
                 applySelectionAfterDelete(selection, target);
-                if (target.type === 'room' || target.type === 'character' || target.type === 'gui') {
+                if (
+                    target.type === 'room' ||
+                    target.type === 'character' ||
+                    target.type === 'gui' ||
+                    target.type === 'inventory'
+                ) {
                     roomPreview.resetPreviewPanel();
                     characterPreview.resetPreviewPanel();
                     guiPreview.resetPreviewPanel();
@@ -402,6 +414,9 @@ export function activate(context: vscode.ExtensionContext): void {
                         break;
                     case 'gui':
                         kindLabel = 'GUI';
+                        break;
+                    case 'inventory':
+                        kindLabel = 'inventory item';
                         break;
                     case 'spawnedCharacter':
                         kindLabel = 'spawned character';
@@ -440,6 +455,24 @@ export function activate(context: vscode.ExtensionContext): void {
                 const preferredFolder =
                     node?.kind === 'guisGroup' || node?.kind === 'workspace' ? node.folder : undefined;
                 await runCreateGuiWizard(preferredFolder);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.createInventoryItem',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                const preferredFolder =
+                    node?.kind === 'inventoryGroup' || node?.kind === 'workspace' ? node.folder : undefined;
+                await runCreateInventoryItemWizard(preferredFolder);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.importInventoryItemsFromAsepriteTags',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                await runImportInventoryItemsFromAsepriteTags(selection, node);
                 refreshTrees();
             }
         ),
@@ -970,4 +1003,9 @@ async function openCharacterJsonAndScript(characterJsonUri: vscode.Uri, characte
 
 async function openGuiJsonAndScript(guiJsonUri: vscode.Uri, guiId: string): Promise<void> {
     await openGuiJsonAndScriptBottomGroup(guiJsonUri, guiId);
+}
+
+async function openInventoryJsonAndScript(inventoryJsonUri: vscode.Uri, itemId: string): Promise<void> {
+    await openDocumentPinned(inventoryJsonUri, vscode.ViewColumn.One);
+    await openInventoryJsonAndScriptBottomGroup(inventoryJsonUri, itemId);
 }
