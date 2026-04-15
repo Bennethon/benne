@@ -9,6 +9,7 @@
     "build:room-preview": "tsc && vite build --config vite.room-preview.config.ts",
     "build:character-preview": "tsc && vite build --config vite.character-preview.config.ts",
     "build:gui-preview": "tsc && vite build --config vite.gui-preview.config.ts",
+    "build:inventory-preview": "tsc && vite build --config vite.inventory-preview.config.ts",
     "preview": "vite preview"
   },
   "devDependencies": {

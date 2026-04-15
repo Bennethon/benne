@@ -16,6 +16,7 @@ import {
 } from './roomScaffolding';
 import { CharacterPreviewPanelController } from './characterPreviewPanel';
 import { GuiPreviewPanelController } from './guiPreviewPanel';
+import { InventoryPreviewPanelController } from './inventoryPreviewPanel';
 import { RoomPreviewPanelController } from './roomPreviewPanel';
 import {
     getRoomPreviewBuildOutputChannel,
@@ -23,6 +24,7 @@ import {
     roomPreviewBuildHintUri,
     runCharacterPreviewBuild,
     runGuiPreviewBuild,
+    runInventoryPreviewBuild,
     runRoomPreviewBuild
 } from './roomPreviewBuild';
 import { addCharacterVerbEvent, makeCharacterClickable } from './characterVerbScaffolding';
@@ -146,6 +148,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const roomPreview = new RoomPreviewPanelController(context.extensionUri, selection);
     const characterPreview = new CharacterPreviewPanelController(context.extensionUri, selection);
     const guiPreview = new GuiPreviewPanelController(context.extensionUri, selection);
+    const inventoryPreview = new InventoryPreviewPanelController(context.extensionUri, selection);
 
     let gameConfigRebuildTimer: ReturnType<typeof setTimeout> | undefined;
     let pendingGameConfigUri: vscode.Uri | undefined;
@@ -196,6 +199,7 @@ export function activate(context: vscode.ExtensionContext): void {
         roomPreview,
         characterPreview,
         guiPreview,
+        inventoryPreview,
         mainTreeView,
         actionsTreeView,
         selection,
@@ -208,6 +212,7 @@ export function activate(context: vscode.ExtensionContext): void {
         roomPreview.resetPreviewPanel();
         characterPreview.resetPreviewPanel();
         guiPreview.resetPreviewPanel();
+        inventoryPreview.resetPreviewPanel();
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
     }
 
@@ -362,7 +367,7 @@ export function activate(context: vscode.ExtensionContext): void {
             await resetBenneEditorSurface();
             await applyBenneTwoRowJsonScriptLayout();
             selection.setInventory(node.uri, node.name);
-            await openInventoryDefinitionEditors(node.uri, node.id);
+            await openBenneInventoryTypeScript(node.uri, node.id);
         }
     }
 
@@ -635,6 +640,21 @@ export function activate(context: vscode.ExtensionContext): void {
                 void vscode.window.showInformationMessage('GUI preview bundle rebuilt.');
             }
         }),
+        vscode.commands.registerCommand('benne-editor.rebuildInventoryPreview', async () => {
+            const ch = getRoomPreviewBuildOutputChannel();
+            const folder = await resolveGameFolderForRoomPreviewBuild(roomPreviewBuildHintUri(selection));
+            if (!folder) {
+                void vscode.window.showErrorMessage(
+                    'No BENNE game in the workspace (need a folder with src/game and npm script build:inventory-preview).'
+                );
+                return;
+            }
+            const ok = await runInventoryPreviewBuild(folder, ch);
+            if (ok) {
+                inventoryPreview.reloadInventoryPreviewBundle();
+                void vscode.window.showInformationMessage('Inventory preview bundle rebuilt.');
+            }
+        }),
         vscode.commands.registerCommand('benne-editor.rebuildEditorPreviewBundles', async () => {
             const ch = getRoomPreviewBuildOutputChannel();
             const folder = await resolveGameFolderForRoomPreviewBuild(roomPreviewBuildHintUri(selection));
@@ -646,31 +666,39 @@ export function activate(context: vscode.ExtensionContext): void {
             }
 
             const roomOk = await runRoomPreviewBuild(folder, ch, {
-                title: 'Rebuilding editor preview bundles (1/3: room)'
+                title: 'Rebuilding editor preview bundles (1/4: room)'
             });
             if (!roomOk) {
                 return;
             }
 
             const characterOk = await runCharacterPreviewBuild(folder, ch, {
-                title: 'Rebuilding editor preview bundles (2/3: character)'
+                title: 'Rebuilding editor preview bundles (2/4: character)'
             });
             if (!characterOk) {
                 return;
             }
 
             const guiOk = await runGuiPreviewBuild(folder, ch, {
-                title: 'Rebuilding editor preview bundles (3/3: GUI)'
+                title: 'Rebuilding editor preview bundles (3/4: GUI)'
             });
             if (!guiOk) {
+                return;
+            }
+
+            const inventoryOk = await runInventoryPreviewBuild(folder, ch, {
+                title: 'Rebuilding editor preview bundles (4/4: inventory)'
+            });
+            if (!inventoryOk) {
                 return;
             }
 
             roomPreview.reloadRoomPreviewBundle();
             characterPreview.reloadCharacterPreviewBundle();
             guiPreview.reloadGuiPreviewBundle();
+            inventoryPreview.reloadInventoryPreviewBundle();
             void vscode.window.showInformationMessage(
-                'Editor preview bundles rebuilt (room, character, GUI).'
+                'Editor preview bundles rebuilt (room, character, GUI, inventory).'
             );
         }),
         vscode.commands.registerCommand(
@@ -1063,7 +1091,7 @@ function getWebviewContent(): string {
         </head>
         <body>
             <h1>BENNE Editor</h1>
-            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree, <em>Actions</em>, and <em>Inspector</em>. Each tree choice resets the editor area, then opens the right layout: rooms, characters, and GUIs use two rows with the live preview on top and the corresponding TypeScript source file on the bottom.</p>
+            <p>Use the <strong>BENNE</strong> activity bar for the <em>BENNE</em> tree, <em>Actions</em>, and <em>Inspector</em>. Each tree choice resets the editor area, then opens the right layout: rooms, characters, GUIs, and inventory items use two rows with the live preview on top and the corresponding TypeScript source file on the bottom.</p>
             
             <p>
                 <button id="create-room-btn" type="button">Create New Room</button>
@@ -1090,8 +1118,3 @@ function getWebviewContent(): string {
 
 export function deactivate(): void {}
 
-/** Tree selection: open definition JSON in column one, companion `*.inventory.ts` in the Benne script row. */
-async function openInventoryDefinitionEditors(inventoryJsonUri: vscode.Uri, itemId: string): Promise<void> {
-    await openDocumentPinned(inventoryJsonUri, vscode.ViewColumn.One);
-    await openBenneInventoryTypeScript(inventoryJsonUri, itemId);
-}

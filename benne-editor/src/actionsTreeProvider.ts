@@ -143,6 +143,9 @@ export type ActionTreeNode =
     | { kind: 'rebuildRoomPreviewBundle' }
     | { kind: 'rebuildCharacterPreviewBundle' }
     | { kind: 'rebuildGuiPreviewBundle' }
+    | { kind: 'rebuildInventoryPreviewBundle' }
+    | { kind: 'addInventoryItem' }
+    | { kind: 'importInventoryFromAseprite' }
     | { kind: 'guiOpen'; label: string; targetUri: vscode.Uri };
 
 export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNode> {
@@ -516,6 +519,52 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 };
                 return item;
             }
+            case 'rebuildInventoryPreviewBundle': {
+                const item = new vscode.TreeItem(
+                    'Rebuild inventory preview bundle',
+                    vscode.TreeItemCollapsibleState.None
+                );
+                item.id = 'action:rebuildInventoryPreviewBundle';
+                item.iconPath = new vscode.ThemeIcon('sync');
+                item.contextValue = 'benneActionRebuildInventoryPreview';
+                item.description = 'npm run build:inventory-preview';
+                item.command = {
+                    command: 'benne-editor.rebuildInventoryPreview',
+                    title: 'Rebuild inventory preview bundle',
+                    arguments: []
+                };
+                return item;
+            }
+            case 'addInventoryItem': {
+                const item = new vscode.TreeItem(
+                    'Add Inventory',
+                    vscode.TreeItemCollapsibleState.None
+                );
+                item.id = 'action:addInventoryItem';
+                item.iconPath = new vscode.ThemeIcon('package');
+                item.contextValue = 'benneActionAddInventoryItem';
+                item.command = {
+                    command: 'benne-editor.createInventoryItem',
+                    title: 'Add Inventory',
+                    arguments: []
+                };
+                return item;
+            }
+            case 'importInventoryFromAseprite': {
+                const item = new vscode.TreeItem(
+                    'Import Inventory from Aseprite',
+                    vscode.TreeItemCollapsibleState.None
+                );
+                item.id = 'action:importInventoryFromAseprite';
+                item.iconPath = new vscode.ThemeIcon('cloud-download');
+                item.contextValue = 'benneActionImportInventoryFromAseprite';
+                item.command = {
+                    command: 'benne-editor.importInventoryItemsFromAsepriteTags',
+                    title: 'Import Inventory from Aseprite',
+                    arguments: []
+                };
+                return item;
+            }
             case 'guiOpen': {
                 const item = new vscode.TreeItem(element.label, vscode.TreeItemCollapsibleState.None);
                 item.id = `gui-open:${element.targetUri.toString()}`;
@@ -638,11 +687,22 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             return this.guiActionNodes(main.uri);
         }
 
+        if (main.kind === 'inventory') {
+            return [
+                { kind: 'addInventoryItem' },
+                { kind: 'importInventoryFromAseprite' },
+                { kind: 'rebuildInventoryPreviewBundle' }
+            ];
+        }
+
         return [
             { kind: 'rebuildRoomPreviewBundle' },
+            { kind: 'rebuildCharacterPreviewBundle' },
+            { kind: 'rebuildGuiPreviewBundle' },
+            { kind: 'rebuildInventoryPreviewBundle' },
             {
                 kind: 'hint',
-                message: 'Select a room, character, GUI, prop, hotspot, or room character in BENNE'
+                message: 'Select a room, character, GUI, inventory item, prop, hotspot, or room character in BENNE'
             }
         ];
     }
