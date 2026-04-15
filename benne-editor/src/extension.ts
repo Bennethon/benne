@@ -26,7 +26,14 @@ import {
     runRoomPreviewBuild
 } from './roomPreviewBuild';
 import { addCharacterVerbEvent, makeCharacterClickable } from './characterVerbScaffolding';
-import { readRoomProps } from './gameDiscovery';
+import { addInventoryVerbEvent } from './inventoryVerbScaffolding';
+import {
+    getCharacterIdFromCharacterJsonUri,
+    getGuiIdFromGuiJsonUri,
+    getInventoryIdFromInventoryJsonUri,
+    getRoomIdFromRoomJsonUri,
+    readRoomProps
+} from './gameDiscovery';
 import { addRoomCharacterVerbEvent } from './roomCharacterVerbScaffolding';
 import {
     addHotspotVerbEvent,
@@ -61,6 +68,55 @@ function firstTreeContextArg(arg: MainTreeNode | MainTreeNode[] | undefined): Ma
         return undefined;
     }
     return Array.isArray(arg) ? arg[0] : arg;
+}
+
+function resolveDeleteTargetFromSelectionFocus(
+    selection: EditorSelection
+): import('./delete/deleteTarget').DeleteTarget | undefined {
+    const focus = selection.focus;
+    if (focus.kind === 'none') {
+        return undefined;
+    }
+    const folder = vscode.workspace.getWorkspaceFolder(focus.uri);
+    if (!folder) {
+        return undefined;
+    }
+    if (focus.kind === 'room') {
+        const roomId = getRoomIdFromRoomJsonUri(focus.uri);
+        return {
+            type: 'room',
+            folder,
+            roomId,
+            roomName: focus.label,
+            roomJsonUri: focus.uri,
+            displayLabel: focus.label
+        };
+    }
+    if (focus.kind === 'character') {
+        return {
+            type: 'character',
+            folder,
+            characterId: getCharacterIdFromCharacterJsonUri(focus.uri),
+            characterJsonUri: focus.uri,
+            displayLabel: focus.label
+        };
+    }
+    if (focus.kind === 'gui') {
+        return {
+            type: 'gui',
+            folder,
+            guiId: getGuiIdFromGuiJsonUri(focus.uri),
+            guiJsonUri: focus.uri,
+            displayLabel: focus.label
+        };
+    }
+    return {
+        type: 'inventory',
+        folder,
+        itemId: getInventoryIdFromInventoryJsonUri(focus.uri),
+        inventoryJsonUri: focus.uri,
+        displayLabel: focus.label
+    };
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -361,7 +417,9 @@ export function activate(context: vscode.ExtensionContext): void {
                     (mainTreeView.selection.length > 0
                         ? (mainTreeView.selection[0] as MainTreeNode)
                         : undefined);
-                const target = resolveDeleteTargetFromMainTreeNode(fromTree);
+                const target =
+                    resolveDeleteTargetFromMainTreeNode(fromTree) ??
+                    resolveDeleteTargetFromSelectionFocus(selection);
                 if (!target) {
                     void vscode.window.showInformationMessage(
                         'Choose a room, character, GUI, inventory item, prop, hotspot, point, region, or spawned character in the BENNE tree (or run this from its context menu), then try again.'
@@ -839,6 +897,45 @@ export function activate(context: vscode.ExtensionContext): void {
                     charJsonUri,
                     '..',
                     `${characterId}.character.ts`
+                );
+                await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addInventoryVerbEvent',
+            async (inventoryJsonUriStr?: string, itemId?: string, verbId?: string) => {
+                if (
+                    typeof inventoryJsonUriStr !== 'string' ||
+                    typeof itemId !== 'string' ||
+                    typeof verbId !== 'string'
+                ) {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(inventoryJsonUriStr);
+                const ok = await addInventoryVerbEvent(jsonUri, itemId, verbId);
+                refreshTrees();
+                if (ok) {
+                    const eventId = `verb:inventory:${itemId}:${verbId}`;
+                    const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${itemId}.inventory.ts`);
+                    await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+                }
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.revealInventoryScriptEvent',
+            async (inventoryJsonUriStr?: string, itemId?: string, eventId?: string) => {
+                if (
+                    typeof inventoryJsonUriStr !== 'string' ||
+                    typeof itemId !== 'string' ||
+                    typeof eventId !== 'string'
+                ) {
+                    return;
+                }
+                const inventoryJsonUri = vscode.Uri.parse(inventoryJsonUriStr);
+                const scriptUri = vscode.Uri.joinPath(
+                    inventoryJsonUri,
+                    '..',
+                    `${itemId}.inventory.ts`
                 );
                 await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
             }

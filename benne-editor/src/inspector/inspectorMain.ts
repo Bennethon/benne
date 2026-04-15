@@ -118,7 +118,33 @@ type InspectorGuiState = {
     controls: InspectorGuiControlCard[];
 };
 
-type InspectorStatePayload = InspectorRoomState | InspectorCharacterState | InspectorGuiState | InspectorEmptyState;
+type InspectorInventoryAnimationCard = {
+    id: string;
+    loop: boolean;
+    frameDuration: number | null;
+};
+
+type InspectorInventoryState = {
+    kind: 'inventory';
+    rev: number;
+    inventoryJsonUri: string;
+    inventoryId: string;
+    name: string;
+    description: string;
+    stackable: boolean;
+    asepriteMode: true | 'shared';
+    defaultAnimation: string;
+    verbs: InspectorVerbChip[];
+    availableVerbs: { id: string; label?: string }[];
+    animations: InspectorInventoryAnimationCard[];
+};
+
+type InspectorStatePayload =
+    | InspectorRoomState
+    | InspectorCharacterState
+    | InspectorGuiState
+    | InspectorInventoryState
+    | InspectorEmptyState;
 
 let vscodeApi: ReturnType<typeof acquireVsCodeApi> | null = null;
 try {
@@ -134,14 +160,19 @@ let lastInspectorScrollExpandedKey: string | null = null;
 /** Last room URI we preserved accordion state for (same file, new `rev`). */
 let lastInspectorPreserveRoomUri: string | null = null;
 
-function inspectorStateKey(state: InspectorRoomState | InspectorCharacterState | InspectorGuiState): string {
+function inspectorStateKey(
+    state: InspectorRoomState | InspectorCharacterState | InspectorGuiState | InspectorInventoryState
+): string {
     if (state.kind === 'room') {
         return `room:${state.roomJsonUri}`;
     }
     if (state.kind === 'character') {
         return `character:${state.characterJsonUri}`;
     }
-    return `gui:${state.guiJsonUri}`;
+    if (state.kind === 'gui') {
+        return `gui:${state.guiJsonUri}`;
+    }
+    return `inventory:${state.inventoryJsonUri}`;
 }
 
 type InspectorOpenPreserve = {
@@ -689,6 +720,85 @@ function renderEmpty(msg: string): string {
     return `<p class="empty">${esc(msg)}</p>`;
 }
 
+function renderInventoryVerbChips(state: InspectorInventoryState): string {
+    if (state.verbs.length === 0) {
+        return '<div class="benne-verb-chips benne-verb-chips--empty"><span class="muted small">No verbs</span></div>';
+    }
+    const chips = state.verbs
+        .map((v) => {
+            const icon = v.defined ? '⚡' : '+';
+            const cls = v.defined ? 'verb-chip verb-defined inv-verb-chip' : 'verb-chip verb-add inv-verb-chip';
+            const dataReveal = v.defined ? `data-reveal="1" data-event="${esc(v.eventId)}"` : '';
+            const dataAdd = !v.defined && !v.isFallback ? `data-add="1" data-verb="${esc(v.verbId)}"` : '';
+            return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} data-ctx="inventoryDef:${esc(state.inventoryId)}" title="${esc(v.label)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(v.verbId)}</span></button>`;
+        })
+        .join('');
+    return `<div class="benne-verb-chips">${chips}</div>`;
+}
+
+function renderInventory(state: InspectorInventoryState): string {
+    const animationCards = state.animations
+        .map((anim) => {
+            const summary = `<div class="benne-card-titles">
+        <div class="benne-card-title">${esc(anim.id)}</div>
+        <div class="benne-card-sub muted">Animation clip</div>
+      </div>`;
+            const body = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">name</span>
+        <div class="benne-pg-val"><code class="badge">${esc(anim.id)}</code></div>
+        <span class="benne-pg-lbl">loop</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="inv-anim-loop" data-id="${esc(anim.id)}" ${anim.loop ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">frameDuration</span>
+        <input type="number" class="inv-anim-dur" data-id="${esc(anim.id)}" value="${anim.frameDuration ?? ''}" />
+      </div>`;
+            return renderInspectorItem({}, 'inventoryAnimation', anim.id, ' benne-card--character', summary, body);
+        })
+        .join('');
+    const verbChips = renderInventoryVerbChips(state);
+    return `<div class="inspector-root">
+  <div class="scroll">
+    <details class="section" open>
+      <summary>Inventory metadata</summary>
+      <div class="section-body">
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">id</span>
+          <div class="benne-pg-val"><code class="badge">${esc(state.inventoryId)}</code></div>
+          <span class="benne-pg-lbl">name</span>
+          <input type="text" id="inv-name" value="${esc(state.name)}" />
+          <span class="benne-pg-lbl">stackable</span>
+          <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="inv-stackable" ${state.stackable ? 'checked' : ''} /></label>
+          <span class="benne-pg-lbl">aseprite</span>
+          <select id="inv-aseprite">
+            <option value="shared" ${state.asepriteMode === 'shared' ? 'selected' : ''}>shared</option>
+            <option value="true" ${state.asepriteMode === true ? 'selected' : ''}>per-item</option>
+          </select>
+          <span class="benne-pg-lbl">default frame tag</span>
+          <input type="text" id="inv-default-animation" value="${esc(state.defaultAnimation)}" title="JSON key: defaultAnimation. Empty = use item id." />
+        </div>
+        <label class="benne-field-label muted small">Description</label>
+        <textarea id="inv-description" rows="3">${esc(state.description)}</textarea>
+      </div>
+    </details>
+    <details class="section" open>
+      <summary>Verbs</summary>
+      <div class="section-body">
+        ${verbChips}
+      </div>
+    </details>
+    <details class="section" open>
+      <summary>Animations (${state.animations.length})</summary>
+      <div class="section-body">
+        <div class="benne-card-list">${animationCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+  </div>
+  <div class="footer">
+    <button type="button" class="btn-primary" id="btn-save-inv">Save</button>
+    <button type="button" class="btn-secondary" id="btn-open-json-inv">Open raw JSON</button>
+  </div>
+</div>`;
+}
+
 function collectRoomMeta(): Record<string, unknown> {
     const name = (document.getElementById('fld-name') as HTMLInputElement)?.value ?? '';
     const wStr = (document.getElementById('fld-w') as HTMLInputElement)?.value ?? '';
@@ -1072,6 +1182,75 @@ function mountGuiHandlers(state: InspectorGuiState): void {
     });
 }
 
+function collectInventoryMeta(): Record<string, unknown> {
+    return {
+        type: 'inventoryMeta',
+        name: (document.getElementById('inv-name') as HTMLInputElement | null)?.value ?? '',
+        description: (document.getElementById('inv-description') as HTMLTextAreaElement | null)?.value ?? '',
+        stackable: (document.getElementById('inv-stackable') as HTMLInputElement | null)?.checked ?? false,
+        defaultAnimation:
+            (document.getElementById('inv-default-animation') as HTMLInputElement | null)?.value ?? '',
+        asepriteMode:
+            ((document.getElementById('inv-aseprite') as HTMLSelectElement | null)?.value ?? 'shared') ===
+            'true'
+                ? true
+                : 'shared'
+    };
+}
+
+function mountInventoryHandlers(state: InspectorInventoryState): void {
+    const flushMeta = (): void => {
+        post('applyPatches', { patches: [collectInventoryMeta()] });
+    };
+    document.getElementById('btn-save-inv')?.addEventListener('click', () => {
+        post('applyPatches', {
+            patches: [collectInventoryMeta()]
+        });
+    });
+    document.getElementById('btn-open-json-inv')?.addEventListener('click', () => {
+        post('openRawJson', { inventoryJsonUri: state.inventoryJsonUri });
+    });
+    ['inv-name', 'inv-description', 'inv-stackable', 'inv-default-animation', 'inv-aseprite'].forEach((id) => {
+        document.getElementById(id)?.addEventListener('blur', flushMeta);
+        document.getElementById(id)?.addEventListener('change', flushMeta);
+    });
+    document.querySelectorAll('.inv-verb-chip').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn as HTMLButtonElement;
+            if (b.dataset.reveal) {
+                post('verbReveal', {
+                    inventoryJsonUri: state.inventoryJsonUri,
+                    itemId: state.inventoryId,
+                    eventId: b.dataset.event
+                });
+                return;
+            }
+            if (!b.dataset.add) {
+                return;
+            }
+            const verbId = b.dataset.verb ?? '';
+            post('verbAdd', {
+                inventoryJsonUri: state.inventoryJsonUri,
+                target: 'inventoryDef',
+                itemId: state.inventoryId,
+                verbId
+            });
+        });
+    });
+    document.querySelectorAll('.inv-anim-loop, .inv-anim-dur').forEach((el) => {
+        el.addEventListener('change', () => {
+            const id = (el as HTMLElement).dataset.id ?? '';
+            if (!id) {
+                return;
+            }
+            const loop = (document.querySelector(`.inv-anim-loop[data-id="${id}"]`) as HTMLInputElement | null)?.checked ?? false;
+            const durRaw = (document.querySelector(`.inv-anim-dur[data-id="${id}"]`) as HTMLInputElement | null)?.value ?? '';
+            const frameDuration = durRaw === '' ? null : Number(durRaw);
+            post('applyPatches', { patches: [{ type: 'inventoryAnimation', id, loop, frameDuration }] });
+        });
+    });
+}
+
 function render(state: InspectorStatePayload): void {
     const root = document.getElementById('benne-inspector-app');
     if (!root) {
@@ -1094,6 +1273,8 @@ function render(state: InspectorStatePayload): void {
         root.innerHTML = renderRoom(state);
     } else if (state.kind === 'character') {
         root.innerHTML = renderCharacter(state);
+    } else if (state.kind === 'inventory') {
+        root.innerHTML = renderInventory(state);
     } else {
         root.innerHTML = renderGui(state);
     }
@@ -1108,6 +1289,8 @@ function render(state: InspectorStatePayload): void {
         scrollExpandedCardIntoView(state);
     } else if (state.kind === 'character') {
         mountCharacterHandlers(state);
+    } else if (state.kind === 'inventory') {
+        mountInventoryHandlers(state);
     } else {
         mountGuiHandlers(state);
     }

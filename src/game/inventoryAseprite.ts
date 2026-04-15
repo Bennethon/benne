@@ -35,8 +35,8 @@ export function inventoryPhaserAnimationKeyForTag(data: InventoryItemData, tagNa
   return tagName;
 }
 
-/** Default clip for UI/cursor: `defaultAnimation`, else `display.tag`, else `id`. */
+/** Default clip for UI/cursor: `defaultAnimation`, else `id`. */
 export function defaultInventoryAnimationKey(data: InventoryItemData): string {
-  const base = data.defaultAnimation ?? data.display.tag ?? data.id;
+  const base = data.defaultAnimation ?? data.id;
   return inventoryPhaserAnimationKeyForTag(data, base);
 }

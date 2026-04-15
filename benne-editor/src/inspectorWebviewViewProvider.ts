@@ -10,6 +10,8 @@ import {
     updateCharacterFields,
     updateGuiControlPayload,
     updateGuiFields,
+    updateInventoryAnimationFields,
+    updateInventoryFields,
     applyRoomDisplayName,
     applyRoomSize,
     applyScrollBounds,
@@ -550,6 +552,15 @@ type WebviewPatch =
     | { type: 'characterAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
     | { type: 'guiMeta'; name?: string; description?: string }
     | { type: 'guiControlPayload'; index?: number; payload?: string }
+    | {
+          type: 'inventoryMeta';
+          name?: string;
+          description?: string;
+          stackable?: boolean;
+          defaultAnimation?: string;
+          asepriteMode?: true | 'shared';
+      }
+    | { type: 'inventoryAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
     | { type: 'delete'; entity?: string; id?: string };
 
 export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
@@ -713,6 +724,16 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                         eventId
                     );
                 }
+            } else if (eventId && focusKind === 'inventory') {
+                const itemId = typeof msg.itemId === 'string' ? msg.itemId : '';
+                if (itemId) {
+                    await vscode.commands.executeCommand(
+                        'benne-editor.revealInventoryScriptEvent',
+                        uri.toString(),
+                        itemId,
+                        eventId
+                    );
+                }
             }
             return;
         }
@@ -763,6 +784,16 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                         verbId
                     );
                 }
+            } else if (focusKind === 'inventory' && target === 'inventoryDef') {
+                const itemId = typeof msg.itemId === 'string' ? msg.itemId : '';
+                if (itemId && verbId) {
+                    await vscode.commands.executeCommand(
+                        'benne-editor.addInventoryVerbEvent',
+                        uri.toString(),
+                        itemId,
+                        verbId
+                    );
+                }
             }
             this.refreshMainAndActions();
             await this.pushState();
@@ -797,9 +828,6 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         }
 
         if (msg.action === 'applyPatches') {
-            if (focusKind === 'inventory') {
-                return;
-            }
             const patchesUnknown = msg.patches;
             if (!Array.isArray(patchesUnknown)) {
                 return;
@@ -981,6 +1009,26 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 return;
             }
             updateGuiControlPayload(data, p.index, p.payload);
+            return;
+        }
+        if (p.type === 'inventoryMeta') {
+            if (focusKind !== 'inventory') {
+                return;
+            }
+            updateInventoryFields(data, {
+                name: p.name,
+                description: p.description,
+                stackable: p.stackable,
+                defaultAnimation: p.defaultAnimation,
+                asepriteMode: p.asepriteMode
+            });
+            return;
+        }
+        if (p.type === 'inventoryAnimation' && typeof p.id === 'string') {
+            if (focusKind !== 'inventory') {
+                return;
+            }
+            updateInventoryAnimationFields(data, p.id, { loop: p.loop, frameDuration: p.frameDuration });
             return;
         }
         if (p.type === 'delete' && typeof p.entity === 'string' && typeof p.id === 'string') {

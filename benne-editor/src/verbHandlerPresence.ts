@@ -152,6 +152,20 @@ function earliestRange(
     return best;
 }
 
+function rxInventoryVerbEventId(itemId: string, verbId: string): RegExp {
+    return new RegExp(
+        `inventoryVerbEventId\\s*\\(\\s*${quotedId(itemId)}\\s*,\\s*${quotedId(verbId)}\\s*\\)`,
+        'm'
+    );
+}
+
+function rxRoomInventoryVerbEventId(roomId: string, itemId: string, verbId: string): RegExp {
+    return new RegExp(
+        `roomInventoryVerbEventId\\s*\\(\\s*${quotedId(roomId)}\\s*,\\s*${quotedId(itemId)}\\s*,\\s*${quotedId(verbId)}\\s*\\)`,
+        'm'
+    );
+}
+
 export function roomScriptRegistersPropVerb(
     source: string,
     roomId: string,
@@ -294,8 +308,67 @@ export function characterScriptRegistersVerb(
     return false;
 }
 
+export function inventoryScriptRegistersVerb(
+    source: string,
+    itemId: string,
+    verbId: string,
+    configuredVerbIds: ReadonlySet<string>
+): boolean {
+    const stripped = stripLineAndBlockComments(source);
+    const globalEv = `verb:inventory:${itemId}:${verbId}`;
+    const roomEvPrefix = `verb:room:`;
+    if (
+        stripped.includes(`'${globalEv}'`) ||
+        stripped.includes(`"${globalEv}"`) ||
+        stripped.includes('`' + globalEv + '`')
+    ) {
+        return true;
+    }
+    if (
+        stripped.includes(roomEvPrefix) &&
+        stripped.includes(`:inventory:${itemId}:${verbId}`)
+    ) {
+        return true;
+    }
+    if (firstMatchIndex(stripped, rxInventoryVerbEventId(itemId, verbId)) >= 0) {
+        return true;
+    }
+    // Room id is unknown here; this catches explicit helper calls with any room literal.
+    if (
+        new RegExp(
+            `roomInventoryVerbEventId\\s*\\(\\s*['"\`][^'"\`]+['"\`]\\s*,\\s*${quotedId(itemId)}\\s*,\\s*${quotedId(verbId)}\\s*\\)`,
+            'm'
+        ).test(stripped)
+    ) {
+        return true;
+    }
+    const sugar = benneSugarMethodForVerbId(verbId, configuredVerbIds);
+    if (sugar && sugar !== 'give') {
+        if (new RegExp(`\\bB\\.${SUGAR_METHOD[sugar]}\\s*\\(\\s*\\(`).test(stripped)) {
+            return true;
+        }
+    }
+    if (new RegExp(`\\bB\\.whenVerb\\s*\\(\\s*['"\`]${escapeRegex(verbId)}['"\`]`).test(stripped)) {
+        return true;
+    }
+    return false;
+}
+
 /** One-line Bennescript stub for inserting into `registerCharacterScript('id', ({ B }) => { … })`. */
 export function characterBenneHandlerSnippet(
+    verbId: string,
+    configuredVerbIds: ReadonlySet<string>
+): string {
+    const sugar = benneSugarMethodForVerbId(verbId, configuredVerbIds);
+    if (sugar && sugar !== 'give') {
+        const m = SUGAR_METHOD[sugar];
+        return `  B.${m}(() => {\n    // TODO\n  });`;
+    }
+    return `  B.whenVerb(${JSON.stringify(verbId)}, () => {\n    // TODO\n  });`;
+}
+
+/** One-line Bennescript stub for inserting into `registerInventoryScript('id', ({ B }) => { … })`. */
+export function inventoryBenneHandlerSnippet(
     verbId: string,
     configuredVerbIds: ReadonlySet<string>
 ): string {
@@ -510,6 +583,54 @@ export function findCharacterScriptVerbRangeForEventId(
         return null;
     }
     return findCharacterScriptVerbHandlerRange(source, m[1], m[2], configuredVerbIds);
+}
+
+export function findInventoryScriptVerbHandlerRange(
+    source: string,
+    itemId: string,
+    verbId: string,
+    configuredVerbIds: ReadonlySet<string>
+): { start: number; end: number } | null {
+    const patterns: Array<{ rx: RegExp }> = [
+        { rx: rxInventoryVerbEventId(itemId, verbId) },
+        {
+            rx: new RegExp(
+                `roomInventoryVerbEventId\\s*\\(\\s*['"\`][^'"\`]+['"\`]\\s*,\\s*${quotedId(itemId)}\\s*,\\s*${quotedId(verbId)}\\s*\\)`,
+                'm'
+            )
+        }
+    ];
+    const sugar = benneSugarMethodForVerbId(verbId, configuredVerbIds);
+    if (sugar && sugar !== 'give') {
+        patterns.push({ rx: new RegExp(`\\bB\\.${SUGAR_METHOD[sugar]}\\s*\\(\\s*\\(`, 'm') });
+    }
+    patterns.push({ rx: new RegExp(`\\bB\\.whenVerb\\s*\\(\\s*['"\`]${escapeRegex(verbId)}['"\`]`, 'm') });
+    patterns.push({
+        rx: new RegExp(`['"\`]verb:inventory:${escapeRegex(itemId)}:${escapeRegex(verbId)}['"\`]`, 'm')
+    });
+    patterns.push({
+        rx: new RegExp(
+            `['"\`]verb:room:[^:]+:inventory:${escapeRegex(itemId)}:${escapeRegex(verbId)}['"\`]`,
+            'm'
+        )
+    });
+    return earliestRange(source, patterns);
+}
+
+export function findInventoryScriptVerbRangeForEventId(
+    source: string,
+    eventId: string,
+    configuredVerbIds: ReadonlySet<string>
+): { start: number; end: number } | null {
+    const roomScoped = eventId.match(/^verb:room:([^:]+):inventory:([^:]+):([^:]+)$/);
+    if (roomScoped) {
+        return findInventoryScriptVerbHandlerRange(source, roomScoped[2], roomScoped[3], configuredVerbIds);
+    }
+    const globalScoped = eventId.match(/^verb:inventory:([^:]+):([^:]+)$/);
+    if (globalScoped) {
+        return findInventoryScriptVerbHandlerRange(source, globalScoped[1], globalScoped[2], configuredVerbIds);
+    }
+    return null;
 }
 
 /** Prefix for Bennescript calls inside `registerRoomScript` (`B.` or `ctx.`). */

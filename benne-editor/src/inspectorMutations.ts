@@ -538,3 +538,92 @@ export function updateGuiControlPayload(
         return { ok: false, message: 'Control payload is not valid JSON.' };
     }
 }
+
+export function updateInventoryFields(
+    data: Record<string, unknown>,
+    fields: {
+        name?: string;
+        description?: string;
+        stackable?: boolean;
+        defaultAnimation?: string;
+        asepriteMode?: true | 'shared';
+    }
+): { ok: true } {
+    if (fields.name !== undefined) {
+        data.name = fields.name;
+    }
+    if (fields.description !== undefined) {
+        data.description = fields.description;
+    }
+    if (fields.stackable !== undefined) {
+        data.stackable = fields.stackable;
+    }
+    if (fields.defaultAnimation !== undefined) {
+        if (fields.defaultAnimation.trim().length === 0) {
+            delete data.defaultAnimation;
+        } else {
+            data.defaultAnimation = fields.defaultAnimation.trim();
+        }
+    }
+    if (fields.asepriteMode !== undefined) {
+        const display =
+            data.display && typeof data.display === 'object' && !Array.isArray(data.display)
+                ? (data.display as Record<string, unknown>)
+                : {};
+        display.aseprite = fields.asepriteMode;
+        data.display = display;
+    }
+    const disp = data.display;
+    if (disp && typeof disp === 'object' && !Array.isArray(disp)) {
+        delete (disp as Record<string, unknown>).tag;
+    }
+    return { ok: true };
+}
+
+export function updateInventoryVerbs(
+    data: Record<string, unknown>,
+    verbs: string[]
+): { ok: true } {
+    const onVerb: Record<string, boolean> = {};
+    for (const verbId of verbs) {
+        const id = verbId.trim();
+        if (id.length > 0) {
+            onVerb[id] = true;
+        }
+    }
+    data.onVerb = onVerb;
+    return { ok: true };
+}
+
+export function updateInventoryAnimationFields(
+    data: Record<string, unknown>,
+    animationId: string,
+    fields: { loop?: boolean; frameDuration?: number | null }
+): { ok: true } | { ok: false; message: string } {
+    if (!animationId.trim()) {
+        return { ok: false, message: 'Animation id cannot be empty.' };
+    }
+    let animationsRaw = data.animations;
+    if (!animationsRaw || typeof animationsRaw !== 'object' || Array.isArray(animationsRaw)) {
+        animationsRaw = {};
+        data.animations = animationsRaw;
+    }
+    const animations = animationsRaw as Record<string, unknown>;
+    let entryRaw = animations[animationId];
+    if (!entryRaw || typeof entryRaw !== 'object' || Array.isArray(entryRaw)) {
+        entryRaw = {};
+        animations[animationId] = entryRaw;
+    }
+    const entry = entryRaw as Record<string, unknown>;
+    if (fields.loop !== undefined) {
+        entry.loop = fields.loop;
+    }
+    if (fields.frameDuration !== undefined) {
+        if (fields.frameDuration === null) {
+            delete entry.frameDuration;
+        } else if (Number.isFinite(fields.frameDuration)) {
+            entry.frameDuration = fields.frameDuration;
+        }
+    }
+    return { ok: true };
+}

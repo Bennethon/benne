@@ -5,6 +5,7 @@ import { readRoomProps } from './gameDiscovery';
 import { ensureRoomVerbHandlerStubForReveal } from './propVerbScaffolding';
 import {
     findCharacterScriptVerbRangeForEventId,
+    findInventoryScriptVerbRangeForEventId,
     findRoomScriptVerbRangeForEventIdRobust,
     readConfiguredVerbIdSet
 } from './verbHandlerPresence';
@@ -177,6 +178,12 @@ export async function revealEventInDocument(
             if (cr) {
                 selStart = cr.start;
                 selEnd = cr.end;
+            }
+        } else if (baseName.endsWith('.inventory.ts')) {
+            const ir = findInventoryScriptVerbRangeForEventId(text, eventId, configured);
+            if (ir) {
+                selStart = ir.start;
+                selEnd = ir.end;
             }
         }
     }

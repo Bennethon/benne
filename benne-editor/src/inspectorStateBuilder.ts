@@ -4,9 +4,11 @@ import {
     DEFAULT_GAME_VERBS,
     getCharacterIdFromCharacterJsonUri,
     getGuiIdFromGuiJsonUri,
+    getInventoryIdFromInventoryJsonUri,
     getRoomIdFromRoomJsonUri,
     readCharacterHooks,
     readGameConfigVerbs,
+    resolveSharedInventoryAsepriteSheet,
     readRoomHotspots,
     readRoomProps,
     type RoomHotspotListEntry,
@@ -14,6 +16,7 @@ import {
 } from './gameDiscovery';
 import { readPngDimensions } from './inspectorPngDimensions';
 import {
+    buildInventoryVerbChips,
     buildCharacterVerbChips,
     buildHotspotVerbChips,
     buildPropVerbChips,
@@ -130,7 +133,33 @@ export type InspectorGuiState = {
     controls: InspectorGuiControlCard[];
 };
 
-export type InspectorStatePayload = InspectorRoomState | InspectorCharacterState | InspectorGuiState | InspectorEmptyState;
+export type InspectorInventoryAnimationCard = {
+    id: string;
+    loop: boolean;
+    frameDuration: number | null;
+};
+
+export type InspectorInventoryState = {
+    kind: 'inventory';
+    rev: number;
+    inventoryJsonUri: string;
+    inventoryId: string;
+    name: string;
+    description: string;
+    stackable: boolean;
+    asepriteMode: true | 'shared';
+    defaultAnimation: string;
+    verbs: InspectorVerbChip[];
+    availableVerbs: { id: string; label?: string }[];
+    animations: InspectorInventoryAnimationCard[];
+};
+
+export type InspectorStatePayload =
+    | InspectorRoomState
+    | InspectorCharacterState
+    | InspectorGuiState
+    | InspectorInventoryState
+    | InspectorEmptyState;
 
 function readRoomJsonFromBuffer(uri: vscode.Uri): string | undefined {
     const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
@@ -176,6 +205,9 @@ export async function buildInspectorState(
     }
     if (focus.kind === 'gui') {
         return buildGuiInspectorState(jsonUri, rev);
+    }
+    if (focus.kind === 'inventory') {
+        return buildInventoryInspectorState(jsonUri, rev);
     }
     return buildRoomInspectorState(jsonUri, roomPanel, rev);
 }
@@ -650,5 +682,102 @@ async function buildGuiInspectorState(guiJsonUri: vscode.Uri, rev: number): Prom
         name,
         description,
         controls
+    };
+}
+
+async function buildInventoryInspectorState(
+    inventoryJsonUri: vscode.Uri,
+    rev: number
+): Promise<InspectorStatePayload> {
+    let text: string;
+    try {
+        text = await readRoomJsonText(inventoryJsonUri);
+    } catch {
+        return { kind: 'empty', message: 'Could not read inventory JSON.' };
+    }
+    let data: Record<string, unknown>;
+    try {
+        data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        return { kind: 'empty', message: 'Inventory JSON is not valid JSON.' };
+    }
+
+    const inventoryId = getInventoryIdFromInventoryJsonUri(inventoryJsonUri);
+    const name = typeof data.name === 'string' ? data.name : inventoryId;
+    const description = typeof data.description === 'string' ? data.description : '';
+    const stackable = data.stackable === true;
+
+    const displayRaw =
+        data.display && typeof data.display === 'object' && !Array.isArray(data.display)
+            ? (data.display as Record<string, unknown>)
+            : {};
+    const asepriteMode = displayRaw.aseprite === true ? true : 'shared';
+    const defaultFromFile = typeof data.defaultAnimation === 'string' ? data.defaultAnimation.trim() : '';
+    const legacyTag = typeof displayRaw.tag === 'string' ? displayRaw.tag.trim() : '';
+    const defaultAnimation = defaultFromFile.length > 0 ? defaultFromFile : legacyTag;
+
+    const animationsRaw =
+        data.animations && typeof data.animations === 'object' && !Array.isArray(data.animations)
+            ? (data.animations as Record<string, unknown>)
+            : {};
+    const animationsById = new Map<string, InspectorInventoryAnimationCard>();
+    for (const [id, raw] of Object.entries(animationsRaw)) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+            continue;
+        }
+        const clip = raw as Record<string, unknown>;
+        animationsById.set(id, {
+            id,
+            loop: clip.loop === true,
+            frameDuration: typeof clip.frameDuration === 'number' ? clip.frameDuration : null
+        });
+    }
+    const folder = vscode.workspace.getWorkspaceFolder(inventoryJsonUri);
+    if (folder && asepriteMode === 'shared') {
+        const sheet = await resolveSharedInventoryAsepriteSheet(folder.uri);
+        const tags = sheet.frameTags ?? [];
+        const roots = new Set<string>([inventoryId]);
+        if (defaultAnimation.length > 0) {
+            roots.add(defaultAnimation);
+        }
+        for (const tag of tags) {
+            const belongsToItem = [...roots].some((root) => tag === root || tag.startsWith(`${root}-`));
+            if (belongsToItem && !animationsById.has(tag)) {
+                animationsById.set(tag, { id: tag, loop: false, frameDuration: null });
+            }
+        }
+    }
+    if (!animationsById.has(inventoryId)) {
+        animationsById.set(inventoryId, { id: inventoryId, loop: false, frameDuration: null });
+    }
+    const animations = [...animationsById.values()].sort((a, b) => a.id.localeCompare(b.id));
+
+    const availableVerbs = folder
+        ? await readGameConfigVerbs(folder.uri)
+        : DEFAULT_GAME_VERBS;
+    const effectiveVerbs = availableVerbs.length > 0 ? availableVerbs : DEFAULT_GAME_VERBS;
+    const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
+    const scriptUri = vscode.Uri.joinPath(inventoryJsonUri, '..', `${inventoryId}.inventory.ts`);
+    let scriptText = '';
+    try {
+        scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
+    } catch {
+        /* */
+    }
+    const verbs = buildInventoryVerbChips(inventoryId, effectiveVerbs, configured, text, scriptText);
+
+    return {
+        kind: 'inventory',
+        rev,
+        inventoryJsonUri: inventoryJsonUri.toString(),
+        inventoryId,
+        name,
+        description,
+        stackable,
+        asepriteMode,
+        defaultAnimation,
+        verbs,
+        availableVerbs: effectiveVerbs,
+        animations
     };
 }
