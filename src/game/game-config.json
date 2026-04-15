@@ -29,7 +29,7 @@
   "initialGameState": {
     "flags": {},
     "variables": {},
-    "inventory": []
+    "inventory": ["Ladder", "Broom"]
   },
   "dialog": {
     "clickToSkip": true,

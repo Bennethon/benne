@@ -1,4 +1,4 @@
 import { registerInventoryScript } from '@engine/scripting';
 
-registerInventoryScript('Ladder', ({ B }) => {
+registerInventoryScript('Ladder', ({ B: _B }) => {
 });

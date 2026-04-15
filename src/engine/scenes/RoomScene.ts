@@ -42,7 +42,7 @@ import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
 import { createCharacterScriptContext } from '../scripting/CharacterScriptContext.js';
 import { createInventoryScriptContext } from '../scripting/InventoryScriptContext.js';
 import type { CharacterScriptContext, InventoryScriptContext, RoomScriptContext } from '@engine/scripting/types.js';
-import { buildGuiOverlay, type GuiOverlayHandle } from '../gui/buildGuiOverlay';
+import { buildGuiOverlay, GUI_TEXT_OVERLAY_DEPTH, type GuiOverlayHandle } from '../gui/buildGuiOverlay';
 import { getGuiDataById } from '../../game/loadGuiData';
 
 /** Ignore walk clicks when already within this many pixels of the target. */
@@ -132,6 +132,9 @@ export class RoomScene extends Phaser.Scene {
   /** Screen-fixed dialogue text from `guis/dialog-text/dialog-text.gui.json`. */
   private dialogTextOverlay: GuiOverlayHandle | null = null;
 
+  /** Screen-fixed inventory HUD from `guis/inventory-hud/inventory-hud.gui.json` (above room content; depth over dialog line). */
+  private inventoryHudOverlay: GuiOverlayHandle | null = null;
+
   private readonly dialogOverlayScreenScratch = new Phaser.Math.Vector2();
 
   /**
@@ -184,7 +187,20 @@ export class RoomScene extends Phaser.Scene {
     this.drawRoomDebugOverlays(data);
 
     const dialogGui = getGuiDataById('dialog-text');
-    this.dialogTextOverlay = dialogGui ? buildGuiOverlay(this, dialogGui) : null;
+    this.dialogTextOverlay = dialogGui
+      ? buildGuiOverlay(this, dialogGui, {
+          /** Hidden at rest when `visible` is false; {@link setDialogTextOverlay} shows the line when needed. */
+          startVisible: dialogGui.visible === true,
+        })
+      : null;
+
+    const inventoryHudGui = getGuiDataById('inventory-hud');
+    this.inventoryHudOverlay = inventoryHudGui
+      ? buildGuiOverlay(this, inventoryHudGui, {
+          startVisible: inventoryHudGui.visible === true,
+          depth: GUI_TEXT_OVERLAY_DEPTH + 1000,
+        })
+      : null;
 
     // ─────────────────────────────────────────────────────────────
     // Bennescript: after props, characters, player, and camera exist
@@ -262,6 +278,8 @@ export class RoomScene extends Phaser.Scene {
       benneDispose?.();
       this.dialogTextOverlay?.destroy();
       this.dialogTextOverlay = null;
+      this.inventoryHudOverlay?.destroy();
+      this.inventoryHudOverlay = null;
       this.scriptedDialogInputSuppressionDepth = 0;
       this.scriptedDialogClickToSkip = null;
       this.scale.off('resize', this.onScaleResize, this);
