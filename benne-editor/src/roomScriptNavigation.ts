@@ -9,17 +9,19 @@ import {
     readConfiguredVerbIdSet
 } from './verbHandlerPresence';
 
+/**
+ * Helpers for the Benne editor two-row layout: they open the **companion `*.ts`** next to a definition
+ * JSON file and re-apply {@link applyBenneTwoRowJsonScriptLayout}. They do **not** open the `*.json` itself
+ * (callers open JSON separately when needed, e.g. tree selection or wizards).
+ */
 /** Bottom-row editor group for source files after {@link applyBenneTwoRowJsonScriptLayout}. */
 export const BENNE_ROOM_SOURCES_VIEW_COLUMN = vscode.ViewColumn.Two;
 
-/** The usual column for room/character/gui script beneath the preview row. */
+/** The usual column for companion TypeScript beneath the preview row. */
 export const BENNE_SCRIPT_VIEW_COLUMN = vscode.ViewColumn.Two;
 
-/** Open `*.room.ts` pinned in the bottom row. */
-export async function openRoomJsonAndScriptBottomGroup(
-    roomJsonUri: vscode.Uri,
-    roomId: string
-): Promise<void> {
+/** Opens sibling `*.room.ts` in the script column; reapplies the two-row layout. Does not open `*.room.json`. */
+export async function openBenneRoomTypeScript(roomJsonUri: vscode.Uri, roomId: string): Promise<void> {
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
     try {
         await vscode.workspace.fs.stat(scriptUri);
@@ -31,24 +33,8 @@ export async function openRoomJsonAndScriptBottomGroup(
     await applyBenneTwoRowJsonScriptLayout();
 }
 
-/** Pinned character JSON + optional `*.character.ts` beside it in the primary row. */
-export async function openCharacterJsonAndScriptPinned(
-    characterJsonUri: vscode.Uri,
-    characterId: string
-): Promise<void> {
-    await openDocumentPinned(characterJsonUri, vscode.ViewColumn.One);
-    const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
-    try {
-        await vscode.workspace.fs.stat(scriptUri);
-    } catch {
-        return;
-    }
-    const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);
-    await vscode.window.showTextDocument(scriptDoc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
-}
-
-/** Character preview row + `*.character.ts` in the bottom row. */
-export async function openCharacterJsonAndScriptBottomGroup(
+/** Opens sibling `*.character.ts` in the script column; reapplies the two-row layout. Does not open `*.character.json`. */
+export async function openBenneCharacterTypeScript(
     characterJsonUri: vscode.Uri,
     characterId: string
 ): Promise<void> {
@@ -63,11 +49,8 @@ export async function openCharacterJsonAndScriptBottomGroup(
     await applyBenneTwoRowJsonScriptLayout();
 }
 
-/** GUI preview row + `*.gui.ts` in the bottom row. */
-export async function openGuiJsonAndScriptBottomGroup(
-    guiJsonUri: vscode.Uri,
-    guiId: string
-): Promise<void> {
+/** Opens sibling `*.gui.ts` in the script column; reapplies the two-row layout. Does not open `*.gui.json`. */
+export async function openBenneGuiTypeScript(guiJsonUri: vscode.Uri, guiId: string): Promise<void> {
     const scriptUri = vscode.Uri.joinPath(guiJsonUri, '..', `${guiId}.gui.ts`);
     try {
         await vscode.workspace.fs.stat(scriptUri);
@@ -79,8 +62,8 @@ export async function openGuiJsonAndScriptBottomGroup(
     await applyBenneTwoRowJsonScriptLayout();
 }
 
-/** Inventory JSON + `*.inventory.ts` in the bottom row (no preview bundle yet). */
-export async function openInventoryJsonAndScriptBottomGroup(
+/** Opens sibling `*.inventory.ts` in the script column; reapplies the two-row layout. Does not open `*.inventory.json`. */
+export async function openBenneInventoryTypeScript(
     inventoryJsonUri: vscode.Uri,
     itemId: string
 ): Promise<void> {

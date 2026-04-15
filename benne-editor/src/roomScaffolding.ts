@@ -9,7 +9,7 @@ import {
 import type { EditorSelection } from './editorSelection';
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import type { MainTreeNode } from './mainTreeProvider';
-import { openRoomJsonAndScriptBottomGroup } from './roomScriptNavigation';
+import { openBenneRoomTypeScript } from './roomScriptNavigation';
 
 const SLUG_RE = /^[a-z0-9_-]+$/i;
 
@@ -362,7 +362,7 @@ export async function runAddRoomPropWizard(
         `Added prop "${id}" (tag "${tagTrimmed}", ${clickable ? 'clickable' : 'not clickable'}) to room ${target.roomId}.`
     );
     await applyBenneTwoRowJsonScriptLayout();
-    await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
+    await openBenneRoomTypeScript(target.roomJsonUri, target.roomId);
 }
 
 function defaultPropIdForImportedTag(roomId: string, tag: string): string {
@@ -575,7 +575,7 @@ export async function runImportPropsFromAsepriteTags(
     }
     void vscode.window.showInformationMessage(parts.join(' '));
     await applyBenneTwoRowJsonScriptLayout();
-    await openRoomJsonAndScriptBottomGroup(roomRef.roomJsonUri, roomRef.roomId);
+    await openBenneRoomTypeScript(roomRef.roomJsonUri, roomRef.roomId);
 }
 
 function nextHotspotZIndex(hotspots: Record<string, unknown>[]): number {
@@ -674,7 +674,7 @@ export async function runAddRoomHotspotWizard(
 
     void vscode.window.showInformationMessage(`Added hotspot "${id}" to room ${target.roomId}.`);
     await applyBenneTwoRowJsonScriptLayout();
-    await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
+    await openBenneRoomTypeScript(target.roomJsonUri, target.roomId);
 }
 
 /** Append a room `points[]` entry at the default room center (matches `game-config` resolution). */
@@ -724,7 +724,7 @@ export async function runAddRoomPointWizard(
 
     void vscode.window.showInformationMessage(`Added point "${id}" to room ${target.roomId}.`);
     await applyBenneTwoRowJsonScriptLayout();
-    await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
+    await openBenneRoomTypeScript(target.roomJsonUri, target.roomId);
 }
 
 /** Append a `regions[]` entry with a small default square polygon (editable in the preview). */
@@ -773,7 +773,7 @@ export async function runAddRoomRegionWizard(
 
     void vscode.window.showInformationMessage(`Added region "${id}" to room ${target.roomId}.`);
     await applyBenneTwoRowJsonScriptLayout();
-    await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
+    await openBenneRoomTypeScript(target.roomJsonUri, target.roomId);
 }
 
 /** Append a `characters[]` instance referencing an existing character definition. */
@@ -864,5 +864,5 @@ export async function runAddRoomSpawnedCharacterWizard(
 
     void vscode.window.showInformationMessage(`Added character instance "${id}" (${char.id}) to room ${target.roomId}.`);
     await applyBenneTwoRowJsonScriptLayout();
-    await openRoomJsonAndScriptBottomGroup(target.roomJsonUri, target.roomId);
+    await openBenneRoomTypeScript(target.roomJsonUri, target.roomId);
 }
