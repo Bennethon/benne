@@ -23,9 +23,14 @@ import {
     type RoomPropEntry
 } from './gameDiscovery';
 
+function gameConfigJsonUri(folder: vscode.WorkspaceFolder): vscode.Uri {
+    return vscode.Uri.joinPath(folder.uri, 'src', 'game', 'game-config.json');
+}
+
 export type MainTreeNode =
     | { kind: 'hint'; key: string; message: string }
     | { kind: 'workspace'; folder: vscode.WorkspaceFolder }
+    | { kind: 'gameConfig'; folder: vscode.WorkspaceFolder; uri: vscode.Uri }
     | { kind: 'roomsGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'charsGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'guisGroup'; folder: vscode.WorkspaceFolder }
@@ -220,6 +225,19 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
         return items.some((it) => textMatches(it.name, q) || textMatches(it.id, q));
     }
 
+    /** Filter match for the fixed "Game Config" tree row (`src/game/game-config.json`). */
+    private gameConfigMatchesFilter(q: string): boolean {
+        if (!q) {
+            return true;
+        }
+        return (
+            textMatches('game config', q) ||
+            textMatches('game-config', q) ||
+            textMatches('gameconfig', q) ||
+            textMatches('game-config.json', q)
+        );
+    }
+
     private async roomDeepMatches(
         room: { uri: vscode.Uri; id: string; name: string },
         q: string
@@ -281,6 +299,14 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.id = `ws:${element.folder.uri.toString()}`;
                 item.iconPath = new vscode.ThemeIcon('folder');
                 item.contextValue = 'benneWorkspace';
+                return item;
+            }
+            case 'gameConfig': {
+                const item = new vscode.TreeItem('Game Config', vscode.TreeItemCollapsibleState.None);
+                item.id = `gameConfig:${element.folder.uri.toString()}`;
+                item.resourceUri = element.uri;
+                item.iconPath = new vscode.ThemeIcon('settings-gear');
+                item.contextValue = 'benneGameConfig';
                 return item;
             }
             case 'roomsGroup': {
@@ -472,6 +498,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
             if (gameFolders.length === 1) {
                 const f = gameFolders[0];
                 const nodes: MainTreeNode[] = [];
+                if (!fq || this.gameConfigMatchesFilter(fq)) {
+                    nodes.push({ kind: 'gameConfig', folder: f, uri: gameConfigJsonUri(f) });
+                }
                 if (!fq || (await this.folderHasAnyMatchingRoom(f, fq))) {
                     nodes.push({ kind: 'roomsGroup', folder: f });
                 }
@@ -499,6 +528,7 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 const kept: MainTreeNode[] = [];
                 for (const folder of gameFolders) {
                     const any =
+                        this.gameConfigMatchesFilter(fq) ||
                         (await this.folderHasAnyMatchingRoom(folder, fq)) ||
                         (await this.folderHasAnyMatchingCharacter(folder, fq)) ||
                         (await this.folderHasAnyMatchingGui(folder, fq)) ||
@@ -523,6 +553,13 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
 
         if (element.kind === 'workspace') {
             const nodes: MainTreeNode[] = [];
+            if (!fq || this.gameConfigMatchesFilter(fq)) {
+                nodes.push({
+                    kind: 'gameConfig',
+                    folder: element.folder,
+                    uri: gameConfigJsonUri(element.folder)
+                });
+            }
             if (!fq || (await this.folderHasAnyMatchingRoom(element.folder, fq))) {
                 nodes.push({ kind: 'roomsGroup', folder: element.folder });
             }
@@ -545,6 +582,10 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 ];
             }
             return nodes;
+        }
+
+        if (element.kind === 'gameConfig') {
+            return [];
         }
 
         if (element.kind === 'roomsGroup') {

@@ -1,12 +1,21 @@
 {
   "resolution": {
-    "width": 352,
-    "height": 198
+    "width": 320,
+    "height": 180
   },
   "verbs": [
-    { "id": "look", "label": "Look at" },
-    { "id": "use", "label": "Use" },
-    { "id": "slap", "label": "Slap" }
+    {
+      "id": "look",
+      "label": "Look at"
+    },
+    {
+      "id": "use",
+      "label": "Use"
+    },
+    {
+      "id": "slap",
+      "label": "Slap"
+    }
   ],
   "inputProfile": {
     "kind": "twoVerb",
@@ -15,7 +24,7 @@
   },
   "defaultFallbackLine": "You can't do that.",
   "startingPlayerCharacter": "hank",
-  "startingRoomId": "office",
+  "startingRoomId": "apartment",
   "audio": {
     "masterVolume": 1,
     "sfxVolume": 1,
@@ -30,7 +39,10 @@
   "initialGameState": {
     "flags": {},
     "variables": {},
-    "inventory": ["Ladder", "Broom"]
+    "inventory": [
+      "Ladder",
+      "Broom"
+    ]
   },
   "dialog": {
     "clickToSkip": true,
@@ -42,6 +54,6 @@
     "minDurationMs": 800,
     "msPerCharacter": 35,
     "maxDurationMs": 4500,
-    "durationMultiplier": 1.0
+    "durationMultiplier": 1
   }
 }

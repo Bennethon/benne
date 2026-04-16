@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
+import { computeAsepriteTagCandidateBases, tagsInHyphenFamily } from './asepriteTagFamily';
 import {
     findBenneGameFolders,
     getRoomIdFromRoomJsonUri,
     listCharacterDefinitions,
     listRoomDefinitions,
+    readGameConfigResolution,
     resolveRoomAsepriteSheetForProps
 } from './gameDiscovery';
 import type { EditorSelection } from './editorSelection';
@@ -43,6 +45,58 @@ export async function pickWorkspaceFolder(
         { placeHolder: 'Choose workspace folder for this BENNE game' }
     );
     return picked?.folder;
+}
+
+async function gameRootContaining(roomJsonUri: vscode.Uri): Promise<vscode.Uri | undefined> {
+    const folders = await findBenneGameFolders();
+    return folders.find((f) => roomJsonUri.fsPath.startsWith(f.uri.fsPath))?.uri;
+}
+
+/** Prefer `room.size` when valid; otherwise `game-config.json` resolution. */
+async function resolveRoomWidthHeight(
+    data: Record<string, unknown>,
+    gameRoot: vscode.Uri
+): Promise<{ width: number; height: number }> {
+    const sz = data.size;
+    if (sz && typeof sz === 'object' && !Array.isArray(sz)) {
+        const o = sz as Record<string, unknown>;
+        const w = o.width;
+        const h = o.height;
+        if (
+            typeof w === 'number' &&
+            typeof h === 'number' &&
+            Number.isFinite(w) &&
+            Number.isFinite(h) &&
+            w >= 1 &&
+            h >= 1
+        ) {
+            return { width: Math.floor(w), height: Math.floor(h) };
+        }
+    }
+    return readGameConfigResolution(gameRoot);
+}
+
+function roomCenterFromExtents(width: number, height: number): { cx: number; cy: number } {
+    return {
+        cx: Math.round(width / 2),
+        cy: Math.round(height / 2)
+    };
+}
+
+/** Axis-aligned square centered in room space (4 vertices). */
+function defaultCenteredSquarePoints(
+    halfSide: number,
+    width: number,
+    height: number
+): { x: number; y: number }[] {
+    const { cx, cy } = roomCenterFromExtents(width, height);
+    const s = halfSide;
+    return [
+        { x: cx - s, y: cy - s },
+        { x: cx + s, y: cy - s },
+        { x: cx + s, y: cy + s },
+        { x: cx - s, y: cy + s }
+    ];
 }
 
 /**
@@ -92,11 +146,13 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
         /* create */
     }
 
+    const { width: roomW, height: roomH } = await readGameConfigResolution(folder.uri);
+
     const roomJson = {
         id,
         name,
-        size: { width: DEFAULT_ROOM_WIDTH, height: DEFAULT_ROOM_HEIGHT },
-        scrollBounds: { x: 0, y: 0, width: DEFAULT_ROOM_WIDTH, height: DEFAULT_ROOM_HEIGHT },
+        size: { width: roomW, height: roomH },
+        scrollBounds: { x: 0, y: 0, width: roomW, height: roomH },
         walkable: { polygons: [] },
         hotspots: [],
         points: [],
@@ -441,6 +497,26 @@ async function resolveRoomNodeForImport(
     return { folder, roomJsonUri: picked.room.uri, roomId: picked.room.id };
 }
 
+function existingPropFamilyCoversBase(
+    props: Record<string, unknown>[],
+    base: string,
+    allTags: readonly string[]
+): boolean {
+    const members = new Set(tagsInHyphenFamily(base, allTags));
+    for (const p of props) {
+        const id = typeof p.id === 'string' ? p.id : '';
+        const da = typeof p.defaultAnimation === 'string' ? p.defaultAnimation.trim() : '';
+        const t = typeof p.tag === 'string' ? p.tag.trim() : '';
+        if (id === base || da === base) {
+            return true;
+        }
+        if (t.length > 0 && members.has(t)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * Multi-select Aseprite frame tags and append matching props to the room JSON.
  */
@@ -498,37 +574,153 @@ export async function runImportPropsFromAsepriteTags(
         }
     }
 
-    const items: vscode.QuickPickItem[] = sheet.frameTags.map((tag) => {
-        const exists = usedTags.has(tag);
+    const modePick = await vscode.window.showQuickPick(
+        [
+            {
+                label: 'Grouped by base tag (recommended)',
+                description: 'One prop per root; all door, door-open, … clips in one entry',
+                value: 'grouped' as const
+            },
+            {
+                label: 'Legacy: one prop per tag',
+                description: 'Each selected tag becomes its own prop',
+                value: 'legacy' as const
+            }
+        ],
+        { placeHolder: 'Choose how to import props from this room sheet', ignoreFocusOut: true }
+    );
+    if (!modePick) {
+        return;
+    }
+
+    if (modePick.value === 'legacy') {
+        const items: vscode.QuickPickItem[] = sheet.frameTags.map((tag) => {
+            const exists = usedTags.has(tag);
+            return {
+                label: tag,
+                description: exists ? 'Already a prop in this room' : undefined,
+                picked: !exists
+            };
+        });
+
+        const chosen = await vscode.window.showQuickPick(items, {
+            canPickMany: true,
+            placeHolder: 'Select Aseprite tags to import as props (Space to toggle; Enter to confirm)',
+            ignoreFocusOut: true
+        });
+        if (!chosen || chosen.length === 0) {
+            return;
+        }
+
+        const selectedTags = chosen.map((c) => c.label);
+        const toImport = selectedTags.filter((tag) => !usedTags.has(tag));
+        const skipped = selectedTags.length - toImport.length;
+        if (toImport.length === 0) {
+            void vscode.window.showInformationMessage(
+                skipped > 0
+                    ? `No new props to add (${skipped} tag(s) already in room JSON).`
+                    : 'No tags selected.'
+            );
+            return;
+        }
+
+        const clickablePick = await vscode.window.showQuickPick(
+            [
+                {
+                    label: 'No',
+                    description: 'Decorative only (default for imports)'
+                },
+                {
+                    label: 'Yes',
+                    description: 'Clickable — add walk/collider in JSON or the preview editor'
+                }
+            ],
+            {
+                placeHolder: `Clickable for ${toImport.length} imported prop(s)?`,
+                ignoreFocusOut: true
+            }
+        );
+        if (!clickablePick) {
+            return;
+        }
+        const clickable = clickablePick.label === 'Yes';
+
+        let z = nextPropZIndexFromProps(props);
+        for (const tag of toImport) {
+            const id = allocateUniquePropId(roomRef.roomId, tag, usedIds);
+            const newProp: Record<string, unknown> = {
+                id,
+                tag,
+                zIndex: z,
+                visible: true,
+                alpha: 1
+            };
+            if (clickable) {
+                newProp.clickable = true;
+            }
+            props.push(newProp);
+            z += 1;
+        }
+
+        data.props = props;
+        await vscode.workspace.fs.writeFile(roomRef.roomJsonUri, formatJson(data));
+
+        const parts = [`Imported ${toImport.length} prop(s) from Aseprite tags.`];
+        if (skipped > 0) {
+            parts.push(`Skipped ${skipped} already in room.`);
+        }
+        void vscode.window.showInformationMessage(parts.join(' '));
+        await applyBenneTwoRowJsonScriptLayout();
+        await openBenneRoomTypeScript(roomRef.roomJsonUri, roomRef.roomId);
+        return;
+    }
+
+    const roomSheetTags: readonly string[] = sheet.frameTags;
+
+    const candidateBases = computeAsepriteTagCandidateBases(roomSheetTags);
+    if (candidateBases.length === 0) {
+        void vscode.window.showErrorMessage('No candidate base tags found on this sheet.');
+        return;
+    }
+
+    const baseItems: vscode.QuickPickItem[] = candidateBases.map((base) => {
+        const covered = existingPropFamilyCoversBase(props, base, roomSheetTags);
         return {
-            label: tag,
-            description: exists ? 'Already a prop in this room' : undefined,
-            picked: !exists
+            label: base,
+            description: covered ? 'Family may already exist in this room' : undefined,
+            picked: !covered
         };
     });
 
-    const chosen = await vscode.window.showQuickPick(items, {
+    const chosenBases = await vscode.window.showQuickPick(baseItems, {
         canPickMany: true,
-        placeHolder: 'Select Aseprite tags to import as props (Space to toggle; Enter to confirm)',
+        placeHolder: 'Select base tag(s); each creates one prop with all <base>-* clips on the sheet',
         ignoreFocusOut: true
     });
-    if (!chosen || chosen.length === 0) {
+    if (!chosenBases || chosenBases.length === 0) {
         return;
     }
 
-    const selectedTags = chosen.map((c) => c.label);
-    const toImport = selectedTags.filter((tag) => !usedTags.has(tag));
-    const skipped = selectedTags.length - toImport.length;
-    if (toImport.length === 0) {
-        void vscode.window.showInformationMessage(
-            skipped > 0
-                ? `No new props to add (${skipped} tag(s) already in room JSON).`
-                : 'No tags selected.'
-        );
+    const basesToAdd = chosenBases.map((c) => c.label);
+    const membersByBase = basesToAdd.map((b) => ({
+        base: b,
+        members: tagsInHyphenFamily(b, roomSheetTags)
+    }));
+    const filtered = membersByBase.filter(({ base, members }) => {
+        if (members.length === 0) {
+            return false;
+        }
+        if (existingPropFamilyCoversBase(props, base, roomSheetTags)) {
+            return false;
+        }
+        return true;
+    });
+    if (filtered.length === 0) {
+        void vscode.window.showInformationMessage('No new prop families to add (all selected bases already covered).');
         return;
     }
 
-    const clickablePick = await vscode.window.showQuickPick(
+    const clickablePickGrouped = await vscode.window.showQuickPick(
         [
             {
                 label: 'No',
@@ -540,40 +732,60 @@ export async function runImportPropsFromAsepriteTags(
             }
         ],
         {
-            placeHolder: `Clickable for ${toImport.length} imported prop(s)?`,
+            placeHolder: `Clickable for ${filtered.length} imported prop family/families?`,
             ignoreFocusOut: true
         }
     );
-    if (!clickablePick) {
+    if (!clickablePickGrouped) {
         return;
     }
-    const clickable = clickablePick.label === 'Yes';
+    const clickableGrouped = clickablePickGrouped.label === 'Yes';
 
     let z = nextPropZIndexFromProps(props);
-    for (const tag of toImport) {
-        const id = allocateUniquePropId(roomRef.roomId, tag, usedIds);
+    let added = 0;
+    for (const { base, members } of filtered) {
+        const anims: Record<string, Record<string, unknown>> = {};
+        for (const m of members) {
+            anims[m] = {};
+        }
+        let propId: string;
+        let defaultAnimation: string | undefined;
+        if (!usedIds.has(base) && validateSlug(base, 'Prop id') === null) {
+            propId = base;
+            usedIds.add(base);
+        } else {
+            propId = allocateUniquePropId(roomRef.roomId, base, usedIds);
+            defaultAnimation = base;
+        }
+        const displayTag = members.includes(base) ? base : members[0]!;
         const newProp: Record<string, unknown> = {
-            id,
-            tag,
+            id: propId,
+            tag: displayTag,
+            animations: anims,
             zIndex: z,
             visible: true,
             alpha: 1
         };
-        if (clickable) {
+        if (defaultAnimation !== undefined) {
+            newProp.defaultAnimation = defaultAnimation;
+        }
+        if (clickableGrouped) {
             newProp.clickable = true;
         }
         props.push(newProp);
+        for (const m of members) {
+            usedTags.add(m);
+        }
         z += 1;
+        added += 1;
     }
 
     data.props = props;
     await vscode.workspace.fs.writeFile(roomRef.roomJsonUri, formatJson(data));
 
-    const parts = [`Imported ${toImport.length} prop(s) from Aseprite tags.`];
-    if (skipped > 0) {
-        parts.push(`Skipped ${skipped} already in room.`);
-    }
-    void vscode.window.showInformationMessage(parts.join(' '));
+    void vscode.window.showInformationMessage(
+        `Imported ${added} prop famil${added === 1 ? 'y' : 'ies'} from Aseprite (grouped by base tag).`
+    );
     await applyBenneTwoRowJsonScriptLayout();
     await openBenneRoomTypeScript(roomRef.roomJsonUri, roomRef.roomId);
 }
@@ -587,29 +799,6 @@ function nextHotspotZIndex(hotspots: Record<string, unknown>[]): number {
         }
     }
     return max + 1;
-}
-
-/** Matches default `game-config.json` resolution so new geometry lines up with the room preview. */
-const DEFAULT_ROOM_WIDTH = 352;
-const DEFAULT_ROOM_HEIGHT = 198;
-
-function defaultRoomCenter(): { cx: number; cy: number } {
-    return {
-        cx: Math.round(DEFAULT_ROOM_WIDTH / 2),
-        cy: Math.round(DEFAULT_ROOM_HEIGHT / 2)
-    };
-}
-
-/** Axis-aligned square centered in room space (4 vertices). */
-function defaultCenteredSquarePoints(halfSide: number): { x: number; y: number }[] {
-    const { cx, cy } = defaultRoomCenter();
-    const s = halfSide;
-    return [
-        { x: cx - s, y: cy - s },
-        { x: cx + s, y: cy - s },
-        { x: cx + s, y: cy + s },
-        { x: cx - s, y: cy + s }
-    ];
 }
 
 /**
@@ -654,18 +843,25 @@ export async function runAddRoomHotspotWizard(
         return;
     }
 
+    const gameRoot = await gameRootContaining(target.roomJsonUri);
+    if (!gameRoot) {
+        void vscode.window.showErrorMessage('Could not locate BENNE game root for this room.');
+        return;
+    }
+    const { width: roomW, height: roomH } = await resolveRoomWidthHeight(data, gameRoot);
+
     const zIndex = nextHotspotZIndex(hotspots);
-    const { cx, cy } = defaultRoomCenter();
+    const { cx, cy } = roomCenterFromExtents(roomW, roomH);
     const halfSide = 24;
     hotspots.push({
         id,
         active: true,
         description: '',
         zIndex,
-        points: defaultCenteredSquarePoints(halfSide),
+        points: defaultCenteredSquarePoints(halfSide, roomW, roomH),
         walkToPoint: {
             x: cx,
-            y: Math.min(Math.max(cy + 36, 0), DEFAULT_ROOM_HEIGHT)
+            y: Math.min(Math.max(cy + 36, 0), roomH)
         },
         lookAtPoint: { x: cx, y: cy }
     });
@@ -677,7 +873,7 @@ export async function runAddRoomHotspotWizard(
     await openBenneRoomTypeScript(target.roomJsonUri, target.roomId);
 }
 
-/** Append a room `points[]` entry at the default room center (matches `game-config` resolution). */
+/** Append a room `points[]` entry at the center of the room (`size` or `game-config.json` resolution). */
 export async function runAddRoomPointWizard(
     selection: EditorSelection,
     node?: MainTreeNode
@@ -717,7 +913,13 @@ export async function runAddRoomPointWizard(
         return;
     }
 
-    const { cx, cy } = defaultRoomCenter();
+    const gameRoot = await gameRootContaining(target.roomJsonUri);
+    if (!gameRoot) {
+        void vscode.window.showErrorMessage('Could not locate BENNE game root for this room.');
+        return;
+    }
+    const { width: roomW, height: roomH } = await resolveRoomWidthHeight(data, gameRoot);
+    const { cx, cy } = roomCenterFromExtents(roomW, roomH);
     points.push({ id, x: cx, y: cy });
     data.points = points;
     await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
@@ -767,7 +969,13 @@ export async function runAddRoomRegionWizard(
         return;
     }
 
-    regions.push({ id, active: true, points: defaultCenteredSquarePoints(24) });
+    const gameRoot = await gameRootContaining(target.roomJsonUri);
+    if (!gameRoot) {
+        void vscode.window.showErrorMessage('Could not locate BENNE game root for this room.');
+        return;
+    }
+    const { width: roomW, height: roomH } = await resolveRoomWidthHeight(data, gameRoot);
+    regions.push({ id, active: true, points: defaultCenteredSquarePoints(24, roomW, roomH) });
     data.regions = regions;
     await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
 
@@ -846,8 +1054,15 @@ export async function runAddRoomSpawnedCharacterWizard(
         return;
     }
 
+    const gameRoot = await gameRootContaining(target.roomJsonUri);
+    if (!gameRoot) {
+        void vscode.window.showErrorMessage('Could not locate BENNE game root for this room.');
+        return;
+    }
+    const { width: roomW, height: roomH } = await resolveRoomWidthHeight(data, gameRoot);
+
     const zIndex = nextCharacterZIndex(characters);
-    const { cx, cy } = defaultRoomCenter();
+    const { cx, cy } = roomCenterFromExtents(roomW, roomH);
 
     characters.push({
         instanceId: id,

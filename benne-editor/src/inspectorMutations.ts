@@ -244,22 +244,23 @@ function setPropsArray(data: Record<string, unknown>, arr: Record<string, unknow
 }
 
 /**
- * Updates `props[].animations[<aseprite tag>]` for the prop's current `tag` (loop / uniform frame duration).
- * Removes empty `animations` entries when nothing remains configured.
+ * Updates `props[].animations[<animationTag>]` (loop / uniform frame duration).
+ * Removes empty `animations` entries when nothing remains configured for that tag.
  */
 export function updatePropAnimationFields(
     data: Record<string, unknown>,
     propId: string,
+    animationTag: string,
     fields: { loop?: boolean; frameDuration?: number | null }
 ): { ok: true } | { ok: false; message: string } {
+    const tagKey = animationTag.trim();
+    if (!tagKey) {
+        return { ok: false, message: 'Animation tag cannot be empty.' };
+    }
     const props = propsArray(data);
     const prop = props.find((x) => typeof x.id === 'string' && (x.id as string) === propId);
     if (!prop) {
         return { ok: false, message: 'Prop not found.' };
-    }
-    const tag = typeof prop.tag === 'string' ? prop.tag.trim() : '';
-    if (!tag) {
-        return { ok: false, message: 'Prop has no Aseprite tag.' };
     }
 
     let animsRaw = prop.animations;
@@ -268,10 +269,10 @@ export function updatePropAnimationFields(
         prop.animations = animsRaw;
     }
     const anims = animsRaw as Record<string, unknown>;
-    let clipRaw = anims[tag];
+    let clipRaw = anims[tagKey];
     if (!clipRaw || typeof clipRaw !== 'object' || Array.isArray(clipRaw)) {
         clipRaw = {};
-        anims[tag] = clipRaw;
+        anims[tagKey] = clipRaw;
     }
     const clip = clipRaw as Record<string, unknown>;
 
@@ -296,7 +297,7 @@ export function updatePropAnimationFields(
     const hasOther = Object.keys(clip).some((k) => !reserved.has(k));
 
     if (!hasLoop && !hasFd && !hasOther) {
-        delete anims[tag];
+        delete anims[tagKey];
         if (Object.keys(anims).length === 0) {
             delete prop.animations;
         }
@@ -315,6 +316,10 @@ export function updatePropFields(
         zIndex?: number;
         parallaxDepth?: number;
         alpha?: number;
+        /** Aseprite frame tag currently shown for this prop. */
+        tag?: string;
+        /** Optional second root for `<root>-*` clip grouping (empty removes the key). */
+        defaultAnimation?: string;
     }
 ): { ok: true } | { ok: false; message: string } {
     const props = propsArray(data);
@@ -339,6 +344,21 @@ export function updatePropFields(
     }
     if (fields.alpha !== undefined && Number.isFinite(fields.alpha)) {
         prop.alpha = fields.alpha;
+    }
+    if (fields.tag !== undefined) {
+        const t = fields.tag.trim();
+        if (t.length === 0) {
+            return { ok: false, message: 'Prop tag cannot be empty.' };
+        }
+        prop.tag = t;
+    }
+    if (fields.defaultAnimation !== undefined) {
+        const d = fields.defaultAnimation.trim();
+        if (d.length === 0) {
+            delete prop.defaultAnimation;
+        } else {
+            prop.defaultAnimation = d;
+        }
     }
     return { ok: true };
 }

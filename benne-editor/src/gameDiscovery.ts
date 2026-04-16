@@ -182,6 +182,46 @@ export async function readGameConfigVerbs(gameRoot: vscode.Uri): Promise<{ id: s
     }
 }
 
+/**
+ * When `game-config.json` is missing or has no valid `resolution`, matches prior editor scaffolding
+ * and the internal size called out in docs.
+ */
+export const FALLBACK_GAME_RESOLUTION = { width: 352, height: 198 } as const;
+
+/**
+ * `resolution` from `src/game/game-config.json` (same source as runtime `getGameSettings()`).
+ * Falls back to {@link FALLBACK_GAME_RESOLUTION} when the file or field is unusable.
+ */
+export async function readGameConfigResolution(
+    gameRoot: vscode.Uri
+): Promise<{ width: number; height: number }> {
+    const uri = vscode.Uri.joinPath(gameRoot, 'src', 'game', 'game-config.json');
+    try {
+        const raw = await vscode.workspace.fs.readFile(uri);
+        const data = JSON.parse(new TextDecoder('utf-8').decode(raw)) as { resolution?: unknown };
+        const r = data.resolution;
+        if (!r || typeof r !== 'object' || Array.isArray(r)) {
+            return { ...FALLBACK_GAME_RESOLUTION };
+        }
+        const o = r as Record<string, unknown>;
+        const width = o.width;
+        const height = o.height;
+        if (
+            typeof width === 'number' &&
+            typeof height === 'number' &&
+            Number.isFinite(width) &&
+            Number.isFinite(height) &&
+            width >= 1 &&
+            height >= 1
+        ) {
+            return { width: Math.floor(width), height: Math.floor(height) };
+        }
+        return { ...FALLBACK_GAME_RESOLUTION };
+    } catch {
+        return { ...FALLBACK_GAME_RESOLUTION };
+    }
+}
+
 function colliderPointCount(data: Record<string, unknown>): number {
     const c = data.collider;
     if (!c || typeof c !== 'object' || Array.isArray(c)) {
@@ -271,6 +311,7 @@ export async function readGuiUsesAsepriteDisplay(uri: vscode.Uri): Promise<boole
 export interface RoomPropEntry {
     id: string;
     tag?: string;
+    defaultAnimation?: string;
     zIndex?: number;
     visible?: boolean;
     clickable?: boolean;
@@ -468,6 +509,7 @@ export async function readRoomProps(uri: vscode.Uri): Promise<RoomPropEntry[]> {
             props.push({
                 id: o.id as string,
                 tag: typeof o.tag === 'string' ? o.tag : undefined,
+                defaultAnimation: typeof o.defaultAnimation === 'string' ? o.defaultAnimation : undefined,
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : undefined,
                 visible: typeof o.visible === 'boolean' ? o.visible : undefined,
                 clickable: typeof o.clickable === 'boolean' ? o.clickable : undefined,
@@ -690,6 +732,37 @@ export async function resolveSharedInventoryAsepriteSheet(
 ): Promise<RoomAsepriteSheetResolution> {
     const png = 'images/inventory/inventory.png';
     const json = 'images/inventory/inventory.json';
+    const pngExists = await gameAssetExists(gameRoot, png);
+    const jsonExists = await gameAssetExists(gameRoot, json);
+    if (!jsonExists) {
+        return { pngExists, jsonExists, frameTags: null };
+    }
+    try {
+        const jsonUri = vscode.Uri.joinPath(
+            gameRoot,
+            'src',
+            'game',
+            'assets',
+            ...assetPathSegments(json)
+        );
+        const raw = await vscode.workspace.fs.readFile(jsonUri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as Record<string, unknown>;
+        return { pngExists, jsonExists, frameTags: readAsepriteFrameTagNames(data) };
+    } catch {
+        return { pngExists, jsonExists, frameTags: null };
+    }
+}
+
+/**
+ * Per-item inventory sheet `images/inventory/<id>/<id>.json` — same resolution shape as shared inventory.
+ */
+export async function resolvePerItemInventoryAsepriteSheet(
+    gameRoot: vscode.Uri,
+    itemId: string
+): Promise<RoomAsepriteSheetResolution> {
+    const png = `images/inventory/${itemId}/${itemId}.png`;
+    const json = `images/inventory/${itemId}/${itemId}.json`;
     const pngExists = await gameAssetExists(gameRoot, png);
     const jsonExists = await gameAssetExists(gameRoot, json);
     if (!jsonExists) {
