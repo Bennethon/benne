@@ -11,7 +11,7 @@
     "x": 18,
     "y": 1
   },
-  "clickable": true,
+  "clickable": false,
   "display": {
     "aseprite": true
   },
