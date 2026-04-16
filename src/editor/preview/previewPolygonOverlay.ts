@@ -279,4 +279,54 @@ export class PreviewPolygonOverlay {
 
         this.ctx.globalAlpha = 1;
     }
+
+    /**
+     * Stroke-only axis-aligned rects in world space — same stroke path as {@link clearAndDrawRect}
+     * border (no fill, no resize handles). Used e.g. for GUI `inventoryPanel` slot frames in the editor.
+     */
+    clearAndDrawStrokeRects(
+        rects: ReadonlyArray<{ left: number; top: number; right: number; bottom: number }>,
+        cam: Cameras.Scene2D.Camera,
+        style: { strokeStyle: string; lineWidthCss: number },
+    ): void {
+        this.clearAndDrawStrokeRectGroups(
+            [{ rects, strokeStyle: style.strokeStyle, lineWidthCss: style.lineWidthCss }],
+            cam,
+        );
+    }
+
+    /**
+     * Multiple stroke batches (clears once, then draws each group with its own style/width).
+     */
+    clearAndDrawStrokeRectGroups(
+        groups: ReadonlyArray<{
+            rects: ReadonlyArray<{ left: number; top: number; right: number; bottom: number }>;
+            strokeStyle: string;
+            lineWidthCss: number;
+        }>,
+        cam: Cameras.Scene2D.Camera,
+    ): void {
+        const c = this.game.canvas;
+        const cssW = c.clientWidth;
+        const cssH = c.clientHeight;
+        this.ctx.clearRect(0, 0, cssW, cssH);
+
+        for (const g of groups) {
+            if (g.rects.length === 0) {
+                continue;
+            }
+            this.ctx.strokeStyle = g.strokeStyle;
+            this.ctx.lineWidth = g.lineWidthCss;
+            this.ctx.lineJoin = 'round';
+            this.ctx.globalAlpha = 0.9;
+            for (const rect of g.rects) {
+                const tl = this.worldToCanvasCss({ x: rect.left, y: rect.top }, cam);
+                const br = this.worldToCanvasCss({ x: rect.right, y: rect.bottom }, cam);
+                const rw = br.x - tl.x;
+                const rh = br.y - tl.y;
+                this.ctx.strokeRect(tl.x, tl.y, rw, rh);
+            }
+        }
+        this.ctx.globalAlpha = 1;
+    }
 }

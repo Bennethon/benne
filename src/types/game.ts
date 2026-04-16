@@ -38,6 +38,8 @@ export interface GameSettingsDebug {
   showWalkable?: boolean;
   /** When true, stroke prop `collider` polygons for props that define one. */
   showPropOutlines?: boolean;
+  /** When true, stroke each slot rectangle in GUI `inventoryPanel` controls (no default slot fills). */
+  showGuiOutlines?: boolean;
 }
 
 /** Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults. */
