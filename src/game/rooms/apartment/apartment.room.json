@@ -18,28 +18,28 @@
         "active": true,
         "points": [
           {
-            "x": 52,
-            "y": 132
+            "x": 50,
+            "y": 131
           },
           {
-            "x": 13,
-            "y": 168
+            "x": 10,
+            "y": 171
           },
           {
-            "x": 312,
+            "x": 304,
             "y": 167
           },
           {
-            "x": 261,
-            "y": 120
+            "x": 259,
+            "y": 122
           },
           {
-            "x": 139,
-            "y": 120
+            "x": 137,
+            "y": 121
           },
           {
-            "x": 128,
-            "y": 133
+            "x": 123,
+            "y": 131
           }
         ],
         "holes": [
@@ -48,28 +48,28 @@
             "active": true,
             "points": [
               {
-                "x": 152,
+                "x": 151,
                 "y": 151
               },
               {
-                "x": 158,
-                "y": 158
+                "x": 159,
+                "y": 160
+              },
+              {
+                "x": 197,
+                "y": 160
+              },
+              {
+                "x": 206,
+                "y": 152
               },
               {
                 "x": 198,
-                "y": 158
+                "y": 140
               },
               {
-                "x": 207,
-                "y": 149
-              },
-              {
-                "x": 195,
-                "y": 143
-              },
-              {
-                "x": 160,
-                "y": 143
+                "x": 158,
+                "y": 140
               }
             ]
           }
@@ -82,59 +82,72 @@
   "regions": [],
   "props": [
     {
-      "id": "apartment-prop-bg",
+      "id": "BG",
       "tag": "BG",
+      "animations": {
+        "BG": {}
+      },
       "zIndex": 0,
       "visible": true,
       "alpha": 1
     },
     {
-      "id": "apartment-prop-couch",
+      "id": "Fan",
+      "tag": "Fan",
+      "animations": {
+        "Fan": {
+          "loop": true
+        }
+      },
+      "zIndex": 1,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Couch",
       "tag": "Couch",
+      "animations": {
+        "Couch": {}
+      },
       "zIndex": 2,
       "visible": true,
       "alpha": 1,
       "clickable": true
     },
     {
-      "id": "apartment-prop-door",
+      "id": "Door",
       "tag": "Door",
+      "animations": {
+        "Door": {},
+        "Door-open": {}
+      },
       "zIndex": 3,
       "visible": true,
       "alpha": 1,
       "clickable": true
     },
     {
-      "id": "apartment-prop-pillar",
+      "id": "Pillar",
       "tag": "Pillar",
-      "zIndex": 20,
+      "animations": {
+        "Pillar": {}
+      },
+      "zIndex": 4,
       "visible": true,
       "alpha": 1,
       "clickable": true
-    },
-    {
-      "id": "apartment-prop-fan",
-      "tag": "Fan",
-      "zIndex": 21,
-      "visible": true,
-      "alpha": 1,
-      "animations": {
-        "Fan": {
-          "loop": true
-        }
-      }
     }
   ],
   "characters": [
     {
       "instanceId": "hank-1",
       "definition": "hank/hank.character.json",
-      "x": 100,
-      "y": 148,
+      "x": 176,
+      "y": 99,
       "initialFacing": "L",
       "initialAnimation": "Idle",
       "visible": true,
-      "zIndex": 10
+      "zIndex": 0
     }
   ]
 }

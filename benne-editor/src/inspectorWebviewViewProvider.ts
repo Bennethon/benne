@@ -547,8 +547,27 @@ type WebviewPatch =
       }
     | { type: 'addWalkablePolygon' }
     | { type: 'addWalkableHole'; polygonId: string }
-    | { type: 'propField'; id?: string; description?: string; visible?: boolean; clickable?: boolean; zIndex?: number; parallaxDepth?: number; alpha?: number }
-    | { type: 'propAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
+    | {
+          type: 'propField';
+          id?: string;
+          description?: string;
+          visible?: boolean;
+          clickable?: boolean;
+          zIndex?: number;
+          parallaxDepth?: number;
+          alpha?: number;
+          tag?: string;
+          defaultAnimation?: string;
+      }
+    | {
+          type: 'propAnimation';
+          propId?: string;
+          animationTag?: string;
+          /** @deprecated use propId + animationTag */
+          id?: string;
+          loop?: boolean;
+          frameDuration?: number | null;
+      }
     | { type: 'hotspotField'; id?: string; description?: string; active?: boolean; zIndex?: number }
     | {
           type: 'characterField';
@@ -955,15 +974,31 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 clickable: p.clickable,
                 zIndex: p.zIndex,
                 parallaxDepth: p.parallaxDepth,
-                alpha: p.alpha
+                alpha: p.alpha,
+                tag: p.tag,
+                defaultAnimation: p.defaultAnimation
             });
             return;
         }
-        if (p.type === 'propAnimation' && typeof p.id === 'string') {
+        if (p.type === 'propAnimation') {
             if (focusKind !== 'room') {
                 return;
             }
-            updatePropAnimationFields(data, p.id, { loop: p.loop, frameDuration: p.frameDuration });
+            const propId = typeof p.propId === 'string' ? p.propId : typeof p.id === 'string' ? p.id : '';
+            let animationTag = typeof p.animationTag === 'string' ? p.animationTag : '';
+            if (!propId) {
+                return;
+            }
+            if (!animationTag && typeof p.id === 'string') {
+                const props = (data.props as Record<string, unknown>[] | undefined) ?? [];
+                const prop = props.find((x) => x && typeof x.id === 'string' && (x.id as string) === propId);
+                const t = prop && typeof prop.tag === 'string' ? prop.tag.trim() : '';
+                animationTag = t;
+            }
+            if (!animationTag) {
+                return;
+            }
+            updatePropAnimationFields(data, propId, animationTag, { loop: p.loop, frameDuration: p.frameDuration });
             return;
         }
         if (p.type === 'hotspotField' && typeof p.id === 'string') {

@@ -19,11 +19,17 @@ type InspectorWalkableRow = {
     active: boolean;
 };
 
+type InspectorPropAnimationCard = {
+    id: string;
+    loop: boolean;
+    frameDuration: number | null;
+};
+
 type InspectorPropCard = {
     id: string;
     tag?: string;
-    animLoop: boolean;
-    animFrameDuration: number | null;
+    defaultAnimation: string;
+    animations: InspectorPropAnimationCard[];
     description: string;
     visible: boolean;
     clickable: boolean;
@@ -350,23 +356,45 @@ function renderRoom(state: InspectorRoomState): string {
             const title = esc(p.tag ?? p.id);
             const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, p.verbs, `prop:${p.id}`);
             const tagTrim = typeof p.tag === 'string' ? p.tag.trim() : '';
+            const tagSelectOptions =
+                p.animations.length > 0
+                    ? (() => {
+                          let inner = p.animations
+                              .map((a) => {
+                                  const sel = a.id === tagTrim ? ' selected' : '';
+                                  return `<option value="${esc(a.id)}"${sel}>${esc(a.id)}</option>`;
+                              })
+                              .join('');
+                          if (tagTrim.length > 0 && !p.animations.some((a) => a.id === tagTrim)) {
+                              inner = `<option value="${esc(tagTrim)}" selected>${esc(tagTrim)}</option>${inner}`;
+                          }
+                          return inner;
+                      })()
+                    : `<option value="${esc(tagTrim || p.id)}" selected>${esc(tagTrim || p.id)}</option>`;
+            const animRows = p.animations
+                .map((anim) => {
+                    const rowKey = `${esc(p.id)}::${esc(anim.id)}`;
+                    const summary = `<div class="benne-card-titles">
+        <div class="benne-card-title">${esc(anim.id)}</div>
+        <div class="benne-card-sub muted">Aseprite clip</div>
+      </div>`;
+                    const body = `<div class="benne-prop-grid benne-prop-grid--tight prop-anim-row" data-prop-id="${esc(p.id)}" data-anim-tag="${esc(anim.id)}">
+        <span class="benne-pg-lbl">loop</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-anim-loop" ${anim.loop ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">frameDuration</span>
+        <input type="number" class="prop-anim-dur" value="${anim.frameDuration ?? ''}" min="1" step="1" placeholder="(Aseprite)" title="Leave blank to use per-frame durations from the Aseprite export" />
+      </div>`;
+                    return renderInspectorItem(state, 'propAnimation', rowKey, ' benne-card--character', summary, body);
+                })
+                .join('');
             const animSubbody =
-                tagTrim.length > 0
-                    ? `<div class="benne-card-subsection-body">
-        <div class="benne-prop-grid benne-prop-grid--tight">
-          <span class="benne-pg-lbl">Tag clip</span>
-          <div class="benne-pg-val"><code class="badge">${esc(tagTrim)}</code></div>
-          <span class="benne-pg-lbl">loop</span>
-          <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-anim-loop" data-id="${esc(p.id)}" ${p.animLoop ? 'checked' : ''} /></label>
-          <span class="benne-pg-lbl">frameDuration</span>
-          <input type="number" class="prop-anim-dur" data-id="${esc(p.id)}" value="${p.animFrameDuration ?? ''}" min="1" step="1" placeholder="(Aseprite)" title="Leave blank to use per-frame durations from the Aseprite export" />
-        </div>
-      </div>`
+                p.animations.length > 0
+                    ? `<div class="benne-card-subsection-body"><div class="benne-card-list">${animRows}</div></div>`
                     : `<div class="benne-card-subsection-body">
-        <p class="muted small">Set an Aseprite <strong>tag</strong> on this prop to configure playback for that clip.</p>
+        <p class="muted small">No animation clips listed — add <code>animations</code> in JSON or ensure the room sheet has matching frame tags.</p>
       </div>`;
             const animSection = `<details class="benne-card-subsection">
-      <summary>Animations</summary>
+      <summary>Animations (${p.animations.length})</summary>
       ${animSubbody}
     </details>`;
             const propClickableCls = p.clickable ? ' benne-card--prop-clickable' : '';
@@ -395,6 +423,10 @@ function renderRoom(state: InspectorRoomState): string {
         <input type="number" step="0.05" min="0" max="1" class="prop-alpha" data-id="${esc(p.id)}" value="${p.alpha}" />
         <span class="benne-pg-lbl">Clickable</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-clickable" data-id="${esc(p.id)}" ${p.clickable ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">Displayed tag</span>
+        <select class="prop-tag-select" data-id="${esc(p.id)}" title="Aseprite frame tag shown for this prop">${tagSelectOptions}</select>
+        <span class="benne-pg-lbl">Family root</span>
+        <input type="text" class="prop-default-animation" data-id="${esc(p.id)}" value="${esc(p.defaultAnimation)}" placeholder="(optional) e.g. door when id differs" title="Optional second root for &lt;root&gt;-* tag grouping alongside prop id" />
       </div>
       <label class="benne-field-label muted small">Description</label>
       <textarea class="benne-card-desc prop-desc" data-id="${esc(p.id)}" rows="2" title="${esc(p.description)}">${esc(p.description)}</textarea>
@@ -950,20 +982,42 @@ function mountHandlers(state: InspectorRoomState): void {
         });
     });
 
-    root.querySelectorAll('.prop-anim-loop, .prop-anim-dur').forEach((el) => {
+    root.querySelectorAll('.prop-tag-select').forEach((el) => {
         el.addEventListener('change', () => {
-            const id = (el as HTMLElement).dataset.id ?? '';
-            if (!id) {
+            const sel = el as HTMLSelectElement;
+            propPatch(sel.dataset.id ?? '', { tag: sel.value });
+        });
+    });
+    root.querySelectorAll('.prop-default-animation').forEach((el) => {
+        el.addEventListener('blur', () => {
+            const inp = el as HTMLInputElement;
+            propPatch(inp.dataset.id ?? '', { defaultAnimation: inp.value });
+        });
+    });
+    root.querySelectorAll('.prop-anim-row').forEach((row) => {
+        const flushPropAnim = (): void => {
+            if (!(row instanceof HTMLElement)) {
                 return;
             }
-            const loopEl = root.querySelector(`.prop-anim-loop[data-id="${id}"]`) as HTMLInputElement | null;
+            const propId = row.dataset.propId ?? '';
+            const animationTag = row.dataset.animTag ?? '';
+            if (!propId || !animationTag) {
+                return;
+            }
+            const loopEl = row.querySelector('.prop-anim-loop') as HTMLInputElement | null;
+            const durEl = row.querySelector('.prop-anim-dur') as HTMLInputElement | null;
             if (!loopEl) {
                 return;
             }
             const loop = loopEl.checked;
-            const durRaw = (root.querySelector(`.prop-anim-dur[data-id="${id}"]`) as HTMLInputElement | null)?.value ?? '';
+            const durRaw = durEl?.value ?? '';
             const frameDuration = durRaw === '' ? null : Number(durRaw);
-            post('applyPatches', { patches: [{ type: 'propAnimation', id, loop, frameDuration }] });
+            post('applyPatches', {
+                patches: [{ type: 'propAnimation', propId, animationTag, loop, frameDuration }]
+            });
+        };
+        row.querySelectorAll('.prop-anim-loop, .prop-anim-dur').forEach((inp) => {
+            inp.addEventListener('change', flushPropAnim);
         });
     });
 

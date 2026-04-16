@@ -220,6 +220,12 @@ export function activate(context: vscode.ExtensionContext): void {
         if (!node) {
             return;
         }
+        if (node.kind === 'gameConfig') {
+            await resetBenneEditorSurface();
+            selection.clearFocus();
+            await openDocumentPinned(node.uri);
+            return;
+        }
         if (node.kind === 'room') {
             await resetBenneEditorSurface();
             await applyBenneTwoRowJsonScriptLayout();

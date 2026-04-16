@@ -78,6 +78,14 @@
     "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
     "sourceSize": { "w": 320, "h": 180 },
     "duration": 100
+   },
+   "apartment 10.aseprite": {
+    "frame": { "x": 640, "y": 360, "w": 320, "h": 180 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
+    "sourceSize": { "w": 320, "h": 180 },
+    "duration": 100
    }
  },
  "meta": {
@@ -91,8 +99,9 @@
    { "name": "BG", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
    { "name": "Couch", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
    { "name": "Door", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
-   { "name": "Pillar", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
-   { "name": "Fan", "from": 5, "to": 9, "direction": "forward", "color": "#000000ff" }
+   { "name": "Door-open", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
+   { "name": "Pillar", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
+   { "name": "Fan", "from": 6, "to": 10, "direction": "forward", "color": "#000000ff" }
   ],
   "layers": [
    { "name": "Walls and Floor", "opacity": 255, "blendMode": "normal" },
@@ -100,6 +109,7 @@
    { "name": "Window", "opacity": 255, "blendMode": "normal" },
    { "name": "Couch", "opacity": 255, "blendMode": "normal" },
    { "name": "Door", "opacity": 255, "blendMode": "normal" },
+   { "name": "Door Open", "opacity": 255, "blendMode": "normal" },
    { "name": "Pillar", "opacity": 255, "blendMode": "normal" },
    { "name": "Fan", "opacity": 255, "blendMode": "normal" },
    { "name": "Hank", "opacity": 255, "blendMode": "normal" }

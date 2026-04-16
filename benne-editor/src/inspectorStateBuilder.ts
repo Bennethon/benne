@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { tagBelongsToRootSet } from './asepriteTagFamily';
 import {
     characterIdFromRoomDefinition,
     DEFAULT_GAME_VERBS,
@@ -8,6 +9,8 @@ import {
     getRoomIdFromRoomJsonUri,
     readCharacterHooks,
     readGameConfigVerbs,
+    resolvePerItemInventoryAsepriteSheet,
+    resolveRoomAsepriteSheetForProps,
     resolveSharedInventoryAsepriteSheet,
     readRoomHotspots,
     readRoomProps,
@@ -33,13 +36,19 @@ export type InspectorWalkableRow = {
     active: boolean;
 };
 
+export type InspectorPropAnimationCard = {
+    id: string;
+    loop: boolean;
+    frameDuration: number | null;
+};
+
 export type InspectorPropCard = {
     id: string;
     tag?: string;
-    /** Playback for `animations[<tag>]` on this prop; mirrors engine `applyCharacterAnimationClips`. */
-    animLoop: boolean;
-    /** Uniform ms per frame when set; null = use Aseprite per-frame timing. */
-    animFrameDuration: number | null;
+    /** Optional second root for `<root>-*` discovery; empty when unset in JSON. */
+    defaultAnimation: string;
+    /** Per Aseprite tag on the room sheet (JSON + sheet-derived). */
+    animations: InspectorPropAnimationCard[];
     description: string;
     visible: boolean;
     clickable: boolean;
@@ -344,6 +353,10 @@ async function buildRoomInspectorState(
     const propsList = await readRoomProps(roomJsonUri);
     const propIds = new Set(propsList.map((p) => p.id));
 
+    const roomSheet = await resolveRoomAsepriteSheetForProps(folder.uri, roomId);
+    const sheetTagList = roomSheet.frameTags ?? [];
+    const sheetTagSet = new Set(sheetTagList);
+
     const propsRaw = data.props;
     const props: InspectorPropCard[] = [];
     if (Array.isArray(propsRaw)) {
@@ -359,6 +372,7 @@ async function buildRoomInspectorState(
             const entry = propsList.find((p) => p.id === id) ?? ({
                 id,
                 tag: typeof o.tag === 'string' ? o.tag : undefined,
+                defaultAnimation: typeof o.defaultAnimation === 'string' ? o.defaultAnimation : undefined,
                 clickable: typeof o.clickable === 'boolean' ? o.clickable : undefined,
                 visible: typeof o.visible === 'boolean' ? o.visible : undefined,
                 onVerb:
@@ -373,29 +387,47 @@ async function buildRoomInspectorState(
                     ? buildPropVerbChips(roomId, entry, gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS, configured, roomScriptText)
                     : [];
             const tagStr = typeof o.tag === 'string' ? o.tag.trim() : '';
-            let animLoop = false;
-            let animFrameDuration: number | null = null;
-            if (
-                tagStr &&
-                o.animations &&
-                typeof o.animations === 'object' &&
-                !Array.isArray(o.animations)
-            ) {
-                const clipRaw = (o.animations as Record<string, unknown>)[tagStr];
-                if (clipRaw && typeof clipRaw === 'object' && !Array.isArray(clipRaw)) {
-                    const c = clipRaw as Record<string, unknown>;
-                    animLoop = c.loop === true;
-                    animFrameDuration =
-                        typeof c.frameDuration === 'number' && Number.isFinite(c.frameDuration)
-                            ? c.frameDuration
-                            : null;
+            const defaultAnimFromFile =
+                typeof o.defaultAnimation === 'string' ? o.defaultAnimation.trim() : '';
+            const roots = new Set<string>([id]);
+            if (defaultAnimFromFile.length > 0) {
+                roots.add(defaultAnimFromFile);
+            }
+
+            const animationsById = new Map<string, InspectorPropAnimationCard>();
+            if (o.animations && typeof o.animations === 'object' && !Array.isArray(o.animations)) {
+                for (const [animKey, rawClip] of Object.entries(o.animations as Record<string, unknown>)) {
+                    if (!rawClip || typeof rawClip !== 'object' || Array.isArray(rawClip)) {
+                        continue;
+                    }
+                    const c = rawClip as Record<string, unknown>;
+                    animationsById.set(animKey, {
+                        id: animKey,
+                        loop: c.loop === true,
+                        frameDuration:
+                            typeof c.frameDuration === 'number' && Number.isFinite(c.frameDuration)
+                                ? c.frameDuration
+                                : null
+                    });
                 }
             }
+            if (sheetTagList.length > 0) {
+                for (const tag of sheetTagList) {
+                    if (tagBelongsToRootSet(tag, roots) && !animationsById.has(tag)) {
+                        animationsById.set(tag, { id: tag, loop: false, frameDuration: null });
+                    }
+                }
+                if (tagStr.length > 0 && sheetTagSet.has(tagStr) && !animationsById.has(tagStr)) {
+                    animationsById.set(tagStr, { id: tagStr, loop: false, frameDuration: null });
+                }
+            }
+
+            const propAnimations = [...animationsById.values()].sort((a, b) => a.id.localeCompare(b.id));
             props.push({
                 id,
                 tag: typeof o.tag === 'string' ? o.tag : undefined,
-                animLoop,
-                animFrameDuration,
+                defaultAnimation: defaultAnimFromFile,
+                animations: propAnimations,
                 description: typeof o.description === 'string' ? o.description : '',
                 visible: o.visible !== false,
                 clickable: entry.clickable === true,
@@ -758,16 +790,18 @@ async function buildInventoryInspectorState(
         });
     }
     const folder = vscode.workspace.getWorkspaceFolder(inventoryJsonUri);
-    if (folder && asepriteMode === 'shared') {
-        const sheet = await resolveSharedInventoryAsepriteSheet(folder.uri);
+    if (folder && (asepriteMode === 'shared' || asepriteMode === true)) {
+        const sheet =
+            asepriteMode === 'shared'
+                ? await resolveSharedInventoryAsepriteSheet(folder.uri)
+                : await resolvePerItemInventoryAsepriteSheet(folder.uri, inventoryId);
         const tags = sheet.frameTags ?? [];
         const roots = new Set<string>([inventoryId]);
         if (defaultAnimation.length > 0) {
             roots.add(defaultAnimation);
         }
         for (const tag of tags) {
-            const belongsToItem = [...roots].some((root) => tag === root || tag.startsWith(`${root}-`));
-            if (belongsToItem && !animationsById.has(tag)) {
+            if (tagBelongsToRootSet(tag, roots) && !animationsById.has(tag)) {
                 animationsById.set(tag, { id: tag, loop: false, frameDuration: null });
             }
         }

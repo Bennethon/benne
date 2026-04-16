@@ -92,6 +92,12 @@ export interface RoomPropInstance {
    * (see `getAsepriteFrameTagNames('room', roomId)`); cels with no tag are not props.
    */
   tag: string;
+  /**
+   * Optional extra root for `<root>-*` clip families on the room sheet (editor / import tooling).
+   * When set (non-empty), tags matching `defaultAnimation` or `defaultAnimation-*` are grouped with this prop
+   * alongside tags matching `id` / `id-*`. Omitted when `id` alone is the Aseprite prefix root.
+   */
+  defaultAnimation?: string;
   /** Sprite position in room pixels (default top-left 0,0 for full-room composite frames). */
   x?: number;
   y?: number;
