@@ -1,0 +1,140 @@
+{
+  "id": "apartment",
+  "name": "Apartment",
+  "size": {
+    "width": 352,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 352,
+    "height": 198
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "walk-1",
+        "active": true,
+        "points": [
+          {
+            "x": 52,
+            "y": 132
+          },
+          {
+            "x": 13,
+            "y": 168
+          },
+          {
+            "x": 312,
+            "y": 167
+          },
+          {
+            "x": 261,
+            "y": 120
+          },
+          {
+            "x": 139,
+            "y": 120
+          },
+          {
+            "x": 128,
+            "y": 133
+          }
+        ],
+        "holes": [
+          {
+            "id": "hole-1",
+            "active": true,
+            "points": [
+              {
+                "x": 152,
+                "y": 151
+              },
+              {
+                "x": 158,
+                "y": 158
+              },
+              {
+                "x": 198,
+                "y": 158
+              },
+              {
+                "x": 207,
+                "y": 149
+              },
+              {
+                "x": 195,
+                "y": 143
+              },
+              {
+                "x": 160,
+                "y": 143
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [],
+  "points": [],
+  "regions": [],
+  "props": [
+    {
+      "id": "apartment-prop-bg",
+      "tag": "BG",
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "apartment-prop-couch",
+      "tag": "Couch",
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "apartment-prop-door",
+      "tag": "Door",
+      "zIndex": 3,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "apartment-prop-pillar",
+      "tag": "Pillar",
+      "zIndex": 20,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "apartment-prop-fan",
+      "tag": "Fan",
+      "zIndex": 21,
+      "visible": true,
+      "alpha": 1,
+      "animations": {
+        "Fan": {
+          "loop": true
+        }
+      }
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 100,
+      "y": 148,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 10
+    }
+  ]
+}

@@ -36,6 +36,10 @@ export type InspectorWalkableRow = {
 export type InspectorPropCard = {
     id: string;
     tag?: string;
+    /** Playback for `animations[<tag>]` on this prop; mirrors engine `applyCharacterAnimationClips`. */
+    animLoop: boolean;
+    /** Uniform ms per frame when set; null = use Aseprite per-frame timing. */
+    animFrameDuration: number | null;
     description: string;
     visible: boolean;
     clickable: boolean;
@@ -368,9 +372,30 @@ async function buildRoomInspectorState(
                 entry.clickable === true
                     ? buildPropVerbChips(roomId, entry, gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS, configured, roomScriptText)
                     : [];
+            const tagStr = typeof o.tag === 'string' ? o.tag.trim() : '';
+            let animLoop = false;
+            let animFrameDuration: number | null = null;
+            if (
+                tagStr &&
+                o.animations &&
+                typeof o.animations === 'object' &&
+                !Array.isArray(o.animations)
+            ) {
+                const clipRaw = (o.animations as Record<string, unknown>)[tagStr];
+                if (clipRaw && typeof clipRaw === 'object' && !Array.isArray(clipRaw)) {
+                    const c = clipRaw as Record<string, unknown>;
+                    animLoop = c.loop === true;
+                    animFrameDuration =
+                        typeof c.frameDuration === 'number' && Number.isFinite(c.frameDuration)
+                            ? c.frameDuration
+                            : null;
+                }
+            }
             props.push({
                 id,
                 tag: typeof o.tag === 'string' ? o.tag : undefined,
+                animLoop,
+                animFrameDuration,
                 description: typeof o.description === 'string' ? o.description : '',
                 visible: o.visible !== false,
                 clickable: entry.clickable === true,

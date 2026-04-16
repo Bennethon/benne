@@ -28,6 +28,7 @@ import {
     setWalkableRowActive,
     updateHotspotFields,
     updatePointFields,
+    updatePropAnimationFields,
     updatePropFields,
     updateRegionActive,
     updateRoomCharacterFields,
@@ -498,6 +499,27 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
 
     .empty { padding: 12px; color: var(--vscode-descriptionForeground); }
     .tag { font-weight: 600; }
+
+    /* Nested expander inside prop / hotspot cards */
+    .benne-card-subsection {
+      margin-top: 10px;
+      border: 1px solid var(--benne-inspector-border);
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 35%, var(--benne-inspector-well));
+    }
+    .benne-card-subsection > summary {
+      padding: 6px 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 11px;
+      list-style: none;
+      color: var(--vscode-descriptionForeground);
+    }
+    .benne-card-subsection > summary::-webkit-details-marker { display: none; }
+    .benne-card-subsection-body {
+      padding: 0 8px 8px;
+      border-top: 1px solid color-mix(in srgb, var(--benne-inspector-border) 70%, transparent);
+    }
   </style>
 </head>
 <body>
@@ -526,6 +548,7 @@ type WebviewPatch =
     | { type: 'addWalkablePolygon' }
     | { type: 'addWalkableHole'; polygonId: string }
     | { type: 'propField'; id?: string; description?: string; visible?: boolean; clickable?: boolean; zIndex?: number; parallaxDepth?: number; alpha?: number }
+    | { type: 'propAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
     | { type: 'hotspotField'; id?: string; description?: string; active?: boolean; zIndex?: number }
     | {
           type: 'characterField';
@@ -934,6 +957,13 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 parallaxDepth: p.parallaxDepth,
                 alpha: p.alpha
             });
+            return;
+        }
+        if (p.type === 'propAnimation' && typeof p.id === 'string') {
+            if (focusKind !== 'room') {
+                return;
+            }
+            updatePropAnimationFields(data, p.id, { loop: p.loop, frameDuration: p.frameDuration });
             return;
         }
         if (p.type === 'hotspotField' && typeof p.id === 'string') {

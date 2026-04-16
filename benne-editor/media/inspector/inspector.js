@@ -176,6 +176,25 @@ function renderRoom(state) {
         .map((p) => {
         const title = esc(p.tag ?? p.id);
         const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, p.verbs, `prop:${p.id}`);
+        const tagTrim = typeof p.tag === 'string' ? p.tag.trim() : '';
+        const animSubbody = tagTrim.length > 0
+            ? `<div class="benne-card-subsection-body">
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">Tag clip</span>
+          <div class="benne-pg-val"><code class="badge">${esc(tagTrim)}</code></div>
+          <span class="benne-pg-lbl">loop</span>
+          <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-anim-loop" data-id="${esc(p.id)}" ${p.animLoop ? 'checked' : ''} /></label>
+          <span class="benne-pg-lbl">frameDuration</span>
+          <input type="number" class="prop-anim-dur" data-id="${esc(p.id)}" value="${p.animFrameDuration ?? ''}" min="1" step="1" placeholder="(Aseprite)" title="Leave blank to use per-frame durations from the Aseprite export" />
+        </div>
+      </div>`
+            : `<div class="benne-card-subsection-body">
+        <p class="muted small">Set an Aseprite <strong>tag</strong> on this prop to configure playback for that clip.</p>
+      </div>`;
+        const animSection = `<details class="benne-card-subsection">
+      <summary>Animations</summary>
+      ${animSubbody}
+    </details>`;
         const propClickableCls = p.clickable ? ' benne-card--prop-clickable' : '';
         const propActions = p.clickable
             ? `<div class="benne-card-actions">
@@ -207,6 +226,7 @@ function renderRoom(state) {
       <textarea class="benne-card-desc prop-desc" data-id="${esc(p.id)}" rows="2" title="${esc(p.description)}">${esc(p.description)}</textarea>
       <label class="benne-field-label muted small">Verbs</label>
       ${verbHtml}
+      ${animSection}
       ${propActions}`;
         return renderInspectorItem(state, 'prop', p.id, ` benne-card--prop${propClickableCls}`, summary, body);
     })
@@ -727,6 +747,22 @@ function mountHandlers(state) {
             else {
                 propPatch(id, { alpha: Number(inp.value) });
             }
+        });
+    });
+    root.querySelectorAll('.prop-anim-loop, .prop-anim-dur').forEach((el) => {
+        el.addEventListener('change', () => {
+            const id = el.dataset.id ?? '';
+            if (!id) {
+                return;
+            }
+            const loopEl = root.querySelector(`.prop-anim-loop[data-id="${id}"]`);
+            if (!loopEl) {
+                return;
+            }
+            const loop = loopEl.checked;
+            const durRaw = root.querySelector(`.prop-anim-dur[data-id="${id}"]`)?.value ?? '';
+            const frameDuration = durRaw === '' ? null : Number(durRaw);
+            post('applyPatches', { patches: [{ type: 'propAnimation', id, loop, frameDuration }] });
         });
     });
     root.querySelectorAll('.hs-desc').forEach((el) => {

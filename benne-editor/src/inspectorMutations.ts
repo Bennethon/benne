@@ -243,6 +243,68 @@ function setPropsArray(data: Record<string, unknown>, arr: Record<string, unknow
     data.props = arr;
 }
 
+/**
+ * Updates `props[].animations[<aseprite tag>]` for the prop's current `tag` (loop / uniform frame duration).
+ * Removes empty `animations` entries when nothing remains configured.
+ */
+export function updatePropAnimationFields(
+    data: Record<string, unknown>,
+    propId: string,
+    fields: { loop?: boolean; frameDuration?: number | null }
+): { ok: true } | { ok: false; message: string } {
+    const props = propsArray(data);
+    const prop = props.find((x) => typeof x.id === 'string' && (x.id as string) === propId);
+    if (!prop) {
+        return { ok: false, message: 'Prop not found.' };
+    }
+    const tag = typeof prop.tag === 'string' ? prop.tag.trim() : '';
+    if (!tag) {
+        return { ok: false, message: 'Prop has no Aseprite tag.' };
+    }
+
+    let animsRaw = prop.animations;
+    if (!animsRaw || typeof animsRaw !== 'object' || Array.isArray(animsRaw)) {
+        animsRaw = {};
+        prop.animations = animsRaw;
+    }
+    const anims = animsRaw as Record<string, unknown>;
+    let clipRaw = anims[tag];
+    if (!clipRaw || typeof clipRaw !== 'object' || Array.isArray(clipRaw)) {
+        clipRaw = {};
+        anims[tag] = clipRaw;
+    }
+    const clip = clipRaw as Record<string, unknown>;
+
+    if (fields.loop !== undefined) {
+        if (fields.loop) {
+            clip.loop = true;
+        } else {
+            delete clip.loop;
+        }
+    }
+    if (fields.frameDuration !== undefined) {
+        if (fields.frameDuration === null || !Number.isFinite(fields.frameDuration) || fields.frameDuration <= 0) {
+            delete clip.frameDuration;
+        } else {
+            clip.frameDuration = fields.frameDuration;
+        }
+    }
+
+    const hasLoop = clip.loop === true;
+    const hasFd = typeof clip.frameDuration === 'number' && Number.isFinite(clip.frameDuration);
+    const reserved = new Set(['loop', 'frameDuration']);
+    const hasOther = Object.keys(clip).some((k) => !reserved.has(k));
+
+    if (!hasLoop && !hasFd && !hasOther) {
+        delete anims[tag];
+        if (Object.keys(anims).length === 0) {
+            delete prop.animations;
+        }
+    }
+
+    return { ok: true };
+}
+
 export function updatePropFields(
     data: Record<string, unknown>,
     propId: string,
