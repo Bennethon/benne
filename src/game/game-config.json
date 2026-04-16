@@ -24,7 +24,8 @@
   },
   "debug": {
     "showWalkable": false,
-    "showPropOutlines": false
+    "showPropOutlines": false,
+    "showGuiOutlines": false
   },
   "initialGameState": {
     "flags": {},

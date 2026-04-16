@@ -43,7 +43,15 @@ import { createCharacterScriptContext } from '../scripting/CharacterScriptContex
 import { createInventoryScriptContext } from '../scripting/InventoryScriptContext.js';
 import type { CharacterScriptContext, InventoryScriptContext, RoomScriptContext } from '@engine/scripting/types.js';
 import { buildGuiOverlay, GUI_TEXT_OVERLAY_DEPTH, type GuiOverlayHandle } from '../gui/buildGuiOverlay';
-import { getGuiDataById } from '../../game/loadGuiData';
+import { getAllGuiData } from '../../game/loadGuiData';
+
+/** Engine-reserved id for {@link RoomScene.setDialogTextOverlay} (Bennescript `say` / `say.now`). */
+const DIALOG_TEXT_GUI_ID = 'dialog-text';
+
+/**
+ * Per-overlay base depth increment so each GUI’s controls (with their own `zIndex`) stay below the next overlay.
+ */
+const GUI_OVERLAY_DEPTH_STRIDE = 10_000;
 
 /** Ignore walk clicks when already within this many pixels of the target. */
 const MIN_WALK_DISTANCE_PX = 6;
@@ -132,8 +140,8 @@ export class RoomScene extends Phaser.Scene {
   /** Screen-fixed dialogue text from `guis/dialog-text/dialog-text.gui.json`. */
   private dialogTextOverlay: GuiOverlayHandle | null = null;
 
-  /** Screen-fixed inventory HUD from `guis/inventory-hud/inventory-hud.gui.json` (above room content; depth over dialog line). */
-  private inventoryHudOverlay: GuiOverlayHandle | null = null;
+  /** Every other registered GUI overlay (authoring under `src/game/guis/<id>/`), built automatically in `create`. */
+  private genericGuiOverlays: GuiOverlayHandle[] = [];
 
   private readonly dialogOverlayScreenScratch = new Phaser.Math.Vector2();
 
@@ -186,19 +194,29 @@ export class RoomScene extends Phaser.Scene {
     this.applyPlayerCameraFollow(roomW, roomH);
     this.drawRoomDebugOverlays(data);
 
-    const dialogGui = getGuiDataById('dialog-text');
+    const guisSorted = [...getAllGuiData()].sort((a, b) => a.id.localeCompare(b.id));
+    const nonDialogGuis = guisSorted.filter((g) => g.id !== DIALOG_TEXT_GUI_ID);
+    const dialogGui = guisSorted.find((g) => g.id === DIALOG_TEXT_GUI_ID);
+
+    this.genericGuiOverlays = [];
+    let stackIndex = 0;
+    for (const gui of nonDialogGuis) {
+      const handle = buildGuiOverlay(this, gui, {
+        /** Default on when `visible` is omitted; only `visible: false` hides at room load. */
+        startVisible: gui.visible !== false,
+        depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
+      });
+      if (handle) {
+        this.genericGuiOverlays.push(handle);
+      }
+      stackIndex += 1;
+    }
+
     this.dialogTextOverlay = dialogGui
       ? buildGuiOverlay(this, dialogGui, {
-          /** Hidden at rest when `visible` is false; {@link setDialogTextOverlay} shows the line when needed. */
-          startVisible: dialogGui.visible === true,
-        })
-      : null;
-
-    const inventoryHudGui = getGuiDataById('inventory-hud');
-    this.inventoryHudOverlay = inventoryHudGui
-      ? buildGuiOverlay(this, inventoryHudGui, {
-          startVisible: inventoryHudGui.visible === true,
-          depth: GUI_TEXT_OVERLAY_DEPTH + 1000,
+          /** Speech UI is driven by {@link setDialogTextOverlay}, not the JSON `visible` flag at boot. */
+          startVisible: false,
+          depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
         })
       : null;
 
@@ -276,10 +294,12 @@ export class RoomScene extends Phaser.Scene {
     this.input.on('pointerdown', this.handleRoomPointerDown);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       benneDispose?.();
+      for (const h of this.genericGuiOverlays) {
+        h.destroy();
+      }
+      this.genericGuiOverlays = [];
       this.dialogTextOverlay?.destroy();
       this.dialogTextOverlay = null;
-      this.inventoryHudOverlay?.destroy();
-      this.inventoryHudOverlay = null;
       this.scriptedDialogInputSuppressionDepth = 0;
       this.scriptedDialogClickToSkip = null;
       this.scale.off('resize', this.onScaleResize, this);

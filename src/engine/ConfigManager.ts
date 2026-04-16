@@ -226,7 +226,7 @@ function assertGameSettings(data: GameSettings): void {
     if (typeof d !== 'object' || d === null) {
       throw new Error('game-config debug must be an object when present');
     }
-    for (const key of ['showWalkable', 'showPropOutlines'] as const) {
+    for (const key of ['showWalkable', 'showPropOutlines', 'showGuiOutlines'] as const) {
       const v = d[key];
       if (v !== undefined && typeof v !== 'boolean') {
         throw new Error(`game-config debug.${key} must be a boolean when present`);

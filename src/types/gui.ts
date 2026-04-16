@@ -70,9 +70,9 @@ export interface GuiData {
   name: string;
   description?: string;
   /**
-   * Whether the entire GUI overlay starts visible when the room builds it (`RoomScene`).
-   * `dialog-text` stays hidden when false until dialogue shows a line; `inventory-hud` follows this flag for the HUD.
-   * Individual controls can override with their own `visible` flag.
+   * When **`false`**, the overlay starts hidden at room load. When omitted or **`true`**, it starts visible
+   * (`RoomScene` builds every GUI under `src/game/guis/` except the engine-driven **`dialog-text`** overlay).
+   * Per-control `visible` on `inventoryPanel` (and future controls) can still override.
    */
   visible?: boolean;
   display: GuiDisplayData;

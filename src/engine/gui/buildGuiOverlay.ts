@@ -16,8 +16,12 @@ import {
 import type { GameBitmapFontDefinition, GameFontsManifest } from '../../types/fonts';
 import type { GuiData, GuiTextAlign, GuiTextControl } from '../../types/gui';
 import type { InventoryItemData } from '../../types/inventory';
+import { getGameSettings } from '../ConfigManager';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
+
+/** Slot stroke for `game-config.json` `debug.showGuiOutlines` (distinct from walkable / prop debug colors). */
+const DEBUG_GUI_INVENTORY_SLOT_STROKE = 0x66ccff;
 
 const manifest = gameFontsManifest as GameFontsManifest;
 
@@ -179,15 +183,13 @@ export function buildGuiOverlay(
   const depth = options?.depth ?? GUI_TEXT_OVERLAY_DEPTH;
   const startVisible = options?.startVisible ?? false;
   const placeholder = options?.emptyTextPlaceholder;
+  const showGuiSlotOutlines = getGameSettings().debug?.showGuiOutlines === true;
   const allLines: Phaser.GameObjects.BitmapText[] = [];
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
   const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
 
   for (const c of gui.controls ?? []) {
     if (c.type === 'inventoryPanel') {
-      // TODO: Listen to GAME_STATE_INVENTORY_CHANGED_EVENT and rebuild this panel when inventory changes
-      // TODO: Add per-slot click handlers that emit gui:inventoryPanel:<guiId>:<controlId>:slotClick
-      // TODO: Later support iconTag field on InventoryItemData (in addition to defaultAnimation fallback)
 
       const panel = scene.add.container(Math.round(c.x), Math.round(c.y));
       panel.setScrollFactor(0, 0);
@@ -199,24 +201,14 @@ export function buildGuiOverlay(
 
       const spacingX = c.spacingX ?? 0;
       const spacingY = c.spacingY ?? 0;
-      const panelWidth = c.cols * c.slotWidth + Math.max(0, c.cols - 1) * spacingX;
-      const panelHeight = c.rows * c.slotHeight + Math.max(0, c.rows - 1) * spacingY;
 
       const bgTag = c.backgroundTag?.trim();
       const wantsAsepriteBackdrop = Boolean(bgTag && gui.display?.aseprite);
       const guiTextureKey = getAsepriteTextureKey(gui.id);
 
       if (wantsAsepriteBackdrop && scene.textures.exists(guiTextureKey)) {
-        // TODO: Full Aseprite backdrop support: resolve `backgroundTag` to the correct frame(s), scale to panel, pixel-snap edges.
         const backdrop = scene.add.sprite(0, 0, guiTextureKey);
         backdrop.setOrigin(0, 0);
-        panel.add(backdrop);
-      } else {
-        const backdrop = scene.add.graphics();
-        backdrop.fillStyle(0x000000, 0.7);
-        backdrop.fillRect(0, 0, panelWidth, panelHeight);
-        backdrop.lineStyle(1, 0x444444, 0.85);
-        backdrop.strokeRect(0.5, 0.5, panelWidth - 1, panelHeight - 1);
         panel.add(backdrop);
       }
 
@@ -242,12 +234,12 @@ export function buildGuiOverlay(
           const slotY = row * (c.slotHeight + spacingY);
           const slotContainer = scene.add.container(slotX, slotY);
 
-          const slotBg = scene.add.graphics();
-          slotBg.fillStyle(0x222222, 0.9);
-          slotBg.fillRect(0, 0, c.slotWidth, c.slotHeight);
-          slotBg.lineStyle(1, 0x666666, 1);
-          slotBg.strokeRect(0.5, 0.5, c.slotWidth - 1, c.slotHeight - 1);
-          slotContainer.add(slotBg);
+          if (showGuiSlotOutlines) {
+            const slotOutline = scene.add.graphics();
+            slotOutline.lineStyle(1, DEBUG_GUI_INVENTORY_SLOT_STROKE, 1);
+            slotOutline.strokeRect(0.5, 0.5, c.slotWidth - 1, c.slotHeight - 1);
+            slotContainer.add(slotOutline);
+          }
 
           if (slotIndex < inventoryItems.length) {
             const entry = inventoryItems[slotIndex]!;
@@ -297,15 +289,10 @@ export function buildGuiOverlay(
             }
 
             if (!iconAdded) {
-              const fallback = scene.add
-                .rectangle(slotCx, slotCy, c.slotWidth * 0.75, c.slotHeight * 0.75, 0x88ff88, 0.85)
-                .setOrigin(0.5, 0.5);
-              slotContainer.add(fallback);
-
               const label = scene.add
-                .text(slotCx, slotCy, entry.id.slice(0, 4), {
+                .text(slotCx, slotCy, entry.id.slice(0, 6), {
                   fontSize: '10px',
-                  color: '#000000',
+                  color: '#e0e0e0',
                 })
                 .setOrigin(0.5, 0.5);
               slotContainer.add(label);
