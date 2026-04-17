@@ -621,6 +621,76 @@ export function updateGuiControlPayload(
     }
 }
 
+function pruneEmptyDisplay(display: Record<string, unknown>): void {
+    if (display.tag === '' || display.tag === undefined) {
+        delete display.tag;
+    }
+    if (display.anchor === '' || display.anchor === undefined || display.anchor === 'top-left') {
+        delete display.anchor;
+    }
+    if (Object.keys(display).length === 0) {
+        /* keep empty object for image control */
+    }
+}
+
+/**
+ * Shallow-merge fields into `controls[controlIndex]`. Use `null` as a patch value to remove a key.
+ * For `image` controls, `display` is deep-merged; inner `null` removes that display key.
+ */
+export function updateGuiControlPatch(
+    data: Record<string, unknown>,
+    controlIndex: number,
+    patch: Record<string, unknown>
+): { ok: true } | { ok: false; message: string } {
+    const controls = data.controls;
+    if (!Array.isArray(controls)) {
+        return { ok: false, message: 'GUI has no controls array.' };
+    }
+    if (!Number.isInteger(controlIndex) || controlIndex < 0 || controlIndex >= controls.length) {
+        return { ok: false, message: 'Control index out of range.' };
+    }
+    const cur = controls[controlIndex];
+    if (!cur || typeof cur !== 'object' || Array.isArray(cur)) {
+        return { ok: false, message: 'Invalid control entry.' };
+    }
+    const row = cur as Record<string, unknown>;
+
+    for (const [k, v] of Object.entries(patch)) {
+        if (k === 'display' && v && typeof v === 'object' && !Array.isArray(v)) {
+            const prev =
+                row.display && typeof row.display === 'object' && !Array.isArray(row.display)
+                    ? { ...(row.display as Record<string, unknown>) }
+                    : {};
+            const incoming = v as Record<string, unknown>;
+            for (const [dk, dv] of Object.entries(incoming)) {
+                if (dv === null) {
+                    delete prev[dk];
+                } else {
+                    prev[dk] = dv;
+                }
+            }
+            pruneEmptyDisplay(prev);
+            row.display = prev;
+            continue;
+        }
+        if (v === null) {
+            delete row[k];
+        } else {
+            row[k] = v;
+        }
+    }
+
+    if (row.type === 'image') {
+        if (!row.display || typeof row.display !== 'object' || Array.isArray(row.display)) {
+            row.display = {};
+        } else {
+            pruneEmptyDisplay(row.display as Record<string, unknown>);
+        }
+    }
+
+    return { ok: true };
+}
+
 export function updateInventoryFields(
     data: Record<string, unknown>,
     fields: {

@@ -9,6 +9,7 @@ import {
     getRoomIdFromRoomJsonUri,
     readCharacterHooks,
     readGameConfigVerbs,
+    resolveGuiAsepriteSheetForTags,
     resolvePerItemInventoryAsepriteSheet,
     resolveRoomAsepriteSheetForProps,
     resolveSharedInventoryAsepriteSheet,
@@ -128,13 +129,74 @@ export type InspectorCharacterState = {
     verbs: InspectorVerbChip[];
 };
 
-export type InspectorGuiControlCard = {
-    key: string;
-    type: string;
-    id: string;
-    summary: string;
-    payload: string;
-};
+export type InspectorGuiSpriteAnchor = '' | 'top-left' | 'center' | 'screen';
+
+export type InspectorGuiControlCard =
+    | {
+          controlKind: 'text';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          /** '' = inherit (omit `visible` in JSON). */
+          visibleMode: '' | 'true' | 'false';
+          text: string;
+          font: string;
+          fontSize: number;
+          color: string;
+          align: 'left' | 'center' | 'right' | '';
+          wordWrapWidth: number | null;
+      }
+    | {
+          controlKind: 'inventoryPanel';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          rows: number;
+          cols: number;
+          slotWidth: number;
+          slotHeight: number;
+          spacingX: number | null;
+          spacingY: number | null;
+          itemScale: number | null;
+          showEmptySlots: boolean;
+          backgroundTag: string;
+          backgroundAnchor: InspectorGuiSpriteAnchor;
+          slotBackgroundTag: string;
+          slotBackgroundAnchor: InspectorGuiSpriteAnchor;
+          highlightTag: string;
+          highlightAnchor: InspectorGuiSpriteAnchor;
+      }
+    | {
+          controlKind: 'image';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          displayTag: string;
+          displayAnchor: InspectorGuiSpriteAnchor;
+      }
+    | {
+          controlKind: 'unknown';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          typeLabel: string;
+          payload: string;
+      };
 
 export type InspectorGuiState = {
     kind: 'gui';
@@ -143,6 +205,9 @@ export type InspectorGuiState = {
     guiId: string;
     name: string;
     description: string;
+    usesAseprite: boolean;
+    guiSheetTags: string[];
+    fontIds: string[];
     controls: InspectorGuiControlCard[];
 };
 
@@ -692,6 +757,137 @@ async function buildCharacterInspectorState(
     };
 }
 
+function guiReadVisibleMode(o: Record<string, unknown>): '' | 'true' | 'false' {
+    if (!('visible' in o)) {
+        return '';
+    }
+    return o.visible === true ? 'true' : 'false';
+}
+
+function guiReadNumOrNull(o: Record<string, unknown>, key: string): number | null {
+    const v = o[key];
+    return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+function guiReadNum(o: Record<string, unknown>, key: string, fallback: number): number {
+    const v = o[key];
+    return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+
+function guiReadAnchorField(o: Record<string, unknown>, key: string): InspectorGuiSpriteAnchor {
+    const v = o[key];
+    if (v === 'top-left' || v === 'center' || v === 'screen') {
+        return v;
+    }
+    return '';
+}
+
+async function readBitmapFontIdList(gameRoot: vscode.Uri): Promise<string[]> {
+    const uri = vscode.Uri.joinPath(gameRoot, 'src', 'game', 'assets', 'fonts', 'fonts.json');
+    try {
+        const raw = await vscode.workspace.fs.readFile(uri);
+        const parsed = JSON.parse(new TextDecoder('utf-8').decode(raw)) as Record<string, unknown>;
+        return Object.keys(parsed)
+            .filter((k) => !k.startsWith('$'))
+            .sort((a, b) => a.localeCompare(b));
+    } catch {
+        return [];
+    }
+}
+
+function parseGuiControlCard(o: Record<string, unknown>, index: number): InspectorGuiControlCard {
+    const type = typeof o.type === 'string' ? o.type : 'control';
+    const id = typeof o.id === 'string' ? o.id : '';
+    const summary = id ? `${type} (${id})` : `${type} (#${index + 1})`;
+    const key = `${type}:${id}:${index}`;
+    const controlId = id;
+
+    if (type === 'text') {
+        const alignRaw = o.align;
+        const align: 'left' | 'center' | 'right' | '' =
+            alignRaw === 'center' || alignRaw === 'right' || alignRaw === 'left' ? alignRaw : '';
+        return {
+            controlKind: 'text',
+            key,
+            index,
+            summary,
+            controlId,
+            x: guiReadNum(o, 'x', 0),
+            y: guiReadNum(o, 'y', 0),
+            zIndex: guiReadNumOrNull(o, 'zIndex'),
+            visibleMode: guiReadVisibleMode(o),
+            text: typeof o.text === 'string' ? o.text : '',
+            font: typeof o.font === 'string' ? o.font : '',
+            fontSize: guiReadNum(o, 'fontSize', 8),
+            color: typeof o.color === 'string' ? o.color : '#ffffff',
+            align,
+            wordWrapWidth: guiReadNumOrNull(o, 'wordWrapWidth')
+        };
+    }
+
+    if (type === 'inventoryPanel') {
+        return {
+            controlKind: 'inventoryPanel',
+            key,
+            index,
+            summary,
+            controlId,
+            x: guiReadNum(o, 'x', 0),
+            y: guiReadNum(o, 'y', 0),
+            zIndex: guiReadNumOrNull(o, 'zIndex'),
+            visibleMode: guiReadVisibleMode(o),
+            rows: guiReadNum(o, 'rows', 1),
+            cols: guiReadNum(o, 'cols', 1),
+            slotWidth: guiReadNum(o, 'slotWidth', 32),
+            slotHeight: guiReadNum(o, 'slotHeight', 32),
+            spacingX: guiReadNumOrNull(o, 'spacingX'),
+            spacingY: guiReadNumOrNull(o, 'spacingY'),
+            itemScale: guiReadNumOrNull(o, 'itemScale'),
+            showEmptySlots: o.showEmptySlots === true,
+            backgroundTag: typeof o.backgroundTag === 'string' ? o.backgroundTag : '',
+            backgroundAnchor: guiReadAnchorField(o, 'backgroundAnchor'),
+            slotBackgroundTag: typeof o.slotBackgroundTag === 'string' ? o.slotBackgroundTag : '',
+            slotBackgroundAnchor: guiReadAnchorField(o, 'slotBackgroundAnchor'),
+            highlightTag: typeof o.highlightTag === 'string' ? o.highlightTag : '',
+            highlightAnchor: guiReadAnchorField(o, 'highlightAnchor')
+        };
+    }
+
+    if (type === 'image') {
+        const disp =
+            o.display && typeof o.display === 'object' && !Array.isArray(o.display)
+                ? (o.display as Record<string, unknown>)
+                : {};
+        const tag = typeof disp.tag === 'string' ? disp.tag : '';
+        const anchorRaw = disp.anchor;
+        const displayAnchor: InspectorGuiSpriteAnchor =
+            anchorRaw === 'top-left' || anchorRaw === 'center' || anchorRaw === 'screen' ? anchorRaw : '';
+        return {
+            controlKind: 'image',
+            key,
+            index,
+            summary,
+            controlId,
+            x: guiReadNum(o, 'x', 0),
+            y: guiReadNum(o, 'y', 0),
+            zIndex: guiReadNumOrNull(o, 'zIndex'),
+            visibleMode: guiReadVisibleMode(o),
+            displayTag: tag,
+            displayAnchor
+        };
+    }
+
+    return {
+        controlKind: 'unknown',
+        key,
+        index,
+        summary,
+        controlId,
+        typeLabel: type,
+        payload: JSON.stringify(o, null, 2)
+    };
+}
+
 async function buildGuiInspectorState(guiJsonUri: vscode.Uri, rev: number): Promise<InspectorStatePayload> {
     let text: string;
     try {
@@ -709,6 +905,25 @@ async function buildGuiInspectorState(guiJsonUri: vscode.Uri, rev: number): Prom
     const guiId = getGuiIdFromGuiJsonUri(guiJsonUri);
     const name = typeof data.name === 'string' ? data.name : guiId;
     const description = typeof data.description === 'string' ? data.description : '';
+    const displayRaw =
+        data.display && typeof data.display === 'object' && !Array.isArray(data.display)
+            ? (data.display as Record<string, unknown>)
+            : {};
+    const usesAseprite = displayRaw.aseprite === true;
+
+    const folder = vscode.workspace.getWorkspaceFolder(guiJsonUri);
+    let guiSheetTags: string[] = [];
+    let fontIds: string[] = [];
+    if (folder) {
+        fontIds = await readBitmapFontIdList(folder.uri);
+        if (usesAseprite) {
+            const sheet = await resolveGuiAsepriteSheetForTags(folder.uri, guiId);
+            if (sheet.frameTags && sheet.frameTags.length > 0) {
+                guiSheetTags = [...new Set(sheet.frameTags)].sort((a, b) => a.localeCompare(b));
+            }
+        }
+    }
+
     const controls: InspectorGuiControlCard[] = [];
     const controlsRaw = data.controls;
     if (Array.isArray(controlsRaw)) {
@@ -717,17 +932,7 @@ async function buildGuiInspectorState(guiJsonUri: vscode.Uri, rev: number): Prom
             if (!raw || typeof raw !== 'object') {
                 continue;
             }
-            const o = raw as Record<string, unknown>;
-            const type = typeof o.type === 'string' ? o.type : 'control';
-            const id = typeof o.id === 'string' ? o.id : '';
-            const summary = id ? `${type} (${id})` : `${type} (#${i + 1})`;
-            controls.push({
-                key: `${type}:${id}:${i}`,
-                type,
-                id,
-                summary,
-                payload: JSON.stringify(o, null, 2)
-            });
+            controls.push(parseGuiControlCard(raw as Record<string, unknown>, i));
         }
     }
 
@@ -738,6 +943,9 @@ async function buildGuiInspectorState(guiJsonUri: vscode.Uri, rev: number): Prom
         guiId,
         name,
         description,
+        usesAseprite,
+        guiSheetTags,
+        fontIds,
         controls
     };
 }

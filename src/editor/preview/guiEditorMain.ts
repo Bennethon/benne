@@ -1,6 +1,7 @@
 import type { Game } from 'phaser';
 import {
   collectFontLoadsForGui,
+  guiHasImageControls,
   guiHasTextControls,
 } from '../../game/collectFontLoadsForGui';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
@@ -13,17 +14,11 @@ import {
   sharedInventoryAssetPaths,
   sharedInventoryTextureKey,
 } from '../../game/inventoryAseprite';
-import { pickCharacterPreviewIdleTag } from '../../game/characterPreviewIdleTag';
-import { readAsepriteFrameTagNamesFromRawJson } from '../../game/loadAsepriteAtlasData';
 import { normalizeAsepriteJsonForPhaser } from '../../game/normalizeAsepriteJson';
 import type { GameFontsManifest } from '../../types/fonts';
 import type { GameSettingsInitialGameState } from '../../types/game';
 import type { GuiData, GuiInventoryPanelControl } from '../../types/gui';
-import {
-  createGuiPreviewPhaserGame,
-  type GuiPreviewAsepritePayload,
-  type GuiPreviewGamePayload,
-} from './createGuiPreviewGame';
+import { createGuiPreviewPhaserGame, type GuiPreviewGamePayload } from './createGuiPreviewGame';
 import { registerInventoryDefinitionsFromGame } from '../../game/registerInventoryDefinitions';
 import { joinGameWebviewUri } from './previewUrls';
 
@@ -45,14 +40,6 @@ function destroyPreviewGame(): void {
     game.destroy(true);
     game = null;
   }
-}
-
-function pickGuiPreviewTag(frameTagNames: readonly string[]): string | null {
-  const idle = pickCharacterPreviewIdleTag(frameTagNames);
-  if (idle) {
-    return idle;
-  }
-  return frameTagNames.length > 0 ? frameTagNames[0]! : null;
 }
 
 async function fetchJson(url: string): Promise<Record<string, unknown>> {
@@ -129,10 +116,11 @@ async function runLoadGui(msg: {
 
   const hasText = guiHasTextControls(msg.gui);
   const hasInventoryPanel = guiHasInventoryPanel(msg.gui);
+  const hasImage = guiHasImageControls(msg.gui);
   const wantsAseprite = usesAsepriteDisplay(msg.gui);
 
-  if (!hasText && !hasInventoryPanel && !wantsAseprite) {
-    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code>, at least one <code>text</code> control, or an <code>inventoryPanel</code> control in <code>controls</code>.</div>`;
+  if (!hasText && !hasInventoryPanel && !wantsAseprite && !hasImage) {
+    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code>, at least one <code>text</code>, <code>image</code>, or <code>inventoryPanel</code> control in <code>controls</code>.</div>`;
     return;
   }
 
@@ -142,7 +130,7 @@ async function runLoadGui(msg: {
     joinGameWebviewUri(assetsBase, rel),
   );
 
-  let aseprite: GuiPreviewAsepritePayload | null = null;
+  let aseprite: GuiPreviewGamePayload['aseprite'] = null;
   const revokeObjectUrls: string[] = [];
   let asepriteError: string | null = null;
 
@@ -153,23 +141,15 @@ async function runLoadGui(msg: {
 
     try {
       const raw = await fetchJson(jsonUrl);
-      const tags = readAsepriteFrameTagNamesFromRawJson(raw);
-      const tagToPlay = pickGuiPreviewTag(tags);
-      if (!tagToPlay) {
-        asepriteError =
-          'No frame tags on this sheet — tag at least one animation in Aseprite (or rely on text-only preview).';
-      } else {
-        const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
-        const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
-        const atlasURL = URL.createObjectURL(blob);
-        revokeObjectUrls.push(atlasURL);
-        aseprite = {
-          textureKey: getAsepriteTextureKey(msg.guiId),
-          textureURL: pngUrl,
-          atlasURL,
-          tagToPlay,
-        };
-      }
+      const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+      const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
+      const atlasURL = URL.createObjectURL(blob);
+      revokeObjectUrls.push(atlasURL);
+      aseprite = {
+        textureKey: getAsepriteTextureKey(msg.guiId),
+        textureURL: pngUrl,
+        atlasURL,
+      };
     } catch (e) {
       asepriteError = e instanceof Error ? e.message : String(e);
     }

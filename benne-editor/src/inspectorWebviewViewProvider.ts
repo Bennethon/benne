@@ -9,6 +9,7 @@ import {
     updateCharacterAnimationFields,
     updateCharacterFields,
     updateGuiControlPayload,
+    updateGuiControlPatch,
     updateGuiFields,
     updateInventoryAnimationFields,
     updateInventoryFields,
@@ -594,6 +595,7 @@ type WebviewPatch =
     | { type: 'characterAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
     | { type: 'guiMeta'; name?: string; description?: string }
     | { type: 'guiControlPayload'; index?: number; payload?: string }
+    | { type: 'guiControlUpdate'; index?: number; patch?: Record<string, unknown> }
     | {
           type: 'inventoryMeta';
           name?: string;
@@ -1074,6 +1076,19 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 return;
             }
             updateGuiControlPayload(data, p.index, p.payload);
+            return;
+        }
+        if (
+            p.type === 'guiControlUpdate' &&
+            typeof p.index === 'number' &&
+            p.patch &&
+            typeof p.patch === 'object' &&
+            !Array.isArray(p.patch)
+        ) {
+            if (focusKind !== 'gui') {
+                return;
+            }
+            updateGuiControlPatch(data, p.index, p.patch as Record<string, unknown>);
             return;
         }
         if (p.type === 'inventoryMeta') {

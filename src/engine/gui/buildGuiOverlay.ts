@@ -14,7 +14,14 @@ import {
   usesSharedInventoryAseprite,
 } from '../../game/inventoryAseprite';
 import type { GameBitmapFontDefinition, GameFontsManifest } from '../../types/fonts';
-import type { GuiData, GuiTextAlign, GuiTextControl } from '../../types/gui';
+import type {
+  GuiData,
+  GuiImageControl,
+  GuiInventoryPanelControl,
+  GuiSpriteAnchor,
+  GuiTextAlign,
+  GuiTextControl,
+} from '../../types/gui';
 import type { InventoryItemData } from '../../types/inventory';
 import { getGameSettings } from '../ConfigManager';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
@@ -120,12 +127,75 @@ function ensureAsepriteAnimationsFromAtlas(scene: Phaser.Scene, textureKey: stri
   scene.game.registry.set(flagKey, true);
 }
 
+function guiSpriteAnchorOrDefault(a: GuiSpriteAnchor | undefined): GuiSpriteAnchor {
+  return a ?? 'top-left';
+}
+
+/**
+ * Applies a GUI Aseprite **tag** (animation or named frame) to `sprite`.
+ * Returns **`false`** when the tag does not exist on the sheet — callers must **`destroy`** the sprite so the
+ * atlas’s default frame (often an untagged first cel) never appears on screen.
+ */
+function tryApplyGuiSheetTag(
+  scene: Phaser.Scene,
+  sprite: Phaser.GameObjects.Sprite,
+  textureKey: string,
+  tag: string,
+): boolean {
+  const t = tag.trim();
+  if (!t || !scene.textures.exists(textureKey)) {
+    return false;
+  }
+  ensureAsepriteAnimationsFromAtlas(scene, textureKey);
+  if (scene.anims.exists(t)) {
+    sprite.play(t);
+    return true;
+  }
+  try {
+    const tex = scene.textures.get(textureKey);
+    const names = tex.getFrameNames(false);
+    if (!names.includes(t)) {
+      return false;
+    }
+    sprite.setFrame(t);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Positions a GUI-sheet sprite for `top-left`, `center`, or `screen` anchor.
+ * `screen`: top-left of the game canvas / internal resolution — ignores `x`/`y` for placement (full-frame HUD art).
+ */
+function applyGuiSpriteAnchor(
+  sprite: Phaser.GameObjects.Sprite,
+  anchor: GuiSpriteAnchor,
+  x: number,
+  y: number,
+): void {
+  switch (anchor) {
+    case 'center':
+      sprite.setOrigin(0.5, 0.5);
+      sprite.setPosition(Math.round(x), Math.round(y));
+      break;
+    case 'screen':
+      sprite.setOrigin(0, 0);
+      /** Absolute screen / canvas coordinates; control `x`/`y` are ignored for draw position. */
+      sprite.setPosition(0, 0);
+      break;
+    default:
+      sprite.setOrigin(0, 0);
+      sprite.setPosition(Math.round(x), Math.round(y));
+  }
+}
+
 function addGuiBitmapLine(
   scene: Phaser.Scene,
   c: GuiTextControl,
   initial: string,
   depth: number,
-  startVisible: boolean,
+  visible: boolean,
 ): Phaser.GameObjects.BitmapText | null {
   const fontEntry = manifest[c.font] as GameBitmapFontDefinition | undefined;
   if (!fontEntry) {
@@ -159,8 +229,246 @@ function addGuiBitmapLine(
   }
   bt.setScrollFactor(0, 0);
   bt.setDepth(depth);
-  bt.setVisible(startVisible);
+  bt.setVisible(visible);
   return bt;
+}
+
+function addGuiImageSprite(
+  scene: Phaser.Scene,
+  gui: GuiData,
+  c: GuiImageControl,
+  depth: number,
+  startVisible: boolean,
+  extraSprites: Phaser.GameObjects.Sprite[],
+): void {
+  if (!usesAsepriteDisplay(gui)) {
+    return;
+  }
+  const tag = c.display?.tag?.trim() ?? '';
+  if (!tag) {
+    return;
+  }
+  const guiTextureKey = getAsepriteTextureKey(gui.id);
+  if (!scene.textures.exists(guiTextureKey)) {
+    return;
+  }
+  const anchor = guiSpriteAnchorOrDefault(c.display?.anchor);
+  const sprite = scene.add.sprite(0, 0, guiTextureKey);
+  sprite.setVisible(false);
+  sprite.setScrollFactor(0, 0);
+  sprite.setDepth(depth + (c.zIndex ?? 0));
+  const vis = c.visible ?? gui.visible ?? startVisible;
+  if (!tryApplyGuiSheetTag(scene, sprite, guiTextureKey, tag)) {
+    sprite.destroy();
+    return;
+  }
+  sprite.setVisible(vis);
+  if (anchor === 'screen') {
+    applyGuiSpriteAnchor(sprite, anchor, c.x, c.y);
+    extraSprites.push(sprite);
+  } else {
+    applyGuiSpriteAnchor(sprite, anchor, c.x, c.y);
+    extraSprites.push(sprite);
+  }
+}
+
+function addInventorySlotSheetSprite(
+  scene: Phaser.Scene,
+  guiTextureKey: string,
+  tagRaw: string | undefined,
+  anchorRaw: GuiSpriteAnchor | undefined,
+  slotCx: number,
+  slotCy: number,
+  slotContainer: Phaser.GameObjects.Container,
+): void {
+  const tag = tagRaw?.trim() ?? '';
+  if (!tag || !scene.textures.exists(guiTextureKey)) {
+    return;
+  }
+  const anchor = guiSpriteAnchorOrDefault(anchorRaw);
+  const sprite = scene.add.sprite(0, 0, guiTextureKey);
+  sprite.setVisible(false);
+  if (!tryApplyGuiSheetTag(scene, sprite, guiTextureKey, tag)) {
+    sprite.destroy();
+    return;
+  }
+  sprite.setVisible(true);
+  /** Inside a slot container, `screen` is treated like top-left at the slot origin (full-slot art). */
+  if (anchor === 'center') {
+    applyGuiSpriteAnchor(sprite, anchor, slotCx, slotCy);
+  } else {
+    applyGuiSpriteAnchor(sprite, 'top-left', 0, 0);
+  }
+  slotContainer.add(sprite);
+}
+
+function buildInventoryPanel(
+  scene: Phaser.Scene,
+  gui: GuiData,
+  c: GuiInventoryPanelControl,
+  depth: number,
+  startVisible: boolean,
+): Phaser.GameObjects.Container {
+  const px = Math.round(c.x);
+  const py = Math.round(c.y);
+  const panel = scene.add.container(px, py);
+  panel.setScrollFactor(0, 0);
+  panel.setDepth(depth + (c.zIndex ?? 0));
+
+  const panelVisible = c.visible ?? gui.visible ?? startVisible;
+  panel.setVisible(panelVisible);
+
+  const spacingX = c.spacingX ?? 0;
+  const spacingY = c.spacingY ?? 0;
+  const guiTextureKey = getAsepriteTextureKey(gui.id);
+  const wantsGuiSheet = usesAsepriteDisplay(gui) && scene.textures.exists(guiTextureKey);
+
+  const panelW = c.cols * c.slotWidth + Math.max(0, c.cols - 1) * spacingX;
+  const panelH = c.rows * c.slotHeight + Math.max(0, c.rows - 1) * spacingY;
+
+  const bgTag = c.backgroundTag?.trim() ?? '';
+  if (bgTag && wantsGuiSheet) {
+    const bgAnchor = guiSpriteAnchorOrDefault(c.backgroundAnchor);
+    const backdrop = scene.add.sprite(0, 0, guiTextureKey);
+    backdrop.setVisible(false);
+    backdrop.setScrollFactor(0, 0);
+    if (!tryApplyGuiSheetTag(scene, backdrop, guiTextureKey, bgTag)) {
+      backdrop.destroy();
+    } else {
+      backdrop.setVisible(true);
+      if (bgAnchor === 'screen') {
+        /** World (0,0) while staying parented so `panel.setVisible` still toggles the backdrop. */
+        backdrop.setOrigin(0, 0);
+        backdrop.setPosition(-px, -py);
+      } else if (bgAnchor === 'center') {
+        applyGuiSpriteAnchor(backdrop, bgAnchor, panelW / 2, panelH / 2);
+      } else {
+        applyGuiSpriteAnchor(backdrop, 'top-left', 0, 0);
+      }
+      panel.add(backdrop);
+    }
+  }
+
+  let inventoryItems: ReadonlyArray<{ id: string; quantity: number }> = [];
+  try {
+    const gameState = resolveGameStateManager(scene.game);
+    inventoryItems = gameState.getInventoryItems();
+  } catch {
+    /* e.g. GUI preview without GameStateManager on game.registry */
+  }
+
+  const showGuiSlotOutlines = getGameSettings().debug?.showGuiOutlines === true;
+  const slotCx = c.slotWidth / 2;
+  const slotCy = c.slotHeight / 2;
+
+  for (let row = 0; row < c.rows; row += 1) {
+    for (let col = 0; col < c.cols; col += 1) {
+      const slotIndex = row * c.cols + col;
+      if (slotIndex >= inventoryItems.length && !c.showEmptySlots) {
+        continue;
+      }
+
+      const slotX = col * (c.slotWidth + spacingX);
+      const slotY = row * (c.slotHeight + spacingY);
+      const slotContainer = scene.add.container(slotX, slotY);
+
+      if (wantsGuiSheet) {
+        addInventorySlotSheetSprite(
+          scene,
+          guiTextureKey,
+          c.slotBackgroundTag,
+          c.slotBackgroundAnchor,
+          slotCx,
+          slotCy,
+          slotContainer,
+        );
+      }
+
+      if (showGuiSlotOutlines) {
+        const slotOutline = scene.add.graphics();
+        slotOutline.lineStyle(1, DEBUG_GUI_INVENTORY_SLOT_STROKE, 1);
+        slotOutline.strokeRect(0.5, 0.5, c.slotWidth - 1, c.slotHeight - 1);
+        slotContainer.add(slotOutline);
+      }
+
+      if (slotIndex < inventoryItems.length) {
+        const entry = inventoryItems[slotIndex]!;
+        const defRaw = getInventoryDefinition(entry.id);
+        const def = defRaw as InventoryItemData | undefined;
+        const iconTag = def?.defaultAnimation ?? entry.id;
+
+        let iconAdded = false;
+        if (usesAsepriteDisplay(gui) && iconTag) {
+          const guiKey = getAsepriteTextureKey(gui.id);
+          if (scene.textures.exists(guiKey)) {
+            const iconSprite = scene.add.sprite(slotCx, slotCy, guiKey).setScale(c.itemScale ?? 1).setOrigin(0.5, 0.5);
+            iconSprite.setVisible(false);
+            if (tryApplyGuiSheetTag(scene, iconSprite, guiKey, iconTag)) {
+              iconSprite.setVisible(true);
+              slotContainer.add(iconSprite);
+              iconAdded = true;
+            } else {
+              iconSprite.destroy();
+            }
+          }
+        }
+
+        if (
+          !iconAdded &&
+          def &&
+          (usesSharedInventoryAseprite(def) || usesPerItemInventoryAseprite(def))
+        ) {
+          const texKey = usesSharedInventoryAseprite(def)
+            ? sharedInventoryTextureKey
+            : getPerItemInventoryTextureKey(entry.id);
+          const animKey = inventoryPhaserAnimationKeyForTag(def, iconTag);
+          if (scene.textures.exists(texKey)) {
+            ensureAsepriteAnimationsFromAtlas(scene, texKey);
+            const playKey = scene.anims.exists(animKey)
+              ? animKey
+              : usesSharedInventoryAseprite(def) && scene.anims.exists(iconTag)
+                ? iconTag
+                : null;
+            if (playKey) {
+              const iconSprite = scene
+                .add.sprite(slotCx, slotCy, texKey)
+                .setScale(c.itemScale ?? 1)
+                .setOrigin(0.5, 0.5);
+              iconSprite.play(playKey);
+              slotContainer.add(iconSprite);
+              iconAdded = true;
+            }
+          }
+        }
+
+        if (!iconAdded) {
+          const label = scene.add
+            .text(slotCx, slotCy, entry.id.slice(0, 6), {
+              fontSize: '10px',
+              color: '#e0e0e0',
+            })
+            .setOrigin(0.5, 0.5);
+          slotContainer.add(label);
+        }
+      }
+
+      if (wantsGuiSheet) {
+        addInventorySlotSheetSprite(
+          scene,
+          guiTextureKey,
+          c.highlightTag,
+          c.highlightAnchor,
+          slotCx,
+          slotCy,
+          slotContainer,
+        );
+      }
+
+      panel.add(slotContainer);
+    }
+  }
+
+  return panel;
 }
 
 export interface BuildGuiOverlayOptions {
@@ -172,7 +480,7 @@ export interface BuildGuiOverlayOptions {
 }
 
 /**
- * Builds screen-space bitmap text controls from `gui.controls`. Non-`text` entries are skipped.
+ * Builds screen-space GUI controls from `gui.controls` (`text`, `inventoryPanel`, `image` / GUI-sheet art).
  * Starts hidden unless `startVisible`. Font ids resolve via `fonts/fonts.json` (`load.bitmapFont` keys).
  */
 export function buildGuiOverlay(
@@ -183,127 +491,27 @@ export function buildGuiOverlay(
   const depth = options?.depth ?? GUI_TEXT_OVERLAY_DEPTH;
   const startVisible = options?.startVisible ?? false;
   const placeholder = options?.emptyTextPlaceholder;
-  const showGuiSlotOutlines = getGameSettings().debug?.showGuiOutlines === true;
   const allLines: Phaser.GameObjects.BitmapText[] = [];
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
   const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
+  const extraSprites: Phaser.GameObjects.Sprite[] = [];
+
+  if (usesAsepriteDisplay(gui)) {
+    const guiKey = getAsepriteTextureKey(gui.id);
+    if (scene.textures.exists(guiKey)) {
+      ensureAsepriteAnimationsFromAtlas(scene, guiKey);
+    }
+  }
 
   for (const c of gui.controls ?? []) {
     if (c.type === 'inventoryPanel') {
-
-      const panel = scene.add.container(Math.round(c.x), Math.round(c.y));
-      panel.setScrollFactor(0, 0);
-      /** `zIndex` is a small offset within this overlay, not an absolute scene depth (see `GuiInventoryPanelControl`). */
-      panel.setDepth(depth + (c.zIndex ?? 0));
-
-      const panelVisible = c.visible ?? gui.visible ?? startVisible;
-      panel.setVisible(panelVisible);
-
-      const spacingX = c.spacingX ?? 0;
-      const spacingY = c.spacingY ?? 0;
-
-      const bgTag = c.backgroundTag?.trim();
-      const wantsAsepriteBackdrop = Boolean(bgTag && gui.display?.aseprite);
-      const guiTextureKey = getAsepriteTextureKey(gui.id);
-
-      if (wantsAsepriteBackdrop && scene.textures.exists(guiTextureKey)) {
-        const backdrop = scene.add.sprite(0, 0, guiTextureKey);
-        backdrop.setOrigin(0, 0);
-        panel.add(backdrop);
-      }
-
-      let inventoryItems: ReadonlyArray<{ id: string; quantity: number }> = [];
-      try {
-        const gameState = resolveGameStateManager(scene.game);
-        inventoryItems = gameState.getInventoryItems();
-      } catch {
-        /* e.g. GUI preview without GameStateManager on game.registry */
-      }
-
-      const slotCx = c.slotWidth / 2;
-      const slotCy = c.slotHeight / 2;
-
-      for (let row = 0; row < c.rows; row += 1) {
-        for (let col = 0; col < c.cols; col += 1) {
-          const slotIndex = row * c.cols + col;
-          if (slotIndex >= inventoryItems.length && !c.showEmptySlots) {
-            continue;
-          }
-
-          const slotX = col * (c.slotWidth + spacingX);
-          const slotY = row * (c.slotHeight + spacingY);
-          const slotContainer = scene.add.container(slotX, slotY);
-
-          if (showGuiSlotOutlines) {
-            const slotOutline = scene.add.graphics();
-            slotOutline.lineStyle(1, DEBUG_GUI_INVENTORY_SLOT_STROKE, 1);
-            slotOutline.strokeRect(0.5, 0.5, c.slotWidth - 1, c.slotHeight - 1);
-            slotContainer.add(slotOutline);
-          }
-
-          if (slotIndex < inventoryItems.length) {
-            const entry = inventoryItems[slotIndex]!;
-            const defRaw = getInventoryDefinition(entry.id);
-            const def = defRaw as InventoryItemData | undefined;
-            const iconTag = def?.defaultAnimation ?? entry.id;
-
-            let iconAdded = false;
-            if (usesAsepriteDisplay(gui) && iconTag) {
-              const guiKey = getAsepriteTextureKey(gui.id);
-              if (scene.textures.exists(guiKey)) {
-                const iconSprite = scene
-                  .add.sprite(slotCx, slotCy, guiKey, iconTag)
-                  .setScale(c.itemScale ?? 1)
-                  .setOrigin(0.5, 0.5);
-                slotContainer.add(iconSprite);
-                iconAdded = true;
-              }
-            }
-
-            if (
-              !iconAdded &&
-              def &&
-              (usesSharedInventoryAseprite(def) || usesPerItemInventoryAseprite(def))
-            ) {
-              const texKey = usesSharedInventoryAseprite(def)
-                ? sharedInventoryTextureKey
-                : getPerItemInventoryTextureKey(entry.id);
-              const animKey = inventoryPhaserAnimationKeyForTag(def, iconTag);
-              if (scene.textures.exists(texKey)) {
-                ensureAsepriteAnimationsFromAtlas(scene, texKey);
-                const playKey = scene.anims.exists(animKey)
-                  ? animKey
-                  : usesSharedInventoryAseprite(def) && scene.anims.exists(iconTag)
-                    ? iconTag
-                    : null;
-                if (playKey) {
-                  const iconSprite = scene
-                    .add.sprite(slotCx, slotCy, texKey)
-                    .setScale(c.itemScale ?? 1)
-                    .setOrigin(0.5, 0.5);
-                  iconSprite.play(playKey);
-                  slotContainer.add(iconSprite);
-                  iconAdded = true;
-                }
-              }
-            }
-
-            if (!iconAdded) {
-              const label = scene.add
-                .text(slotCx, slotCy, entry.id.slice(0, 6), {
-                  fontSize: '10px',
-                  color: '#e0e0e0',
-                })
-                .setOrigin(0.5, 0.5);
-              slotContainer.add(label);
-            }
-          }
-
-          panel.add(slotContainer);
-        }
-      }
-
+      const panel = buildInventoryPanel(scene, gui, c, depth, startVisible);
       inventoryPanels.push(panel);
+      continue;
+    }
+
+    if (c.type === 'image') {
+      addGuiImageSprite(scene, gui, c, depth, startVisible, extraSprites);
       continue;
     }
 
@@ -312,7 +520,8 @@ export function buildGuiOverlay(
     }
     const raw = c.text?.trim() ?? '';
     const initial = raw.length > 0 ? (c.text ?? '') : (placeholder ?? '');
-    const line = addGuiBitmapLine(scene, c, initial, depth, startVisible);
+    const lineVisible = c.visible ?? gui.visible ?? startVisible;
+    const line = addGuiBitmapLine(scene, c, initial, depth + (c.zIndex ?? 0), lineVisible);
     if (!line) {
       continue;
     }
@@ -322,7 +531,7 @@ export function buildGuiOverlay(
     }
   }
 
-  if (allLines.length === 0 && inventoryPanels.length === 0) {
+  if (allLines.length === 0 && inventoryPanels.length === 0 && extraSprites.length === 0) {
     return null;
   }
 
@@ -354,6 +563,9 @@ export function buildGuiOverlay(
       for (const panel of inventoryPanels) {
         panel.setVisible(visible);
       }
+      for (const s of extraSprites) {
+        s.setVisible(visible);
+      }
     },
     setLetterSpacing(spacing: number) {
       for (const line of allLines) {
@@ -367,10 +579,13 @@ export function buildGuiOverlay(
       for (const panel of inventoryPanels) {
         panel.destroy();
       }
+      for (const s of extraSprites) {
+        s.destroy();
+      }
       allLines.length = 0;
       inventoryPanels.length = 0;
+      extraSprites.length = 0;
       linesById.clear();
     },
   };
 }
-
