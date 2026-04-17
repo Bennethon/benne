@@ -6,7 +6,11 @@ import {
   normalizeSerializedInventory,
 } from '../../engine/gameState/GameStateManager';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKey';
-import { guiHasTextControls, type GuiFontLoadRequest } from '../../game/collectFontLoadsForGui';
+import {
+  guiHasImageControls,
+  guiHasTextControls,
+  type GuiFontLoadRequest,
+} from '../../game/collectFontLoadsForGui';
 import type { GuiData, GuiInventoryPanelControl } from '../../types/gui';
 import type { GameSettingsInitialGameState } from '../../types/game';
 import { resolveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
@@ -19,7 +23,6 @@ export type GuiPreviewAsepritePayload = {
   textureKey: string;
   textureURL: string;
   atlasURL: string;
-  tagToPlay: string;
 };
 
 export type GuiPreviewGamePayload = {
@@ -207,22 +210,9 @@ class GuiPreviewScene extends Phaser.Scene {
   }
 
   create(): void {
-    const { internalWidth, internalHeight, guiData, aseprite } = this.payload;
+    const { internalWidth, internalHeight, guiData } = this.payload;
     const cam = this.cameras.main;
     cam.setBackgroundColor(0x000000);
-
-    if (aseprite) {
-      const sprite = this.add
-        .sprite(internalWidth / 2, internalHeight / 2, aseprite.textureKey)
-        .setOrigin(0.5, 0.5);
-
-      if (!this.anims.exists(aseprite.tagToPlay)) {
-        this.anims.createFromAseprite(aseprite.textureKey);
-      }
-      if (this.anims.exists(aseprite.tagToPlay)) {
-        sprite.play(aseprite.tagToPlay);
-      }
-    }
 
     buildGuiOverlay(this, guiData, {
       depth: PREVIEW_GUI_TEXT_DEPTH,
@@ -240,7 +230,10 @@ class GuiPreviewScene extends Phaser.Scene {
       .setDepth(PREVIEW_RESOLUTION_LABEL_DEPTH);
 
     const mount = this.game.canvas.parentElement;
-    if (mount && (guiHasInventoryPanel(guiData) || guiHasTextControls(guiData))) {
+    if (
+      mount &&
+      (guiHasInventoryPanel(guiData) || guiHasTextControls(guiData) || guiHasImageControls(guiData))
+    ) {
       this.guiOutlineOverlay = new PreviewPolygonOverlay(this.game, mount);
       this.guiOutlineOverlay.setPointerEventsEnabled(false);
       this.scale.on('resize', this.refreshGuiOutlineBound);

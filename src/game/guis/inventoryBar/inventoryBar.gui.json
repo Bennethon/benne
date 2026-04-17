@@ -10,21 +10,20 @@
     {
       "type": "inventoryPanel",
       "id": "mainInv",
-      "x": 50,
-      "y": 120,
+      "x": 10,
+      "y": 2,
       "zIndex": 100,
       "visible": true,
-      "rows": 2,
-      "cols": 5,
-      "slotWidth": 32,
-      "slotHeight": 32,
-      "spacingX": 4,
-      "spacingY": 4,
-      "itemScale": 1.0,
+      "rows": 1,
+      "cols": 6,
+      "slotWidth": 38,
+      "slotHeight": 30,
+      "spacingX": 2,
+      "spacingY": 2,
+      "itemScale": 1,
       "showEmptySlots": true,
-      "backgroundTag": "",
-      "slotBackgroundTag": "",
-      "highlightTag": ""
+      "backgroundTag": "InvBG",
+      "backgroundAnchor": "screen"
     }
   ]
 }

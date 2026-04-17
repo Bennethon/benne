@@ -471,6 +471,34 @@ export async function resolveCharacterAsepriteSheetForAnimations(
     }
 }
 
+/** GUI sheet under `images/guis/<id>/<id>.json` — frame tag names for Inspector / validation. */
+export async function resolveGuiAsepriteSheetForTags(
+    gameRoot: vscode.Uri,
+    guiId: string
+): Promise<RoomAsepriteSheetResolution> {
+    const { png, json } = getGuiAsepriteAssetRelativePaths(guiId);
+    const pngExists = await gameAssetExists(gameRoot, png);
+    const jsonExists = await gameAssetExists(gameRoot, json);
+    if (!jsonExists) {
+        return { pngExists, jsonExists, frameTags: null };
+    }
+    try {
+        const jsonUri = vscode.Uri.joinPath(
+            gameRoot,
+            'src',
+            'game',
+            'assets',
+            ...assetPathSegments(json)
+        );
+        const raw = await vscode.workspace.fs.readFile(jsonUri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as Record<string, unknown>;
+        return { pngExists, jsonExists, frameTags: readAsepriteFrameTagNames(data) };
+    } catch {
+        return { pngExists, jsonExists, frameTags: null };
+    }
+}
+
 export function propAsepriteAssetTooltip(
     sheet: RoomAsepriteSheetResolution,
     prop: RoomPropEntry,

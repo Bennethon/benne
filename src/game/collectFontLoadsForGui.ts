@@ -43,3 +43,7 @@ export function collectFontLoadsForGui(
 export function guiHasTextControls(gui: GuiData): boolean {
   return (gui.controls ?? []).some((c) => c.type === 'text');
 }
+
+export function guiHasImageControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'image');
+}

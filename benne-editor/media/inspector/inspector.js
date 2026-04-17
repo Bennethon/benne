@@ -471,6 +471,164 @@ function pointInputs(prefix, value) {
   <input type="number" id="${esc(prefix)}-y" value="${value ? value.y : ''}" />
 </div>`;
 }
+function guiDimInputsForControl(index, x, y) {
+    const prefix = `gui-c${index}-pos`;
+    return `<div class="benne-dim-grid" role="group" aria-label="Position">
+  <span class="benne-dim-lbl">X</span>
+  <input type="number" class="gui-field" data-index="${index}" data-field="x" id="${esc(prefix)}-x" value="${x}" />
+  <span class="benne-dim-lbl">Y</span>
+  <input type="number" class="gui-field" data-index="${index}" data-field="y" id="${esc(prefix)}-y" value="${y}" />
+</div>`;
+}
+function guiAnchorSelectOptions(val) {
+    const opts = [
+        ['', '(default)'],
+        ['top-left', 'top-left'],
+        ['center', 'center'],
+        ['screen', 'screen']
+    ];
+    return opts
+        .map(([v, lab]) => `<option value="${esc(v)}"${val === v ? ' selected' : ''}>${esc(lab)}</option>`)
+        .join('');
+}
+function guiSheetTagSelectHtml(tags, current, dataIndex, dataField) {
+    const cur = current.trim();
+    let inner = `<option value="">(none)</option>`;
+    const tagSet = new Set(tags);
+    if (cur.length > 0 && !tagSet.has(cur)) {
+        inner += `<option value="${esc(cur)}" selected>${esc(cur)} (missing from sheet)</option>`;
+    }
+    for (const t of tags) {
+        const sel = t === cur ? ' selected' : '';
+        inner += `<option value="${esc(t)}"${sel}>${esc(t)}</option>`;
+    }
+    return `<select class="gui-field" data-index="${dataIndex}" data-field="${esc(dataField)}">${inner}</select>`;
+}
+function guiFontSelectHtml(fontIds, current, dataIndex) {
+    const set = new Set(fontIds);
+    let inner = '';
+    if (current.length > 0 && !set.has(current)) {
+        inner += `<option value="${esc(current)}" selected>${esc(current)} (not in fonts.json)</option>`;
+    }
+    for (const f of fontIds) {
+        const sel = f === current ? ' selected' : '';
+        inner += `<option value="${esc(f)}"${sel}>${esc(f)}</option>`;
+    }
+    return `<select class="gui-field" data-index="${dataIndex}" data-field="font">${inner}</select>`;
+}
+function renderGuiControlCardBody(state, c) {
+    if (c.controlKind === 'unknown') {
+        return `<label class="benne-field-label muted small">Control JSON</label>
+      <textarea class="gui-control-payload" data-index="${c.index}" rows="8">${esc(c.payload)}</textarea>`;
+    }
+    const idx = c.index;
+    const tags = state.guiSheetTags;
+    const fontIds = state.fontIds;
+    const visibleSelect = `<span class="benne-pg-lbl">visible</span>
+      <select class="gui-field" data-index="${idx}" data-field="visible">
+        <option value=""${c.visibleMode === '' ? ' selected' : ''}>Inherit overlay</option>
+        <option value="true"${c.visibleMode === 'true' ? ' selected' : ''}>Shown</option>
+        <option value="false"${c.visibleMode === 'false' ? ' selected' : ''}>Hidden</option>
+      </select>`;
+    const zRow = `<span class="benne-pg-lbl">zIndex</span>
+      <input type="number" class="gui-field" data-index="${idx}" data-field="zIndex" value="${c.zIndex ?? ''}" placeholder="—" />`;
+    if (c.controlKind === 'text') {
+        const alignLeftSel = c.align === '' || c.align === 'left';
+        const alignSel = `<select class="gui-field" data-index="${idx}" data-field="align">
+        <option value="left"${alignLeftSel ? ' selected' : ''}>left</option>
+        <option value="center"${c.align === 'center' ? ' selected' : ''}>center</option>
+        <option value="right"${c.align === 'right' ? ' selected' : ''}>right</option>
+      </select>`;
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">text</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="text" value="${esc(c.text)}" />
+        <span class="benne-pg-lbl">font</span>
+        ${guiFontSelectHtml(fontIds, c.font, idx)}
+        <span class="benne-pg-lbl">fontSize</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="fontSize" value="${c.fontSize}" />
+        <span class="benne-pg-lbl">color</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="color" value="${esc(c.color)}" />
+        <span class="benne-pg-lbl">align</span>
+        ${alignSel}
+        <span class="benne-pg-lbl">wordWrapWidth</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="wordWrapWidth" value="${c.wordWrapWidth ?? ''}" placeholder="—" />
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position</div>
+      ${guiDimInputsForControl(idx, c.x, c.y)}
+      <p class="muted small" style="margin:8px 0 0;">Sheet animations are not used for <code>text</code> controls.</p>`;
+    }
+    if (c.controlKind === 'inventoryPanel') {
+        const animBlock = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">Backdrop tag</span>
+          ${guiSheetTagSelectHtml(tags, c.backgroundTag, idx, 'backgroundTag')}
+          <span class="benne-pg-lbl">Backdrop anchor</span>
+          <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
+          <span class="benne-pg-lbl">Slot bg tag</span>
+          ${guiSheetTagSelectHtml(tags, c.slotBackgroundTag, idx, 'slotBackgroundTag')}
+          <span class="benne-pg-lbl">Slot bg anchor</span>
+          <select class="gui-field" data-index="${idx}" data-field="slotBackgroundAnchor">${guiAnchorSelectOptions(c.slotBackgroundAnchor)}</select>
+          <span class="benne-pg-lbl">Highlight tag</span>
+          ${guiSheetTagSelectHtml(tags, c.highlightTag, idx, 'highlightTag')}
+          <span class="benne-pg-lbl">Highlight anchor</span>
+          <select class="gui-field" data-index="${idx}" data-field="highlightAnchor">${guiAnchorSelectOptions(c.highlightAnchor)}</select>
+        </div>`
+            : state.usesAseprite
+                ? `<p class="muted small" style="margin-top:8px;">No frame tags found on this GUI’s Aseprite JSON — add tags in Aseprite and re-export.</p>`
+                : `<p class="muted small" style="margin-top:8px;">Enable <code>display.aseprite</code> to bind sheet tags here.</p>`;
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">rows</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="rows" value="${c.rows}" />
+        <span class="benne-pg-lbl">cols</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="cols" value="${c.cols}" />
+        <span class="benne-pg-lbl">slotWidth</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="slotWidth" value="${c.slotWidth}" />
+        <span class="benne-pg-lbl">slotHeight</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="slotHeight" value="${c.slotHeight}" />
+        <span class="benne-pg-lbl">spacingX</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="spacingX" value="${c.spacingX ?? ''}" placeholder="0" />
+        <span class="benne-pg-lbl">spacingY</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="spacingY" value="${c.spacingY ?? ''}" placeholder="0" />
+        <span class="benne-pg-lbl">itemScale</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="itemScale" value="${c.itemScale ?? ''}" placeholder="1" step="0.05" />
+        <span class="benne-pg-lbl">showEmptySlots</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="showEmptySlots" ${c.showEmptySlots ? 'checked' : ''} /></label>
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position</div>
+      ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${animBlock}`;
+    }
+    /* image */
+    const animImg = state.usesAseprite && tags.length > 0
+        ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">tag</span>
+        ${guiSheetTagSelectHtml(tags, c.displayTag, idx, 'displayTag')}
+        <span class="benne-pg-lbl">anchor</span>
+        <select class="gui-field" data-index="${idx}" data-field="displayAnchor">${guiAnchorSelectOptions(c.displayAnchor)}</select>
+      </div>`
+        : state.usesAseprite
+            ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
+            : `<p class="muted small" style="margin-top:8px;">Set <code>display.aseprite: true</code> to use sheet tags.</p>`;
+    return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position</div>
+      ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${animImg}`;
+}
 function renderCharacter(state) {
     const verbHtml = renderVerbChipRow(state.characterJsonUri, state.characterId, state.verbs, `characterDef:${state.characterId}`);
     const animationCards = state.animations
@@ -541,13 +699,13 @@ function renderCharacter(state) {
 }
 function renderGui(state) {
     const cards = state.controls
-        .map((control, index) => {
+        .map((control) => {
+        const typeLabel = control.controlKind === 'unknown' ? control.typeLabel : control.controlKind;
         const summary = `<div class="benne-card-titles">
         <div class="benne-card-title">${esc(control.summary)}</div>
-        <div class="benne-card-sub muted">${esc(control.type)}</div>
+        <div class="benne-card-sub muted">${esc(typeLabel)}</div>
       </div>`;
-        const body = `<label class="benne-field-label muted small">Control JSON</label>
-      <textarea class="gui-control-payload" data-index="${index}" rows="6">${esc(control.payload)}</textarea>`;
+        const body = renderGuiControlCardBody(state, control);
         return renderInspectorItem({}, 'guiControl', control.key, ' benne-card--region', summary, body);
     })
         .join('');
@@ -1027,9 +1185,73 @@ function collectGuiMeta() {
         description: document.getElementById('gui-description')?.value ?? ''
     };
 }
+function buildGuiControlFieldPatch(field, el) {
+    if (field === 'displayTag') {
+        const raw = el.value.trim();
+        return { display: { tag: raw.length === 0 ? null : el.value } };
+    }
+    if (field === 'displayAnchor') {
+        const raw = el.value.trim();
+        const a = raw === '' || raw === 'top-left' ? null : raw;
+        return { display: { anchor: a } };
+    }
+    if (field === 'visible') {
+        const raw = el.value;
+        if (raw === '') {
+            return { visible: null };
+        }
+        return { visible: raw === 'true' };
+    }
+    if (field === 'align') {
+        const raw = el.value;
+        if (raw === 'left') {
+            return { align: null };
+        }
+        return { align: raw };
+    }
+    const anchorTop = new Set(['backgroundAnchor', 'slotBackgroundAnchor', 'highlightAnchor']);
+    if (anchorTop.has(field)) {
+        const raw = el.value.trim();
+        if (raw === '' || raw === 'top-left') {
+            return { [field]: null };
+        }
+        return { [field]: raw };
+    }
+    const intRequired = new Set(['x', 'y', 'rows', 'cols', 'slotWidth', 'slotHeight', 'fontSize']);
+    if (intRequired.has(field)) {
+        const n = Number(el.value);
+        if (!Number.isFinite(n)) {
+            return null;
+        }
+        return { [field]: Math.trunc(n) };
+    }
+    const optNum = new Set(['zIndex', 'wordWrapWidth', 'spacingX', 'spacingY', 'itemScale']);
+    if (optNum.has(field)) {
+        const raw = el.value.trim();
+        if (raw === '') {
+            return { [field]: null };
+        }
+        const n = Number(raw);
+        if (!Number.isFinite(n)) {
+            return null;
+        }
+        return { [field]: n };
+    }
+    if (field === 'showEmptySlots') {
+        return { showEmptySlots: el.checked };
+    }
+    const tagStr = new Set(['text', 'font', 'color', 'backgroundTag', 'slotBackgroundTag', 'highlightTag']);
+    if (tagStr.has(field)) {
+        return { [field]: el.value };
+    }
+    return null;
+}
 function mountGuiHandlers(state) {
     const flushMeta = () => {
         post('applyPatches', { patches: [collectGuiMeta()] });
+    };
+    const postGuiPatch = (index, patch) => {
+        post('applyPatches', { patches: [{ type: 'guiControlUpdate', index, patch }] });
     };
     document.getElementById('btn-save-gui')?.addEventListener('click', () => {
         const payloadPatches = [];
@@ -1055,6 +1277,47 @@ function mountGuiHandlers(state) {
                 return;
             }
             post('applyPatches', { patches: [{ type: 'guiControlPayload', index: idx, payload: ta.value }] });
+        });
+    });
+    const bindGuiField = (el) => {
+        if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLSelectElement)) {
+            return;
+        }
+        const he = el;
+        const idx = Number(he.dataset.index ?? '-1');
+        const field = he.dataset.field ?? '';
+        if (!Number.isInteger(idx) || idx < 0 || !field) {
+            return;
+        }
+        const flush = () => {
+            const patch = buildGuiControlFieldPatch(field, he);
+            if (patch) {
+                postGuiPatch(idx, patch);
+            }
+        };
+        if (he instanceof HTMLSelectElement) {
+            he.addEventListener('change', flush);
+        }
+        else {
+            he.addEventListener('blur', flush);
+        }
+    };
+    document.querySelectorAll('.gui-field').forEach(bindGuiField);
+    document.querySelectorAll('.gui-field-cb').forEach((el) => {
+        if (!(el instanceof HTMLInputElement)) {
+            return;
+        }
+        const he = el;
+        const idx = Number(he.dataset.index ?? '-1');
+        const field = he.dataset.field ?? '';
+        if (!Number.isInteger(idx) || idx < 0 || !field) {
+            return;
+        }
+        he.addEventListener('change', () => {
+            const patch = buildGuiControlFieldPatch(field, he);
+            if (patch) {
+                postGuiPatch(idx, patch);
+            }
         });
     });
 }

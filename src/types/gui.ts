@@ -11,12 +11,25 @@ export interface GuiDisplayData {
 
 export type GuiTextAlign = 'left' | 'center' | 'right';
 
+/** How a GUI-sheet sprite is aligned to its control (or to the screen for full-frame art). */
+export type GuiSpriteAnchor = 'top-left' | 'center' | 'screen';
+
+/** Associates an Aseprite frame tag on the GUI sheet with placement; omit or empty `tag` to show nothing. */
+export interface GuiSpriteDisplay {
+  tag?: string;
+  anchor?: GuiSpriteAnchor;
+}
+
 export interface GuiTextControl {
   type: 'text';
   /** Prefer `line` for dialogue body; otherwise the first text control is the primary line. */
   id?: string;
   x: number;
   y: number;
+  /** Draw order within the GUI overlay: added to the overlay’s base depth. */
+  zIndex?: number;
+  /** When set, overrides {@link GuiData.visible} / overlay start visibility for this line only. */
+  visible?: boolean;
   text?: string;
   /** Key in `src/game/assets/fonts/fonts.json` (bitmap font). */
   font: string;
@@ -59,11 +72,29 @@ export interface GuiInventoryPanelControl {
   itemScale?: number; // default 1.0
   showEmptySlots?: boolean; // show fixed grid with empty backgrounds when true
   backgroundTag?: string; // optional Aseprite tag for full panel backdrop
+  /** Placement for {@link backgroundTag}; default `top-left`. */
+  backgroundAnchor?: GuiSpriteAnchor;
   slotBackgroundTag?: string; // optional per-slot background frame
+  slotBackgroundAnchor?: GuiSpriteAnchor;
   highlightTag?: string; // optional hover/selected overlay tag
+  highlightAnchor?: GuiSpriteAnchor;
 }
 
-export type GuiControl = GuiTextControl | GuiInventoryPanelControl;
+/** Static or animated art from the GUI Aseprite sheet (`display.aseprite`). */
+export interface GuiImageControl {
+  type: 'image';
+  id?: string;
+  x: number;
+  y: number;
+  zIndex?: number;
+  visible?: boolean;
+  /** Reserved for future clipping / 9-slice; does not affect `screen` anchor placement. */
+  width?: number;
+  height?: number;
+  display: GuiSpriteDisplay;
+}
+
+export type GuiControl = GuiTextControl | GuiInventoryPanelControl | GuiImageControl;
 
 export interface GuiData {
   id: string;
