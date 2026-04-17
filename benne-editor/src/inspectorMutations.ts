@@ -628,8 +628,12 @@ function pruneEmptyDisplay(display: Record<string, unknown>): void {
     if (display.tag === '' || display.tag === undefined) {
         delete display.tag;
     }
-    if (display.anchor === '' || display.anchor === undefined || display.anchor === 'top-left') {
-        delete display.anchor;
+    if (
+        display.backgroundAnchor === '' ||
+        display.backgroundAnchor === undefined ||
+        display.backgroundAnchor === 'top-left'
+    ) {
+        delete display.backgroundAnchor;
     }
     if (Object.keys(display).length === 0) {
         /* keep empty object for image control */
@@ -722,9 +726,9 @@ export function updateGuiControlPatch(
     }
 
     if (row.type === 'button') {
-        const a = row.anchor;
+        const a = row.backgroundAnchor;
         if (a !== 'center' && a !== 'screen') {
-            row.anchor = 'top-left';
+            row.backgroundAnchor = 'top-left';
         }
         if (row.states && typeof row.states === 'object' && !Array.isArray(row.states)) {
             pruneEmptyButtonStates(row.states as Record<string, unknown>);

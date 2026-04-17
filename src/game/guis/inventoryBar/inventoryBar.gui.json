@@ -22,7 +22,7 @@
       "spacingY": 2,
       "itemScale": 1,
       "showEmptySlots": true,
-      "backgroundTag": "InvBG",
+      "backgroundTag": "",
       "backgroundAnchor": "screen"
     },
     {
@@ -32,33 +32,33 @@
       "y": 0,
       "display": {
         "tag": "InvBG",
-        "anchor": "screen"
+        "backgroundAnchor": "screen"
       }
     },
     {
       "type": "button",
       "id": "back",
-      "x": 0,
-      "y": 0,
-      "width": 30,
-      "height": 32,
+      "x": 2,
+      "y": 10,
+      "width": 6,
+      "height": 13,
       "text": "Button",
       "font": "",
-      "fontSize": 16,
+      "fontSize": 17,
       "textColor": "#ffffff",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
       "backgroundTag": "BackBtn",
       "zIndex": 200,
-      "anchor": "screen"
+      "backgroundAnchor": "screen"
     },
     {
       "type": "text",
       "id": "test-text",
-      "x": 100,
+      "x": 106,
       "y": 100,
-      "text": "Sample text",
+      "text": "Sample text!!!!!",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
       "color": "#ffffff",

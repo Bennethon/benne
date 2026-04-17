@@ -186,7 +186,7 @@ export type InspectorGuiControlCard =
           zIndex: number | null;
           visibleMode: '' | 'true' | 'false';
           displayTag: string;
-          displayAnchor: InspectorGuiSpriteAnchor;
+          displayBackgroundAnchor: InspectorGuiSpriteAnchor;
       }
     | {
           controlKind: 'button';
@@ -201,7 +201,7 @@ export type InspectorGuiControlCard =
           width: number;
           height: number;
           /** Empty string = default placement (`top-left` in JSON when saved from Inspector). */
-          anchor: InspectorGuiSpriteAnchor;
+          backgroundAnchor: InspectorGuiSpriteAnchor;
           text: string;
           font: string;
           fontSize: number;
@@ -904,8 +904,8 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
                 ? (o.display as Record<string, unknown>)
                 : {};
         const tag = typeof disp.tag === 'string' ? disp.tag : '';
-        const anchorRaw = disp.anchor;
-        const displayAnchor: InspectorGuiSpriteAnchor =
+        const anchorRaw = disp.backgroundAnchor;
+        const displayBackgroundAnchor: InspectorGuiSpriteAnchor =
             anchorRaw === 'top-left' || anchorRaw === 'center' || anchorRaw === 'screen' ? anchorRaw : '';
         return {
             controlKind: 'image',
@@ -918,7 +918,7 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             zIndex: guiReadNumOrNull(o, 'zIndex'),
             visibleMode: guiReadVisibleMode(o),
             displayTag: tag,
-            displayAnchor
+            displayBackgroundAnchor
         };
     }
 
@@ -942,7 +942,7 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             visibleMode: guiReadVisibleMode(o),
             width: guiReadNum(o, 'width', 120),
             height: guiReadNum(o, 'height', 32),
-            anchor: guiReadAnchorField(o, 'anchor'),
+            backgroundAnchor: guiReadAnchorField(o, 'backgroundAnchor'),
             text: typeof o.text === 'string' ? o.text : '',
             font: typeof o.font === 'string' ? o.font : '',
             fontSize: guiReadNum(o, 'fontSize', 16),
