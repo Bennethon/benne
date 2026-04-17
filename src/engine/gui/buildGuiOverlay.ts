@@ -14,7 +14,10 @@ import {
   usesSharedInventoryAseprite,
 } from '../../game/inventoryAseprite';
 import type { GameBitmapFontDefinition, GameFontsManifest } from '../../types/fonts';
+import { gameEvents } from '../events/EventBus';
+import { guiAllButtonsClickEventId, guiButtonClickEventId, type GuiAllButtonsClickPayload } from '../events/guiButtonEvents';
 import type {
+  GuiButtonControl,
   GuiData,
   GuiImageControl,
   GuiInventoryPanelControl,
@@ -51,11 +54,12 @@ export interface GuiOverlayHandle {
   setLetterSpacing(spacing: number): void;
   /**
    * Top-level scene game objects composing this overlay (`BitmapText` lines, inventory-panel
-   * `Container`s, extra `Sprite`s). Container children are **not** included — Phaser renders them
-   * through their parent, and camera `ignore()` follows the same rule. Used by `RoomScene` to route
-   * these objects through a dedicated UI camera with `origin=(0,0)` in the editor preview so
-   * `scrollFactor=0` placement survives non-unit camera zoom (Phaser 4's origin-aware zoom math
-   * otherwise pushes screen-fixed overlays far off the viewport when `camera.zoom ≠ 1`).
+   * `Container`s, button sheet `Sprite`s and labels, invisible button hit `Container`s, extra
+   * `Sprite`s). Container children are **not** included — Phaser renders them through their parent,
+   * and camera `ignore()` follows the same rule. Used by `RoomScene` to route these objects through
+   * a dedicated UI camera with `origin=(0,0)` in the editor preview so `scrollFactor=0` placement
+   * survives non-unit camera zoom (Phaser 4's origin-aware zoom math otherwise pushes screen-fixed
+   * overlays far off the viewport when `camera.zoom ≠ 1`).
    */
   readonly gameObjects: readonly Phaser.GameObjects.GameObject[];
   destroy(): void;
@@ -145,6 +149,23 @@ function guiSpriteAnchorOrDefault(a: GuiSpriteAnchor | undefined): GuiSpriteAnch
  * Returns **`false`** when the tag does not exist on the sheet — callers must **`destroy`** the sprite so the
  * atlas’s default frame (often an untagged first cel) never appears on screen.
  */
+function stopSpriteAnimationIfPlaying(sprite: Phaser.GameObjects.Sprite): void {
+  if (sprite.anims?.isPlaying) {
+    sprite.anims.stop();
+  }
+}
+
+/** Stops any playing clip before applying a tag so static frames and clips can switch cleanly. */
+function reapplyGuiSheetTag(
+  scene: Phaser.Scene,
+  sprite: Phaser.GameObjects.Sprite,
+  textureKey: string,
+  tag: string,
+): boolean {
+  stopSpriteAnimationIfPlaying(sprite);
+  return tryApplyGuiSheetTag(scene, sprite, textureKey, tag);
+}
+
 function tryApplyGuiSheetTag(
   scene: Phaser.Scene,
   sprite: Phaser.GameObjects.Sprite,
@@ -197,6 +218,198 @@ function applyGuiSpriteAnchor(
       sprite.setOrigin(0, 0);
       sprite.setPosition(Math.round(x), Math.round(y));
   }
+}
+
+function positionGuiButtonContainer(
+  container: Phaser.GameObjects.Container,
+  anchor: GuiSpriteAnchor,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void {
+  const rx = Math.round(x);
+  const ry = Math.round(y);
+  switch (anchor) {
+    case 'center':
+      container.setPosition(rx - width / 2, ry - height / 2);
+      break;
+    case 'screen':
+      container.setPosition(0, 0);
+      break;
+    default:
+      container.setPosition(rx, ry);
+  }
+}
+
+interface BuiltGuiButton {
+  /** Invisible hit box (`width` × `height`); carries pointer handlers. */
+  readonly hitTarget: Phaser.GameObjects.Container;
+  readonly background: Phaser.GameObjects.Sprite | null;
+  readonly label: Phaser.GameObjects.BitmapText | null;
+  readonly enabled: boolean;
+  readonly width: number;
+  readonly height: number;
+}
+
+function applyGuiButtonInteractivity(
+  container: Phaser.GameObjects.Container,
+  width: number,
+  height: number,
+  enabled: boolean,
+): void {
+  const g = new Phaser.Geom.Rectangle(0, 0, width, height);
+  container.setInteractive(g, Phaser.Geom.Rectangle.Contains);
+  if (container.input) {
+    /** `true` uses the hand cursor over the hit area (Phaser `InteractiveObject.cursor`). */
+    container.input.cursor = enabled;
+  }
+}
+
+function buildGuiButton(
+  scene: Phaser.Scene,
+  gui: GuiData,
+  c: GuiButtonControl,
+  baseDepth: number,
+  startVisible: boolean,
+): BuiltGuiButton | null {
+  const w = c.width;
+  const h = c.height;
+  if (w <= 0 || h <= 0) {
+    return null;
+  }
+
+  const z = c.zIndex ?? 0;
+  const d = baseDepth + z;
+  const overlayVisible = startVisible && c.visible !== false;
+  const anchor = guiSpriteAnchorOrDefault(c.anchor);
+
+  const hitTarget = scene.add.container(0, 0);
+  hitTarget.setScrollFactor(0, 0);
+  /** Above label so the hit box receives input over the bitmap text. */
+  hitTarget.setDepth(d + 2);
+  hitTarget.setVisible(overlayVisible);
+  positionGuiButtonContainer(hitTarget, anchor, c.x, c.y, w, h);
+
+  const guiTextureKey = getAsepriteTextureKey(gui.id);
+  const defaultBgTag = c.backgroundTag.trim();
+  let bg: Phaser.GameObjects.Sprite | null = null;
+
+  if (usesAsepriteDisplay(gui) && defaultBgTag && scene.textures.exists(guiTextureKey)) {
+    const sprite = scene.add.sprite(0, 0, guiTextureKey);
+    sprite.setVisible(false);
+    sprite.setScrollFactor(0, 0);
+    sprite.setDepth(d);
+    if (!tryApplyGuiSheetTag(scene, sprite, guiTextureKey, defaultBgTag)) {
+      sprite.destroy();
+    } else {
+      sprite.setVisible(overlayVisible);
+      applyGuiSpriteAnchor(sprite, anchor, c.x, c.y);
+      bg = sprite;
+    }
+  }
+
+  let label: Phaser.GameObjects.BitmapText | null = null;
+  const fontEntry = manifest[c.font] as GameBitmapFontDefinition | undefined;
+  if (fontEntry && scene.cache.bitmapFont.exists(c.font)) {
+    const align = c.textAlign ?? 'center';
+    const ox = c.textOffsetX ?? 0;
+    const oy = c.textOffsetY ?? 0;
+    const pad = 4;
+    const bx = hitTarget.x;
+    const by = hitTarget.y;
+    const labelX = bx + (align === 'left' ? pad + ox : align === 'right' ? w - pad + ox : w / 2 + ox);
+    const labelY = by + h / 2 + oy;
+    const lineAlign = bitmapTextLineAlign(align);
+    const renderSize = effectiveBitmapFontRenderSize(scene, c.font, c.fontSize);
+    const bt = scene.add.bitmapText(labelX, labelY, c.font, c.text ?? '', renderSize, lineAlign);
+    bt.setOrigin(align === 'left' ? 0 : align === 'right' ? 1 : 0.5, 0.5);
+    bt.clearTint();
+    bt.setTint(hexStringToTint(c.textColor));
+    const letterSpacing = fontEntry.defaultLetterSpacing ?? 0;
+    if (letterSpacing !== 0) {
+      bt.setLetterSpacing(letterSpacing);
+    }
+    bt.setScrollFactor(0, 0);
+    bt.setDepth(d + 1);
+    bt.setVisible(overlayVisible);
+    label = bt;
+  } else if (c.font.trim().length > 0) {
+    console.warn(`[Benne] GUI button "${c.id}": unknown or unloaded font "${c.font}".`);
+  }
+
+  if (!bg && !label) {
+    hitTarget.destroy();
+    return null;
+  }
+
+  const enabled = c.enabled !== false;
+  if (!enabled) {
+    hitTarget.setAlpha(0.45);
+    bg?.setAlpha(0.45);
+    label?.setAlpha(0.45);
+    const dTag = c.states?.disabled?.trim();
+    if (bg && dTag) {
+      reapplyGuiSheetTag(scene, bg, guiTextureKey, dTag);
+    }
+  }
+
+  if (overlayVisible && enabled) {
+    applyGuiButtonInteractivity(hitTarget, w, h, enabled);
+  }
+
+  const hoverTag = c.states?.hover?.trim();
+  const pressedTag = c.states?.pressed?.trim();
+  const disabledTag = c.states?.disabled?.trim();
+
+  if (bg && enabled && (hoverTag || pressedTag || disabledTag)) {
+    const textureKey = guiTextureKey;
+    const restoreDefault = (): void => {
+      if (!bg) {
+        return;
+      }
+      reapplyGuiSheetTag(scene, bg, textureKey, defaultBgTag);
+    };
+
+    hitTarget.on('pointerover', () => {
+      if (!enabled || !bg) {
+        return;
+      }
+      if (hoverTag && !reapplyGuiSheetTag(scene, bg, textureKey, hoverTag)) {
+        restoreDefault();
+      }
+    });
+    hitTarget.on('pointerout', () => {
+      if (!bg) {
+        return;
+      }
+      restoreDefault();
+    });
+    hitTarget.on('pointerdown', () => {
+      if (!enabled || !bg) {
+        return;
+      }
+      if (pressedTag && !reapplyGuiSheetTag(scene, bg, textureKey, pressedTag)) {
+        restoreDefault();
+      }
+    });
+    hitTarget.on('pointerup', () => {
+      if (!enabled || !bg) {
+        return;
+      }
+      restoreDefault();
+    });
+  }
+
+  hitTarget.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+    if (!enabled || !hitTarget.visible || !pointer.leftButtonReleased()) {
+      return;
+    }
+    gameEvents.emit(guiButtonClickEventId(gui.id, c.id));
+    gameEvents.emit(guiAllButtonsClickEventId(gui.id), { buttonId: c.id } satisfies GuiAllButtonsClickPayload);
+  });
+
+  return { hitTarget, background: bg, label, enabled, width: w, height: h };
 }
 
 function addGuiBitmapLine(
@@ -489,8 +702,7 @@ export interface BuildGuiOverlayOptions {
 }
 
 /**
- * Builds screen-space GUI controls from `gui.controls` (`text`, `inventoryPanel`, `image`, `button` — button
- * composition is not implemented yet; unknown kinds are skipped).
+ * Builds screen-space GUI controls from `gui.controls` (`text`, `inventoryPanel`, `image`, `button`).
  * Starts hidden unless `startVisible`. Font ids resolve via `fonts/fonts.json` (`load.bitmapFont` keys).
  */
 export function buildGuiOverlay(
@@ -503,6 +715,7 @@ export function buildGuiOverlay(
   const placeholder = options?.emptyTextPlaceholder;
   const allLines: Phaser.GameObjects.BitmapText[] = [];
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
+  const guiButtons: BuiltGuiButton[] = [];
   const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
   const extraSprites: Phaser.GameObjects.Sprite[] = [];
 
@@ -525,6 +738,14 @@ export function buildGuiOverlay(
       continue;
     }
 
+    if (c.type === 'button') {
+      const built = buildGuiButton(scene, gui, c, depth, startVisible);
+      if (built) {
+        guiButtons.push(built);
+      }
+      continue;
+    }
+
     if (c.type !== 'text') {
       continue;
     }
@@ -541,7 +762,12 @@ export function buildGuiOverlay(
     }
   }
 
-  if (allLines.length === 0 && inventoryPanels.length === 0 && extraSprites.length === 0) {
+  if (
+    allLines.length === 0 &&
+    inventoryPanels.length === 0 &&
+    extraSprites.length === 0 &&
+    guiButtons.length === 0
+  ) {
     return null;
   }
 
@@ -576,13 +802,38 @@ export function buildGuiOverlay(
       for (const s of extraSprites) {
         s.setVisible(visible);
       }
+      for (const b of guiButtons) {
+        b.hitTarget.setVisible(visible);
+        b.background?.setVisible(visible);
+        b.label?.setVisible(visible);
+        if (visible && b.enabled) {
+          applyGuiButtonInteractivity(b.hitTarget, b.width, b.height, b.enabled);
+        } else {
+          b.hitTarget.disableInteractive();
+        }
+      }
     },
     setLetterSpacing(spacing: number) {
       for (const line of allLines) {
         line.setLetterSpacing(spacing);
       }
     },
-    gameObjects: [...allLines, ...inventoryPanels, ...extraSprites],
+    gameObjects: [
+      ...allLines,
+      ...inventoryPanels,
+      ...extraSprites,
+      ...guiButtons.flatMap((b) => {
+        const parts: Phaser.GameObjects.GameObject[] = [];
+        if (b.background) {
+          parts.push(b.background);
+        }
+        if (b.label) {
+          parts.push(b.label);
+        }
+        parts.push(b.hitTarget);
+        return parts;
+      }),
+    ],
     destroy() {
       for (const line of allLines) {
         line.destroy();
@@ -593,9 +844,15 @@ export function buildGuiOverlay(
       for (const s of extraSprites) {
         s.destroy();
       }
+      for (const b of guiButtons) {
+        b.background?.destroy();
+        b.label?.destroy();
+        b.hitTarget.destroy();
+      }
       allLines.length = 0;
       inventoryPanels.length = 0;
       extraSprites.length = 0;
+      guiButtons.length = 0;
       linesById.clear();
     },
   };

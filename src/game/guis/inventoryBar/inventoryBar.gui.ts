@@ -1,6 +1,10 @@
 import { registerGuiScript } from '@engine/scripting';
 
-registerGuiScript('inventory', ({ B: _B }) => {
+registerGuiScript('inventoryBar', ({ B: _B }) => {
   // TODO: Add inventory slot click handling later
   console.log('Inventory GUI script loaded');
+
+  _B.whenButtonClick("back", () => {
+    console.log("Back button clicked");
+  });
 });
