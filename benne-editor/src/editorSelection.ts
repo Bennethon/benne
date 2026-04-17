@@ -8,6 +8,11 @@ export type EditorFocus =
     | { kind: 'gui'; uri: vscode.Uri; label: string }
     | { kind: 'inventory'; uri: vscode.Uri; label: string };
 
+/** Control row selected under a GUI in the BENNE tree (drives Inspector scroll / expand). */
+export type GuiPanelFocus =
+    | { kind: 'none' }
+    | { kind: 'control'; guiJsonUri: vscode.Uri; controlKey: string };
+
 /** Prop selected under a room in the BENNE tree (drives Actions). */
 export type RoomPanelFocus =
     | { kind: 'none' }
@@ -26,6 +31,7 @@ export type RoomPanelFocus =
 export class EditorSelection {
     private _main: EditorFocus = { kind: 'none' };
     private _roomPanel: RoomPanelFocus = { kind: 'none' };
+    private _guiPanel: GuiPanelFocus = { kind: 'none' };
     private readonly _onDidChange = new vscode.EventEmitter<void>();
 
     readonly onDidChange = this._onDidChange.event;
@@ -39,9 +45,14 @@ export class EditorSelection {
         return this._roomPanel;
     }
 
+    get guiPanel(): GuiPanelFocus {
+        return this._guiPanel;
+    }
+
     setRoom(uri: vscode.Uri, label: string): void {
         this._main = { kind: 'room', uri, label };
         this._roomPanel = { kind: 'none' };
+        this._guiPanel = { kind: 'none' };
         this._onDidChange.fire();
     }
 
@@ -54,6 +65,7 @@ export class EditorSelection {
     ): void {
         this._main = { kind: 'room', uri: roomJsonUri, label: roomLabel };
         this._roomPanel = { kind: 'prop', roomJsonUri, roomId, prop };
+        this._guiPanel = { kind: 'none' };
         this._onDidChange.fire();
     }
 
@@ -65,6 +77,7 @@ export class EditorSelection {
     ): void {
         this._main = { kind: 'room', uri: roomJsonUri, label: roomLabel };
         this._roomPanel = { kind: 'hotspot', roomJsonUri, roomId, hotspotId };
+        this._guiPanel = { kind: 'none' };
         this._onDidChange.fire();
     }
 
@@ -76,6 +89,7 @@ export class EditorSelection {
     ): void {
         this._main = { kind: 'room', uri: roomJsonUri, label: roomLabel };
         this._roomPanel = { kind: 'roomPoint', roomJsonUri, roomId, pointId };
+        this._guiPanel = { kind: 'none' };
         this._onDidChange.fire();
     }
 
@@ -87,6 +101,7 @@ export class EditorSelection {
     ): void {
         this._main = { kind: 'room', uri: roomJsonUri, label: roomLabel };
         this._roomPanel = { kind: 'region', roomJsonUri, roomId, regionId };
+        this._guiPanel = { kind: 'none' };
         this._onDidChange.fire();
     }
 
@@ -99,24 +114,35 @@ export class EditorSelection {
     ): void {
         this._main = { kind: 'room', uri: roomJsonUri, label: roomLabel };
         this._roomPanel = { kind: 'roomCharacter', roomJsonUri, roomId, instanceId, characterId };
+        this._guiPanel = { kind: 'none' };
         this._onDidChange.fire();
     }
 
     setCharacter(uri: vscode.Uri, label: string): void {
         this._main = { kind: 'character', uri, label };
         this._roomPanel = { kind: 'none' };
+        this._guiPanel = { kind: 'none' };
         this._onDidChange.fire();
     }
 
     setGui(uri: vscode.Uri, label: string): void {
         this._main = { kind: 'gui', uri, label };
         this._roomPanel = { kind: 'none' };
+        this._guiPanel = { kind: 'none' };
+        this._onDidChange.fire();
+    }
+
+    setGuiWithControl(uri: vscode.Uri, label: string, controlKey: string): void {
+        this._main = { kind: 'gui', uri, label };
+        this._roomPanel = { kind: 'none' };
+        this._guiPanel = { kind: 'control', guiJsonUri: uri, controlKey };
         this._onDidChange.fire();
     }
 
     setInventory(uri: vscode.Uri, label: string): void {
         this._main = { kind: 'inventory', uri, label };
         this._roomPanel = { kind: 'none' };
+        this._guiPanel = { kind: 'none' };
         this._onDidChange.fire();
     }
 
@@ -162,17 +188,19 @@ export class EditorSelection {
         if (this._main.kind === 'room') {
             this._main = { kind: 'none' };
             this._roomPanel = { kind: 'none' };
+            this._guiPanel = { kind: 'none' };
             this._onDidChange.fire();
         }
     }
 
     /** Clears room / character / GUI / inventory primary focus (e.g. after deleting the active entity). */
     clearFocus(): void {
-        if (this._main.kind === 'none' && this._roomPanel.kind === 'none') {
+        if (this._main.kind === 'none' && this._roomPanel.kind === 'none' && this._guiPanel.kind === 'none') {
             return;
         }
         this._main = { kind: 'none' };
         this._roomPanel = { kind: 'none' };
+        this._guiPanel = { kind: 'none' };
         this._onDidChange.fire();
     }
 

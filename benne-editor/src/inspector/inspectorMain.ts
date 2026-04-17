@@ -187,6 +187,7 @@ type InspectorGuiState = {
     guiSheetTags: string[];
     fontIds: string[];
     controls: InspectorGuiControlCard[];
+    expanded: { entity: string; id: string } | null;
 };
 
 type InspectorInventoryAnimationCard = {
@@ -227,6 +228,10 @@ try {
 /** Avoid re-scrolling when the same tree item stays selected but room state `rev` bumps. */
 let lastInspectorScrollRoomUri: string | null = null;
 let lastInspectorScrollExpandedKey: string | null = null;
+
+/** Same as room scroll de-dupe, for GUI Inspector control cards. */
+let lastInspectorScrollGuiUri: string | null = null;
+let lastInspectorScrollGuiExpandedKey: string | null = null;
 
 /** Last room URI we preserved accordion state for (same file, new `rev`). */
 let lastInspectorPreserveRoomUri: string | null = null;
@@ -318,6 +323,46 @@ function scrollExpandedCardIntoView(state: InspectorRoomState): void {
         return;
     }
     lastInspectorScrollExpandedKey = key;
+
+    const run = (): void => {
+        let item: HTMLElement | null = null;
+        const nodes = document.querySelectorAll('.benne-inspector-item');
+        for (let i = 0; i < nodes.length; i++) {
+            const el = nodes.item(i);
+            if (el instanceof HTMLElement && el.dataset.entity === ex.entity && el.dataset.id === ex.id) {
+                item = el;
+                break;
+            }
+        }
+        if (!item) {
+            return;
+        }
+        const section = item.closest('details.section');
+        if (section && !section.hasAttribute('open')) {
+            section.setAttribute('open', '');
+        }
+        if (!item.hasAttribute('open')) {
+            item.setAttribute('open', '');
+        }
+        item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
+    requestAnimationFrame(run);
+}
+
+function scrollExpandedGuiCardIntoView(state: InspectorGuiState): void {
+    if (state.guiJsonUri !== lastInspectorScrollGuiUri) {
+        lastInspectorScrollGuiUri = state.guiJsonUri;
+        lastInspectorScrollGuiExpandedKey = null;
+    }
+    const ex = state.expanded;
+    if (!ex) {
+        return;
+    }
+    const key = `${ex.entity}\0${ex.id}`;
+    if (key === lastInspectorScrollGuiExpandedKey) {
+        return;
+    }
+    lastInspectorScrollGuiExpandedKey = key;
 
     const run = (): void => {
         let item: HTMLElement | null = null;
@@ -978,7 +1023,7 @@ function renderGui(state: InspectorGuiState): string {
         <div class="benne-card-sub muted">${esc(typeLabel)}</div>
       </div>`;
             const body = renderGuiControlCardBody(state, control);
-            return renderInspectorItem({}, 'guiControl', control.key, ' benne-card--region', summary, body);
+            return renderInspectorItem(state, 'guiControl', control.key, ' benne-card--region', summary, body);
         })
         .join('');
 
@@ -1000,6 +1045,9 @@ function renderGui(state: InspectorGuiState): string {
     <details class="section" open>
       <summary>Controls (${state.controls.length})</summary>
       <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" id="btn-add-gui-control">Add Control</button>
+        </div>
         <div class="benne-card-list">${cards || '<p class="muted">None</p>'}</div>
       </div>
     </details>
@@ -1605,6 +1653,9 @@ function mountGuiHandlers(state: InspectorGuiState): void {
             he.addEventListener('blur', flush);
         }
     };
+    document.getElementById('btn-add-gui-control')?.addEventListener('click', () => {
+        post('addGuiControl', {});
+    });
     document.querySelectorAll('.gui-field').forEach(bindGuiField);
     document.querySelectorAll('.gui-field-cb').forEach((el) => {
         if (!(el instanceof HTMLInputElement)) {
@@ -1736,6 +1787,7 @@ function render(state: InspectorStatePayload): void {
         mountInventoryHandlers(state);
     } else {
         mountGuiHandlers(state);
+        scrollExpandedGuiCardIntoView(state);
     }
 }
 

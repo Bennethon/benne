@@ -117,6 +117,18 @@ export type MainTreeNode =
           guiSheetIncomplete?: boolean;
       }
     | {
+          kind: 'guiControl';
+          folder: vscode.WorkspaceFolder;
+          guiUri: vscode.Uri;
+          guiId: string;
+          guiName: string;
+          controlIndex: number;
+          /** Same key as GUI Inspector control cards (`type:id:index`). */
+          controlKey: string;
+          typeLabel: string;
+          controlId: string;
+      }
+    | {
           kind: 'inventoryItem';
           folder: vscode.WorkspaceFolder;
           id: string;
@@ -209,12 +221,60 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
         return chars.some((c) => textMatches(c.name, q) || textMatches(c.id, q));
     }
 
+    private async guiJsonControlsMatchQuery(uri: vscode.Uri, q: string): Promise<boolean> {
+        if (!q) {
+            return false;
+        }
+        try {
+            const raw = await vscode.workspace.fs.readFile(uri);
+            const text = new TextDecoder('utf-8').decode(raw);
+            const data = JSON.parse(text) as Record<string, unknown>;
+            const controlsRaw = data.controls;
+            if (!Array.isArray(controlsRaw)) {
+                return false;
+            }
+            for (let i = 0; i < controlsRaw.length; i += 1) {
+                const row = controlsRaw[i];
+                if (!row || typeof row !== 'object' || Array.isArray(row)) {
+                    continue;
+                }
+                const o = row as Record<string, unknown>;
+                const type = typeof o.type === 'string' ? o.type : 'control';
+                const id = typeof o.id === 'string' ? o.id : '';
+                if (textMatches(type, q) || textMatches(id, q)) {
+                    return true;
+                }
+            }
+        } catch {
+            return false;
+        }
+        return false;
+    }
+
+    private async guiDefinitionMatchesFilter(
+        g: { uri: vscode.Uri; id: string; name: string },
+        q: string
+    ): Promise<boolean> {
+        if (!q) {
+            return true;
+        }
+        if (textMatches(g.name, q) || textMatches(g.id, q)) {
+            return true;
+        }
+        return this.guiJsonControlsMatchQuery(g.uri, q);
+    }
+
     private async folderHasAnyMatchingGui(folder: vscode.WorkspaceFolder, q: string): Promise<boolean> {
         if (!q) {
             return true;
         }
         const guis = await listGuiDefinitions(folder);
-        return guis.some((g) => textMatches(g.name, q) || textMatches(g.id, q));
+        for (const g of guis) {
+            if (await this.guiDefinitionMatchesFilter(g, q)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private async folderHasAnyMatchingInventory(folder: vscode.WorkspaceFolder, q: string): Promise<boolean> {
@@ -452,7 +512,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 return item;
             }
             case 'gui': {
-                const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
+                const item = new vscode.TreeItem(
+                    element.name,
+                    this.isFiltering()
+                        ? vscode.TreeItemCollapsibleState.Expanded
+                        : vscode.TreeItemCollapsibleState.Collapsed
+                );
                 item.id = `gui:${element.uri.toString()}`;
                 item.resourceUri = element.uri;
                 if (element.guiSheetIncomplete) {
@@ -462,6 +527,17 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     item.iconPath = new vscode.ThemeIcon('window');
                 }
                 item.contextValue = 'benneGui';
+                return item;
+            }
+            case 'guiControl': {
+                const label = element.controlId
+                    ? `${element.typeLabel} (${element.controlId})`
+                    : `${element.typeLabel} (#${element.controlIndex + 1})`;
+                const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
+                item.id = `guiControl:${element.guiUri.toString()}:${element.controlKey}`;
+                item.iconPath = new vscode.ThemeIcon('symbol-field');
+                item.contextValue = 'benneGuiControl';
+                item.tooltip = `${element.guiName} — ${element.controlKey}`;
                 return item;
             }
             case 'inventoryItem': {
@@ -859,9 +935,16 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
 
         if (element.kind === 'guisGroup') {
             const guis = await listGuiDefinitions(element.folder);
-            const guiList = fq
-                ? guis.filter((g) => textMatches(g.name, fq) || textMatches(g.id, fq))
-                : guis;
+            let guiList = guis;
+            if (fq) {
+                const matched: typeof guis = [];
+                for (const g of guis) {
+                    if (await this.guiDefinitionMatchesFilter(g, fq)) {
+                        matched.push(g);
+                    }
+                }
+                guiList = matched;
+            }
             if (guiList.length === 0) {
                 return [
                     {
@@ -888,6 +971,79 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     };
                 })
             );
+        }
+
+        if (element.kind === 'gui') {
+            try {
+                const raw = await vscode.workspace.fs.readFile(element.uri);
+                const text = new TextDecoder('utf-8').decode(raw);
+                const data = JSON.parse(text) as Record<string, unknown>;
+                const controlsRaw = data.controls;
+                if (!Array.isArray(controlsRaw) || controlsRaw.length === 0) {
+                    return [
+                        {
+                            kind: 'hint',
+                            key: `no-gui-controls:${element.uri}`,
+                            message: fq ? '(no matching controls)' : '(no controls in this GUI)'
+                        }
+                    ];
+                }
+                const guiNameHit = fq.length > 0 && (textMatches(element.name, fq) || textMatches(element.id, fq));
+                const all: MainTreeNode[] = [];
+                for (let i = 0; i < controlsRaw.length; i += 1) {
+                    const row = controlsRaw[i];
+                    if (!row || typeof row !== 'object' || Array.isArray(row)) {
+                        continue;
+                    }
+                    const o = row as Record<string, unknown>;
+                    const type = typeof o.type === 'string' ? o.type : 'control';
+                    const id = typeof o.id === 'string' ? o.id : '';
+                    const controlKey = `${type}:${id}:${i}`;
+                    all.push({
+                        kind: 'guiControl' as const,
+                        folder: element.folder,
+                        guiUri: element.uri,
+                        guiId: element.id,
+                        guiName: element.name,
+                        controlIndex: i,
+                        controlKey,
+                        typeLabel: type,
+                        controlId: id
+                    });
+                }
+                if (all.length === 0) {
+                    return [
+                        {
+                            kind: 'hint',
+                            key: `no-gui-controls:${element.uri}`,
+                            message: fq ? '(no matching controls)' : '(no controls in this GUI)'
+                        }
+                    ];
+                }
+                if (!fq) {
+                    return all;
+                }
+                const matched = all.filter(
+                    (n) =>
+                        n.kind === 'guiControl' &&
+                        (guiNameHit || textMatches(n.typeLabel, fq) || textMatches(n.controlId, fq))
+                );
+                if (matched.length > 0) {
+                    return matched;
+                }
+                if (guiNameHit) {
+                    return all;
+                }
+                return [
+                    {
+                        kind: 'hint',
+                        key: `no-gui-controls-filter:${element.uri}`,
+                        message: '(no matching controls)'
+                    }
+                ];
+            } catch {
+                return [{ kind: 'hint', key: `gui-ctrl-err:${element.uri}`, message: 'Could not read GUI JSON' }];
+            }
         }
 
         if (element.kind === 'inventoryGroup') {
