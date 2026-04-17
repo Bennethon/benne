@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
+import { getBenneRendererConfigFields } from '../../engine/gameConfig';
 import { buildGuiOverlay, GUI_TEXT_OVERLAY_DEPTH } from '../../engine/gui/buildGuiOverlay';
 import {
   GameStateManager,
@@ -53,15 +54,15 @@ function editorGameConfig(
   height: number,
 ): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
   return {
-    /** Same renderer as `getBennePhaserGameConfigBase` (`gameConfig.ts`) — see that file for rationale. */
-    type: Phaser.CANVAS,
+    /** Renderer fields come from `getBenneRendererConfigFields` (`gameConfig.ts`) — keeps every
+     * BENNE surface on the same Phaser renderer (see `benne-preview-rendering-parity.mdc`). */
+    ...getBenneRendererConfigFields(),
     parent,
     width,
     height,
+    /** GUI preview uses a solid black backdrop instead of the editor chrome colour so control
+     * outlines and BitmapText read clearly at 1× zoom before `Scale.MAX_ZOOM`. */
     backgroundColor: '#000000',
-    pixelArt: true,
-    roundPixels: true,
-    antialias: false,
     scale: {
       parent,
       mode: Phaser.Scale.FIT,
@@ -71,9 +72,6 @@ function editorGameConfig(
       /** Match runtime (`gameConfig.ts`): largest integer zoom that fits — avoids bilinear stretch blur. */
       zoom: Phaser.Scale.MAX_ZOOM,
       autoRound: true,
-    },
-    render: {
-      powerPreference: 'high-performance',
     },
   };
 }

@@ -128,7 +128,63 @@
       "zIndex": 2,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 56,
+            "y": 98
+          },
+          {
+            "x": 58,
+            "y": 85
+          },
+          {
+            "x": 70,
+            "y": 83
+          },
+          {
+            "x": 122,
+            "y": 82
+          },
+          {
+            "x": 131,
+            "y": 87
+          },
+          {
+            "x": 130,
+            "y": 99
+          },
+          {
+            "x": 134,
+            "y": 102
+          },
+          {
+            "x": 135,
+            "y": 121
+          },
+          {
+            "x": 128,
+            "y": 128
+          },
+          {
+            "x": 50,
+            "y": 129
+          },
+          {
+            "x": 44,
+            "y": 109
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 101,
+        "y": 133
+      },
+      "lookAtPoint": {
+        "x": 88,
+        "y": 126
+      }
     },
     {
       "id": "Door",
@@ -140,7 +196,35 @@
       "zIndex": 3,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 271,
+            "y": 63
+          },
+          {
+            "x": 293,
+            "y": 72
+          },
+          {
+            "x": 291,
+            "y": 143
+          },
+          {
+            "x": 270,
+            "y": 126
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 268,
+        "y": 133
+      },
+      "lookAtPoint": {
+        "x": 279,
+        "y": 129
+      }
     },
     {
       "id": "Pillar",
@@ -151,7 +235,51 @@
       "zIndex": 4,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 155,
+            "y": 102
+          },
+          {
+            "x": 155,
+            "y": 151
+          },
+          {
+            "x": 167,
+            "y": 159
+          },
+          {
+            "x": 195,
+            "y": 158
+          },
+          {
+            "x": 203,
+            "y": 151
+          },
+          {
+            "x": 203,
+            "y": 100
+          },
+          {
+            "x": 190,
+            "y": 94
+          },
+          {
+            "x": 164,
+            "y": 95
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 145,
+        "y": 154
+      },
+      "lookAtPoint": {
+        "x": 178,
+        "y": 154
+      }
     }
   ],
   "characters": [

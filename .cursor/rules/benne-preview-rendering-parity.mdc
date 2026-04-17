@@ -15,6 +15,8 @@ Whenever you change **how the game draws** (Phaser renderer, scale mode, `pixelA
 | Same `gameConfig` fields where previews mirror the room | `src/editor/preview/createRoomPreviewGame.ts` |
 | Same where previews mirror characters | `src/editor/preview/createCharacterPreviewGame.ts` |
 
+**Single source of truth for renderer-identity fields:** `getBenneRendererConfigFields()` in `src/engine/gameConfig.ts` returns the exact `type` / `backgroundColor` / `pixelArt` / `roundPixels` / `antialias` / `render` block used by the shipped game. Every preview config **must** spread this helper (not inline literal `type: Phaser.WEBGL`, ad-hoc `pixelArt`, etc.). Otherwise `BitmapText` silently stops rendering in the preview even though `visible`, `alpha`, `depth`, and bounds all look correct — Phaser 4's WebGL path is unreliable for fixed-to-camera `BitmapText`. (This is how the "Show GUIs" room-preview toggle first broke.)
+
 GUI overlay composition is already shared: `src/engine/gui/buildGuiOverlay.ts` (used by `RoomScene` and GUI preview).
 
 ## Required behavior

@@ -32,7 +32,7 @@
     "dialogueVolume": 1
   },
   "debug": {
-    "showWalkable": true,
+    "showWalkable": false,
     "showPropOutlines": false,
     "showGuiOutlines": false
   },

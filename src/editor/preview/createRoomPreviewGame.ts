@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
+import { getBenneRendererConfigFields } from '../../engine/gameConfig';
 import { RoomScene } from '../../engine/scenes/RoomScene';
 import { SCENE_ROOM } from '../../game/constants';
 import type { PreviewManifest } from './buildPreviewManifest';
@@ -9,30 +10,33 @@ import { BENNE_POLYGON_EDIT_SCENE, RoomPolygonEditScene } from './RoomPolygonEdi
 export type RoomPreviewGameOptions = {
     roomJsonUri: string;
     onPolygonPatch: (patch: RoomPolygonPatch) => void;
+    /**
+     * Initial visibility of non-`dialog-text` GUI overlays. Forwarded to {@link RoomScene} via
+     * the `benneRoomSceneGenericGuisVisible` registry key so authors see the stored "Show GUIs"
+     * toolbar state without a first-frame flash.
+     */
+    initialShowGuis: boolean;
 };
 
 /**
  * Editor-specific Phaser config.
  *
- * Uses `Scale.RESIZE` so the canvas always fills the preview panel. Camera management
- * (navigate letterbox vs edit full-panel view) is handled by `RoomScene.setEditorCameraMode`.
- * This differs from the playable game which uses `Scale.FIT` with integer zoom.
+ * Uses `Scale.RESIZE` so the canvas always fills the preview panel (camera management for
+ * navigate-letterbox vs edit-full-panel is handled by `RoomScene.setEditorCameraMode`). This
+ * differs from the shipped game (`gameConfig.ts`) which uses `Scale.FIT` with integer zoom —
+ * that is the **only** intentional divergence; renderer/pixel-output fields come from the
+ * shared helper so `BitmapText` rendering matches the runtime (Phaser 4 WebGL did not render
+ * fixed-to-camera `BitmapText` reliably — see `.cursor/rules/benne-preview-rendering-parity.mdc`).
  */
 function getEditorPhaserGameConfig(
     parent: HTMLElement,
 ): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
     return {
-        type: Phaser.WEBGL,
+        ...getBenneRendererConfigFields(),
         parent,
-        backgroundColor: '#1a1a2e',
-        pixelArt: true,
-        antialias: false,
         scale: {
             parent,
             mode: Phaser.Scale.RESIZE,
-        },
-        render: {
-            powerPreference: 'high-performance',
         },
     };
 }
@@ -53,12 +57,14 @@ export function createRoomPreviewPhaserGame(
             for (const L of manifestRef.loads) {
                 if (L.kind === 'image') {
                     this.load.image(L.key, L.url);
-                } else {
+                } else if (L.kind === 'aseprite') {
                     this.load.aseprite({
                         key: L.key,
                         textureURL: L.textureURL,
                         atlasURL: L.atlasURL,
                     });
+                } else {
+                    this.load.bitmapFont(L.key, L.textureURL, L.dataURL);
                 }
             }
         }
@@ -80,6 +86,11 @@ export function createRoomPreviewPhaserGame(
                 game.registry.set('bennePreviewRoom', manifestRef.startData.room);
                 game.registry.set('bennePreviewRoomJsonUri', options.roomJsonUri);
                 game.registry.set('bennePreviewPostPatch', options.onPolygonPatch);
+                /**
+                 * Read by {@link RoomScene.create}; a boolean value overrides every non-`dialog-text`
+                 * GUI overlay's initial visibility (preview "Show GUIs" toolbar toggle).
+                 */
+                game.registry.set('benneRoomSceneGenericGuisVisible', options.initialShowGuis);
             },
         },
         scene: [BennePreviewLoader, RoomScene, RoomPolygonEditScene],
