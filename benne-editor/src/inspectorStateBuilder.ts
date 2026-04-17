@@ -209,6 +209,8 @@ export type InspectorGuiState = {
     guiSheetTags: string[];
     fontIds: string[];
     controls: InspectorGuiControlCard[];
+    /** When set, the matching control card opens and scrolls into view (BENNE tree control selection). */
+    expanded: { entity: string; id: string } | null;
 };
 
 export type InspectorInventoryAnimationCard = {
@@ -272,17 +274,31 @@ function expandedFromRoomPanel(
     }
 }
 
+function expandedFromGuiPanel(
+    guiJsonUri: vscode.Uri,
+    guiPanel: import('./editorSelection').GuiPanelFocus
+): { entity: string; id: string } | null {
+    if (guiPanel.kind !== 'control') {
+        return null;
+    }
+    if (guiPanel.guiJsonUri.toString() !== guiJsonUri.toString()) {
+        return null;
+    }
+    return { entity: 'guiControl', id: guiPanel.controlKey };
+}
+
 export async function buildInspectorState(
     jsonUri: vscode.Uri,
     focus: import('./editorSelection').EditorFocus,
     roomPanel: import('./editorSelection').RoomPanelFocus,
+    guiPanel: import('./editorSelection').GuiPanelFocus,
     rev: number
 ): Promise<InspectorStatePayload> {
     if (focus.kind === 'character') {
         return buildCharacterInspectorState(jsonUri, rev);
     }
     if (focus.kind === 'gui') {
-        return buildGuiInspectorState(jsonUri, rev);
+        return buildGuiInspectorState(jsonUri, rev, guiPanel);
     }
     if (focus.kind === 'inventory') {
         return buildInventoryInspectorState(jsonUri, rev);
@@ -888,7 +904,11 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
     };
 }
 
-async function buildGuiInspectorState(guiJsonUri: vscode.Uri, rev: number): Promise<InspectorStatePayload> {
+async function buildGuiInspectorState(
+    guiJsonUri: vscode.Uri,
+    rev: number,
+    guiPanel: import('./editorSelection').GuiPanelFocus
+): Promise<InspectorStatePayload> {
     let text: string;
     try {
         text = await readRoomJsonText(guiJsonUri);
@@ -946,7 +966,8 @@ async function buildGuiInspectorState(guiJsonUri: vscode.Uri, rev: number): Prom
         usesAseprite,
         guiSheetTags,
         fontIds,
-        controls
+        controls,
+        expanded: expandedFromGuiPanel(guiJsonUri, guiPanel)
     };
 }
 

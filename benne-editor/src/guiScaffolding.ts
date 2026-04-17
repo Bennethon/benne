@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import { pickWorkspaceFolder, validateSlug } from './roomScaffolding';
 import { openBenneGuiTypeScript } from './roomScriptNavigation';
+import { getGuiIdFromGuiJsonUri } from './gameDiscovery';
+
+export type GuiControlKind = 'text' | 'inventoryPanel' | 'image';
 
 function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
@@ -91,4 +94,144 @@ registerGuiScript('${id}', ({ B: _B }) => {
         `Created GUI "${name}" (${id}). Export Aseprite to assets/images/guis/${id}/ when ready.`
     );
     await openBenneGuiTypeScript(guiJsonUri, id);
+}
+
+function guiControlKindLabel(kind: GuiControlKind): string {
+    switch (kind) {
+        case 'text':
+            return 'text';
+        case 'inventoryPanel':
+            return 'inventory panel';
+        case 'image':
+            return 'image';
+    }
+}
+
+function collectExistingControlIds(controls: Record<string, unknown>[]): Set<string> {
+    const ids = new Set<string>();
+    for (const c of controls) {
+        if (c && typeof c === 'object' && typeof (c as { id?: unknown }).id === 'string') {
+            const id = ((c as { id: string }).id).trim();
+            if (id) {
+                ids.add(id);
+            }
+        }
+    }
+    return ids;
+}
+
+function allocateControlId(base: string, existing: Set<string>): string {
+    if (!existing.has(base)) {
+        return base;
+    }
+    let n = 2;
+    while (existing.has(`${base}${n}`)) {
+        n++;
+    }
+    return `${base}${n}`;
+}
+
+function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, unknown> {
+    switch (kind) {
+        case 'text':
+            return {
+                type: 'text',
+                id,
+                x: 0,
+                y: 0,
+                text: 'Sample text',
+                font: '',
+                fontSize: 8,
+                color: '#ffffff'
+            };
+        case 'inventoryPanel':
+            return {
+                type: 'inventoryPanel',
+                id,
+                x: 0,
+                y: 0,
+                rows: 1,
+                cols: 6,
+                slotWidth: 32,
+                slotHeight: 32,
+                showEmptySlots: true
+            };
+        case 'image':
+            return {
+                type: 'image',
+                id,
+                x: 0,
+                y: 0,
+                display: {}
+            };
+    }
+}
+
+/**
+ * Append a new control (`text` / `inventoryPanel` / `image`) to a GUI's `controls[]` array.
+ * Prompts for an optional control id; uses a kind-based default (`<kind>1`, `<kind>2`, …) when empty.
+ * Mirrors the `runAddRoom*Wizard` pattern used by the room Inspector's Add buttons.
+ */
+export async function runAddGuiControlWizard(
+    guiJsonUri: vscode.Uri,
+    kind: GuiControlKind
+): Promise<void> {
+    let text: string;
+    try {
+        text = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(guiJsonUri));
+    } catch {
+        void vscode.window.showErrorMessage('Could not read GUI JSON.');
+        return;
+    }
+    let data: Record<string, unknown>;
+    try {
+        data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        void vscode.window.showErrorMessage('GUI JSON is not valid; cannot add control.');
+        return;
+    }
+
+    const controlsRaw = data.controls;
+    const controls: Record<string, unknown>[] = Array.isArray(controlsRaw)
+        ? (controlsRaw as Record<string, unknown>[])
+        : [];
+    const existing = collectExistingControlIds(controls);
+    const defaultId = allocateControlId(kind, existing);
+
+    const promptedId = await vscode.window.showInputBox({
+        prompt: `Control id for new ${guiControlKindLabel(kind)} (leave blank to omit)`,
+        value: defaultId,
+        validateInput: (v) => {
+            const s = (v ?? '').trim();
+            if (s.length === 0) {
+                return null;
+            }
+            const slugErr = validateSlug(s, 'Control id');
+            if (slugErr) {
+                return slugErr;
+            }
+            if (existing.has(s)) {
+                return `A control with id "${s}" already exists in this GUI.`;
+            }
+            return null;
+        }
+    });
+    if (promptedId === undefined) {
+        return;
+    }
+    const id = promptedId.trim();
+
+    const newControl = makeDefaultControl(kind, id);
+    if (!id) {
+        delete newControl.id;
+    }
+    controls.push(newControl);
+    data.controls = controls;
+
+    await vscode.workspace.fs.writeFile(guiJsonUri, formatJson(data));
+
+    const guiId = getGuiIdFromGuiJsonUri(guiJsonUri);
+    void vscode.window.showInformationMessage(
+        `Added ${guiControlKindLabel(kind)} control${id ? ` "${id}"` : ''} to GUI ${guiId}.`
+    );
 }

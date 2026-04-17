@@ -364,6 +364,23 @@ export function activate(context: vscode.ExtensionContext): void {
             await applyBenneTwoRowJsonScriptLayout();
             selection.setCharacter(node.uri, node.name);
             await openBenneCharacterTypeScript(node.uri, node.id);
+        } else if (node.kind === 'guiControl') {
+            const sameGuiContext =
+                selection.focus.kind === 'gui' &&
+                selection.focus.uri.toString() === node.guiUri.toString();
+
+            if (!sameGuiContext) {
+                await resetBenneEditorSurface();
+                await applyBenneTwoRowJsonScriptLayout();
+            } else if (!guiPreview.isGuiPreviewActive()) {
+                await applyBenneTwoRowJsonScriptLayout();
+            }
+
+            selection.setGuiWithControl(node.guiUri, node.guiName, node.controlKey);
+
+            if (!sameGuiContext) {
+                await openBenneGuiTypeScript(node.guiUri, node.guiId);
+            }
         } else if (node.kind === 'gui') {
             await resetBenneEditorSurface();
             await applyBenneTwoRowJsonScriptLayout();

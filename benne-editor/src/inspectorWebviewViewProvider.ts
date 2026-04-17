@@ -46,6 +46,7 @@ import {
     runAddRoomRegionWizard,
     runAddRoomSpawnedCharacterWizard
 } from './roomScaffolding';
+import { runAddGuiControlWizard, type GuiControlKind } from './guiScaffolding';
 
 function resolveInspectorJsonUri(selection: EditorSelection): vscode.Uri | undefined {
     const focus = selection.focus;
@@ -677,7 +678,13 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             });
             return;
         }
-        const state = await buildInspectorState(uri, this.selection.focus, this.selection.roomPanel, ++this.rev);
+        const state = await buildInspectorState(
+            uri,
+            this.selection.focus,
+            this.selection.roomPanel,
+            this.selection.guiPanel,
+            ++this.rev
+        );
         this.postState(state);
     }
 
@@ -724,6 +731,40 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                     return;
             }
             this.roomPreview.onWorkspaceRoomJsonChanged(uri);
+            this.refreshMainAndActions();
+            await this.pushState();
+            return;
+        }
+
+        if (msg.action === 'addGuiControl') {
+            if (focusKind !== 'gui') {
+                return;
+            }
+            type GuiControlPickItem = vscode.QuickPickItem & { controlKind: GuiControlKind };
+            const items: GuiControlPickItem[] = [
+                {
+                    label: 'Text',
+                    description: 'BitmapText overlay',
+                    controlKind: 'text'
+                },
+                {
+                    label: 'Inventory Panel',
+                    description: 'Player inventory grid',
+                    controlKind: 'inventoryPanel'
+                },
+                {
+                    label: 'Image',
+                    description: 'Aseprite tag / animation from this GUI sheet',
+                    controlKind: 'image'
+                }
+            ];
+            const picked = await vscode.window.showQuickPick(items, {
+                placeHolder: 'Select control type to add'
+            });
+            if (!picked) {
+                return;
+            }
+            await runAddGuiControlWizard(uri, picked.controlKind);
             this.refreshMainAndActions();
             await this.pushState();
             return;

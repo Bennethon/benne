@@ -22,8 +22,18 @@
       "spacingY": 2,
       "itemScale": 1,
       "showEmptySlots": true,
-      "backgroundTag": "InvBG",
+      "backgroundTag": "",
       "backgroundAnchor": "screen"
+    },
+    {
+      "type": "image",
+      "id": "background",
+      "x": 0,
+      "y": 0,
+      "display": {
+        "tag": "InvBG",
+        "anchor": "screen"
+      }
     }
   ]
 }
