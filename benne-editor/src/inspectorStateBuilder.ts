@@ -189,6 +189,33 @@ export type InspectorGuiControlCard =
           displayAnchor: InspectorGuiSpriteAnchor;
       }
     | {
+          controlKind: 'button';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          width: number;
+          height: number;
+          /** Empty string = default placement (`top-left` in JSON when saved from Inspector). */
+          anchor: InspectorGuiSpriteAnchor;
+          text: string;
+          font: string;
+          fontSize: number;
+          textColor: string;
+          textAlign: 'left' | 'center' | 'right' | '';
+          textOffsetX: number | null;
+          textOffsetY: number | null;
+          backgroundTag: string;
+          statesHover: string;
+          statesPressed: string;
+          statesDisabled: string;
+          enabled: boolean;
+      }
+    | {
           controlKind: 'unknown';
           key: string;
           index: number;
@@ -205,6 +232,8 @@ export type InspectorGuiState = {
     guiId: string;
     name: string;
     description: string;
+    /** Root `visible` (required in schema); absent JSON treated as visible until saved. */
+    rootVisibleAtLoad: boolean;
     usesAseprite: boolean;
     guiSheetTags: string[];
     fontIds: string[];
@@ -893,6 +922,42 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
         };
     }
 
+    if (type === 'button') {
+        const statesRaw =
+            o.states && typeof o.states === 'object' && !Array.isArray(o.states)
+                ? (o.states as Record<string, unknown>)
+                : {};
+        const alignRaw = o.textAlign;
+        const textAlign: 'left' | 'center' | 'right' | '' =
+            alignRaw === 'center' || alignRaw === 'right' || alignRaw === 'left' ? alignRaw : '';
+        return {
+            controlKind: 'button',
+            key,
+            index,
+            summary,
+            controlId,
+            x: guiReadNum(o, 'x', 0),
+            y: guiReadNum(o, 'y', 0),
+            zIndex: guiReadNumOrNull(o, 'zIndex'),
+            visibleMode: guiReadVisibleMode(o),
+            width: guiReadNum(o, 'width', 120),
+            height: guiReadNum(o, 'height', 32),
+            anchor: guiReadAnchorField(o, 'anchor'),
+            text: typeof o.text === 'string' ? o.text : '',
+            font: typeof o.font === 'string' ? o.font : '',
+            fontSize: guiReadNum(o, 'fontSize', 16),
+            textColor: typeof o.textColor === 'string' ? o.textColor : '#ffffff',
+            textAlign,
+            textOffsetX: guiReadNumOrNull(o, 'textOffsetX'),
+            textOffsetY: guiReadNumOrNull(o, 'textOffsetY'),
+            backgroundTag: typeof o.backgroundTag === 'string' ? o.backgroundTag : '',
+            statesHover: typeof statesRaw.hover === 'string' ? statesRaw.hover : '',
+            statesPressed: typeof statesRaw.pressed === 'string' ? statesRaw.pressed : '',
+            statesDisabled: typeof statesRaw.disabled === 'string' ? statesRaw.disabled : '',
+            enabled: o.enabled !== false
+        };
+    }
+
     return {
         controlKind: 'unknown',
         key,
@@ -963,6 +1028,7 @@ async function buildGuiInspectorState(
         guiId,
         name,
         description,
+        rootVisibleAtLoad: typeof data.visible === 'boolean' ? data.visible : true,
         usesAseprite,
         guiSheetTags,
         fontIds,

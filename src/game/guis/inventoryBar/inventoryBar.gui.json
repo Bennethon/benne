@@ -22,7 +22,7 @@
       "spacingY": 2,
       "itemScale": 1,
       "showEmptySlots": true,
-      "backgroundTag": "",
+      "backgroundTag": "InvBG",
       "backgroundAnchor": "screen"
     },
     {
@@ -34,6 +34,37 @@
         "tag": "InvBG",
         "anchor": "screen"
       }
+    },
+    {
+      "type": "button",
+      "id": "back",
+      "x": 0,
+      "y": 0,
+      "width": 120,
+      "height": 32,
+      "anchor": "screen",
+      "text": "Button",
+      "font": "",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "BackBtn",
+      "zIndex": 200
+    },
+    {
+      "type": "text",
+      "id": "test-text",
+      "x": 100,
+      "y": 100,
+      "text": "Sample text",
+      "font": "",
+      "fontSize": 8,
+      "color": "#ffffff",
+      "zIndex": 300,
+      "wordWrapWidth": 200,
+      "visible": true
     }
   ]
 }

@@ -489,7 +489,8 @@ export interface BuildGuiOverlayOptions {
 }
 
 /**
- * Builds screen-space GUI controls from `gui.controls` (`text`, `inventoryPanel`, `image` / GUI-sheet art).
+ * Builds screen-space GUI controls from `gui.controls` (`text`, `inventoryPanel`, `image`, `button` — button
+ * composition is not implemented yet; unknown kinds are skipped).
  * Starts hidden unless `startVisible`. Font ids resolve via `fonts/fonts.json` (`load.bitmapFont` keys).
  */
 export function buildGuiOverlay(

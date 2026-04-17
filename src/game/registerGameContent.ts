@@ -69,7 +69,7 @@ export function registerGameContent(): void {
     getBenneInventoryScriptRegistrations();
 
   for (const { guiId, registerFn } of getBenneGuiScriptRegistrations()) {
-    const B = new GuiBenneScript(gameEvents);
+    const B = new GuiBenneScript(gameEvents, guiId);
     const ctx: GuiScriptContext = { B, events: gameEvents, guiId };
     try {
       registerFn(ctx);
