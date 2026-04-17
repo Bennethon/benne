@@ -3,7 +3,7 @@ import { pickWorkspaceFolder, validateSlug } from './roomScaffolding';
 import { openBenneGuiTypeScript } from './roomScriptNavigation';
 import { getGuiIdFromGuiJsonUri } from './gameDiscovery';
 
-export type GuiControlKind = 'text' | 'inventoryPanel' | 'image';
+export type GuiControlKind = 'text' | 'inventoryPanel' | 'image' | 'button';
 
 function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
@@ -71,6 +71,7 @@ export async function runCreateGuiWizard(preferredFolder?: vscode.WorkspaceFolde
         id,
         name,
         description: '',
+        visible: true,
         display: {
             aseprite: true
         }
@@ -104,6 +105,8 @@ function guiControlKindLabel(kind: GuiControlKind): string {
             return 'inventory panel';
         case 'image':
             return 'image';
+        case 'button':
+            return 'button';
     }
 }
 
@@ -164,11 +167,29 @@ function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, un
                 y: 0,
                 display: {}
             };
+        case 'button':
+            return {
+                type: 'button',
+                id,
+                x: 0,
+                y: 0,
+                width: 120,
+                height: 32,
+                anchor: 'top-left',
+                text: 'Button',
+                font: '',
+                fontSize: 16,
+                textColor: '#ffffff',
+                textAlign: 'center',
+                textOffsetX: 0,
+                textOffsetY: 0,
+                backgroundTag: ''
+            };
     }
 }
 
 /**
- * Append a new control (`text` / `inventoryPanel` / `image`) to a GUI's `controls[]` array.
+ * Append a new control (`text` / `inventoryPanel` / `image` / `button`) to a GUI's `controls[]` array.
  * Prompts for an optional control id; uses a kind-based default (`<kind>1`, `<kind>2`, …) when empty.
  * Mirrors the `runAddRoom*Wizard` pattern used by the room Inspector's Add buttons.
  */
@@ -203,6 +224,9 @@ export async function runAddGuiControlWizard(
         value: defaultId,
         validateInput: (v) => {
             const s = (v ?? '').trim();
+            if (kind === 'button' && s.length === 0) {
+                return 'Button controls require an id (B.whenButtonClick, Inspector tree).';
+            }
             if (s.length === 0) {
                 return null;
             }

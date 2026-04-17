@@ -15,7 +15,7 @@ export function collectFontLoadsForGui(
   const out: GuiFontLoadRequest[] = [];
   const seen = new Set<string>();
   for (const c of gui.controls ?? []) {
-    if (c.type !== 'text') {
+    if (c.type !== 'text' && c.type !== 'button') {
       continue;
     }
     if (seen.has(c.font)) {

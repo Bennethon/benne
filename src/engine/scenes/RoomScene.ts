@@ -52,7 +52,7 @@ const DIALOG_TEXT_GUI_ID = 'dialog-text';
 /**
  * Optional `Phaser.Game.registry` key: when set to a boolean, overrides the initial visibility of
  * every non-`dialog-text` GUI overlay at room load. Used by the BENNE room preview so authors can
- * toggle HUD GUIs on/off from the preview toolbar without hand-editing `*.gui.json` `visible`
+ * toggle HUD GUIs on/off from the preview toolbar without hand-editing each GUI's `visible` in `*.gui.json`
  * flags. Unset (the default) preserves per-GUI JSON `visible` semantics (`false` hides at load;
  * omitted/`true` shows).
  */
@@ -249,13 +249,8 @@ export class RoomScene extends Phaser.Scene {
     let stackIndex = 0;
     for (const gui of nonDialogGuis) {
       const handle = buildGuiOverlay(this, gui, {
-        /**
-         * Preview / cutscene override wins; otherwise default on when `visible` is omitted
-         * (only `visible: false` hides at room load).
-         */
-        startVisible: hasGenericGuiVisibilityOverride
-          ? genericGuiVisibilityOverride
-          : gui.visible !== false,
+        /** Preview / cutscene override wins; otherwise each GUI's required `visible` boolean. */
+        startVisible: hasGenericGuiVisibilityOverride ? genericGuiVisibilityOverride : gui.visible,
         depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
       });
       if (handle) {

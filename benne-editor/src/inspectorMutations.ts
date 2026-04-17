@@ -586,13 +586,16 @@ export function updateCharacterAnimationFields(
 
 export function updateGuiFields(
     data: Record<string, unknown>,
-    fields: { name?: string; description?: string }
+    fields: { name?: string; description?: string; rootVisibleAtLoad?: boolean }
 ): { ok: true } {
     if (fields.name !== undefined) {
         data.name = fields.name;
     }
     if (fields.description !== undefined) {
         data.description = fields.description;
+    }
+    if (fields.rootVisibleAtLoad !== undefined) {
+        data.visible = fields.rootVisibleAtLoad;
     }
     return { ok: true };
 }
@@ -633,9 +636,18 @@ function pruneEmptyDisplay(display: Record<string, unknown>): void {
     }
 }
 
+function pruneEmptyButtonStates(states: Record<string, unknown>): void {
+    for (const k of ['hover', 'pressed', 'disabled'] as const) {
+        if (states[k] === '' || states[k] === undefined) {
+            delete states[k];
+        }
+    }
+}
+
 /**
  * Shallow-merge fields into `controls[controlIndex]`. Use `null` as a patch value to remove a key.
  * For `image` controls, `display` is deep-merged; inner `null` removes that display key.
+ * For `button` controls, `states` is deep-merged the same way.
  */
 export function updateGuiControlPatch(
     data: Record<string, unknown>,
@@ -673,6 +685,27 @@ export function updateGuiControlPatch(
             row.display = prev;
             continue;
         }
+        if (k === 'states' && v && typeof v === 'object' && !Array.isArray(v)) {
+            const prev =
+                row.states && typeof row.states === 'object' && !Array.isArray(row.states)
+                    ? { ...(row.states as Record<string, unknown>) }
+                    : {};
+            const incoming = v as Record<string, unknown>;
+            for (const [sk, sv] of Object.entries(incoming)) {
+                if (sv === null || sv === '') {
+                    delete prev[sk];
+                } else {
+                    prev[sk] = sv;
+                }
+            }
+            pruneEmptyButtonStates(prev);
+            if (Object.keys(prev).length === 0) {
+                delete row.states;
+            } else {
+                row.states = prev;
+            }
+            continue;
+        }
         if (v === null) {
             delete row[k];
         } else {
@@ -685,6 +718,19 @@ export function updateGuiControlPatch(
             row.display = {};
         } else {
             pruneEmptyDisplay(row.display as Record<string, unknown>);
+        }
+    }
+
+    if (row.type === 'button') {
+        const a = row.anchor;
+        if (a !== 'center' && a !== 'screen') {
+            row.anchor = 'top-left';
+        }
+        if (row.states && typeof row.states === 'object' && !Array.isArray(row.states)) {
+            pruneEmptyButtonStates(row.states as Record<string, unknown>);
+            if (Object.keys(row.states as Record<string, unknown>).length === 0) {
+                delete row.states;
+            }
         }
     }
 

@@ -648,19 +648,75 @@ function renderGuiControlCardBody(state, c) {
       ${guiDimInputsForControl(idx, c.x, c.y)}
       ${animBlock}`;
     }
-    /* image */
-    const animImg = state.usesAseprite && tags.length > 0
-        ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>
+    if (c.controlKind === 'button') {
+        const textAlignSel = `<select class="gui-field" data-index="${idx}" data-field="textAlign">
+        <option value="left"${c.textAlign === 'left' ? ' selected' : ''}>left</option>
+        <option value="center"${c.textAlign === '' || c.textAlign === 'center' ? ' selected' : ''}>center</option>
+        <option value="right"${c.textAlign === 'right' ? ' selected' : ''}>right</option>
+      </select>`;
+        const sheetBlock = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Sheet</div>
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">anchor</span>
+          <select class="gui-field" data-index="${idx}" data-field="anchor">${guiAnchorSelectOptions(c.anchor)}</select>
+          <span class="benne-pg-lbl">backgroundTag</span>
+          ${guiSheetTagSelectHtml(tags, c.backgroundTag, idx, 'backgroundTag')}
+          <span class="benne-pg-lbl">state hover</span>
+          ${guiSheetTagSelectHtml(tags, c.statesHover, idx, 'statesHover')}
+          <span class="benne-pg-lbl">state pressed</span>
+          ${guiSheetTagSelectHtml(tags, c.statesPressed, idx, 'statesPressed')}
+          <span class="benne-pg-lbl">state disabled</span>
+          ${guiSheetTagSelectHtml(tags, c.statesDisabled, idx, 'statesDisabled')}
+        </div>`
+            : state.usesAseprite
+                ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
+                : `<p class="muted small" style="margin-top:8px;">Set <code>display.aseprite: true</code> to pick sheet tags.</p>`;
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">enabled</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="enabled" ${c.enabled ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">width</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="width" value="${c.width}" />
+        <span class="benne-pg-lbl">height</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="height" value="${c.height}" />
+        <span class="benne-pg-lbl">text</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="text" value="${esc(c.text)}" />
+        <span class="benne-pg-lbl">font</span>
+        ${guiFontSelectHtml(fontIds, c.font, idx)}
+        <span class="benne-pg-lbl">fontSize</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="fontSize" value="${c.fontSize}" />
+        <span class="benne-pg-lbl">textColor</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="textColor" value="${esc(c.textColor)}" />
+        <span class="benne-pg-lbl">textAlign</span>
+        ${textAlignSel}
+        <span class="benne-pg-lbl">textOffsetX</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="textOffsetX" value="${c.textOffsetX ?? ''}" placeholder="0" />
+        <span class="benne-pg-lbl">textOffsetY</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="textOffsetY" value="${c.textOffsetY ?? ''}" placeholder="0" />
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position</div>
+      ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${sheetBlock}
+      <p class="muted small" style="margin:8px 0 0;">${c.controlId
+            ? `Use <code>B.whenButtonClick('${esc(c.controlId)}', …)</code> in this GUI’s script.`
+            : 'Add a unique <code>id</code> in raw JSON for <code>B.whenButtonClick</code>.'}</p>`;
+    }
+    if (c.controlKind === 'image') {
+        const animImg = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>
       <div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">tag</span>
         ${guiSheetTagSelectHtml(tags, c.displayTag, idx, 'displayTag')}
         <span class="benne-pg-lbl">anchor</span>
         <select class="gui-field" data-index="${idx}" data-field="displayAnchor">${guiAnchorSelectOptions(c.displayAnchor)}</select>
       </div>`
-        : state.usesAseprite
-            ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
-            : `<p class="muted small" style="margin-top:8px;">Set <code>display.aseprite: true</code> to use sheet tags.</p>`;
-    return `<div class="benne-prop-grid benne-prop-grid--tight">
+            : state.usesAseprite
+                ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
+                : `<p class="muted small" style="margin-top:8px;">Set <code>display.aseprite: true</code> to use sheet tags.</p>`;
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">id</span>
         <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
         ${zRow}
@@ -669,6 +725,8 @@ function renderGuiControlCardBody(state, c) {
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
       ${animImg}`;
+    }
+    return `<p class="muted">Unsupported control kind.</p>`;
 }
 function renderCharacter(state) {
     const verbHtml = renderVerbChipRow(state.characterJsonUri, state.characterId, state.verbs, `characterDef:${state.characterId}`);
@@ -760,6 +818,8 @@ function renderGui(state) {
           <div class="benne-pg-val"><code class="badge">${esc(state.guiId)}</code></div>
           <span class="benne-pg-lbl">name</span>
           <input type="text" id="gui-name" value="${esc(state.name)}" />
+          <span class="benne-pg-lbl">visible</span>
+          <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="gui-visible" ${state.rootVisibleAtLoad ? 'checked' : ''} /></label>
         </div>
         <label class="benne-field-label muted small">Description</label>
         <textarea id="gui-description" rows="3">${esc(state.description)}</textarea>
@@ -1226,7 +1286,8 @@ function collectGuiMeta() {
     return {
         type: 'guiMeta',
         name: document.getElementById('gui-name')?.value ?? '',
-        description: document.getElementById('gui-description')?.value ?? ''
+        description: document.getElementById('gui-description')?.value ?? '',
+        rootVisibleAtLoad: document.getElementById('gui-visible')?.checked ?? true
     };
 }
 function buildGuiControlFieldPatch(field, el) {
@@ -1238,6 +1299,24 @@ function buildGuiControlFieldPatch(field, el) {
         const raw = el.value.trim();
         const a = raw === '' || raw === 'top-left' ? null : raw;
         return { display: { anchor: a } };
+    }
+    if (field === 'anchor') {
+        const raw = el.value.trim();
+        if (raw === '' || raw === 'top-left') {
+            return { anchor: null };
+        }
+        if (raw === 'center' || raw === 'screen') {
+            return { anchor: raw };
+        }
+        return null;
+    }
+    if (field === 'statesHover' || field === 'statesPressed' || field === 'statesDisabled') {
+        const sub = field === 'statesHover' ? 'hover' : field === 'statesPressed' ? 'pressed' : 'disabled';
+        const raw = el.value.trim();
+        return { states: { [sub]: raw.length === 0 ? null : el.value } };
+    }
+    if (field === 'enabled') {
+        return { enabled: el.checked ? null : false };
     }
     if (field === 'visible') {
         const raw = el.value;
@@ -1253,6 +1332,13 @@ function buildGuiControlFieldPatch(field, el) {
         }
         return { align: raw };
     }
+    if (field === 'textAlign') {
+        const raw = el.value;
+        if (raw === '' || raw === 'center') {
+            return { textAlign: null };
+        }
+        return { textAlign: raw };
+    }
     const anchorTop = new Set(['backgroundAnchor', 'slotBackgroundAnchor', 'highlightAnchor']);
     if (anchorTop.has(field)) {
         const raw = el.value.trim();
@@ -1261,7 +1347,17 @@ function buildGuiControlFieldPatch(field, el) {
         }
         return { [field]: raw };
     }
-    const intRequired = new Set(['x', 'y', 'rows', 'cols', 'slotWidth', 'slotHeight', 'fontSize']);
+    const intRequired = new Set([
+        'x',
+        'y',
+        'rows',
+        'cols',
+        'slotWidth',
+        'slotHeight',
+        'fontSize',
+        'width',
+        'height'
+    ]);
     if (intRequired.has(field)) {
         const n = Number(el.value);
         if (!Number.isFinite(n)) {
@@ -1269,7 +1365,15 @@ function buildGuiControlFieldPatch(field, el) {
         }
         return { [field]: Math.trunc(n) };
     }
-    const optNum = new Set(['zIndex', 'wordWrapWidth', 'spacingX', 'spacingY', 'itemScale']);
+    const optNum = new Set([
+        'zIndex',
+        'wordWrapWidth',
+        'spacingX',
+        'spacingY',
+        'itemScale',
+        'textOffsetX',
+        'textOffsetY'
+    ]);
     if (optNum.has(field)) {
         const raw = el.value.trim();
         if (raw === '') {
@@ -1284,7 +1388,15 @@ function buildGuiControlFieldPatch(field, el) {
     if (field === 'showEmptySlots') {
         return { showEmptySlots: el.checked };
     }
-    const tagStr = new Set(['text', 'font', 'color', 'backgroundTag', 'slotBackgroundTag', 'highlightTag']);
+    const tagStr = new Set([
+        'text',
+        'font',
+        'color',
+        'textColor',
+        'backgroundTag',
+        'slotBackgroundTag',
+        'highlightTag'
+    ]);
     if (tagStr.has(field)) {
         return { [field]: el.value };
     }
@@ -1313,6 +1425,7 @@ function mountGuiHandlers(state) {
     });
     document.getElementById('gui-name')?.addEventListener('blur', flushMeta);
     document.getElementById('gui-description')?.addEventListener('blur', flushMeta);
+    document.getElementById('gui-visible')?.addEventListener('change', flushMeta);
     document.querySelectorAll('.gui-control-payload').forEach((el) => {
         el.addEventListener('blur', () => {
             const ta = el;

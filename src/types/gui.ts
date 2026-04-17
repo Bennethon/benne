@@ -20,6 +20,14 @@ export interface GuiSpriteDisplay {
   anchor?: GuiSpriteAnchor;
 }
 
+/** Optional named animation clip on the GUI sheet (Aseprite tag / timeline). */
+export interface GuiSpriteAnimationClip {
+  loop?: boolean;
+}
+
+/** Map of clip name → options; same optional shape for `image` and `button` controls. */
+export type GuiSpriteAnimationsMap = Record<string, GuiSpriteAnimationClip>;
+
 export interface GuiTextControl {
   type: 'text';
   /** Prefer `line` for dialogue body; otherwise the first text control is the primary line. */
@@ -28,7 +36,7 @@ export interface GuiTextControl {
   y: number;
   /** Draw order within the GUI overlay: added to the overlay’s base depth. */
   zIndex?: number;
-  /** When set, overrides {@link GuiData.visible} / overlay start visibility for this line only. */
+  /** When set, overrides {@link GuiData.visible} for this line only. */
   visible?: boolean;
   text?: string;
   /** Key in `src/game/assets/fonts/fonts.json` (bitmap font). */
@@ -92,20 +100,67 @@ export interface GuiImageControl {
   width?: number;
   height?: number;
   display: GuiSpriteDisplay;
+  /** Optional extra clips from the GUI sheet (Aseprite tags). */
+  animations?: GuiSpriteAnimationsMap;
 }
 
-export type GuiControl = GuiTextControl | GuiInventoryPanelControl | GuiImageControl;
+/** Per-interaction sheet tags; values are Aseprite tag names on this GUI’s sheet. */
+export interface GuiButtonStates {
+  hover?: string;
+  pressed?: string;
+  disabled?: string;
+}
+
+/**
+ * Text + sheet-backed hit target. Uses the GUI’s Aseprite export when `display.aseprite` is true;
+ * placement follows the same anchor / depth / visibility rules as other overlay controls.
+ */
+export interface GuiButtonControl {
+  type: 'button';
+  /** Unique within this GUI (Inspector, Bennescript `whenButtonClick`, future compositor). */
+  id: string;
+  x: number;
+  y: number;
+  zIndex?: number;
+  visible?: boolean;
+  width: number;
+  height: number;
+  /** Same meaning as {@link GuiSpriteDisplay.anchor} on image controls. */
+  anchor: GuiSpriteAnchor;
+  text: string;
+  /** Key in `src/game/assets/fonts/fonts.json` (bitmap font). */
+  font: string;
+  fontSize: number;
+  textColor: string;
+  textAlign?: GuiTextAlign;
+  /** Fine-tune label position in pixels (default 0). */
+  textOffsetX?: number;
+  textOffsetY?: number;
+  /** Default visual tag on the GUI sheet. */
+  backgroundTag: string;
+  /** Hover / pressed / disabled sheet tags. */
+  states?: GuiButtonStates;
+  animations?: GuiSpriteAnimationsMap;
+  /**
+   * When false, the button ignores input; default true when omitted.
+   * (Runtime compositor will map this to visuals + hit testing.)
+   */
+  enabled?: boolean;
+}
+
+export type GuiControl = GuiTextControl | GuiInventoryPanelControl | GuiImageControl | GuiButtonControl;
 
 export interface GuiData {
   id: string;
   name: string;
   description?: string;
   /**
-   * When **`false`**, the overlay starts hidden at room load. When omitted or **`true`**, it starts visible
-   * (`RoomScene` builds every GUI under `src/game/guis/` except the engine-driven **`dialog-text`** overlay).
-   * Per-control `visible` on `inventoryPanel` (and future controls) can still override.
+   * When **`false`**, the overlay starts hidden at room load; when **`true`**, it starts visible.
+   * (`RoomScene` builds every GUI under `src/game/guis/` except the engine-driven **`dialog-text`** overlay,
+   * which is shown via `setDialogTextOverlay` regardless of this flag at boot.)
+   * Per-control `visible` can still override for individual controls.
    */
-  visible?: boolean;
+  visible: boolean;
   display: GuiDisplayData;
   controls?: GuiControl[];
 }

@@ -594,7 +594,7 @@ type WebviewPatch =
           feet?: { x: number; y: number } | null;
       }
     | { type: 'characterAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
-    | { type: 'guiMeta'; name?: string; description?: string }
+    | { type: 'guiMeta'; name?: string; description?: string; rootVisibleAtLoad?: boolean }
     | { type: 'guiControlPayload'; index?: number; payload?: string }
     | { type: 'guiControlUpdate'; index?: number; patch?: Record<string, unknown> }
     | {
@@ -756,6 +756,11 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                     label: 'Image',
                     description: 'Aseprite tag / animation from this GUI sheet',
                     controlKind: 'image'
+                },
+                {
+                    label: 'Button',
+                    description: 'Sheet-backed label + click target (B.whenButtonClick)',
+                    controlKind: 'button'
                 }
             ];
             const picked = await vscode.window.showQuickPick(items, {
@@ -1109,7 +1114,13 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             if (focusKind !== 'gui') {
                 return;
             }
-            updateGuiFields(data, { name: p.name, description: p.description });
+            const visPatch =
+                typeof p.rootVisibleAtLoad === 'boolean' ? { rootVisibleAtLoad: p.rootVisibleAtLoad } : {};
+            updateGuiFields(data, {
+                name: p.name,
+                description: p.description,
+                ...visPatch
+            });
             return;
         }
         if (p.type === 'guiControlPayload' && typeof p.index === 'number' && typeof p.payload === 'string') {
