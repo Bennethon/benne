@@ -795,13 +795,27 @@ function pointInputs(prefix: string, value: { x: number; y: number } | null): st
 </div>`;
 }
 
-function guiDimInputsForControl(index: number, x: number, y: number): string {
+function guiDimInputsForControl(
+    index: number,
+    x: number,
+    y: number,
+    size?: { width: number; height: number }
+): string {
     const prefix = `gui-c${index}-pos`;
-    return `<div class="benne-dim-grid" role="group" aria-label="Position">
+    const whRow =
+        size != null
+            ? `
+  <span class="benne-dim-lbl">W</span>
+  <input type="number" class="gui-field" data-index="${index}" data-field="width" id="${esc(prefix)}-w" value="${size.width}" />
+  <span class="benne-dim-lbl">H</span>
+  <input type="number" class="gui-field" data-index="${index}" data-field="height" id="${esc(prefix)}-h" value="${size.height}" />`
+            : '';
+    const aria = size != null ? 'Position and size' : 'Position';
+    return `<div class="benne-dim-grid" role="group" aria-label="${aria}">
   <span class="benne-dim-lbl">X</span>
   <input type="number" class="gui-field" data-index="${index}" data-field="x" id="${esc(prefix)}-x" value="${x}" />
   <span class="benne-dim-lbl">Y</span>
-  <input type="number" class="gui-field" data-index="${index}" data-field="y" id="${esc(prefix)}-y" value="${y}" />
+  <input type="number" class="gui-field" data-index="${index}" data-field="y" id="${esc(prefix)}-y" value="${y}" />${whRow}
 </div>`;
 }
 
@@ -978,10 +992,6 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
         ${visibleSelect}
         <span class="benne-pg-lbl">enabled</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="enabled" ${c.enabled ? 'checked' : ''} /></label>
-        <span class="benne-pg-lbl">width</span>
-        <input type="number" class="gui-field" data-index="${idx}" data-field="width" value="${c.width}" />
-        <span class="benne-pg-lbl">height</span>
-        <input type="number" class="gui-field" data-index="${idx}" data-field="height" value="${c.height}" />
         <span class="benne-pg-lbl">text</span>
         <input type="text" class="gui-field" data-index="${idx}" data-field="text" value="${esc(c.text)}" />
         <span class="benne-pg-lbl">font</span>
@@ -997,8 +1007,8 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
         <span class="benne-pg-lbl">textOffsetY</span>
         <input type="number" class="gui-field" data-index="${idx}" data-field="textOffsetY" value="${c.textOffsetY ?? ''}" placeholder="0" />
       </div>
-      <div class="benne-scroll-bounds-label muted small">Position</div>
-      ${guiDimInputsForControl(idx, c.x, c.y)}
+      <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
+      ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
       ${sheetBlock}
       ${
           c.controlId

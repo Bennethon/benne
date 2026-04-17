@@ -211,6 +211,12 @@
         "icon": "$(tag)"
       },
       {
+        "command": "benne-editor.addGuiControl",
+        "title": "Add GUI Control",
+        "category": "BENNE",
+        "icon": "$(add)"
+      },
+      {
         "command": "benne-editor.importAnimationsFromAsepriteTags",
         "title": "Import Animations from Aseprite Tags",
         "category": "BENNE",
@@ -320,11 +326,6 @@
           "group": "navigation@6"
         },
         {
-          "command": "benne-editor.importInventoryItemsFromAsepriteTags",
-          "when": "view == benne-editor.main",
-          "group": "navigation@7"
-        },
-        {
           "command": "benne-editor.rebuildCharacterPreview",
           "when": "view == benne-editor.actions",
           "group": "navigation@3"
@@ -369,6 +370,11 @@
         {
           "command": "benne-editor.createGui",
           "when": "view == benne-editor.main && viewItem == benneGuisGroup",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.addGuiControl",
+          "when": "view == benne-editor.main && viewItem == benneGui",
           "group": "benne@1"
         },
         {

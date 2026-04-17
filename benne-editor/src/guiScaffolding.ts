@@ -1,7 +1,13 @@
 import * as vscode from 'vscode';
+import type { EditorSelection } from './editorSelection';
+import type { MainTreeNode } from './mainTreeProvider';
 import { pickWorkspaceFolder, validateSlug } from './roomScaffolding';
 import { openBenneGuiTypeScript } from './roomScriptNavigation';
-import { getGuiIdFromGuiJsonUri } from './gameDiscovery';
+import {
+    findBenneGameFolders,
+    getGuiIdFromGuiJsonUri,
+    listGuiDefinitions
+} from './gameDiscovery';
 
 export type GuiControlKind = 'text' | 'inventoryPanel' | 'image' | 'button';
 
@@ -258,4 +264,95 @@ export async function runAddGuiControlWizard(
     void vscode.window.showInformationMessage(
         `Added ${guiControlKindLabel(kind)} control${id ? ` "${id}"` : ''} to GUI ${guiId}.`
     );
+}
+
+async function resolveGuiJsonUri(
+    selection: EditorSelection,
+    node?: MainTreeNode
+): Promise<vscode.Uri | undefined> {
+    if (node?.kind === 'gui') {
+        return node.uri;
+    }
+    if (node?.kind === 'guiControl') {
+        return node.guiUri;
+    }
+
+    if (selection.focus.kind === 'gui') {
+        return selection.focus.uri;
+    }
+
+    const folders = await findBenneGameFolders();
+    if (folders.length === 0) {
+        void vscode.window.showErrorMessage('No BENNE game folder found in this workspace.');
+        return undefined;
+    }
+    const folder =
+        folders.length === 1
+            ? folders[0]
+            : await pickWorkspaceFolder();
+    if (!folder) {
+        return undefined;
+    }
+    const guis = await listGuiDefinitions(folder);
+    if (guis.length === 0) {
+        void vscode.window.showErrorMessage('No GUIs found. Create a GUI first.');
+        return undefined;
+    }
+    const picked = await vscode.window.showQuickPick(
+        guis.map((g) => ({ label: g.name, description: g.id, gui: g })),
+        { placeHolder: 'Choose a GUI to add a control to' }
+    );
+    if (!picked) {
+        return undefined;
+    }
+    return picked.gui.uri;
+}
+
+/**
+ * Top-level entry for the **Add GUI Control** command (Actions panel + tree right-click + Command Palette).
+ * Resolves the GUI JSON URI from the right-click `node`, then the current selection focus, then a Quick Pick
+ * over discovered GUIs. Always prompts for the control kind, then defers to {@link runAddGuiControlWizard}.
+ *
+ * Mirrors the message handler in `inspectorWebviewViewProvider.ts`'s `addGuiControl` action so the entry-points
+ * stay in sync.
+ */
+export async function runAddGuiControlInteractiveWizard(
+    selection: EditorSelection,
+    node?: MainTreeNode
+): Promise<void> {
+    const guiJsonUri = await resolveGuiJsonUri(selection, node);
+    if (!guiJsonUri) {
+        return;
+    }
+
+    type GuiControlPickItem = vscode.QuickPickItem & { controlKind: GuiControlKind };
+    const items: GuiControlPickItem[] = [
+        {
+            label: 'Text',
+            description: 'BitmapText overlay',
+            controlKind: 'text'
+        },
+        {
+            label: 'Inventory Panel',
+            description: 'Player inventory grid',
+            controlKind: 'inventoryPanel'
+        },
+        {
+            label: 'Image',
+            description: 'Aseprite tag / animation from this GUI sheet',
+            controlKind: 'image'
+        },
+        {
+            label: 'Button',
+            description: 'Sheet-backed label + click target (B.whenButtonClick)',
+            controlKind: 'button'
+        }
+    ];
+    const picked = await vscode.window.showQuickPick(items, {
+        placeHolder: 'Select control type to add'
+    });
+    if (!picked) {
+        return;
+    }
+    await runAddGuiControlWizard(guiJsonUri, picked.controlKind);
 }

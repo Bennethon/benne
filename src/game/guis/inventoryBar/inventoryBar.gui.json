@@ -65,6 +65,24 @@
       "zIndex": 300,
       "wordWrapWidth": 200,
       "visible": true
+    },
+    {
+      "type": "button",
+      "id": "Fwd",
+      "x": 250,
+      "y": 10,
+      "width": 6,
+      "height": 13,
+      "backgroundAnchor": "screen",
+      "text": "Button",
+      "font": "",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "FwBtn",
+      "zIndex": 300
     }
   ]
 }

@@ -41,7 +41,8 @@
     "variables": {},
     "inventory": [
       "Ladder",
-      "Broom"
+      "Broom",
+      "Lantern"
     ]
   },
   "dialog": {
