@@ -407,6 +407,7 @@ export function activate(context: vscode.ExtensionContext): void {
         context.extensionUri,
         selection,
         roomPreview,
+        guiPreview,
         () => {
             mainProvider.refresh();
             actionsProvider.refresh();
@@ -1019,12 +1020,24 @@ export function activate(context: vscode.ExtensionContext): void {
         jsonWatcher.onDidChange((uri) => {
             refreshTrees();
             roomPreview.onWorkspaceRoomJsonChanged(uri);
+            guiPreview.onWorkspaceGuiJsonChanged(uri);
         }),
         jsonWatcher.onDidCreate((uri) => {
             refreshTrees();
             roomPreview.onWorkspaceRoomJsonChanged(uri);
+            guiPreview.onWorkspaceGuiJsonChanged(uri);
         }),
         jsonWatcher.onDidDelete(refreshTrees),
+        vscode.workspace.onDidChangeTextDocument((e) => {
+            if (e.document.uri.fsPath.endsWith('.gui.json')) {
+                guiPreview.onWorkspaceGuiJsonChanged(e.document.uri);
+            }
+        }),
+        vscode.workspace.onDidSaveTextDocument((doc) => {
+            if (doc.uri.fsPath.endsWith('.gui.json')) {
+                guiPreview.onWorkspaceGuiJsonChanged(doc.uri);
+            }
+        }),
         roomSheetAssetWatcher,
         roomSheetAssetWatcher.onDidChange(refreshTrees),
         roomSheetAssetWatcher.onDidCreate(refreshTrees),

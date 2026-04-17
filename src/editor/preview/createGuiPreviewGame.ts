@@ -149,24 +149,8 @@ function buttonControlWorldRect(c: GuiButtonControl): {
 } {
   const w = c.width;
   const h = c.height;
-  const ax = Math.round(c.x);
-  const ay = Math.round(c.y);
-  const anchor = c.anchor ?? 'top-left';
-  let left: number;
-  let top: number;
-  switch (anchor) {
-    case 'center':
-      left = ax - w / 2;
-      top = ay - h / 2;
-      break;
-    case 'screen':
-      left = 0;
-      top = 0;
-      break;
-    default:
-      left = ax;
-      top = ay;
-  }
+  const left = Math.round(c.x);
+  const top = Math.round(c.y);
   return { left, top, right: left + w, bottom: top + h };
 }
 

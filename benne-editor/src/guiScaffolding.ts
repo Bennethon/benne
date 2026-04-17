@@ -175,7 +175,7 @@ function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, un
                 y: 0,
                 width: 120,
                 height: 32,
-                anchor: 'top-left',
+                backgroundAnchor: 'top-left',
                 text: 'Button',
                 font: '',
                 fontSize: 16,

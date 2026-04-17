@@ -17,7 +17,8 @@ export type GuiSpriteAnchor = 'top-left' | 'center' | 'screen';
 /** Associates an Aseprite frame tag on the GUI sheet with placement; omit or empty `tag` to show nothing. */
 export interface GuiSpriteDisplay {
   tag?: string;
-  anchor?: GuiSpriteAnchor;
+  /** Placement for {@link tag}; default `top-left`. Same vocabulary as {@link GuiInventoryPanelControl.backgroundAnchor}. */
+  backgroundAnchor?: GuiSpriteAnchor;
 }
 
 /** Optional named animation clip on the GUI sheet (Aseprite tag / timeline). */
@@ -96,7 +97,7 @@ export interface GuiImageControl {
   y: number;
   zIndex?: number;
   visible?: boolean;
-  /** Reserved for future clipping / 9-slice; does not affect `screen` anchor placement. */
+  /** Reserved for future clipping / 9-slice; does not affect `screen` background placement. */
   width?: number;
   height?: number;
   display: GuiSpriteDisplay;
@@ -113,8 +114,9 @@ export interface GuiButtonStates {
 
 /**
  * Text + sheet-backed hit target. Uses the GUI’s Aseprite export when `display.aseprite` is true.
- * The background frame or animation is placed like an {@link GuiImageControl} (anchor + `x`/`y`, natural pixel size).
- * `width` and `height` define the pointer hit box and where the label is laid out, not the drawn sprite size.
+ * `x` and `y` are the **top-left** of the hit box (`width` × `height`); the label is laid out inside that box.
+ * {@link backgroundAnchor} only affects where the **background** sheet sprite is drawn, not where the bounds sit
+ * (same idea as {@link GuiInventoryPanelControl.backgroundAnchor}).
  */
 export interface GuiButtonControl {
   type: 'button';
@@ -128,8 +130,11 @@ export interface GuiButtonControl {
   width: number;
   /** Hit-testing height in screen pixels; also used to position the label within the hit box. */
   height: number;
-  /** Same meaning as {@link GuiSpriteDisplay.anchor} on image controls (background art + hit box placement). */
-  anchor: GuiSpriteAnchor;
+  /**
+   * How the **background** sheet sprite is pinned relative to the hit box (`x`,`y`,`width`,`height`).
+   * Does not move the hit box: `top-left` pins art to the box’s top-left, `center` to its center, `screen` to canvas (0,0) like full-frame HUD art.
+   */
+  backgroundAnchor?: GuiSpriteAnchor;
   text: string;
   /** Key in `src/game/assets/fonts/fonts.json` (bitmap font). */
   font: string;

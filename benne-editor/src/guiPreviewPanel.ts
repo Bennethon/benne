@@ -10,6 +10,8 @@ export class GuiPreviewPanelController implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
     private webviewReady = false;
     private readonly disposables: vscode.Disposable[] = [];
+    /** Debounced reload when the active GUI JSON file changes on disk or in-buffer. */
+    private guiJsonChangeTimer: ReturnType<typeof setTimeout> | undefined;
 
     constructor(
         private readonly extensionUri: vscode.Uri,
@@ -23,12 +25,20 @@ export class GuiPreviewPanelController implements vscode.Disposable {
     }
 
     dispose(): void {
+        if (this.guiJsonChangeTimer !== undefined) {
+            clearTimeout(this.guiJsonChangeTimer);
+            this.guiJsonChangeTimer = undefined;
+        }
         this.panel?.dispose();
         this.panel = undefined;
         vscode.Disposable.from(...this.disposables).dispose();
     }
 
     resetPreviewPanel(): void {
+        if (this.guiJsonChangeTimer !== undefined) {
+            clearTimeout(this.guiJsonChangeTimer);
+            this.guiJsonChangeTimer = undefined;
+        }
         if (!this.panel) {
             return;
         }
@@ -36,6 +46,34 @@ export class GuiPreviewPanelController implements vscode.Disposable {
         this.panel = undefined;
         this.webviewReady = false;
         p.dispose();
+    }
+
+    /**
+     * When a `*.gui.json` file changes (on disk, saved buffer, or via Inspector write),
+     * reload the preview if that GUI is currently shown. Mirrors
+     * {@link RoomPreviewPanelController.onWorkspaceRoomJsonChanged}.
+     */
+    onWorkspaceGuiJsonChanged(uri: vscode.Uri): void {
+        if (!uri.fsPath.endsWith('.gui.json')) {
+            return;
+        }
+        if (!this.panel || !this.webviewReady) {
+            return;
+        }
+        const focus = this.selection.focus;
+        if (focus.kind !== 'gui') {
+            return;
+        }
+        if (focus.uri.toString() !== uri.toString()) {
+            return;
+        }
+        if (this.guiJsonChangeTimer !== undefined) {
+            clearTimeout(this.guiJsonChangeTimer);
+        }
+        this.guiJsonChangeTimer = setTimeout(() => {
+            this.guiJsonChangeTimer = undefined;
+            void this.pushGuiPreview(uri);
+        }, 200);
     }
 
     isGuiPreviewActive(): boolean {

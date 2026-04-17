@@ -38,6 +38,7 @@ import {
 } from './inspectorMutations';
 import { getGuiIdFromGuiJsonUri, getRoomIdFromRoomJsonUri } from './gameDiscovery';
 import type { RoomPreviewPanelController } from './roomPreviewPanel';
+import type { GuiPreviewPanelController } from './guiPreviewPanel';
 import {
     mainTreeRoomNodeFromRoomJson,
     runAddRoomHotspotWizard,
@@ -636,6 +637,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         private readonly extensionUri: vscode.Uri,
         private readonly selection: EditorSelection,
         private readonly roomPreview: RoomPreviewPanelController,
+        private readonly guiPreview: GuiPreviewPanelController,
         private readonly refreshMainAndActions: () => void
     ) {}
 
@@ -671,6 +673,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 if (uri && doc.uri.toString() === uri.toString()) {
                     if (this.selection.focus.kind === 'room') {
                         this.roomPreview.onWorkspaceRoomJsonChanged(doc.uri);
+                    } else if (this.selection.focus.kind === 'gui') {
+                        this.guiPreview.onWorkspaceGuiJsonChanged(doc.uri);
                     }
                     void this.pushState();
                 }
@@ -968,6 +972,9 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 this.roomPreview.onWorkspaceRoomJsonChanged(uri);
             } else {
                 await writeDataJson(uri, data);
+                if (focusKind === 'gui') {
+                    this.guiPreview.onWorkspaceGuiJsonChanged(uri);
+                }
             }
             this.refreshMainAndActions();
             await this.pushState();

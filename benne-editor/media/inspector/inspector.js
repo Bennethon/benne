@@ -657,8 +657,8 @@ function renderGuiControlCardBody(state, c) {
         const sheetBlock = state.usesAseprite && tags.length > 0
             ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Sheet</div>
         <div class="benne-prop-grid benne-prop-grid--tight">
-          <span class="benne-pg-lbl">anchor</span>
-          <select class="gui-field" data-index="${idx}" data-field="anchor">${guiAnchorSelectOptions(c.anchor)}</select>
+          <span class="benne-pg-lbl">background anchor</span>
+          <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
           <span class="benne-pg-lbl">backgroundTag</span>
           ${guiSheetTagSelectHtml(tags, c.backgroundTag, idx, 'backgroundTag')}
           <span class="benne-pg-lbl">state hover</span>
@@ -712,8 +712,8 @@ function renderGuiControlCardBody(state, c) {
       <div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">tag</span>
         ${guiSheetTagSelectHtml(tags, c.displayTag, idx, 'displayTag')}
-        <span class="benne-pg-lbl">anchor</span>
-        <select class="gui-field" data-index="${idx}" data-field="displayAnchor">${guiAnchorSelectOptions(c.displayAnchor)}</select>
+        <span class="benne-pg-lbl">background anchor</span>
+        <select class="gui-field" data-index="${idx}" data-field="displayBackgroundAnchor">${guiAnchorSelectOptions(c.displayBackgroundAnchor)}</select>
       </div>`
             : state.usesAseprite
                 ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
@@ -1297,20 +1297,10 @@ function buildGuiControlFieldPatch(field, el) {
         const raw = el.value.trim();
         return { display: { tag: raw.length === 0 ? null : el.value } };
     }
-    if (field === 'displayAnchor') {
+    if (field === 'displayBackgroundAnchor') {
         const raw = el.value.trim();
         const a = raw === '' || raw === 'top-left' ? null : raw;
-        return { display: { anchor: a } };
-    }
-    if (field === 'anchor') {
-        const raw = el.value.trim();
-        if (raw === '' || raw === 'top-left') {
-            return { anchor: null };
-        }
-        if (raw === 'center' || raw === 'screen') {
-            return { anchor: raw };
-        }
-        return null;
+        return { display: { backgroundAnchor: a } };
     }
     if (field === 'statesHover' || field === 'statesPressed' || field === 'statesDisabled') {
         const sub = field === 'statesHover' ? 'hover' : field === 'statesPressed' ? 'pressed' : 'disabled';

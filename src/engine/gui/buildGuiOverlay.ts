@@ -220,25 +220,30 @@ function applyGuiSpriteAnchor(
   }
 }
 
-function positionGuiButtonContainer(
-  container: Phaser.GameObjects.Container,
+/**
+ * Places the button’s sheet sprite using `anchor` **within the button’s logical bounds** (same idea as
+ * {@link GuiInventoryPanelControl.backgroundAnchor} for the panel backdrop: `x`/`y` + `width`/`height` define the
+ * control; anchor only affects where the art is pinned).
+ */
+function placeGuiButtonBackgroundSprite(
+  sprite: Phaser.GameObjects.Sprite,
   anchor: GuiSpriteAnchor,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
+  px: number,
+  py: number,
+  w: number,
+  h: number,
 ): void {
-  const rx = Math.round(x);
-  const ry = Math.round(y);
   switch (anchor) {
     case 'center':
-      container.setPosition(rx - width / 2, ry - height / 2);
+      applyGuiSpriteAnchor(sprite, 'center', px + w / 2, py + h / 2);
       break;
     case 'screen':
-      container.setPosition(0, 0);
+      /** Full-canvas art; `x`/`y`/`width`/`height` still define the hit box only. */
+      applyGuiSpriteAnchor(sprite, 'screen', px, py);
       break;
     default:
-      container.setPosition(rx, ry);
+      applyGuiSpriteAnchor(sprite, 'top-left', px, py);
+      break;
   }
 }
 
@@ -282,14 +287,15 @@ function buildGuiButton(
   const z = c.zIndex ?? 0;
   const d = baseDepth + z;
   const overlayVisible = startVisible && c.visible !== false;
-  const anchor = guiSpriteAnchorOrDefault(c.anchor);
+  const bgAnchor = guiSpriteAnchorOrDefault(c.backgroundAnchor);
+  const px = Math.round(c.x);
+  const py = Math.round(c.y);
 
-  const hitTarget = scene.add.container(0, 0);
+  const hitTarget = scene.add.container(px, py);
   hitTarget.setScrollFactor(0, 0);
   /** Above label so the hit box receives input over the bitmap text. */
   hitTarget.setDepth(d + 2);
   hitTarget.setVisible(overlayVisible);
-  positionGuiButtonContainer(hitTarget, anchor, c.x, c.y, w, h);
 
   const guiTextureKey = getAsepriteTextureKey(gui.id);
   const defaultBgTag = c.backgroundTag.trim();
@@ -304,7 +310,7 @@ function buildGuiButton(
       sprite.destroy();
     } else {
       sprite.setVisible(overlayVisible);
-      applyGuiSpriteAnchor(sprite, anchor, c.x, c.y);
+      placeGuiButtonBackgroundSprite(sprite, bgAnchor, px, py, w, h);
       bg = sprite;
     }
   }
@@ -474,7 +480,7 @@ function addGuiImageSprite(
   if (!scene.textures.exists(guiTextureKey)) {
     return;
   }
-  const anchor = guiSpriteAnchorOrDefault(c.display?.anchor);
+  const anchor = guiSpriteAnchorOrDefault(c.display?.backgroundAnchor);
   const sprite = scene.add.sprite(0, 0, guiTextureKey);
   sprite.setVisible(false);
   sprite.setScrollFactor(0, 0);
