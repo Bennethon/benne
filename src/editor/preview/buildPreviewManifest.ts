@@ -9,6 +9,27 @@ import {
 } from '../../game/loadAsepriteAtlasData';
 import { normalizeAsepriteJsonForPhaser } from '../../game/normalizeAsepriteJson';
 import { joinGameWebviewUri } from './previewUrls';
+import gameFontsManifest from '../../game/assets/fonts/fonts.json';
+import { collectFontIdsReferencedByGuiControls, getAllGuiData } from '../../game/loadGuiData';
+import {
+    getAsepriteAssetPaths as getGuiAsepriteAssetPaths,
+    getAsepriteTextureKey as getGuiAsepriteTextureKey,
+    usesAsepriteDisplay as usesGuiAsepriteDisplay,
+} from '../../game/guiAseprite';
+import {
+    getPerItemInventoryAsepritePaths,
+    getPerItemInventoryTextureKey,
+    sharedInventoryAssetPaths,
+    sharedInventoryTextureKey,
+    usesPerItemInventoryAseprite,
+    usesSharedInventoryAseprite,
+} from '../../game/inventoryAseprite';
+import {
+    getInventoryDefinition,
+    getRegisteredInventoryDefinitionIds,
+} from '../../engine/inventory/inventoryDefinitionRegistry';
+import type { GameFontsManifest } from '../../types/fonts';
+import type { GuiData, GuiInventoryPanelControl } from '../../types/gui';
 import type { CharacterData } from '../../types/character';
 import type { RoomCharacterInstance, RoomData, RoomPropInstance } from '../../types/room';
 import type {
@@ -23,9 +44,10 @@ export type PreviewManifest = {
     revokeObjectUrls: string[];
 };
 
-type PreviewLoadEntry =
+export type PreviewLoadEntry =
     | { kind: 'image'; key: string; url: string }
-    | { kind: 'aseprite'; key: string; textureURL: string; atlasURL: string };
+    | { kind: 'aseprite'; key: string; textureURL: string; atlasURL: string }
+    | { kind: 'bitmapFont'; key: string; textureURL: string; dataURL: string };
 
 async function fetchJson(url: string): Promise<Record<string, unknown>> {
     const res = await fetch(url);
@@ -155,6 +177,11 @@ export async function buildPreviewManifest(
               }))
             : [];
 
+    // Always queue GUI assets so the "Show GUIs" toolbar toggle can flip them on without needing
+    // a preview reload. Fonts / Aseprite loads are small; keeping load-on-toggle symmetric with
+    // the shipped game (see `BootScene` which also queues all GUI assets) avoids editor drift.
+    await queueGuiAndInventoryLoads(loads, assetsBase, revokeLater);
+
     const startData: RoomSceneStartData = {
         room,
         backgroundTextureKey,
@@ -164,6 +191,162 @@ export async function buildPreviewManifest(
     };
 
     return { loads, startData, revokeObjectUrls };
+}
+
+/**
+ * Mirrors the GUI / inventory font + Aseprite sheet loads that `BootScene` queues for the shipped
+ * game, using fetch + object URLs so the webview can load them via Phaser's loader. Called once
+ * per `buildPreviewManifest`; idempotent w.r.t. the caller (dedup happens by key inside the loader).
+ */
+async function queueGuiAndInventoryLoads(
+    loads: PreviewLoadEntry[],
+    assetsBase: string,
+    revokeLater: (url: string) => string,
+): Promise<void> {
+    const guis = getAllGuiData();
+    const fontsManifest = gameFontsManifest as GameFontsManifest;
+
+    for (const fontId of collectFontIdsReferencedByGuiControls()) {
+        const def = fontsManifest[fontId];
+        if (!def) {
+            console.warn(
+                `[Benne preview] GUI text references unknown font id "${fontId}" — add it to src/game/assets/fonts/fonts.json.`,
+            );
+            continue;
+        }
+        loads.push({
+            kind: 'bitmapFont',
+            key: fontId,
+            textureURL: joinGameWebviewUri(assetsBase, `fonts/${def.textureFile}`),
+            dataURL: joinGameWebviewUri(assetsBase, `fonts/${def.dataFile}`),
+        });
+    }
+
+    for (const gui of guis) {
+        if (!usesGuiAsepriteDisplay(gui)) {
+            continue;
+        }
+        try {
+            const paths = getGuiAsepriteAssetPaths(gui.id);
+            const jsonUrl = joinGameWebviewUri(assetsBase, paths.json);
+            const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
+            const raw = await fetchJson(jsonUrl);
+            const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+            const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
+            const atlasURL = revokeLater(URL.createObjectURL(blob));
+            loads.push({
+                kind: 'aseprite',
+                key: getGuiAsepriteTextureKey(gui.id),
+                textureURL: pngUrl,
+                atlasURL,
+            });
+        } catch (err) {
+            console.warn(`[Benne preview] Could not queue GUI Aseprite for "${gui.id}":`, err);
+        }
+    }
+
+    if (!guisHaveInventoryPanel(guis)) {
+        return;
+    }
+
+    let queuedSharedInventory = false;
+    const queuedPerItemInventoryIds = new Set<string>();
+
+    for (const id of getRegisteredInventoryDefinitionIds()) {
+        const def = getInventoryDefinition(id);
+        if (!def) {
+            continue;
+        }
+        if (usesSharedInventoryAseprite(def)) {
+            if (queuedSharedInventory) {
+                continue;
+            }
+            try {
+                const paths = sharedInventoryAssetPaths();
+                const jsonUrl = joinGameWebviewUri(assetsBase, paths.json);
+                const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
+                const raw = await fetchJson(jsonUrl);
+                const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+                ensureSharedInventoryTagPrefixes(norm);
+                const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
+                const atlasURL = revokeLater(URL.createObjectURL(blob));
+                loads.push({
+                    kind: 'aseprite',
+                    key: sharedInventoryTextureKey,
+                    textureURL: pngUrl,
+                    atlasURL,
+                });
+                queuedSharedInventory = true;
+            } catch (err) {
+                console.warn(
+                    '[Benne preview] Could not queue shared inventory Aseprite; GUI inventory icons may show placeholders.',
+                    err,
+                );
+            }
+        } else if (usesPerItemInventoryAseprite(def)) {
+            if (queuedPerItemInventoryIds.has(id)) {
+                continue;
+            }
+            queuedPerItemInventoryIds.add(id);
+            try {
+                const paths = getPerItemInventoryAsepritePaths(id);
+                const jsonUrl = joinGameWebviewUri(assetsBase, paths.json);
+                const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
+                const raw = await fetchJson(jsonUrl);
+                const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+                const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
+                const atlasURL = revokeLater(URL.createObjectURL(blob));
+                loads.push({
+                    kind: 'aseprite',
+                    key: getPerItemInventoryTextureKey(id),
+                    textureURL: pngUrl,
+                    atlasURL,
+                });
+            } catch (err) {
+                console.warn(
+                    `[Benne preview] Could not queue per-item inventory Aseprite for "${id}":`,
+                    err,
+                );
+            }
+        }
+    }
+}
+
+function guisHaveInventoryPanel(guis: readonly GuiData[]): boolean {
+    for (const gui of guis) {
+        for (const c of gui.controls ?? []) {
+            if ((c as GuiInventoryPanelControl).type === 'inventoryPanel') {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Shared inventory sheet uses unprefixed Aseprite tag names on disk, but the engine plays clips via
+ * the `inventory:<tag>` Phaser animation key (see `inventoryPhaserAnimationKeyForTag`). Mirror the
+ * normalization step in `guiEditorMain.ts` so `createFromAseprite` registers those prefixed keys.
+ */
+function ensureSharedInventoryTagPrefixes(normalized: Record<string, unknown>): void {
+    const meta = normalized.meta;
+    if (!meta || typeof meta !== 'object') {
+        return;
+    }
+    const frameTags = (meta as { frameTags?: { name: string }[] }).frameTags;
+    if (!Array.isArray(frameTags)) {
+        return;
+    }
+    for (const tag of frameTags) {
+        if (
+            tag &&
+            typeof tag.name === 'string' &&
+            tag.name.length > 0 &&
+            !tag.name.startsWith('inventory:')
+        ) {
+            tag.name = `inventory:${tag.name}`;
+        }
+    }
 }
 
 async function queueCharacterLoads(

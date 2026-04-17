@@ -3,7 +3,21 @@ import { getGameSettings } from './ConfigManager.js';
 import { gameEvents } from './events/EventBus.js';
 import { GameStateManager, normalizeSerializedInventory } from './gameState/GameStateManager.js';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from './gameState/registryKey.js';
-import { createGameConfig } from './gameConfig.js';
+import { getBennePhaserGameConfigBase } from './gameConfig.js';
+import { BootScene } from './scenes/BootScene.js';
+import { RoomScene } from './scenes/RoomScene.js';
+
+/**
+ * Full `Phaser.Types.Core.GameConfig` for the shipped runtime (scenes + shared renderer / scale
+ * settings). Kept here — not in `gameConfig.ts` — so the scene imports stay out of the editor
+ * preview bundles (see the `gameConfig.ts` module comment).
+ */
+function createGameConfig(parent: HTMLElement | string): Phaser.Types.Core.GameConfig {
+  return {
+    ...getBennePhaserGameConfigBase(parent),
+    scene: [BootScene, RoomScene],
+  };
+}
 
 /**
  * Creates the root {@link Phaser.Game} instance (Benne engine entry).

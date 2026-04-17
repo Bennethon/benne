@@ -15,7 +15,58 @@
       flex-direction: column;
     "
   >
-    <div id="benne-polygon-toolbar" style="flex-shrink: 0"></div>
+    <div
+      id="benne-preview-topbar"
+      style="
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        flex-shrink: 0;
+        padding: 6px 10px;
+        border-bottom: 1px solid #2e2e44;
+        background: #222230;
+      "
+    >
+      <div id="benne-polygon-toolbar" style="flex: 1; min-width: 0"></div>
+      <label
+        id="benne-preview-options"
+        title="Show GUIs from src/game/guis in the preview (excludes dialog-text)"
+        style="
+          flex-shrink: 0;
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          color: #c8d0e0;
+          font-size: 12px;
+          font-family: system-ui, sans-serif;
+          margin-top: 3px;
+          cursor: pointer;
+          user-select: none;
+        "
+      >
+        <input type="checkbox" id="benne-show-guis-toggle" style="margin: 0; cursor: pointer" />
+        <span>Show GUIs</span>
+      </label>
+      <button
+        type="button"
+        id="benne-refresh-preview"
+        title="Reload room JSON from disk"
+        style="
+          flex-shrink: 0;
+          margin-top: 1px;
+          background: #3a3a52;
+          color: #e8ecff;
+          border: 1px solid #5a5a70;
+          padding: 4px 12px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 12px;
+          font-family: system-ui, sans-serif;
+        "
+      >
+        Refresh
+      </button>
+    </div>
     <div id="benne-preview-root" style="flex: 1; min-height: 0; width: 100%"></div>
     <script type="module" src="/src/editor/preview/roomEditorMain.ts"></script>
   </body>

@@ -50,6 +50,15 @@ import { getAllGuiData } from '../../game/loadGuiData';
 const DIALOG_TEXT_GUI_ID = 'dialog-text';
 
 /**
+ * Optional `Phaser.Game.registry` key: when set to a boolean, overrides the initial visibility of
+ * every non-`dialog-text` GUI overlay at room load. Used by the BENNE room preview so authors can
+ * toggle HUD GUIs on/off from the preview toolbar without hand-editing `*.gui.json` `visible`
+ * flags. Unset (the default) preserves per-GUI JSON `visible` semantics (`false` hides at load;
+ * omitted/`true` shows).
+ */
+const GENERIC_GUIS_INITIAL_VISIBILITY_REGISTRY_KEY = 'benneRoomSceneGenericGuisVisible';
+
+/**
  * Per-overlay base depth increment so each GUI’s controls (with their own `zIndex`) stay below the next overlay.
  */
 const GUI_OVERLAY_DEPTH_STRIDE = 10_000;
@@ -105,6 +114,24 @@ export class RoomScene extends Phaser.Scene {
    * panel resizes (`Scale.RESIZE` fires a resize event). Null = game runtime (no editor).
    */
   private editorCameraMode: 'navigate' | 'edit' | null = null;
+
+  /**
+   * Dedicated UI camera used **only** in the editor preview (`setEditorCameraMode`). In the
+   * shipped game `cameras.main.zoom` stays at 1 (`Scale.FIT`) so `scrollFactor: 0` overlays
+   * render at their literal `(x, y)`. In the preview the main camera is zoomed (`Scale.RESIZE`
+   * + `cam.setZoom(scale)` to letterbox the game viewport inside the panel), and Phaser 4's
+   * origin-aware zoom math pushes `scrollFactor=0` GUIs by `(origin × (1 − zoom))` — hundreds
+   * of pixels off the viewport at typical editor scales. This camera has `origin=(0, 0)`,
+   * `scroll=(0, 0)`, and matches the main camera's viewport + zoom so GUIs render at
+   * `(x × zoom, y × zoom)` relative to the viewport top-left, exactly as they do in runtime.
+   */
+  private editorUiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
+
+  /** Scene objects that belong to the editor UI camera (all GUI overlay top-level objects). */
+  private readonly editorUiGuiObjects = new Set<Phaser.GameObjects.GameObject>();
+
+  /** Disposer for the `addedtoscene` listener that auto-ignores new non-GUI objects on the UI camera. */
+  private editorUiChildListenerOff: (() => void) | null = null;
 
   private playerMoveTween: Phaser.Tweens.Tween | null = null;
 
@@ -213,12 +240,22 @@ export class RoomScene extends Phaser.Scene {
     const nonDialogGuis = guisSorted.filter((g) => g.id !== DIALOG_TEXT_GUI_ID);
     const dialogGui = guisSorted.find((g) => g.id === DIALOG_TEXT_GUI_ID);
 
+    const genericGuiVisibilityOverride = this.game.registry.get(
+      GENERIC_GUIS_INITIAL_VISIBILITY_REGISTRY_KEY,
+    );
+    const hasGenericGuiVisibilityOverride = typeof genericGuiVisibilityOverride === 'boolean';
+
     this.genericGuiOverlays = [];
     let stackIndex = 0;
     for (const gui of nonDialogGuis) {
       const handle = buildGuiOverlay(this, gui, {
-        /** Default on when `visible` is omitted; only `visible: false` hides at room load. */
-        startVisible: gui.visible !== false,
+        /**
+         * Preview / cutscene override wins; otherwise default on when `visible` is omitted
+         * (only `visible: false` hides at room load).
+         */
+        startVisible: hasGenericGuiVisibilityOverride
+          ? genericGuiVisibilityOverride
+          : gui.visible !== false,
         depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
       });
       if (handle) {
@@ -319,6 +356,10 @@ export class RoomScene extends Phaser.Scene {
       this.scriptedDialogClickToSkip = null;
       this.scale.off('resize', this.onScaleResize, this);
       this.input.off('pointerdown', this.handleRoomPointerDown);
+      this.editorUiChildListenerOff?.();
+      this.editorUiChildListenerOff = null;
+      this.editorUiGuiObjects.clear();
+      this.editorUiCamera = null;
       this.stopPlayerMoveTween(true);
       for (const t of this.npcWalkTweens.values()) {
         t.stop();
@@ -326,6 +367,17 @@ export class RoomScene extends Phaser.Scene {
       this.npcWalkTweens.clear();
       this.debugPathGraphics = null;
     });
+  }
+
+  /**
+   * Shows or hides every non-`dialog-text` GUI overlay registered under `src/game/guis/**`.
+   * Does not affect the `dialog-text` overlay (that remains driven by {@link setDialogTextOverlay} /
+   * `say`). Intended for preview toolbars and future cutscene HUD-hide logic.
+   */
+  setGenericGuisVisible(visible: boolean): void {
+    for (const h of this.genericGuiOverlays) {
+      h.setVisible(visible);
+    }
   }
 
   /**
@@ -715,6 +767,73 @@ export class RoomScene extends Phaser.Scene {
       cam.scrollX = 0;
       cam.scrollY = 0;
     }
+
+    this.ensureEditorUiCamera();
+    this.syncEditorUiCameraToMain();
+  }
+
+  /**
+   * Lazily creates the editor UI camera (see the field doc on {@link editorUiCamera}). Collects
+   * every top-level GUI overlay game object, makes the main camera `ignore` them, and makes the
+   * UI camera `ignore` everything else currently in the scene. An `addedtoscene` listener keeps
+   * the UI camera's ignore list correct as new non-GUI objects are added later (e.g. debug
+   * overlays, props spawned by `spawnPropNow`).
+   */
+  private ensureEditorUiCamera(): void {
+    if (this.editorUiCamera) {
+      return;
+    }
+    const main = this.cameras.main;
+    const uiCam = this.cameras.add(main.x, main.y, main.width, main.height);
+    uiCam.setOrigin(0, 0);
+    uiCam.setScroll(0, 0);
+    uiCam.setBackgroundColor('rgba(0, 0, 0, 0)');
+    uiCam.setName('editor-ui');
+    this.editorUiCamera = uiCam;
+
+    this.editorUiGuiObjects.clear();
+    const registerOverlay = (h: GuiOverlayHandle | null): void => {
+      if (!h) {
+        return;
+      }
+      for (const obj of h.gameObjects) {
+        this.editorUiGuiObjects.add(obj);
+      }
+    };
+    for (const h of this.genericGuiOverlays) {
+      registerOverlay(h);
+    }
+    registerOverlay(this.dialogTextOverlay);
+
+    main.ignore(Array.from(this.editorUiGuiObjects));
+    const nonGui = this.children.list.filter((o) => !this.editorUiGuiObjects.has(o));
+    if (nonGui.length > 0) {
+      uiCam.ignore(nonGui);
+    }
+
+    const onAdded = (obj: Phaser.GameObjects.GameObject): void => {
+      if (this.editorUiGuiObjects.has(obj)) {
+        main.ignore(obj);
+      } else {
+        uiCam.ignore(obj);
+      }
+    };
+    this.events.on(Phaser.Scenes.Events.ADDED_TO_SCENE, onAdded);
+    this.editorUiChildListenerOff = () => {
+      this.events.off(Phaser.Scenes.Events.ADDED_TO_SCENE, onAdded);
+    };
+  }
+
+  /** Keeps the editor UI camera's viewport and zoom aligned with the main camera. */
+  private syncEditorUiCameraToMain(): void {
+    const uiCam = this.editorUiCamera;
+    if (!uiCam) {
+      return;
+    }
+    const main = this.cameras.main;
+    uiCam.setViewport(main.x, main.y, main.width, main.height);
+    uiCam.setZoom(main.zoom);
+    uiCam.setScroll(0, 0);
   }
 
   private readonly handleRoomPointerDown = (pointer: Phaser.Input.Pointer): void => {

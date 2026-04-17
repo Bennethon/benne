@@ -5,6 +5,7 @@ import {
   resolveCharacterFeetLocal,
   type CharacterFeetLocal,
 } from '../../engine/characterFeet';
+import { getBenneRendererConfigFields } from '../../engine/gameConfig';
 import type { CharacterData } from '../../types/character';
 import type { Point2 } from '../../types/room';
 import { PreviewPolygonOverlay } from './previewPolygonOverlay';
@@ -136,19 +137,19 @@ export type CharacterPreviewGamePayload = {
   revokeObjectUrls: string[];
 };
 
+/**
+ * Renderer fields come from the shared helper so the character preview matches the shipped game
+ * and the other previews (see `.cursor/rules/benne-preview-rendering-parity.mdc`). Only the scale
+ * mode intentionally differs — `Scale.RESIZE` lets the canvas fill the webview panel instead of
+ * the runtime's integer-zoom `Scale.FIT`.
+ */
 function editorGameConfig(parent: HTMLElement): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
   return {
-    type: Phaser.WEBGL,
+    ...getBenneRendererConfigFields(),
     parent,
-    backgroundColor: '#1a1a2e',
-    pixelArt: true,
-    antialias: false,
     scale: {
       parent,
       mode: Phaser.Scale.RESIZE,
-    },
-    render: {
-      powerPreference: 'high-performance',
     },
   };
 }

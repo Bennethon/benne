@@ -1,11 +1,28 @@
 import type { Game } from 'phaser';
+import type { RoomScene } from '../../engine/scenes/RoomScene';
 import type { RoomData } from '../../types/room';
+import { SCENE_ROOM } from '../../game/constants';
 import { buildPreviewManifest } from './buildPreviewManifest';
 import { createRoomPreviewPhaserGame } from './createRoomPreviewGame';
+import { guiVisibilityBridge } from './guiVisibilityBridge';
 import { polygonEditBridge } from './polygonEditBridge';
 import type { RoomPolygonPatch } from './polygonPatchTypes';
+import { registerInventoryDefinitionsFromGame } from '../../game/registerInventoryDefinitions';
 
-declare function acquireVsCodeApi(): { postMessage(data: unknown): void };
+// Mirror the GUI preview bundle: populate the engine's inventory registry so the room preview can
+// queue `inventoryPanel` Aseprite sheets and honour `stackable` semantics for any Bennescript code
+// that happens to run during preview.
+registerInventoryDefinitionsFromGame();
+
+declare function acquireVsCodeApi(): {
+    postMessage(data: unknown): void;
+    getState<T = unknown>(): T | undefined;
+    setState<T = unknown>(state: T): void;
+};
+
+type PreviewWebviewState = {
+    showGuis?: boolean;
+};
 
 const MIN_POLY_POINTS = 3;
 
@@ -113,6 +130,62 @@ try {
     vscodeApi = acquireVsCodeApi();
 } catch {
     /* not inside a VS Code webview */
+}
+
+/**
+ * Rehydrate the "Show GUIs" toggle from webview state (`vscode.getState()`) on first load. Default
+ * off: polygon / walkable authoring usually wants a clean view, and authors opt in per the confirmed
+ * UX (`docs/architecture.md` room preview spec).
+ */
+(function loadPersistedGuiVisibility(): void {
+    try {
+        const s = vscodeApi?.getState<PreviewWebviewState>();
+        if (s && typeof s.showGuis === 'boolean') {
+            guiVisibilityBridge.setVisible(s.showGuis);
+        }
+    } catch {
+        /* ignore — first ever load or unavailable state */
+    }
+})();
+
+function persistWebviewState(): void {
+    try {
+        vscodeApi?.setState<PreviewWebviewState>({ showGuis: guiVisibilityBridge.visible });
+    } catch {
+        /* ignore */
+    }
+}
+
+function wireShowGuisToggle(): void {
+    const input = document.getElementById('benne-show-guis-toggle') as HTMLInputElement | null;
+    if (!input || input.dataset.benneShowGuisWired === '1') {
+        return;
+    }
+    input.dataset.benneShowGuisWired = '1';
+    input.checked = guiVisibilityBridge.visible;
+    input.addEventListener('change', () => {
+        const next = !!input.checked;
+        guiVisibilityBridge.setVisible(next);
+        persistWebviewState();
+        applyGuiVisibilityToRunningScene(next);
+    });
+    // Keep the checkbox in sync when other code flips the bridge (e.g. future programmatic toggles).
+    guiVisibilityBridge.subscribe((visible) => {
+        if (input.checked !== visible) {
+            input.checked = visible;
+        }
+    });
+}
+
+function applyGuiVisibilityToRunningScene(visible: boolean): void {
+    if (!game) {
+        return;
+    }
+    const scene = game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
+    if (!scene || !scene.scene.isActive()) {
+        return;
+    }
+    scene.setGenericGuisVisible(visible);
 }
 
 function setStatus(text: string): void {
@@ -709,6 +782,7 @@ async function runLoadRoom(msg: HostPreviewMessage): Promise<void> {
         game = createRoomPreviewPhaserGame(phaserMount, manifest, {
             roomJsonUri: currentRoomJsonUri,
             onPolygonPatch,
+            initialShowGuis: guiVisibilityBridge.visible,
         });
         vscodeApi?.postMessage({ type: 'benne/preview/roomLoadComplete', roomJsonUri: currentRoomJsonUri });
     } catch (e) {
@@ -780,4 +854,5 @@ function wireRefreshPreviewButton(): void {
 }
 
 wireRefreshPreviewButton();
+wireShowGuisToggle();
 vscodeApi?.postMessage({ type: 'benne/preview/ready' });

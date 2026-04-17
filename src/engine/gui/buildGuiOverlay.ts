@@ -49,6 +49,15 @@ export interface GuiOverlayHandle {
   setVisible(visible: boolean): void;
   /** Extra horizontal gap between glyphs (Phaser `BitmapText` letter spacing). */
   setLetterSpacing(spacing: number): void;
+  /**
+   * Top-level scene game objects composing this overlay (`BitmapText` lines, inventory-panel
+   * `Container`s, extra `Sprite`s). Container children are **not** included — Phaser renders them
+   * through their parent, and camera `ignore()` follows the same rule. Used by `RoomScene` to route
+   * these objects through a dedicated UI camera with `origin=(0,0)` in the editor preview so
+   * `scrollFactor=0` placement survives non-unit camera zoom (Phaser 4's origin-aware zoom math
+   * otherwise pushes screen-fixed overlays far off the viewport when `camera.zoom ≠ 1`).
+   */
+  readonly gameObjects: readonly Phaser.GameObjects.GameObject[];
   destroy(): void;
 }
 
@@ -257,7 +266,7 @@ function addGuiImageSprite(
   sprite.setVisible(false);
   sprite.setScrollFactor(0, 0);
   sprite.setDepth(depth + (c.zIndex ?? 0));
-  const vis = c.visible ?? gui.visible ?? startVisible;
+  const vis = startVisible && c.visible !== false;
   if (!tryApplyGuiSheetTag(scene, sprite, guiTextureKey, tag)) {
     sprite.destroy();
     return;
@@ -315,7 +324,7 @@ function buildInventoryPanel(
   panel.setScrollFactor(0, 0);
   panel.setDepth(depth + (c.zIndex ?? 0));
 
-  const panelVisible = c.visible ?? gui.visible ?? startVisible;
+  const panelVisible = startVisible && c.visible !== false;
   panel.setVisible(panelVisible);
 
   const spacingX = c.spacingX ?? 0;
@@ -520,7 +529,7 @@ export function buildGuiOverlay(
     }
     const raw = c.text?.trim() ?? '';
     const initial = raw.length > 0 ? (c.text ?? '') : (placeholder ?? '');
-    const lineVisible = c.visible ?? gui.visible ?? startVisible;
+    const lineVisible = startVisible && c.visible !== false;
     const line = addGuiBitmapLine(scene, c, initial, depth + (c.zIndex ?? 0), lineVisible);
     if (!line) {
       continue;
@@ -572,6 +581,7 @@ export function buildGuiOverlay(
         line.setLetterSpacing(spacing);
       }
     },
+    gameObjects: [...allLines, ...inventoryPanels, ...extraSprites],
     destroy() {
       for (const line of allLines) {
         line.destroy();
