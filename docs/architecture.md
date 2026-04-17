@@ -118,7 +118,7 @@ worldY = parallaxDepth * baseY + (1 − parallaxDepth) * camera.worldView.y
 
 ### Input system
 
-- **Walk**: **Left click** on empty space (no hit-test targets) moves the **player** character toward the click, **clamped** into **walkable regions** (`walkable.ts` — each **`WalkablePolygon`** is an outer ring minus optional **active** hole rings; union across polygons; point-in-polygon + closest-point clamping toward the click).
+- **Walk**: **Left click** on empty space (no hit-test targets) moves the **player** character toward the click. Clicks outside the mesh are **clamped** into **walkable regions** (`walkable.ts` — each **`WalkablePolygon`** is an outer ring minus optional **active** hole rings; union across polygons; point-in-polygon + closest-point clamping). Characters then **pathfind** around holes and concave parts of the mesh via `src/engine/pathfinding.ts` (see **Pathfinding** below).
 - **Props**: **Polygon hit area** per clickable prop; **pointerdown** runs **verb dispatch** immediately (no engine walk/face). Walk and facing toward an object are implemented in **`*.room.ts`** if desired (optional **`walkToPoint`** / **`lookAtPoint`** on the prop are hints for scripts, not used by the engine on click). Default **`inputProfile`**: **primary (left)** → **`look`**, **secondary (right)** → **`use`**. Requires a **collider** when **`clickable`**.
 - **Characters / hotspots**: **`pointerdown`** uses the same two-button **verb resolution**; no walk-to-stand for these targets yet (dispatch is immediate). **Hotspots** use closed **`points`** polygons (at least three vertices); **`onVerb`** / **`onVerbFallback`** define reactions. **Clickable characters** use a **polygon hit area** when **`CharacterData.collider.points`** has at least three vertices (coordinates in **sprite frame space**, origin top-left of the cel, consistent with **`feet`**); otherwise the **full sprite rectangle** is interactive.
 - **Context menu** disabled on mouse in `RoomScene`.
@@ -229,7 +229,7 @@ registerGameContent (*.room.ts, *.character.ts, *.gui.ts, *.inventory.ts, global
 | **JSON string event ids** | Editable in data; matches classic adventure “verb” naming. | Typos fail at runtime; editor/tooling (e.g. VS Code extension) helps. |
 | **Central verb dispatch** | One precedence chain (object → global → unhandled) and one place for future 9-verb / coin UIs to plug in. | Handlers must register **`verb:global:*`** if they rely on global overrides; listener counts drive whether the global tier runs. |
 | **Vite glob for assets** | Correct hashed URLs and tree-shaking. | **Editor preview** must use a **separate fetch/Webview path** (`src/editor/preview/`) — two loading strategies. |
-| **Walkable polygons in JSON** | Designer-controlled navmesh. | No auto navmesh; bad polygons break movement visually (mitigated by debug draw). |
+| **Walkable polygons in JSON + visibility-graph pathfinding** | Designer-controlled navmesh; shortest-path routing around holes and concavities via reflex-vertex visibility graph + A\* (classical approach for polygons with holes; matches LucasArts feel). | No auto navmesh; bad polygons break movement visually (mitigated by debug draw of mesh + live path polyline). O(N²) visibility build per walk query — fine for hand-authored rooms, would need caching / triangulation for very large meshes. |
 | **Aseprite tags = props / anims** | Single sheet per room/character, industry-standard tool. | Untagged cels are invisible to the engine; tag discipline required. |
 
 ---
@@ -459,8 +459,28 @@ A full **Refresh** or **`loadRoom`** **destroys** the previous **`Phaser.Game`**
 
 ### Runtime walk mesh (engine)
 
-- **`src/engine/walkable.ts`**: **`isPointInWalkablePolygon`** — inside **active** outer, not inside any **active** hole; **`isPointInWalkableArea`** unions polygons; **`clampWalkDestinationTowardClick`** uses holed closest-point logic.
-- **`RoomScene`** debug **`showWalkable`**: strokes **active** outers and **active** hole rings (distinct colors).
+- **`src/engine/walkable.ts`**: **`isPointInWalkablePolygon`** — inside **active** outer, not inside any **active** hole; **`isPointInWalkableArea`** unions polygons; **`clampWalkDestinationTowardClick`** uses holed closest-point logic (used as the goal-clamping step inside pathfinding, and as the fallback when no path is reachable).
+- **`RoomScene`** debug **`showWalkable`**: strokes **active** outers and **active** hole rings (distinct colors), and draws the **live player pathfinding polyline** in cyan with small square handles at each waypoint (updated per frame from `currentPlayerPath` while a walk is active).
+
+### Pathfinding (engine)
+
+- **`src/engine/pathfinding.ts`** — `findWalkPath(start, goal, polygons) -> Point2[]` returns an ordered polyline of waypoints (goal last) routing the character around **holes** and **concave** parts of the walkable union. Used by both the player and NPCs.
+- **Algorithm**: classical **reduced visibility graph + A\***, the canonical shortest-path approach for *simple polygons with holes* and what most modern 2D adventure engines use under the hood (Adventure Creator, Wintermute-family, PowerQuest polygon mode). Result is the **exact Euclidean shortest path** — a polyline that bends only at polygon corners, giving the classic LucasArts "walk around the obstacle" look.
+- **Graph nodes**:
+  - **Reflex** outer-ring vertices of each **active** polygon (convex outer corners are never on a shortest path and are omitted).
+  - **All** vertices of each **active** hole ring (holes poke into the walkable region, so every hole vertex is reflex as seen from the walk side).
+  - Each node is offset **~1 px inward along the interior angle bisector** so waypoints sit just inside the mesh rather than exactly on the boundary pixel. This both matches the classic LucasArts corner-radius feel and keeps segment-midpoint-in-walkable tests numerically robust at vertices.
+- **Edges**: two points are connected iff the straight segment between them lies entirely inside the walkable region. Tested by (1) sampling the segment at t = 0.25 / 0.5 / 0.75 and checking each is in the walkable union, plus (2) a proper-crossing test against every ring edge (outer + active hole) that ignores shared-endpoint touches and collinear overlap.
+- **Start / goal**:
+  - Goal is first clamped to the walkable union (reuses `clampWalkDestinationTowardClick`).
+  - If the **start** point is outside the walkable region (spawn / cutscene placement off the mesh), pathfinding is skipped and a **direct line** to the clamped goal is returned — preserves the pre-pathfinding behavior where off-mesh characters glide to the floor.
+  - If start and goal are in **disconnected components** of the walkable union, A\* returns no path and the engine falls back to a direct line to the clamped goal.
+  - If the straight segment from start to clamped goal is already inside the mesh, `findWalkPath` short-circuits to `[goal]` without running A\* (common case: clicking nearby open floor).
+- **Complexity**: O((N+2)²) visibility edges per query, where N is the number of candidate nodes (typically tens for hand-authored rooms). Each visibility test is O(E) across all ring edges. Cheap in practice; invoked once per walk command (click-to-walk, `B.player.walkTo(…)`, or `B.character(id).walkTo(…)`), not per frame. No cross-query caching yet — future work if rooms ever grow to hundreds of vertices.
+- **Integration in `RoomScene`**:
+  - `walkPlayerToWorldPoint` / `walkCharacterToWorldPoint` (and the empty-space click handler) call `findWalkPath` and then chain **one Phaser tween per path leg** via `beginPlayerWalkLeg` / `beginNpcWalkLeg`. Facing is recomputed per leg with `facingFromWorldDelta` so the sprite turns into each new direction (`Walk` base animation swaps accordingly); `Idle` plays on final leg completion.
+  - `PLAYER_WALK_START` fires **once** with the final clamped target; `PLAYER_WALK_STOP` fires **once** on `complete` (final leg) or `interrupted` (new walk pre-empts the chain, scene shuts down, etc.). Leg boundaries themselves do not emit events.
+  - `stopPlayerMoveTween(emitStop)` cancels the current leg and clears `currentPlayerPath`; in-flight `onComplete` guards against advancing a superseded chain by comparing tween identity with `playerMoveTween`.
 
 
 ---

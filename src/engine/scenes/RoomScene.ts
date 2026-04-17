@@ -24,7 +24,8 @@ import {
   placeSpriteByFeet,
   resolveCharacterFeetLocal,
 } from '../characterFeet';
-import { clampWalkDestinationTowardClick, pointInPolygon } from '../walkable';
+import { pointInPolygon } from '../walkable';
+import { findWalkPath } from '../pathfinding';
 import { dispatchVerbInteraction } from '../verbs/dispatchVerb';
 import {
   getCharacterVerbHandlers,
@@ -80,6 +81,8 @@ const DEBUG_WALKABLE_STROKE = 0x33dd66;
 const DEBUG_WALKABLE_HOLE_STROKE = 0x229955;
 /** Outline color for `debug.showPropOutlines` (magenta). */
 const DEBUG_PROP_COLLIDER_STROKE = 0xff44cc;
+/** Live pathfinding polyline overlay color (cyan). */
+const DEBUG_WALK_PATH_STROKE = 0x33ccff;
 
 function mergeRoomPropAnimationClips(spawns: readonly RoomPropSpawn[]): CharacterAnimationsConfig {
   const out: CharacterAnimationsConfig = {};
@@ -104,6 +107,16 @@ export class RoomScene extends Phaser.Scene {
   private editorCameraMode: 'navigate' | 'edit' | null = null;
 
   private playerMoveTween: Phaser.Tweens.Tween | null = null;
+
+  /**
+   * Current player pathfinding polyline (waypoints, goal last). Set when a walk begins,
+   * cleared on arrival or interruption. Rendered by {@link drawRoomDebugOverlays} when
+   * `debug.showWalkable` is on so authors can see the chosen route around obstacles.
+   */
+  private currentPlayerPath: Point2[] | null = null;
+
+  /** Debug graphics for the live player path (re-drawn each frame while walking). */
+  private debugPathGraphics: Phaser.GameObjects.Graphics | null = null;
 
   /** Fired once when a walk tween completes successfully (instant walks may call it without a tween). */
   private walkArriveCallback: (() => void) | null = null;
@@ -162,6 +175,8 @@ export class RoomScene extends Phaser.Scene {
     this.roomData = data.room;
     this.player = null;
     this.playerMoveTween = null;
+    this.currentPlayerPath = null;
+    this.debugPathGraphics = null;
     this.parallaxProps = [];
     this.propSpritesById.clear();
     this.propDescriptionOverrides.clear();
@@ -309,6 +324,7 @@ export class RoomScene extends Phaser.Scene {
         t.stop();
       }
       this.npcWalkTweens.clear();
+      this.debugPathGraphics = null;
     });
   }
 
@@ -461,27 +477,17 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Walk the player’s feet to a clamped point in walkable space. Resolves when the tween completes
-   * or immediately if there is no player / no valid destination / already at target.
+   * Walk the player’s feet to a point in walkable space, routing around holes and concavities.
+   * The path is computed in {@link findWalkPath} (visibility graph + A\*). Resolves when the
+   * final leg completes, or immediately if there is no player / no usable geometry / the player
+   * is already at the target.
    */
   walkPlayerToWorldPoint(worldX: number, worldY: number): Promise<void> {
-    const sprite = this.player;
-    if (!sprite) {
-      return Promise.resolve();
-    }
-    const feet = getCharacterWorldFeet(sprite);
-    const dest = clampWalkDestinationTowardClick(
-      feet.x,
-      feet.y,
-      worldX,
-      worldY,
-      this.roomData.walkable.polygons,
-    );
-    if (!dest) {
+    if (!this.player) {
       return Promise.resolve();
     }
     return new Promise((resolve) => {
-      this.movePlayerToward(dest.x, dest.y, resolve);
+      this.movePlayerToward(worldX, worldY, resolve);
     });
   }
 
@@ -516,19 +522,8 @@ export class RoomScene extends Phaser.Scene {
     worldX: number,
     worldY: number,
   ): Promise<void> {
-    const feet = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
-    const dest = clampWalkDestinationTowardClick(
-      feet.x,
-      feet.y,
-      worldX,
-      worldY,
-      this.roomData.walkable.polygons,
-    );
-    if (!dest) {
-      return Promise.resolve();
-    }
     return new Promise((resolve) => {
-      this.moveNpcToward(sprite, dest.x, dest.y, resolve);
+      this.moveNpcToward(sprite, worldX, worldY, resolve);
     });
   }
 
@@ -625,6 +620,7 @@ export class RoomScene extends Phaser.Scene {
 
   update(): void {
     this.updateParallaxProps();
+    this.updatePathDebug();
   }
 
   /**
@@ -742,20 +738,7 @@ export class RoomScene extends Phaser.Scene {
     }
 
     const { x: worldX, y: worldY } = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-
-    const feet = getCharacterWorldFeet(this.player);
-    const dest = clampWalkDestinationTowardClick(
-      feet.x,
-      feet.y,
-      worldX,
-      worldY,
-      this.roomData.walkable.polygons,
-    );
-    if (!dest) {
-      return;
-    }
-
-    this.movePlayerToward(dest.x, dest.y);
+    this.movePlayerToward(worldX, worldY);
   };
 
   /**
@@ -764,6 +747,7 @@ export class RoomScene extends Phaser.Scene {
    */
   private stopPlayerMoveTween(emitStop: boolean): void {
     this.walkArriveCallback = null;
+    this.currentPlayerPath = null;
     if (!this.playerMoveTween) {
       return;
     }
@@ -780,6 +764,12 @@ export class RoomScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Start a pathfound walk for the player toward a raw world point (not pre-clamped). Emits
+   * {@link PLAYER_WALK_START} once for the final target, then chains one tween per leg of the
+   * polyline returned by {@link findWalkPath}, updating directional animation between legs.
+   * Fires {@link PLAYER_WALK_STOP} exactly once when the walk finishes or is interrupted.
+   */
   private movePlayerToward(destX: number, destY: number, onArrive?: () => void): void {
     const sprite = this.player;
     if (!sprite) {
@@ -787,27 +777,21 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
 
-    const walkSpeed = sprite.getData('walkSpeed') as number | undefined;
-    const speed = typeof walkSpeed === 'number' && walkSpeed > 0 ? walkSpeed : 88;
+    const feetNow = getCharacterWorldFeet(sprite);
+    const path = findWalkPath(
+      feetNow,
+      { x: destX, y: destY },
+      this.roomData.walkable.polygons,
+    );
 
-    let lx = sprite.getData('feetLocalX') as number | undefined;
-    let ly = sprite.getData('feetLocalY') as number | undefined;
-    if (typeof lx !== 'number' || typeof ly !== 'number') {
-      const data = sprite.getData('character') as CharacterData | undefined;
-      const resolved = data
-        ? resolveCharacterFeetLocal(data, sprite)
-        : { x: sprite.frame.width * 0.5, y: sprite.frame.height };
-      lx = resolved.x;
-      ly = resolved.y;
-      sprite.setData('feetLocalX', lx);
-      sprite.setData('feetLocalY', ly);
+    if (path.length === 0) {
+      onArrive?.();
+      return;
     }
 
-    const feetNow = getCharacterWorldFeet(sprite);
-    const dx = destX - feetNow.x;
-    const dy = destY - feetNow.y;
-    const distance = Math.hypot(dx, dy);
-    if (distance < MIN_WALK_DISTANCE_PX) {
+    const final = path[path.length - 1]!;
+    const totalDist = Math.hypot(final.x - feetNow.x, final.y - feetNow.y);
+    if (totalDist < MIN_WALK_DISTANCE_PX) {
       onArrive?.();
       return;
     }
@@ -821,26 +805,88 @@ export class RoomScene extends Phaser.Scene {
     this.stopPlayerMoveTween(false);
 
     this.walkArriveCallback = onArrive ?? null;
+    this.currentPlayerPath = path;
+
+    gameEvents.emit(PLAYER_WALK_START, {
+      roomId: this.roomData.id,
+      targetX: final.x,
+      targetY: final.y,
+    } satisfies PlayerWalkStartPayload);
+
+    this.beginPlayerWalkLeg(sprite, path, 0);
+  }
+
+  /** Get (and memoize on the sprite) the feet offset in local sprite coordinates. */
+  private getSpriteFeetLocal(
+    sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+  ): { x: number; y: number } {
+    let lx = sprite.getData('feetLocalX') as number | undefined;
+    let ly = sprite.getData('feetLocalY') as number | undefined;
+    if (typeof lx === 'number' && typeof ly === 'number') {
+      return { x: lx, y: ly };
+    }
+    const data = sprite.getData('character') as CharacterData | undefined;
+    const resolved = data
+      ? resolveCharacterFeetLocal(data, sprite as Phaser.GameObjects.Sprite)
+      : {
+          x: (sprite as Phaser.GameObjects.Sprite).frame.width * 0.5,
+          y: (sprite as Phaser.GameObjects.Sprite).frame.height,
+        };
+    lx = resolved.x;
+    ly = resolved.y;
+    sprite.setData('feetLocalX', lx);
+    sprite.setData('feetLocalY', ly);
+    return { x: lx, y: ly };
+  }
+
+  private beginPlayerWalkLeg(
+    sprite: DirectionalCharacterSprite,
+    path: readonly Point2[],
+    legIndex: number,
+  ): void {
+    const walkSpeed = sprite.getData('walkSpeed') as number | undefined;
+    const speed = typeof walkSpeed === 'number' && walkSpeed > 0 ? walkSpeed : 88;
+    const { x: lx, y: ly } = this.getSpriteFeetLocal(sprite);
+
+    const feetNow = getCharacterWorldFeet(sprite);
+    const leg = path[legIndex]!;
+    const dx = leg.x - feetNow.x;
+    const dy = leg.y - feetNow.y;
+    const distance = Math.hypot(dx, dy);
+
+    // Skip zero-length legs (can occur if the path planner emits a waypoint right next to the
+    // character, e.g. start already at a corner). Move to the next leg or finish.
+    if (distance < 0.5) {
+      if (legIndex + 1 < path.length) {
+        this.beginPlayerWalkLeg(sprite, path, legIndex + 1);
+        return;
+      }
+      this.finishPlayerWalk(sprite, facingFromWorldDelta(dx, dy));
+      return;
+    }
 
     const facing = facingFromWorldDelta(dx, dy);
     playDirectionalAnimation(sprite, 'Walk', facing);
 
     const durationMs = Math.max(1, Math.round((distance / speed) * 1000));
 
-    gameEvents.emit(PLAYER_WALK_START, {
-      roomId: this.roomData.id,
-      targetX: destX,
-      targetY: destY,
-    } satisfies PlayerWalkStartPayload);
-
     const moveTween = this.tweens.add({
       targets: sprite,
-      x: destX - lx,
-      y: destY - ly,
+      x: leg.x - lx,
+      y: leg.y - ly,
       duration: durationMs,
       ease: 'Linear',
       onComplete: () => {
-        this.onPlayerWalkTweenComplete(moveTween, facing);
+        // Leg was superseded (e.g. stopPlayerMoveTween nulled playerMoveTween) — do nothing.
+        if (this.playerMoveTween !== moveTween) {
+          return;
+        }
+        this.playerMoveTween = null;
+        if (legIndex + 1 < path.length) {
+          this.beginPlayerWalkLeg(sprite, path, legIndex + 1);
+        } else {
+          this.finishPlayerWalk(sprite, facing);
+        }
       },
       onStop: () => {
         this.onPlayerWalkTweenStopped(moveTween);
@@ -850,36 +896,44 @@ export class RoomScene extends Phaser.Scene {
     this.playerMoveTween = moveTween;
   }
 
+  private finishPlayerWalk(sprite: DirectionalCharacterSprite, facing: CharacterFacing): void {
+    this.currentPlayerPath = null;
+    playDirectionalAnimation(sprite, 'Idle', facing);
+    gameEvents.emit(PLAYER_WALK_STOP, {
+      roomId: this.roomData.id,
+      reason: 'complete',
+    } satisfies PlayerWalkStopPayload);
+    const arrive = this.walkArriveCallback;
+    this.walkArriveCallback = null;
+    arrive?.();
+  }
+
+  /**
+   * Start a pathfound walk for a non-player character toward a raw world point (not pre-clamped).
+   * Mirrors {@link movePlayerToward} but does not emit `PLAYER_WALK_*` events (those are
+   * player-specific) and tracks its active tween in {@link npcWalkTweens} keyed by sprite.
+   */
   private moveNpcToward(
     sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
     destX: number,
     destY: number,
     onArrive?: () => void,
   ): void {
-    const walkSpeed = sprite.getData('walkSpeed') as number | undefined;
-    const speed = typeof walkSpeed === 'number' && walkSpeed > 0 ? walkSpeed : 88;
+    const feetNow = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
+    const path = findWalkPath(
+      feetNow,
+      { x: destX, y: destY },
+      this.roomData.walkable.polygons,
+    );
 
-    let lx = sprite.getData('feetLocalX') as number | undefined;
-    let ly = sprite.getData('feetLocalY') as number | undefined;
-    if (typeof lx !== 'number' || typeof ly !== 'number') {
-      const data = sprite.getData('character') as CharacterData | undefined;
-      const resolved = data
-        ? resolveCharacterFeetLocal(data, sprite as Phaser.GameObjects.Sprite)
-        : {
-            x: (sprite as Phaser.GameObjects.Sprite).frame.width * 0.5,
-            y: (sprite as Phaser.GameObjects.Sprite).frame.height,
-          };
-      lx = resolved.x;
-      ly = resolved.y;
-      sprite.setData('feetLocalX', lx);
-      sprite.setData('feetLocalY', ly);
+    if (path.length === 0) {
+      onArrive?.();
+      return;
     }
 
-    const feetNow = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
-    const dx = destX - feetNow.x;
-    const dy = destY - feetNow.y;
-    const distance = Math.hypot(dx, dy);
-    if (distance < MIN_WALK_DISTANCE_PX) {
+    const final = path[path.length - 1]!;
+    const totalDist = Math.hypot(final.x - feetNow.x, final.y - feetNow.y);
+    if (totalDist < MIN_WALK_DISTANCE_PX) {
       onArrive?.();
       return;
     }
@@ -888,6 +942,38 @@ export class RoomScene extends Phaser.Scene {
     if (prev) {
       prev.stop();
       this.npcWalkTweens.delete(sprite);
+    }
+
+    this.beginNpcWalkLeg(sprite, path, 0, onArrive);
+  }
+
+  private beginNpcWalkLeg(
+    sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+    path: readonly Point2[],
+    legIndex: number,
+    onArrive?: () => void,
+  ): void {
+    const walkSpeed = sprite.getData('walkSpeed') as number | undefined;
+    const speed = typeof walkSpeed === 'number' && walkSpeed > 0 ? walkSpeed : 88;
+    const { x: lx, y: ly } = this.getSpriteFeetLocal(sprite);
+
+    const feetNow = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
+    const leg = path[legIndex]!;
+    const dx = leg.x - feetNow.x;
+    const dy = leg.y - feetNow.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance < 0.5) {
+      if (legIndex + 1 < path.length) {
+        this.beginNpcWalkLeg(sprite, path, legIndex + 1, onArrive);
+        return;
+      }
+      const facing = facingFromWorldDelta(dx, dy);
+      if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
+        playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Idle', facing);
+      }
+      onArrive?.();
+      return;
     }
 
     const facing = facingFromWorldDelta(dx, dy);
@@ -899,22 +985,28 @@ export class RoomScene extends Phaser.Scene {
 
     const moveTween = this.tweens.add({
       targets: sprite,
-      x: destX - lx!,
-      y: destY - ly!,
+      x: leg.x - lx,
+      y: leg.y - ly,
       duration: durationMs,
       ease: 'Linear',
       onComplete: () => {
+        if (this.npcWalkTweens.get(sprite) !== moveTween) {
+          return;
+        }
         this.npcWalkTweens.delete(sprite);
+        if (legIndex + 1 < path.length) {
+          this.beginNpcWalkLeg(sprite, path, legIndex + 1, onArrive);
+          return;
+        }
         if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
-          playDirectionalAnimation(
-            sprite as DirectionalCharacterSprite,
-            'Idle',
-            facing,
-          );
+          playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Idle', facing);
         }
         onArrive?.();
       },
       onStop: () => {
+        if (this.npcWalkTweens.get(sprite) !== moveTween) {
+          return;
+        }
         this.npcWalkTweens.delete(sprite);
         if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
           const idleFacing =
@@ -928,28 +1020,12 @@ export class RoomScene extends Phaser.Scene {
     this.npcWalkTweens.set(sprite, moveTween);
   }
 
-  private onPlayerWalkTweenComplete(tween: Phaser.Tweens.Tween, facing: CharacterFacing): void {
-    if (this.playerMoveTween !== tween) {
-      return;
-    }
-    this.playerMoveTween = null;
-    if (this.player) {
-      playDirectionalAnimation(this.player, 'Idle', facing);
-    }
-    gameEvents.emit(PLAYER_WALK_STOP, {
-      roomId: this.roomData.id,
-      reason: 'complete',
-    } satisfies PlayerWalkStopPayload);
-    const arrive = this.walkArriveCallback;
-    this.walkArriveCallback = null;
-    arrive?.();
-  }
-
   private onPlayerWalkTweenStopped(tween: Phaser.Tweens.Tween): void {
     if (this.playerMoveTween !== tween) {
       return;
     }
     this.playerMoveTween = null;
+    this.currentPlayerPath = null;
     if (this.player) {
       const facing =
         (this.player.getData('facing') as CharacterFacing | undefined) ?? resolveInitialIdleFacing(this.player);
@@ -1004,6 +1080,41 @@ export class RoomScene extends Phaser.Scene {
         g.strokePoints(vecs, true);
       }
       g.setDepth(DEBUG_OVERLAY_DEPTH + 1);
+    }
+
+    if (debug.showWalkable) {
+      // Shared Graphics reused every frame by updatePathDebug() — authoring-time visual feedback
+      // for the pathfinding route around holes / concavities.
+      this.debugPathGraphics = this.add.graphics();
+      this.debugPathGraphics.setDepth(DEBUG_OVERLAY_DEPTH + 2);
+    }
+  }
+
+  /**
+   * Redraws the live player path polyline when `debug.showWalkable` is enabled. Cleared when
+   * no walk is active. Called once per frame from {@link update}.
+   */
+  private updatePathDebug(): void {
+    const g = this.debugPathGraphics;
+    if (!g) {
+      return;
+    }
+    g.clear();
+    const path = this.currentPlayerPath;
+    if (!path || path.length === 0 || !this.player) {
+      return;
+    }
+    const feet = getCharacterWorldFeet(this.player);
+    g.lineStyle(1, DEBUG_WALK_PATH_STROKE, 1);
+    g.beginPath();
+    g.moveTo(feet.x, feet.y);
+    for (const p of path) {
+      g.lineTo(p.x, p.y);
+    }
+    g.strokePath();
+    g.fillStyle(DEBUG_WALK_PATH_STROKE, 1);
+    for (const p of path) {
+      g.fillRect(p.x - 1, p.y - 1, 3, 3);
     }
   }
 
