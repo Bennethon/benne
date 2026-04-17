@@ -11,5 +11,5 @@ import { registerRoomScript } from '@engine/scripting';
  * - `B.character('…')`: `CharacterData.id` for a character in this room.
  * - `walkTo('…')`: unified target — prop id → hotspot id → character id → `points[].id`, or `{ x, y }` in room pixels.
  */
-registerRoomScript(({ B }) => {
+registerRoomScript(({ B: _B }) => {
 });

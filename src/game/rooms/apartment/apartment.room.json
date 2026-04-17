@@ -2,14 +2,14 @@
   "id": "apartment",
   "name": "Apartment",
   "size": {
-    "width": 352,
-    "height": 198
+    "width": 320,
+    "height": 180
   },
   "scrollBounds": {
     "x": 0,
     "y": 0,
-    "width": 352,
-    "height": 198
+    "width": 320,
+    "height": 180
   },
   "walkable": {
     "polygons": [
