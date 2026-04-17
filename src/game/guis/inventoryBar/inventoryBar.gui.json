@@ -1,25 +1,25 @@
 {
-  "id": "inventory-2",
-  "name": "Inventory 2",
-  "description": "Second inventory panel displayed on screen",
+  "id": "inventoryBar",
+  "name": "Inventory Bar",
+  "description": "Main inventory bar displayed on screen",
   "visible": true,
   "display": {
-    "aseprite": false
+    "aseprite": true
   },
   "controls": [
     {
       "type": "inventoryPanel",
       "id": "mainInv",
       "x": 50,
-      "y": 20,
+      "y": 120,
       "zIndex": 100,
       "visible": true,
       "rows": 2,
-      "cols": 4,
+      "cols": 5,
       "slotWidth": 32,
       "slotHeight": 32,
-      "spacingX": 0,
-      "spacingY": 0,
+      "spacingX": 4,
+      "spacingY": 4,
       "itemScale": 1.0,
       "showEmptySlots": true,
       "backgroundTag": "",

@@ -4,6 +4,7 @@ import { getAsepriteAssetPaths, getAsepriteTextureKey, usesAsepriteDisplay } fro
 import {
   getAsepriteFrameTagNames,
   getNormalizedAsepriteAtlasData,
+  getNormalizedGuiAsepriteAtlasData,
   getNormalizedInventoryAsepriteAtlasData,
   getNormalizedRoomAsepriteAtlasData,
   getNormalizedSharedInventoryAsepriteAtlasData,
@@ -23,6 +24,12 @@ import { getRoomAsepriteAssetPaths, getRoomAsepriteTextureKey } from '../../game
 import { SCENE_BOOT, SCENE_ROOM } from '../../game/constants';
 import { loadCharacterData } from '../../game/loadCharacterData';
 import { loadStartRoomData } from '../../game/loadStartRoom';
+import {
+  getAsepriteAssetPaths as getGuiAsepriteAssetPaths,
+  getAsepriteTextureKey as getGuiAsepriteTextureKey,
+  usesAsepriteDisplay as usesGuiAsepriteDisplay,
+} from '../../game/guiAseprite';
+import { getAllGuiData } from '../../game/loadGuiData';
 import { queueGuiFontsForBootLoader } from '../../game/queueGuiFontsForBootLoader';
 import { resolveGameAssetUrl } from '../../game/resolveGameAssetUrl';
 import type { CharacterFacingLetter, CharacterData } from '../../types/character';
@@ -171,6 +178,33 @@ export class BootScene extends Phaser.Scene {
     }
 
     queueGuiFontsForBootLoader(this.load);
+
+    const queuedGuiAsepriteIds = new Set<string>();
+    for (const gui of getAllGuiData()) {
+      if (!usesGuiAsepriteDisplay(gui)) {
+        continue;
+      }
+      if (queuedGuiAsepriteIds.has(gui.id)) {
+        continue;
+      }
+      try {
+        const sheetTags = getAsepriteFrameTagNames('gui', gui.id);
+        if (sheetTags.length === 0) {
+          console.warn(
+            `[Benne] GUI '${gui.id}' has display.aseprite true but the sheet has no meta.frameTags — GUI frames cannot be used as textures.`,
+          );
+        }
+        const paths = getGuiAsepriteAssetPaths(gui.id);
+        this.load.aseprite({
+          key: getGuiAsepriteTextureKey(gui.id),
+          textureURL: resolveGameAssetUrl(paths.png),
+          atlasURL: getNormalizedGuiAsepriteAtlasData(gui.id),
+        });
+        queuedGuiAsepriteIds.add(gui.id);
+      } catch (err) {
+        console.warn(`[Benne] Could not queue GUI Aseprite for "${gui.id}":`, err);
+      }
+    }
 
     const propSpawns: RoomPropSpawn[] =
       propsWithSheetTags.length > 0 && roomPropsTextureKey
