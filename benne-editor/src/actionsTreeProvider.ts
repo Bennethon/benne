@@ -146,6 +146,7 @@ export type ActionTreeNode =
     | { kind: 'rebuildInventoryPreviewBundle' }
     | { kind: 'addInventoryItem' }
     | { kind: 'importInventoryFromAseprite' }
+    | { kind: 'addGuiControl'; guiJsonUri: vscode.Uri }
     | { kind: 'guiOpen'; label: string; targetUri: vscode.Uri };
 
 export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNode> {
@@ -565,6 +566,21 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 };
                 return item;
             }
+            case 'addGuiControl': {
+                const item = new vscode.TreeItem(
+                    'Add Control',
+                    vscode.TreeItemCollapsibleState.None
+                );
+                item.id = `action:addGuiControl:${element.guiJsonUri.toString()}`;
+                item.iconPath = new vscode.ThemeIcon('add', new vscode.ThemeColor('testing.iconPassed'));
+                item.contextValue = 'benneActionAddGuiControl';
+                item.command = {
+                    command: 'benne-editor.addGuiControl',
+                    title: 'Add Control',
+                    arguments: []
+                };
+                return item;
+            }
             case 'guiOpen': {
                 const item = new vscode.TreeItem(element.label, vscode.TreeItemCollapsibleState.None);
                 item.id = `gui-open:${element.targetUri.toString()}`;
@@ -711,6 +727,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         const guiId = getGuiIdFromGuiJsonUri(guiJsonUri);
         const scriptUri = vscode.Uri.joinPath(guiJsonUri, '..', `${guiId}.gui.ts`);
         return [
+            { kind: 'addGuiControl', guiJsonUri },
             { kind: 'rebuildGuiPreviewBundle' },
             { kind: 'guiOpen', label: 'Open GUI JSON', targetUri: guiJsonUri },
             { kind: 'guiOpen', label: 'Open GUI script', targetUri: scriptUri }

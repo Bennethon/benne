@@ -4,7 +4,7 @@ import { EditorSelection } from './editorSelection';
 import { MainTreeProvider, type MainTreeNode } from './mainTreeProvider';
 import { runCreateCharacterWizard, runImportAnimationsFromAsepriteTags } from './characterScaffolding';
 import { runCreateInventoryItemWizard, runImportInventoryItemsFromAsepriteTags } from './inventoryScaffolding';
-import { runCreateGuiWizard } from './guiScaffolding';
+import { runAddGuiControlInteractiveWizard, runCreateGuiWizard } from './guiScaffolding';
 import {
     runAddRoomHotspotWizard,
     runAddRoomPointWizard,
@@ -542,6 +542,14 @@ export function activate(context: vscode.ExtensionContext): void {
                 const preferredFolder =
                     node?.kind === 'guisGroup' || node?.kind === 'workspace' ? node.folder : undefined;
                 await runCreateGuiWizard(preferredFolder);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addGuiControl',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                await runAddGuiControlInteractiveWizard(selection, node);
                 refreshTrees();
             }
         ),
