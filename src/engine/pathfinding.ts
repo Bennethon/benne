@@ -48,6 +48,19 @@ import {
  */
 const CORNER_INWARD_OFFSET_PX = 1;
 
+/**
+ * If `start` is reported outside the walkable region but within this distance of the walkable
+ * boundary, treat it as boundary-rounding noise (the natural outcome of a previous pathfound
+ * walk ending on an inward-offset corner node) and pathfind from the snapped-inside point.
+ * Beyond this we assume the character is genuinely off-mesh (spawn / cutscene placement) and
+ * fall back to the historical "glide straight to the clamped goal" behavior.
+ *
+ * Without this tolerance, the ray-cast `pointInPolygon` test can false-negative on boundary
+ * pixels and `findWalkPath` would short-circuit to a direct line — straight through holes or
+ * concavities — for every subsequent click after any pathfound walk.
+ */
+const OFF_MESH_SNAP_TOLERANCE_PX = 2;
+
 /** Tolerance for orientation tests (pixel-scale; coordinates are integer in authored JSON). */
 const EPS = 1e-6;
 
@@ -78,16 +91,38 @@ export function findWalkPath(
     return [];
   }
 
+  // Treat "on the boundary" as "inside": pointInPolygon ray-casts are unreliable for points
+  // exactly on an edge, so after a pathfound walk ends on (or within a pixel of) the mesh
+  // boundary, a strict inside-check would bail out and short-circuit to a direct line — right
+  // through any hole or concavity between start and goal. If start is only marginally off,
+  // snap it inward and pathfind from there. Only genuinely off-mesh starts (spawn / cutscene
+  // placement further from the mesh than `OFF_MESH_SNAP_TOLERANCE_PX`) fall back to the
+  // historical straight-line-to-clamped-goal behavior.
+  let effectiveStart = start;
   if (!isPointInWalkableArea(start.x, start.y, polygons)) {
-    return [clamped];
+    const snapped = clampWalkDestinationTowardClick(
+      start.x,
+      start.y,
+      start.x,
+      start.y,
+      polygons,
+    );
+    if (!snapped) {
+      return [clamped];
+    }
+    const off = Math.hypot(snapped.x - start.x, snapped.y - start.y);
+    if (off > OFF_MESH_SNAP_TOLERANCE_PX) {
+      return [clamped];
+    }
+    effectiveStart = snapped;
   }
 
-  if (isSegmentInsideWalkable(start, clamped, polygons)) {
+  if (isSegmentInsideWalkable(effectiveStart, clamped, polygons)) {
     return [clamped];
   }
 
   const nodes = buildGraphNodes(polygons);
-  const path = aStarPath(start, clamped, nodes, polygons);
+  const path = aStarPath(effectiveStart, clamped, nodes, polygons);
   if (path.length === 0) {
     return [clamped];
   }
@@ -109,7 +144,12 @@ export function isSegmentInsideWalkable(
   b: Point2,
   polygons: readonly WalkablePolygon[],
 ): boolean {
-  for (const t of [0.25, 0.5, 0.75]) {
+  // Interior samples. We use seven asymmetric points rather than three because the
+  // proper-crossing test can be numerically fragile for segments that pass through (or very
+  // near) a polygon vertex, and extra samples are the cheapest way to notice that the segment
+  // actually dips out of the walkable region in a narrow concavity or crosses a small hole.
+  const samples = [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9];
+  for (const t of samples) {
     const px = a.x + (b.x - a.x) * t;
     const py = a.y + (b.y - a.y) * t;
     if (!isPointInWalkableArea(px, py, polygons)) {
