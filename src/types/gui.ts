@@ -112,8 +112,9 @@ export interface GuiButtonStates {
 }
 
 /**
- * Text + sheet-backed hit target. Uses the GUI’s Aseprite export when `display.aseprite` is true;
- * placement follows the same anchor / depth / visibility rules as other overlay controls.
+ * Text + sheet-backed hit target. Uses the GUI’s Aseprite export when `display.aseprite` is true.
+ * The background frame or animation is placed like an {@link GuiImageControl} (anchor + `x`/`y`, natural pixel size).
+ * `width` and `height` define the pointer hit box and where the label is laid out, not the drawn sprite size.
  */
 export interface GuiButtonControl {
   type: 'button';
@@ -123,9 +124,11 @@ export interface GuiButtonControl {
   y: number;
   zIndex?: number;
   visible?: boolean;
+  /** Hit-testing width in screen pixels; also used to position the label within the hit box. */
   width: number;
+  /** Hit-testing height in screen pixels; also used to position the label within the hit box. */
   height: number;
-  /** Same meaning as {@link GuiSpriteDisplay.anchor} on image controls. */
+  /** Same meaning as {@link GuiSpriteDisplay.anchor} on image controls (background art + hit box placement). */
   anchor: GuiSpriteAnchor;
   text: string;
   /** Key in `src/game/assets/fonts/fonts.json` (bitmap font). */

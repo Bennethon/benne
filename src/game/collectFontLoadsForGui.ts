@@ -47,3 +47,7 @@ export function guiHasTextControls(gui: GuiData): boolean {
 export function guiHasImageControls(gui: GuiData): boolean {
   return (gui.controls ?? []).some((c) => c.type === 'image');
 }
+
+export function guiHasButtonControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'button');
+}

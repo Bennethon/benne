@@ -13,7 +13,7 @@ export function getGuiDataById(id: string): GuiData | undefined {
   return getAllGuiData().find((g) => g.id === id);
 }
 
-/** Font manifest keys referenced by any GUI `controls` entry of type `text`. */
+/** Font manifest keys referenced by any GUI `controls` entry of type `text` or `button`. */
 export function collectFontIdsReferencedByGuiControls(): string[] {
   const ids = new Set<string>();
   for (const gui of getAllGuiData()) {

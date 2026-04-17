@@ -40,9 +40,8 @@
       "id": "back",
       "x": 0,
       "y": 0,
-      "width": 120,
+      "width": 30,
       "height": 32,
-      "anchor": "screen",
       "text": "Button",
       "font": "",
       "fontSize": 16,
@@ -51,7 +50,8 @@
       "textOffsetX": 0,
       "textOffsetY": 0,
       "backgroundTag": "BackBtn",
-      "zIndex": 200
+      "zIndex": 200,
+      "anchor": "screen"
     },
     {
       "type": "text",
@@ -59,7 +59,7 @@
       "x": 100,
       "y": 100,
       "text": "Sample text",
-      "font": "",
+      "font": "lucasarts-scumm-solid",
       "fontSize": 8,
       "color": "#ffffff",
       "zIndex": 300,

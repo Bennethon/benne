@@ -8,11 +8,12 @@ import {
 } from '../../engine/gameState/GameStateManager';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKey';
 import {
+  guiHasButtonControls,
   guiHasImageControls,
   guiHasTextControls,
   type GuiFontLoadRequest,
 } from '../../game/collectFontLoadsForGui';
-import type { GuiData, GuiInventoryPanelControl } from '../../types/gui';
+import type { GuiButtonControl, GuiData, GuiInventoryPanelControl } from '../../types/gui';
 import type { GameSettingsInitialGameState } from '../../types/game';
 import { resolveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
 import { PreviewPolygonOverlay } from './previewPolygonOverlay';
@@ -140,6 +141,50 @@ function guiHasInventoryPanel(gui: GuiData): boolean {
   return (gui.controls ?? []).some((c): c is GuiInventoryPanelControl => c.type === 'inventoryPanel');
 }
 
+function buttonControlWorldRect(c: GuiButtonControl): {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+} {
+  const w = c.width;
+  const h = c.height;
+  const ax = Math.round(c.x);
+  const ay = Math.round(c.y);
+  const anchor = c.anchor ?? 'top-left';
+  let left: number;
+  let top: number;
+  switch (anchor) {
+    case 'center':
+      left = ax - w / 2;
+      top = ay - h / 2;
+      break;
+    case 'screen':
+      left = 0;
+      top = 0;
+      break;
+    default:
+      left = ax;
+      top = ay;
+  }
+  return { left, top, right: left + w, bottom: top + h };
+}
+
+function collectButtonControlWorldRects(gui: GuiData): Array<{
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}> {
+  const rects: Array<{ left: number; top: number; right: number; bottom: number }> = [];
+  for (const c of gui.controls ?? []) {
+    if (c.type === 'button') {
+      rects.push(buttonControlWorldRect(c));
+    }
+  }
+  return rects;
+}
+
 function collectInventoryPanelSlotWorldRects(gui: GuiData, inventoryItemCount: number): Array<{
   left: number;
   top: number;
@@ -230,7 +275,10 @@ class GuiPreviewScene extends Phaser.Scene {
     const mount = this.game.canvas.parentElement;
     if (
       mount &&
-      (guiHasInventoryPanel(guiData) || guiHasTextControls(guiData) || guiHasImageControls(guiData))
+      (guiHasInventoryPanel(guiData) ||
+        guiHasTextControls(guiData) ||
+        guiHasImageControls(guiData) ||
+        guiHasButtonControls(guiData))
     ) {
       this.guiOutlineOverlay = new PreviewPolygonOverlay(this.game, mount);
       this.guiOutlineOverlay.setPointerEventsEnabled(false);
@@ -272,7 +320,10 @@ class GuiPreviewScene extends Phaser.Scene {
     const textRects = guiHasTextControls(this.payload.guiData)
       ? collectBitmapTextControlWorldRects(this)
       : [];
-    const outlineRects = inventoryRects.concat(textRects);
+    const buttonRects = guiHasButtonControls(this.payload.guiData)
+      ? collectButtonControlWorldRects(this.payload.guiData)
+      : [];
+    const outlineRects = inventoryRects.concat(textRects).concat(buttonRects);
     ov.clearAndDrawStrokeRects(outlineRects, this.cameras.main, {
       strokeStyle: GUI_PREVIEW_CONTROL_OUTLINE_STROKE,
       lineWidthCss: PREVIEW_OVERLAY_LINE_WIDTH_CSS,

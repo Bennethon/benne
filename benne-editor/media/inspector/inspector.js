@@ -700,9 +700,11 @@ function renderGuiControlCardBody(state, c) {
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
       ${sheetBlock}
-      <p class="muted small" style="margin:8px 0 0;">${c.controlId
-            ? `Use <code>B.whenButtonClick('${esc(c.controlId)}', …)</code> in this GUI’s script.`
-            : 'Add a unique <code>id</code> in raw JSON for <code>B.whenButtonClick</code>.'}</p>`;
+      ${c.controlId
+            ? `<div style="margin:8px 0 0;">
+        <button type="button" class="btn-secondary gui-on-click-btn" data-button-id="${esc(c.controlId)}">On Click</button>
+      </div>`
+            : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> in raw JSON for <code>B.whenButtonClick</code>.</p>`}`;
     }
     if (c.controlKind === 'image') {
         const animImg = state.usesAseprite && tags.length > 0
@@ -1478,6 +1480,16 @@ function mountGuiHandlers(state) {
             if (patch) {
                 postGuiPatch(idx, patch);
             }
+        });
+    });
+    document.querySelectorAll('.gui-on-click-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn;
+            const buttonId = b.dataset.buttonId ?? '';
+            if (!buttonId) {
+                return;
+            }
+            post('guiEnsureButtonClickHandler', { guiJsonUri: state.guiJsonUri, buttonId });
         });
     });
 }

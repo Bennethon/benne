@@ -36,7 +36,7 @@ import {
     writeDataJson,
     writeRoomJson
 } from './inspectorMutations';
-import { getRoomIdFromRoomJsonUri } from './gameDiscovery';
+import { getGuiIdFromGuiJsonUri, getRoomIdFromRoomJsonUri } from './gameDiscovery';
 import type { RoomPreviewPanelController } from './roomPreviewPanel';
 import {
     mainTreeRoomNodeFromRoomJson,
@@ -47,6 +47,7 @@ import {
     runAddRoomSpawnedCharacterWizard
 } from './roomScaffolding';
 import { runAddGuiControlWizard, type GuiControlKind } from './guiScaffolding';
+import { ensureGuiButtonClickHandlerAndReveal } from './guiButtonClickScaffolding';
 
 function resolveInspectorJsonUri(selection: EditorSelection): vscode.Uri | undefined {
     const focus = selection.focus;
@@ -101,8 +102,7 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
 
     input[type="text"],
     input[type="number"],
-    textarea,
-    select {
+    textarea {
       background: var(--vscode-input-background);
       color: var(--vscode-input-foreground);
       border: 1px solid color-mix(in srgb, var(--vscode-input-border) 55%, var(--benne-inspector-border));
@@ -110,6 +110,25 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
       padding: 4px 6px;
       font-family: inherit;
       font-size: inherit;
+    }
+    /* Native <select> often ignores input-* colors in webviews (light text on a white field). */
+    select {
+      background-color: var(--vscode-dropdown-background, var(--vscode-input-background));
+      color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
+      border: 1px solid
+        color-mix(
+          in srgb,
+          var(--vscode-dropdown-border, var(--vscode-input-border)) 55%,
+          var(--benne-inspector-border)
+        );
+      border-radius: 2px;
+      padding: 4px 6px;
+      font-family: inherit;
+      font-size: inherit;
+    }
+    select option {
+      background-color: var(--vscode-dropdown-background, var(--vscode-input-background));
+      color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
     }
     input::placeholder,
     textarea::placeholder {
@@ -698,6 +717,20 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
 
         if (msg.action === 'openRawJson') {
             await vscode.window.showTextDocument(uri, { preview: false });
+            return;
+        }
+
+        if (msg.action === 'guiEnsureButtonClickHandler') {
+            if (focusKind !== 'gui') {
+                return;
+            }
+            const guiJsonUriStr = typeof msg.guiJsonUri === 'string' ? msg.guiJsonUri : '';
+            const buttonId = typeof msg.buttonId === 'string' ? msg.buttonId.trim() : '';
+            if (!buttonId || uri.toString() !== guiJsonUriStr) {
+                return;
+            }
+            const guiId = getGuiIdFromGuiJsonUri(uri);
+            await ensureGuiButtonClickHandlerAndReveal(uri, guiId, buttonId);
             return;
         }
 
