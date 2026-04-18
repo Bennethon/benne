@@ -1,4 +1,6 @@
 import { registerInventoryScript } from '@engine/scripting';
 
-registerInventoryScript('Lantern', ({ B: _B }) => {
+registerInventoryScript('Lantern', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
 });

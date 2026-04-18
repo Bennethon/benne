@@ -174,6 +174,8 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
  * - \`walkTo('…')\`: unified target — prop id → hotspot id → character id → \`points[].id\`, or \`{ x, y }\` in room pixels.
  */
 registerRoomScript(({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
 });
 `;
 

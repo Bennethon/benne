@@ -95,6 +95,8 @@ export async function runCreateCharacterWizard(preferredFolder?: vscode.Workspac
  */
 registerCharacterScript('${id}', ({ B }) => {
   // Example: B.whenLookAt(() => { B.player.say('…'); });
+  // Delete this line when you add your first handler.
+  void B;
 });
 `;
 
