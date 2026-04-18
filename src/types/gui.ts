@@ -51,6 +51,9 @@ export interface GuiTextControl {
  * Inventory panel control that displays a scrollable grid of the player's inventory.
  * Populated automatically from GameStateManager inventory on gameState:inventoryChanged.
  */
+/** When set with {@link GuiInventoryPanelControl.backButton} and {@link GuiInventoryPanelControl.forwardButton}, arrow buttons scroll the panel. */
+export type GuiInventoryPanelScrollDirection = 'horizontal' | 'vertical';
+
 export interface GuiInventoryPanelControl {
   type: 'inventoryPanel';
   /** Optional ID for Bennescript targeting, e.g. B.whenInventorySlotClick('mainInv', ...) */
@@ -61,6 +64,17 @@ export interface GuiInventoryPanelControl {
   zIndex?: number;
   /** Whether this control is initially visible */
   visible?: boolean;
+
+  /**
+   * Scroll paging: `horizontal` advances one slot per forward click; `vertical` advances one row (`cols` slots).
+   * Ignored unless both {@link GuiInventoryPanelControl.backButton} and {@link GuiInventoryPanelControl.forwardButton}
+   * match existing `button` control `id`s in this GUI.
+   */
+  scrollDirection?: GuiInventoryPanelScrollDirection;
+  /** `button` control `id` in this GUI — scrolls the view backward along {@link GuiInventoryPanelControl.scrollDirection}. */
+  backButton?: string;
+  /** `button` control `id` in this GUI — scrolls the view forward along {@link GuiInventoryPanelControl.scrollDirection}. */
+  forwardButton?: string;
 
   /** Grid layout */
   rows: number;

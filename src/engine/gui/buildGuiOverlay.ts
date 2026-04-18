@@ -18,6 +18,7 @@ import { gameEvents } from '../events/EventBus';
 import { guiAllButtonsClickEventId, guiButtonClickEventId, type GuiAllButtonsClickPayload } from '../events/guiButtonEvents';
 import type {
   GuiButtonControl,
+  GuiControl,
   GuiData,
   GuiImageControl,
   GuiInventoryPanelControl,
@@ -26,6 +27,10 @@ import type {
   GuiTextControl,
 } from '../../types/gui';
 import type { InventoryItemData } from '../../types/inventory';
+import {
+  GAME_STATE_INVENTORY_CHANGED_EVENT,
+  GAME_STATE_REPLACED_EVENT,
+} from '../../types/gameState.js';
 import { getGameSettings } from '../ConfigManager';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
@@ -277,6 +282,8 @@ function buildGuiButton(
   c: GuiButtonControl,
   baseDepth: number,
   startVisible: boolean,
+  /** Runs after a successful click passes guards, before {@link gameEvents} button emits. */
+  onBeforeEmit?: () => void,
 ): BuiltGuiButton | null {
   const w = c.width;
   const h = c.height;
@@ -411,6 +418,7 @@ function buildGuiButton(
     if (!enabled || !hitTarget.visible || !pointer.leftButtonReleased()) {
       return;
     }
+    onBeforeEmit?.();
     gameEvents.emit(guiButtonClickEventId(gui.id, c.id));
     gameEvents.emit(guiAllButtonsClickEventId(gui.id), { buttonId: c.id } satisfies GuiAllButtonsClickPayload);
   });
@@ -502,6 +510,44 @@ function addGuiImageSprite(
   }
 }
 
+function collectGuiButtonIds(controls: readonly GuiControl[] | undefined): Set<string> {
+  const ids = new Set<string>();
+  for (const c of controls ?? []) {
+    if (c.type === 'button') {
+      const id = c.id.trim();
+      if (id.length > 0) {
+        ids.add(id);
+      }
+    }
+  }
+  return ids;
+}
+
+function inventoryPanelScrollConfigured(c: GuiInventoryPanelControl, buttonIds: Set<string>): boolean {
+  if (c.scrollDirection !== 'horizontal' && c.scrollDirection !== 'vertical') {
+    return false;
+  }
+  const back = c.backButton?.trim() ?? '';
+  const fwd = c.forwardButton?.trim() ?? '';
+  if (back.length === 0 || fwd.length === 0) {
+    return false;
+  }
+  return buttonIds.has(back) && buttonIds.has(fwd);
+}
+
+function appendPreEmitForButtonId(map: Map<string, Array<() => void>>, buttonId: string, fn: () => void): void {
+  const id = buttonId.trim();
+  if (id.length === 0) {
+    return;
+  }
+  const list = map.get(id);
+  if (list) {
+    list.push(fn);
+  } else {
+    map.set(id, [fn]);
+  }
+}
+
 function addInventorySlotSheetSprite(
   scene: Phaser.Scene,
   guiTextureKey: string,
@@ -532,18 +578,22 @@ function addInventorySlotSheetSprite(
   slotContainer.add(sprite);
 }
 
-function buildInventoryPanel(
+/**
+ * Rebuilds all children of `panel` (backdrop + slot rows) for the current inventory slice starting at
+ * `scrollState.offset` (row-major: slot `(r,c)` shows item index `offset + r * cols + c`).
+ */
+function fillInventoryPanelContent(
+  panel: Phaser.GameObjects.Container,
   scene: Phaser.Scene,
   gui: GuiData,
   c: GuiInventoryPanelControl,
-  depth: number,
+  scrollState: { offset: number },
   startVisible: boolean,
-): Phaser.GameObjects.Container {
+): void {
+  panel.removeAll(true);
+
   const px = Math.round(c.x);
   const py = Math.round(c.y);
-  const panel = scene.add.container(px, py);
-  panel.setScrollFactor(0, 0);
-  panel.setDepth(depth + (c.zIndex ?? 0));
 
   const panelVisible = startVisible && c.visible !== false;
   panel.setVisible(panelVisible);
@@ -555,6 +605,31 @@ function buildInventoryPanel(
 
   const panelW = c.cols * c.slotWidth + Math.max(0, c.cols - 1) * spacingX;
   const panelH = c.rows * c.slotHeight + Math.max(0, c.rows - 1) * spacingY;
+
+  let inventoryItems: ReadonlyArray<{ id: string; quantity: number }> = [];
+  try {
+    const gameState = resolveGameStateManager(scene.game);
+    inventoryItems = gameState.getInventoryItems();
+  } catch {
+    /* e.g. GUI preview without GameStateManager on game.registry */
+  }
+
+  const capacity = Math.max(0, c.rows * c.cols);
+  const n = inventoryItems.length;
+  const baseMaxOffset = Math.max(0, n - capacity);
+  /**
+   * With `showEmptySlots`, allow scrolling until the **first slot** can show the first index of the
+   * last row of items in row-major order (`floor((n-1)/cols)*cols`). That yields trailing empty slots
+   * when the last row is short (e.g. 9 items, 6 cols → offset up to 6 shows three items + three empties).
+   * For `rows === 1`, `n - cols` equals `n - capacity`, so the old `n - cols` extension never helped;
+   * this formula covers single-row and multi-row grids.
+   */
+  let maxOffset = baseMaxOffset;
+  if (c.showEmptySlots && capacity > 0 && n > 0 && c.cols > 0) {
+    const lastRowFirstIndex = Math.floor((n - 1) / c.cols) * c.cols;
+    maxOffset = Math.max(maxOffset, lastRowFirstIndex);
+  }
+  scrollState.offset = Math.max(0, Math.min(maxOffset, scrollState.offset));
 
   const bgTag = c.backgroundTag?.trim() ?? '';
   if (bgTag && wantsGuiSheet) {
@@ -579,22 +654,14 @@ function buildInventoryPanel(
     }
   }
 
-  let inventoryItems: ReadonlyArray<{ id: string; quantity: number }> = [];
-  try {
-    const gameState = resolveGameStateManager(scene.game);
-    inventoryItems = gameState.getInventoryItems();
-  } catch {
-    /* e.g. GUI preview without GameStateManager on game.registry */
-  }
-
   const showGuiSlotOutlines = getGameSettings().debug?.showGuiOutlines === true;
   const slotCx = c.slotWidth / 2;
   const slotCy = c.slotHeight / 2;
 
   for (let row = 0; row < c.rows; row += 1) {
     for (let col = 0; col < c.cols; col += 1) {
-      const slotIndex = row * c.cols + col;
-      if (slotIndex >= inventoryItems.length && !c.showEmptySlots) {
+      const invIndex = scrollState.offset + row * c.cols + col;
+      if (invIndex >= inventoryItems.length && !c.showEmptySlots) {
         continue;
       }
 
@@ -621,8 +688,8 @@ function buildInventoryPanel(
         slotContainer.add(slotOutline);
       }
 
-      if (slotIndex < inventoryItems.length) {
-        const entry = inventoryItems[slotIndex]!;
+      if (invIndex < inventoryItems.length) {
+        const entry = inventoryItems[invIndex]!;
         const defRaw = getInventoryDefinition(entry.id);
         const def = defRaw as InventoryItemData | undefined;
         const iconTag = def?.defaultAnimation ?? entry.id;
@@ -697,8 +764,6 @@ function buildInventoryPanel(
       panel.add(slotContainer);
     }
   }
-
-  return panel;
 }
 
 export interface BuildGuiOverlayOptions {
@@ -726,6 +791,7 @@ export function buildGuiOverlay(
   const guiButtons: BuiltGuiButton[] = [];
   const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
   const extraSprites: Phaser.GameObjects.Sprite[] = [];
+  const overlayDisposers: Array<() => void> = [];
 
   if (usesAsepriteDisplay(gui)) {
     const guiKey = getAsepriteTextureKey(gui.id);
@@ -734,9 +800,54 @@ export function buildGuiOverlay(
     }
   }
 
-  for (const c of gui.controls ?? []) {
+  const controls = gui.controls ?? [];
+  const buttonIds = collectGuiButtonIds(controls);
+  type InvScrollState = { offset: number; refresh: () => void };
+  const invScrollStateByControlIndex = new Map<number, InvScrollState>();
+  const buttonPreEmitById = new Map<string, Array<() => void>>();
+
+  for (let i = 0; i < controls.length; i += 1) {
+    const c = controls[i]!;
+    if (c.type !== 'inventoryPanel' || !inventoryPanelScrollConfigured(c, buttonIds)) {
+      continue;
+    }
+    const st: InvScrollState = { offset: 0, refresh: () => {} };
+    invScrollStateByControlIndex.set(i, st);
+    const step = c.scrollDirection === 'horizontal' ? 1 : c.cols;
+    appendPreEmitForButtonId(buttonPreEmitById, c.forwardButton!, () => {
+      st.offset += step;
+      st.refresh();
+    });
+    appendPreEmitForButtonId(buttonPreEmitById, c.backButton!, () => {
+      st.offset -= step;
+      st.refresh();
+    });
+  }
+
+  for (let i = 0; i < controls.length; i += 1) {
+    const c = controls[i]!;
     if (c.type === 'inventoryPanel') {
-      const panel = buildInventoryPanel(scene, gui, c, depth, startVisible);
+      const px = Math.round(c.x);
+      const py = Math.round(c.y);
+      const panel = scene.add.container(px, py);
+      panel.setScrollFactor(0, 0);
+      panel.setDepth(depth + (c.zIndex ?? 0));
+      const scrollSt = invScrollStateByControlIndex.get(i);
+      if (scrollSt) {
+        scrollSt.refresh = () => fillInventoryPanelContent(panel, scene, gui, c, scrollSt, startVisible);
+        const onGameStateInventory = (): void => {
+          scrollSt.refresh();
+        };
+        gameEvents.on(GAME_STATE_INVENTORY_CHANGED_EVENT, onGameStateInventory);
+        gameEvents.on(GAME_STATE_REPLACED_EVENT, onGameStateInventory);
+        overlayDisposers.push(() => {
+          gameEvents.off(GAME_STATE_INVENTORY_CHANGED_EVENT, onGameStateInventory);
+          gameEvents.off(GAME_STATE_REPLACED_EVENT, onGameStateInventory);
+        });
+        scrollSt.refresh();
+      } else {
+        fillInventoryPanelContent(panel, scene, gui, c, { offset: 0 }, startVisible);
+      }
       inventoryPanels.push(panel);
       continue;
     }
@@ -747,7 +858,16 @@ export function buildGuiOverlay(
     }
 
     if (c.type === 'button') {
-      const built = buildGuiButton(scene, gui, c, depth, startVisible);
+      const chain = buttonPreEmitById.get(c.id);
+      const preEmit =
+        chain && chain.length > 0
+          ? (): void => {
+              for (const fn of chain) {
+                fn();
+              }
+            }
+          : undefined;
+      const built = buildGuiButton(scene, gui, c, depth, startVisible, preEmit);
       if (built) {
         guiButtons.push(built);
       }
@@ -843,6 +963,10 @@ export function buildGuiOverlay(
       }),
     ],
     destroy() {
+      for (const d of overlayDisposers) {
+        d();
+      }
+      overlayDisposers.length = 0;
       for (const line of allLines) {
         line.destroy();
       }
