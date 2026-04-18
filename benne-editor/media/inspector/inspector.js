@@ -4,6 +4,9 @@ var __webpack_exports__ = {};
 // This entry needs to be wrapped in an IIFE because it uses a non-standard name for the exports (exports).
 (() => {
 var exports = __webpack_exports__;
+/*!****************************************!*\
+  !*** ./src/inspector/inspectorMain.ts ***!
+  \****************************************/
 
 /** BENNE Inspector webview (bundled for `media/inspector/inspector.js`). */
 /// <reference lib="dom" />
@@ -263,11 +266,8 @@ function renderRoom(state) {
         <div class="benne-card-actions-inner">
           <button type="button" class="btn-link" data-edit-preview="prop" data-id="${esc(p.id)}">Edit in Preview →</button>
         </div>
-        <button type="button" class="btn-danger" data-delete="prop" data-id="${esc(p.id)}">Delete</button>
       </div>`
-            : `<div class="benne-card-actions benne-card-actions--end">
-        <button type="button" class="btn-danger" data-delete="prop" data-id="${esc(p.id)}">Delete</button>
-      </div>`;
+            : '';
         const summary = `<div class="benne-card-titles">
           <div class="benne-card-title tag">${title}</div>
           <div class="benne-card-sub muted">${esc(p.id)}</div>
@@ -321,7 +321,6 @@ function renderRoom(state) {
         <div class="benne-card-actions-inner">
           <button type="button" class="btn-link" data-edit-preview="hotspot" data-id="${esc(h.id)}">Edit in Preview →</button>
         </div>
-        <button type="button" class="btn-danger" data-delete="hotspot" data-id="${esc(h.id)}">Delete</button>
       </div>`;
         return renderInspectorItem(state, 'hotspot', h.id, ' benne-card--hotspot', summary, body);
     })
@@ -355,10 +354,7 @@ function renderRoom(state) {
         <span class="benne-pg-lbl">Animation</span>
         <input type="text" class="ch-anim" data-id="${esc(c.instanceId)}" value="${esc(c.initialAnimation ?? '')}" />
       </div>
-      ${verbHtml}
-      <div class="benne-card-actions benne-card-actions--end">
-        <button type="button" class="btn-danger" data-delete="character" data-id="${esc(c.instanceId)}">Delete</button>
-      </div>`;
+      ${verbHtml}`;
         return renderInspectorItem(state, 'character', c.instanceId, ' benne-card--character', summary, body);
     })
         .join('');
@@ -378,7 +374,6 @@ function renderRoom(state) {
         <div class="benne-card-actions-inner">
           <button type="button" class="btn-link" data-edit-preview="point" data-id="${esc(pt.id)}">Edit in Preview →</button>
         </div>
-        <button type="button" class="btn-danger" data-delete="point" data-id="${esc(pt.id)}">Delete</button>
       </div>`;
         return renderInspectorItem(state, 'point', pt.id, ' benne-card--point', summary, body);
     })
@@ -397,7 +392,6 @@ function renderRoom(state) {
         <div class="benne-card-actions-inner">
           <button type="button" class="btn-link" data-edit-preview="region" data-id="${esc(r.id)}">Edit in Preview →</button>
         </div>
-        <button type="button" class="btn-danger" data-delete="region" data-id="${esc(r.id)}">Delete</button>
       </div>`;
         return renderInspectorItem(state, 'region', r.id, ' benne-card--region', summary, body);
     })
@@ -1145,16 +1139,6 @@ function mountHandlers(state) {
         el.addEventListener('change', () => {
             const inp = el;
             post('applyPatches', { patches: [{ type: 'regionActive', id: inp.dataset.id, active: inp.checked }] });
-        });
-    });
-    root.querySelectorAll('[data-delete]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            const kind = btn.dataset.delete;
-            const id = btn.dataset.id;
-            if (!kind || !id || !confirm(`Delete ${kind} "${id}"?`)) {
-                return;
-            }
-            post('applyPatches', { patches: [{ type: 'delete', entity: kind, id }] });
         });
     });
     root.querySelectorAll('[data-edit-preview]').forEach((btn) => {

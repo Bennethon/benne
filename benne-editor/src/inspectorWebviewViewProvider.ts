@@ -18,13 +18,6 @@ import {
     applyScrollBounds,
     clearRoomSize,
     clearScrollBounds,
-    deleteHotspot,
-    deletePoint,
-    deleteProp,
-    deleteRegion,
-    deleteRoomCharacter,
-    deleteWalkableHole,
-    deleteWalkablePolygon,
     loadRoomData,
     setWalkableRowActive,
     updateHotspotFields,
@@ -625,8 +618,7 @@ type WebviewPatch =
           defaultAnimation?: string;
           asepriteMode?: true | 'shared';
       }
-    | { type: 'inventoryAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
-    | { type: 'delete'; entity?: string; id?: string };
+    | { type: 'inventoryAnimation'; id?: string; loop?: boolean; frameDuration?: number | null };
 
 export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     private view: vscode.WebviewView | undefined;
@@ -1202,32 +1194,6 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             }
             updateInventoryAnimationFields(data, p.id, { loop: p.loop, frameDuration: p.frameDuration });
             return;
-        }
-        if (p.type === 'delete' && typeof p.entity === 'string' && typeof p.id === 'string') {
-            if (focusKind !== 'room') {
-                return;
-            }
-            if (p.entity === 'prop') {
-                deleteProp(data, p.id);
-            } else if (p.entity === 'hotspot') {
-                deleteHotspot(data, p.id);
-            } else if (p.entity === 'character') {
-                deleteRoomCharacter(data, p.id);
-            } else if (p.entity === 'point') {
-                deletePoint(data, p.id);
-            } else if (p.entity === 'region') {
-                deleteRegion(data, p.id);
-            } else if (p.entity === 'polygon') {
-                deleteWalkablePolygon(data, p.id);
-            } else if (p.entity === 'hole') {
-                const holeParent =
-                    typeof (p as unknown as { parentPolygonId?: string }).parentPolygonId === 'string'
-                        ? (p as unknown as { parentPolygonId: string }).parentPolygonId
-                        : '';
-                if (holeParent) {
-                    deleteWalkableHole(data, holeParent, p.id);
-                }
-            }
         }
     }
 }

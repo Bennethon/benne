@@ -54,19 +54,6 @@
       "backgroundAnchor": "screen"
     },
     {
-      "type": "text",
-      "id": "test-text",
-      "x": 106,
-      "y": 100,
-      "text": "Sample text!!!!!",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "color": "#ffffff",
-      "zIndex": 300,
-      "wordWrapWidth": 200,
-      "visible": true
-    },
-    {
       "type": "button",
       "id": "Fwd",
       "x": 250,
