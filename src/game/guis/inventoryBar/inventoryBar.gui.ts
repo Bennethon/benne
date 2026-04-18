@@ -7,4 +7,8 @@ registerGuiScript('inventoryBar', ({ B }) => {
   B.whenButtonClick("back", () => {
     console.log("Back button clicked");
   });
+
+  B.whenButtonClick("Fwd", () => {
+    console.log("Forward button clicked");
+  });
 });

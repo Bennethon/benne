@@ -185,8 +185,8 @@ export type InspectorGuiControlCard =
           y: number;
           zIndex: number | null;
           visibleMode: '' | 'true' | 'false';
-          displayTag: string;
-          displayBackgroundAnchor: InspectorGuiSpriteAnchor;
+          tag: string;
+          backgroundAnchor: InspectorGuiSpriteAnchor;
       }
     | {
           controlKind: 'button';
@@ -899,14 +899,23 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
     }
 
     if (type === 'image') {
-        const disp =
+        const legacyDisp =
             o.display && typeof o.display === 'object' && !Array.isArray(o.display)
                 ? (o.display as Record<string, unknown>)
-                : {};
-        const tag = typeof disp.tag === 'string' ? disp.tag : '';
-        const anchorRaw = disp.backgroundAnchor;
-        const displayBackgroundAnchor: InspectorGuiSpriteAnchor =
-            anchorRaw === 'top-left' || anchorRaw === 'center' || anchorRaw === 'screen' ? anchorRaw : '';
+                : null;
+        const tag =
+            typeof o.tag === 'string'
+                ? o.tag
+                : typeof legacyDisp?.tag === 'string'
+                  ? legacyDisp.tag
+                  : '';
+        const anchorSource: Record<string, unknown> = {};
+        if (typeof o.backgroundAnchor === 'string' && o.backgroundAnchor.length > 0) {
+            anchorSource.backgroundAnchor = o.backgroundAnchor;
+        } else if (typeof legacyDisp?.backgroundAnchor === 'string') {
+            anchorSource.backgroundAnchor = legacyDisp.backgroundAnchor;
+        }
+        const backgroundAnchor = guiReadAnchorField(anchorSource, 'backgroundAnchor');
         return {
             controlKind: 'image',
             key,
@@ -917,8 +926,8 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             y: guiReadNum(o, 'y', 0),
             zIndex: guiReadNumOrNull(o, 'zIndex'),
             visibleMode: guiReadVisibleMode(o),
-            displayTag: tag,
-            displayBackgroundAnchor
+            tag,
+            backgroundAnchor
         };
     }
 

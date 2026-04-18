@@ -624,22 +624,6 @@ export function updateGuiControlPayload(
     }
 }
 
-function pruneEmptyDisplay(display: Record<string, unknown>): void {
-    if (display.tag === '' || display.tag === undefined) {
-        delete display.tag;
-    }
-    if (
-        display.backgroundAnchor === '' ||
-        display.backgroundAnchor === undefined ||
-        display.backgroundAnchor === 'top-left'
-    ) {
-        delete display.backgroundAnchor;
-    }
-    if (Object.keys(display).length === 0) {
-        /* keep empty object for image control */
-    }
-}
-
 function pruneEmptyButtonStates(states: Record<string, unknown>): void {
     for (const k of ['hover', 'pressed', 'disabled'] as const) {
         if (states[k] === '' || states[k] === undefined) {
@@ -650,7 +634,6 @@ function pruneEmptyButtonStates(states: Record<string, unknown>): void {
 
 /**
  * Shallow-merge fields into `controls[controlIndex]`. Use `null` as a patch value to remove a key.
- * For `image` controls, `display` is deep-merged; inner `null` removes that display key.
  * For `button` controls, `states` is deep-merged the same way.
  */
 export function updateGuiControlPatch(
@@ -670,25 +653,9 @@ export function updateGuiControlPatch(
         return { ok: false, message: 'Invalid control entry.' };
     }
     const row = cur as Record<string, unknown>;
+    const patchKeys = new Set(Object.keys(patch));
 
     for (const [k, v] of Object.entries(patch)) {
-        if (k === 'display' && v && typeof v === 'object' && !Array.isArray(v)) {
-            const prev =
-                row.display && typeof row.display === 'object' && !Array.isArray(row.display)
-                    ? { ...(row.display as Record<string, unknown>) }
-                    : {};
-            const incoming = v as Record<string, unknown>;
-            for (const [dk, dv] of Object.entries(incoming)) {
-                if (dv === null) {
-                    delete prev[dk];
-                } else {
-                    prev[dk] = dv;
-                }
-            }
-            pruneEmptyDisplay(prev);
-            row.display = prev;
-            continue;
-        }
         if (k === 'states' && v && typeof v === 'object' && !Array.isArray(v)) {
             const prev =
                 row.states && typeof row.states === 'object' && !Array.isArray(row.states)
@@ -718,10 +685,27 @@ export function updateGuiControlPatch(
     }
 
     if (row.type === 'image') {
-        if (!row.display || typeof row.display !== 'object' || Array.isArray(row.display)) {
-            row.display = {};
-        } else {
-            pruneEmptyDisplay(row.display as Record<string, unknown>);
+        const legacy = row.display;
+        if (legacy && typeof legacy === 'object' && !Array.isArray(legacy)) {
+            const d = legacy as Record<string, unknown>;
+            if (!patchKeys.has('tag') && typeof d.tag === 'string') {
+                row.tag = d.tag;
+            }
+            if (!patchKeys.has('backgroundAnchor')) {
+                const a = d.backgroundAnchor;
+                if (a === 'center' || a === 'screen' || a === 'top-left') {
+                    row.backgroundAnchor = a;
+                }
+            }
+            delete row.display;
+        }
+        const t = row.tag;
+        if (t === '' || t === undefined) {
+            delete row.tag;
+        }
+        const a = row.backgroundAnchor;
+        if (a === '' || a === undefined || a === 'top-left') {
+            delete row.backgroundAnchor;
         }
     }
 

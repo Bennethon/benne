@@ -472,7 +472,9 @@ function addGuiImageSprite(
   if (!usesAsepriteDisplay(gui)) {
     return;
   }
-  const tag = c.display?.tag?.trim() ?? '';
+  const legacyDisplay = (c as GuiImageControl & { display?: { tag?: string; backgroundAnchor?: GuiSpriteAnchor } })
+    .display;
+  const tag = (c.tag ?? legacyDisplay?.tag)?.trim() ?? '';
   if (!tag) {
     return;
   }
@@ -480,7 +482,7 @@ function addGuiImageSprite(
   if (!scene.textures.exists(guiTextureKey)) {
     return;
   }
-  const anchor = guiSpriteAnchorOrDefault(c.display?.backgroundAnchor);
+  const anchor = guiSpriteAnchorOrDefault(c.backgroundAnchor ?? legacyDisplay?.backgroundAnchor);
   const sprite = scene.add.sprite(0, 0, guiTextureKey);
   sprite.setVisible(false);
   sprite.setScrollFactor(0, 0);
