@@ -168,6 +168,9 @@ export type InspectorGuiControlCard =
           spacingY: number | null;
           itemScale: number | null;
           showEmptySlots: boolean;
+          scrollDirection: 'horizontal' | 'vertical' | '';
+          backButton: string;
+          forwardButton: string;
           backgroundTag: string;
           backgroundAnchor: InspectorGuiSpriteAnchor;
           slotBackgroundTag: string;
@@ -871,6 +874,9 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
     }
 
     if (type === 'inventoryPanel') {
+        const sd = o.scrollDirection;
+        const scrollDirection: 'horizontal' | 'vertical' | '' =
+            sd === 'horizontal' || sd === 'vertical' ? sd : '';
         return {
             controlKind: 'inventoryPanel',
             key,
@@ -889,6 +895,9 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             spacingY: guiReadNumOrNull(o, 'spacingY'),
             itemScale: guiReadNumOrNull(o, 'itemScale'),
             showEmptySlots: o.showEmptySlots === true,
+            scrollDirection,
+            backButton: typeof o.backButton === 'string' ? o.backButton : '',
+            forwardButton: typeof o.forwardButton === 'string' ? o.forwardButton : '',
             backgroundTag: typeof o.backgroundTag === 'string' ? o.backgroundTag : '',
             backgroundAnchor: guiReadAnchorField(o, 'backgroundAnchor'),
             slotBackgroundTag: typeof o.slotBackgroundTag === 'string' ? o.slotBackgroundTag : '',

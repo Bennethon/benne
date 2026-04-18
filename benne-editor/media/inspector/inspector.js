@@ -556,6 +556,19 @@ function guiFontSelectHtml(fontIds, current, dataIndex) {
     }
     return `<select class="gui-field" data-index="${dataIndex}" data-field="font">${inner}</select>`;
 }
+function guiButtonIdSelectHtml(buttonIds, current, dataIndex, dataField) {
+    const cur = current.trim();
+    let inner = `<option value=""${cur === '' ? ' selected' : ''}>—</option>`;
+    const idSet = new Set(buttonIds);
+    if (cur.length > 0 && !idSet.has(cur)) {
+        inner += `<option value="${esc(cur)}" selected>${esc(cur)} (no button control)</option>`;
+    }
+    for (const id of buttonIds) {
+        const sel = id === cur ? ' selected' : '';
+        inner += `<option value="${esc(id)}"${sel}>${esc(id)}</option>`;
+    }
+    return `<select class="gui-field" data-index="${dataIndex}" data-field="${esc(dataField)}">${inner}</select>`;
+}
 function renderGuiControlCardBody(state, c) {
     if (c.controlKind === 'unknown') {
         return `<label class="benne-field-label muted small">Control JSON</label>
@@ -602,6 +615,14 @@ function renderGuiControlCardBody(state, c) {
       <p class="muted small" style="margin:8px 0 0;">Sheet animations are not used for <code>text</code> controls.</p>`;
     }
     if (c.controlKind === 'inventoryPanel') {
+        const buttonIds = state.controls
+            .filter((bc) => bc.controlKind === 'button' && bc.controlId.trim().length > 0)
+            .map((bc) => (bc.controlKind === 'button' ? bc.controlId.trim() : ''));
+        const scrollDirSel = `<select class="gui-field" data-index="${idx}" data-field="scrollDirection">
+        <option value=""${c.scrollDirection === '' ? ' selected' : ''}>—</option>
+        <option value="horizontal"${c.scrollDirection === 'horizontal' ? ' selected' : ''}>horizontal</option>
+        <option value="vertical"${c.scrollDirection === 'vertical' ? ' selected' : ''}>vertical</option>
+      </select>`;
         const animBlock = state.usesAseprite && tags.length > 0
             ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>
         <div class="benne-prop-grid benne-prop-grid--tight">
@@ -642,6 +663,12 @@ function renderGuiControlCardBody(state, c) {
         <input type="number" class="gui-field" data-index="${idx}" data-field="itemScale" value="${c.itemScale ?? ''}" placeholder="1" step="0.05" />
         <span class="benne-pg-lbl">showEmptySlots</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="showEmptySlots" ${c.showEmptySlots ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">scrollDirection</span>
+        ${scrollDirSel}
+        <span class="benne-pg-lbl">backButton</span>
+        ${guiButtonIdSelectHtml(buttonIds, c.backButton, idx, 'backButton')}
+        <span class="benne-pg-lbl">forwardButton</span>
+        ${guiButtonIdSelectHtml(buttonIds, c.forwardButton, idx, 'forwardButton')}
       </div>
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
@@ -1310,6 +1337,23 @@ function buildGuiControlFieldPatch(field, el) {
             return { textAlign: null };
         }
         return { textAlign: raw };
+    }
+    if (field === 'scrollDirection') {
+        const raw = el.value.trim();
+        if (raw === '') {
+            return { scrollDirection: null };
+        }
+        if (raw === 'horizontal' || raw === 'vertical') {
+            return { scrollDirection: raw };
+        }
+        return null;
+    }
+    if (field === 'backButton' || field === 'forwardButton') {
+        const raw = el.value.trim();
+        if (raw === '') {
+            return { [field]: null };
+        }
+        return { [field]: raw };
     }
     const anchorTop = new Set(['backgroundAnchor', 'slotBackgroundAnchor', 'highlightAnchor']);
     if (anchorTop.has(field)) {
