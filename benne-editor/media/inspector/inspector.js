@@ -4,9 +4,6 @@ var __webpack_exports__ = {};
 // This entry needs to be wrapped in an IIFE because it uses a non-standard name for the exports (exports).
 (() => {
 var exports = __webpack_exports__;
-/*!****************************************!*\
-  !*** ./src/inspector/inspectorMain.ts ***!
-  \****************************************/
 
 /** BENNE Inspector webview (bundled for `media/inspector/inspector.js`). */
 /// <reference lib="dom" />
@@ -709,9 +706,9 @@ function renderGuiControlCardBody(state, c) {
             ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>
       <div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">tag</span>
-        ${guiSheetTagSelectHtml(tags, c.displayTag, idx, 'displayTag')}
+        ${guiSheetTagSelectHtml(tags, c.tag, idx, 'tag')}
         <span class="benne-pg-lbl">background anchor</span>
-        <select class="gui-field" data-index="${idx}" data-field="displayBackgroundAnchor">${guiAnchorSelectOptions(c.displayBackgroundAnchor)}</select>
+        <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
       </div>`
             : state.usesAseprite
                 ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
@@ -1281,14 +1278,9 @@ function collectGuiMeta() {
     };
 }
 function buildGuiControlFieldPatch(field, el) {
-    if (field === 'displayTag') {
+    if (field === 'tag') {
         const raw = el.value.trim();
-        return { display: { tag: raw.length === 0 ? null : el.value } };
-    }
-    if (field === 'displayBackgroundAnchor') {
-        const raw = el.value.trim();
-        const a = raw === '' || raw === 'top-left' ? null : raw;
-        return { display: { backgroundAnchor: a } };
+        return { tag: raw.length === 0 ? null : el.value };
     }
     if (field === 'statesHover' || field === 'statesPressed' || field === 'statesDisabled') {
         const sub = field === 'statesHover' ? 'hover' : field === 'statesPressed' ? 'pressed' : 'disabled';

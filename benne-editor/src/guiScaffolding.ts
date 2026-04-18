@@ -172,8 +172,7 @@ function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, un
                 type: 'image',
                 id,
                 x: 0,
-                y: 0,
-                display: {}
+                y: 0
             };
         case 'button':
             return {

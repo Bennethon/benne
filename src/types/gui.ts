@@ -14,13 +14,6 @@ export type GuiTextAlign = 'left' | 'center' | 'right';
 /** How a GUI-sheet sprite is aligned to its control (or to the screen for full-frame art). */
 export type GuiSpriteAnchor = 'top-left' | 'center' | 'screen';
 
-/** Associates an Aseprite frame tag on the GUI sheet with placement; omit or empty `tag` to show nothing. */
-export interface GuiSpriteDisplay {
-  tag?: string;
-  /** Placement for {@link tag}; default `top-left`. Same vocabulary as {@link GuiInventoryPanelControl.backgroundAnchor}. */
-  backgroundAnchor?: GuiSpriteAnchor;
-}
-
 /** Optional named animation clip on the GUI sheet (Aseprite tag / timeline). */
 export interface GuiSpriteAnimationClip {
   loop?: boolean;
@@ -89,7 +82,10 @@ export interface GuiInventoryPanelControl {
   highlightAnchor?: GuiSpriteAnchor;
 }
 
-/** Static or animated art from the GUI Aseprite sheet (`display.aseprite`). */
+/**
+ * Static or animated art from the GUI Aseprite sheet when the GUI root {@link GuiData.display}
+ * has `aseprite: true` (same sheet as buttons / inventory panel on that GUI).
+ */
 export interface GuiImageControl {
   type: 'image';
   id?: string;
@@ -100,7 +96,13 @@ export interface GuiImageControl {
   /** Reserved for future clipping / 9-slice; does not affect `screen` background placement. */
   width?: number;
   height?: number;
-  display: GuiSpriteDisplay;
+  /** Aseprite frame tag on the GUI sheet; omit or empty to show nothing. */
+  tag?: string;
+  /**
+   * Placement for {@link tag}; default `top-left`. Same vocabulary as
+   * {@link GuiInventoryPanelControl.backgroundAnchor}.
+   */
+  backgroundAnchor?: GuiSpriteAnchor;
   /** Optional extra clips from the GUI sheet (Aseprite tags). */
   animations?: GuiSpriteAnimationsMap;
 }
