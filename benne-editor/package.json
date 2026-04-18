@@ -541,6 +541,11 @@
           "command": "benne-editor.deleteGameEntity",
           "when": "view == benne-editor.main && viewItem == benneRoomCharacter",
           "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneGuiControl",
+          "group": "modification@benneDelete"
         }
       ]
     }

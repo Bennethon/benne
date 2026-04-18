@@ -451,7 +451,7 @@ export function activate(context: vscode.ExtensionContext): void {
                     resolveDeleteTargetFromSelectionFocus(selection);
                 if (!target) {
                     void vscode.window.showInformationMessage(
-                        'Choose a room, character, GUI, inventory item, prop, hotspot, point, region, or spawned character in the BENNE tree (or run this from its context menu), then try again.'
+                        'Choose a room, character, GUI, GUI control, inventory item, prop, hotspot, point, region, or spawned character in the BENNE tree (or run this from its context menu), then try again.'
                     );
                     return;
                 }
@@ -486,6 +486,8 @@ export function activate(context: vscode.ExtensionContext): void {
                     roomPreview.resetPreviewPanel();
                     characterPreview.resetPreviewPanel();
                     guiPreview.resetPreviewPanel();
+                } else if (target.type === 'guiControl') {
+                    guiPreview.onWorkspaceGuiJsonChanged(target.guiJsonUri);
                 } else if ('roomJsonUri' in target) {
                     roomPreview.onWorkspaceRoomJsonChanged(target.roomJsonUri);
                 }
@@ -507,6 +509,9 @@ export function activate(context: vscode.ExtensionContext): void {
                         break;
                     case 'spawnedCharacter':
                         kindLabel = 'spawned character';
+                        break;
+                    case 'guiControl':
+                        kindLabel = 'GUI control';
                         break;
                     default:
                         kindLabel = target.type;

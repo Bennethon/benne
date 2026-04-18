@@ -136,6 +136,17 @@ function regexesForDeleteTarget(target: DeleteTarget): RegExp[] {
                 new RegExp(`['\`]${ir}['\`]`)
             ];
         }
+        case 'guiControl': {
+            if (!target.controlId) {
+                return [];
+            }
+            const g = escapeRe(target.guiId);
+            const c = escapeRe(target.controlId);
+            return [
+                new RegExp(`B\\.whenButtonClick\\(\\s*['\`]${g}['\`]\\s*,\\s*['\`]${c}['\`]`),
+                new RegExp(`whenButtonClick\\(\\s*['\`]${g}['\`]\\s*,\\s*['\`]${c}['\`]`)
+            ];
+        }
         default:
             return [];
     }
@@ -315,6 +326,8 @@ function collectUrisToClose(target: DeleteTarget): vscode.Uri[] {
         case 'region':
         case 'spawnedCharacter':
             return [target.roomJsonUri];
+        case 'guiControl':
+            return [target.guiJsonUri];
         default:
             return [];
     }
@@ -340,6 +353,8 @@ function entityKindLabel(target: DeleteTarget): string {
             return 'region';
         case 'spawnedCharacter':
             return 'spawned character';
+        case 'guiControl':
+            return 'GUI control';
         default:
             return 'entity';
     }
@@ -422,6 +437,20 @@ export async function buildDeleteImpactSummary(target: DeleteTarget): Promise<De
             detailLines.push(
                 '• Hand-clean room-scoped verb handlers in this room’s *.room.ts if you no longer need them.'
             );
+            break;
+        case 'guiControl':
+            detailLines.push(
+                `• Control “${target.displayLabel}” from GUI “${target.guiName}” (${target.guiId}) in GUI JSON only — the GUI definition is not removed.`
+            );
+            if (target.controlId) {
+                detailLines.push(
+                    `• Script scan below covers *.room.ts / *.character.ts / *.inventory.ts / globalScript.ts for B.whenButtonClick('${target.guiId}', '${target.controlId}') — review any matches before confirming.`
+                );
+            } else {
+                detailLines.push(
+                    '• Control has no id — no script scan performed (scripts can only reference controls by id).'
+                );
+            }
             break;
         default:
             break;
@@ -823,6 +852,45 @@ export async function deleteGameEntity(target: DeleteTarget): Promise<void> {
             await writeRoomJson(target.roomJsonUri, data);
             break;
         }
+        case 'guiControl': {
+            const data = await readRoomJsonRecord(target.guiJsonUri);
+            if (!data) {
+                throw new Error('GUI JSON could not be read');
+            }
+            const controls = asObjectArray('controls', data);
+            // Resolve by index first, then validate type/id so we don't drop the wrong
+            // control if the list was edited between tree refresh and confirmation.
+            const at = controls[target.controlIndex];
+            const typeAtIndex = at && typeof at.type === 'string' ? (at.type as string) : undefined;
+            const idAtIndex = at && typeof at.id === 'string' ? (at.id as string) : '';
+            const matchesAtIndex =
+                at !== undefined &&
+                typeAtIndex === target.typeLabel &&
+                idAtIndex === target.controlId;
+            if (matchesAtIndex) {
+                data.controls = controls.filter((_, i) => i !== target.controlIndex);
+            } else if (target.controlId) {
+                const fallbackIndex = controls.findIndex(
+                    (row) =>
+                        typeof row.type === 'string' &&
+                        (row.type as string) === target.typeLabel &&
+                        typeof row.id === 'string' &&
+                        (row.id as string) === target.controlId
+                );
+                if (fallbackIndex < 0) {
+                    throw new Error(
+                        `Control "${target.displayLabel}" was not found in ${target.guiId}.gui.json (it may have been removed already).`
+                    );
+                }
+                data.controls = controls.filter((_, i) => i !== fallbackIndex);
+            } else {
+                throw new Error(
+                    `Control "${target.displayLabel}" could not be located in ${target.guiId}.gui.json — open raw JSON and remove by hand.`
+                );
+            }
+            await writeRoomJson(target.guiJsonUri, data);
+            break;
+        }
         default:
             break;
     }
@@ -902,6 +970,16 @@ export function applySelectionAfterDelete(selection: EditorSelection, target: De
                 selection.roomPanel.instanceId === target.instanceId
             ) {
                 selection.clearRoomPanelFocus();
+            }
+            break;
+        case 'guiControl':
+            if (
+                selection.guiPanel.kind === 'control' &&
+                selection.guiPanel.guiJsonUri.toString() === target.guiJsonUri.toString() &&
+                selection.guiPanel.controlKey === target.controlKey
+            ) {
+                // Reset to plain GUI focus so the Inspector stays on the right card list.
+                selection.setGui(target.guiJsonUri, target.guiName);
             }
             break;
         default:

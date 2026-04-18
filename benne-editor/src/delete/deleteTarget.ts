@@ -83,6 +83,22 @@ export type DeleteTarget =
           instanceId: string;
           characterId: string;
           displayLabel: string;
+      }
+    | {
+          /** One `controls[]` entry inside a GUI JSON (does not delete the GUI itself). */
+          type: 'guiControl';
+          folder: vscode.WorkspaceFolder;
+          guiId: string;
+          guiName: string;
+          guiJsonUri: vscode.Uri;
+          controlIndex: number;
+          /** `type:id:index` as used by the Inspector card and main-tree node. */
+          controlKey: string;
+          /** Raw `type` string from the control JSON (e.g. `button`, `text`). */
+          typeLabel: string;
+          /** May be empty when the control has no `id`. */
+          controlId: string;
+          displayLabel: string;
       };
 
 /** Argument type for `benne-editor.deleteGameEntity` (tree context menu passes one node). */
@@ -181,6 +197,21 @@ export function resolveDeleteTargetFromMainTreeNode(
                 instanceId: node.instanceId,
                 characterId: node.characterId,
                 displayLabel: `${node.characterId} (${node.instanceId})`
+            };
+        case 'guiControl':
+            return {
+                type: 'guiControl',
+                folder: node.folder,
+                guiId: node.guiId,
+                guiName: node.guiName,
+                guiJsonUri: node.guiUri,
+                controlIndex: node.controlIndex,
+                controlKey: node.controlKey,
+                typeLabel: node.typeLabel,
+                controlId: node.controlId,
+                displayLabel: node.controlId
+                    ? `${node.typeLabel} (${node.controlId})`
+                    : `${node.typeLabel} (#${node.controlIndex + 1})`
             };
         default:
             return undefined;
