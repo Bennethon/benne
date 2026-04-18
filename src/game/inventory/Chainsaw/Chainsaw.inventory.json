@@ -1,0 +1,11 @@
+{
+  "id": "Chainsaw",
+  "name": "Chainsaw",
+  "description": "",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}

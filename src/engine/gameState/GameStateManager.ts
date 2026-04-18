@@ -252,11 +252,16 @@ export class GameStateManager {
     this.emitInventory('clear');
   }
 
+  /**
+   * Returns inventory entries in **insertion order** (the order in which ids were first
+   * added to state). `game-config.json`'s `initialGameState.inventory` array seeds the map
+   * in that order, and subsequent `addInventory` calls append new ids to the end, so the
+   * `inventoryPanel` GUI control renders items in the order the game author specified.
+   */
   getInventoryItems(): ReadonlyArray<{ id: string; quantity: number }> {
     return Object.entries(this.state.inventory)
       .filter(([, q]) => q > 0)
-      .map(([id, quantity]) => ({ id, quantity }))
-      .sort((a, b) => a.id.localeCompare(b.id));
+      .map(([id, quantity]) => ({ id, quantity }));
   }
 
   saveToLocalStorage(slot = 0): void {

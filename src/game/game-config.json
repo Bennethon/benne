@@ -40,9 +40,15 @@
     "flags": {},
     "variables": {},
     "inventory": [
+      "Key",
+      "Chainsaw",
       "Ladder",
       "Broom",
-      "Lantern"
+      "Lantern",
+      "SheetMusic",
+      "Vacuum",
+      "Candy1",
+      "Newspaper"
     ]
   },
   "dialog": {

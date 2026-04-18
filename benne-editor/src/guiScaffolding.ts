@@ -88,7 +88,9 @@ export async function runCreateGuiWizard(preferredFolder?: vscode.WorkspaceFolde
 /**
  * GUI script for \`${id}\` — Bennescript entry (\`B.raw\`, future onShow/onHide/control hooks on \`B\`).
  */
-registerGuiScript('${id}', ({ B: _B }) => {
+registerGuiScript('${id}', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
 });
 `;
 

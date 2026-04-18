@@ -85,6 +85,8 @@ export async function runCreateInventoryItemWizard(preferredFolder?: vscode.Work
     const invTs = `import { registerInventoryScript } from '@engine/scripting';
 
 registerInventoryScript('${id}', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
 });
 `;
 
@@ -186,6 +188,8 @@ export async function runImportInventoryItemsFromAsepriteTags(
             const invTs = `import { registerInventoryScript } from '@engine/scripting';
 
 registerInventoryScript('${id}', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
 });
 `;
             await vscode.workspace.fs.writeFile(invTsUri, new TextEncoder().encode(invTs));
