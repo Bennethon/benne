@@ -2,7 +2,7 @@
   "id": "random-text",
   "name": "random Text",
   "description": "",
-  "visible": true,
+  "visible": false,
   "display": {
     "aseprite": false
   },

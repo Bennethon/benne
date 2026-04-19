@@ -210,6 +210,19 @@ export interface GuiData {
   name: string;
   description?: string;
   /**
+   * Initial screen-space **x** offset of the packed **`gui.root`** container at build time.
+   * Controls parented under the root (every control **not** in **`fixedControls`**) are rendered at this
+   * offset plus their authored control **`x`**. Fixed controls are unaffected. Omitted = 0.
+   * Runtime tweens via **`gui.root.tweenTo({ x: … })`** still work; this is just the initial value.
+   */
+  x?: number;
+  /**
+   * Initial screen-space **y** offset of the packed **`gui.root`** container at build time.
+   * Typically used to park a HUD offscreen (e.g. **`y: -34`** for a dropdown bar) so a **`tweenTo({ y: 0 })`**
+   * in **`onGuiBuilt`** reveals it. See **`x`** for layering semantics; fixed controls are unaffected.
+   */
+  y?: number;
+  /**
    * Control **`id`** values (from **`controls[]`**) that stay **outside** the packed **`gui.root`**
    * container at runtime, so **`gui.root.tweenTo`** / whole-overlay moves do not affect them.
    * Omitted ids and unknown strings are ignored. Controls without an **`id`** cannot be listed here.

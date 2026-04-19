@@ -45,10 +45,8 @@ import { createInventoryScriptContext } from '../scripting/InventoryScriptContex
 import type { CharacterScriptContext, InventoryScriptContext, RoomScriptContext } from '@engine/scripting/types.js';
 import {
   buildGuiOverlay,
-  computeHudGuiTriggerWorldDepth,
   GUI_OVERLAY_DEPTH_STRIDE,
   GUI_TEXT_OVERLAY_DEPTH,
-  GUI_TRIGGER_DEPTH_BIAS,
   type GuiOverlayHandle,
 } from '../gui/buildGuiOverlay';
 import { getGuiBenneScript } from '../scripting/registerGuiScript.js';
@@ -248,10 +246,6 @@ export class RoomScene extends Phaser.Scene {
     );
     const hasGenericGuiVisibilityOverride = typeof genericGuiVisibilityOverride === 'boolean';
 
-    const hudGuiTriggerPointerDepth = computeHudGuiTriggerWorldDepth(nonDialogGuis.length);
-    const dialogOverlayBaseDepth = GUI_TEXT_OVERLAY_DEPTH + nonDialogGuis.length * GUI_OVERLAY_DEPTH_STRIDE;
-    const dialogGuiTriggerPointerDepth = dialogOverlayBaseDepth + GUI_TRIGGER_DEPTH_BIAS;
-
     this.genericGuiOverlays = [];
     let stackIndex = 0;
     for (const gui of nonDialogGuis) {
@@ -259,7 +253,6 @@ export class RoomScene extends Phaser.Scene {
         /** Preview / cutscene override wins; otherwise each GUI's required `visible` boolean. */
         startVisible: hasGenericGuiVisibilityOverride ? genericGuiVisibilityOverride : gui.visible,
         depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
-        triggerPointerWorldDepth: hudGuiTriggerPointerDepth,
       });
       if (built) {
         this.genericGuiOverlays.push(built.handle);
@@ -277,7 +270,6 @@ export class RoomScene extends Phaser.Scene {
           /** Speech UI is driven by {@link setDialogTextOverlay}, not the JSON `visible` flag at boot. */
           startVisible: false,
           depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
-          triggerPointerWorldDepth: dialogGuiTriggerPointerDepth,
         })
       : null;
     this.dialogTextOverlay = dialogBuilt?.handle ?? null;
