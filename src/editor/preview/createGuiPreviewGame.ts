@@ -11,12 +11,16 @@ import {
   guiHasButtonControls,
   guiHasImageControls,
   guiHasTextControls,
+  guiHasTriggerControls,
   type GuiFontLoadRequest,
 } from '../../game/collectFontLoadsForGui';
 import type { GuiButtonControl, GuiData, GuiInventoryPanelControl } from '../../types/gui';
 import type { GameSettingsInitialGameState } from '../../types/game';
 import { resolveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
-import { PreviewPolygonOverlay } from './previewPolygonOverlay';
+import {
+  PreviewPolygonOverlay,
+  type PreviewStrokeRectOverlayExtras,
+} from './previewPolygonOverlay';
 
 const BOOT = 'BenneGuiPreviewBoot';
 const PREVIEW = 'BenneGuiPreview';
@@ -136,6 +140,8 @@ const PREVIEW_GUI_TEXT_DEPTH = Math.max(GUI_TEXT_OVERLAY_DEPTH, PREVIEW_RESOLUTI
 const PREVIEW_OVERLAY_LINE_WIDTH_CSS = 2;
 /** Same stroke as inventory slot outlines in this preview (`RoomPolygonEditScene`-style overlay). */
 const GUI_PREVIEW_CONTROL_OUTLINE_STROKE = '#7dd3fc';
+/** Semi-transparent pink fill for `trigger` hit zones in the editor GUI preview (runtime triggers are not drawn). */
+const GUI_PREVIEW_TRIGGER_ZONE_FILL = 'rgba(255, 105, 180, 0.3)';
 
 function guiHasInventoryPanel(gui: GuiData): boolean {
   return (gui.controls ?? []).some((c): c is GuiInventoryPanelControl => c.type === 'inventoryPanel');
@@ -167,6 +173,43 @@ function collectButtonControlWorldRects(gui: GuiData): Array<{
     }
   }
   return rects;
+}
+
+function collectTriggerPreviewOverlayEntries(gui: GuiData): Array<{
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  label: string;
+}> {
+  const out: Array<{
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+    label: string;
+  }> = [];
+  for (const c of gui.controls ?? []) {
+    if (c.type !== 'trigger') {
+      continue;
+    }
+    const id = c.id?.trim() ?? '';
+    if (!id || c.width <= 0 || c.height <= 0) {
+      continue;
+    }
+    const left = Math.round(c.x);
+    const top = Math.round(c.y);
+    const w = c.width;
+    const h = c.height;
+    out.push({
+      left,
+      top,
+      right: left + w,
+      bottom: top + h,
+      label: `${left}, ${top} · ${w}×${h}`,
+    });
+  }
+  return out;
 }
 
 function collectInventoryPanelSlotWorldRects(gui: GuiData, inventoryItemCount: number): Array<{
@@ -262,7 +305,8 @@ class GuiPreviewScene extends Phaser.Scene {
       (guiHasInventoryPanel(guiData) ||
         guiHasTextControls(guiData) ||
         guiHasImageControls(guiData) ||
-        guiHasButtonControls(guiData))
+        guiHasButtonControls(guiData) ||
+        guiHasTriggerControls(guiData))
     ) {
       this.guiOutlineOverlay = new PreviewPolygonOverlay(this.game, mount);
       this.guiOutlineOverlay.setPointerEventsEnabled(false);
@@ -308,10 +352,27 @@ class GuiPreviewScene extends Phaser.Scene {
       ? collectButtonControlWorldRects(this.payload.guiData)
       : [];
     const outlineRects = inventoryRects.concat(textRects).concat(buttonRects);
+    const triggerEntries = collectTriggerPreviewOverlayEntries(this.payload.guiData);
+    const triggerExtras: PreviewStrokeRectOverlayExtras | undefined =
+      triggerEntries.length > 0
+        ? {
+            filledUnderlays: [
+              {
+                rects: triggerEntries,
+                fillStyle: GUI_PREVIEW_TRIGGER_ZONE_FILL,
+                fillAlpha: 1,
+              },
+            ],
+            rectCornerLabels: triggerEntries.map((e) => ({
+              rect: { left: e.left, top: e.top, right: e.right, bottom: e.bottom },
+              text: e.label,
+            })),
+          }
+        : undefined;
     ov.clearAndDrawStrokeRects(outlineRects, this.cameras.main, {
       strokeStyle: GUI_PREVIEW_CONTROL_OUTLINE_STROKE,
       lineWidthCss: PREVIEW_OVERLAY_LINE_WIDTH_CSS,
-    });
+    }, triggerExtras);
   }
 }
 

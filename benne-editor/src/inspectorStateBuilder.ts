@@ -219,6 +219,20 @@ export type InspectorGuiControlCard =
           enabled: boolean;
       }
     | {
+          controlKind: 'trigger';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          name: string;
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+          visibleMode: '' | 'true' | 'false';
+          active: boolean;
+      }
+    | {
           controlKind: 'unknown';
           key: string;
           index: number;
@@ -937,6 +951,23 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             visibleMode: guiReadVisibleMode(o),
             tag,
             backgroundAnchor
+        };
+    }
+
+    if (type === 'trigger') {
+        return {
+            controlKind: 'trigger',
+            key,
+            index,
+            summary,
+            controlId,
+            name: typeof o.name === 'string' ? o.name : '',
+            x: guiReadNum(o, 'x', 0),
+            y: guiReadNum(o, 'y', 0),
+            width: guiReadNum(o, 'width', 64),
+            height: guiReadNum(o, 'height', 64),
+            visibleMode: guiReadVisibleMode(o),
+            active: o.active !== false
         };
     }
 

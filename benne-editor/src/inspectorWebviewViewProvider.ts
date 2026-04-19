@@ -790,6 +790,11 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                     label: 'Button',
                     description: 'Sheet-backed label + click target (B.whenButtonClick)',
                     controlKind: 'button'
+                },
+                {
+                    label: 'Trigger',
+                    description: 'Invisible hit zone for B.whenMouseEnter / whenMouseLeave',
+                    controlKind: 'trigger'
                 }
             ];
             const picked = await vscode.window.showQuickPick(items, {
