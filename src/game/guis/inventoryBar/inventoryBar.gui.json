@@ -3,11 +3,13 @@
   "name": "Inventory Bar",
   "description": "Main inventory bar displayed on screen",
   "visible": true,
+  "y": -33,
   "display": {
     "aseprite": true
   },
   "fixedControls": [
-    "hoverZone"
+    "hoverZone",
+    "hideZone"
   ],
   "controls": [
     {
@@ -83,8 +85,17 @@
       "id": "hoverZone",
       "x": 0,
       "y": 0,
+      "width": 50,
+      "height": 10,
+      "visible": true
+    },
+    {
+      "type": "trigger",
+      "id": "hideZone",
+      "x": 0,
+      "y": 0,
       "width": 258,
-      "height": 33,
+      "height": 34,
       "visible": true
     }
   ]

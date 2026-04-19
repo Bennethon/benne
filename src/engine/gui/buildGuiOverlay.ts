@@ -55,21 +55,6 @@ export const GUI_TEXT_OVERLAY_DEPTH = 25_000;
  */
 export const GUI_OVERLAY_DEPTH_STRIDE = 10_000;
 
-/**
- * World depth for **non-dialog** HUD `trigger` rectangles so Phaser `input.topOnly` sorting always prefers them
- * over other HUD GUIs, while staying **strictly below** the dialog-text overlay base
- * (`GUI_TEXT_OVERLAY_DEPTH + nonDialogGuiCount * {@link GUI_OVERLAY_DEPTH_STRIDE}`).
- */
-export const GUI_TRIGGER_DEPTH_BELOW_NEXT_STACK_GAP = 250;
-
-export function computeHudGuiTriggerWorldDepth(nonDialogGuiCount: number): number {
-  return (
-    GUI_TEXT_OVERLAY_DEPTH +
-    nonDialogGuiCount * GUI_OVERLAY_DEPTH_STRIDE -
-    GUI_TRIGGER_DEPTH_BELOW_NEXT_STACK_GAP
-  );
-}
-
 export interface GuiOverlayHandle {
   /** Updates the dialogue line control (`id: line`) if present, else the first text control. */
   setPrimaryText(text: string): void;
@@ -303,21 +288,19 @@ interface BuiltGuiButton {
   readonly height: number;
 }
 
-/** Depth bias for `trigger` zones on the **dialog-text** overlay (above that overlay’s own base). */
-export const GUI_TRIGGER_DEPTH_BIAS = 5_000;
-
-/** After packing, movable `trigger` depth is set this far above the deepest sibling inside `guiContentRoot`. */
-const GUI_TRIGGER_RELATIVE_DEPTH_RISE = 100;
+/** Depth bias for the **debug outline** of trigger rectangles within their overlay (layout visualisation only). */
+const GUI_TRIGGER_DEBUG_DEPTH_BIAS = 5_000;
 
 /**
- * Never drawn (`visible = false` by default, `fillAlpha` minimal so hit-testing still works). Packing below may
- * re-parent the rectangle under the content root. Hit area is **`(0, 0, width, height)`** in local space — Phaser
- * input adds `displayOrigin` before `RectangleContains`, so a pre-centered `(-w/2, -h/2, …)` rect skews hover.
+ * Builds the visual placeholder for a `trigger` control. The rectangle is **never interactive** — input is
+ * routed through a scene-level `pointermove` observer (see `installGuiTriggerPointerObserver`). Keeping it as a
+ * normal scene object lets packing, camera routing, and `setVisible` keep working uniformly across controls.
+ * Local hit rect is **`(0, 0, width, height)`** from the top-left so authored `x` / `y` matches other controls.
  */
 function buildGuiTriggerZone(
   scene: Phaser.Scene,
   c: GuiTriggerControl,
-  triggerWorldDepth: number,
+  baseDepth: number,
   startVisible: boolean,
 ): Phaser.GameObjects.Rectangle | null {
   const w = c.width;
@@ -331,67 +314,155 @@ function buildGuiTriggerZone(
   }
   const px = Math.round(c.x);
   const py = Math.round(c.y);
-  const active = c.active !== false;
   const overlayVisible = startVisible && c.visible !== false;
   const showGuiDebug = getGameSettings().debug?.showGuiOutlines === true;
 
   /**
-   * Use a faint fill in debug mode; otherwise Phaser still hit-tests with a default-transparent
-   * fill because input geometry is the supplied rectangle, not pixels.
+   * Debug mode fills a translucent rect and strokes its border; in shipping mode the rect is invisible but
+   * still participates in display-list packing and camera ignore routing like any other control.
    */
   const rect = scene.add.rectangle(px + w / 2, py + h / 2, w, h, 0x88ff88, showGuiDebug ? 0.18 : 0);
   rect.setScrollFactor(0, 0);
-  rect.setDepth(triggerWorldDepth);
+  rect.setDepth(baseDepth + GUI_TRIGGER_DEBUG_DEPTH_BIAS);
   rect.setVisible(overlayVisible);
   if (showGuiDebug) {
     rect.setStrokeStyle(1, 0x88ff88, 0.9);
-  }
-  if (active) {
-    rect.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
   }
   return rect;
 }
 
 /**
- * With {@link Phaser.Input.InputPlugin#topOnly} (Phaser default), only one interactive wins per pointer.
- * {@link Phaser.Input.InputPlugin#sortGameObjects} breaks ties using `camera.renderList` index; triggers must stay
- * **last in their display list** among overlapping GUI siblings so a full-screen `image` / `inventoryPanel` does
- * not steal the pointer as soon as a hover tween moves art under the cursor (instant pointerout → spurious leave).
+ * Minimum positional / visibility fields read by {@link installGuiControlPointerHoverObserver}. Declared as a
+ * structural type (not an interface extending `GameObject`) so it accepts the overlap shared by `Sprite`,
+ * `Container`, `BitmapText`, and `Rectangle` without fighting Phaser 4's strict typings.
  */
-function bringGuiTriggerToDisplayTop(zone: Phaser.GameObjects.Rectangle, scene: Phaser.Scene): void {
-  const parent = zone.parentContainer;
-  if (parent) {
-    parent.bringToTop(zone);
-  } else {
-    scene.children.bringToTop(zone);
+type GuiHoverObservableGameObject = Phaser.GameObjects.GameObject & {
+  visible: boolean;
+  setVisible(value: boolean): unknown;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  displayWidth?: number;
+  displayHeight?: number;
+  parentContainer?: Phaser.GameObjects.Container | null;
+  getBounds?: () => Phaser.Geom.Rectangle;
+};
+
+/**
+ * Computes the current **screen-space** bounds of a `scrollFactor: 0` GUI control. Prefers `getBounds()` because
+ * it handles arbitrary transforms / packed children (e.g. `inventoryPanel` containers); falls back to a centered
+ * rect for plain `Rectangle` game objects (whose `getBounds()` is sometimes 0-sized on Phaser 4 when the Shape
+ * has no stroke). `pointer.x` / `pointer.y` are already in screen space, and `scrollFactor: 0` keeps world ==
+ * screen for these objects, so no camera math is needed in the non-editor runtime path.
+ */
+function computeGuiControlWorldRect(
+  target: GuiHoverObservableGameObject,
+): { left: number; top: number; right: number; bottom: number } | null {
+  if (typeof target.getBounds === 'function') {
+    const b = target.getBounds();
+    if (b.width > 0 && b.height > 0) {
+      return { left: b.x, top: b.y, right: b.x + b.width, bottom: b.y + b.height };
+    }
   }
+  const w = target.displayWidth ?? target.width ?? 0;
+  const h = target.displayHeight ?? target.height ?? 0;
+  if (!(w > 0 && h > 0)) {
+    return null;
+  }
+  const parent = target.parentContainer ?? null;
+  const ox = parent ? parent.x : 0;
+  const oy = parent ? parent.y : 0;
+  const cx = (target.x ?? 0) + ox;
+  const cy = (target.y ?? 0) + oy;
+  /** Rectangle game objects are centered on `(x, y)`; other objects rarely hit this fallback. */
+  const halfW = w / 2;
+  const halfH = h / 2;
+  return { left: cx - halfW, top: cy - halfH, right: cx + halfW, bottom: cy + halfH };
 }
 
 /**
- * Rectangle hit area in local space for controls that aren’t interactive yet. For objects whose width/height
- * aren’t finite (e.g. empty `BitmapText` / dynamic container), returns **`null`** so we skip opt-in rather than
- * pass a zero-sized geometry that would swallow hover on nearby controls.
+ * Scene-level pointer observer that emits `guiControlMouseEnter/LeaveEventId` on rect-containment transitions
+ * for a GUI control, **without** calling `setInteractive`. Used for `trigger` controls and for non-button
+ * controls (`image`, `inventoryPanel`, `text`) so hover events work uniformly while the room beneath keeps
+ * receiving prop / hotspot / character clicks. Gated by live `visible` state (the control's own plus its
+ * `parentContainer`'s) so a parked / hidden overlay never spurious-fires. Hooks `setVisible` so hiding the
+ * control flushes a synthetic leave. Returns a disposer that detaches the listener and — if currently inside —
+ * emits a final leave.
  */
-function getGuiControlHoverBounds(go: Phaser.GameObjects.GameObject): Phaser.Geom.Rectangle | null {
-  const anyGo = go as {
-    width?: number;
-    height?: number;
-    displayWidth?: number;
-    displayHeight?: number;
-    getBounds?: () => Phaser.Geom.Rectangle;
-  };
-  const w = anyGo.displayWidth ?? anyGo.width;
-  const h = anyGo.displayHeight ?? anyGo.height;
-  if (typeof w === 'number' && typeof h === 'number' && Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
-    return new Phaser.Geom.Rectangle(0, 0, w, h);
+function installGuiControlPointerHoverObserver(
+  scene: Phaser.Scene,
+  gui: GuiData,
+  controlId: string,
+  target: GuiHoverObservableGameObject,
+  options?: { active?: boolean },
+): () => void {
+  const id = controlId.trim();
+  if (!id) {
+    return () => {};
   }
-  if (typeof anyGo.getBounds === 'function') {
-    const b = anyGo.getBounds();
-    if (b.width > 0 && b.height > 0) {
-      return new Phaser.Geom.Rectangle(0, 0, b.width, b.height);
+  if (options?.active === false) {
+    return () => {};
+  }
+  let inside = false;
+
+  const isEffectivelyVisible = (): boolean => {
+    if (!target.visible) {
+      return false;
     }
-  }
-  return null;
+    const parent = target.parentContainer ?? null;
+    if (parent && !parent.visible) {
+      return false;
+    }
+    return true;
+  };
+
+  const emitLeaveIfInside = (): void => {
+    if (!inside) {
+      return;
+    }
+    inside = false;
+    gameEvents.emit(guiControlMouseLeaveEventId(gui.id, id));
+  };
+
+  const onPointerMove = (pointer: Phaser.Input.Pointer): void => {
+    if (!isEffectivelyVisible()) {
+      emitLeaveIfInside();
+      return;
+    }
+    const rect = computeGuiControlWorldRect(target);
+    if (!rect) {
+      emitLeaveIfInside();
+      return;
+    }
+    const inRect =
+      pointer.x >= rect.left && pointer.x <= rect.right && pointer.y >= rect.top && pointer.y <= rect.bottom;
+    if (inRect && !inside) {
+      inside = true;
+      gameEvents.emit(guiControlMouseEnterEventId(gui.id, id));
+    } else if (!inRect && inside) {
+      emitLeaveIfInside();
+    }
+  };
+
+  scene.input.on(Phaser.Input.Events.POINTER_MOVE, onPointerMove);
+
+  /** Hook `setVisible` so hiding the control (or its overlay) flushes a leave synchronously. */
+  const originalSetVisible = target.setVisible.bind(target);
+  target.setVisible = (v: boolean) => {
+    const prev = target.visible;
+    const result = originalSetVisible(v);
+    if (prev && !v) {
+      emitLeaveIfInside();
+    }
+    return result;
+  };
+
+  return () => {
+    scene.input.off(Phaser.Input.Events.POINTER_MOVE, onPointerMove);
+    emitLeaveIfInside();
+    target.setVisible = originalSetVisible;
+  };
 }
 
 /**
@@ -935,13 +1006,6 @@ function fillInventoryPanelContent(
 
 export interface BuildGuiOverlayOptions {
   depth?: number;
-  /**
-   * World depth for every **`trigger`** in this overlay. In the shipped room, set from
-   * {@link computeHudGuiTriggerWorldDepth} for HUD GUIs so pointer sorting beats other HUDs; the dialog-text
-   * overlay passes its own base + {@link GUI_TRIGGER_DEPTH_BIAS}. Previews omit this and fall back to
-   * `depth + GUI_TRIGGER_DEPTH_BIAS`.
-   */
-  triggerPointerWorldDepth?: number;
   /** When true, text starts visible (e.g. VS Code GUI preview). Default false for in-game overlays. */
   startVisible?: boolean;
   /** Shown when a control's `text` is missing or whitespace-only; omit to use empty string. */
@@ -958,7 +1022,6 @@ export function buildGuiOverlay(
   options?: BuildGuiOverlayOptions,
 ): BuiltGuiOverlay | null {
   const depth = options?.depth ?? GUI_TEXT_OVERLAY_DEPTH;
-  const triggerPointerWorldDepth = options?.triggerPointerWorldDepth ?? depth + GUI_TRIGGER_DEPTH_BIAS;
   const startVisible = options?.startVisible ?? false;
   const placeholder = options?.emptyTextPlaceholder;
   const allLines: Phaser.GameObjects.BitmapText[] = [];
@@ -1087,10 +1150,15 @@ export function buildGuiOverlay(
     }
 
     if (c.type === 'trigger') {
-      const zone = buildGuiTriggerZone(scene, c, triggerPointerWorldDepth, startVisible);
+      const zone = buildGuiTriggerZone(scene, c, depth, startVisible);
       if (zone) {
         triggerZones.push(zone);
         controlsById.set(c.id.trim(), zone);
+        overlayDisposers.push(
+          installGuiControlPointerHoverObserver(scene, gui, c.id, zone, {
+            active: c.active !== false,
+          }),
+        );
         ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(zone as DepthGameObject);
       }
       continue;
@@ -1126,7 +1194,9 @@ export function buildGuiOverlay(
     return null;
   }
 
-  const guiContentRoot = scene.add.container(0, 0);
+  const rootX = Math.round(gui.x ?? 0);
+  const rootY = Math.round(gui.y ?? 0);
+  const guiContentRoot = scene.add.container(rootX, rootY);
   guiContentRoot.setScrollFactor(0, 0);
   guiContentRoot.setDepth(depth);
   const indexed = movablePackedParts.map((go, index) => ({ go, index, depth: go.depth }));
@@ -1140,41 +1210,34 @@ export function buildGuiOverlay(
     row.go.setDepth(row.depth - minDepth);
   }
 
-  if (guiContentRoot.list.length > 0) {
-    let maxPackedDepth = 0;
-    for (const child of guiContentRoot.list as Phaser.GameObjects.GameObject[]) {
-      const d = (child as Phaser.GameObjects.GameObject & { depth: number }).depth;
-      if (typeof d === 'number' && Number.isFinite(d)) {
-        maxPackedDepth = Math.max(maxPackedDepth, d);
-      }
-    }
-    for (const z of triggerZones) {
-      if (z.parentContainer === guiContentRoot) {
-        z.setDepth(maxPackedDepth + GUI_TRIGGER_RELATIVE_DEPTH_RISE);
-      }
-    }
-  }
+  const triggerZoneSet = new Set<Phaser.GameObjects.GameObject>(triggerZones);
+  const guiButtonHitTargets = new Set<Phaser.GameObjects.GameObject>(
+    guiButtons.map((b) => b.hitTarget as Phaser.GameObjects.GameObject),
+  );
 
   /**
-   * Pointer hover fan-out for every control with an **`id`**. Buttons are already interactive when enabled
-   * (disabled buttons intentionally ignore all input); images, inventory panels, and text controls do not
-   * start interactive — opt them in here with a simple rectangle hit area sized from bounds so
-   * **`whenMouseEnter`** / **`whenMouseLeave`** works uniformly across control types.
+   * Pointer hover fan-out for every control with an **`id`**.
+   *
+   * - **Buttons** need `setInteractive` for real click handling and hover-tag swapping, so they stay interactive
+   *   and we subscribe to Phaser's native `pointerover` / `pointerout` via {@link wireGuiControlHoverEvents}.
+   * - **Triggers and every other control type** (image, inventoryPanel, text) are wired as **non-blocking
+   *   pointer observers** via {@link installGuiControlPointerHoverObserver}. This preserves uniform
+   *   `whenMouseEnter` / `whenMouseLeave` semantics without calling `setInteractive` on them — critical so
+   *   overlays like the inventory bar do not consume clicks meant for room props / hotspots beneath them
+   *   (Phaser's `input.topOnly` would otherwise deliver the click to the GUI sprite and skip the room).
    */
   for (const [id, target] of controlsById.entries()) {
-    if (!target.input) {
-      const bounds = getGuiControlHoverBounds(target);
-      if (bounds) {
-        target.setInteractive(bounds, Phaser.Geom.Rectangle.Contains);
-      }
+    if (triggerZoneSet.has(target)) {
+      /** Already wired in the trigger branch above. */
+      continue;
     }
-    if (target.input) {
+    if (guiButtonHitTargets.has(target)) {
       overlayDisposers.push(wireGuiControlHoverEvents(gui, id, target));
+      continue;
     }
-  }
-
-  for (const z of triggerZones) {
-    bringGuiTriggerToDisplayTop(z, scene);
+    overlayDisposers.push(
+      installGuiControlPointerHoverObserver(scene, gui, id, target as GuiHoverObservableGameObject),
+    );
   }
 
   const primaryLine = linesById.get('line') ?? allLines[0];

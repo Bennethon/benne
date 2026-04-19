@@ -6,12 +6,10 @@ registerGuiScript('inventoryBar', ({ B }) => {
 
     B.whenMouseEnter('hoverZone', () => {
       root.tweenTo({ y: 0 }, 300, 'Sine.easeOut');
-      console.log('Mouse entered hover zone');
     });
 
-    B.whenMouseLeave('hoverZone', () => {
-      root.tweenTo({ y: -150 }, 250, 'Sine.easeIn');
-      console.log('Mouse left hover zone');
+    B.whenMouseLeave('hideZone', () => {
+      root.tweenTo({ y: -33 }, 250, 'Sine.easeIn');
     });
   });
 
