@@ -43,7 +43,13 @@ import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
 import { createCharacterScriptContext } from '../scripting/CharacterScriptContext.js';
 import { createInventoryScriptContext } from '../scripting/InventoryScriptContext.js';
 import type { CharacterScriptContext, InventoryScriptContext, RoomScriptContext } from '@engine/scripting/types.js';
-import { buildGuiOverlay, GUI_TEXT_OVERLAY_DEPTH, type GuiOverlayHandle } from '../gui/buildGuiOverlay';
+import {
+  buildGuiOverlay,
+  GUI_OVERLAY_DEPTH_STRIDE,
+  GUI_TEXT_OVERLAY_DEPTH,
+  type GuiOverlayHandle,
+} from '../gui/buildGuiOverlay';
+import { getGuiBenneScript } from '../scripting/registerGuiScript.js';
 import { getAllGuiData } from '../../game/loadGuiData';
 
 /** Engine-reserved id for {@link RoomScene.setDialogTextOverlay} (Bennescript `say` / `say.now`). */
@@ -57,11 +63,6 @@ const DIALOG_TEXT_GUI_ID = 'dialog-text';
  * omitted/`true` shows).
  */
 const GENERIC_GUIS_INITIAL_VISIBILITY_REGISTRY_KEY = 'benneRoomSceneGenericGuisVisible';
-
-/**
- * Per-overlay base depth increment so each GUI’s controls (with their own `zIndex`) stay below the next overlay.
- */
-const GUI_OVERLAY_DEPTH_STRIDE = 10_000;
 
 /** Ignore walk clicks when already within this many pixels of the target. */
 const MIN_WALK_DISTANCE_PX = 6;
@@ -248,24 +249,37 @@ export class RoomScene extends Phaser.Scene {
     this.genericGuiOverlays = [];
     let stackIndex = 0;
     for (const gui of nonDialogGuis) {
-      const handle = buildGuiOverlay(this, gui, {
+      const built = buildGuiOverlay(this, gui, {
         /** Preview / cutscene override wins; otherwise each GUI's required `visible` boolean. */
         startVisible: hasGenericGuiVisibilityOverride ? genericGuiVisibilityOverride : gui.visible,
         depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
       });
-      if (handle) {
-        this.genericGuiOverlays.push(handle);
+      if (built) {
+        this.genericGuiOverlays.push(built.handle);
+        const guiScript = getGuiBenneScript(gui.id);
+        if (guiScript) {
+          const rt = built.createGuiRuntime((factory) => guiScript.queueInteraction(factory));
+          guiScript.notifyGuiBuilt(rt);
+        }
       }
       stackIndex += 1;
     }
 
-    this.dialogTextOverlay = dialogGui
+    const dialogBuilt = dialogGui
       ? buildGuiOverlay(this, dialogGui, {
           /** Speech UI is driven by {@link setDialogTextOverlay}, not the JSON `visible` flag at boot. */
           startVisible: false,
           depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
         })
       : null;
+    this.dialogTextOverlay = dialogBuilt?.handle ?? null;
+    if (dialogBuilt) {
+      const dialogScript = getGuiBenneScript(DIALOG_TEXT_GUI_ID);
+      if (dialogScript) {
+        const rt = dialogBuilt.createGuiRuntime((factory) => dialogScript.queueInteraction(factory));
+        dialogScript.notifyGuiBuilt(rt);
+      }
+    }
 
     // ─────────────────────────────────────────────────────────────
     // Bennescript: after props, characters, player, and camera exist

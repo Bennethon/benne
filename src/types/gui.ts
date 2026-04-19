@@ -1,6 +1,7 @@
 /**
  * GUI overlay definition from `src/game/guis/<id>/<id>.gui.json`.
  * Runtime composes optional `controls` in `RoomScene` (screen-space overlays); see `buildGuiOverlay` in `src/engine/gui/`.
+ * Control **`id`** values (where present) are the keys used by **`GuiRuntime.getControl`** from `*.gui.ts` behaviors.
  */
 export interface GuiDisplayData {
   /**
@@ -172,12 +173,61 @@ export interface GuiButtonControl {
   enabled?: boolean;
 }
 
-export type GuiControl = GuiTextControl | GuiInventoryPanelControl | GuiImageControl | GuiButtonControl;
+/**
+ * Invisible, rectangular hit zone with a stable **`id`**: pure behavior surface for
+ * **`B.whenMouseEnter` / `B.whenMouseLeave`** in `*.gui.ts`. Never drawn (no art, no text).
+ * Layout-only properties; no **`zIndex`** — triggers sit above all other controls in this GUI’s overlay
+ * so they reliably catch pointer events even over inventory icons and button art.
+ */
+export interface GuiTriggerControl {
+  type: 'trigger';
+  /** Required — used by **`B.whenMouseEnter('id', …)`** and Inspector tree. */
+  id: string;
+  /** Optional human label for the Inspector / editor tree. */
+  name?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /**
+   * When **`false`**, the trigger is inert (no pointer events emit, no cursor change).
+   * Default (omitted / `true`) is active.
+   */
+  active?: boolean;
+  /** Hide the trigger at load without deleting it. Pointer events are suppressed while hidden. */
+  visible?: boolean;
+}
+
+export type GuiControl =
+  | GuiTextControl
+  | GuiInventoryPanelControl
+  | GuiImageControl
+  | GuiButtonControl
+  | GuiTriggerControl;
 
 export interface GuiData {
   id: string;
   name: string;
   description?: string;
+  /**
+   * Initial screen-space **x** offset of the packed **`gui.root`** container at build time.
+   * Controls parented under the root (every control **not** in **`fixedControls`**) are rendered at this
+   * offset plus their authored control **`x`**. Fixed controls are unaffected. Omitted = 0.
+   * Runtime tweens via **`gui.root.tweenTo({ x: … })`** still work; this is just the initial value.
+   */
+  x?: number;
+  /**
+   * Initial screen-space **y** offset of the packed **`gui.root`** container at build time.
+   * Typically used to park a HUD offscreen (e.g. **`y: -34`** for a dropdown bar) so a **`tweenTo({ y: 0 })`**
+   * in **`onGuiBuilt`** reveals it. See **`x`** for layering semantics; fixed controls are unaffected.
+   */
+  y?: number;
+  /**
+   * Control **`id`** values (from **`controls[]`**) that stay **outside** the packed **`gui.root`**
+   * container at runtime, so **`gui.root.tweenTo`** / whole-overlay moves do not affect them.
+   * Omitted ids and unknown strings are ignored. Controls without an **`id`** cannot be listed here.
+   */
+  fixedControls?: string[];
   /**
    * When **`false`**, the overlay starts hidden at room load; when **`true`**, it starts visible.
    * (`RoomScene` builds every GUI under `src/game/guis/` except the engine-driven **`dialog-text`** overlay,
