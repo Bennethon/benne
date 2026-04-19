@@ -722,6 +722,16 @@ export function updateGuiControlPatch(
         }
     }
 
+    if (row.type === 'trigger') {
+        /** `active` defaults to true at runtime; omit when true to keep JSON clean (matches `enabled` on buttons). */
+        if (row.active === true || row.active === undefined) {
+            delete row.active;
+        }
+        if (typeof row.name === 'string' && row.name.trim().length === 0) {
+            delete row.name;
+        }
+    }
+
     return { ok: true };
 }
 

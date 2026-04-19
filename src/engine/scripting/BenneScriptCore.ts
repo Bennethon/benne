@@ -128,6 +128,10 @@ export abstract class BenneScriptCore {
     return this.interactionTail;
   }
 
+  /**
+   * Append async work to the interaction tail (lazy `factory` — see class docstring).
+   * Subclasses (e.g. GUI Bennescript) use this for queued tweens.
+   */
   protected chain(factory: () => Promise<unknown>): void {
     this.interactionTail = this.interactionTail.then(factory).then(() => undefined);
   }
@@ -144,6 +148,22 @@ export abstract class BenneScriptCore {
     };
     this.events.on(eventId, wrapped);
     this.disposers.push(() => this.events.off(eventId, wrapped));
+  }
+
+  /**
+   * Like {@link subscribe}, but the handler runs **synchronously** and never awaits the interaction tail.
+   * Use for high-frequency events (e.g. GUI pointer hover) that must not serialize behind queued tweens.
+   */
+  protected subscribeImmediate(eventId: string, run: () => void): void {
+    const fn = (): void => {
+      try {
+        run();
+      } catch (err) {
+        console.error(`[Benne] Error in ${eventId} handler:`, err);
+      }
+    };
+    this.events.on(eventId, fn);
+    this.disposers.push(() => this.events.off(eventId, fn));
   }
 
   /**

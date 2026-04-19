@@ -196,6 +196,20 @@ type InspectorGuiControlCard =
           enabled: boolean;
       }
     | {
+          controlKind: 'trigger';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          name: string;
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+          visibleMode: '' | 'true' | 'false';
+          active: boolean;
+      }
+    | {
           controlKind: 'unknown';
           key: string;
           index: number;
@@ -893,8 +907,11 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
         <option value="false"${c.visibleMode === 'false' ? ' selected' : ''}>Hidden</option>
       </select>`;
 
-    const zRow = `<span class="benne-pg-lbl">zIndex</span>
-      <input type="number" class="gui-field" data-index="${idx}" data-field="zIndex" value="${c.zIndex ?? ''}" placeholder="—" />`;
+    /** `trigger` controls do not author a zIndex (they always sit above other controls in this overlay). */
+    const renderZRow = (z: number | null): string =>
+        `<span class="benne-pg-lbl">zIndex</span>
+      <input type="number" class="gui-field" data-index="${idx}" data-field="zIndex" value="${z ?? ''}" placeholder="—" />`;
+    const zRow = c.controlKind === 'trigger' ? '' : renderZRow(c.zIndex);
 
     if (c.controlKind === 'text') {
         const alignLeftSel = c.align === '' || c.align === 'left';
@@ -1068,6 +1085,21 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
       ${animImg}`;
+    }
+
+    if (c.controlKind === 'trigger') {
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        <span class="benne-pg-lbl">name</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="name" value="${esc(c.name)}" placeholder="optional label" />
+        ${visibleSelect}
+        <span class="benne-pg-lbl">active</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="active" ${c.active ? 'checked' : ''} /></label>
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
+      ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
+      <p class="muted small" style="margin:8px 0 0;">Invisible hit zone. Wire <code>B.whenMouseEnter('${esc(c.controlId || 'id')}', …)</code> and <code>B.whenMouseLeave</code> in <code>*.gui.ts</code>.</p>`;
     }
 
     return `<p class="muted">Unsupported control kind.</p>`;
@@ -1669,6 +1701,13 @@ function buildGuiControlFieldPatch(
     }
     if (field === 'enabled') {
         return { enabled: (el as HTMLInputElement).checked ? null : false };
+    }
+    if (field === 'active') {
+        return { active: (el as HTMLInputElement).checked ? null : false };
+    }
+    if (field === 'name') {
+        const raw = (el as HTMLInputElement).value.trim();
+        return { name: raw.length === 0 ? null : (el as HTMLInputElement).value };
     }
     if (field === 'visible') {
         const raw = el.value;
