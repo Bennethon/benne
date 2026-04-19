@@ -34,7 +34,7 @@
   "debug": {
     "showWalkable": true,
     "showPropOutlines": false,
-    "showGuiOutlines": false
+    "showGuiOutlines": true
   },
   "initialGameState": {
     "flags": {},

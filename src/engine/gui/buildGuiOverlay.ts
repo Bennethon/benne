@@ -16,6 +16,10 @@ import {
 import type { GameBitmapFontDefinition, GameFontsManifest } from '../../types/fonts';
 import { gameEvents } from '../events/EventBus';
 import { guiAllButtonsClickEventId, guiButtonClickEventId, type GuiAllButtonsClickPayload } from '../events/guiButtonEvents';
+import {
+  guiControlMouseEnterEventId,
+  guiControlMouseLeaveEventId,
+} from '../events/guiControlHoverEvents';
 import type {
   GuiButtonControl,
   GuiControl,
@@ -25,6 +29,7 @@ import type {
   GuiSpriteAnchor,
   GuiTextAlign,
   GuiTextControl,
+  GuiTriggerControl,
 } from '../../types/gui';
 import type { InventoryItemData } from '../../types/inventory';
 import {
@@ -34,6 +39,7 @@ import {
 import { getGameSettings } from '../ConfigManager';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
+import { GuiRuntime } from '../scripting/GuiRuntime.js';
 
 /** Slot stroke for `game-config.json` `debug.showGuiOutlines` (distinct from walkable / prop debug colors). */
 const DEBUG_GUI_INVENTORY_SLOT_STROKE = 0x66ccff;
@@ -42,6 +48,27 @@ const manifest = gameFontsManifest as GameFontsManifest;
 
 /** Renders above room characters (`CHARACTER_SCENE_DEPTH` is 10_000). */
 export const GUI_TEXT_OVERLAY_DEPTH = 25_000;
+
+/**
+ * Base depth increment between stacked GUI overlays in the room (must match `RoomScene` stack math).
+ * One stride must fit every authored `zIndex` / panel depth within a single overlay.
+ */
+export const GUI_OVERLAY_DEPTH_STRIDE = 10_000;
+
+/**
+ * World depth for **non-dialog** HUD `trigger` rectangles so Phaser `input.topOnly` sorting always prefers them
+ * over other HUD GUIs, while staying **strictly below** the dialog-text overlay base
+ * (`GUI_TEXT_OVERLAY_DEPTH + nonDialogGuiCount * {@link GUI_OVERLAY_DEPTH_STRIDE}`).
+ */
+export const GUI_TRIGGER_DEPTH_BELOW_NEXT_STACK_GAP = 250;
+
+export function computeHudGuiTriggerWorldDepth(nonDialogGuiCount: number): number {
+  return (
+    GUI_TEXT_OVERLAY_DEPTH +
+    nonDialogGuiCount * GUI_OVERLAY_DEPTH_STRIDE -
+    GUI_TRIGGER_DEPTH_BELOW_NEXT_STACK_GAP
+  );
+}
 
 export interface GuiOverlayHandle {
   /** Updates the dialogue line control (`id: line`) if present, else the first text control. */
@@ -58,16 +85,30 @@ export interface GuiOverlayHandle {
   /** Extra horizontal gap between glyphs (Phaser `BitmapText` letter spacing). */
   setLetterSpacing(spacing: number): void;
   /**
-   * Top-level scene game objects composing this overlay (`BitmapText` lines, inventory-panel
-   * `Container`s, button sheet `Sprite`s and labels, invisible button hit `Container`s, extra
-   * `Sprite`s). Container children are **not** included — Phaser renders them through their parent,
-   * and camera `ignore()` follows the same rule. Used by `RoomScene` to route these objects through
-   * a dedicated UI camera with `origin=(0,0)` in the editor preview so `scrollFactor=0` placement
-   * survives non-unit camera zoom (Phaser 4's origin-aware zoom math otherwise pushes screen-fixed
-   * overlays far off the viewport when `camera.zoom ≠ 1`).
+   * Top-level scene object(s) for this overlay. After packing, the **movable** authored controls live under
+   * one screen-fixed **`Container`** (`gui.root` in **`GuiRuntime`**). Any control **`id`** listed in
+   * **`GuiData.fixedControls`** is kept as an additional top-level object (not parented under that container)
+   * so root-level tweens do not move it; those objects are included here after the container. Phaser renders
+   * packed children through the parent; camera `ignore()` follows the same rule for every entry. Runtime-only
+   * behavior objects may append when a **`GuiRuntime`** exists. Used by **`RoomScene`** to route GUI through a
+   * dedicated UI camera with `origin=(0,0)` in the editor preview so `scrollFactor=0` placement survives
+   * non-unit camera zoom (Phaser 4's origin-aware zoom math otherwise pushes screen-fixed overlays far off
+   * the viewport when `camera.zoom ≠ 1`).
    */
   readonly gameObjects: readonly Phaser.GameObjects.GameObject[];
   destroy(): void;
+}
+
+/**
+ * Result of {@link buildGuiOverlay}: the overlay handle plus an optional {@link GuiRuntime} factory for `*.gui.ts` behaviors.
+ */
+export interface BuiltGuiOverlay {
+  handle: GuiOverlayHandle;
+  /**
+   * Creates a {@link GuiRuntime} for this overlay (control facades, triggers). Call once per room load.
+   * Disposal is chained into {@link GuiOverlayHandle.destroy}.
+   */
+  createGuiRuntime(queueInteraction: (factory: () => Promise<unknown>) => void): GuiRuntime;
 }
 
 function originFromAlign(align: GuiTextAlign | undefined): { x: number; y: number } {
@@ -260,6 +301,126 @@ interface BuiltGuiButton {
   readonly enabled: boolean;
   readonly width: number;
   readonly height: number;
+}
+
+/** Depth bias for `trigger` zones on the **dialog-text** overlay (above that overlay’s own base). */
+export const GUI_TRIGGER_DEPTH_BIAS = 5_000;
+
+/** After packing, movable `trigger` depth is set this far above the deepest sibling inside `guiContentRoot`. */
+const GUI_TRIGGER_RELATIVE_DEPTH_RISE = 100;
+
+/**
+ * Never drawn (`visible = false` by default, `fillAlpha` minimal so hit-testing still works). Packing below may
+ * re-parent the rectangle under the content root. Hit area is **`(0, 0, width, height)`** in local space — Phaser
+ * input adds `displayOrigin` before `RectangleContains`, so a pre-centered `(-w/2, -h/2, …)` rect skews hover.
+ */
+function buildGuiTriggerZone(
+  scene: Phaser.Scene,
+  c: GuiTriggerControl,
+  triggerWorldDepth: number,
+  startVisible: boolean,
+): Phaser.GameObjects.Rectangle | null {
+  const w = c.width;
+  const h = c.height;
+  if (w <= 0 || h <= 0) {
+    return null;
+  }
+  const id = c.id?.trim() ?? '';
+  if (!id) {
+    return null;
+  }
+  const px = Math.round(c.x);
+  const py = Math.round(c.y);
+  const active = c.active !== false;
+  const overlayVisible = startVisible && c.visible !== false;
+  const showGuiDebug = getGameSettings().debug?.showGuiOutlines === true;
+
+  /**
+   * Use a faint fill in debug mode; otherwise Phaser still hit-tests with a default-transparent
+   * fill because input geometry is the supplied rectangle, not pixels.
+   */
+  const rect = scene.add.rectangle(px + w / 2, py + h / 2, w, h, 0x88ff88, showGuiDebug ? 0.18 : 0);
+  rect.setScrollFactor(0, 0);
+  rect.setDepth(triggerWorldDepth);
+  rect.setVisible(overlayVisible);
+  if (showGuiDebug) {
+    rect.setStrokeStyle(1, 0x88ff88, 0.9);
+  }
+  if (active) {
+    rect.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
+  }
+  return rect;
+}
+
+/**
+ * With {@link Phaser.Input.InputPlugin#topOnly} (Phaser default), only one interactive wins per pointer.
+ * {@link Phaser.Input.InputPlugin#sortGameObjects} breaks ties using `camera.renderList` index; triggers must stay
+ * **last in their display list** among overlapping GUI siblings so a full-screen `image` / `inventoryPanel` does
+ * not steal the pointer as soon as a hover tween moves art under the cursor (instant pointerout → spurious leave).
+ */
+function bringGuiTriggerToDisplayTop(zone: Phaser.GameObjects.Rectangle, scene: Phaser.Scene): void {
+  const parent = zone.parentContainer;
+  if (parent) {
+    parent.bringToTop(zone);
+  } else {
+    scene.children.bringToTop(zone);
+  }
+}
+
+/**
+ * Rectangle hit area in local space for controls that aren’t interactive yet. For objects whose width/height
+ * aren’t finite (e.g. empty `BitmapText` / dynamic container), returns **`null`** so we skip opt-in rather than
+ * pass a zero-sized geometry that would swallow hover on nearby controls.
+ */
+function getGuiControlHoverBounds(go: Phaser.GameObjects.GameObject): Phaser.Geom.Rectangle | null {
+  const anyGo = go as {
+    width?: number;
+    height?: number;
+    displayWidth?: number;
+    displayHeight?: number;
+    getBounds?: () => Phaser.Geom.Rectangle;
+  };
+  const w = anyGo.displayWidth ?? anyGo.width;
+  const h = anyGo.displayHeight ?? anyGo.height;
+  if (typeof w === 'number' && typeof h === 'number' && Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+    return new Phaser.Geom.Rectangle(0, 0, w, h);
+  }
+  if (typeof anyGo.getBounds === 'function') {
+    const b = anyGo.getBounds();
+    if (b.width > 0 && b.height > 0) {
+      return new Phaser.Geom.Rectangle(0, 0, b.width, b.height);
+    }
+  }
+  return null;
+}
+
+/**
+ * Installs pointer **mouseenter / mouseleave** forwarding on `target` so `B.whenMouseEnter(controlId, …)` /
+ * `whenMouseLeave(controlId, …)` observe it. Safe for objects that are already interactive (e.g. buttons);
+ * for non-interactive ones the caller must call `setInteractive` beforehand (triggers, inventory panels, images, text).
+ * Returns a disposer that detaches listeners.
+ */
+function wireGuiControlHoverEvents(
+  gui: GuiData,
+  controlId: string,
+  target: Phaser.GameObjects.GameObject,
+): () => void {
+  const id = controlId.trim();
+  if (!id) {
+    return () => {};
+  }
+  const onOver = (): void => {
+    gameEvents.emit(guiControlMouseEnterEventId(gui.id, id));
+  };
+  const onOut = (): void => {
+    gameEvents.emit(guiControlMouseLeaveEventId(gui.id, id));
+  };
+  target.on('pointerover', onOver);
+  target.on('pointerout', onOut);
+  return () => {
+    target.off('pointerover', onOver);
+    target.off('pointerout', onOut);
+  };
 }
 
 function applyGuiButtonInteractivity(
@@ -476,19 +637,20 @@ function addGuiImageSprite(
   depth: number,
   startVisible: boolean,
   extraSprites: Phaser.GameObjects.Sprite[],
-): void {
+  controlsById: Map<string, Phaser.GameObjects.GameObject>,
+): Phaser.GameObjects.Sprite | null {
   if (!usesAsepriteDisplay(gui)) {
-    return;
+    return null;
   }
   const legacyDisplay = (c as GuiImageControl & { display?: { tag?: string; backgroundAnchor?: GuiSpriteAnchor } })
     .display;
   const tag = (c.tag ?? legacyDisplay?.tag)?.trim() ?? '';
   if (!tag) {
-    return;
+    return null;
   }
   const guiTextureKey = getAsepriteTextureKey(gui.id);
   if (!scene.textures.exists(guiTextureKey)) {
-    return;
+    return null;
   }
   const anchor = guiSpriteAnchorOrDefault(c.backgroundAnchor ?? legacyDisplay?.backgroundAnchor);
   const sprite = scene.add.sprite(0, 0, guiTextureKey);
@@ -498,7 +660,7 @@ function addGuiImageSprite(
   const vis = startVisible && c.visible !== false;
   if (!tryApplyGuiSheetTag(scene, sprite, guiTextureKey, tag)) {
     sprite.destroy();
-    return;
+    return null;
   }
   sprite.setVisible(vis);
   if (anchor === 'screen') {
@@ -508,6 +670,11 @@ function addGuiImageSprite(
     applyGuiSpriteAnchor(sprite, anchor, c.x, c.y);
     extraSprites.push(sprite);
   }
+  const cid = c.id?.trim();
+  if (cid) {
+    controlsById.set(cid, sprite);
+  }
+  return sprite;
 }
 
 function collectGuiButtonIds(controls: readonly GuiControl[] | undefined): Set<string> {
@@ -768,6 +935,13 @@ function fillInventoryPanelContent(
 
 export interface BuildGuiOverlayOptions {
   depth?: number;
+  /**
+   * World depth for every **`trigger`** in this overlay. In the shipped room, set from
+   * {@link computeHudGuiTriggerWorldDepth} for HUD GUIs so pointer sorting beats other HUDs; the dialog-text
+   * overlay passes its own base + {@link GUI_TRIGGER_DEPTH_BIAS}. Previews omit this and fall back to
+   * `depth + GUI_TRIGGER_DEPTH_BIAS`.
+   */
+  triggerPointerWorldDepth?: number;
   /** When true, text starts visible (e.g. VS Code GUI preview). Default false for in-game overlays. */
   startVisible?: boolean;
   /** Shown when a control's `text` is missing or whitespace-only; omit to use empty string. */
@@ -782,16 +956,37 @@ export function buildGuiOverlay(
   scene: Phaser.Scene,
   gui: GuiData,
   options?: BuildGuiOverlayOptions,
-): GuiOverlayHandle | null {
+): BuiltGuiOverlay | null {
   const depth = options?.depth ?? GUI_TEXT_OVERLAY_DEPTH;
+  const triggerPointerWorldDepth = options?.triggerPointerWorldDepth ?? depth + GUI_TRIGGER_DEPTH_BIAS;
   const startVisible = options?.startVisible ?? false;
   const placeholder = options?.emptyTextPlaceholder;
   const allLines: Phaser.GameObjects.BitmapText[] = [];
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
   const guiButtons: BuiltGuiButton[] = [];
+  const triggerZones: Phaser.GameObjects.Rectangle[] = [];
   const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
+  const controlsById = new Map<string, Phaser.GameObjects.GameObject>();
   const extraSprites: Phaser.GameObjects.Sprite[] = [];
   const overlayDisposers: Array<() => void> = [];
+  const runtimeExtraGameObjects: Phaser.GameObjects.GameObject[] = [];
+  let disposeGuiRuntime: (() => void) | null = null;
+
+  type DepthGameObject = Phaser.GameObjects.GameObject & {
+    depth: number;
+    setDepth(value: number): Phaser.GameObjects.GameObject;
+  };
+  const fixedControlIds = new Set(
+    (gui.fixedControls ?? [])
+      .map((id) => String(id).trim())
+      .filter((id) => id.length > 0),
+  );
+  const isGuiFixedControlId = (raw: string | undefined): boolean => {
+    const id = raw?.trim() ?? '';
+    return id.length > 0 && fixedControlIds.has(id);
+  };
+  const movablePackedParts: DepthGameObject[] = [];
+  const fixedPackedGameObjects: Phaser.GameObjects.GameObject[] = [];
 
   if (usesAsepriteDisplay(gui)) {
     const guiKey = getAsepriteTextureKey(gui.id);
@@ -849,11 +1044,19 @@ export function buildGuiOverlay(
         fillInventoryPanelContent(panel, scene, gui, c, { offset: 0 }, startVisible);
       }
       inventoryPanels.push(panel);
+      const pid = c.id?.trim();
+      if (pid) {
+        controlsById.set(pid, panel);
+      }
+      ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(panel as DepthGameObject);
       continue;
     }
 
     if (c.type === 'image') {
-      addGuiImageSprite(scene, gui, c, depth, startVisible, extraSprites);
+      const spr = addGuiImageSprite(scene, gui, c, depth, startVisible, extraSprites, controlsById);
+      if (spr) {
+        ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(spr as DepthGameObject);
+      }
       continue;
     }
 
@@ -870,6 +1073,25 @@ export function buildGuiOverlay(
       const built = buildGuiButton(scene, gui, c, depth, startVisible, preEmit);
       if (built) {
         guiButtons.push(built);
+        controlsById.set(c.id.trim(), built.hitTarget);
+        const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
+        if (built.background) {
+          bucket.push(built.background as DepthGameObject);
+        }
+        if (built.label) {
+          bucket.push(built.label as DepthGameObject);
+        }
+        bucket.push(built.hitTarget as DepthGameObject);
+      }
+      continue;
+    }
+
+    if (c.type === 'trigger') {
+      const zone = buildGuiTriggerZone(scene, c, triggerPointerWorldDepth, startVisible);
+      if (zone) {
+        triggerZones.push(zone);
+        controlsById.set(c.id.trim(), zone);
+        ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(zone as DepthGameObject);
       }
       continue;
     }
@@ -887,6 +1109,10 @@ export function buildGuiOverlay(
     allLines.push(line);
     if (c.id) {
       linesById.set(c.id, line);
+      controlsById.set(c.id, line);
+      ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(line as DepthGameObject);
+    } else {
+      movablePackedParts.push(line as DepthGameObject);
     }
   }
 
@@ -894,9 +1120,61 @@ export function buildGuiOverlay(
     allLines.length === 0 &&
     inventoryPanels.length === 0 &&
     extraSprites.length === 0 &&
-    guiButtons.length === 0
+    guiButtons.length === 0 &&
+    triggerZones.length === 0
   ) {
     return null;
+  }
+
+  const guiContentRoot = scene.add.container(0, 0);
+  guiContentRoot.setScrollFactor(0, 0);
+  guiContentRoot.setDepth(depth);
+  const indexed = movablePackedParts.map((go, index) => ({ go, index, depth: go.depth }));
+  indexed.sort((a, b) => {
+    const d = a.depth - b.depth;
+    return d !== 0 ? d : a.index - b.index;
+  });
+  const minDepth = indexed.length > 0 ? indexed[0]!.depth : depth;
+  for (const row of indexed) {
+    guiContentRoot.add(row.go);
+    row.go.setDepth(row.depth - minDepth);
+  }
+
+  if (guiContentRoot.list.length > 0) {
+    let maxPackedDepth = 0;
+    for (const child of guiContentRoot.list as Phaser.GameObjects.GameObject[]) {
+      const d = (child as Phaser.GameObjects.GameObject & { depth: number }).depth;
+      if (typeof d === 'number' && Number.isFinite(d)) {
+        maxPackedDepth = Math.max(maxPackedDepth, d);
+      }
+    }
+    for (const z of triggerZones) {
+      if (z.parentContainer === guiContentRoot) {
+        z.setDepth(maxPackedDepth + GUI_TRIGGER_RELATIVE_DEPTH_RISE);
+      }
+    }
+  }
+
+  /**
+   * Pointer hover fan-out for every control with an **`id`**. Buttons are already interactive when enabled
+   * (disabled buttons intentionally ignore all input); images, inventory panels, and text controls do not
+   * start interactive — opt them in here with a simple rectangle hit area sized from bounds so
+   * **`whenMouseEnter`** / **`whenMouseLeave`** works uniformly across control types.
+   */
+  for (const [id, target] of controlsById.entries()) {
+    if (!target.input) {
+      const bounds = getGuiControlHoverBounds(target);
+      if (bounds) {
+        target.setInteractive(bounds, Phaser.Geom.Rectangle.Contains);
+      }
+    }
+    if (target.input) {
+      overlayDisposers.push(wireGuiControlHoverEvents(gui, id, target));
+    }
+  }
+
+  for (const z of triggerZones) {
+    bringGuiTriggerToDisplayTop(z, scene);
   }
 
   const primaryLine = linesById.get('line') ?? allLines[0];
@@ -905,7 +1183,7 @@ export function buildGuiOverlay(
   const primaryInitialOriginX = primaryLine?.originX ?? 0;
   const primaryInitialOriginY = primaryLine?.originY ?? 0;
 
-  return {
+  const handle: GuiOverlayHandle = {
     setPrimaryText(text: string) {
       primaryLine?.setText(text);
     },
@@ -940,52 +1218,61 @@ export function buildGuiOverlay(
           b.hitTarget.disableInteractive();
         }
       }
+      for (const z of triggerZones) {
+        z.setVisible(visible);
+      }
     },
     setLetterSpacing(spacing: number) {
       for (const line of allLines) {
         line.setLetterSpacing(spacing);
       }
     },
-    gameObjects: [
-      ...allLines,
-      ...inventoryPanels,
-      ...extraSprites,
-      ...guiButtons.flatMap((b) => {
-        const parts: Phaser.GameObjects.GameObject[] = [];
-        if (b.background) {
-          parts.push(b.background);
-        }
-        if (b.label) {
-          parts.push(b.label);
-        }
-        parts.push(b.hitTarget);
-        return parts;
-      }),
-    ],
+    get gameObjects(): Phaser.GameObjects.GameObject[] {
+      return [guiContentRoot, ...fixedPackedGameObjects, ...runtimeExtraGameObjects];
+    },
     destroy() {
+      disposeGuiRuntime?.();
+      disposeGuiRuntime = null;
+      runtimeExtraGameObjects.length = 0;
       for (const d of overlayDisposers) {
         d();
       }
       overlayDisposers.length = 0;
-      for (const line of allLines) {
-        line.destroy();
+      guiContentRoot.destroy(true);
+      for (const go of fixedPackedGameObjects) {
+        go.destroy();
       }
-      for (const panel of inventoryPanels) {
-        panel.destroy();
-      }
-      for (const s of extraSprites) {
-        s.destroy();
-      }
-      for (const b of guiButtons) {
-        b.background?.destroy();
-        b.label?.destroy();
-        b.hitTarget.destroy();
-      }
+      fixedPackedGameObjects.length = 0;
       allLines.length = 0;
       inventoryPanels.length = 0;
       extraSprites.length = 0;
       guiButtons.length = 0;
+      triggerZones.length = 0;
       linesById.clear();
+    },
+  };
+
+  const controlSnapshot = new Map(controlsById);
+
+  return {
+    handle,
+    createGuiRuntime(queueInteraction: (factory: () => Promise<unknown>) => void): GuiRuntime {
+      disposeGuiRuntime?.();
+      disposeGuiRuntime = null;
+      runtimeExtraGameObjects.length = 0;
+      const runtime = new GuiRuntime({
+        scene,
+        guiId: gui.id,
+        baseDepth: depth,
+        contentRoot: guiContentRoot,
+        controlGameObjectsById: controlSnapshot,
+        queueInteraction,
+      });
+      disposeGuiRuntime = (): void => {
+        runtime.dispose();
+        runtimeExtraGameObjects.length = 0;
+      };
+      return runtime;
     },
   };
 }

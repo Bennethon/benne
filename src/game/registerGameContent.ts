@@ -1,7 +1,10 @@
 import { gameEvents } from '../engine/events/EventBus';
 import { GuiBenneScript } from '../engine/scripting/GuiBenneScript';
 import { getBenneCharacterScriptRegistrations } from '../engine/scripting/registerCharacterScript';
-import { getBenneGuiScriptRegistrations } from '../engine/scripting/registerGuiScript';
+import {
+  getBenneGuiScriptRegistrations,
+  registerGuiBenneScriptInstance,
+} from '../engine/scripting/registerGuiScript';
 import { getBenneInventoryScriptRegistrations } from '../engine/scripting/registerInventoryScript';
 import { getBenneRoomScriptRegistrations } from '../engine/scripting/registerRoomScript';
 import type { GuiScriptContext } from '../engine/scripting/types';
@@ -70,6 +73,7 @@ export function registerGameContent(): void {
 
   for (const { guiId, registerFn } of getBenneGuiScriptRegistrations()) {
     const B = new GuiBenneScript(gameEvents, guiId);
+    registerGuiBenneScriptInstance(guiId, B);
     const ctx: GuiScriptContext = { B, events: gameEvents, guiId };
     try {
       registerFn(ctx);

@@ -9,7 +9,7 @@ import {
     listGuiDefinitions
 } from './gameDiscovery';
 
-export type GuiControlKind = 'text' | 'inventoryPanel' | 'image' | 'button';
+export type GuiControlKind = 'text' | 'inventoryPanel' | 'image' | 'button' | 'trigger';
 
 function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
@@ -115,6 +115,8 @@ function guiControlKindLabel(kind: GuiControlKind): string {
             return 'image';
         case 'button':
             return 'button';
+        case 'trigger':
+            return 'trigger';
     }
 }
 
@@ -192,6 +194,17 @@ function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, un
                 textOffsetY: 0,
                 backgroundTag: ''
             };
+        case 'trigger':
+            return {
+                type: 'trigger',
+                id,
+                name: '',
+                x: 0,
+                y: 0,
+                width: 64,
+                height: 64,
+                active: true
+            };
     }
 }
 
@@ -233,6 +246,9 @@ export async function runAddGuiControlWizard(
             const s = (v ?? '').trim();
             if (kind === 'button' && s.length === 0) {
                 return 'Button controls require an id (B.whenButtonClick, Inspector tree).';
+            }
+            if (kind === 'trigger' && s.length === 0) {
+                return 'Trigger controls require an id (B.whenMouseEnter / whenMouseLeave).';
             }
             if (s.length === 0) {
                 return null;
@@ -347,6 +363,11 @@ export async function runAddGuiControlInteractiveWizard(
             label: 'Button',
             description: 'Sheet-backed label + click target (B.whenButtonClick)',
             controlKind: 'button'
+        },
+        {
+            label: 'Trigger',
+            description: 'Invisible hit zone for B.whenMouseEnter / whenMouseLeave',
+            controlKind: 'trigger'
         }
     ];
     const picked = await vscode.window.showQuickPick(items, {

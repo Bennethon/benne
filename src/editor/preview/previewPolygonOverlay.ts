@@ -1,6 +1,31 @@
 import type { Cameras, Game } from 'phaser';
 import type { Point2 } from '../../types/room';
 
+/** Axis-aligned rect in world / game resolution space (same as room JSON). */
+export type PreviewOverlayWorldRect = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+};
+
+export type PreviewOverlayFilledUnderlay = {
+  rects: ReadonlyArray<PreviewOverlayWorldRect>;
+  fillStyle: string;
+  /** Multiplier applied with {@link CanvasRenderingContext2D.globalAlpha} while filling. */
+  fillAlpha: number;
+};
+
+export type PreviewOverlayRectCornerLabel = {
+  rect: PreviewOverlayWorldRect;
+  text: string;
+};
+
+export type PreviewStrokeRectOverlayExtras = {
+  filledUnderlays?: ReadonlyArray<PreviewOverlayFilledUnderlay>;
+  rectCornerLabels?: ReadonlyArray<PreviewOverlayRectCornerLabel>;
+};
+
 /** High-DPI 2D canvas aligned to the Phaser game canvas for editor chrome. */
 export class PreviewPolygonOverlay {
     readonly canvas: HTMLCanvasElement;
@@ -288,10 +313,12 @@ export class PreviewPolygonOverlay {
         rects: ReadonlyArray<{ left: number; top: number; right: number; bottom: number }>,
         cam: Cameras.Scene2D.Camera,
         style: { strokeStyle: string; lineWidthCss: number },
+        extras?: PreviewStrokeRectOverlayExtras,
     ): void {
         this.clearAndDrawStrokeRectGroups(
             [{ rects, strokeStyle: style.strokeStyle, lineWidthCss: style.lineWidthCss }],
             cam,
+            extras,
         );
     }
 
@@ -305,11 +332,30 @@ export class PreviewPolygonOverlay {
             lineWidthCss: number;
         }>,
         cam: Cameras.Scene2D.Camera,
+        extras?: PreviewStrokeRectOverlayExtras,
     ): void {
         const c = this.game.canvas;
         const cssW = c.clientWidth;
         const cssH = c.clientHeight;
         this.ctx.clearRect(0, 0, cssW, cssH);
+
+        if (extras?.filledUnderlays) {
+            for (const u of extras.filledUnderlays) {
+                if (u.rects.length === 0) {
+                    continue;
+                }
+                this.ctx.fillStyle = u.fillStyle;
+                this.ctx.globalAlpha = u.fillAlpha;
+                for (const rect of u.rects) {
+                    const tl = this.worldToCanvasCss({ x: rect.left, y: rect.top }, cam);
+                    const br = this.worldToCanvasCss({ x: rect.right, y: rect.bottom }, cam);
+                    const rw = br.x - tl.x;
+                    const rh = br.y - tl.y;
+                    this.ctx.fillRect(tl.x, tl.y, rw, rh);
+                }
+            }
+            this.ctx.globalAlpha = 1;
+        }
 
         for (const g of groups) {
             if (g.rects.length === 0) {
@@ -327,6 +373,26 @@ export class PreviewPolygonOverlay {
                 this.ctx.strokeRect(tl.x, tl.y, rw, rh);
             }
         }
+
+        const labels = extras?.rectCornerLabels;
+        if (labels && labels.length > 0) {
+            this.ctx.font = '600 10px system-ui, -apple-system, sans-serif';
+            this.ctx.textAlign = 'left';
+            this.ctx.textBaseline = 'top';
+            for (const lb of labels) {
+                const { rect } = lb;
+                const corner = this.worldToCanvasCss({ x: rect.left, y: rect.top }, cam);
+                const x = corner.x + 3;
+                const y = corner.y + 3;
+                this.ctx.lineWidth = 3;
+                this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.78)';
+                this.ctx.globalAlpha = 1;
+                this.ctx.strokeText(lb.text, x, y);
+                this.ctx.fillStyle = '#fff5fb';
+                this.ctx.fillText(lb.text, x, y);
+            }
+        }
+
         this.ctx.globalAlpha = 1;
     }
 }
