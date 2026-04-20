@@ -1,0 +1,12 @@
+{
+  "id": "Lantern",
+  "name": "Lantern",
+  "description": "",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "defaultAnimation": "Lantern-glowing"
+}

@@ -1,0 +1,313 @@
+{
+  "id": "apartment",
+  "name": "Apartment",
+  "size": {
+    "width": 320,
+    "height": 180
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 320,
+    "height": 180
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "walk-1",
+        "active": true,
+        "points": [
+          {
+            "x": 50,
+            "y": 131
+          },
+          {
+            "x": 10,
+            "y": 171
+          },
+          {
+            "x": 39,
+            "y": 171
+          },
+          {
+            "x": 69,
+            "y": 144
+          },
+          {
+            "x": 104,
+            "y": 144
+          },
+          {
+            "x": 116,
+            "y": 159
+          },
+          {
+            "x": 83,
+            "y": 161
+          },
+          {
+            "x": 84,
+            "y": 151
+          },
+          {
+            "x": 71,
+            "y": 152
+          },
+          {
+            "x": 70,
+            "y": 171
+          },
+          {
+            "x": 304,
+            "y": 167
+          },
+          {
+            "x": 258,
+            "y": 120
+          },
+          {
+            "x": 137,
+            "y": 121
+          },
+          {
+            "x": 123,
+            "y": 131
+          }
+        ],
+        "holes": [
+          {
+            "id": "hole-1",
+            "active": true,
+            "points": [
+              {
+                "x": 151,
+                "y": 151
+              },
+              {
+                "x": 159,
+                "y": 160
+              },
+              {
+                "x": 197,
+                "y": 160
+              },
+              {
+                "x": 206,
+                "y": 152
+              },
+              {
+                "x": 198,
+                "y": 140
+              },
+              {
+                "x": 158,
+                "y": 140
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [],
+  "points": [],
+  "regions": [],
+  "props": [
+    {
+      "id": "BG",
+      "tag": "BG",
+      "animations": {
+        "BG": {}
+      },
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Fan",
+      "tag": "Fan",
+      "animations": {
+        "Fan": {
+          "loop": true
+        }
+      },
+      "zIndex": 1,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Couch",
+      "tag": "Couch",
+      "animations": {
+        "Couch": {}
+      },
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 56,
+            "y": 98
+          },
+          {
+            "x": 58,
+            "y": 85
+          },
+          {
+            "x": 70,
+            "y": 83
+          },
+          {
+            "x": 122,
+            "y": 82
+          },
+          {
+            "x": 131,
+            "y": 87
+          },
+          {
+            "x": 130,
+            "y": 99
+          },
+          {
+            "x": 134,
+            "y": 102
+          },
+          {
+            "x": 135,
+            "y": 121
+          },
+          {
+            "x": 128,
+            "y": 128
+          },
+          {
+            "x": 50,
+            "y": 129
+          },
+          {
+            "x": 44,
+            "y": 109
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 101,
+        "y": 133
+      },
+      "lookAtPoint": {
+        "x": 88,
+        "y": 126
+      }
+    },
+    {
+      "id": "Door",
+      "tag": "Door",
+      "animations": {
+        "Door": {},
+        "Door-open": {}
+      },
+      "zIndex": 3,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 271,
+            "y": 63
+          },
+          {
+            "x": 293,
+            "y": 72
+          },
+          {
+            "x": 291,
+            "y": 143
+          },
+          {
+            "x": 270,
+            "y": 126
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 268,
+        "y": 133
+      },
+      "lookAtPoint": {
+        "x": 279,
+        "y": 129
+      }
+    },
+    {
+      "id": "Pillar",
+      "tag": "Pillar",
+      "animations": {
+        "Pillar": {}
+      },
+      "zIndex": 4,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 155,
+            "y": 102
+          },
+          {
+            "x": 155,
+            "y": 151
+          },
+          {
+            "x": 167,
+            "y": 159
+          },
+          {
+            "x": 195,
+            "y": 158
+          },
+          {
+            "x": 203,
+            "y": 151
+          },
+          {
+            "x": 203,
+            "y": 100
+          },
+          {
+            "x": 190,
+            "y": 94
+          },
+          {
+            "x": 164,
+            "y": 95
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 145,
+        "y": 154
+      },
+      "lookAtPoint": {
+        "x": 178,
+        "y": 154
+      }
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 176,
+      "y": 99,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 0
+    }
+  ]
+}
