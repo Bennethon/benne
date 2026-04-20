@@ -1,0 +1,9 @@
+{
+  "startRoomId": "office",
+  "rooms": [
+    {
+      "id": "apartment",
+      "definition": "apartment/apartment.room.json"
+    }
+  ]
+}
