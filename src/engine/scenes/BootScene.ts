@@ -3,11 +3,14 @@ import { applyBootAudioSettings } from '../applyAudioFromSettings';
 import { getAsepriteAssetPaths, getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/characterAseprite';
 import {
   getAsepriteFrameTagNames,
+  getCursorAsepriteFrameTagNames,
   getNormalizedAsepriteAtlasData,
+  getNormalizedCursorAsepriteAtlasData,
   getNormalizedGuiAsepriteAtlasData,
   getNormalizedInventoryAsepriteAtlasData,
   getNormalizedRoomAsepriteAtlasData,
   getNormalizedSharedInventoryAsepriteAtlasData,
+  hasBundledCursorSheet,
   hasBundledSharedInventorySheet,
   warnIfAnimationConfigKeysMissingFromFrameTags,
 } from '../../game/loadAsepriteAtlasData';
@@ -32,6 +35,8 @@ import {
 import { getAllGuiData } from '../../game/loadGuiData';
 import { queueGuiFontsForBootLoader } from '../../game/queueGuiFontsForBootLoader';
 import { resolveGameAssetUrl } from '../../game/resolveGameAssetUrl';
+import { CURSOR_TEXTURE_KEY, getCursorAsepriteAssetPaths, isBenneGameCursorAsepriteEnabled } from '../../game/cursorAseprite';
+import { getGameSettings } from '../ConfigManager';
 import type { CharacterFacingLetter, CharacterData } from '../../types/character';
 import type { RoomCharacterInstance, RoomData, RoomPropInstance } from '../../types/room';
 
@@ -203,6 +208,40 @@ export class BootScene extends Phaser.Scene {
         queuedGuiAsepriteIds.add(gui.id);
       } catch (err) {
         console.warn(`[Benne] Could not queue GUI Aseprite for "${gui.id}":`, err);
+      }
+    }
+
+    const gameSettings = getGameSettings();
+    if (isBenneGameCursorAsepriteEnabled(gameSettings)) {
+      if (hasBundledCursorSheet()) {
+        const cursorCfg = gameSettings.cursor!;
+        const cursorTags = getCursorAsepriteFrameTagNames();
+        const tagSet = new Set(cursorTags);
+        warnIfAnimationConfigKeysMissingFromFrameTags(
+          'Game cursor',
+          cursorTags,
+          cursorCfg.animations as Record<string, unknown> | undefined,
+        );
+        if (!tagSet.has(cursorCfg.idleAnimation)) {
+          console.warn(
+            `[Benne] game-config cursor.idleAnimation "${cursorCfg.idleAnimation}" is not a frame tag on images/cursor/cursor.json — cursor may not load.`,
+          );
+        }
+        if (!tagSet.has(cursorCfg.activeAnimation)) {
+          console.warn(
+            `[Benne] game-config cursor.activeAnimation "${cursorCfg.activeAnimation}" is not a frame tag on images/cursor/cursor.json — cursor may not load.`,
+          );
+        }
+        const paths = getCursorAsepriteAssetPaths();
+        this.load.aseprite({
+          key: CURSOR_TEXTURE_KEY,
+          textureURL: resolveGameAssetUrl(paths.png),
+          atlasURL: getNormalizedCursorAsepriteAtlasData(),
+        });
+      } else {
+        console.warn(
+          '[Benne] game-config enables cursor.display.aseprite but assets/images/cursor/cursor.json is not bundled — add the Aseprite export.',
+        );
       }
     }
 

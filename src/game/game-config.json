@@ -33,7 +33,7 @@
   },
   "debug": {
     "showWalkable": true,
-    "showPropOutlines": false,
+    "showPropOutlines": true,
     "showGuiOutlines": false
   },
   "initialGameState": {
@@ -50,6 +50,22 @@
       "Candy1",
       "Newspaper"
     ]
+  },
+  "cursor": {
+    "idleAnimation": "Idle",
+    "activeAnimation": "Active",
+    "hotspot": "center",
+    "animations": {
+      "Idle": {
+        "loop": true
+      },
+      "Active": {
+        "loop": true
+      }
+    },
+    "display": {
+      "aseprite": true
+    }
   },
   "dialog": {
     "clickToSkip": true,

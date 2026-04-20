@@ -5,6 +5,8 @@
  */
 import * as Phaser from 'phaser';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
+import { isBenneGameCursorAsepriteEnabled } from '../../game/cursorAseprite';
+import { getGameSettings } from '../ConfigManager';
 import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/guiAseprite';
 import {
   getPerItemInventoryTextureKey,
@@ -36,7 +38,6 @@ import {
   GAME_STATE_INVENTORY_CHANGED_EVENT,
   GAME_STATE_REPLACED_EVENT,
 } from '../../types/gameState.js';
-import { getGameSettings } from '../ConfigManager';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { GuiRuntime } from '../scripting/GuiRuntime.js';
@@ -504,7 +505,8 @@ function applyGuiButtonInteractivity(
   container.setInteractive(g, Phaser.Geom.Rectangle.Contains);
   if (container.input) {
     /** `true` uses the hand cursor over the hit area (Phaser `InteractiveObject.cursor`). */
-    container.input.cursor = enabled;
+    const showOsHand = enabled && !isBenneGameCursorAsepriteEnabled(getGameSettings());
+    container.input.cursor = showOsHand;
   }
 }
 
@@ -535,6 +537,7 @@ function buildGuiButton(
   /** Above label so the hit box receives input over the bitmap text. */
   hitTarget.setDepth(d + 2);
   hitTarget.setVisible(overlayVisible);
+  hitTarget.setData('benneGuiButton', true);
 
   const guiTextureKey = getAsepriteTextureKey(gui.id);
   const defaultBgTag = c.backgroundTag.trim();

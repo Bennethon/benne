@@ -1,3 +1,4 @@
+import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
 import type { GameSettings, GameSettingsDialog } from '../types/game';
 import rawSettings from '../game/game-config.json';
 
@@ -236,6 +237,72 @@ function assertGameSettings(data: GameSettings): void {
   assertInitialGameState(data);
   assertVerbSettings(data);
   assertDialogSettings(data);
+  assertCursorSettings(data);
+}
+
+function assertCursorSettings(data: GameSettings): void {
+  const c = data.cursor;
+  if (c === undefined) {
+    return;
+  }
+  if (typeof c !== 'object' || c === null || Array.isArray(c)) {
+    throw new Error('game-config cursor must be an object when present');
+  }
+  if (typeof c.idleAnimation !== 'string' || c.idleAnimation.trim().length === 0) {
+    throw new Error('game-config cursor.idleAnimation must be a non-empty string when cursor is set');
+  }
+  if (typeof c.activeAnimation !== 'string' || c.activeAnimation.trim().length === 0) {
+    throw new Error('game-config cursor.activeAnimation must be a non-empty string when cursor is set');
+  }
+  const anims = c.animations;
+  if (anims !== undefined) {
+    if (typeof anims !== 'object' || anims === null || Array.isArray(anims)) {
+      throw new Error('game-config cursor.animations must be a plain object when present');
+    }
+    for (const [tag, clip] of Object.entries(anims)) {
+      if (typeof tag !== 'string' || tag.length === 0) {
+        throw new Error('game-config cursor.animations keys must be non-empty strings');
+      }
+      if (typeof clip !== 'object' || clip === null || Array.isArray(clip)) {
+        throw new Error(`game-config cursor.animations["${tag}"] must be an object when present`);
+      }
+      const rec = clip as Record<string, unknown>;
+      if (rec.loop !== undefined && typeof rec.loop !== 'boolean') {
+        throw new Error(`game-config cursor.animations["${tag}"].loop must be a boolean when present`);
+      }
+      if (rec.frameDuration !== undefined && !Number.isFinite(rec.frameDuration)) {
+        throw new Error(`game-config cursor.animations["${tag}"].frameDuration must be a finite number when present`);
+      }
+    }
+  }
+  const hs = c.hotspot;
+  if (hs !== undefined) {
+    if (typeof hs !== 'string' || !isValidGameSettingsCursorHotspot(hs)) {
+      throw new Error(
+        `game-config cursor.hotspot must be one of: ${CURSOR_HOTSPOT_PRESETS.join(', ')}`,
+      );
+    }
+    if (hs === 'custom') {
+      const p = c.hotspotPixel;
+      if (p === undefined || typeof p !== 'object' || p === null || Array.isArray(p)) {
+        throw new Error('game-config cursor.hotspotPixel { x, y } is required when cursor.hotspot is "custom"');
+      }
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+        throw new Error('game-config cursor.hotspotPixel.x and .y must be finite numbers when hotspot is "custom"');
+      }
+    }
+  } else if (c.hotspotPixel !== undefined) {
+    console.warn('[Benne] game-config cursor.hotspotPixel is ignored unless cursor.hotspot is "custom"');
+  }
+  const disp = c.display;
+  if (disp !== undefined) {
+    if (typeof disp !== 'object' || disp === null || Array.isArray(disp)) {
+      throw new Error('game-config cursor.display must be an object when present');
+    }
+    if (disp.aseprite !== undefined && typeof disp.aseprite !== 'boolean') {
+      throw new Error('game-config cursor.display.aseprite must be a boolean when present');
+    }
+  }
 }
 
 const settings = rawSettings as GameSettings;
