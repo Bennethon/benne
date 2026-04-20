@@ -4,6 +4,7 @@ import {
     getRoomAsepriteTextureKey,
 } from '../../game/roomAseprite';
 import {
+    hasBundledCursorSheet,
     readAsepriteFrameTagNamesFromRawJson,
     warnIfAnimationConfigKeysMissingFromFrameTags,
 } from '../../game/loadAsepriteAtlasData';
@@ -37,6 +38,8 @@ import type {
     RoomPropSpawn,
     RoomSceneStartData,
 } from '../../engine/scenes/BootScene';
+import { getGameSettings } from '../../engine/ConfigManager';
+import { CURSOR_TEXTURE_KEY, getCursorAsepriteAssetPaths, isBenneGameCursorAsepriteEnabled } from '../../game/cursorAseprite';
 
 export type PreviewManifest = {
     loads: PreviewLoadEntry[];
@@ -181,6 +184,7 @@ export async function buildPreviewManifest(
     // a preview reload. Fonts / Aseprite loads are small; keeping load-on-toggle symmetric with
     // the shipped game (see `BootScene` which also queues all GUI assets) avoids editor drift.
     await queueGuiAndInventoryLoads(loads, assetsBase, revokeLater);
+    await queueGameCursorLoad(loads, assetsBase, revokeLater);
 
     const startData: RoomSceneStartData = {
         room,
@@ -198,6 +202,33 @@ export async function buildPreviewManifest(
  * game, using fetch + object URLs so the webview can load them via Phaser's loader. Called once
  * per `buildPreviewManifest`; idempotent w.r.t. the caller (dedup happens by key inside the loader).
  */
+async function queueGameCursorLoad(
+    loads: PreviewLoadEntry[],
+    assetsBase: string,
+    revokeLater: (url: string) => string,
+): Promise<void> {
+    if (!isBenneGameCursorAsepriteEnabled(getGameSettings()) || !hasBundledCursorSheet()) {
+        return;
+    }
+    try {
+        const paths = getCursorAsepriteAssetPaths();
+        const jsonUrl = joinGameWebviewUri(assetsBase, paths.json);
+        const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
+        const raw = await fetchJson(jsonUrl);
+        const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+        const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
+        const atlasURL = revokeLater(URL.createObjectURL(blob));
+        loads.push({
+            kind: 'aseprite',
+            key: CURSOR_TEXTURE_KEY,
+            textureURL: pngUrl,
+            atlasURL,
+        });
+    } catch (err) {
+        console.warn('[Benne preview] Could not queue game cursor Aseprite:', err);
+    }
+}
+
 async function queueGuiAndInventoryLoads(
     loads: PreviewLoadEntry[],
     assetsBase: string,

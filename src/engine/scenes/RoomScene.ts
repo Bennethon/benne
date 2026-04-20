@@ -15,8 +15,16 @@ import {
   type PlayerWalkStartPayload,
   type PlayerWalkStopPayload,
 } from '../events/playerWalkEvents';
-import { applyCharacterAnimationClips, setupCharacterAsepritePlayback } from '../characterAnimationPlayback';
+import {
+  applyCharacterAnimationClips,
+  setupCharacterAsepritePlayback,
+} from '../characterAnimationPlayback';
 import { getDialogSettings, getGameSettings } from '../ConfigManager';
+import {
+  applyGameCursorSpriteHotspot,
+  CURSOR_TEXTURE_KEY,
+  isBenneGameCursorAsepriteEnabled,
+} from '../../game/cursorAseprite';
 import { attachPostProcessingPlaceholder } from '../postfx/PostEffects';
 import {
   cameraFollowOffsetForFeet,
@@ -72,6 +80,9 @@ const CHARACTER_SCENE_DEPTH = 10_000;
 
 /** Walkable / prop debug strokes render above characters. */
 const DEBUG_OVERLAY_DEPTH = 20_000;
+
+/** Renders above typical room + GUI depth so the custom pointer stays on top (shipped game). */
+const CUSTOM_CURSOR_DEPTH = 500_000;
 
 /** `startFollow` offset so the camera tracks {@link getCharacterWorldFeet}, not the sprite top-left. */
 function getFeetFollowOffset(player: Phaser.GameObjects.Sprite): { x: number; y: number } {
@@ -195,6 +206,13 @@ export class RoomScene extends Phaser.Scene {
   /** When set, a left-click should end the active scripted dialog line early (global or per-line `say` options). */
   private scriptedDialogClickToSkip: (() => void) | null = null;
 
+  /** Screen-space sprite when `game-config.json` enables `cursor.display.aseprite`. */
+  private customCursorSprite: Phaser.GameObjects.Sprite | null = null;
+  private lastCustomCursorActive: boolean | null = null;
+  private readonly onCustomCursorPointerMove = (pointer: Phaser.Input.Pointer): void => {
+    this.refreshCustomCursor(pointer);
+  };
+
   constructor() {
     super(SCENE_ROOM);
   }
@@ -281,6 +299,8 @@ export class RoomScene extends Phaser.Scene {
       }
     }
 
+    this.setupCustomGameCursor();
+
     // ─────────────────────────────────────────────────────────────
     // Bennescript: after props, characters, player, and camera exist
     // ─────────────────────────────────────────────────────────────
@@ -365,6 +385,8 @@ export class RoomScene extends Phaser.Scene {
       this.scriptedDialogClickToSkip = null;
       this.scale.off('resize', this.onScaleResize, this);
       this.input.off('pointerdown', this.handleRoomPointerDown);
+      this.input.off('pointermove', this.onCustomCursorPointerMove);
+      this.teardownCustomGameCursor();
       this.editorUiChildListenerOff?.();
       this.editorUiChildListenerOff = null;
       this.editorUiGuiObjects.clear();
@@ -813,6 +835,9 @@ export class RoomScene extends Phaser.Scene {
       registerOverlay(h);
     }
     registerOverlay(this.dialogTextOverlay);
+    if (this.customCursorSprite) {
+      this.editorUiGuiObjects.add(this.customCursorSprite);
+    }
 
     main.ignore(Array.from(this.editorUiGuiObjects));
     const nonGui = this.children.list.filter((o) => !this.editorUiGuiObjects.has(o));
@@ -1312,7 +1337,7 @@ export class RoomScene extends Phaser.Scene {
     sprite.setInteractive({
       hitArea: poly,
       hitAreaCallback: Phaser.Geom.Polygon.Contains,
-      useHandCursor: true,
+      useHandCursor: !isBenneGameCursorAsepriteEnabled(getGameSettings()),
     });
 
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -1396,13 +1421,14 @@ export class RoomScene extends Phaser.Scene {
     };
 
     const zone = this.add.zone(0, 0, roomW, roomH).setOrigin(0, 0).setDepth(depth);
+    zone.setData('benneHotspot', true);
     const flat: number[] = [];
     for (const p of pts) {
       flat.push(p.x, p.y);
     }
     const geom = new Phaser.Geom.Polygon(flat);
     zone.setInteractive(geom, Phaser.Geom.Polygon.Contains);
-    zone.input!.cursor = 'pointer';
+    zone.input!.cursor = isBenneGameCursorAsepriteEnabled(getGameSettings()) ? 'none' : 'pointer';
     zone.on('pointerdown', onHotspotPointer);
   }
 
@@ -1480,10 +1506,10 @@ export class RoomScene extends Phaser.Scene {
       sprite.setInteractive({
         hitArea: poly,
         hitAreaCallback: Phaser.Geom.Polygon.Contains,
-        useHandCursor: true,
+        useHandCursor: !isBenneGameCursorAsepriteEnabled(getGameSettings()),
       });
     } else {
-      sprite.setInteractive({ useHandCursor: true });
+      sprite.setInteractive({ useHandCursor: !isBenneGameCursorAsepriteEnabled(getGameSettings()) });
     }
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
@@ -1515,6 +1541,92 @@ export class RoomScene extends Phaser.Scene {
           : {}),
       });
     });
+  }
+
+  private setupCustomGameCursor(): void {
+    const settings = getGameSettings();
+    if (!isBenneGameCursorAsepriteEnabled(settings) || !this.textures.exists(CURSOR_TEXTURE_KEY)) {
+      return;
+    }
+    const cfg = settings.cursor!;
+    const idleKey = cfg.idleAnimation.trim();
+    const activeKey = cfg.activeAnimation.trim();
+
+    const created = this.anims.createFromAseprite(CURSOR_TEXTURE_KEY);
+    applyCharacterAnimationClips(created, cfg.animations);
+
+    if (!this.anims.exists(idleKey) || !this.anims.exists(activeKey)) {
+      console.warn(
+        `[Benne] Custom cursor: sheet is missing idle "${idleKey}" and/or active "${activeKey}" animation — skipping.`,
+      );
+      return;
+    }
+
+    this.input.setDefaultCursor('none');
+
+    const sprite = this.add.sprite(0, 0, CURSOR_TEXTURE_KEY);
+    sprite.setScrollFactor(0, 0);
+    sprite.setDepth(CUSTOM_CURSOR_DEPTH);
+    sprite.setName('benne-custom-cursor');
+    sprite.play(idleKey);
+    this.customCursorSprite = sprite;
+    this.lastCustomCursorActive = false;
+
+    this.input.on('pointermove', this.onCustomCursorPointerMove);
+    this.refreshCustomCursor(this.input.activePointer);
+  }
+
+  private teardownCustomGameCursor(): void {
+    if (!this.customCursorSprite) {
+      return;
+    }
+    this.customCursorSprite.destroy();
+    this.customCursorSprite = null;
+    this.lastCustomCursorActive = null;
+    this.input.setDefaultCursor('default');
+  }
+
+  private refreshCustomCursor(pointer: Phaser.Input.Pointer): void {
+    const sprite = this.customCursorSprite;
+    if (!sprite || !sprite.scene) {
+      return;
+    }
+    const settings = getGameSettings();
+    applyGameCursorSpriteHotspot(sprite, pointer, settings.cursor!);
+
+    const idleKey = settings.cursor!.idleAnimation.trim();
+    const activeKey = settings.cursor!.activeAnimation.trim();
+
+    const overClickable = this.isCursorOverBenneClickable(this.input.hitTestPointer(pointer));
+    if (this.lastCustomCursorActive === overClickable) {
+      return;
+    }
+    this.lastCustomCursorActive = overClickable;
+    sprite.play(overClickable ? activeKey : idleKey);
+  }
+
+  /**
+   * True when Phaser’s hit stack includes a room prop (clickable path only registers hit areas),
+   * hotspot zone, clickable character sprite, or GUI `button` hit target.
+   */
+  private isCursorOverBenneClickable(hits: Phaser.GameObjects.GameObject[]): boolean {
+    for (const o of hits) {
+      const go = o as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown };
+      if (typeof go.getData === 'function') {
+        if (go.getData('benneGuiButton') === true || go.getData('benneHotspot') === true) {
+          return true;
+        }
+        if (go.getData('character')) {
+          return true;
+        }
+      }
+      for (const propSprite of this.propSpritesById.values()) {
+        if (propSprite === o) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 }
 

@@ -18,6 +18,12 @@ const guiJsonModules = import.meta.glob('./assets/images/guis/**/*.json', {
   eager: true,
 }) as Record<string, { default?: Record<string, unknown> } | Record<string, unknown>>;
 
+const CURSOR_JSON_KEY = './assets/images/cursor/cursor.json';
+
+const cursorJsonModules = import.meta.glob('./assets/images/cursor/cursor.json', {
+  eager: true,
+}) as Record<string, { default?: Record<string, unknown> } | Record<string, unknown>>;
+
 const SHARED_INVENTORY_JSON_KEY = './assets/images/inventory/inventory.json';
 
 export type AsepriteAssetSheetKind = 'character' | 'room' | 'inventory' | 'gui';
@@ -225,4 +231,26 @@ export function getSharedInventoryAsepriteFrameTagNames(): readonly string[] {
  */
 export function getNormalizedGuiAsepriteAtlasData(guiId: string): Record<string, unknown> {
   return normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('gui', guiId)) as Record<string, unknown>;
+}
+
+function getBundledCursorAsepriteRawJson(): Record<string, unknown> {
+  const mod = cursorJsonModules[CURSOR_JSON_KEY];
+  if (!mod) {
+    throw new Error(`Missing Aseprite JSON for game cursor (expected Vite glob key '${CURSOR_JSON_KEY}').`);
+  }
+  return rawJsonFromModule(mod);
+}
+
+/** True when `src/game/assets/images/cursor/cursor.json` is present in the bundle. */
+export function hasBundledCursorSheet(): boolean {
+  return CURSOR_JSON_KEY in cursorJsonModules;
+}
+
+export function getNormalizedCursorAsepriteAtlasData(): Record<string, unknown> {
+  return normalizeAsepriteJsonForPhaser(getBundledCursorAsepriteRawJson()) as Record<string, unknown>;
+}
+
+/** Frame-tag names on the bundled cursor sheet (`images/cursor/cursor.json`). */
+export function getCursorAsepriteFrameTagNames(): readonly string[] {
+  return readAsepriteFrameTagNamesFromRawJson(getBundledCursorAsepriteRawJson());
 }
