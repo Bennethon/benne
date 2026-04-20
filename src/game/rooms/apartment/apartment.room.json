@@ -46,8 +46,8 @@
             "y": 167
           },
           {
-            "x": 259,
-            "y": 122
+            "x": 258,
+            "y": 120
           },
           {
             "x": 137,
@@ -233,7 +233,7 @@
         "Pillar": {}
       },
       "zIndex": 4,
-      "visible": true,
+      "visible": false,
       "alpha": 1,
       "clickable": true,
       "collider": {

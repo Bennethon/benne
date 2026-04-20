@@ -61,6 +61,15 @@ const CORNER_INWARD_OFFSET_PX = 1;
  */
 const OFF_MESH_SNAP_TOLERANCE_PX = 2;
 
+/**
+ * Perpendicular jitter used by {@link isSegmentInsideWalkable} to rescue interior samples
+ * that land on a polygon boundary edge. Chosen < {@link CORNER_INWARD_OFFSET_PX} so the jitter
+ * never reaches as far as a neighbouring node would sit, while still being wide enough that
+ * `pointInPolygon`'s ray cast reliably classifies the jittered points (0.5 px is unambiguous
+ * for integer-vertex polygons).
+ */
+const BOUNDARY_JITTER_PX = 0.5;
+
 /** Tolerance for orientation tests (pixel-scale; coordinates are integer in authored JSON). */
 const EPS = 1e-6;
 
@@ -148,13 +157,40 @@ export function isSegmentInsideWalkable(
   // proper-crossing test can be numerically fragile for segments that pass through (or very
   // near) a polygon vertex, and extra samples are the cheapest way to notice that the segment
   // actually dips out of the walkable region in a narrow concavity or crosses a small hole.
+  //
+  // Each sample is rescued by a small perpendicular jitter: if the sample lands exactly on a
+  // boundary edge (where `pointInPolygon` ray casts are unreliable) we instead accept it if
+  // either side of the segment is clearly inside walkable. Without this, segments running
+  // **along** a polygon boundary — e.g. a character on the top edge of the walkable mesh
+  // walking sideways to a goal clamped onto the same top edge — fail the sample test, which
+  // forces A\* to route the walk via some other graph node (typically a hole-ring vertex
+  // offset inward from the hole), making the character detour *away* from a perfectly valid
+  // straight-line walk along the boundary. Segments that leave the mesh through a real
+  // concavity or hole still fail because both perpendicular neighbours are also outside.
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  let nx = 0;
+  let ny = 0;
+  if (len > EPS) {
+    nx = -dy / len;
+    ny = dx / len;
+  }
+
   const samples = [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9];
   for (const t of samples) {
-    const px = a.x + (b.x - a.x) * t;
-    const py = a.y + (b.y - a.y) * t;
-    if (!isPointInWalkableArea(px, py, polygons)) {
-      return false;
+    const px = a.x + dx * t;
+    const py = a.y + dy * t;
+    if (isPointInWalkableArea(px, py, polygons)) {
+      continue;
     }
+    if (
+      isPointInWalkableArea(px + nx * BOUNDARY_JITTER_PX, py + ny * BOUNDARY_JITTER_PX, polygons) ||
+      isPointInWalkableArea(px - nx * BOUNDARY_JITTER_PX, py - ny * BOUNDARY_JITTER_PX, polygons)
+    ) {
+      continue;
+    }
+    return false;
   }
 
   for (const poly of polygons) {
