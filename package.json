@@ -10,7 +10,12 @@
     "build:character-preview": "tsc && vite build --config vite.character-preview.config.ts",
     "build:gui-preview": "tsc && vite build --config vite.gui-preview.config.ts",
     "build:inventory-preview": "tsc && vite build --config vite.inventory-preview.config.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync-bootstrap-down": "node scripts/switch-game-template.mjs sync-bootstrap-down",
+    "sync-template-down": "node scripts/switch-game-template.mjs sync-template-down",
+    "set-template": "node scripts/switch-game-template.mjs set-template",
+    "set-template:2-click": "node scripts/switch-game-template.mjs set-template 2-click",
+    "set-template:9-verb": "node scripts/switch-game-template.mjs set-template 9-verb"
   },
   "devDependencies": {
     "typescript": "~5.9.3",

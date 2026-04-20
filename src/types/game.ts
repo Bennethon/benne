@@ -90,6 +90,12 @@ export type VerbInputProfile = VerbInputProfileTwoVerb;
  * Add optional fields here as the engine grows (language, shaders, accessibility, etc.).
  */
 export interface GameSettings {
+  /**
+   * Template id used by `scripts/switch-game-template.mjs` to decide where `sync-template-down`
+   * writes. Matches the `game-templates/<name>/` folder (e.g. `"2-click"`, `"9-verb"`).
+   * Not consumed by the engine; purely authoring/tooling metadata.
+   */
+  name?: string;
   resolution: GameSettingsResolution;
   /** Folder name under `src/game/characters/` for the default player character. */
   startingPlayerCharacter: string;

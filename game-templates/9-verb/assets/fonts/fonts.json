@@ -1,0 +1,11 @@
+{
+  "lucasarts-scumm-solid": {
+    "textureFile": "lucasarts-scumm-solid_0.png",
+    "dataFile": "lucasarts-scumm-solid.xml",
+    "defaultLetterSpacing": 1
+  },
+  "lucasfont-alternate": {
+    "textureFile": "lucasfont-alternate_0.png",
+    "dataFile": "lucasfont-alternate.xml"
+  }
+}

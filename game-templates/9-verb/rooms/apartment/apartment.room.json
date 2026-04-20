@@ -1,0 +1,153 @@
+{
+  "id": "apartment",
+  "name": "Apartment",
+  "size": {
+    "width": 352,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 352,
+    "height": 198
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "walk-1",
+        "active": true,
+        "points": [
+          {
+            "x": 70,
+            "y": 133
+          },
+          {
+            "x": 26,
+            "y": 167
+          },
+          {
+            "x": 324,
+            "y": 167
+          },
+          {
+            "x": 277,
+            "y": 120
+          },
+          {
+            "x": 152,
+            "y": 120
+          },
+          {
+            "x": 143,
+            "y": 133
+          }
+        ],
+        "holes": [
+          {
+            "id": "hole-1",
+            "active": true,
+            "points": [
+              {
+                "x": 167,
+                "y": 151
+              },
+              {
+                "x": 179,
+                "y": 160
+              },
+              {
+                "x": 213,
+                "y": 160
+              },
+              {
+                "x": 225,
+                "y": 152
+              },
+              {
+                "x": 214,
+                "y": 144
+              },
+              {
+                "x": 178,
+                "y": 143
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [],
+  "points": [],
+  "regions": [],
+  "props": [
+    {
+      "id": "BG",
+      "tag": "BG",
+      "animations": {
+        "BG": {}
+      },
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Fan",
+      "tag": "Fan",
+      "animations": {
+        "Fan": {
+          "loop": true
+        }
+      },
+      "zIndex": 1,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Couch",
+      "tag": "Couch",
+      "animations": {
+        "Couch": {}
+      },
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "Door",
+      "tag": "Door",
+      "animations": {
+        "Door": {},
+        "Door-open": {}
+      },
+      "zIndex": 3,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "Pillar",
+      "tag": "Pillar",
+      "animations": {
+        "Pillar": {}
+      },
+      "zIndex": 4,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 176,
+      "y": 99,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 0
+    }
+  ]
+}

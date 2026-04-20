@@ -1,28 +1,26 @@
 {
+  "name": "9-verb",
   "resolution": {
-    "width": 320,
-    "height": 180
+    "width": 352,
+    "height": 198
   },
   "verbs": [
-    {
-      "id": "look",
-      "label": "Look at"
-    },
-    {
-      "id": "use",
-      "label": "Use"
-    },
-    {
-      "id": "slap",
-      "label": "Slap"
-    }
+    { "id": "give", "label": "Give" },
+    { "id": "pickUp", "label": "Pick up" },
+    { "id": "use", "label": "Use" },
+    { "id": "open", "label": "Open" },
+    { "id": "look", "label": "Look at" },
+    { "id": "push", "label": "Push" },
+    { "id": "close", "label": "Close" },
+    { "id": "talkTo", "label": "Talk to" },
+    { "id": "pull", "label": "Pull" }
   ],
   "inputProfile": {
     "kind": "twoVerb",
     "primaryButtonVerb": "use",
     "secondaryButtonVerb": "look"
   },
-  "defaultFallbackLine": "You can't do that.",
+  "defaultFallbackLine": "That doesn't seem to work.",
   "startingPlayerCharacter": "hank",
   "startingRoomId": "apartment",
   "audio": {
@@ -36,44 +34,10 @@
     "showPropOutlines": true,
     "showGuiOutlines": false
   },
-  "initialGameState": {
-    "flags": {},
-    "variables": {},
-    "inventory": [
-      "Key",
-      "Chainsaw",
-      "Ladder",
-      "Broom",
-      "Lantern",
-      "SheetMusic",
-      "Vacuum",
-      "Candy1",
-      "Newspaper"
-    ]
-  },
-  "cursor": {
-    "idleAnimation": "Idle",
-    "activeAnimation": "Active",
-    "hotspot": "center",
-    "animations": {
-      "Idle": {
-        "loop": true
-      },
-      "Active": {
-        "loop": true
-      }
-    },
-    "display": {
-      "aseprite": true
-    }
-  },
   "dialog": {
     "clickToSkip": true,
     "showText": true,
-    "defaultTalkOffset": {
-      "x": 0,
-      "y": 0
-    },
+    "defaultTalkOffset": { "x": 0, "y": 0 },
     "minDurationMs": 800,
     "msPerCharacter": 35,
     "maxDurationMs": 4500,
