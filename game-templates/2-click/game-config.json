@@ -1,0 +1,82 @@
+{
+  "resolution": {
+    "width": 320,
+    "height": 180
+  },
+  "verbs": [
+    {
+      "id": "look",
+      "label": "Look at"
+    },
+    {
+      "id": "use",
+      "label": "Use"
+    },
+    {
+      "id": "slap",
+      "label": "Slap"
+    }
+  ],
+  "inputProfile": {
+    "kind": "twoVerb",
+    "primaryButtonVerb": "use",
+    "secondaryButtonVerb": "look"
+  },
+  "defaultFallbackLine": "You can't do that.",
+  "startingPlayerCharacter": "hank",
+  "startingRoomId": "apartment",
+  "audio": {
+    "masterVolume": 1,
+    "sfxVolume": 1,
+    "musicVolume": 0.75,
+    "dialogueVolume": 1
+  },
+  "debug": {
+    "showWalkable": true,
+    "showPropOutlines": true,
+    "showGuiOutlines": false
+  },
+  "initialGameState": {
+    "flags": {},
+    "variables": {},
+    "inventory": [
+      "Key",
+      "Chainsaw",
+      "Ladder",
+      "Broom",
+      "Lantern",
+      "SheetMusic",
+      "Vacuum",
+      "Candy1",
+      "Newspaper"
+    ]
+  },
+  "cursor": {
+    "idleAnimation": "Idle",
+    "activeAnimation": "Active",
+    "hotspot": "center",
+    "animations": {
+      "Idle": {
+        "loop": true
+      },
+      "Active": {
+        "loop": true
+      }
+    },
+    "display": {
+      "aseprite": true
+    }
+  },
+  "dialog": {
+    "clickToSkip": true,
+    "showText": true,
+    "defaultTalkOffset": {
+      "x": 0,
+      "y": 0
+    },
+    "minDurationMs": 800,
+    "msPerCharacter": 35,
+    "maxDurationMs": 4500,
+    "durationMultiplier": 1
+  }
+}

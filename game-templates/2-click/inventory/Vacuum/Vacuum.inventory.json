@@ -1,0 +1,11 @@
+{
+  "id": "Vacuum",
+  "name": "Vacuum",
+  "description": "",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}
