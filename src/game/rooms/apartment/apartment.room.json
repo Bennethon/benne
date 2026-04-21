@@ -18,28 +18,28 @@
         "active": true,
         "points": [
           {
-            "x": 70,
-            "y": 133
+            "x": 67,
+            "y": 117
           },
           {
-            "x": 26,
-            "y": 167
+            "x": 33,
+            "y": 151
           },
           {
-            "x": 324,
-            "y": 167
+            "x": 321,
+            "y": 150
           },
           {
             "x": 277,
-            "y": 120
+            "y": 107
           },
           {
-            "x": 152,
-            "y": 120
+            "x": 153,
+            "y": 108
           },
           {
-            "x": 143,
-            "y": 133
+            "x": 146,
+            "y": 117
           }
         ],
         "holes": [
@@ -48,28 +48,28 @@
             "active": true,
             "points": [
               {
-                "x": 167,
-                "y": 151
-              },
-              {
-                "x": 179,
-                "y": 160
-              },
-              {
-                "x": 213,
-                "y": 160
-              },
-              {
-                "x": 225,
-                "y": 152
-              },
-              {
-                "x": 214,
-                "y": 144
+                "x": 169,
+                "y": 138
               },
               {
                 "x": 178,
-                "y": 143
+                "y": 145
+              },
+              {
+                "x": 214,
+                "y": 145
+              },
+              {
+                "x": 224,
+                "y": 138
+              },
+              {
+                "x": 212,
+                "y": 130
+              },
+              {
+                "x": 177,
+                "y": 129
               }
             ]
           }
@@ -92,18 +92,6 @@
       "alpha": 1
     },
     {
-      "id": "Fan",
-      "tag": "Fan",
-      "animations": {
-        "Fan": {
-          "loop": true
-        }
-      },
-      "zIndex": 1,
-      "visible": true,
-      "alpha": 1
-    },
-    {
       "id": "Couch",
       "tag": "Couch",
       "animations": {
@@ -112,7 +100,51 @@
       "zIndex": 2,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 66,
+            "y": 117
+          },
+          {
+            "x": 60,
+            "y": 96
+          },
+          {
+            "x": 71,
+            "y": 85
+          },
+          {
+            "x": 71,
+            "y": 74
+          },
+          {
+            "x": 82,
+            "y": 68
+          },
+          {
+            "x": 147,
+            "y": 69
+          },
+          {
+            "x": 151,
+            "y": 109
+          },
+          {
+            "x": 146,
+            "y": 117
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 0,
+        "y": 0
+      },
+      "lookAtPoint": {
+        "x": 12,
+        "y": 0
+      }
     },
     {
       "id": "Door",
@@ -124,7 +156,35 @@
       "zIndex": 3,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 289,
+            "y": 51
+          },
+          {
+            "x": 309,
+            "y": 60
+          },
+          {
+            "x": 307,
+            "y": 132
+          },
+          {
+            "x": 287,
+            "y": 114
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 0,
+        "y": 0
+      },
+      "lookAtPoint": {
+        "x": 12,
+        "y": 0
+      }
     },
     {
       "id": "Pillar",
@@ -132,22 +192,78 @@
       "animations": {
         "Pillar": {}
       },
-      "zIndex": 4,
+      "zIndex": 50,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 171,
+            "y": 90
+          },
+          {
+            "x": 180,
+            "y": 81
+          },
+          {
+            "x": 209,
+            "y": 81
+          },
+          {
+            "x": 220,
+            "y": 88
+          },
+          {
+            "x": 219,
+            "y": 138
+          },
+          {
+            "x": 213,
+            "y": 145
+          },
+          {
+            "x": 175,
+            "y": 144
+          },
+          {
+            "x": 171,
+            "y": 138
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 0,
+        "y": 0
+      },
+      "lookAtPoint": {
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "id": "Fan",
+      "tag": "Fan",
+      "animations": {
+        "Fan": {
+          "loop": true
+        }
+      },
+      "zIndex": 5,
+      "visible": true,
+      "alpha": 1
     }
   ],
   "characters": [
     {
       "instanceId": "hank-1",
       "definition": "hank/hank.character.json",
-      "x": 176,
-      "y": 99,
+      "x": 106,
+      "y": 136,
       "initialFacing": "L",
       "initialAnimation": "Idle",
       "visible": true,
-      "zIndex": 0
+      "zIndex": 40
     }
   ]
 }

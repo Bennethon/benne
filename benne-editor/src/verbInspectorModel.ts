@@ -1,4 +1,4 @@
-import type { RoomHotspotListEntry, RoomPropEntry } from './gameDiscovery';
+import type { GameConfigVerbEntry, RoomHotspotListEntry, RoomPropEntry } from './gameDiscovery';
 import {
     inventoryScriptRegistersVerb,
     characterScriptRegistersVerb,
@@ -68,7 +68,7 @@ function scriptRegistersHotspotFallback(source: string, roomId: string, hotspotI
 export function buildPropVerbChips(
     roomId: string,
     prop: RoomPropEntry,
-    gameVerbs: readonly { id: string; label?: string }[],
+    gameVerbs: readonly GameConfigVerbEntry[],
     configured: ReadonlySet<string>,
     roomScriptText: string
 ): InspectorVerbChip[] {
@@ -120,7 +120,7 @@ export function buildPropVerbChips(
 export function buildHotspotVerbChips(
     roomId: string,
     hotspot: RoomHotspotListEntry,
-    gameVerbs: readonly { id: string; label?: string }[],
+    gameVerbs: readonly GameConfigVerbEntry[],
     configured: ReadonlySet<string>,
     roomScriptText: string,
     roomPropIds: ReadonlySet<string>
@@ -187,7 +187,7 @@ export function buildHotspotVerbChips(
 export function buildRoomCharacterVerbChips(
     roomId: string,
     characterId: string,
-    gameVerbs: readonly { id: string; label?: string }[],
+    gameVerbs: readonly GameConfigVerbEntry[],
     configured: ReadonlySet<string>,
     roomScriptText: string,
     characterJsonText: string,
@@ -253,7 +253,7 @@ export function buildRoomCharacterVerbChips(
 
 export function buildCharacterVerbChips(
     characterId: string,
-    gameVerbs: readonly { id: string; label?: string }[],
+    gameVerbs: readonly GameConfigVerbEntry[],
     configured: ReadonlySet<string>,
     characterJsonText: string,
     characterScriptText: string
@@ -300,7 +300,7 @@ export function buildCharacterVerbChips(
 
 export function buildInventoryVerbChips(
     itemId: string,
-    gameVerbs: readonly { id: string; label?: string }[],
+    gameVerbs: readonly GameConfigVerbEntry[],
     configured: ReadonlySet<string>,
     inventoryJsonText: string,
     inventoryScriptText: string

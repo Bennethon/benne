@@ -126,7 +126,7 @@ worldY = parallaxDepth * baseY + (1 − parallaxDepth) * camera.worldView.y
 
 ### Verb system
 
-- **Config** (`src/game/game-config.json`, types **`src/types/game.ts`**): optional **`verbs`** (`{ id, label? }` each), optional **`inputProfile`** (only **`kind: "twoVerb"`** today: **`primaryButtonVerb`**, **`secondaryButtonVerb`**), optional **`defaultFallbackLine`** (used for **`verb:unhandled`**).
+- **Config** (`src/game/game-config.json`, types **`src/types/game.ts`**): optional **`verbs`** (`{ id, label?, preposition? }` each — **`preposition`** is a short connector for composed verb + object UI, e.g. “Look **at** …”), optional **`inputProfile`** (only **`kind: "twoVerb"`** today: **`primaryButtonVerb`**, **`secondaryButtonVerb`**), optional **`defaultFallbackLine`** (used for **`verb:unhandled`**).
 - **Defaults**: Omitting **`verbs`** implies ids **`look`** and **`use`**. Omitting **`inputProfile`** defaults to **left → `look`**, **right → `use`**.
 - **Per-object data** (**`RoomPropInstance`**, **`RoomHotspotData`**, **`CharacterData`**): **`onVerb`** maps verb **id** → **`true`** (supported verbs). **`onVerbFallback`** is a boolean enabling object-level fallback handling.
 - **Dispatch** (`src/engine/verbs/dispatchVerb.ts`): object supports verb → emit canonical scoped event ids from target context (`verb:room:<roomId>:<targetType>:<targetId>:<verbId>`). If object fallback is enabled and verb is unsupported, emit `verb:room:<roomId>:<targetType>:<targetId>:fallback` with `verbFallback: true`. For **characters**, **`verb:room:<roomId>:character:<characterId>:<verbId>`** is tried **first** (if any listener is registered); only if that channel has **no** listeners does dispatch emit **`verb:character:<characterId>:<verbId>`** (character-global / `*.character.ts` Bennescript). Character-global fallback follows the same precedence (room-scoped fallback first, then `verb:character:<id>:fallback`). If no object-level path applies, chain continues to **`verb:global:<verbId>`** (emitted only if a listener exists — see `globalVerbHandlerEventId` in **`verbInteractionEvents.ts`**) → **`verb:global:fallback`** → **`verb:unhandled`**. In **Vite dev**, unhandled verbs also **`console.warn`**. **`RoomScene.tryBeginPropLook`** dispatches the look verb on a prop without moving the player.
@@ -519,7 +519,51 @@ A full **Refresh** or **`loadRoom`** **destroys** the previous **`Phaser.Game`**
 
 ---
 
-## 9. Future Considerations
+## 9. Game content templates and switch script
+
+The repo can hold **multiple authored game layouts** (e.g. a two-button verb game vs. a nine-verb SCUMM-style shell) while keeping **`src/engine/`** shared and **`src/game/`** as the **single live slot** Vite and the editor target.
+
+**Layout**
+
+| Path | Role |
+|------|------|
+| **`game-templates/_bootstrap/`** | Shared bootstrap TypeScript next to game content: loaders, `registerGameContent`, asset URL helpers, etc. The set of files is the **top-level filenames** in this folder (no subdirectories). |
+| **`game-templates/<template-id>/`** | Template-specific tree: `game-config.json`, `globalScript.ts`, `assets/`, `rooms/`, `characters/`, `guis/`, `inventory/`, etc. Each folder is one switchable template (e.g. **`2-click`**, **`9-verb`**). |
+| **`src/game/`** | Whatever template is active right now — same shape as today’s shipped game folder. |
+
+**`game-config.json` → `name`**
+
+Optional string field **`name`** on **`GameSettings`** ([`src/types/game.ts`](../src/types/game.ts)): **template id** used only by tooling. It must match the folder name under **`game-templates/<name>/`** so **`sync-template-down`** knows where to write. The engine does not branch on it.
+
+**Script and npm commands**
+
+Implementation: **[`scripts/switch-game-template.mjs`](../scripts/switch-game-template.mjs)** (Node ESM). Run from the **repo root** (expects **`src/game/`** and **`game-templates/`**).
+
+| Command | Effect |
+|---------|--------|
+| **`npm run sync-bootstrap-down`** | Mirror bootstrap files from **`src/game/`** → **`game-templates/_bootstrap/`** (same top-level names as in `_bootstrap/`). |
+| **`npm run sync-template-down`** | Read **`name`** from **`src/game/game-config.json`**, then mirror **template** files from **`src/game/`** → **`game-templates/<name>/`**. |
+| **`npm run set-template -- <name>`** | Save the **current** live tree (bootstrap + template sync-down), then **replace** **`src/game/`** with a fresh copy of **`_bootstrap/`** + **`game-templates/<name>/`**. Shorthands: **`npm run set-template:2-click`**, **`npm run set-template:9-verb`**. |
+
+Each mirror builds a **plan** (new / modified / unchanged / orphan deletes), prints a summary, and asks for confirmation unless **`--yes`** / **`-y`** is passed (e.g. **`npm run set-template:9-verb -- --yes`**).
+
+**What counts as “bootstrap” vs “template”**
+
+- **Bootstrap**: any **top-level file** in **`src/game/`** whose basename appears in **`game-templates/_bootstrap/`** (today: the shared `*.ts` helpers only).
+- **Template**: everything else under **`src/game/`** — including **`game-config.json`**, **`globalScript.ts`**, and all subdirectories.
+
+**Special cases the script handles**
+
+- **`.gitkeep`** under template folders is ignored by the mirror so empty directories can stay in git without being deleted when **`src/game/`** has no matching file.
+- **Editor / OS duplicate names** are ignored and dropped as orphans on sync (never copied into templates): e.g. **`game-config copy.json`**, Windows **`… - Copy.ext`**, Explorer **`… (1).ext`**, **`.DS_Store`**, Office **`~$…`** lockfiles.
+
+**Authoring pitfall**
+
+Empty templates still need a **`src/game/rooms/rooms.manifest.json`** (and usually manifest **room entries**) because **`loadStartRoom.ts`** imports the manifest statically; the **Create New Room** wizard only **appends** to an existing manifest — it does not create the file if missing.
+
+---
+
+## 10. Future Considerations
 
 - **Room transitions**: Loading another room likely means **restarting `RoomScene`** (or a thin orchestrator) with new `RoomSceneStartData`. **Global narrative state** (flags, variables, inventory) already persists across room loads via **`GameStateManager`**; a future transition API should **not** replace that manager unless the game explicitly resets it.
 - **Post-processing**: `PostEffects.ts` is ready for **camera filter** composition (CRT, dither, etc.).
