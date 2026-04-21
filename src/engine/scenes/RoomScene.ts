@@ -40,8 +40,9 @@ import {
   getHotspotVerbHandlers,
   getPropVerbHandlers,
 } from '../verbs/normalizeHandlers';
-import { getEffectiveTwoVerbProfile } from '../verbs/verbConfig';
-import { resolveVerbIdFromPointer } from '../verbs/resolvePointerVerb';
+import { getEffectiveInputProfile } from '../verbs/verbConfig';
+import { resolvePointerVerbForTarget } from '../verbs/resolvePointerVerb';
+import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
@@ -871,9 +872,6 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private readonly handleRoomPointerDown = (pointer: Phaser.Input.Pointer): void => {
-    if (!pointer.leftButtonDown()) {
-      return;
-    }
     if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
       return;
     }
@@ -883,6 +881,15 @@ export class RoomScene extends Phaser.Scene {
 
     const hits = this.input.hitTestPointer(pointer);
     if (hits.length > 0) {
+      return;
+    }
+
+    if (pointer.rightButtonDown()) {
+      // Right-click on empty space clears the active verb (no walk).
+      resolveGameStateManager(this.game).clearActiveVerb();
+      return;
+    }
+    if (!pointer.leftButtonDown()) {
       return;
     }
 
@@ -1344,12 +1351,29 @@ export class RoomScene extends Phaser.Scene {
       if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
         return;
       }
-      const profile = getEffectiveTwoVerbProfile(getGameSettings());
-      const verbId = resolveVerbIdFromPointer(pointer, profile);
-      if (!verbId) {
+      const profile = getEffectiveInputProfile(getGameSettings());
+      const manager = resolveGameStateManager(this.game);
+      const resolution = resolvePointerVerbForTarget(
+        pointer,
+        profile,
+        { defaultVerb: spawn.data.defaultVerb },
+        manager.getActiveVerb(),
+      );
+      if (resolution.kind === 'none') {
         return;
       }
-      this.emitPropVerbInteraction(roomId, spawn, verbId);
+      if (resolution.kind === 'clearActive') {
+        manager.clearActiveVerb();
+        return;
+      }
+      if (resolution.kind === 'walkToTarget') {
+        void this.walkPlayerTo(spawn.id);
+        return;
+      }
+      this.emitPropVerbInteraction(roomId, spawn, resolution.verbId);
+      if (resolution.consumeActive) {
+        manager.clearActiveVerb();
+      }
     });
   }
 
@@ -1403,21 +1427,38 @@ export class RoomScene extends Phaser.Scene {
         return;
       }
       const handlers = getHotspotVerbHandlers(hotspot);
+      const profile = getEffectiveInputProfile(getGameSettings());
+      const manager = resolveGameStateManager(this.game);
+      const resolution = resolvePointerVerbForTarget(
+        pointer,
+        profile,
+        { defaultVerb: hotspot.defaultVerb },
+        manager.getActiveVerb(),
+      );
+      if (resolution.kind === 'none') {
+        return;
+      }
+      if (resolution.kind === 'clearActive') {
+        manager.clearActiveVerb();
+        return;
+      }
+      if (resolution.kind === 'walkToTarget') {
+        void this.walkPlayerTo(hotspot.id);
+        return;
+      }
       if (Object.keys(handlers.onVerb).length === 0 && handlers.onVerbFallback === undefined) {
         return;
       }
-      const profile = getEffectiveTwoVerbProfile(getGameSettings());
-      const verbId = resolveVerbIdFromPointer(pointer, profile);
-      if (!verbId) {
-        return;
-      }
-      console.log(`[Benne] verb "${verbId}" hotspot ${hotspot.id}`);
-      dispatchVerbInteraction(gameEvents, verbId, handlers, {
+      console.log(`[Benne] verb "${resolution.verbId}" hotspot ${hotspot.id}`);
+      dispatchVerbInteraction(gameEvents, resolution.verbId, handlers, {
         type: 'hotspot',
         hotspotId: hotspot.id,
         roomId,
         description: hotspot.description,
       });
+      if (resolution.consumeActive) {
+        manager.clearActiveVerb();
+      }
     };
 
     const zone = this.add.zone(0, 0, roomW, roomH).setOrigin(0, 0).setDepth(depth);
@@ -1518,16 +1559,30 @@ export class RoomScene extends Phaser.Scene {
       if (this.isScriptedDialogInputSuppressed()) {
         return;
       }
-      const profile = getEffectiveTwoVerbProfile(getGameSettings());
-      const verbId = resolveVerbIdFromPointer(pointer, profile);
-      if (!verbId) {
+      const profile = getEffectiveInputProfile(getGameSettings());
+      const manager = resolveGameStateManager(this.game);
+      const resolution = resolvePointerVerbForTarget(
+        pointer,
+        profile,
+        { defaultVerb: spawn.data.defaultVerb },
+        manager.getActiveVerb(),
+      );
+      if (resolution.kind === 'none') {
         return;
       }
-      console.log(`[Benne] verb "${verbId}" character ${spawn.data.id}`);
+      if (resolution.kind === 'clearActive') {
+        manager.clearActiveVerb();
+        return;
+      }
+      if (resolution.kind === 'walkToTarget') {
+        void this.walkPlayerTo(spawn.data.id);
+        return;
+      }
+      console.log(`[Benne] verb "${resolution.verbId}" character ${spawn.data.id}`);
       const sx = sprite.x;
       const sy = sprite.y;
       const d = spawn.data;
-      dispatchVerbInteraction(gameEvents, verbId, handlers, {
+      dispatchVerbInteraction(gameEvents, resolution.verbId, handlers, {
         type: 'character',
         characterId: d.id,
         instanceId: spawn.instanceId,
@@ -1540,6 +1595,9 @@ export class RoomScene extends Phaser.Scene {
           ? { talkPoint: { x: sx + d.talkPoint.x, y: sy + d.talkPoint.y } }
           : {}),
       });
+      if (resolution.consumeActive) {
+        manager.clearActiveVerb();
+      }
     });
   }
 

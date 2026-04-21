@@ -79,6 +79,11 @@ export interface CharacterData {
   animations?: CharacterAnimationsConfig;
   /** Supported verbs for this character definition (keys match `game-config.json` `verbs[].id`). */
   onVerb?: Record<string, boolean>;
+  /**
+   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this character.
+   * Falls back to `"look"` when omitted.
+   */
+  defaultVerb?: string;
   /** Enables character fallback dispatch when no supported verb matches. */
   onVerbFallback?: boolean;
 }

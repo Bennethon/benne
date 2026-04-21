@@ -1,5 +1,6 @@
 import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
 import type { GameSettings, GameSettingsDialog } from '../types/game';
+import { DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbs/verbConfig';
 import rawSettings from '../game/game-config.json';
 
 const DIALOG_DEFAULTS: GameSettingsDialog = {
@@ -98,6 +99,16 @@ function assertVerbSettings(data: GameSettings): void {
       if (typeof v.id !== 'string' || v.id.length === 0) {
         throw new Error('game-config each verbs[].id must be a non-empty string');
       }
+      if (v.id === WALK_TO_VERB_ID) {
+        throw new Error(
+          `game-config verbs[] may not declare "${WALK_TO_VERB_ID}" — it is a reserved built-in verb id`,
+        );
+      }
+      if (v.id === DEFAULT_VERB_TOKEN) {
+        throw new Error(
+          `game-config verbs[] may not declare "${DEFAULT_VERB_TOKEN}" — it is a reserved inputProfile token`,
+        );
+      }
       if (seen.has(v.id)) {
         throw new Error(`game-config duplicate verb id: ${v.id}`);
       }
@@ -112,13 +123,18 @@ function assertVerbSettings(data: GameSettings): void {
   }
 
   const effectiveIds = collectEffectiveVerbIds(data);
+  const isValidSlotValue = (value: string): boolean =>
+    value === WALK_TO_VERB_ID || value === DEFAULT_VERB_TOKEN || effectiveIds.has(value);
+
   const ip = data.inputProfile;
   if (ip !== undefined) {
     if (typeof ip !== 'object' || ip === null) {
       throw new Error('game-config inputProfile must be an object when present');
     }
-    if (ip.kind !== 'twoVerb') {
-      throw new Error('game-config inputProfile.kind must be "twoVerb" (other profiles are not implemented yet)');
+    if ('kind' in ip) {
+      throw new Error(
+        'game-config inputProfile.kind is no longer supported — remove the field (the profile is flat `primaryButtonVerb` / `secondaryButtonVerb`)',
+      );
     }
     if (typeof ip.primaryButtonVerb !== 'string' || ip.primaryButtonVerb.length === 0) {
       throw new Error('game-config inputProfile.primaryButtonVerb must be a non-empty string');
@@ -126,14 +142,14 @@ function assertVerbSettings(data: GameSettings): void {
     if (typeof ip.secondaryButtonVerb !== 'string' || ip.secondaryButtonVerb.length === 0) {
       throw new Error('game-config inputProfile.secondaryButtonVerb must be a non-empty string');
     }
-    if (!effectiveIds.has(ip.primaryButtonVerb)) {
+    if (!isValidSlotValue(ip.primaryButtonVerb)) {
       throw new Error(
-        `game-config inputProfile.primaryButtonVerb "${ip.primaryButtonVerb}" must be listed in verbs (or use default look/use when verbs is omitted)`,
+        `game-config inputProfile.primaryButtonVerb "${ip.primaryButtonVerb}" must be listed in verbs, or one of "${WALK_TO_VERB_ID}" / "${DEFAULT_VERB_TOKEN}"`,
       );
     }
-    if (!effectiveIds.has(ip.secondaryButtonVerb)) {
+    if (!isValidSlotValue(ip.secondaryButtonVerb)) {
       throw new Error(
-        `game-config inputProfile.secondaryButtonVerb "${ip.secondaryButtonVerb}" must be listed in verbs (or use default look/use when verbs is omitted)`,
+        `game-config inputProfile.secondaryButtonVerb "${ip.secondaryButtonVerb}" must be listed in verbs, or one of "${WALK_TO_VERB_ID}" / "${DEFAULT_VERB_TOKEN}"`,
       );
     }
   }

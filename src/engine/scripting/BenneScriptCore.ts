@@ -7,6 +7,7 @@ import {
   type CharacterFacing,
 } from '../directionalCharacterAnimation.js';
 import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
+import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 
 /**
  * Callable that participates in the interaction queue; **`fn.now`** runs the same action immediately
@@ -118,6 +119,35 @@ export abstract class BenneScriptCore {
       off();
     }
     this.disposers = [];
+  }
+
+  /**
+   * Set the runtime "active verb" (see {@link GameStateManager.setActiveVerb}). Available on every
+   * Bennescript facade (room / character / global / inventory / GUI) via `B.setActiveVerb(...)`.
+   * Pass `null` or an empty string to clear. Typical wiring: a verb GUI button calls
+   * `B.setActiveVerb('open')` from its `whenButtonClick` handler.
+   */
+  setActiveVerb(verbId: string | null): void {
+    const manager = tryGetActiveGameStateManager();
+    if (!manager) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[Benne] B.setActiveVerb called before the game was created — ignored.',
+        );
+      }
+      return;
+    }
+    manager.setActiveVerb(verbId);
+  }
+
+  /** Current active verb id, or `null` when none is set. */
+  getActiveVerb(): string | null {
+    return tryGetActiveGameStateManager()?.getActiveVerb() ?? null;
+  }
+
+  /** Convenience for `setActiveVerb(null)`. */
+  clearActiveVerb(): void {
+    tryGetActiveGameStateManager()?.clearActiveVerb();
   }
 
   private beginInteraction(): void {

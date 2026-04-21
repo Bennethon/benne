@@ -14,6 +14,7 @@ export const GAME_STATE_FLAG_CHANGED_EVENT = 'gameState:flagChanged' as const;
 export const GAME_STATE_VARIABLE_CHANGED_EVENT = 'gameState:variableChanged' as const;
 export const GAME_STATE_INVENTORY_CHANGED_EVENT = 'gameState:inventoryChanged' as const;
 export const GAME_STATE_REPLACED_EVENT = 'gameState:replaced' as const;
+export const GAME_STATE_ACTIVE_VERB_CHANGED_EVENT = 'gameState:activeVerbChanged' as const;
 
 export interface GameStateFlagChangedPayload {
   key: string;
@@ -35,4 +36,13 @@ export interface GameStateInventoryChangedPayload {
 
 export interface GameStateReplacedPayload {
   snapshot: SerializableBenneGameState;
+}
+
+/**
+ * Emitted when the runtime "active verb" changes (runtime UI state; not part of the snapshot).
+ * `value` is `null` when cleared.
+ */
+export interface GameStateActiveVerbChangedPayload {
+  previousValue: string | null;
+  value: string | null;
 }

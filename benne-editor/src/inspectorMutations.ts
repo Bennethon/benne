@@ -306,6 +306,21 @@ export function updatePropAnimationFields(
     return { ok: true };
 }
 
+/**
+ * Implicit per-clickable default when `defaultVerb` is omitted in JSON — matches engine
+ * `DEFAULT_VERB_FALLBACK`. Writing this value from the Inspector omits the field.
+ */
+const DEFAULT_VERB_FALLBACK_ID = 'look';
+
+function applyDefaultVerbPatch(target: Record<string, unknown>, verbId: string): void {
+    const id = verbId.trim();
+    if (id.length === 0 || id === DEFAULT_VERB_FALLBACK_ID) {
+        delete target.defaultVerb;
+    } else {
+        target.defaultVerb = id;
+    }
+}
+
 export function updatePropFields(
     data: Record<string, unknown>,
     propId: string,
@@ -320,6 +335,8 @@ export function updatePropFields(
         tag?: string;
         /** Optional second root for `<root>-*` clip grouping (empty removes the key). */
         defaultAnimation?: string;
+        /** Verb id invoked when an inputProfile slot resolves to `"defaultVerb"`. Empty / `"look"` omits. */
+        defaultVerb?: string;
     }
 ): { ok: true } | { ok: false; message: string } {
     const props = propsArray(data);
@@ -360,6 +377,9 @@ export function updatePropFields(
             prop.defaultAnimation = d;
         }
     }
+    if (fields.defaultVerb !== undefined) {
+        applyDefaultVerbPatch(prop, fields.defaultVerb);
+    }
     return { ok: true };
 }
 
@@ -378,7 +398,7 @@ function hotspotsArray(data: Record<string, unknown>): Record<string, unknown>[]
 export function updateHotspotFields(
     data: Record<string, unknown>,
     hotspotId: string,
-    fields: { description?: string; active?: boolean; zIndex?: number }
+    fields: { description?: string; active?: boolean; zIndex?: number; defaultVerb?: string }
 ): { ok: true } | { ok: false; message: string } {
     const list = hotspotsArray(data);
     const hs = list.find((x) => typeof x.id === 'string' && (x.id as string) === hotspotId);
@@ -393,6 +413,9 @@ export function updateHotspotFields(
     }
     if (fields.zIndex !== undefined && Number.isFinite(fields.zIndex)) {
         hs.zIndex = fields.zIndex;
+    }
+    if (fields.defaultVerb !== undefined) {
+        applyDefaultVerbPatch(hs, fields.defaultVerb);
     }
     return { ok: true };
 }
@@ -518,6 +541,7 @@ export function updateCharacterFields(
         walkToPoint?: { x: number; y: number } | null;
         talkPoint?: { x: number; y: number } | null;
         feet?: { x: number; y: number } | null;
+        defaultVerb?: string;
     }
 ): { ok: true } {
     if (fields.name !== undefined) {
@@ -531,6 +555,9 @@ export function updateCharacterFields(
     }
     if (fields.description !== undefined) {
         data.description = fields.description;
+    }
+    if (fields.defaultVerb !== undefined) {
+        applyDefaultVerbPatch(data, fields.defaultVerb);
     }
     if (fields.walkToPoint !== undefined) {
         if (fields.walkToPoint) {
@@ -743,6 +770,7 @@ export function updateInventoryFields(
         stackable?: boolean;
         defaultAnimation?: string;
         asepriteMode?: true | 'shared';
+        defaultVerb?: string;
     }
 ): { ok: true } {
     if (fields.name !== undefined) {
@@ -772,6 +800,9 @@ export function updateInventoryFields(
     const disp = data.display;
     if (disp && typeof disp === 'object' && !Array.isArray(disp)) {
         delete (disp as Record<string, unknown>).tag;
+    }
+    if (fields.defaultVerb !== undefined) {
+        applyDefaultVerbPatch(data, fields.defaultVerb);
     }
     return { ok: true };
 }

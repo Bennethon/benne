@@ -16,9 +16,8 @@
     { "id": "pull", "label": "Pull" }
   ],
   "inputProfile": {
-    "kind": "twoVerb",
-    "primaryButtonVerb": "use",
-    "secondaryButtonVerb": "look"
+    "primaryButtonVerb": "walkTo",
+    "secondaryButtonVerb": "defaultVerb"
   },
   "defaultFallbackLine": "That doesn't seem to work.",
   "startingPlayerCharacter": "hank",

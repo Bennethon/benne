@@ -16,6 +16,14 @@ export interface BenneScriptGameStateNamespace {
   clearBrowserSave(slot?: number): void;
   exportJson(): string;
   importJson(json: string): void;
+  /**
+   * Runtime-only "active verb" (see {@link GameStateManager.setActiveVerb}). When non-null, the
+   * pointer resolver uses it for left-clicks on clickable targets (consuming it on dispatch) and
+   * right-clicks clear it. Pass `null` to clear; empty strings are treated as `null`.
+   */
+  setActiveVerb(verbId: string | null): void;
+  getActiveVerb(): string | null;
+  clearActiveVerb(): void;
 }
 
 /** `B.inventory` — quantities per item id (see `GameStateManager`). */
@@ -44,6 +52,9 @@ export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneS
     clearBrowserSave: (slot) => m.clearLocalStorageSave(slot),
     exportJson: () => m.exportSnapshotJson(),
     importJson: (json) => m.importSnapshotJson(json),
+    setActiveVerb: (verbId) => m.setActiveVerb(verbId),
+    getActiveVerb: () => m.getActiveVerb(),
+    clearActiveVerb: () => m.clearActiveVerb(),
   };
 }
 

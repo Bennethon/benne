@@ -197,6 +197,26 @@ function renderVerbChipRow(roomJsonUri, roomId, verbs, ctx) {
         .join('');
     return `<div class="benne-verb-chips">${inner}</div>`;
 }
+/**
+ * Renders the per-clickable "Default verb" dropdown. The selected value is the currently-authored
+ * verb (falling back to `"look"` when JSON omits `defaultVerb`). Classes below drive the change
+ * handlers installed in each panel's mount function.
+ */
+function renderDefaultVerbSelect(cls, dataAttr, current, available, extra = '') {
+    const ids = new Set(available.map((v) => v.id));
+    // If the authored value is unknown (e.g. verb was removed from game-config), include it as a
+    // selected option so the Inspector doesn't silently rewrite the value on the next save.
+    const rows = [];
+    if (current && !ids.has(current)) {
+        rows.push(`<option value="${esc(current)}" selected>${esc(current)} (missing)</option>`);
+    }
+    for (const v of available) {
+        const label = (v.label && v.label.trim().length > 0 ? v.label : v.id).trim();
+        const sel = v.id === current ? ' selected' : '';
+        rows.push(`<option value="${esc(v.id)}"${sel}>${esc(label)}</option>`);
+    }
+    return `<select class="${cls}" ${dataAttr} ${extra}>${rows.join('')}</select>`;
+}
 function renderRoom(state) {
     const sz = state.size;
     const sb = state.scrollBounds;
@@ -287,6 +307,10 @@ function renderRoom(state) {
       </div>
       <label class="benne-field-label muted small">Description</label>
       <textarea class="benne-card-desc prop-desc" data-id="${esc(p.id)}" rows="2" title="${esc(p.description)}">${esc(p.description)}</textarea>
+      <label class="benne-field-label muted small">Default verb</label>
+      ${p.clickable
+            ? renderDefaultVerbSelect('prop-default-verb', `data-id="${esc(p.id)}"`, p.defaultVerb, p.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this prop"')
+            : '<span class="muted small">(not clickable)</span>'}
       <label class="benne-field-label muted small">Verbs</label>
       ${verbHtml}
       ${animSection}
@@ -312,6 +336,8 @@ function renderRoom(state) {
       </div>
       <label class="benne-field-label muted small">Description</label>
       <textarea class="benne-card-desc hs-desc" data-id="${esc(h.id)}" rows="2" title="${esc(h.description)}">${esc(h.description)}</textarea>
+      <label class="benne-field-label muted small">Default verb</label>
+      ${renderDefaultVerbSelect('hs-default-verb', `data-id="${esc(h.id)}"`, h.defaultVerb, h.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this hotspot"')}
       <label class="benne-field-label muted small">Verbs</label>
       ${verbHtml}
       <div class="benne-card-actions">
@@ -350,6 +376,11 @@ function renderRoom(state) {
         <input type="text" class="ch-face" data-id="${esc(c.instanceId)}" value="${esc(c.initialFacing ?? '')}" />
         <span class="benne-pg-lbl">Animation</span>
         <input type="text" class="ch-anim" data-id="${esc(c.instanceId)}" value="${esc(c.initialAnimation ?? '')}" />
+      </div>
+      <label class="benne-field-label muted small">Default verb</label>
+      <div class="benne-prop-grid benne-prop-grid--tight" title="Edit from the character Inspector; stored in the character's own JSON.">
+        <span class="benne-pg-lbl">${esc(c.defaultVerb)}</span>
+        <span class="muted small">(from character JSON)</span>
       </div>
       ${verbHtml}`;
         return renderInspectorItem(state, 'character', c.instanceId, ' benne-card--character', summary, body);
@@ -816,6 +847,9 @@ function renderCharacter(state) {
     <details class="section" open>
       <summary>Verbs</summary>
       <div class="section-body">
+        <label class="benne-field-label muted small">Default verb</label>
+        ${renderDefaultVerbSelect('char-default-verb', '', state.defaultVerb, state.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this character"')}
+        <label class="benne-field-label muted small" style="margin-top:10px;">Configured verbs</label>
         ${verbHtml}
       </div>
     </details>
@@ -945,6 +979,9 @@ function renderInventory(state) {
     <details class="section" open>
       <summary>Verbs</summary>
       <div class="section-body">
+        <label class="benne-field-label muted small">Default verb</label>
+        ${renderDefaultVerbSelect('inv-default-verb', '', state.defaultVerb, state.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this inventory item"')}
+        <label class="benne-field-label muted small" style="margin-top:10px;">Configured verbs</label>
         ${verbChips}
       </div>
     </details>
@@ -1088,6 +1125,12 @@ function mountHandlers(state) {
             propPatch(inp.dataset.id ?? '', { defaultAnimation: inp.value });
         });
     });
+    root.querySelectorAll('.prop-default-verb').forEach((el) => {
+        el.addEventListener('change', () => {
+            const sel = el;
+            propPatch(sel.dataset.id ?? '', { defaultVerb: sel.value });
+        });
+    });
     root.querySelectorAll('.prop-anim-row').forEach((row) => {
         const flushPropAnim = () => {
             if (!(row instanceof HTMLElement)) {
@@ -1130,6 +1173,12 @@ function mountHandlers(state) {
         el.addEventListener('change', () => {
             const inp = el;
             post('applyPatches', { patches: [{ type: 'hotspotField', id: inp.dataset.id, zIndex: Number(inp.value) }] });
+        });
+    });
+    root.querySelectorAll('.hs-default-verb').forEach((el) => {
+        el.addEventListener('change', () => {
+            const sel = el;
+            post('applyPatches', { patches: [{ type: 'hotspotField', id: sel.dataset.id, defaultVerb: sel.value }] });
         });
     });
     root.querySelectorAll('.ch-visible').forEach((el) => {
@@ -1257,7 +1306,8 @@ function collectCharacterMeta() {
         description: document.getElementById('char-description')?.value ?? '',
         walkToPoint: readPointFields('char-walk'),
         talkPoint: readPointFields('char-talk'),
-        feet: readPointFields('char-feet')
+        feet: readPointFields('char-feet'),
+        defaultVerb: document.querySelector('.char-default-verb')?.value ?? ''
     };
 }
 function mountCharacterHandlers(state) {
@@ -1271,6 +1321,9 @@ function mountCharacterHandlers(state) {
     ['char-name', 'char-walk-speed', 'char-clickable', 'char-description', 'char-walk-x', 'char-walk-y', 'char-talk-x', 'char-talk-y', 'char-feet-x', 'char-feet-y'].forEach((id) => {
         document.getElementById(id)?.addEventListener('blur', flush);
         document.getElementById(id)?.addEventListener('change', flush);
+    });
+    document.querySelectorAll('.char-default-verb').forEach((el) => {
+        el.addEventListener('change', flush);
     });
     document.querySelectorAll('.char-anim-loop, .char-anim-dur').forEach((el) => {
         el.addEventListener('change', () => {
@@ -1540,7 +1593,8 @@ function collectInventoryMeta() {
         asepriteMode: (document.getElementById('inv-aseprite')?.value ?? 'shared') ===
             'true'
             ? true
-            : 'shared'
+            : 'shared',
+        defaultVerb: document.querySelector('.inv-default-verb')?.value ?? ''
     };
 }
 function mountInventoryHandlers(state) {
@@ -1558,6 +1612,9 @@ function mountInventoryHandlers(state) {
     ['inv-name', 'inv-description', 'inv-stackable', 'inv-default-animation', 'inv-aseprite'].forEach((id) => {
         document.getElementById(id)?.addEventListener('blur', flushMeta);
         document.getElementById(id)?.addEventListener('change', flushMeta);
+    });
+    document.querySelectorAll('.inv-default-verb').forEach((el) => {
+        el.addEventListener('change', flushMeta);
     });
     document.querySelectorAll('.inv-verb-chip').forEach((btn) => {
         btn.addEventListener('click', () => {

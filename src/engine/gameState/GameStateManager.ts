@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import type {
   BenneGameStateFlagValue,
+  GameStateActiveVerbChangedPayload,
   GameStateFlagChangedPayload,
   GameStateInventoryChangedPayload,
   GameStateReplacedPayload,
@@ -9,6 +10,7 @@ import type {
   SerializableBenneGameState,
 } from '../../types/gameState.js';
 import {
+  GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
   GAME_STATE_FLAG_CHANGED_EVENT,
   GAME_STATE_INVENTORY_CHANGED_EVENT,
   GAME_STATE_REPLACED_EVENT,
@@ -73,6 +75,11 @@ function localStorageKey(slot: number): string {
 export class GameStateManager {
   private readonly events: Phaser.Events.EventEmitter;
   private state: SerializableBenneGameState;
+  /**
+   * Runtime-only "active verb" state. Not part of the snapshot — resets on `applySnapshot`
+   * (so loading a save returns the player to the default pointer profile, not mid-verb).
+   */
+  private activeVerbId: string | null = null;
 
   constructor(events: Phaser.Events.EventEmitter, initial?: GameStateInitialSlice) {
     this.events = events;
@@ -102,6 +109,12 @@ export class GameStateManager {
       variables: { ...snapshot.variables },
       inventory: normalizeSerializedInventory(snapshot.inventory),
     };
+    if (this.activeVerbId !== null) {
+      const previousValue = this.activeVerbId;
+      this.activeVerbId = null;
+      const activePayload: GameStateActiveVerbChangedPayload = { previousValue, value: null };
+      this.events.emit(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, activePayload);
+    }
     const payload: GameStateReplacedPayload = { snapshot: this.getSnapshot() };
     this.events.emit(GAME_STATE_REPLACED_EVENT, payload);
   }
@@ -292,5 +305,29 @@ export class GameStateManager {
     } catch (err) {
       console.error('[Benne] GameStateManager.clearLocalStorageSave failed:', err);
     }
+  }
+
+  /**
+   * Runtime-only "active verb" (e.g. set from a verb-button click). When non-null, the pointer
+   * resolver uses it on left-click against a clickable (and clears it once consumed) and clears
+   * it on right-click. See {@link resolvePointerVerb} and the verb system section of the docs.
+   */
+  getActiveVerb(): string | null {
+    return this.activeVerbId;
+  }
+
+  setActiveVerb(verbId: string | null): void {
+    const next = verbId != null && verbId.length > 0 ? verbId : null;
+    if (this.activeVerbId === next) {
+      return;
+    }
+    const previousValue = this.activeVerbId;
+    this.activeVerbId = next;
+    const payload: GameStateActiveVerbChangedPayload = { previousValue, value: next };
+    this.events.emit(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, payload);
+  }
+
+  clearActiveVerb(): void {
+    this.setActiveVerb(null);
   }
 }

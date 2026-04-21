@@ -3,6 +3,7 @@ import { getGameSettings } from './ConfigManager.js';
 import { gameEvents } from './events/EventBus.js';
 import { GameStateManager, normalizeSerializedInventory } from './gameState/GameStateManager.js';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from './gameState/registryKey.js';
+import { setActiveGameStateManager } from './gameState/resolveGameStateManager.js';
 import { getBennePhaserGameConfigBase } from './gameConfig.js';
 import { BootScene } from './scenes/BootScene.js';
 import { RoomScene } from './scenes/RoomScene.js';
@@ -38,5 +39,9 @@ export function createBenneGame(parent: HTMLElement | string): Phaser.Game {
       : undefined;
   const gameState = new GameStateManager(gameEvents, initial);
   game.registry.set(BENNE_GAME_STATE_REGISTRY_KEY, gameState);
+  setActiveGameStateManager(gameState);
+  game.events.once(Phaser.Core.Events.DESTROY, () => {
+    setActiveGameStateManager(null);
+  });
   return game;
 }
