@@ -1,4 +1,20 @@
-import type { GameSettings, GameVerbDefinition, VerbInputProfileTwoVerb } from '../../types/game';
+import type { GameSettings, GameVerbDefinition, VerbInputProfile } from '../../types/game';
+
+/**
+ * Built-in universal walk verb id. Not authored in `game-config.json` `verbs[]` and never shown
+ * as a verb chip in the Inspector. Valid as an `inputProfile` slot value: the pointer resolution
+ * walks the player to the target's stand point instead of dispatching a verb.
+ */
+export const WALK_TO_VERB_ID = 'walkTo';
+
+/**
+ * Reserved literal for `inputProfile` slots: substitute with the clicked target's authored
+ * `defaultVerb` (prop / hotspot / character / inventory item), falling back to `"look"`.
+ */
+export const DEFAULT_VERB_TOKEN = 'defaultVerb';
+
+/** Per-clickable default-verb fallback when the target omits `defaultVerb` in its JSON. */
+export const DEFAULT_VERB_FALLBACK = 'look';
 
 const DEFAULT_VERBS: GameVerbDefinition[] = [
   { id: 'look', label: 'Look at' },
@@ -14,16 +30,15 @@ export function getEffectiveVerbDefinitions(settings: GameSettings): GameVerbDef
 }
 
 /**
- * Two-button profile. When `inputProfile` is omitted, defaults to
+ * Two-button input profile. When `inputProfile` is omitted, defaults to
  * left (primary) → `look`, right (secondary) → `use`.
  */
-export function getEffectiveTwoVerbProfile(settings: GameSettings): VerbInputProfileTwoVerb {
+export function getEffectiveInputProfile(settings: GameSettings): VerbInputProfile {
   const ip = settings.inputProfile;
-  if (ip?.kind === 'twoVerb') {
+  if (ip) {
     return ip;
   }
   return {
-    kind: 'twoVerb',
     primaryButtonVerb: 'look',
     secondaryButtonVerb: 'use',
   };

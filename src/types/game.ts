@@ -75,19 +75,25 @@ export interface GameVerbDefinition {
 }
 
 /**
- * Map primary / secondary mouse buttons to verb ids (classic “2 verb” adventures).
+ * Map primary / secondary mouse buttons to verb ids.
  * Primary is usually the left button, secondary the right (see `RoomScene` + Phaser pointer).
+ *
+ * Each slot accepts **any defined verb id** from {@link GameSettings.verbs}, or one of two reserved
+ * literal tokens:
+ *
+ * - **`"walkTo"`** — built-in universal walk verb. When a pointer click over a clickable resolves to
+ *   this slot, the engine walks the player to the target's stand point instead of dispatching a verb.
+ *   (Empty-space clicks always walk regardless of slot configuration.)
+ * - **`"defaultVerb"`** — substitute with the clicked target's authored `defaultVerb` field
+ *   (per-prop / hotspot / character / inventory item). When the target omits `defaultVerb`, the
+ *   engine falls back to `"look"`.
  */
-export interface VerbInputProfileTwoVerb {
-  kind: 'twoVerb';
-  /** Verb for the primary (typically left) mouse button. */
+export interface VerbInputProfile {
+  /** Verb id / `"walkTo"` / `"defaultVerb"` for the primary (typically left) mouse button. */
   primaryButtonVerb: string;
-  /** Verb for the secondary (typically right) mouse button. */
+  /** Verb id / `"walkTo"` / `"defaultVerb"` for the secondary (typically right) mouse button. */
   secondaryButtonVerb: string;
 }
-
-/** How input selects the verb before an interaction is resolved (extensible for 9-verb UI later). */
-export type VerbInputProfile = VerbInputProfileTwoVerb;
 
 /**
  * Central game configuration (not Phaser’s `GameConfig`).
@@ -117,7 +123,9 @@ export interface GameSettings {
   verbs?: GameVerbDefinition[];
   /**
    * How pointer input maps to a verb before dispatch. When omitted, defaults to left → `look`, right → `use`
-   * (unless `verbs` overrides ids and you must set an explicit `inputProfile`).
+   * (unless `verbs` overrides ids and you must set an explicit `inputProfile`). Slots accept any
+   * defined verb id plus the reserved literals `"walkTo"` and `"defaultVerb"` — see
+   * {@link VerbInputProfile}.
    */
   inputProfile?: VerbInputProfile;
   /**

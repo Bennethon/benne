@@ -573,6 +573,7 @@ type WebviewPatch =
           alpha?: number;
           tag?: string;
           defaultAnimation?: string;
+          defaultVerb?: string;
       }
     | {
           type: 'propAnimation';
@@ -583,7 +584,14 @@ type WebviewPatch =
           loop?: boolean;
           frameDuration?: number | null;
       }
-    | { type: 'hotspotField'; id?: string; description?: string; active?: boolean; zIndex?: number }
+    | {
+          type: 'hotspotField';
+          id?: string;
+          description?: string;
+          active?: boolean;
+          zIndex?: number;
+          defaultVerb?: string;
+      }
     | {
           type: 'characterField';
           instanceId?: string;
@@ -605,6 +613,7 @@ type WebviewPatch =
           walkToPoint?: { x: number; y: number } | null;
           talkPoint?: { x: number; y: number } | null;
           feet?: { x: number; y: number } | null;
+          defaultVerb?: string;
       }
     | { type: 'characterAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
     | { type: 'guiMeta'; name?: string; description?: string; rootVisibleAtLoad?: boolean }
@@ -617,6 +626,7 @@ type WebviewPatch =
           stackable?: boolean;
           defaultAnimation?: string;
           asepriteMode?: true | 'shared';
+          defaultVerb?: string;
       }
     | { type: 'inventoryAnimation'; id?: string; loop?: boolean; frameDuration?: number | null };
 
@@ -1061,7 +1071,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 parallaxDepth: p.parallaxDepth,
                 alpha: p.alpha,
                 tag: p.tag,
-                defaultAnimation: p.defaultAnimation
+                defaultAnimation: p.defaultAnimation,
+                defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined
             });
             return;
         }
@@ -1093,7 +1104,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             updateHotspotFields(data, p.id, {
                 description: p.description,
                 active: p.active,
-                zIndex: p.zIndex
+                zIndex: p.zIndex,
+                defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined
             });
             return;
         }
@@ -1136,7 +1148,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 description: p.description,
                 walkToPoint: p.walkToPoint,
                 talkPoint: p.talkPoint,
-                feet: p.feet
+                feet: p.feet,
+                defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined
             });
             return;
         }
@@ -1189,7 +1202,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 description: p.description,
                 stackable: p.stackable,
                 defaultAnimation: p.defaultAnimation,
-                asepriteMode: p.asepriteMode
+                asepriteMode: p.asepriteMode,
+                defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined
             });
             return;
         }

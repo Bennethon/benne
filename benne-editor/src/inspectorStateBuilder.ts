@@ -58,6 +58,10 @@ export type InspectorPropCard = {
     parallaxDepth: number;
     alpha: number;
     verbs: InspectorVerbChip[];
+    /** Effective defaultVerb (authored; falls back to `"look"` when omitted). */
+    defaultVerb: string;
+    /** Game-config verbs (minus `walkTo`) available in the Default verb dropdown. */
+    availableVerbs: GameConfigVerbEntry[];
 };
 
 export type InspectorHotspotCard = {
@@ -66,6 +70,8 @@ export type InspectorHotspotCard = {
     active: boolean;
     zIndex: number;
     verbs: InspectorVerbChip[];
+    defaultVerb: string;
+    availableVerbs: GameConfigVerbEntry[];
 };
 
 export type InspectorCharacterCard = {
@@ -81,6 +87,12 @@ export type InspectorCharacterCard = {
     characterClickable: boolean;
     characterJsonUri: string;
     verbs: InspectorVerbChip[];
+    /**
+     * Effective defaultVerb read from the character's own JSON (per-definition). The room-character
+     * card surfaces it read-only — edit it from the standalone character Inspector.
+     */
+    defaultVerb: string;
+    availableVerbs: GameConfigVerbEntry[];
 };
 
 export type InspectorPointCard = { id: string; x: number; y: number };
@@ -128,6 +140,8 @@ export type InspectorCharacterState = {
     feet: { x: number; y: number } | null;
     animations: InspectorCharacterAnimationCard[];
     verbs: InspectorVerbChip[];
+    defaultVerb: string;
+    availableVerbs: GameConfigVerbEntry[];
 };
 
 export type InspectorGuiSpriteAnchor = '' | 'top-left' | 'center' | 'screen';
@@ -279,6 +293,7 @@ export type InspectorInventoryState = {
     verbs: InspectorVerbChip[];
     availableVerbs: GameConfigVerbEntry[];
     animations: InspectorInventoryAnimationCard[];
+    defaultVerb: string;
 };
 
 export type InspectorStatePayload =
@@ -287,6 +302,23 @@ export type InspectorStatePayload =
     | InspectorGuiState
     | InspectorInventoryState
     | InspectorEmptyState;
+
+/** Built-in walk verb id (mirrors engine `WALK_TO_VERB_ID`); never surfaced in the Inspector. */
+const WALK_TO_VERB_ID = 'walkTo';
+/** Implicit per-clickable default verb when `defaultVerb` is omitted (mirrors engine fallback). */
+const DEFAULT_VERB_FALLBACK = 'look';
+
+function filterSelectableVerbs(gameVerbs: readonly GameConfigVerbEntry[]): GameConfigVerbEntry[] {
+    return gameVerbs.filter((v) => v.id !== WALK_TO_VERB_ID);
+}
+
+function readDefaultVerbField(o: Record<string, unknown>): string {
+    const raw = o.defaultVerb;
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+        return raw.trim();
+    }
+    return DEFAULT_VERB_FALLBACK;
+}
 
 function readRoomJsonFromBuffer(uri: vscode.Uri): string | undefined {
     const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
@@ -562,7 +594,9 @@ async function buildRoomInspectorState(
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : 0,
                 parallaxDepth: typeof o.parallaxDepth === 'number' ? o.parallaxDepth : 1,
                 alpha: typeof o.alpha === 'number' ? o.alpha : 1,
-                verbs
+                verbs,
+                defaultVerb: readDefaultVerbField(o),
+                availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS)
             });
         }
     }
@@ -606,7 +640,9 @@ async function buildRoomInspectorState(
                 description: typeof o.description === 'string' ? o.description : '',
                 active: entry.active !== false,
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : 0,
-                verbs
+                verbs,
+                defaultVerb: readDefaultVerbField(o),
+                availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS)
             });
         }
     }
@@ -659,6 +695,13 @@ async function buildRoomInspectorState(
                           charScriptText
                       )
                     : [];
+            let charDefaultVerb = DEFAULT_VERB_FALLBACK;
+            try {
+                const parsed = JSON.parse(charJsonText) as Record<string, unknown>;
+                charDefaultVerb = readDefaultVerbField(parsed);
+            } catch {
+                /* fall back */
+            }
             characters.push({
                 instanceId,
                 characterId,
@@ -671,7 +714,9 @@ async function buildRoomInspectorState(
                 initialAnimation: typeof o.initialAnimation === 'string' ? o.initialAnimation : undefined,
                 characterClickable: hooks.clickable === true,
                 characterJsonUri: charJsonUri.toString(),
-                verbs
+                verbs,
+                defaultVerb: charDefaultVerb,
+                availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS)
             });
         }
     }
@@ -816,7 +861,9 @@ async function buildCharacterInspectorState(
         talkPoint: toPoint(data.talkPoint),
         feet: toPoint(data.feet),
         animations: anims.sort((a, b) => a.id.localeCompare(b.id)),
-        verbs
+        verbs,
+        defaultVerb: readDefaultVerbField(data),
+        availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS)
     };
 }
 
@@ -1181,7 +1228,8 @@ async function buildInventoryInspectorState(
         asepriteMode,
         defaultAnimation,
         verbs,
-        availableVerbs: effectiveVerbs,
-        animations
+        availableVerbs: filterSelectableVerbs(effectiveVerbs),
+        animations,
+        defaultVerb: readDefaultVerbField(data)
     };
 }

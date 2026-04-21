@@ -41,6 +41,11 @@ export interface RoomHotspotData {
   lookAtPoint?: Point2;
   /** Supported verbs for this hotspot (keys match `game-config.json` `verbs[].id`). */
   onVerb?: Record<string, boolean>;
+  /**
+   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this hotspot.
+   * Falls back to `"look"` when omitted.
+   */
+  defaultVerb?: string;
   /** Enables object-level fallback dispatch when no supported verb matches. */
   onVerbFallback?: boolean;
 }
@@ -122,6 +127,11 @@ export interface RoomPropInstance {
   collider?: RoomPropCollider;
   /** Supported verbs for this prop (keys match `game-config.json` `verbs[].id`). */
   onVerb?: Record<string, boolean>;
+  /**
+   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this prop.
+   * Falls back to `"look"` when omitted. Shown in the Inspector as the "Default verb" dropdown.
+   */
+  defaultVerb?: string;
   /** Enables object-level fallback dispatch when no supported verb matches (before global handlers). */
   onVerbFallback?: boolean;
   /** Per-tag playback (loop, frameDuration); keys match Aseprite tags on this room's sheet. */
