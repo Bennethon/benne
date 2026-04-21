@@ -252,7 +252,7 @@ type InspectorInventoryState = {
     asepriteMode: true | 'shared';
     defaultAnimation: string;
     verbs: InspectorVerbChip[];
-    availableVerbs: { id: string; label?: string }[];
+    availableVerbs: { id: string; label?: string; preposition?: string }[];
     animations: InspectorInventoryAnimationCard[];
 };
 

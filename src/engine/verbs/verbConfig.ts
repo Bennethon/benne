@@ -1,6 +1,9 @@
 import type { GameSettings, GameVerbDefinition, VerbInputProfileTwoVerb } from '../../types/game';
 
-const DEFAULT_VERBS: GameVerbDefinition[] = [{ id: 'look' }, { id: 'use' }];
+const DEFAULT_VERBS: GameVerbDefinition[] = [
+  { id: 'look', label: 'Look at' },
+  { id: 'use', label: 'Use', preposition: 'with' },
+];
 
 /** Effective verb list: explicit `settings.verbs` or implicit `look` + `use`. */
 export function getEffectiveVerbDefinitions(settings: GameSettings): GameVerbDefinition[] {

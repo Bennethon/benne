@@ -8,6 +8,7 @@ import {
     getInventoryIdFromInventoryJsonUri,
     getRoomIdFromRoomJsonUri,
     readCharacterHooks,
+    type GameConfigVerbEntry,
     readGameConfigVerbs,
     resolveGuiAsepriteSheetForTags,
     resolvePerItemInventoryAsepriteSheet,
@@ -276,7 +277,7 @@ export type InspectorInventoryState = {
     asepriteMode: true | 'shared';
     defaultAnimation: string;
     verbs: InspectorVerbChip[];
-    availableVerbs: { id: string; label?: string }[];
+    availableVerbs: GameConfigVerbEntry[];
     animations: InspectorInventoryAnimationCard[];
 };
 

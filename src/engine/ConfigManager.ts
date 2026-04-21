@@ -105,6 +105,9 @@ function assertVerbSettings(data: GameSettings): void {
       if (v.label !== undefined && typeof v.label !== 'string') {
         throw new Error(`game-config verbs["${v.id}"].label must be a string when present`);
       }
+      if (v.preposition !== undefined && typeof v.preposition !== 'string') {
+        throw new Error(`game-config verbs["${v.id}"].preposition must be a string when present`);
+      }
     }
   }
 

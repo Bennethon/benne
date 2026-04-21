@@ -11,7 +11,8 @@
     },
     {
       "id": "use",
-      "label": "Use"
+      "label": "Use",
+      "preposition": "with"
     },
     {
       "id": "slap",

@@ -143,17 +143,20 @@ function parseOnVerbRecord(raw: unknown): Record<string, boolean> | undefined {
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/** One entry from `game-config.json` `verbs` (mirrors engine `GameVerbDefinition`). */
+export type GameConfigVerbEntry = { id: string; label?: string; preposition?: string };
+
 /** Matches engine defaults when `verbs` is omitted in game-config.json. */
-export const DEFAULT_GAME_VERBS: { id: string; label?: string }[] = [
-    { id: 'look', label: 'Look at' },
-    { id: 'use', label: 'Use' }
+export const DEFAULT_GAME_VERBS: GameConfigVerbEntry[] = [
+    { id: 'look', label: 'Look at', preposition: 'at' },
+    { id: 'use', label: 'Use', preposition: 'on' }
 ];
 
 /**
- * Verb ids (and optional labels) from `src/game/game-config.json`, in file order.
+ * Verb ids (and optional labels / prepositions) from `src/game/game-config.json`, in file order.
  * Falls back to {@link DEFAULT_GAME_VERBS} when the file is missing or has no valid `verbs`.
  */
-export async function readGameConfigVerbs(gameRoot: vscode.Uri): Promise<{ id: string; label?: string }[]> {
+export async function readGameConfigVerbs(gameRoot: vscode.Uri): Promise<GameConfigVerbEntry[]> {
     const uri = vscode.Uri.joinPath(gameRoot, 'src', 'game', 'game-config.json');
     try {
         const raw = await vscode.workspace.fs.readFile(uri);
@@ -161,7 +164,7 @@ export async function readGameConfigVerbs(gameRoot: vscode.Uri): Promise<{ id: s
         if (!Array.isArray(data.verbs) || data.verbs.length === 0) {
             return DEFAULT_GAME_VERBS;
         }
-        const out: { id: string; label?: string }[] = [];
+        const out: GameConfigVerbEntry[] = [];
         for (const v of data.verbs) {
             if (!v || typeof v !== 'object' || Array.isArray(v)) {
                 continue;
@@ -173,7 +176,11 @@ export async function readGameConfigVerbs(gameRoot: vscode.Uri): Promise<{ id: s
             }
             out.push({
                 id,
-                label: typeof o.label === 'string' && o.label.length > 0 ? o.label : undefined
+                label: typeof o.label === 'string' && o.label.length > 0 ? o.label : undefined,
+                preposition:
+                    typeof o.preposition === 'string' && o.preposition.length > 0
+                        ? o.preposition
+                        : undefined
             });
         }
         return out.length > 0 ? out : DEFAULT_GAME_VERBS;

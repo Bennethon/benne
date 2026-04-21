@@ -5,14 +5,14 @@
     "height": 198
   },
   "verbs": [
-    { "id": "give", "label": "Give" },
+    { "id": "give", "label": "Give", "preposition": "to" },
     { "id": "pickUp", "label": "Pick up" },
-    { "id": "use", "label": "Use" },
+    { "id": "use", "label": "Use", "preposition": "on" },
     { "id": "open", "label": "Open" },
-    { "id": "look", "label": "Look at" },
+    { "id": "look", "label": "Look at", "preposition": "at" },
     { "id": "push", "label": "Push" },
     { "id": "close", "label": "Close" },
-    { "id": "talkTo", "label": "Talk to" },
+    { "id": "talkTo", "label": "Talk to", "preposition": "to" },
     { "id": "pull", "label": "Pull" }
   ],
   "inputProfile": {

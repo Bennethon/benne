@@ -68,6 +68,10 @@ export interface GameVerbDefinition {
   id: string;
   /** Optional label for future in-game verb UIs. */
   label?: string;
+  /**
+   * Optional short word between verb and object in composed UI copy (e.g. `"at"` → “Look at …”, `"to"` → “Give to …”).
+   */
+  preposition?: string;
 }
 
 /**
