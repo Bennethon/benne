@@ -1,27 +1,43 @@
 {
-  "name": "9-verb",
+  "name": "2-click",
   "resolution": {
-    "width": 352,
-    "height": 198
+    "width": 320,
+    "height": 180
   },
   "verbs": [
-    { "id": "give", "label": "Give", "preposition": "to" },
-    { "id": "pickUp", "label": "Pick up" },
-    { "id": "use", "label": "Use", "preposition": "with" },
-    { "id": "open", "label": "Open" },
-    { "id": "look", "label": "Look at" },
-    { "id": "push", "label": "Push" },
-    { "id": "close", "label": "Close" },
-    { "id": "talkTo", "label": "Talk to" },
-    { "id": "pull", "label": "Pull" }
+    {
+      "id": "look",
+      "label": "Look at"
+    },
+    {
+      "id": "use",
+      "label": "Use",
+      "preposition": "with"
+    },
+    {
+      "id": "slap",
+      "label": "Slap"
+    }
   ],
   "inputProfile": {
-    "primaryButtonVerb": "walkTo",
-    "secondaryButtonVerb": "defaultVerb"
+    "primaryButtonVerb": "use",
+    "secondaryButtonVerb": "look"
   },
-  "defaultFallbackLine": "That doesn't seem to work.",
+  "dropWhenInventoryUsed": false,
+  "defaultFallbackLine": "You can't do that.",
   "startingPlayerCharacter": "hank",
   "startingRoomId": "apartment",
+  "audio": {
+    "masterVolume": 1,
+    "sfxVolume": 1,
+    "musicVolume": 0.75,
+    "dialogueVolume": 1
+  },
+  "debug": {
+    "showWalkable": true,
+    "showPropOutlines": true,
+    "showGuiOutlines": false
+  },
   "initialGameState": {
     "flags": {},
     "variables": {},
@@ -36,26 +52,6 @@
       "Candy1",
       "Newspaper"
     ]
-  },
-  "audio": {
-    "masterVolume": 1,
-    "sfxVolume": 1,
-    "musicVolume": 0.75,
-    "dialogueVolume": 1
-  },
-  "debug": {
-    "showWalkable": true,
-    "showPropOutlines": true,
-    "showGuiOutlines": false
-  },
-  "dialog": {
-    "clickToSkip": true,
-    "showText": true,
-    "defaultTalkOffset": { "x": 0, "y": 0 },
-    "minDurationMs": 800,
-    "msPerCharacter": 35,
-    "maxDurationMs": 4500,
-    "durationMultiplier": 1
   },
   "cursor": {
     "idleAnimation": "Idle",
@@ -72,5 +68,17 @@
     "display": {
       "aseprite": true
     }
+  },
+  "dialog": {
+    "clickToSkip": true,
+    "showText": true,
+    "defaultTalkOffset": {
+      "x": 0,
+      "y": 0
+    },
+    "minDurationMs": 800,
+    "msPerCharacter": 35,
+    "maxDurationMs": 4500,
+    "durationMultiplier": 1
   }
 }

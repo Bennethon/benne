@@ -4,6 +4,30 @@
     {
       "id": "apartment",
       "definition": "apartment/apartment.room.json"
+    },
+    {
+      "id": "bathroom",
+      "definition": "bathroom/bathroom.room.json"
+    },
+    {
+      "id": "diningRoom",
+      "definition": "diningRoom/diningRoom.room.json"
+    },
+    {
+      "id": "garage",
+      "definition": "garage/garage.room.json"
+    },
+    {
+      "id": "office",
+      "definition": "office/office.room.json"
+    },
+    {
+      "id": "outside",
+      "definition": "outside/outside.room.json"
+    },
+    {
+      "id": "outsideOffice",
+      "definition": "outsideOffice/outsideOffice.room.json"
     }
   ]
 }

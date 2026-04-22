@@ -25,6 +25,9 @@ function isInventoryItemData(value: unknown): value is InventoryItemData {
   if (typeof o.stackable !== 'boolean') {
     return false;
   }
+  if (o.dropWhenUsed !== undefined && typeof o.dropWhenUsed !== 'boolean') {
+    return false;
+  }
   if (o.defaultAnimation !== undefined && typeof o.defaultAnimation !== 'string') {
     return false;
   }

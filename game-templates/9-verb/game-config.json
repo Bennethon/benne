@@ -19,6 +19,7 @@
     "primaryButtonVerb": "walkTo",
     "secondaryButtonVerb": "defaultVerb"
   },
+  "dropWhenInventoryUsed": true,
   "defaultFallbackLine": "That doesn't seem to work.",
   "startingPlayerCharacter": "hank",
   "startingRoomId": "apartment",

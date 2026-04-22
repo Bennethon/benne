@@ -33,4 +33,5 @@ export {
   dispatchInventoryOnVerbTargetInteraction,
   shouldDispatchInventoryUsedOnVerb,
   shouldDispatchInventoryUsedOnVerbForGame,
+  shouldDropActiveInventoryOnUse,
 } from './dispatchInventoryOnVerbTarget';

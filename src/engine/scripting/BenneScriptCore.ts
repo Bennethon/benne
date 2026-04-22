@@ -9,6 +9,7 @@ import {
 import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
+import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerbTarget.js';
 
 /**
  * Callable that participates in the interaction queue; **`fn.now`** runs the same action immediately
@@ -233,8 +234,15 @@ export abstract class BenneScriptCore {
   }
 
   /**
-   * Subscribes to room + global inventory-on-target ids; after the handler’s queued steps, clears the active
-   * inventory item unless **`doNotClear`**.
+   * Subscribes to room + global inventory-on-target ids. After the handler’s queued steps, the
+   * active inventory item is cleared according to the **drop policy**:
+   *
+   * - **`doNotClear: true`** — per-handler hard opt-out; never clear.
+   * - Otherwise, consult {@link shouldDropActiveInventoryOnUse} for the payload's `itemId`
+   *   (per-item **`dropWhenUsed`** → global **`dropWhenInventoryUsed`** → default **`false`**).
+   *
+   * Synchronous clearing of the **active verb** when it was consumed is handled by `RoomScene`
+   * at dispatch time (also gated on the drop policy).
    */
   protected subscribeInventoryUsedOnTargetEvents(
     roomEventId: string,
@@ -242,8 +250,10 @@ export abstract class BenneScriptCore {
     handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
     doNotClear: boolean,
   ): void {
+    let lastPayload: AnyInventoryUsedOnPayload | null = null;
     const run = (payload: unknown): void => {
       const p = payload as AnyInventoryUsedOnPayload;
+      lastPayload = p;
       if (handler.length === 0) {
         (handler as () => void)();
       } else {
@@ -251,7 +261,14 @@ export abstract class BenneScriptCore {
       }
     };
     const afterTail = (): void => {
-      if (!doNotClear) {
+      if (doNotClear) {
+        return;
+      }
+      const itemId = lastPayload?.itemId;
+      if (itemId == null) {
+        return;
+      }
+      if (shouldDropActiveInventoryOnUse(itemId)) {
         this.clearActiveInventory();
       }
     };

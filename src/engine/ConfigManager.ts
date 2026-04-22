@@ -241,6 +241,9 @@ function assertGameSettings(data: GameSettings): void {
   if (typeof data.startingPlayerCharacter !== 'string' || data.startingPlayerCharacter.length === 0) {
     throw new Error('game-config startingPlayerCharacter must be a non-empty string');
   }
+  if (data.dropWhenInventoryUsed !== undefined && typeof data.dropWhenInventoryUsed !== 'boolean') {
+    throw new Error('game-config dropWhenInventoryUsed must be a boolean when present');
+  }
   if (data.debug !== undefined) {
     const d = data.debug;
     if (typeof d !== 'object' || d === null) {

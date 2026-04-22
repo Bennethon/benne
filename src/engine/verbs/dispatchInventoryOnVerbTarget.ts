@@ -12,6 +12,7 @@ import {
 import type { VerbInteractTarget } from '../events/verbInteractionEvents';
 import type { GameStateManager } from '../gameState/GameStateManager';
 import type { GameSettings } from '../../types/game';
+import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import type { PointerVerbResolution } from './resolvePointerVerb';
 import { resolveEffectiveUseVerbId } from './verbConfig';
 
@@ -110,4 +111,21 @@ export function shouldDispatchInventoryUsedOnVerbForGame(
   resolution: PointerVerbResolution,
 ): boolean {
   return shouldDispatchInventoryUsedOnVerb(manager, getGameSettings(), verbId, resolution);
+}
+
+/**
+ * Resolves whether the **active inventory selection** should be "dropped" (active inventory +
+ * active verb both cleared) after `itemId` is used on a clickable target.
+ *
+ * Precedence:
+ * 1. Item's **`dropWhenUsed`** (from `*.inventory.json`) — when defined, wins.
+ * 2. Global **`dropWhenInventoryUsed`** from `game-config.json`.
+ * 3. Default **`false`** (stay armed so the player can use the same item on several targets).
+ */
+export function shouldDropActiveInventoryOnUse(itemId: string): boolean {
+  const def = getInventoryDefinition(itemId);
+  if (def?.dropWhenUsed !== undefined) {
+    return def.dropWhenUsed;
+  }
+  return getGameSettings().dropWhenInventoryUsed ?? false;
 }

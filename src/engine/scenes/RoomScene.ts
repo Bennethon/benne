@@ -48,6 +48,7 @@ import { dispatchVerbInteraction } from '../verbs/dispatchVerb';
 import {
   dispatchInventoryOnVerbTargetInteraction,
   shouldDispatchInventoryUsedOnVerbForGame,
+  shouldDropActiveInventoryOnUse,
 } from '../verbs/dispatchInventoryVerb';
 import {
   getCharacterVerbHandlers,
@@ -207,6 +208,9 @@ export class RoomScene extends Phaser.Scene {
   /** Screen-fixed dialogue text from `guis/dialog-text/dialog-text.gui.json`. */
   private dialogTextOverlay: GuiOverlayHandle | null = null;
 
+  /** Dedupes missing-`dialog-text` warnings for Bennescript `say` (once per room `create`). */
+  private missingDialogTextOverlaySayWarned = false;
+
   /** Every other registered GUI overlay (authoring under `src/game/guis/<id>/`), built automatically in `create`. */
   private genericGuiOverlays: GuiOverlayHandle[] = [];
 
@@ -249,6 +253,7 @@ export class RoomScene extends Phaser.Scene {
     this.characterSpritesByDefId.clear();
     this.npcWalkTweens.clear();
     this.unresolvedWalkTargetIdsWarned.clear();
+    this.missingDialogTextOverlaySayWarned = false;
 
     attachPostProcessingPlaceholder(this.cameras.main);
 
@@ -451,6 +456,13 @@ export class RoomScene extends Phaser.Scene {
   }): void {
     const h = this.dialogTextOverlay;
     if (!h) {
+      if (state.visible && !this.missingDialogTextOverlaySayWarned) {
+        this.missingDialogTextOverlaySayWarned = true;
+        console.warn(
+          '[Benne] Bennescript `say` cannot show dialogue: no `dialog-text` GUI was loaded. ' +
+            'Add `src/game/guis/dialog-text/dialog-text.gui.json` (see game templates or docs/architecture.md).',
+        );
+      }
       return;
     }
     const dialog = getDialogSettings();
@@ -911,12 +923,26 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
 
+    const manager = resolveGameStateManager(this.game);
+    const hasActiveInventory = manager.getActiveInventoryItemId() != null;
+
     if (pointer.rightButtonDown()) {
-      // Right-click on empty space clears the active verb (no walk).
-      resolveGameStateManager(this.game).clearActiveVerb();
+      // Right-click on empty space clears the active verb (and active inventory if armed). No walk.
+      if (hasActiveInventory) {
+        manager.clearActiveInventoryItem();
+      }
+      manager.clearActiveVerb();
       return;
     }
     if (!pointer.leftButtonDown()) {
+      return;
+    }
+
+    if (hasActiveInventory) {
+      // Left-click on empty space while armed clears the selection instead of walking; the player
+      // has to re-arm before walking to aim at a target.
+      manager.clearActiveInventoryItem();
+      manager.clearActiveVerb();
       return;
     }
 
@@ -1385,11 +1411,13 @@ export class RoomScene extends Phaser.Scene {
         profile,
         { defaultVerb: spawn.data.defaultVerb },
         manager.getActiveVerb(),
+        manager.getActiveInventoryItemId(),
       );
       if (resolution.kind === 'none') {
         return;
       }
       if (resolution.kind === 'clearActive') {
+        manager.clearActiveInventoryItem();
         manager.clearActiveVerb();
         return;
       }
@@ -1400,6 +1428,7 @@ export class RoomScene extends Phaser.Scene {
       if (resolution.kind === 'verb') {
         if (shouldDispatchInventoryUsedOnVerbForGame(manager, resolution.verbId, resolution)) {
           const itemId = manager.getActiveInventoryItemId()!;
+          const shouldDrop = shouldDropActiveInventoryOnUse(itemId);
           console.log(
             `[Benne] inventory-on "${resolution.verbId}" item ${itemId} → prop ${spawn.id}`,
           );
@@ -1412,10 +1441,10 @@ export class RoomScene extends Phaser.Scene {
             walkToPoint: spawn.data.walkToPoint,
             lookAtPoint: spawn.data.lookAtPoint,
           });
-          if (!handled) {
+          if (!handled && shouldDrop) {
             manager.clearActiveInventoryItem();
           }
-          if (resolution.consumeActive) {
+          if (resolution.consumeActive && shouldDrop) {
             manager.clearActiveVerb();
           }
           return;
@@ -1485,11 +1514,13 @@ export class RoomScene extends Phaser.Scene {
         profile,
         { defaultVerb: hotspot.defaultVerb },
         manager.getActiveVerb(),
+        manager.getActiveInventoryItemId(),
       );
       if (resolution.kind === 'none') {
         return;
       }
       if (resolution.kind === 'clearActive') {
+        manager.clearActiveInventoryItem();
         manager.clearActiveVerb();
         return;
       }
@@ -1500,6 +1531,7 @@ export class RoomScene extends Phaser.Scene {
       if (resolution.kind === 'verb') {
         if (shouldDispatchInventoryUsedOnVerbForGame(manager, resolution.verbId, resolution)) {
           const itemId = manager.getActiveInventoryItemId()!;
+          const shouldDrop = shouldDropActiveInventoryOnUse(itemId);
           console.log(
             `[Benne] inventory-on "${resolution.verbId}" item ${itemId} → hotspot ${hotspot.id}`,
           );
@@ -1509,10 +1541,10 @@ export class RoomScene extends Phaser.Scene {
             roomId,
             description: hotspot.description,
           });
-          if (!handled) {
+          if (!handled && shouldDrop) {
             manager.clearActiveInventoryItem();
           }
-          if (resolution.consumeActive) {
+          if (resolution.consumeActive && shouldDrop) {
             manager.clearActiveVerb();
           }
           return;
@@ -1638,11 +1670,13 @@ export class RoomScene extends Phaser.Scene {
         profile,
         { defaultVerb: spawn.data.defaultVerb },
         manager.getActiveVerb(),
+        manager.getActiveInventoryItemId(),
       );
       if (resolution.kind === 'none') {
         return;
       }
       if (resolution.kind === 'clearActive') {
+        manager.clearActiveInventoryItem();
         manager.clearActiveVerb();
         return;
       }
@@ -1653,6 +1687,7 @@ export class RoomScene extends Phaser.Scene {
       if (resolution.kind === 'verb') {
         if (shouldDispatchInventoryUsedOnVerbForGame(manager, resolution.verbId, resolution)) {
           const itemId = manager.getActiveInventoryItemId()!;
+          const shouldDrop = shouldDropActiveInventoryOnUse(itemId);
           console.log(
             `[Benne] inventory-on "${resolution.verbId}" item ${itemId} → character ${spawn.data.id}`,
           );
@@ -1672,10 +1707,10 @@ export class RoomScene extends Phaser.Scene {
               ? { talkPoint: { x: sx + d.talkPoint.x, y: sy + d.talkPoint.y } }
               : {}),
           });
-          if (!handled) {
+          if (!handled && shouldDrop) {
             manager.clearActiveInventoryItem();
           }
-          if (resolution.consumeActive) {
+          if (resolution.consumeActive && shouldDrop) {
             manager.clearActiveVerb();
           }
           return;

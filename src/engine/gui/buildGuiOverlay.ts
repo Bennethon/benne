@@ -1030,11 +1030,13 @@ function fillInventoryPanelContent(
             profile,
             { defaultVerb: invDef?.defaultVerb },
             manager.getActiveVerb(),
+            manager.getActiveInventoryItemId(),
           );
           if (resolution.kind === 'none') {
             return;
           }
           if (resolution.kind === 'clearActive') {
+            manager.clearActiveInventoryItem();
             manager.clearActiveVerb();
             return;
           }

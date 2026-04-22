@@ -132,6 +132,17 @@ export interface GameSettings {
    * Suggested line when no handler handles the verb; emitted on the `verb:unhandled` bus event.
    */
   defaultFallbackLine?: string;
+  /**
+   * Global default policy for whether the **active inventory item** is "dropped" (active inventory +
+   * active verb both cleared) after it is used on a clickable target (prop / hotspot / character).
+   *
+   * When **`false`** (default), the active inventory selection stays armed after each use, so the
+   * player can use the same item on several targets in a row. When **`true`**, the active inventory
+   * is cleared after use (classic point-and-click behavior).
+   *
+   * Individual items can override this per-item via **`InventoryItemData.dropWhenUsed`**.
+   */
+  dropWhenInventoryUsed?: boolean;
   /** In-game dialog line timing and `dialog-text` GUI placement (see `getDialogSettings()`). */
   dialog?: Partial<GameSettingsDialog>;
   /** Starting flags, variables, and inventory merged at game creation (see `GameStateManager`). */

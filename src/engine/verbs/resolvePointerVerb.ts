@@ -31,6 +31,12 @@ export type PointerVerbResolution =
  * `"defaultVerb"` slot token are handled here; the active verb (when set) takes precedence over
  * either `inputProfile` slot.
  *
+ * When **`activeInventoryItemId`** is non-null, a right-click always resolves to
+ * `clearActive` — the caller is expected to clear **both** the active inventory selection and the
+ * active verb (see `RoomScene` handlers). This keeps the “armed inventory cancels on right-click”
+ * rule uniform across props, hotspots, clickable characters, and inventory rows, regardless of
+ * whether an active verb was also set.
+ *
  * Empty-space clicks (no target) are **not** routed through this function — the scene's empty-space
  * handler walks on left-click and {@link clearActiveVerbOnEmptyRightClick} handles the right-click
  * clear. That keeps the resolver focused on target-click semantics.
@@ -40,11 +46,16 @@ export function resolvePointerVerbForTarget(
   profile: VerbInputProfile,
   target: PointerVerbTarget,
   activeVerbId: string | null,
+  activeInventoryItemId: string | null = null,
 ): PointerVerbResolution {
   const left = pointer.leftButtonDown();
   const right = pointer.rightButtonDown();
   if (!left && !right) {
     return { kind: 'none' };
+  }
+
+  if (activeInventoryItemId !== null && right) {
+    return { kind: 'clearActive' };
   }
 
   if (activeVerbId !== null) {
@@ -82,8 +93,15 @@ export function resolvePointerVerbForInventoryItem(
   profile: VerbInputProfile,
   target: PointerVerbTarget,
   activeVerbId: string | null,
+  activeInventoryItemId: string | null = null,
 ): PointerVerbResolution {
-  const base = resolvePointerVerbForTarget(pointer, profile, target, activeVerbId);
+  const base = resolvePointerVerbForTarget(
+    pointer,
+    profile,
+    target,
+    activeVerbId,
+    activeInventoryItemId,
+  );
   if (base.kind === 'verb' && base.consumeActive) {
     return { kind: 'verb', verbId: base.verbId, consumeActive: false };
   }

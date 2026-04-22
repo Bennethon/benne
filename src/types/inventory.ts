@@ -11,6 +11,13 @@ export interface InventoryItemData {
   defaultVerb?: string;
   /** `false` = unique (0/1); `true` = supports quantity greater than 1. */
   stackable: boolean;
+  /**
+   * Per-item override for `game-config.json` `dropWhenInventoryUsed`. When set, controls whether
+   * the active inventory selection is dropped (active inventory + active verb cleared) after the
+   * player uses **this** item on a clickable target. When omitted, the global policy applies
+   * (`dropWhenInventoryUsed`, default `false`).
+   */
+  dropWhenUsed?: boolean;
   /** Optional per-tag animation overrides for inventory sheets. */
   animations?: Record<
     string,
