@@ -37,6 +37,7 @@ import {
     readRoomProps
 } from './gameDiscovery';
 import { addRoomCharacterVerbEvent } from './roomCharacterVerbScaffolding';
+import { addCharacterInventoryUsedOnStub, addRoomInventoryUsedOnStub } from './inventoryUsedOnScaffolding';
 import {
     addHotspotVerbEvent,
     addPropVerbEvent,
@@ -913,6 +914,49 @@ export function activate(context: vscode.ExtensionContext): void {
                     } else {
                         await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
                     }
+                }
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addRoomInventoryUsedOnStub',
+            async (
+                roomJsonUriStr?: string,
+                roomIdArg?: string,
+                kindArg?: string,
+                targetIdArg?: string
+            ) => {
+                if (typeof roomJsonUriStr !== 'string' || typeof roomIdArg !== 'string' || typeof targetIdArg !== 'string') {
+                    return;
+                }
+                if (kindArg !== 'prop' && kindArg !== 'hotspot' && kindArg !== 'character') {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(roomJsonUriStr);
+                const r = await addRoomInventoryUsedOnStub(jsonUri, roomIdArg, kindArg, targetIdArg);
+                refreshTrees();
+                if (r.ok && r.insertedStubRange) {
+                    const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomIdArg}.room.ts`);
+                    await revealSourceRangeInDocument(
+                        scriptUri,
+                        r.insertedStubRange.start,
+                        r.insertedStubRange.end,
+                        BENNE_SCRIPT_VIEW_COLUMN
+                    );
+                }
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addCharacterInventoryUsedOnStub',
+            async (characterJsonUriStr?: string, characterIdArg?: string) => {
+                if (typeof characterJsonUriStr !== 'string' || typeof characterIdArg !== 'string') {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(characterJsonUriStr);
+                const r = await addCharacterInventoryUsedOnStub(jsonUri, characterIdArg);
+                refreshTrees();
+                if (r.ok) {
+                    const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${characterIdArg}.character.ts`);
+                    await revealEventInDocument(scriptUri, 'whenInventoryUsedOn', BENNE_SCRIPT_VIEW_COLUMN);
                 }
             }
         ),

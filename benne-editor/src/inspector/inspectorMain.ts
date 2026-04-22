@@ -76,6 +76,8 @@ type InspectorRoomState = {
     rev: number;
     roomJsonUri: string;
     roomId: string;
+    /** Inventory ids (workspace); stub text is built when Inv is clicked. */
+    inventoryItemIds: string[];
     displayName: string;
     size: { width: number; height: number } | null;
     scrollBounds: { x: number; y: number; width: number; height: number } | null;
@@ -103,6 +105,7 @@ type InspectorCharacterState = {
     rev: number;
     characterJsonUri: string;
     characterId: string;
+    inventoryItemIds: string[];
     name: string;
     walkSpeed: number;
     clickable: boolean;
@@ -259,6 +262,7 @@ type InspectorInventoryState = {
     stackable: boolean;
     asepriteMode: true | 'shared';
     defaultAnimation: string;
+    cursorAnimation: string;
     verbs: InspectorVerbChip[];
     availableVerbs: { id: string; label?: string; preposition?: string }[];
     animations: InspectorInventoryAnimationCard[];
@@ -494,6 +498,20 @@ function renderVerbChipRow(roomJsonUri: string, roomId: string, verbs: Inspector
     return `<div class="benne-verb-chips">${inner}</div>`;
 }
 
+function renderInventoryUsedOnInvRoomButton(target: 'prop' | 'hotspot' | 'character', targetId: string): string {
+    return `<div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <button type="button" class="btn-secondary btn-inv-usedon" data-inv-target="${esc(target)}" data-inv-target-id="${esc(targetId)}" title="Insert B.whenInventoryUsedOn stub in the room script">Inv</button>
+    <span class="muted small"><code>B.whenInventoryUsedOn</code> (room script)</span>
+  </div>`;
+}
+
+function renderInventoryUsedOnInvCharacterDefButton(): string {
+    return `<div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <button type="button" class="btn-secondary btn-inv-usedon-char" title="Insert B.whenInventoryUsedOn stub in the character script">Inv</button>
+    <span class="muted small"><code>B.whenInventoryUsedOn</code> (character script)</span>
+  </div>`;
+}
+
 /**
  * Renders the per-clickable "Default verb" dropdown. The selected value is the currently-authored
  * verb (falling back to `"look"` when JSON omits `defaultVerb`). Classes below drive the change
@@ -622,6 +640,7 @@ function renderRoom(state: InspectorRoomState): string {
           : '<span class="muted small">(not clickable)</span>'}
       <label class="benne-field-label muted small">Verbs</label>
       ${verbHtml}
+      ${p.clickable ? renderInventoryUsedOnInvRoomButton('prop', p.id) : ''}
       ${animSection}
       ${propActions}`;
             return renderInspectorItem(state, 'prop', p.id, ` benne-card--prop${propClickableCls}`, summary, body);
@@ -650,6 +669,7 @@ function renderRoom(state: InspectorRoomState): string {
       ${renderDefaultVerbSelect('hs-default-verb', `data-id="${esc(h.id)}"`, h.defaultVerb, h.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this hotspot"')}
       <label class="benne-field-label muted small">Verbs</label>
       ${verbHtml}
+      ${h.active ? renderInventoryUsedOnInvRoomButton('hotspot', h.id) : ''}
       <div class="benne-card-actions">
         <div class="benne-card-actions-inner">
           <button type="button" class="btn-link" data-edit-preview="hotspot" data-id="${esc(h.id)}">Edit in Preview →</button>
@@ -693,7 +713,9 @@ function renderRoom(state: InspectorRoomState): string {
         <span class="benne-pg-lbl">${esc(c.defaultVerb)}</span>
         <span class="muted small">(from character JSON)</span>
       </div>
-      ${verbHtml}`;
+      <label class="benne-field-label muted small">Verbs</label>
+      ${verbHtml}
+      ${c.characterClickable ? renderInventoryUsedOnInvRoomButton('character', c.characterId) : ''}`;
             return renderInspectorItem(state, 'character', c.instanceId, ' benne-card--character', summary, body);
         })
         .join('');
@@ -1205,6 +1227,7 @@ function renderCharacter(state: InspectorCharacterState): string {
         ${renderDefaultVerbSelect('char-default-verb', '', state.defaultVerb, state.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this character"')}
         <label class="benne-field-label muted small" style="margin-top:10px;">Configured verbs</label>
         ${verbHtml}
+        ${state.clickable ? renderInventoryUsedOnInvCharacterDefButton() : ''}
       </div>
     </details>
 
@@ -1331,6 +1354,8 @@ function renderInventory(state: InspectorInventoryState): string {
           </select>
           <span class="benne-pg-lbl">default frame tag</span>
           <input type="text" id="inv-default-animation" value="${esc(state.defaultAnimation)}" title="JSON key: defaultAnimation. Empty = use item id." />
+          <span class="benne-pg-lbl">cursor clip (active item)</span>
+          <input type="text" id="inv-cursor-animation" value="${esc(state.cursorAnimation)}" title="JSON key: cursorAnimation — Aseprite tag on this item’s sheet for the custom game cursor when this item is armed for use-on-target. Leave empty for default cursor." placeholder="(optional) e.g. useCursor" />
         </div>
         <label class="benne-field-label muted small">Description</label>
         <textarea id="inv-description" rows="3">${esc(state.description)}</textarea>
@@ -1663,6 +1688,26 @@ function mountHandlers(state: InspectorRoomState): void {
             }
         });
     });
+
+    root.querySelectorAll('.btn-inv-usedon').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const el = btn as HTMLElement;
+            const target = el.dataset.invTarget;
+            const targetId = el.dataset.invTargetId ?? '';
+            if (target !== 'prop' && target !== 'hotspot' && target !== 'character') {
+                return;
+            }
+            if (!targetId) {
+                return;
+            }
+            post('inventoryUsedOnAdd', {
+                roomJsonUri: state.roomJsonUri,
+                roomId: state.roomId,
+                target,
+                targetId
+            });
+        });
+    });
 }
 
 function readPointFields(prefix: string): { x: number; y: number } | null {
@@ -1742,6 +1787,11 @@ function mountCharacterHandlers(state: InspectorCharacterState): void {
                 characterId: state.characterId,
                 verbId
             });
+        });
+    });
+    document.querySelectorAll('.btn-inv-usedon-char').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            post('inventoryUsedOnAdd', { characterJsonUri: state.characterJsonUri });
         });
     });
 }
@@ -1978,6 +2028,8 @@ function collectInventoryMeta(): Record<string, unknown> {
         stackable: (document.getElementById('inv-stackable') as HTMLInputElement | null)?.checked ?? false,
         defaultAnimation:
             (document.getElementById('inv-default-animation') as HTMLInputElement | null)?.value ?? '',
+        cursorAnimation:
+            (document.getElementById('inv-cursor-animation') as HTMLInputElement | null)?.value ?? '',
         asepriteMode:
             ((document.getElementById('inv-aseprite') as HTMLSelectElement | null)?.value ?? 'shared') ===
             'true'
@@ -1999,7 +2051,7 @@ function mountInventoryHandlers(state: InspectorInventoryState): void {
     document.getElementById('btn-open-json-inv')?.addEventListener('click', () => {
         post('openRawJson', { inventoryJsonUri: state.inventoryJsonUri });
     });
-    ['inv-name', 'inv-description', 'inv-stackable', 'inv-default-animation', 'inv-aseprite'].forEach((id) => {
+    ['inv-name', 'inv-description', 'inv-stackable', 'inv-default-animation', 'inv-cursor-animation', 'inv-aseprite'].forEach((id) => {
         document.getElementById(id)?.addEventListener('blur', flushMeta);
         document.getElementById(id)?.addEventListener('change', flushMeta);
     });

@@ -25,6 +25,7 @@ export function createRoomScriptContext(
     whenClose: B.whenClose.bind(B),
     whenVerb: B.whenVerb.bind(B),
     whenTalkTo: B.whenTalkTo.bind(B),
+    whenInventoryUsedOn: B.whenInventoryUsedOn,
   };
 
   return context;

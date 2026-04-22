@@ -22,12 +22,12 @@
             "y": 117
           },
           {
-            "x": 34,
-            "y": 148
+            "x": 33,
+            "y": 151
           },
           {
-            "x": 320,
-            "y": 149
+            "x": 321,
+            "y": 150
           },
           {
             "x": 277,
@@ -100,7 +100,51 @@
       "zIndex": 2,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 66,
+            "y": 117
+          },
+          {
+            "x": 60,
+            "y": 96
+          },
+          {
+            "x": 71,
+            "y": 85
+          },
+          {
+            "x": 71,
+            "y": 74
+          },
+          {
+            "x": 82,
+            "y": 68
+          },
+          {
+            "x": 147,
+            "y": 69
+          },
+          {
+            "x": 151,
+            "y": 109
+          },
+          {
+            "x": 146,
+            "y": 117
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 125,
+        "y": 123
+      },
+      "lookAtPoint": {
+        "x": 108,
+        "y": 113
+      }
     },
     {
       "id": "Door",
@@ -112,7 +156,35 @@
       "zIndex": 3,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 289,
+            "y": 51
+          },
+          {
+            "x": 309,
+            "y": 60
+          },
+          {
+            "x": 307,
+            "y": 132
+          },
+          {
+            "x": 287,
+            "y": 114
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 286,
+        "y": 124
+      },
+      "lookAtPoint": {
+        "x": 297,
+        "y": 115
+      }
     },
     {
       "id": "Pillar",
@@ -120,10 +192,54 @@
       "animations": {
         "Pillar": {}
       },
-      "zIndex": 4,
+      "zIndex": 50,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 171,
+            "y": 90
+          },
+          {
+            "x": 180,
+            "y": 81
+          },
+          {
+            "x": 209,
+            "y": 81
+          },
+          {
+            "x": 220,
+            "y": 88
+          },
+          {
+            "x": 219,
+            "y": 138
+          },
+          {
+            "x": 213,
+            "y": 145
+          },
+          {
+            "x": 175,
+            "y": 144
+          },
+          {
+            "x": 171,
+            "y": 138
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 157,
+        "y": 141
+      },
+      "lookAtPoint": {
+        "x": 194,
+        "y": 141
+      }
     },
     {
       "id": "Fan",
@@ -142,12 +258,12 @@
     {
       "instanceId": "hank-1",
       "definition": "hank/hank.character.json",
-      "x": 176,
-      "y": 99,
+      "x": 106,
+      "y": 136,
       "initialFacing": "L",
       "initialAnimation": "Idle",
       "visible": true,
-      "zIndex": 0
+      "zIndex": 40
     }
   ]
 }

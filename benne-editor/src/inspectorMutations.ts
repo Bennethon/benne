@@ -769,6 +769,7 @@ export function updateInventoryFields(
         description?: string;
         stackable?: boolean;
         defaultAnimation?: string;
+        cursorAnimation?: string;
         asepriteMode?: true | 'shared';
         defaultVerb?: string;
     }
@@ -787,6 +788,13 @@ export function updateInventoryFields(
             delete data.defaultAnimation;
         } else {
             data.defaultAnimation = fields.defaultAnimation.trim();
+        }
+    }
+    if (fields.cursorAnimation !== undefined) {
+        if (fields.cursorAnimation.trim().length === 0) {
+            delete data.cursorAnimation;
+        } else {
+            data.cursorAnimation = fields.cursorAnimation.trim();
         }
     }
     if (fields.asepriteMode !== undefined) {

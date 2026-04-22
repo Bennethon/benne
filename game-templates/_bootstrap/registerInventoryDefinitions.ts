@@ -28,6 +28,9 @@ function isInventoryItemData(value: unknown): value is InventoryItemData {
   if (o.defaultAnimation !== undefined && typeof o.defaultAnimation !== 'string') {
     return false;
   }
+  if (o.cursorAnimation !== undefined && typeof o.cursorAnimation !== 'string') {
+    return false;
+  }
   if (o.onVerb !== undefined) {
     if (!o.onVerb || typeof o.onVerb !== 'object' || Array.isArray(o.onVerb)) {
       return false;

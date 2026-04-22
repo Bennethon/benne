@@ -41,6 +41,9 @@ import {
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { GuiRuntime } from '../scripting/GuiRuntime.js';
+import { dispatchInventoryVerbInteraction } from '../verbs/dispatchInventoryVerb';
+import { getEffectiveInputProfile } from '../verbs/verbConfig';
+import { resolvePointerVerbForInventoryItem } from '../verbs/resolvePointerVerb';
 
 /** Slot stroke for `game-config.json` `debug.showGuiOutlines` (distinct from walkable / prop debug colors). */
 const DEBUG_GUI_INVENTORY_SLOT_STROKE = 0x66ccff;
@@ -830,6 +833,7 @@ function fillInventoryPanelContent(
   c: GuiInventoryPanelControl,
   scrollState: { offset: number },
   startVisible: boolean,
+  invPointerCtx: InventoryPanelPointerContext | undefined,
 ): void {
   panel.removeAll(true);
 
@@ -1002,9 +1006,63 @@ function fillInventoryPanelContent(
         );
       }
 
+      if (invPointerCtx && invIndex < inventoryItems.length) {
+        const itemId = inventoryItems[invIndex]!.id;
+        const hit = new Phaser.Geom.Rectangle(0, 0, c.slotWidth, c.slotHeight);
+        slotContainer.setInteractive(hit, Phaser.Geom.Rectangle.Contains);
+        if (slotContainer.input) {
+          const showOsHand = !isBenneGameCursorAsepriteEnabled(getGameSettings());
+          slotContainer.input.cursor = showOsHand ? 'pointer' : false;
+        }
+        slotContainer.setData('benneInventorySlot', true);
+        slotContainer.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+          if (invPointerCtx.tryConsumeDialogClickToSkip(pointer)) {
+            return;
+          }
+          if (invPointerCtx.isInputSuppressed()) {
+            return;
+          }
+          const profile = getEffectiveInputProfile(getGameSettings());
+          const manager = resolveGameStateManager(scene.game);
+          const invDef = getInventoryDefinition(itemId) as InventoryItemData | undefined;
+          const resolution = resolvePointerVerbForInventoryItem(
+            pointer,
+            profile,
+            { defaultVerb: invDef?.defaultVerb },
+            manager.getActiveVerb(),
+          );
+          if (resolution.kind === 'none') {
+            return;
+          }
+          if (resolution.kind === 'clearActive') {
+            manager.clearActiveVerb();
+            return;
+          }
+          if (resolution.kind === 'walkToTarget') {
+            return;
+          }
+          dispatchInventoryVerbInteraction(
+            gameEvents,
+            resolution.verbId,
+            itemId,
+            invPointerCtx.roomId,
+          );
+          if (resolution.consumeActive) {
+            manager.clearActiveVerb();
+          }
+        });
+      }
+
       panel.add(slotContainer);
     }
   }
+}
+
+/** When set (in {@link RoomScene}), occupied inventory slots dispatch verbs like room props. Omitted in editor previews. */
+export interface InventoryPanelPointerContext {
+  roomId: string;
+  isInputSuppressed: () => boolean;
+  tryConsumeDialogClickToSkip: (pointer: Phaser.Input.Pointer) => boolean;
 }
 
 export interface BuildGuiOverlayOptions {
@@ -1013,6 +1071,8 @@ export interface BuildGuiOverlayOptions {
   startVisible?: boolean;
   /** Shown when a control's `text` is missing or whitespace-only; omit to use empty string. */
   emptyTextPlaceholder?: string;
+  /** Enables interactive inventory slots that emit inventory verb events (requires `roomId`). */
+  inventoryPanelPointerContext?: InventoryPanelPointerContext;
 }
 
 /**
@@ -1027,6 +1087,7 @@ export function buildGuiOverlay(
   const depth = options?.depth ?? GUI_TEXT_OVERLAY_DEPTH;
   const startVisible = options?.startVisible ?? false;
   const placeholder = options?.emptyTextPlaceholder;
+  const invPointerCtx = options?.inventoryPanelPointerContext;
   const allLines: Phaser.GameObjects.BitmapText[] = [];
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
   const guiButtons: BuiltGuiButton[] = [];
@@ -1095,7 +1156,8 @@ export function buildGuiOverlay(
       panel.setDepth(depth + (c.zIndex ?? 0));
       const scrollSt = invScrollStateByControlIndex.get(i);
       if (scrollSt) {
-        scrollSt.refresh = () => fillInventoryPanelContent(panel, scene, gui, c, scrollSt, startVisible);
+        scrollSt.refresh = () =>
+          fillInventoryPanelContent(panel, scene, gui, c, scrollSt, startVisible, invPointerCtx);
         const onGameStateInventory = (): void => {
           scrollSt.refresh();
         };
@@ -1107,7 +1169,7 @@ export function buildGuiOverlay(
         });
         scrollSt.refresh();
       } else {
-        fillInventoryPanelContent(panel, scene, gui, c, { offset: 0 }, startVisible);
+        fillInventoryPanelContent(panel, scene, gui, c, { offset: 0 }, startVisible, invPointerCtx);
       }
       inventoryPanels.push(panel);
       const pid = c.id?.trim();

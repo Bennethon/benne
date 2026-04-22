@@ -5,13 +5,23 @@ import type { CharacterBenneScript } from './CharacterBenneScript.js';
 import type { InventoryBenneScript } from './InventoryBenneScript.js';
 import type { GlobalBenneScript } from './GlobalBenneScript.js';
 import type { GuiBenneScript } from './GuiBenneScript.js';
+import type { BenneScriptSharedSelectionApi } from './benneScriptFacades.js';
+
+export type {
+  AnyInventoryUsedOnPayload,
+  BenneScriptSharedSelectionApi,
+  InventoryWhenUseHandler,
+  InventoryWhenUseRegistrar,
+  RoomInventoryUsedOnRegistrar,
+} from './benneScriptFacades.js';
 
 export interface RoomScriptContext {
   /**
    * Main authoring facade (`whenLookAt`, `B.player.walkTo`, …).
    * String ids for verb sugar (prop → hotspot → character), `walkTo`, and prop-only helpers are documented in the **module comment** at the top of `BenneScript.ts`.
+   * Includes {@link BenneScriptSharedSelectionApi} (`setActiveVerb`, `setActiveInventory`, …) from {@link import('./BenneScriptCore.js').BenneScriptCore}.
    */
-  readonly B: BenneScript;
+  readonly B: BenneScript & BenneScriptSharedSelectionApi;
 
   /** Raw access (advanced use only) */
   readonly events: Phaser.Events.EventEmitter;
@@ -30,22 +40,27 @@ export interface RoomScriptContext {
   whenClose: BenneScript['whenClose'];
   whenVerb: BenneScript['whenVerb'];
   whenTalkTo: BenneScript['whenTalkTo'];
+  readonly whenInventoryUsedOn: BenneScript['whenInventoryUsedOn'];
 }
 
 /** Context passed to each `registerCharacterScript` callback when that character is spawned in the active room. */
 export interface CharacterScriptContext {
   /** Self-only verb sugar (`whenLookAt(() => …)`); uses `characterVerbEventId` only. */
-  readonly B: CharacterBenneScript;
+  readonly B: CharacterBenneScript & BenneScriptSharedSelectionApi;
   readonly events: Phaser.Events.EventEmitter;
   readonly characterId: string;
   readonly roomId: string;
   readonly roomScene: RoomScene;
+  readonly whenInventoryUsedOn: CharacterBenneScript['whenInventoryUsedOn'];
 }
 
 /** Context passed to each `registerInventoryScript` callback when a room is active. */
 export interface InventoryScriptContext {
-  /** Item-scoped verb sugar (`whenLookAt(() => …)`); subscribes to room + global inventory verb ids. */
-  readonly B: InventoryBenneScript;
+  /**
+   * Item-scoped verb sugar (`whenLookAt`, …); subscribes to room + global inventory verb ids.
+   * **`B.whenUse`** activates this item for use-on-target after the handler’s queued steps; use **`B.whenUse.doNotActivate`** to opt out.
+   */
+  readonly B: InventoryBenneScript & BenneScriptSharedSelectionApi;
   readonly events: Phaser.Events.EventEmitter;
   readonly itemId: string;
   readonly roomId: string;
@@ -54,14 +69,14 @@ export interface InventoryScriptContext {
 
 /** Passed to each `registerGlobalScript` callback from {@link import('./wireBenneGlobalScripts.js').wireBenneGlobalScripts}. */
 export interface GlobalScriptContext {
-  readonly B: GlobalBenneScript;
+  readonly B: GlobalBenneScript & BenneScriptSharedSelectionApi;
   readonly events: Phaser.Events.EventEmitter;
   readonly game: Phaser.Game;
 }
 
 /** Passed to each `registerGuiScript` callback when content is registered. */
 export interface GuiScriptContext {
-  readonly B: GuiBenneScript;
+  readonly B: GuiBenneScript & BenneScriptSharedSelectionApi;
   readonly events: Phaser.Events.EventEmitter;
   readonly guiId: string;
 }

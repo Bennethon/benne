@@ -39,6 +39,8 @@
     "onCommand:benne-editor.makeCharacterClickable",
     "onCommand:benne-editor.addCharacterVerbEvent",
     "onCommand:benne-editor.addRoomCharacterVerbEvent",
+    "onCommand:benne-editor.addRoomInventoryUsedOnStub",
+    "onCommand:benne-editor.addCharacterInventoryUsedOnStub",
     "onCommand:benne-editor.filterMainTree",
     "onCommand:benne-editor.clearMainTreeFilter",
     "onCommand:benne-editor.deleteGameEntity"
@@ -138,6 +140,16 @@
         "title": "Add room-scoped character verb handler (character JSON + room script)",
         "category": "BENNE",
         "icon": "$(add)"
+      },
+      {
+        "command": "benne-editor.addRoomInventoryUsedOnStub",
+        "title": "Add B.whenInventoryUsedOn stub (room script)",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.addCharacterInventoryUsedOnStub",
+        "title": "Add B.whenInventoryUsedOn stub (character script)",
+        "category": "BENNE"
       },
       {
         "command": "benne-editor.revealCharacterScriptEvent",

@@ -1,0 +1,11 @@
+{
+  "id": "Ladder",
+  "name": "Ladder",
+  "description": "",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}

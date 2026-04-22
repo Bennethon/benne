@@ -11,19 +11,30 @@ import type { GivePropInteractPayload } from './benneScriptPayloads.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
+  globalInventoryOnCharacterEventId,
+  globalInventoryOnHotspotEventId,
+  globalInventoryOnPropEventId,
+  roomInventoryOnCharacterEventId,
+  roomInventoryOnHotspotEventId,
+  roomInventoryOnPropEventId,
+} from '../events/inventoryOnVerbEvents.js';
+import {
   characterVerbEventId,
   roomCharacterVerbEventId,
   roomHotspotVerbEventId,
   roomPropVerbEventId,
 } from '../events/verbInteractionEvents.js';
+import { getRegisteredInventoryDefinitionIds } from '../inventory/inventoryDefinitionRegistry.js';
 import {
   playDirectionalAnimation,
   type DirectionalCharacterSprite,
 } from '../directionalCharacterAnimation.js';
 import type {
+  AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
+  RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
 import {
   BenneScriptCore,
@@ -38,9 +49,14 @@ import {
 } from './benneScriptGameStateApi.js';
 
 export type {
+  AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
+  BenneScriptSharedSelectionApi,
+  InventoryWhenUseHandler,
+  InventoryWhenUseRegistrar,
+  RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
 export type { BenneScriptSayArgs, BenneScriptSayLineOptions, BlockingWithNow } from './BenneScriptCore.js';
 export { withNow } from './BenneScriptCore.js';
@@ -71,6 +87,7 @@ export { withNow } from './BenneScriptCore.js';
  */
 export class BenneScript extends BenneScriptCore {
   private static unresolvedTargetVerbWarnings = new Set<string>();
+  private static unresolvedInventoryOnTargetWarnings = new Set<string>();
 
   private roomId: string;
   private roomScene: RoomScene;
@@ -80,6 +97,11 @@ export class BenneScript extends BenneScriptCore {
   /** Item quantities; survives room loads (see `GameStateManager`). */
   readonly inventory: BenneScriptInventoryNamespace;
 
+  /**
+   * **`doNotClear`** opts out of clearing the active inventory item after the handler’s queued steps (default clears).
+   */
+  readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
+
   constructor(events: Phaser.Events.EventEmitter, roomId: string, roomScene: RoomScene) {
     super(events, () => roomScene.time);
     this.roomId = roomId;
@@ -87,6 +109,20 @@ export class BenneScript extends BenneScriptCore {
     const manager = resolveGameStateManager(roomScene.game);
     this.state = createBenneScriptGameStateNamespace(manager);
     this.inventory = createBenneScriptInventoryNamespace(manager);
+    this.whenInventoryUsedOn = Object.assign(
+      (
+        targetId: string,
+        handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+        options?: { doNotClear?: boolean },
+      ) => {
+        this.registerInventoryUsedOnForTarget(targetId, handler, options?.doNotClear === true);
+      },
+      {
+        doNotClear: (targetId: string, handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void)) => {
+          this.registerInventoryUsedOnForTarget(targetId, handler, true);
+        },
+      },
+    ) as RoomInventoryUsedOnRegistrar;
   }
 
   /**
@@ -208,6 +244,59 @@ export class BenneScript extends BenneScriptCore {
     console.warn(
       `[Benne] No prop, hotspot, or character found with id '${targetId}' for verb '${verbId}' in room '${this.roomId}'. Handler was not registered.`,
     );
+  }
+
+  private warnNoInventoryOnTarget(targetId: string): void {
+    const key = `${this.roomId}:${targetId}:inventoryOn`;
+    if (BenneScript.unresolvedInventoryOnTargetWarnings.has(key)) {
+      return;
+    }
+    BenneScript.unresolvedInventoryOnTargetWarnings.add(key);
+    console.warn(
+      `[Benne] No prop, hotspot, or character found with id '${targetId}' for whenInventoryUsedOn in room '${this.roomId}'. Handler was not registered.`,
+    );
+  }
+
+  private registerInventoryUsedOnForTarget(
+    targetId: string,
+    handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+    doNotClear: boolean,
+  ): void {
+    const itemIds = getRegisteredInventoryDefinitionIds();
+    if (this.roomScene.getRoomPropInstance(targetId)) {
+      for (const itemId of itemIds) {
+        this.subscribeInventoryUsedOnTargetEvents(
+          roomInventoryOnPropEventId(this.roomId, targetId, itemId),
+          globalInventoryOnPropEventId(targetId, itemId),
+          handler,
+          doNotClear,
+        );
+      }
+      return;
+    }
+    if (this.roomScene.getRoomHotspotInstance(targetId)) {
+      for (const itemId of itemIds) {
+        this.subscribeInventoryUsedOnTargetEvents(
+          roomInventoryOnHotspotEventId(this.roomId, targetId, itemId),
+          globalInventoryOnHotspotEventId(targetId, itemId),
+          handler,
+          doNotClear,
+        );
+      }
+      return;
+    }
+    if (this.roomScene.getCharacterSprite(targetId)) {
+      for (const itemId of itemIds) {
+        this.subscribeInventoryUsedOnTargetEvents(
+          roomInventoryOnCharacterEventId(this.roomId, targetId, itemId),
+          globalInventoryOnCharacterEventId(targetId, itemId),
+          handler,
+          doNotClear,
+        );
+      }
+      return;
+    }
+    this.warnNoInventoryOnTarget(targetId);
   }
 
   /** Like {@link onProp} but passes a transformed payload (e.g. {@link whenGive}). */

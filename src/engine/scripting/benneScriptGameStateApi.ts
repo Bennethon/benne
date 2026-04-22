@@ -24,6 +24,13 @@ export interface BenneScriptGameStateNamespace {
   setActiveVerb(verbId: string | null): void;
   getActiveVerb(): string | null;
   clearActiveVerb(): void;
+  /**
+   * Active inventory item for use-on-target (see {@link GameStateManager.setActiveInventory}). Persisted in
+   * save snapshots. Pass `null` to clear; empty strings are treated as `null`. (Maps to {@link GameStateManager.setActiveInventoryItem}.)
+   */
+  setActiveInventory(id: string | null): void;
+  getActiveInventoryItemId(): string | null;
+  clearActiveInventory(): void;
 }
 
 /** `B.inventory` — quantities per item id (see `GameStateManager`). */
@@ -55,6 +62,9 @@ export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneS
     setActiveVerb: (verbId) => m.setActiveVerb(verbId),
     getActiveVerb: () => m.getActiveVerb(),
     clearActiveVerb: () => m.clearActiveVerb(),
+    setActiveInventory: (id) => m.setActiveInventoryItem(id),
+    getActiveInventoryItemId: () => m.getActiveInventoryItemId(),
+    clearActiveInventory: () => m.clearActiveInventoryItem(),
   };
 }
 

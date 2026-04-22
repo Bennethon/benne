@@ -22,6 +22,21 @@
   "defaultFallbackLine": "That doesn't seem to work.",
   "startingPlayerCharacter": "hank",
   "startingRoomId": "apartment",
+  "initialGameState": {
+    "flags": {},
+    "variables": {},
+    "inventory": [
+      "Key",
+      "Chainsaw",
+      "Ladder",
+      "Broom",
+      "Lantern",
+      "SheetMusic",
+      "Vacuum",
+      "Candy1",
+      "Newspaper"
+    ]
+  },
   "audio": {
     "masterVolume": 1,
     "sfxVolume": 1,

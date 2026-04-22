@@ -29,7 +29,7 @@ import {
     writeDataJson,
     writeRoomJson
 } from './inspectorMutations';
-import { getGuiIdFromGuiJsonUri, getRoomIdFromRoomJsonUri } from './gameDiscovery';
+import { getCharacterIdFromCharacterJsonUri, getGuiIdFromGuiJsonUri, getRoomIdFromRoomJsonUri } from './gameDiscovery';
 import type { RoomPreviewPanelController } from './roomPreviewPanel';
 import type { GuiPreviewPanelController } from './guiPreviewPanel';
 import {
@@ -625,6 +625,7 @@ type WebviewPatch =
           description?: string;
           stackable?: boolean;
           defaultAnimation?: string;
+          cursorAnimation?: string;
           asepriteMode?: true | 'shared';
           defaultVerb?: string;
       }
@@ -834,6 +835,34 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             }
             await writeRoomJson(uri, data);
             this.roomPreview.onWorkspaceRoomJsonChanged(uri);
+            this.refreshMainAndActions();
+            await this.pushState();
+            return;
+        }
+
+        if (msg.action === 'inventoryUsedOnAdd') {
+            const target = typeof msg.target === 'string' ? msg.target : '';
+            const targetId = typeof msg.targetId === 'string' ? msg.targetId : '';
+            if (
+                focusKind === 'room' &&
+                (target === 'prop' || target === 'hotspot' || target === 'character') &&
+                targetId
+            ) {
+                await vscode.commands.executeCommand(
+                    'benne-editor.addRoomInventoryUsedOnStub',
+                    uri.toString(),
+                    roomId,
+                    target,
+                    targetId
+                );
+            } else if (focusKind === 'character') {
+                const characterId = getCharacterIdFromCharacterJsonUri(uri);
+                await vscode.commands.executeCommand(
+                    'benne-editor.addCharacterInventoryUsedOnStub',
+                    uri.toString(),
+                    characterId
+                );
+            }
             this.refreshMainAndActions();
             await this.pushState();
             return;
@@ -1202,6 +1231,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 description: p.description,
                 stackable: p.stackable,
                 defaultAnimation: p.defaultAnimation,
+                cursorAnimation: typeof p.cursorAnimation === 'string' ? p.cursorAnimation : undefined,
                 asepriteMode: p.asepriteMode,
                 defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined
             });

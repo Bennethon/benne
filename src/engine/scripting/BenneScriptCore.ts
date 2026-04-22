@@ -8,6 +8,7 @@ import {
 } from '../directionalCharacterAnimation.js';
 import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 
 /**
  * Callable that participates in the interaction queue; **`fn.now`** runs the same action immediately
@@ -150,6 +151,34 @@ export abstract class BenneScriptCore {
     tryGetActiveGameStateManager()?.clearActiveVerb();
   }
 
+  /**
+   * Set the runtime active inventory item for use-on-target (see {@link GameStateManager.setActiveInventoryItem}).
+   * Available on every Bennescript facade via `B.setActiveInventory(...)` and on `B.state`. Pass `null` or an
+   * empty string to clear.
+   */
+  setActiveInventory(id: string | null): void {
+    const manager = tryGetActiveGameStateManager();
+    if (!manager) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[Benne] B.setActiveInventory called before the game was created — ignored.',
+        );
+      }
+      return;
+    }
+    manager.setActiveInventoryItem(id);
+  }
+
+  /** Current active inventory item id, or `null` when none is set. */
+  getActiveInventoryItemId(): string | null {
+    return tryGetActiveGameStateManager()?.getActiveInventoryItemId() ?? null;
+  }
+
+  /** Convenience for `setActiveInventory(null)`. */
+  clearActiveInventory(): void {
+    tryGetActiveGameStateManager()?.clearActiveInventoryItem();
+  }
+
   private beginInteraction(): void {
     this.interactionTail = Promise.resolve();
   }
@@ -178,6 +207,56 @@ export abstract class BenneScriptCore {
     };
     this.events.on(eventId, wrapped);
     this.disposers.push(() => this.events.off(eventId, wrapped));
+  }
+
+  /**
+   * Like {@link subscribe}, then invokes **`afterTail`** synchronously after the interaction queue drains.
+   * Use for follow-ups that must run after queued `walkTo` / `say` steps from **`run`** (e.g. inventory use-on-target activation).
+   */
+  protected subscribeAfterInteractionTail(
+    eventId: string,
+    run: (payload: unknown) => void,
+    afterTail: () => void,
+  ): void {
+    const wrapped = async (payload: unknown) => {
+      this.beginInteraction();
+      try {
+        run(payload);
+        await this.endInteraction();
+        afterTail();
+      } catch (err) {
+        console.error(`[Benne] Error in ${eventId} handler:`, err);
+      }
+    };
+    this.events.on(eventId, wrapped);
+    this.disposers.push(() => this.events.off(eventId, wrapped));
+  }
+
+  /**
+   * Subscribes to room + global inventory-on-target ids; after the handler’s queued steps, clears the active
+   * inventory item unless **`doNotClear`**.
+   */
+  protected subscribeInventoryUsedOnTargetEvents(
+    roomEventId: string,
+    globalEventId: string,
+    handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+    doNotClear: boolean,
+  ): void {
+    const run = (payload: unknown): void => {
+      const p = payload as AnyInventoryUsedOnPayload;
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: AnyInventoryUsedOnPayload) => void)(p);
+      }
+    };
+    const afterTail = (): void => {
+      if (!doNotClear) {
+        this.clearActiveInventory();
+      }
+    };
+    this.subscribeAfterInteractionTail(roomEventId, run, afterTail);
+    this.subscribeAfterInteractionTail(globalEventId, run, afterTail);
   }
 
   /**

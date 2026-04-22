@@ -27,6 +27,11 @@ export interface InventoryItemData {
    * Defaults to `id` when omitted.
    */
   defaultAnimation?: string;
+  /**
+   * When this item is the active inventory selection, optional frame tag on **this item’s** inventory sheet to play
+   * on the custom game cursor over clickables (see `RoomScene` + `game-config.json` `cursor`). Omitted = keep normal active-verb cursor behavior.
+   */
+  cursorAnimation?: string;
   cursor?: {
     hotspot?: { x: number; y: number };
   };

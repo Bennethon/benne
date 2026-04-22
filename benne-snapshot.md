@@ -113,38 +113,28 @@ src/engine/verbs/verbConfig.ts
 src/engine/walkable.ts
 src/game/assets/fonts/fonts.json
 src/game/assets/images/characters/hank/hank.json
-src/game/assets/images/characters/henry/henry.json
 src/game/assets/images/cursor/cursor.json
-src/game/assets/images/guis/inventoryBar/inventoryBar.json
+src/game/assets/images/guis/verbs/verbs.json
 src/game/assets/images/inventory/inventory.json
 src/game/assets/images/rooms/apartment/apartment.json
-src/game/assets/images/rooms/office/office.json
 src/game/characterAseprite.ts
 src/game/characterPreviewIdleTag.ts
 src/game/characters/hank/hank.character.json
 src/game/characters/hank/hank.character.ts
-src/game/characters/henry/henry.character.json
-src/game/characters/henry/henry.character.ts
 src/game/collectFontLoadsForGui.ts
 src/game/constants.ts
 src/game/cursorAseprite.ts
 src/game/game-config.json
 src/game/globalScript.ts
 src/game/guiAseprite.ts
-src/game/guis/dialog-text/dialog-text.gui.json
-src/game/guis/dialog-text/dialog-text.gui.ts
-src/game/guis/inventoryBar/inventoryBar.gui.json
-src/game/guis/inventoryBar/inventoryBar.gui.ts
-src/game/guis/random-text/random-text.gui.json
-src/game/guis/random-text/random-text.gui.ts
+src/game/guis/verbs/verbs.gui.json
+src/game/guis/verbs/verbs.gui.ts
 src/game/inventory/Broom/Broom.inventory.json
 src/game/inventory/Broom/Broom.inventory.ts
 src/game/inventory/Candy1/Candy1.inventory.json
 src/game/inventory/Candy1/Candy1.inventory.ts
 src/game/inventory/Chainsaw/Chainsaw.inventory.json
 src/game/inventory/Chainsaw/Chainsaw.inventory.ts
-src/game/inventory/Glue/Glue.inventory.json
-src/game/inventory/Glue/Glue.inventory.ts
 src/game/inventory/Key/Key.inventory.json
 src/game/inventory/Key/Key.inventory.ts
 src/game/inventory/Ladder/Ladder.inventory.json
@@ -170,8 +160,6 @@ src/game/resolveGameAssetUrl.ts
 src/game/roomAseprite.ts
 src/game/rooms/apartment/apartment.room.json
 src/game/rooms/apartment/apartment.room.ts
-src/game/rooms/office/office.room.json
-src/game/rooms/office/office.room.ts
 src/game/rooms/rooms.manifest.json
 src/main.ts
 src/types/character.ts
@@ -888,22 +876,6 @@ export type PlayerWalkStopPayload = {
 <file path="src/engine/gameState/registryKey.ts">
 /** Phaser `game.registry` key for {@link import('./GameStateManager.js').GameStateManager}. */
 export const BENNE_GAME_STATE_REGISTRY_KEY = 'benneGameState';
-</file>
-
-<file path="src/engine/gameState/resolveGameStateManager.ts">
-import * as Phaser from 'phaser';
-import type { GameStateManager } from './GameStateManager.js';
-import { BENNE_GAME_STATE_REGISTRY_KEY } from './registryKey.js';
-
-export function resolveGameStateManager(game: Phaser.Game): GameStateManager {
-  const manager = game.registry.get(BENNE_GAME_STATE_REGISTRY_KEY) as GameStateManager | undefined;
-  if (!manager) {
-    throw new Error(
-      '[Benne] GameStateManager missing from game.registry — createBenneGame must register it.',
-    );
-  }
-  return manager;
-}
 </file>
 
 <file path="src/engine/inventory/inventoryDefinitionRegistry.ts">
@@ -1630,25 +1602,6 @@ export function dispatchInventoryVerbInteraction(
 }
 </file>
 
-<file path="src/engine/verbs/resolvePointerVerb.ts">
-import type * as Phaser from 'phaser';
-import type { VerbInputProfileTwoVerb } from '../../types/game';
-
-/** Resolve which verb id the player intended from a pointer event (two-button profile). */
-export function resolveVerbIdFromPointer(
-  pointer: Phaser.Input.Pointer,
-  profile: VerbInputProfileTwoVerb,
-): string | null {
-  if (pointer.leftButtonDown()) {
-    return profile.primaryButtonVerb;
-  }
-  if (pointer.rightButtonDown()) {
-    return profile.secondaryButtonVerb;
-  }
-  return null;
-}
-</file>
-
 <file path="src/game/assets/images/characters/hank/hank.json">
 { "frames": {
    "hank 0.aseprite": {
@@ -1895,122 +1848,71 @@ export function resolveVerbIdFromPointer(
 }
 </file>
 
-<file path="src/game/assets/images/cursor/cursor.json">
+<file path="src/game/assets/images/guis/verbs/verbs.json">
 { "frames": {
-   "cursor 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 32, "h": 32 },
+   "verbs 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 352, "h": 198 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
-    "sourceSize": { "w": 32, "h": 32 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
     "duration": 100
    },
-   "cursor 1.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 32, "h": 32 },
+   "verbs 1.aseprite": {
+    "frame": { "x": 352, "y": 0, "w": 352, "h": 198 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
-    "sourceSize": { "w": 32, "h": 32 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
     "duration": 100
    },
-   "cursor 2.aseprite": {
-    "frame": { "x": 32, "y": 0, "w": 32, "h": 32 },
+   "verbs 2.aseprite": {
+    "frame": { "x": 704, "y": 0, "w": 352, "h": 198 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
-    "sourceSize": { "w": 32, "h": 32 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
     "duration": 100
    },
-   "cursor 3.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 32, "h": 32 },
+   "verbs 3.aseprite": {
+    "frame": { "x": 0, "y": 198, "w": 352, "h": 198 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
-    "sourceSize": { "w": 32, "h": 32 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
     "duration": 100
    },
-   "cursor 4.aseprite": {
-    "frame": { "x": 0, "y": 32, "w": 32, "h": 32 },
+   "verbs 4.aseprite": {
+    "frame": { "x": 352, "y": 198, "w": 352, "h": 198 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
-    "sourceSize": { "w": 32, "h": 32 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
     "duration": 100
    }
  },
  "meta": {
   "app": "https://www.aseprite.org/",
   "version": "1.3.18-beta1-x64",
-  "image": "cursor.png",
+  "image": "verbs.png",
   "format": "RGBA8888",
-  "size": { "w": 64, "h": 64 },
+  "size": { "w": 1056, "h": 396 },
   "scale": "1",
   "frameTags": [
-   { "name": "Idle", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
-   { "name": "Active", "from": 1, "to": 4, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Idle", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
-}
-</file>
-
-<file path="src/game/assets/images/guis/inventoryBar/inventoryBar.json">
-{ "frames": {
-   "inventoryBar 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "inventoryBar 1.aseprite": {
-    "frame": { "x": 320, "y": 0, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "inventoryBar 2.aseprite": {
-    "frame": { "x": 0, "y": 180, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "inventoryBar 3.aseprite": {
-    "frame": { "x": 320, "y": 180, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta1-x64",
-  "image": "inventoryBar.png",
-  "format": "I8",
-  "size": { "w": 640, "h": 360 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "InvBG", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "BackBtn", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "FwBtn", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" }
+   { "name": "VerbsBG", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "UpBtn", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "DownBtn", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "MenuBtn", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" }
   ],
   "layers": [
    { "name": "BG", "opacity": 255, "blendMode": "normal" },
-   { "name": "InvBG", "opacity": 255, "blendMode": "normal" },
-   { "name": "Slots", "opacity": 255, "blendMode": "normal" },
-   { "name": "Back Button", "opacity": 255, "blendMode": "normal" },
-   { "name": "Forward Button", "opacity": 255, "blendMode": "normal" }
+   { "name": "GUI BG", "opacity": 255, "blendMode": "normal" },
+   { "name": "Inv BG", "opacity": 255, "blendMode": "normal" },
+   { "name": "Arrow Down", "opacity": 255, "blendMode": "normal" },
+   { "name": "Arrow Up", "opacity": 255, "blendMode": "normal" },
+   { "name": "Verb Button BGs", "opacity": 255, "blendMode": "normal" },
+   { "name": "Menu BG", "opacity": 255, "blendMode": "normal" },
+   { "name": "Menu Lines", "opacity": 255, "blendMode": "normal" }
   ],
   "slices": [
   ]
@@ -2193,165 +2095,229 @@ export function getAsepriteAssetPaths(guiId: string): { png: string; json: strin
 }
 </file>
 
-<file path="src/game/inventory/Candy1/Candy1.inventory.json">
+<file path="src/game/guis/verbs/verbs.gui.json">
 {
-  "id": "Candy1",
-  "name": "Candy1",
+  "id": "verbs",
+  "name": "Verbs",
   "description": "",
-  "onVerb": {},
-  "stackable": false,
-  "animations": {},
+  "visible": true,
   "display": {
-    "aseprite": "shared"
-  }
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "image",
+      "id": "VerbsBG",
+      "x": 0,
+      "y": 0,
+      "tag": "VerbsBG",
+      "backgroundAnchor": "screen"
+    },
+    {
+      "type": "inventoryPanel",
+      "id": "inventoryPanel",
+      "x": 185,
+      "y": 154,
+      "rows": 2,
+      "cols": 4,
+      "slotWidth": 36,
+      "slotHeight": 20,
+      "showEmptySlots": true,
+      "spacingX": 2,
+      "spacingY": 2,
+      "scrollDirection": "vertical",
+      "backButton": "upBtn",
+      "forwardButton": "downBtn"
+    },
+    {
+      "type": "button",
+      "id": "upBtn",
+      "x": 176,
+      "y": 154,
+      "width": 7,
+      "height": 20,
+      "backgroundAnchor": "screen",
+      "text": "",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "UpBtn"
+    },
+    {
+      "type": "button",
+      "id": "downBtn",
+      "x": 176,
+      "y": 176,
+      "width": 7,
+      "height": 20,
+      "backgroundAnchor": "screen",
+      "text": "",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "DownBtn"
+    },
+    {
+      "type": "button",
+      "id": "GiveBtn",
+      "x": 36,
+      "y": 155,
+      "width": 40,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Give",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": ""
+    },
+    {
+      "type": "button",
+      "id": "OpenBtn",
+      "x": 36,
+      "y": 169,
+      "width": 40,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Open",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": ""
+    },
+    {
+      "type": "button",
+      "id": "CloseBtn",
+      "x": 36,
+      "y": 183,
+      "width": 40,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Close",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": ""
+    },
+    {
+      "type": "button",
+      "id": "PickUpBtn",
+      "x": 78,
+      "y": 155,
+      "width": 54,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Pick up",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": ""
+    },
+    {
+      "type": "button",
+      "id": "TalkToBtn",
+      "x": 78,
+      "y": 169,
+      "width": 54,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Talk to",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": ""
+    },
+    {
+      "type": "button",
+      "id": "LookAtBtn",
+      "x": 78,
+      "y": 183,
+      "width": 54,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Look at",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": ""
+    },
+    {
+      "type": "button",
+      "id": "UseBtn",
+      "x": 134,
+      "y": 155,
+      "width": 40,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Use",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": ""
+    },
+    {
+      "type": "button",
+      "id": "PushBtn",
+      "x": 134,
+      "y": 169,
+      "width": 40,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Push",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": ""
+    },
+    {
+      "type": "button",
+      "id": "PullBtn",
+      "x": 134,
+      "y": 183,
+      "width": 40,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Pull",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": ""
+    }
+  ]
 }
-</file>
-
-<file path="src/game/inventory/Candy1/Candy1.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Candy1', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-});
-</file>
-
-<file path="src/game/inventory/Chainsaw/Chainsaw.inventory.json">
-{
-  "id": "Chainsaw",
-  "name": "Chainsaw",
-  "description": "",
-  "onVerb": {},
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  }
-}
-</file>
-
-<file path="src/game/inventory/Chainsaw/Chainsaw.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Chainsaw', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-});
-</file>
-
-<file path="src/game/inventory/Glue/Glue.inventory.json">
-{
-  "id": "Glue",
-  "name": "Glue",
-  "description": "",
-  "onVerb": {},
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  }
-}
-</file>
-
-<file path="src/game/inventory/Glue/Glue.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Glue', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-});
-</file>
-
-<file path="src/game/inventory/Key/Key.inventory.json">
-{
-  "id": "Key",
-  "name": "Key",
-  "description": "",
-  "onVerb": {},
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  }
-}
-</file>
-
-<file path="src/game/inventory/Key/Key.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Key', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-});
-</file>
-
-<file path="src/game/inventory/Newspaper/Newspaper.inventory.json">
-{
-  "id": "Newspaper",
-  "name": "Newspaper",
-  "description": "",
-  "onVerb": {},
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  }
-}
-</file>
-
-<file path="src/game/inventory/Newspaper/Newspaper.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Newspaper', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-});
-</file>
-
-<file path="src/game/inventory/SheetMusic/SheetMusic.inventory.json">
-{
-  "id": "SheetMusic",
-  "name": "SheetMusic",
-  "description": "",
-  "onVerb": {},
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  }
-}
-</file>
-
-<file path="src/game/inventory/SheetMusic/SheetMusic.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('SheetMusic', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-});
-</file>
-
-<file path="src/game/inventory/Vacuum/Vacuum.inventory.json">
-{
-  "id": "Vacuum",
-  "name": "Vacuum",
-  "description": "",
-  "onVerb": {},
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  }
-}
-</file>
-
-<file path="src/game/inventory/Vacuum/Vacuum.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Vacuum', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-});
 </file>
 
 <file path="src/game/loadCharacterData.ts">
@@ -2459,6 +2425,43 @@ export interface DialogueTree {
 }
 </file>
 
+<file path="src/engine/gameState/resolveGameStateManager.ts">
+import * as Phaser from 'phaser';
+import type { GameStateManager } from './GameStateManager.js';
+import { BENNE_GAME_STATE_REGISTRY_KEY } from './registryKey.js';
+
+/**
+ * Module-level reference set by {@link setActiveGameStateManager} in `createBenneGame`.
+ * Allows facades without a `Phaser.Game` handle (e.g. `GuiBenneScript` constructed before the
+ * game exists) to lazily resolve the manager at call time.
+ */
+let activeManager: GameStateManager | null = null;
+
+export function resolveGameStateManager(game: Phaser.Game): GameStateManager {
+  const manager = game.registry.get(BENNE_GAME_STATE_REGISTRY_KEY) as GameStateManager | undefined;
+  if (!manager) {
+    throw new Error(
+      '[Benne] GameStateManager missing from game.registry — createBenneGame must register it.',
+    );
+  }
+  return manager;
+}
+
+/** Published by `createBenneGame`; consumed by facades without a `Phaser.Game` handle. */
+export function setActiveGameStateManager(manager: GameStateManager | null): void {
+  activeManager = manager;
+}
+
+/**
+ * Returns the active {@link GameStateManager} if one has been published (post-`createBenneGame`),
+ * otherwise `null`. Use this from facades like `GuiBenneScript` that are constructed before the
+ * Phaser game exists.
+ */
+export function tryGetActiveGameStateManager(): GameStateManager | null {
+  return activeManager;
+}
+</file>
+
 <file path="src/engine/Room.ts">
 import type { RoomData } from '../types/room';
 
@@ -2473,270 +2476,6 @@ export abstract class Room {
   }
 
   abstract get id(): string;
-}
-</file>
-
-<file path="src/engine/scripting/BenneScriptCore.ts">
-import * as Phaser from 'phaser';
-import { computeDialogLineDurationMs, getDialogSettings, getGameSettings } from '../ConfigManager.js';
-import type { RoomScene } from '../scenes/RoomScene.js';
-import {
-  playDirectionalAnimation,
-  resolveInitialIdleFacing,
-  type CharacterFacing,
-} from '../directionalCharacterAnimation.js';
-import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
-
-/**
- * Callable that participates in the interaction queue; **`fn.now`** runs the same action immediately
- * without blocking subsequent chained steps (fire-and-forget).
- */
-export type BlockingWithNow<TArgs extends readonly unknown[] = readonly unknown[]> = ((
-  ...args: TArgs
-) => void) & { now: (...args: TArgs) => void };
-
-export function withNow<TArgs extends readonly unknown[]>(
-  blocking: (...args: TArgs) => void,
-  nowImpl: (...args: TArgs) => void,
-): BlockingWithNow<TArgs> {
-  const fn = blocking as BlockingWithNow<TArgs>;
-  fn.now = nowImpl;
-  return fn;
-}
-
-/** Internal keys for {@link BenneScriptCore.resolveVerbId}. */
-export type VerbAlias =
-  | 'look'
-  | 'use'
-  | 'pickUp'
-  | 'give'
-  | 'talkTo'
-  | 'push'
-  | 'pull'
-  | 'open'
-  | 'close';
-
-const VERB_ALIAS_CANDIDATES: Record<VerbAlias, readonly string[]> = {
-  look: ['look', 'examine'],
-  use: ['use', 'interact'],
-  pickUp: ['pickUp', 'pickup', 'take'],
-  give: ['give'],
-  talkTo: ['talkTo', 'talk', 'speak'],
-  push: ['push'],
-  pull: ['pull'],
-  open: ['open'],
-  close: ['close'],
-};
-
-/** Optional flags for `say` / `.say.now` on character/player facades. */
-export interface BenneScriptSayLineOptions {
-  clickToSkip?: boolean;
-}
-
-export type BenneScriptSayArgs = [line: string, options?: BenneScriptSayLineOptions];
-
-/**
- * Shared interaction queue, verb alias resolution, dialog line + input lock, and `wait` / `raw`
- * for room, character, global, and GUI Bennescript facades.
- */
-export abstract class BenneScriptCore {
-  private static unresolvedVerbWarnings = new Set<string>();
-
-  protected readonly events: Phaser.Events.EventEmitter;
-  private disposers: Array<() => void> = [];
-  private interactionTail: Promise<void> = Promise.resolve();
-  private readonly getClock: () => Phaser.Time.Clock | null;
-
-  /**
-   * Pause the interaction chain for **`seconds`**. **`.wait.now`** schedules the delay only (does not block the queue).
-   */
-  readonly wait: BlockingWithNow<[number]>;
-
-  readonly raw: {
-    on: (event: string | symbol, fn: (...args: unknown[]) => void, context?: unknown) => void;
-    once: (event: string | symbol, fn: (...args: unknown[]) => void, context?: unknown) => void;
-    off: (event: string | symbol, fn?: (...args: unknown[]) => void, context?: unknown) => void;
-    emit: (event: string | symbol, ...args: unknown[]) => boolean;
-  };
-
-  constructor(events: Phaser.Events.EventEmitter, getClock: () => Phaser.Time.Clock | null) {
-    this.events = events;
-    this.getClock = getClock;
-
-    this.raw = {
-      on: (event, fn, context) => this.events.on(event, fn as (...args: unknown[]) => void, context),
-      once: (event, fn, context) => this.events.once(event, fn as (...args: unknown[]) => void, context),
-      off: (event, fn, context) => this.events.off(event, fn as never, context),
-      emit: (event, ...args) => this.events.emit(event, ...args),
-    };
-
-    this.wait = withNow(
-      (seconds: number) => {
-        const ms = Math.max(0, seconds * 1000);
-        this.chain(
-          () =>
-            new Promise<void>((resolve) => {
-              const clock = this.getClock();
-              if (!clock) {
-                resolve();
-                return;
-              }
-              clock.delayedCall(ms, () => resolve());
-            }),
-        );
-      },
-      (seconds: number) => {
-        const ms = Math.max(0, seconds * 1000);
-        this.getClock()?.delayedCall(ms, () => {});
-      },
-    );
-  }
-
-  dispose(): void {
-    for (const off of this.disposers) {
-      off();
-    }
-    this.disposers = [];
-  }
-
-  private beginInteraction(): void {
-    this.interactionTail = Promise.resolve();
-  }
-
-  private endInteraction(): Promise<void> {
-    return this.interactionTail;
-  }
-
-  /**
-   * Append async work to the interaction tail (lazy `factory` — see class docstring).
-   * Subclasses (e.g. GUI Bennescript) use this for queued tweens.
-   */
-  protected chain(factory: () => Promise<unknown>): void {
-    this.interactionTail = this.interactionTail.then(factory).then(() => undefined);
-  }
-
-  protected subscribe(eventId: string, run: (payload: unknown) => void): void {
-    const wrapped = async (payload: unknown) => {
-      this.beginInteraction();
-      try {
-        run(payload);
-        await this.endInteraction();
-      } catch (err) {
-        console.error(`[Benne] Error in ${eventId} handler:`, err);
-      }
-    };
-    this.events.on(eventId, wrapped);
-    this.disposers.push(() => this.events.off(eventId, wrapped));
-  }
-
-  /**
-   * Like {@link subscribe}, but the handler runs **synchronously** and never awaits the interaction tail.
-   * Use for high-frequency events (e.g. GUI pointer hover) that must not serialize behind queued tweens.
-   */
-  protected subscribeImmediate(eventId: string, run: () => void): void {
-    const fn = (): void => {
-      try {
-        run();
-      } catch (err) {
-        console.error(`[Benne] Error in ${eventId} handler:`, err);
-      }
-    };
-    this.events.on(eventId, fn);
-    this.disposers.push(() => this.events.off(eventId, fn));
-  }
-
-  /**
-   * Maps a Bennescript alias to the first matching `verbs[].id` from `game-config.json`.
-   */
-  protected resolveVerbId(alias: VerbAlias): string {
-    const settings = getGameSettings();
-    const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
-    const candidates = VERB_ALIAS_CANDIDATES[alias];
-    for (const id of candidates) {
-      if (configured.has(id)) {
-        return id;
-      }
-    }
-    const warnKey = alias;
-    if (!BenneScriptCore.unresolvedVerbWarnings.has(warnKey)) {
-      BenneScriptCore.unresolvedVerbWarnings.add(warnKey);
-      console.warn(
-        `[Benne] No verb in game-config matches alias "${alias}" (tried: ${candidates.join(', ')}). ` +
-          `Handlers register under id "${alias}". Add a matching verb to game-config.json.`,
-      );
-    }
-    return alias;
-  }
-
-  protected applySayLineDirectionalBase(
-    scene: RoomScene,
-    characterDefinitionId: string,
-    baseName: 'Talk' | 'Idle',
-  ): void {
-    const sprite = scene.getCharacterSprite(characterDefinitionId);
-    if (!sprite || !(sprite instanceof Phaser.GameObjects.Sprite) || !sprite.anims) {
-      return;
-    }
-    const facing: CharacterFacing =
-      (sprite.getData('facing') as CharacterFacing | undefined) ?? resolveInitialIdleFacing(sprite);
-    playDirectionalAnimation(sprite, baseName, facing);
-  }
-
-  protected queueSayDialogWithInputLock(
-    scene: RoomScene,
-    line: string,
-    talkCharacterDefinitionId: string,
-    chain: boolean,
-    options?: BenneScriptSayLineOptions,
-  ): void {
-    const ms = computeDialogLineDurationMs(line);
-    const lineOpt = options?.clickToSkip;
-    const allowClickToSkip =
-      lineOpt === true || (lineOpt !== false && getDialogSettings().clickToSkip);
-
-    const runLine = (resolve?: () => void): void => {
-      let completed = false;
-      let timer: Phaser.Time.TimerEvent | null = null;
-
-      const finish = (): void => {
-        if (completed) {
-          return;
-        }
-        completed = true;
-        timer?.remove(false);
-        timer = null;
-        scene.clearScriptedDialogClickToSkip();
-        this.applySayLineDirectionalBase(scene, talkCharacterDefinitionId, 'Idle');
-        scene.setDialogTextOverlay({ visible: false });
-        scene.popScriptedDialogInputSuppression();
-        resolve?.();
-      };
-
-      scene.pushScriptedDialogInputSuppression();
-      scene.setDialogTextOverlay({
-        visible: true,
-        text: line,
-        talkCharacterDefinitionId,
-      });
-      this.applySayLineDirectionalBase(scene, talkCharacterDefinitionId, 'Talk');
-
-      timer = scene.time.delayedCall(ms, finish);
-
-      if (allowClickToSkip) {
-        scene.setScriptedDialogClickToSkip(() => {
-          timer?.remove(false);
-          timer = null;
-          finish();
-        });
-      }
-    };
-
-    if (chain) {
-      this.chain(() => new Promise<void>((resolve) => runLine(resolve)));
-    } else {
-      runLine();
-    }
-  }
 }
 </file>
 
@@ -3155,892 +2894,111 @@ export function createRoomScriptContext(
 }
 </file>
 
-<file path="src/engine/verbs/verbConfig.ts">
-import type { GameSettings, GameVerbDefinition, VerbInputProfileTwoVerb } from '../../types/game';
+<file path="src/engine/verbs/resolvePointerVerb.ts">
+import type * as Phaser from 'phaser';
+import type { VerbInputProfile } from '../../types/game';
+import { DEFAULT_VERB_FALLBACK, DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbConfig';
 
-const DEFAULT_VERBS: GameVerbDefinition[] = [{ id: 'look' }, { id: 'use' }];
-
-/** Effective verb list: explicit `settings.verbs` or implicit `look` + `use`. */
-export function getEffectiveVerbDefinitions(settings: GameSettings): GameVerbDefinition[] {
-  if (settings.verbs && settings.verbs.length > 0) {
-    return settings.verbs;
-  }
-  return DEFAULT_VERBS;
+/** Minimal target shape the resolver needs: optional authored `defaultVerb`. */
+export interface PointerVerbTarget {
+  defaultVerb?: string;
 }
 
 /**
- * Two-button profile. When `inputProfile` is omitted, defaults to
- * left (primary) → `look`, right (secondary) → `use`.
+ * Outcome of resolving a pointer click over a clickable target.
+ *
+ * - `verb` — dispatch this verb against the target (normal case). When `consumeActive` is true, the
+ *   caller should clear the runtime active verb after emit.
+ * - `walkToTarget` — the `inputProfile` slot resolved to the built-in `walkTo`; walk to the target's
+ *   stand point instead of dispatching a verb.
+ * - `clearActive` — right-click while an active verb was set; clear the active verb and skip dispatch.
+ * - `none` — no button state we care about (e.g. middle click).
  */
-export function getEffectiveTwoVerbProfile(settings: GameSettings): VerbInputProfileTwoVerb {
-  const ip = settings.inputProfile;
-  if (ip?.kind === 'twoVerb') {
-    return ip;
+export type PointerVerbResolution =
+  | { kind: 'verb'; verbId: string; consumeActive: boolean }
+  | { kind: 'walkToTarget' }
+  | { kind: 'clearActive' }
+  | { kind: 'none' };
+
+/**
+ * Resolve a pointer click over a clickable **target**. The built-in `walkTo` verb and the
+ * `"defaultVerb"` slot token are handled here; the active verb (when set) takes precedence over
+ * either `inputProfile` slot.
+ *
+ * Empty-space clicks (no target) are **not** routed through this function — the scene's empty-space
+ * handler walks on left-click and {@link clearActiveVerbOnEmptyRightClick} handles the right-click
+ * clear. That keeps the resolver focused on target-click semantics.
+ */
+export function resolvePointerVerbForTarget(
+  pointer: Phaser.Input.Pointer,
+  profile: VerbInputProfile,
+  target: PointerVerbTarget,
+  activeVerbId: string | null,
+): PointerVerbResolution {
+  const left = pointer.leftButtonDown();
+  const right = pointer.rightButtonDown();
+  if (!left && !right) {
+    return { kind: 'none' };
   }
-  return {
-    kind: 'twoVerb',
-    primaryButtonVerb: 'look',
-    secondaryButtonVerb: 'use',
-  };
-}
-</file>
 
-<file path="src/game/assets/images/characters/henry/henry.json">
-{ "frames": {
-   "henry 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 130
-   },
-   "henry 1.aseprite": {
-    "frame": { "x": 36, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 130
-   },
-   "henry 2.aseprite": {
-    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 130
-   },
-   "henry 3.aseprite": {
-    "frame": { "x": 108, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 4.aseprite": {
-    "frame": { "x": 144, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 5.aseprite": {
-    "frame": { "x": 180, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 6.aseprite": {
-    "frame": { "x": 0, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 7.aseprite": {
-    "frame": { "x": 36, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 8.aseprite": {
-    "frame": { "x": 72, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 9.aseprite": {
-    "frame": { "x": 108, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 10.aseprite": {
-    "frame": { "x": 144, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 11.aseprite": {
-    "frame": { "x": 180, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 12.aseprite": {
-    "frame": { "x": 0, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 13.aseprite": {
-    "frame": { "x": 36, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 14.aseprite": {
-    "frame": { "x": 72, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 15.aseprite": {
-    "frame": { "x": 108, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 16.aseprite": {
-    "frame": { "x": 144, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 17.aseprite": {
-    "frame": { "x": 180, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 18.aseprite": {
-    "frame": { "x": 0, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 19.aseprite": {
-    "frame": { "x": 36, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 20.aseprite": {
-    "frame": { "x": 72, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 21.aseprite": {
-    "frame": { "x": 108, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 22.aseprite": {
-    "frame": { "x": 144, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 23.aseprite": {
-    "frame": { "x": 180, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 24.aseprite": {
-    "frame": { "x": 0, "y": 256, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 25.aseprite": {
-    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 26.aseprite": {
-    "frame": { "x": 36, "y": 256, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta1-x64",
-  "image": "henry.png",
-  "format": "RGBA8888",
-  "size": { "w": 216, "h": 320 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "IdleL", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
-   { "name": "IdleD", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "IdleU", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "WalkL", "from": 3, "to": 8, "direction": "forward", "color": "#000000ff" },
-   { "name": "WalkD", "from": 9, "to": 14, "direction": "forward", "color": "#000000ff" },
-   { "name": "WalkU", "from": 15, "to": 20, "direction": "forward", "color": "#000000ff" },
-   { "name": "TalkL", "from": 21, "to": 22, "direction": "forward", "color": "#000000ff" },
-   { "name": "TalkD", "from": 23, "to": 24, "direction": "forward", "color": "#000000ff" },
-   { "name": "TalkU", "from": 25, "to": 26, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Layer 2", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
-}
-</file>
+  if (activeVerbId !== null) {
+    if (left) {
+      return { kind: 'verb', verbId: activeVerbId, consumeActive: true };
+    }
+    return { kind: 'clearActive' };
+  }
 
-<file path="src/game/assets/images/inventory/inventory.json">
-{ "frames": {
-   "inventory 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 1.aseprite": {
-    "frame": { "x": 38, "y": 0, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 2.aseprite": {
-    "frame": { "x": 76, "y": 0, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 3.aseprite": {
-    "frame": { "x": 114, "y": 0, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 4.aseprite": {
-    "frame": { "x": 152, "y": 0, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 5.aseprite": {
-    "frame": { "x": 190, "y": 0, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 6.aseprite": {
-    "frame": { "x": 0, "y": 30, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 7.aseprite": {
-    "frame": { "x": 38, "y": 30, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 8.aseprite": {
-    "frame": { "x": 76, "y": 30, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 9.aseprite": {
-    "frame": { "x": 114, "y": 30, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 10.aseprite": {
-    "frame": { "x": 152, "y": 30, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 11.aseprite": {
-    "frame": { "x": 190, "y": 30, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 12.aseprite": {
-    "frame": { "x": 0, "y": 60, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 13.aseprite": {
-    "frame": { "x": 38, "y": 60, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 14.aseprite": {
-    "frame": { "x": 76, "y": 60, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 15.aseprite": {
-    "frame": { "x": 114, "y": 60, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 16.aseprite": {
-    "frame": { "x": 152, "y": 60, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 17.aseprite": {
-    "frame": { "x": 190, "y": 60, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 18.aseprite": {
-    "frame": { "x": 0, "y": 90, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 19.aseprite": {
-    "frame": { "x": 38, "y": 90, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 20.aseprite": {
-    "frame": { "x": 76, "y": 90, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 21.aseprite": {
-    "frame": { "x": 114, "y": 90, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 22.aseprite": {
-    "frame": { "x": 152, "y": 90, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 23.aseprite": {
-    "frame": { "x": 190, "y": 90, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 24.aseprite": {
-    "frame": { "x": 0, "y": 120, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 25.aseprite": {
-    "frame": { "x": 38, "y": 120, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 26.aseprite": {
-    "frame": { "x": 76, "y": 120, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 27.aseprite": {
-    "frame": { "x": 114, "y": 120, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 28.aseprite": {
-    "frame": { "x": 152, "y": 120, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 29.aseprite": {
-    "frame": { "x": 190, "y": 120, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta1-x64",
-  "image": "inventory.png",
-  "format": "RGBA8888",
-  "size": { "w": 228, "h": 150 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "Broom", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
-   { "name": "Ladder", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "Lantern", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "Lantern-glowing", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
-   { "name": "SheetMusic", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
-   { "name": "Key", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
-   { "name": "Vacuum", "from": 6, "to": 6, "direction": "forward", "color": "#000000ff" },
-   { "name": "Candy1", "from": 7, "to": 7, "direction": "forward", "color": "#000000ff" },
-   { "name": "Candy2", "from": 8, "to": 8, "direction": "forward", "color": "#000000ff" },
-   { "name": "Candy3", "from": 9, "to": 9, "direction": "forward", "color": "#000000ff" },
-   { "name": "Chainsaw", "from": 10, "to": 10, "direction": "forward", "color": "#000000ff" },
-   { "name": "Newspaper", "from": 11, "to": 11, "direction": "forward", "color": "#000000ff" },
-   { "name": "Glue", "from": 12, "to": 12, "direction": "forward", "color": "#000000ff" },
-   { "name": "IceSalt", "from": 13, "to": 13, "direction": "forward", "color": "#000000ff" },
-   { "name": "GlueyNewspaper", "from": 14, "to": 14, "direction": "forward", "color": "#000000ff" },
-   { "name": "Sandpaper", "from": 15, "to": 15, "direction": "forward", "color": "#000000ff" },
-   { "name": "Icing", "from": 16, "to": 16, "direction": "forward", "color": "#000000ff" },
-   { "name": "Paintbrush", "from": 17, "to": 17, "direction": "forward", "color": "#000000ff" },
-   { "name": "Bottlecaps", "from": 18, "to": 18, "direction": "forward", "color": "#000000ff" },
-   { "name": "Nails", "from": 19, "to": 19, "direction": "forward", "color": "#000000ff" },
-   { "name": "CarDone", "from": 20, "to": 20, "direction": "forward", "color": "#000000ff" },
-   { "name": "BrushWithPaint", "from": 21, "to": 21, "direction": "forward", "color": "#000000ff" },
-   { "name": "Wheels", "from": 22, "to": 22, "direction": "forward", "color": "#000000ff" },
-   { "name": "Todo", "from": 23, "to": 23, "direction": "forward", "color": "#000000ff" },
-   { "name": "binoculars", "from": 24, "to": 24, "direction": "forward", "color": "#000000ff" },
-   { "name": "rope", "from": 25, "to": 25, "direction": "forward", "color": "#000000ff" },
-   { "name": "bucket", "from": 26, "to": 26, "direction": "forward", "color": "#000000ff" },
-   { "name": "hammer", "from": 27, "to": 27, "direction": "forward", "color": "#000000ff" },
-   { "name": "dynamite", "from": 28, "to": 28, "direction": "forward", "color": "#000000ff" },
-   { "name": "lens", "from": 29, "to": 29, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Layer 4", "opacity": 255, "blendMode": "normal" },
-   { "name": "Layer 2", "opacity": 255, "blendMode": "normal" },
-   { "name": "Items", "opacity": 255, "blendMode": "normal" },
-   { "name": "Layer 1", "opacity": 255, "blendMode": "normal" },
-   { "name": "Layer 3", "opacity": 255, "blendMode": "normal" },
-   { "name": "Layer 5", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
+  const slotValue = left ? profile.primaryButtonVerb : profile.secondaryButtonVerb;
+  if (slotValue === WALK_TO_VERB_ID) {
+    return { kind: 'walkToTarget' };
+  }
+  if (slotValue === DEFAULT_VERB_TOKEN) {
+    const effective = target.defaultVerb && target.defaultVerb.length > 0
+      ? target.defaultVerb
+      : DEFAULT_VERB_FALLBACK;
+    return { kind: 'verb', verbId: effective, consumeActive: false };
+  }
+  return { kind: 'verb', verbId: slotValue, consumeActive: false };
 }
-</file>
 
-<file path="src/game/assets/images/rooms/apartment/apartment.json">
-{ "frames": {
-   "apartment 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 1.aseprite": {
-    "frame": { "x": 320, "y": 0, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 2.aseprite": {
-    "frame": { "x": 640, "y": 0, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 3.aseprite": {
-    "frame": { "x": 960, "y": 0, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 4.aseprite": {
-    "frame": { "x": 0, "y": 180, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 5.aseprite": {
-    "frame": { "x": 320, "y": 180, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 6.aseprite": {
-    "frame": { "x": 640, "y": 180, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 7.aseprite": {
-    "frame": { "x": 960, "y": 180, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 8.aseprite": {
-    "frame": { "x": 0, "y": 360, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 9.aseprite": {
-    "frame": { "x": 320, "y": 360, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 10.aseprite": {
-    "frame": { "x": 640, "y": 360, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta1-x64",
-  "image": "apartment.png",
-  "format": "RGBA8888",
-  "size": { "w": 1280, "h": 540 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "BG", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "Couch", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "Door", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
-   { "name": "Door-open", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
-   { "name": "Pillar", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
-   { "name": "Fan", "from": 6, "to": 10, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Walls and Floor", "opacity": 255, "blendMode": "normal" },
-   { "name": "Ceiling", "opacity": 255, "blendMode": "normal" },
-   { "name": "Window", "opacity": 255, "blendMode": "normal" },
-   { "name": "Couch", "opacity": 255, "blendMode": "normal" },
-   { "name": "Door", "opacity": 255, "blendMode": "normal" },
-   { "name": "Door Open", "opacity": 255, "blendMode": "normal" },
-   { "name": "Pillar", "opacity": 255, "blendMode": "normal" },
-   { "name": "Fan", "opacity": 255, "blendMode": "normal" },
-   { "name": "Hank", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
+/**
+ * Same rules as {@link resolvePointerVerbForTarget}, but inventory items have no stand point: when
+ * the resolved `inputProfile` slot is the built-in `walkTo`, substitute the item's authored
+ * `defaultVerb` (fallback {@link DEFAULT_VERB_FALLBACK}) instead of returning `walkToTarget`.
+ */
+export function resolvePointerVerbForInventoryItem(
+  pointer: Phaser.Input.Pointer,
+  profile: VerbInputProfile,
+  target: PointerVerbTarget,
+  activeVerbId: string | null,
+): PointerVerbResolution {
+  const base = resolvePointerVerbForTarget(pointer, profile, target, activeVerbId);
+  if (base.kind !== 'walkToTarget') {
+    return base;
+  }
+  const effective =
+    target.defaultVerb && target.defaultVerb.length > 0 ? target.defaultVerb : DEFAULT_VERB_FALLBACK;
+  return { kind: 'verb', verbId: effective, consumeActive: false };
 }
-</file>
 
-<file path="src/game/assets/images/rooms/office/office.json">
-{ "frames": {
-   "office 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 1.aseprite": {
-    "frame": { "x": 352, "y": 0, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 2.aseprite": {
-    "frame": { "x": 704, "y": 0, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 3.aseprite": {
-    "frame": { "x": 1056, "y": 0, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 4.aseprite": {
-    "frame": { "x": 1408, "y": 0, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 5.aseprite": {
-    "frame": { "x": 0, "y": 198, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 6.aseprite": {
-    "frame": { "x": 352, "y": 198, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 7.aseprite": {
-    "frame": { "x": 704, "y": 198, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 8.aseprite": {
-    "frame": { "x": 1056, "y": 198, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 9.aseprite": {
-    "frame": { "x": 1408, "y": 198, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 10.aseprite": {
-    "frame": { "x": 0, "y": 396, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 11.aseprite": {
-    "frame": { "x": 352, "y": 396, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 12.aseprite": {
-    "frame": { "x": 704, "y": 396, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 13.aseprite": {
-    "frame": { "x": 1056, "y": 396, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 14.aseprite": {
-    "frame": { "x": 1408, "y": 396, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 15.aseprite": {
-    "frame": { "x": 0, "y": 594, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   },
-   "office 16.aseprite": {
-    "frame": { "x": 352, "y": 594, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 150
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta1-x64",
-  "image": "office.png",
-  "format": "RGBA8888",
-  "size": { "w": 1760, "h": 792 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "Backlight", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "Shadow", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "Background", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
-   { "name": "Fan", "from": 4, "to": 8, "direction": "forward", "color": "#000000ff" },
-   { "name": "Chair", "from": 9, "to": 9, "direction": "forward", "color": "#000000ff" },
-   { "name": "Desk", "from": 10, "to": 10, "direction": "forward", "color": "#000000ff" },
-   { "name": "DoorClosed", "from": 11, "to": 11, "direction": "forward", "color": "#000000ff" },
-   { "name": "Coatrack", "from": 12, "to": 12, "direction": "forward", "color": "#000000ff" },
-   { "name": "Jacket", "from": 13, "to": 13, "direction": "forward", "color": "#000000ff" },
-   { "name": "Glasses", "from": 14, "to": 14, "direction": "forward", "color": "#000000ff" },
-   { "name": "PhoneCutaway", "from": 15, "to": 15, "direction": "forward", "color": "#000000ff" },
-   { "name": "CyberBuddy", "from": 16, "to": 16, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Room Background" },
-   { "name": "Background", "group": "Room Background", "opacity": 255, "blendMode": "normal" },
-   { "name": "shadow", "group": "Room Background", "opacity": 255, "blendMode": "normal" },
-   { "name": "walls", "group": "Room Background", "opacity": 255, "blendMode": "normal" },
-   { "name": "floor deets", "group": "Room Background", "opacity": 255, "blendMode": "normal" },
-   { "name": "window", "group": "Room Background", "opacity": 255, "blendMode": "normal" },
-   { "name": "window shade", "group": "Room Background", "opacity": 255, "blendMode": "normal" },
-   { "name": "window see thru", "group": "Room Background", "opacity": 255, "blendMode": "normal" },
-   { "name": "blinds", "group": "Room Background", "opacity": 255, "blendMode": "normal" },
-   { "name": "Room Stuff" },
-   { "name": "filing cabs", "group": "Room Stuff", "opacity": 255, "blendMode": "normal" },
-   { "name": "plant", "group": "Room Stuff", "opacity": 255, "blendMode": "normal" },
-   { "name": "door closed", "group": "Room Stuff", "opacity": 255, "blendMode": "normal" },
-   { "name": "coatrack", "group": "Room Stuff", "opacity": 255, "blendMode": "normal" },
-   { "name": "desk chair", "group": "Room Stuff", "opacity": 255, "blendMode": "normal" },
-   { "name": "desk", "group": "Room Stuff", "opacity": 255, "blendMode": "normal" },
-   { "name": "phone", "group": "Room Stuff", "opacity": 255, "blendMode": "normal" },
-   { "name": "blades", "group": "Room Stuff", "opacity": 255, "blendMode": "normal" },
-   { "name": "light", "group": "Room Stuff", "opacity": 255, "blendMode": "normal" },
-   { "name": "Items" },
-   { "name": "Glasses", "group": "Items", "opacity": 255, "blendMode": "normal" },
-   { "name": "Jacket", "group": "Items", "opacity": 255, "blendMode": "normal" },
-   { "name": "CyberBuddy", "group": "Items", "opacity": 255, "blendMode": "normal" },
-   { "name": "frame", "opacity": 255, "blendMode": "normal" },
-   { "name": "bottom stuff", "opacity": 255, "blendMode": "normal" },
-   { "name": "Layer 1", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
+/**
+ * Legacy pointer-verb resolver retained for any call site that still wants the pre-refactor
+ * behavior (primary → `primaryButtonVerb`, secondary → `secondaryButtonVerb`, no active verb /
+ * defaultVerb substitution). New code should prefer {@link resolvePointerVerbForTarget}.
+ *
+ * @deprecated Use {@link resolvePointerVerbForTarget}.
+ */
+export function resolveVerbIdFromPointer(
+  pointer: Phaser.Input.Pointer,
+  profile: VerbInputProfile,
+): string | null {
+  if (pointer.leftButtonDown()) {
+    return profile.primaryButtonVerb;
+  }
+  if (pointer.rightButtonDown()) {
+    return profile.secondaryButtonVerb;
+  }
+  return null;
 }
 </file>
 
@@ -4066,52 +3024,56 @@ export function getStartingPlayerCharacterId(): string {
 }
 </file>
 
-<file path="src/game/guis/random-text/random-text.gui.json">
-{
-  "id": "random-text",
-  "name": "random Text",
-  "description": "",
-  "visible": false,
-  "display": {
-    "aseprite": false
-  },
-  "controls": [
-    {
-      "type": "text",
-      "id": "line",
-      "x": 140,
-      "y": 60,
-      "text": "Even if a woodchuck could chuck wood and even if a woodchuck would chuck wood, should a woodchuck chuck wood?",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "color": "#f5f5dc",
-      "align": "center",
-      "wordWrapWidth": 200
-    }
-  ]
-}
-</file>
-
-<file path="src/game/guis/random-text/random-text.gui.ts">
+<file path="src/game/guis/verbs/verbs.gui.ts">
 import { registerGuiScript } from '@engine/scripting';
 
 /**
- * GUI script for `random-text` — extend with `B.raw` or future GUI lifecycle / control hooks on `B`.
+ * GUI script for `verbs` — wires each verb button to `B.setActiveVerb(<id>)`. The pointer
+ * resolver uses the active verb on the next left-click against a clickable target (and clears
+ * it on consume), so clicking `OpenBtn` then a prop dispatches `open` on that prop.
  */
-registerGuiScript('random-text', ({ B }) => {
+registerGuiScript('verbs', ({ B }) => {
+  B.whenButtonClick('GiveBtn',   () => B.setActiveVerb('give'));
+  B.whenButtonClick('OpenBtn',   () => B.setActiveVerb('open'));
+  B.whenButtonClick('CloseBtn',  () => B.setActiveVerb('close'));
+  B.whenButtonClick('PickUpBtn', () => B.setActiveVerb('pickUp'));
+  B.whenButtonClick('TalkToBtn', () => B.setActiveVerb('talkTo'));
+  B.whenButtonClick('LookAtBtn', () => B.setActiveVerb('look'));
+  B.whenButtonClick('UseBtn',    () => B.setActiveVerb('use'));
+  B.whenButtonClick('PushBtn',   () => B.setActiveVerb('push'));
+  B.whenButtonClick('PullBtn',   () => B.setActiveVerb('pull'));
+});
+</file>
+
+<file path="src/game/inventory/Candy1/Candy1.inventory.json">
+{
+  "id": "Candy1",
+  "name": "Candy1",
+  "description": "",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}
+</file>
+
+<file path="src/game/inventory/Candy1/Candy1.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('Candy1', ({ B }) => {
   // Delete this line when you add your first handler.
   void B;
 });
 </file>
 
-<file path="src/game/inventory/Broom/Broom.inventory.json">
+<file path="src/game/inventory/Chainsaw/Chainsaw.inventory.json">
 {
-  "id": "Broom",
-  "name": "Broom",
+  "id": "Chainsaw",
+  "name": "Chainsaw",
   "description": "",
-  "onVerb": {
-    "look": true
-  },
+  "onVerb": {},
   "stackable": false,
   "animations": {},
   "display": {
@@ -4120,21 +3082,19 @@ registerGuiScript('random-text', ({ B }) => {
 }
 </file>
 
-<file path="src/game/inventory/Broom/Broom.inventory.ts">
+<file path="src/game/inventory/Chainsaw/Chainsaw.inventory.ts">
 import { registerInventoryScript } from '@engine/scripting';
 
-registerInventoryScript('Broom', ({ B }) => {
-
-  B.whenLookAt(() => {
-    // TODO
-  });
+registerInventoryScript('Chainsaw', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
 });
 </file>
 
-<file path="src/game/inventory/Ladder/Ladder.inventory.json">
+<file path="src/game/inventory/Key/Key.inventory.json">
 {
-  "id": "Ladder",
-  "name": "Ladder",
+  "id": "Key",
+  "name": "Key",
   "description": "",
   "onVerb": {},
   "stackable": false,
@@ -4145,19 +3105,82 @@ registerInventoryScript('Broom', ({ B }) => {
 }
 </file>
 
-<file path="src/game/inventory/Lantern/Lantern.inventory.json">
+<file path="src/game/inventory/Key/Key.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('Key', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
+});
+</file>
+
+<file path="src/game/inventory/Newspaper/Newspaper.inventory.json">
 {
-  "id": "Lantern",
-  "name": "Lantern",
+  "id": "Newspaper",
+  "name": "Newspaper",
   "description": "",
   "onVerb": {},
   "stackable": false,
   "animations": {},
   "display": {
     "aseprite": "shared"
-  },
-  "defaultAnimation": "Lantern-glowing"
+  }
 }
+</file>
+
+<file path="src/game/inventory/Newspaper/Newspaper.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('Newspaper', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
+});
+</file>
+
+<file path="src/game/inventory/SheetMusic/SheetMusic.inventory.json">
+{
+  "id": "SheetMusic",
+  "name": "SheetMusic",
+  "description": "",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}
+</file>
+
+<file path="src/game/inventory/SheetMusic/SheetMusic.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('SheetMusic', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
+});
+</file>
+
+<file path="src/game/inventory/Vacuum/Vacuum.inventory.json">
+{
+  "id": "Vacuum",
+  "name": "Vacuum",
+  "description": "",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}
+</file>
+
+<file path="src/game/inventory/Vacuum/Vacuum.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('Vacuum', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
+});
 </file>
 
 <file path="src/game/inventoryAseprite.ts">
@@ -4390,47 +3413,6 @@ export function registerInventoryDefinitionsFromGame(): void {
     normalizeLegacyInventoryDisplayTag(raw);
     registerInventoryDefinition(raw);
   }
-}
-</file>
-
-<file path="src/types/gameState.ts">
-/** Values stored in {@link SerializableBenneGameState.flags}. */
-export type BenneGameStateFlagValue = boolean | number | string;
-
-/** Serializable cross-room game state (v1). */
-export interface SerializableBenneGameState {
-  version: 1;
-  flags: Record<string, BenneGameStateFlagValue>;
-  variables: Record<string, unknown>;
-  /** Item id → quantity (omitted or zero means not carried). */
-  inventory: Record<string, number>;
-}
-
-export const GAME_STATE_FLAG_CHANGED_EVENT = 'gameState:flagChanged' as const;
-export const GAME_STATE_VARIABLE_CHANGED_EVENT = 'gameState:variableChanged' as const;
-export const GAME_STATE_INVENTORY_CHANGED_EVENT = 'gameState:inventoryChanged' as const;
-export const GAME_STATE_REPLACED_EVENT = 'gameState:replaced' as const;
-
-export interface GameStateFlagChangedPayload {
-  key: string;
-  previousValue?: BenneGameStateFlagValue;
-  value?: BenneGameStateFlagValue;
-}
-
-export interface GameStateVariableChangedPayload {
-  key: string;
-  previousValue?: unknown;
-  value?: unknown;
-}
-
-export interface GameStateInventoryChangedPayload {
-  reason: 'add' | 'remove' | 'clear';
-  itemId?: string;
-  inventory: Record<string, number>;
-}
-
-export interface GameStateReplacedPayload {
-  snapshot: SerializableBenneGameState;
 }
 </file>
 
@@ -5231,67 +4213,297 @@ function aStarPath(
 }
 </file>
 
-<file path="src/engine/scripting/benneScriptGameStateApi.ts">
-import type { BenneGameStateFlagValue } from '../../types/gameState.js';
-import type { GameStateManager } from '../gameState/GameStateManager.js';
+<file path="src/engine/scripting/BenneScriptCore.ts">
+import * as Phaser from 'phaser';
+import { computeDialogLineDurationMs, getDialogSettings, getGameSettings } from '../ConfigManager.js';
+import type { RoomScene } from '../scenes/RoomScene.js';
+import {
+  playDirectionalAnimation,
+  resolveInitialIdleFacing,
+  type CharacterFacing,
+} from '../directionalCharacterAnimation.js';
+import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
+import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 
-/** `B.state` — flags, variables, and snapshot persistence (see `GameStateManager`). */
-export interface BenneScriptGameStateNamespace {
-  setFlag(id: string, value: BenneGameStateFlagValue): void;
-  getFlag(id: string): BenneGameStateFlagValue | undefined;
-  hasFlag(id: string): boolean;
-  clearFlag(id: string): void;
-  setVariable(id: string, value: unknown): void;
-  getVariable(id: string): unknown;
-  hasVariable(id: string): boolean;
-  clearVariable(id: string): void;
-  saveToBrowser(slot?: number): void;
-  loadFromBrowser(slot?: number): boolean;
-  clearBrowserSave(slot?: number): void;
-  exportJson(): string;
-  importJson(json: string): void;
+/**
+ * Callable that participates in the interaction queue; **`fn.now`** runs the same action immediately
+ * without blocking subsequent chained steps (fire-and-forget).
+ */
+export type BlockingWithNow<TArgs extends readonly unknown[] = readonly unknown[]> = ((
+  ...args: TArgs
+) => void) & { now: (...args: TArgs) => void };
+
+export function withNow<TArgs extends readonly unknown[]>(
+  blocking: (...args: TArgs) => void,
+  nowImpl: (...args: TArgs) => void,
+): BlockingWithNow<TArgs> {
+  const fn = blocking as BlockingWithNow<TArgs>;
+  fn.now = nowImpl;
+  return fn;
 }
 
-/** `B.inventory` — quantities per item id (see `GameStateManager`). */
-export interface BenneScriptInventoryNamespace {
-  add(id: string, quantity?: number): boolean;
-  remove(id: string, quantity?: number): boolean;
-  has(id: string): boolean;
-  quantityOf(id: string): number;
-  /** Legacy accessor for inventory entries; prefer `add`/`remove`/`has`/`quantityOf` for gameplay logic. */
-  readonly items: ReadonlyArray<{ id: string; quantity: number }>;
-  clearInventory(): void;
+/** Internal keys for {@link BenneScriptCore.resolveVerbId}. */
+export type VerbAlias =
+  | 'look'
+  | 'use'
+  | 'pickUp'
+  | 'give'
+  | 'talkTo'
+  | 'push'
+  | 'pull'
+  | 'open'
+  | 'close';
+
+const VERB_ALIAS_CANDIDATES: Record<VerbAlias, readonly string[]> = {
+  look: ['look', 'examine'],
+  use: ['use', 'interact'],
+  pickUp: ['pickUp', 'pickup', 'take'],
+  give: ['give'],
+  talkTo: ['talkTo', 'talk', 'speak'],
+  push: ['push'],
+  pull: ['pull'],
+  open: ['open'],
+  close: ['close'],
+};
+
+/** Optional flags for `say` / `.say.now` on character/player facades. */
+export interface BenneScriptSayLineOptions {
+  clickToSkip?: boolean;
 }
 
-export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneScriptGameStateNamespace {
-  return {
-    setFlag: (id, value) => m.setFlag(id, value),
-    getFlag: (id) => m.getFlag(id),
-    hasFlag: (id) => m.hasFlag(id),
-    clearFlag: (id) => m.clearFlag(id),
-    setVariable: (id, value) => m.setVariable(id, value),
-    getVariable: (id) => m.getVariable(id),
-    hasVariable: (id) => m.hasVariable(id),
-    clearVariable: (id) => m.clearVariable(id),
-    saveToBrowser: (slot) => m.saveToLocalStorage(slot),
-    loadFromBrowser: (slot) => m.loadFromLocalStorage(slot),
-    clearBrowserSave: (slot) => m.clearLocalStorageSave(slot),
-    exportJson: () => m.exportSnapshotJson(),
-    importJson: (json) => m.importSnapshotJson(json),
+export type BenneScriptSayArgs = [line: string, options?: BenneScriptSayLineOptions];
+
+/**
+ * Shared interaction queue, verb alias resolution, dialog line + input lock, and `wait` / `raw`
+ * for room, character, global, and GUI Bennescript facades.
+ */
+export abstract class BenneScriptCore {
+  private static unresolvedVerbWarnings = new Set<string>();
+
+  protected readonly events: Phaser.Events.EventEmitter;
+  private disposers: Array<() => void> = [];
+  private interactionTail: Promise<void> = Promise.resolve();
+  private readonly getClock: () => Phaser.Time.Clock | null;
+
+  /**
+   * Pause the interaction chain for **`seconds`**. **`.wait.now`** schedules the delay only (does not block the queue).
+   */
+  readonly wait: BlockingWithNow<[number]>;
+
+  readonly raw: {
+    on: (event: string | symbol, fn: (...args: unknown[]) => void, context?: unknown) => void;
+    once: (event: string | symbol, fn: (...args: unknown[]) => void, context?: unknown) => void;
+    off: (event: string | symbol, fn?: (...args: unknown[]) => void, context?: unknown) => void;
+    emit: (event: string | symbol, ...args: unknown[]) => boolean;
   };
-}
 
-export function createBenneScriptInventoryNamespace(m: GameStateManager): BenneScriptInventoryNamespace {
-  return {
-    add: (id, quantity) => m.addInventory(id, quantity),
-    remove: (id, quantity) => m.removeFromInventory(id, quantity),
-    has: (id) => m.hasInInventory(id),
-    quantityOf: (id) => m.quantityOf(id),
-    get items() {
-      return m.getInventoryItems();
-    },
-    clearInventory: () => m.clearInventory(),
-  };
+  constructor(events: Phaser.Events.EventEmitter, getClock: () => Phaser.Time.Clock | null) {
+    this.events = events;
+    this.getClock = getClock;
+
+    this.raw = {
+      on: (event, fn, context) => this.events.on(event, fn as (...args: unknown[]) => void, context),
+      once: (event, fn, context) => this.events.once(event, fn as (...args: unknown[]) => void, context),
+      off: (event, fn, context) => this.events.off(event, fn as never, context),
+      emit: (event, ...args) => this.events.emit(event, ...args),
+    };
+
+    this.wait = withNow(
+      (seconds: number) => {
+        const ms = Math.max(0, seconds * 1000);
+        this.chain(
+          () =>
+            new Promise<void>((resolve) => {
+              const clock = this.getClock();
+              if (!clock) {
+                resolve();
+                return;
+              }
+              clock.delayedCall(ms, () => resolve());
+            }),
+        );
+      },
+      (seconds: number) => {
+        const ms = Math.max(0, seconds * 1000);
+        this.getClock()?.delayedCall(ms, () => {});
+      },
+    );
+  }
+
+  dispose(): void {
+    for (const off of this.disposers) {
+      off();
+    }
+    this.disposers = [];
+  }
+
+  /**
+   * Set the runtime "active verb" (see {@link GameStateManager.setActiveVerb}). Available on every
+   * Bennescript facade (room / character / global / inventory / GUI) via `B.setActiveVerb(...)`.
+   * Pass `null` or an empty string to clear. Typical wiring: a verb GUI button calls
+   * `B.setActiveVerb('open')` from its `whenButtonClick` handler.
+   */
+  setActiveVerb(verbId: string | null): void {
+    const manager = tryGetActiveGameStateManager();
+    if (!manager) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[Benne] B.setActiveVerb called before the game was created — ignored.',
+        );
+      }
+      return;
+    }
+    manager.setActiveVerb(verbId);
+  }
+
+  /** Current active verb id, or `null` when none is set. */
+  getActiveVerb(): string | null {
+    return tryGetActiveGameStateManager()?.getActiveVerb() ?? null;
+  }
+
+  /** Convenience for `setActiveVerb(null)`. */
+  clearActiveVerb(): void {
+    tryGetActiveGameStateManager()?.clearActiveVerb();
+  }
+
+  private beginInteraction(): void {
+    this.interactionTail = Promise.resolve();
+  }
+
+  private endInteraction(): Promise<void> {
+    return this.interactionTail;
+  }
+
+  /**
+   * Append async work to the interaction tail (lazy `factory` — see class docstring).
+   * Subclasses (e.g. GUI Bennescript) use this for queued tweens.
+   */
+  protected chain(factory: () => Promise<unknown>): void {
+    this.interactionTail = this.interactionTail.then(factory).then(() => undefined);
+  }
+
+  protected subscribe(eventId: string, run: (payload: unknown) => void): void {
+    const wrapped = async (payload: unknown) => {
+      this.beginInteraction();
+      try {
+        run(payload);
+        await this.endInteraction();
+      } catch (err) {
+        console.error(`[Benne] Error in ${eventId} handler:`, err);
+      }
+    };
+    this.events.on(eventId, wrapped);
+    this.disposers.push(() => this.events.off(eventId, wrapped));
+  }
+
+  /**
+   * Like {@link subscribe}, but the handler runs **synchronously** and never awaits the interaction tail.
+   * Use for high-frequency events (e.g. GUI pointer hover) that must not serialize behind queued tweens.
+   */
+  protected subscribeImmediate(eventId: string, run: () => void): void {
+    const fn = (): void => {
+      try {
+        run();
+      } catch (err) {
+        console.error(`[Benne] Error in ${eventId} handler:`, err);
+      }
+    };
+    this.events.on(eventId, fn);
+    this.disposers.push(() => this.events.off(eventId, fn));
+  }
+
+  /**
+   * Maps a Bennescript alias to the first matching `verbs[].id` from `game-config.json`.
+   */
+  protected resolveVerbId(alias: VerbAlias): string {
+    const settings = getGameSettings();
+    const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
+    const candidates = VERB_ALIAS_CANDIDATES[alias];
+    for (const id of candidates) {
+      if (configured.has(id)) {
+        return id;
+      }
+    }
+    const warnKey = alias;
+    if (!BenneScriptCore.unresolvedVerbWarnings.has(warnKey)) {
+      BenneScriptCore.unresolvedVerbWarnings.add(warnKey);
+      console.warn(
+        `[Benne] No verb in game-config matches alias "${alias}" (tried: ${candidates.join(', ')}). ` +
+          `Handlers register under id "${alias}". Add a matching verb to game-config.json.`,
+      );
+    }
+    return alias;
+  }
+
+  protected applySayLineDirectionalBase(
+    scene: RoomScene,
+    characterDefinitionId: string,
+    baseName: 'Talk' | 'Idle',
+  ): void {
+    const sprite = scene.getCharacterSprite(characterDefinitionId);
+    if (!sprite || !(sprite instanceof Phaser.GameObjects.Sprite) || !sprite.anims) {
+      return;
+    }
+    const facing: CharacterFacing =
+      (sprite.getData('facing') as CharacterFacing | undefined) ?? resolveInitialIdleFacing(sprite);
+    playDirectionalAnimation(sprite, baseName, facing);
+  }
+
+  protected queueSayDialogWithInputLock(
+    scene: RoomScene,
+    line: string,
+    talkCharacterDefinitionId: string,
+    chain: boolean,
+    options?: BenneScriptSayLineOptions,
+  ): void {
+    const ms = computeDialogLineDurationMs(line);
+    const lineOpt = options?.clickToSkip;
+    const allowClickToSkip =
+      lineOpt === true || (lineOpt !== false && getDialogSettings().clickToSkip);
+
+    const runLine = (resolve?: () => void): void => {
+      let completed = false;
+      let timer: Phaser.Time.TimerEvent | null = null;
+
+      const finish = (): void => {
+        if (completed) {
+          return;
+        }
+        completed = true;
+        timer?.remove(false);
+        timer = null;
+        scene.clearScriptedDialogClickToSkip();
+        this.applySayLineDirectionalBase(scene, talkCharacterDefinitionId, 'Idle');
+        scene.setDialogTextOverlay({ visible: false });
+        scene.popScriptedDialogInputSuppression();
+        resolve?.();
+      };
+
+      scene.pushScriptedDialogInputSuppression();
+      scene.setDialogTextOverlay({
+        visible: true,
+        text: line,
+        talkCharacterDefinitionId,
+      });
+      this.applySayLineDirectionalBase(scene, talkCharacterDefinitionId, 'Talk');
+
+      timer = scene.time.delayedCall(ms, finish);
+
+      if (allowClickToSkip) {
+        scene.setScriptedDialogClickToSkip(() => {
+          timer?.remove(false);
+          timer = null;
+          finish();
+        });
+      }
+    };
+
+    if (chain) {
+      this.chain(() => new Promise<void>((resolve) => runLine(resolve)));
+    } else {
+      runLine();
+    }
+  }
 }
 </file>
 
@@ -5500,25 +4712,539 @@ export function getCharacterVerbHandlers(character: CharacterData): VerbHandlerM
 }
 </file>
 
-<file path="src/game/guis/dialog-text/dialog-text.gui.ts">
-import { registerGuiScript } from '@engine/scripting';
+<file path="src/game/assets/images/cursor/cursor.json">
+{ "frames": {
+   "cursor 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
+   },
+   "cursor 1.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
+   },
+   "cursor 2.aseprite": {
+    "frame": { "x": 32, "y": 0, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
+   },
+   "cursor 3.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
+   },
+   "cursor 4.aseprite": {
+    "frame": { "x": 0, "y": 32, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta1-x64",
+  "image": "cursor.png",
+  "format": "RGBA8888",
+  "size": { "w": 64, "h": 64 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "Idle", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
+   { "name": "Active", "from": 1, "to": 4, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Idle", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
+</file>
 
-/**
- * GUI script for `dialog-text` — extend with `B.raw` or future GUI lifecycle / control hooks on `B`.
- */
-registerGuiScript('dialog-text', ({ B }) => {
+<file path="src/game/assets/images/inventory/inventory.json">
+{ "frames": {
+   "inventory 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 1.aseprite": {
+    "frame": { "x": 36, "y": 0, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 2.aseprite": {
+    "frame": { "x": 72, "y": 0, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 3.aseprite": {
+    "frame": { "x": 108, "y": 0, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 4.aseprite": {
+    "frame": { "x": 144, "y": 0, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 5.aseprite": {
+    "frame": { "x": 180, "y": 0, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 6.aseprite": {
+    "frame": { "x": 0, "y": 20, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 7.aseprite": {
+    "frame": { "x": 36, "y": 20, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 8.aseprite": {
+    "frame": { "x": 72, "y": 20, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 9.aseprite": {
+    "frame": { "x": 108, "y": 20, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 10.aseprite": {
+    "frame": { "x": 144, "y": 20, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 11.aseprite": {
+    "frame": { "x": 180, "y": 20, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 12.aseprite": {
+    "frame": { "x": 0, "y": 40, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 13.aseprite": {
+    "frame": { "x": 36, "y": 40, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 14.aseprite": {
+    "frame": { "x": 72, "y": 40, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 15.aseprite": {
+    "frame": { "x": 108, "y": 40, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 16.aseprite": {
+    "frame": { "x": 144, "y": 40, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 17.aseprite": {
+    "frame": { "x": 180, "y": 40, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 18.aseprite": {
+    "frame": { "x": 0, "y": 60, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 19.aseprite": {
+    "frame": { "x": 36, "y": 60, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 20.aseprite": {
+    "frame": { "x": 72, "y": 60, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 21.aseprite": {
+    "frame": { "x": 108, "y": 60, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 22.aseprite": {
+    "frame": { "x": 144, "y": 60, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 23.aseprite": {
+    "frame": { "x": 180, "y": 60, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 24.aseprite": {
+    "frame": { "x": 0, "y": 80, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 25.aseprite": {
+    "frame": { "x": 36, "y": 80, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 26.aseprite": {
+    "frame": { "x": 72, "y": 80, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 27.aseprite": {
+    "frame": { "x": 108, "y": 80, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 28.aseprite": {
+    "frame": { "x": 144, "y": 80, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 29.aseprite": {
+    "frame": { "x": 180, "y": 80, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta1-x64",
+  "image": "inventory.png",
+  "format": "RGBA8888",
+  "size": { "w": 216, "h": 100 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "Broom", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
+   { "name": "Ladder", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "Lantern", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "Lantern-glowing", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "SheetMusic", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
+   { "name": "Key", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
+   { "name": "Vacuum", "from": 6, "to": 6, "direction": "forward", "color": "#000000ff" },
+   { "name": "Candy1", "from": 7, "to": 7, "direction": "forward", "color": "#000000ff" },
+   { "name": "Candy2", "from": 8, "to": 8, "direction": "forward", "color": "#000000ff" },
+   { "name": "Candy3", "from": 9, "to": 9, "direction": "forward", "color": "#000000ff" },
+   { "name": "Chainsaw", "from": 10, "to": 10, "direction": "forward", "color": "#000000ff" },
+   { "name": "Newspaper", "from": 11, "to": 11, "direction": "forward", "color": "#000000ff" },
+   { "name": "Glue", "from": 12, "to": 12, "direction": "forward", "color": "#000000ff" },
+   { "name": "IceSalt", "from": 13, "to": 13, "direction": "forward", "color": "#000000ff" },
+   { "name": "GlueyNewspaper", "from": 14, "to": 14, "direction": "forward", "color": "#000000ff" },
+   { "name": "Sandpaper", "from": 15, "to": 15, "direction": "forward", "color": "#000000ff" },
+   { "name": "Icing", "from": 16, "to": 16, "direction": "forward", "color": "#000000ff" },
+   { "name": "Paintbrush", "from": 17, "to": 17, "direction": "forward", "color": "#000000ff" },
+   { "name": "Bottlecaps", "from": 18, "to": 18, "direction": "forward", "color": "#000000ff" },
+   { "name": "Nails", "from": 19, "to": 19, "direction": "forward", "color": "#000000ff" },
+   { "name": "CarDone", "from": 20, "to": 20, "direction": "forward", "color": "#000000ff" },
+   { "name": "BrushWithPaint", "from": 21, "to": 21, "direction": "forward", "color": "#000000ff" },
+   { "name": "Wheels", "from": 22, "to": 22, "direction": "forward", "color": "#000000ff" },
+   { "name": "Todo", "from": 23, "to": 23, "direction": "forward", "color": "#000000ff" },
+   { "name": "binoculars", "from": 24, "to": 24, "direction": "forward", "color": "#000000ff" },
+   { "name": "rope", "from": 25, "to": 25, "direction": "forward", "color": "#000000ff" },
+   { "name": "bucket", "from": 26, "to": 26, "direction": "forward", "color": "#000000ff" },
+   { "name": "hammer", "from": 27, "to": 27, "direction": "forward", "color": "#000000ff" },
+   { "name": "dynamite", "from": 28, "to": 28, "direction": "forward", "color": "#000000ff" },
+   { "name": "lens", "from": 29, "to": 29, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Layer 4", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
+</file>
+
+<file path="src/game/assets/images/rooms/apartment/apartment.json">
+{ "frames": {
+   "apartment 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 1.aseprite": {
+    "frame": { "x": 352, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 2.aseprite": {
+    "frame": { "x": 704, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 3.aseprite": {
+    "frame": { "x": 1056, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 4.aseprite": {
+    "frame": { "x": 0, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 5.aseprite": {
+    "frame": { "x": 352, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 6.aseprite": {
+    "frame": { "x": 704, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 7.aseprite": {
+    "frame": { "x": 1056, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 8.aseprite": {
+    "frame": { "x": 0, "y": 396, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 9.aseprite": {
+    "frame": { "x": 352, "y": 396, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 10.aseprite": {
+    "frame": { "x": 704, "y": 396, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta1-x64",
+  "image": "apartment.png",
+  "format": "RGBA8888",
+  "size": { "w": 1408, "h": 594 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "BG", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "Couch", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "Door", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "Door-open", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
+   { "name": "Pillar", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
+   { "name": "Fan", "from": 6, "to": 10, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Walls and Floor", "opacity": 255, "blendMode": "normal" },
+   { "name": "Ceiling", "opacity": 255, "blendMode": "normal" },
+   { "name": "Window", "opacity": 255, "blendMode": "normal" },
+   { "name": "Layer 1", "opacity": 255, "blendMode": "normal" },
+   { "name": "Couch", "opacity": 255, "blendMode": "normal" },
+   { "name": "Door", "opacity": 255, "blendMode": "normal" },
+   { "name": "Door Open", "opacity": 255, "blendMode": "normal" },
+   { "name": "Pillar", "opacity": 255, "blendMode": "normal" },
+   { "name": "Fan", "opacity": 255, "blendMode": "normal" },
+   { "name": "Hank", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
+</file>
+
+<file path="src/game/inventory/Broom/Broom.inventory.json">
+{
+  "id": "Broom",
+  "name": "Broom",
+  "description": "",
+  "onVerb": {
+    "look": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}
+</file>
+
+<file path="src/game/inventory/Broom/Broom.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('Broom', ({ B }) => {
   // Delete this line when you add your first handler.
   void B;
+
+  B.whenLookAt(() => {
+    B.player.say('The broom is a broom.');
+  });
 });
 </file>
 
-<file path="src/game/inventory/Lantern/Lantern.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
+<file path="src/game/inventory/Ladder/Ladder.inventory.json">
+{
+  "id": "Ladder",
+  "name": "Ladder",
+  "description": "",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}
+</file>
 
-registerInventoryScript('Lantern', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-});
+<file path="src/game/inventory/Lantern/Lantern.inventory.json">
+{
+  "id": "Lantern",
+  "name": "Lantern",
+  "description": "",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}
 </file>
 
 <file path="src/game/loadGuiData.ts">
@@ -5614,34 +5340,54 @@ export type GameFontDefinition = GameBitmapFontDefinition;
 export type GameFontsManifest = Record<string, GameFontDefinition>;
 </file>
 
-<file path="src/types/inventory.ts">
-export interface InventoryItemData {
-  id: string;
-  name: string;
-  description: string;
-  /** Supported interaction verbs for this item (`game-config.json` ids). */
-  onVerb?: Record<string, boolean>;
-  /** `false` = unique (0/1); `true` = supports quantity greater than 1. */
-  stackable: boolean;
-  /** Optional per-tag animation overrides for inventory sheets. */
-  animations?: Record<
-    string,
-    {
-      loop?: boolean;
-      frameDuration?: number;
-    }
-  >;
-  display: {
-    aseprite: boolean | 'shared';
-  };
-  /**
-   * Optional Aseprite frame tag for the default clip in UI/cursor (Phaser key is namespaced on the shared sheet).
-   * Defaults to `id` when omitted.
-   */
-  defaultAnimation?: string;
-  cursor?: {
-    hotspot?: { x: number; y: number };
-  };
+<file path="src/types/gameState.ts">
+/** Values stored in {@link SerializableBenneGameState.flags}. */
+export type BenneGameStateFlagValue = boolean | number | string;
+
+/** Serializable cross-room game state (v1). */
+export interface SerializableBenneGameState {
+  version: 1;
+  flags: Record<string, BenneGameStateFlagValue>;
+  variables: Record<string, unknown>;
+  /** Item id → quantity (omitted or zero means not carried). */
+  inventory: Record<string, number>;
+}
+
+export const GAME_STATE_FLAG_CHANGED_EVENT = 'gameState:flagChanged' as const;
+export const GAME_STATE_VARIABLE_CHANGED_EVENT = 'gameState:variableChanged' as const;
+export const GAME_STATE_INVENTORY_CHANGED_EVENT = 'gameState:inventoryChanged' as const;
+export const GAME_STATE_REPLACED_EVENT = 'gameState:replaced' as const;
+export const GAME_STATE_ACTIVE_VERB_CHANGED_EVENT = 'gameState:activeVerbChanged' as const;
+
+export interface GameStateFlagChangedPayload {
+  key: string;
+  previousValue?: BenneGameStateFlagValue;
+  value?: BenneGameStateFlagValue;
+}
+
+export interface GameStateVariableChangedPayload {
+  key: string;
+  previousValue?: unknown;
+  value?: unknown;
+}
+
+export interface GameStateInventoryChangedPayload {
+  reason: 'add' | 'remove' | 'clear';
+  itemId?: string;
+  inventory: Record<string, number>;
+}
+
+export interface GameStateReplacedPayload {
+  snapshot: SerializableBenneGameState;
+}
+
+/**
+ * Emitted when the runtime "active verb" changes (runtime UI state; not part of the snapshot).
+ * `value` is `null` when cleared.
+ */
+export interface GameStateActiveVerbChangedPayload {
+  previousValue: string | null;
+  value: string | null;
 }
 </file>
 
@@ -7447,11 +7193,599 @@ export function attachDirectionalAnimationApi(sprite: Phaser.GameObjects.Sprite)
 }
 </file>
 
+<file path="src/engine/scripting/benneScriptGameStateApi.ts">
+import type { BenneGameStateFlagValue } from '../../types/gameState.js';
+import type { GameStateManager } from '../gameState/GameStateManager.js';
+
+/** `B.state` — flags, variables, and snapshot persistence (see `GameStateManager`). */
+export interface BenneScriptGameStateNamespace {
+  setFlag(id: string, value: BenneGameStateFlagValue): void;
+  getFlag(id: string): BenneGameStateFlagValue | undefined;
+  hasFlag(id: string): boolean;
+  clearFlag(id: string): void;
+  setVariable(id: string, value: unknown): void;
+  getVariable(id: string): unknown;
+  hasVariable(id: string): boolean;
+  clearVariable(id: string): void;
+  saveToBrowser(slot?: number): void;
+  loadFromBrowser(slot?: number): boolean;
+  clearBrowserSave(slot?: number): void;
+  exportJson(): string;
+  importJson(json: string): void;
+  /**
+   * Runtime-only "active verb" (see {@link GameStateManager.setActiveVerb}). When non-null, the
+   * pointer resolver uses it for left-clicks on clickable targets (consuming it on dispatch) and
+   * right-clicks clear it. Pass `null` to clear; empty strings are treated as `null`.
+   */
+  setActiveVerb(verbId: string | null): void;
+  getActiveVerb(): string | null;
+  clearActiveVerb(): void;
+}
+
+/** `B.inventory` — quantities per item id (see `GameStateManager`). */
+export interface BenneScriptInventoryNamespace {
+  add(id: string, quantity?: number): boolean;
+  remove(id: string, quantity?: number): boolean;
+  has(id: string): boolean;
+  quantityOf(id: string): number;
+  /** Legacy accessor for inventory entries; prefer `add`/`remove`/`has`/`quantityOf` for gameplay logic. */
+  readonly items: ReadonlyArray<{ id: string; quantity: number }>;
+  clearInventory(): void;
+}
+
+export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneScriptGameStateNamespace {
+  return {
+    setFlag: (id, value) => m.setFlag(id, value),
+    getFlag: (id) => m.getFlag(id),
+    hasFlag: (id) => m.hasFlag(id),
+    clearFlag: (id) => m.clearFlag(id),
+    setVariable: (id, value) => m.setVariable(id, value),
+    getVariable: (id) => m.getVariable(id),
+    hasVariable: (id) => m.hasVariable(id),
+    clearVariable: (id) => m.clearVariable(id),
+    saveToBrowser: (slot) => m.saveToLocalStorage(slot),
+    loadFromBrowser: (slot) => m.loadFromLocalStorage(slot),
+    clearBrowserSave: (slot) => m.clearLocalStorageSave(slot),
+    exportJson: () => m.exportSnapshotJson(),
+    importJson: (json) => m.importSnapshotJson(json),
+    setActiveVerb: (verbId) => m.setActiveVerb(verbId),
+    getActiveVerb: () => m.getActiveVerb(),
+    clearActiveVerb: () => m.clearActiveVerb(),
+  };
+}
+
+export function createBenneScriptInventoryNamespace(m: GameStateManager): BenneScriptInventoryNamespace {
+  return {
+    add: (id, quantity) => m.addInventory(id, quantity),
+    remove: (id, quantity) => m.removeFromInventory(id, quantity),
+    has: (id) => m.hasInInventory(id),
+    quantityOf: (id) => m.quantityOf(id),
+    get items() {
+      return m.getInventoryItems();
+    },
+    clearInventory: () => m.clearInventory(),
+  };
+}
+</file>
+
+<file path="src/engine/verbs/dispatchVerb.ts">
+import { getGameSettings } from '../ConfigManager';
+import type { EventBus } from '../events/EventBus';
+import type { VerbInteractTarget, VerbUnhandledPayload } from '../events/verbInteractionEvents';
+import {
+  VERB_GLOBAL_FALLBACK_EVENT,
+  VERB_UNHANDLED_EVENT,
+  characterVerbEventId,
+  characterVerbFallbackEventId,
+  globalVerbHandlerEventId,
+  roomObjectVerbEventId,
+  roomObjectVerbFallbackEventId,
+} from '../events/verbInteractionEvents';
+
+export type VerbHandlerMap = {
+  onVerb: Record<string, boolean>;
+  onVerbFallback: boolean;
+};
+
+function listenerCount(bus: EventBus, event: string): number {
+  return bus.listeners(event).length;
+}
+
+function buildEmitPayload(target: VerbInteractTarget, verbId: string): Record<string, unknown> {
+  switch (target.type) {
+    case 'prop':
+      return {
+        propId: target.propId,
+        roomId: target.roomId,
+        tag: target.tag,
+        description: target.description,
+        verbId,
+        ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
+        ...(target.lookAtPoint !== undefined ? { lookAtPoint: target.lookAtPoint } : {}),
+      };
+    case 'hotspot':
+      return {
+        hotspotId: target.hotspotId,
+        roomId: target.roomId,
+        description: target.description,
+        verbId,
+      };
+    case 'character':
+      return {
+        characterId: target.characterId,
+        instanceId: target.instanceId,
+        roomId: target.roomId,
+        description: target.description,
+        verbId,
+        ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
+        ...(target.talkPoint !== undefined ? { talkPoint: target.talkPoint } : {}),
+      };
+    default:
+      return { verbId };
+  }
+}
+
+/**
+ * Dispatch order: object `onVerb[verbId]` → `onVerbFallback` → `verb:global:<verbId>` →
+ * `verb:global:fallback` → `verb:unhandled` (+ dev `console.warn`).
+ */
+export function dispatchVerbInteraction(
+  bus: EventBus,
+  verbId: string,
+  handlers: VerbHandlerMap,
+  target: VerbInteractTarget,
+): void {
+  const settings = getGameSettings();
+  const payload = buildEmitPayload(target, verbId);
+
+  const supportsVerb = handlers.onVerb[verbId] === true;
+  if (supportsVerb) {
+    if (target.type === 'character') {
+      const roomScoped = roomObjectVerbEventId(target, verbId);
+      if (listenerCount(bus, roomScoped) > 0) {
+        bus.emit(roomScoped, payload);
+        return;
+      }
+      const globalCharacter = characterVerbEventId(target.characterId, verbId);
+      if (listenerCount(bus, globalCharacter) > 0) {
+        bus.emit(globalCharacter, payload);
+        return;
+      }
+      bus.emit(roomScoped, payload);
+      return;
+    }
+    bus.emit(roomObjectVerbEventId(target, verbId), payload);
+    return;
+  }
+
+  if (handlers.onVerbFallback) {
+    if (target.type === 'character') {
+      const roomScopedFallback = roomObjectVerbFallbackEventId(target);
+      if (listenerCount(bus, roomScopedFallback) > 0) {
+        bus.emit(roomScopedFallback, { ...payload, verbFallback: true });
+        return;
+      }
+      const globalCharacterFallback = characterVerbFallbackEventId(target.characterId);
+      if (listenerCount(bus, globalCharacterFallback) > 0) {
+        bus.emit(globalCharacterFallback, { ...payload, verbFallback: true });
+        return;
+      }
+      bus.emit(roomScopedFallback, { ...payload, verbFallback: true });
+      return;
+    }
+    bus.emit(roomObjectVerbFallbackEventId(target), { ...payload, verbFallback: true });
+    return;
+  }
+
+  const globalVerb = globalVerbHandlerEventId(verbId);
+  if (listenerCount(bus, globalVerb) > 0) {
+    bus.emit(globalVerb, payload);
+    return;
+  }
+
+  if (listenerCount(bus, VERB_GLOBAL_FALLBACK_EVENT) > 0) {
+    bus.emit(VERB_GLOBAL_FALLBACK_EVENT, payload);
+    return;
+  }
+
+  const fallbackLine = settings.defaultFallbackLine ?? "That doesn't work.";
+  const unhandled: VerbUnhandledPayload = {
+    verbId,
+    target,
+    fallbackLine,
+  };
+  bus.emit(VERB_UNHANDLED_EVENT, unhandled);
+
+  if (import.meta.env.DEV) {
+    console.warn(
+      `[Benne] Unhandled verb "${verbId}" on ${target.type} (no object/global handler). Message: "${fallbackLine}"`,
+      target,
+    );
+  }
+}
+</file>
+
+<file path="src/engine/verbs/verbConfig.ts">
+import type { GameSettings, GameVerbDefinition, VerbInputProfile } from '../../types/game';
+
+/**
+ * Built-in universal walk verb id. Not authored in `game-config.json` `verbs[]` and never shown
+ * as a verb chip in the Inspector. Valid as an `inputProfile` slot value: the pointer resolution
+ * walks the player to the target's stand point instead of dispatching a verb.
+ */
+export const WALK_TO_VERB_ID = 'walkTo';
+
+/**
+ * Reserved literal for `inputProfile` slots: substitute with the clicked target's authored
+ * `defaultVerb` (prop / hotspot / character / inventory item), falling back to `"look"`.
+ */
+export const DEFAULT_VERB_TOKEN = 'defaultVerb';
+
+/** Per-clickable default-verb fallback when the target omits `defaultVerb` in its JSON. */
+export const DEFAULT_VERB_FALLBACK = 'look';
+
+const DEFAULT_VERBS: GameVerbDefinition[] = [
+  { id: 'look', label: 'Look at' },
+  { id: 'use', label: 'Use', preposition: 'with' },
+];
+
+/** Effective verb list: explicit `settings.verbs` or implicit `look` + `use`. */
+export function getEffectiveVerbDefinitions(settings: GameSettings): GameVerbDefinition[] {
+  if (settings.verbs && settings.verbs.length > 0) {
+    return settings.verbs;
+  }
+  return DEFAULT_VERBS;
+}
+
+/**
+ * Two-button input profile. When `inputProfile` is omitted, defaults to
+ * left (primary) → `look`, right (secondary) → `use`.
+ */
+export function getEffectiveInputProfile(settings: GameSettings): VerbInputProfile {
+  const ip = settings.inputProfile;
+  if (ip) {
+    return ip;
+  }
+  return {
+    primaryButtonVerb: 'look',
+    secondaryButtonVerb: 'use',
+  };
+}
+</file>
+
+<file path="src/game/inventory/Lantern/Lantern.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('Lantern', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
+});
+</file>
+
+<file path="src/game/resolveGameAssetUrl.ts">
+/**
+ * Resolves paths from room JSON (`images/...` under `src/game/assets/`) to Vite-built URLs.
+ */
+const imageUrls = import.meta.glob('./assets/**/*.{png,jpg,jpeg,webp,gif}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+const jsonUrls = import.meta.glob('./assets/**/*.json', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+const xmlUrls = import.meta.glob('./assets/**/*.xml', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+function normalizeAssetPath(relativePath: string): string {
+  return relativePath.replace(/^\.?\/+/, '').replaceAll('\\', '/');
+}
+
+export function resolveGameAssetUrl(relativePath: string): string {
+  const normalized = normalizeAssetPath(relativePath);
+  const key = `./assets/${normalized}`;
+  const url = imageUrls[key];
+
+  if (!url) {
+    throw new Error(
+      `Missing game asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(imageUrls).sort().join(', ')}`,
+    );
+  }
+
+  return url;
+}
+
+/** Aseprite JSON exports and other data JSON under `src/game/assets/`. */
+export function resolveGameAssetJsonUrl(relativePath: string): string {
+  const normalized = normalizeAssetPath(relativePath);
+  const key = `./assets/${normalized}`;
+  const url = jsonUrls[key];
+
+  if (!url) {
+    throw new Error(
+      `Missing JSON asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(jsonUrls).sort().join(', ')}`,
+    );
+  }
+
+  return url;
+}
+
+/** BMFont XML and other `.xml` under `src/game/assets/` (paths like `fonts/MyFont.xml`). */
+export function resolveGameAssetXmlUrl(relativePath: string): string {
+  const normalized = normalizeAssetPath(relativePath);
+  const key = `./assets/${normalized}`;
+  const url = xmlUrls[key];
+
+  if (!url) {
+    throw new Error(
+      `Missing XML asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(xmlUrls).sort().join(', ')}`,
+    );
+  }
+
+  return url;
+}
+</file>
+
+<file path="src/types/inventory.ts">
+export interface InventoryItemData {
+  id: string;
+  name: string;
+  description: string;
+  /** Supported interaction verbs for this item (`game-config.json` ids). */
+  onVerb?: Record<string, boolean>;
+  /**
+   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this inventory
+   * item. Falls back to `"look"` when omitted.
+   */
+  defaultVerb?: string;
+  /** `false` = unique (0/1); `true` = supports quantity greater than 1. */
+  stackable: boolean;
+  /** Optional per-tag animation overrides for inventory sheets. */
+  animations?: Record<
+    string,
+    {
+      loop?: boolean;
+      frameDuration?: number;
+    }
+  >;
+  display: {
+    aseprite: boolean | 'shared';
+  };
+  /**
+   * Optional Aseprite frame tag for the default clip in UI/cursor (Phaser key is namespaced on the shared sheet).
+   * Defaults to `id` when omitted.
+   */
+  defaultAnimation?: string;
+  cursor?: {
+    hotspot?: { x: number; y: number };
+  };
+}
+</file>
+
+<file path="src/editor/preview/polygonPatchTypes.ts">
+export type Point2 = { x: number; y: number };
+
+/** Serialized to the VS Code extension as Option A patch payloads. */
+export type RoomPolygonPatch =
+    | { kind: 'walkable'; polygonId: string; points: Point2[]; holeId?: string }
+    | {
+          kind: 'propCollider';
+          propId: string;
+          points: Point2[];
+          walkToPoint: Point2;
+          lookAtPoint: Point2;
+      }
+    | {
+          kind: 'hotspotPolygon';
+          hotspotId: string;
+          points: Point2[];
+          walkToPoint: Point2;
+          lookAtPoint: Point2;
+      }
+    | { kind: 'regionPolygon'; regionId: string; points: Point2[] }
+    | { kind: 'roomPoint'; pointId: string; x: number; y: number }
+    | { kind: 'roomSize'; width: number; height: number }
+    | { kind: 'scrollBounds'; x: number; y: number; width: number; height: number };
+</file>
+
+<file path="src/engine/events/verbInteractionEvents.ts">
+import type { Point2 } from '../../types/room';
+
+/** Emitted when no object handler, object fallback, or global handler consumes the verb. */
+export const VERB_UNHANDLED_EVENT = 'verb:unhandled';
+
+/** Ultimate global fallback after `verb:global:<verbId>`. */
+export const VERB_GLOBAL_FALLBACK_EVENT = 'verb:global:fallback';
+
+const VERB_GLOBAL_PREFIX = 'verb:global:';
+const VERB_ROOM_PREFIX = 'verb:room:';
+const VERB_CHARACTER_PREFIX = 'verb:character:';
+
+/** `verb:global:<verbId>` — register here for default handling of a verb on any target. */
+export function globalVerbHandlerEventId(verbId: string): string {
+  return `${VERB_GLOBAL_PREFIX}${verbId}`;
+}
+
+function roomTargetTypeAndId(target: VerbInteractTarget): { targetType: string; targetId: string } {
+  switch (target.type) {
+    case 'prop':
+      return { targetType: 'prop', targetId: target.propId };
+    case 'hotspot':
+      return { targetType: 'hotspot', targetId: target.hotspotId };
+    case 'character':
+      return { targetType: 'character', targetId: target.characterId };
+  }
+}
+
+/** `verb:room:<roomId>:<targetType>:<targetId>:<verbId>` */
+export function roomObjectVerbEventId(target: VerbInteractTarget, verbId: string): string {
+  const x = roomTargetTypeAndId(target);
+  return `${VERB_ROOM_PREFIX}${target.roomId}:${x.targetType}:${x.targetId}:${verbId}`;
+}
+
+/** `verb:room:<roomId>:<targetType>:<targetId>:fallback` */
+export function roomObjectVerbFallbackEventId(target: VerbInteractTarget): string {
+  const x = roomTargetTypeAndId(target);
+  return `${VERB_ROOM_PREFIX}${target.roomId}:${x.targetType}:${x.targetId}:fallback`;
+}
+
+export function roomPropVerbEventId(roomId: string, propId: string, verbId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:prop:${propId}:${verbId}`;
+}
+
+export function roomHotspotVerbEventId(roomId: string, hotspotId: string, verbId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:hotspot:${hotspotId}:${verbId}`;
+}
+
+export function roomCharacterVerbEventId(roomId: string, characterId: string, verbId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:character:${characterId}:${verbId}`;
+}
+
+export function roomPropVerbFallbackEventId(roomId: string, propId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:prop:${propId}:fallback`;
+}
+
+export function roomHotspotVerbFallbackEventId(roomId: string, hotspotId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:hotspot:${hotspotId}:fallback`;
+}
+
+export function roomCharacterVerbFallbackEventId(roomId: string, characterId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:character:${characterId}:fallback`;
+}
+
+/** `verb:character:<characterId>:<verbId>` */
+export function characterVerbEventId(characterId: string, verbId: string): string {
+  return `${VERB_CHARACTER_PREFIX}${characterId}:${verbId}`;
+}
+
+/** `verb:character:<characterId>:fallback` */
+export function characterVerbFallbackEventId(characterId: string): string {
+  return `${VERB_CHARACTER_PREFIX}${characterId}:fallback`;
+}
+
+export type VerbInteractTarget =
+  | {
+      type: 'prop';
+      propId: string;
+      tag: string;
+      roomId: string;
+      description?: string;
+      /** Optional hints from room JSON for script-driven walk/face (not applied by the engine on click). */
+      walkToPoint?: Point2;
+      lookAtPoint?: Point2;
+    }
+  | { type: 'hotspot'; hotspotId: string; roomId: string; description?: string }
+  | {
+      type: 'character';
+      characterId: string;
+      instanceId: string;
+      roomId: string;
+      description?: string;
+      /** World / room pixel stand hint when `CharacterData.walkToPoint` is set (sprite origin + offset). */
+      walkToPoint?: Point2;
+      /** World / room pixel look-at hint when `CharacterData.talkPoint` is set (sprite origin + offset). */
+      talkPoint?: Point2;
+    };
+
+/**
+ * Payload for {@link VERB_GLOBAL_FALLBACK_EVENT} and {@link globalVerbHandlerEventId} emissions
+ * (flat object from `dispatchVerb`; which optional ids are set depends on target type).
+ */
+export type VerbGlobalFallbackPayload = {
+  verbId: string;
+  roomId: string;
+  description?: string;
+  propId?: string;
+  tag?: string;
+  hotspotId?: string;
+  characterId?: string;
+  instanceId?: string;
+  walkToPoint?: Point2;
+  lookAtPoint?: Point2;
+  talkPoint?: Point2;
+  verbFallback?: boolean;
+};
+
+export type VerbUnhandledPayload = {
+  verbId: string;
+  target: VerbInteractTarget;
+  fallbackLine: string;
+};
+</file>
+
+<file path="src/engine/gameConfig.ts">
+import * as Phaser from 'phaser';
+import { getGameSettings } from './ConfigManager';
+
+/**
+ * Renderer / pixel-output fields that **must** stay identical between the shipped game and every
+ * VS Code webview preview (room, GUI, character). Phaser 4's WebGL path renders `BitmapText` with
+ * unreliable glyph output (wrapped dialogue looked uneven; in the room preview, fixed-to-camera
+ * `BitmapText` lines produced no pixels at all even with `visible: true` and non-zero bounds), so
+ * we standardise on `Phaser.CANVAS` + `roundPixels: true` across the whole editor surface.
+ *
+ * **Keep this module side-effect free** — previews import `getBenneRendererConfigFields` from
+ * here, and if this file pulls in `BootScene` / `RoomScene` at the top level, Vite's eager
+ * `import.meta.glob` calls in the shipped-game boot path (e.g. `resolveGameAssetUrl.ts`) would
+ * copy every room / character / inventory PNG into all three preview bundles. Scene imports live
+ * in `Game.ts` instead, where they're only pulled in by the shipped runtime entry.
+ *
+ * Keep this helper — not ad-hoc literals inside each preview entry point — as the single source of
+ * truth (see `.cursor/rules/benne-preview-rendering-parity.mdc`).
+ */
+export function getBenneRendererConfigFields(): Pick<
+  Phaser.Types.Core.GameConfig,
+  'type' | 'backgroundColor' | 'pixelArt' | 'roundPixels' | 'antialias' | 'render'
+> {
+  return {
+    type: Phaser.CANVAS,
+    backgroundColor: '#1a1a2e',
+    pixelArt: true,
+    roundPixels: true,
+    antialias: false,
+    render: {
+      powerPreference: 'high-performance',
+    },
+  };
+}
+
+/** Shared Phaser settings (resolution, scale, render) — scenes are added per entrypoint. */
+export function getBennePhaserGameConfigBase(
+  parent: HTMLElement | string,
+): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
+  const { width, height } = getGameSettings().resolution;
+
+  return {
+    ...getBenneRendererConfigFields(),
+    parent,
+    width,
+    height,
+    scale: {
+      parent,
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      width,
+      height,
+      zoom: Phaser.Scale.MAX_ZOOM,
+      autoRound: true,
+    },
+  };
+}
+</file>
+
 <file path="src/engine/gameState/GameStateManager.ts">
 import * as Phaser from 'phaser';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import type {
   BenneGameStateFlagValue,
+  GameStateActiveVerbChangedPayload,
   GameStateFlagChangedPayload,
   GameStateInventoryChangedPayload,
   GameStateReplacedPayload,
@@ -7459,6 +7793,7 @@ import type {
   SerializableBenneGameState,
 } from '../../types/gameState.js';
 import {
+  GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
   GAME_STATE_FLAG_CHANGED_EVENT,
   GAME_STATE_INVENTORY_CHANGED_EVENT,
   GAME_STATE_REPLACED_EVENT,
@@ -7523,6 +7858,11 @@ function localStorageKey(slot: number): string {
 export class GameStateManager {
   private readonly events: Phaser.Events.EventEmitter;
   private state: SerializableBenneGameState;
+  /**
+   * Runtime-only "active verb" state. Not part of the snapshot — resets on `applySnapshot`
+   * (so loading a save returns the player to the default pointer profile, not mid-verb).
+   */
+  private activeVerbId: string | null = null;
 
   constructor(events: Phaser.Events.EventEmitter, initial?: GameStateInitialSlice) {
     this.events = events;
@@ -7552,6 +7892,12 @@ export class GameStateManager {
       variables: { ...snapshot.variables },
       inventory: normalizeSerializedInventory(snapshot.inventory),
     };
+    if (this.activeVerbId !== null) {
+      const previousValue = this.activeVerbId;
+      this.activeVerbId = null;
+      const activePayload: GameStateActiveVerbChangedPayload = { previousValue, value: null };
+      this.events.emit(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, activePayload);
+    }
     const payload: GameStateReplacedPayload = { snapshot: this.getSnapshot() };
     this.events.emit(GAME_STATE_REPLACED_EVENT, payload);
   }
@@ -7743,633 +8089,30 @@ export class GameStateManager {
       console.error('[Benne] GameStateManager.clearLocalStorageSave failed:', err);
     }
   }
-}
-</file>
 
-<file path="src/engine/verbs/dispatchVerb.ts">
-import { getGameSettings } from '../ConfigManager';
-import type { EventBus } from '../events/EventBus';
-import type { VerbInteractTarget, VerbUnhandledPayload } from '../events/verbInteractionEvents';
-import {
-  VERB_GLOBAL_FALLBACK_EVENT,
-  VERB_UNHANDLED_EVENT,
-  characterVerbEventId,
-  characterVerbFallbackEventId,
-  globalVerbHandlerEventId,
-  roomObjectVerbEventId,
-  roomObjectVerbFallbackEventId,
-} from '../events/verbInteractionEvents';
-
-export type VerbHandlerMap = {
-  onVerb: Record<string, boolean>;
-  onVerbFallback: boolean;
-};
-
-function listenerCount(bus: EventBus, event: string): number {
-  return bus.listeners(event).length;
-}
-
-function buildEmitPayload(target: VerbInteractTarget, verbId: string): Record<string, unknown> {
-  switch (target.type) {
-    case 'prop':
-      return {
-        propId: target.propId,
-        roomId: target.roomId,
-        tag: target.tag,
-        description: target.description,
-        verbId,
-        ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
-        ...(target.lookAtPoint !== undefined ? { lookAtPoint: target.lookAtPoint } : {}),
-      };
-    case 'hotspot':
-      return {
-        hotspotId: target.hotspotId,
-        roomId: target.roomId,
-        description: target.description,
-        verbId,
-      };
-    case 'character':
-      return {
-        characterId: target.characterId,
-        instanceId: target.instanceId,
-        roomId: target.roomId,
-        description: target.description,
-        verbId,
-        ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
-        ...(target.talkPoint !== undefined ? { talkPoint: target.talkPoint } : {}),
-      };
-    default:
-      return { verbId };
+  /**
+   * Runtime-only "active verb" (e.g. set from a verb-button click). When non-null, the pointer
+   * resolver uses it on left-click against a clickable (and clears it once consumed) and clears
+   * it on right-click. See {@link resolvePointerVerb} and the verb system section of the docs.
+   */
+  getActiveVerb(): string | null {
+    return this.activeVerbId;
   }
-}
 
-/**
- * Dispatch order: object `onVerb[verbId]` → `onVerbFallback` → `verb:global:<verbId>` →
- * `verb:global:fallback` → `verb:unhandled` (+ dev `console.warn`).
- */
-export function dispatchVerbInteraction(
-  bus: EventBus,
-  verbId: string,
-  handlers: VerbHandlerMap,
-  target: VerbInteractTarget,
-): void {
-  const settings = getGameSettings();
-  const payload = buildEmitPayload(target, verbId);
-
-  const supportsVerb = handlers.onVerb[verbId] === true;
-  if (supportsVerb) {
-    if (target.type === 'character') {
-      const roomScoped = roomObjectVerbEventId(target, verbId);
-      if (listenerCount(bus, roomScoped) > 0) {
-        bus.emit(roomScoped, payload);
-        return;
-      }
-      const globalCharacter = characterVerbEventId(target.characterId, verbId);
-      if (listenerCount(bus, globalCharacter) > 0) {
-        bus.emit(globalCharacter, payload);
-        return;
-      }
-      bus.emit(roomScoped, payload);
+  setActiveVerb(verbId: string | null): void {
+    const next = verbId != null && verbId.length > 0 ? verbId : null;
+    if (this.activeVerbId === next) {
       return;
     }
-    bus.emit(roomObjectVerbEventId(target, verbId), payload);
-    return;
+    const previousValue = this.activeVerbId;
+    this.activeVerbId = next;
+    const payload: GameStateActiveVerbChangedPayload = { previousValue, value: next };
+    this.events.emit(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, payload);
   }
 
-  if (handlers.onVerbFallback) {
-    if (target.type === 'character') {
-      const roomScopedFallback = roomObjectVerbFallbackEventId(target);
-      if (listenerCount(bus, roomScopedFallback) > 0) {
-        bus.emit(roomScopedFallback, { ...payload, verbFallback: true });
-        return;
-      }
-      const globalCharacterFallback = characterVerbFallbackEventId(target.characterId);
-      if (listenerCount(bus, globalCharacterFallback) > 0) {
-        bus.emit(globalCharacterFallback, { ...payload, verbFallback: true });
-        return;
-      }
-      bus.emit(roomScopedFallback, { ...payload, verbFallback: true });
-      return;
-    }
-    bus.emit(roomObjectVerbFallbackEventId(target), { ...payload, verbFallback: true });
-    return;
+  clearActiveVerb(): void {
+    this.setActiveVerb(null);
   }
-
-  const globalVerb = globalVerbHandlerEventId(verbId);
-  if (listenerCount(bus, globalVerb) > 0) {
-    bus.emit(globalVerb, payload);
-    return;
-  }
-
-  if (listenerCount(bus, VERB_GLOBAL_FALLBACK_EVENT) > 0) {
-    bus.emit(VERB_GLOBAL_FALLBACK_EVENT, payload);
-    return;
-  }
-
-  const fallbackLine = settings.defaultFallbackLine ?? "That doesn't work.";
-  const unhandled: VerbUnhandledPayload = {
-    verbId,
-    target,
-    fallbackLine,
-  };
-  bus.emit(VERB_UNHANDLED_EVENT, unhandled);
-
-  if (import.meta.env.DEV) {
-    console.warn(
-      `[Benne] Unhandled verb "${verbId}" on ${target.type} (no object/global handler). Message: "${fallbackLine}"`,
-      target,
-    );
-  }
-}
-</file>
-
-<file path="src/game/characters/hank/hank.character.json">
-{
-  "id": "hank",
-  "name": "Hank",
-  "description": "",
-  "walkSpeed": 88,
-  "walkToPoint": {
-    "x": -10,
-    "y": 64
-  },
-  "talkPoint": {
-    "x": 18,
-    "y": 1
-  },
-  "clickable": false,
-  "display": {
-    "aseprite": true
-  },
-  "animations": {
-    "IdleL": {
-      "loop": true
-    },
-    "IdleD": {
-      "loop": true
-    },
-    "IdleU": {
-      "loop": true
-    },
-    "WalkL": {
-      "loop": true
-    },
-    "WalkD": {
-      "loop": true
-    },
-    "WalkU": {
-      "loop": true
-    },
-    "TalkL": {
-      "loop": true
-    },
-    "TalkD": {
-      "loop": true
-    },
-    "TalkU": {
-      "loop": true
-    }
-  },
-  "feet": {
-    "x": 18,
-    "y": 61
-  },
-  "collider": {
-    "points": [
-      {
-        "x": 8,
-        "y": 64
-      },
-      {
-        "x": 5,
-        "y": 21
-      },
-      {
-        "x": 10,
-        "y": 3
-      },
-      {
-        "x": 18,
-        "y": 1
-      },
-      {
-        "x": 26,
-        "y": 3
-      },
-      {
-        "x": 30,
-        "y": 21
-      },
-      {
-        "x": 29,
-        "y": 64
-      }
-    ]
-  },
-  "onVerb": {
-    "look": true,
-    "use": true
-  }
-}
-</file>
-
-<file path="src/game/characters/henry/henry.character.ts">
-import { registerCharacterScript } from '@engine/scripting';
-
-/**
- * Character script for `henry` — Bennescript on this character’s global verb channel (room-scoped handlers win first).
- */
-registerCharacterScript('henry', ({ B }) => {
-  B.whenLookAt(() => {
-    // TODO
-  });
-});
-</file>
-
-<file path="src/game/guis/dialog-text/dialog-text.gui.json">
-{
-  "id": "dialog-text",
-  "name": "Dialog Text",
-  "description": "",
-  "visible": false,
-  "display": {
-    "aseprite": false
-  },
-  "controls": [
-    {
-      "type": "text",
-      "id": "line",
-      "x": 176,
-      "y": 120,
-      "text": "Even if a woodchuck could chuck wood and even if a woodchuck would chuck wood, should a woodchuck chuck wood?",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "color": "#f5f5dc",
-      "align": "center",
-      "wordWrapWidth": 200
-    }
-  ]
-}
-</file>
-
-<file path="src/game/inventory/Ladder/Ladder.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Ladder', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-});
-</file>
-
-<file path="src/game/resolveGameAssetUrl.ts">
-/**
- * Resolves paths from room JSON (`images/...` under `src/game/assets/`) to Vite-built URLs.
- */
-const imageUrls = import.meta.glob('./assets/**/*.{png,jpg,jpeg,webp,gif}', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-}) as Record<string, string>;
-
-const jsonUrls = import.meta.glob('./assets/**/*.json', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-}) as Record<string, string>;
-
-const xmlUrls = import.meta.glob('./assets/**/*.xml', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-}) as Record<string, string>;
-
-function normalizeAssetPath(relativePath: string): string {
-  return relativePath.replace(/^\.?\/+/, '').replaceAll('\\', '/');
-}
-
-export function resolveGameAssetUrl(relativePath: string): string {
-  const normalized = normalizeAssetPath(relativePath);
-  const key = `./assets/${normalized}`;
-  const url = imageUrls[key];
-
-  if (!url) {
-    throw new Error(
-      `Missing game asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(imageUrls).sort().join(', ')}`,
-    );
-  }
-
-  return url;
-}
-
-/** Aseprite JSON exports and other data JSON under `src/game/assets/`. */
-export function resolveGameAssetJsonUrl(relativePath: string): string {
-  const normalized = normalizeAssetPath(relativePath);
-  const key = `./assets/${normalized}`;
-  const url = jsonUrls[key];
-
-  if (!url) {
-    throw new Error(
-      `Missing JSON asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(jsonUrls).sort().join(', ')}`,
-    );
-  }
-
-  return url;
-}
-
-/** BMFont XML and other `.xml` under `src/game/assets/` (paths like `fonts/MyFont.xml`). */
-export function resolveGameAssetXmlUrl(relativePath: string): string {
-  const normalized = normalizeAssetPath(relativePath);
-  const key = `./assets/${normalized}`;
-  const url = xmlUrls[key];
-
-  if (!url) {
-    throw new Error(
-      `Missing XML asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(xmlUrls).sort().join(', ')}`,
-    );
-  }
-
-  return url;
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "benne",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "build:room-preview": "tsc && vite build --config vite.room-preview.config.ts",
-    "build:character-preview": "tsc && vite build --config vite.character-preview.config.ts",
-    "build:gui-preview": "tsc && vite build --config vite.gui-preview.config.ts",
-    "build:inventory-preview": "tsc && vite build --config vite.inventory-preview.config.ts",
-    "preview": "vite preview"
-  },
-  "devDependencies": {
-    "typescript": "~5.9.3",
-    "vite": "^8.0.1"
-  },
-  "dependencies": {
-    "phaser": "4.0.0-rc.7"
-  }
-}
-</file>
-
-<file path="src/editor/preview/polygonPatchTypes.ts">
-export type Point2 = { x: number; y: number };
-
-/** Serialized to the VS Code extension as Option A patch payloads. */
-export type RoomPolygonPatch =
-    | { kind: 'walkable'; polygonId: string; points: Point2[]; holeId?: string }
-    | {
-          kind: 'propCollider';
-          propId: string;
-          points: Point2[];
-          walkToPoint: Point2;
-          lookAtPoint: Point2;
-      }
-    | {
-          kind: 'hotspotPolygon';
-          hotspotId: string;
-          points: Point2[];
-          walkToPoint: Point2;
-          lookAtPoint: Point2;
-      }
-    | { kind: 'regionPolygon'; regionId: string; points: Point2[] }
-    | { kind: 'roomPoint'; pointId: string; x: number; y: number }
-    | { kind: 'roomSize'; width: number; height: number }
-    | { kind: 'scrollBounds'; x: number; y: number; width: number; height: number };
-</file>
-
-<file path="src/engine/events/verbInteractionEvents.ts">
-import type { Point2 } from '../../types/room';
-
-/** Emitted when no object handler, object fallback, or global handler consumes the verb. */
-export const VERB_UNHANDLED_EVENT = 'verb:unhandled';
-
-/** Ultimate global fallback after `verb:global:<verbId>`. */
-export const VERB_GLOBAL_FALLBACK_EVENT = 'verb:global:fallback';
-
-const VERB_GLOBAL_PREFIX = 'verb:global:';
-const VERB_ROOM_PREFIX = 'verb:room:';
-const VERB_CHARACTER_PREFIX = 'verb:character:';
-
-/** `verb:global:<verbId>` — register here for default handling of a verb on any target. */
-export function globalVerbHandlerEventId(verbId: string): string {
-  return `${VERB_GLOBAL_PREFIX}${verbId}`;
-}
-
-function roomTargetTypeAndId(target: VerbInteractTarget): { targetType: string; targetId: string } {
-  switch (target.type) {
-    case 'prop':
-      return { targetType: 'prop', targetId: target.propId };
-    case 'hotspot':
-      return { targetType: 'hotspot', targetId: target.hotspotId };
-    case 'character':
-      return { targetType: 'character', targetId: target.characterId };
-  }
-}
-
-/** `verb:room:<roomId>:<targetType>:<targetId>:<verbId>` */
-export function roomObjectVerbEventId(target: VerbInteractTarget, verbId: string): string {
-  const x = roomTargetTypeAndId(target);
-  return `${VERB_ROOM_PREFIX}${target.roomId}:${x.targetType}:${x.targetId}:${verbId}`;
-}
-
-/** `verb:room:<roomId>:<targetType>:<targetId>:fallback` */
-export function roomObjectVerbFallbackEventId(target: VerbInteractTarget): string {
-  const x = roomTargetTypeAndId(target);
-  return `${VERB_ROOM_PREFIX}${target.roomId}:${x.targetType}:${x.targetId}:fallback`;
-}
-
-export function roomPropVerbEventId(roomId: string, propId: string, verbId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:prop:${propId}:${verbId}`;
-}
-
-export function roomHotspotVerbEventId(roomId: string, hotspotId: string, verbId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:hotspot:${hotspotId}:${verbId}`;
-}
-
-export function roomCharacterVerbEventId(roomId: string, characterId: string, verbId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:character:${characterId}:${verbId}`;
-}
-
-export function roomPropVerbFallbackEventId(roomId: string, propId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:prop:${propId}:fallback`;
-}
-
-export function roomHotspotVerbFallbackEventId(roomId: string, hotspotId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:hotspot:${hotspotId}:fallback`;
-}
-
-export function roomCharacterVerbFallbackEventId(roomId: string, characterId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:character:${characterId}:fallback`;
-}
-
-/** `verb:character:<characterId>:<verbId>` */
-export function characterVerbEventId(characterId: string, verbId: string): string {
-  return `${VERB_CHARACTER_PREFIX}${characterId}:${verbId}`;
-}
-
-/** `verb:character:<characterId>:fallback` */
-export function characterVerbFallbackEventId(characterId: string): string {
-  return `${VERB_CHARACTER_PREFIX}${characterId}:fallback`;
-}
-
-export type VerbInteractTarget =
-  | {
-      type: 'prop';
-      propId: string;
-      tag: string;
-      roomId: string;
-      description?: string;
-      /** Optional hints from room JSON for script-driven walk/face (not applied by the engine on click). */
-      walkToPoint?: Point2;
-      lookAtPoint?: Point2;
-    }
-  | { type: 'hotspot'; hotspotId: string; roomId: string; description?: string }
-  | {
-      type: 'character';
-      characterId: string;
-      instanceId: string;
-      roomId: string;
-      description?: string;
-      /** World / room pixel stand hint when `CharacterData.walkToPoint` is set (sprite origin + offset). */
-      walkToPoint?: Point2;
-      /** World / room pixel look-at hint when `CharacterData.talkPoint` is set (sprite origin + offset). */
-      talkPoint?: Point2;
-    };
-
-/**
- * Payload for {@link VERB_GLOBAL_FALLBACK_EVENT} and {@link globalVerbHandlerEventId} emissions
- * (flat object from `dispatchVerb`; which optional ids are set depends on target type).
- */
-export type VerbGlobalFallbackPayload = {
-  verbId: string;
-  roomId: string;
-  description?: string;
-  propId?: string;
-  tag?: string;
-  hotspotId?: string;
-  characterId?: string;
-  instanceId?: string;
-  walkToPoint?: Point2;
-  lookAtPoint?: Point2;
-  talkPoint?: Point2;
-  verbFallback?: boolean;
-};
-
-export type VerbUnhandledPayload = {
-  verbId: string;
-  target: VerbInteractTarget;
-  fallbackLine: string;
-};
-</file>
-
-<file path="src/engine/Game.ts">
-import * as Phaser from 'phaser';
-import { getGameSettings } from './ConfigManager.js';
-import { gameEvents } from './events/EventBus.js';
-import { GameStateManager, normalizeSerializedInventory } from './gameState/GameStateManager.js';
-import { BENNE_GAME_STATE_REGISTRY_KEY } from './gameState/registryKey.js';
-import { getBennePhaserGameConfigBase } from './gameConfig.js';
-import { BootScene } from './scenes/BootScene.js';
-import { RoomScene } from './scenes/RoomScene.js';
-
-/**
- * Full `Phaser.Types.Core.GameConfig` for the shipped runtime (scenes + shared renderer / scale
- * settings). Kept here — not in `gameConfig.ts` — so the scene imports stay out of the editor
- * preview bundles (see the `gameConfig.ts` module comment).
- */
-function createGameConfig(parent: HTMLElement | string): Phaser.Types.Core.GameConfig {
-  return {
-    ...getBennePhaserGameConfigBase(parent),
-    scene: [BootScene, RoomScene],
-  };
-}
-
-/**
- * Creates the root {@link Phaser.Game} instance (Benne engine entry).
- * Resolution and scale mode come from `src/game/game-config.json` via {@link createGameConfig}.
- * Registers {@link GameStateManager} on `game.registry` for cross-room state.
- */
-export function createBenneGame(parent: HTMLElement | string): Phaser.Game {
-  const game = new Phaser.Game(createGameConfig(parent));
-  const rawInit = getGameSettings().initialGameState;
-  const initial =
-    rawInit != null
-      ? {
-          flags: rawInit.flags,
-          variables: rawInit.variables,
-          inventory:
-            rawInit.inventory !== undefined ? normalizeSerializedInventory(rawInit.inventory) : undefined,
-        }
-      : undefined;
-  const gameState = new GameStateManager(gameEvents, initial);
-  game.registry.set(BENNE_GAME_STATE_REGISTRY_KEY, gameState);
-  return game;
-}
-</file>
-
-<file path="src/engine/gameConfig.ts">
-import * as Phaser from 'phaser';
-import { getGameSettings } from './ConfigManager';
-
-/**
- * Renderer / pixel-output fields that **must** stay identical between the shipped game and every
- * VS Code webview preview (room, GUI, character). Phaser 4's WebGL path renders `BitmapText` with
- * unreliable glyph output (wrapped dialogue looked uneven; in the room preview, fixed-to-camera
- * `BitmapText` lines produced no pixels at all even with `visible: true` and non-zero bounds), so
- * we standardise on `Phaser.CANVAS` + `roundPixels: true` across the whole editor surface.
- *
- * **Keep this module side-effect free** — previews import `getBenneRendererConfigFields` from
- * here, and if this file pulls in `BootScene` / `RoomScene` at the top level, Vite's eager
- * `import.meta.glob` calls in the shipped-game boot path (e.g. `resolveGameAssetUrl.ts`) would
- * copy every room / character / inventory PNG into all three preview bundles. Scene imports live
- * in `Game.ts` instead, where they're only pulled in by the shipped runtime entry.
- *
- * Keep this helper — not ad-hoc literals inside each preview entry point — as the single source of
- * truth (see `.cursor/rules/benne-preview-rendering-parity.mdc`).
- */
-export function getBenneRendererConfigFields(): Pick<
-  Phaser.Types.Core.GameConfig,
-  'type' | 'backgroundColor' | 'pixelArt' | 'roundPixels' | 'antialias' | 'render'
-> {
-  return {
-    type: Phaser.CANVAS,
-    backgroundColor: '#1a1a2e',
-    pixelArt: true,
-    roundPixels: true,
-    antialias: false,
-    render: {
-      powerPreference: 'high-performance',
-    },
-  };
-}
-
-/** Shared Phaser settings (resolution, scale, render) — scenes are added per entrypoint. */
-export function getBennePhaserGameConfigBase(
-  parent: HTMLElement | string,
-): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
-  const { width, height } = getGameSettings().resolution;
-
-  return {
-    ...getBenneRendererConfigFields(),
-    parent,
-    width,
-    height,
-    scale: {
-      parent,
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
-      width,
-      height,
-      zoom: Phaser.Scale.MAX_ZOOM,
-      autoRound: true,
-    },
-  };
 }
 </file>
 
@@ -8637,21 +8380,43 @@ export function clampWalkDestinationTowardClick(
 }
 </file>
 
-<file path="src/game/characters/hank/hank.character.ts">
-import { registerCharacterScript } from '@engine/scripting';
+<file path="src/game/inventory/Ladder/Ladder.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
 
-/**
- * Character script for `hank` — Bennescript on this character’s global verb channel (room-scoped handlers win first).
- */
-registerCharacterScript('hank', ({ B }) => {
-  B.whenLookAt(() => {
-    // TODO
-  });
-
-  B.whenUse(() => {
-    // TODO
-  });
+registerInventoryScript('Ladder', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
 });
+</file>
+
+<file path="package.json">
+{
+  "name": "benne",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:room-preview": "tsc && vite build --config vite.room-preview.config.ts",
+    "build:character-preview": "tsc && vite build --config vite.character-preview.config.ts",
+    "build:gui-preview": "tsc && vite build --config vite.gui-preview.config.ts",
+    "build:inventory-preview": "tsc && vite build --config vite.inventory-preview.config.ts",
+    "preview": "vite preview",
+    "sync-bootstrap-down": "node scripts/switch-game-template.mjs sync-bootstrap-down",
+    "sync-template-down": "node scripts/switch-game-template.mjs sync-template-down",
+    "set-template": "node scripts/switch-game-template.mjs set-template",
+    "set-template:2-click": "node scripts/switch-game-template.mjs set-template 2-click",
+    "set-template:9-verb": "node scripts/switch-game-template.mjs set-template 9-verb"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1"
+  },
+  "dependencies": {
+    "phaser": "4.0.0-rc.7"
+  }
+}
 </file>
 
 <file path="src/editor/preview/previewPolygonOverlay.ts">
@@ -9105,6 +8870,56 @@ export type CharacterVerbInteractPayload = {
 };
 </file>
 
+<file path="src/engine/Game.ts">
+import * as Phaser from 'phaser';
+import { getGameSettings } from './ConfigManager.js';
+import { gameEvents } from './events/EventBus.js';
+import { GameStateManager, normalizeSerializedInventory } from './gameState/GameStateManager.js';
+import { BENNE_GAME_STATE_REGISTRY_KEY } from './gameState/registryKey.js';
+import { setActiveGameStateManager } from './gameState/resolveGameStateManager.js';
+import { getBennePhaserGameConfigBase } from './gameConfig.js';
+import { BootScene } from './scenes/BootScene.js';
+import { RoomScene } from './scenes/RoomScene.js';
+
+/**
+ * Full `Phaser.Types.Core.GameConfig` for the shipped runtime (scenes + shared renderer / scale
+ * settings). Kept here — not in `gameConfig.ts` — so the scene imports stay out of the editor
+ * preview bundles (see the `gameConfig.ts` module comment).
+ */
+function createGameConfig(parent: HTMLElement | string): Phaser.Types.Core.GameConfig {
+  return {
+    ...getBennePhaserGameConfigBase(parent),
+    scene: [BootScene, RoomScene],
+  };
+}
+
+/**
+ * Creates the root {@link Phaser.Game} instance (Benne engine entry).
+ * Resolution and scale mode come from `src/game/game-config.json` via {@link createGameConfig}.
+ * Registers {@link GameStateManager} on `game.registry` for cross-room state.
+ */
+export function createBenneGame(parent: HTMLElement | string): Phaser.Game {
+  const game = new Phaser.Game(createGameConfig(parent));
+  const rawInit = getGameSettings().initialGameState;
+  const initial =
+    rawInit != null
+      ? {
+          flags: rawInit.flags,
+          variables: rawInit.variables,
+          inventory:
+            rawInit.inventory !== undefined ? normalizeSerializedInventory(rawInit.inventory) : undefined,
+        }
+      : undefined;
+  const gameState = new GameStateManager(gameEvents, initial);
+  game.registry.set(BENNE_GAME_STATE_REGISTRY_KEY, gameState);
+  setActiveGameStateManager(gameState);
+  game.events.once(Phaser.Core.Events.DESTROY, () => {
+    setActiveGameStateManager(null);
+  });
+  return game;
+}
+</file>
+
 <file path="src/engine/scripting/types.ts">
 import type * as Phaser from 'phaser';
 import type { RoomScene } from '../scenes/RoomScene.js';
@@ -9175,6 +8990,77 @@ export interface GuiScriptContext {
 }
 </file>
 
+<file path="src/game/characters/hank/hank.character.json">
+{
+  "id": "hank",
+  "name": "Hank",
+  "description": "",
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 40,
+    "y": 61
+  },
+  "talkPoint": {
+    "x": 18,
+    "y": 3
+  },
+  "clickable": false,
+  "display": {
+    "aseprite": true
+  },
+  "feet": {
+    "x": 18,
+    "y": 61
+  },
+  "animations": {
+    "IdleL": {
+      "loop": true
+    },
+    "IdleD": {
+      "loop": true
+    },
+    "IdleU": {
+      "loop": true
+    },
+    "WalkL": {
+      "loop": true,
+      "frameDuration": 80
+    },
+    "WalkD": {
+      "loop": true,
+      "frameDuration": 60
+    },
+    "WalkU": {
+      "loop": true,
+      "frameDuration": 60
+    },
+    "TalkL": {
+      "loop": true
+    },
+    "TalkD": {
+      "loop": true
+    },
+    "TalkU": {
+      "loop": true
+    }
+  }
+}
+</file>
+
+<file path="src/game/characters/hank/hank.character.ts">
+import { registerCharacterScript } from '@engine/scripting';
+
+/**
+ * Character script for `hank` — self-only Bennescript (`B.whenLookAt(() => …)`).
+ * Room-scoped handlers in `*.room.ts` still run first for the same verb.
+ */
+registerCharacterScript('hank', ({ B }) => {
+  // Example: B.whenLookAt(() => { B.player.say('…'); });
+  // Delete this line when you add your first handler.
+  void B;
+});
+</file>
+
 <file path="src/game/collectFontLoadsForGui.ts">
 import type { GameFontsManifest } from '../types/fonts';
 import type { GuiData } from '../types/gui';
@@ -9233,59 +9119,6 @@ export function guiHasButtonControls(gui: GuiData): boolean {
 export function guiHasTriggerControls(gui: GuiData): boolean {
   return (gui.controls ?? []).some((c) => c.type === 'trigger');
 }
-</file>
-
-<file path="src/game/globalScript.ts">
-import { registerGlobalScript } from '@engine/scripting';
-import type { VerbGlobalFallbackPayload, VerbUnhandledPayload } from '@engine/events/verbInteractionEvents';
-
-/**
- * Handlers for events that are not tied to a single room (inventory, UI, global flags, verbs, etc.).
- *
- * Verb fallback chain (engine): object scoped handler (room/character channels) → object fallback →
- * `verb:global:<id>` → `verb:global:fallback` → `verb:unhandled`.
- */
-registerGlobalScript(({ B }) => {
-  B.whenGlobalFallback((payload: VerbGlobalFallbackPayload) => {
-    if (payload.verbId === 'use') {
-      console.log("I can't use that.");
-    } else if (payload.verbId === 'look') {
-      console.log('It looks like nothing.');
-    }
-  });
-
-  B.whenVerbUnhandled((p: VerbUnhandledPayload) => {
-    if (import.meta.env.DEV) {
-      console.info(`[Benne] verb:unhandled → "${p.fallbackLine}"`, p.target);
-    }
-  });
-});
-</file>
-
-<file path="src/game/guis/inventoryBar/inventoryBar.gui.ts">
-import { registerGuiScript } from '@engine/scripting';
-
-registerGuiScript('inventoryBar', ({ B }) => {
-  B.onGuiBuilt((gui) => {
-    const root = gui.root;
-
-    B.whenMouseEnter('hoverZone', () => {
-      root.tweenTo({ y: 0 }, 300, 'Sine.easeOut');
-    });
-
-    B.whenMouseLeave('hideZone', () => {
-      root.tweenTo({ y: -33 }, 250, 'Sine.easeIn');
-    });
-  });
-
-  B.whenButtonClick('back', () => {
-    console.log('Back button clicked');
-  });
-
-  B.whenButtonClick('Fwd', () => {
-    console.log('Forward button clicked');
-  });
-});
 </file>
 
 <file path="src/game/loadAsepriteAtlasData.ts">
@@ -9547,356 +9380,25 @@ export function getCursorAsepriteFrameTagNames(): readonly string[] {
 }
 </file>
 
-<file path="src/game/rooms/apartment/apartment.room.json">
-{
-  "id": "apartment",
-  "name": "Apartment",
-  "size": {
-    "width": 320,
-    "height": 180
-  },
-  "scrollBounds": {
-    "x": 0,
-    "y": 0,
-    "width": 320,
-    "height": 180
-  },
-  "walkable": {
-    "polygons": [
-      {
-        "id": "walk-1",
-        "active": true,
-        "points": [
-          {
-            "x": 50,
-            "y": 131
-          },
-          {
-            "x": 10,
-            "y": 171
-          },
-          {
-            "x": 39,
-            "y": 171
-          },
-          {
-            "x": 69,
-            "y": 144
-          },
-          {
-            "x": 104,
-            "y": 144
-          },
-          {
-            "x": 116,
-            "y": 159
-          },
-          {
-            "x": 83,
-            "y": 161
-          },
-          {
-            "x": 84,
-            "y": 151
-          },
-          {
-            "x": 71,
-            "y": 152
-          },
-          {
-            "x": 70,
-            "y": 171
-          },
-          {
-            "x": 304,
-            "y": 167
-          },
-          {
-            "x": 258,
-            "y": 120
-          },
-          {
-            "x": 137,
-            "y": 121
-          },
-          {
-            "x": 123,
-            "y": 131
-          }
-        ],
-        "holes": [
-          {
-            "id": "hole-1",
-            "active": true,
-            "points": [
-              {
-                "x": 151,
-                "y": 151
-              },
-              {
-                "x": 159,
-                "y": 160
-              },
-              {
-                "x": 197,
-                "y": 160
-              },
-              {
-                "x": 206,
-                "y": 152
-              },
-              {
-                "x": 198,
-                "y": 140
-              },
-              {
-                "x": 158,
-                "y": 140
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  "hotspots": [],
-  "points": [],
-  "regions": [],
-  "props": [
-    {
-      "id": "BG",
-      "tag": "BG",
-      "animations": {
-        "BG": {}
-      },
-      "zIndex": 0,
-      "visible": true,
-      "alpha": 1
-    },
-    {
-      "id": "Fan",
-      "tag": "Fan",
-      "animations": {
-        "Fan": {
-          "loop": true
-        }
-      },
-      "zIndex": 1,
-      "visible": true,
-      "alpha": 1
-    },
-    {
-      "id": "Couch",
-      "tag": "Couch",
-      "animations": {
-        "Couch": {}
-      },
-      "zIndex": 2,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 56,
-            "y": 98
-          },
-          {
-            "x": 58,
-            "y": 85
-          },
-          {
-            "x": 70,
-            "y": 83
-          },
-          {
-            "x": 122,
-            "y": 82
-          },
-          {
-            "x": 131,
-            "y": 87
-          },
-          {
-            "x": 130,
-            "y": 99
-          },
-          {
-            "x": 134,
-            "y": 102
-          },
-          {
-            "x": 135,
-            "y": 121
-          },
-          {
-            "x": 128,
-            "y": 128
-          },
-          {
-            "x": 50,
-            "y": 129
-          },
-          {
-            "x": 44,
-            "y": 109
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 101,
-        "y": 133
-      },
-      "lookAtPoint": {
-        "x": 88,
-        "y": 126
-      }
-    },
-    {
-      "id": "Door",
-      "tag": "Door",
-      "animations": {
-        "Door": {},
-        "Door-open": {}
-      },
-      "zIndex": 3,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 271,
-            "y": 63
-          },
-          {
-            "x": 293,
-            "y": 72
-          },
-          {
-            "x": 291,
-            "y": 143
-          },
-          {
-            "x": 270,
-            "y": 126
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 268,
-        "y": 133
-      },
-      "lookAtPoint": {
-        "x": 279,
-        "y": 129
-      }
-    },
-    {
-      "id": "Pillar",
-      "tag": "Pillar",
-      "animations": {
-        "Pillar": {}
-      },
-      "zIndex": 4,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 155,
-            "y": 102
-          },
-          {
-            "x": 155,
-            "y": 151
-          },
-          {
-            "x": 167,
-            "y": 159
-          },
-          {
-            "x": 195,
-            "y": 158
-          },
-          {
-            "x": 203,
-            "y": 151
-          },
-          {
-            "x": 203,
-            "y": 100
-          },
-          {
-            "x": 190,
-            "y": 94
-          },
-          {
-            "x": 164,
-            "y": 95
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 145,
-        "y": 154
-      },
-      "lookAtPoint": {
-        "x": 178,
-        "y": 154
-      }
-    }
-  ],
-  "characters": [
-    {
-      "instanceId": "hank-1",
-      "definition": "hank/hank.character.json",
-      "x": 176,
-      "y": 99,
-      "initialFacing": "L",
-      "initialAnimation": "Idle",
-      "visible": true,
-      "zIndex": 0
-    }
-  ]
-}
-</file>
+<file path="src/game/globalScript.ts">
+import { registerGlobalScript } from '@engine/scripting';
+import type { VerbGlobalFallbackPayload, VerbUnhandledPayload } from '@engine/events/verbInteractionEvents';
 
-<file path="src/game/rooms/rooms.manifest.json">
-{
-  "startRoomId": "office",
-  "rooms": [
-    {
-      "id": "apartment",
-      "definition": "apartment/apartment.room.json"
-    },
-    {
-      "id": "bathroom",
-      "definition": "bathroom/bathroom.room.json"
-    },
-    {
-      "id": "diningRoom",
-      "definition": "diningRoom/diningRoom.room.json"
-    },
-    {
-      "id": "garage",
-      "definition": "garage/garage.room.json"
-    },
-    {
-      "id": "office",
-      "definition": "office/office.room.json"
-    },
-    {
-      "id": "outside",
-      "definition": "outside/outside.room.json"
-    },
-    {
-      "id": "outsideOffice",
-      "definition": "outsideOffice/outsideOffice.room.json"
+/**
+ * 9-verb template global script placeholder. Fill in cross-room verb handling
+ * (global fallbacks, UI wiring, etc.) as the template gains content.
+ */
+registerGlobalScript(({ B }) => {
+  B.whenGlobalFallback((_payload: VerbGlobalFallbackPayload) => {
+    // No-op until the 9-verb template defines global verb fallbacks.
+  });
+
+  B.whenVerbUnhandled((p: VerbUnhandledPayload) => {
+    if (import.meta.env.DEV) {
+      console.info(`[Benne 9-verb] verb:unhandled → "${p.fallbackLine}"`, p.target);
     }
-  ]
-}
+  });
+});
 </file>
 
 <file path="src/editor/preview/RoomPolygonEditScene.ts">
@@ -11229,339 +10731,6 @@ export class RoomPolygonEditScene extends Phaser.Scene {
 }
 </file>
 
-<file path="src/engine/ConfigManager.ts">
-import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
-import type { GameSettings, GameSettingsDialog } from '../types/game';
-import rawSettings from '../game/game-config.json';
-
-const DIALOG_DEFAULTS: GameSettingsDialog = {
-  clickToSkip: false,
-  showText: true,
-  defaultTalkOffset: { x: 0, y: 0 },
-  minDurationMs: 800,
-  msPerCharacter: 35,
-  maxDurationMs: 4500,
-  durationMultiplier: 1.0,
-};
-
-function mergeDialogSettings(data: GameSettings): GameSettingsDialog {
-  const d = data.dialog;
-  if (!d) {
-    return { ...DIALOG_DEFAULTS };
-  }
-  const off = d.defaultTalkOffset;
-  return {
-    clickToSkip: d.clickToSkip ?? DIALOG_DEFAULTS.clickToSkip,
-    showText: d.showText ?? DIALOG_DEFAULTS.showText,
-    defaultTalkOffset:
-      off != null && typeof off === 'object' && Number.isFinite(off.x) && Number.isFinite(off.y)
-        ? { x: off.x, y: off.y }
-        : { ...DIALOG_DEFAULTS.defaultTalkOffset },
-    minDurationMs: d.minDurationMs ?? DIALOG_DEFAULTS.minDurationMs,
-    msPerCharacter: d.msPerCharacter ?? DIALOG_DEFAULTS.msPerCharacter,
-    maxDurationMs: d.maxDurationMs ?? DIALOG_DEFAULTS.maxDurationMs,
-    durationMultiplier: d.durationMultiplier ?? DIALOG_DEFAULTS.durationMultiplier,
-  };
-}
-
-function assertDialogSettings(data: GameSettings): void {
-  const d = data.dialog;
-  if (d === undefined) {
-    return;
-  }
-  if (typeof d !== 'object' || d === null) {
-    throw new Error('game-config dialog must be an object when present');
-  }
-  if (d.clickToSkip !== undefined && typeof d.clickToSkip !== 'boolean') {
-    throw new Error('game-config dialog.clickToSkip must be a boolean when present');
-  }
-  if (d.showText !== undefined && typeof d.showText !== 'boolean') {
-    throw new Error('game-config dialog.showText must be a boolean when present');
-  }
-  const off = d.defaultTalkOffset;
-  if (off !== undefined) {
-    if (typeof off !== 'object' || off === null) {
-      throw new Error('game-config dialog.defaultTalkOffset must be an object when present');
-    }
-    if (!Number.isFinite(off.x) || !Number.isFinite(off.y)) {
-      throw new Error('game-config dialog.defaultTalkOffset.x and .y must be finite numbers when present');
-    }
-  }
-  for (const key of ['minDurationMs', 'msPerCharacter', 'maxDurationMs', 'durationMultiplier'] as const) {
-    const v = d[key];
-    if (v !== undefined && !Number.isFinite(v)) {
-      throw new Error(`game-config dialog.${key} must be a finite number when present`);
-    }
-  }
-  const merged = mergeDialogSettings(data);
-  if (merged.minDurationMs < 0 || merged.maxDurationMs < 0 || merged.msPerCharacter < 0 || merged.durationMultiplier <= 0) {
-    throw new Error(
-      'game-config dialog: minDurationMs, maxDurationMs, and msPerCharacter must be >= 0; durationMultiplier must be > 0',
-    );
-  }
-  if (merged.minDurationMs > merged.maxDurationMs) {
-    throw new Error('game-config dialog.minDurationMs must be <= maxDurationMs');
-  }
-}
-
-function collectEffectiveVerbIds(data: GameSettings): Set<string> {
-  const ids = new Set<string>();
-  if (data.verbs !== undefined && data.verbs.length > 0) {
-    for (const v of data.verbs) {
-      ids.add(v.id);
-    }
-    return ids;
-  }
-  ids.add('look');
-  ids.add('use');
-  return ids;
-}
-
-function assertVerbSettings(data: GameSettings): void {
-  if (data.verbs !== undefined) {
-    if (!Array.isArray(data.verbs)) {
-      throw new Error('game-config verbs must be an array when present');
-    }
-    const seen = new Set<string>();
-    for (const v of data.verbs) {
-      if (typeof v !== 'object' || v === null) {
-        throw new Error('game-config each verbs entry must be an object');
-      }
-      if (typeof v.id !== 'string' || v.id.length === 0) {
-        throw new Error('game-config each verbs[].id must be a non-empty string');
-      }
-      if (seen.has(v.id)) {
-        throw new Error(`game-config duplicate verb id: ${v.id}`);
-      }
-      seen.add(v.id);
-      if (v.label !== undefined && typeof v.label !== 'string') {
-        throw new Error(`game-config verbs["${v.id}"].label must be a string when present`);
-      }
-    }
-  }
-
-  const effectiveIds = collectEffectiveVerbIds(data);
-  const ip = data.inputProfile;
-  if (ip !== undefined) {
-    if (typeof ip !== 'object' || ip === null) {
-      throw new Error('game-config inputProfile must be an object when present');
-    }
-    if (ip.kind !== 'twoVerb') {
-      throw new Error('game-config inputProfile.kind must be "twoVerb" (other profiles are not implemented yet)');
-    }
-    if (typeof ip.primaryButtonVerb !== 'string' || ip.primaryButtonVerb.length === 0) {
-      throw new Error('game-config inputProfile.primaryButtonVerb must be a non-empty string');
-    }
-    if (typeof ip.secondaryButtonVerb !== 'string' || ip.secondaryButtonVerb.length === 0) {
-      throw new Error('game-config inputProfile.secondaryButtonVerb must be a non-empty string');
-    }
-    if (!effectiveIds.has(ip.primaryButtonVerb)) {
-      throw new Error(
-        `game-config inputProfile.primaryButtonVerb "${ip.primaryButtonVerb}" must be listed in verbs (or use default look/use when verbs is omitted)`,
-      );
-    }
-    if (!effectiveIds.has(ip.secondaryButtonVerb)) {
-      throw new Error(
-        `game-config inputProfile.secondaryButtonVerb "${ip.secondaryButtonVerb}" must be listed in verbs (or use default look/use when verbs is omitted)`,
-      );
-    }
-  }
-
-  if (data.defaultFallbackLine !== undefined && typeof data.defaultFallbackLine !== 'string') {
-    throw new Error('game-config defaultFallbackLine must be a string when present');
-  }
-}
-
-function assertInitialGameState(data: GameSettings): void {
-  const init = data.initialGameState;
-  if (init === undefined) {
-    return;
-  }
-  if (typeof init !== 'object' || init === null || Array.isArray(init)) {
-    throw new Error('game-config initialGameState must be an object when present');
-  }
-  if (init.flags !== undefined) {
-    if (typeof init.flags !== 'object' || init.flags === null || Array.isArray(init.flags)) {
-      throw new Error('game-config initialGameState.flags must be a plain object when present');
-    }
-    for (const [k, v] of Object.entries(init.flags)) {
-      if (k.length === 0) {
-        throw new Error('game-config initialGameState.flags keys must be non-empty strings');
-      }
-      const ok = typeof v === 'boolean' || typeof v === 'number' || typeof v === 'string';
-      if (!ok) {
-        throw new Error(
-          `game-config initialGameState.flags["${k}"] must be a boolean, number, or string when present`,
-        );
-      }
-    }
-  }
-  if (init.variables !== undefined) {
-    if (typeof init.variables !== 'object' || init.variables === null || Array.isArray(init.variables)) {
-      throw new Error('game-config initialGameState.variables must be a plain object when present');
-    }
-  }
-  if (init.inventory !== undefined) {
-    if (Array.isArray(init.inventory)) {
-      const seen = new Set<string>();
-      for (const item of init.inventory) {
-        if (typeof item !== 'string' || item.length === 0) {
-          throw new Error('game-config initialGameState.inventory entries must be non-empty strings');
-        }
-        if (seen.has(item)) {
-          console.warn(
-            `[Benne] game-config initialGameState.inventory: duplicate "${item}" — quantities merge at runtime`,
-          );
-        }
-        seen.add(item);
-      }
-    } else if (typeof init.inventory === 'object' && init.inventory !== null && !Array.isArray(init.inventory)) {
-      for (const [k, v] of Object.entries(init.inventory as Record<string, unknown>)) {
-        if (k.length === 0) {
-          throw new Error('game-config initialGameState.inventory keys must be non-empty strings');
-        }
-        const n = typeof v === 'number' ? v : Number(v);
-        if (!Number.isFinite(n) || n < 0) {
-          throw new Error(
-            `game-config initialGameState.inventory["${k}"] must be a non-negative finite number when present`,
-          );
-        }
-      }
-    } else {
-      throw new Error(
-        'game-config initialGameState.inventory must be a string[] id list or Record<string, number> when present',
-      );
-    }
-  }
-}
-
-function assertGameSettings(data: GameSettings): void {
-  const { width, height } = data.resolution;
-  if (!Number.isFinite(width) || width < 1 || !Number.isFinite(height) || height < 1) {
-    throw new Error(`Invalid game-config resolution: ${width} x ${height}`);
-  }
-  const { masterVolume, sfxVolume, musicVolume, dialogueVolume } = data.audio;
-  for (const [key, v] of Object.entries({
-    masterVolume,
-    sfxVolume,
-    musicVolume,
-    dialogueVolume,
-  })) {
-    if (!Number.isFinite(v) || v < 0 || v > 1) {
-      throw new Error(`Invalid game-config audio.${key}: ${v} (expected 0.0–1.0)`);
-    }
-  }
-  if (typeof data.startingPlayerCharacter !== 'string' || data.startingPlayerCharacter.length === 0) {
-    throw new Error('game-config startingPlayerCharacter must be a non-empty string');
-  }
-  if (data.debug !== undefined) {
-    const d = data.debug;
-    if (typeof d !== 'object' || d === null) {
-      throw new Error('game-config debug must be an object when present');
-    }
-    for (const key of ['showWalkable', 'showPropOutlines', 'showGuiOutlines'] as const) {
-      const v = d[key];
-      if (v !== undefined && typeof v !== 'boolean') {
-        throw new Error(`game-config debug.${key} must be a boolean when present`);
-      }
-    }
-  }
-  assertInitialGameState(data);
-  assertVerbSettings(data);
-  assertDialogSettings(data);
-  assertCursorSettings(data);
-}
-
-function assertCursorSettings(data: GameSettings): void {
-  const c = data.cursor;
-  if (c === undefined) {
-    return;
-  }
-  if (typeof c !== 'object' || c === null || Array.isArray(c)) {
-    throw new Error('game-config cursor must be an object when present');
-  }
-  if (typeof c.idleAnimation !== 'string' || c.idleAnimation.trim().length === 0) {
-    throw new Error('game-config cursor.idleAnimation must be a non-empty string when cursor is set');
-  }
-  if (typeof c.activeAnimation !== 'string' || c.activeAnimation.trim().length === 0) {
-    throw new Error('game-config cursor.activeAnimation must be a non-empty string when cursor is set');
-  }
-  const anims = c.animations;
-  if (anims !== undefined) {
-    if (typeof anims !== 'object' || anims === null || Array.isArray(anims)) {
-      throw new Error('game-config cursor.animations must be a plain object when present');
-    }
-    for (const [tag, clip] of Object.entries(anims)) {
-      if (typeof tag !== 'string' || tag.length === 0) {
-        throw new Error('game-config cursor.animations keys must be non-empty strings');
-      }
-      if (typeof clip !== 'object' || clip === null || Array.isArray(clip)) {
-        throw new Error(`game-config cursor.animations["${tag}"] must be an object when present`);
-      }
-      const rec = clip as Record<string, unknown>;
-      if (rec.loop !== undefined && typeof rec.loop !== 'boolean') {
-        throw new Error(`game-config cursor.animations["${tag}"].loop must be a boolean when present`);
-      }
-      if (rec.frameDuration !== undefined && !Number.isFinite(rec.frameDuration)) {
-        throw new Error(`game-config cursor.animations["${tag}"].frameDuration must be a finite number when present`);
-      }
-    }
-  }
-  const hs = c.hotspot;
-  if (hs !== undefined) {
-    if (typeof hs !== 'string' || !isValidGameSettingsCursorHotspot(hs)) {
-      throw new Error(
-        `game-config cursor.hotspot must be one of: ${CURSOR_HOTSPOT_PRESETS.join(', ')}`,
-      );
-    }
-    if (hs === 'custom') {
-      const p = c.hotspotPixel;
-      if (p === undefined || typeof p !== 'object' || p === null || Array.isArray(p)) {
-        throw new Error('game-config cursor.hotspotPixel { x, y } is required when cursor.hotspot is "custom"');
-      }
-      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
-        throw new Error('game-config cursor.hotspotPixel.x and .y must be finite numbers when hotspot is "custom"');
-      }
-    }
-  } else if (c.hotspotPixel !== undefined) {
-    console.warn('[Benne] game-config cursor.hotspotPixel is ignored unless cursor.hotspot is "custom"');
-  }
-  const disp = c.display;
-  if (disp !== undefined) {
-    if (typeof disp !== 'object' || disp === null || Array.isArray(disp)) {
-      throw new Error('game-config cursor.display must be an object when present');
-    }
-    if (disp.aseprite !== undefined && typeof disp.aseprite !== 'boolean') {
-      throw new Error('game-config cursor.display.aseprite must be a boolean when present');
-    }
-  }
-}
-
-const settings = rawSettings as GameSettings;
-assertGameSettings(settings);
-
-/**
- * Synchronous access to `src/game/game-config.json` (bundled by Vite at build time).
- */
-export function getGameSettings(): GameSettings {
-  return settings;
-}
-
-/** Merged `dialog` values from `game-config.json` (defaults apply when the block or fields are omitted). */
-export function getDialogSettings(): GameSettingsDialog {
-  return mergeDialogSettings(settings);
-}
-
-/** How long a `.say()` line should stay on screen from {@link getDialogSettings} timing rules. */
-export function computeDialogLineDurationMs(line: string): number {
-  const dialog = mergeDialogSettings(settings);
-  const n = Array.from(line).length;
-  const scaled = n * dialog.msPerCharacter * dialog.durationMultiplier;
-  const clamped = Math.min(dialog.maxDurationMs, Math.max(dialog.minDurationMs, scaled));
-  return Math.round(clamped);
-}
-</file>
-
 <file path="src/engine/scenes/BootScene.ts">
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../applyAudioFromSettings';
@@ -12020,6 +11189,18 @@ export function registerGameContent(): void {
       console.error(`[Benne] Error in GUI script for "${guiId}":`, err);
     }
   }
+}
+</file>
+
+<file path="src/game/rooms/rooms.manifest.json">
+{
+  "startRoomId": "office",
+  "rooms": [
+    {
+      "id": "apartment",
+      "definition": "apartment/apartment.room.json"
+    }
+  ]
 }
 </file>
 
@@ -12884,109 +12065,275 @@ wireShowGuisToggle();
 vscodeApi?.postMessage({ type: 'benne/preview/ready' });
 </file>
 
-<file path="src/game/characters/henry/henry.character.json">
+<file path="src/game/rooms/apartment/apartment.room.json">
 {
-  "id": "henry",
-  "name": "Henry",
-  "description": "",
-  "walkSpeed": 88,
-  "clickable": true,
-  "display": {
-    "aseprite": true
+  "id": "apartment",
+  "name": "Apartment",
+  "size": {
+    "width": 352,
+    "height": 198
   },
-  "animations": {
-    "IdleDR": {
-      "loop": true
-    },
-    "IdleDL": {
-      "loop": true
-    },
-    "IdleL": {
-      "loop": true
-    },
-    "IdleU": {
-      "loop": true
-    },
-    "WalkDR": {
-      "loop": true
-    },
-    "WalkDL": {
-      "loop": true
-    },
-    "WalkL": {
-      "loop": true
-    },
-    "WalkU": {
-      "loop": true
-    },
-    "GrabL": {
-      "loop": true
-    },
-    "GrabU": {
-      "loop": true
-    },
-    "TalkDR": {
-      "loop": true
-    },
-    "TalkDL": {
-      "loop": true
-    },
-    "TalkL": {
-      "loop": true
-    },
-    "TalkU": {
-      "loop": true
-    },
-    "IdleD": {
-      "loop": true
-    },
-    "WalkD": {
-      "loop": true
-    },
-    "TalkD": {
-      "loop": true
-    }
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 352,
+    "height": 198
   },
-  "feet": {
-    "x": 18,
-    "y": 64
-  },
-  "walkToPoint": {
-    "x": -11,
-    "y": 61
-  },
-  "talkPoint": {
-    "x": 17,
-    "y": 0
-  },
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
-  "collider": {
-    "points": [
+  "walkable": {
+    "polygons": [
       {
-        "x": 6,
-        "y": 2
-      },
-      {
-        "x": 17,
-        "y": 0
-      },
-      {
-        "x": 30,
-        "y": 2
-      },
-      {
-        "x": 31,
-        "y": 63
-      },
-      {
-        "x": 5,
-        "y": 63
+        "id": "walk-1",
+        "active": true,
+        "points": [
+          {
+            "x": 67,
+            "y": 117
+          },
+          {
+            "x": 33,
+            "y": 151
+          },
+          {
+            "x": 321,
+            "y": 150
+          },
+          {
+            "x": 277,
+            "y": 107
+          },
+          {
+            "x": 153,
+            "y": 108
+          },
+          {
+            "x": 146,
+            "y": 117
+          }
+        ],
+        "holes": [
+          {
+            "id": "hole-1",
+            "active": true,
+            "points": [
+              {
+                "x": 169,
+                "y": 138
+              },
+              {
+                "x": 178,
+                "y": 145
+              },
+              {
+                "x": 214,
+                "y": 145
+              },
+              {
+                "x": 224,
+                "y": 138
+              },
+              {
+                "x": 212,
+                "y": 130
+              },
+              {
+                "x": 177,
+                "y": 129
+              }
+            ]
+          }
+        ]
       }
     ]
-  }
+  },
+  "hotspots": [],
+  "points": [],
+  "regions": [],
+  "props": [
+    {
+      "id": "BG",
+      "tag": "BG",
+      "animations": {
+        "BG": {}
+      },
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Couch",
+      "tag": "Couch",
+      "animations": {
+        "Couch": {}
+      },
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 66,
+            "y": 117
+          },
+          {
+            "x": 60,
+            "y": 96
+          },
+          {
+            "x": 71,
+            "y": 85
+          },
+          {
+            "x": 71,
+            "y": 74
+          },
+          {
+            "x": 82,
+            "y": 68
+          },
+          {
+            "x": 147,
+            "y": 69
+          },
+          {
+            "x": 151,
+            "y": 109
+          },
+          {
+            "x": 146,
+            "y": 117
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 125,
+        "y": 123
+      },
+      "lookAtPoint": {
+        "x": 108,
+        "y": 113
+      }
+    },
+    {
+      "id": "Door",
+      "tag": "Door",
+      "animations": {
+        "Door": {},
+        "Door-open": {}
+      },
+      "zIndex": 3,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 289,
+            "y": 51
+          },
+          {
+            "x": 309,
+            "y": 60
+          },
+          {
+            "x": 307,
+            "y": 132
+          },
+          {
+            "x": 287,
+            "y": 114
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 286,
+        "y": 124
+      },
+      "lookAtPoint": {
+        "x": 297,
+        "y": 115
+      }
+    },
+    {
+      "id": "Pillar",
+      "tag": "Pillar",
+      "animations": {
+        "Pillar": {}
+      },
+      "zIndex": 50,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 171,
+            "y": 90
+          },
+          {
+            "x": 180,
+            "y": 81
+          },
+          {
+            "x": 209,
+            "y": 81
+          },
+          {
+            "x": 220,
+            "y": 88
+          },
+          {
+            "x": 219,
+            "y": 138
+          },
+          {
+            "x": 213,
+            "y": 145
+          },
+          {
+            "x": 175,
+            "y": 144
+          },
+          {
+            "x": 171,
+            "y": 138
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 157,
+        "y": 141
+      },
+      "lookAtPoint": {
+        "x": 194,
+        "y": 141
+      }
+    },
+    {
+      "id": "Fan",
+      "tag": "Fan",
+      "animations": {
+        "Fan": {
+          "loop": true
+        }
+      },
+      "zIndex": 5,
+      "visible": true,
+      "alpha": 1
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 106,
+      "y": 136,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 40
+    }
+  ]
 }
 </file>
 
@@ -13380,371 +12727,355 @@ export function createGuiPreviewPhaserGame(
 }
 </file>
 
-<file path="src/types/game.ts">
-import type { CharacterAnimationsConfig } from './character';
-import type { BenneGameStateFlagValue } from './gameState';
+<file path="src/engine/ConfigManager.ts">
+import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
+import type { GameSettings, GameSettingsDialog } from '../types/game';
+import { DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbs/verbConfig';
+import rawSettings from '../game/game-config.json';
 
-export interface RoomManifestEntry {
-  id: string;
-  definition: string;
+const DIALOG_DEFAULTS: GameSettingsDialog = {
+  clickToSkip: false,
+  showText: true,
+  defaultTalkOffset: { x: 0, y: 0 },
+  minDurationMs: 800,
+  msPerCharacter: 35,
+  maxDurationMs: 4500,
+  durationMultiplier: 1.0,
+};
+
+function mergeDialogSettings(data: GameSettings): GameSettingsDialog {
+  const d = data.dialog;
+  if (!d) {
+    return { ...DIALOG_DEFAULTS };
+  }
+  const off = d.defaultTalkOffset;
+  return {
+    clickToSkip: d.clickToSkip ?? DIALOG_DEFAULTS.clickToSkip,
+    showText: d.showText ?? DIALOG_DEFAULTS.showText,
+    defaultTalkOffset:
+      off != null && typeof off === 'object' && Number.isFinite(off.x) && Number.isFinite(off.y)
+        ? { x: off.x, y: off.y }
+        : { ...DIALOG_DEFAULTS.defaultTalkOffset },
+    minDurationMs: d.minDurationMs ?? DIALOG_DEFAULTS.minDurationMs,
+    msPerCharacter: d.msPerCharacter ?? DIALOG_DEFAULTS.msPerCharacter,
+    maxDurationMs: d.maxDurationMs ?? DIALOG_DEFAULTS.maxDurationMs,
+    durationMultiplier: d.durationMultiplier ?? DIALOG_DEFAULTS.durationMultiplier,
+  };
 }
 
-export interface RoomsManifestData {
-  startRoomId: string;
-  rooms: RoomManifestEntry[];
-}
-
-/** Optional starting slice for {@link import('../engine/gameState/GameStateManager.js').GameStateManager}. */
-export interface GameSettingsInitialGameState {
-  flags?: Record<string, BenneGameStateFlagValue>;
-  variables?: Record<string, unknown>;
-  /**
-   * Starting inventory: either unique id list (legacy; each becomes quantity 1) or id → quantity map.
-   */
-  inventory?: string[] | Record<string, number>;
-}
-
-/** Loaded from `src/game/game-config.json` (authoritative game bootstrap settings). */
-export interface GameSettingsResolution {
-  width: number;
-  height: number;
-}
-
-export interface GameSettingsAudio {
-  masterVolume: number;
-  sfxVolume: number;
-  musicVolume: number;
-  dialogueVolume: number;
-}
-
-export interface GameSettingsDebug {
-  /** When true, stroke walkable polygons in the room scene (distinct color from prop colliders). */
-  showWalkable?: boolean;
-  /** When true, stroke prop `collider` polygons for props that define one. */
-  showPropOutlines?: boolean;
-  /** When true, stroke each slot rectangle in GUI `inventoryPanel` controls (no default slot fills). */
-  showGuiOutlines?: boolean;
-}
-
-/** Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults. */
-export interface GameSettingsDialog {
-  /**
-   * Default for timed Bennescript `.say` / `.say.now` lines when the call omits **`clickToSkip`** in the options object.
-   * When true, a **left**-click ends the line early (same cleanup as the timer). Per-line overrides:
-   * `say('…', { clickToSkip: false })` always disables skip; `say('…', { clickToSkip: true })` always enables skip even
-   * when this global flag is false.
-   */
-  clickToSkip: boolean;
-  /** When false, `.say()` timing still runs but no dialog-text GUI (reserved for future spoken-only lines). */
-  showText: boolean;
-  /** Extra offset in **game canvas pixels** (same space as GUI `controls[].x` / `y`) applied after projecting the character `talkPoint`. */
-  defaultTalkOffset: { x: number; y: number };
-  minDurationMs: number;
-  msPerCharacter: number;
-  maxDurationMs: number;
-  durationMultiplier: number;
-}
-
-/** One verb the game exposes (ids power `onVerb`, `inputProfile`, and global handler events). */
-export interface GameVerbDefinition {
-  /** Stable id used in room JSON (`onVerb`), `inputProfile`, and scripts. */
-  id: string;
-  /** Optional label for future in-game verb UIs. */
-  label?: string;
-}
-
-/**
- * Map primary / secondary mouse buttons to verb ids (classic “2 verb” adventures).
- * Primary is usually the left button, secondary the right (see `RoomScene` + Phaser pointer).
- */
-export interface VerbInputProfileTwoVerb {
-  kind: 'twoVerb';
-  /** Verb for the primary (typically left) mouse button. */
-  primaryButtonVerb: string;
-  /** Verb for the secondary (typically right) mouse button. */
-  secondaryButtonVerb: string;
-}
-
-/** How input selects the verb before an interaction is resolved (extensible for 9-verb UI later). */
-export type VerbInputProfile = VerbInputProfileTwoVerb;
-
-/**
- * Central game configuration (not Phaser’s `GameConfig`).
- * Add optional fields here as the engine grows (language, shaders, accessibility, etc.).
- */
-export interface GameSettings {
-  resolution: GameSettingsResolution;
-  /** Folder name under `src/game/characters/` for the default player character. */
-  startingPlayerCharacter: string;
-  /**
-   * Which room id to load first. When set, overrides `startRoomId` in `rooms.manifest.json`.
-   * When omitted, the manifest value is used.
-   */
-  startingRoomId?: string;
-  audio: GameSettingsAudio;
-  /** Editor / QA toggles (polygon overlays, etc.). */
-  debug?: GameSettingsDebug;
-  /**
-   * Declared verbs for this game. When omitted, the engine assumes `look` and `use` (see architecture).
-   */
-  verbs?: GameVerbDefinition[];
-  /**
-   * How pointer input maps to a verb before dispatch. When omitted, defaults to left → `look`, right → `use`
-   * (unless `verbs` overrides ids and you must set an explicit `inputProfile`).
-   */
-  inputProfile?: VerbInputProfile;
-  /**
-   * Suggested line when no handler handles the verb; emitted on the `verb:unhandled` bus event.
-   */
-  defaultFallbackLine?: string;
-  /** In-game dialog line timing and `dialog-text` GUI placement (see `getDialogSettings()`). */
-  dialog?: Partial<GameSettingsDialog>;
-  /** Starting flags, variables, and inventory merged at game creation (see `GameStateManager`). */
-  initialGameState?: GameSettingsInitialGameState;
-  /**
-   * Optional custom pointer art from `src/game/assets/images/cursor/cursor.png` + `cursor.json`
-   * (Aseprite export). Uses the same `animations` / clip keys pattern as `*.character.json`.
-   */
-  cursor?: GameSettingsCursor;
-}
-
-/** `game-config.json` `cursor.display` block (Aseprite sheet only for now). */
-export interface GameSettingsCursorDisplay {
-  /** When true, load the bundled `images/cursor/cursor` Aseprite sheet. */
-  aseprite?: boolean;
-}
-
-/**
- * Where the logical pointer tip sits on the cursor art (Phaser `setOrigin` fractions, except
- * **`custom`**, which uses {@link GameSettingsCursor.hotspotPixel} from the sprite top-left).
- */
-export type GameSettingsCursorHotspot =
-  | 'top-left'
-  | 'top-center'
-  | 'top-right'
-  | 'center-left'
-  | 'center'
-  | 'center-right'
-  | 'bottom-left'
-  | 'bottom-center'
-  | 'bottom-right'
-  | 'custom';
-
-/**
- * `game-config.json` `cursor` block — same shape as `*.character.json` clip tuning: keys in
- * {@link GameSettingsCursor.animations} are Aseprite frame tag names; {@link GameSettingsCursor.idleAnimation} /
- * {@link GameSettingsCursor.activeAnimation} pick which tags drive the two pointer states.
- */
-export interface GameSettingsCursor {
-  /** Aseprite tag (Phaser animation key) when the pointer is not over a clickable target. */
-  idleAnimation: string;
-  /** Aseprite tag when the pointer is over a prop, hotspot, clickable character, or GUI button. */
-  activeAnimation: string;
-  /** Optional per-tag `loop` / `frameDuration` / `events` (same as character `animations`). */
-  animations?: CharacterAnimationsConfig;
-  /**
-   * Which point on the cursor sprite tracks the hardware pointer. Defaults to **`top-left`**
-   * (Phaser origin `0,0`). Use **`custom`** with {@link GameSettingsCursor.hotspotPixel}.
-   */
-  hotspot?: GameSettingsCursorHotspot;
-  /**
-   * Pixel offset from the sprite’s **top-left** to the pointer hotspot (logical click position).
-   * Required when {@link GameSettingsCursor.hotspot} is **`custom`** (ignored for named presets).
-   */
-  hotspotPixel?: { x: number; y: number };
-  display?: GameSettingsCursorDisplay;
-}
-</file>
-
-<file path="src/game/guis/inventoryBar/inventoryBar.gui.json">
-{
-  "id": "inventoryBar",
-  "name": "Inventory Bar",
-  "description": "Main inventory bar displayed on screen",
-  "visible": true,
-  "y": -33,
-  "display": {
-    "aseprite": true
-  },
-  "fixedControls": [
-    "hoverZone",
-    "hideZone"
-  ],
-  "controls": [
-    {
-      "type": "inventoryPanel",
-      "id": "mainInv",
-      "x": 10,
-      "y": 2,
-      "zIndex": 175,
-      "visible": true,
-      "rows": 1,
-      "cols": 6,
-      "slotWidth": 38,
-      "slotHeight": 30,
-      "spacingX": 2,
-      "spacingY": 2,
-      "scrollDirection": "horizontal",
-      "backButton": "back",
-      "forwardButton": "Fwd",
-      "itemScale": 1,
-      "showEmptySlots": true,
-      "backgroundTag": "",
-      "backgroundAnchor": "screen"
-    },
-    {
-      "type": "button",
-      "id": "back",
-      "x": 2,
-      "y": 10,
-      "width": 6,
-      "height": 13,
-      "visible": true,
-      "text": "",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": 0,
-      "backgroundTag": "BackBtn",
-      "zIndex": 200,
-      "backgroundAnchor": "screen"
-    },
-    {
-      "type": "button",
-      "id": "Fwd",
-      "x": 250,
-      "y": 10,
-      "width": 6,
-      "height": 13,
-      "visible": true,
-      "backgroundAnchor": "screen",
-      "text": "",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": 0,
-      "backgroundTag": "FwBtn",
-      "zIndex": 300
-    },
-    {
-      "type": "image",
-      "id": "imageTest",
-      "visible": true,
-      "x": 0,
-      "y": 0,
-      "zIndex": 150,
-      "tag": "InvBG"
-    },
-    {
-      "type": "trigger",
-      "id": "hoverZone",
-      "x": 0,
-      "y": 0,
-      "width": 50,
-      "height": 10,
-      "visible": true
-    },
-    {
-      "type": "trigger",
-      "id": "hideZone",
-      "x": 0,
-      "y": 0,
-      "width": 258,
-      "height": 34,
-      "visible": true
+function assertDialogSettings(data: GameSettings): void {
+  const d = data.dialog;
+  if (d === undefined) {
+    return;
+  }
+  if (typeof d !== 'object' || d === null) {
+    throw new Error('game-config dialog must be an object when present');
+  }
+  if (d.clickToSkip !== undefined && typeof d.clickToSkip !== 'boolean') {
+    throw new Error('game-config dialog.clickToSkip must be a boolean when present');
+  }
+  if (d.showText !== undefined && typeof d.showText !== 'boolean') {
+    throw new Error('game-config dialog.showText must be a boolean when present');
+  }
+  const off = d.defaultTalkOffset;
+  if (off !== undefined) {
+    if (typeof off !== 'object' || off === null) {
+      throw new Error('game-config dialog.defaultTalkOffset must be an object when present');
     }
-  ]
+    if (!Number.isFinite(off.x) || !Number.isFinite(off.y)) {
+      throw new Error('game-config dialog.defaultTalkOffset.x and .y must be finite numbers when present');
+    }
+  }
+  for (const key of ['minDurationMs', 'msPerCharacter', 'maxDurationMs', 'durationMultiplier'] as const) {
+    const v = d[key];
+    if (v !== undefined && !Number.isFinite(v)) {
+      throw new Error(`game-config dialog.${key} must be a finite number when present`);
+    }
+  }
+  const merged = mergeDialogSettings(data);
+  if (merged.minDurationMs < 0 || merged.maxDurationMs < 0 || merged.msPerCharacter < 0 || merged.durationMultiplier <= 0) {
+    throw new Error(
+      'game-config dialog: minDurationMs, maxDurationMs, and msPerCharacter must be >= 0; durationMultiplier must be > 0',
+    );
+  }
+  if (merged.minDurationMs > merged.maxDurationMs) {
+    throw new Error('game-config dialog.minDurationMs must be <= maxDurationMs');
+  }
 }
-</file>
 
-<file path="src/types/character.ts">
-import type { Point2 } from './room';
+function collectEffectiveVerbIds(data: GameSettings): Set<string> {
+  const ids = new Set<string>();
+  if (data.verbs !== undefined && data.verbs.length > 0) {
+    for (const v of data.verbs) {
+      ids.add(v.id);
+    }
+    return ids;
+  }
+  ids.add('look');
+  ids.add('use');
+  return ids;
+}
+
+function assertVerbSettings(data: GameSettings): void {
+  if (data.verbs !== undefined) {
+    if (!Array.isArray(data.verbs)) {
+      throw new Error('game-config verbs must be an array when present');
+    }
+    const seen = new Set<string>();
+    for (const v of data.verbs) {
+      if (typeof v !== 'object' || v === null) {
+        throw new Error('game-config each verbs entry must be an object');
+      }
+      if (typeof v.id !== 'string' || v.id.length === 0) {
+        throw new Error('game-config each verbs[].id must be a non-empty string');
+      }
+      if (v.id === WALK_TO_VERB_ID) {
+        throw new Error(
+          `game-config verbs[] may not declare "${WALK_TO_VERB_ID}" — it is a reserved built-in verb id`,
+        );
+      }
+      if (v.id === DEFAULT_VERB_TOKEN) {
+        throw new Error(
+          `game-config verbs[] may not declare "${DEFAULT_VERB_TOKEN}" — it is a reserved inputProfile token`,
+        );
+      }
+      if (seen.has(v.id)) {
+        throw new Error(`game-config duplicate verb id: ${v.id}`);
+      }
+      seen.add(v.id);
+      if (v.label !== undefined && typeof v.label !== 'string') {
+        throw new Error(`game-config verbs["${v.id}"].label must be a string when present`);
+      }
+      if (v.preposition !== undefined && typeof v.preposition !== 'string') {
+        throw new Error(`game-config verbs["${v.id}"].preposition must be a string when present`);
+      }
+    }
+  }
+
+  const effectiveIds = collectEffectiveVerbIds(data);
+  const isValidSlotValue = (value: string): boolean =>
+    value === WALK_TO_VERB_ID || value === DEFAULT_VERB_TOKEN || effectiveIds.has(value);
+
+  const ip = data.inputProfile;
+  if (ip !== undefined) {
+    if (typeof ip !== 'object' || ip === null) {
+      throw new Error('game-config inputProfile must be an object when present');
+    }
+    if ('kind' in ip) {
+      throw new Error(
+        'game-config inputProfile.kind is no longer supported — remove the field (the profile is flat `primaryButtonVerb` / `secondaryButtonVerb`)',
+      );
+    }
+    if (typeof ip.primaryButtonVerb !== 'string' || ip.primaryButtonVerb.length === 0) {
+      throw new Error('game-config inputProfile.primaryButtonVerb must be a non-empty string');
+    }
+    if (typeof ip.secondaryButtonVerb !== 'string' || ip.secondaryButtonVerb.length === 0) {
+      throw new Error('game-config inputProfile.secondaryButtonVerb must be a non-empty string');
+    }
+    if (!isValidSlotValue(ip.primaryButtonVerb)) {
+      throw new Error(
+        `game-config inputProfile.primaryButtonVerb "${ip.primaryButtonVerb}" must be listed in verbs, or one of "${WALK_TO_VERB_ID}" / "${DEFAULT_VERB_TOKEN}"`,
+      );
+    }
+    if (!isValidSlotValue(ip.secondaryButtonVerb)) {
+      throw new Error(
+        `game-config inputProfile.secondaryButtonVerb "${ip.secondaryButtonVerb}" must be listed in verbs, or one of "${WALK_TO_VERB_ID}" / "${DEFAULT_VERB_TOKEN}"`,
+      );
+    }
+  }
+
+  if (data.defaultFallbackLine !== undefined && typeof data.defaultFallbackLine !== 'string') {
+    throw new Error('game-config defaultFallbackLine must be a string when present');
+  }
+}
+
+function assertInitialGameState(data: GameSettings): void {
+  const init = data.initialGameState;
+  if (init === undefined) {
+    return;
+  }
+  if (typeof init !== 'object' || init === null || Array.isArray(init)) {
+    throw new Error('game-config initialGameState must be an object when present');
+  }
+  if (init.flags !== undefined) {
+    if (typeof init.flags !== 'object' || init.flags === null || Array.isArray(init.flags)) {
+      throw new Error('game-config initialGameState.flags must be a plain object when present');
+    }
+    for (const [k, v] of Object.entries(init.flags)) {
+      if (k.length === 0) {
+        throw new Error('game-config initialGameState.flags keys must be non-empty strings');
+      }
+      const ok = typeof v === 'boolean' || typeof v === 'number' || typeof v === 'string';
+      if (!ok) {
+        throw new Error(
+          `game-config initialGameState.flags["${k}"] must be a boolean, number, or string when present`,
+        );
+      }
+    }
+  }
+  if (init.variables !== undefined) {
+    if (typeof init.variables !== 'object' || init.variables === null || Array.isArray(init.variables)) {
+      throw new Error('game-config initialGameState.variables must be a plain object when present');
+    }
+  }
+  if (init.inventory !== undefined) {
+    if (Array.isArray(init.inventory)) {
+      const seen = new Set<string>();
+      for (const item of init.inventory) {
+        if (typeof item !== 'string' || item.length === 0) {
+          throw new Error('game-config initialGameState.inventory entries must be non-empty strings');
+        }
+        if (seen.has(item)) {
+          console.warn(
+            `[Benne] game-config initialGameState.inventory: duplicate "${item}" — quantities merge at runtime`,
+          );
+        }
+        seen.add(item);
+      }
+    } else if (typeof init.inventory === 'object' && init.inventory !== null && !Array.isArray(init.inventory)) {
+      for (const [k, v] of Object.entries(init.inventory as Record<string, unknown>)) {
+        if (k.length === 0) {
+          throw new Error('game-config initialGameState.inventory keys must be non-empty strings');
+        }
+        const n = typeof v === 'number' ? v : Number(v);
+        if (!Number.isFinite(n) || n < 0) {
+          throw new Error(
+            `game-config initialGameState.inventory["${k}"] must be a non-negative finite number when present`,
+          );
+        }
+      }
+    } else {
+      throw new Error(
+        'game-config initialGameState.inventory must be a string[] id list or Record<string, number> when present',
+      );
+    }
+  }
+}
+
+function assertGameSettings(data: GameSettings): void {
+  const { width, height } = data.resolution;
+  if (!Number.isFinite(width) || width < 1 || !Number.isFinite(height) || height < 1) {
+    throw new Error(`Invalid game-config resolution: ${width} x ${height}`);
+  }
+  const { masterVolume, sfxVolume, musicVolume, dialogueVolume } = data.audio;
+  for (const [key, v] of Object.entries({
+    masterVolume,
+    sfxVolume,
+    musicVolume,
+    dialogueVolume,
+  })) {
+    if (!Number.isFinite(v) || v < 0 || v > 1) {
+      throw new Error(`Invalid game-config audio.${key}: ${v} (expected 0.0–1.0)`);
+    }
+  }
+  if (typeof data.startingPlayerCharacter !== 'string' || data.startingPlayerCharacter.length === 0) {
+    throw new Error('game-config startingPlayerCharacter must be a non-empty string');
+  }
+  if (data.debug !== undefined) {
+    const d = data.debug;
+    if (typeof d !== 'object' || d === null) {
+      throw new Error('game-config debug must be an object when present');
+    }
+    for (const key of ['showWalkable', 'showPropOutlines', 'showGuiOutlines'] as const) {
+      const v = d[key];
+      if (v !== undefined && typeof v !== 'boolean') {
+        throw new Error(`game-config debug.${key} must be a boolean when present`);
+      }
+    }
+  }
+  assertInitialGameState(data);
+  assertVerbSettings(data);
+  assertDialogSettings(data);
+  assertCursorSettings(data);
+}
+
+function assertCursorSettings(data: GameSettings): void {
+  const c = data.cursor;
+  if (c === undefined) {
+    return;
+  }
+  if (typeof c !== 'object' || c === null || Array.isArray(c)) {
+    throw new Error('game-config cursor must be an object when present');
+  }
+  if (typeof c.idleAnimation !== 'string' || c.idleAnimation.trim().length === 0) {
+    throw new Error('game-config cursor.idleAnimation must be a non-empty string when cursor is set');
+  }
+  if (typeof c.activeAnimation !== 'string' || c.activeAnimation.trim().length === 0) {
+    throw new Error('game-config cursor.activeAnimation must be a non-empty string when cursor is set');
+  }
+  const anims = c.animations;
+  if (anims !== undefined) {
+    if (typeof anims !== 'object' || anims === null || Array.isArray(anims)) {
+      throw new Error('game-config cursor.animations must be a plain object when present');
+    }
+    for (const [tag, clip] of Object.entries(anims)) {
+      if (typeof tag !== 'string' || tag.length === 0) {
+        throw new Error('game-config cursor.animations keys must be non-empty strings');
+      }
+      if (typeof clip !== 'object' || clip === null || Array.isArray(clip)) {
+        throw new Error(`game-config cursor.animations["${tag}"] must be an object when present`);
+      }
+      const rec = clip as Record<string, unknown>;
+      if (rec.loop !== undefined && typeof rec.loop !== 'boolean') {
+        throw new Error(`game-config cursor.animations["${tag}"].loop must be a boolean when present`);
+      }
+      if (rec.frameDuration !== undefined && !Number.isFinite(rec.frameDuration)) {
+        throw new Error(`game-config cursor.animations["${tag}"].frameDuration must be a finite number when present`);
+      }
+    }
+  }
+  const hs = c.hotspot;
+  if (hs !== undefined) {
+    if (typeof hs !== 'string' || !isValidGameSettingsCursorHotspot(hs)) {
+      throw new Error(
+        `game-config cursor.hotspot must be one of: ${CURSOR_HOTSPOT_PRESETS.join(', ')}`,
+      );
+    }
+    if (hs === 'custom') {
+      const p = c.hotspotPixel;
+      if (p === undefined || typeof p !== 'object' || p === null || Array.isArray(p)) {
+        throw new Error('game-config cursor.hotspotPixel { x, y } is required when cursor.hotspot is "custom"');
+      }
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+        throw new Error('game-config cursor.hotspotPixel.x and .y must be finite numbers when hotspot is "custom"');
+      }
+    }
+  } else if (c.hotspotPixel !== undefined) {
+    console.warn('[Benne] game-config cursor.hotspotPixel is ignored unless cursor.hotspot is "custom"');
+  }
+  const disp = c.display;
+  if (disp !== undefined) {
+    if (typeof disp !== 'object' || disp === null || Array.isArray(disp)) {
+      throw new Error('game-config cursor.display must be an object when present');
+    }
+    if (disp.aseprite !== undefined && typeof disp.aseprite !== 'boolean') {
+      throw new Error('game-config cursor.display.aseprite must be a boolean when present');
+    }
+  }
+}
+
+const settings = rawSettings as GameSettings;
+assertGameSettings(settings);
 
 /**
- * Frame-synced marker from character JSON (footsteps, SFX hooks, dialogue beats, etc.).
+ * Synchronous access to `src/game/game-config.json` (bundled by Vite at build time).
  */
-export interface CharacterAnimationFrameEvent {
-  /** 0-based index within the Aseprite tag / Phaser animation sequence. */
-  frame: number;
-  type: string;
-  data?: unknown;
+export function getGameSettings(): GameSettings {
+  return settings;
 }
 
-/**
- * Per-tag animation policy (keys match Aseprite frame tag names, e.g. `WalkL`, `IdleD`).
- */
-export interface CharacterAnimationClipConfig {
-  /** When true, repeat forever (`repeat: -1` in Phaser). When false or omitted, play once. */
-  loop?: boolean;
-  /**
-   * Milliseconds each frame is shown (uniform for this tag). Applied to every frame in the clip.
-   * When omitted, keeps per-frame durations from the Aseprite export.
-   */
-  frameDuration?: number;
-  events?: CharacterAnimationFrameEvent[];
-  // Future: pingPong?: boolean; reverse?: boolean;
+/** Merged `dialog` values from `game-config.json` (defaults apply when the block or fields are omitted). */
+export function getDialogSettings(): GameSettingsDialog {
+  return mergeDialogSettings(settings);
 }
 
-export type CharacterAnimationsConfig = Record<string, CharacterAnimationClipConfig>;
-
-/** Facing suffix on directional clips (`IdleL`, `WalkDR`, …). */
-export type CharacterFacingLetter = 'L' | 'R' | 'U' | 'D' | 'UL' | 'UR' | 'DL' | 'DR';
-
-/**
- * Character template loaded from `src/game/characters/` as `*.character.json` files.
- */
-export interface CharacterDisplayData {
-  /**
-   * Static portrait / NPC image under `src/game/assets/`.
-   * Required when `aseprite` is not true.
-   */
-  defaultImage?: string;
-  /**
-   * When true, loads `images/characters/<characterId>/<characterId>.png` and `.json` (Aseprite sheet export).
-   */
-  aseprite?: boolean;
-}
-
-export interface CharacterData {
-  id: string;
-  name: string;
-  description: string;
-  /**
-   * Ground contact in **texture / frame pixel space**: from the top-left of each cel to the feet
-   * (Y increases downward). When omitted, the engine uses the bottom-centre of the current frame.
-   */
-  feet?: { x: number; y: number };
-  /**
-   * Click hit area in **texture / frame pixel space** (same origin as `feet`). When omitted and the
-   * character is clickable, the full sprite rectangle is used. Requires at least three vertices.
-   */
-  collider?: { points: { x: number; y: number }[] };
-  /**
-   * Optional stand position in **texture / frame pixel space** (same origin as `feet`).
-   * World stand = sprite position + this offset. Used when scripts call `walkTo('<this id>')` targeting
-   * this character, or when resolving another walker’s target to this character — same idea as prop `walkToPoint`.
-   */
-  walkToPoint?: Point2;
-  /**
-   * Optional “face / dialogue” point in **texture / frame pixel space** (same origin as `feet`).
-   * World position = sprite position + offset. Verb payloads expose this as **world** `talkPoint`
-   * for scripts (similar role to prop `lookAtPoint` in room space).
-   */
-  talkPoint?: Point2;
-  /** Game pixels per second when walking (used when movement is implemented). */
-  walkSpeed: number;
-  clickable: boolean;
-  display: CharacterDisplayData;
-  /** Optional per Aseprite-tag playback (keys must match `meta.frameTags` on `images/characters/<id>/<id>.json`). */
-  animations?: CharacterAnimationsConfig;
-  /** Supported verbs for this character definition (keys match `game-config.json` `verbs[].id`). */
-  onVerb?: Record<string, boolean>;
-  /** Enables character fallback dispatch when no supported verb matches. */
-  onVerbFallback?: boolean;
+/** How long a `.say()` line should stay on screen from {@link getDialogSettings} timing rules. */
+export function computeDialogLineDurationMs(line: string): number {
+  const dialog = mergeDialogSettings(settings);
+  const n = Array.from(line).length;
+  const scaled = n * dialog.msPerCharacter * dialog.durationMultiplier;
+  const clamped = Math.min(dialog.maxDurationMs, Math.max(dialog.minDurationMs, scaled));
+  return Math.round(clamped);
 }
 </file>
 
@@ -14237,6 +13568,292 @@ export class BenneScript extends BenneScriptCore {
 }
 </file>
 
+<file path="src/types/character.ts">
+import type { Point2 } from './room';
+
+/**
+ * Frame-synced marker from character JSON (footsteps, SFX hooks, dialogue beats, etc.).
+ */
+export interface CharacterAnimationFrameEvent {
+  /** 0-based index within the Aseprite tag / Phaser animation sequence. */
+  frame: number;
+  type: string;
+  data?: unknown;
+}
+
+/**
+ * Per-tag animation policy (keys match Aseprite frame tag names, e.g. `WalkL`, `IdleD`).
+ */
+export interface CharacterAnimationClipConfig {
+  /** When true, repeat forever (`repeat: -1` in Phaser). When false or omitted, play once. */
+  loop?: boolean;
+  /**
+   * Milliseconds each frame is shown (uniform for this tag). Applied to every frame in the clip.
+   * When omitted, keeps per-frame durations from the Aseprite export.
+   */
+  frameDuration?: number;
+  events?: CharacterAnimationFrameEvent[];
+  // Future: pingPong?: boolean; reverse?: boolean;
+}
+
+export type CharacterAnimationsConfig = Record<string, CharacterAnimationClipConfig>;
+
+/** Facing suffix on directional clips (`IdleL`, `WalkDR`, …). */
+export type CharacterFacingLetter = 'L' | 'R' | 'U' | 'D' | 'UL' | 'UR' | 'DL' | 'DR';
+
+/**
+ * Character template loaded from `src/game/characters/` as `*.character.json` files.
+ */
+export interface CharacterDisplayData {
+  /**
+   * Static portrait / NPC image under `src/game/assets/`.
+   * Required when `aseprite` is not true.
+   */
+  defaultImage?: string;
+  /**
+   * When true, loads `images/characters/<characterId>/<characterId>.png` and `.json` (Aseprite sheet export).
+   */
+  aseprite?: boolean;
+}
+
+export interface CharacterData {
+  id: string;
+  name: string;
+  description: string;
+  /**
+   * Ground contact in **texture / frame pixel space**: from the top-left of each cel to the feet
+   * (Y increases downward). When omitted, the engine uses the bottom-centre of the current frame.
+   */
+  feet?: { x: number; y: number };
+  /**
+   * Click hit area in **texture / frame pixel space** (same origin as `feet`). When omitted and the
+   * character is clickable, the full sprite rectangle is used. Requires at least three vertices.
+   */
+  collider?: { points: { x: number; y: number }[] };
+  /**
+   * Optional stand position in **texture / frame pixel space** (same origin as `feet`).
+   * World stand = sprite position + this offset. Used when scripts call `walkTo('<this id>')` targeting
+   * this character, or when resolving another walker’s target to this character — same idea as prop `walkToPoint`.
+   */
+  walkToPoint?: Point2;
+  /**
+   * Optional “face / dialogue” point in **texture / frame pixel space** (same origin as `feet`).
+   * World position = sprite position + offset. Verb payloads expose this as **world** `talkPoint`
+   * for scripts (similar role to prop `lookAtPoint` in room space).
+   */
+  talkPoint?: Point2;
+  /** Game pixels per second when walking (used when movement is implemented). */
+  walkSpeed: number;
+  clickable: boolean;
+  display: CharacterDisplayData;
+  /** Optional per Aseprite-tag playback (keys must match `meta.frameTags` on `images/characters/<id>/<id>.json`). */
+  animations?: CharacterAnimationsConfig;
+  /** Supported verbs for this character definition (keys match `game-config.json` `verbs[].id`). */
+  onVerb?: Record<string, boolean>;
+  /**
+   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this character.
+   * Falls back to `"look"` when omitted.
+   */
+  defaultVerb?: string;
+  /** Enables character fallback dispatch when no supported verb matches. */
+  onVerbFallback?: boolean;
+}
+</file>
+
+<file path="src/types/game.ts">
+import type { CharacterAnimationsConfig } from './character';
+import type { BenneGameStateFlagValue } from './gameState';
+
+export interface RoomManifestEntry {
+  id: string;
+  definition: string;
+}
+
+export interface RoomsManifestData {
+  startRoomId: string;
+  rooms: RoomManifestEntry[];
+}
+
+/** Optional starting slice for {@link import('../engine/gameState/GameStateManager.js').GameStateManager}. */
+export interface GameSettingsInitialGameState {
+  flags?: Record<string, BenneGameStateFlagValue>;
+  variables?: Record<string, unknown>;
+  /**
+   * Starting inventory: either unique id list (legacy; each becomes quantity 1) or id → quantity map.
+   */
+  inventory?: string[] | Record<string, number>;
+}
+
+/** Loaded from `src/game/game-config.json` (authoritative game bootstrap settings). */
+export interface GameSettingsResolution {
+  width: number;
+  height: number;
+}
+
+export interface GameSettingsAudio {
+  masterVolume: number;
+  sfxVolume: number;
+  musicVolume: number;
+  dialogueVolume: number;
+}
+
+export interface GameSettingsDebug {
+  /** When true, stroke walkable polygons in the room scene (distinct color from prop colliders). */
+  showWalkable?: boolean;
+  /** When true, stroke prop `collider` polygons for props that define one. */
+  showPropOutlines?: boolean;
+  /** When true, stroke each slot rectangle in GUI `inventoryPanel` controls (no default slot fills). */
+  showGuiOutlines?: boolean;
+}
+
+/** Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults. */
+export interface GameSettingsDialog {
+  /**
+   * Default for timed Bennescript `.say` / `.say.now` lines when the call omits **`clickToSkip`** in the options object.
+   * When true, a **left**-click ends the line early (same cleanup as the timer). Per-line overrides:
+   * `say('…', { clickToSkip: false })` always disables skip; `say('…', { clickToSkip: true })` always enables skip even
+   * when this global flag is false.
+   */
+  clickToSkip: boolean;
+  /** When false, `.say()` timing still runs but no dialog-text GUI (reserved for future spoken-only lines). */
+  showText: boolean;
+  /** Extra offset in **game canvas pixels** (same space as GUI `controls[].x` / `y`) applied after projecting the character `talkPoint`. */
+  defaultTalkOffset: { x: number; y: number };
+  minDurationMs: number;
+  msPerCharacter: number;
+  maxDurationMs: number;
+  durationMultiplier: number;
+}
+
+/** One verb the game exposes (ids power `onVerb`, `inputProfile`, and global handler events). */
+export interface GameVerbDefinition {
+  /** Stable id used in room JSON (`onVerb`), `inputProfile`, and scripts. */
+  id: string;
+  /** Optional label for future in-game verb UIs. */
+  label?: string;
+  /**
+   * Optional short word between verb and object in composed UI copy (e.g. `"at"` → “Look at …”, `"to"` → “Give to …”).
+   */
+  preposition?: string;
+}
+
+/**
+ * Map primary / secondary mouse buttons to verb ids.
+ * Primary is usually the left button, secondary the right (see `RoomScene` + Phaser pointer).
+ *
+ * Each slot accepts **any defined verb id** from {@link GameSettings.verbs}, or one of two reserved
+ * literal tokens:
+ *
+ * - **`"walkTo"`** — built-in universal walk verb. When a pointer click over a clickable resolves to
+ *   this slot, the engine walks the player to the target's stand point instead of dispatching a verb.
+ *   (Empty-space clicks always walk regardless of slot configuration.)
+ * - **`"defaultVerb"`** — substitute with the clicked target's authored `defaultVerb` field
+ *   (per-prop / hotspot / character / inventory item). When the target omits `defaultVerb`, the
+ *   engine falls back to `"look"`.
+ */
+export interface VerbInputProfile {
+  /** Verb id / `"walkTo"` / `"defaultVerb"` for the primary (typically left) mouse button. */
+  primaryButtonVerb: string;
+  /** Verb id / `"walkTo"` / `"defaultVerb"` for the secondary (typically right) mouse button. */
+  secondaryButtonVerb: string;
+}
+
+/**
+ * Central game configuration (not Phaser’s `GameConfig`).
+ * Add optional fields here as the engine grows (language, shaders, accessibility, etc.).
+ */
+export interface GameSettings {
+  /**
+   * Template id used by `scripts/switch-game-template.mjs` to decide where `sync-template-down`
+   * writes. Matches the `game-templates/<name>/` folder (e.g. `"2-click"`, `"9-verb"`).
+   * Not consumed by the engine; purely authoring/tooling metadata.
+   */
+  name?: string;
+  resolution: GameSettingsResolution;
+  /** Folder name under `src/game/characters/` for the default player character. */
+  startingPlayerCharacter: string;
+  /**
+   * Which room id to load first. When set, overrides `startRoomId` in `rooms.manifest.json`.
+   * When omitted, the manifest value is used.
+   */
+  startingRoomId?: string;
+  audio: GameSettingsAudio;
+  /** Editor / QA toggles (polygon overlays, etc.). */
+  debug?: GameSettingsDebug;
+  /**
+   * Declared verbs for this game. When omitted, the engine assumes `look` and `use` (see architecture).
+   */
+  verbs?: GameVerbDefinition[];
+  /**
+   * How pointer input maps to a verb before dispatch. When omitted, defaults to left → `look`, right → `use`
+   * (unless `verbs` overrides ids and you must set an explicit `inputProfile`). Slots accept any
+   * defined verb id plus the reserved literals `"walkTo"` and `"defaultVerb"` — see
+   * {@link VerbInputProfile}.
+   */
+  inputProfile?: VerbInputProfile;
+  /**
+   * Suggested line when no handler handles the verb; emitted on the `verb:unhandled` bus event.
+   */
+  defaultFallbackLine?: string;
+  /** In-game dialog line timing and `dialog-text` GUI placement (see `getDialogSettings()`). */
+  dialog?: Partial<GameSettingsDialog>;
+  /** Starting flags, variables, and inventory merged at game creation (see `GameStateManager`). */
+  initialGameState?: GameSettingsInitialGameState;
+  /**
+   * Optional custom pointer art from `src/game/assets/images/cursor/cursor.png` + `cursor.json`
+   * (Aseprite export). Uses the same `animations` / clip keys pattern as `*.character.json`.
+   */
+  cursor?: GameSettingsCursor;
+}
+
+/** `game-config.json` `cursor.display` block (Aseprite sheet only for now). */
+export interface GameSettingsCursorDisplay {
+  /** When true, load the bundled `images/cursor/cursor` Aseprite sheet. */
+  aseprite?: boolean;
+}
+
+/**
+ * Where the logical pointer tip sits on the cursor art (Phaser `setOrigin` fractions, except
+ * **`custom`**, which uses {@link GameSettingsCursor.hotspotPixel} from the sprite top-left).
+ */
+export type GameSettingsCursorHotspot =
+  | 'top-left'
+  | 'top-center'
+  | 'top-right'
+  | 'center-left'
+  | 'center'
+  | 'center-right'
+  | 'bottom-left'
+  | 'bottom-center'
+  | 'bottom-right'
+  | 'custom';
+
+/**
+ * `game-config.json` `cursor` block — same shape as `*.character.json` clip tuning: keys in
+ * {@link GameSettingsCursor.animations} are Aseprite frame tag names; {@link GameSettingsCursor.idleAnimation} /
+ * {@link GameSettingsCursor.activeAnimation} pick which tags drive the two pointer states.
+ */
+export interface GameSettingsCursor {
+  /** Aseprite tag (Phaser animation key) when the pointer is not over a clickable target. */
+  idleAnimation: string;
+  /** Aseprite tag when the pointer is over a prop, hotspot, clickable character, or GUI button. */
+  activeAnimation: string;
+  /** Optional per-tag `loop` / `frameDuration` / `events` (same as character `animations`). */
+  animations?: CharacterAnimationsConfig;
+  /**
+   * Which point on the cursor sprite tracks the hardware pointer. Defaults to **`top-left`**
+   * (Phaser origin `0,0`). Use **`custom`** with {@link GameSettingsCursor.hotspotPixel}.
+   */
+  hotspot?: GameSettingsCursorHotspot;
+  /**
+   * Pixel offset from the sprite’s **top-left** to the pointer hotspot (logical click position).
+   * Required when {@link GameSettingsCursor.hotspot} is **`custom`** (ignored for named presets).
+   */
+  hotspotPixel?: { x: number; y: number };
+  display?: GameSettingsCursorDisplay;
+}
+</file>
+
 <file path="src/types/gui.ts">
 /**
  * GUI overlay definition from `src/game/guis/<id>/<id>.gui.json`.
@@ -14524,6 +14141,11 @@ export interface RoomHotspotData {
   lookAtPoint?: Point2;
   /** Supported verbs for this hotspot (keys match `game-config.json` `verbs[].id`). */
   onVerb?: Record<string, boolean>;
+  /**
+   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this hotspot.
+   * Falls back to `"look"` when omitted.
+   */
+  defaultVerb?: string;
   /** Enables object-level fallback dispatch when no supported verb matches. */
   onVerbFallback?: boolean;
 }
@@ -14605,6 +14227,11 @@ export interface RoomPropInstance {
   collider?: RoomPropCollider;
   /** Supported verbs for this prop (keys match `game-config.json` `verbs[].id`). */
   onVerb?: Record<string, boolean>;
+  /**
+   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this prop.
+   * Falls back to `"look"` when omitted. Shown in the Inspector as the "Default verb" dropdown.
+   */
+  defaultVerb?: string;
   /** Enables object-level fallback dispatch when no supported verb matches (before global handlers). */
   onVerbFallback?: boolean;
   /** Per-tag playback (loop, frameDuration); keys match Aseprite tags on this room's sheet. */
@@ -14704,6 +14331,9 @@ import {
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { GuiRuntime } from '../scripting/GuiRuntime.js';
+import { dispatchInventoryVerbInteraction } from '../verbs/dispatchInventoryVerb';
+import { getEffectiveInputProfile } from '../verbs/verbConfig';
+import { resolvePointerVerbForInventoryItem } from '../verbs/resolvePointerVerb';
 
 /** Slot stroke for `game-config.json` `debug.showGuiOutlines` (distinct from walkable / prop debug colors). */
 const DEBUG_GUI_INVENTORY_SLOT_STROKE = 0x66ccff;
@@ -15493,6 +15123,7 @@ function fillInventoryPanelContent(
   c: GuiInventoryPanelControl,
   scrollState: { offset: number },
   startVisible: boolean,
+  invPointerCtx: InventoryPanelPointerContext | undefined,
 ): void {
   panel.removeAll(true);
 
@@ -15665,9 +15296,63 @@ function fillInventoryPanelContent(
         );
       }
 
+      if (invPointerCtx && invIndex < inventoryItems.length) {
+        const itemId = inventoryItems[invIndex]!.id;
+        const hit = new Phaser.Geom.Rectangle(0, 0, c.slotWidth, c.slotHeight);
+        slotContainer.setInteractive(hit, Phaser.Geom.Rectangle.Contains);
+        if (slotContainer.input) {
+          const showOsHand = !isBenneGameCursorAsepriteEnabled(getGameSettings());
+          slotContainer.input.cursor = showOsHand ? 'pointer' : false;
+        }
+        slotContainer.setData('benneInventorySlot', true);
+        slotContainer.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+          if (invPointerCtx.tryConsumeDialogClickToSkip(pointer)) {
+            return;
+          }
+          if (invPointerCtx.isInputSuppressed()) {
+            return;
+          }
+          const profile = getEffectiveInputProfile(getGameSettings());
+          const manager = resolveGameStateManager(scene.game);
+          const invDef = getInventoryDefinition(itemId) as InventoryItemData | undefined;
+          const resolution = resolvePointerVerbForInventoryItem(
+            pointer,
+            profile,
+            { defaultVerb: invDef?.defaultVerb },
+            manager.getActiveVerb(),
+          );
+          if (resolution.kind === 'none') {
+            return;
+          }
+          if (resolution.kind === 'clearActive') {
+            manager.clearActiveVerb();
+            return;
+          }
+          if (resolution.kind === 'walkToTarget') {
+            return;
+          }
+          dispatchInventoryVerbInteraction(
+            gameEvents,
+            resolution.verbId,
+            itemId,
+            invPointerCtx.roomId,
+          );
+          if (resolution.consumeActive) {
+            manager.clearActiveVerb();
+          }
+        });
+      }
+
       panel.add(slotContainer);
     }
   }
+}
+
+/** When set (in {@link RoomScene}), occupied inventory slots dispatch verbs like room props. Omitted in editor previews. */
+export interface InventoryPanelPointerContext {
+  roomId: string;
+  isInputSuppressed: () => boolean;
+  tryConsumeDialogClickToSkip: (pointer: Phaser.Input.Pointer) => boolean;
 }
 
 export interface BuildGuiOverlayOptions {
@@ -15676,6 +15361,8 @@ export interface BuildGuiOverlayOptions {
   startVisible?: boolean;
   /** Shown when a control's `text` is missing or whitespace-only; omit to use empty string. */
   emptyTextPlaceholder?: string;
+  /** Enables interactive inventory slots that emit inventory verb events (requires `roomId`). */
+  inventoryPanelPointerContext?: InventoryPanelPointerContext;
 }
 
 /**
@@ -15690,6 +15377,7 @@ export function buildGuiOverlay(
   const depth = options?.depth ?? GUI_TEXT_OVERLAY_DEPTH;
   const startVisible = options?.startVisible ?? false;
   const placeholder = options?.emptyTextPlaceholder;
+  const invPointerCtx = options?.inventoryPanelPointerContext;
   const allLines: Phaser.GameObjects.BitmapText[] = [];
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
   const guiButtons: BuiltGuiButton[] = [];
@@ -15758,7 +15446,8 @@ export function buildGuiOverlay(
       panel.setDepth(depth + (c.zIndex ?? 0));
       const scrollSt = invScrollStateByControlIndex.get(i);
       if (scrollSt) {
-        scrollSt.refresh = () => fillInventoryPanelContent(panel, scene, gui, c, scrollSt, startVisible);
+        scrollSt.refresh = () =>
+          fillInventoryPanelContent(panel, scene, gui, c, scrollSt, startVisible, invPointerCtx);
         const onGameStateInventory = (): void => {
           scrollSt.refresh();
         };
@@ -15770,7 +15459,7 @@ export function buildGuiOverlay(
         });
         scrollSt.refresh();
       } else {
-        fillInventoryPanelContent(panel, scene, gui, c, { offset: 0 }, startVisible);
+        fillInventoryPanelContent(panel, scene, gui, c, { offset: 0 }, startVisible, invPointerCtx);
       }
       inventoryPanels.push(panel);
       const pid = c.id?.trim();
@@ -16007,636 +15696,31 @@ export function buildGuiOverlay(
 }
 </file>
 
-<file path="src/game/rooms/office/office.room.ts">
-import { registerRoomScript } from '@engine/scripting';
-
-/**
- * `whenLookAt` / `whenUse` / `whenTalkTo` / `whenPickUp` / … / `whenVerb` → prop → hotspot → character id. `B.prop` / `onProp` → props only.
- * `walkTo('…')` → same order, then `points[].id`, or `{ x, y }` room pixels.
- */
-registerRoomScript(({ B }) => {
-  console.log('🚀 Bennescript office.room.ts is being EXECUTED!');
-
-  B.whenLookAt('henry', () => {
-    console.log('✅ B.whenLookAt("henry") fired!');
-    B.player.say('Hello from Bennescript!');
-  });
-
-  B.whenUse('desk', () => {
-    console.log('✅ B.whenUse("desk") fired!');
-
-    B.character('henry').walkTo('office-point-1');
-
-    B.player.walkTo('henry');
-
-    B.player.say('Hello from Bennescript! Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.');
-  });
-
-  B.whenLookAt('office-prop-cyberbuddy', () => {
-    // TODO
-  });
-
-  B.whenUse('office-prop-cyberbuddy', () => {
-    // TODO
-  });
-
-  B.whenLookAt('office-prop-glasses', () => {
-    // TODO
-  });
-
-  B.whenUse('office-prop-glasses', () => {
-    // TODO
-  });
-
-
-  B.whenUse('henry', () => {
-    B.player.walkTo('henry');
-    B.player.say('Hello from Bennescript! Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', { clickToSkip: false });
-    B.character('henry').say('SUP DUDE!');
-  });
-
-  B.onProp('office-prop-cyberbuddy', 'slap', () => {
-    // TODO
-  });
-
-  B.whenLookAt('office-prop-door', () => {
-    // TODO
-  });
-
-  B.whenUse('office-prop-door', () => {
-    // TODO
-  });
-
-  B.onProp('office-prop-door', 'slap', () => {
-    // TODO
-  });
-
-  B.onProp('desk', 'slap', () => {
-    // TODO
-  });
-
-  B.whenLookAt('desk', () => {
-    // TODO
-  });
-});
-</file>
-
-<file path="src/game/rooms/office/office.room.json">
-{
-  "id": "office",
-  "name": "Office",
-  "size": {
-    "width": 352,
-    "height": 198
-  },
-  "scrollBounds": {
-    "x": 0,
-    "y": 0,
-    "width": 352,
-    "height": 198
-  },
-  "walkable": {
-    "polygons": [
-      {
-        "id": "office-floor",
-        "active": true,
-        "points": [
-          {
-            "x": 48,
-            "y": 152
-          },
-          {
-            "x": 306,
-            "y": 148
-          },
-          {
-            "x": 308,
-            "y": 114
-          },
-          {
-            "x": 274,
-            "y": 96
-          },
-          {
-            "x": 65,
-            "y": 103
-          },
-          {
-            "x": 51,
-            "y": 122
-          }
-        ],
-        "holes": [
-          {
-            "id": "desk-hole",
-            "active": true,
-            "points": [
-              {
-                "x": 111,
-                "y": 106
-              },
-              {
-                "x": 158,
-                "y": 103
-              },
-              {
-                "x": 131,
-                "y": 132
-              },
-              {
-                "x": 85,
-                "y": 128
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  "hotspots": [
-    {
-      "id": "window",
-      "active": true,
-      "description": "",
-      "zIndex": 0,
-      "points": [
-        {
-          "x": 130,
-          "y": 46
-        },
-        {
-          "x": 215,
-          "y": 46
-        },
-        {
-          "x": 212,
-          "y": 84
-        },
-        {
-          "x": 131,
-          "y": 82
-        }
-      ],
-      "walkToPoint": {
-        "x": 170,
-        "y": 100
-      },
-      "lookAtPoint": {
-        "x": 169,
-        "y": 79
-      },
-      "onVerb": {
-        "look": true
-      }
-    },
-    {
-      "id": "desk",
-      "active": true,
-      "description": "",
-      "zIndex": 1,
-      "points": [
-        {
-          "x": 58,
-          "y": 64
-        },
-        {
-          "x": 106,
-          "y": 62
-        },
-        {
-          "x": 91,
-          "y": 101
-        },
-        {
-          "x": 50,
-          "y": 99
-        }
-      ],
-      "walkToPoint": {
-        "x": 74,
-        "y": 123
-      },
-      "lookAtPoint": {
-        "x": 75,
-        "y": 91
-      },
-      "onVerb": {
-        "use": true
-      }
-    }
-  ],
-  "props": [
-    {
-      "id": "office-prop-background",
-      "tag": "Background",
-      "zIndex": 1,
-      "visible": true,
-      "alpha": 1
-    },
-    {
-      "id": "office-prop-shadow",
-      "tag": "Shadow",
-      "zIndex": 2,
-      "visible": false,
-      "alpha": 1
-    },
-    {
-      "id": "office-prop-backlight",
-      "tag": "Backlight",
-      "zIndex": 0,
-      "visible": true,
-      "alpha": 1
-    },
-    {
-      "id": "office-prop-fan",
-      "tag": "Fan",
-      "zIndex": 6,
-      "visible": true,
-      "alpha": 1,
-      "animations": {
-        "Fan": {
-          "loop": true,
-          "frameDuration": 150
-        }
-      }
-    },
-    {
-      "id": "office-prop-chair",
-      "tag": "Chair",
-      "zIndex": 10,
-      "visible": true,
-      "alpha": 1
-    },
-    {
-      "id": "desk",
-      "tag": "Desk",
-      "zIndex": 50,
-      "clickable": true,
-      "visible": true,
-      "alpha": 1,
-      "walkToPoint": {
-        "x": 138,
-        "y": 124
-      },
-      "lookAtPoint": {
-        "x": 125,
-        "y": 99
-      },
-      "description": "Paperwork, coffee stains, and a blinking answering machine light.",
-      "collider": {
-        "points": [
-          {
-            "x": 120,
-            "y": 83
-          },
-          {
-            "x": 145,
-            "y": 84
-          },
-          {
-            "x": 151,
-            "y": 108
-          },
-          {
-            "x": 129,
-            "y": 129
-          },
-          {
-            "x": 90,
-            "y": 127
-          },
-          {
-            "x": 89,
-            "y": 101
-          }
-        ]
-      },
-      "onVerb": {
-        "look": true,
-        "use": true,
-        "slap": true
-      }
-    },
-    {
-      "id": "office-prop-door",
-      "tag": "DoorClosed",
-      "zIndex": 12,
-      "clickable": true,
-      "visible": true,
-      "alpha": 1,
-      "walkToPoint": {
-        "x": 270,
-        "y": 111
-      },
-      "lookAtPoint": {
-        "x": 284,
-        "y": 96
-      },
-      "description": "A heavy door. The frosted glass reads something about \"Synergy.\"",
-      "collider": {
-        "points": [
-          {
-            "x": 272,
-            "y": 44
-          },
-          {
-            "x": 307,
-            "y": 44
-          },
-          {
-            "x": 304,
-            "y": 113
-          },
-          {
-            "x": 273,
-            "y": 105
-          }
-        ]
-      },
-      "onVerb": {
-        "look": true,
-        "use": true,
-        "slap": true
-      }
-    },
-    {
-      "id": "office-prop-coatrack",
-      "tag": "Coatrack",
-      "zIndex": 16,
-      "visible": true,
-      "alpha": 1,
-      "collider": {
-        "points": [
-          {
-            "x": 298,
-            "y": 60
-          },
-          {
-            "x": 308,
-            "y": 61
-          },
-          {
-            "x": 308,
-            "y": 130
-          },
-          {
-            "x": 300,
-            "y": 131
-          }
-        ]
-      }
-    },
-    {
-      "id": "office-prop-jacket",
-      "tag": "Jacket",
-      "zIndex": 18,
-      "clickable": true,
-      "visible": true,
-      "alpha": 1,
-      "walkToPoint": {
-        "x": 285,
-        "y": 172
-      },
-      "lookAtPoint": {
-        "x": 300,
-        "y": 105
-      },
-      "description": "Someone’s jacket — still holding a faint smell of rain and toner.",
-      "collider": {
-        "points": [
-          {
-            "x": 289,
-            "y": 72
-          },
-          {
-            "x": 309,
-            "y": 73
-          },
-          {
-            "x": 305,
-            "y": 102
-          },
-          {
-            "x": 288,
-            "y": 105
-          }
-        ]
-      },
-      "onVerb": {
-        "look": true,
-        "use": true
-      }
-    },
-    {
-      "id": "office-prop-phone-cutaway",
-      "tag": "PhoneCutaway",
-      "zIndex": 20,
-      "visible": true,
-      "alpha": 1
-    },
-    {
-      "id": "office-prop-glasses",
-      "tag": "Glasses",
-      "zIndex": 55,
-      "clickable": true,
-      "visible": true,
-      "alpha": 1,
-      "walkToPoint": {
-        "x": 165,
-        "y": 172
-      },
-      "lookAtPoint": {
-        "x": 198,
-        "y": 118
-      },
-      "description": "Reading glasses abandoned next to a stack of forms.",
-      "collider": {
-        "points": [
-          {
-            "x": 109,
-            "y": 89
-          },
-          {
-            "x": 129,
-            "y": 91
-          },
-          {
-            "x": 129,
-            "y": 99
-          },
-          {
-            "x": 111,
-            "y": 99
-          }
-        ]
-      },
-      "onVerb": {
-        "look": true,
-        "use": true
-      }
-    },
-    {
-      "id": "office-prop-cyberbuddy",
-      "tag": "CyberBuddy",
-      "zIndex": 24,
-      "clickable": true,
-      "visible": true,
-      "alpha": 1,
-      "walkToPoint": {
-        "x": 219,
-        "y": 102
-      },
-      "lookAtPoint": {
-        "x": 249,
-        "y": 96
-      },
-      "description": "A cheerful plastic desk mascot from a forgotten trade show.",
-      "collider": {
-        "points": [
-          {
-            "x": 244,
-            "y": 76
-          },
-          {
-            "x": 259,
-            "y": 77
-          },
-          {
-            "x": 268,
-            "y": 103
-          },
-          {
-            "x": 230,
-            "y": 100
-          }
-        ]
-      },
-      "onVerb": {
-        "look": true,
-        "use": true,
-        "slap": true
-      }
-    },
-    {
-      "id": "office-prop-plant",
-      "tag": "Plant",
-      "zIndex": 25,
-      "visible": true,
-      "alpha": 1,
-      "clickable": false
-    },
-    {
-      "id": "office-prop-plant2",
-      "tag": "Plant2",
-      "zIndex": 26,
-      "visible": true,
-      "alpha": 1
-    }
-  ],
-  "characters": [
-    {
-      "instanceId": "hank-1",
-      "definition": "hank/hank.character.json",
-      "x": 96,
-      "y": 170,
-      "initialFacing": "L",
-      "initialAnimation": "Idle",
-      "visible": true,
-      "zIndex": 40
-    },
-    {
-      "instanceId": "henry-1",
-      "definition": "henry/henry.character.json",
-      "x": 200,
-      "y": 148,
-      "initialFacing": "R",
-      "initialAnimation": "Idle",
-      "visible": true,
-      "zIndex": 101
-    }
-  ],
-  "points": [
-    {
-      "id": "office-point-1",
-      "x": 179,
-      "y": 100
-    },
-    {
-      "id": "office-point-2",
-      "x": 72,
-      "y": 135
-    }
-  ],
-  "regions": [
-    {
-      "id": "office-region-1",
-      "active": true,
-      "points": [
-        {
-          "x": 123,
-          "y": 98
-        },
-        {
-          "x": 121,
-          "y": 47
-        },
-        {
-          "x": 200,
-          "y": 75
-        },
-        {
-          "x": 200,
-          "y": 123
-        },
-        {
-          "x": 152,
-          "y": 123
-        }
-      ]
-    }
-  ]
-}
-</file>
-
 <file path="src/game/game-config.json">
 {
+  "name": "9-verb",
   "resolution": {
-    "width": 320,
-    "height": 180
+    "width": 352,
+    "height": 198
   },
   "verbs": [
-    {
-      "id": "look",
-      "label": "Look at"
-    },
-    {
-      "id": "use",
-      "label": "Use"
-    },
-    {
-      "id": "slap",
-      "label": "Slap"
-    }
+    { "id": "give", "label": "Give", "preposition": "to" },
+    { "id": "pickUp", "label": "Pick up" },
+    { "id": "use", "label": "Use", "preposition": "with" },
+    { "id": "open", "label": "Open" },
+    { "id": "look", "label": "Look at" },
+    { "id": "push", "label": "Push" },
+    { "id": "close", "label": "Close" },
+    { "id": "talkTo", "label": "Talk to" },
+    { "id": "pull", "label": "Pull" }
   ],
   "inputProfile": {
-    "kind": "twoVerb",
-    "primaryButtonVerb": "use",
-    "secondaryButtonVerb": "look"
+    "primaryButtonVerb": "walkTo",
+    "secondaryButtonVerb": "defaultVerb"
   },
-  "defaultFallbackLine": "You can't do that.",
+  "defaultFallbackLine": "That doesn't seem to work.",
   "startingPlayerCharacter": "hank",
   "startingRoomId": "apartment",
-  "audio": {
-    "masterVolume": 1,
-    "sfxVolume": 1,
-    "musicVolume": 0.75,
-    "dialogueVolume": 1
-  },
-  "debug": {
-    "showWalkable": true,
-    "showPropOutlines": true,
-    "showGuiOutlines": false
-  },
   "initialGameState": {
     "flags": {},
     "variables": {},
@@ -16651,6 +15735,26 @@ registerRoomScript(({ B }) => {
       "Candy1",
       "Newspaper"
     ]
+  },
+  "audio": {
+    "masterVolume": 1,
+    "sfxVolume": 1,
+    "musicVolume": 0.75,
+    "dialogueVolume": 1
+  },
+  "debug": {
+    "showWalkable": true,
+    "showPropOutlines": true,
+    "showGuiOutlines": false
+  },
+  "dialog": {
+    "clickToSkip": true,
+    "showText": true,
+    "defaultTalkOffset": { "x": 0, "y": 0 },
+    "minDurationMs": 800,
+    "msPerCharacter": 35,
+    "maxDurationMs": 4500,
+    "durationMultiplier": 1
   },
   "cursor": {
     "idleAnimation": "Idle",
@@ -16667,18 +15771,6 @@ registerRoomScript(({ B }) => {
     "display": {
       "aseprite": true
     }
-  },
-  "dialog": {
-    "clickToSkip": true,
-    "showText": true,
-    "defaultTalkOffset": {
-      "x": 0,
-      "y": 0
-    },
-    "minDurationMs": 800,
-    "msPerCharacter": 35,
-    "maxDurationMs": 4500,
-    "durationMultiplier": 1
   }
 }
 </file>
@@ -16726,8 +15818,9 @@ import {
   getHotspotVerbHandlers,
   getPropVerbHandlers,
 } from '../verbs/normalizeHandlers';
-import { getEffectiveTwoVerbProfile } from '../verbs/verbConfig';
-import { resolveVerbIdFromPointer } from '../verbs/resolvePointerVerb';
+import { getEffectiveInputProfile } from '../verbs/verbConfig';
+import { resolvePointerVerbForTarget } from '../verbs/resolvePointerVerb';
+import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
@@ -16952,11 +16045,18 @@ export class RoomScene extends Phaser.Scene {
 
     this.genericGuiOverlays = [];
     let stackIndex = 0;
+    const inventoryPanelPointerContext = {
+      roomId: data.room.id,
+      isInputSuppressed: (): boolean => this.isScriptedDialogInputSuppressed(),
+      tryConsumeDialogClickToSkip: (pointer: Phaser.Input.Pointer): boolean =>
+        this.tryConsumeScriptedDialogClickToSkip(pointer),
+    };
     for (const gui of nonDialogGuis) {
       const built = buildGuiOverlay(this, gui, {
         /** Preview / cutscene override wins; otherwise each GUI's required `visible` boolean. */
         startVisible: hasGenericGuiVisibilityOverride ? genericGuiVisibilityOverride : gui.visible,
         depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
+        inventoryPanelPointerContext,
       });
       if (built) {
         this.genericGuiOverlays.push(built.handle);
@@ -16974,6 +16074,7 @@ export class RoomScene extends Phaser.Scene {
           /** Speech UI is driven by {@link setDialogTextOverlay}, not the JSON `visible` flag at boot. */
           startVisible: false,
           depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
+          inventoryPanelPointerContext,
         })
       : null;
     this.dialogTextOverlay = dialogBuilt?.handle ?? null;
@@ -17557,9 +16658,6 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private readonly handleRoomPointerDown = (pointer: Phaser.Input.Pointer): void => {
-    if (!pointer.leftButtonDown()) {
-      return;
-    }
     if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
       return;
     }
@@ -17569,6 +16667,15 @@ export class RoomScene extends Phaser.Scene {
 
     const hits = this.input.hitTestPointer(pointer);
     if (hits.length > 0) {
+      return;
+    }
+
+    if (pointer.rightButtonDown()) {
+      // Right-click on empty space clears the active verb (no walk).
+      resolveGameStateManager(this.game).clearActiveVerb();
+      return;
+    }
+    if (!pointer.leftButtonDown()) {
       return;
     }
 
@@ -18030,12 +17137,29 @@ export class RoomScene extends Phaser.Scene {
       if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
         return;
       }
-      const profile = getEffectiveTwoVerbProfile(getGameSettings());
-      const verbId = resolveVerbIdFromPointer(pointer, profile);
-      if (!verbId) {
+      const profile = getEffectiveInputProfile(getGameSettings());
+      const manager = resolveGameStateManager(this.game);
+      const resolution = resolvePointerVerbForTarget(
+        pointer,
+        profile,
+        { defaultVerb: spawn.data.defaultVerb },
+        manager.getActiveVerb(),
+      );
+      if (resolution.kind === 'none') {
         return;
       }
-      this.emitPropVerbInteraction(roomId, spawn, verbId);
+      if (resolution.kind === 'clearActive') {
+        manager.clearActiveVerb();
+        return;
+      }
+      if (resolution.kind === 'walkToTarget') {
+        void this.walkPlayerTo(spawn.id);
+        return;
+      }
+      this.emitPropVerbInteraction(roomId, spawn, resolution.verbId);
+      if (resolution.consumeActive) {
+        manager.clearActiveVerb();
+      }
     });
   }
 
@@ -18089,21 +17213,38 @@ export class RoomScene extends Phaser.Scene {
         return;
       }
       const handlers = getHotspotVerbHandlers(hotspot);
+      const profile = getEffectiveInputProfile(getGameSettings());
+      const manager = resolveGameStateManager(this.game);
+      const resolution = resolvePointerVerbForTarget(
+        pointer,
+        profile,
+        { defaultVerb: hotspot.defaultVerb },
+        manager.getActiveVerb(),
+      );
+      if (resolution.kind === 'none') {
+        return;
+      }
+      if (resolution.kind === 'clearActive') {
+        manager.clearActiveVerb();
+        return;
+      }
+      if (resolution.kind === 'walkToTarget') {
+        void this.walkPlayerTo(hotspot.id);
+        return;
+      }
       if (Object.keys(handlers.onVerb).length === 0 && handlers.onVerbFallback === undefined) {
         return;
       }
-      const profile = getEffectiveTwoVerbProfile(getGameSettings());
-      const verbId = resolveVerbIdFromPointer(pointer, profile);
-      if (!verbId) {
-        return;
-      }
-      console.log(`[Benne] verb "${verbId}" hotspot ${hotspot.id}`);
-      dispatchVerbInteraction(gameEvents, verbId, handlers, {
+      console.log(`[Benne] verb "${resolution.verbId}" hotspot ${hotspot.id}`);
+      dispatchVerbInteraction(gameEvents, resolution.verbId, handlers, {
         type: 'hotspot',
         hotspotId: hotspot.id,
         roomId,
         description: hotspot.description,
       });
+      if (resolution.consumeActive) {
+        manager.clearActiveVerb();
+      }
     };
 
     const zone = this.add.zone(0, 0, roomW, roomH).setOrigin(0, 0).setDepth(depth);
@@ -18204,16 +17345,30 @@ export class RoomScene extends Phaser.Scene {
       if (this.isScriptedDialogInputSuppressed()) {
         return;
       }
-      const profile = getEffectiveTwoVerbProfile(getGameSettings());
-      const verbId = resolveVerbIdFromPointer(pointer, profile);
-      if (!verbId) {
+      const profile = getEffectiveInputProfile(getGameSettings());
+      const manager = resolveGameStateManager(this.game);
+      const resolution = resolvePointerVerbForTarget(
+        pointer,
+        profile,
+        { defaultVerb: spawn.data.defaultVerb },
+        manager.getActiveVerb(),
+      );
+      if (resolution.kind === 'none') {
         return;
       }
-      console.log(`[Benne] verb "${verbId}" character ${spawn.data.id}`);
+      if (resolution.kind === 'clearActive') {
+        manager.clearActiveVerb();
+        return;
+      }
+      if (resolution.kind === 'walkToTarget') {
+        void this.walkPlayerTo(spawn.data.id);
+        return;
+      }
+      console.log(`[Benne] verb "${resolution.verbId}" character ${spawn.data.id}`);
       const sx = sprite.x;
       const sy = sprite.y;
       const d = spawn.data;
-      dispatchVerbInteraction(gameEvents, verbId, handlers, {
+      dispatchVerbInteraction(gameEvents, resolution.verbId, handlers, {
         type: 'character',
         characterId: d.id,
         instanceId: spawn.instanceId,
@@ -18226,6 +17381,9 @@ export class RoomScene extends Phaser.Scene {
           ? { talkPoint: { x: sx + d.talkPoint.x, y: sy + d.talkPoint.y } }
           : {}),
       });
+      if (resolution.consumeActive) {
+        manager.clearActiveVerb();
+      }
     });
   }
 
@@ -18299,7 +17457,11 @@ export class RoomScene extends Phaser.Scene {
     for (const o of hits) {
       const go = o as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown };
       if (typeof go.getData === 'function') {
-        if (go.getData('benneGuiButton') === true || go.getData('benneHotspot') === true) {
+        if (
+          go.getData('benneGuiButton') === true ||
+          go.getData('benneHotspot') === true ||
+          go.getData('benneInventorySlot') === true
+        ) {
           return true;
         }
         if (go.getData('character')) {
