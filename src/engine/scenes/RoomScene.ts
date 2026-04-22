@@ -12,6 +12,7 @@ import { gameEvents } from '../events/EventBus';
 import {
   GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
   GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
+  GAME_STATE_INVENTORY_CHANGED_EVENT,
 } from '../../types/gameState';
 import {
   getPerItemInventoryTextureKey,
@@ -61,6 +62,7 @@ import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
+import type { InventoryItemData } from '../../types/inventory';
 import type { Point2, RoomData, RoomHotspotData, RoomPropInstance } from '../../types/room';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
 import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
@@ -229,8 +231,18 @@ export class RoomScene extends Phaser.Scene {
   private customCursorSprite: Phaser.GameObjects.Sprite | null = null;
   /** Dedupes {@link refreshCustomCursor} work when pointer + visual mode are unchanged. */
   private lastCustomCursorVisualKey: string | null = null;
-  private readonly onCustomCursorPointerMove = (pointer: Phaser.Input.Pointer): void => {
-    this.refreshCustomCursor(pointer);
+  private readonly refreshAllVerbLineOverlays = (): void => {
+    for (const h of this.genericGuiOverlays) {
+      h.refreshVerbLineText();
+    }
+    this.dialogTextOverlay?.refreshVerbLineText();
+  };
+
+  private readonly onRoomPointerMove = (pointer: Phaser.Input.Pointer): void => {
+    this.refreshAllVerbLineOverlays();
+    if (this.customCursorSprite) {
+      this.refreshCustomCursor(pointer);
+    }
   };
   private readonly onCustomGameStateForCursor = (): void => {
     this.lastCustomCursorVisualKey = null;
@@ -297,12 +309,15 @@ export class RoomScene extends Phaser.Scene {
       tryConsumeDialogClickToSkip: (pointer: Phaser.Input.Pointer): boolean =>
         this.tryConsumeScriptedDialogClickToSkip(pointer),
     };
+    const verbLineHoverDescription = (): string | null =>
+      this.resolveVerbLineHoverDescription(this.input.activePointer);
     for (const gui of nonDialogGuis) {
       const built = buildGuiOverlay(this, gui, {
         /** Preview / cutscene override wins; otherwise each GUI's required `visible` boolean. */
         startVisible: hasGenericGuiVisibilityOverride ? genericGuiVisibilityOverride : gui.visible,
         depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
         inventoryPanelPointerContext,
+        verbLineHoverDescription,
       });
       if (built) {
         this.genericGuiOverlays.push(built.handle);
@@ -321,6 +336,7 @@ export class RoomScene extends Phaser.Scene {
           startVisible: false,
           depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
           inventoryPanelPointerContext,
+          verbLineHoverDescription,
         })
       : null;
     this.dialogTextOverlay = dialogBuilt?.handle ?? null;
@@ -333,6 +349,8 @@ export class RoomScene extends Phaser.Scene {
     }
 
     this.setupCustomGameCursor();
+    this.input.on('pointermove', this.onRoomPointerMove);
+    gameEvents.on(GAME_STATE_INVENTORY_CHANGED_EVENT, this.refreshAllVerbLineOverlays);
 
     // ─────────────────────────────────────────────────────────────
     // Bennescript: after props, characters, player, and camera exist
@@ -418,7 +436,8 @@ export class RoomScene extends Phaser.Scene {
       this.scriptedDialogClickToSkip = null;
       this.scale.off('resize', this.onScaleResize, this);
       this.input.off('pointerdown', this.handleRoomPointerDown);
-      this.input.off('pointermove', this.onCustomCursorPointerMove);
+      this.input.off('pointermove', this.onRoomPointerMove);
+      gameEvents.off(GAME_STATE_INVENTORY_CHANGED_EVENT, this.refreshAllVerbLineOverlays);
       this.teardownCustomGameCursor();
       this.editorUiChildListenerOff?.();
       this.editorUiChildListenerOff = null;
@@ -1567,6 +1586,7 @@ export class RoomScene extends Phaser.Scene {
 
     const zone = this.add.zone(0, 0, roomW, roomH).setOrigin(0, 0).setDepth(depth);
     zone.setData('benneHotspot', true);
+    zone.setData('benneHotspotId', hotspot.id);
     const flat: number[] = [];
     for (const p of pts) {
       flat.push(p.x, p.y);
@@ -1768,7 +1788,6 @@ export class RoomScene extends Phaser.Scene {
     this.customCursorSprite = sprite;
     this.lastCustomCursorVisualKey = null;
 
-    this.input.on('pointermove', this.onCustomCursorPointerMove);
     gameEvents.on(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, this.onCustomGameStateForCursor);
     gameEvents.on(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, this.onCustomGameStateForCursor);
     this.refreshCustomCursor(this.input.activePointer);
@@ -1830,6 +1849,66 @@ export class RoomScene extends Phaser.Scene {
       return null;
     }
     return { textureKey, animKey };
+  }
+
+  /**
+   * Short label for the prop, hotspot, or GUI inventory row under the pointer (verb line / LucasArts-style).
+   */
+  private resolveVerbLineHoverDescription(pointer: Phaser.Input.Pointer): string | null {
+    if (this.isScriptedDialogInputSuppressed()) {
+      return null;
+    }
+    const hits = this.input.hitTestPointer(pointer);
+    for (const o of hits) {
+      const go = o as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown };
+      if (typeof go.getData !== 'function') {
+        continue;
+      }
+      if (go.getData('benneGuiButton') === true) {
+        continue;
+      }
+      if (go.getData('benneInventorySlot') === true) {
+        const itemId = go.getData('benneInventoryItemId') as string | undefined;
+        if (!itemId) {
+          return null;
+        }
+        const inv = getInventoryDefinition(itemId) as InventoryItemData | undefined;
+        if (!inv) {
+          return null;
+        }
+        const fromDesc = inv.description?.trim();
+        if (fromDesc && fromDesc.length > 0) {
+          return fromDesc;
+        }
+        const fromName = inv.name?.trim();
+        return fromName && fromName.length > 0 ? fromName : null;
+      }
+      if (go.getData('benneHotspot') === true) {
+        const hid = go.getData('benneHotspotId') as string | undefined;
+        if (!hid) {
+          return null;
+        }
+        const hs = this.roomData.hotspots.find((h) => h.id === hid);
+        const d = hs?.description?.trim();
+        return d && d.length > 0 ? d : null;
+      }
+      if (go.getData('character')) {
+        return null;
+      }
+      for (const [propId, propSprite] of this.propSpritesById) {
+        if (propSprite === o) {
+          const trimmedOverride = this.propDescriptionOverrides.get(propId)?.trim();
+          if (trimmedOverride && trimmedOverride.length > 0) {
+            return trimmedOverride;
+          }
+          const p = this.roomData.props?.find((rp) => rp.id === propId);
+          const pd = p?.description?.trim();
+          return pd && pd.length > 0 ? pd : null;
+        }
+      }
+      break;
+    }
+    return null;
   }
 
   private refreshCustomCursor(pointer: Phaser.Input.Pointer): void {

@@ -1,6 +1,9 @@
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
+import { gameEvents } from '../../engine/events/EventBus';
 import { getBenneRendererConfigFields } from '../../engine/gameConfig';
+import { GameStateManager } from '../../engine/gameState/GameStateManager';
+import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKey';
 import { RoomScene } from '../../engine/scenes/RoomScene';
 import { SCENE_ROOM } from '../../game/constants';
 import type { PreviewManifest } from './buildPreviewManifest';
@@ -71,6 +74,14 @@ export function createRoomPreviewPhaserGame(
 
         create(): void {
             applyBootAudioSettings(this);
+            /**
+             * Same registry contract as {@link createBenneGame} / the GUI preview boot scene: {@link RoomScene},
+             * {@link buildGuiOverlay} (verb lines, inventory), and the custom cursor call
+             * {@link resolveGameStateManager} — without this, preview `create` can throw (e.g. custom cursor
+             * `refreshCustomCursor` → `tryActiveInventoryCursorClip`) and the canvas stays blank.
+             */
+            const gameState = new GameStateManager(gameEvents);
+            this.game.registry.set(BENNE_GAME_STATE_REGISTRY_KEY, gameState);
             this.scene.start(SCENE_ROOM, manifestRef.startData);
             this.scene.launch(BENNE_POLYGON_EDIT_SCENE);
             for (const u of manifestRef.revokeObjectUrls) {

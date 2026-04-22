@@ -7,6 +7,5 @@
   "animations": {},
   "display": {
     "aseprite": "shared"
-  },
-  "defaultAnimation": "Lantern-glowing"
+  }
 }

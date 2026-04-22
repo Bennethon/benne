@@ -788,6 +788,11 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                     controlKind: 'text'
                 },
                 {
+                    label: 'Verb Line',
+                    description: 'Shows the active verb label (Walk to when none)',
+                    controlKind: 'verbLine'
+                },
+                {
                     label: 'Inventory Panel',
                     description: 'Player inventory grid',
                     controlKind: 'inventoryPanel'

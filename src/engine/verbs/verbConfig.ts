@@ -8,6 +8,106 @@ import type { GameSettings, GameVerbDefinition, VerbInputProfile } from '../../t
 export const WALK_TO_VERB_ID = 'walkTo';
 
 /**
+ * Default copy for the built-in walk pointer mode when no custom verb is armed
+ * (GUI {@link import('../../types/gui.js').GuiVerbLineControl | verbLine}, cursors, etc.).
+ */
+export const WALK_TO_VERB_DISPLAY_LABEL = 'Walk to';
+
+function titleCaseVerbId(id: string): string {
+  if (id.length === 0) {
+    return id;
+  }
+  return id[0]!.toUpperCase() + id.slice(1);
+}
+
+/**
+ * Resolves the short label shown on a GUI verb line: {@link WALK_TO_VERB_DISPLAY_LABEL} when no verb
+ * is active (or the active id is {@link WALK_TO_VERB_ID}); otherwise the configured `verbs[].label`,
+ * or a fallback from id / `preposition`.
+ */
+export function resolveVerbLineDisplayLabel(settings: GameSettings, activeVerbId: string | null): string {
+  const trimmed = activeVerbId?.trim() ?? '';
+  if (trimmed.length === 0 || trimmed === WALK_TO_VERB_ID) {
+    return WALK_TO_VERB_DISPLAY_LABEL;
+  }
+  const defs = getEffectiveVerbDefinitions(settings);
+  const def = defs.find((v) => v.id === trimmed);
+  if (!def) {
+    return titleCaseVerbId(trimmed);
+  }
+  const label = def.label?.trim();
+  if (label && label.length > 0) {
+    return label;
+  }
+  const prep = def.preposition?.trim();
+  if (prep && prep.length > 0) {
+    return `${titleCaseVerbId(def.id)} ${prep}`;
+  }
+  return titleCaseVerbId(def.id);
+}
+
+/**
+ * Leading verb word for triplet lines like “Use **broom** with …”: configured `label`, or else
+ * title-cased `id` — **not** the `preposition` suffix from {@link resolveVerbLineDisplayLabel}.
+ */
+export function resolveVerbLineLeadingVerbWord(settings: GameSettings, activeVerbId: string): string {
+  const trimmed = activeVerbId.trim();
+  if (trimmed.length === 0 || trimmed === WALK_TO_VERB_ID) {
+    return WALK_TO_VERB_DISPLAY_LABEL;
+  }
+  const defs = getEffectiveVerbDefinitions(settings);
+  const def = defs.find((v) => v.id === trimmed);
+  if (!def) {
+    return titleCaseVerbId(trimmed);
+  }
+  const label = def.label?.trim();
+  if (label && label.length > 0) {
+    return label;
+  }
+  return titleCaseVerbId(def.id);
+}
+
+/**
+ * Full verb-line copy: {@link resolveVerbLineDisplayLabel} when idle (no hover), except that an
+ * armed inventory item plus a verb with **`preposition`** keeps **`"<verb word> <item> <preposition>"`**
+ * visible over empty space (e.g. “Use broom with”), then appends the hovered target when present
+ * (“Use broom with pillar”). Otherwise hover appends **`"<verb label> <description>"`** (LucasArts-style).
+ */
+export function composeVerbLineText(
+  settings: GameSettings,
+  activeVerbId: string | null,
+  hoveredObjectDescription: string | null,
+  activeInventoryItemDisplayName?: string | null,
+): string {
+  const desc = hoveredObjectDescription?.trim() ?? '';
+  const trimmedVerb = activeVerbId?.trim() ?? '';
+  const walkMode = trimmedVerb.length === 0 || trimmedVerb === WALK_TO_VERB_ID;
+  const inv = activeInventoryItemDisplayName?.trim() ?? '';
+  const defs = getEffectiveVerbDefinitions(settings);
+  const def = walkMode ? undefined : defs.find((v) => v.id === trimmedVerb);
+  const prep = def?.preposition?.trim() ?? '';
+  const useInventoryPrepLine = !walkMode && prep.length > 0 && inv.length > 0;
+
+  if (desc.length === 0) {
+    if (useInventoryPrepLine) {
+      const verbWord = resolveVerbLineLeadingVerbWord(settings, trimmedVerb);
+      return `${verbWord} ${inv} ${prep}`;
+    }
+    return resolveVerbLineDisplayLabel(settings, activeVerbId);
+  }
+
+  if (walkMode) {
+    return `${WALK_TO_VERB_DISPLAY_LABEL} ${desc}`;
+  }
+  if (useInventoryPrepLine) {
+    const verbWord = resolveVerbLineLeadingVerbWord(settings, trimmedVerb);
+    return `${verbWord} ${inv} ${prep} ${desc}`;
+  }
+  const prefix = resolveVerbLineDisplayLabel(settings, activeVerbId);
+  return `${prefix} ${desc}`;
+}
+
+/**
  * Reserved literal for `inputProfile` slots: substitute with the clicked target's authored
  * `defaultVerb` (prop / hotspot / character / inventory item), falling back to `"look"`.
  */

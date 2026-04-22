@@ -5,4 +5,8 @@ registerInventoryScript('Broom', ({ B }) => {
   B.whenLookAt(() => {
     // TODO
   });
+
+  B.whenUse(() => {
+    // TODO
+  });
 });
