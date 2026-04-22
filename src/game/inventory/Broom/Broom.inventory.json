@@ -4,12 +4,18 @@
   "description": "",
   "onVerb": {
     "look": true,
-    "use": true
+    "use": true,
+    "give": true,
+    "pickUp": true,
+    "open": true,
+    "close": true,
+    "talkTo": true,
+    "pull": true,
+    "push": true
   },
   "stackable": false,
   "animations": {},
   "display": {
     "aseprite": "shared"
-  },
-  "cursorAnimation": "Broom"
+  }
 }

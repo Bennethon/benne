@@ -140,6 +140,22 @@ type InspectorGuiControlCard =
           wordWrapWidth: number | null;
       }
     | {
+          controlKind: 'verbLine';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          font: string;
+          fontSize: number;
+          color: string;
+          align: 'left' | 'center' | 'right' | '';
+          wordWrapWidth: number | null;
+      }
+    | {
           controlKind: 'inventoryPanel';
           key: string;
           index: number;
@@ -1010,6 +1026,34 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
       <p class="muted small" style="margin:8px 0 0;">Sheet animations are not used for <code>text</code> controls.</p>`;
+    }
+
+    if (c.controlKind === 'verbLine') {
+        const alignLeftSel = c.align === '' || c.align === 'left';
+        const alignSel = `<select class="gui-field" data-index="${idx}" data-field="align">
+        <option value="left"${alignLeftSel ? ' selected' : ''}>left</option>
+        <option value="center"${c.align === 'center' ? ' selected' : ''}>center</option>
+        <option value="right"${c.align === 'right' ? ' selected' : ''}>right</option>
+      </select>`;
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">font</span>
+        ${guiFontSelectHtml(fontIds, c.font, idx)}
+        <span class="benne-pg-lbl">fontSize</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="fontSize" value="${c.fontSize}" />
+        <span class="benne-pg-lbl">color</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="color" value="${esc(c.color)}" />
+        <span class="benne-pg-lbl">align</span>
+        ${alignSel}
+        <span class="benne-pg-lbl">wordWrapWidth</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="wordWrapWidth" value="${c.wordWrapWidth ?? ''}" placeholder="—" />
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position</div>
+      ${guiDimInputsForControl(idx, c.x, c.y)}
+      <p class="muted small" style="margin:8px 0 0;">Runtime text comes from <code>game-config.json</code> verbs and the active verb (defaults to <strong>Walk to</strong>).</p>`;
     }
 
     if (c.controlKind === 'inventoryPanel') {

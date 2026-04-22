@@ -23,6 +23,7 @@
     "primaryButtonVerb": "use",
     "secondaryButtonVerb": "look"
   },
+  "dropWhenInventoryUsed": false,
   "defaultFallbackLine": "You can't do that.",
   "startingPlayerCharacter": "hank",
   "startingRoomId": "apartment",

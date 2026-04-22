@@ -3,11 +3,13 @@
   "name": "Broom",
   "description": "",
   "onVerb": {
-    "look": true
+    "look": true,
+    "use": true
   },
   "stackable": false,
   "animations": {},
   "display": {
     "aseprite": "shared"
-  }
+  },
+  "cursorAnimation": "Broom"
 }

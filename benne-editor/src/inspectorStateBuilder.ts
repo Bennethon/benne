@@ -170,6 +170,22 @@ export type InspectorGuiControlCard =
           wordWrapWidth: number | null;
       }
     | {
+          controlKind: 'verbLine';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          font: string;
+          fontSize: number;
+          color: string;
+          align: 'left' | 'center' | 'right' | '';
+          wordWrapWidth: number | null;
+      }
+    | {
           controlKind: 'inventoryPanel';
           key: string;
           index: number;
@@ -939,6 +955,28 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             zIndex: guiReadNumOrNull(o, 'zIndex'),
             visibleMode: guiReadVisibleMode(o),
             text: typeof o.text === 'string' ? o.text : '',
+            font: typeof o.font === 'string' ? o.font : '',
+            fontSize: guiReadNum(o, 'fontSize', 8),
+            color: typeof o.color === 'string' ? o.color : '#ffffff',
+            align,
+            wordWrapWidth: guiReadNumOrNull(o, 'wordWrapWidth')
+        };
+    }
+
+    if (type === 'verbLine') {
+        const alignRaw = o.align;
+        const align: 'left' | 'center' | 'right' | '' =
+            alignRaw === 'center' || alignRaw === 'right' || alignRaw === 'left' ? alignRaw : '';
+        return {
+            controlKind: 'verbLine',
+            key,
+            index,
+            summary,
+            controlId,
+            x: guiReadNum(o, 'x', 0),
+            y: guiReadNum(o, 'y', 0),
+            zIndex: guiReadNumOrNull(o, 'zIndex'),
+            visibleMode: guiReadVisibleMode(o),
             font: typeof o.font === 'string' ? o.font : '',
             fontSize: guiReadNum(o, 'fontSize', 8),
             color: typeof o.color === 'string' ? o.color : '#ffffff',
