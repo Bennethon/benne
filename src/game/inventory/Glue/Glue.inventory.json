@@ -1,0 +1,11 @@
+{
+  "id": "Glue",
+  "name": "Glue",
+  "description": "",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}

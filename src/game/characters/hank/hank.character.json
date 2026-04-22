@@ -4,20 +4,16 @@
   "description": "",
   "walkSpeed": 88,
   "walkToPoint": {
-    "x": 40,
-    "y": 61
+    "x": -10,
+    "y": 64
   },
   "talkPoint": {
     "x": 18,
-    "y": 3
+    "y": 1
   },
   "clickable": false,
   "display": {
     "aseprite": true
-  },
-  "feet": {
-    "x": 18,
-    "y": 61
   },
   "animations": {
     "IdleL": {
@@ -30,16 +26,13 @@
       "loop": true
     },
     "WalkL": {
-      "loop": true,
-      "frameDuration": 80
+      "loop": true
     },
     "WalkD": {
-      "loop": true,
-      "frameDuration": 60
+      "loop": true
     },
     "WalkU": {
-      "loop": true,
-      "frameDuration": 60
+      "loop": true
     },
     "TalkL": {
       "loop": true
@@ -50,5 +43,45 @@
     "TalkU": {
       "loop": true
     }
+  },
+  "feet": {
+    "x": 18,
+    "y": 61
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 8,
+        "y": 64
+      },
+      {
+        "x": 5,
+        "y": 21
+      },
+      {
+        "x": 10,
+        "y": 3
+      },
+      {
+        "x": 18,
+        "y": 1
+      },
+      {
+        "x": 26,
+        "y": 3
+      },
+      {
+        "x": 30,
+        "y": 21
+      },
+      {
+        "x": 29,
+        "y": 64
+      }
+    ]
+  },
+  "onVerb": {
+    "look": true,
+    "use": true
   }
 }

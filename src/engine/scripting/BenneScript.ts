@@ -98,7 +98,12 @@ export class BenneScript extends BenneScriptCore {
   readonly inventory: BenneScriptInventoryNamespace;
 
   /**
-   * **`doNotClear`** opts out of clearing the active inventory item after the handler’s queued steps (default clears).
+   * Register a handler for "inventory used on target" clicks for this room. Whether the active
+   * inventory selection is dropped (active inventory + active verb both cleared) after the handler
+   * runs follows {@link import('../verbs/dispatchInventoryOnVerbTarget.js').shouldDropActiveInventoryOnUse}
+   * (per-item **`dropWhenUsed`** → global **`dropWhenInventoryUsed`** → default **`false`**).
+   * **`doNotClear`** is a per-handler hard opt-out: the active inventory always stays armed after
+   * this handler's queued steps regardless of policy.
    */
   readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
 

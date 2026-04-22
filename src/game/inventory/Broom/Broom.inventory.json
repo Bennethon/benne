@@ -4,14 +4,7 @@
   "description": "",
   "onVerb": {
     "look": true,
-    "use": true,
-    "give": true,
-    "pickUp": true,
-    "open": true,
-    "close": true,
-    "talkTo": true,
-    "pull": true,
-    "push": true
+    "use": true
   },
   "stackable": false,
   "animations": {},

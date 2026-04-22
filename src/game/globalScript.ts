@@ -2,17 +2,23 @@ import { registerGlobalScript } from '@engine/scripting';
 import type { VerbGlobalFallbackPayload, VerbUnhandledPayload } from '@engine/events/verbInteractionEvents';
 
 /**
- * 9-verb template global script placeholder. Fill in cross-room verb handling
- * (global fallbacks, UI wiring, etc.) as the template gains content.
+ * Handlers for events that are not tied to a single room (inventory, UI, global flags, verbs, etc.).
+ *
+ * Verb fallback chain (engine): object scoped handler (room/character channels) → object fallback →
+ * `verb:global:<id>` → `verb:global:fallback` → `verb:unhandled`.
  */
 registerGlobalScript(({ B }) => {
-  B.whenGlobalFallback((_payload: VerbGlobalFallbackPayload) => {
-    // No-op until the 9-verb template defines global verb fallbacks.
+  B.whenGlobalFallback((payload: VerbGlobalFallbackPayload) => {
+    if (payload.verbId === 'use') {
+      console.log("I can't use that.");
+    } else if (payload.verbId === 'look') {
+      console.log('It looks like nothing.');
+    }
   });
 
   B.whenVerbUnhandled((p: VerbUnhandledPayload) => {
     if (import.meta.env.DEV) {
-      console.info(`[Benne 9-verb] verb:unhandled → "${p.fallbackLine}"`, p.target);
+      console.info(`[Benne] verb:unhandled → "${p.fallbackLine}"`, p.target);
     }
   });
 });
