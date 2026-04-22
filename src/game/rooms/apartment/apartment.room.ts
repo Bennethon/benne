@@ -14,4 +14,26 @@ import { registerRoomScript } from '@engine/scripting';
 registerRoomScript(({ B }) => {
   // Delete this line when you add your first handler.
   void B;
+  B.whenInventoryUsedOn('Pillar', (payload) => {
+    if (payload.itemId === 'Broom') {
+      B.player.walkTo('Pillar');
+      B.player.say('I used the Broom on the Pillar.');
+    } else if (payload.itemId === 'Candy1') {
+      // TODO
+    } else if (payload.itemId === 'Chainsaw') {
+      // TODO
+    } else if (payload.itemId === 'Key') {
+      // TODO
+    } else if (payload.itemId === 'Ladder') {
+      // TODO
+    } else if (payload.itemId === 'Lantern') {
+      // TODO
+    } else if (payload.itemId === 'Newspaper') {
+      // TODO
+    } else if (payload.itemId === 'SheetMusic') {
+      // TODO
+    } else if (payload.itemId === 'Vacuum') {
+      // TODO
+    }
+  });
 });

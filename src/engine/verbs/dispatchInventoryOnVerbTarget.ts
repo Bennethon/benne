@@ -53,7 +53,7 @@ export function dispatchInventoryOnVerbTargetInteraction(
   itemId: string,
   verbId: string,
   target: VerbInteractTarget,
-): void {
+): boolean {
   const payload = buildInventoryUsedOnPayload(target, itemId, verbId);
 
   switch (target.type) {
@@ -61,45 +61,46 @@ export function dispatchInventoryOnVerbTargetInteraction(
       const roomScoped = roomInventoryOnPropEventId(target.roomId, target.propId, itemId);
       if (listenerCount(bus, roomScoped) > 0) {
         bus.emit(roomScoped, payload);
-        return;
+        return true;
       }
       const globalScoped = globalInventoryOnPropEventId(target.propId, itemId);
       if (listenerCount(bus, globalScoped) > 0) {
         bus.emit(globalScoped, payload);
-        return;
+        return true;
       }
       bus.emit(roomScoped, payload);
-      return;
+      return false;
     }
     case 'hotspot': {
       const roomScoped = roomInventoryOnHotspotEventId(target.roomId, target.hotspotId, itemId);
       if (listenerCount(bus, roomScoped) > 0) {
         bus.emit(roomScoped, payload);
-        return;
+        return true;
       }
       const globalScoped = globalInventoryOnHotspotEventId(target.hotspotId, itemId);
       if (listenerCount(bus, globalScoped) > 0) {
         bus.emit(globalScoped, payload);
-        return;
+        return true;
       }
       bus.emit(roomScoped, payload);
-      return;
+      return false;
     }
     case 'character': {
       const roomScoped = roomInventoryOnCharacterEventId(target.roomId, target.characterId, itemId);
       if (listenerCount(bus, roomScoped) > 0) {
         bus.emit(roomScoped, payload);
-        return;
+        return true;
       }
       const globalScoped = globalInventoryOnCharacterEventId(target.characterId, itemId);
       if (listenerCount(bus, globalScoped) > 0) {
         bus.emit(globalScoped, payload);
-        return;
+        return true;
       }
       bus.emit(roomScoped, payload);
-      return;
+      return false;
     }
   }
+  return false;
 }
 
 /** Convenience for call sites that already read {@link getGameSettings}. */

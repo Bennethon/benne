@@ -1403,7 +1403,7 @@ export class RoomScene extends Phaser.Scene {
           console.log(
             `[Benne] inventory-on "${resolution.verbId}" item ${itemId} → prop ${spawn.id}`,
           );
-          dispatchInventoryOnVerbTargetInteraction(gameEvents, itemId, resolution.verbId, {
+          const handled = dispatchInventoryOnVerbTargetInteraction(gameEvents, itemId, resolution.verbId, {
             type: 'prop',
             propId: spawn.id,
             tag: spawn.tag,
@@ -1412,6 +1412,9 @@ export class RoomScene extends Phaser.Scene {
             walkToPoint: spawn.data.walkToPoint,
             lookAtPoint: spawn.data.lookAtPoint,
           });
+          if (!handled) {
+            manager.clearActiveInventoryItem();
+          }
           if (resolution.consumeActive) {
             manager.clearActiveVerb();
           }
@@ -1500,12 +1503,15 @@ export class RoomScene extends Phaser.Scene {
           console.log(
             `[Benne] inventory-on "${resolution.verbId}" item ${itemId} → hotspot ${hotspot.id}`,
           );
-          dispatchInventoryOnVerbTargetInteraction(gameEvents, itemId, resolution.verbId, {
+          const handled = dispatchInventoryOnVerbTargetInteraction(gameEvents, itemId, resolution.verbId, {
             type: 'hotspot',
             hotspotId: hotspot.id,
             roomId,
             description: hotspot.description,
           });
+          if (!handled) {
+            manager.clearActiveInventoryItem();
+          }
           if (resolution.consumeActive) {
             manager.clearActiveVerb();
           }
@@ -1653,7 +1659,7 @@ export class RoomScene extends Phaser.Scene {
           const sx = sprite.x;
           const sy = sprite.y;
           const d = spawn.data;
-          dispatchInventoryOnVerbTargetInteraction(gameEvents, itemId, resolution.verbId, {
+          const handled = dispatchInventoryOnVerbTargetInteraction(gameEvents, itemId, resolution.verbId, {
             type: 'character',
             characterId: d.id,
             instanceId: spawn.instanceId,
@@ -1666,6 +1672,9 @@ export class RoomScene extends Phaser.Scene {
               ? { talkPoint: { x: sx + d.talkPoint.x, y: sy + d.talkPoint.y } }
               : {}),
           });
+          if (!handled) {
+            manager.clearActiveInventoryItem();
+          }
           if (resolution.consumeActive) {
             manager.clearActiveVerb();
           }
@@ -1800,7 +1809,8 @@ export class RoomScene extends Phaser.Scene {
     const activeKey = settings.cursor!.activeAnimation.trim();
 
     const overClickable = this.isCursorOverBenneClickable(this.input.hitTestPointer(pointer));
-    const invClip = overClickable ? this.tryActiveInventoryCursorClip() : null;
+    // Active inventory cursor clips take precedence regardless of hover target.
+    const invClip = this.tryActiveInventoryCursorClip();
     const visualKey = invClip
       ? `inv|${invClip.textureKey}|${invClip.animKey}`
       : overClickable
@@ -1812,14 +1822,14 @@ export class RoomScene extends Phaser.Scene {
     }
     this.lastCustomCursorVisualKey = visualKey;
 
-    if (!overClickable) {
-      sprite.setTexture(CURSOR_TEXTURE_KEY);
-      sprite.play(idleKey);
-      return;
-    }
     if (invClip) {
       sprite.setTexture(invClip.textureKey);
       sprite.play(invClip.animKey);
+      return;
+    }
+    if (!overClickable) {
+      sprite.setTexture(CURSOR_TEXTURE_KEY);
+      sprite.play(idleKey);
       return;
     }
     sprite.setTexture(CURSOR_TEXTURE_KEY);
