@@ -9,7 +9,7 @@ export function createCharacterScriptContext(
   roomId: string,
   roomScene: RoomScene,
 ): CharacterScriptContext {
-  const B = new CharacterBenneScript(events, characterId, roomScene);
+  const B = new CharacterBenneScript(events, characterId, roomId, roomScene);
 
   return {
     B,
@@ -17,5 +17,6 @@ export function createCharacterScriptContext(
     characterId,
     roomId,
     roomScene,
+    whenInventoryUsedOn: B.whenInventoryUsedOn,
   };
 }

@@ -34,7 +34,7 @@ export function ensureRegisterCharacterScriptShell(source: string, characterId: 
 /**
  * Inserts a \`B.when*\` / \`B.whenVerb\` line before the closing \`}\` of the \`registerCharacterScript\` callback body.
  */
-function insertIntoRegisterCharacterScriptBody(
+export function insertIntoRegisterCharacterScriptBody(
     source: string,
     characterId: string,
     insertBlock: string

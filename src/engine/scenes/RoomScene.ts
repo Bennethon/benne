@@ -10,6 +10,16 @@ import {
 } from '../directionalCharacterAnimation';
 import { gameEvents } from '../events/EventBus';
 import {
+  GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
+  GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
+} from '../../types/gameState';
+import {
+  getPerItemInventoryTextureKey,
+  inventoryPhaserAnimationKeyForTag,
+  sharedInventoryTextureKey,
+} from '../../game/inventoryAseprite';
+import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
+import {
   PLAYER_WALK_START,
   PLAYER_WALK_STOP,
   type PlayerWalkStartPayload,
@@ -35,6 +45,10 @@ import {
 import { pointInPolygon } from '../walkable';
 import { findWalkPath } from '../pathfinding';
 import { dispatchVerbInteraction } from '../verbs/dispatchVerb';
+import {
+  dispatchInventoryOnVerbTargetInteraction,
+  shouldDispatchInventoryUsedOnVerbForGame,
+} from '../verbs/dispatchInventoryVerb';
 import {
   getCharacterVerbHandlers,
   getHotspotVerbHandlers,
@@ -209,9 +223,14 @@ export class RoomScene extends Phaser.Scene {
 
   /** Screen-space sprite when `game-config.json` enables `cursor.display.aseprite`. */
   private customCursorSprite: Phaser.GameObjects.Sprite | null = null;
-  private lastCustomCursorActive: boolean | null = null;
+  /** Dedupes {@link refreshCustomCursor} work when pointer + visual mode are unchanged. */
+  private lastCustomCursorVisualKey: string | null = null;
   private readonly onCustomCursorPointerMove = (pointer: Phaser.Input.Pointer): void => {
     this.refreshCustomCursor(pointer);
+  };
+  private readonly onCustomGameStateForCursor = (): void => {
+    this.lastCustomCursorVisualKey = null;
+    this.refreshCustomCursor(this.input.activePointer);
   };
 
   constructor() {
@@ -267,11 +286,18 @@ export class RoomScene extends Phaser.Scene {
 
     this.genericGuiOverlays = [];
     let stackIndex = 0;
+    const inventoryPanelPointerContext = {
+      roomId: data.room.id,
+      isInputSuppressed: (): boolean => this.isScriptedDialogInputSuppressed(),
+      tryConsumeDialogClickToSkip: (pointer: Phaser.Input.Pointer): boolean =>
+        this.tryConsumeScriptedDialogClickToSkip(pointer),
+    };
     for (const gui of nonDialogGuis) {
       const built = buildGuiOverlay(this, gui, {
         /** Preview / cutscene override wins; otherwise each GUI's required `visible` boolean. */
         startVisible: hasGenericGuiVisibilityOverride ? genericGuiVisibilityOverride : gui.visible,
         depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
+        inventoryPanelPointerContext,
       });
       if (built) {
         this.genericGuiOverlays.push(built.handle);
@@ -289,6 +315,7 @@ export class RoomScene extends Phaser.Scene {
           /** Speech UI is driven by {@link setDialogTextOverlay}, not the JSON `visible` flag at boot. */
           startVisible: false,
           depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
+          inventoryPanelPointerContext,
         })
       : null;
     this.dialogTextOverlay = dialogBuilt?.handle ?? null;
@@ -1370,6 +1397,27 @@ export class RoomScene extends Phaser.Scene {
         void this.walkPlayerTo(spawn.id);
         return;
       }
+      if (resolution.kind === 'verb') {
+        if (shouldDispatchInventoryUsedOnVerbForGame(manager, resolution.verbId, resolution)) {
+          const itemId = manager.getActiveInventoryItemId()!;
+          console.log(
+            `[Benne] inventory-on "${resolution.verbId}" item ${itemId} → prop ${spawn.id}`,
+          );
+          dispatchInventoryOnVerbTargetInteraction(gameEvents, itemId, resolution.verbId, {
+            type: 'prop',
+            propId: spawn.id,
+            tag: spawn.tag,
+            roomId,
+            description: this.resolvePropDescriptionForDispatch(spawn),
+            walkToPoint: spawn.data.walkToPoint,
+            lookAtPoint: spawn.data.lookAtPoint,
+          });
+          if (resolution.consumeActive) {
+            manager.clearActiveVerb();
+          }
+          return;
+        }
+      }
       this.emitPropVerbInteraction(roomId, spawn, resolution.verbId);
       if (resolution.consumeActive) {
         manager.clearActiveVerb();
@@ -1445,6 +1493,24 @@ export class RoomScene extends Phaser.Scene {
       if (resolution.kind === 'walkToTarget') {
         void this.walkPlayerTo(hotspot.id);
         return;
+      }
+      if (resolution.kind === 'verb') {
+        if (shouldDispatchInventoryUsedOnVerbForGame(manager, resolution.verbId, resolution)) {
+          const itemId = manager.getActiveInventoryItemId()!;
+          console.log(
+            `[Benne] inventory-on "${resolution.verbId}" item ${itemId} → hotspot ${hotspot.id}`,
+          );
+          dispatchInventoryOnVerbTargetInteraction(gameEvents, itemId, resolution.verbId, {
+            type: 'hotspot',
+            hotspotId: hotspot.id,
+            roomId,
+            description: hotspot.description,
+          });
+          if (resolution.consumeActive) {
+            manager.clearActiveVerb();
+          }
+          return;
+        }
       }
       if (Object.keys(handlers.onVerb).length === 0 && handlers.onVerbFallback === undefined) {
         return;
@@ -1578,6 +1644,34 @@ export class RoomScene extends Phaser.Scene {
         void this.walkPlayerTo(spawn.data.id);
         return;
       }
+      if (resolution.kind === 'verb') {
+        if (shouldDispatchInventoryUsedOnVerbForGame(manager, resolution.verbId, resolution)) {
+          const itemId = manager.getActiveInventoryItemId()!;
+          console.log(
+            `[Benne] inventory-on "${resolution.verbId}" item ${itemId} → character ${spawn.data.id}`,
+          );
+          const sx = sprite.x;
+          const sy = sprite.y;
+          const d = spawn.data;
+          dispatchInventoryOnVerbTargetInteraction(gameEvents, itemId, resolution.verbId, {
+            type: 'character',
+            characterId: d.id,
+            instanceId: spawn.instanceId,
+            roomId,
+            description: d.description,
+            ...(d.walkToPoint !== undefined
+              ? { walkToPoint: { x: sx + d.walkToPoint.x, y: sy + d.walkToPoint.y } }
+              : {}),
+            ...(d.talkPoint !== undefined
+              ? { talkPoint: { x: sx + d.talkPoint.x, y: sy + d.talkPoint.y } }
+              : {}),
+          });
+          if (resolution.consumeActive) {
+            manager.clearActiveVerb();
+          }
+          return;
+        }
+      }
       console.log(`[Benne] verb "${resolution.verbId}" character ${spawn.data.id}`);
       const sx = sprite.x;
       const sy = sprite.y;
@@ -1628,9 +1722,11 @@ export class RoomScene extends Phaser.Scene {
     sprite.setName('benne-custom-cursor');
     sprite.play(idleKey);
     this.customCursorSprite = sprite;
-    this.lastCustomCursorActive = false;
+    this.lastCustomCursorVisualKey = null;
 
     this.input.on('pointermove', this.onCustomCursorPointerMove);
+    gameEvents.on(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, this.onCustomGameStateForCursor);
+    gameEvents.on(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, this.onCustomGameStateForCursor);
     this.refreshCustomCursor(this.input.activePointer);
   }
 
@@ -1640,8 +1736,56 @@ export class RoomScene extends Phaser.Scene {
     }
     this.customCursorSprite.destroy();
     this.customCursorSprite = null;
-    this.lastCustomCursorActive = null;
+    this.lastCustomCursorVisualKey = null;
+    gameEvents.off(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, this.onCustomGameStateForCursor);
+    gameEvents.off(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, this.onCustomGameStateForCursor);
     this.input.setDefaultCursor('default');
+  }
+
+  private ensureAsepriteAnimsFromAtlasOnce(textureKey: string): void {
+    if (!this.textures.exists(textureKey)) {
+      return;
+    }
+    const flagKey = `__benneAsepriteAnims:${textureKey}`;
+    if (this.game.registry.get(flagKey)) {
+      return;
+    }
+    this.anims.createFromAseprite(textureKey);
+    this.game.registry.set(flagKey, true);
+  }
+
+  /**
+   * When an inventory item is active and its definition sets {@link InventoryItemData.cursorAnimation} on a
+   * loaded sheet, returns texture + resolved Phaser animation key; otherwise `null` (caller uses verb cursor).
+   */
+  private tryActiveInventoryCursorClip(): { textureKey: string; animKey: string } | null {
+    const manager = resolveGameStateManager(this.game);
+    const itemId = manager.getActiveInventoryItemId();
+    if (itemId == null || itemId.length === 0) {
+      return null;
+    }
+    const def = getInventoryDefinition(itemId);
+    if (!def) {
+      return null;
+    }
+    const tag = def.cursorAnimation?.trim();
+    if (!tag) {
+      return null;
+    }
+    const mode = def.display?.aseprite;
+    if (mode !== true && mode !== 'shared') {
+      return null;
+    }
+    const textureKey = mode === 'shared' ? sharedInventoryTextureKey : getPerItemInventoryTextureKey(itemId);
+    if (!this.textures.exists(textureKey)) {
+      return null;
+    }
+    this.ensureAsepriteAnimsFromAtlasOnce(textureKey);
+    const animKey = inventoryPhaserAnimationKeyForTag(def, tag);
+    if (!this.anims.exists(animKey)) {
+      return null;
+    }
+    return { textureKey, animKey };
   }
 
   private refreshCustomCursor(pointer: Phaser.Input.Pointer): void {
@@ -1656,11 +1800,30 @@ export class RoomScene extends Phaser.Scene {
     const activeKey = settings.cursor!.activeAnimation.trim();
 
     const overClickable = this.isCursorOverBenneClickable(this.input.hitTestPointer(pointer));
-    if (this.lastCustomCursorActive === overClickable) {
+    const invClip = overClickable ? this.tryActiveInventoryCursorClip() : null;
+    const visualKey = invClip
+      ? `inv|${invClip.textureKey}|${invClip.animKey}`
+      : overClickable
+        ? `verb|${activeKey}`
+        : `idle|${idleKey}`;
+
+    if (this.lastCustomCursorVisualKey === visualKey) {
       return;
     }
-    this.lastCustomCursorActive = overClickable;
-    sprite.play(overClickable ? activeKey : idleKey);
+    this.lastCustomCursorVisualKey = visualKey;
+
+    if (!overClickable) {
+      sprite.setTexture(CURSOR_TEXTURE_KEY);
+      sprite.play(idleKey);
+      return;
+    }
+    if (invClip) {
+      sprite.setTexture(invClip.textureKey);
+      sprite.play(invClip.animKey);
+      return;
+    }
+    sprite.setTexture(CURSOR_TEXTURE_KEY);
+    sprite.play(activeKey);
   }
 
   /**
@@ -1671,7 +1834,11 @@ export class RoomScene extends Phaser.Scene {
     for (const o of hits) {
       const go = o as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown };
       if (typeof go.getData === 'function') {
-        if (go.getData('benneGuiButton') === true || go.getData('benneHotspot') === true) {
+        if (
+          go.getData('benneGuiButton') === true ||
+          go.getData('benneHotspot') === true ||
+          go.getData('benneInventorySlot') === true
+        ) {
           return true;
         }
         if (go.getData('character')) {

@@ -14,6 +14,7 @@ import {
     resolvePerItemInventoryAsepriteSheet,
     resolveRoomAsepriteSheetForProps,
     resolveSharedInventoryAsepriteSheet,
+    listInventoryDefinitions,
     readRoomHotspots,
     readRoomProps,
     type RoomHotspotListEntry,
@@ -104,6 +105,8 @@ export type InspectorRoomState = {
     rev: number;
     roomJsonUri: string;
     roomId: string;
+    /** Inventory definition ids under `src/game/inventory/` (for Inv scaffold branches). */
+    inventoryItemIds: string[];
     displayName: string;
     size: { width: number; height: number } | null;
     scrollBounds: { x: number; y: number; width: number; height: number } | null;
@@ -131,6 +134,7 @@ export type InspectorCharacterState = {
     rev: number;
     characterJsonUri: string;
     characterId: string;
+    inventoryItemIds: string[];
     name: string;
     walkSpeed: number;
     clickable: boolean;
@@ -290,6 +294,8 @@ export type InspectorInventoryState = {
     stackable: boolean;
     asepriteMode: true | 'shared';
     defaultAnimation: string;
+    /** Aseprite tag on this item’s sheet for custom cursor when item is active (use-on-target); empty = omit in JSON. */
+    cursorAnimation: string;
     verbs: InspectorVerbChip[];
     availableVerbs: GameConfigVerbEntry[];
     animations: InspectorInventoryAnimationCard[];
@@ -396,6 +402,7 @@ async function buildRoomInspectorState(
     }
 
     const roomId = getRoomIdFromRoomJsonUri(roomJsonUri);
+    const inventoryItemIds = (await listInventoryDefinitions(folder)).map((x) => x.id);
     let text: string;
     try {
         text = await readRoomJsonText(roomJsonUri);
@@ -768,6 +775,7 @@ async function buildRoomInspectorState(
         rev,
         roomJsonUri: roomJsonUri.toString(),
         roomId,
+        inventoryItemIds,
         displayName,
         size,
         scrollBounds,
@@ -848,11 +856,15 @@ async function buildCharacterInspectorState(
         scriptText
     );
 
+    const invFolder = vscode.workspace.getWorkspaceFolder(characterJsonUri);
+    const inventoryItemIds = invFolder ? (await listInventoryDefinitions(invFolder)).map((x) => x.id) : [];
+
     return {
         kind: 'character',
         rev,
         characterJsonUri: characterJsonUri.toString(),
         characterId,
+        inventoryItemIds,
         name,
         walkSpeed,
         clickable,
@@ -1164,6 +1176,8 @@ async function buildInventoryInspectorState(
     const defaultFromFile = typeof data.defaultAnimation === 'string' ? data.defaultAnimation.trim() : '';
     const legacyTag = typeof displayRaw.tag === 'string' ? displayRaw.tag.trim() : '';
     const defaultAnimation = defaultFromFile.length > 0 ? defaultFromFile : legacyTag;
+    const cursorAnimation =
+        typeof data.cursorAnimation === 'string' ? data.cursorAnimation.trim() : '';
 
     const animationsRaw =
         data.animations && typeof data.animations === 'object' && !Array.isArray(data.animations)
@@ -1227,6 +1241,7 @@ async function buildInventoryInspectorState(
         stackable,
         asepriteMode,
         defaultAnimation,
+        cursorAnimation,
         verbs,
         availableVerbs: filterSelectableVerbs(effectiveVerbs),
         animations,

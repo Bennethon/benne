@@ -1,8 +1,13 @@
 export {
   BenneScript,
+  type AnyInventoryUsedOnPayload,
   type BenneScriptCharacterFacade,
   type BenneScriptPlayerFacade,
   type BenneScriptPropFacade,
+  type BenneScriptSharedSelectionApi,
+  type InventoryWhenUseHandler,
+  type InventoryWhenUseRegistrar,
+  type RoomInventoryUsedOnRegistrar,
   type BlockingWithNow,
 } from './BenneScript.js';
 export type { GivePropInteractPayload } from './benneScriptPayloads.js';

@@ -1,0 +1,11 @@
+{
+  "id": "Candy1",
+  "name": "Candy1",
+  "description": "",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}

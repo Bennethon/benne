@@ -57,6 +57,9 @@ function buildEmitPayload(target: VerbInteractTarget, verbId: string): Record<st
 /**
  * Dispatch order: object `onVerb[verbId]` → `onVerbFallback` → `verb:global:<verbId>` →
  * `verb:global:fallback` → `verb:unhandled` (+ dev `console.warn`).
+ *
+ * Active inventory + use / active-verb clicks are handled separately by
+ * {@link import('./dispatchInventoryOnVerbTarget.js').dispatchInventoryOnVerbTargetInteraction}.
  */
 export function dispatchVerbInteraction(
   bus: EventBus,

@@ -1,0 +1,11 @@
+{
+  "id": "SheetMusic",
+  "name": "SheetMusic",
+  "description": "",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}

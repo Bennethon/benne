@@ -21,9 +21,16 @@ import {
   type BenneScriptGameStateNamespace,
   type BenneScriptInventoryNamespace,
 } from './benneScriptGameStateApi.js';
+import { getRegisteredInventoryDefinitionIds } from '../inventory/inventoryDefinitionRegistry.js';
+import {
+  globalInventoryOnCharacterEventId,
+  roomInventoryOnCharacterEventId,
+} from '../events/inventoryOnVerbEvents.js';
 import type {
+  AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
   BenneScriptPlayerFacade,
+  RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
 
 /**
@@ -31,19 +38,69 @@ import type {
  * {@link import('../verbs/dispatchVerb.js').dispatchVerbInteraction} still prefers room-scoped handlers first.
  */
 export class CharacterBenneScript extends BenneScriptCore {
+  private static unresolvedInventoryOnCharacterWarnings = new Set<string>();
+
   private readonly characterId: string;
+  private readonly roomId: string;
   private readonly roomScene: RoomScene;
 
   readonly state: BenneScriptGameStateNamespace;
   readonly inventory: BenneScriptInventoryNamespace;
 
-  constructor(events: Phaser.Events.EventEmitter, characterId: string, roomScene: RoomScene) {
+  readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
+
+  constructor(events: Phaser.Events.EventEmitter, characterId: string, roomId: string, roomScene: RoomScene) {
     super(events, () => roomScene.time);
     this.characterId = characterId;
+    this.roomId = roomId;
     this.roomScene = roomScene;
     const manager = resolveGameStateManager(roomScene.game);
     this.state = createBenneScriptGameStateNamespace(manager);
     this.inventory = createBenneScriptInventoryNamespace(manager);
+    this.whenInventoryUsedOn = Object.assign(
+      (
+        targetId: string,
+        handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+        options?: { doNotClear?: boolean },
+      ) => {
+        this.registerInventoryUsedOnForCharacterTarget(targetId, handler, options?.doNotClear === true);
+      },
+      {
+        doNotClear: (targetId: string, handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void)) => {
+          this.registerInventoryUsedOnForCharacterTarget(targetId, handler, true);
+        },
+      },
+    ) as RoomInventoryUsedOnRegistrar;
+  }
+
+  private warnInventoryOnWrongCharacter(targetId: string): void {
+    const key = `${this.roomId}:${this.characterId}:${targetId}`;
+    if (CharacterBenneScript.unresolvedInventoryOnCharacterWarnings.has(key)) {
+      return;
+    }
+    CharacterBenneScript.unresolvedInventoryOnCharacterWarnings.add(key);
+    console.warn(
+      `[Benne] whenInventoryUsedOn("${targetId}") in character script "${this.characterId}" expects targetId === character id — handler was not registered.`,
+    );
+  }
+
+  private registerInventoryUsedOnForCharacterTarget(
+    targetId: string,
+    handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+    doNotClear: boolean,
+  ): void {
+    if (targetId !== this.characterId) {
+      this.warnInventoryOnWrongCharacter(targetId);
+      return;
+    }
+    for (const itemId of getRegisteredInventoryDefinitionIds()) {
+      this.subscribeInventoryUsedOnTargetEvents(
+        roomInventoryOnCharacterEventId(this.roomId, this.characterId, itemId),
+        globalInventoryOnCharacterEventId(this.characterId, itemId),
+        handler,
+        doNotClear,
+      );
+    }
   }
 
   private subscribeSelfVerb(

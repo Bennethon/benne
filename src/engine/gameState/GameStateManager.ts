@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import type {
   BenneGameStateFlagValue,
+  GameStateActiveInventoryItemChangedPayload,
   GameStateActiveVerbChangedPayload,
   GameStateFlagChangedPayload,
   GameStateInventoryChangedPayload,
@@ -10,6 +11,7 @@ import type {
   SerializableBenneGameState,
 } from '../../types/gameState.js';
 import {
+  GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
   GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
   GAME_STATE_FLAG_CHANGED_EVENT,
   GAME_STATE_INVENTORY_CHANGED_EVENT,
@@ -56,6 +58,16 @@ function cloneInventory(inv: Record<string, number>): Record<string, number> {
   return { ...inv };
 }
 
+function normalizeActiveInventoryItemId(raw: unknown): string | null {
+  if (raw == null) {
+    return null;
+  }
+  if (typeof raw === 'string' && raw.length > 0) {
+    return raw;
+  }
+  return null;
+}
+
 function cloneSnapshot(state: SerializableBenneGameState): SerializableBenneGameState {
   return {
     version: 1,
@@ -63,6 +75,19 @@ function cloneSnapshot(state: SerializableBenneGameState): SerializableBenneGame
     variables: { ...state.variables },
     inventory: cloneInventory(state.inventory),
   };
+}
+
+function formatVerbState(verbId: string | null): string {
+  return verbId == null || verbId.length === 0 ? 'none' : `"${verbId}"`;
+}
+
+function formatActiveInventoryItemState(itemId: string | null): string {
+  if (itemId == null || itemId.length === 0) {
+    return 'none';
+  }
+  const def = getInventoryDefinition(itemId);
+  const name = def?.name?.trim();
+  return name ? `"${itemId}" (${name})` : `"${itemId}"`;
 }
 
 function localStorageKey(slot: number): string {
@@ -80,6 +105,10 @@ export class GameStateManager {
    * (so loading a save returns the player to the default pointer profile, not mid-verb).
    */
   private activeVerbId: string | null = null;
+  /**
+   * Runtime "active inventory item" for use-on-target flows. Included in save snapshots (see {@link getSnapshot}).
+   */
+  private activeInventoryItemId: string | null = null;
 
   constructor(events: Phaser.Events.EventEmitter, initial?: GameStateInitialSlice) {
     this.events = events;
@@ -92,7 +121,10 @@ export class GameStateManager {
   }
 
   getSnapshot(): SerializableBenneGameState {
-    return cloneSnapshot(this.state);
+    return {
+      ...cloneSnapshot(this.state),
+      activeInventoryItemId: this.activeInventoryItemId,
+    };
   }
 
   /**
@@ -114,6 +146,31 @@ export class GameStateManager {
       this.activeVerbId = null;
       const activePayload: GameStateActiveVerbChangedPayload = { previousValue, value: null };
       this.events.emit(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, activePayload);
+      console.log(
+        `[Benne] Active verb became inactive (applying game state snapshot / load). Was: ${formatVerbState(previousValue)}.`,
+      );
+    }
+    const nextActiveInventoryItemId = normalizeActiveInventoryItemId(snapshot.activeInventoryItemId);
+    if (this.activeInventoryItemId !== nextActiveInventoryItemId) {
+      const previousItemId = this.activeInventoryItemId;
+      this.activeInventoryItemId = nextActiveInventoryItemId;
+      const activeItemPayload: GameStateActiveInventoryItemChangedPayload = {
+        itemId: nextActiveInventoryItemId,
+      };
+      this.events.emit(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, activeItemPayload);
+      if (nextActiveInventoryItemId == null) {
+        console.log(
+          `[Benne] Active inventory item became inactive (snapshot). Was: ${formatActiveInventoryItemState(previousItemId)}.`,
+        );
+      } else if (previousItemId == null) {
+        console.log(
+          `[Benne] Active inventory item became active (snapshot): ${formatActiveInventoryItemState(nextActiveInventoryItemId)}.`,
+        );
+      } else {
+        console.log(
+          `[Benne] Active inventory item changed (snapshot): ${formatActiveInventoryItemState(previousItemId)} → ${formatActiveInventoryItemState(nextActiveInventoryItemId)}.`,
+        );
+      }
     }
     const payload: GameStateReplacedPayload = { snapshot: this.getSnapshot() };
     this.events.emit(GAME_STATE_REPLACED_EVENT, payload);
@@ -125,7 +182,10 @@ export class GameStateManager {
 
   importSnapshotJson(json: string): void {
     try {
-      const parsed = JSON.parse(json) as SerializableBenneGameState & { inventory?: unknown };
+      const parsed = JSON.parse(json) as SerializableBenneGameState & {
+        inventory?: unknown;
+        activeInventoryItemId?: unknown;
+      };
       if (parsed && typeof parsed === 'object') {
         parsed.inventory = normalizeSerializedInventory(parsed.inventory);
       }
@@ -325,9 +385,52 @@ export class GameStateManager {
     this.activeVerbId = next;
     const payload: GameStateActiveVerbChangedPayload = { previousValue, value: next };
     this.events.emit(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, payload);
+    if (next == null) {
+      console.log(
+        `[Benne] Active verb became inactive. Was: ${formatVerbState(previousValue)}. (Cleared by script, UI, or input.)`,
+      );
+    } else if (previousValue == null) {
+      console.log(`[Benne] Active verb became active: ${formatVerbState(next)}.`);
+    } else {
+      console.log(
+        `[Benne] Active verb changed: ${formatVerbState(previousValue)} → ${formatVerbState(next)}.`,
+      );
+    }
   }
 
   clearActiveVerb(): void {
     this.setActiveVerb(null);
+  }
+
+  getActiveInventoryItemId(): string | null {
+    return this.activeInventoryItemId;
+  }
+
+  setActiveInventoryItem(id: string | null): void {
+    const next = id != null && id.length > 0 ? id : null;
+    if (this.activeInventoryItemId === next) {
+      return;
+    }
+    const previousItemId = this.activeInventoryItemId;
+    this.activeInventoryItemId = next;
+    const payload: GameStateActiveInventoryItemChangedPayload = { itemId: next };
+    this.events.emit(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, payload);
+    if (next == null) {
+      console.log(
+        `[Benne] Active inventory item became inactive (use-on-target selection cleared). Was: ${formatActiveInventoryItemState(previousItemId)}.`,
+      );
+    } else if (previousItemId == null) {
+      console.log(
+        `[Benne] Active inventory item became active (use-on-target): ${formatActiveInventoryItemState(next)}.`,
+      );
+    } else {
+      console.log(
+        `[Benne] Active inventory item changed (use-on-target): ${formatActiveInventoryItemState(previousItemId)} → ${formatActiveInventoryItemState(next)}.`,
+      );
+    }
+  }
+
+  clearActiveInventoryItem(): void {
+    this.setActiveInventoryItem(null);
   }
 }

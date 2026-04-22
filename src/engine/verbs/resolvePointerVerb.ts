@@ -10,6 +10,9 @@ export interface PointerVerbTarget {
 /**
  * Outcome of resolving a pointer click over a clickable target.
  *
+ * When combined with an active inventory item, {@link import('./dispatchInventoryOnVerbTarget.js').shouldDispatchInventoryUsedOnVerb}
+ * may route the click to inventory-on-target dispatch instead of normal {@link import('./dispatchVerb.js').dispatchVerbInteraction}.
+ *
  * - `verb` — dispatch this verb against the target (normal case). When `consumeActive` is true, the
  *   caller should clear the runtime active verb after emit.
  * - `walkToTarget` — the `inputProfile` slot resolved to the built-in `walkTo`; walk to the target's
@@ -62,6 +65,34 @@ export function resolvePointerVerbForTarget(
     return { kind: 'verb', verbId: effective, consumeActive: false };
   }
   return { kind: 'verb', verbId: slotValue, consumeActive: false };
+}
+
+/**
+ * Same rules as {@link resolvePointerVerbForTarget}, but inventory items have no stand point: when
+ * the resolved `inputProfile` slot is the built-in `walkTo`, substitute the item's authored
+ * `defaultVerb` (fallback {@link DEFAULT_VERB_FALLBACK}) instead of returning `walkToTarget`.
+ *
+ * **Active verb is never consumed** on inventory-slot clicks (`consumeActive` is forced to `false`
+ * for `verb` resolutions). Applying a verb to an inventory row arms use-on-target (active item +
+ * often the same verb for the next world click); clearing the active verb here broke that flow.
+ * World targets still use {@link resolvePointerVerbForTarget} and may consume the active verb.
+ */
+export function resolvePointerVerbForInventoryItem(
+  pointer: Phaser.Input.Pointer,
+  profile: VerbInputProfile,
+  target: PointerVerbTarget,
+  activeVerbId: string | null,
+): PointerVerbResolution {
+  const base = resolvePointerVerbForTarget(pointer, profile, target, activeVerbId);
+  if (base.kind === 'verb' && base.consumeActive) {
+    return { kind: 'verb', verbId: base.verbId, consumeActive: false };
+  }
+  if (base.kind !== 'walkToTarget') {
+    return base;
+  }
+  const effective =
+    target.defaultVerb && target.defaultVerb.length > 0 ? target.defaultVerb : DEFAULT_VERB_FALLBACK;
+  return { kind: 'verb', verbId: effective, consumeActive: false };
 }
 
 /**

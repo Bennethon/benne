@@ -28,3 +28,9 @@ export function dispatchInventoryVerbInteraction(
   }
   bus.emit(roomScoped, payload);
 }
+
+export {
+  dispatchInventoryOnVerbTargetInteraction,
+  shouldDispatchInventoryUsedOnVerb,
+  shouldDispatchInventoryUsedOnVerbForGame,
+} from './dispatchInventoryOnVerbTarget';

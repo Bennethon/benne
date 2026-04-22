@@ -43,3 +43,20 @@ export function getEffectiveInputProfile(settings: GameSettings): VerbInputProfi
     secondaryButtonVerb: 'use',
   };
 }
+
+/** Verb ids tried for the default **use** verb (aligned with Bennescript `resolveVerbId('use')` candidates). */
+const USE_VERB_ALIAS_CANDIDATES: readonly string[] = ['use', 'interact'];
+
+/**
+ * First configured verb id matching the **use** aliases, or **`"use"`** if none match (same resolution idea as
+ * Bennescript `resolveVerbId('use')`).
+ */
+export function resolveEffectiveUseVerbId(settings: GameSettings): string {
+  const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
+  for (const id of USE_VERB_ALIAS_CANDIDATES) {
+    if (configured.has(id)) {
+      return id;
+    }
+  }
+  return 'use';
+}

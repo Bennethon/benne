@@ -8,6 +8,10 @@ export interface SerializableBenneGameState {
   variables: Record<string, unknown>;
   /** Item id → quantity (omitted or zero means not carried). */
   inventory: Record<string, number>;
+  /**
+   * Runtime "use on target" selection (item id). Persisted in save snapshots; omitted or invalid in JSON is treated as null.
+   */
+  activeInventoryItemId?: string | null;
 }
 
 export const GAME_STATE_FLAG_CHANGED_EVENT = 'gameState:flagChanged' as const;
@@ -15,6 +19,8 @@ export const GAME_STATE_VARIABLE_CHANGED_EVENT = 'gameState:variableChanged' as 
 export const GAME_STATE_INVENTORY_CHANGED_EVENT = 'gameState:inventoryChanged' as const;
 export const GAME_STATE_REPLACED_EVENT = 'gameState:replaced' as const;
 export const GAME_STATE_ACTIVE_VERB_CHANGED_EVENT = 'gameState:activeVerbChanged' as const;
+export const GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT =
+  'gameState:activeInventoryItemChanged' as const;
 
 export interface GameStateFlagChangedPayload {
   key: string;
@@ -45,4 +51,9 @@ export interface GameStateReplacedPayload {
 export interface GameStateActiveVerbChangedPayload {
   previousValue: string | null;
   value: string | null;
+}
+
+/** Emitted when the runtime active inventory item (use-on-target) changes. */
+export interface GameStateActiveInventoryItemChangedPayload {
+  itemId: string | null;
 }

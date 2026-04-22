@@ -24,6 +24,8 @@ import {
 import type {
   BenneScriptCharacterFacade,
   BenneScriptPlayerFacade,
+  InventoryWhenUseHandler,
+  InventoryWhenUseRegistrar,
 } from './benneScriptFacades.js';
 
 /**
@@ -38,6 +40,12 @@ export class InventoryBenneScript extends BenneScriptCore {
   readonly state: BenneScriptGameStateNamespace;
   readonly inventory: BenneScriptInventoryNamespace;
 
+  /**
+   * **`doNotActivate`** registers a use handler that does not call {@link setActiveInventory} for this item
+   * after queued steps (default **`whenUse`** activates this item id for use-on-target).
+   */
+  readonly whenUse: InventoryWhenUseRegistrar;
+
   constructor(events: Phaser.Events.EventEmitter, itemId: string, roomId: string, roomScene: RoomScene) {
     super(events, () => roomScene.time);
     this.itemId = itemId;
@@ -46,6 +54,14 @@ export class InventoryBenneScript extends BenneScriptCore {
     const manager = resolveGameStateManager(roomScene.game);
     this.state = createBenneScriptGameStateNamespace(manager);
     this.inventory = createBenneScriptInventoryNamespace(manager);
+    const registerWhenUse = (skipActivate: boolean) => {
+      return (handler: InventoryWhenUseHandler): void => {
+        this.subscribeInventoryUseVerb(skipActivate, handler);
+      };
+    };
+    this.whenUse = Object.assign(registerWhenUse(false), {
+      doNotActivate: registerWhenUse(true),
+    });
   }
 
   private subscribeInventoryVerb(
@@ -64,16 +80,40 @@ export class InventoryBenneScript extends BenneScriptCore {
     this.subscribe(inventoryVerbEventId(this.itemId, verbId), inner);
   }
 
+  /**
+   * Like {@link subscribeInventoryVerb} for the resolved **use** verb, then after the interaction queue drains
+   * calls {@link setActiveInventory} with this item’s id unless `skipActivate` is true.
+   */
+  private subscribeInventoryUseVerb(
+    skipActivate: boolean,
+    handler: ((p: InventoryVerbInteractPayload) => void) | (() => void),
+  ): void {
+    const verbId = this.resolveVerbId('use');
+    const inner = (payload: unknown) => {
+      const p = payload as InventoryVerbInteractPayload;
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: InventoryVerbInteractPayload) => void)(p);
+      }
+    };
+    const afterTail = (): void => {
+      if (!skipActivate) {
+        this.setActiveInventory(this.itemId);
+      }
+    };
+    this.subscribeAfterInteractionTail(
+      roomInventoryVerbEventId(this.roomId, this.itemId, verbId),
+      inner,
+      afterTail,
+    );
+    this.subscribeAfterInteractionTail(inventoryVerbEventId(this.itemId, verbId), inner, afterTail);
+  }
+
   whenLookAt(handler: () => void): void;
   whenLookAt(handler: (p: InventoryVerbInteractPayload) => void): void;
   whenLookAt(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
     this.subscribeInventoryVerb(this.resolveVerbId('look'), handler);
-  }
-
-  whenUse(handler: () => void): void;
-  whenUse(handler: (p: InventoryVerbInteractPayload) => void): void;
-  whenUse(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeInventoryVerb(this.resolveVerbId('use'), handler);
   }
 
   whenPickUp(handler: () => void): void;
