@@ -30,6 +30,7 @@ export function dispatchInventoryVerbInteraction(
 }
 
 export {
+  dispatchInventoryOnInventoryItemInteraction,
   dispatchInventoryOnVerbTargetInteraction,
   shouldDispatchInventoryUsedOnVerb,
   shouldDispatchInventoryUsedOnVerbForGame,

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
-import { insertIntoBenneRegisterRoomScript } from './propVerbScaffolding';
 import { insertIntoRegisterCharacterScriptBody } from './characterVerbScaffolding';
+import { insertIntoRegisterInventoryScriptBody } from './inventoryVerbScaffolding';
+import { insertIntoBenneRegisterRoomScript } from './propVerbScaffolding';
 
 export type AddInventoryUsedOnResult = {
     ok: boolean;
@@ -76,6 +77,37 @@ export async function addCharacterInventoryUsedOnStub(
     await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(next));
     void vscode.window.showInformationMessage(
         `Added B.whenInventoryUsedOn('${characterId}', …) to ${characterId}.character.ts.`,
+    );
+    return { ok: true };
+}
+
+/**
+ * Inserts `B.whenInventoryUsedOn` into `*.inventory.ts` (target id must match the item id, like character definitions).
+ */
+export async function addInventoryItemInventoryUsedOnStub(
+    inventoryJsonUri: vscode.Uri,
+    itemId: string,
+): Promise<AddInventoryUsedOnResult> {
+    const scriptUri = vscode.Uri.joinPath(inventoryJsonUri, '..', `${itemId}.inventory.ts`);
+    let scriptText = '';
+    try {
+        scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
+    } catch {
+        void vscode.window.showErrorMessage(`${itemId}.inventory.ts not found.`);
+        return { ok: false };
+    }
+
+    const snippet = buildWhenInventoryUsedOnStub(itemId);
+    const next = insertIntoRegisterInventoryScriptBody(scriptText, itemId, snippet);
+    if (!next) {
+        void vscode.window.showErrorMessage(
+            `Could not find registerInventoryScript('${itemId}', …) in ${itemId}.inventory.ts.`,
+        );
+        return { ok: false };
+    }
+    await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(next));
+    void vscode.window.showInformationMessage(
+        `Added B.whenInventoryUsedOn('${itemId}', …) to ${itemId}.inventory.ts.`,
     );
     return { ok: true };
 }

@@ -209,6 +209,12 @@ function renderInventoryUsedOnInvCharacterDefButton() {
     <span class="muted small"><code>B.whenInventoryUsedOn</code> (character script)</span>
   </div>`;
 }
+function renderInventoryUsedOnInvInventoryItemButton() {
+    return `<div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <button type="button" class="btn-secondary btn-inv-usedon-inv" title="Insert B.whenInventoryUsedOn stub in the inventory item script">Inv</button>
+    <span class="muted small"><code>B.whenInventoryUsedOn</code> (inventory script)</span>
+  </div>`;
+}
 /**
  * Renders the per-clickable "Default verb" dropdown. The selected value is the currently-authored
  * verb (falling back to `"look"` when JSON omits `defaultVerb`). Classes below drive the change
@@ -1033,6 +1039,7 @@ function renderInventory(state) {
         ${renderDefaultVerbSelect('inv-default-verb', '', state.defaultVerb, state.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this inventory item"')}
         <label class="benne-field-label muted small" style="margin-top:10px;">Configured verbs</label>
         ${verbChips}
+        ${renderInventoryUsedOnInvInventoryItemButton()}
       </div>
     </details>
     <details class="section" open>
@@ -1745,6 +1752,11 @@ function mountInventoryHandlers(state) {
             const durRaw = document.querySelector(`.inv-anim-dur[data-id="${id}"]`)?.value ?? '';
             const frameDuration = durRaw === '' ? null : Number(durRaw);
             post('applyPatches', { patches: [{ type: 'inventoryAnimation', id, loop, frameDuration }] });
+        });
+    });
+    document.querySelectorAll('.btn-inv-usedon-inv').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            post('inventoryUsedOnAdd', { inventoryJsonUri: state.inventoryJsonUri });
         });
     });
 }

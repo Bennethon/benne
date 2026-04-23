@@ -152,6 +152,11 @@
         "category": "BENNE"
       },
       {
+        "command": "benne-editor.addInventoryItemInventoryUsedOnStub",
+        "title": "Add B.whenInventoryUsedOn stub (inventory item script)",
+        "category": "BENNE"
+      },
+      {
         "command": "benne-editor.revealCharacterScriptEvent",
         "title": "Reveal character script event",
         "category": "BENNE"

@@ -17,5 +17,6 @@ export function createInventoryScriptContext(
     itemId,
     roomId,
     roomScene,
+    whenInventoryUsedOn: B.whenInventoryUsedOn,
   };
 }

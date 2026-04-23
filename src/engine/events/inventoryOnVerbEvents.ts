@@ -33,6 +33,20 @@ export function globalInventoryOnCharacterEventId(characterId: string, itemId: s
   return `verb:inventoryOnCharacter:${characterId}:${itemId}`;
 }
 
+/** `verb:room:<roomId>:inventoryOnInventoryItem:<targetItemId>:<sourceItemId>` */
+export function roomInventoryOnInventoryItemEventId(
+  roomId: string,
+  targetItemId: string,
+  sourceItemId: string,
+): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnInventoryItem:${targetItemId}:${sourceItemId}`;
+}
+
+/** `verb:inventoryOnInventoryItem:<targetItemId>:<sourceItemId>` */
+export function globalInventoryOnInventoryItemEventId(targetItemId: string, sourceItemId: string): string {
+  return `verb:inventoryOnInventoryItem:${targetItemId}:${sourceItemId}`;
+}
+
 export interface InventoryUsedOnPropPayload {
   targetType: 'prop';
   itemId: string;
@@ -66,10 +80,21 @@ export interface InventoryUsedOnCharacterPayload {
   talkPoint?: Point2;
 }
 
+/** `itemId` is the **source** (armed) item; the row clicked is `targetItemId`. */
+export interface InventoryUsedOnInventoryItemPayload {
+  targetType: 'inventoryItem';
+  itemId: string;
+  verbId: string;
+  roomId: string;
+  targetItemId: string;
+  description?: string;
+}
+
 export type AnyInventoryUsedOnPayload =
   | InventoryUsedOnPropPayload
   | InventoryUsedOnHotspotPayload
-  | InventoryUsedOnCharacterPayload;
+  | InventoryUsedOnCharacterPayload
+  | InventoryUsedOnInventoryItemPayload;
 
 export function buildInventoryUsedOnPayload(
   target: VerbInteractTarget,
@@ -111,4 +136,21 @@ export function buildInventoryUsedOnPayload(
         ...(target.talkPoint !== undefined ? { talkPoint: target.talkPoint } : {}),
       };
   }
+}
+
+export function buildInventoryUsedOnInventoryItemPayload(
+  roomId: string,
+  sourceItemId: string,
+  targetItemId: string,
+  verbId: string,
+  description: string | undefined,
+): InventoryUsedOnInventoryItemPayload {
+  return {
+    targetType: 'inventoryItem',
+    itemId: sourceItemId,
+    verbId,
+    roomId,
+    targetItemId,
+    ...(description !== undefined && description.length > 0 ? { description } : {}),
+  };
 }

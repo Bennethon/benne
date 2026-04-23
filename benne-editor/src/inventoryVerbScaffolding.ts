@@ -30,7 +30,7 @@ function ensureRegisterInventoryScriptShell(source: string, itemId: string): str
     return inventoryScriptTemplate(itemId);
 }
 
-function insertIntoRegisterInventoryScriptBody(
+export function insertIntoRegisterInventoryScriptBody(
     source: string,
     itemId: string,
     insertBlock: string

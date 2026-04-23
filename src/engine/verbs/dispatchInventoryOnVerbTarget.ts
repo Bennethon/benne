@@ -1,12 +1,15 @@
 import { getGameSettings } from '../ConfigManager';
 import type { EventBus } from '../events/EventBus';
 import {
+  buildInventoryUsedOnInventoryItemPayload,
   buildInventoryUsedOnPayload,
   globalInventoryOnCharacterEventId,
   globalInventoryOnHotspotEventId,
+  globalInventoryOnInventoryItemEventId,
   globalInventoryOnPropEventId,
   roomInventoryOnCharacterEventId,
   roomInventoryOnHotspotEventId,
+  roomInventoryOnInventoryItemEventId,
   roomInventoryOnPropEventId,
 } from '../events/inventoryOnVerbEvents';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents';
@@ -101,6 +104,39 @@ export function dispatchInventoryOnVerbTargetInteraction(
       return false;
     }
   }
+  return false;
+}
+
+/**
+ * Inventory panel: **source** item (armed) used on **target** item row. Same room/global precedence as
+ * {@link dispatchInventoryOnVerbTargetInteraction}.
+ */
+export function dispatchInventoryOnInventoryItemInteraction(
+  bus: EventBus,
+  sourceItemId: string,
+  verbId: string,
+  targetItemId: string,
+  roomId: string,
+  description: string | undefined,
+): boolean {
+  const payload = buildInventoryUsedOnInventoryItemPayload(
+    roomId,
+    sourceItemId,
+    targetItemId,
+    verbId,
+    description,
+  );
+  const roomScoped = roomInventoryOnInventoryItemEventId(roomId, targetItemId, sourceItemId);
+  if (listenerCount(bus, roomScoped) > 0) {
+    bus.emit(roomScoped, payload);
+    return true;
+  }
+  const globalScoped = globalInventoryOnInventoryItemEventId(targetItemId, sourceItemId);
+  if (listenerCount(bus, globalScoped) > 0) {
+    bus.emit(globalScoped, payload);
+    return true;
+  }
+  bus.emit(roomScoped, payload);
   return false;
 }
 
