@@ -25,4 +25,8 @@ registerRoomScript(({ B }) => {
     B.player.walkTo('Pillar');
     B.player.say('I used the Pillar.');
   });
+
+  B.whenLookAt('Pillar', () => {
+    B.player.say('I like to keep this piller here so I can walk around it.');
+  });
 });

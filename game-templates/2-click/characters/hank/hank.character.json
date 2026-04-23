@@ -26,13 +26,16 @@
       "loop": true
     },
     "WalkL": {
-      "loop": true
+      "loop": true,
+      "frameDuration": 80
     },
     "WalkD": {
-      "loop": true
+      "loop": true,
+      "frameDuration": 60
     },
     "WalkU": {
-      "loop": true
+      "loop": true,
+      "frameDuration": 60
     },
     "TalkL": {
       "loop": true

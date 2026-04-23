@@ -17,6 +17,5 @@
   "animations": {},
   "display": {
     "aseprite": "shared"
-  },
-  "cursorAnimation": "Broom"
+  }
 }
