@@ -71,6 +71,8 @@ export { withNow } from './BenneScriptCore.js';
  * | **`whenGive`** | **`targetId`** is the receiving **prop** only (`props[].id`; inventory **`itemId`** is separate). |
  * | **`onProp`**, **`B.prop(id)`** | **`props[].id`** only (explicit prop wiring). |
  * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | **Unified target string** (first match): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** → **`points[].id`**, or **`{ x, y }`** in **room pixels**. **`walkTo`** queues; **`walkTo.now`** and **`face.now`**, **`playAnimation.now`**, **`B.wait.now`** can run without blocking the queue. **`say.now`** also skips the queue but still uses the same per-line room input lock as **`say`**. |
+ * | **`walkToClicked` / `walkToClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Inside a verb handler, walks the player to the **clicked** prop / hotspot / character (same resolution as **`walkTo`** for that id). No room target for pure inventory-row verbs (one-time dev warn). |
+ * | **`faceClicked` / `faceClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Uses payload **`lookAtPoint`** for props/hotspots when present; for **characters**, faces that character’s **feet**; otherwise falls back to the walk stand point (see {@link RoomScene.facePlayerTowardClicked}). Same dev warnings as **`walkToClicked`** when there is no target or no room. |
  * | **`playAnimation(tag)`** | Aseprite **frame tag** on the character sheet (e.g. `'Idle'`, `'WalkL'`). |
  * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
  * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
@@ -107,7 +109,7 @@ export class BenneScript extends BenneScriptCore {
   readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
 
   constructor(events: Phaser.Events.EventEmitter, roomId: string, roomScene: RoomScene) {
-    super(events, () => roomScene.time);
+    super(events, () => roomScene.time, () => roomScene);
     this.roomId = roomId;
     this.roomScene = roomScene;
     const manager = resolveGameStateManager(roomScene.game);

@@ -38,6 +38,8 @@ function buildEmitPayload(target: VerbInteractTarget, verbId: string): Record<st
         roomId: target.roomId,
         description: target.description,
         verbId,
+        ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
+        ...(target.lookAtPoint !== undefined ? { lookAtPoint: target.lookAtPoint } : {}),
       };
     case 'character':
       return {

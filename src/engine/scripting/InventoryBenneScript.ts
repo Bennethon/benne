@@ -63,7 +63,7 @@ export class InventoryBenneScript extends BenneScriptCore {
   readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
 
   constructor(events: Phaser.Events.EventEmitter, itemId: string, roomId: string, roomScene: RoomScene) {
-    super(events, () => roomScene.time);
+    super(events, () => roomScene.time, () => roomScene);
     this.itemId = itemId;
     this.roomId = roomId;
     this.roomScene = roomScene;
@@ -331,6 +331,14 @@ export class InventoryBenneScript extends BenneScriptCore {
         (target: Point2 | string) => {
           void scene.walkPlayerTo(target);
         },
+      ),
+      walkToClicked: withNow(
+        () => this.performWalkToClicked(true),
+        () => this.performWalkToClicked(false),
+      ),
+      faceClicked: withNow(
+        () => this.performFaceClicked(true),
+        () => this.performFaceClicked(false),
       ),
       playAnimation: withNow(
         (tag: string) => {

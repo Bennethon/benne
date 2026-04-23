@@ -14,6 +14,8 @@ import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManag
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerbTarget.js';
 import type { BenneScriptPlayerFacade } from './benneScriptFacades.js';
+import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
+import { getCharacterWorldFeet } from '../characterFeet.js';
 
 /**
  * Callable that participates in the interaction queue; **`fn.now`** runs the same action immediately
@@ -30,6 +32,111 @@ export function withNow<TArgs extends readonly unknown[]>(
   const fn = blocking as BlockingWithNow<TArgs>;
   fn.now = nowImpl;
   return fn;
+}
+
+/**
+ * Resolves the string id (or explicit `{ x, y }`) to pass to {@link RoomScene.walkPlayerTo} for
+ * **`walkToClicked`** / **`walkToClicked.now`**, from the event payload of a verb handler.
+ *
+ * Returns **`null`** when the interaction is not tied to a room hit target (e.g. inventory-row
+ * verbs from {@link import('../events/inventoryVerbEvents.js').dispatchInventoryVerbInteraction},
+ * or use-on-another-inventory-item).
+ */
+function resolveWalkToClickedTargetFromPayload(payload: unknown): Point2 | string | null {
+  if (payload == null || typeof payload !== 'object') {
+    return null;
+  }
+  const p = payload as Record<string, unknown>;
+
+  if ('target' in p && p.target && typeof p.target === 'object' && 'type' in (p.target as object)) {
+    const t = p.target as VerbInteractTarget;
+    if (t.type === 'prop') return t.propId;
+    if (t.type === 'hotspot') return t.hotspotId;
+    if (t.type === 'character') return t.characterId;
+  }
+
+  if (typeof p.propId === 'string') return p.propId;
+  if (typeof p.hotspotId === 'string') return p.hotspotId;
+  if (typeof p.characterId === 'string') return p.characterId;
+
+  if (p.targetType === 'inventoryItem') {
+    return null;
+  }
+
+  // `InventoryVerbInteractPayload` — look/use on a row in the inventory UI only.
+  if (
+    typeof p.itemId === 'string' &&
+    typeof p.roomId === 'string' &&
+    typeof p.verbId === 'string' &&
+    !('targetType' in p) &&
+    !('instanceId' in p) &&
+    !('propId' in p) &&
+    !('hotspotId' in p) &&
+    !('characterId' in p) &&
+    !('tag' in p)
+  ) {
+    return null;
+  }
+
+  return null;
+}
+
+/** Per-handler context for {@link BenneScriptCore.walkToClicked} / {@link BenneScriptCore.faceClicked}. */
+interface VerbClickScriptContext {
+  walkTarget: Point2 | string | null;
+  /** Room-space point for facing (payload `lookAtPoint`, or NPC feet for characters); `null` uses walk resolution only. */
+  faceLookWorld: Point2 | null;
+}
+
+function readPayloadLookAtPoint(payload: Record<string, unknown>): Point2 | null {
+  const lp = payload.lookAtPoint;
+  if (lp && typeof lp === 'object' && typeof (lp as Point2).x === 'number' && typeof (lp as Point2).y === 'number') {
+    return { x: (lp as Point2).x, y: (lp as Point2).y };
+  }
+  return null;
+}
+
+/**
+ * World / room pixel point the player should face for **`faceClicked`**: payload **`lookAtPoint`**
+ * when present, else the clicked **character’s feet** (no `lookAtPoint` on characters in data).
+ */
+function resolveFaceLookWorldFromPayload(payload: unknown, scene: RoomScene): Point2 | null {
+  if (payload == null || typeof payload !== 'object') {
+    return null;
+  }
+  const p = payload as Record<string, unknown>;
+
+  const fromLookAt = readPayloadLookAtPoint(p);
+  if (fromLookAt) {
+    return fromLookAt;
+  }
+
+  // Character verbs / inventory-on-character: face the NPC’s feet (not talkPoint).
+  if (typeof p.characterId === 'string' && typeof p.propId !== 'string') {
+    const sprite = scene.getCharacterSprite(p.characterId);
+    if (sprite) {
+      return getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
+    }
+    return null;
+  }
+
+  if ('target' in p && p.target && typeof p.target === 'object' && 'type' in (p.target as object)) {
+    const t = p.target as VerbInteractTarget;
+    if (t.type === 'prop' && t.lookAtPoint) {
+      return { x: t.lookAtPoint.x, y: t.lookAtPoint.y };
+    }
+    if (t.type === 'hotspot' && t.lookAtPoint) {
+      return { x: t.lookAtPoint.x, y: t.lookAtPoint.y };
+    }
+    if (t.type === 'character') {
+      const sprite = scene.getCharacterSprite(t.characterId);
+      if (sprite) {
+        return getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
+      }
+    }
+  }
+
+  return null;
 }
 
 /** Internal keys for {@link BenneScriptCore.resolveVerbId}. */
@@ -70,16 +177,43 @@ export type BenneScriptSayArgs = [line: string, options?: BenneScriptSayLineOpti
 export abstract class BenneScriptCore {
   private static unresolvedVerbWarnings = new Set<string>();
   private static warnedPlayerFacadeNoRoomScene = false;
+  private static walkToClickedDevWarnKeys = new Set<string>();
+  private static faceClickedDevWarnKeys = new Set<string>();
 
   protected readonly events: Phaser.Events.EventEmitter;
   private disposers: Array<() => void> = [];
   private interactionTail: Promise<void> = Promise.resolve();
   private readonly getClock: () => Phaser.Time.Clock | null;
+  private readonly getPlayerWalkRoomScene: () => RoomScene | undefined;
+
+  /**
+   * While a Bennescript **`subscribe`** / **`subscribeAfterInteractionTail`** handler runs, holds
+   * nested click context from each payload (**`walkToClicked`** + **`faceClicked`**).
+   */
+  private readonly verbClickContextStack: VerbClickScriptContext[] = [];
 
   /**
    * Pause the interaction chain for **`seconds`**. **`.wait.now`** schedules the delay only (does not block the queue).
    */
   readonly wait: BlockingWithNow<[number]>;
+
+  /**
+   * Walk the player to the **current verb interaction** target (prop / hotspot / character id, or
+   * the same shape as **`B.player.walkTo('…')`**), using {@link RoomScene.walkPlayerTo} (same string
+   * id resolution as **`walkTo`**). **`.now`** does not block the interaction queue. Only meaningful
+   * inside handlers registered via **`subscribe`** / **`subscribeAfterInteractionTail`** (room / global
+   * / character / inventory verbs, inventory use-on-target, etc.); outside that, a **dev** one-time
+   * **`console.warn`** applies.
+   */
+  readonly walkToClicked: BlockingWithNow<[]>;
+
+  /**
+   * Face the player toward the interaction’s **`lookAtPoint`** when the payload includes it (prop /
+   * hotspot); for **characters**, faces the clicked character’s **feet**. Otherwise falls back to the
+   * same stand point as **`walkToClicked`** (see {@link RoomScene.facePlayerTowardClicked}). **`.now`**
+   * does not block the queue.
+   */
+  readonly faceClicked: BlockingWithNow<[]>;
 
   readonly raw: {
     on: (event: string | symbol, fn: (...args: unknown[]) => void, context?: unknown) => void;
@@ -88,9 +222,14 @@ export abstract class BenneScriptCore {
     emit: (event: string | symbol, ...args: unknown[]) => boolean;
   };
 
-  constructor(events: Phaser.Events.EventEmitter, getClock: () => Phaser.Time.Clock | null) {
+  constructor(
+    events: Phaser.Events.EventEmitter,
+    getClock: () => Phaser.Time.Clock | null,
+    getPlayerWalkRoomScene?: () => RoomScene | undefined,
+  ) {
     this.events = events;
     this.getClock = getClock;
+    this.getPlayerWalkRoomScene = getPlayerWalkRoomScene ?? (() => undefined);
 
     this.raw = {
       on: (event, fn, context) => this.events.on(event, fn as (...args: unknown[]) => void, context),
@@ -119,6 +258,129 @@ export abstract class BenneScriptCore {
         this.getClock()?.delayedCall(ms, () => {});
       },
     );
+
+    this.walkToClicked = withNow(
+      () => this.performWalkToClicked(true),
+      () => this.performWalkToClicked(false),
+    );
+
+    this.faceClicked = withNow(
+      () => this.performFaceClicked(true),
+      () => this.performFaceClicked(false),
+    );
+  }
+
+  private static warnWalkToClickedDevOnce(key: string, message: string): void {
+    if (!import.meta.env.DEV || BenneScriptCore.walkToClickedDevWarnKeys.has(key)) {
+      return;
+    }
+    BenneScriptCore.walkToClickedDevWarnKeys.add(key);
+    console.warn(`[Benne] ${message}`);
+  }
+
+  private static warnFaceClickedDevOnce(key: string, message: string): void {
+    if (!import.meta.env.DEV || BenneScriptCore.faceClickedDevWarnKeys.has(key)) {
+      return;
+    }
+    BenneScriptCore.faceClickedDevWarnKeys.add(key);
+    console.warn(`[Benne] ${message}`);
+  }
+
+  private pushVerbWalkContext(payload: unknown): void {
+    const scene = this.getPlayerWalkRoomScene();
+    const faceLookWorld =
+      scene && scene.player ? resolveFaceLookWorldFromPayload(payload, scene) : null;
+    this.verbClickContextStack.push({
+      walkTarget: resolveWalkToClickedTargetFromPayload(payload),
+      faceLookWorld,
+    });
+  }
+
+  private popVerbWalkContext(): void {
+    this.verbClickContextStack.pop();
+  }
+
+  /**
+   * Queues (or fires) **`walkPlayerTo`** for the innermost verb payload’s walk target.
+   * Shared by **`B.walkToClicked`** and **`B.player.walkToClicked`** on the same script instance.
+   */
+  protected performWalkToClicked(chain: boolean): void {
+    const scene = this.getPlayerWalkRoomScene();
+    if (!scene) {
+      BenneScriptCore.warnWalkToClickedDevOnce(
+        'walkToClicked:no-room',
+        'walkToClicked: no active RoomScene — ignored.',
+      );
+      return;
+    }
+
+    if (this.verbClickContextStack.length === 0) {
+      BenneScriptCore.warnWalkToClickedDevOnce(
+        'walkToClicked:outside-verb',
+        'walkToClicked called outside a verb handler (no interaction payload) — ignored.',
+      );
+      return;
+    }
+
+    const target = this.verbClickContextStack[this.verbClickContextStack.length - 1]!.walkTarget;
+    if (target == null) {
+      BenneScriptCore.warnWalkToClickedDevOnce(
+        'walkToClicked:no-world-target',
+        'walkToClicked: this verb has no room walk target (e.g. inventory row only) — ignored.',
+      );
+      return;
+    }
+
+    if (chain) {
+      this.chain(() => scene.walkPlayerTo(target));
+    } else {
+      void scene.walkPlayerTo(target);
+    }
+  }
+
+  /**
+   * Queues (or runs) {@link RoomScene.facePlayerTowardClicked} for the innermost verb payload.
+   * Shared by **`B.faceClicked`** and **`B.player.faceClicked`**.
+   */
+  protected performFaceClicked(chain: boolean): void {
+    const scene = this.getPlayerWalkRoomScene();
+    if (!scene) {
+      BenneScriptCore.warnFaceClickedDevOnce(
+        'faceClicked:no-room',
+        'faceClicked: no active RoomScene — ignored.',
+      );
+      return;
+    }
+
+    if (this.verbClickContextStack.length === 0) {
+      BenneScriptCore.warnFaceClickedDevOnce(
+        'faceClicked:outside-verb',
+        'faceClicked called outside a verb handler (no interaction payload) — ignored.',
+      );
+      return;
+    }
+
+    const ctx = this.verbClickContextStack[this.verbClickContextStack.length - 1]!;
+    if (ctx.walkTarget == null && ctx.faceLookWorld == null) {
+      BenneScriptCore.warnFaceClickedDevOnce(
+        'faceClicked:no-world-target',
+        'faceClicked: this verb has no room target (e.g. inventory row only) — ignored.',
+      );
+      return;
+    }
+
+    const run = (): void => {
+      scene.facePlayerTowardClicked(ctx.faceLookWorld, ctx.walkTarget);
+    };
+
+    if (chain) {
+      this.chain(() => {
+        run();
+        return Promise.resolve();
+      });
+    } else {
+      run();
+    }
   }
 
   dispose(): void {
@@ -205,7 +467,12 @@ export abstract class BenneScriptCore {
     const wrapped = async (payload: unknown) => {
       this.beginInteraction();
       try {
-        run(payload);
+        this.pushVerbWalkContext(payload);
+        try {
+          run(payload);
+        } finally {
+          this.popVerbWalkContext();
+        }
         await this.endInteraction();
       } catch (err) {
         console.error(`[Benne] Error in ${eventId} handler:`, err);
@@ -227,7 +494,12 @@ export abstract class BenneScriptCore {
     const wrapped = async (payload: unknown) => {
       this.beginInteraction();
       try {
-        run(payload);
+        this.pushVerbWalkContext(payload);
+        try {
+          run(payload);
+        } finally {
+          this.popVerbWalkContext();
+        }
         await this.endInteraction();
         afterTail();
       } catch (err) {
@@ -452,6 +724,14 @@ export abstract class BenneScriptCore {
           }
           void scene.walkPlayerTo(target);
         },
+      ),
+      walkToClicked: withNow(
+        () => this.performWalkToClicked(true),
+        () => this.performWalkToClicked(false),
+      ),
+      faceClicked: withNow(
+        () => this.performFaceClicked(true),
+        () => this.performFaceClicked(false),
       ),
       playAnimation: withNow(
         (tag: string) => {

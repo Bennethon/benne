@@ -307,9 +307,12 @@ import { registerRoomScript } from '@engine/scripting';
 
 // Sugar verbs (`whenLookAt`, `whenUse`, `whenTalkTo`, …) use one string id: `props[]` → `hotspots[]` → character in room.
 // `walkTo('…')` resolves prop → hotspot → character → `points[]`.
+// `walkToClicked` / `walkToClicked.now` (also on `B.player`) walk to the clicked prop/hotspot/character id from the verb payload (same resolution as `walkTo` for that id).
+// `faceClicked` / `faceClicked.now` use `lookAtPoint` from the room JSON when present; for NPCs, face their feet (`RoomScene.facePlayerTowardClicked`).
 registerRoomScript(({ B }) => {
   B.whenLookAt('desk', () => {
-    B.player.walkTo('desk');
+    B.walkToClicked();
+    B.faceClicked();
     B.player.say('Looks like an ordinary desk with some paperwork…');
   });
 
@@ -334,6 +337,10 @@ registerCharacterScript('hank', ({ B }) => {
 **Blocking interaction queue vs `.now` (core Bennescript behavior)**  
 
 Room and character verb handlers are written as **ordinary synchronous functions**, but several `B` methods represent **time** (movement tweens, short `say` pacing delays, `wait`, etc.). Those methods participate in an **internal interaction queue** (`interactionTail` in `BenneScriptCore`): each step is a `Promise` that must finish before the **next** queued step **starts**. That makes linear scripts read top-to-bottom while still driving real async engine work (e.g. `RoomScene.walkPlayerTo` resolves when the walk tween completes). The same queue backs **`BenneScript`** (room), **`CharacterBenneScript`**, **`GlobalBenneScript`**, and **`GuiBenneScript`**.
+
+**`walkToClicked` / `walkToClicked.now`**: While a handler registered through `BenneScriptCore.subscribe` or `subscribeAfterInteractionTail` runs, the engine pushes a short-lived walk target derived from the event payload (`propId` / `hotspotId` / `characterId`, including global verbs and inventory use-on-target). `B.walkToClicked()` (room and global scripts) or `B.player.walkToClicked()` (character and inventory scripts) calls `RoomScene.walkPlayerTo` with that id so movement uses the same string resolution as `B.player.walkTo`. Pure inventory-row verbs (`dispatchInventoryVerbInteraction`) carry no world target — a one-time dev `console.warn` applies if authors call `walkToClicked` there anyway. Misuse outside any verb handler is also warned once in dev.
+
+**`faceClicked` / `faceClicked.now`**: Uses the same payload-derived context stack. Facing prefers **`lookAtPoint`** from the verb payload (props, hotspots, global handlers — emitted from room JSON / `VerbInteractTarget`). **Characters** do not use `lookAtPoint`; the player faces the clicked character’s **feet** in room space. If there is no `lookAtPoint` and the target is not a character, facing falls back to the same stand/centroid point as **`walkToClicked`**. When the feet→target vector is ~0, facing is left unchanged (so the player does not snap to “down”). Same dev warnings as `walkToClicked` when there is no world target or no room scene.
 
 **Important implementation detail:** queued steps are registered with **lazy factories** (`() => Promise<…>`), not pre-created promises. If the queue were fed eager promises, every `walkTo` / `say` in one handler body would **start immediately** in the same synchronous tick; only **completion** order would be serialized. Lazy registration ensures the **next** walk (or delay) does not begin until the previous step’s promise has settled.
 
