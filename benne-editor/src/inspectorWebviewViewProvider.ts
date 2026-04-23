@@ -569,6 +569,7 @@ type WebviewPatch =
           visible?: boolean;
           clickable?: boolean;
           zIndex?: number;
+          baseline?: number | null;
           parallaxDepth?: number;
           alpha?: number;
           tag?: string;
@@ -590,6 +591,7 @@ type WebviewPatch =
           description?: string;
           active?: boolean;
           zIndex?: number;
+          baseline?: number | null;
           defaultVerb?: string;
       }
     | {
@@ -1102,6 +1104,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 visible: p.visible,
                 clickable: p.clickable,
                 zIndex: p.zIndex,
+                baseline: p.baseline,
                 parallaxDepth: p.parallaxDepth,
                 alpha: p.alpha,
                 tag: p.tag,
@@ -1139,6 +1142,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 description: p.description,
                 active: p.active,
                 zIndex: p.zIndex,
+                baseline: p.baseline,
                 defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined
             });
             return;

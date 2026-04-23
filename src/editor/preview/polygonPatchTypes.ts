@@ -9,6 +9,8 @@ export type RoomPolygonPatch =
           points: Point2[];
           walkToPoint: Point2;
           lookAtPoint: Point2;
+          /** Room-space Y; omit to leave JSON `baseline` unchanged on save. */
+          baseline?: number;
       }
     | {
           kind: 'hotspotPolygon';
@@ -16,6 +18,8 @@ export type RoomPolygonPatch =
           points: Point2[];
           walkToPoint: Point2;
           lookAtPoint: Point2;
+          /** Room-space Y; omit to leave JSON `baseline` unchanged on save. */
+          baseline?: number;
       }
     | { kind: 'regionPolygon'; regionId: string; points: Point2[] }
     | { kind: 'roomPoint'; pointId: string; x: number; y: number }

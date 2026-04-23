@@ -629,6 +629,9 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
         }
         hs.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
         hs.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
+        if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
+            (hs as { baseline?: number }).baseline = patch.baseline;
+        }
         return;
     }
     const src = patch.points;
@@ -650,6 +653,9 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
     }
     prop.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
     prop.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
+    if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
+        (prop as { baseline?: number }).baseline = patch.baseline;
+    }
 }
 
 function showError(text: string): void {

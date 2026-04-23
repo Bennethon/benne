@@ -34,6 +34,9 @@ const COL_HANDLE_STROKE = '#000000';
 const COL_WALK_TO = '#3db8e8';
 const COL_LOOK_AT = '#e8a438';
 const COL_AUX_STROKE = '#1a1a24';
+/** Depth-sort baseline: horizontal guide (CSS px hit band around the line). */
+const BASELINE_HIT_CSS = 12;
+const COL_BASELINE_LINE = '#55eecc';
 
 function hexToCss(hex: number): string {
     return `#${hex.toString(16).padStart(6, '0')}`;
@@ -154,6 +157,24 @@ function centroidFromPoints(c: Point2[]): Point2 {
     return { x: Math.round(sx / c.length), y: Math.round(sy / c.length) };
 }
 
+function baselineDisplayWorldYForProp(prop: RoomPropInstance): number {
+    if (typeof prop.baseline === 'number' && Number.isFinite(prop.baseline)) {
+        return prop.baseline;
+    }
+    return defaultStandPointForProp(prop).y;
+}
+
+function baselineDisplayWorldYForHotspot(h: RoomHotspotData): number {
+    if (typeof h.baseline === 'number' && Number.isFinite(h.baseline)) {
+        return h.baseline;
+    }
+    const pts = h.points;
+    if (pts && pts.length >= MIN_POINTS) {
+        return centroidFromPoints(pts).y;
+    }
+    return 0;
+}
+
 export class RoomPolygonEditScene extends Phaser.Scene {
     private room!: RoomData;
     private postPatch!: (p: RoomPolygonPatch) => void;
@@ -180,6 +201,10 @@ export class RoomPolygonEditScene extends Phaser.Scene {
 
     private dragAux: 'walk' | 'look' | null = null;
     private selectedAux: 'walk' | 'look' | null = null;
+
+    /** Dragging the horizontal baseline guide (prop / hotspot depth sort). */
+    private dragBaseline = false;
+    private selectedBaseline = false;
 
     private tapEdge: { t: number; edgeIdx: number } | null = null;
 
@@ -227,6 +252,8 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             this.tapEdge = null;
             this.dragRectHandle = -1;
             this.selectedRectHandle = -1;
+            this.dragBaseline = false;
+            this.selectedBaseline = false;
         });
         this.syncRoomInput();
         this.syncEditorCameraMode();
@@ -467,6 +494,19 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                     radiusCss: AUX_HANDLE_R_CSS,
                 },
             ];
+            const roomWGuide = this.room.size?.width ?? getInternalWidth();
+            let baselineWorldY = 0;
+            if (polygonEditBridge.mode === 'propCollider') {
+                const p = this.getActiveProp();
+                if (p) {
+                    baselineWorldY = baselineDisplayWorldYForProp(p);
+                }
+            } else {
+                const h = this.getActiveHotspot();
+                if (h) {
+                    baselineWorldY = baselineDisplayWorldYForHotspot(h);
+                }
+            }
             this.overlay.clearAndDraw({
                 pts: auxEd.pts,
                 strokeStyle: hexToCss(auxEd.strokeHex),
@@ -476,6 +516,17 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 handleRadiusCss: HANDLE_R_CSS,
                 lineWidthCss: LINE_WIDTH_CSS,
                 labeledPoints,
+                horizontalGuidesRoomWidth: roomWGuide,
+                horizontalGuides: [
+                    {
+                        worldY: baselineWorldY,
+                        label: 'Baseline',
+                        strokeStyle: COL_BASELINE_LINE,
+                        lineWidthCss: 2,
+                        dashCss: [7, 5],
+                        selected: this.selectedBaseline || this.dragBaseline,
+                    },
+                ],
             }, roomCam);
             return;
         }
@@ -670,6 +721,70 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         return null;
     }
 
+    private tryPickBaselineLine(
+        cx: number,
+        cy: number,
+        roomW: number,
+        toCss: (p: Point2) => { x: number; y: number },
+    ): boolean {
+        let worldY: number;
+        if (polygonEditBridge.mode === 'propCollider') {
+            const p = this.getActiveProp();
+            if (!p) {
+                return false;
+            }
+            worldY = baselineDisplayWorldYForProp(p);
+        } else if (polygonEditBridge.mode === 'hotspotPolygon') {
+            const h = this.getActiveHotspot();
+            if (!h) {
+                return false;
+            }
+            worldY = baselineDisplayWorldYForHotspot(h);
+        } else {
+            return false;
+        }
+        const p0 = toCss({ x: 0, y: worldY });
+        const p1 = toCss({ x: roomW, y: worldY });
+        const { d } = distPointToSegment(cx, cy, p0.x, p0.y, p1.x, p1.y);
+        if (d > BASELINE_HIT_CSS) {
+            return false;
+        }
+        this.dragBaseline = true;
+        this.selectedBaseline = true;
+        this.dragAux = null;
+        this.selectedAux = null;
+        this.selectedVertexIndex = null;
+        this.downOnVertex = false;
+        this.dragVertexIndex = null;
+        return true;
+    }
+
+    private setAuxBaselineWorldY(worldY: number): void {
+        const roomH = this.room.size?.height ?? getInternalHeight();
+        const y = Math.round(Phaser.Math.Clamp(worldY, 0, roomH));
+        if (polygonEditBridge.mode === 'propCollider') {
+            const p = this.getActiveProp();
+            if (p) {
+                p.baseline = y;
+            }
+        }
+        if (polygonEditBridge.mode === 'hotspotPolygon') {
+            const h = this.getActiveHotspot();
+            if (h) {
+                h.baseline = y;
+            }
+        }
+    }
+
+    private snapAuxBaselineFromPointer(e: PointerEvent): void {
+        const ov = this.overlay;
+        if (!ov) {
+            return;
+        }
+        const { y: wy } = ov.domToWorld(e.pageX, e.pageY, this.getRoomCamera());
+        this.setAuxBaselineWorldY(wy);
+    }
+
     private getActiveRegion(): RoomRegionData | null {
         if (polygonEditBridge.mode !== 'regionPolygon') {
             return null;
@@ -764,12 +879,17 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 return;
             }
             const copy = pts.map((p) => ({ x: p.x, y: p.y }));
+            const baselinePart =
+                typeof prop.baseline === 'number' && Number.isFinite(prop.baseline)
+                    ? { baseline: Math.round(prop.baseline) }
+                    : {};
             this.postPatch({
                 kind: 'propCollider',
                 propId: polygonEditBridge.propId,
                 points: copy,
                 walkToPoint: { x: prop.walkToPoint!.x, y: prop.walkToPoint!.y },
                 lookAtPoint: { x: prop.lookAtPoint!.x, y: prop.lookAtPoint!.y },
+                ...baselinePart,
             });
             return;
         }
@@ -784,12 +904,17 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 return;
             }
             const copy = pts.map((p) => ({ x: p.x, y: p.y }));
+            const hsBaselinePart =
+                typeof h.baseline === 'number' && Number.isFinite(h.baseline)
+                    ? { baseline: Math.round(h.baseline) }
+                    : {};
             this.postPatch({
                 kind: 'hotspotPolygon',
                 hotspotId: polygonEditBridge.hotspotId,
                 points: copy,
                 walkToPoint: { x: h.walkToPoint!.x, y: h.walkToPoint!.y },
                 lookAtPoint: { x: h.lookAtPoint!.x, y: h.lookAtPoint!.y },
+                ...hsBaselinePart,
             });
             return;
         }
@@ -924,6 +1049,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         if (hitAuxCss(cx, cy, walkToPoint, AUX_HANDLE_R_CSS, toCss)) {
             this.dragAux = 'walk';
             this.selectedAux = 'walk';
+            this.selectedBaseline = false;
             this.selectedVertexIndex = null;
             this.downOnVertex = false;
             this.dragVertexIndex = null;
@@ -932,6 +1058,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         if (hitAuxCss(cx, cy, lookAtPoint, AUX_HANDLE_R_CSS, toCss)) {
             this.dragAux = 'look';
             this.selectedAux = 'look';
+            this.selectedBaseline = false;
             this.selectedVertexIndex = null;
             this.downOnVertex = false;
             this.dragVertexIndex = null;
@@ -999,6 +1126,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         if (auxEd) {
             auxEd.ensure();
             const pts = auxEd.pts;
+            const roomWPick = this.room.size?.width ?? getInternalWidth();
 
             if (
                 pts.length >= MIN_POINTS &&
@@ -1015,9 +1143,14 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                     this.selectedVertexIndex = vi;
                     this.dragAux = null;
                     this.selectedAux = null;
+                    this.selectedBaseline = false;
                     return;
                 }
                 if (this.tryPickWalkLook(cx, cy, auxEd.walk, auxEd.look, toCss)) {
+                    return;
+                }
+                if (this.tryPickBaselineLine(cx, cy, roomWPick, toCss)) {
+                    this.snapAuxBaselineFromPointer(e);
                     return;
                 }
                 return;
@@ -1030,10 +1163,16 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 this.selectedVertexIndex = vi;
                 this.dragAux = null;
                 this.selectedAux = null;
+                this.selectedBaseline = false;
+                return;
+            }
+            if (this.tryPickBaselineLine(cx, cy, roomWPick, toCss)) {
+                this.snapAuxBaselineFromPointer(e);
                 return;
             }
             this.downOnVertex = false;
             this.dragVertexIndex = null;
+            this.selectedBaseline = false;
             return;
         }
 
@@ -1111,6 +1250,11 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             }
             return;
         }
+        if (this.dragBaseline) {
+            const { y: wy } = ov.domToWorld(e.pageX, e.pageY, roomCam);
+            this.setAuxBaselineWorldY(wy);
+            return;
+        }
         if (this.dragVertexIndex === null) {
             return;
         }
@@ -1159,6 +1303,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             this.dragVertexIndex = null;
             this.downOnVertex = false;
             this.dragAux = null;
+            this.dragBaseline = false;
             return;
         }
 
@@ -1166,6 +1311,11 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             this.dragAux = null;
             this.downOnVertex = false;
             this.dragVertexIndex = null;
+            return;
+        }
+
+        if (this.dragBaseline) {
+            this.dragBaseline = false;
             return;
         }
 
@@ -1280,6 +1430,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 this.tapEdge = null;
                 this.selectedVertexIndex = null;
                 this.selectedAux = null;
+                this.selectedBaseline = false;
             }
         }
     };

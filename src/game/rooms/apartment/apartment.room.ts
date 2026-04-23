@@ -46,4 +46,8 @@ registerRoomScript(({ B }) => {
       B.player.say('Here, couch.');
     }
   });
+
+  B.whenLookAt('Pillar', () => {
+    B.player.say('I like to keep this piller here so I can walk around it.');
+  });
 });

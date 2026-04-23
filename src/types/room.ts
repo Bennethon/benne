@@ -33,6 +33,11 @@ export interface RoomHotspotData {
   description?: string;
   /** Draw / hit stacking vs other hotspots (higher tested later, tends to sit on top). */
   zIndex?: number;
+  /**
+   * Room-space Y (pixels, y increases downward). When set, characters with **world feet Y greater
+   * than** this line draw in front of this hotspot’s stack entry; otherwise `zIndex` ordering applies.
+   */
+  baseline?: number;
   /** Polygon hit area in room pixels (at least three vertices). */
   points: Point2[];
   /** Where the player walks when this hotspot is used (optional; editor + future walk-to flow). */
@@ -108,6 +113,11 @@ export interface RoomPropInstance {
   y?: number;
   /** Draw order: higher values render in front of lower values. */
   zIndex?: number;
+  /**
+   * Room-space Y (pixels, y increases downward). When set, characters with **world feet Y greater
+   * than** this line draw in front of this prop; otherwise `zIndex` ordering applies.
+   */
+  baseline?: number;
   /** When true, the prop may receive clicks; the engine dispatches verb scripts immediately (no auto walk/face). */
   clickable?: boolean;
   visible?: boolean;

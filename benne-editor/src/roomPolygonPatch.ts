@@ -10,6 +10,7 @@ export type RoomPolygonPatch =
           points: Point2[];
           walkToPoint: Point2;
           lookAtPoint: Point2;
+          baseline?: number;
       }
     | {
           kind: 'hotspotPolygon';
@@ -17,6 +18,7 @@ export type RoomPolygonPatch =
           points: Point2[];
           walkToPoint: Point2;
           lookAtPoint: Point2;
+          baseline?: number;
       }
     | { kind: 'regionPolygon'; regionId: string; points: Point2[] }
     | { kind: 'roomPoint'; pointId: string; x: number; y: number }
@@ -58,13 +60,17 @@ export function parseRoomPolygonPatch(body: unknown): RoomPolygonPatch | null {
         if (!isPoint2(o.walkToPoint) || !isPoint2(o.lookAtPoint)) {
             return null;
         }
-        return {
+        const propPatch: RoomPolygonPatch = {
             kind: 'propCollider',
             propId: o.propId,
             points: pts,
             walkToPoint: { x: o.walkToPoint.x, y: o.walkToPoint.y },
             lookAtPoint: { x: o.lookAtPoint.x, y: o.lookAtPoint.y },
         };
+        if (typeof o.baseline === 'number' && Number.isFinite(o.baseline)) {
+            propPatch.baseline = o.baseline;
+        }
+        return propPatch;
     }
     if (o.kind === 'hotspotPolygon' && typeof o.hotspotId === 'string' && Array.isArray(o.points)) {
         const pts = o.points.filter(isPoint2);
@@ -74,13 +80,17 @@ export function parseRoomPolygonPatch(body: unknown): RoomPolygonPatch | null {
         if (!isPoint2(o.walkToPoint) || !isPoint2(o.lookAtPoint)) {
             return null;
         }
-        return {
+        const hsPatch: RoomPolygonPatch = {
             kind: 'hotspotPolygon',
             hotspotId: o.hotspotId,
             points: pts,
             walkToPoint: { x: o.walkToPoint.x, y: o.walkToPoint.y },
             lookAtPoint: { x: o.lookAtPoint.x, y: o.lookAtPoint.y },
         };
+        if (typeof o.baseline === 'number' && Number.isFinite(o.baseline)) {
+            hsPatch.baseline = o.baseline;
+        }
+        return hsPatch;
     }
     if (o.kind === 'regionPolygon' && typeof o.regionId === 'string' && Array.isArray(o.points)) {
         const pts = o.points.filter(isPoint2);
@@ -234,16 +244,28 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
         if (!Array.isArray(hotspots)) {
             throw new Error('Room JSON has no hotspots array.');
         }
-        const hs = hotspots.find((h) => h.id === patch.hotspotId);
-        if (!hs) {
+        const hsRow = hotspots.find((h) => h.id === patch.hotspotId);
+        if (!hsRow) {
             throw new Error(`Hotspot "${patch.hotspotId}" not found.`);
         }
+        const hs = hsRow as {
+            id: string;
+            points?: Point2[];
+            walkToPoint?: Point2;
+            lookAtPoint?: Point2;
+            baseline?: number;
+        };
         const rounded = patch.points.map(roundPoint);
         hs.points = rounded;
         const w = roundPoint(patch.walkToPoint);
         const l = roundPoint(patch.lookAtPoint);
         hs.walkToPoint = w;
         hs.lookAtPoint = l;
+        let baselineOut: number | undefined;
+        if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
+            baselineOut = Math.round(patch.baseline);
+            hs.baseline = baselineOut;
+        }
         const out = `${JSON.stringify(room, null, 2)}\n`;
         await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
         return {
@@ -252,6 +274,7 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
             points: rounded.map((p) => ({ ...p })),
             walkToPoint: { ...w },
             lookAtPoint: { ...l },
+            ...(baselineOut !== undefined ? { baseline: baselineOut } : {}),
         };
     }
 
@@ -265,6 +288,7 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
                   collider?: { points: Point2[] };
                   walkToPoint?: Point2;
                   lookAtPoint?: Point2;
+                  baseline?: number;
               }[]
             | undefined;
         if (!Array.isArray(props)) {
@@ -284,6 +308,11 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
         const l = roundPoint(patch.lookAtPoint);
         prop.walkToPoint = w;
         prop.lookAtPoint = l;
+        let propBaselineOut: number | undefined;
+        if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
+            propBaselineOut = Math.round(patch.baseline);
+            prop.baseline = propBaselineOut;
+        }
         const out = `${JSON.stringify(room, null, 2)}\n`;
         await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
         return {
@@ -292,6 +321,7 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
             points: rounded.map((p) => ({ ...p })),
             walkToPoint: { ...w },
             lookAtPoint: { ...l },
+            ...(propBaselineOut !== undefined ? { baseline: propBaselineOut } : {}),
         };
     }
 
