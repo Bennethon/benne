@@ -21,11 +21,18 @@ import {
   type BenneScriptGameStateNamespace,
   type BenneScriptInventoryNamespace,
 } from './benneScriptGameStateApi.js';
+import {
+  globalInventoryOnInventoryItemEventId,
+  roomInventoryOnInventoryItemEventId,
+} from '../events/inventoryOnVerbEvents.js';
+import { getRegisteredInventoryDefinitionIds } from '../inventory/inventoryDefinitionRegistry.js';
 import type {
+  AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
   BenneScriptPlayerFacade,
   InventoryWhenUseHandler,
   InventoryWhenUseRegistrar,
+  RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
 
 /**
@@ -33,6 +40,8 @@ import type {
  * {@link import('../verbs/dispatchInventoryVerb.js').dispatchInventoryVerbInteraction} precedence matches characters.
  */
 export class InventoryBenneScript extends BenneScriptCore {
+  private static readonly unresolvedInventoryOnItemWarnings = new Set<string>();
+
   private readonly itemId: string;
   private readonly roomId: string;
   private readonly roomScene: RoomScene;
@@ -45,6 +54,13 @@ export class InventoryBenneScript extends BenneScriptCore {
    * after queued steps (default **`whenUse`** activates this item id for use-on-target).
    */
   readonly whenUse: InventoryWhenUseRegistrar;
+
+  /**
+   * When this **item row** is the use-on-target (another inventory item is armed and the use verb
+   * path applies), handle {@link import('../events/inventoryOnVerbEvents.js').InventoryUsedOnInventoryItemPayload} — same
+   * `itemId` / `doNotClear` semantics as {@link import('./CharacterBenneScript.js').CharacterBenneScript.whenInventoryUsedOn}.
+   */
+  readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
 
   constructor(events: Phaser.Events.EventEmitter, itemId: string, roomId: string, roomScene: RoomScene) {
     super(events, () => roomScene.time);
@@ -62,6 +78,54 @@ export class InventoryBenneScript extends BenneScriptCore {
     this.whenUse = Object.assign(registerWhenUse(false), {
       doNotActivate: registerWhenUse(true),
     });
+    this.whenInventoryUsedOn = Object.assign(
+      (
+        targetId: string,
+        handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+        options?: { doNotClear?: boolean },
+      ) => {
+        this.registerInventoryUsedOnForInventoryItemTarget(
+          targetId,
+          handler,
+          options?.doNotClear === true,
+        );
+      },
+      {
+        doNotClear: (targetId: string, handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void)) => {
+          this.registerInventoryUsedOnForInventoryItemTarget(targetId, handler, true);
+        },
+      },
+    ) as RoomInventoryUsedOnRegistrar;
+  }
+
+  private warnInventoryOnWrongItem(targetId: string): void {
+    const key = `${this.roomId}:${this.itemId}:${targetId}`;
+    if (InventoryBenneScript.unresolvedInventoryOnItemWarnings.has(key)) {
+      return;
+    }
+    InventoryBenneScript.unresolvedInventoryOnItemWarnings.add(key);
+    console.warn(
+      `[Benne] whenInventoryUsedOn("${targetId}") in inventory script "${this.itemId}" expects targetId === item id — handler was not registered.`,
+    );
+  }
+
+  private registerInventoryUsedOnForInventoryItemTarget(
+    targetId: string,
+    handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+    doNotClear: boolean,
+  ): void {
+    if (targetId !== this.itemId) {
+      this.warnInventoryOnWrongItem(targetId);
+      return;
+    }
+    for (const sourceId of getRegisteredInventoryDefinitionIds()) {
+      this.subscribeInventoryUsedOnTargetEvents(
+        roomInventoryOnInventoryItemEventId(this.roomId, this.itemId, sourceId),
+        globalInventoryOnInventoryItemEventId(this.itemId, sourceId),
+        handler,
+        doNotClear,
+      );
+    }
   }
 
   private subscribeInventoryVerb(

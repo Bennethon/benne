@@ -44,7 +44,12 @@ import {
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { GuiRuntime } from '../scripting/GuiRuntime.js';
-import { dispatchInventoryVerbInteraction } from '../verbs/dispatchInventoryVerb';
+import {
+  dispatchInventoryOnInventoryItemInteraction,
+  dispatchInventoryVerbInteraction,
+  shouldDispatchInventoryUsedOnVerbForGame,
+  shouldDropActiveInventoryOnUse,
+} from '../verbs/dispatchInventoryVerb';
 import { composeVerbLineText, getEffectiveInputProfile } from '../verbs/verbConfig';
 import { resolvePointerVerbForInventoryItem } from '../verbs/resolvePointerVerb';
 
@@ -1068,6 +1073,32 @@ function fillInventoryPanelContent(
           }
           if (resolution.kind === 'walkToTarget') {
             return;
+          }
+          if (resolution.kind === 'verb') {
+            if (shouldDispatchInventoryUsedOnVerbForGame(manager, resolution.verbId, resolution)) {
+              const sourceItemId = manager.getActiveInventoryItemId();
+              if (sourceItemId) {
+                const shouldDrop = shouldDropActiveInventoryOnUse(sourceItemId);
+                console.log(
+                  `[Benne] inventory-on "${resolution.verbId}" item ${sourceItemId} → inventory row ${itemId}`,
+                );
+                const handled = dispatchInventoryOnInventoryItemInteraction(
+                  gameEvents,
+                  sourceItemId,
+                  resolution.verbId,
+                  itemId,
+                  invPointerCtx.roomId,
+                  invDef?.description,
+                );
+                if (!handled && shouldDrop) {
+                  manager.clearActiveInventoryItem();
+                }
+                if (shouldDrop) {
+                  manager.clearActiveVerb();
+                }
+                return;
+              }
+            }
           }
           dispatchInventoryVerbInteraction(
             gameEvents,

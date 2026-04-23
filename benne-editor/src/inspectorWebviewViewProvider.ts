@@ -29,7 +29,12 @@ import {
     writeDataJson,
     writeRoomJson
 } from './inspectorMutations';
-import { getCharacterIdFromCharacterJsonUri, getGuiIdFromGuiJsonUri, getRoomIdFromRoomJsonUri } from './gameDiscovery';
+import {
+    getCharacterIdFromCharacterJsonUri,
+    getGuiIdFromGuiJsonUri,
+    getInventoryIdFromInventoryJsonUri,
+    getRoomIdFromRoomJsonUri
+} from './gameDiscovery';
 import type { RoomPreviewPanelController } from './roomPreviewPanel';
 import type { GuiPreviewPanelController } from './guiPreviewPanel';
 import {
@@ -868,6 +873,13 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                     'benne-editor.addCharacterInventoryUsedOnStub',
                     uri.toString(),
                     characterId
+                );
+            } else if (focusKind === 'inventory') {
+                const itemId = getInventoryIdFromInventoryJsonUri(uri);
+                await vscode.commands.executeCommand(
+                    'benne-editor.addInventoryItemInventoryUsedOnStub',
+                    uri.toString(),
+                    itemId
                 );
             }
             this.refreshMainAndActions();

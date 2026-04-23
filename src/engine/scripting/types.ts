@@ -65,6 +65,7 @@ export interface InventoryScriptContext {
   readonly itemId: string;
   readonly roomId: string;
   readonly roomScene: RoomScene;
+  readonly whenInventoryUsedOn: InventoryBenneScript['whenInventoryUsedOn'];
 }
 
 /** Passed to each `registerGlobalScript` callback from {@link import('./wireBenneGlobalScripts.js').wireBenneGlobalScripts}. */

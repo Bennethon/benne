@@ -37,7 +37,11 @@ import {
     readRoomProps
 } from './gameDiscovery';
 import { addRoomCharacterVerbEvent } from './roomCharacterVerbScaffolding';
-import { addCharacterInventoryUsedOnStub, addRoomInventoryUsedOnStub } from './inventoryUsedOnScaffolding';
+import {
+    addCharacterInventoryUsedOnStub,
+    addInventoryItemInventoryUsedOnStub,
+    addRoomInventoryUsedOnStub
+} from './inventoryUsedOnScaffolding';
 import {
     addHotspotVerbEvent,
     addPropVerbEvent,
@@ -956,6 +960,21 @@ export function activate(context: vscode.ExtensionContext): void {
                 refreshTrees();
                 if (r.ok) {
                     const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${characterIdArg}.character.ts`);
+                    await revealEventInDocument(scriptUri, 'whenInventoryUsedOn', BENNE_SCRIPT_VIEW_COLUMN);
+                }
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addInventoryItemInventoryUsedOnStub',
+            async (inventoryJsonUriStr?: string, itemIdArg?: string) => {
+                if (typeof inventoryJsonUriStr !== 'string' || typeof itemIdArg !== 'string') {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(inventoryJsonUriStr);
+                const r = await addInventoryItemInventoryUsedOnStub(jsonUri, itemIdArg);
+                refreshTrees();
+                if (r.ok) {
+                    const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${itemIdArg}.inventory.ts`);
                     await revealEventInDocument(scriptUri, 'whenInventoryUsedOn', BENNE_SCRIPT_VIEW_COLUMN);
                 }
             }
