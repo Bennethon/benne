@@ -304,6 +304,16 @@
       "initialAnimation": "Idle",
       "visible": true,
       "zIndex": 40
+    },
+    {
+      "instanceId": "henry-1",
+      "definition": "henry/henry.character.json",
+      "x": 260,
+      "y": 120,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 41
     }
   ]
 }

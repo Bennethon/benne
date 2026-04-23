@@ -1931,7 +1931,8 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Short label for the prop, hotspot, or GUI inventory row under the pointer (verb line / LucasArts-style).
+   * Short label for the prop, hotspot, clickable character, or GUI inventory row under the pointer
+   * (verb line / LucasArts-style).
    */
   private resolveVerbLineHoverDescription(pointer: Phaser.Input.Pointer): string | null {
     if (this.isScriptedDialogInputSuppressed()) {
@@ -1971,8 +1972,20 @@ export class RoomScene extends Phaser.Scene {
         const d = hs?.description?.trim();
         return d && d.length > 0 ? d : null;
       }
-      if (go.getData('character')) {
-        return null;
+      const charData = go.getData('character') as CharacterData | undefined;
+      if (charData) {
+        if (go.getData('isPlayer') === true) {
+          return null;
+        }
+        if (!charData.clickable) {
+          continue;
+        }
+        const chDesc = charData.description?.trim();
+        if (chDesc && chDesc.length > 0) {
+          return chDesc;
+        }
+        const nm = charData.name?.trim();
+        return nm && nm.length > 0 ? nm : null;
       }
       for (const [propId, propSprite] of this.propSpritesById) {
         if (propSprite === o) {
