@@ -1,6 +1,7 @@
 import { getGameSettings } from '../ConfigManager';
 import type { EventBus } from '../events/EventBus';
 import {
+  INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT,
   buildInventoryUsedOnInventoryItemPayload,
   buildInventoryUsedOnPayload,
   globalInventoryOnCharacterEventId,
@@ -11,6 +12,7 @@ import {
   roomInventoryOnHotspotEventId,
   roomInventoryOnInventoryItemEventId,
   roomInventoryOnPropEventId,
+  type AnyInventoryUsedOnPayload,
 } from '../events/inventoryOnVerbEvents';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents';
 import type { GameStateManager } from '../gameState/GameStateManager';
@@ -21,6 +23,27 @@ import { resolveEffectiveUseVerbId } from './verbConfig';
 
 function listenerCount(bus: EventBus, event: string): number {
   return bus.listeners(event).length;
+}
+
+function tryEmitInventoryOnTargetOrGlobalUnhandled(
+  bus: EventBus,
+  roomEventId: string,
+  globalEventId: string,
+  payload: AnyInventoryUsedOnPayload,
+): boolean {
+  if (listenerCount(bus, roomEventId) > 0) {
+    bus.emit(roomEventId, payload);
+    return true;
+  }
+  if (listenerCount(bus, globalEventId) > 0) {
+    bus.emit(globalEventId, payload);
+    return true;
+  }
+  if (listenerCount(bus, INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT) > 0) {
+    bus.emit(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, payload);
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -63,45 +86,18 @@ export function dispatchInventoryOnVerbTargetInteraction(
   switch (target.type) {
     case 'prop': {
       const roomScoped = roomInventoryOnPropEventId(target.roomId, target.propId, itemId);
-      if (listenerCount(bus, roomScoped) > 0) {
-        bus.emit(roomScoped, payload);
-        return true;
-      }
       const globalScoped = globalInventoryOnPropEventId(target.propId, itemId);
-      if (listenerCount(bus, globalScoped) > 0) {
-        bus.emit(globalScoped, payload);
-        return true;
-      }
-      bus.emit(roomScoped, payload);
-      return false;
+      return tryEmitInventoryOnTargetOrGlobalUnhandled(bus, roomScoped, globalScoped, payload);
     }
     case 'hotspot': {
       const roomScoped = roomInventoryOnHotspotEventId(target.roomId, target.hotspotId, itemId);
-      if (listenerCount(bus, roomScoped) > 0) {
-        bus.emit(roomScoped, payload);
-        return true;
-      }
       const globalScoped = globalInventoryOnHotspotEventId(target.hotspotId, itemId);
-      if (listenerCount(bus, globalScoped) > 0) {
-        bus.emit(globalScoped, payload);
-        return true;
-      }
-      bus.emit(roomScoped, payload);
-      return false;
+      return tryEmitInventoryOnTargetOrGlobalUnhandled(bus, roomScoped, globalScoped, payload);
     }
     case 'character': {
       const roomScoped = roomInventoryOnCharacterEventId(target.roomId, target.characterId, itemId);
-      if (listenerCount(bus, roomScoped) > 0) {
-        bus.emit(roomScoped, payload);
-        return true;
-      }
       const globalScoped = globalInventoryOnCharacterEventId(target.characterId, itemId);
-      if (listenerCount(bus, globalScoped) > 0) {
-        bus.emit(globalScoped, payload);
-        return true;
-      }
-      bus.emit(roomScoped, payload);
-      return false;
+      return tryEmitInventoryOnTargetOrGlobalUnhandled(bus, roomScoped, globalScoped, payload);
     }
   }
   return false;
@@ -127,17 +123,8 @@ export function dispatchInventoryOnInventoryItemInteraction(
     description,
   );
   const roomScoped = roomInventoryOnInventoryItemEventId(roomId, targetItemId, sourceItemId);
-  if (listenerCount(bus, roomScoped) > 0) {
-    bus.emit(roomScoped, payload);
-    return true;
-  }
   const globalScoped = globalInventoryOnInventoryItemEventId(targetItemId, sourceItemId);
-  if (listenerCount(bus, globalScoped) > 0) {
-    bus.emit(globalScoped, payload);
-    return true;
-  }
-  bus.emit(roomScoped, payload);
-  return false;
+  return tryEmitInventoryOnTargetOrGlobalUnhandled(bus, roomScoped, globalScoped, payload);
 }
 
 /** Convenience for call sites that already read {@link getGameSettings}. */
