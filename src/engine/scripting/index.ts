@@ -9,6 +9,9 @@ export {
   type InventoryWhenUseRegistrar,
   type RoomInventoryUsedOnRegistrar,
   type BlockingWithNow,
+  type BenneScriptSayDialogueTagged,
+  type BenneScriptSayDialogueHybrid,
+  type BenneSayDialogueScope,
 } from './BenneScript.js';
 export type { GivePropInteractPayload } from './benneScriptPayloads.js';
 export * from './RoomScriptContext.js';

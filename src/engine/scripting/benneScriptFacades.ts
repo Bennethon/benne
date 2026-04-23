@@ -2,7 +2,7 @@ import type { CharacterFacingLetter } from '../../types/character.js';
 import type { Point2 } from '../../types/room.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import type { InventoryVerbInteractPayload } from '../events/inventoryVerbEvents.js';
-import type { BenneScriptSayArgs, BenneScriptCore, BlockingWithNow } from './BenneScriptCore.js';
+import type { BenneScriptCore, BenneScriptSayDialogueHybrid, BlockingWithNow } from './BenneScriptCore.js';
 
 export type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 
@@ -63,7 +63,7 @@ export interface BenneScriptPlayerFacade {
   /** Same as {@link import('./BenneScriptCore.js').BenneScriptCore.faceClicked} on the owning script. */
   faceClicked: BlockingWithNow<[]>;
   playAnimation: BlockingWithNow<[string]>;
-  say: BlockingWithNow<BenneScriptSayArgs>;
+  say: BenneScriptSayDialogueHybrid;
   face: BlockingWithNow<[CharacterFacingLetter]>;
 }
 
@@ -71,6 +71,6 @@ export interface BenneScriptPlayerFacade {
 export interface BenneScriptCharacterFacade {
   walkTo: BlockingWithNow<[Point2 | string]>;
   playAnimation: BlockingWithNow<[string]>;
-  say: BlockingWithNow<BenneScriptSayArgs>;
+  say: BenneScriptSayDialogueHybrid;
   face: BlockingWithNow<[CharacterFacingLetter]>;
 }

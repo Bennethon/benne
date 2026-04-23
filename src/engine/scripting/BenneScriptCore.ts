@@ -170,6 +170,58 @@ export interface BenneScriptSayLineOptions {
 
 export type BenneScriptSayArgs = [line: string, options?: BenneScriptSayLineOptions];
 
+/** Scope for {@link BenneScriptCore.parseDialogueLines}. */
+export type BenneSayDialogueScope =
+  | { mode: 'free' }
+  | { mode: 'fixed'; definitionId: string };
+
+/** **`B.say`**…`` / **`B.say.now`**…`` — multi-line dialogue (tagged template only). */
+export type BenneScriptSayDialogueTagged = ((
+  strings: TemplateStringsArray,
+  ...exprValues: unknown[]
+) => void) & {
+  readonly now: (strings: TemplateStringsArray, ...exprValues: unknown[]) => void;
+};
+
+/**
+ * Character / player facade **`say`**: string line + options, **or** tagged dialogue; **`.now`** mirrors both.
+ */
+export type BenneScriptSayDialogueHybrid = {
+  (line: string, options?: BenneScriptSayLineOptions): void;
+  (strings: TemplateStringsArray, ...exprValues: unknown[]): void;
+  readonly now: {
+    (line: string, options?: BenneScriptSayLineOptions): void;
+    (strings: TemplateStringsArray, ...exprValues: unknown[]): void;
+  };
+};
+
+function isTemplateStringsArray(value: unknown): value is TemplateStringsArray {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    Array.isArray(value) &&
+    'raw' in value &&
+    typeof (value as TemplateStringsArray).raw === 'object' &&
+    Array.isArray((value as TemplateStringsArray).raw)
+  );
+}
+
+function cookTaggedTemplateStrings(strings: TemplateStringsArray, exprValues: readonly unknown[]): string {
+  let out = strings[0] ?? '';
+  for (let i = 0; i < exprValues.length; i++) {
+    out += String(exprValues[i] ?? '') + (strings[i + 1] ?? '');
+  }
+  return out;
+}
+
+function stripTrailingLineComment(line: string): string {
+  const idx = line.search(/\s\/\//);
+  if (idx < 0) {
+    return line;
+  }
+  return line.slice(0, idx).trimEnd();
+}
+
 /**
  * Shared interaction queue, verb alias resolution, dialog line + input lock, and `wait` / `raw`
  * for room, character, global, and GUI Bennescript facades.
@@ -177,6 +229,7 @@ export type BenneScriptSayArgs = [line: string, options?: BenneScriptSayLineOpti
 export abstract class BenneScriptCore {
   private static unresolvedVerbWarnings = new Set<string>();
   private static warnedPlayerFacadeNoRoomScene = false;
+  private static warnedSayDialogueNoRoomScene = false;
   private static walkToClickedDevWarnKeys = new Set<string>();
   private static faceClickedDevWarnKeys = new Set<string>();
 
@@ -214,6 +267,11 @@ export abstract class BenneScriptCore {
    * does not block the queue.
    */
   readonly faceClicked: BlockingWithNow<[]>;
+
+  /**
+   * PowerQuest-style **`B.say`**…``: lines **`Speaker: text`** (blank lines and **`//`** line / trailing comments ignored). **`Player`** (any case) → starting player character. Queues each line on the interaction tail; **`B.say.now`**… does not wait behind prior queued steps (each line still uses the dialog overlay lock).
+   */
+  readonly say: BenneScriptSayDialogueTagged;
 
   readonly raw: {
     on: (event: string | symbol, fn: (...args: unknown[]) => void, context?: unknown) => void;
@@ -268,6 +326,8 @@ export abstract class BenneScriptCore {
       () => this.performFaceClicked(true),
       () => this.performFaceClicked(false),
     );
+
+    this.say = this.createFreeScopeSayDialogue();
   }
 
   private static warnWalkToClickedDevOnce(key: string, message: string): void {
@@ -606,19 +666,21 @@ export abstract class BenneScriptCore {
     playDirectionalAnimation(sprite, baseName, facing);
   }
 
-  protected queueSayDialogWithInputLock(
+  /**
+   * One scripted dialog line through completion (overlay + input suppression), for **`say`** sequencing.
+   */
+  protected createSayLinePromise(
     scene: RoomScene,
     line: string,
     talkCharacterDefinitionId: string,
-    chain: boolean,
     options?: BenneScriptSayLineOptions,
-  ): void {
+  ): Promise<void> {
     const ms = computeDialogLineDurationMs(line);
     const lineOpt = options?.clickToSkip;
     const allowClickToSkip =
       lineOpt === true || (lineOpt !== false && getDialogSettings().clickToSkip);
 
-    const runLine = (resolve?: () => void): void => {
+    return new Promise<void>((resolve) => {
       let completed = false;
       let timer: Phaser.Time.TimerEvent | null = null;
 
@@ -633,7 +695,7 @@ export abstract class BenneScriptCore {
         this.applySayLineDirectionalBase(scene, talkCharacterDefinitionId, 'Idle');
         scene.setDialogTextOverlay({ visible: false });
         scene.popScriptedDialogInputSuppression();
-        resolve?.();
+        resolve();
       };
 
       scene.pushScriptedDialogInputSuppression();
@@ -653,13 +715,243 @@ export abstract class BenneScriptCore {
           finish();
         });
       }
+    });
+  }
+
+  protected queueSayDialogWithInputLock(
+    scene: RoomScene,
+    line: string,
+    talkCharacterDefinitionId: string,
+    chain: boolean,
+    options?: BenneScriptSayLineOptions,
+  ): void {
+    if (chain) {
+      this.chain(() => this.createSayLinePromise(scene, line, talkCharacterDefinitionId, options));
+    } else {
+      void this.createSayLinePromise(scene, line, talkCharacterDefinitionId, options);
+    }
+  }
+
+  private static warnSayDialogueNoRoomOnce(): void {
+    if (!import.meta.env.DEV || BenneScriptCore.warnedSayDialogueNoRoomScene) {
+      return;
+    }
+    BenneScriptCore.warnedSayDialogueNoRoomScene = true;
+    console.warn('[Benne] B.say`…`: RoomScene is not active — ignored.');
+  }
+
+  /**
+   * Parses **`Speaker: text`** lines; throws on unknown speaker (free) or mismatched speaker (fixed).
+   * Non-**`Player`** names match spawned character ids **case-insensitively** (resolved to the room’s canonical id).
+   */
+  protected parseDialogueLines(
+    body: string,
+    scope: BenneSayDialogueScope,
+    scene: RoomScene,
+  ): ReadonlyArray<{ definitionId: string; text: string }> {
+    const rows = body.split(/\r?\n/);
+    const out: Array<{ definitionId: string; text: string }> = [];
+
+    const spawnedIds = scene.getSpawnedCharacterDefinitionIds();
+    const spawnedByLower = new Map<string, string>();
+    for (const id of spawnedIds) {
+      const k = id.toLowerCase();
+      if (!spawnedByLower.has(k)) {
+        spawnedByLower.set(k, id);
+      }
+    }
+
+    const unknownSpeakerMessage = (label: string): string => {
+      const hint = spawnedIds.length ? spawnedIds.join(', ') : '(no spawned characters)';
+      return (
+        `[Benne] say: unknown speaker "${label}" — not spawned in this room. ` +
+        `Known ids (case-insensitive): ${hint} (use "Player" for the protagonist).`
+      );
     };
 
-    if (chain) {
-      this.chain(() => new Promise<void>((resolve) => runLine(resolve)));
-    } else {
-      runLine();
+    const resolveLabel = (label: string): string => {
+      const t = label.trim();
+      if (!t) {
+        throw new Error('[Benne] say: empty speaker name before ":".');
+      }
+      if (t.toLowerCase() === 'player') {
+        return getStartingPlayerCharacterId();
+      }
+      const canon = spawnedByLower.get(t.toLowerCase());
+      if (canon == null) {
+        throw new Error(unknownSpeakerMessage(t));
+      }
+      return canon;
+    };
+
+    for (const rawLine of rows) {
+      const decommented = stripTrailingLineComment(rawLine);
+      const trimmed = decommented.trim();
+      if (!trimmed || trimmed.startsWith('//')) {
+        continue;
+      }
+
+      if (scope.mode === 'free') {
+        const colon = trimmed.indexOf(':');
+        if (colon < 0) {
+          throw new Error(
+            `[Benne] say: expected "Speaker: text" per line — missing ":" in ${JSON.stringify(trimmed)}.`,
+          );
+        }
+        const speakerLabel = trimmed.slice(0, colon).trim();
+        const text = trimmed.slice(colon + 1).trim();
+        if (!text) {
+          continue;
+        }
+        out.push({ definitionId: resolveLabel(speakerLabel), text });
+      } else {
+        const fixedId = scope.definitionId;
+        const colon = trimmed.indexOf(':');
+        if (colon < 0) {
+          out.push({ definitionId: fixedId, text: trimmed });
+        } else {
+          const speakerLabel = trimmed.slice(0, colon).trim();
+          const text = trimmed.slice(colon + 1).trim();
+          if (!text) {
+            continue;
+          }
+          const id = resolveLabel(speakerLabel);
+          if (id.toLowerCase() !== fixedId.toLowerCase()) {
+            throw new Error(
+              `[Benne] say: line attributes speech to "${speakerLabel.trim()}" but this block is scoped to "${fixedId}". ` +
+                `Omit the "Name:" prefix or use only that speaker (matching is case-insensitive).`,
+            );
+          }
+          out.push({ definitionId: id, text });
+        }
+      }
     }
+
+    return out;
+  }
+
+  protected runDialogueFromTaggedTemplate(
+    strings: TemplateStringsArray,
+    exprValues: readonly unknown[],
+    scope: BenneSayDialogueScope,
+    chain: boolean,
+    scene: RoomScene,
+    logLine: (text: string) => void,
+  ): void {
+    const cooked = cookTaggedTemplateStrings(strings, exprValues);
+    const entries = this.parseDialogueLines(cooked, scope, scene);
+    if (entries.length === 0) {
+      return;
+    }
+    if (chain) {
+      for (const { definitionId, text } of entries) {
+        logLine(text);
+        this.chain(() => this.createSayLinePromise(scene, text, definitionId, undefined));
+      }
+      return;
+    }
+    if (entries.length === 1) {
+      const only = entries[0]!;
+      logLine(only.text);
+      this.queueSayDialogWithInputLock(scene, only.text, only.definitionId, false, undefined);
+      return;
+    }
+    void (async () => {
+      for (const { definitionId, text } of entries) {
+        logLine(text);
+        await this.createSayLinePromise(scene, text, definitionId, undefined);
+      }
+    })();
+  }
+
+  private createFreeScopeSayDialogue(): BenneScriptSayDialogueTagged {
+    const run = (strings: TemplateStringsArray, ...exprValues: unknown[]): void => {
+      const scene = this.getPlayerWalkRoomScene();
+      if (!scene) {
+        BenneScriptCore.warnSayDialogueNoRoomOnce();
+        return;
+      }
+      this.runDialogueFromTaggedTemplate(strings, exprValues, { mode: 'free' }, true, scene, () => {});
+    };
+    const runNow = (strings: TemplateStringsArray, ...exprValues: unknown[]): void => {
+      const scene = this.getPlayerWalkRoomScene();
+      if (!scene) {
+        BenneScriptCore.warnSayDialogueNoRoomOnce();
+        return;
+      }
+      this.runDialogueFromTaggedTemplate(strings, exprValues, { mode: 'free' }, false, scene, () => {});
+    };
+    return Object.assign(run, { now: runNow }) as BenneScriptSayDialogueTagged;
+  }
+
+  protected composeFixedCharacterSayHybrid(
+    scene: RoomScene,
+    definitionId: string,
+    logSay: (line: string) => void,
+  ): BenneScriptSayDialogueHybrid {
+    const scope: BenneSayDialogueScope = { mode: 'fixed', definitionId };
+    const runStr = (line: string, opts: BenneScriptSayLineOptions | undefined, chain: boolean): void => {
+      logSay(line);
+      this.queueSayDialogWithInputLock(scene, line, definitionId, chain, opts);
+    };
+    const blocking = (first: string | TemplateStringsArray, ...rest: unknown[]): void => {
+      if (isTemplateStringsArray(first)) {
+        this.runDialogueFromTaggedTemplate(first, rest, scope, true, scene, logSay);
+      } else {
+        runStr(first as string, rest[0] as BenneScriptSayLineOptions | undefined, true);
+      }
+    };
+    const now = (first: string | TemplateStringsArray, ...rest: unknown[]): void => {
+      if (isTemplateStringsArray(first)) {
+        this.runDialogueFromTaggedTemplate(first, rest, scope, false, scene, logSay);
+      } else {
+        runStr(first as string, rest[0] as BenneScriptSayLineOptions | undefined, false);
+      }
+    };
+    return Object.assign(blocking, { now }) as BenneScriptSayDialogueHybrid;
+  }
+
+  protected composeFixedPlayerSayHybridLazy(
+    getScene: () => RoomScene | undefined,
+    logSay: (line: string) => void,
+    warnNoRoom: () => void,
+  ): BenneScriptSayDialogueHybrid {
+    const pid = getStartingPlayerCharacterId();
+    const scope: BenneSayDialogueScope = { mode: 'fixed', definitionId: pid };
+    const runStr = (line: string, opts: BenneScriptSayLineOptions | undefined, chain: boolean): void => {
+      const scene = getScene();
+      if (!scene) {
+        warnNoRoom();
+        return;
+      }
+      logSay(line);
+      this.queueSayDialogWithInputLock(scene, line, pid, chain, opts);
+    };
+    const blocking = (first: string | TemplateStringsArray, ...rest: unknown[]): void => {
+      const scene = getScene();
+      if (!scene) {
+        warnNoRoom();
+        return;
+      }
+      if (isTemplateStringsArray(first)) {
+        this.runDialogueFromTaggedTemplate(first, rest, scope, true, scene, logSay);
+      } else {
+        runStr(first as string, rest[0] as BenneScriptSayLineOptions | undefined, true);
+      }
+    };
+    const now = (first: string | TemplateStringsArray, ...rest: unknown[]): void => {
+      const scene = getScene();
+      if (!scene) {
+        warnNoRoom();
+        return;
+      }
+      if (isTemplateStringsArray(first)) {
+        this.runDialogueFromTaggedTemplate(first, rest, scope, false, scene, logSay);
+      } else {
+        runStr(first as string, rest[0] as BenneScriptSayLineOptions | undefined, false);
+      }
+    };
+    return Object.assign(blocking, { now }) as BenneScriptSayDialogueHybrid;
   }
 
   /**
@@ -742,26 +1034,7 @@ export abstract class BenneScriptCore {
         },
         runPlayerPlayAnimation,
       ),
-      say: withNow(
-        (line: string, options?: BenneScriptSayLineOptions) => {
-          const scene = getScene();
-          if (!scene) {
-            warnNoRoom();
-            return;
-          }
-          logPlayerSay(line);
-          this.queueSayDialogWithInputLock(scene, line, getStartingPlayerCharacterId(), true, options);
-        },
-        (line: string, options?: BenneScriptSayLineOptions) => {
-          const scene = getScene();
-          if (!scene) {
-            warnNoRoom();
-            return;
-          }
-          logPlayerSay(line);
-          this.queueSayDialogWithInputLock(scene, line, getStartingPlayerCharacterId(), false, options);
-        },
-      ),
+      say: this.composeFixedPlayerSayHybridLazy(getScene, logPlayerSay, warnNoRoom),
       face: withNow(
         (direction: CharacterFacingLetter) => {
           this.chain(() => {

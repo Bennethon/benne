@@ -604,6 +604,11 @@ export class RoomScene extends Phaser.Scene {
     return this.characterSpritesByDefId.get(definitionId);
   }
 
+  /** Spawned character definition ids (for script dialogue validation). */
+  getSpawnedCharacterDefinitionIds(): readonly string[] {
+    return Array.from(this.characterSpritesByDefId.keys());
+  }
+
   getPropScriptDescription(propId: string): string {
     if (this.propDescriptionOverrides.has(propId)) {
       return this.propDescriptionOverrides.get(propId) ?? '';
