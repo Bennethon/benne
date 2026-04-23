@@ -36,4 +36,18 @@ registerRoomScript(({ B }) => {
       // TODO
     }
   });
+  B.whenInventoryUsedOn('Couch', (payload) => {
+    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
+      B.player.walkTo('Couch');
+      B.player.say('I used the Broom on the Couch.');
+    } else if (payload.itemId === 'Broom' && payload.verbId === 'give') {
+      B.player.walkTo('Couch');
+      B.player.face('U');
+      B.player.say('Here, couch.');
+    }
+  });
+
+  B.whenLookAt('Pillar', () => {
+    B.player.say('I like to keep this piller here so I can walk around it.');
+  });
 });

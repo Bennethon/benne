@@ -34,8 +34,8 @@
     "dialogueVolume": 1
   },
   "debug": {
-    "showWalkable": true,
-    "showPropOutlines": true,
+    "showWalkable": false,
+    "showPropOutlines": false,
     "showGuiOutlines": false
   },
   "initialGameState": {

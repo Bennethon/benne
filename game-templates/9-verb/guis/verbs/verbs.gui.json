@@ -217,6 +217,16 @@
       "textOffsetX": 0,
       "textOffsetY": 0,
       "backgroundTag": ""
+    },
+    {
+      "type": "verbLine",
+      "id": "verbLine",
+      "x": 176,
+      "y": 141,
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "color": "#ffffff",
+      "align": "center"
     }
   ]
 }
