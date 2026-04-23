@@ -90,7 +90,7 @@ The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build 
 
 - **Renderer**: Phaser **`Canvas`** (`gameConfig.ts` `type`) for consistent crisp **`BitmapText`** with **`roundPixels`** (same choice as the GUI preview bundle).
 - **Internal size** from `game-config.json` `resolution`; Phaser **Scale.FIT**, **CENTER_BOTH**, **MAX_ZOOM**, **autoRound** for pixel alignment.
-- **Layers**: Background image (optional, full-frame) → props sorted by **`zIndex`** (Aseprite tags as frames) → characters at fixed high depth → debug graphics on top when enabled.
+- **Layers**: Background image (optional, full-frame) → props and spawned characters share **`zIndex`**: depth is **`zIndex * 2`** for props and **`zIndex * 2 + 1`** for characters, so a higher layer draws in front; at the same **`zIndex`**, the character draws in front of props → debug graphics on top when enabled.
 - **`PostEffects.ts`**: **`attachPostProcessingPlaceholder(this.cameras.main)`** — extension point for Phaser 4 camera filters; **no shaders shipped yet**.
 
 ### Prop parallax

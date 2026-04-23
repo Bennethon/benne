@@ -93,8 +93,14 @@ const GENERIC_GUIS_INITIAL_VISIBILITY_REGISTRY_KEY = 'benneRoomSceneGenericGuisV
 /** Ignore walk clicks when already within this many pixels of the target. */
 const MIN_WALK_DISTANCE_PX = 6;
 
-/** Props use `zIndex`; characters render above this baseline. */
-const CHARACTER_SCENE_DEPTH = 10_000;
+/**
+ * Props and spawned characters share one display stack: higher authored `zIndex` draws in front.
+ * Within the same `zIndex`, characters draw in front of props (legacy “always above same layer”).
+ */
+function roomEntityDisplayDepth(zIndex: number | undefined, kind: 'prop' | 'character'): number {
+  const z = zIndex ?? 0;
+  return z * 2 + (kind === 'character' ? 1 : 0);
+}
 
 /** Walkable / prop debug strokes render above characters. */
 const DEBUG_OVERLAY_DEPTH = 20_000;
@@ -1373,7 +1379,7 @@ export class RoomScene extends Phaser.Scene {
       const sprite = this.add.sprite(spawn.x, spawn.y, textureKey).setOrigin(0, 0);
       sprite.setVisible(spawn.data.visible !== false);
       sprite.setAlpha(spawn.data.alpha ?? 1);
-      sprite.setDepth(spawn.data.zIndex ?? 0);
+      sprite.setDepth(roomEntityDisplayDepth(spawn.data.zIndex, 'prop'));
 
       if (!this.anims.exists(spawn.tag)) {
         console.warn(`[Benne] Room prop '${spawn.id}' uses unknown Aseprite tag '${spawn.tag}'.`);
@@ -1606,7 +1612,7 @@ export class RoomScene extends Phaser.Scene {
     const sprite = this.add.image(0, 0, spawn.textureKey);
     const feet = resolveCharacterFeetLocal(spawn.data, sprite as Phaser.GameObjects.Sprite);
     placeSpriteByFeet(sprite as Phaser.GameObjects.Sprite, feet, spawn.x, spawn.y);
-    sprite.setDepth(CHARACTER_SCENE_DEPTH + (spawn.zIndex ?? 0));
+    sprite.setDepth(roomEntityDisplayDepth(spawn.zIndex, 'character'));
     sprite.setVisible(spawn.visible !== false);
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
@@ -1619,7 +1625,7 @@ export class RoomScene extends Phaser.Scene {
 
   private spawnAsepriteCharacter(roomId: string, spawn: RoomCharacterSpawn): void {
     const sprite = this.add.sprite(0, 0, spawn.textureKey);
-    sprite.setDepth(CHARACTER_SCENE_DEPTH + (spawn.zIndex ?? 0));
+    sprite.setDepth(roomEntityDisplayDepth(spawn.zIndex, 'character'));
     sprite.setVisible(spawn.visible !== false);
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);

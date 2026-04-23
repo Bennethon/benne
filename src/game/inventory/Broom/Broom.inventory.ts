@@ -9,12 +9,10 @@ registerInventoryScript('Broom', ({ B }) => {
   });
 
   B.whenUse(() => {
-    B.player.say('I will use the broom.');
-    // Active item for use-on-target is set automatically after this handler’s queue drains.
+    
   });
 
   B.whenVerb("give", () => {
-    B.player.say("I don't want to give the broom.");
     B.setActiveInventory('Broom');
   });
 
