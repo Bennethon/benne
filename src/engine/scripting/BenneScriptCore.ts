@@ -1,4 +1,7 @@
 import * as Phaser from 'phaser';
+import type { CharacterFacingLetter } from '../../types/character.js';
+import type { Point2 } from '../../types/room.js';
+import { getStartingPlayerCharacterId } from '../../game/constants.js';
 import { computeDialogLineDurationMs, getDialogSettings, getGameSettings } from '../ConfigManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
@@ -10,6 +13,7 @@ import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerbTarget.js';
+import type { BenneScriptPlayerFacade } from './benneScriptFacades.js';
 
 /**
  * Callable that participates in the interaction queue; **`fn.now`** runs the same action immediately
@@ -65,6 +69,7 @@ export type BenneScriptSayArgs = [line: string, options?: BenneScriptSayLineOpti
  */
 export abstract class BenneScriptCore {
   private static unresolvedVerbWarnings = new Set<string>();
+  private static warnedPlayerFacadeNoRoomScene = false;
 
   protected readonly events: Phaser.Events.EventEmitter;
   private disposers: Array<() => void> = [];
@@ -383,5 +388,109 @@ export abstract class BenneScriptCore {
     } else {
       runLine();
     }
+  }
+
+  /**
+   * Shared with {@link import('./GlobalBenneScript.js').GlobalBenneScript} so global handlers can use **`B.player.say`**
+   * (resolves the room scene on each call).
+   */
+  protected makePlayerFacadeFromScene(resolveScene: () => RoomScene | null | undefined): BenneScriptPlayerFacade {
+    const getScene = (): RoomScene | undefined => resolveScene() ?? undefined;
+
+    const warnNoRoom = (): void => {
+      if (import.meta.env.DEV && !BenneScriptCore.warnedPlayerFacadeNoRoomScene) {
+        BenneScriptCore.warnedPlayerFacadeNoRoomScene = true;
+        console.warn('[Benne] B.player used while RoomScene is not active — ignored.');
+      }
+    };
+
+    const runPlayerPlayAnimation = (tag: string): void => {
+      const scene = getScene();
+      if (!scene) {
+        return;
+      }
+      const pl = scene.player;
+      if (pl?.anims) {
+        if (scene.anims.exists(tag)) {
+          pl.play(tag);
+        } else {
+          console.warn(`[Benne] Unknown animation tag "${tag}" for player`);
+        }
+      }
+    };
+
+    const runPlayerFace = (direction: CharacterFacingLetter): void => {
+      const scene = getScene();
+      if (!scene) {
+        return;
+      }
+      const pl = scene.player;
+      if (pl) {
+        playDirectionalAnimation(pl, 'Idle', direction);
+      }
+    };
+
+    const logPlayerSay = (line: string): void => {
+      console.log(`[Player] ${line}`);
+    };
+
+    return {
+      walkTo: withNow(
+        (target: Point2 | string) => {
+          const scene = getScene();
+          if (!scene) {
+            warnNoRoom();
+            return;
+          }
+          this.chain(() => scene.walkPlayerTo(target));
+        },
+        (target: Point2 | string) => {
+          const scene = getScene();
+          if (!scene) {
+            warnNoRoom();
+            return;
+          }
+          void scene.walkPlayerTo(target);
+        },
+      ),
+      playAnimation: withNow(
+        (tag: string) => {
+          this.chain(() => {
+            runPlayerPlayAnimation(tag);
+            return Promise.resolve();
+          });
+        },
+        runPlayerPlayAnimation,
+      ),
+      say: withNow(
+        (line: string, options?: BenneScriptSayLineOptions) => {
+          const scene = getScene();
+          if (!scene) {
+            warnNoRoom();
+            return;
+          }
+          logPlayerSay(line);
+          this.queueSayDialogWithInputLock(scene, line, getStartingPlayerCharacterId(), true, options);
+        },
+        (line: string, options?: BenneScriptSayLineOptions) => {
+          const scene = getScene();
+          if (!scene) {
+            warnNoRoom();
+            return;
+          }
+          logPlayerSay(line);
+          this.queueSayDialogWithInputLock(scene, line, getStartingPlayerCharacterId(), false, options);
+        },
+      ),
+      face: withNow(
+        (direction: CharacterFacingLetter) => {
+          this.chain(() => {
+            runPlayerFace(direction);
+            return Promise.resolve();
+          });
+        },
+        runPlayerFace,
+      ),
+    };
   }
 }

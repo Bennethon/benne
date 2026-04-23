@@ -1,7 +1,6 @@
 import * as Phaser from 'phaser';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { Point2 } from '../../types/room.js';
-import { getStartingPlayerCharacterId } from '../../game/constants.js';
 import type {
   CharacterVerbInteractPayload,
   RoomHotspotInteractPayload,
@@ -510,68 +509,7 @@ export class BenneScript extends BenneScriptCore {
   }
 
   get player(): BenneScriptPlayerFacade {
-    const scene = this.roomScene;
-
-    const runPlayerPlayAnimation = (tag: string): void => {
-      const pl = scene.player;
-      if (pl?.anims) {
-        if (scene.anims.exists(tag)) {
-          pl.play(tag);
-        } else {
-          console.warn(`[Benne] Unknown animation tag "${tag}" for player`);
-        }
-      }
-    };
-
-    const runPlayerFace = (direction: CharacterFacingLetter): void => {
-      const pl = scene.player;
-      if (pl) {
-        playDirectionalAnimation(pl, 'Idle', direction);
-      }
-    };
-
-    const logPlayerSay = (line: string): void => {
-      console.log(`[Player] ${line}`);
-    };
-
-    return {
-      walkTo: withNow(
-        (target: Point2 | string) => {
-          this.chain(() => scene.walkPlayerTo(target));
-        },
-        (target: Point2 | string) => {
-          void scene.walkPlayerTo(target);
-        },
-      ),
-      playAnimation: withNow(
-        (tag: string) => {
-          this.chain(() => {
-            runPlayerPlayAnimation(tag);
-            return Promise.resolve();
-          });
-        },
-        runPlayerPlayAnimation,
-      ),
-      say: withNow(
-        (line: string, options?: BenneScriptSayLineOptions) => {
-          logPlayerSay(line);
-          this.queueSayDialogWithInputLock(scene, line, getStartingPlayerCharacterId(), true, options);
-        },
-        (line: string, options?: BenneScriptSayLineOptions) => {
-          logPlayerSay(line);
-          this.queueSayDialogWithInputLock(scene, line, getStartingPlayerCharacterId(), false, options);
-        },
-      ),
-      face: withNow(
-        (direction: CharacterFacingLetter) => {
-          this.chain(() => {
-            runPlayerFace(direction);
-            return Promise.resolve();
-          });
-        },
-        runPlayerFace,
-      ),
-    };
+    return this.makePlayerFacadeFromScene(() => this.roomScene);
   }
 
   cutscene(callback: () => void): void {

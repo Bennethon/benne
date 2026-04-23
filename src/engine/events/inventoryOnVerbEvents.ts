@@ -3,6 +3,13 @@ import type { VerbInteractTarget } from './verbInteractionEvents';
 
 const VERB_ROOM_PREFIX = 'verb:room:';
 
+/**
+ * When inventory use-on-target (room object or another inventory row) has no room- or
+ * per-target global handler, the engine emits this if a listener exists; otherwise
+ * the interaction is a no-op from the bus’s point of view.
+ */
+export const INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT = 'verb:global:inventoryOnVerbTarget:unhandled';
+
 /** `verb:room:<roomId>:inventoryOnProp:<propId>:<itemId>` */
 export function roomInventoryOnPropEventId(roomId: string, propId: string, itemId: string): string {
   return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnProp:${propId}:${itemId}`;
