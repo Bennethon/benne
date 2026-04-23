@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { listInventoryDefinitions } from './gameDiscovery';
 import { insertIntoBenneRegisterRoomScript } from './propVerbScaffolding';
 import { insertIntoRegisterCharacterScriptBody } from './characterVerbScaffolding';
 
@@ -8,18 +7,8 @@ export type AddInventoryUsedOnResult = {
     insertedStubRange?: { start: number; end: number };
 };
 
-function buildWhenInventoryUsedOnStub(targetId: string, itemIds: readonly string[]): string {
-    if (itemIds.length === 0) {
-        return `  B.whenInventoryUsedOn('${escapeTsString(targetId)}', (payload) => {\n    // TODO\n  });\n`;
-    }
-    let inner = '';
-    for (let i = 0; i < itemIds.length; i++) {
-        const idLit = escapeTsString(itemIds[i]!);
-        const head = i === 0 ? 'if' : '} else if';
-        inner += `    ${head} (payload.itemId === '${idLit}') {\n      // TODO\n`;
-    }
-    inner += '    }\n';
-    return `  B.whenInventoryUsedOn('${escapeTsString(targetId)}', (payload) => {\n${inner}  });\n`;
+function buildWhenInventoryUsedOnStub(targetId: string): string {
+    return `  B.whenInventoryUsedOn('${escapeTsString(targetId)}', (payload) => {\n    if (payload.itemId === '') {\n      // TODO\n    }\n  });\n`;
 }
 
 function escapeTsString(s: string): string {
@@ -45,9 +34,7 @@ export async function addRoomInventoryUsedOnStub(
         return { ok: false };
     }
 
-    const folder = vscode.workspace.getWorkspaceFolder(roomJsonUri);
-    const itemIds = folder ? (await listInventoryDefinitions(folder)).map((x) => x.id) : [];
-    const snippet = buildWhenInventoryUsedOnStub(targetId, itemIds);
+    const snippet = buildWhenInventoryUsedOnStub(targetId);
     const inserted = insertIntoBenneRegisterRoomScript(scriptText, snippet);
     if (!inserted) {
         void vscode.window.showErrorMessage(
@@ -78,9 +65,7 @@ export async function addCharacterInventoryUsedOnStub(
         return { ok: false };
     }
 
-    const folder = vscode.workspace.getWorkspaceFolder(characterJsonUri);
-    const itemIds = folder ? (await listInventoryDefinitions(folder)).map((x) => x.id) : [];
-    const snippet = buildWhenInventoryUsedOnStub(characterId, itemIds);
+    const snippet = buildWhenInventoryUsedOnStub(characterId);
     const next = insertIntoRegisterCharacterScriptBody(scriptText, characterId, snippet);
     if (!next) {
         void vscode.window.showErrorMessage(
