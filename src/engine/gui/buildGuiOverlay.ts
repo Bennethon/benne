@@ -777,6 +777,9 @@ function addGuiImageSprite(
     applyGuiSpriteAnchor(sprite, anchor, c.x, c.y);
     extraSprites.push(sprite);
   }
+  /** Opaque pixels block room input; transparent pixels let walk / props / hotspots receive clicks. */
+  sprite.setInteractive(scene.input.makePixelPerfect(8));
+  sprite.setData('benneGuiControl', true);
   const cid = c.id?.trim();
   if (cid) {
     controlsById.set(cid, sprite);
@@ -1421,11 +1424,12 @@ export function buildGuiOverlay(
    *
    * - **Buttons** need `setInteractive` for real click handling and hover-tag swapping, so they stay interactive
    *   and we subscribe to Phaser's native `pointerover` / `pointerout` via {@link wireGuiControlHoverEvents}.
-   * - **Triggers and every other control type** (image, inventoryPanel, text) are wired as **non-blocking
-   *   pointer observers** via {@link installGuiControlPointerHoverObserver}. This preserves uniform
-   *   `whenMouseEnter` / `whenMouseLeave` semantics without calling `setInteractive` on them — critical so
-   *   overlays like the inventory bar do not consume clicks meant for room props / hotspots beneath them
-   *   (Phaser's `input.topOnly` would otherwise deliver the click to the GUI sprite and skip the room).
+   * - **`image`** sprites use {@link Phaser.Input.InputPlugin#makePixelPerfect} `setInteractive` so only
+   *   non-transparent texels consume clicks; transparent regions still reach the room. Hover scripts use the
+   *   same **non-blocking** {@link installGuiControlPointerHoverObserver} path as other non-buttons.
+   * - **Triggers and the remaining types** (`inventoryPanel`, `text`) stay **non-interactive** for hits and
+   *   use pointer observers for `whenMouseEnter` / `whenMouseLeave` so the inventory bar and text lines do
+   *   not steal clicks from props / hotspots (`input.topOnly` would otherwise deliver to the GUI first).
    */
   for (const [id, target] of controlsById.entries()) {
     if (triggerZoneSet.has(target)) {
