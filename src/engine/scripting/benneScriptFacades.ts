@@ -58,6 +58,10 @@ export interface BenneScriptPropFacade {
 /** Movement + animation + facing for the player. */
 export interface BenneScriptPlayerFacade {
   walkTo: BlockingWithNow<[Point2 | string]>;
+  /** Same as {@link import('./BenneScriptCore.js').BenneScriptCore.walkToClicked} on the owning script. */
+  walkToClicked: BlockingWithNow<[]>;
+  /** Same as {@link import('./BenneScriptCore.js').BenneScriptCore.faceClicked} on the owning script. */
+  faceClicked: BlockingWithNow<[]>;
   playAnimation: BlockingWithNow<[string]>;
   say: BlockingWithNow<BenneScriptSayArgs>;
   face: BlockingWithNow<[CharacterFacingLetter]>;

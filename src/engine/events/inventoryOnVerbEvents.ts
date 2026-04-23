@@ -73,6 +73,8 @@ export interface InventoryUsedOnHotspotPayload {
   roomId: string;
   hotspotId: string;
   description?: string;
+  walkToPoint?: Point2;
+  lookAtPoint?: Point2;
 }
 
 export interface InventoryUsedOnCharacterPayload {
@@ -129,6 +131,8 @@ export function buildInventoryUsedOnPayload(
         roomId: target.roomId,
         hotspotId: target.hotspotId,
         description: target.description,
+        ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
+        ...(target.lookAtPoint !== undefined ? { lookAtPoint: target.lookAtPoint } : {}),
       };
     case 'character':
       return {

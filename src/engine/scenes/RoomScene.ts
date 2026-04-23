@@ -657,6 +657,36 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
+   * Turn the player to face a **look-at** point in room space (e.g. prop / hotspot **`lookAtPoint`**),
+   * or when **`lookAtWorld`** is omitted, the same walk destination as {@link walkPlayerTo} for
+   * **`walkFallbackTarget`**. If the vector from the player’s feet to the target is ~0, leaves
+   * facing unchanged (avoids spurious “face down”).
+   */
+  facePlayerTowardClicked(lookAtWorld: Point2 | null, walkFallbackTarget: Point2 | string | null): void {
+    const sprite = this.player;
+    if (!sprite) {
+      return;
+    }
+    const feet = getCharacterWorldFeet(sprite);
+    let toward: Point2 | undefined;
+    if (lookAtWorld) {
+      toward = lookAtWorld;
+    } else if (walkFallbackTarget != null) {
+      toward = this.resolveWalkTarget(walkFallbackTarget, feet);
+    }
+    if (!toward) {
+      return;
+    }
+    const dx = toward.x - feet.x;
+    const dy = toward.y - feet.y;
+    if (Math.hypot(dx, dy) < 1e-2) {
+      return;
+    }
+    const facing = facingFromWorldDelta(dx, dy);
+    playDirectionalAnimation(sprite, 'Idle', facing);
+  }
+
+  /**
    * Walk a room character (by definition id) to an explicit point or a named target.
    */
   walkCharacterTo(definitionId: string, target: Point2 | string): Promise<void> {
@@ -1584,6 +1614,8 @@ export class RoomScene extends Phaser.Scene {
             hotspotId: hotspot.id,
             roomId,
             description: hotspot.description,
+            walkToPoint: hotspot.walkToPoint,
+            lookAtPoint: hotspot.lookAtPoint,
           });
           if (!handled && shouldDrop) {
             manager.clearActiveInventoryItem();
@@ -1603,6 +1635,8 @@ export class RoomScene extends Phaser.Scene {
         hotspotId: hotspot.id,
         roomId,
         description: hotspot.description,
+        walkToPoint: hotspot.walkToPoint,
+        lookAtPoint: hotspot.lookAtPoint,
       });
       if (resolution.consumeActive) {
         manager.clearActiveVerb();

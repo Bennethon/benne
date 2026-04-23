@@ -83,7 +83,14 @@ export type VerbInteractTarget =
       walkToPoint?: Point2;
       lookAtPoint?: Point2;
     }
-  | { type: 'hotspot'; hotspotId: string; roomId: string; description?: string }
+  | {
+      type: 'hotspot';
+      hotspotId: string;
+      roomId: string;
+      description?: string;
+      walkToPoint?: Point2;
+      lookAtPoint?: Point2;
+    }
   | {
       type: 'character';
       characterId: string;

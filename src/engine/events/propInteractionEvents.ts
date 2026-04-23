@@ -28,6 +28,8 @@ export type RoomHotspotInteractPayload = {
   description?: string;
   verbId: string;
   verbFallback?: boolean;
+  walkToPoint?: Point2;
+  lookAtPoint?: Point2;
 };
 
 /**

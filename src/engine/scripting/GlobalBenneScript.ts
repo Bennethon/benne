@@ -30,10 +30,14 @@ export class GlobalBenneScript extends BenneScriptCore {
   readonly inventory: BenneScriptInventoryNamespace;
 
   constructor(events: Phaser.Events.EventEmitter, game: Phaser.Game) {
-    super(events, () => {
-      const room = game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
-      return room?.time ?? null;
-    });
+    super(
+      events,
+      () => {
+        const room = game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
+        return room?.time ?? null;
+      },
+      () => game.scene.getScene(SCENE_ROOM) as RoomScene | undefined,
+    );
     this.game = game;
     const manager = resolveGameStateManager(game);
     this.state = createBenneScriptGameStateNamespace(manager);

@@ -16,7 +16,8 @@ registerRoomScript(({ B }) => {
   void B;
   B.whenInventoryUsedOn('Pillar', (payload) => {
     if (payload.itemId === 'Broom') {
-      B.player.walkTo('Pillar');
+      B.walkToClicked();
+      B.faceClicked();
       B.player.say('I used the Broom on the Pillar.');
     } else if (payload.itemId === 'Candy1') {
       // TODO
