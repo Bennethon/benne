@@ -21,7 +21,9 @@ registerGlobalScript(({ B }) => {
   // ─────────────────────────────────────────────────────────────
 
   B.whenGlobalVerb('look', () => {
-    B.player.say("Nothing special about that.");
+    B.say`
+Player: Nothing special about that.
+`;
   });
 
   B.whenGlobalVerb('use', () => {

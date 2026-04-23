@@ -16,7 +16,8 @@ registerRoomScript(({ B }) => {
   void B;
   B.whenInventoryUsedOn('Pillar', (payload) => {
     if (payload.itemId === 'Broom') {
-      B.player.walkTo('Pillar');
+      B.walkToClicked();
+      B.faceClicked();
       B.player.say('I used the Broom on the Pillar.');
     } else if (payload.itemId === 'Candy1') {
       // TODO
@@ -49,5 +50,21 @@ registerRoomScript(({ B }) => {
 
   B.whenLookAt('Pillar', () => {
     B.player.say('I like to keep this pillar here so I can walk around it.');
+  });
+
+  B.whenLookAt('henry', () => {
+    B.player.say('Henry is in the room.');
+  });
+
+  B.whenTalkTo('henry', () => {
+    B.walkToClicked();
+    B.faceClicked();
+    B.say`
+      Hank: Hello, I am saying something!
+      Henry: Oh really? I am too!
+      Player: This feels so good!
+      `;
+    B.player.say('Thats cool.');
+    B.character('henry').say('Yes, it is.');
   });
 });
