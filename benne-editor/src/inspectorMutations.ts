@@ -337,6 +337,8 @@ export function updatePropFields(
         defaultAnimation?: string;
         /** Verb id invoked when an inputProfile slot resolves to `"defaultVerb"`. Empty / `"look"` omits. */
         defaultVerb?: string;
+        /** Room-space Y; `null` clears. */
+        baseline?: number | null;
     }
 ): { ok: true } | { ok: false; message: string } {
     const props = propsArray(data);
@@ -380,6 +382,13 @@ export function updatePropFields(
     if (fields.defaultVerb !== undefined) {
         applyDefaultVerbPatch(prop, fields.defaultVerb);
     }
+    if (fields.baseline !== undefined) {
+        if (fields.baseline === null || !Number.isFinite(fields.baseline)) {
+            delete prop.baseline;
+        } else {
+            prop.baseline = fields.baseline;
+        }
+    }
     return { ok: true };
 }
 
@@ -398,7 +407,14 @@ function hotspotsArray(data: Record<string, unknown>): Record<string, unknown>[]
 export function updateHotspotFields(
     data: Record<string, unknown>,
     hotspotId: string,
-    fields: { description?: string; active?: boolean; zIndex?: number; defaultVerb?: string }
+    fields: {
+        description?: string;
+        active?: boolean;
+        zIndex?: number;
+        defaultVerb?: string;
+        /** Room-space Y; `null` clears. */
+        baseline?: number | null;
+    }
 ): { ok: true } | { ok: false; message: string } {
     const list = hotspotsArray(data);
     const hs = list.find((x) => typeof x.id === 'string' && (x.id as string) === hotspotId);
@@ -416,6 +432,13 @@ export function updateHotspotFields(
     }
     if (fields.defaultVerb !== undefined) {
         applyDefaultVerbPatch(hs, fields.defaultVerb);
+    }
+    if (fields.baseline !== undefined) {
+        if (fields.baseline === null || !Number.isFinite(fields.baseline)) {
+            delete hs.baseline;
+        } else {
+            hs.baseline = fields.baseline;
+        }
     }
     return { ok: true };
 }

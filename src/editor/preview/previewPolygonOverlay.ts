@@ -148,6 +148,17 @@ export class PreviewPolygonOverlay {
             selected: boolean;
             radiusCss: number;
         }[];
+        /** Full room width in world pixels (required when `horizontalGuides` is non-empty). */
+        horizontalGuidesRoomWidth?: number;
+        /** Horizontal lines in world space (e.g. depth-sort baseline). */
+        horizontalGuides?: ReadonlyArray<{
+            worldY: number;
+            label: string;
+            strokeStyle: string;
+            lineWidthCss: number;
+            dashCss?: readonly number[];
+            selected?: boolean;
+        }>;
     }, cam: Cameras.Scene2D.Camera): void {
         const c = this.game.canvas;
         const cssW = c.clientWidth;
@@ -155,7 +166,9 @@ export class PreviewPolygonOverlay {
         this.ctx.clearRect(0, 0, cssW, cssH);
         const { pts } = state;
         const extras = state.labeledPoints;
-        if (pts.length === 0 && (!extras || extras.length === 0)) {
+        const guides = state.horizontalGuides;
+        const hasGuides = guides && guides.length > 0;
+        if (pts.length === 0 && (!extras || extras.length === 0) && !hasGuides) {
             return;
         }
 
@@ -218,6 +231,39 @@ export class PreviewPolygonOverlay {
                 this.ctx.strokeText(lp.label, q.x, ty);
                 this.ctx.fillStyle = '#f2f6ff';
                 this.ctx.fillText(lp.label, q.x, ty);
+            }
+        }
+
+        if (hasGuides) {
+            const rw = state.horizontalGuidesRoomWidth ?? 0;
+            if (rw > 0) {
+                this.ctx.font = '600 11px system-ui, -apple-system, sans-serif';
+                this.ctx.textAlign = 'left';
+                this.ctx.textBaseline = 'bottom';
+                for (const g of guides!) {
+                    const p0 = this.worldToCanvasCss({ x: 0, y: g.worldY }, cam);
+                    const p1 = this.worldToCanvasCss({ x: rw, y: g.worldY }, cam);
+                    this.ctx.beginPath();
+                    this.ctx.strokeStyle = g.strokeStyle;
+                    this.ctx.lineWidth = g.selected ? g.lineWidthCss + 1 : g.lineWidthCss;
+                    this.ctx.globalAlpha = g.selected ? 1 : 0.88;
+                    if (g.dashCss && g.dashCss.length > 0) {
+                        this.ctx.setLineDash([...g.dashCss]);
+                    } else {
+                        this.ctx.setLineDash([]);
+                    }
+                    this.ctx.moveTo(p0.x, p0.y);
+                    this.ctx.lineTo(p1.x, p1.y);
+                    this.ctx.stroke();
+                    this.ctx.setLineDash([]);
+                    const lx = Math.min(p0.x, p1.x) + 6;
+                    const ly = Math.min(p0.y, p1.y) - 4;
+                    this.ctx.lineWidth = 3;
+                    this.ctx.strokeStyle = 'rgba(0,0,0,0.82)';
+                    this.ctx.strokeText(g.label, lx, ly);
+                    this.ctx.fillStyle = '#e8fff8';
+                    this.ctx.fillText(g.label, lx, ly);
+                }
             }
         }
         this.ctx.globalAlpha = 1;

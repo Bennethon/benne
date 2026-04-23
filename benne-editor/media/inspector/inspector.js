@@ -306,6 +306,8 @@ function renderRoom(state) {
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-visible" data-id="${esc(p.id)}" ${p.visible ? 'checked' : ''} /></label>
         <span class="benne-pg-lbl">zIndex</span>
         <input type="number" class="prop-z" data-id="${esc(p.id)}" value="${p.zIndex}" />
+        <span class="benne-pg-lbl">baseline Y</span>
+        <input type="number" step="1" class="prop-baseline" data-id="${esc(p.id)}" value="${p.baseline ?? ''}" placeholder="—" title="Optional room-space Y: walkers with feet below this line draw in front of this prop" />
         <span class="benne-pg-lbl">Parallax</span>
         <input type="number" step="0.05" class="prop-par" data-id="${esc(p.id)}" value="${p.parallaxDepth}" />
         <span class="benne-pg-lbl">Alpha</span>
@@ -346,6 +348,8 @@ function renderRoom(state) {
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="hs-active" data-id="${esc(h.id)}" ${h.active ? 'checked' : ''} /></label>
         <span class="benne-pg-lbl">zIndex</span>
         <input type="number" class="hs-z" data-id="${esc(h.id)}" value="${h.zIndex}" />
+        <span class="benne-pg-lbl">baseline Y</span>
+        <input type="number" step="1" class="hs-baseline" data-id="${esc(h.id)}" value="${h.baseline ?? ''}" placeholder="—" title="Optional room-space Y: walkers with feet below this line draw in front of this hotspot zone" />
       </div>
       <label class="benne-field-label muted small">Description</label>
       <textarea class="benne-card-desc hs-desc" data-id="${esc(h.id)}" rows="2" title="${esc(h.description)}">${esc(h.description)}</textarea>
@@ -1144,7 +1148,7 @@ function mountHandlers(state) {
             propPatch(inp.dataset.id ?? '', { [field]: inp.checked });
         });
     });
-    root.querySelectorAll('.prop-z, .prop-par, .prop-alpha').forEach((el) => {
+    root.querySelectorAll('.prop-z, .prop-par, .prop-alpha, .prop-baseline').forEach((el) => {
         el.addEventListener('change', () => {
             const inp = el;
             const id = inp.dataset.id ?? '';
@@ -1153,6 +1157,11 @@ function mountHandlers(state) {
             }
             else if (inp.classList.contains('prop-par')) {
                 propPatch(id, { parallaxDepth: Number(inp.value) });
+            }
+            else if (inp.classList.contains('prop-baseline')) {
+                const raw = inp.value.trim();
+                const n = Number(raw);
+                propPatch(id, { baseline: raw === '' || !Number.isFinite(n) ? null : n });
             }
             else {
                 propPatch(id, { alpha: Number(inp.value) });
@@ -1219,6 +1228,22 @@ function mountHandlers(state) {
         el.addEventListener('change', () => {
             const inp = el;
             post('applyPatches', { patches: [{ type: 'hotspotField', id: inp.dataset.id, zIndex: Number(inp.value) }] });
+        });
+    });
+    root.querySelectorAll('.hs-baseline').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el;
+            const raw = inp.value.trim();
+            const n = Number(raw);
+            post('applyPatches', {
+                patches: [
+                    {
+                        type: 'hotspotField',
+                        id: inp.dataset.id,
+                        baseline: raw === '' || !Number.isFinite(n) ? null : n
+                    }
+                ]
+            });
         });
     });
     root.querySelectorAll('.hs-default-verb').forEach((el) => {

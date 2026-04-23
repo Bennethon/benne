@@ -56,6 +56,8 @@ export type InspectorPropCard = {
     visible: boolean;
     clickable: boolean;
     zIndex: number;
+    /** Room-space Y for draw sorting; `null` when omitted in JSON. */
+    baseline: number | null;
     parallaxDepth: number;
     alpha: number;
     verbs: InspectorVerbChip[];
@@ -70,6 +72,8 @@ export type InspectorHotspotCard = {
     description: string;
     active: boolean;
     zIndex: number;
+    /** Room-space Y for draw sorting; `null` when omitted in JSON. */
+    baseline: number | null;
     verbs: InspectorVerbChip[];
     defaultVerb: string;
     availableVerbs: GameConfigVerbEntry[];
@@ -615,6 +619,7 @@ async function buildRoomInspectorState(
                 visible: o.visible !== false,
                 clickable: entry.clickable === true,
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : 0,
+                baseline: typeof o.baseline === 'number' && Number.isFinite(o.baseline) ? o.baseline : null,
                 parallaxDepth: typeof o.parallaxDepth === 'number' ? o.parallaxDepth : 1,
                 alpha: typeof o.alpha === 'number' ? o.alpha : 1,
                 verbs,
@@ -663,6 +668,7 @@ async function buildRoomInspectorState(
                 description: typeof o.description === 'string' ? o.description : '',
                 active: entry.active !== false,
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : 0,
+                baseline: typeof o.baseline === 'number' && Number.isFinite(o.baseline) ? o.baseline : null,
                 verbs,
                 defaultVerb: readDefaultVerbField(o),
                 availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS)

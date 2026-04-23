@@ -53,7 +53,7 @@ const DEBUG_GUI_INVENTORY_SLOT_STROKE = 0x66ccff;
 
 const manifest = gameFontsManifest as GameFontsManifest;
 
-/** Renders above room props/characters (they share `zIndex * 2 + {0|1}` depth — see `roomEntityDisplayDepth` in RoomScene). */
+/** Renders above the room stack (`RoomScene` assigns sequential depths from `ROOM_STACK_DEPTH_BASE`). */
 export const GUI_TEXT_OVERLAY_DEPTH = 25_000;
 
 /**

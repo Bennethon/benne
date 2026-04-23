@@ -275,7 +275,11 @@
         "x": 194,
         "y": 141
       },
-      "description": "pillar"
+      "description": "pillar",
+      "baseline": 141,
+      "onVerb": {
+        "look": true
+      }
     },
     {
       "id": "Fan",
