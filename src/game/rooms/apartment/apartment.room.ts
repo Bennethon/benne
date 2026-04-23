@@ -59,7 +59,12 @@ registerRoomScript(({ B }) => {
   B.whenTalkTo('henry', () => {
     B.walkToClicked();
     B.faceClicked();
-    B.player.say('Hello, Henry.');
-    B.character('henry').say('Sup dude?');
+    B.say`
+      Hank: Hello, I am saying something!
+      Henry: Oh really? I am too!
+      Player: This feels so good!
+      `;
+    B.player.say('Thats cool.');
+    B.character('henry').say('Yes, it is.');
   });
 });

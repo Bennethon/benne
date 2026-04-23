@@ -35,11 +35,7 @@ import type {
   BenneScriptPropFacade,
   RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
-import {
-  BenneScriptCore,
-  withNow,
-  type BenneScriptSayLineOptions,
-} from './BenneScriptCore.js';
+import { BenneScriptCore, withNow } from './BenneScriptCore.js';
 import {
   createBenneScriptGameStateNamespace,
   createBenneScriptInventoryNamespace,
@@ -57,7 +53,14 @@ export type {
   InventoryWhenUseRegistrar,
   RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
-export type { BenneScriptSayArgs, BenneScriptSayLineOptions, BlockingWithNow } from './BenneScriptCore.js';
+export type {
+  BenneScriptSayArgs,
+  BenneScriptSayLineOptions,
+  BenneScriptSayDialogueTagged,
+  BenneScriptSayDialogueHybrid,
+  BenneSayDialogueScope,
+  BlockingWithNow,
+} from './BenneScriptCore.js';
 export { withNow } from './BenneScriptCore.js';
 
 /**
@@ -76,7 +79,8 @@ export { withNow } from './BenneScriptCore.js';
  * | **`playAnimation(tag)`** | Aseprite **frame tag** on the character sheet (e.g. `'Idle'`, `'WalkL'`). |
  * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
  * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
- * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Timed **`dialog-text`** line from **`game-config.json`** **`dialog`** (duration, **`clickToSkip`**, …). Speaker plays **`Talk*`** then **`Idle*`** (Aseprite tags, current **`facing`**). Optional second argument **`{ clickToSkip: false }`** forces no advance-on-click for that line; **`{ clickToSkip: true }`** forces skippable even when global **`dialog.clickToSkip`** is **`false`**. |
+ * | **`B.say` / `B.say.now`** | Tagged **`B.say`**…``: PowerQuest-style block — lines **`Speaker: text`** (`Player` any case → protagonist id; other names match spawned character ids **case-insensitively**). Blank lines and **`//`** comments ignored; unknown speakers throw. Queues each line; **`B.say.now`**… skips the interaction tail (see implementation notes in **`BenneScriptCore`**). |
+ * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Same dialog overlay as **`B.say`**, plus string form **`B.player.say('…')`**. Scoped tagged blocks: each line is that character (optional **`Player:`** prefix); mismatched **`Name:`** throws (compared **case-insensitively** to the scoped character). Optional second argument **`{ clickToSkip: false \| true }`** on string calls. |
  *
  * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in `BenneScriptCore`. **`whenVerb`** uses an exact verb id.
  */
@@ -484,16 +488,7 @@ export class BenneScript extends BenneScriptCore {
         },
         runCharacterPlayAnimation,
       ),
-      say: withNow(
-        (line: string, options?: BenneScriptSayLineOptions) => {
-          logCharacterSay(line);
-          this.queueSayDialogWithInputLock(scene, line, definitionId, true, options);
-        },
-        (line: string, options?: BenneScriptSayLineOptions) => {
-          logCharacterSay(line);
-          this.queueSayDialogWithInputLock(scene, line, definitionId, false, options);
-        },
-      ),
+      say: this.composeFixedCharacterSayHybrid(scene, definitionId, logCharacterSay),
       face: withNow(
         (direction: CharacterFacingLetter) => {
           this.chain(() => {

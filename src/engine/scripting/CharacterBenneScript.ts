@@ -10,11 +10,7 @@ import {
   playDirectionalAnimation,
   type DirectionalCharacterSprite,
 } from '../directionalCharacterAnimation.js';
-import {
-  BenneScriptCore,
-  withNow,
-  type BenneScriptSayLineOptions,
-} from './BenneScriptCore.js';
+import { BenneScriptCore, withNow } from './BenneScriptCore.js';
 import {
   createBenneScriptGameStateNamespace,
   createBenneScriptInventoryNamespace,
@@ -226,16 +222,7 @@ export class CharacterBenneScript extends BenneScriptCore {
         },
         runCharacterPlayAnimation,
       ),
-      say: withNow(
-        (line: string, options?: BenneScriptSayLineOptions) => {
-          logCharacterSay(line);
-          this.queueSayDialogWithInputLock(scene, line, definitionId, true, options);
-        },
-        (line: string, options?: BenneScriptSayLineOptions) => {
-          logCharacterSay(line);
-          this.queueSayDialogWithInputLock(scene, line, definitionId, false, options);
-        },
-      ),
+      say: this.composeFixedCharacterSayHybrid(scene, definitionId, logCharacterSay),
       face: withNow(
         (direction: CharacterFacingLetter) => {
           this.chain(() => {
@@ -299,16 +286,7 @@ export class CharacterBenneScript extends BenneScriptCore {
         },
         runPlayerPlayAnimation,
       ),
-      say: withNow(
-        (line: string, options?: BenneScriptSayLineOptions) => {
-          logPlayerSay(line);
-          this.queueSayDialogWithInputLock(scene, line, getStartingPlayerCharacterId(), true, options);
-        },
-        (line: string, options?: BenneScriptSayLineOptions) => {
-          logPlayerSay(line);
-          this.queueSayDialogWithInputLock(scene, line, getStartingPlayerCharacterId(), false, options);
-        },
-      ),
+      say: this.composeFixedCharacterSayHybrid(scene, getStartingPlayerCharacterId(), logPlayerSay),
       face: withNow(
         (direction: CharacterFacingLetter) => {
           this.chain(() => {
