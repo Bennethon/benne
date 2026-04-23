@@ -737,6 +737,58 @@ function addGuiBitmapLine(
   return bt;
 }
 
+/**
+ * Pixel-perfect alpha for GUI `image` sprites does not account for **draw order** — an opaque HUD texel
+ * under a later-drawn inventory grid still tests “hit”. Combined with `input.topOnly`, that can steal
+ * clicks from {@link buildGuiButton} hit targets and {@link fillInventoryPanelContent} slot rows.
+ * When the pointer lies inside any of those regions, we yield so Phaser can deliver input there instead.
+ */
+function makeBenneGuiImagePixelPerfectHitCallback(
+  scene: Phaser.Scene,
+  alphaTolerance: number,
+  deferBelow: readonly Phaser.GameObjects.GameObject[],
+): Phaser.Types.Input.HitAreaCallback {
+  const base = scene.input.makePixelPerfect(alphaTolerance);
+  return (hitArea, x, y, gameObject) => {
+    if (!base(hitArea, x, y, gameObject)) {
+      return false;
+    }
+    const ptr = scene.input.activePointer;
+    for (const target of deferBelow) {
+      if (!target.scene) {
+        continue;
+      }
+      const go = target as Phaser.GameObjects.GameObject & {
+        active?: boolean;
+        visible?: boolean;
+        parentContainer?: Phaser.GameObjects.Container | null;
+        getBounds?: () => Phaser.Geom.Rectangle;
+      };
+      if (go.active === false) {
+        continue;
+      }
+      if (go.visible === false) {
+        continue;
+      }
+      const parent = go.parentContainer ?? null;
+      if (parent && !parent.visible) {
+        continue;
+      }
+      if (typeof go.getBounds !== 'function') {
+        continue;
+      }
+      const b = go.getBounds();
+      if (b.width <= 0 || b.height <= 0) {
+        continue;
+      }
+      if (Phaser.Geom.Rectangle.Contains(b, ptr.x, ptr.y)) {
+        return false;
+      }
+    }
+    return true;
+  };
+}
+
 function addGuiImageSprite(
   scene: Phaser.Scene,
   gui: GuiData,
@@ -745,6 +797,8 @@ function addGuiImageSprite(
   startVisible: boolean,
   extraSprites: Phaser.GameObjects.Sprite[],
   controlsById: Map<string, Phaser.GameObjects.GameObject>,
+  /** In-world hit targets that must receive input ahead of this image (same overlay). Filled as controls are built. */
+  imageInputDeferBelow: Phaser.GameObjects.GameObject[],
 ): Phaser.GameObjects.Sprite | null {
   if (!usesAsepriteDisplay(gui)) {
     return null;
@@ -777,8 +831,11 @@ function addGuiImageSprite(
     applyGuiSpriteAnchor(sprite, anchor, c.x, c.y);
     extraSprites.push(sprite);
   }
-  /** Opaque pixels block room input; transparent pixels let walk / props / hotspots receive clicks. */
-  sprite.setInteractive(scene.input.makePixelPerfect(8));
+  /** Opaque pixels block room input unless a higher-priority GUI widget occupies the pointer (see defer list). */
+  sprite.setInteractive({
+    hitArea: {},
+    hitAreaCallback: makeBenneGuiImagePixelPerfectHitCallback(scene, 8, imageInputDeferBelow),
+  });
   sprite.setData('benneGuiControl', true);
   const cid = c.id?.trim();
   if (cid) {
@@ -1222,6 +1279,8 @@ export function buildGuiOverlay(
   };
   const movablePackedParts: DepthGameObject[] = [];
   const fixedPackedGameObjects: Phaser.GameObjects.GameObject[] = [];
+  /** Populated during the control loop so {@link addGuiImageSprite} can defer hits to widgets drawn above the sheet. */
+  const guiImageInputDeferBelow: Phaser.GameObjects.GameObject[] = [];
 
   if (usesAsepriteDisplay(gui)) {
     const guiKey = getAsepriteTextureKey(gui.id);
@@ -1284,12 +1343,22 @@ export function buildGuiOverlay(
       if (pid) {
         controlsById.set(pid, panel);
       }
+      guiImageInputDeferBelow.push(panel);
       ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(panel as DepthGameObject);
       continue;
     }
 
     if (c.type === 'image') {
-      const spr = addGuiImageSprite(scene, gui, c, depth, startVisible, extraSprites, controlsById);
+      const spr = addGuiImageSprite(
+        scene,
+        gui,
+        c,
+        depth,
+        startVisible,
+        extraSprites,
+        controlsById,
+        guiImageInputDeferBelow,
+      );
       if (spr) {
         ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(spr as DepthGameObject);
       }
@@ -1308,6 +1377,7 @@ export function buildGuiOverlay(
           : undefined;
       const built = buildGuiButton(scene, gui, c, depth, startVisible, preEmit);
       if (built) {
+        guiImageInputDeferBelow.push(built.hitTarget);
         guiButtons.push(built);
         controlsById.set(c.id.trim(), built.hitTarget);
         const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
@@ -1424,9 +1494,10 @@ export function buildGuiOverlay(
    *
    * - **Buttons** need `setInteractive` for real click handling and hover-tag swapping, so they stay interactive
    *   and we subscribe to Phaser's native `pointerover` / `pointerout` via {@link wireGuiControlHoverEvents}.
-   * - **`image`** sprites use {@link Phaser.Input.InputPlugin#makePixelPerfect} `setInteractive` so only
-   *   non-transparent texels consume clicks; transparent regions still reach the room. Hover scripts use the
-   *   same **non-blocking** {@link installGuiControlPointerHoverObserver} path as other non-buttons.
+   * - **`image`** sprites use pixel-perfect `setInteractive` (see {@link makeBenneGuiImagePixelPerfectHitCallback})
+   *   so non-transparent texels consume clicks while transparent regions reach the room; hits are suppressed
+   *   when the pointer is over the same overlay’s `inventoryPanel` or `button` hit targets so draw-order
+   *   occlusion does not steal their input. Hover still uses {@link installGuiControlPointerHoverObserver}.
    * - **Triggers and the remaining types** (`inventoryPanel`, `text`) stay **non-interactive** for hits and
    *   use pointer observers for `whenMouseEnter` / `whenMouseLeave` so the inventory bar and text lines do
    *   not steal clicks from props / hotspots (`input.topOnly` would otherwise deliver to the GUI first).
