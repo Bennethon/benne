@@ -67,4 +67,9 @@ registerRoomScript(({ B }) => {
     B.player.say('Thats cool.');
     B.character('henry').say('Yes, it is.');
   });
+
+  B.whenLookAt('Couch', () => {
+    B.faceClicked();
+    B.say`Hank: It's my poorly drawn couch.`;
+  });
 });

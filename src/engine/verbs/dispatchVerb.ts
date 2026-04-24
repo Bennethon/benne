@@ -1,5 +1,6 @@
 import { getGameSettings } from '../ConfigManager';
 import type { EventBus } from '../events/EventBus';
+import { interruptPlayerWalkForVerbInteraction } from '../scenes/interruptPlayerWalkForVerbInteraction.js';
 import type { VerbInteractTarget, VerbUnhandledPayload } from '../events/verbInteractionEvents';
 import {
   VERB_GLOBAL_FALLBACK_EVENT,
@@ -74,6 +75,7 @@ export function dispatchVerbInteraction(
   handlers: VerbHandlerMap,
   target: VerbInteractTarget,
 ): void {
+  interruptPlayerWalkForVerbInteraction();
   const settings = getGameSettings();
   const payload = buildEmitPayload(target, verbId);
 

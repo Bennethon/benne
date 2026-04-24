@@ -1,5 +1,6 @@
 import { getGameSettings } from '../ConfigManager';
 import type { EventBus } from '../events/EventBus';
+import { interruptPlayerWalkForVerbInteraction } from '../scenes/interruptPlayerWalkForVerbInteraction.js';
 import {
   INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT,
   buildInventoryUsedOnInventoryItemPayload,
@@ -81,6 +82,7 @@ export function dispatchInventoryOnVerbTargetInteraction(
   verbId: string,
   target: VerbInteractTarget,
 ): boolean {
+  interruptPlayerWalkForVerbInteraction();
   if (target.type === 'inventoryItem') {
     return false;
   }
@@ -117,6 +119,7 @@ export function dispatchInventoryOnInventoryItemInteraction(
   roomId: string,
   description: string | undefined,
 ): boolean {
+  interruptPlayerWalkForVerbInteraction();
   const payload = buildInventoryUsedOnInventoryItemPayload(
     roomId,
     sourceItemId,

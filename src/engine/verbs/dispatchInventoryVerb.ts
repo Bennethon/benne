@@ -4,6 +4,7 @@ import { inventoryVerbEventId, roomInventoryVerbEventId } from '../events/invent
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import { getInventoryItemIdsWithBenneScripts } from '../scripting/registerInventoryScript.js';
+import { interruptPlayerWalkForVerbInteraction } from '../scenes/interruptPlayerWalkForVerbInteraction.js';
 import { dispatchVerbInteraction } from './dispatchVerb.js';
 import { resolveEffectiveGiveVerbId, resolveEffectiveUseVerbId } from './verbConfig.js';
 
@@ -22,6 +23,7 @@ export function dispatchInventoryVerbInteraction(
   itemId: string,
   roomId: string,
 ): void {
+  interruptPlayerWalkForVerbInteraction();
   const payload = { itemId, roomId, verbId };
   const roomScoped = roomInventoryVerbEventId(roomId, itemId, verbId);
   if (listenerCount(bus, roomScoped) > 0) {

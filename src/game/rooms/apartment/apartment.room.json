@@ -178,7 +178,10 @@
         "x": 108,
         "y": 113
       },
-      "description": "couch"
+      "description": "couch",
+      "onVerb": {
+        "look": true
+      }
     },
     {
       "id": "Door",
