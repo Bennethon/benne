@@ -47,7 +47,7 @@ export class CharacterBenneScript extends BenneScriptCore {
     this.roomScene = roomScene;
     const manager = resolveGameStateManager(roomScene.game);
     this.state = createBenneScriptGameStateNamespace(manager);
-    this.inventory = createBenneScriptInventoryNamespace(manager);
+    this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene);
     this.whenInventoryUsedOn = Object.assign(
       (
         targetId: string,

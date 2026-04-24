@@ -40,8 +40,15 @@ import {
   GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
   GAME_STATE_INVENTORY_CHANGED_EVENT,
   GAME_STATE_REPLACED_EVENT,
+  GAME_STATE_VARIABLE_CHANGED_EVENT,
+  type GameStateVariableChangedPayload,
 } from '../../types/gameState.js';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
+import {
+  isPersistedInventoryAnimationVariableKey,
+  readEffectiveInventoryDefaultAnimationTag,
+} from '../inventory/inventoryScriptingAnimations.js';
+import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { GuiRuntime } from '../scripting/GuiRuntime.js';
 import {
@@ -943,8 +950,9 @@ function fillInventoryPanelContent(
   const panelH = c.rows * c.slotHeight + Math.max(0, c.rows - 1) * spacingY;
 
   let inventoryItems: ReadonlyArray<{ id: string; quantity: number }> = [];
+  let gameState: GameStateManager | undefined;
   try {
-    const gameState = resolveGameStateManager(scene.game);
+    gameState = resolveGameStateManager(scene.game);
     inventoryItems = gameState.getInventoryItems();
   } catch {
     /* e.g. GUI preview without GameStateManager on game.registry */
@@ -1028,7 +1036,10 @@ function fillInventoryPanelContent(
         const entry = inventoryItems[invIndex]!;
         const defRaw = getInventoryDefinition(entry.id);
         const def = defRaw as InventoryItemData | undefined;
-        const iconTag = def?.defaultAnimation ?? entry.id;
+        const iconTag =
+          def && gameState
+            ? readEffectiveInventoryDefaultAnimationTag(gameState, def)
+            : def?.defaultAnimation?.trim() || entry.id;
 
         let iconAdded = false;
         if (usesAsepriteDisplay(gui) && iconTag) {
@@ -1329,22 +1340,31 @@ export function buildGuiOverlay(
       panel.setScrollFactor(0, 0);
       panel.setDepth(depth + (c.zIndex ?? 0));
       const scrollSt = invScrollStateByControlIndex.get(i);
+      const offsetState = scrollSt ?? { offset: 0 };
+      const refreshInventoryPanel = (): void => {
+        fillInventoryPanelContent(panel, scene, gui, c, offsetState, startVisible, invPointerCtx);
+      };
       if (scrollSt) {
-        scrollSt.refresh = () =>
-          fillInventoryPanelContent(panel, scene, gui, c, scrollSt, startVisible, invPointerCtx);
-        const onGameStateInventory = (): void => {
-          scrollSt.refresh();
-        };
-        gameEvents.on(GAME_STATE_INVENTORY_CHANGED_EVENT, onGameStateInventory);
-        gameEvents.on(GAME_STATE_REPLACED_EVENT, onGameStateInventory);
-        overlayDisposers.push(() => {
-          gameEvents.off(GAME_STATE_INVENTORY_CHANGED_EVENT, onGameStateInventory);
-          gameEvents.off(GAME_STATE_REPLACED_EVENT, onGameStateInventory);
-        });
-        scrollSt.refresh();
-      } else {
-        fillInventoryPanelContent(panel, scene, gui, c, { offset: 0 }, startVisible, invPointerCtx);
+        scrollSt.refresh = refreshInventoryPanel;
       }
+      const onGameStateInventory = (): void => {
+        refreshInventoryPanel();
+      };
+      const onInventoryAnimationVariable = (payload: unknown): void => {
+        const p = payload as GameStateVariableChangedPayload;
+        if (typeof p.key === 'string' && isPersistedInventoryAnimationVariableKey(p.key)) {
+          refreshInventoryPanel();
+        }
+      };
+      gameEvents.on(GAME_STATE_INVENTORY_CHANGED_EVENT, onGameStateInventory);
+      gameEvents.on(GAME_STATE_REPLACED_EVENT, onGameStateInventory);
+      gameEvents.on(GAME_STATE_VARIABLE_CHANGED_EVENT, onInventoryAnimationVariable);
+      overlayDisposers.push(() => {
+        gameEvents.off(GAME_STATE_INVENTORY_CHANGED_EVENT, onGameStateInventory);
+        gameEvents.off(GAME_STATE_REPLACED_EVENT, onGameStateInventory);
+        gameEvents.off(GAME_STATE_VARIABLE_CHANGED_EVENT, onInventoryAnimationVariable);
+      });
+      refreshInventoryPanel();
       inventoryPanels.push(panel);
       const pid = c.id?.trim();
       if (pid) {

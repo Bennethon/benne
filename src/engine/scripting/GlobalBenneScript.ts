@@ -41,7 +41,9 @@ export class GlobalBenneScript extends BenneScriptCore {
     this.game = game;
     const manager = resolveGameStateManager(game);
     this.state = createBenneScriptGameStateNamespace(manager);
-    this.inventory = createBenneScriptInventoryNamespace(manager);
+    this.inventory = createBenneScriptInventoryNamespace(manager, () =>
+      this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined,
+    );
   }
 
   /**

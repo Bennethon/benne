@@ -109,3 +109,16 @@ export interface BenneScriptCharacterFacade {
   say: BenneScriptSayDialogueHybrid;
   face: BlockingWithNow<[CharacterFacingLetter]>;
 }
+
+/**
+ * Per-item inventory scripting surface from **`B.inventory(itemId)`** (same persistence keys as runtime GUI / cursor).
+ * Setters apply **immediately** (not queued on the interaction tail). Empty string clears the save override for that field.
+ */
+export interface BenneScriptInventoryItemFacade {
+  /** Aseprite tag for the inventory row icon (`defaultAnimation`); falls back to JSON when unset in save state. */
+  get animation(): string;
+  set animation(tag: string);
+  /** Tag used when this item is the armed use-on-target cursor (`cursorAnimation`); empty when none. */
+  get cursorAnimation(): string;
+  set cursorAnimation(tag: string);
+}
