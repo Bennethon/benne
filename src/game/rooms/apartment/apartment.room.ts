@@ -19,24 +19,9 @@ registerRoomScript(({ B }) => {
       B.walkToClicked();
       B.faceClicked();
       B.player.say('I used the Broom on the Pillar.');
-    } else if (payload.itemId === 'Candy1') {
-      // TODO
-    } else if (payload.itemId === 'Chainsaw') {
-      // TODO
-    } else if (payload.itemId === 'Key') {
-      // TODO
-    } else if (payload.itemId === 'Ladder') {
-      // TODO
-    } else if (payload.itemId === 'Lantern') {
-      // TODO
-    } else if (payload.itemId === 'Newspaper') {
-      // TODO
-    } else if (payload.itemId === 'SheetMusic') {
-      // TODO
-    } else if (payload.itemId === 'Vacuum') {
-      // TODO
     }
   });
+
   B.whenInventoryUsedOn('Couch', (payload) => {
     if (payload.itemId === 'Broom' && payload.verbId === 'use') {
       B.player.walkTo('Couch');
@@ -64,12 +49,28 @@ registerRoomScript(({ B }) => {
       Henry: Oh really? I am too!
       Player: This feels so good!
       `;
-    B.player.say('Thats cool.');
-    B.character('henry').say('Yes, it is.');
+    B.character('henry').say('Thats cool.');
+    B.player.say('Yes, it is.');
   });
 
   B.whenLookAt('Couch', () => {
     B.faceClicked();
     B.say`Hank: It's my poorly drawn couch.`;
+  });
+
+  B.whenUse('Door', () => {
+    // TODO
+  });
+
+  B.whenOpen('Door', () => {
+    B.player.walkToClicked();
+    B.player.faceClicked();
+    B.prop('Door').animation = 'Door-open';
+    // B.prop('Door').playAnimation('Door-open');
+  });
+
+  B.whenPush('henry', () => {
+    B.character('henry').playAnimation('WalkU');
+    // B.character('henry').animation = 'WalkU';
   });
 });

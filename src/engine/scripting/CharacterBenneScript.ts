@@ -1,15 +1,10 @@
 import * as Phaser from 'phaser';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { Point2 } from '../../types/room.js';
-import { getStartingPlayerCharacterId } from '../../game/constants.js';
 import type { CharacterVerbInteractPayload } from '../events/propInteractionEvents.js';
 import { characterVerbEventId } from '../events/verbInteractionEvents.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
-import {
-  playDirectionalAnimation,
-  type DirectionalCharacterSprite,
-} from '../directionalCharacterAnimation.js';
 import { BenneScriptCore, withNow } from './BenneScriptCore.js';
 import {
   createBenneScriptGameStateNamespace,
@@ -181,23 +176,10 @@ export class CharacterBenneScript extends BenneScriptCore {
 
   private makeCharacterFacade(definitionId: string): BenneScriptCharacterFacade {
     const scene = this.roomScene;
-
-    const runCharacterPlayAnimation = (tag: string): void => {
-      const sprite = scene.getCharacterSprite(definitionId);
-      if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
-        if (scene.anims.exists(tag)) {
-          sprite.play(tag);
-        } else {
-          console.warn(`[Benne] Unknown animation tag "${tag}" for character "${definitionId}"`);
-        }
-      }
-    };
+    const B = this;
 
     const runCharacterFace = (direction: CharacterFacingLetter): void => {
-      const sprite = scene.getCharacterSprite(definitionId) as DirectionalCharacterSprite | undefined;
-      if (sprite?.anims) {
-        playDirectionalAnimation(sprite, 'Idle', direction);
-      }
+      scene.faceCharacterScriptDirection(definitionId, direction);
     };
 
     const logCharacterSay = (line: string): void => {
@@ -207,96 +189,50 @@ export class CharacterBenneScript extends BenneScriptCore {
     return {
       walkTo: withNow(
         (target: Point2 | string) => {
-          this.chain(() => scene.walkCharacterTo(definitionId, target));
+          B.chain(() => scene.walkCharacterTo(definitionId, target));
         },
         (target: Point2 | string) => {
           void scene.walkCharacterTo(definitionId, target);
         },
       ),
+      get animation() {
+        return scene.getCharacterScriptEffectiveAnimationTag(definitionId);
+      },
+      set animation(tag: string | null) {
+        B.chain(() => {
+          scene.setCharacterScriptAnimationOverride(definitionId, tag);
+          return Promise.resolve();
+        });
+      },
+      animationNow(tag: string | null): void {
+        scene.setCharacterScriptAnimationOverride(definitionId, tag);
+      },
       playAnimation: withNow(
         (tag: string) => {
-          this.chain(() => {
-            runCharacterPlayAnimation(tag);
-            return Promise.resolve();
-          });
+          B.chain(() => scene.playCharacterScriptAnimationOneShot(definitionId, tag));
         },
-        runCharacterPlayAnimation,
+        (tag: string) => {
+          void scene.playCharacterScriptAnimationOneShot(definitionId, tag);
+        },
       ),
-      say: this.composeFixedCharacterSayHybrid(scene, definitionId, logCharacterSay),
+      stopAnimation(): void {
+        scene.stopCharacterScriptAnimation(definitionId);
+      },
+      say: B.composeFixedCharacterSayHybrid(scene, definitionId, logCharacterSay),
       face: withNow(
         (direction: CharacterFacingLetter) => {
-          this.chain(() => {
+          B.chain(() => {
             runCharacterFace(direction);
             return Promise.resolve();
           });
         },
         runCharacterFace,
       ),
-    };
+    } as BenneScriptCharacterFacade;
   }
 
   private makePlayerFacade(): BenneScriptPlayerFacade {
-    const scene = this.roomScene;
-
-    const runPlayerPlayAnimation = (tag: string): void => {
-      const pl = scene.player;
-      if (pl?.anims) {
-        if (scene.anims.exists(tag)) {
-          pl.play(tag);
-        } else {
-          console.warn(`[Benne] Unknown animation tag "${tag}" for player`);
-        }
-      }
-    };
-
-    const runPlayerFace = (direction: CharacterFacingLetter): void => {
-      const pl = scene.player;
-      if (pl) {
-        playDirectionalAnimation(pl, 'Idle', direction);
-      }
-    };
-
-    const logPlayerSay = (line: string): void => {
-      console.log(`[Player] ${line}`);
-    };
-
-    return {
-      walkTo: withNow(
-        (target: Point2 | string) => {
-          this.chain(() => scene.walkPlayerTo(target));
-        },
-        (target: Point2 | string) => {
-          void scene.walkPlayerTo(target);
-        },
-      ),
-      walkToClicked: withNow(
-        () => this.performWalkToClicked(true),
-        () => this.performWalkToClicked(false),
-      ),
-      faceClicked: withNow(
-        () => this.performFaceClicked(true),
-        () => this.performFaceClicked(false),
-      ),
-      playAnimation: withNow(
-        (tag: string) => {
-          this.chain(() => {
-            runPlayerPlayAnimation(tag);
-            return Promise.resolve();
-          });
-        },
-        runPlayerPlayAnimation,
-      ),
-      say: this.composeFixedCharacterSayHybrid(scene, getStartingPlayerCharacterId(), logPlayerSay),
-      face: withNow(
-        (direction: CharacterFacingLetter) => {
-          this.chain(() => {
-            runPlayerFace(direction);
-            return Promise.resolve();
-          });
-        },
-        runPlayerFace,
-      ),
-    };
+    return this.makePlayerFacadeFromScene(() => this.roomScene);
   }
 
   cutscene(callback: () => void): void {

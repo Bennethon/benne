@@ -222,7 +222,11 @@
         "x": 297,
         "y": 115
       },
-      "description": "door"
+      "description": "door",
+      "onVerb": {
+        "use": true,
+        "open": true
+      }
     },
     {
       "id": "Pillar",
