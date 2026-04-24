@@ -5,6 +5,19 @@ registerInventoryScript('Lantern', ({ B }) => {
   void B;
 
   B.whenUse.doNotActivate(() => {
-    B.say`Hank: I used the Lantern.`;
+    if (B.inventory('Lantern').animation === 'Lantern') {
+      B.say`Hank: I will turn on the Lantern.`;
+      B.wait(500);
+      B.inventory('Lantern').animation = 'Lantern-glowing';
+      B.wait(500);
+      B.say`Hank: There we go!`;
+    } else if (B.inventory('Lantern').animation === 'Lantern-glowing') {
+      B.say`Hank: I will turn off the Lantern.`;
+      B.wait(500);
+      B.inventory('Lantern').animation = 'Lantern';
+      B.wait(500);
+      B.say`Hank: There we go!`;
+    }
+    
   });
 });

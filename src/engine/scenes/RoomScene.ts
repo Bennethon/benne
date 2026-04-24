@@ -13,13 +13,22 @@ import {
   GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
   GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
   GAME_STATE_INVENTORY_CHANGED_EVENT,
+  GAME_STATE_VARIABLE_CHANGED_EVENT,
+  type GameStateVariableChangedPayload,
 } from '../../types/gameState';
 import {
   getPerItemInventoryTextureKey,
   inventoryPhaserAnimationKeyForTag,
   sharedInventoryTextureKey,
+  usesSharedInventoryAseprite,
 } from '../../game/inventoryAseprite';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
+import {
+  inventoryCursorAnimationVariableKey,
+  inventoryDefaultAnimationVariableKey,
+  readEffectiveInventoryCursorAnimationTag,
+  readEffectiveInventoryDefaultAnimationTag,
+} from '../inventory/inventoryScriptingAnimations.js';
 import {
   PLAYER_WALK_START,
   PLAYER_WALK_STOP,
@@ -267,6 +276,16 @@ export class RoomScene extends Phaser.Scene {
     }
   };
   private readonly onCustomGameStateForCursor = (): void => {
+    this.lastCustomCursorVisualKey = null;
+    this.refreshCustomCursor(this.input.activePointer);
+  };
+
+  private readonly onVariableChangeForCustomCursor = (payload: unknown): void => {
+    const p = payload as GameStateVariableChangedPayload;
+    const key = p.key;
+    if (typeof key !== 'string' || !key.endsWith(':cursorAnimation')) {
+      return;
+    }
     this.lastCustomCursorVisualKey = null;
     this.refreshCustomCursor(this.input.activePointer);
   };
@@ -675,6 +694,92 @@ export class RoomScene extends Phaser.Scene {
         sprite.play(base);
       }
     });
+  }
+
+  /** Persisted default GUI clip (`B.inventory(id).animation`); falls back to inventory JSON when unset. */
+  getInventoryScriptDefaultAnimationTag(itemId: string): string {
+    const def = getInventoryDefinition(itemId);
+    if (!def) {
+      return '';
+    }
+    return readEffectiveInventoryDefaultAnimationTag(resolveGameStateManager(this.game), def);
+  }
+
+  /**
+   * Sets the inventory row’s default Aseprite tag (GUI icon). Immediate, not queued. Empty / whitespace clears the
+   * save override (JSON default applies). Unknown tags warn and no-op when the atlas is loaded.
+   */
+  setInventoryScriptDefaultAnimationTag(itemId: string, tag: string): void {
+    const def = getInventoryDefinition(itemId);
+    if (!def) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] setInventoryScriptDefaultAnimationTag: unknown inventory id "${itemId}".`);
+      }
+      return;
+    }
+    const m = resolveGameStateManager(this.game);
+    const t = tag.trim();
+    if (t.length === 0) {
+      m.clearVariable(inventoryDefaultAnimationVariableKey(itemId));
+      return;
+    }
+    if (!this.inventoryAuthorAsepriteTagIsLoaded(def, t)) {
+      console.warn(`[Benne] Unknown inventory animation tag "${t}" for item "${itemId}"`);
+      return;
+    }
+    m.setVariable(inventoryDefaultAnimationVariableKey(itemId), t);
+  }
+
+  /** Effective cursor Aseprite tag for scripting reads; empty string when the armed cursor should use verb art. */
+  getInventoryScriptCursorAnimationTag(itemId: string): string {
+    const def = getInventoryDefinition(itemId);
+    if (!def) {
+      return '';
+    }
+    const m = resolveGameStateManager(this.game);
+    return readEffectiveInventoryCursorAnimationTag(m, def) ?? '';
+  }
+
+  /**
+   * Sets the armed cursor clip tag for this item. Immediate, not queued. Empty / whitespace clears the override
+   * (JSON `cursorAnimation` applies when present).
+   */
+  setInventoryScriptCursorAnimationTag(itemId: string, tag: string): void {
+    const def = getInventoryDefinition(itemId);
+    if (!def) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] setInventoryScriptCursorAnimationTag: unknown inventory id "${itemId}".`);
+      }
+      return;
+    }
+    const m = resolveGameStateManager(this.game);
+    const t = tag.trim();
+    if (t.length === 0) {
+      m.clearVariable(inventoryCursorAnimationVariableKey(itemId));
+      return;
+    }
+    if (!this.inventoryAuthorAsepriteTagIsLoaded(def, t)) {
+      console.warn(`[Benne] Unknown inventory cursor animation tag "${t}" for item "${itemId}"`);
+      return;
+    }
+    m.setVariable(inventoryCursorAnimationVariableKey(itemId), t);
+  }
+
+  private inventoryAuthorAsepriteTagIsLoaded(def: InventoryItemData, tag: string): boolean {
+    const mode = def.display?.aseprite;
+    if (mode !== true && mode !== 'shared') {
+      return false;
+    }
+    const textureKey = mode === 'shared' ? sharedInventoryTextureKey : getPerItemInventoryTextureKey(def.id);
+    if (!this.textures.exists(textureKey)) {
+      return false;
+    }
+    this.ensureAsepriteAnimsFromAtlasOnce(textureKey);
+    const animKey = inventoryPhaserAnimationKeyForTag(def, tag);
+    if (this.anims.exists(animKey)) {
+      return true;
+    }
+    return usesSharedInventoryAseprite(def) && this.anims.exists(tag);
   }
 
   getCharacterScriptEffectiveAnimationTag(definitionId: string): string {
@@ -2055,6 +2160,7 @@ export class RoomScene extends Phaser.Scene {
 
     gameEvents.on(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, this.onCustomGameStateForCursor);
     gameEvents.on(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, this.onCustomGameStateForCursor);
+    gameEvents.on(GAME_STATE_VARIABLE_CHANGED_EVENT, this.onVariableChangeForCustomCursor);
     this.refreshCustomCursor(this.input.activePointer);
   }
 
@@ -2067,6 +2173,7 @@ export class RoomScene extends Phaser.Scene {
     this.lastCustomCursorVisualKey = null;
     gameEvents.off(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, this.onCustomGameStateForCursor);
     gameEvents.off(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, this.onCustomGameStateForCursor);
+    gameEvents.off(GAME_STATE_VARIABLE_CHANGED_EVENT, this.onVariableChangeForCustomCursor);
     this.input.setDefaultCursor('default');
   }
 
@@ -2083,8 +2190,8 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * When an inventory item is active and its definition sets {@link InventoryItemData.cursorAnimation} on a
-   * loaded sheet, returns texture + resolved Phaser animation key; otherwise `null` (caller uses verb cursor).
+   * When an inventory item is active and a cursor Aseprite tag resolves (JSON {@link InventoryItemData.cursorAnimation}
+   * or a persisted scripting override), returns texture + Phaser animation key; otherwise `null` (verb cursor).
    */
   private tryActiveInventoryCursorClip(): { textureKey: string; animKey: string } | null {
     const manager = resolveGameStateManager(this.game);
@@ -2096,7 +2203,7 @@ export class RoomScene extends Phaser.Scene {
     if (!def) {
       return null;
     }
-    const tag = def.cursorAnimation?.trim();
+    const tag = readEffectiveInventoryCursorAnimationTag(manager, def)?.trim();
     if (!tag) {
       return null;
     }

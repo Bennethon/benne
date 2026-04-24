@@ -72,5 +72,6 @@ registerRoomScript(({ B }) => {
   B.whenPush('henry', () => {
     B.character('henry').playAnimation('WalkU');
     // B.character('henry').animation = 'WalkU';
+    B.inventory('Lantern').animation = 'Lantern-glowing';
   });
 });
