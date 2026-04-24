@@ -663,6 +663,15 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
+   * Stops the current player walk (click-to-walk, walk-to-target, or script-queued tween), plays
+   * Idle, and emits {@link PLAYER_WALK_STOP} with `interrupted`. Used when a verb or inventory
+   * interaction begins so handlers do not run while the player is still moving to an old destination.
+   */
+  interruptPlayerWalk(): void {
+    this.stopPlayerMoveTween(true);
+  }
+
+  /**
    * Turn the player to face a **look-at** point in room space (e.g. prop / hotspot **`lookAtPoint`**),
    * or when **`lookAtWorld`** is omitted, the same walk destination as {@link walkPlayerTo} for
    * **`walkFallbackTarget`**. If the vector from the player’s feet to the target is ~0, leaves
