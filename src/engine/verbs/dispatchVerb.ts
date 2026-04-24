@@ -51,8 +51,13 @@ function buildEmitPayload(target: VerbInteractTarget, verbId: string): Record<st
         ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
         ...(target.talkPoint !== undefined ? { talkPoint: target.talkPoint } : {}),
       };
-    default:
-      return { verbId };
+    case 'inventoryItem':
+      return {
+        verbId,
+        roomId: target.roomId,
+        inventoryItemId: target.itemId,
+        ...(target.description !== undefined ? { description: target.description } : {}),
+      };
   }
 }
 

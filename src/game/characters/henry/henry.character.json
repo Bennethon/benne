@@ -50,5 +50,37 @@
         "y": 1
       }
     ]
+  },
+  "animations": {
+    "IdleL": {
+      "loop": true
+    },
+    "IdleD": {
+      "loop": true
+    },
+    "IdleU": {
+      "loop": true
+    },
+    "WalkL": {
+      "loop": true,
+      "frameDuration": 80
+    },
+    "WalkD": {
+      "loop": true,
+      "frameDuration": 60
+    },
+    "WalkU": {
+      "loop": true,
+      "frameDuration": 60
+    },
+    "TalkL": {
+      "loop": true
+    },
+    "TalkD": {
+      "loop": true
+    },
+    "TalkU": {
+      "loop": true
+    }
   }
 }

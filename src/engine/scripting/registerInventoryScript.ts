@@ -12,6 +12,11 @@ export function getBenneInventoryScriptRegistrations(): ReadonlyArray<{
   return benneInventoryScriptRegistrations;
 }
 
+/** Item ids that have a `registerInventoryScript` module (vs JSON-only inventory definitions). */
+export function getInventoryItemIdsWithBenneScripts(): ReadonlySet<string> {
+  return new Set(benneInventoryScriptRegistrations.map((r) => r.itemId));
+}
+
 /**
  * Call at the top level of each `*.inventory.ts` to register Bennescript handlers for that item.
  * Handlers subscribe to **room-scoped and global** inventory verb ids so

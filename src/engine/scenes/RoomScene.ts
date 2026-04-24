@@ -422,6 +422,7 @@ export class RoomScene extends Phaser.Scene {
         benneDisposers.push(() => ctx.B.dispose());
         try {
           registerFn(ctx);
+          ctx.B.ensureDefaultInventoryUseAndGiveActivationAfterRegister();
         } catch (err) {
           console.error(`[Benne] Error in inventory script for ${itemId} in room ${data.room.id}:`, err);
         }

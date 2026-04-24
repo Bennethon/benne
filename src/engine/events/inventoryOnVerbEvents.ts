@@ -146,6 +146,10 @@ export function buildInventoryUsedOnPayload(
         ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
         ...(target.talkPoint !== undefined ? { talkPoint: target.talkPoint } : {}),
       };
+    case 'inventoryItem':
+      throw new Error(
+        'buildInventoryUsedOnPayload: inventory GUI rows are not valid targets for inventory-on-world-object dispatch',
+      );
   }
 }
 

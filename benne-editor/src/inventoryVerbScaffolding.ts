@@ -15,10 +15,12 @@ function inventoryScriptTemplate(itemId: string): string {
 
 /**
  * Inventory script for \`${itemId}\` — item-scoped Bennescript (\`B.whenLookAt(() => …)\`).
+ * "Use" / "Give" on this row automatically arms the item for combining with world targets; add \`B.whenUse\` / \`B.whenGive\` only for extra behavior.
  * Room-scoped handlers in \`*.room.ts\` still run first for the same verb (see engine \`dispatchInventoryVerbInteraction\`).
  */
 registerInventoryScript('${itemId}', ({ B }) => {
   // Example: B.whenLookAt(() => { B.player.say('…'); });
+  void B;
 });
 `;
 }

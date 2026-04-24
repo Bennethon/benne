@@ -5,6 +5,8 @@ export {
   type BenneScriptPlayerFacade,
   type BenneScriptPropFacade,
   type BenneScriptSharedSelectionApi,
+  type InventoryWhenGiveHandler,
+  type InventoryWhenGiveRegistrar,
   type InventoryWhenUseHandler,
   type InventoryWhenUseRegistrar,
   type RoomInventoryUsedOnRegistrar,

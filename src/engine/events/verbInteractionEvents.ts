@@ -23,6 +23,8 @@ function roomTargetTypeAndId(target: VerbInteractTarget): { targetType: string; 
       return { targetType: 'hotspot', targetId: target.hotspotId };
     case 'character':
       return { targetType: 'character', targetId: target.characterId };
+    case 'inventoryItem':
+      throw new Error('Inventory GUI rows do not use room object verb event ids');
   }
 }
 
@@ -101,6 +103,12 @@ export type VerbInteractTarget =
       walkToPoint?: Point2;
       /** World / room pixel look-at hint when `CharacterData.talkPoint` is set (sprite origin + offset). */
       talkPoint?: Point2;
+    }
+  | {
+      type: 'inventoryItem';
+      itemId: string;
+      roomId: string;
+      description?: string;
     };
 
 /**
@@ -116,6 +124,8 @@ export type VerbGlobalFallbackPayload = {
   hotspotId?: string;
   characterId?: string;
   instanceId?: string;
+  /** Set when the interaction target is an inventory panel row (`dispatchInventoryVerbInteraction` global chain). */
+  inventoryItemId?: string;
   walkToPoint?: Point2;
   lookAtPoint?: Point2;
   talkPoint?: Point2;
