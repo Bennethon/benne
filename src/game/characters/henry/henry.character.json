@@ -21,7 +21,8 @@
   },
   "onVerb": {
     "look": true,
-    "talkTo": true
+    "talkTo": true,
+    "push": true
   },
   "collider": {
     "points": [
@@ -82,5 +83,6 @@
     "TalkU": {
       "loop": true
     }
-  }
+  },
+  "defaultVerb": "talkTo"
 }

@@ -217,7 +217,7 @@ The sprite’s **`facing`** data stores the **logical** facing the gameplay aske
 ### Game state (v1)
 
 - **Active `Phaser.Game` handle (engine bridge)** — not part of the saveable snapshot; complements **`game.registry`** + **`GameStateManager`** when APIs need the **game** or **active room scene** but only receive **`gameEvents`** (or other bus-only entry points). **`createBenneGame`** calls **`setActiveBenneGame(game)`** (`src/engine/gameState/activeBenneGame.ts`); the game’s **destroy** lifecycle clears it with **`setActiveBenneGame(null)`**. **`tryGetActiveBenneGame()`** returns **`null`** before boot or after destroy. **Primary use today**: **`interruptPlayerWalkForVerbInteraction`** (`src/engine/scenes/interruptPlayerWalkForVerbInteraction.ts`) resolves **`game.scene.getScene(SCENE_ROOM)`** (see **`SCENE_ROOM`** in **`src/game/constants.ts`**) and, when that scene **`scene.isActive()`**, invokes **`RoomScene.interruptPlayerWalk()`** so verb and inventory-interaction dispatch does not run on top of an unfinished empty-space or **`walkTo`**-target move. **VS Code preview** bundles that build **`Phaser.Game`** without **`createBenneGame`** do not register this handle unless preview boot is updated — interrupt is then a no-op and preview walk + verb stacking may still occur.
-- **`GameStateManager`** (`src/engine/gameState/GameStateManager.ts`): in-memory **flags** (`Record<string, boolean | number | string>`), **variables** (`Record<string, unknown>`), and **inventory** (**`Record<string, number>`** — item id → quantity). Constructed in **`createBenneGame`** (`src/engine/Game.ts`) and stored on **`Phaser.Game.registry`** under **`benneGameState`** (`BENNE_GAME_STATE_REGISTRY_KEY`) so the same instance survives **`RoomScene`** teardown. **`applySnapshot` / `importSnapshotJson`** accept legacy snapshots whose **`inventory`** was a **`string[]`** (each id becomes quantity **1**).
+- **`GameStateManager`** (`src/engine/gameState/GameStateManager.ts`): in-memory **flags** (`Record<string, boolean | number | string>`), **variables** (`Record<string, unknown>`), and **inventory** (**`Record<string, number>`** — item id → quantity). Constructed in **`createBenneGame`** (`src/engine/Game.ts`) and stored on **`Phaser.Game.registry`** under **`benneGameState`** (`BENNE_GAME_STATE_REGISTRY_KEY`) so the same instance survives **`RoomScene`** teardown. **`applySnapshot` / `importSnapshotJson`** accept legacy snapshots whose **`inventory`** was a **`string[]`** (each id becomes quantity **1**). **Bennescript sprite animation** also uses **`variables`** for reserved keys (see **§7 → Sprite animation & persistence**): `` `room:<roomId>:prop:<propId>:animation` `` (base prop tag) and `` `character:<characterId>:animation` `` (character override); **`playAnimation`** does not write these.
 - **Runtime “selection” UI state (verbs + use-on-target)**:
   - **Active verb** — see **Verb system → Active verb** (not part of save snapshots; cleared on **`applySnapshot`**).
   - **Active inventory item** (**`activeInventoryItemId`**, optional on **`SerializableBenneGameState`**): the item id “armed” for **use-on-target** clicks on room props / hotspots / characters. Persisted in **`getSnapshot` / `applySnapshot`** / **`exportSnapshotJson`**. Set/cleared with **`B.setActiveInventory` / `B.clearActiveInventory`** on room, character, global, and inventory Bennescript facades (**`GameStateManager.setActiveInventoryItem`**). Emits **`gameState:activeInventoryItemChanged`** (`GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT`). **`InventoryBenneScript`** arms the row after the interaction queue drains when the resolved **use** or **give** verb fires on that item — **without** requiring **`B.whenUse` / `B.whenGive`**. Optional **`B.whenUse` / `B.whenGive`** handlers run first, then the same **`afterTail`** activation unless **all** handlers for that verb used **`doNotActivate`**.
@@ -360,6 +360,8 @@ These schedule work on the queue when called from a handler (or any code path us
 | `B.player` / `B.character(id)` — line | `say(text)` | `say.now(text)` |
 | `B.player` / `B.character(id)` — clip | `playAnimation(tag)` | `playAnimation.now(tag)` |
 | `B.player` / `B.character(id)` — facing | `face(dir)` | `face.now(dir)` |
+| `B.prop(id)` — persisted **base** Aseprite tag | `B.prop('x').animation = tag` (queued) | `B.prop('x').animationNow(tag)` |
+| `B.player` / `B.character(id)` — persisted **override** (`null` clears) | `… .animation = tag` / `null` (queued) | `… .animationNow(tag)` / `null` |
 | Room pacing | `B.wait(seconds)` | `B.wait.now(seconds)` |
 
 **`.now` semantics**  
@@ -369,13 +371,35 @@ These schedule work on the queue when called from a handler (or any code path us
 - Return type is **`void`** (same as the blocking form); the engine does not surface promises to authors for the default API.  
 - TypeScript models blocking methods as **`BlockingWithNow<…>`** — the callable plus a **`now`** property with the same parameters (good autocomplete).
 
+**Sprite animation & persistence (PowerQuest-style `Animation` vs `PlayAnimation`)**  
+
+Bennescript separates a **saved** “what should this prop/character show by default?” from a **temporary** scripted clip:
+
+- **`B.prop(id)`** (`BenneScriptPropFacade` in `src/engine/scripting/benneScriptFacades.ts`): **`animation`** get/set is the prop’s **base** Aseprite tag (JSON `tag` until a save overrides it). The **setter** is **queued** on the same **`interactionTail`** as **`walkTo`**, **`say`**, and **`playAnimation`**; **`animationNow(tag)`** writes game state and updates the sprite **immediately** (skips the tail). **`playAnimation` / `.now`** plays a tag once, then restores that persisted base clip. Room props register clips with **`scene.anims.createFromAseprite`** (global keys on the scene AnimationManager).
+
+- **`B.player`** / **`B.character('id')`**: **`get animation`** returns the **effective** key (persisted **override** if any, else the live directional idle / walk / talk tag). **`set animation`** / **`animationNow`** accept **`string | null`** (`null` clears the override). **`stopAnimation()`** clears the saved override and returns to directional idle (always immediate — no **`.now`** variant). While an override is active, **`RoomScene`** avoids swapping to automatic directional **Idle / Walk / Talk** (movement tweens still run; **facing** data updates so that when the override ends, idle matches the current facing). **`BenneScriptCore.applySayLineDirectionalBase`** skips directional **Talk** when an override is active and restores via **`applyCharacterEffectiveAnimation`** after each line.
+
+- **`playAnimation`**: never touches **`GameStateManager`**; for **looping** clips (`loop: true` in `CharacterData.animations` → Phaser **`repeat: -1`**), completion is approximated by **one full cycle** (**`Animation.duration`**, with a frame-based fallback) before revert, so the interaction tail does not settle in the same tick as the play call. Character sheets use **`sprite.anims.createFromAseprite`**, so clips are **sprite-local**; **`promiseWhenSpriteAnimationFinishes`** (in `src/engine/benneAnimationRuntime.ts`) resolves completion using **`sprite.anims`** first, then **`scene.anims`** (props), and reads **`repeat`** from the resolved **`Animation`**.
+
+**Persistence** ( **`GameStateManager` variables** — same snapshot pipe as other `B.state` keys):
+
+- **Props** (room-scoped): `` `room:<roomId>:prop:<propId>:animation` `` — base tag string. Applied when **`RoomScene`** spawns props (after merged Aseprite clip setup).
+- **Characters** (global, follows the definition id across rooms): `` `character:<characterId>:animation` `` — override tag; cleared by **`stopAnimation()`** or **`animation = null`** / **`animationNow(null)`**.
+
+**Engine touchpoints**  
+
+- `src/engine/benneAnimationRuntime.ts` — key helpers, sprite data **`benneAnimationOverride`**, **`applyCharacterEffectiveAnimation`**, **`characterFaceLetterRespectingOverride`**, **`getCharacterEffectiveAnimationTag`**, **`promiseWhenSpriteAnimationFinishes`**.  
+- `src/engine/scenes/RoomScene.ts` — **`getPropScriptBaseAnimationTag`**, **`setPropScriptBaseAnimationTag`**, **`playPropScriptAnimationOneShot`**, **`getCharacterScriptEffectiveAnimationTag`**, **`setCharacterScriptAnimationOverride`**, **`stopCharacterScriptAnimation`**, **`playCharacterScriptAnimationOneShot`**, **`faceCharacterScriptDirection`**, **`facePlayerScriptDirection`**; spawn reads saved prop/character animation state; walk / interrupt / NPC paths and **`facePlayerTowardClicked`** respect character overrides.
+
 **Core files**  
 - `src/engine/scripting/registerRoomScript.ts` — side-effect registration for room callbacks.  
 - `src/engine/scripting/registerCharacterScript.ts` — side-effect registration keyed by character definition id.  
 - `src/engine/scripting/registerGlobalScript.ts` + `wireBenneGlobalScripts.ts` — global registrations; wiring runs after `createBenneGame`.  
 - `src/engine/scripting/registerGuiScript.ts` — GUI registrations (invoked from `registerGameContent`); **`getGuiBenneScript`** for the live facade instance.  
 - `src/engine/scripting/GuiRuntime.ts` — **`GuiRuntime`**, **`ControlFacade`** (GUI behavior surface after `buildGuiOverlay`; pointer hover via **`B.whenMouseEnter` / `B.whenMouseLeave`**).  
-- `src/engine/scripting/BenneScriptCore.ts` — shared queue, verb alias resolution, dialog line + input lock, `wait`, `raw`.  
+- `src/engine/scripting/benneScriptFacades.ts` — exported **`BenneScriptPropFacade`**, **`BenneScriptPlayerFacade`**, **`BenneScriptCharacterFacade`** (including **`animation`** / **`animationNow`** / **`playAnimation`** / **`stopAnimation`**).  
+- `src/engine/benneAnimationRuntime.ts` — animation persistence keys, sprite override helpers, **`promiseWhenSpriteAnimationFinishes`**.  
+- `src/engine/scripting/BenneScriptCore.ts` — shared queue, verb alias resolution, dialog line + input lock, `wait`, `raw`; **`makePlayerFacadeFromScene`** (player **`animation`** / **`animationNow`** / **`stopAnimation`**).  
 - `src/engine/scripting/BenneScript.ts` — room `B` (`whenLookAt('target', …)`, `player`, `prop`, …).  
 - `src/engine/scripting/CharacterBenneScript.ts` — character `B` with **self-only** `whenLookAt(() => …)` (character-global bus ids).  
 - `src/engine/scripting/GlobalBenneScript.ts` / `GuiBenneScript.ts` — global and GUI facades.  

@@ -65,6 +65,14 @@ export interface BenneScriptPropFacade {
   set visible(v: boolean);
   get description(): string;
   set description(v: string);
+  /** Persisted base Aseprite tag; falls back to room JSON default when unset in save state. */
+  get animation(): string;
+  /** Queues persist + sprite update on the interaction tail (same ordering as {@link playAnimation}). */
+  set animation(tag: string);
+  /** Persist + sprite update immediately (skips interaction tail). */
+  animationNow(tag: string): void;
+  /** One-shot clip (not saved); restores {@link animation} when the clip ends. */
+  playAnimation: BlockingWithNow<[string]>;
 }
 
 /** Movement + animation + facing for the player. */
@@ -74,7 +82,16 @@ export interface BenneScriptPlayerFacade {
   walkToClicked: BlockingWithNow<[]>;
   /** Same as {@link import('./BenneScriptCore.js').BenneScriptCore.faceClicked} on the owning script. */
   faceClicked: BlockingWithNow<[]>;
+  /** Effective clip: persisted override if any, else current directional idle / walk / talk tag. */
+  get animation(): string;
+  /** Queues override + save on the interaction tail; `null` clears. {@link playAnimation} does not persist. */
+  set animation(tag: string | null);
+  /** Override + save immediately (skips interaction tail); `null` clears. */
+  animationNow(tag: string | null): void;
+  /** One-shot (not saved); then directional idle or override. */
   playAnimation: BlockingWithNow<[string]>;
+  /** Clears persisted override + returns to directional idle (always immediate). */
+  stopAnimation(): void;
   say: BenneScriptSayDialogueHybrid;
   face: BlockingWithNow<[CharacterFacingLetter]>;
 }
@@ -82,7 +99,13 @@ export interface BenneScriptPlayerFacade {
 /** Movement + animation + facing for an NPC. */
 export interface BenneScriptCharacterFacade {
   walkTo: BlockingWithNow<[Point2 | string]>;
+  get animation(): string;
+  /** Queues override + save on the interaction tail; `null` clears. */
+  set animation(tag: string | null);
+  /** Override + save immediately (skips interaction tail); `null` clears. */
+  animationNow(tag: string | null): void;
   playAnimation: BlockingWithNow<[string]>;
+  stopAnimation(): void;
   say: BenneScriptSayDialogueHybrid;
   face: BlockingWithNow<[CharacterFacingLetter]>;
 }

@@ -2,7 +2,9 @@
   "id": "Lantern",
   "name": "Lantern",
   "description": "",
-  "onVerb": {},
+  "onVerb": {
+    "use": true
+  },
   "stackable": false,
   "animations": {},
   "display": {

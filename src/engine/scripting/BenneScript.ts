@@ -24,10 +24,6 @@ import {
   roomPropVerbEventId,
 } from '../events/verbInteractionEvents.js';
 import { getRegisteredInventoryDefinitionIds } from '../inventory/inventoryDefinitionRegistry.js';
-import {
-  playDirectionalAnimation,
-  type DirectionalCharacterSprite,
-} from '../directionalCharacterAnimation.js';
 import type {
   AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
@@ -78,7 +74,8 @@ export { withNow } from './BenneScriptCore.js';
  * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | **Unified target string** (first match): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** → **`points[].id`**, or **`{ x, y }`** in **room pixels**. **`walkTo`** queues; **`walkTo.now`** and **`face.now`**, **`playAnimation.now`**, **`B.wait.now`** can run without blocking the queue. **`say.now`** also skips the queue but still uses the same per-line room input lock as **`say`**. |
  * | **`walkToClicked` / `walkToClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Inside a verb handler, walks the player to the **clicked** prop / hotspot / character (same resolution as **`walkTo`** for that id). No room target for pure inventory-row verbs (one-time dev warn). |
  * | **`faceClicked` / `faceClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Uses payload **`lookAtPoint`** for props/hotspots when present; for **characters**, faces that character’s **feet**; otherwise falls back to the walk stand point (see {@link RoomScene.facePlayerTowardClicked}). Same dev warnings as **`walkToClicked`** when there is no target or no room. |
- * | **`playAnimation(tag)`** | Aseprite **frame tag** on the character sheet (e.g. `'Idle'`, `'WalkL'`). |
+ * | **`playAnimation(tag)`** / **`playAnimation.now`** | One-shot Aseprite tag (not saved); then **directional idle** or **persisted** `animation` override. Same idea for **`B.prop(id).playAnimation`**, which restores that prop’s saved **base** `animation`. |
+ * | **`animation` / `animation =`**, **`animationNow(...)`** | Setters queue on the **interaction tail** (order with **`walkTo`** / **`say`** / **`playAnimation`**); **`animationNow`** applies persist + sprite **immediately**. Props: persisted base tag. Characters / player: effective get; set / **`animationNow`** accept **`string \| null`** (`null` clears). **`stopAnimation()`** (characters / player) clears override + save, always immediate. |
  * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
  * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
  * | **`B.say` / `B.say.now`** | Tagged **`B.say`**…``: PowerQuest-style block — lines **`Speaker: text`** (`Player` any case → protagonist id; other names match spawned character ids **case-insensitively**). Blank lines and **`//`** comments ignored; unknown speakers throw. Queues each line; **`B.say.now`**… skips the interaction tail (see implementation notes in **`BenneScriptCore`**). |
@@ -425,6 +422,7 @@ export class BenneScript extends BenneScriptCore {
 
   prop(propId: string): BenneScriptPropFacade {
     const scene = this.roomScene;
+    const B = this;
     return {
       hide: () => {
         scene.setPropScriptVisible(propId, false);
@@ -444,28 +442,35 @@ export class BenneScript extends BenneScriptCore {
       set description(v: string) {
         scene.setPropScriptDescription(propId, v);
       },
-    };
+      get animation() {
+        return scene.getPropScriptBaseAnimationTag(propId);
+      },
+      set animation(tag: string) {
+        B.chain(() => {
+          scene.setPropScriptBaseAnimationTag(propId, tag);
+          return Promise.resolve();
+        });
+      },
+      animationNow(tag: string): void {
+        scene.setPropScriptBaseAnimationTag(propId, tag);
+      },
+      playAnimation: withNow(
+        (tag: string) => {
+          B.chain(() => scene.playPropScriptAnimationOneShot(propId, tag));
+        },
+        (tag: string) => {
+          void scene.playPropScriptAnimationOneShot(propId, tag);
+        },
+      ),
+    } as BenneScriptPropFacade;
   }
 
   private makeCharacterFacade(definitionId: string): BenneScriptCharacterFacade {
     const scene = this.roomScene;
-
-    const runCharacterPlayAnimation = (tag: string): void => {
-      const sprite = scene.getCharacterSprite(definitionId);
-      if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
-        if (scene.anims.exists(tag)) {
-          sprite.play(tag);
-        } else {
-          console.warn(`[Benne] Unknown animation tag "${tag}" for character "${definitionId}"`);
-        }
-      }
-    };
+    const B = this;
 
     const runCharacterFace = (direction: CharacterFacingLetter): void => {
-      const sprite = scene.getCharacterSprite(definitionId) as DirectionalCharacterSprite | undefined;
-      if (sprite?.anims) {
-        playDirectionalAnimation(sprite, 'Idle', direction);
-      }
+      scene.faceCharacterScriptDirection(definitionId, direction);
     };
 
     const logCharacterSay = (line: string): void => {
@@ -475,32 +480,46 @@ export class BenneScript extends BenneScriptCore {
     return {
       walkTo: withNow(
         (target: Point2 | string) => {
-          this.chain(() => scene.walkCharacterTo(definitionId, target));
+          B.chain(() => scene.walkCharacterTo(definitionId, target));
         },
         (target: Point2 | string) => {
           void scene.walkCharacterTo(definitionId, target);
         },
       ),
+      get animation() {
+        return scene.getCharacterScriptEffectiveAnimationTag(definitionId);
+      },
+      set animation(tag: string | null) {
+        B.chain(() => {
+          scene.setCharacterScriptAnimationOverride(definitionId, tag);
+          return Promise.resolve();
+        });
+      },
+      animationNow(tag: string | null): void {
+        scene.setCharacterScriptAnimationOverride(definitionId, tag);
+      },
       playAnimation: withNow(
         (tag: string) => {
-          this.chain(() => {
-            runCharacterPlayAnimation(tag);
-            return Promise.resolve();
-          });
+          B.chain(() => scene.playCharacterScriptAnimationOneShot(definitionId, tag));
         },
-        runCharacterPlayAnimation,
+        (tag: string) => {
+          void scene.playCharacterScriptAnimationOneShot(definitionId, tag);
+        },
       ),
+      stopAnimation(): void {
+        scene.stopCharacterScriptAnimation(definitionId);
+      },
       say: this.composeFixedCharacterSayHybrid(scene, definitionId, logCharacterSay),
       face: withNow(
         (direction: CharacterFacingLetter) => {
-          this.chain(() => {
+          B.chain(() => {
             runCharacterFace(direction);
             return Promise.resolve();
           });
         },
         runCharacterFace,
       ),
-    };
+    } as BenneScriptCharacterFacade;
   }
 
   character(definitionId: string): BenneScriptCharacterFacade {

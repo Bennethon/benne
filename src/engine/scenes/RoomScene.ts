@@ -28,8 +28,22 @@ import {
 } from '../events/playerWalkEvents';
 import {
   applyCharacterAnimationClips,
+  playCharacterAnimation,
   setupCharacterAsepritePlayback,
 } from '../characterAnimationPlayback';
+import {
+  applyCharacterEffectiveAnimation,
+  characterFaceLetterRespectingOverride,
+  getCharacterAnimationOverrideTag,
+  getCharacterEffectiveAnimationTag,
+  promiseWhenSpriteAnimationFinishes,
+  readSavedCharacterAnimationOverride,
+  readSavedPropBaseAnimationTag,
+  setCharacterAnimationOverrideTagOnSprite,
+  writeSavedCharacterAnimationOverride,
+  writeSavedPropBaseAnimationTag,
+} from '../benneAnimationRuntime';
+import type { CharacterFacingLetter } from '../../types/character';
 import { getDialogSettings, getGameSettings } from '../ConfigManager';
 import {
   applyGameCursorSpriteHotspot,
@@ -610,6 +624,122 @@ export class RoomScene extends Phaser.Scene {
     return Array.from(this.characterSpritesByDefId.keys());
   }
 
+  /** Persisted base Aseprite tag (`B.prop(id).animation`); falls back to room JSON `tag`. */
+  getPropScriptBaseAnimationTag(propId: string): string {
+    const inst = this.getRoomPropInstance(propId);
+    if (!inst) {
+      return '';
+    }
+    const m = resolveGameStateManager(this.game);
+    return readSavedPropBaseAnimationTag(m, this.roomData.id, propId, inst.tag);
+  }
+
+  /** Sets base prop animation (instant + saved). Unknown tags warn and no-op. */
+  setPropScriptBaseAnimationTag(propId: string, tag: string): void {
+    const inst = this.getRoomPropInstance(propId);
+    const sprite = this.propSpritesById.get(propId);
+    if (!inst || !sprite) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[Benne] setPropScriptBaseAnimationTag: prop "${propId}" not in room "${this.roomData.id}".`,
+        );
+      }
+      return;
+    }
+    if (!this.anims.exists(tag)) {
+      console.warn(`[Benne] Unknown prop animation tag "${tag}" for prop "${propId}"`);
+      return;
+    }
+    writeSavedPropBaseAnimationTag(resolveGameStateManager(this.game), this.roomData.id, propId, tag);
+    sprite.play(tag);
+  }
+
+  /**
+   * Temporary prop clip (not saved). Resolves when the clip completes (looping clips resolve next frame).
+   * Then restores {@link getPropScriptBaseAnimationTag}.
+   */
+  playPropScriptAnimationOneShot(propId: string, tag: string): Promise<void> {
+    const inst = this.getRoomPropInstance(propId);
+    const sprite = this.propSpritesById.get(propId);
+    if (!inst || !sprite) {
+      return Promise.resolve();
+    }
+    if (!this.anims.exists(tag)) {
+      console.warn(`[Benne] Unknown prop animation tag "${tag}" for prop "${propId}"`);
+      return Promise.resolve();
+    }
+    sprite.play(tag);
+    return promiseWhenSpriteAnimationFinishes(sprite, tag).then(() => {
+      const base = this.getPropScriptBaseAnimationTag(propId);
+      if (this.anims.exists(base)) {
+        sprite.play(base);
+      }
+    });
+  }
+
+  getCharacterScriptEffectiveAnimationTag(definitionId: string): string {
+    const sprite = this.characterSpritesByDefId.get(definitionId);
+    if (!sprite || !(sprite instanceof Phaser.GameObjects.Sprite)) {
+      return '';
+    }
+    return getCharacterEffectiveAnimationTag(sprite);
+  }
+
+  /** Persists override + applies immediately. Pass `null` to clear override (same as {@link stopCharacterScriptAnimation}). */
+  setCharacterScriptAnimationOverride(definitionId: string, tag: string | null): void {
+    const sprite = this.characterSpritesByDefId.get(definitionId);
+    if (!sprite || !(sprite instanceof Phaser.GameObjects.Sprite)) {
+      return;
+    }
+    const m = resolveGameStateManager(this.game);
+    writeSavedCharacterAnimationOverride(m, definitionId, tag);
+    setCharacterAnimationOverrideTagOnSprite(sprite, tag);
+    applyCharacterEffectiveAnimation(sprite);
+  }
+
+  /** Clears persisted override and returns to directional idle / walk rules. */
+  stopCharacterScriptAnimation(definitionId: string): void {
+    const sprite = this.characterSpritesByDefId.get(definitionId);
+    if (!sprite || !(sprite instanceof Phaser.GameObjects.Sprite)) {
+      return;
+    }
+    writeSavedCharacterAnimationOverride(resolveGameStateManager(this.game), definitionId, null);
+    setCharacterAnimationOverrideTagOnSprite(sprite, null);
+    applyCharacterEffectiveAnimation(sprite);
+  }
+
+  /** One-shot clip (not saved); then {@link applyCharacterEffectiveAnimation}. */
+  playCharacterScriptAnimationOneShot(definitionId: string, tag: string): Promise<void> {
+    const sprite = this.characterSpritesByDefId.get(definitionId);
+    if (!sprite || !(sprite instanceof Phaser.GameObjects.Sprite) || !sprite.anims) {
+      return Promise.resolve();
+    }
+    if (!sprite.anims.exists(tag)) {
+      console.warn(`[Benne] Unknown animation tag "${tag}" for character "${definitionId}"`);
+      return Promise.resolve();
+    }
+    playCharacterAnimation(sprite, tag);
+    return promiseWhenSpriteAnimationFinishes(sprite, tag).then(() => {
+      applyCharacterEffectiveAnimation(sprite);
+    });
+  }
+
+  faceCharacterScriptDirection(definitionId: string, direction: CharacterFacingLetter): void {
+    const sprite = this.characterSpritesByDefId.get(definitionId);
+    if (!sprite || !(sprite instanceof Phaser.GameObjects.Sprite)) {
+      return;
+    }
+    characterFaceLetterRespectingOverride(sprite, direction);
+  }
+
+  facePlayerScriptDirection(direction: CharacterFacingLetter): void {
+    const pl = this.player;
+    if (!pl) {
+      return;
+    }
+    characterFaceLetterRespectingOverride(pl, direction);
+  }
+
   getPropScriptDescription(propId: string): string {
     if (this.propDescriptionOverrides.has(propId)) {
       return this.propDescriptionOverrides.get(propId) ?? '';
@@ -698,6 +828,10 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
     const facing = facingFromWorldDelta(dx, dy);
+    if (getCharacterAnimationOverrideTag(sprite)) {
+      sprite.setData('facing', facing);
+      return;
+    }
     playDirectionalAnimation(sprite, 'Idle', facing);
   }
 
@@ -1052,8 +1186,7 @@ export class RoomScene extends Phaser.Scene {
     this.playerMoveTween = null;
     tween.stop();
     if (emitStop && this.player) {
-      const facing = (this.player.getData('facing') as CharacterFacing | undefined) ?? resolveInitialIdleFacing(this.player);
-      playDirectionalAnimation(this.player, 'Idle', facing);
+      applyCharacterEffectiveAnimation(this.player);
       gameEvents.emit(PLAYER_WALK_STOP, {
         roomId: this.roomData.id,
         reason: 'interrupted',
@@ -1163,7 +1296,11 @@ export class RoomScene extends Phaser.Scene {
     }
 
     const facing = facingFromWorldDelta(dx, dy);
-    playDirectionalAnimation(sprite, 'Walk', facing);
+    if (!getCharacterAnimationOverrideTag(sprite)) {
+      playDirectionalAnimation(sprite, 'Walk', facing);
+    } else {
+      sprite.setData('facing', facing);
+    }
 
     const durationMs = Math.max(1, Math.round((distance / speed) * 1000));
 
@@ -1195,7 +1332,12 @@ export class RoomScene extends Phaser.Scene {
 
   private finishPlayerWalk(sprite: DirectionalCharacterSprite, facing: CharacterFacing): void {
     this.currentPlayerPath = null;
-    playDirectionalAnimation(sprite, 'Idle', facing);
+    if (!getCharacterAnimationOverrideTag(sprite)) {
+      playDirectionalAnimation(sprite, 'Idle', facing);
+    } else {
+      sprite.setData('facing', facing);
+      applyCharacterEffectiveAnimation(sprite);
+    }
     gameEvents.emit(PLAYER_WALK_STOP, {
       roomId: this.roomData.id,
       reason: 'complete',
@@ -1267,7 +1409,11 @@ export class RoomScene extends Phaser.Scene {
       }
       const facing = facingFromWorldDelta(dx, dy);
       if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
-        playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Idle', facing);
+        if (!getCharacterAnimationOverrideTag(sprite as Phaser.GameObjects.Sprite)) {
+          playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Idle', facing);
+        } else {
+          sprite.setData('facing', facing);
+        }
       }
       onArrive?.();
       return;
@@ -1275,7 +1421,11 @@ export class RoomScene extends Phaser.Scene {
 
     const facing = facingFromWorldDelta(dx, dy);
     if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
-      playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Walk', facing);
+      if (!getCharacterAnimationOverrideTag(sprite as Phaser.GameObjects.Sprite)) {
+        playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Walk', facing);
+      } else {
+        sprite.setData('facing', facing);
+      }
     }
 
     const durationMs = Math.max(1, Math.round((distance / speed) * 1000));
@@ -1296,7 +1446,12 @@ export class RoomScene extends Phaser.Scene {
           return;
         }
         if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
-          playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Idle', facing);
+          if (!getCharacterAnimationOverrideTag(sprite as Phaser.GameObjects.Sprite)) {
+            playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Idle', facing);
+          } else {
+            sprite.setData('facing', facing);
+            applyCharacterEffectiveAnimation(sprite as Phaser.GameObjects.Sprite);
+          }
         }
         onArrive?.();
       },
@@ -1306,10 +1461,14 @@ export class RoomScene extends Phaser.Scene {
         }
         this.npcWalkTweens.delete(sprite);
         if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
-          const idleFacing =
-            (sprite.getData('facing') as CharacterFacing | undefined) ??
-            resolveInitialIdleFacing(sprite as DirectionalCharacterSprite);
-          playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Idle', idleFacing);
+          if (!getCharacterAnimationOverrideTag(sprite as Phaser.GameObjects.Sprite)) {
+            const idleFacing =
+              (sprite.getData('facing') as CharacterFacing | undefined) ??
+              resolveInitialIdleFacing(sprite as DirectionalCharacterSprite);
+            playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Idle', idleFacing);
+          } else {
+            applyCharacterEffectiveAnimation(sprite as Phaser.GameObjects.Sprite);
+          }
         }
       },
     });
@@ -1324,9 +1483,7 @@ export class RoomScene extends Phaser.Scene {
     this.playerMoveTween = null;
     this.currentPlayerPath = null;
     if (this.player) {
-      const facing =
-        (this.player.getData('facing') as CharacterFacing | undefined) ?? resolveInitialIdleFacing(this.player);
-      playDirectionalAnimation(this.player, 'Idle', facing);
+      applyCharacterEffectiveAnimation(this.player);
     }
     gameEvents.emit(PLAYER_WALK_STOP, {
       roomId: this.roomData.id,
@@ -1431,6 +1588,7 @@ export class RoomScene extends Phaser.Scene {
     const created = this.anims.createFromAseprite(textureKey);
     applyCharacterAnimationClips(created, mergedClips);
 
+    const manager = resolveGameStateManager(this.game);
     for (const spawn of sorted) {
       // Props render at their natural Aseprite frame dimensions. For full-room composite
       // sheets (the typical BENNE workflow) each frame already covers the full room width
@@ -1439,10 +1597,11 @@ export class RoomScene extends Phaser.Scene {
       sprite.setVisible(spawn.data.visible !== false);
       sprite.setAlpha(spawn.data.alpha ?? 1);
 
-      if (!this.anims.exists(spawn.tag)) {
-        console.warn(`[Benne] Room prop '${spawn.id}' uses unknown Aseprite tag '${spawn.tag}'.`);
+      const baseTag = readSavedPropBaseAnimationTag(manager, data.room.id, spawn.id, spawn.tag);
+      if (!this.anims.exists(baseTag)) {
+        console.warn(`[Benne] Room prop '${spawn.id}' uses unknown Aseprite tag '${baseTag}'.`);
       } else {
-        sprite.play(spawn.tag);
+        sprite.play(baseTag);
       }
 
       const pd = spawn.data.parallaxDepth;
@@ -1720,7 +1879,19 @@ export class RoomScene extends Phaser.Scene {
 
     const animBase = spawn.initialAnimation ?? 'Idle';
     const facing = resolveSpawnIdleFacing(sprite, spawn.initialFacing);
-    playDirectionalAnimation(sprite, animBase, facing);
+    const manager = resolveGameStateManager(this.game);
+    const savedOverride = readSavedCharacterAnimationOverride(manager, spawn.data.id);
+    if (savedOverride && sprite.anims.exists(savedOverride)) {
+      setCharacterAnimationOverrideTagOnSprite(sprite, savedOverride);
+      sprite.setData('facing', facing);
+      playCharacterAnimation(sprite, savedOverride);
+    } else {
+      if (savedOverride && !sprite.anims.exists(savedOverride)) {
+        writeSavedCharacterAnimationOverride(manager, spawn.data.id, null);
+      }
+      setCharacterAnimationOverrideTagOnSprite(sprite, null);
+      playDirectionalAnimation(sprite, animBase, facing);
+    }
 
     const feet = resolveCharacterFeetLocal(spawn.data, sprite);
     placeSpriteByFeet(sprite, feet, spawn.x, spawn.y);
