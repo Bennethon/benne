@@ -53,6 +53,7 @@ function resolveWalkToClickedTargetFromPayload(payload: unknown): Point2 | strin
     if (t.type === 'prop') return t.propId;
     if (t.type === 'hotspot') return t.hotspotId;
     if (t.type === 'character') return t.characterId;
+    if (t.type === 'inventoryItem') return null;
   }
 
   if (typeof p.propId === 'string') return p.propId;
@@ -133,6 +134,9 @@ function resolveFaceLookWorldFromPayload(payload: unknown, scene: RoomScene): Po
       if (sprite) {
         return getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
       }
+    }
+    if (t.type === 'inventoryItem') {
+      return null;
     }
   }
 

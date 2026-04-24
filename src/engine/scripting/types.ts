@@ -10,6 +10,8 @@ import type { BenneScriptSharedSelectionApi } from './benneScriptFacades.js';
 export type {
   AnyInventoryUsedOnPayload,
   BenneScriptSharedSelectionApi,
+  InventoryWhenGiveHandler,
+  InventoryWhenGiveRegistrar,
   InventoryWhenUseHandler,
   InventoryWhenUseRegistrar,
   RoomInventoryUsedOnRegistrar,
@@ -58,7 +60,8 @@ export interface CharacterScriptContext {
 export interface InventoryScriptContext {
   /**
    * Item-scoped verb sugar (`whenLookAt`, …); subscribes to room + global inventory verb ids.
-   * **`B.whenUse`** activates this item for use-on-target after the handler’s queued steps; use **`B.whenUse.doNotActivate`** to opt out.
+   * **`B.whenUse`** / **`B.whenGive`** add optional behavior; both verbs still arm this item for use-on-target after
+   * queued steps unless **`doNotActivate`** was used for every handler on that verb.
    */
   readonly B: InventoryBenneScript & BenneScriptSharedSelectionApi;
   readonly events: Phaser.Events.EventEmitter;

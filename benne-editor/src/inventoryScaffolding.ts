@@ -85,8 +85,10 @@ export async function runCreateInventoryItemWizard(preferredFolder?: vscode.Work
     const invTs = `import { registerInventoryScript } from '@engine/scripting';
 
 registerInventoryScript('${id}', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
+  // "Use" / "Give" on this item will automatically make it active for combining with world targets.
+  // Add B.whenUse / B.whenGive only if you need extra behavior (sound, dialogue, consumption, etc.).
+  // Use B.whenUse.doNotActivate / B.whenGive.doNotActivate if this item should never become active.
+  void B; // keep this until you add real handlers
 });
 `;
 
@@ -188,8 +190,10 @@ export async function runImportInventoryItemsFromAsepriteTags(
             const invTs = `import { registerInventoryScript } from '@engine/scripting';
 
 registerInventoryScript('${id}', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
+  // "Use" / "Give" on this item will automatically make it active for combining with world targets.
+  // Add B.whenUse / B.whenGive only if you need extra behavior (sound, dialogue, consumption, etc.).
+  // Use B.whenUse.doNotActivate / B.whenGive.doNotActivate if this item should never become active.
+  void B; // keep this until you add real handlers
 });
 `;
             await vscode.workspace.fs.writeFile(invTsUri, new TextEncoder().encode(invTs));

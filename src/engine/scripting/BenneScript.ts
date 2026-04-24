@@ -49,6 +49,8 @@ export type {
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
   BenneScriptSharedSelectionApi,
+  InventoryWhenGiveHandler,
+  InventoryWhenGiveRegistrar,
   InventoryWhenUseHandler,
   InventoryWhenUseRegistrar,
   RoomInventoryUsedOnRegistrar,

@@ -49,6 +49,7 @@ import {
   dispatchInventoryVerbInteraction,
   shouldDispatchInventoryUsedOnVerbForGame,
   shouldDropActiveInventoryOnUse,
+  trySyncActiveInventoryAfterInventoryUseOrGiveRowDispatch,
 } from '../verbs/dispatchInventoryVerb';
 import { composeVerbLineText, getEffectiveInputProfile } from '../verbs/verbConfig';
 import { resolvePointerVerbForInventoryItem } from '../verbs/resolvePointerVerb';
@@ -1165,6 +1166,12 @@ function fillInventoryPanelContent(
             resolution.verbId,
             itemId,
             invPointerCtx.roomId,
+          );
+          trySyncActiveInventoryAfterInventoryUseOrGiveRowDispatch(
+            manager,
+            getGameSettings(),
+            resolution.verbId,
+            itemId,
           );
           if (resolution.consumeActive) {
             manager.clearActiveVerb();

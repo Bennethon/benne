@@ -81,6 +81,9 @@ export function dispatchInventoryOnVerbTargetInteraction(
   verbId: string,
   target: VerbInteractTarget,
 ): boolean {
+  if (target.type === 'inventoryItem') {
+    return false;
+  }
   const payload = buildInventoryUsedOnPayload(target, itemId, verbId);
 
   switch (target.type) {
@@ -100,7 +103,6 @@ export function dispatchInventoryOnVerbTargetInteraction(
       return tryEmitInventoryOnTargetOrGlobalUnhandled(bus, roomScoped, globalScoped, payload);
     }
   }
-  return false;
 }
 
 /**

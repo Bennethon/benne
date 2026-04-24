@@ -160,3 +160,20 @@ export function resolveEffectiveUseVerbId(settings: GameSettings): string {
   }
   return 'use';
 }
+
+/** Verb ids tried for the default **give** verb (aligned with Bennescript `resolveVerbId('give')`). */
+const GIVE_VERB_ALIAS_CANDIDATES: readonly string[] = ['give'];
+
+/**
+ * First configured verb id matching the **give** aliases, or **`"give"`** if none match (same resolution idea as
+ * Bennescript `resolveVerbId('give')`).
+ */
+export function resolveEffectiveGiveVerbId(settings: GameSettings): string {
+  const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
+  for (const id of GIVE_VERB_ALIAS_CANDIDATES) {
+    if (configured.has(id)) {
+      return id;
+    }
+  }
+  return 'give';
+}

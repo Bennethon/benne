@@ -26,6 +26,7 @@ import type {
   AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
   BenneScriptPlayerFacade,
+  InventoryWhenGiveRegistrar,
   InventoryWhenUseHandler,
   InventoryWhenUseRegistrar,
   RoomInventoryUsedOnRegistrar,
@@ -34,6 +35,10 @@ import type {
 /**
  * Bennescript facade for `*.inventory.ts`: subscribes to room-scoped and global inventory verb ids so
  * {@link import('../verbs/dispatchInventoryVerb.js').dispatchInventoryVerbInteraction} precedence matches characters.
+ *
+ * The resolved **use** and **give** verbs on this row always arm this item for use-on-target after the interaction
+ * queue drains, even with no {@link InventoryBenneScript.whenUse} / {@link InventoryBenneScript.whenGive} handlers.
+ * Those helpers add behavior on top; **`doNotActivate`** opts out of arming for that verb (consumables, etc.).
  */
 export class InventoryBenneScript extends BenneScriptCore {
   private static readonly unresolvedInventoryOnItemWarnings = new Set<string>();
@@ -42,14 +47,31 @@ export class InventoryBenneScript extends BenneScriptCore {
   private readonly roomId: string;
   private readonly roomScene: RoomScene;
 
+  private readonly inventoryUseHandlers: Array<{
+    skipActivate: boolean;
+    handler: InventoryWhenUseHandler;
+  }> = [];
+  private inventoryUseVerbSubscriptionInstalled = false;
+
+  private readonly inventoryGiveHandlers: Array<{
+    skipActivate: boolean;
+    handler: InventoryWhenUseHandler;
+  }> = [];
+  private inventoryGiveVerbSubscriptionInstalled = false;
+
   readonly state: BenneScriptGameStateNamespace;
   readonly inventory: BenneScriptInventoryNamespace;
 
   /**
-   * **`doNotActivate`** registers a use handler that does not call {@link setActiveInventory} for this item
-   * after queued steps (default **`whenUse`** activates this item id for use-on-target).
+   * Extra handlers for the resolved **use** verb; arming still happens unless every registered handler
+   * used **`doNotActivate`** (see **`doNotActivate`**).
    */
   readonly whenUse: InventoryWhenUseRegistrar;
+
+  /**
+   * Extra handlers for the resolved **give** verb; same arming rules as {@link InventoryBenneScript.whenUse}.
+   */
+  readonly whenGive: InventoryWhenGiveRegistrar;
 
   /**
    * When this **item row** is the use-on-target (another inventory item is armed and the use verb
@@ -68,11 +90,21 @@ export class InventoryBenneScript extends BenneScriptCore {
     this.inventory = createBenneScriptInventoryNamespace(manager);
     const registerWhenUse = (skipActivate: boolean) => {
       return (handler: InventoryWhenUseHandler): void => {
-        this.subscribeInventoryUseVerb(skipActivate, handler);
+        this.inventoryUseHandlers.push({ skipActivate, handler });
+        this.ensureInventoryUseVerbSubscription();
       };
     };
     this.whenUse = Object.assign(registerWhenUse(false), {
       doNotActivate: registerWhenUse(true),
+    });
+    const registerWhenGive = (skipActivate: boolean) => {
+      return (handler: InventoryWhenUseHandler): void => {
+        this.inventoryGiveHandlers.push({ skipActivate, handler });
+        this.ensureInventoryGiveVerbSubscription();
+      };
+    };
+    this.whenGive = Object.assign(registerWhenGive(false), {
+      doNotActivate: registerWhenGive(true),
     });
     this.whenInventoryUsedOn = Object.assign(
       (
@@ -92,6 +124,78 @@ export class InventoryBenneScript extends BenneScriptCore {
         },
       },
     ) as RoomInventoryUsedOnRegistrar;
+  }
+
+  /**
+   * Wires default **use** and **give**→{@link setActiveInventory} when the author’s `registerInventoryScript` body
+   * did not register handlers (no-op inventory scripts). Safe to call after **`whenUse`** / **`whenGive`** —
+   * installs at most one subscription per verb.
+   */
+  ensureDefaultInventoryUseAndGiveActivationAfterRegister(): void {
+    this.ensureInventoryUseVerbSubscription();
+    this.ensureInventoryGiveVerbSubscription();
+  }
+
+  private ensureInventoryUseVerbSubscription(): void {
+    if (this.inventoryUseVerbSubscriptionInstalled) {
+      return;
+    }
+    this.inventoryUseVerbSubscriptionInstalled = true;
+    const verbId = this.resolveVerbId('use');
+    const run = (payload: unknown): void => {
+      const p = payload as InventoryVerbInteractPayload;
+      for (const { handler } of this.inventoryUseHandlers) {
+        if (handler.length === 0) {
+          (handler as () => void)();
+        } else {
+          (handler as (x: InventoryVerbInteractPayload) => void)(p);
+        }
+      }
+    };
+    const afterTail = (): void => {
+      const handlers = this.inventoryUseHandlers;
+      const shouldActivate = handlers.length === 0 || handlers.some((h) => !h.skipActivate);
+      if (shouldActivate) {
+        this.setActiveInventory(this.itemId);
+      }
+    };
+    this.subscribeAfterInteractionTail(
+      roomInventoryVerbEventId(this.roomId, this.itemId, verbId),
+      run,
+      afterTail,
+    );
+    this.subscribeAfterInteractionTail(inventoryVerbEventId(this.itemId, verbId), run, afterTail);
+  }
+
+  private ensureInventoryGiveVerbSubscription(): void {
+    if (this.inventoryGiveVerbSubscriptionInstalled) {
+      return;
+    }
+    this.inventoryGiveVerbSubscriptionInstalled = true;
+    const verbId = this.resolveVerbId('give');
+    const run = (payload: unknown): void => {
+      const p = payload as InventoryVerbInteractPayload;
+      for (const { handler } of this.inventoryGiveHandlers) {
+        if (handler.length === 0) {
+          (handler as () => void)();
+        } else {
+          (handler as (x: InventoryVerbInteractPayload) => void)(p);
+        }
+      }
+    };
+    const afterTail = (): void => {
+      const handlers = this.inventoryGiveHandlers;
+      const shouldActivate = handlers.length === 0 || handlers.some((h) => !h.skipActivate);
+      if (shouldActivate) {
+        this.setActiveInventory(this.itemId);
+      }
+    };
+    this.subscribeAfterInteractionTail(
+      roomInventoryVerbEventId(this.roomId, this.itemId, verbId),
+      run,
+      afterTail,
+    );
+    this.subscribeAfterInteractionTail(inventoryVerbEventId(this.itemId, verbId), run, afterTail);
   }
 
   private warnInventoryOnWrongItem(targetId: string): void {
@@ -138,36 +242,6 @@ export class InventoryBenneScript extends BenneScriptCore {
     };
     this.subscribe(roomInventoryVerbEventId(this.roomId, this.itemId, verbId), inner);
     this.subscribe(inventoryVerbEventId(this.itemId, verbId), inner);
-  }
-
-  /**
-   * Like {@link subscribeInventoryVerb} for the resolved **use** verb, then after the interaction queue drains
-   * calls {@link setActiveInventory} with this item’s id unless `skipActivate` is true.
-   */
-  private subscribeInventoryUseVerb(
-    skipActivate: boolean,
-    handler: ((p: InventoryVerbInteractPayload) => void) | (() => void),
-  ): void {
-    const verbId = this.resolveVerbId('use');
-    const inner = (payload: unknown) => {
-      const p = payload as InventoryVerbInteractPayload;
-      if (handler.length === 0) {
-        (handler as () => void)();
-      } else {
-        (handler as (x: InventoryVerbInteractPayload) => void)(p);
-      }
-    };
-    const afterTail = (): void => {
-      if (!skipActivate) {
-        this.setActiveInventory(this.itemId);
-      }
-    };
-    this.subscribeAfterInteractionTail(
-      roomInventoryVerbEventId(this.roomId, this.itemId, verbId),
-      inner,
-      afterTail,
-    );
-    this.subscribeAfterInteractionTail(inventoryVerbEventId(this.itemId, verbId), inner, afterTail);
   }
 
   whenLookAt(handler: () => void): void;

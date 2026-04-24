@@ -10,4 +10,8 @@ registerInventoryScript('Ladder', ({ B }) => {
     }
   });
 
+
+  B.whenUse(() => {
+    // TODO
+  });
 });

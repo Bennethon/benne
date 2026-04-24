@@ -1,5 +1,11 @@
+import type { GameSettings } from '../../types/game.js';
 import type { EventBus } from '../events/EventBus';
 import { inventoryVerbEventId, roomInventoryVerbEventId } from '../events/inventoryVerbEvents.js';
+import type { GameStateManager } from '../gameState/GameStateManager.js';
+import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
+import { getInventoryItemIdsWithBenneScripts } from '../scripting/registerInventoryScript.js';
+import { dispatchVerbInteraction } from './dispatchVerb.js';
+import { resolveEffectiveGiveVerbId, resolveEffectiveUseVerbId } from './verbConfig.js';
 
 function listenerCount(bus: EventBus, event: string): number {
   return bus.listeners(event).length;
@@ -7,7 +13,8 @@ function listenerCount(bus: EventBus, event: string): number {
 
 /**
  * Dispatch order: `verb:room:<roomId>:inventory:<itemId>:<verbId>` → `verb:inventory:<itemId>:<verbId>` →
- * emit room id anyway (parity with character dispatch when no global listener).
+ * when neither channel has listeners, the same global chain as {@link dispatchVerbInteraction}:
+ * `verb:global:<verbId>` → `verb:global:fallback` → `verb:unhandled`.
  */
 export function dispatchInventoryVerbInteraction(
   bus: EventBus,
@@ -26,8 +33,43 @@ export function dispatchInventoryVerbInteraction(
     bus.emit(globalScoped, payload);
     return;
   }
-  bus.emit(roomScoped, payload);
+  const def = getInventoryDefinition(itemId);
+  dispatchVerbInteraction(bus, verbId, { onVerb: {}, onVerbFallback: false }, {
+    type: 'inventoryItem',
+    itemId,
+    roomId,
+    ...(def?.description !== undefined && def.description.length > 0
+      ? { description: def.description }
+      : {}),
+  });
 }
+
+/**
+ * Inventory rows with a `*.inventory.ts` module get **use** / **give**→active from
+ * {@link import('../scripting/InventoryBenneScript.js').InventoryBenneScript} after the interaction queue drains.
+ * JSON-only items never load that script — this mirrors arming when the resolved verb is the effective **use** or
+ * **give** id (see {@link resolveEffectiveUseVerbId}, {@link resolveEffectiveGiveVerbId}).
+ */
+export function trySyncActiveInventoryAfterInventoryUseOrGiveRowDispatch(
+  manager: GameStateManager,
+  settings: GameSettings,
+  verbId: string,
+  itemId: string,
+): void {
+  if (getInventoryItemIdsWithBenneScripts().has(itemId)) {
+    return;
+  }
+  const useId = resolveEffectiveUseVerbId(settings);
+  const giveId = resolveEffectiveGiveVerbId(settings);
+  if (verbId !== useId && verbId !== giveId) {
+    return;
+  }
+  manager.setActiveInventoryItem(itemId);
+}
+
+/** @deprecated Use {@link trySyncActiveInventoryAfterInventoryUseOrGiveRowDispatch}. */
+export const trySyncActiveInventoryAfterInventoryUseRowDispatch =
+  trySyncActiveInventoryAfterInventoryUseOrGiveRowDispatch;
 
 export {
   dispatchInventoryOnInventoryItemInteraction,

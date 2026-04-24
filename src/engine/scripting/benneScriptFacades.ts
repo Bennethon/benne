@@ -24,12 +24,24 @@ export type InventoryWhenUseHandler =
   | ((p: InventoryVerbInteractPayload) => void);
 
 /**
- * {@link import('./InventoryBenneScript.js').InventoryBenneScript.whenUse} — normal registration activates this
- * item for use-on-target after queued handler steps finish; **`doNotActivate`** opts out.
+ * {@link import('./InventoryBenneScript.js').InventoryBenneScript.whenUse} — runs after **use** is dispatched;
+ * the item still arms for use-on-target after queued steps unless every handler used **`doNotActivate`**.
  */
 export interface InventoryWhenUseRegistrar {
   (handler: InventoryWhenUseHandler): void;
   doNotActivate(handler: InventoryWhenUseHandler): void;
+}
+
+/** Same payload shape as {@link InventoryWhenUseHandler} — inventory-row **give** dispatch. */
+export type InventoryWhenGiveHandler = InventoryWhenUseHandler;
+
+/**
+ * {@link import('./InventoryBenneScript.js').InventoryBenneScript.whenGive} — runs after **give** is dispatched;
+ * the item still arms for use-on-target after queued steps unless every handler used **`doNotActivate`**.
+ */
+export interface InventoryWhenGiveRegistrar {
+  (handler: InventoryWhenGiveHandler): void;
+  doNotActivate(handler: InventoryWhenGiveHandler): void;
 }
 
 /** {@link import('./BenneScript.js').BenneScript.whenInventoryUsedOn} — default clears active inventory after queued steps. */
