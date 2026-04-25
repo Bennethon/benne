@@ -2288,7 +2288,10 @@ export class RoomScene extends Phaser.Scene {
           }
           const p = this.roomData.props?.find((rp) => rp.id === propId);
           const pd = p?.description?.trim();
-          return pd && pd.length > 0 ? pd : null;
+          if (pd && pd.length > 0) {
+            return pd;
+          }
+          return propId;
         }
       }
       break;
