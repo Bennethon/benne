@@ -82,7 +82,9 @@ export class InventoryBenneScript extends BenneScriptCore {
     this.roomScene = roomScene;
     const manager = resolveGameStateManager(roomScene.game);
     this.state = createBenneScriptGameStateNamespace(manager);
-    this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene);
+    this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene, (factory) =>
+      this.chain(factory),
+    );
     const registerWhenUse = (skipActivate: boolean) => {
       return (handler: InventoryWhenUseHandler): void => {
         this.inventoryUseHandlers.push({ skipActivate, handler });
