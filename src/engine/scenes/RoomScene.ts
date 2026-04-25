@@ -16,11 +16,11 @@ import {
   GAME_STATE_VARIABLE_CHANGED_EVENT,
   type GameStateVariableChangedPayload,
 } from '../../types/gameState';
+import { cursorPhaserAnimationKey, roomPropPhaserAnimationKey } from '../../game/asepritePhaserAnimationKeys';
 import {
   getPerItemInventoryTextureKey,
   inventoryPhaserAnimationKeyForTag,
   sharedInventoryTextureKey,
-  usesSharedInventoryAseprite,
 } from '../../game/inventoryAseprite';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import {
@@ -148,11 +148,13 @@ const DEBUG_PROP_COLLIDER_STROKE = 0xff44cc;
 /** Live pathfinding polyline overlay color (cyan). */
 const DEBUG_WALK_PATH_STROKE = 0x33ccff;
 
-function mergeRoomPropAnimationClips(spawns: readonly RoomPropSpawn[]): CharacterAnimationsConfig {
+function mergeRoomPropAnimationClips(spawns: readonly RoomPropSpawn[], roomId: string): CharacterAnimationsConfig {
   const out: CharacterAnimationsConfig = {};
   for (const s of spawns) {
     if (s.data.animations) {
-      Object.assign(out, s.data.animations);
+      for (const [k, v] of Object.entries(s.data.animations)) {
+        out[roomPropPhaserAnimationKey(roomId, k)] = v;
+      }
     }
   }
   return out;
@@ -665,12 +667,13 @@ export class RoomScene extends Phaser.Scene {
       }
       return;
     }
-    if (!this.anims.exists(tag)) {
+    const phaserKey = roomPropPhaserAnimationKey(this.roomData.id, tag);
+    if (!this.anims.exists(phaserKey)) {
       console.warn(`[Benne] Unknown prop animation tag "${tag}" for prop "${propId}"`);
       return;
     }
     writeSavedPropBaseAnimationTag(resolveGameStateManager(this.game), this.roomData.id, propId, tag);
-    sprite.play(tag);
+    sprite.play(phaserKey);
   }
 
   /**
@@ -683,15 +686,17 @@ export class RoomScene extends Phaser.Scene {
     if (!inst || !sprite) {
       return Promise.resolve();
     }
-    if (!this.anims.exists(tag)) {
+    const phaserKey = roomPropPhaserAnimationKey(this.roomData.id, tag);
+    if (!this.anims.exists(phaserKey)) {
       console.warn(`[Benne] Unknown prop animation tag "${tag}" for prop "${propId}"`);
       return Promise.resolve();
     }
-    sprite.play(tag);
-    return promiseWhenSpriteAnimationFinishes(sprite, tag).then(() => {
-      const base = this.getPropScriptBaseAnimationTag(propId);
-      if (this.anims.exists(base)) {
-        sprite.play(base);
+    sprite.play(phaserKey);
+    return promiseWhenSpriteAnimationFinishes(sprite, phaserKey).then(() => {
+      const baseAuthor = this.getPropScriptBaseAnimationTag(propId);
+      const baseKey = roomPropPhaserAnimationKey(this.roomData.id, baseAuthor);
+      if (this.anims.exists(baseKey)) {
+        sprite.play(baseKey);
       }
     });
   }
@@ -776,10 +781,7 @@ export class RoomScene extends Phaser.Scene {
     }
     this.ensureAsepriteAnimsFromAtlasOnce(textureKey);
     const animKey = inventoryPhaserAnimationKeyForTag(def, tag);
-    if (this.anims.exists(animKey)) {
-      return true;
-    }
-    return usesSharedInventoryAseprite(def) && this.anims.exists(tag);
+    return this.anims.exists(animKey);
   }
 
   getCharacterScriptEffectiveAnimationTag(definitionId: string): string {
@@ -1685,7 +1687,7 @@ export class RoomScene extends Phaser.Scene {
 
     this.parallaxProps = [];
 
-    const mergedClips = mergeRoomPropAnimationClips(data.props);
+    const mergedClips = mergeRoomPropAnimationClips(data.props, data.room.id);
     const sorted = [...data.props].sort((a, b) => (a.data.zIndex ?? 0) - (b.data.zIndex ?? 0));
 
     // Must use the scene AnimationManager (no `target` sprite). Passing a sprite registers clips only on
@@ -1702,11 +1704,12 @@ export class RoomScene extends Phaser.Scene {
       sprite.setVisible(spawn.data.visible !== false);
       sprite.setAlpha(spawn.data.alpha ?? 1);
 
-      const baseTag = readSavedPropBaseAnimationTag(manager, data.room.id, spawn.id, spawn.tag);
-      if (!this.anims.exists(baseTag)) {
-        console.warn(`[Benne] Room prop '${spawn.id}' uses unknown Aseprite tag '${baseTag}'.`);
+      const baseAuthorTag = readSavedPropBaseAnimationTag(manager, data.room.id, spawn.id, spawn.tag);
+      const basePhaserKey = roomPropPhaserAnimationKey(data.room.id, baseAuthorTag);
+      if (!this.anims.exists(basePhaserKey)) {
+        console.warn(`[Benne] Room prop '${spawn.id}' uses unknown Aseprite tag '${baseAuthorTag}'.`);
       } else {
-        sprite.play(baseTag);
+        sprite.play(basePhaserKey);
       }
 
       const pd = spawn.data.parallaxDepth;
@@ -2135,15 +2138,22 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
     const cfg = settings.cursor!;
-    const idleKey = cfg.idleAnimation.trim();
-    const activeKey = cfg.activeAnimation.trim();
+    const idleAuthor = cfg.idleAnimation.trim();
+    const activeAuthor = cfg.activeAnimation.trim();
+    const idleKey = cursorPhaserAnimationKey(idleAuthor);
+    const activeKey = cursorPhaserAnimationKey(activeAuthor);
 
     const created = this.anims.createFromAseprite(CURSOR_TEXTURE_KEY);
-    applyCharacterAnimationClips(created, cfg.animations);
+    const remappedCursorAnimations: CharacterAnimationsConfig | undefined = cfg.animations
+      ? Object.fromEntries(
+          Object.entries(cfg.animations).map(([k, v]) => [cursorPhaserAnimationKey(k), v]),
+        )
+      : undefined;
+    applyCharacterAnimationClips(created, remappedCursorAnimations);
 
     if (!this.anims.exists(idleKey) || !this.anims.exists(activeKey)) {
       console.warn(
-        `[Benne] Custom cursor: sheet is missing idle "${idleKey}" and/or active "${activeKey}" animation — skipping.`,
+        `[Benne] Custom cursor: sheet is missing idle "${idleAuthor}" and/or active "${activeAuthor}" animation — skipping.`,
       );
       return;
     }
@@ -2307,8 +2317,8 @@ export class RoomScene extends Phaser.Scene {
     const settings = getGameSettings();
     applyGameCursorSpriteHotspot(sprite, pointer, settings.cursor!);
 
-    const idleKey = settings.cursor!.idleAnimation.trim();
-    const activeKey = settings.cursor!.activeAnimation.trim();
+    const idleKey = cursorPhaserAnimationKey(settings.cursor!.idleAnimation.trim());
+    const activeKey = cursorPhaserAnimationKey(settings.cursor!.activeAnimation.trim());
 
     const overClickable = this.isCursorOverBenneClickable(this.input.hitTestPointer(pointer));
     // Active inventory cursor clips take precedence regardless of hover target.
