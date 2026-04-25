@@ -112,13 +112,21 @@ export interface BenneScriptCharacterFacade {
 
 /**
  * Per-item inventory scripting surface from **`B.inventory(itemId)`** (same persistence keys as runtime GUI / cursor).
- * Setters apply **immediately** (not queued on the interaction tail). Empty string clears the save override for that field.
+ * **`animation`** / **`cursorAnimation`** setters queue on the owning **`B`** interaction tail when the facade is
+ * constructed with a queue (room / character / inventory / global scripts); **`…Now`** applies immediately.
+ * Empty string clears the save override for that field.
  */
 export interface BenneScriptInventoryItemFacade {
   /** Aseprite tag for the inventory row icon (`defaultAnimation`); falls back to JSON when unset in save state. */
   get animation(): string;
+  /** Queues icon tag + persistence on the interaction tail (same ordering as {@link BenneScriptPlayerFacade.animation}). */
   set animation(tag: string);
+  /** Apply icon tag + persistence immediately (skips interaction tail). */
+  animationNow(tag: string): void;
   /** Tag used when this item is the armed use-on-target cursor (`cursorAnimation`); empty when none. */
   get cursorAnimation(): string;
+  /** Queues cursor tag + persistence on the interaction tail. */
   set cursorAnimation(tag: string);
+  /** Apply cursor tag + persistence immediately (skips interaction tail). */
+  cursorAnimationNow(tag: string): void;
 }

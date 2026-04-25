@@ -10,6 +10,13 @@ import {
 } from '../inventory/inventoryScriptingAnimations.js';
 import type { BenneScriptInventoryItemFacade } from './benneScriptFacades.js';
 
+/**
+ * When provided to {@link createBenneScriptInventoryNamespace}, inventory item **`animation`** /
+ * **`cursorAnimation`** setters enqueue on the owning script’s interaction tail (same ordering as
+ * **`B.player.animation`**).
+ */
+export type BenneScriptInventoryInteractionQueue = (factory: () => Promise<unknown>) => void;
+
 /** `B.state` — flags, variables, and snapshot persistence (see `GameStateManager`). */
 export interface BenneScriptGameStateNamespace {
   setFlag(id: string, value: BenneGameStateFlagValue): void;
@@ -85,6 +92,7 @@ function createBenneScriptInventoryItemFacade(
   itemId: string,
   manager: GameStateManager,
   getRoomScene?: () => RoomScene | undefined,
+  queueInteraction?: BenneScriptInventoryInteractionQueue,
 ): BenneScriptInventoryItemFacade {
   const applyDefault = (tag: string): void => {
     const scene = getRoomScene?.();
@@ -128,12 +136,26 @@ function createBenneScriptInventoryItemFacade(
     manager.setVariable(inventoryCursorAnimationVariableKey(itemId), t);
   };
 
+  const queueOrRun = (run: () => void): void => {
+    if (queueInteraction) {
+      queueInteraction(() => {
+        run();
+        return Promise.resolve();
+      });
+    } else {
+      run();
+    }
+  };
+
   return {
     get animation() {
       const def = getInventoryDefinition(itemId);
       return def ? readEffectiveInventoryDefaultAnimationTag(manager, def) : '';
     },
     set animation(tag: string) {
+      queueOrRun(() => applyDefault(tag));
+    },
+    animationNow(tag: string): void {
       applyDefault(tag);
     },
     get cursorAnimation() {
@@ -144,6 +166,9 @@ function createBenneScriptInventoryItemFacade(
       return readEffectiveInventoryCursorAnimationTag(manager, def) ?? '';
     },
     set cursorAnimation(tag: string) {
+      queueOrRun(() => applyCursor(tag));
+    },
+    cursorAnimationNow(tag: string): void {
       applyCursor(tag);
     },
   };
@@ -152,6 +177,7 @@ function createBenneScriptInventoryItemFacade(
 export function createBenneScriptInventoryNamespace(
   m: GameStateManager,
   getRoomScene?: () => RoomScene | undefined,
+  queueInteraction?: BenneScriptInventoryInteractionQueue,
 ): BenneScriptInventoryNamespace {
   const methods = {
     add: (id: string, quantity?: number) => m.addInventory(id, quantity),
@@ -163,6 +189,7 @@ export function createBenneScriptInventoryNamespace(
     },
     clearInventory: () => m.clearInventory(),
   };
-  const callable = (itemId: string) => createBenneScriptInventoryItemFacade(itemId, m, getRoomScene);
+  const callable = (itemId: string) =>
+    createBenneScriptInventoryItemFacade(itemId, m, getRoomScene, queueInteraction);
   return Object.assign(callable, methods) as BenneScriptInventoryNamespace;
 }

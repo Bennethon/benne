@@ -48,28 +48,28 @@
             "active": true,
             "points": [
               {
-                "x": 174,
+                "x": 167,
+                "y": 123
+              },
+              {
+                "x": 177,
+                "y": 133
+              },
+              {
+                "x": 228,
+                "y": 132
+              },
+              {
+                "x": 240,
                 "y": 125
               },
               {
-                "x": 180,
-                "y": 133
+                "x": 229,
+                "y": 117
               },
               {
-                "x": 217,
-                "y": 133
-              },
-              {
-                "x": 225,
-                "y": 126
-              },
-              {
-                "x": 217,
-                "y": 118
-              },
-              {
-                "x": 180,
-                "y": 118
+                "x": 176,
+                "y": 117
               }
             ]
           }
@@ -229,66 +229,6 @@
       }
     },
     {
-      "id": "Pillar",
-      "tag": "Pillar",
-      "animations": {
-        "Pillar": {}
-      },
-      "zIndex": 50,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 175,
-            "y": 75
-          },
-          {
-            "x": 183,
-            "y": 70
-          },
-          {
-            "x": 214,
-            "y": 70
-          },
-          {
-            "x": 223,
-            "y": 75
-          },
-          {
-            "x": 223,
-            "y": 129
-          },
-          {
-            "x": 213,
-            "y": 133
-          },
-          {
-            "x": 187,
-            "y": 133
-          },
-          {
-            "x": 175,
-            "y": 129
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 161,
-        "y": 130
-      },
-      "lookAtPoint": {
-        "x": 198,
-        "y": 132
-      },
-      "description": "pillar",
-      "baseline": 127,
-      "onVerb": {
-        "look": true
-      }
-    },
-    {
       "id": "Fan",
       "tag": "Fan",
       "animations": {
@@ -299,6 +239,262 @@
       "zIndex": 5,
       "visible": true,
       "alpha": 1
+    },
+    {
+      "id": "Bread",
+      "tag": "Bread",
+      "animations": {
+        "Bread": {}
+      },
+      "zIndex": 14,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 205,
+            "y": 104
+          },
+          {
+            "x": 212,
+            "y": 103
+          },
+          {
+            "x": 215,
+            "y": 106
+          },
+          {
+            "x": 211,
+            "y": 109
+          },
+          {
+            "x": 202,
+            "y": 108
+          },
+          {
+            "x": 201,
+            "y": 106
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 219,
+        "y": 130
+      },
+      "lookAtPoint": {
+        "x": 208,
+        "y": 108
+      },
+      "baseline": 109
+    },
+    {
+      "id": "Key",
+      "tag": "Key",
+      "animations": {
+        "Key": {}
+      },
+      "zIndex": 13,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 191,
+            "y": 101
+          },
+          {
+            "x": 198,
+            "y": 100
+          },
+          {
+            "x": 198,
+            "y": 104
+          },
+          {
+            "x": 191,
+            "y": 104
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 193,
+        "y": 114
+      },
+      "lookAtPoint": {
+        "x": 195,
+        "y": 104
+      },
+      "baseline": 103
+    },
+    {
+      "id": "Knife",
+      "tag": "Knife",
+      "animations": {
+        "Knife": {}
+      },
+      "zIndex": 12,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 181,
+            "y": 109
+          },
+          {
+            "x": 184,
+            "y": 104
+          },
+          {
+            "x": 197,
+            "y": 108
+          },
+          {
+            "x": 194,
+            "y": 113
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 172,
+        "y": 128
+      },
+      "lookAtPoint": {
+        "x": 189,
+        "y": 110
+      },
+      "baseline": 111
+    },
+    {
+      "id": "PeanutButter",
+      "tag": "PeanutButter",
+      "animations": {
+        "PeanutButter": {}
+      },
+      "zIndex": 11,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 230,
+            "y": 95
+          },
+          {
+            "x": 230,
+            "y": 105
+          },
+          {
+            "x": 221,
+            "y": 105
+          },
+          {
+            "x": 221,
+            "y": 94
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 241,
+        "y": 120
+      },
+      "lookAtPoint": {
+        "x": 225,
+        "y": 104
+      },
+      "baseline": 104
+    },
+    {
+      "id": "Table",
+      "tag": "Table",
+      "animations": {
+        "Table": {}
+      },
+      "zIndex": 10,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 168,
+            "y": 105
+          },
+          {
+            "x": 176,
+            "y": 101
+          },
+          {
+            "x": 188,
+            "y": 99
+          },
+          {
+            "x": 218,
+            "y": 99
+          },
+          {
+            "x": 229,
+            "y": 101
+          },
+          {
+            "x": 238,
+            "y": 105
+          },
+          {
+            "x": 237,
+            "y": 112
+          },
+          {
+            "x": 232,
+            "y": 115
+          },
+          {
+            "x": 215,
+            "y": 118
+          },
+          {
+            "x": 214,
+            "y": 126
+          },
+          {
+            "x": 210,
+            "y": 129
+          },
+          {
+            "x": 196,
+            "y": 129
+          },
+          {
+            "x": 192,
+            "y": 126
+          },
+          {
+            "x": 191,
+            "y": 118
+          },
+          {
+            "x": 181,
+            "y": 117
+          },
+          {
+            "x": 169,
+            "y": 113
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 162,
+        "y": 129
+      },
+      "lookAtPoint": {
+        "x": 203,
+        "y": 129
+      },
+      "baseline": 128
     }
   ],
   "characters": [
@@ -310,7 +506,7 @@
       "initialFacing": "L",
       "initialAnimation": "Idle",
       "visible": true,
-      "zIndex": 40
+      "zIndex": 9
     },
     {
       "instanceId": "henry-1",

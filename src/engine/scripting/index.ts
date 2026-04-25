@@ -50,4 +50,8 @@ export {
   guiControlMouseEnterEventId,
   guiControlMouseLeaveEventId,
 } from '../events/guiControlHoverEvents.js';
-export type { BenneScriptGameStateNamespace, BenneScriptInventoryNamespace } from './benneScriptGameStateApi.js';
+export type {
+  BenneScriptGameStateNamespace,
+  BenneScriptInventoryInteractionQueue,
+  BenneScriptInventoryNamespace,
+} from './benneScriptGameStateApi.js';
