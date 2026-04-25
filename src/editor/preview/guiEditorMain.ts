@@ -15,6 +15,7 @@ import {
   sharedInventoryAssetPaths,
   sharedInventoryTextureKey,
 } from '../../game/inventoryAseprite';
+import { prefixGuiAsepriteFrameTags } from '../../game/loadAsepriteAtlasData';
 import { normalizeAsepriteJsonForPhaser } from '../../game/normalizeAsepriteJson';
 import type { GameFontsManifest } from '../../types/fonts';
 import type { GameSettingsInitialGameState } from '../../types/game';
@@ -144,6 +145,7 @@ async function runLoadGui(msg: {
     try {
       const raw = await fetchJson(jsonUrl);
       const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+      prefixGuiAsepriteFrameTags(norm, msg.guiId);
       const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
       const atlasURL = URL.createObjectURL(blob);
       revokeObjectUrls.push(atlasURL);

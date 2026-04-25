@@ -5,6 +5,10 @@ import {
 } from '../../game/roomAseprite';
 import {
     hasBundledCursorSheet,
+    prefixCursorAsepriteFrameTags,
+    prefixGuiAsepriteFrameTags,
+    prefixPerItemInventoryAsepriteFrameTags,
+    prefixRoomAsepriteFrameTags,
     readAsepriteFrameTagNamesFromRawJson,
     warnIfAnimationConfigKeysMissingFromFrameTags,
 } from '../../game/loadAsepriteAtlasData';
@@ -122,6 +126,7 @@ export async function buildPreviewManifest(
         }
 
         const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+        prefixRoomAsepriteFrameTags(norm, room.id);
         const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
         const atlasURL = revokeLater(URL.createObjectURL(blob));
         roomPropsTextureKey = getRoomAsepriteTextureKey(room.id);
@@ -216,6 +221,7 @@ async function queueGameCursorLoad(
         const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
         const raw = await fetchJson(jsonUrl);
         const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+        prefixCursorAsepriteFrameTags(norm);
         const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
         const atlasURL = revokeLater(URL.createObjectURL(blob));
         loads.push({
@@ -263,6 +269,7 @@ async function queueGuiAndInventoryLoads(
             const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
             const raw = await fetchJson(jsonUrl);
             const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+            prefixGuiAsepriteFrameTags(norm, gui.id);
             const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
             const atlasURL = revokeLater(URL.createObjectURL(blob));
             loads.push({
@@ -325,6 +332,7 @@ async function queueGuiAndInventoryLoads(
                 const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
                 const raw = await fetchJson(jsonUrl);
                 const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+                prefixPerItemInventoryAsepriteFrameTags(norm, id);
                 const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
                 const atlasURL = revokeLater(URL.createObjectURL(blob));
                 loads.push({

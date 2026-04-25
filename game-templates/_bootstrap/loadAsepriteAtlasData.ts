@@ -1,3 +1,9 @@
+import {
+  cursorPhaserAnimationKey,
+  guiPhaserAnimationKey,
+  perItemInventoryPhaserAnimationKey,
+  roomPropPhaserAnimationKey,
+} from './asepritePhaserAnimationKeys';
 import { normalizeAsepriteJsonForPhaser } from './normalizeAsepriteJson';
 
 const characterJsonModules = import.meta.glob('./assets/images/characters/**/*.json', {
@@ -162,18 +168,65 @@ export function getNormalizedAsepriteAtlasData(characterId: string): Record<stri
   return normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('character', characterId)) as Record<string, unknown>;
 }
 
-/**
- * Loads bundled Aseprite JSON for `images/rooms/<roomId>/<roomId>.json` (same normalization as characters).
- */
-export function getNormalizedRoomAsepriteAtlasData(roomId: string): Record<string, unknown> {
-  return normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('room', roomId)) as Record<string, unknown>;
+/** In-place; used by runtime normalization and editor preview blobs. */
+export function prefixRoomAsepriteFrameTags(data: Record<string, unknown>, roomId: string): void {
+  const meta = data.meta;
+  if (!meta || typeof meta !== 'object') {
+    return;
+  }
+  const frameTags = (meta as { frameTags?: { name: string }[] }).frameTags;
+  if (!Array.isArray(frameTags)) {
+    return;
+  }
+  for (const tag of frameTags) {
+    if (tag && typeof tag.name === 'string' && tag.name.length > 0) {
+      tag.name = roomPropPhaserAnimationKey(roomId, tag.name);
+    }
+  }
 }
 
 /**
- * Loads bundled Aseprite JSON for `images/inventory/<id>/<id>.json` (same normalization as characters).
+ * Loads bundled Aseprite JSON for `images/rooms/<roomId>/<roomId>.json`, with `meta.frameTags[].name`
+ * prefixed as `room:<roomId>:<tag>` so clips do not collide with GUI / inventory / other rooms on the global
+ * {@link Phaser.Animations.AnimationManager}.
+ */
+export function getNormalizedRoomAsepriteAtlasData(roomId: string): Record<string, unknown> {
+  const normalized = normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('room', roomId)) as Record<
+    string,
+    unknown
+  >;
+  prefixRoomAsepriteFrameTags(normalized, roomId);
+  return normalized;
+}
+
+/** In-place; used by runtime normalization and editor preview blobs. */
+export function prefixPerItemInventoryAsepriteFrameTags(data: Record<string, unknown>, inventoryId: string): void {
+  const meta = data.meta;
+  if (!meta || typeof meta !== 'object') {
+    return;
+  }
+  const frameTags = (meta as { frameTags?: { name: string }[] }).frameTags;
+  if (!Array.isArray(frameTags)) {
+    return;
+  }
+  for (const tag of frameTags) {
+    if (tag && typeof tag.name === 'string' && tag.name.length > 0) {
+      tag.name = perItemInventoryPhaserAnimationKey(inventoryId, tag.name);
+    }
+  }
+}
+
+/**
+ * Loads bundled Aseprite JSON for `images/inventory/<id>/<id>.json`, with each `meta.frameTags[].name`
+ * prefixed as `invitem:<id>:<tag>` so per-item clips do not collide with room props or other sheets.
  */
 export function getNormalizedInventoryAsepriteAtlasData(inventoryId: string): Record<string, unknown> {
-  return normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('inventory', inventoryId)) as Record<string, unknown>;
+  const normalized = normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('inventory', inventoryId)) as Record<
+    string,
+    unknown
+  >;
+  prefixPerItemInventoryAsepriteFrameTags(normalized, inventoryId);
+  return normalized;
 }
 
 function prefixSharedInventoryFrameTagNames(data: Record<string, unknown>): void {
@@ -226,11 +279,34 @@ export function getSharedInventoryAsepriteFrameTagNames(): readonly string[] {
   return names.map((n) => (n.startsWith('inventory:') ? n : `inventory:${n}`));
 }
 
+/** In-place; used by runtime normalization and editor preview blobs. */
+export function prefixGuiAsepriteFrameTags(data: Record<string, unknown>, guiId: string): void {
+  const meta = data.meta;
+  if (!meta || typeof meta !== 'object') {
+    return;
+  }
+  const frameTags = (meta as { frameTags?: { name: string }[] }).frameTags;
+  if (!Array.isArray(frameTags)) {
+    return;
+  }
+  for (const tag of frameTags) {
+    if (tag && typeof tag.name === 'string' && tag.name.length > 0) {
+      tag.name = guiPhaserAnimationKey(guiId, tag.name);
+    }
+  }
+}
+
 /**
- * Loads bundled Aseprite JSON for `images/guis/<id>/<id>.json` (same normalization as characters).
+ * Loads bundled Aseprite JSON for `images/guis/<id>/<id>.json`, with each `meta.frameTags[].name` prefixed as
+ * `gui:<guiId>:<tag>` so GUI clips do not collide with room props or inventory on the global animation manager.
  */
 export function getNormalizedGuiAsepriteAtlasData(guiId: string): Record<string, unknown> {
-  return normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('gui', guiId)) as Record<string, unknown>;
+  const normalized = normalizeAsepriteJsonForPhaser(getBundledAsepriteRawJson('gui', guiId)) as Record<
+    string,
+    unknown
+  >;
+  prefixGuiAsepriteFrameTags(normalized, guiId);
+  return normalized;
 }
 
 function getBundledCursorAsepriteRawJson(): Record<string, unknown> {
@@ -246,8 +322,27 @@ export function hasBundledCursorSheet(): boolean {
   return CURSOR_JSON_KEY in cursorJsonModules;
 }
 
+/** In-place; used by runtime normalization and editor preview blobs. */
+export function prefixCursorAsepriteFrameTags(data: Record<string, unknown>): void {
+  const meta = data.meta;
+  if (!meta || typeof meta !== 'object') {
+    return;
+  }
+  const frameTags = (meta as { frameTags?: { name: string }[] }).frameTags;
+  if (!Array.isArray(frameTags)) {
+    return;
+  }
+  for (const tag of frameTags) {
+    if (tag && typeof tag.name === 'string' && tag.name.length > 0) {
+      tag.name = cursorPhaserAnimationKey(tag.name);
+    }
+  }
+}
+
 export function getNormalizedCursorAsepriteAtlasData(): Record<string, unknown> {
-  return normalizeAsepriteJsonForPhaser(getBundledCursorAsepriteRawJson()) as Record<string, unknown>;
+  const normalized = normalizeAsepriteJsonForPhaser(getBundledCursorAsepriteRawJson()) as Record<string, unknown>;
+  prefixCursorAsepriteFrameTags(normalized);
+  return normalized;
 }
 
 /** Frame-tag names on the bundled cursor sheet (`images/cursor/cursor.json`). */

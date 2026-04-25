@@ -8,7 +8,10 @@ import {
   usesPerItemInventoryAseprite,
   usesSharedInventoryAseprite,
 } from '../../game/inventoryAseprite';
-import { readAsepriteFrameTagNamesFromRawJson } from '../../game/loadAsepriteAtlasData';
+import {
+  prefixPerItemInventoryAsepriteFrameTags,
+  readAsepriteFrameTagNamesFromRawJson,
+} from '../../game/loadAsepriteAtlasData';
 import { normalizeAsepriteJsonForPhaser } from '../../game/normalizeAsepriteJson';
 import type { InventoryItemData } from '../../types/inventory';
 import {
@@ -117,6 +120,8 @@ async function runLoadInventory(msg: {
   const normalized = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
   if (usesSharedInventoryAseprite(inventory)) {
     ensureSharedInventoryTagPrefixes(normalized);
+  } else if (usesPerItemInventoryAseprite(inventory)) {
+    prefixPerItemInventoryAsepriteFrameTags(normalized, msg.inventoryId);
   }
   const atlasBlob = new Blob([JSON.stringify(normalized)], { type: 'application/json' });
   const atlasURL = URL.createObjectURL(atlasBlob);

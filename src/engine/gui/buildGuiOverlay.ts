@@ -6,6 +6,7 @@
 import * as Phaser from 'phaser';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
 import { isBenneGameCursorAsepriteEnabled } from '../../game/cursorAseprite';
+import { guiPhaserAnimationKey } from '../../game/asepritePhaserAnimationKeys';
 import { getGameSettings } from '../ConfigManager';
 import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/guiAseprite';
 import {
@@ -217,9 +218,10 @@ function reapplyGuiSheetTag(
   sprite: Phaser.GameObjects.Sprite,
   textureKey: string,
   tag: string,
+  guiId: string,
 ): boolean {
   stopSpriteAnimationIfPlaying(sprite);
-  return tryApplyGuiSheetTag(scene, sprite, textureKey, tag);
+  return tryApplyGuiSheetTag(scene, sprite, textureKey, tag, guiId);
 }
 
 function tryApplyGuiSheetTag(
@@ -227,23 +229,25 @@ function tryApplyGuiSheetTag(
   sprite: Phaser.GameObjects.Sprite,
   textureKey: string,
   tag: string,
+  guiId: string,
 ): boolean {
   const t = tag.trim();
   if (!t || !scene.textures.exists(textureKey)) {
     return false;
   }
   ensureAsepriteAnimationsFromAtlas(scene, textureKey);
-  if (scene.anims.exists(t)) {
-    sprite.play(t);
+  const animKey = guiPhaserAnimationKey(guiId, t);
+  if (scene.anims.exists(animKey)) {
+    sprite.play(animKey);
     return true;
   }
   try {
     const tex = scene.textures.get(textureKey);
     const names = tex.getFrameNames(false);
-    if (!names.includes(t)) {
+    if (!names.includes(animKey)) {
       return false;
     }
-    sprite.setFrame(t);
+    sprite.setFrame(animKey);
     return true;
   } catch {
     return false;
@@ -572,7 +576,7 @@ function buildGuiButton(
     sprite.setVisible(false);
     sprite.setScrollFactor(0, 0);
     sprite.setDepth(d);
-    if (!tryApplyGuiSheetTag(scene, sprite, guiTextureKey, defaultBgTag)) {
+    if (!tryApplyGuiSheetTag(scene, sprite, guiTextureKey, defaultBgTag, gui.id)) {
       sprite.destroy();
     } else {
       sprite.setVisible(overlayVisible);
@@ -622,7 +626,7 @@ function buildGuiButton(
     label?.setAlpha(0.45);
     const dTag = c.states?.disabled?.trim();
     if (bg && dTag) {
-      reapplyGuiSheetTag(scene, bg, guiTextureKey, dTag);
+      reapplyGuiSheetTag(scene, bg, guiTextureKey, dTag, gui.id);
     }
   }
 
@@ -640,14 +644,14 @@ function buildGuiButton(
       if (!bg) {
         return;
       }
-      reapplyGuiSheetTag(scene, bg, textureKey, defaultBgTag);
+      reapplyGuiSheetTag(scene, bg, textureKey, defaultBgTag, gui.id);
     };
 
     hitTarget.on('pointerover', () => {
       if (!enabled || !bg) {
         return;
       }
-      if (hoverTag && !reapplyGuiSheetTag(scene, bg, textureKey, hoverTag)) {
+      if (hoverTag && !reapplyGuiSheetTag(scene, bg, textureKey, hoverTag, gui.id)) {
         restoreDefault();
       }
     });
@@ -661,7 +665,7 @@ function buildGuiButton(
       if (!enabled || !bg) {
         return;
       }
-      if (pressedTag && !reapplyGuiSheetTag(scene, bg, textureKey, pressedTag)) {
+      if (pressedTag && !reapplyGuiSheetTag(scene, bg, textureKey, pressedTag, gui.id)) {
         restoreDefault();
       }
     });
@@ -827,7 +831,7 @@ function addGuiImageSprite(
   sprite.setScrollFactor(0, 0);
   sprite.setDepth(depth + (c.zIndex ?? 0));
   const vis = startVisible && c.visible !== false;
-  if (!tryApplyGuiSheetTag(scene, sprite, guiTextureKey, tag)) {
+  if (!tryApplyGuiSheetTag(scene, sprite, guiTextureKey, tag, gui.id)) {
     sprite.destroy();
     return null;
   }
@@ -893,6 +897,7 @@ function appendPreEmitForButtonId(map: Map<string, Array<() => void>>, buttonId:
 function addInventorySlotSheetSprite(
   scene: Phaser.Scene,
   guiTextureKey: string,
+  guiId: string,
   tagRaw: string | undefined,
   anchorRaw: GuiSpriteAnchor | undefined,
   slotCx: number,
@@ -906,7 +911,7 @@ function addInventorySlotSheetSprite(
   const anchor = guiSpriteAnchorOrDefault(anchorRaw);
   const sprite = scene.add.sprite(0, 0, guiTextureKey);
   sprite.setVisible(false);
-  if (!tryApplyGuiSheetTag(scene, sprite, guiTextureKey, tag)) {
+  if (!tryApplyGuiSheetTag(scene, sprite, guiTextureKey, tag, guiId)) {
     sprite.destroy();
     return;
   }
@@ -981,7 +986,7 @@ function fillInventoryPanelContent(
     const backdrop = scene.add.sprite(0, 0, guiTextureKey);
     backdrop.setVisible(false);
     backdrop.setScrollFactor(0, 0);
-    if (!tryApplyGuiSheetTag(scene, backdrop, guiTextureKey, bgTag)) {
+    if (!tryApplyGuiSheetTag(scene, backdrop, guiTextureKey, bgTag, gui.id)) {
       backdrop.destroy();
     } else {
       backdrop.setVisible(true);
@@ -1017,6 +1022,7 @@ function fillInventoryPanelContent(
         addInventorySlotSheetSprite(
           scene,
           guiTextureKey,
+          gui.id,
           c.slotBackgroundTag,
           c.slotBackgroundAnchor,
           slotCx,
@@ -1047,7 +1053,7 @@ function fillInventoryPanelContent(
           if (scene.textures.exists(guiKey)) {
             const iconSprite = scene.add.sprite(slotCx, slotCy, guiKey).setScale(c.itemScale ?? 1).setOrigin(0.5, 0.5);
             iconSprite.setVisible(false);
-            if (tryApplyGuiSheetTag(scene, iconSprite, guiKey, iconTag)) {
+            if (tryApplyGuiSheetTag(scene, iconSprite, guiKey, iconTag, gui.id)) {
               iconSprite.setVisible(true);
               slotContainer.add(iconSprite);
               iconAdded = true;
@@ -1068,11 +1074,7 @@ function fillInventoryPanelContent(
           const animKey = inventoryPhaserAnimationKeyForTag(def, iconTag);
           if (scene.textures.exists(texKey)) {
             ensureAsepriteAnimationsFromAtlas(scene, texKey);
-            const playKey = scene.anims.exists(animKey)
-              ? animKey
-              : usesSharedInventoryAseprite(def) && scene.anims.exists(iconTag)
-                ? iconTag
-                : null;
+            const playKey = scene.anims.exists(animKey) ? animKey : null;
             if (playKey) {
               const iconSprite = scene
                 .add.sprite(slotCx, slotCy, texKey)
@@ -1100,6 +1102,7 @@ function fillInventoryPanelContent(
         addInventorySlotSheetSprite(
           scene,
           guiTextureKey,
+          gui.id,
           c.highlightTag,
           c.highlightAnchor,
           slotCx,

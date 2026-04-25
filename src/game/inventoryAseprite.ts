@@ -1,4 +1,5 @@
 import type { InventoryItemData } from '../types/inventory.js';
+import { perItemInventoryPhaserAnimationKey } from './asepritePhaserAnimationKeys.js';
 
 /** Phaser texture key for the shared `images/inventory/inventory.{png,json}` sheet. */
 export const sharedInventoryTextureKey = 'aseprite:inventory:shared';
@@ -26,13 +27,21 @@ export function sharedInventoryAssetPaths(): { png: string; json: string } {
 }
 
 /**
- * Phaser animation key for a frame tag on the item's sheet (`inventory:<tag>` when using the shared atlas).
+ * Phaser animation key for a frame tag on the item's sheet (`inventory:<tag>` when using the shared atlas,
+ * `invitem:<id>:<tag>` when using a per-item sheet — see {@link getNormalizedInventoryAsepriteAtlasData}).
  */
 export function inventoryPhaserAnimationKeyForTag(data: InventoryItemData, tagName: string): string {
+  const t = tagName.trim();
   if (usesSharedInventoryAseprite(data)) {
-    return `inventory:${tagName}`;
+    if (t.startsWith('inventory:')) {
+      return t;
+    }
+    return `inventory:${t}`;
   }
-  return tagName;
+  if (usesPerItemInventoryAseprite(data)) {
+    return perItemInventoryPhaserAnimationKey(data.id, t);
+  }
+  return t;
 }
 
 /** Default clip for UI/cursor: `defaultAnimation`, else `id`. */
