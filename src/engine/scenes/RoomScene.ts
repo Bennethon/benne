@@ -267,6 +267,8 @@ export class RoomScene extends Phaser.Scene {
   private genericGuiOverlays: GuiOverlayHandle[] = [];
 
   private readonly dialogOverlayScreenScratch = new Phaser.Math.Vector2();
+  /** Scratch for {@link refreshCustomCursor} when the editor UI camera owns the pointer sprite. */
+  private readonly customCursorWorldScratch = new Phaser.Math.Vector2();
 
   /**
    * When non-zero, a Bennescript `say` / `say.now` line timer is active — ignore room background walks
@@ -2527,7 +2529,18 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
     const settings = getGameSettings();
-    applyGameCursorSpriteHotspot(sprite, pointer, settings.cursor!);
+    // Editor UI cam: origin (0,0); scrollFactor-0 overlays use world ≈ (screen − viewport) / zoom + scroll.
+    // getWorldPoint inverts matrixCombined and can disagree with that mapping vs main’s origin math.
+    if (this.editorUiCamera) {
+      const cam = this.editorUiCamera;
+      this.customCursorWorldScratch.set(
+        (pointer.x - cam.x) / cam.zoomX + cam.scrollX,
+        (pointer.y - cam.y) / cam.zoomY + cam.scrollY,
+      );
+      applyGameCursorSpriteHotspot(sprite, this.customCursorWorldScratch, settings.cursor!);
+    } else {
+      applyGameCursorSpriteHotspot(sprite, pointer, settings.cursor!);
+    }
 
     const idleKey = cursorPhaserAnimationKey(settings.cursor!.idleAnimation.trim());
     const activeKey = cursorPhaserAnimationKey(settings.cursor!.activeAnimation.trim());
