@@ -46,7 +46,10 @@ registerRoomScript(({ B }) => {
   });
 
   B.whenUse('Door', () => {
-    // TODO
+    B.walkToClicked();
+    B.player.faceClicked();
+    B.prop('Door').animation = 'Door-open';
+    B.room.changeTo('outside');
   });
 
   B.whenOpen('Door', () => {
@@ -60,5 +63,15 @@ registerRoomScript(({ B }) => {
     B.character('henry').playAnimation('WalkU');
     // B.character('henry').animation = 'WalkU';
     B.inventory('Lantern').animation = 'Lantern-glowing';
+  });
+
+  B.whenPull('Couch', () => {
+    B.player.moveTo('apartment-point-1');
+  });
+
+  B.whenClose('Couch', () => {
+    B.fadeOut(2, 0x00ff00);
+    B.wait(1);
+    B.fadeIn(2, 0x00ff00);
   });
 });

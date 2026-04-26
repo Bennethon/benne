@@ -47,6 +47,11 @@ export interface BenneScriptGameStateNamespace {
   setActiveInventory(id: string | null): void;
   getActiveInventoryItemId(): string | null;
   clearActiveInventory(): void;
+  /** See {@link import('../gameState/GameStateManager.js').GameStateManager.getCurrentRoom}. */
+  getCurrentRoom(): string;
+  getLastRoom(): string | null;
+  setCurrentRoom(roomId: string): void;
+  setLastRoom(roomId: string | null): void;
 }
 
 /**
@@ -85,6 +90,10 @@ export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneS
     setActiveInventory: (id) => m.setActiveInventoryItem(id),
     getActiveInventoryItemId: () => m.getActiveInventoryItemId(),
     clearActiveInventory: () => m.clearActiveInventoryItem(),
+    getCurrentRoom: () => m.getCurrentRoom(),
+    getLastRoom: () => m.getLastRoom(),
+    setCurrentRoom: (roomId) => m.setCurrentRoom(roomId),
+    setLastRoom: (roomId) => m.setLastRoom(roomId),
   };
 }
 

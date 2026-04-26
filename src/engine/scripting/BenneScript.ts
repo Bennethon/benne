@@ -38,6 +38,8 @@ import {
   type BenneScriptGameStateNamespace,
   type BenneScriptInventoryNamespace,
 } from './benneScriptGameStateApi.js';
+import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
+import type { RoomTransitionContext } from '../../types/roomTransition.js';
 
 export type {
   AnyInventoryUsedOnPayload,
@@ -45,6 +47,7 @@ export type {
   BenneScriptInventoryItemFacade,
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
+  BenneScriptRoomFacade,
   BenneScriptSharedSelectionApi,
   InventoryWhenGiveHandler,
   InventoryWhenGiveRegistrar,
@@ -72,9 +75,11 @@ export { withNow } from './BenneScriptCore.js';
  * | **`whenLookAt`**, **`whenUse`**, **`whenTalkTo`**, **`whenPickUp`**, **`whenPush`**, **`whenPull`**, **`whenOpen`**, **`whenClose`**, **`whenVerb`** | One **`targetId`** per room: **prop** (`props[].id`) → **hotspot** (`hotspots[].id`) → **character** (`CharacterData.id` spawned here, including the player). Optional **`(p: any)`** payload — shape depends on which kind matched; see **`registerVerbForTarget`**. Character verb payloads may include **world** **`walkToPoint`** / **`talkPoint`** when authored in **`*.character.json`**. |
  * | **`whenGive`** | **`targetId`** is the receiving **prop** only (`props[].id`; inventory **`itemId`** is separate). |
  * | **`onProp`**, **`B.prop(id)`** | **`props[].id`** only (explicit prop wiring). |
- * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | **Unified target string** (first match): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** → **`points[].id`**, or **`{ x, y }`** in **room pixels**. **`walkTo`** queues; **`walkTo.now`** and **`face.now`**, **`playAnimation.now`**, **`B.wait.now`** can run without blocking the queue. **`say.now`** also skips the queue but still uses the same per-line room input lock as **`say`**. |
+ * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | Pathfind **Walk**; **Unified target string** (first match): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** → **`points[].id`**, or **`{ x, y }`** in **room pixels**. **`walkTo.now`** does not block the queue. |
+ * | **`moveTo` / `moveTo.now`** / **`moveToNow`** | Instantly place **feet** at the resolved point (clamped to walkable) and update **Idle** facing — not a walk. **`moveTo`** queues on the interaction tail; **`moveTo.now`** and **`moveToNow`** run immediately. |
  * | **`walkToClicked` / `walkToClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Inside a verb handler, walks the player to the **clicked** prop / hotspot / character (same resolution as **`walkTo`** for that id). No room target for pure inventory-row verbs (one-time dev warn). |
  * | **`faceClicked` / `faceClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Uses payload **`lookAtPoint`** for props/hotspots when present; for **characters**, faces that character’s **feet**; otherwise falls back to the walk stand point (see {@link RoomScene.facePlayerTowardClicked}). Same dev warnings as **`walkToClicked`** when there is no target or no room. |
+ * | **`B.fadeOut` / `B.fadeIn`**, **`.now`** | Full-screen fade over the room and all GUI overlays; optional duration (default **0.35** s) and **`0xRRGGBB` color** (default black). Queues on the interaction tail except **`.now`**. |
  * | **`playAnimation(tag)`** / **`playAnimation.now`** | One-shot Aseprite tag (not saved); then **directional idle** or **persisted** `animation` override. Same idea for **`B.prop(id).playAnimation`**, which restores that prop’s saved **base** `animation`. |
  * | **`animation` / `animation =`**, **`animationNow(...)`** | Setters queue on the **interaction tail** (order with **`walkTo`** / **`say`** / **`playAnimation`**); **`animationNow`** applies persist + sprite **immediately**. Props: persisted base tag. Characters / player: effective get; set / **`animationNow`** accept **`string \| null`** (`null` clears). **`stopAnimation()`** (characters / player) clears override + save, always immediate. |
  * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
@@ -481,15 +486,31 @@ export class BenneScript extends BenneScriptCore {
       console.log(`[Character ${definitionId}] ${line}`);
     };
 
+    const walkCharacterWithNow = withNow(
+      (target: Point2 | string) => {
+        B.chain(() => scene.walkCharacterTo(definitionId, target));
+      },
+      (target: Point2 | string) => {
+        void scene.walkCharacterTo(definitionId, target);
+      },
+    );
+    const moveToTeleport = withNow(
+      (target: Point2 | string) => {
+        B.chain(() => {
+          scene.moveCharacterToNow(definitionId, target);
+          return Promise.resolve();
+        });
+      },
+      (target: Point2 | string) => {
+        scene.moveCharacterToNow(definitionId, target);
+      },
+    );
     return {
-      walkTo: withNow(
-        (target: Point2 | string) => {
-          B.chain(() => scene.walkCharacterTo(definitionId, target));
-        },
-        (target: Point2 | string) => {
-          void scene.walkCharacterTo(definitionId, target);
-        },
-      ),
+      walkTo: walkCharacterWithNow,
+      moveTo: moveToTeleport,
+      moveToNow: (target: Point2 | string) => {
+        moveToTeleport.now(target);
+      },
       get animation() {
         return scene.getCharacterScriptEffectiveAnimationTag(definitionId);
       },
@@ -532,6 +553,45 @@ export class BenneScript extends BenneScriptCore {
 
   get player(): BenneScriptPlayerFacade {
     return this.makePlayerFacadeFromScene(() => this.roomScene);
+  }
+
+  whenLeaveRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenLeaveRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.registerRoomLeaveRoom(this.roomId, handler);
+  }
+
+  whenEnterRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenEnterRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.registerRoomEnterRoom(this.roomId, handler);
+  }
+
+  whenEnterRoomAfterFade(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenEnterRoomAfterFade: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.registerRoomEnterRoomAfterFade(this.roomId, handler);
   }
 
   cutscene(callback: () => void): void {

@@ -6,6 +6,14 @@ import type { BenneScriptCore, BenneScriptSayDialogueHybrid, BlockingWithNow } f
 
 export type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 
+/** `B.room` — `changeTo` / `changeToNow` and save-game room context from {@link import('../gameState/GameStateManager.js').GameStateManager}. */
+export interface BenneScriptRoomFacade {
+  readonly current: string;
+  readonly last: string | null;
+  changeTo: BlockingWithNow<[string]>;
+  changeToNow(roomId: string): void;
+}
+
 /**
  * Active verb + active inventory item helpers present on every {@link BenneScriptCore} subclass (`B` in any script).
  */
@@ -17,7 +25,11 @@ export type BenneScriptSharedSelectionApi = Pick<
   | 'setActiveInventory'
   | 'getActiveInventoryItemId'
   | 'clearActiveInventory'
->;
+  | 'room'
+> & {
+  readonly fadeOut: BenneScriptCore['fadeOut'];
+  readonly fadeIn: BenneScriptCore['fadeIn'];
+};
 
 export type InventoryWhenUseHandler =
   | (() => void)
@@ -78,6 +90,13 @@ export interface BenneScriptPropFacade {
 /** Movement + animation + facing for the player. */
 export interface BenneScriptPlayerFacade {
   walkTo: BlockingWithNow<[Point2 | string]>;
+  /**
+   * Teleport feet to a resolved point (clamped to walkable); updates **Idle** facing. Queued on the
+   * interaction tail — use {@link walkTo} for pathfind walking.
+   */
+  moveTo: BlockingWithNow<[Point2 | string]>;
+  /** Same as `moveTo.now` — immediate teleport, skips the queue. */
+  moveToNow: (target: Point2 | string) => void;
   /** Same as {@link import('./BenneScriptCore.js').BenneScriptCore.walkToClicked} on the owning script. */
   walkToClicked: BlockingWithNow<[]>;
   /** Same as {@link import('./BenneScriptCore.js').BenneScriptCore.faceClicked} on the owning script. */
@@ -99,6 +118,9 @@ export interface BenneScriptPlayerFacade {
 /** Movement + animation + facing for an NPC. */
 export interface BenneScriptCharacterFacade {
   walkTo: BlockingWithNow<[Point2 | string]>;
+  /** Teleport (see {@link BenneScriptPlayerFacade.moveTo}). */
+  moveTo: BlockingWithNow<[Point2 | string]>;
+  moveToNow: (target: Point2 | string) => void;
   get animation(): string;
   /** Queues override + save on the interaction tail; `null` clears. */
   set animation(tag: string | null);

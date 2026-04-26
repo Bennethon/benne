@@ -25,6 +25,10 @@ export function getGuiBenneScript(guiId: string): GuiBenneScript | undefined {
   return guiBenneScriptById.get(guiId);
 }
 
+export function getAllGuiBenneScriptInstances(): ReadonlyMap<string, GuiBenneScript> {
+  return guiBenneScriptById;
+}
+
 /** Call at the top level of each `*.gui.ts` to register GUI-scoped Bennescript (or `raw`) handlers. */
 export function registerGuiScript(
   guiId: string,

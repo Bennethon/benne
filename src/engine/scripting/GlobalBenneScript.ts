@@ -20,6 +20,8 @@ import {
   type BenneScriptGameStateNamespace,
   type BenneScriptInventoryNamespace,
 } from './benneScriptGameStateApi.js';
+import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
+import type { RoomTransitionContext } from '../../types/roomTransition.js';
 
 /**
  * Bennescript facade for `globalScript.ts`: global verb fallback chain and `raw` bus access.
@@ -107,5 +109,44 @@ export class GlobalBenneScript extends BenneScriptCore {
         (handler as (x: AnyInventoryUsedOnPayload) => void)(p);
       }
     });
+  }
+
+  whenLeaveAnyRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenLeaveAnyRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.whenLeaveAnyRoom(handler);
+  }
+
+  whenEnterAnyRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenEnterAnyRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.whenEnterAnyRoom(handler);
+  }
+
+  whenEnterAnyRoomAfterFade(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenEnterAnyRoomAfterFade: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.whenEnterAnyRoomAfterFade(handler);
   }
 }

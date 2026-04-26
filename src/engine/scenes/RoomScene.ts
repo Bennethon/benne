@@ -66,7 +66,7 @@ import {
   placeSpriteByFeet,
   resolveCharacterFeetLocal,
 } from '../characterFeet';
-import { pointInPolygon } from '../walkable';
+import { clampWalkDestinationTowardClick, pointInPolygon } from '../walkable';
 import { findWalkPath } from '../pathfinding';
 import { dispatchVerbInteraction } from '../verbs/dispatchVerb';
 import {
@@ -98,7 +98,15 @@ import {
   GUI_TEXT_OVERLAY_DEPTH,
   type GuiOverlayHandle,
 } from '../gui/buildGuiOverlay';
+import {
+  BENNE_SCREEN_FADE_DEFAULT_COLOR,
+  BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
+  BENNE_SCREEN_FADE_OVERLAY_DEPTH,
+} from './roomScreenFadeConstants';
 import { getGuiBenneScript } from '../scripting/registerGuiScript.js';
+import type { BenneScriptCore } from '../scripting/BenneScriptCore.js';
+import { tryGetRoomTransitionOrchestrator } from './roomTransitionGlobals.js';
+import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
 import { getAllGuiData } from '../../game/loadGuiData';
 import {
   applyRoomStackDepths,
@@ -205,6 +213,9 @@ export class RoomScene extends Phaser.Scene {
   /** Fired once when a walk tween completes successfully (instant walks may call it without a tween). */
   private walkArriveCallback: (() => void) | null = null;
 
+  /** Bennescript cores active for this `RoomScene` (reset interaction tails before leave / transition). */
+  private benneCoresForTransitionReset: BenneScriptCore[] = [];
+
   /** Props that need per-frame position updates for parallax scrolling. */
   private parallaxProps: Array<{
     sprite: Phaser.GameObjects.Sprite;
@@ -239,6 +250,12 @@ export class RoomScene extends Phaser.Scene {
 
   /** String ids that already triggered `walkTo` resolution warnings (warn once per id per room load). */
   private unresolvedWalkTargetIdsWarned = new Set<string>();
+
+  /**
+   * Full-screen fade (above all GUI overlays, below the custom pointer). Tweened by
+   * {@link queueScreenFadeToAlpha} (`B.fadeOut` / `B.fadeIn`). Null only before `create` or after shutdown.
+   */
+  private screenFadeRect: Phaser.GameObjects.Rectangle | null = null;
 
   /** Screen-fixed dialogue text from `guis/dialog-text/dialog-text.gui.json`. */
   private dialogTextOverlay: GuiOverlayHandle | null = null;
@@ -310,6 +327,7 @@ export class RoomScene extends Phaser.Scene {
     this.npcWalkTweens.clear();
     this.unresolvedWalkTargetIdsWarned.clear();
     this.missingDialogTextOverlaySayWarned = false;
+    this.benneCoresForTransitionReset.length = 0;
 
     attachPostProcessingPlaceholder(this.cameras.main);
 
@@ -393,6 +411,13 @@ export class RoomScene extends Phaser.Scene {
       }
     }
 
+    this.createScreenFadeOverlay();
+    const startKind: BenneRoomStartKind =
+      (this.game.registry.get(BENNE_ROOM_START_KIND_KEY) as BenneRoomStartKind | undefined) ?? 'boot';
+    if (startKind === 'transition') {
+      this.screenFadeRect?.setAlpha(1);
+    }
+
     this.setupCustomGameCursor();
     this.input.on('pointermove', this.onRoomPointerMove);
     gameEvents.on(GAME_STATE_INVENTORY_CHANGED_EVENT, this.refreshAllVerbLineOverlays);
@@ -400,6 +425,10 @@ export class RoomScene extends Phaser.Scene {
     // ─────────────────────────────────────────────────────────────
     // Bennescript: after props, characters, player, and camera exist
     // ─────────────────────────────────────────────────────────────
+    tryGetRoomTransitionOrchestrator()
+      ?.getHookRegistry()
+      .clearPerRoomScriptHooksForRoomId(data.room.id);
+
     const roomScripts = (window as unknown as { __benneRoomScripts?: Array<(ctx: RoomScriptContext) => void> })
       .__benneRoomScripts;
     const characterScripts = (
@@ -422,6 +451,7 @@ export class RoomScene extends Phaser.Scene {
     const benneDisposers: Array<() => void> = [];
     if (roomScripts && roomScripts.length > 0) {
       const ctx = createRoomScriptContext(gameEvents, data.room.id, this);
+      this.registerBenneScriptCoreForReset(ctx.B);
       benneDisposers.push(() => ctx.B.dispose());
       for (const registerFn of roomScripts) {
         try {
@@ -439,6 +469,7 @@ export class RoomScene extends Phaser.Scene {
           continue;
         }
         const ctx = createCharacterScriptContext(gameEvents, characterId, data.room.id, this);
+        this.registerBenneScriptCoreForReset(ctx.B);
         benneDisposers.push(() => ctx.B.dispose());
         try {
           registerFn(ctx);
@@ -454,6 +485,7 @@ export class RoomScene extends Phaser.Scene {
     if (inventoryScripts && inventoryScripts.length > 0) {
       for (const { itemId, registerFn } of inventoryScripts) {
         const ctx = createInventoryScriptContext(gameEvents, itemId, data.room.id, this);
+        this.registerBenneScriptCoreForReset(ctx.B);
         benneDisposers.push(() => ctx.B.dispose());
         try {
           registerFn(ctx);
@@ -470,6 +502,19 @@ export class RoomScene extends Phaser.Scene {
 
     this.scale.on('resize', this.onScaleResize, this);
     this.input.on('pointerdown', this.handleRoomPointerDown);
+
+    this.game.registry.remove(BENNE_ROOM_START_KIND_KEY);
+    const orch = tryGetRoomTransitionOrchestrator();
+    if (orch) {
+      void orch.onRoomSceneCreateComplete(this, startKind);
+    } else {
+      const mgr = resolveGameStateManager(this.game);
+      const cur = mgr.getCurrentRoom();
+      if (cur == null || cur.length === 0) {
+        mgr.setCurrentRoom(this.roomData.id);
+      }
+    }
+
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       benneDispose?.();
       for (const h of this.genericGuiOverlays) {
@@ -485,6 +530,11 @@ export class RoomScene extends Phaser.Scene {
       this.input.off('pointermove', this.onRoomPointerMove);
       gameEvents.off(GAME_STATE_INVENTORY_CHANGED_EVENT, this.refreshAllVerbLineOverlays);
       this.teardownCustomGameCursor();
+      if (this.screenFadeRect) {
+        this.tweens.killTweensOf(this.screenFadeRect);
+        this.screenFadeRect.destroy();
+        this.screenFadeRect = null;
+      }
       this.editorUiChildListenerOff?.();
       this.editorUiChildListenerOff = null;
       this.editorUiGuiObjects.clear();
@@ -495,6 +545,81 @@ export class RoomScene extends Phaser.Scene {
       }
       this.npcWalkTweens.clear();
       this.debugPathGraphics = null;
+      this.benneCoresForTransitionReset.length = 0;
+    });
+  }
+
+  getCurrentRoomId(): string {
+    return this.roomData.id;
+  }
+
+  registerBenneScriptCoreForReset(core: BenneScriptCore): void {
+    this.benneCoresForTransitionReset.push(core);
+  }
+
+  getBenneScriptCoresForTransitionReset(): readonly BenneScriptCore[] {
+    return this.benneCoresForTransitionReset;
+  }
+
+  /**
+   * Clears dialog, time-based script delays, and walk state before a room change (engine).
+   */
+  clearStateForRoomTransition(): void {
+    this.interruptPlayerWalk();
+    this.setScriptedDialogClickToSkip(null);
+    this.setDialogTextOverlay({ visible: false });
+    this.scriptedDialogInputSuppressionDepth = 0;
+    this.time.removeAllEvents();
+  }
+
+  private createScreenFadeOverlay(): void {
+    const w = getInternalWidth();
+    const h = getInternalHeight();
+    const rect = this.add
+      .rectangle(0, 0, w, h, BENNE_SCREEN_FADE_DEFAULT_COLOR, 1)
+      .setOrigin(0, 0)
+      .setScrollFactor(0, 0)
+      .setDepth(BENNE_SCREEN_FADE_OVERLAY_DEPTH)
+      .setAlpha(0);
+    this.screenFadeRect = rect;
+  }
+
+  /**
+   * Full-screen fade layer: same object tweened by {@link queueScreenFadeToAlpha} and Bennescript
+   * `B.fadeOut` / `B.fadeIn` — for a future room-transition orchestrator.
+   */
+  get screenFadeLayer(): Phaser.GameObjects.Rectangle | null {
+    return this.screenFadeRect;
+  }
+
+  /**
+   * @param toAlpha 0 = transparent, 1 = fully opaque. Kills any running fade tweens on the overlay first.
+   * @param fillColor RGB (`0xRRGGBB`); the overlay fill is set before the tween; animation uses game object alpha.
+   */
+  queueScreenFadeToAlpha(
+    toAlpha: number,
+    durationSec: number = BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
+    fillColor: number = BENNE_SCREEN_FADE_DEFAULT_COLOR,
+  ): Promise<void> {
+    const rect = this.screenFadeRect;
+    if (!rect) {
+      return Promise.resolve();
+    }
+    this.tweens.killTweensOf(rect);
+    const durMs = Math.max(0, durationSec * 1000);
+    rect.setFillStyle(fillColor, 1);
+    const a = Phaser.Math.Clamp(toAlpha, 0, 1);
+
+    return new Promise((resolve) => {
+      this.tweens.add({
+        targets: rect,
+        alpha: a,
+        duration: durMs,
+        ease: 'Linear',
+        onComplete: () => {
+          resolve();
+        },
+      });
     });
   }
 
@@ -895,8 +1020,33 @@ export class RoomScene extends Phaser.Scene {
       return Promise.resolve();
     }
     const feet = getCharacterWorldFeet(sprite);
-    const dest = this.resolveWalkTarget(target, feet);
+    const dest = this.resolveMovementTarget(target, feet);
     return this.walkPlayerToWorldPoint(dest.x, dest.y);
+  }
+
+  /**
+   * Instantly place the player’s **feet** at a resolved point (or named target), clamped to the
+   * walkable mesh; updates **Idle** facing toward the movement delta, or toward the target when
+   * the feet do not move.
+   */
+  movePlayerToNow(target: Point2 | string): void {
+    const sprite = this.player;
+    if (!sprite) {
+      return;
+    }
+    this.stopPlayerMoveTween(false);
+    const oldFeet = getCharacterWorldFeet(sprite);
+    const raw = this.resolveMovementTarget(target, oldFeet);
+    const polys = this.roomData.walkable.polygons;
+    const clamped = clampWalkDestinationTowardClick(oldFeet.x, oldFeet.y, raw.x, raw.y, polys);
+    const feetWorld = clamped ?? raw;
+    const data = sprite.getData('character') as CharacterData | undefined;
+    const feetLocal = data
+      ? resolveCharacterFeetLocal(data, sprite)
+      : { x: sprite.frame.width * 0.5, y: sprite.frame.height };
+    placeSpriteByFeet(sprite, feetLocal, feetWorld.x, feetWorld.y);
+    const newFeet = getCharacterWorldFeet(sprite);
+    this.applyScriptTeleportFacing(sprite, oldFeet, newFeet, target);
   }
 
   /**
@@ -919,12 +1069,23 @@ export class RoomScene extends Phaser.Scene {
     if (!sprite) {
       return;
     }
+    this.faceCharacterSpriteTowardMoveTarget(sprite, lookAtWorld, walkFallbackTarget);
+  }
+
+  /**
+   * Shared facing logic for the player, NPCs, and script teleport. See {@link facePlayerTowardClicked}.
+   */
+  private faceCharacterSpriteTowardMoveTarget(
+    sprite: DirectionalCharacterSprite,
+    lookAtWorld: Point2 | null,
+    walkFallbackTarget: Point2 | string | null,
+  ): void {
     const feet = getCharacterWorldFeet(sprite);
     let toward: Point2 | undefined;
     if (lookAtWorld) {
       toward = lookAtWorld;
     } else if (walkFallbackTarget != null) {
-      toward = this.resolveWalkTarget(walkFallbackTarget, feet);
+      toward = this.resolveMovementTarget(walkFallbackTarget, feet);
     }
     if (!toward) {
       return;
@@ -942,6 +1103,26 @@ export class RoomScene extends Phaser.Scene {
     playDirectionalAnimation(sprite, 'Idle', facing);
   }
 
+  private applyScriptTeleportFacing(
+    sprite: DirectionalCharacterSprite,
+    oldFeet: Point2,
+    newFeet: Point2,
+    target: Point2 | string,
+  ): void {
+    const dx = newFeet.x - oldFeet.x;
+    const dy = newFeet.y - oldFeet.y;
+    if (Math.hypot(dx, dy) >= 1e-2) {
+      const facing = facingFromWorldDelta(dx, dy);
+      if (!getCharacterAnimationOverrideTag(sprite)) {
+        playDirectionalAnimation(sprite, 'Idle', facing);
+      } else {
+        sprite.setData('facing', facing);
+      }
+      return;
+    }
+    this.faceCharacterSpriteTowardMoveTarget(sprite, null, target);
+  }
+
   /**
    * Walk a room character (by definition id) to an explicit point or a named target.
    */
@@ -951,8 +1132,36 @@ export class RoomScene extends Phaser.Scene {
       return Promise.resolve();
     }
     const feet = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
-    const dest = this.resolveWalkTarget(target, feet);
+    const dest = this.resolveMovementTarget(target, feet);
     return this.walkCharacterToWorldPoint(sprite, dest.x, dest.y);
+  }
+
+  /**
+   * Same as {@link movePlayerToNow} for a room NPC by character definition id.
+   */
+  moveCharacterToNow(definitionId: string, target: Point2 | string): void {
+    const sprite = this.characterSpritesByDefId.get(definitionId);
+    if (!sprite || !(sprite instanceof Phaser.GameObjects.Sprite)) {
+      return;
+    }
+    const prev = this.npcWalkTweens.get(sprite);
+    if (prev) {
+      prev.stop();
+      this.npcWalkTweens.delete(sprite);
+    }
+    const dSprite = sprite as DirectionalCharacterSprite;
+    const oldFeet = getCharacterWorldFeet(sprite);
+    const raw = this.resolveMovementTarget(target, oldFeet);
+    const polys = this.roomData.walkable.polygons;
+    const clamped = clampWalkDestinationTowardClick(oldFeet.x, oldFeet.y, raw.x, raw.y, polys);
+    const feetWorld = clamped ?? raw;
+    const data = sprite.getData('character') as CharacterData | undefined;
+    const feetLocal = data
+      ? resolveCharacterFeetLocal(data, sprite)
+      : { x: sprite.frame.width * 0.5, y: sprite.frame.height };
+    placeSpriteByFeet(sprite, feetLocal, feetWorld.x, feetWorld.y);
+    const newFeet = getCharacterWorldFeet(sprite);
+    this.applyScriptTeleportFacing(dSprite, oldFeet, newFeet, target);
   }
 
   walkCharacterToWorldPoint(
@@ -966,10 +1175,10 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Resolve a walk destination in room space. String ids: prop → hotspot → character → `room.points`,
+   * Resolve a walk / teleport target in room space. String ids: prop → hotspot → character → `room.points`,
    * first match wins; unknown id warns once and returns `walkerFeet`.
    */
-  private resolveWalkTarget(target: Point2 | string, walkerFeet: Point2): Point2 {
+  resolveMovementTarget(target: Point2 | string, walkerFeet: Point2): Point2 {
     if (typeof target !== 'string') {
       return { x: target.x, y: target.y };
     }
@@ -1200,6 +1409,9 @@ export class RoomScene extends Phaser.Scene {
       registerOverlay(h);
     }
     registerOverlay(this.dialogTextOverlay);
+    if (this.screenFadeRect) {
+      this.editorUiGuiObjects.add(this.screenFadeRect);
+    }
     if (this.customCursorSprite) {
       this.editorUiGuiObjects.add(this.customCursorSprite);
     }

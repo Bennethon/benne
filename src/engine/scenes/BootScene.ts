@@ -1,14 +1,11 @@
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../applyAudioFromSettings';
-import { getAsepriteAssetPaths, getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/characterAseprite';
 import {
   getAsepriteFrameTagNames,
   getCursorAsepriteFrameTagNames,
-  getNormalizedAsepriteAtlasData,
   getNormalizedCursorAsepriteAtlasData,
   getNormalizedGuiAsepriteAtlasData,
   getNormalizedInventoryAsepriteAtlasData,
-  getNormalizedRoomAsepriteAtlasData,
   getNormalizedSharedInventoryAsepriteAtlasData,
   hasBundledCursorSheet,
   hasBundledSharedInventorySheet,
@@ -23,9 +20,7 @@ import {
   usesSharedInventoryAseprite,
 } from '../../game/inventoryAseprite';
 import { getInventoryDefinition, getRegisteredInventoryDefinitionIds } from '../inventory/inventoryDefinitionRegistry.js';
-import { getRoomAsepriteAssetPaths, getRoomAsepriteTextureKey } from '../../game/roomAseprite';
 import { SCENE_BOOT, SCENE_ROOM } from '../../game/constants';
-import { loadCharacterData } from '../../game/loadCharacterData';
 import { loadStartRoomData } from '../../game/loadStartRoom';
 import {
   getAsepriteAssetPaths as getGuiAsepriteAssetPaths,
@@ -38,7 +33,11 @@ import { resolveGameAssetUrl } from '../../game/resolveGameAssetUrl';
 import { CURSOR_TEXTURE_KEY, getCursorAsepriteAssetPaths, isBenneGameCursorAsepriteEnabled } from '../../game/cursorAseprite';
 import { getGameSettings } from '../ConfigManager';
 import type { CharacterFacingLetter, CharacterData } from '../../types/character';
-import type { RoomCharacterInstance, RoomData, RoomPropInstance } from '../../types/room';
+import type { RoomData, RoomPropInstance } from '../../types/room';
+import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
+import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from './roomSceneBootstrap';
+import { BENNE_ROOM_START_KIND_KEY } from './roomStartKindConstants';
+import { tryGetRoomTransitionOrchestrator } from './roomTransitionGlobals';
 
 export type CharacterSpawnLoadKind = 'aseprite' | 'image';
 
@@ -83,56 +82,8 @@ export class BootScene extends Phaser.Scene {
     applyBootAudioSettings(this);
 
     const room = loadStartRoomData();
-    const backgroundTextureKey = room.background?.image ? `bg:${room.id}` : null;
-    if (room.background?.image && backgroundTextureKey) {
-      this.load.image(backgroundTextureKey, resolveGameAssetUrl(room.background.image));
-    }
-
-    const sheetTagNames = room.props?.length ? getAsepriteFrameTagNames('room', room.id) : [];
-    const sheetTagSet = new Set(sheetTagNames);
-
-    if (room.props?.length && sheetTagNames.length === 0) {
-      console.warn(
-        `[Benne] Room '${room.id}' lists props but '${room.id}.json' has no meta.frameTags — no room props will load.`,
-      );
-    }
-
-    const propsWithSheetTags =
-      room.props?.filter((p) => {
-        if (sheetTagSet.has(p.tag)) {
-          return true;
-        }
-        console.warn(
-          `[Benne] Room '${room.id}' prop '${p.id}' tag '${p.tag}' is not an Aseprite frame tag on this sheet (untagged cels are not props) — skipped.`,
-        );
-        return false;
-      }) ?? [];
-
-    for (const p of propsWithSheetTags) {
-      warnIfAnimationConfigKeysMissingFromFrameTags(
-        `Room '${room.id}' prop '${p.id}'`,
-        sheetTagNames,
-        p.animations as Record<string, unknown> | undefined,
-      );
-    }
-
-    const roomPropsTextureKey =
-      propsWithSheetTags.length > 0 ? getRoomAsepriteTextureKey(room.id) : null;
-    if (roomPropsTextureKey) {
-      const paths = getRoomAsepriteAssetPaths(room.id);
-      this.load.aseprite({
-        key: roomPropsTextureKey,
-        textureURL: resolveGameAssetUrl(paths.png),
-        atlasURL: getNormalizedRoomAsepriteAtlasData(room.id),
-      });
-    }
-
-    const spawns: RoomCharacterSpawn[] = [];
-    const loadedAsepriteCharacterIds = new Set<string>();
-
-    for (const inst of room.characters ?? []) {
-      this.queueCharacterLoads(inst, spawns, loadedAsepriteCharacterIds);
-    }
+    const startData = buildRoomSceneStartDataFromRoomData(room);
+    queueRoomSceneAssetLoads(this, startData);
 
     let queuedSharedInventory = false;
     const queuedPerItemInventoryIds = new Set<string>();
@@ -245,82 +196,16 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
-    const propSpawns: RoomPropSpawn[] =
-      propsWithSheetTags.length > 0 && roomPropsTextureKey
-        ? propsWithSheetTags.map((p) => ({
-            id: p.id,
-            textureKey: roomPropsTextureKey,
-            tag: p.tag,
-            x: p.x ?? 0,
-            y: p.y ?? 0,
-            data: p,
-          }))
-        : [];
-
     this.load.once(Phaser.Loader.Events.COMPLETE, () => {
-      this.scene.start(SCENE_ROOM, {
-        room,
-        backgroundTextureKey,
-        characters: spawns,
-        props: propSpawns,
-        roomPropsTextureKey,
-      } satisfies RoomSceneStartData);
+      const orch = tryGetRoomTransitionOrchestrator();
+      if (orch) {
+        orch.startInitialRoomFromBoot(startData);
+      } else {
+        resolveGameStateManager(this.game).setLastRoom(null);
+        this.game.registry.set(BENNE_ROOM_START_KIND_KEY, 'boot');
+        this.scene.start(SCENE_ROOM, startData);
+      }
     });
     this.load.start();
-  }
-
-  private queueCharacterLoads(
-    inst: RoomCharacterInstance,
-    spawns: RoomCharacterSpawn[],
-    loadedAsepriteCharacterIds: Set<string>,
-  ): void {
-    const data = loadCharacterData(inst.definition);
-
-    if (usesAsepriteDisplay(data)) {
-      const textureKey = getAsepriteTextureKey(data.id);
-      if (!loadedAsepriteCharacterIds.has(data.id)) {
-        const characterFrameTags = getAsepriteFrameTagNames('character', data.id);
-        warnIfAnimationConfigKeysMissingFromFrameTags(
-          `Character '${data.id}'`,
-          characterFrameTags,
-          data.animations as Record<string, unknown> | undefined,
-        );
-        const paths = getAsepriteAssetPaths(data.id);
-        this.load.aseprite({
-          key: textureKey,
-          textureURL: resolveGameAssetUrl(paths.png),
-          atlasURL: getNormalizedAsepriteAtlasData(data.id),
-        });
-        loadedAsepriteCharacterIds.add(data.id);
-      }
-      spawns.push({
-        instanceId: inst.instanceId,
-        x: inst.x,
-        y: inst.y,
-        data,
-        loadKind: 'aseprite',
-        textureKey,
-        initialFacing: inst.initialFacing,
-        initialAnimation: inst.initialAnimation,
-        visible: inst.visible,
-        zIndex: inst.zIndex,
-      });
-      return;
-    }
-
-    const textureKey = `char:${inst.instanceId}`;
-    this.load.image(textureKey, resolveGameAssetUrl(data.display.defaultImage!));
-    spawns.push({
-      instanceId: inst.instanceId,
-      x: inst.x,
-      y: inst.y,
-      data,
-      loadKind: 'image',
-      textureKey,
-      initialFacing: inst.initialFacing,
-      initialAnimation: inst.initialAnimation,
-      visible: inst.visible,
-      zIndex: inst.zIndex,
-    });
   }
 }
