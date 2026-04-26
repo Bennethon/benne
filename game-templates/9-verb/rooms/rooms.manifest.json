@@ -4,6 +4,10 @@
     {
       "id": "apartment",
       "definition": "apartment/apartment.room.json"
+    },
+    {
+      "id": "outside",
+      "definition": "outside/outside.room.json"
     }
   ]
 }
