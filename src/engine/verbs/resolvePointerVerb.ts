@@ -1,11 +1,30 @@
 import type * as Phaser from 'phaser';
 import type { VerbInputProfile } from '../../types/game';
-import { DEFAULT_VERB_FALLBACK, DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbConfig';
+import { getGameSettings } from '../ConfigManager';
+import {
+  DEFAULT_VERB_FALLBACK,
+  DEFAULT_VERB_TOKEN,
+  resolveEffectiveUseVerbId,
+  WALK_TO_VERB_ID,
+} from './verbConfig';
 
 /** Minimal target shape the resolver needs: optional authored `defaultVerb`. */
 export interface PointerVerbTarget {
   defaultVerb?: string;
 }
+
+/** Options for {@link resolvePointerVerbForTarget}. */
+export type ResolvePointerVerbForTargetOptions = {
+  /**
+   * When an inventory item is armed for use-on-target and the resolved primary slot is the built-in
+   * {@link WALK_TO_VERB_ID}, treat the click as the configured **use** verb instead of
+   * {@link PointerVerbResolution} `walkToTarget` (avoids walking to the stand point while also
+   * running inventory-on-target). Inventory **panel** rows pass `false` — they use
+   * {@link resolvePointerVerbForInventoryItem} to map `walkTo` to the row’s `defaultVerb` instead.
+   * @default true
+   */
+  coerceWalkToUseWhenArmed?: boolean;
+};
 
 /**
  * Outcome of resolving a pointer click over a clickable target.
@@ -40,6 +59,10 @@ export type PointerVerbResolution =
  * Empty-space clicks (no target) are **not** routed through this function — the scene's empty-space
  * handler walks on left-click and {@link clearActiveVerbOnEmptyRightClick} handles the right-click
  * clear. That keeps the resolver focused on target-click semantics.
+ *
+ * When **`activeInventoryItemId`** is set, the primary slot **`walkTo`** is coerced to the effective
+ * **use** verb (see {@link ResolvePointerVerbForTargetOptions}) so use-on-target matches inventory-row
+ * semantics and does not start a stand-point walk in parallel.
  */
 export function resolvePointerVerbForTarget(
   pointer: Phaser.Input.Pointer,
@@ -47,6 +70,7 @@ export function resolvePointerVerbForTarget(
   target: PointerVerbTarget,
   activeVerbId: string | null,
   activeInventoryItemId: string | null = null,
+  options?: ResolvePointerVerbForTargetOptions,
 ): PointerVerbResolution {
   const left = pointer.leftButtonDown();
   const right = pointer.rightButtonDown();
@@ -65,7 +89,21 @@ export function resolvePointerVerbForTarget(
     return { kind: 'clearActive' };
   }
 
+  const coerceWalkToUseWhenArmed = options?.coerceWalkToUseWhenArmed !== false;
   const slotValue = left ? profile.primaryButtonVerb : profile.secondaryButtonVerb;
+  if (
+    coerceWalkToUseWhenArmed &&
+    activeInventoryItemId !== null &&
+    left &&
+    slotValue === WALK_TO_VERB_ID
+  ) {
+    return {
+      kind: 'verb',
+      verbId: resolveEffectiveUseVerbId(getGameSettings()),
+      consumeActive: false,
+    };
+  }
+
   if (slotValue === WALK_TO_VERB_ID) {
     return { kind: 'walkToTarget' };
   }
@@ -85,8 +123,9 @@ export function resolvePointerVerbForTarget(
  *
  * **Active verb is never consumed** on inventory-slot clicks (`consumeActive` is forced to `false`
  * for `verb` resolutions). Applying a verb to an inventory row arms use-on-target (active item +
- * often the same verb for the next world click); clearing the active verb here broke that flow.
- * World targets still use {@link resolvePointerVerbForTarget} and may consume the active verb.
+ * the verb bar selection stays so the next world click can match **`give`**, **`use`**, etc.).
+ * World targets use {@link resolvePointerVerbForTarget}; normal room verb dispatch may still clear
+ * the active verb when **`consumeActive`** is true, but inventory-on-target does not.
  */
 export function resolvePointerVerbForInventoryItem(
   pointer: Phaser.Input.Pointer,
@@ -101,6 +140,7 @@ export function resolvePointerVerbForInventoryItem(
     target,
     activeVerbId,
     activeInventoryItemId,
+    { coerceWalkToUseWhenArmed: false },
   );
   if (base.kind === 'verb' && base.consumeActive) {
     return { kind: 'verb', verbId: base.verbId, consumeActive: false };

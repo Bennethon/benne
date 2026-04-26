@@ -1168,9 +1168,6 @@ function fillInventoryPanelContent(
                 if (!handled && shouldDrop) {
                   manager.clearActiveInventoryItem();
                 }
-                if (shouldDrop) {
-                  manager.clearActiveVerb();
-                }
                 return;
               }
             }
@@ -1187,9 +1184,6 @@ function fillInventoryPanelContent(
             resolution.verbId,
             itemId,
           );
-          if (resolution.consumeActive) {
-            manager.clearActiveVerb();
-          }
         });
       }
 
