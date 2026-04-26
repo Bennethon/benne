@@ -41,41 +41,11 @@ registerGlobalScript(({ B }) => {
   // ─────────────────────────────────────────────────────────────
 
   B.whenGlobalVerb('look', () => {
-    B.say`
-Player: Nothing special about that.
-`;
+    B.player.say("Nothing special about that.");
   });
 
   B.whenGlobalVerb('use', () => {
     B.player.say("That doesn't work.");
-  });
-
-  B.whenGlobalVerb('pickUp', () => {
-    B.player.say("I can't take that.");
-  });
-
-  B.whenGlobalVerb('push', () => {
-    B.player.say("It won't move.");
-  });
-
-  B.whenGlobalVerb('pull', () => {
-    B.player.say("It won't move.");
-  });
-
-  B.whenGlobalVerb('open', () => {
-    B.player.say("I can't open that.");
-  });
-
-  B.whenGlobalVerb('close', () => {
-    B.player.say("That doesn't need closing.");
-  });
-
-  B.whenGlobalVerb('talkTo', () => {
-    B.player.say("I don't have anything to say to that.");
-  });
-
-  B.whenGlobalVerb('give', () => {
-    B.player.say("I can't give that.");
   });
 
   // ─────────────────────────────────────────────────────────────

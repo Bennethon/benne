@@ -12,31 +12,7 @@ import { registerRoomScript } from '@engine/scripting';
  * - `walkTo('…')`: unified target — prop id → hotspot id → character id → `points[].id`, or `{ x, y }` in room pixels.
  */
 registerRoomScript(({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-  B.whenInventoryUsedOn('Pillar', (payload) => {
-    if (payload.itemId === 'Broom') {
-      B.walkToClicked();
-      B.faceClicked();
-      B.player.say('I used the Broom on the Pillar.');
-    } else if (payload.itemId === 'Candy1') {
-      // TODO
-    } else if (payload.itemId === 'Chainsaw') {
-      // TODO
-    } else if (payload.itemId === 'Key') {
-      // TODO
-    } else if (payload.itemId === 'Ladder') {
-      // TODO
-    } else if (payload.itemId === 'Lantern') {
-      // TODO
-    } else if (payload.itemId === 'Newspaper') {
-      // TODO
-    } else if (payload.itemId === 'SheetMusic') {
-      // TODO
-    } else if (payload.itemId === 'Vacuum') {
-      // TODO
-    }
-  });
+
   B.whenInventoryUsedOn('Couch', (payload) => {
     if (payload.itemId === 'Broom' && payload.verbId === 'use') {
       B.player.walkTo('Couch');
@@ -46,10 +22,6 @@ registerRoomScript(({ B }) => {
       B.player.face('U');
       B.player.say('Here, couch.');
     }
-  });
-
-  B.whenLookAt('Pillar', () => {
-    B.player.say('I like to keep this pillar here so I can walk around it.');
   });
 
   B.whenLookAt('henry', () => {
@@ -64,7 +36,42 @@ registerRoomScript(({ B }) => {
       Henry: Oh really? I am too!
       Player: This feels so good!
       `;
-    B.player.say('Thats cool.');
-    B.character('henry').say('Yes, it is.');
+    B.character('henry').say('Thats cool.');
+    B.player.say('Yes, it is.');
+  });
+
+  B.whenLookAt('Couch', () => {
+    B.faceClicked();
+    B.say`Hank: It's my poorly drawn couch.`;
+  });
+
+  B.whenUse('Door', () => {
+    B.walkToClicked();
+    B.player.faceClicked();
+    B.prop('Door').animation = 'Door-open';
+    B.room.changeTo('outside');
+  });
+
+  B.whenOpen('Door', () => {
+    B.player.walkToClicked();
+    B.player.faceClicked();
+    B.prop('Door').animation = 'Door-open';
+    // B.prop('Door').playAnimation('Door-open');
+  });
+
+  B.whenPush('henry', () => {
+    B.character('henry').playAnimation('WalkU');
+    // B.character('henry').animation = 'WalkU';
+    B.inventory('Lantern').animation = 'Lantern-glowing';
+  });
+
+  B.whenPull('Couch', () => {
+    B.player.moveTo('apartment-point-1');
+  });
+
+  B.whenClose('Couch', () => {
+    B.fadeOut(2, 0x00ff00);
+    B.wait(1);
+    B.fadeIn(2, 0x00ff00);
   });
 });

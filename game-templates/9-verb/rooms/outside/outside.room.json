@@ -1,0 +1,166 @@
+{
+  "id": "outside",
+  "name": "Outside",
+  "size": {
+    "width": 600,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 600,
+    "height": 198
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "walk-1",
+        "active": true,
+        "points": [
+          {
+            "x": 86,
+            "y": 140
+          },
+          {
+            "x": 578,
+            "y": 135
+          },
+          {
+            "x": 576,
+            "y": 76
+          },
+          {
+            "x": 469,
+            "y": 64
+          },
+          {
+            "x": 362,
+            "y": 74
+          },
+          {
+            "x": 202,
+            "y": 72
+          },
+          {
+            "x": 137,
+            "y": 77
+          },
+          {
+            "x": 137,
+            "y": 120
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [],
+  "points": [
+    {
+      "id": "enter-from-door",
+      "x": 105,
+      "y": 132
+    }
+  ],
+  "regions": [],
+  "props": [
+    {
+      "id": "BG",
+      "tag": "BG",
+      "animations": {
+        "BG": {}
+      },
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Sky",
+      "tag": "Sky",
+      "animations": {
+        "Sky": {}
+      },
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Trees",
+      "tag": "Trees",
+      "animations": {
+        "Trees": {}
+      },
+      "zIndex": 1,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "FountainOff",
+      "tag": "FountainOff",
+      "animations": {
+        "FountainOff": {}
+      },
+      "zIndex": 3,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "FountainOn",
+      "tag": "FountainOn",
+      "animations": {
+        "FountainOn": {
+          "loop": true
+        }
+      },
+      "zIndex": 4,
+      "visible": false,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "LeverPulled",
+      "tag": "LeverPulled",
+      "animations": {
+        "LeverPulled": {}
+      },
+      "zIndex": 5,
+      "visible": false,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "Rock",
+      "tag": "Rock",
+      "animations": {
+        "Rock": {}
+      },
+      "zIndex": 6,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "RockMoved",
+      "tag": "RockMoved",
+      "animations": {
+        "RockMoved": {}
+      },
+      "zIndex": 7,
+      "visible": false,
+      "alpha": 1,
+      "clickable": true
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 300,
+      "y": 99,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 30
+    }
+  ]
+}
