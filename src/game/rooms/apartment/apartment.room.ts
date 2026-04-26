@@ -74,4 +74,11 @@ registerRoomScript(({ B }) => {
     B.wait(1);
     B.fadeIn(2, 0x00ff00);
   });
+  B.whenInventoryUsedOn('Bread', (payload) => {
+    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
+      B.say`Hank: I don't need to clean the bread.`
+    } else if (payload.itemId === 'Broom' && payload.verbId === 'give') {
+      B.say`Hank: I can't give something to bread.`
+    }
+  });
 });

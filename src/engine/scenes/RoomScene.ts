@@ -1449,7 +1449,11 @@ export class RoomScene extends Phaser.Scene {
     uiCam.setScroll(0, 0);
   }
 
-  private readonly handleRoomPointerDown = (pointer: Phaser.Input.Pointer): void => {
+  private readonly handleRoomPointerDown = (
+    pointer: Phaser.Input.Pointer,
+    /** Same list Phaser passes after {@link Phaser.Input.InputPlugin#sortGameObjects} + `topOnly` (when emitted from POINTER_DOWN). */
+    phaserCurrentlyOver?: Phaser.GameObjects.GameObject[],
+  ): void => {
     if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
       return;
     }
@@ -1457,8 +1461,11 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
 
-    const hits = this.input.hitTestPointer(pointer);
-    if (hits.length > 0) {
+    const blockingHits =
+      phaserCurrentlyOver !== undefined
+        ? phaserCurrentlyOver
+        : this.sortRoomPointerHitStack(pointer);
+    if (blockingHits.length > 0) {
       return;
     }
 
@@ -2016,9 +2023,6 @@ export class RoomScene extends Phaser.Scene {
           if (!handled && shouldDrop) {
             manager.clearActiveInventoryItem();
           }
-          if (resolution.consumeActive && shouldDrop) {
-            manager.clearActiveVerb();
-          }
           return;
         }
       }
@@ -2115,9 +2119,6 @@ export class RoomScene extends Phaser.Scene {
           });
           if (!handled && shouldDrop) {
             manager.clearActiveInventoryItem();
-          }
-          if (resolution.consumeActive && shouldDrop) {
-            manager.clearActiveVerb();
           }
           return;
         }
@@ -2317,9 +2318,6 @@ export class RoomScene extends Phaser.Scene {
           if (!handled && shouldDrop) {
             manager.clearActiveInventoryItem();
           }
-          if (resolution.consumeActive && shouldDrop) {
-            manager.clearActiveVerb();
-          }
           return;
         }
       }
@@ -2455,7 +2453,7 @@ export class RoomScene extends Phaser.Scene {
     if (this.isScriptedDialogInputSuppressed()) {
       return null;
     }
-    const hits = this.input.hitTestPointer(pointer);
+    const hits = this.sortRoomPointerHitStack(pointer);
     for (const o of hits) {
       const go = o as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown };
       if (typeof go.getData !== 'function') {
@@ -2518,9 +2516,24 @@ export class RoomScene extends Phaser.Scene {
           return propId;
         }
       }
-      break;
+      continue;
     }
     return null;
+  }
+
+  /**
+   * Align with {@link Phaser.Input.InputPlugin#sortGameObjects}: {@link Phaser.Input.InputPlugin#hitTestPointer}
+   * returns overlaps in arbitrary order, while pointer dispatch uses render-list order so the top
+   * drawable receives {@link Phaser.GameObjects.GameObject#pointerdown} first when `topOnly` is set.
+   */
+  private sortRoomPointerHitStack(pointer: Phaser.Input.Pointer): Phaser.GameObjects.GameObject[] {
+    const hits = this.input.hitTestPointer(pointer);
+    if (hits.length < 2) {
+      return hits;
+    }
+    const sorted = [...hits];
+    this.input.sortGameObjects(sorted, pointer);
+    return sorted;
   }
 
   private refreshCustomCursor(pointer: Phaser.Input.Pointer): void {
@@ -2545,7 +2558,7 @@ export class RoomScene extends Phaser.Scene {
     const idleKey = cursorPhaserAnimationKey(settings.cursor!.idleAnimation.trim());
     const activeKey = cursorPhaserAnimationKey(settings.cursor!.activeAnimation.trim());
 
-    const overClickable = this.isCursorOverBenneClickable(this.input.hitTestPointer(pointer));
+    const overClickable = this.isCursorOverBenneClickable(this.sortRoomPointerHitStack(pointer));
     // Active inventory cursor clips take precedence regardless of hover target.
     const invClip = this.tryActiveInventoryCursorClip();
     const visualKey = invClip
