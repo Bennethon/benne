@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { Point2 } from '../../types/room.js';
-import { getStartingPlayerCharacterId } from '../../game/constants.js';
+import { getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants.js';
 import { computeDialogLineDurationMs, getDialogSettings, getGameSettings } from '../ConfigManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
@@ -20,6 +20,13 @@ import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerb
 import type { BenneScriptPlayerFacade } from './benneScriptFacades.js';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
 import { getCharacterWorldFeet } from '../characterFeet.js';
+import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
+import {
+  BENNE_SCREEN_FADE_DEFAULT_COLOR,
+  BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
+} from '../scenes/roomScreenFadeConstants.js';
+import type { BenneScriptRoomFacade } from './benneScriptFacades.js';
+import { bindRoomFacadeForBenneScriptCore } from './benneScriptRoomApi.js';
 
 /**
  * Callable that participates in the interaction queue; **`fn.now`** runs the same action immediately
@@ -240,6 +247,7 @@ export abstract class BenneScriptCore {
   private static warnedSayDialogueNoRoomScene = false;
   private static walkToClickedDevWarnKeys = new Set<string>();
   private static faceClickedDevWarnKeys = new Set<string>();
+  private static warnedScreenFadeNoRoom = false;
 
   protected readonly events: Phaser.Events.EventEmitter;
   private disposers: Array<() => void> = [];
@@ -275,6 +283,18 @@ export abstract class BenneScriptCore {
    * does not block the queue.
    */
   readonly faceClicked: BlockingWithNow<[]>;
+
+  /**
+   * Full-screen fade to opaque. Default duration **0.35** s, default color black (`0x000000`).
+   * Queues on the interaction tail; **`fadeOut.now`** does not.
+   */
+  readonly fadeOut: BlockingWithNow<[durationSeconds?: number, color?: number]>;
+
+  /** Full-screen fade to transparent. Same defaults and queuing as {@link fadeOut}. */
+  readonly fadeIn: BlockingWithNow<[durationSeconds?: number, color?: number]>;
+
+  /** Room id / transitions (`B.room.changeTo`, `current` / `last` from game state). */
+  readonly room: BenneScriptRoomFacade;
 
   /**
    * PowerQuest-style **`B.say`**…``: lines **`Speaker: text`** (blank lines and **`//`** line / trailing comments ignored). **`Player`** (any case) → starting player character. Queues each line on the interaction tail; **`B.say.now`**… does not wait behind prior queued steps (each line still uses the dialog overlay lock).
@@ -335,7 +355,29 @@ export abstract class BenneScriptCore {
       () => this.performFaceClicked(false),
     );
 
+    this.fadeOut = withNow(
+      (durationSeconds?: number, color?: number) =>
+        this.performScreenFade(1, true, durationSeconds, color),
+      (durationSeconds?: number, color?: number) =>
+        this.performScreenFade(1, false, durationSeconds, color),
+    );
+    this.fadeIn = withNow(
+      (durationSeconds?: number, color?: number) =>
+        this.performScreenFade(0, true, durationSeconds, color),
+      (durationSeconds?: number, color?: number) =>
+        this.performScreenFade(0, false, durationSeconds, color),
+    );
+
     this.say = this.createFreeScopeSayDialogue();
+
+    this.room = bindRoomFacadeForBenneScriptCore((f) => this.chain(f));
+  }
+
+  /**
+   * Engine hook: discards the interaction queue (room change, not normal script use).
+   */
+  resetInteractionTailForEngine(): void {
+    this.interactionTail = Promise.resolve();
   }
 
   private static warnWalkToClickedDevOnce(key: string, message: string): void {
@@ -366,6 +408,41 @@ export abstract class BenneScriptCore {
 
   private popVerbWalkContext(): void {
     this.verbClickContextStack.pop();
+  }
+
+  private resolveRoomSceneForScreenFade(): RoomScene | undefined {
+    const direct = this.getPlayerWalkRoomScene();
+    if (direct) {
+      return direct;
+    }
+    const game = tryGetActiveBenneGame();
+    if (!game) {
+      return undefined;
+    }
+    return game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
+  }
+
+  private performScreenFade(
+    toAlpha: number,
+    chain: boolean,
+    durationSeconds?: number,
+    color?: number,
+  ): void {
+    const scene = this.resolveRoomSceneForScreenFade();
+    if (!scene) {
+      if (import.meta.env.DEV && !BenneScriptCore.warnedScreenFadeNoRoom) {
+        BenneScriptCore.warnedScreenFadeNoRoom = true;
+        console.warn('[Benne] B.fadeOut / B.fadeIn: no active RoomScene — ignored.');
+      }
+      return;
+    }
+    const duration = durationSeconds ?? BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC;
+    const fillColor = color ?? BENNE_SCREEN_FADE_DEFAULT_COLOR;
+    if (chain) {
+      this.chain(() => scene.queueScreenFadeToAlpha(toAlpha, duration, fillColor));
+    } else {
+      void scene.queueScreenFadeToAlpha(toAlpha, duration, fillColor);
+    }
   }
 
   /**
@@ -998,25 +1075,51 @@ export abstract class BenneScriptCore {
       console.log(`[Player] ${line}`);
     };
 
+    const walkPlayerWithNow = withNow(
+      (target: Point2 | string) => {
+        const scene = getScene();
+        if (!scene) {
+          warnNoRoom();
+          return;
+        }
+        core.chain(() => scene.walkPlayerTo(target));
+      },
+      (target: Point2 | string) => {
+        const scene = getScene();
+        if (!scene) {
+          warnNoRoom();
+          return;
+        }
+        void scene.walkPlayerTo(target);
+      },
+    );
+    const moveToTeleport = withNow(
+      (target: Point2 | string) => {
+        const scene = getScene();
+        if (!scene) {
+          warnNoRoom();
+          return;
+        }
+        core.chain(() => {
+          scene.movePlayerToNow(target);
+          return Promise.resolve();
+        });
+      },
+      (target: Point2 | string) => {
+        const scene = getScene();
+        if (!scene) {
+          warnNoRoom();
+          return;
+        }
+        scene.movePlayerToNow(target);
+      },
+    );
     return {
-      walkTo: withNow(
-        (target: Point2 | string) => {
-          const scene = getScene();
-          if (!scene) {
-            warnNoRoom();
-            return;
-          }
-          core.chain(() => scene.walkPlayerTo(target));
-        },
-        (target: Point2 | string) => {
-          const scene = getScene();
-          if (!scene) {
-            warnNoRoom();
-            return;
-          }
-          void scene.walkPlayerTo(target);
-        },
-      ),
+      walkTo: walkPlayerWithNow,
+      moveTo: moveToTeleport,
+      moveToNow: (target: Point2 | string) => {
+        moveToTeleport.now(target);
+      },
       walkToClicked: withNow(
         () => core.performWalkToClicked(true),
         () => core.performWalkToClicked(false),

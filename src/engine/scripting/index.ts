@@ -6,6 +6,7 @@ export {
   type BenneScriptPlayerFacade,
   type BenneScriptPropFacade,
   type BenneScriptSharedSelectionApi,
+  type BenneScriptRoomFacade,
   type InventoryWhenGiveHandler,
   type InventoryWhenGiveRegistrar,
   type InventoryWhenUseHandler,
@@ -19,6 +20,9 @@ export {
 export type { GivePropInteractPayload } from './benneScriptPayloads.js';
 export * from './RoomScriptContext.js';
 export * from './types.js';
+export type { RoomTransitionContext } from '../../types/roomTransition.js';
+export { RoomTransitionOrchestrator } from '../scenes/RoomTransitionOrchestrator.js';
+export { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from '../scenes/roomStartKindConstants.js';
 export { registerRoomScript, getBenneRoomScriptRegistrations } from './registerRoomScript.js';
 export {
   registerCharacterScript,

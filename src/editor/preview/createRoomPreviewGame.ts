@@ -5,6 +5,7 @@ import { getBenneRendererConfigFields } from '../../engine/gameConfig';
 import { GameStateManager } from '../../engine/gameState/GameStateManager';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKey';
 import { RoomScene } from '../../engine/scenes/RoomScene';
+import { BENNE_ROOM_START_KIND_KEY } from '../../engine/scenes/roomStartKindConstants';
 import { SCENE_ROOM } from '../../game/constants';
 import type { PreviewManifest } from './buildPreviewManifest';
 import type { RoomPolygonPatch } from './polygonPatchTypes';
@@ -82,6 +83,7 @@ export function createRoomPreviewPhaserGame(
              */
             const gameState = new GameStateManager(gameEvents);
             this.game.registry.set(BENNE_GAME_STATE_REGISTRY_KEY, gameState);
+            this.game.registry.set(BENNE_ROOM_START_KIND_KEY, 'preview');
             this.scene.start(SCENE_ROOM, manifestRef.startData);
             this.scene.launch(BENNE_POLYGON_EDIT_SCENE);
             for (const u of manifestRef.revokeObjectUrls) {

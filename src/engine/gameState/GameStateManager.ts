@@ -7,20 +7,28 @@ import type {
   GameStateFlagChangedPayload,
   GameStateInventoryChangedPayload,
   GameStateReplacedPayload,
+  GameStateRoomContextChangedPayload,
   GameStateVariableChangedPayload,
   SerializableBenneGameState,
 } from '../../types/gameState.js';
+
+/** In-memory state always has normalized room context (unlike optional fields on snapshot JSON). */
+type PersistedGameStateSlice = SerializableBenneGameState & {
+  currentRoom: string;
+  lastRoom: string | null;
+};
 import {
   GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
   GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
   GAME_STATE_FLAG_CHANGED_EVENT,
   GAME_STATE_INVENTORY_CHANGED_EVENT,
   GAME_STATE_REPLACED_EVENT,
+  GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT,
   GAME_STATE_VARIABLE_CHANGED_EVENT,
 } from '../../types/gameState.js';
 
 export type GameStateInitialSlice = Partial<
-  Pick<SerializableBenneGameState, 'flags' | 'variables' | 'inventory'>
+  Pick<SerializableBenneGameState, 'flags' | 'variables' | 'inventory' | 'currentRoom' | 'lastRoom'>
 >;
 
 /** Accepts v1 map, legacy string[], or empty. */
@@ -68,13 +76,29 @@ function normalizeActiveInventoryItemId(raw: unknown): string | null {
   return null;
 }
 
-function cloneSnapshot(state: SerializableBenneGameState): SerializableBenneGameState {
+function cloneSnapshot(state: PersistedGameStateSlice): SerializableBenneGameState {
   return {
     version: 1,
     flags: { ...state.flags },
     variables: { ...state.variables },
     inventory: cloneInventory(state.inventory),
+    currentRoom: state.currentRoom,
+    lastRoom: state.lastRoom,
   };
+}
+
+function normalizeCurrentRoomFromSnapshot(raw: unknown): string {
+  return typeof raw === 'string' ? raw : '';
+}
+
+function normalizeLastRoomFromSnapshot(raw: unknown): string | null {
+  if (raw === null) {
+    return null;
+  }
+  if (typeof raw === 'string') {
+    return raw;
+  }
+  return null;
 }
 
 function formatVerbState(verbId: string | null): string {
@@ -99,7 +123,7 @@ function localStorageKey(slot: number): string {
  */
 export class GameStateManager {
   private readonly events: Phaser.Events.EventEmitter;
-  private state: SerializableBenneGameState;
+  private state: PersistedGameStateSlice;
   /**
    * Runtime-only "active verb" state. Not part of the snapshot — resets on `applySnapshot`
    * (so loading a save returns the player to the default pointer profile, not mid-verb).
@@ -117,6 +141,8 @@ export class GameStateManager {
       flags: initial?.flags != null ? { ...initial.flags } : {},
       variables: initial?.variables != null ? { ...initial.variables } : {},
       inventory: normalizeSerializedInventory(initial?.inventory),
+      currentRoom: initial?.currentRoom != null ? String(initial.currentRoom) : '',
+      lastRoom: initial?.lastRoom === undefined ? null : normalizeLastRoomFromSnapshot(initial.lastRoom),
     };
   }
 
@@ -135,12 +161,27 @@ export class GameStateManager {
       console.error(`[Benne] GameStateManager.applySnapshot: unsupported version ${snapshot.version}`);
       return;
     }
+    const previousCurrentRoom = this.state.currentRoom;
+    const previousLastRoom = this.state.lastRoom;
     this.state = {
       version: 1,
       flags: { ...snapshot.flags },
       variables: { ...snapshot.variables },
       inventory: normalizeSerializedInventory(snapshot.inventory),
+      currentRoom: normalizeCurrentRoomFromSnapshot(snapshot.currentRoom),
+      lastRoom: normalizeLastRoomFromSnapshot(snapshot.lastRoom),
     };
+    const nextCurrent = this.state.currentRoom;
+    const nextLast = this.state.lastRoom;
+    if (previousCurrentRoom !== nextCurrent || previousLastRoom !== nextLast) {
+      const roomPayload: GameStateRoomContextChangedPayload = {
+        currentRoom: nextCurrent,
+        lastRoom: nextLast,
+        previousCurrentRoom,
+        previousLastRoom,
+      };
+      this.events.emit(GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT, roomPayload);
+    }
     if (this.activeVerbId !== null) {
       const previousValue = this.activeVerbId;
       this.activeVerbId = null;
@@ -243,6 +284,48 @@ export class GameStateManager {
     delete this.state.variables[key];
     const payload: GameStateVariableChangedPayload = { key, previousValue, value: undefined };
     this.events.emit(GAME_STATE_VARIABLE_CHANGED_EVENT, payload);
+  }
+
+  getCurrentRoom(): string {
+    return this.state.currentRoom;
+  }
+
+  getLastRoom(): string | null {
+    return this.state.lastRoom;
+  }
+
+  setCurrentRoom(roomId: string): void {
+    const next = String(roomId);
+    if (this.state.currentRoom === next) {
+      return;
+    }
+    const previousCurrentRoom = this.state.currentRoom;
+    const previousLastRoom = this.state.lastRoom;
+    this.state.currentRoom = next;
+    const roomPayload: GameStateRoomContextChangedPayload = {
+      currentRoom: this.state.currentRoom,
+      lastRoom: this.state.lastRoom,
+      previousCurrentRoom,
+      previousLastRoom,
+    };
+    this.events.emit(GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT, roomPayload);
+  }
+
+  setLastRoom(roomId: string | null): void {
+    const next = roomId != null && roomId.length > 0 ? String(roomId) : null;
+    if (this.state.lastRoom === next) {
+      return;
+    }
+    const previousCurrentRoom = this.state.currentRoom;
+    const previousLastRoom = this.state.lastRoom;
+    this.state.lastRoom = next;
+    const roomPayload: GameStateRoomContextChangedPayload = {
+      currentRoom: this.state.currentRoom,
+      lastRoom: this.state.lastRoom,
+      previousCurrentRoom,
+      previousLastRoom,
+    };
+    this.events.emit(GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT, roomPayload);
   }
 
   private emitInventory(reason: 'add' | 'remove' | 'clear', itemId?: string): void {

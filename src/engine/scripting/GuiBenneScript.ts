@@ -8,8 +8,11 @@ import {
   guiControlMouseEnterEventId,
   guiControlMouseLeaveEventId,
 } from '../events/guiControlHoverEvents.js';
+import { SCENE_ROOM } from '../../game/constants.js';
+import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { BenneScriptCore } from './BenneScriptCore.js';
 import type { GuiRuntime } from './GuiRuntime.js';
+import type { RoomScene } from '../scenes/RoomScene.js';
 
 /**
  * Bennescript facade for `*.gui.ts`: GUI-scoped channels (button clicks, pointer hover per control), `raw`, and `wait`.
@@ -22,7 +25,14 @@ export class GuiBenneScript extends BenneScriptCore {
   private activeGuiRuntime: GuiRuntime | null = null;
 
   constructor(events: Phaser.Events.EventEmitter, guiId: string) {
-    super(events, () => null);
+    super(
+      events,
+      () => null,
+      () => {
+        const g = tryGetActiveBenneGame();
+        return (g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined) ?? undefined;
+      },
+    );
     this.guiId = guiId;
   }
 

@@ -12,6 +12,14 @@ export interface SerializableBenneGameState {
    * Runtime "use on target" selection (item id). Persisted in save snapshots; omitted or invalid in JSON is treated as null.
    */
   activeInventoryItemId?: string | null;
+  /**
+   * Id of the room the player is considered to be in (for saves and room-transition orchestration). Empty string when unknown / not yet set. Omitted in legacy snapshots (treated as `""` / `null` when loaded).
+   */
+  currentRoom?: string;
+  /**
+   * Previous room id when transitioning, or `null` when not applicable. Omitted in legacy saves.
+   */
+  lastRoom?: string | null;
 }
 
 export const GAME_STATE_FLAG_CHANGED_EVENT = 'gameState:flagChanged' as const;
@@ -21,6 +29,7 @@ export const GAME_STATE_REPLACED_EVENT = 'gameState:replaced' as const;
 export const GAME_STATE_ACTIVE_VERB_CHANGED_EVENT = 'gameState:activeVerbChanged' as const;
 export const GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT =
   'gameState:activeInventoryItemChanged' as const;
+export const GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT = 'gameState:roomContextChanged' as const;
 
 export interface GameStateFlagChangedPayload {
   key: string;
@@ -56,4 +65,12 @@ export interface GameStateActiveVerbChangedPayload {
 /** Emitted when the runtime active inventory item (use-on-target) changes. */
 export interface GameStateActiveInventoryItemChangedPayload {
   itemId: string | null;
+}
+
+/** Emitted when persisted room context (`currentRoom` / `lastRoom`) changes. */
+export interface GameStateRoomContextChangedPayload {
+  currentRoom: string;
+  lastRoom: string | null;
+  previousCurrentRoom: string;
+  previousLastRoom: string | null;
 }

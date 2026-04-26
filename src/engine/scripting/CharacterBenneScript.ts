@@ -188,15 +188,31 @@ export class CharacterBenneScript extends BenneScriptCore {
       console.log(`[Character ${definitionId}] ${line}`);
     };
 
+    const walkCharacterWithNow = withNow(
+      (target: Point2 | string) => {
+        B.chain(() => scene.walkCharacterTo(definitionId, target));
+      },
+      (target: Point2 | string) => {
+        void scene.walkCharacterTo(definitionId, target);
+      },
+    );
+    const moveToTeleport = withNow(
+      (target: Point2 | string) => {
+        B.chain(() => {
+          scene.moveCharacterToNow(definitionId, target);
+          return Promise.resolve();
+        });
+      },
+      (target: Point2 | string) => {
+        scene.moveCharacterToNow(definitionId, target);
+      },
+    );
     return {
-      walkTo: withNow(
-        (target: Point2 | string) => {
-          B.chain(() => scene.walkCharacterTo(definitionId, target));
-        },
-        (target: Point2 | string) => {
-          void scene.walkCharacterTo(definitionId, target);
-        },
-      ),
+      walkTo: walkCharacterWithNow,
+      moveTo: moveToTeleport,
+      moveToNow: (target: Point2 | string) => {
+        moveToTeleport.now(target);
+      },
       get animation() {
         return scene.getCharacterScriptEffectiveAnimationTag(definitionId);
       },

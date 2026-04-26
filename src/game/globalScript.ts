@@ -15,47 +15,37 @@ import { getGameSettings } from '@engine/ConfigManager';
  * start cutscenes, etc. These are real global handlers.
  */
 registerGlobalScript(({ B }) => {
+  // ─────────────────────────────────────────────────────────────
+  // Room transitions (global hooks — optional)
+  // Runs for every room load, including the first from BootScene. See architecture.md
+  // (Room transitions) for hook order and RoomTransitionContext.
+  // ─────────────────────────────────────────────────────────────
+  B.whenLeaveAnyRoom(() => {
+    // Optional: extra leave effects (sound, music crossfade, etc.)
+  });
+
+  B.whenEnterAnyRoom((_ctx) => {
+    // Invisible setup — player placement, prop state, music, etc.
+    // Example using last room:
+    // if (_ctx.lastRoom === 'apartment') {
+    //   B.player.moveToNow('streetDoor');
+    // }
+  });
+
+  B.whenEnterAnyRoomAfterFade(() => {
+    // Visible entrance behavior (walk in, cutscene start, etc.)
+  });
 
   // ─────────────────────────────────────────────────────────────
   // Global per-verb fallbacks
   // ─────────────────────────────────────────────────────────────
 
   B.whenGlobalVerb('look', () => {
-    B.say`
-Player: Nothing special about that.
-`;
+    B.player.say("Nothing special about that.");
   });
 
   B.whenGlobalVerb('use', () => {
     B.player.say("That doesn't work.");
-  });
-
-  B.whenGlobalVerb('pickUp', () => {
-    B.player.say("I can't take that.");
-  });
-
-  B.whenGlobalVerb('push', () => {
-    B.player.say("It won't move.");
-  });
-
-  B.whenGlobalVerb('pull', () => {
-    B.player.say("It won't move.");
-  });
-
-  B.whenGlobalVerb('open', () => {
-    B.player.say("I can't open that.");
-  });
-
-  B.whenGlobalVerb('close', () => {
-    B.player.say("That doesn't need closing.");
-  });
-
-  B.whenGlobalVerb('talkTo', () => {
-    B.player.say("I don't have anything to say to that.");
-  });
-
-  B.whenGlobalVerb('give', () => {
-    B.player.say("I can't give that.");
   });
 
   // ─────────────────────────────────────────────────────────────
