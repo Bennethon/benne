@@ -19,11 +19,6 @@
     "x": 18,
     "y": 62
   },
-  "onVerb": {
-    "look": true,
-    "talkTo": true,
-    "push": true
-  },
   "collider": {
     "points": [
       {

@@ -77,8 +77,6 @@ export interface CharacterData {
   display: CharacterDisplayData;
   /** Optional per Aseprite-tag playback (keys must match `meta.frameTags` on `images/characters/<id>/<id>.json`). */
   animations?: CharacterAnimationsConfig;
-  /** Supported verbs for this character definition (keys match `game-config.json` `verbs[].id`). */
-  onVerb?: Record<string, boolean>;
   /**
    * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this character.
    * Falls back to `"look"` when omitted.

@@ -509,22 +509,22 @@
     {
       "instanceId": "hank-1",
       "definition": "hank/hank.character.json",
-      "x": 106,
-      "y": 136,
+      "x": 260,
+      "y": 115,
       "initialFacing": "L",
       "initialAnimation": "Idle",
       "visible": true,
       "zIndex": 9
     },
     {
-      "instanceId": "henry-1",
-      "definition": "henry/henry.character.json",
-      "x": 260,
-      "y": 120,
-      "initialFacing": "L",
+      "instanceId": "penny-1",
+      "definition": "penny/penny.character.json",
+      "x": 60,
+      "y": 135,
+      "initialFacing": "R",
       "initialAnimation": "Idle",
       "visible": true,
-      "zIndex": 41
+      "zIndex": 42
     }
   ]
 }

@@ -13,4 +13,9 @@ registerCharacterScript('henry', ({ B }) => {
     B.faceClicked();
     B.player.say('It looks like my buddy, Henry.');
   });
+
+  B.whenPickUp(() => {
+    B.faceClicked();
+    B.player.say("He's too heavy.");
+  });
 });

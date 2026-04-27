@@ -700,8 +700,7 @@ async function buildRoomInspectorState(
             );
             let hooks: {
                 clickable?: boolean;
-                onVerb?: Record<string, boolean>;
-            } = { onVerb: {} };
+            } = {};
             let charJsonText = '{}';
             let charScriptText = '';
             try {
@@ -720,7 +719,6 @@ async function buildRoomInspectorState(
                           gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS,
                           configured,
                           roomScriptText,
-                          charJsonText,
                           charScriptText
                       )
                     : [];
@@ -874,7 +872,6 @@ async function buildCharacterInspectorState(
         characterId,
         gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS,
         configured,
-        text,
         scriptText
     );
 

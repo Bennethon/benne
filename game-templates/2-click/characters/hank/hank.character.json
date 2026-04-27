@@ -82,9 +82,5 @@
         "y": 64
       }
     ]
-  },
-  "onVerb": {
-    "look": true,
-    "use": true
   }
 }

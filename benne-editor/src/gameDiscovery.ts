@@ -244,7 +244,6 @@ function colliderPointCount(data: Record<string, unknown>): number {
 export async function readCharacterHooks(
     uri: vscode.Uri
 ): Promise<{
-    onVerb?: Record<string, boolean>;
     onVerbFallback?: boolean;
     clickable?: boolean;
     /** True when `collider.points` has at least three vertices (engine hit-test). */
@@ -256,7 +255,6 @@ export async function readCharacterHooks(
         const data = JSON.parse(text) as Record<string, unknown>;
         const n = colliderPointCount(data);
         return {
-            onVerb: parseOnVerbRecord(data.onVerb),
             onVerbFallback:
                 typeof data.onVerbFallback === 'boolean'
                     ? data.onVerbFallback

@@ -147,7 +147,7 @@ export class BenneScript extends BenneScriptCore {
    * Subscribe to a **prop** verb event for this room (**prop id only**). Prefer **`when*`** / **`whenVerb`** for prop → hotspot → character resolution.
    *
    * @param propId - **`props[].id`** in this room’s `.room.json`.
-   * @param verbId - Verb id from **`game-config.json`** `verbs[]` (must match **`onVerb`** on the prop).
+   * @param verbId - Verb id from **`game-config.json`** `verbs[]` (prop may also list it in **`onVerb`** for authoring; dispatch is listener-first).
    * @param handler - Receives {@link RoomPropInteractPayload} when the handler accepts a parameter.
    *
    * @example

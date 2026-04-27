@@ -19,11 +19,6 @@
     "x": 18,
     "y": 62
   },
-  "onVerb": {
-    "look": true,
-    "talkTo": true,
-    "push": true
-  },
   "collider": {
     "points": [
       {
@@ -84,5 +79,8 @@
       "loop": true
     }
   },
-  "defaultVerb": "talkTo"
+  "defaultVerb": "talkTo",
+  "onVerb": {
+    "pickUp": true
+  }
 }

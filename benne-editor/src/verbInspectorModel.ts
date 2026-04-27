@@ -203,26 +203,12 @@ export function buildRoomCharacterVerbChips(
     gameVerbs: readonly GameConfigVerbEntry[],
     configured: ReadonlySet<string>,
     roomScriptText: string,
-    characterJsonText: string,
     characterScriptText: string
 ): InspectorVerbChip[] {
-    let data: Record<string, unknown>;
-    try {
-        data = JSON.parse(characterJsonText) as Record<string, unknown>;
-    } catch {
-        return [];
-    }
     const authorable = filterAuthorableVerbs(gameVerbs);
-    const onVerbUnknown = data.onVerb;
-    const onVerb =
-        onVerbUnknown && typeof onVerbUnknown === 'object' && !Array.isArray(onVerbUnknown)
-            ? (onVerbUnknown as Record<string, boolean>)
-            : {};
-    const gameVerbIds = new Set(authorable.map((v) => v.id));
     const out: InspectorVerbChip[] = [];
 
     for (const v of authorable) {
-        const inJson = onVerb[v.id] === true;
         const inRoomTs = roomScriptRegistersRoomCharacterVerb(
             roomScriptText,
             roomId,
@@ -234,31 +220,8 @@ export function buildRoomCharacterVerbChips(
         out.push({
             verbId: v.id,
             label: v.label?.trim() ? v.label : v.id,
-            defined: inJson || inRoomTs || inCharTs,
+            defined: inRoomTs || inCharTs,
             eventId: roomCharacterVerbEventId(roomId, characterId, v.id)
-        });
-    }
-
-    for (const verbId of Object.keys(onVerb).sort()) {
-        if (gameVerbIds.has(verbId) || verbId === WALK_TO_VERB_ID) {
-            continue;
-        }
-        if (onVerb[verbId] !== true) {
-            continue;
-        }
-        const inRoomTs = roomScriptRegistersRoomCharacterVerb(
-            roomScriptText,
-            roomId,
-            characterId,
-            verbId,
-            configured
-        );
-        const inCharTs = characterScriptRegistersVerb(characterScriptText, characterId, verbId, configured);
-        out.push({
-            verbId,
-            label: verbId,
-            defined: onVerb[verbId] === true || inRoomTs || inCharTs,
-            eventId: roomCharacterVerbEventId(roomId, characterId, verbId)
         });
     }
 
@@ -269,45 +232,18 @@ export function buildCharacterVerbChips(
     characterId: string,
     gameVerbs: readonly GameConfigVerbEntry[],
     configured: ReadonlySet<string>,
-    characterJsonText: string,
     characterScriptText: string
 ): InspectorVerbChip[] {
-    let data: Record<string, unknown>;
-    try {
-        data = JSON.parse(characterJsonText) as Record<string, unknown>;
-    } catch {
-        return [];
-    }
     const authorable = filterAuthorableVerbs(gameVerbs);
-    const onVerbUnknown = data.onVerb;
-    const onVerb =
-        onVerbUnknown && typeof onVerbUnknown === 'object' && !Array.isArray(onVerbUnknown)
-            ? (onVerbUnknown as Record<string, boolean>)
-            : {};
-    const gameVerbIds = new Set(authorable.map((v) => v.id));
     const out: InspectorVerbChip[] = [];
 
     for (const v of authorable) {
-        const inJson = onVerb[v.id] === true;
         const inTs = characterScriptRegistersVerb(characterScriptText, characterId, v.id, configured);
         out.push({
             verbId: v.id,
             label: v.label?.trim() ? v.label : v.id,
-            defined: inJson || inTs,
+            defined: inTs,
             eventId: characterVerbEventId(characterId, v.id)
-        });
-    }
-
-    for (const verbId of Object.keys(onVerb).sort()) {
-        if (gameVerbIds.has(verbId) || verbId === WALK_TO_VERB_ID || onVerb[verbId] !== true) {
-            continue;
-        }
-        const inTs = characterScriptRegistersVerb(characterScriptText, characterId, verbId, configured);
-        out.push({
-            verbId,
-            label: verbId,
-            defined: onVerb[verbId] === true || inTs,
-            eventId: characterVerbEventId(characterId, verbId)
         });
     }
     return out;

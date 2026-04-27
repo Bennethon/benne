@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { formatJson } from './roomScaffolding';
 import { makeCharacterClickable } from './characterVerbScaffolding';
 import { insertIntoBenneRegisterRoomScript, type AddRoomVerbHandlerResult } from './propVerbScaffolding';
 import {
@@ -27,9 +26,9 @@ function characterJsonUriForId(gameRoot: vscode.Uri, characterId: string): vscod
 }
 
 /**
- * Ensures the character can receive the verb (`*.character.json` `onVerb`, clickable) and inserts a
- * Bennescript stub in `${roomId}.room.ts` only. Does not open or edit `*.character.ts`. The room
- * script must already use `registerRoomScript((…) => { … })` (see `roomScaffolding.ts`).
+ * Ensures the character is clickable and inserts a Bennescript stub in `${roomId}.room.ts` only.
+ * Does not open or edit `*.character.ts`. The room script must already use
+ * `registerRoomScript((…) => { … })` (see `roomScaffolding.ts`).
  */
 export async function addRoomCharacterVerbEvent(
     gameRoot: vscode.Uri,
@@ -67,24 +66,6 @@ export async function addRoomCharacterVerbEvent(
         await makeCharacterClickable(charUri);
     }
 
-    const rawAfterClickable = await vscode.workspace.fs.readFile(charUri);
-    try {
-        charData = JSON.parse(new TextDecoder('utf-8').decode(rawAfterClickable)) as Record<string, unknown>;
-    } catch {
-        void vscode.window.showErrorMessage('Character JSON is not valid after update.');
-        return { ok: false };
-    }
-
-    const existingOnVerb =
-        charData.onVerb && typeof charData.onVerb === 'object' && !Array.isArray(charData.onVerb)
-            ? { ...(charData.onVerb as Record<string, unknown>) }
-            : {};
-    if (existingOnVerb[verbId] !== true) {
-        existingOnVerb[verbId] = true;
-        charData.onVerb = existingOnVerb;
-        await vscode.workspace.fs.writeFile(charUri, formatJson(charData));
-    }
-
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
     let scriptText: string;
     try {
@@ -92,7 +73,7 @@ export async function addRoomCharacterVerbEvent(
         scriptText = new TextDecoder('utf-8').decode(scriptRaw);
     } catch {
         void vscode.window.showWarningMessage(
-            `Character JSON was updated; ${roomId}.room.ts was not found — create the room script, then ${BENNE_ROOM_SCRIPT_HINT}`
+            `${roomId}.room.ts was not found — create the room script, then ${BENNE_ROOM_SCRIPT_HINT}`
         );
         return { ok: true };
     }
@@ -121,7 +102,7 @@ export async function addRoomCharacterVerbEvent(
     await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(benneInserted.text));
 
     void vscode.window.showInformationMessage(
-        `Added room-scoped ${verbId} handler for "${characterId}" in ${roomId}.room.ts (character JSON updated if needed).`
+        `Added room-scoped ${verbId} handler for "${characterId}" in ${roomId}.room.ts.`
     );
     return {
         ok: true,
