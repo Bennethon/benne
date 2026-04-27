@@ -33,7 +33,7 @@ export type RoomHotspotInteractPayload = {
 };
 
 /**
- * Payload for character interaction events (verb-enabled `CharacterData`).
+ * Payload for character interaction events (clickable `CharacterData` spawned in a room).
  */
 export type CharacterVerbInteractPayload = {
   characterId: string;

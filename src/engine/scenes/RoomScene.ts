@@ -2123,9 +2123,6 @@ export class RoomScene extends Phaser.Scene {
           return;
         }
       }
-      if (Object.keys(handlers.onVerb).length === 0 && handlers.onVerbFallback === undefined) {
-        return;
-      }
       console.log(`[Benne] verb "${resolution.verbId}" hotspot ${hotspot.id}`);
       dispatchVerbInteraction(gameEvents, resolution.verbId, handlers, {
         type: 'hotspot',
@@ -2244,13 +2241,10 @@ export class RoomScene extends Phaser.Scene {
     if (spawn.visible === false) {
       return;
     }
-    const handlers = getCharacterVerbHandlers(spawn.data);
-    if (
-      !spawn.data.clickable ||
-      (Object.keys(handlers.onVerb).length === 0 && handlers.onVerbFallback === undefined)
-    ) {
+    if (!spawn.data.clickable) {
       return;
     }
+    const handlers = getCharacterVerbHandlers(spawn.data);
 
     const colliderPts = spawn.data.collider?.points;
     if (colliderPts && colliderPts.length >= 3) {

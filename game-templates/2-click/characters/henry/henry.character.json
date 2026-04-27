@@ -72,10 +72,6 @@
     "x": 17,
     "y": 0
   },
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
   "collider": {
     "points": [
       {

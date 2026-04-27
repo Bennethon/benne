@@ -12,8 +12,8 @@ import {
   roomObjectVerbFallbackEventId,
 } from '../events/verbInteractionEvents';
 
+/** Per-target options for verb dispatch (object-level fallback only; per-verb routing is listener-first). */
 export type VerbHandlerMap = {
-  onVerb: Record<string, boolean>;
   onVerbFallback: boolean;
 };
 
@@ -63,7 +63,8 @@ function buildEmitPayload(target: VerbInteractTarget, verbId: string): Record<st
 }
 
 /**
- * Dispatch order: object `onVerb[verbId]` → `onVerbFallback` → `verb:global:<verbId>` →
+ * Dispatch order (listener-first): room-scoped per-verb (props/hotspots/characters) → global character
+ * per-verb → object `onVerbFallback` channels (when enabled, if listeners) → `verb:global:<verbId>` →
  * `verb:global:fallback` → `verb:unhandled` (+ dev `console.warn`).
  *
  * Active inventory + use / active-verb clicks are handled separately by
@@ -79,24 +80,23 @@ export function dispatchVerbInteraction(
   const settings = getGameSettings();
   const payload = buildEmitPayload(target, verbId);
 
-  const supportsVerb = handlers.onVerb[verbId] === true;
-  if (supportsVerb) {
-    if (target.type === 'character') {
-      const roomScoped = roomObjectVerbEventId(target, verbId);
-      if (listenerCount(bus, roomScoped) > 0) {
-        bus.emit(roomScoped, payload);
-        return;
-      }
-      const globalCharacter = characterVerbEventId(target.characterId, verbId);
-      if (listenerCount(bus, globalCharacter) > 0) {
-        bus.emit(globalCharacter, payload);
-        return;
-      }
+  if (target.type === 'character') {
+    const roomScoped = roomObjectVerbEventId(target, verbId);
+    if (listenerCount(bus, roomScoped) > 0) {
       bus.emit(roomScoped, payload);
       return;
     }
-    bus.emit(roomObjectVerbEventId(target, verbId), payload);
-    return;
+    const globalCharacter = characterVerbEventId(target.characterId, verbId);
+    if (listenerCount(bus, globalCharacter) > 0) {
+      bus.emit(globalCharacter, payload);
+      return;
+    }
+  } else if (target.type === 'prop' || target.type === 'hotspot') {
+    const roomScoped = roomObjectVerbEventId(target, verbId);
+    if (listenerCount(bus, roomScoped) > 0) {
+      bus.emit(roomScoped, payload);
+      return;
+    }
   }
 
   if (handlers.onVerbFallback) {
@@ -111,11 +111,13 @@ export function dispatchVerbInteraction(
         bus.emit(globalCharacterFallback, { ...payload, verbFallback: true });
         return;
       }
-      bus.emit(roomScopedFallback, { ...payload, verbFallback: true });
-      return;
+    } else if (target.type === 'prop' || target.type === 'hotspot') {
+      const fallbackId = roomObjectVerbFallbackEventId(target);
+      if (listenerCount(bus, fallbackId) > 0) {
+        bus.emit(fallbackId, { ...payload, verbFallback: true });
+        return;
+      }
     }
-    bus.emit(roomObjectVerbFallbackEventId(target), { ...payload, verbFallback: true });
-    return;
   }
 
   const globalVerb = globalVerbHandlerEventId(verbId);

@@ -101,29 +101,8 @@ export async function addCharacterVerbEvent(
     characterId: string,
     verbId: string
 ): Promise<boolean> {
-    let raw: Uint8Array;
-    try {
-        raw = await vscode.workspace.fs.readFile(characterJsonUri);
-    } catch {
-        void vscode.window.showErrorMessage('Could not read character JSON.');
-        return false;
-    }
-    let data: Record<string, unknown>;
-    try {
-        data = JSON.parse(new TextDecoder('utf-8').decode(raw)) as Record<string, unknown>;
-    } catch {
-        void vscode.window.showErrorMessage('Character JSON is not valid.');
-        return false;
-    }
-
     const folder = vscode.workspace.getWorkspaceFolder(characterJsonUri);
     const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
-
-    const existingOnVerb =
-        data.onVerb && typeof data.onVerb === 'object' && !Array.isArray(data.onVerb)
-            ? { ...(data.onVerb as Record<string, unknown>) }
-            : {};
-    const jsonAlready = existingOnVerb[verbId] === true;
 
     const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
     let scriptText = '';
@@ -133,25 +112,10 @@ export async function addCharacterVerbEvent(
         /* new file branch below */
     }
     if (scriptText && characterScriptRegistersVerb(scriptText, characterId, verbId, configured)) {
-        if (jsonAlready) {
-            void vscode.window.showInformationMessage(
-                `A ${verbId} handler for "${characterId}" is already registered in ${characterId}.character.ts.`
-            );
-            return false;
-        }
-        existingOnVerb[verbId] = true;
-        data.onVerb = existingOnVerb;
-        await vscode.workspace.fs.writeFile(characterJsonUri, formatJson(data));
         void vscode.window.showInformationMessage(
-            `Enabled "${verbId}" in character JSON (handler was already present in ${characterId}.character.ts).`
+            `A ${verbId} handler for "${characterId}" is already registered in ${characterId}.character.ts.`
         );
-        return true;
-    }
-
-    if (!jsonAlready) {
-        existingOnVerb[verbId] = true;
-        data.onVerb = existingOnVerb;
-        await vscode.workspace.fs.writeFile(characterJsonUri, formatJson(data));
+        return false;
     }
 
     const snippet = characterBenneHandlerSnippet(verbId, configured);
@@ -161,7 +125,7 @@ export async function addCharacterVerbEvent(
         const inserted = insertIntoRegisterCharacterScriptBody(shell, characterId, snippet);
         if (inserted === null) {
             void vscode.window.showErrorMessage('Could not insert handler into character script template.');
-            return true;
+            return false;
         }
         await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(inserted));
         void vscode.window.showInformationMessage(`Added ${verbId} handler for character "${characterId}".`);
@@ -173,9 +137,9 @@ export async function addCharacterVerbEvent(
         const inserted = insertIntoRegisterCharacterScriptBody(nextScript, characterId, snippet);
         if (inserted === null) {
             void vscode.window.showWarningMessage(
-                `Character JSON was updated; could not find registerCharacterScript('${characterId}', …) in ${characterId}.character.ts — add the handler manually.`
+                `Could not find registerCharacterScript('${characterId}', …) in ${characterId}.character.ts — add the handler manually.`
             );
-            return true;
+            return false;
         }
         nextScript = inserted;
     }

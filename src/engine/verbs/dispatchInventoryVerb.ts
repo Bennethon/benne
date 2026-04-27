@@ -36,7 +36,7 @@ export function dispatchInventoryVerbInteraction(
     return;
   }
   const def = getInventoryDefinition(itemId);
-  dispatchVerbInteraction(bus, verbId, { onVerb: {}, onVerbFallback: false }, {
+  dispatchVerbInteraction(bus, verbId, { onVerbFallback: false }, {
     type: 'inventoryItem',
     itemId,
     roomId,

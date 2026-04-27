@@ -73,7 +73,7 @@
       "y": 0
     },
     "minDurationMs": 800,
-    "msPerCharacter": 35,
+    "msPerCharacter": 80,
     "maxDurationMs": 4500,
     "durationMultiplier": 1
   }

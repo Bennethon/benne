@@ -24,19 +24,19 @@ registerRoomScript(({ B }) => {
     }
   });
 
-  B.whenLookAt('henry', () => {
-    B.player.say('Henry is in the room.');
+  B.whenLookAt('penny', () => {
+    B.player.say("It's Penny.");
   });
 
-  B.whenTalkTo('henry', () => {
+  B.whenTalkTo('penny', () => {
     B.walkToClicked();
     B.faceClicked();
     B.say`
       Hank: Hello, I am saying something!
-      Henry: Oh really? I am too!
+      Penny: Oh really? I am too!
       Player: This feels so good!
       `;
-    B.character('henry').say('Thats cool.');
+    B.character('penny').say('Thats cool.');
     B.player.say('Yes, it is.');
   });
 
@@ -57,12 +57,6 @@ registerRoomScript(({ B }) => {
     B.player.faceClicked();
     B.prop('Door').animation = 'Door-open';
     // B.prop('Door').playAnimation('Door-open');
-  });
-
-  B.whenPush('henry', () => {
-    B.character('henry').playAnimation('WalkU');
-    // B.character('henry').animation = 'WalkU';
-    B.inventory('Lantern').animation = 'Lantern-glowing';
   });
 
   B.whenPull('Couch', () => {
