@@ -1,10 +1,8 @@
 {
-  "id": "Ladder",
-  "name": "Ladder",
+  "id": "Bread",
+  "name": "Bread",
   "description": "",
-  "onVerb": {
-    "use": true
-  },
+  "onVerb": {},
   "stackable": false,
   "animations": {},
   "display": {
