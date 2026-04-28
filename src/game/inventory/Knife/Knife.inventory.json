@@ -1,10 +1,14 @@
 {
-  "id": "Newspaper",
-  "name": "Newspaper",
+  "id": "Knife",
+  "name": "Knife",
   "description": "",
   "onVerb": {},
   "stackable": false,
-  "animations": {},
+  "animations": {
+    "Knife-PB": {
+      "loop": true
+    }
+  },
   "display": {
     "aseprite": "shared"
   }
