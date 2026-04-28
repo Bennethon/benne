@@ -1,6 +1,7 @@
 import type { Game } from 'phaser';
 import {
   collectFontLoadsForGui,
+  guiHasGridControls,
   guiHasImageControls,
   guiHasTextControls,
   guiHasVerbLineControls,
@@ -122,8 +123,9 @@ async function runLoadGui(msg: {
   const hasImage = guiHasImageControls(msg.gui);
   const wantsAseprite = usesAsepriteDisplay(msg.gui);
 
-  if (!hasText && !hasVerbLine && !hasInventoryPanel && !wantsAseprite && !hasImage) {
-    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code>, at least one <code>text</code>, <code>verbLine</code>, <code>image</code>, or <code>inventoryPanel</code> control in <code>controls</code>.</div>`;
+  const hasGrid = guiHasGridControls(msg.gui);
+  if (!hasText && !hasVerbLine && !hasInventoryPanel && !wantsAseprite && !hasImage && !hasGrid) {
+    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code>, at least one <code>text</code>, <code>verbLine</code>, <code>image</code>, <code>inventoryPanel</code>, or <code>grid</code> control in <code>controls</code>.</div>`;
     return;
   }
 

@@ -9,13 +9,19 @@ import {
 import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKey';
 import {
   guiHasButtonControls,
+  guiHasGridControls,
   guiHasImageControls,
   guiHasTextControls,
   guiHasTriggerControls,
   guiHasVerbLineControls,
   type GuiFontLoadRequest,
 } from '../../game/collectFontLoadsForGui';
-import type { GuiButtonControl, GuiData, GuiInventoryPanelControl } from '../../types/gui';
+import {
+  cumulativeOffsets,
+  layoutGuiGridTracks,
+  spanCellRect,
+} from '../../engine/gui/guiGridLayout';
+import type { GuiButtonControl, GuiData, GuiGridControl, GuiInventoryPanelControl } from '../../types/gui';
 import type { GameSettingsInitialGameState } from '../../types/game';
 import { resolveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
 import {
@@ -213,6 +219,40 @@ function collectTriggerPreviewOverlayEntries(gui: GuiData): Array<{
   return out;
 }
 
+function collectGridCellOutlineRects(gui: GuiData): Array<{
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}> {
+  const rects: Array<{ left: number; top: number; right: number; bottom: number }> = [];
+  const rootX = Math.round(gui.x ?? 0);
+  const rootY = Math.round(gui.y ?? 0);
+  for (const c of gui.controls ?? []) {
+    if (c.type !== 'grid') {
+      continue;
+    }
+    const g = c as GuiGridControl;
+    const layout = layoutGuiGridTracks(g);
+    const colOff = cumulativeOffsets(layout.colWidths);
+    const rowOff = cumulativeOffsets(layout.rowHeights);
+    const gx = rootX + Math.round(g.x);
+    const gy = rootY + Math.round(g.y);
+    for (let row = 0; row < g.rows; row += 1) {
+      for (let col = 0; col < g.columns; col += 1) {
+        const cell = spanCellRect(colOff, rowOff, layout.colWidths, layout.rowHeights, col, row, 1, 1);
+        if (!cell || cell.w <= 0 || cell.h <= 0) {
+          continue;
+        }
+        const left = gx + cell.x;
+        const top = gy + cell.y;
+        rects.push({ left, top, right: left + cell.w, bottom: top + cell.h });
+      }
+    }
+  }
+  return rects;
+}
+
 function collectInventoryPanelSlotWorldRects(gui: GuiData, inventoryItemCount: number): Array<{
   left: number;
   top: number;
@@ -308,7 +348,8 @@ class GuiPreviewScene extends Phaser.Scene {
         guiHasVerbLineControls(guiData) ||
         guiHasImageControls(guiData) ||
         guiHasButtonControls(guiData) ||
-        guiHasTriggerControls(guiData))
+        guiHasTriggerControls(guiData) ||
+        guiHasGridControls(guiData))
     ) {
       this.guiOutlineOverlay = new PreviewPolygonOverlay(this.game, mount);
       this.guiOutlineOverlay.setPointerEventsEnabled(false);
@@ -353,7 +394,8 @@ class GuiPreviewScene extends Phaser.Scene {
     const buttonRects = guiHasButtonControls(this.payload.guiData)
       ? collectButtonControlWorldRects(this.payload.guiData)
       : [];
-    const outlineRects = inventoryRects.concat(textRects).concat(buttonRects);
+    const gridRects = guiHasGridControls(this.payload.guiData) ? collectGridCellOutlineRects(this.payload.guiData) : [];
+    const outlineRects = inventoryRects.concat(textRects).concat(buttonRects).concat(gridRects);
     const triggerEntries = collectTriggerPreviewOverlayEntries(this.payload.guiData);
     const triggerExtras: PreviewStrokeRectOverlayExtras | undefined =
       triggerEntries.length > 0

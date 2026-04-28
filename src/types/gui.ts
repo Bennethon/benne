@@ -12,6 +12,34 @@ export interface GuiDisplayData {
 
 export type GuiTextAlign = 'left' | 'center' | 'right';
 
+/** Alignment of a control within its grid cell (see {@link GuiGridPlacement}). */
+export type GuiGridCellAlign =
+  | 'top-left'
+  | 'top-center'
+  | 'top-right'
+  | 'center-left'
+  | 'center'
+  | 'center-right'
+  | 'bottom-left'
+  | 'bottom-center'
+  | 'bottom-right';
+
+/**
+ * When set on a control, it is parented under the referenced {@link GuiGridControl} and positioned from
+ * the spanned cell rectangle instead of using `x` / `y` relative to the GUI root container.
+ */
+export interface GuiGridPlacement {
+  /** Must match a {@link GuiGridControl.id} in the same GUI. */
+  gridControlId: string;
+  /** 0-based row index within the grid. */
+  row: number;
+  /** 0-based column index within the grid. */
+  col: number;
+  rowspan?: number;
+  colspan?: number;
+  align?: GuiGridCellAlign;
+}
+
 /** How a GUI-sheet sprite is aligned to its control (or to the screen for full-frame art). */
 export type GuiSpriteAnchor = 'top-left' | 'center' | 'screen';
 
@@ -46,6 +74,7 @@ export interface GuiTextControl {
    * When omitted, `defaultLetterSpacing` for this control's `font` in `src/game/assets/fonts/fonts.json` is used, else 0.
    */
   letterSpacing?: number;
+  gridPlacement?: GuiGridPlacement;
 }
 
 /**
@@ -69,6 +98,7 @@ export interface GuiVerbLineControl {
   align?: GuiTextAlign;
   wordWrapWidth?: number;
   letterSpacing?: number;
+  gridPlacement?: GuiGridPlacement;
 }
 
 /**
@@ -118,6 +148,31 @@ export interface GuiInventoryPanelControl {
   slotBackgroundAnchor?: GuiSpriteAnchor;
   highlightTag?: string; // optional hover/selected overlay tag
   highlightAnchor?: GuiSpriteAnchor;
+  gridPlacement?: GuiGridPlacement;
+}
+
+/**
+ * Layout-only grid: a movable container whose children are controls with {@link GuiGridPlacement}
+ * referencing this control’s `id`. Moving the grid (e.g. `gui.getControl(id)` as a container) moves
+ * every placed control with it.
+ */
+export interface GuiGridControl {
+  type: 'grid';
+  id: string;
+  x: number;
+  y: number;
+  /** Pixel width of the grid content box; when omitted, derived from {@link colWidths} or a default cell size. */
+  width?: number;
+  /** Pixel height of the grid content box; when omitted, derived from {@link rowHeights} or a default cell size. */
+  height?: number;
+  visible?: boolean;
+  zIndex?: number;
+  rows: number;
+  columns: number;
+  /** Length must equal {@link rows} when present; otherwise rows split the content height evenly. */
+  rowHeights?: number[];
+  /** Length must equal {@link columns} when present; otherwise columns split the content width evenly. */
+  colWidths?: number[];
 }
 
 /**
@@ -143,6 +198,7 @@ export interface GuiImageControl {
   backgroundAnchor?: GuiSpriteAnchor;
   /** Optional extra clips from the GUI sheet (Aseprite tags). */
   animations?: GuiSpriteAnimationsMap;
+  gridPlacement?: GuiGridPlacement;
 }
 
 /** Per-interaction sheet tags; values are Aseprite tag names on this GUI’s sheet. */
@@ -194,6 +250,7 @@ export interface GuiButtonControl {
    * (Runtime compositor will map this to visuals + hit testing.)
    */
   enabled?: boolean;
+  gridPlacement?: GuiGridPlacement;
 }
 
 /**
@@ -219,6 +276,7 @@ export interface GuiTriggerControl {
   active?: boolean;
   /** Hide the trigger at load without deleting it. Pointer events are suppressed while hidden. */
   visible?: boolean;
+  gridPlacement?: GuiGridPlacement;
 }
 
 export type GuiControl =
@@ -227,7 +285,8 @@ export type GuiControl =
   | GuiInventoryPanelControl
   | GuiImageControl
   | GuiButtonControl
-  | GuiTriggerControl;
+  | GuiTriggerControl
+  | GuiGridControl;
 
 export interface GuiData {
   id: string;

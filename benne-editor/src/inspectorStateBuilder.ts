@@ -154,6 +154,27 @@ export type InspectorCharacterState = {
 
 export type InspectorGuiSpriteAnchor = '' | 'top-left' | 'center' | 'screen';
 
+export type InspectorGuiGridCellAlign =
+    | ''
+    | 'top-left'
+    | 'top-center'
+    | 'top-right'
+    | 'center-left'
+    | 'center'
+    | 'center-right'
+    | 'bottom-left'
+    | 'bottom-center'
+    | 'bottom-right';
+
+export type InspectorGuiGridPlacement = {
+    gridControlId: string;
+    row: number;
+    col: number;
+    rowspan: number | null;
+    colspan: number | null;
+    align: InspectorGuiGridCellAlign;
+};
+
 export type InspectorGuiControlCard =
     | {
           controlKind: 'text';
@@ -172,6 +193,7 @@ export type InspectorGuiControlCard =
           color: string;
           align: 'left' | 'center' | 'right' | '';
           wordWrapWidth: number | null;
+          gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
           controlKind: 'verbLine';
@@ -188,6 +210,7 @@ export type InspectorGuiControlCard =
           color: string;
           align: 'left' | 'center' | 'right' | '';
           wordWrapWidth: number | null;
+          gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
           controlKind: 'inventoryPanel';
@@ -216,6 +239,7 @@ export type InspectorGuiControlCard =
           slotBackgroundAnchor: InspectorGuiSpriteAnchor;
           highlightTag: string;
           highlightAnchor: InspectorGuiSpriteAnchor;
+          gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
           controlKind: 'image';
@@ -229,6 +253,7 @@ export type InspectorGuiControlCard =
           visibleMode: '' | 'true' | 'false';
           tag: string;
           backgroundAnchor: InspectorGuiSpriteAnchor;
+          gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
           controlKind: 'button';
@@ -256,6 +281,7 @@ export type InspectorGuiControlCard =
           statesPressed: string;
           statesDisabled: string;
           enabled: boolean;
+          gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
           controlKind: 'trigger';
@@ -270,6 +296,22 @@ export type InspectorGuiControlCard =
           height: number;
           visibleMode: '' | 'true' | 'false';
           active: boolean;
+          gridPlacement: InspectorGuiGridPlacement | null;
+      }
+    | {
+          controlKind: 'grid';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          rows: number;
+          columns: number;
+          width: number | null;
+          height: number | null;
       }
     | {
           controlKind: 'unknown';
@@ -923,6 +965,46 @@ function guiReadAnchorField(o: Record<string, unknown>, key: string): InspectorG
     return '';
 }
 
+const GUI_GRID_CELL_ALIGNS = new Set<string>([
+    'top-left',
+    'top-center',
+    'top-right',
+    'center-left',
+    'center',
+    'center-right',
+    'bottom-left',
+    'bottom-center',
+    'bottom-right'
+]);
+
+function guiReadGridCellAlignField(o: Record<string, unknown>, key: string): InspectorGuiGridCellAlign {
+    const v = o[key];
+    if (typeof v === 'string' && GUI_GRID_CELL_ALIGNS.has(v)) {
+        return v as InspectorGuiGridCellAlign;
+    }
+    return '';
+}
+
+function parseOptionalGridPlacement(o: Record<string, unknown>): InspectorGuiGridPlacement | null {
+    const gp = o.gridPlacement;
+    if (!gp || typeof gp !== 'object' || Array.isArray(gp)) {
+        return null;
+    }
+    const g = gp as Record<string, unknown>;
+    const gridControlId = typeof g.gridControlId === 'string' ? g.gridControlId.trim() : '';
+    if (!gridControlId) {
+        return null;
+    }
+    return {
+        gridControlId,
+        row: guiReadNum(g, 'row', 0),
+        col: guiReadNum(g, 'col', 0),
+        rowspan: guiReadNumOrNull(g, 'rowspan'),
+        colspan: guiReadNumOrNull(g, 'colspan'),
+        align: guiReadGridCellAlignField(g, 'align')
+    };
+}
+
 async function readBitmapFontIdList(gameRoot: vscode.Uri): Promise<string[]> {
     const uri = vscode.Uri.joinPath(gameRoot, 'src', 'game', 'assets', 'fonts', 'fonts.json');
     try {
@@ -962,7 +1044,8 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             fontSize: guiReadNum(o, 'fontSize', 8),
             color: typeof o.color === 'string' ? o.color : '#ffffff',
             align,
-            wordWrapWidth: guiReadNumOrNull(o, 'wordWrapWidth')
+            wordWrapWidth: guiReadNumOrNull(o, 'wordWrapWidth'),
+            gridPlacement: parseOptionalGridPlacement(o)
         };
     }
 
@@ -984,7 +1067,8 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             fontSize: guiReadNum(o, 'fontSize', 8),
             color: typeof o.color === 'string' ? o.color : '#ffffff',
             align,
-            wordWrapWidth: guiReadNumOrNull(o, 'wordWrapWidth')
+            wordWrapWidth: guiReadNumOrNull(o, 'wordWrapWidth'),
+            gridPlacement: parseOptionalGridPlacement(o)
         };
     }
 
@@ -1018,7 +1102,8 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             slotBackgroundTag: typeof o.slotBackgroundTag === 'string' ? o.slotBackgroundTag : '',
             slotBackgroundAnchor: guiReadAnchorField(o, 'slotBackgroundAnchor'),
             highlightTag: typeof o.highlightTag === 'string' ? o.highlightTag : '',
-            highlightAnchor: guiReadAnchorField(o, 'highlightAnchor')
+            highlightAnchor: guiReadAnchorField(o, 'highlightAnchor'),
+            gridPlacement: parseOptionalGridPlacement(o)
         };
     }
 
@@ -1051,7 +1136,8 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             zIndex: guiReadNumOrNull(o, 'zIndex'),
             visibleMode: guiReadVisibleMode(o),
             tag,
-            backgroundAnchor
+            backgroundAnchor,
+            gridPlacement: parseOptionalGridPlacement(o)
         };
     }
 
@@ -1068,7 +1154,8 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             width: guiReadNum(o, 'width', 64),
             height: guiReadNum(o, 'height', 64),
             visibleMode: guiReadVisibleMode(o),
-            active: o.active !== false
+            active: o.active !== false,
+            gridPlacement: parseOptionalGridPlacement(o)
         };
     }
 
@@ -1104,7 +1191,26 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             statesHover: typeof statesRaw.hover === 'string' ? statesRaw.hover : '',
             statesPressed: typeof statesRaw.pressed === 'string' ? statesRaw.pressed : '',
             statesDisabled: typeof statesRaw.disabled === 'string' ? statesRaw.disabled : '',
-            enabled: o.enabled !== false
+            enabled: o.enabled !== false,
+            gridPlacement: parseOptionalGridPlacement(o)
+        };
+    }
+
+    if (type === 'grid') {
+        return {
+            controlKind: 'grid',
+            key,
+            index,
+            summary,
+            controlId,
+            x: guiReadNum(o, 'x', 0),
+            y: guiReadNum(o, 'y', 0),
+            zIndex: guiReadNumOrNull(o, 'zIndex'),
+            visibleMode: guiReadVisibleMode(o),
+            rows: guiReadNum(o, 'rows', 2),
+            columns: guiReadNum(o, 'columns', 2),
+            width: guiReadNumOrNull(o, 'width'),
+            height: guiReadNumOrNull(o, 'height')
         };
     }
 
