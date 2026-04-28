@@ -782,6 +782,42 @@ export function updateGuiControlPatch(
         }
     }
 
+    if (row.type === 'grid') {
+        const rw = row.rows as number;
+        const cl = row.columns as number;
+        if (!Number.isFinite(rw) || rw < 1) {
+            row.rows = 1;
+        }
+        if (!Number.isFinite(cl) || cl < 1) {
+            row.columns = 1;
+        }
+        if (row.width === null || row.width === undefined) {
+            delete row.width;
+        }
+        if (row.height === null || row.height === undefined) {
+            delete row.height;
+        }
+    }
+
+    if (row.gridPlacement && typeof row.gridPlacement === 'object' && !Array.isArray(row.gridPlacement)) {
+        const g = row.gridPlacement as Record<string, unknown>;
+        const gid = typeof g.gridControlId === 'string' ? g.gridControlId.trim() : '';
+        if (!gid) {
+            delete row.gridPlacement;
+        } else {
+            g.gridControlId = gid;
+            if (g.rowspan === 1 || g.rowspan === undefined) {
+                delete g.rowspan;
+            }
+            if (g.colspan === 1 || g.colspan === undefined) {
+                delete g.colspan;
+            }
+            if (g.align === '' || g.align === undefined) {
+                delete g.align;
+            }
+        }
+    }
+
     return { ok: true };
 }
 

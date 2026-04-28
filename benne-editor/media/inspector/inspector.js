@@ -613,6 +613,59 @@ function guiFontSelectHtml(fontIds, current, dataIndex) {
     }
     return `<select class="gui-field" data-index="${dataIndex}" data-field="font">${inner}</select>`;
 }
+function guiGridControlIds(state) {
+    return state.controls
+        .filter((c) => c.controlKind === 'grid')
+        .map((c) => c.controlId.trim())
+        .filter((id) => id.length > 0);
+}
+function guiGridCellAlignSelectOptions(val) {
+    const opts = [
+        ['', '(default top-left)'],
+        ['top-left', 'top-left'],
+        ['top-center', 'top-center'],
+        ['top-right', 'top-right'],
+        ['center-left', 'center-left'],
+        ['center', 'center'],
+        ['center-right', 'center-right'],
+        ['bottom-left', 'bottom-left'],
+        ['bottom-center', 'bottom-center'],
+        ['bottom-right', 'bottom-right']
+    ];
+    return opts
+        .map(([v, lab]) => `<option value="${esc(v)}"${val === v ? ' selected' : ''}>${esc(lab)}</option>`)
+        .join('');
+}
+function guiGridPlacementEditorHtml(state, idx, gp) {
+    const grids = guiGridControlIds(state);
+    if (grids.length === 0) {
+        return `<p class="muted small" style="margin-top:10px;">Add a <strong>grid</strong> control to place this widget in a cell (<code>gridPlacement</code>).</p>`;
+    }
+    const curGrid = gp?.gridControlId?.trim() ?? '';
+    let gridOpts = '<option value="">— none —</option>';
+    const gset = new Set(grids);
+    if (curGrid && !gset.has(curGrid)) {
+        gridOpts += `<option value="${esc(curGrid)}" selected>${esc(curGrid)} (missing)</option>`;
+    }
+    for (const g of grids) {
+        gridOpts += `<option value="${esc(g)}"${g === curGrid ? ' selected' : ''}>${esc(g)}</option>`;
+    }
+    return `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Grid placement</div>
+<div class="benne-prop-grid benne-prop-grid--tight" data-gp-wrap="${idx}">
+  <span class="benne-pg-lbl">grid id</span>
+  <select class="gui-gp-field" data-gp="gridId">${gridOpts}</select>
+  <span class="benne-pg-lbl">row</span>
+  <input type="number" class="gui-gp-field" data-gp="row" value="${gp?.row ?? 0}" step="1" />
+  <span class="benne-pg-lbl">col</span>
+  <input type="number" class="gui-gp-field" data-gp="col" value="${gp?.col ?? 0}" step="1" />
+  <span class="benne-pg-lbl">rowspan</span>
+  <input type="number" class="gui-gp-field" data-gp="rowspan" value="${gp?.rowspan ?? ''}" placeholder="1" />
+  <span class="benne-pg-lbl">colspan</span>
+  <input type="number" class="gui-gp-field" data-gp="colspan" value="${gp?.colspan ?? ''}" placeholder="1" />
+  <span class="benne-pg-lbl">align</span>
+  <select class="gui-gp-field" data-gp="align">${guiGridCellAlignSelectOptions(gp?.align ?? '')}</select>
+</div>`;
+}
 function guiButtonIdSelectHtml(buttonIds, current, dataIndex, dataField) {
     const cur = current.trim();
     let inner = `<option value=""${cur === '' ? ' selected' : ''}>—</option>`;
@@ -671,6 +724,7 @@ function renderGuiControlCardBody(state, c) {
       </div>
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
       <p class="muted small" style="margin:8px 0 0;">Sheet animations are not used for <code>text</code> controls.</p>`;
     }
     if (c.controlKind === 'verbLine') {
@@ -698,6 +752,7 @@ function renderGuiControlCardBody(state, c) {
       </div>
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
       <p class="muted small" style="margin:8px 0 0;">Runtime text comes from <code>game-config.json</code> verbs and the active verb (defaults to <strong>Walk to</strong>).</p>`;
     }
     if (c.controlKind === 'inventoryPanel') {
@@ -758,6 +813,7 @@ function renderGuiControlCardBody(state, c) {
       </div>
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
       ${animBlock}`;
     }
     if (c.controlKind === 'button') {
@@ -808,6 +864,7 @@ function renderGuiControlCardBody(state, c) {
       <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
       ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
       ${sheetBlock}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
       ${c.controlId
             ? `<div style="margin:8px 0 0;">
         <button type="button" class="btn-secondary gui-on-click-btn" data-button-id="${esc(c.controlId)}">On Click</button>
@@ -834,6 +891,7 @@ function renderGuiControlCardBody(state, c) {
       </div>
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
       ${animImg}`;
     }
     if (c.controlKind === 'trigger') {
@@ -848,7 +906,30 @@ function renderGuiControlCardBody(state, c) {
       </div>
       <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
       ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
       <p class="muted small" style="margin:8px 0 0;">Invisible hit zone. Wire <code>B.whenMouseEnter('${esc(c.controlId || 'id')}', …)</code> and <code>B.whenMouseLeave</code> in <code>*.gui.ts</code>.</p>`;
+    }
+    if (c.controlKind === 'grid') {
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">rows</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="rows" value="${c.rows}" />
+        <span class="benne-pg-lbl">columns</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="columns" value="${c.columns}" />
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position</div>
+      ${guiDimInputsForControl(idx, c.x, c.y)}
+      <div class="benne-scroll-bounds-label muted small" style="margin-top:8px;">Optional container size</div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">width</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="width" value="${c.width ?? ''}" placeholder="—" />
+        <span class="benne-pg-lbl">height</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="height" value="${c.height ?? ''}" placeholder="—" />
+      </div>
+      <p class="muted small" style="margin:8px 0 0;">Optional <code>rowHeights</code> / <code>colWidths</code> arrays: edit in raw JSON.</p>`;
     }
     return `<p class="muted">Unsupported control kind.</p>`;
 }
@@ -1546,11 +1627,10 @@ function buildGuiControlFieldPatch(field, el) {
         'y',
         'rows',
         'cols',
+        'columns',
         'slotWidth',
         'slotHeight',
-        'fontSize',
-        'width',
-        'height'
+        'fontSize'
     ]);
     if (intRequired.has(field)) {
         const n = Number(el.value);
@@ -1566,7 +1646,9 @@ function buildGuiControlFieldPatch(field, el) {
         'spacingY',
         'itemScale',
         'textOffsetX',
-        'textOffsetY'
+        'textOffsetY',
+        'width',
+        'height'
     ]);
     if (optNum.has(field)) {
         const raw = el.value.trim();
@@ -1595,6 +1677,45 @@ function buildGuiControlFieldPatch(field, el) {
         return { [field]: el.value };
     }
     return null;
+}
+function collectGridPlacementPatchFromDom(idx) {
+    const wrap = document.querySelector(`[data-gp-wrap="${String(idx)}"]`);
+    if (!wrap) {
+        return null;
+    }
+    const gridId = wrap.querySelector('[data-gp="gridId"]')?.value.trim() ?? '';
+    if (!gridId) {
+        return { gridPlacement: null };
+    }
+    const row = Number(wrap.querySelector('[data-gp="row"]')?.value ?? '0');
+    const col = Number(wrap.querySelector('[data-gp="col"]')?.value ?? '0');
+    if (!Number.isFinite(row) || !Number.isFinite(col)) {
+        return null;
+    }
+    const placement = {
+        gridControlId: gridId,
+        row: Math.trunc(row),
+        col: Math.trunc(col)
+    };
+    const rs = wrap.querySelector('[data-gp="rowspan"]')?.value.trim() ?? '';
+    if (rs !== '') {
+        const n = Number(rs);
+        if (Number.isFinite(n) && n > 0) {
+            placement.rowspan = Math.trunc(n);
+        }
+    }
+    const cs = wrap.querySelector('[data-gp="colspan"]')?.value.trim() ?? '';
+    if (cs !== '') {
+        const n = Number(cs);
+        if (Number.isFinite(n) && n > 0) {
+            placement.colspan = Math.trunc(n);
+        }
+    }
+    const al = wrap.querySelector('[data-gp="align"]')?.value ?? '';
+    if (al.length > 0) {
+        placement.align = al;
+    }
+    return { gridPlacement: placement };
 }
 function mountGuiHandlers(state) {
     const flushMeta = () => {
@@ -1657,6 +1778,33 @@ function mountGuiHandlers(state) {
         post('addGuiControl', {});
     });
     document.querySelectorAll('.gui-field').forEach(bindGuiField);
+    const flushGridPlacement = (index) => {
+        const patch = collectGridPlacementPatchFromDom(index);
+        if (patch) {
+            postGuiPatch(index, patch);
+        }
+    };
+    document.querySelectorAll('[data-gp-wrap]').forEach((wrap) => {
+        const idx = Number(wrap.dataset.gpWrap ?? '-1');
+        if (!Number.isInteger(idx) || idx < 0) {
+            return;
+        }
+        wrap.querySelectorAll('.gui-gp-field').forEach((el) => {
+            if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLSelectElement)) {
+                return;
+            }
+            const he = el;
+            const flushGp = () => {
+                flushGridPlacement(idx);
+            };
+            if (he instanceof HTMLSelectElement) {
+                he.addEventListener('change', flushGp);
+            }
+            else {
+                he.addEventListener('blur', flushGp);
+            }
+        });
+    });
     document.querySelectorAll('.gui-field-cb').forEach((el) => {
         if (!(el instanceof HTMLInputElement)) {
             return;

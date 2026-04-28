@@ -818,6 +818,11 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                     label: 'Trigger',
                     description: 'Invisible hit zone for B.whenMouseEnter / whenMouseLeave',
                     controlKind: 'trigger'
+                },
+                {
+                    label: 'Grid',
+                    description: 'Layout container; place other controls with gridPlacement',
+                    controlKind: 'grid'
                 }
             ];
             const picked = await vscode.window.showQuickPick(items, {

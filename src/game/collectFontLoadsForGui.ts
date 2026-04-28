@@ -59,3 +59,7 @@ export function guiHasButtonControls(gui: GuiData): boolean {
 export function guiHasTriggerControls(gui: GuiData): boolean {
   return (gui.controls ?? []).some((c) => c.type === 'trigger');
 }
+
+export function guiHasGridControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'grid');
+}

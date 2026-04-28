@@ -27,6 +27,8 @@ import type {
   GuiButtonControl,
   GuiControl,
   GuiData,
+  GuiGridControl,
+  GuiGridPlacement,
   GuiImageControl,
   GuiInventoryPanelControl,
   GuiSpriteAnchor,
@@ -35,6 +37,14 @@ import type {
   GuiTriggerControl,
   GuiVerbLineControl,
 } from '../../types/gui';
+import {
+  alignBoxTopLeftInCell,
+  cumulativeOffsets,
+  isGuiGridPlacement,
+  layoutGuiGridTracks,
+  parseGuiGridCellAlign,
+  spanCellRect,
+} from './guiGridLayout';
 import type { InventoryItemData } from '../../types/inventory';
 import {
   GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
@@ -64,6 +74,8 @@ import { resolvePointerVerbForInventoryItem } from '../verbs/resolvePointerVerb'
 
 /** Slot stroke for `game-config.json` `debug.showGuiOutlines` (distinct from walkable / prop debug colors). */
 const DEBUG_GUI_INVENTORY_SLOT_STROKE = 0x66ccff;
+/** Cell stroke for `grid` controls when `debug.showGuiOutlines` is true. */
+const DEBUG_GUI_GRID_CELL_STROKE = 0xffcc66;
 
 const manifest = gameFontsManifest as GameFontsManifest;
 
@@ -281,28 +293,27 @@ function applyGuiSpriteAnchor(
 }
 
 /**
- * Places the button’s sheet sprite using `anchor` **within the button’s logical bounds** (same idea as
- * {@link GuiInventoryPanelControl.backgroundAnchor} for the panel backdrop: `x`/`y` + `width`/`height` define the
- * control; anchor only affects where the art is pinned).
+ * Places the button’s sheet sprite using `anchor` **within the button’s logical bounds** (coordinates are
+ * **local** to the button {@link Phaser.GameObjects.Container}, whose top-left is the hit rect origin).
  */
-function placeGuiButtonBackgroundSprite(
+function placeGuiButtonBackgroundSpriteLocal(
   sprite: Phaser.GameObjects.Sprite,
   anchor: GuiSpriteAnchor,
-  px: number,
-  py: number,
   w: number,
   h: number,
+  /** World-space top-left of the button container — only used when `anchor === 'screen'`. */
+  worldTopLeft: { x: number; y: number },
 ): void {
   switch (anchor) {
     case 'center':
-      applyGuiSpriteAnchor(sprite, 'center', px + w / 2, py + h / 2);
+      applyGuiSpriteAnchor(sprite, 'center', w / 2, h / 2);
       break;
     case 'screen':
-      /** Full-canvas art; `x`/`y`/`width`/`height` still define the hit box only. */
-      applyGuiSpriteAnchor(sprite, 'screen', px, py);
+      sprite.setOrigin(0, 0);
+      sprite.setPosition(-worldTopLeft.x, -worldTopLeft.y);
       break;
     default:
-      applyGuiSpriteAnchor(sprite, 'top-left', px, py);
+      applyGuiSpriteAnchor(sprite, 'top-left', 0, 0);
       break;
   }
 }
@@ -331,6 +342,8 @@ function buildGuiTriggerZone(
   c: GuiTriggerControl,
   baseDepth: number,
   startVisible: boolean,
+  /** When set, the rectangle is parented under this container using local coordinates. */
+  parent?: Phaser.GameObjects.Container,
 ): Phaser.GameObjects.Rectangle | null {
   const w = c.width;
   const h = c.height;
@@ -356,6 +369,9 @@ function buildGuiTriggerZone(
   rect.setVisible(overlayVisible);
   if (showGuiDebug) {
     rect.setStrokeStyle(1, 0x88ff88, 0.9);
+  }
+  if (parent) {
+    parent.add(rect);
   }
   return rect;
 }
@@ -546,6 +562,11 @@ function buildGuiButton(
   startVisible: boolean,
   /** Runs after a successful click passes guards, before {@link gameEvents} button emits. */
   onBeforeEmit?: () => void,
+  /**
+   * Top-left of the button’s hit rect in **GUI content root** space (same frame as authored `x`/`y`).
+   * Used only for `backgroundAnchor: 'screen'` so full-frame art stays pinned to the canvas when the button sits in a grid.
+   */
+  screenBgWorldTopLeft?: { x: number; y: number },
 ): BuiltGuiButton | null {
   const w = c.width;
   const h = c.height;
@@ -559,11 +580,11 @@ function buildGuiButton(
   const bgAnchor = guiSpriteAnchorOrDefault(c.backgroundAnchor);
   const px = Math.round(c.x);
   const py = Math.round(c.y);
+  const worldTL = screenBgWorldTopLeft ?? { x: px, y: py };
 
   const hitTarget = scene.add.container(px, py);
   hitTarget.setScrollFactor(0, 0);
-  /** Above label so the hit box receives input over the bitmap text. */
-  hitTarget.setDepth(d + 2);
+  hitTarget.setDepth(d);
   hitTarget.setVisible(overlayVisible);
   hitTarget.setData('benneGuiButton', true);
 
@@ -575,12 +596,12 @@ function buildGuiButton(
     const sprite = scene.add.sprite(0, 0, guiTextureKey);
     sprite.setVisible(false);
     sprite.setScrollFactor(0, 0);
-    sprite.setDepth(d);
     if (!tryApplyGuiSheetTag(scene, sprite, guiTextureKey, defaultBgTag, gui.id)) {
       sprite.destroy();
     } else {
       sprite.setVisible(overlayVisible);
-      placeGuiButtonBackgroundSprite(sprite, bgAnchor, px, py, w, h);
+      placeGuiButtonBackgroundSpriteLocal(sprite, bgAnchor, w, h, worldTL);
+      hitTarget.add(sprite);
       bg = sprite;
     }
   }
@@ -592,10 +613,8 @@ function buildGuiButton(
     const ox = c.textOffsetX ?? 0;
     const oy = c.textOffsetY ?? 0;
     const pad = 4;
-    const bx = hitTarget.x;
-    const by = hitTarget.y;
-    const labelX = bx + (align === 'left' ? pad + ox : align === 'right' ? w - pad + ox : w / 2 + ox);
-    const labelY = by + h / 2 + oy;
+    const labelX = align === 'left' ? pad + ox : align === 'right' ? w - pad + ox : w / 2 + ox;
+    const labelY = h / 2 + oy;
     const lineAlign = bitmapTextLineAlign(align);
     const renderSize = effectiveBitmapFontRenderSize(scene, c.font, c.fontSize);
     const bt = scene.add.bitmapText(labelX, labelY, c.font, c.text ?? '', renderSize, lineAlign);
@@ -607,8 +626,8 @@ function buildGuiButton(
       bt.setLetterSpacing(letterSpacing);
     }
     bt.setScrollFactor(0, 0);
-    bt.setDepth(d + 1);
     bt.setVisible(overlayVisible);
+    hitTarget.add(bt);
     label = bt;
   } else if (c.font.trim().length > 0) {
     console.warn(`[Benne] GUI button "${c.id}": unknown or unloaded font "${c.font}".`);
@@ -811,6 +830,14 @@ function addGuiImageSprite(
   controlsById: Map<string, Phaser.GameObjects.GameObject>,
   /** In-world hit targets that must receive input ahead of this image (same overlay). Filled as controls are built. */
   imageInputDeferBelow: Phaser.GameObjects.GameObject[],
+  /** When set, positions the sprite at `x`/`y` (local to `parent` when given) instead of the control’s authored `x`/`y`. */
+  layout?: {
+    x: number;
+    y: number;
+    parent?: Phaser.GameObjects.Container;
+    /** Top-left of this control’s origin in GUI content root space — required for `screen` anchor under `parent`. */
+    screenRootTopLeft?: { x: number; y: number };
+  },
 ): Phaser.GameObjects.Sprite | null {
   if (!usesAsepriteDisplay(gui)) {
     return null;
@@ -826,6 +853,8 @@ function addGuiImageSprite(
     return null;
   }
   const anchor = guiSpriteAnchorOrDefault(c.backgroundAnchor ?? legacyDisplay?.backgroundAnchor);
+  const lx = layout?.x ?? c.x;
+  const ly = layout?.y ?? c.y;
   const sprite = scene.add.sprite(0, 0, guiTextureKey);
   sprite.setVisible(false);
   sprite.setScrollFactor(0, 0);
@@ -836,11 +865,25 @@ function addGuiImageSprite(
     return null;
   }
   sprite.setVisible(vis);
-  if (anchor === 'screen') {
-    applyGuiSpriteAnchor(sprite, anchor, c.x, c.y);
+  const parent = layout?.parent;
+  if (anchor === 'screen' && parent) {
+    const rootTL = layout?.screenRootTopLeft;
+    if (rootTL) {
+      sprite.setOrigin(0, 0);
+      sprite.setPosition(-rootTL.x, -rootTL.y);
+    } else {
+      applyGuiSpriteAnchor(sprite, 'top-left', lx, ly);
+    }
+    parent.add(sprite);
+    extraSprites.push(sprite);
+  } else if (anchor === 'screen') {
+    applyGuiSpriteAnchor(sprite, anchor, lx, ly);
     extraSprites.push(sprite);
   } else {
-    applyGuiSpriteAnchor(sprite, anchor, c.x, c.y);
+    applyGuiSpriteAnchor(sprite, anchor, lx, ly);
+    if (parent) {
+      parent.add(sprite);
+    }
     extraSprites.push(sprite);
   }
   /** Opaque pixels block room input unless a higher-priority GUI widget occupies the pointer (see defer list). */
@@ -894,6 +937,143 @@ function appendPreEmitForButtonId(map: Map<string, Array<() => void>>, buttonId:
   }
 }
 
+type GuiGridLayoutCache = {
+  def: GuiGridControl;
+  colOff: number[];
+  rowOff: number[];
+  colW: number[];
+  rowH: number[];
+};
+
+type GridResolvedPlace = {
+  parent: Phaser.GameObjects.Container;
+  localX: number;
+  localY: number;
+  contentW: number;
+  contentH: number;
+  /** Top-left of this control’s origin in GUI content root space (same frame as authored overlay `x`/`y`). */
+  rootTopLeft: { x: number; y: number };
+};
+
+function estimateInventoryPanelOuterSize(c: GuiInventoryPanelControl): { w: number; h: number } {
+  const spacingX = c.spacingX ?? 0;
+  const spacingY = c.spacingY ?? 0;
+  const w = c.cols * c.slotWidth + Math.max(0, c.cols - 1) * spacingX;
+  const h = c.rows * c.slotHeight + Math.max(0, c.rows - 1) * spacingY;
+  return { w, h };
+}
+
+function estimateImageSizeForGridAlign(scene: Phaser.Scene, gui: GuiData, c: GuiImageControl): { w: number; h: number } {
+  const fw = c.width;
+  const fh = c.height;
+  if (fw != null && Number.isFinite(fw) && fw > 0 && fh != null && Number.isFinite(fh) && fh > 0) {
+    return { w: Math.round(fw), h: Math.round(fh) };
+  }
+  if (!usesAsepriteDisplay(gui)) {
+    return { w: 32, h: 32 };
+  }
+  const legacyDisplay = (c as GuiImageControl & { display?: { tag?: string } }).display;
+  const tag = (c.tag ?? legacyDisplay?.tag)?.trim() ?? '';
+  const key = getAsepriteTextureKey(gui.id);
+  if (!tag || !scene.textures.exists(key)) {
+    return { w: 32, h: 32 };
+  }
+  try {
+    ensureAsepriteAnimationsFromAtlas(scene, key);
+    const spr = scene.add.sprite(0, 0, key);
+    spr.setVisible(false);
+    if (tryApplyGuiSheetTag(scene, spr, key, tag, gui.id)) {
+      const w = Math.max(1, Math.round(spr.displayWidth || spr.width));
+      const h = Math.max(1, Math.round(spr.displayHeight || spr.height));
+      spr.destroy();
+      return { w, h };
+    }
+    spr.destroy();
+  } catch {
+    /* fall through */
+  }
+  return { w: 32, h: 32 };
+}
+
+function estimateTextBlockSizeForGrid(
+  scene: Phaser.Scene,
+  c: GuiTextControl,
+  initial: string,
+): { w: number; h: number } {
+  const fontEntry = manifest[c.font] as GameBitmapFontDefinition | undefined;
+  if (!fontEntry || !scene.cache.bitmapFont.exists(c.font)) {
+    return { w: 64, h: 16 };
+  }
+  const lineAlign = bitmapTextLineAlign(c.align);
+  const renderSize = effectiveBitmapFontRenderSize(scene, c.font, c.fontSize);
+  const tmp = scene.add.bitmapText(0, 0, c.font, initial, renderSize, lineAlign);
+  tmp.setVisible(false);
+  const o = originFromAlign(c.align);
+  tmp.setOrigin(o.x, o.y);
+  if (c.wordWrapWidth != null && c.wordWrapWidth > 0) {
+    const maxW = evenWordWrapWidth(c.wordWrapWidth);
+    if (maxW > 0) {
+      tmp.setMaxWidth(maxW);
+    }
+  }
+  const b = tmp.getBounds();
+  tmp.destroy();
+  return { w: Math.max(1, Math.round(b.width)), h: Math.max(1, Math.round(b.height)) };
+}
+
+function tryResolveGridPlacement(
+  gui: GuiData,
+  placement: GuiGridPlacement | undefined,
+  gridsById: Map<string, Phaser.GameObjects.Container>,
+  gridLayoutById: Map<string, GuiGridLayoutCache>,
+  contentW: number,
+  contentH: number,
+  isFixed: boolean,
+): GridResolvedPlace | null {
+  if (isFixed || !isGuiGridPlacement(placement)) {
+    return null;
+  }
+  const gid = placement.gridControlId.trim();
+  const gridGo = gridsById.get(gid);
+  const lay = gridLayoutById.get(gid);
+  if (!gridGo || !lay) {
+    console.warn(`[Benne] GUI "${gui.id}": gridPlacement references unknown grid "${gid}" — using x/y.`);
+    return null;
+  }
+  const cell = spanCellRect(
+    lay.colOff,
+    lay.rowOff,
+    lay.colW,
+    lay.rowH,
+    Math.max(0, Math.floor(placement.col)),
+    Math.max(0, Math.floor(placement.row)),
+    placement.colspan ?? 1,
+    placement.rowspan ?? 1,
+  );
+  if (!cell) {
+    console.warn(
+      `[Benne] GUI "${gui.id}": gridPlacement for grid "${gid}" has out-of-range row/col/span — using x/y.`,
+    );
+    return null;
+  }
+  const bw = Math.max(1, contentW);
+  const bh = Math.max(1, contentH);
+  const { hx, vy } = parseGuiGridCellAlign(placement.align);
+  const { dx, dy } = alignBoxTopLeftInCell(hx, vy, cell.w, cell.h, bw, bh);
+  const localX = Math.round(cell.x + dx);
+  const localY = Math.round(cell.y + dy);
+  const gx = Math.round(lay.def.x);
+  const gy = Math.round(lay.def.y);
+  return {
+    parent: gridGo,
+    localX,
+    localY,
+    contentW: bw,
+    contentH: bh,
+    rootTopLeft: { x: gx + localX, y: gy + localY },
+  };
+}
+
 function addInventorySlotSheetSprite(
   scene: Phaser.Scene,
   guiTextureKey: string,
@@ -937,11 +1117,18 @@ function fillInventoryPanelContent(
   scrollState: { offset: number },
   startVisible: boolean,
   invPointerCtx: InventoryPanelPointerContext | undefined,
+  /**
+   * Top-left of the panel’s origin `(0,0)` in **GUI content root** space — used for `backgroundAnchor: 'screen'`
+   * so the backdrop can offset to canvas `(0,0)`. When omitted, uses the control’s authored `x`/`y`.
+   */
+  panelAnchorInRoot?: { x: number; y: number },
 ): void {
   panel.removeAll(true);
 
   const px = Math.round(c.x);
   const py = Math.round(c.y);
+  const anchorRootX = Math.round(panelAnchorInRoot?.x ?? px);
+  const anchorRootY = Math.round(panelAnchorInRoot?.y ?? py);
 
   const panelVisible = startVisible && c.visible !== false;
   panel.setVisible(panelVisible);
@@ -993,7 +1180,7 @@ function fillInventoryPanelContent(
       if (bgAnchor === 'screen') {
         /** World (0,0) while staying parented so `panel.setVisible` still toggles the backdrop. */
         backdrop.setOrigin(0, 0);
-        backdrop.setPosition(-px, -py);
+        backdrop.setPosition(-anchorRootX, -anchorRootY);
       } else if (bgAnchor === 'center') {
         applyGuiSpriteAnchor(backdrop, bgAnchor, panelW / 2, panelH / 2);
       } else {
@@ -1215,7 +1402,7 @@ export interface BuildGuiOverlayOptions {
 }
 
 /**
- * Builds screen-space GUI controls from `gui.controls` (`text`, `verbLine`, `inventoryPanel`, `image`, `button`).
+ * Builds screen-space GUI controls from `gui.controls` (`text`, `verbLine`, `inventoryPanel`, `image`, `button`, `trigger`, `grid`).
  * Starts hidden unless `startVisible`. Font ids resolve via `fonts/fonts.json` (`load.bitmapFont` keys).
  */
 export function buildGuiOverlay(
@@ -1310,6 +1497,59 @@ export function buildGuiOverlay(
   const invScrollStateByControlIndex = new Map<number, InvScrollState>();
   const buttonPreEmitById = new Map<string, Array<() => void>>();
 
+  const gridsById = new Map<string, Phaser.GameObjects.Container>();
+  const gridLayoutById = new Map<string, GuiGridLayoutCache>();
+  const gridContainers: Phaser.GameObjects.Container[] = [];
+
+  for (let gi = 0; gi < controls.length; gi += 1) {
+    const gc = controls[gi]!;
+    if (gc.type !== 'grid') {
+      continue;
+    }
+    const gidc = gc.id.trim();
+    if (!gidc) {
+      console.warn(`[Benne] GUI "${gui.id}": grid control at index ${gi} is missing id — skipping.`);
+      continue;
+    }
+    if (gridsById.has(gidc)) {
+      console.warn(`[Benne] GUI "${gui.id}": duplicate grid id "${gidc}" — skipping duplicate.`);
+      continue;
+    }
+    const gpx = Math.round(gc.x);
+    const gpy = Math.round(gc.y);
+    const gridCont = scene.add.container(gpx, gpy);
+    gridCont.setScrollFactor(0, 0);
+    gridCont.setDepth(depth + (gc.zIndex ?? 0));
+    gridCont.setVisible(startVisible && gc.visible !== false);
+    const track = layoutGuiGridTracks(gc);
+    const colOff = cumulativeOffsets(track.colWidths);
+    const rowOff = cumulativeOffsets(track.rowHeights);
+    gridLayoutById.set(gidc, {
+      def: gc,
+      colOff,
+      rowOff,
+      colW: track.colWidths,
+      rowH: track.rowHeights,
+    });
+    if (getGameSettings().debug?.showGuiOutlines === true) {
+      const gdraw = scene.add.graphics();
+      gdraw.lineStyle(1, DEBUG_GUI_GRID_CELL_STROKE, 0.9);
+      for (let rr = 0; rr < gc.rows; rr += 1) {
+        for (let cc = 0; cc < gc.columns; cc += 1) {
+          const cell = spanCellRect(colOff, rowOff, track.colWidths, track.rowHeights, cc, rr, 1, 1);
+          if (cell && cell.w > 1 && cell.h > 1) {
+            gdraw.strokeRect(cell.x + 0.5, cell.y + 0.5, cell.w - 1, cell.h - 1);
+          }
+        }
+      }
+      gridCont.add(gdraw);
+    }
+    gridsById.set(gidc, gridCont);
+    gridContainers.push(gridCont);
+    controlsById.set(gidc, gridCont);
+    ;(isGuiFixedControlId(gc.id) ? fixedPackedGameObjects : movablePackedParts).push(gridCont as DepthGameObject);
+  }
+
   for (let i = 0; i < controls.length; i += 1) {
     const c = controls[i]!;
     if (c.type !== 'inventoryPanel' || !inventoryPanelScrollConfigured(c, buttonIds)) {
@@ -1330,16 +1570,45 @@ export function buildGuiOverlay(
 
   for (let i = 0; i < controls.length; i += 1) {
     const c = controls[i]!;
+    if (c.type === 'grid') {
+      continue;
+    }
     if (c.type === 'inventoryPanel') {
       const px = Math.round(c.x);
       const py = Math.round(c.y);
-      const panel = scene.add.container(px, py);
+      const invOuter = estimateInventoryPanelOuterSize(c);
+      const invPlace = tryResolveGridPlacement(
+        gui,
+        c.gridPlacement,
+        gridsById,
+        gridLayoutById,
+        invOuter.w,
+        invOuter.h,
+        isGuiFixedControlId(c.id),
+      );
+      const panelAnchorInRoot = invPlace ? invPlace.rootTopLeft : { x: px, y: py };
+      const panel = scene.add.container(0, 0);
       panel.setScrollFactor(0, 0);
       panel.setDepth(depth + (c.zIndex ?? 0));
+      if (invPlace) {
+        invPlace.parent.add(panel);
+        panel.setPosition(invPlace.localX, invPlace.localY);
+      } else {
+        panel.setPosition(px, py);
+      }
       const scrollSt = invScrollStateByControlIndex.get(i);
       const offsetState = scrollSt ?? { offset: 0 };
       const refreshInventoryPanel = (): void => {
-        fillInventoryPanelContent(panel, scene, gui, c, offsetState, startVisible, invPointerCtx);
+        fillInventoryPanelContent(
+          panel,
+          scene,
+          gui,
+          c,
+          offsetState,
+          startVisible,
+          invPointerCtx,
+          panelAnchorInRoot,
+        );
       };
       if (scrollSt) {
         scrollSt.refresh = refreshInventoryPanel;
@@ -1368,11 +1637,23 @@ export function buildGuiOverlay(
         controlsById.set(pid, panel);
       }
       guiImageInputDeferBelow.push(panel);
-      ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(panel as DepthGameObject);
+      if (!invPlace) {
+        ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(panel as DepthGameObject);
+      }
       continue;
     }
 
     if (c.type === 'image') {
+      const imgSz = estimateImageSizeForGridAlign(scene, gui, c);
+      const imgPlace = tryResolveGridPlacement(
+        gui,
+        c.gridPlacement,
+        gridsById,
+        gridLayoutById,
+        imgSz.w,
+        imgSz.h,
+        isGuiFixedControlId(c.id),
+      );
       const spr = addGuiImageSprite(
         scene,
         gui,
@@ -1382,9 +1663,19 @@ export function buildGuiOverlay(
         extraSprites,
         controlsById,
         guiImageInputDeferBelow,
+        imgPlace
+          ? {
+              x: imgPlace.localX,
+              y: imgPlace.localY,
+              parent: imgPlace.parent,
+              screenRootTopLeft: imgPlace.rootTopLeft,
+            }
+          : undefined,
       );
       if (spr) {
-        ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(spr as DepthGameObject);
+        if (!imgPlace) {
+          ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(spr as DepthGameObject);
+        }
       }
       continue;
     }
@@ -1399,25 +1690,58 @@ export function buildGuiOverlay(
               }
             }
           : undefined;
-      const built = buildGuiButton(scene, gui, c, depth, startVisible, preEmit);
+      const btnPlace = tryResolveGridPlacement(
+        gui,
+        c.gridPlacement,
+        gridsById,
+        gridLayoutById,
+        c.width,
+        c.height,
+        isGuiFixedControlId(c.id),
+      );
+      const btnModel: GuiButtonControl = btnPlace ? { ...c, x: btnPlace.localX, y: btnPlace.localY } : c;
+      const built = buildGuiButton(
+        scene,
+        gui,
+        btnModel,
+        depth,
+        startVisible,
+        preEmit,
+        btnPlace ? btnPlace.rootTopLeft : undefined,
+      );
       if (built) {
+        if (btnPlace) {
+          btnPlace.parent.add(built.hitTarget);
+        }
         guiImageInputDeferBelow.push(built.hitTarget);
         guiButtons.push(built);
         controlsById.set(c.id.trim(), built.hitTarget);
-        const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
-        if (built.background) {
-          bucket.push(built.background as DepthGameObject);
+        if (!btnPlace) {
+          const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
+          bucket.push(built.hitTarget as DepthGameObject);
         }
-        if (built.label) {
-          bucket.push(built.label as DepthGameObject);
-        }
-        bucket.push(built.hitTarget as DepthGameObject);
       }
       continue;
     }
 
     if (c.type === 'trigger') {
-      const zone = buildGuiTriggerZone(scene, c, depth, startVisible);
+      const trPlace = tryResolveGridPlacement(
+        gui,
+        c.gridPlacement,
+        gridsById,
+        gridLayoutById,
+        c.width,
+        c.height,
+        isGuiFixedControlId(c.id),
+      );
+      const trModel: GuiTriggerControl = trPlace ? { ...c, x: trPlace.localX, y: trPlace.localY } : c;
+      const zone = buildGuiTriggerZone(
+        scene,
+        trModel,
+        depth,
+        startVisible,
+        trPlace ? trPlace.parent : undefined,
+      );
       if (zone) {
         triggerZones.push(zone);
         controlsById.set(c.id.trim(), zone);
@@ -1426,17 +1750,36 @@ export function buildGuiOverlay(
             active: c.active !== false,
           }),
         );
-        ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(zone as DepthGameObject);
+        if (!trPlace) {
+          ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(zone as DepthGameObject);
+        }
       }
       continue;
     }
 
     if (c.type === 'verbLine') {
       const lineVisible = startVisible && c.visible !== false;
-      const textStyle = verbLineControlToBitmapStyle(c);
-      const line = addGuiBitmapLine(scene, textStyle, readFullVerbLine(), depth + (c.zIndex ?? 0), lineVisible);
+      const textStyleBase = verbLineControlToBitmapStyle(c);
+      const vlText = readFullVerbLine();
+      const vlEst = estimateTextBlockSizeForGrid(scene, textStyleBase, vlText);
+      const vlPlace = tryResolveGridPlacement(
+        gui,
+        c.gridPlacement,
+        gridsById,
+        gridLayoutById,
+        vlEst.w,
+        vlEst.h,
+        isGuiFixedControlId(c.id),
+      );
+      const textStyle = vlPlace
+        ? { ...textStyleBase, x: vlPlace.localX, y: vlPlace.localY }
+        : textStyleBase;
+      const line = addGuiBitmapLine(scene, textStyle, vlText, depth + (c.zIndex ?? 0), lineVisible);
       if (!line) {
         continue;
+      }
+      if (vlPlace) {
+        vlPlace.parent.add(line);
       }
       verbLines.push(line);
       const onVerbLineGameState = (): void => {
@@ -1454,8 +1797,10 @@ export function buildGuiOverlay(
       if (vid) {
         linesById.set(vid, line);
         controlsById.set(vid, line);
-        ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(line as DepthGameObject);
-      } else {
+        if (!vlPlace) {
+          ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(line as DepthGameObject);
+        }
+      } else if (!vlPlace) {
         movablePackedParts.push(line as DepthGameObject);
       }
       continue;
@@ -1467,16 +1812,32 @@ export function buildGuiOverlay(
     const raw = c.text?.trim() ?? '';
     const initial = raw.length > 0 ? (c.text ?? '') : (placeholder ?? '');
     const lineVisible = startVisible && c.visible !== false;
-    const line = addGuiBitmapLine(scene, c, initial, depth + (c.zIndex ?? 0), lineVisible);
+    const txEst = estimateTextBlockSizeForGrid(scene, c, initial);
+    const txPlace = tryResolveGridPlacement(
+      gui,
+      c.gridPlacement,
+      gridsById,
+      gridLayoutById,
+      txEst.w,
+      txEst.h,
+      isGuiFixedControlId(c.id),
+    );
+    const textModel: GuiTextControl = txPlace ? { ...c, x: txPlace.localX, y: txPlace.localY } : c;
+    const line = addGuiBitmapLine(scene, textModel, initial, depth + (c.zIndex ?? 0), lineVisible);
     if (!line) {
       continue;
+    }
+    if (txPlace) {
+      txPlace.parent.add(line);
     }
     allLines.push(line);
     if (c.id) {
       linesById.set(c.id, line);
       controlsById.set(c.id, line);
-      ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(line as DepthGameObject);
-    } else {
+      if (!txPlace) {
+        ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(line as DepthGameObject);
+      }
+    } else if (!txPlace) {
       movablePackedParts.push(line as DepthGameObject);
     }
   }
@@ -1487,7 +1848,8 @@ export function buildGuiOverlay(
     inventoryPanels.length === 0 &&
     extraSprites.length === 0 &&
     guiButtons.length === 0 &&
-    triggerZones.length === 0
+    triggerZones.length === 0 &&
+    gridContainers.length === 0
   ) {
     return null;
   }
@@ -1587,6 +1949,9 @@ export function buildGuiOverlay(
       }
       for (const z of triggerZones) {
         z.setVisible(visible);
+      }
+      for (const g of gridContainers) {
+        g.setVisible(visible);
       }
     },
     setLetterSpacing(spacing: number) {

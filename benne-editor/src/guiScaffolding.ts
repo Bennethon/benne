@@ -9,7 +9,14 @@ import {
     listGuiDefinitions
 } from './gameDiscovery';
 
-export type GuiControlKind = 'text' | 'verbLine' | 'inventoryPanel' | 'image' | 'button' | 'trigger';
+export type GuiControlKind =
+    | 'text'
+    | 'verbLine'
+    | 'inventoryPanel'
+    | 'image'
+    | 'button'
+    | 'trigger'
+    | 'grid';
 
 function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
@@ -119,6 +126,8 @@ function guiControlKindLabel(kind: GuiControlKind): string {
             return 'button';
         case 'trigger':
             return 'trigger';
+        case 'grid':
+            return 'grid';
     }
 }
 
@@ -217,6 +226,17 @@ function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, un
                 height: 64,
                 active: true
             };
+        case 'grid':
+            return {
+                type: 'grid',
+                id,
+                x: 0,
+                y: 0,
+                width: 160,
+                height: 96,
+                rows: 2,
+                columns: 2
+            };
     }
 }
 
@@ -261,6 +281,9 @@ export async function runAddGuiControlWizard(
             }
             if (kind === 'trigger' && s.length === 0) {
                 return 'Trigger controls require an id (B.whenMouseEnter / whenMouseLeave).';
+            }
+            if (kind === 'grid' && s.length === 0) {
+                return 'Grid controls require an id (gridPlacement.gridControlId references it).';
             }
             if (s.length === 0) {
                 return null;
@@ -385,6 +408,11 @@ export async function runAddGuiControlInteractiveWizard(
             label: 'Trigger',
             description: 'Invisible hit zone for B.whenMouseEnter / whenMouseLeave',
             controlKind: 'trigger'
+        },
+        {
+            label: 'Grid',
+            description: 'Layout container; place other controls with gridPlacement',
+            controlKind: 'grid'
         }
     ];
     const picked = await vscode.window.showQuickPick(items, {

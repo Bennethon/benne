@@ -123,6 +123,27 @@ type InspectorCharacterState = {
 
 type InspectorGuiSpriteAnchor = '' | 'top-left' | 'center' | 'screen';
 
+type InspectorGuiGridCellAlign =
+    | ''
+    | 'top-left'
+    | 'top-center'
+    | 'top-right'
+    | 'center-left'
+    | 'center'
+    | 'center-right'
+    | 'bottom-left'
+    | 'bottom-center'
+    | 'bottom-right';
+
+type InspectorGuiGridPlacement = {
+    gridControlId: string;
+    row: number;
+    col: number;
+    rowspan: number | null;
+    colspan: number | null;
+    align: InspectorGuiGridCellAlign;
+};
+
 type InspectorGuiControlCard =
     | {
           controlKind: 'text';
@@ -140,6 +161,7 @@ type InspectorGuiControlCard =
           color: string;
           align: 'left' | 'center' | 'right' | '';
           wordWrapWidth: number | null;
+          gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
           controlKind: 'verbLine';
@@ -156,6 +178,7 @@ type InspectorGuiControlCard =
           color: string;
           align: 'left' | 'center' | 'right' | '';
           wordWrapWidth: number | null;
+          gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
           controlKind: 'inventoryPanel';
@@ -184,6 +207,7 @@ type InspectorGuiControlCard =
           slotBackgroundAnchor: InspectorGuiSpriteAnchor;
           highlightTag: string;
           highlightAnchor: InspectorGuiSpriteAnchor;
+          gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
           controlKind: 'image';
@@ -197,6 +221,7 @@ type InspectorGuiControlCard =
           visibleMode: '' | 'true' | 'false';
           tag: string;
           backgroundAnchor: InspectorGuiSpriteAnchor;
+          gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
           controlKind: 'button';
@@ -223,6 +248,7 @@ type InspectorGuiControlCard =
           statesPressed: string;
           statesDisabled: string;
           enabled: boolean;
+          gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
           controlKind: 'trigger';
@@ -237,6 +263,22 @@ type InspectorGuiControlCard =
           height: number;
           visibleMode: '' | 'true' | 'false';
           active: boolean;
+          gridPlacement: InspectorGuiGridPlacement | null;
+      }
+    | {
+          controlKind: 'grid';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          rows: number;
+          columns: number;
+          width: number | null;
+          height: number | null;
       }
     | {
           controlKind: 'unknown';
@@ -969,6 +1011,62 @@ function guiFontSelectHtml(fontIds: readonly string[], current: string, dataInde
     return `<select class="gui-field" data-index="${dataIndex}" data-field="font">${inner}</select>`;
 }
 
+function guiGridControlIds(state: InspectorGuiState): string[] {
+    return state.controls
+        .filter((c): c is Extract<InspectorGuiControlCard, { controlKind: 'grid' }> => c.controlKind === 'grid')
+        .map((c) => c.controlId.trim())
+        .filter((id) => id.length > 0);
+}
+
+function guiGridCellAlignSelectOptions(val: InspectorGuiGridCellAlign): string {
+    const opts: [InspectorGuiGridCellAlign, string][] = [
+        ['', '(default top-left)'],
+        ['top-left', 'top-left'],
+        ['top-center', 'top-center'],
+        ['top-right', 'top-right'],
+        ['center-left', 'center-left'],
+        ['center', 'center'],
+        ['center-right', 'center-right'],
+        ['bottom-left', 'bottom-left'],
+        ['bottom-center', 'bottom-center'],
+        ['bottom-right', 'bottom-right']
+    ];
+    return opts
+        .map(([v, lab]) => `<option value="${esc(v)}"${val === v ? ' selected' : ''}>${esc(lab)}</option>`)
+        .join('');
+}
+
+function guiGridPlacementEditorHtml(state: InspectorGuiState, idx: number, gp: InspectorGuiGridPlacement | null): string {
+    const grids = guiGridControlIds(state);
+    if (grids.length === 0) {
+        return `<p class="muted small" style="margin-top:10px;">Add a <strong>grid</strong> control to place this widget in a cell (<code>gridPlacement</code>).</p>`;
+    }
+    const curGrid = gp?.gridControlId?.trim() ?? '';
+    let gridOpts = '<option value="">— none —</option>';
+    const gset = new Set(grids);
+    if (curGrid && !gset.has(curGrid)) {
+        gridOpts += `<option value="${esc(curGrid)}" selected>${esc(curGrid)} (missing)</option>`;
+    }
+    for (const g of grids) {
+        gridOpts += `<option value="${esc(g)}"${g === curGrid ? ' selected' : ''}>${esc(g)}</option>`;
+    }
+    return `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Grid placement</div>
+<div class="benne-prop-grid benne-prop-grid--tight" data-gp-wrap="${idx}">
+  <span class="benne-pg-lbl">grid id</span>
+  <select class="gui-gp-field" data-gp="gridId">${gridOpts}</select>
+  <span class="benne-pg-lbl">row</span>
+  <input type="number" class="gui-gp-field" data-gp="row" value="${gp?.row ?? 0}" step="1" />
+  <span class="benne-pg-lbl">col</span>
+  <input type="number" class="gui-gp-field" data-gp="col" value="${gp?.col ?? 0}" step="1" />
+  <span class="benne-pg-lbl">rowspan</span>
+  <input type="number" class="gui-gp-field" data-gp="rowspan" value="${gp?.rowspan ?? ''}" placeholder="1" />
+  <span class="benne-pg-lbl">colspan</span>
+  <input type="number" class="gui-gp-field" data-gp="colspan" value="${gp?.colspan ?? ''}" placeholder="1" />
+  <span class="benne-pg-lbl">align</span>
+  <select class="gui-gp-field" data-gp="align">${guiGridCellAlignSelectOptions(gp?.align ?? '')}</select>
+</div>`;
+}
+
 function guiButtonIdSelectHtml(
     buttonIds: readonly string[],
     current: string,
@@ -1038,6 +1136,7 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       </div>
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
       <p class="muted small" style="margin:8px 0 0;">Sheet animations are not used for <code>text</code> controls.</p>`;
     }
 
@@ -1066,6 +1165,7 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       </div>
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
       <p class="muted small" style="margin:8px 0 0;">Runtime text comes from <code>game-config.json</code> verbs and the active verb (defaults to <strong>Walk to</strong>).</p>`;
     }
 
@@ -1128,6 +1228,7 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       </div>
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
       ${animBlock}`;
     }
 
@@ -1180,6 +1281,7 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
       ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
       ${sheetBlock}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
       ${
           c.controlId
               ? `<div style="margin:8px 0 0;">
@@ -1210,6 +1312,7 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       </div>
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
       ${animImg}`;
     }
 
@@ -1225,7 +1328,31 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       </div>
       <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
       ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
       <p class="muted small" style="margin:8px 0 0;">Invisible hit zone. Wire <code>B.whenMouseEnter('${esc(c.controlId || 'id')}', …)</code> and <code>B.whenMouseLeave</code> in <code>*.gui.ts</code>.</p>`;
+    }
+
+    if (c.controlKind === 'grid') {
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">rows</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="rows" value="${c.rows}" />
+        <span class="benne-pg-lbl">columns</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="columns" value="${c.columns}" />
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position</div>
+      ${guiDimInputsForControl(idx, c.x, c.y)}
+      <div class="benne-scroll-bounds-label muted small" style="margin-top:8px;">Optional container size</div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">width</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="width" value="${c.width ?? ''}" placeholder="—" />
+        <span class="benne-pg-lbl">height</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="height" value="${c.height ?? ''}" placeholder="—" />
+      </div>
+      <p class="muted small" style="margin:8px 0 0;">Optional <code>rowHeights</code> / <code>colWidths</code> arrays: edit in raw JSON.</p>`;
     }
 
     return `<p class="muted">Unsupported control kind.</p>`;
@@ -1957,11 +2084,10 @@ function buildGuiControlFieldPatch(
         'y',
         'rows',
         'cols',
+        'columns',
         'slotWidth',
         'slotHeight',
-        'fontSize',
-        'width',
-        'height'
+        'fontSize'
     ]);
     if (intRequired.has(field)) {
         const n = Number((el as HTMLInputElement).value);
@@ -1977,7 +2103,9 @@ function buildGuiControlFieldPatch(
         'spacingY',
         'itemScale',
         'textOffsetX',
-        'textOffsetY'
+        'textOffsetY',
+        'width',
+        'height'
     ]);
     if (optNum.has(field)) {
         const raw = (el as HTMLInputElement).value.trim();
@@ -2006,6 +2134,46 @@ function buildGuiControlFieldPatch(
         return { [field]: el.value };
     }
     return null;
+}
+
+function collectGridPlacementPatchFromDom(idx: number): Record<string, unknown> | null {
+    const wrap = document.querySelector(`[data-gp-wrap="${String(idx)}"]`);
+    if (!wrap) {
+        return null;
+    }
+    const gridId = (wrap.querySelector('[data-gp="gridId"]') as HTMLSelectElement | null)?.value.trim() ?? '';
+    if (!gridId) {
+        return { gridPlacement: null };
+    }
+    const row = Number((wrap.querySelector('[data-gp="row"]') as HTMLInputElement | null)?.value ?? '0');
+    const col = Number((wrap.querySelector('[data-gp="col"]') as HTMLInputElement | null)?.value ?? '0');
+    if (!Number.isFinite(row) || !Number.isFinite(col)) {
+        return null;
+    }
+    const placement: Record<string, unknown> = {
+        gridControlId: gridId,
+        row: Math.trunc(row),
+        col: Math.trunc(col)
+    };
+    const rs = (wrap.querySelector('[data-gp="rowspan"]') as HTMLInputElement | null)?.value.trim() ?? '';
+    if (rs !== '') {
+        const n = Number(rs);
+        if (Number.isFinite(n) && n > 0) {
+            placement.rowspan = Math.trunc(n);
+        }
+    }
+    const cs = (wrap.querySelector('[data-gp="colspan"]') as HTMLInputElement | null)?.value.trim() ?? '';
+    if (cs !== '') {
+        const n = Number(cs);
+        if (Number.isFinite(n) && n > 0) {
+            placement.colspan = Math.trunc(n);
+        }
+    }
+    const al = (wrap.querySelector('[data-gp="align"]') as HTMLSelectElement | null)?.value ?? '';
+    if (al.length > 0) {
+        placement.align = al;
+    }
+    return { gridPlacement: placement };
 }
 
 function mountGuiHandlers(state: InspectorGuiState): void {
@@ -2069,6 +2237,32 @@ function mountGuiHandlers(state: InspectorGuiState): void {
         post('addGuiControl', {});
     });
     document.querySelectorAll('.gui-field').forEach(bindGuiField);
+    const flushGridPlacement = (index: number): void => {
+        const patch = collectGridPlacementPatchFromDom(index);
+        if (patch) {
+            postGuiPatch(index, patch);
+        }
+    };
+    document.querySelectorAll('[data-gp-wrap]').forEach((wrap) => {
+        const idx = Number((wrap as HTMLElement).dataset.gpWrap ?? '-1');
+        if (!Number.isInteger(idx) || idx < 0) {
+            return;
+        }
+        wrap.querySelectorAll('.gui-gp-field').forEach((el) => {
+            if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLSelectElement)) {
+                return;
+            }
+            const he = el as HTMLInputElement | HTMLSelectElement;
+            const flushGp = (): void => {
+                flushGridPlacement(idx);
+            };
+            if (he instanceof HTMLSelectElement) {
+                he.addEventListener('change', flushGp);
+            } else {
+                he.addEventListener('blur', flushGp);
+            }
+        });
+    });
     document.querySelectorAll('.gui-field-cb').forEach((el) => {
         if (!(el instanceof HTMLInputElement)) {
             return;
