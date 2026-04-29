@@ -59,6 +59,11 @@ import {
   CURSOR_TEXTURE_KEY,
   isBenneGameCursorAsepriteEnabled,
 } from '../../game/cursorAseprite';
+import {
+  syncBenneRoomPropTightWorldPosition,
+  warnDevIfAsepriteJsonMissingSpriteSourceSize,
+  wireBenneRoomPropTightPlacementAfterFrameChanges,
+} from '../aseprite/asepriteFramePlacement';
 import { attachPostProcessingPlaceholder } from '../postfx/PostEffects';
 import {
   cameraFollowOffsetForFeet,
@@ -1933,12 +1938,28 @@ export class RoomScene extends Phaser.Scene {
         sprite.play(basePhaserKey);
       }
 
+      if (import.meta.env.DEV) {
+        warnDevIfAsepriteJsonMissingSpriteSourceSize(
+          sprite.frame,
+          `Room "${data.room.id}" prop "${spawn.id}"`,
+        );
+      }
+
+      const placement = spawn.data.spritePlacement ?? 'canvas';
+      if (placement === 'tight') {
+        sprite.setData('benneRoomPropPlacement', 'tight');
+        sprite.setData('benneRoomPropAuthoredX', spawn.x);
+        sprite.setData('benneRoomPropAuthoredY', spawn.y);
+        syncBenneRoomPropTightWorldPosition(sprite);
+        wireBenneRoomPropTightPlacementAfterFrameChanges(sprite);
+      }
+
       const pd = spawn.data.parallaxDepth;
       if (pd !== undefined && pd !== 1) {
         this.parallaxProps.push({
           sprite,
-          baseX: spawn.x,
-          baseY: spawn.y,
+          baseX: sprite.x,
+          baseY: sprite.y,
           parallaxDepth: pd,
         });
       }
@@ -1971,7 +1992,7 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
 
-    const flat = pts.flatMap((p) => [p.x - spawn.x, p.y - spawn.y]);
+    const flat = pts.flatMap((p) => [p.x - sprite.x, p.y - sprite.y]);
     const poly = new Phaser.Geom.Polygon(flat);
     sprite.setInteractive({
       hitArea: poly,

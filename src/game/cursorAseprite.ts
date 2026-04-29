@@ -1,4 +1,5 @@
 import type * as Phaser from 'phaser';
+import { getAsepriteSpriteSourceInset } from '../engine/aseprite/asepriteFramePlacement';
 import type { GameSettings, GameSettingsCursor, GameSettingsCursorHotspot } from '../types/game';
 
 /** Phaser texture / animation atlas key for `images/cursor/cursor.{png,json}`. */
@@ -37,7 +38,8 @@ export function applyGameCursorSpriteHotspot(
     const hx = p !== undefined && Number.isFinite(p.x) ? p.x : 0;
     const hy = p !== undefined && Number.isFinite(p.y) ? p.y : 0;
     sprite.setOrigin(0, 0);
-    sprite.setPosition(pointer.x - hx, pointer.y - hy);
+    const inset = getAsepriteSpriteSourceInset(sprite.frame);
+    sprite.setPosition(pointer.x - hx - inset.x, pointer.y - hy - inset.y);
     return;
   }
   let ox = 0;
@@ -84,7 +86,8 @@ export function applyGameCursorSpriteHotspot(
       oy = 0;
   }
   sprite.setOrigin(ox, oy);
-  sprite.setPosition(pointer.x, pointer.y);
+  const inset = getAsepriteSpriteSourceInset(sprite.frame);
+  sprite.setPosition(pointer.x - inset.x, pointer.y - inset.y);
 }
 
 export function getCursorAsepriteAssetPaths(): { png: string; json: string } {

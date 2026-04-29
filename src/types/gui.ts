@@ -194,6 +194,9 @@ export interface GuiImageControl {
   /**
    * Placement for {@link tag}; default `top-left`. Same vocabulary as
    * {@link GuiInventoryPanelControl.backgroundAnchor}.
+   * When {@link gridPlacement} uses `align: "center"`, the runtime centers the sprite in the cell
+   * (origin `0.5`) even if this field is omitted — set `backgroundAnchor` explicitly if you need a
+   * different pivot inside the grid box.
    */
   backgroundAnchor?: GuiSpriteAnchor;
   /** Optional extra clips from the GUI sheet (Aseprite tags). */

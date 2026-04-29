@@ -1,0 +1,95 @@
+{
+  "id": "dialog",
+  "name": "Dialog",
+  "description": "",
+  "visible": true,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "image",
+      "id": "VerbsBG",
+      "x": 0,
+      "y": 0,
+      "tag": "VerbsBG",
+      "zIndex": 1,
+      "backgroundAnchor": "screen",
+      "visible": true
+    },
+    {
+      "type": "button",
+      "id": "UpBtn",
+      "x": 0,
+      "y": 0,
+      "width": 120,
+      "height": 32,
+      "text": "Button",
+      "font": "",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "UpBtn",
+      "backgroundAnchor": "screen"
+    },
+    {
+      "type": "button",
+      "id": "DownBtn",
+      "x": 0,
+      "y": 0,
+      "width": 120,
+      "height": 32,
+      "backgroundAnchor": "top-left",
+      "text": "Button",
+      "font": "",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "DownBtn"
+    },
+    {
+      "type": "image",
+      "id": "Bullet",
+      "x": 0,
+      "y": 0,
+      "tag": "Bullet",
+      "zIndex": 50,
+      "backgroundAnchor": "center",
+      "gridPlacement": {
+        "gridControlId": "Option-Grid",
+        "row": 0,
+        "col": 0,
+        "align": "center"
+      }
+    },
+    {
+      "type": "text",
+      "id": "Dialog-Option",
+      "x": 0,
+      "y": 0,
+      "text": "Sample text",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "color": "#ffffff"
+    },
+    {
+      "type": "grid",
+      "id": "Option-Grid",
+      "x": 12,
+      "y": 148,
+      "width": 334,
+      "height": 30,
+      "rows": 1,
+      "columns": 2,
+      "colWidths": [
+        26,
+        308
+      ],
+      "zIndex": 10
+    }
+  ]
+}
