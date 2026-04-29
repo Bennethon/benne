@@ -108,6 +108,17 @@ export interface RoomPropInstance {
    * alongside tags matching `id` / `id-*`. Omitted when `id` alone is the Aseprite prefix root.
    */
   defaultAnimation?: string;
+  /**
+   * How the prop’s `x` / `y` fields map to the Aseprite cel when the room sheet uses **trim cells** (JSON
+   * `spriteSourceSize` / Phaser `frame.data.trim`).
+   * - **`canvas`** (default): `(x, y)` is the **logical cel / sheet canvas** origin — same as a GUI
+   *   `screen` anchor; Phaser’s built-in trim offset keeps art aligned with the Aseprite canvas
+   *   (typical full-room composite props).
+   * - **`tight`**: `(x, y)` is the **top-left of the trimmed opaque** region in room pixels — same
+   *   idea as a GUI `top-left` image with trim; the engine subtracts `spriteSourceSize` and keeps
+   *   it in sync when the prop’s current frame changes.
+   */
+  spritePlacement?: 'canvas' | 'tight';
   /** Sprite position in room pixels (default top-left 0,0 for full-room composite frames). */
   x?: number;
   y?: number;

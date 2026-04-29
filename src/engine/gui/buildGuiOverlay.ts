@@ -71,6 +71,13 @@ import {
 } from '../verbs/dispatchInventoryVerb';
 import { composeVerbLineText, getEffectiveInputProfile } from '../verbs/verbConfig';
 import { resolvePointerVerbForInventoryItem } from '../verbs/resolvePointerVerb';
+import {
+  getAsepriteSpriteSourceInset,
+  getAsepriteVisibleFrameSize,
+  resolveAuthoredPositionForAsepriteTrim,
+  warnDevIfAsepriteJsonMissingSpriteSourceSize,
+  wireBenneGuiAsepriteTrimmedPlacementAfterFrameChanges,
+} from '../aseprite/asepriteFramePlacement';
 
 /** Slot stroke for `game-config.json` `debug.showGuiOutlines` (distinct from walkable / prop debug colors). */
 const DEBUG_GUI_INVENTORY_SLOT_STROKE = 0x66ccff;
@@ -304,16 +311,20 @@ function placeGuiButtonBackgroundSpriteLocal(
   /** World-space top-left of the button container — only used when `anchor === 'screen'`. */
   worldTopLeft: { x: number; y: number },
 ): void {
+  const inset = getAsepriteSpriteSourceInset(sprite.frame);
   switch (anchor) {
     case 'center':
-      applyGuiSpriteAnchor(sprite, 'center', w / 2, h / 2);
+      {
+        const p = resolveAuthoredPositionForAsepriteTrim('center', w / 2, h / 2, sprite.frame);
+        applyGuiSpriteAnchor(sprite, 'center', p.x, p.y);
+      }
       break;
     case 'screen':
       sprite.setOrigin(0, 0);
       sprite.setPosition(-worldTopLeft.x, -worldTopLeft.y);
       break;
     default:
-      applyGuiSpriteAnchor(sprite, 'top-left', 0, 0);
+      applyGuiSpriteAnchor(sprite, 'top-left', -inset.x, -inset.y);
       break;
   }
 }
@@ -600,6 +611,12 @@ function buildGuiButton(
       sprite.destroy();
     } else {
       sprite.setVisible(overlayVisible);
+      if (import.meta.env.DEV) {
+        warnDevIfAsepriteJsonMissingSpriteSourceSize(
+          sprite.frame,
+          `GUI "${gui.id}" button "${c.id}" background`,
+        );
+      }
       placeGuiButtonBackgroundSpriteLocal(sprite, bgAnchor, w, h, worldTL);
       hitTarget.add(sprite);
       bg = sprite;
@@ -646,6 +663,7 @@ function buildGuiButton(
     const dTag = c.states?.disabled?.trim();
     if (bg && dTag) {
       reapplyGuiSheetTag(scene, bg, guiTextureKey, dTag, gui.id);
+      placeGuiButtonBackgroundSpriteLocal(bg, bgAnchor, w, h, worldTL);
     }
   }
 
@@ -659,11 +677,17 @@ function buildGuiButton(
 
   if (bg && enabled && (hoverTag || pressedTag || disabledTag)) {
     const textureKey = guiTextureKey;
+    const repositionBg = (): void => {
+      if (bg) {
+        placeGuiButtonBackgroundSpriteLocal(bg, bgAnchor, w, h, worldTL);
+      }
+    };
     const restoreDefault = (): void => {
       if (!bg) {
         return;
       }
       reapplyGuiSheetTag(scene, bg, textureKey, defaultBgTag, gui.id);
+      repositionBg();
     };
 
     hitTarget.on('pointerover', () => {
@@ -672,7 +696,9 @@ function buildGuiButton(
       }
       if (hoverTag && !reapplyGuiSheetTag(scene, bg, textureKey, hoverTag, gui.id)) {
         restoreDefault();
+        return;
       }
+      repositionBg();
     });
     hitTarget.on('pointerout', () => {
       if (!bg) {
@@ -686,7 +712,9 @@ function buildGuiButton(
       }
       if (pressedTag && !reapplyGuiSheetTag(scene, bg, textureKey, pressedTag, gui.id)) {
         restoreDefault();
+        return;
       }
+      repositionBg();
     });
     hitTarget.on('pointerup', () => {
       if (!enabled || !bg) {
@@ -837,6 +865,16 @@ function addGuiImageSprite(
     parent?: Phaser.GameObjects.Container;
     /** Top-left of this control’s origin in GUI content root space — required for `screen` anchor under `parent`. */
     screenRootTopLeft?: { x: number; y: number };
+    /**
+     * From {@link tryResolveGridPlacement}: `x`/`y` are the **top-left** of this box inside the cell.
+     * Width/height seed layout; after the sheet tag is applied, size is re-measured from the sprite.
+     */
+    gridContentBox?: { w: number; h: number };
+    /**
+     * True when `gridPlacement.align` is `"center"` (cell-centered box). Uses the **box center** for
+     * trim math and Phaser origin `0.5,0.5` even if `backgroundAnchor` is omitted (defaults to top-left).
+     */
+    gridCenterAlign?: boolean;
   },
 ): Phaser.GameObjects.Sprite | null {
   if (!usesAsepriteDisplay(gui)) {
@@ -855,6 +893,7 @@ function addGuiImageSprite(
   const anchor = guiSpriteAnchorOrDefault(c.backgroundAnchor ?? legacyDisplay?.backgroundAnchor);
   const lx = layout?.x ?? c.x;
   const ly = layout?.y ?? c.y;
+  const gridCenterAlign = layout?.gridCenterAlign === true;
   const sprite = scene.add.sprite(0, 0, guiTextureKey);
   sprite.setVisible(false);
   sprite.setScrollFactor(0, 0);
@@ -865,14 +904,53 @@ function addGuiImageSprite(
     return null;
   }
   sprite.setVisible(vis);
+  if (import.meta.env.DEV) {
+    warnDevIfAsepriteJsonMissingSpriteSourceSize(sprite.frame, `GUI "${gui.id}" image control`);
+  }
+
+  let placementBox: { w: number; h: number } | undefined;
+  if (layout?.gridContentBox) {
+    placementBox = getAsepriteVisibleFrameSize(sprite.frame);
+  }
+
+  /**
+   * `gridPlacement.align: "center"` centers the **content box** in the cell; `backgroundAnchor: "center"`
+   * pins the sprite by its center. Either case needs the box center for trim-adjusted coordinates.
+   * With default top-left anchor + center grid align, we still center the art in the cell (origin 0.5).
+   */
+  const useBoxCenterForTrim =
+    anchor !== 'screen' && !!placementBox && (anchor === 'center' || gridCenterAlign);
+  const effSpriteAnchor: GuiSpriteAnchor =
+    anchor === 'screen' ? 'screen' : useBoxCenterForTrim ? 'center' : anchor;
+
+  const placementAnchorX =
+    placementBox && useBoxCenterForTrim ? lx + placementBox.w / 2 : lx;
+  const placementAnchorY =
+    placementBox && useBoxCenterForTrim ? ly + placementBox.h / 2 : ly;
+
   const parent = layout?.parent;
+  const rootTL = anchor === 'screen' && parent ? layout?.screenRootTopLeft : undefined;
+  const needsAuthoredPlacementData =
+    (anchor !== 'screen' && (effSpriteAnchor === 'top-left' || effSpriteAnchor === 'center')) ||
+    (anchor === 'screen' && parent && !rootTL);
+  if (needsAuthoredPlacementData) {
+    const effAnchor: GuiSpriteAnchor =
+      anchor === 'screen' && parent && !rootTL ? 'top-left' : effSpriteAnchor;
+    const facadeX = anchor === 'screen' && parent && !rootTL ? lx : placementAnchorX;
+    const facadeY = anchor === 'screen' && parent && !rootTL ? ly : placementAnchorY;
+    sprite.setData('benneGuiUsesAuthoredAsepritePlacement', true);
+    sprite.setData('benneGuiSpritePlacementAnchor', effAnchor);
+    sprite.setData('benneGuiAuthoredX', facadeX);
+    sprite.setData('benneGuiAuthoredY', facadeY);
+  }
+
   if (anchor === 'screen' && parent) {
-    const rootTL = layout?.screenRootTopLeft;
     if (rootTL) {
       sprite.setOrigin(0, 0);
       sprite.setPosition(-rootTL.x, -rootTL.y);
     } else {
-      applyGuiSpriteAnchor(sprite, 'top-left', lx, ly);
+      const p = resolveAuthoredPositionForAsepriteTrim('top-left', lx, ly, sprite.frame);
+      applyGuiSpriteAnchor(sprite, 'top-left', p.x, p.y);
     }
     parent.add(sprite);
     extraSprites.push(sprite);
@@ -880,11 +958,20 @@ function addGuiImageSprite(
     applyGuiSpriteAnchor(sprite, anchor, lx, ly);
     extraSprites.push(sprite);
   } else {
-    applyGuiSpriteAnchor(sprite, anchor, lx, ly);
+    const p = resolveAuthoredPositionForAsepriteTrim(
+      effSpriteAnchor,
+      placementAnchorX,
+      placementAnchorY,
+      sprite.frame,
+    );
+    applyGuiSpriteAnchor(sprite, effSpriteAnchor, p.x, p.y);
     if (parent) {
       parent.add(sprite);
     }
     extraSprites.push(sprite);
+  }
+  if (needsAuthoredPlacementData) {
+    wireBenneGuiAsepriteTrimmedPlacementAfterFrameChanges(sprite);
   }
   /** Opaque pixels block room input unless a higher-priority GUI widget occupies the pointer (see defer list). */
   sprite.setInteractive({
@@ -983,8 +1070,7 @@ function estimateImageSizeForGridAlign(scene: Phaser.Scene, gui: GuiData, c: Gui
     const spr = scene.add.sprite(0, 0, key);
     spr.setVisible(false);
     if (tryApplyGuiSheetTag(scene, spr, key, tag, gui.id)) {
-      const w = Math.max(1, Math.round(spr.displayWidth || spr.width));
-      const h = Math.max(1, Math.round(spr.displayHeight || spr.height));
+      const { w, h } = getAsepriteVisibleFrameSize(spr.frame);
       spr.destroy();
       return { w, h };
     }
@@ -1096,11 +1182,16 @@ function addInventorySlotSheetSprite(
     return;
   }
   sprite.setVisible(true);
+  if (import.meta.env.DEV) {
+    warnDevIfAsepriteJsonMissingSpriteSourceSize(sprite.frame, `GUI "${guiId}" inventory slot sheet`);
+  }
+  const inset = getAsepriteSpriteSourceInset(sprite.frame);
   /** Inside a slot container, `screen` is treated like top-left at the slot origin (full-slot art). */
   if (anchor === 'center') {
-    applyGuiSpriteAnchor(sprite, anchor, slotCx, slotCy);
+    const p = resolveAuthoredPositionForAsepriteTrim('center', slotCx, slotCy, sprite.frame);
+    applyGuiSpriteAnchor(sprite, anchor, p.x, p.y);
   } else {
-    applyGuiSpriteAnchor(sprite, 'top-left', 0, 0);
+    applyGuiSpriteAnchor(sprite, 'top-left', -inset.x, -inset.y);
   }
   slotContainer.add(sprite);
 }
@@ -1177,14 +1268,19 @@ function fillInventoryPanelContent(
       backdrop.destroy();
     } else {
       backdrop.setVisible(true);
+      if (import.meta.env.DEV) {
+        warnDevIfAsepriteJsonMissingSpriteSourceSize(backdrop.frame, `GUI "${gui.id}" inventoryPanel backdrop`);
+      }
+      const bgInset = getAsepriteSpriteSourceInset(backdrop.frame);
       if (bgAnchor === 'screen') {
         /** World (0,0) while staying parented so `panel.setVisible` still toggles the backdrop. */
         backdrop.setOrigin(0, 0);
         backdrop.setPosition(-anchorRootX, -anchorRootY);
       } else if (bgAnchor === 'center') {
-        applyGuiSpriteAnchor(backdrop, bgAnchor, panelW / 2, panelH / 2);
+        const p = resolveAuthoredPositionForAsepriteTrim('center', panelW / 2, panelH / 2, backdrop.frame);
+        applyGuiSpriteAnchor(backdrop, bgAnchor, p.x, p.y);
       } else {
-        applyGuiSpriteAnchor(backdrop, 'top-left', 0, 0);
+        applyGuiSpriteAnchor(backdrop, 'top-left', -bgInset.x, -bgInset.y);
       }
       panel.add(backdrop);
     }
@@ -1241,6 +1337,14 @@ function fillInventoryPanelContent(
             const iconSprite = scene.add.sprite(slotCx, slotCy, guiKey).setScale(c.itemScale ?? 1).setOrigin(0.5, 0.5);
             iconSprite.setVisible(false);
             if (tryApplyGuiSheetTag(scene, iconSprite, guiKey, iconTag, gui.id)) {
+              if (import.meta.env.DEV) {
+                warnDevIfAsepriteJsonMissingSpriteSourceSize(
+                  iconSprite.frame,
+                  `GUI "${gui.id}" inventoryPanel icon (GUI sheet)`,
+                );
+              }
+              const p = resolveAuthoredPositionForAsepriteTrim('center', slotCx, slotCy, iconSprite.frame);
+              iconSprite.setPosition(p.x, p.y);
               iconSprite.setVisible(true);
               slotContainer.add(iconSprite);
               iconAdded = true;
@@ -1268,6 +1372,14 @@ function fillInventoryPanelContent(
                 .setScale(c.itemScale ?? 1)
                 .setOrigin(0.5, 0.5);
               iconSprite.play(playKey);
+              if (import.meta.env.DEV) {
+                warnDevIfAsepriteJsonMissingSpriteSourceSize(
+                  iconSprite.frame,
+                  `GUI "${gui.id}" inventoryPanel icon (inventory sheet)`,
+                );
+              }
+              const p = resolveAuthoredPositionForAsepriteTrim('center', slotCx, slotCy, iconSprite.frame);
+              iconSprite.setPosition(p.x, p.y);
               slotContainer.add(iconSprite);
               iconAdded = true;
             }
@@ -1654,6 +1766,8 @@ export function buildGuiOverlay(
         imgSz.h,
         isGuiFixedControlId(c.id),
       );
+      const { hx, vy } = parseGuiGridCellAlign(c.gridPlacement?.align);
+      const gridCenterAlign = hx === 0.5 && vy === 0.5;
       const spr = addGuiImageSprite(
         scene,
         gui,
@@ -1669,6 +1783,8 @@ export function buildGuiOverlay(
               y: imgPlace.localY,
               parent: imgPlace.parent,
               screenRootTopLeft: imgPlace.rootTopLeft,
+              gridContentBox: { w: imgSz.w, h: imgSz.h },
+              gridCenterAlign,
             }
           : undefined,
       );

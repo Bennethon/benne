@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { resolveAuthoredPositionForAsepriteTrim } from '../../engine/aseprite/asepriteFramePlacement';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
 import type { InventoryItemData } from '../../types/inventory';
 
@@ -95,6 +96,8 @@ class InventoryPreviewScene extends Phaser.Scene {
     if (this.anims.exists(this.payload.animationKey)) {
       sprite.play(this.payload.animationKey);
     }
+    const p = resolveAuthoredPositionForAsepriteTrim('center', cam.width / 2, cam.height / 2, sprite.frame);
+    sprite.setPosition(p.x, p.y);
 
     this.add
       .text(8, 6, `${this.payload.inventory.id} · ${this.payload.animationTagLabel}`, {

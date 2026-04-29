@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { syncBenneGuiAsepriteAuthoredWorldPosition } from '../aseprite/asepriteFramePlacement';
 import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
 
 export type ControlTweenProps = Partial<Phaser.Types.Tweens.TweenBuilderConfig>;
@@ -58,7 +59,15 @@ export class ControlFacade {
   }
 
   setX(x: number): void {
-    const go = this.gameObject as { x?: number; setX?: (v: number) => void };
+    const go = this.gameObject as Phaser.GameObjects.Sprite & {
+      getData?: (key: string) => unknown;
+      setData?: (key: string, value: unknown) => void;
+    };
+    if (typeof go.getData === 'function' && go.getData('benneGuiUsesAuthoredAsepritePlacement') === true) {
+      go.setData?.('benneGuiAuthoredX', x);
+      syncBenneGuiAsepriteAuthoredWorldPosition(go);
+      return;
+    }
     if (typeof go.setX === 'function') {
       go.setX(x);
     } else if (typeof go.x === 'number') {
@@ -67,7 +76,15 @@ export class ControlFacade {
   }
 
   setY(y: number): void {
-    const go = this.gameObject as { y?: number; setY?: (v: number) => void };
+    const go = this.gameObject as Phaser.GameObjects.Sprite & {
+      getData?: (key: string) => unknown;
+      setData?: (key: string, value: unknown) => void;
+    };
+    if (typeof go.getData === 'function' && go.getData('benneGuiUsesAuthoredAsepritePlacement') === true) {
+      go.setData?.('benneGuiAuthoredY', y);
+      syncBenneGuiAsepriteAuthoredWorldPosition(go);
+      return;
+    }
     if (typeof go.setY === 'function') {
       go.setY(y);
     } else if (typeof go.y === 'number') {
