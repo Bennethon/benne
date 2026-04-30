@@ -32,13 +32,9 @@ registerRoomScript(({ B }) => {
     B.walkToClicked();
     B.faceClicked();
     B.say`
-      Hank: Hello, I am saying something!
-      Penny: Oh really? I am too!
-      Player: This feels so good!
+      Hank: Hey Penny!
+      Penny: Hi!
       `;
-    B.character('penny').say('Thats cool.');
-    B.player.say('Yes, it is.');
-
     B.dialog("chatwithpenny").start();
   });
 
@@ -48,17 +44,30 @@ registerRoomScript(({ B }) => {
   });
 
   B.whenUse('Door', () => {
+
     B.walkToClicked();
     B.player.faceClicked();
-    B.prop('Door').animation = 'Door-open';
-    B.room.changeTo('outside');
+
+    if (B.state.getFlag('unlockedDoor')) {
+      B.prop('Door').animation = 'Door-open';
+      B.room.changeTo('outside');
+    } else {
+      B.say`Hank: The door is locked.`;
+    }
+    
   });
 
   B.whenOpen('Door', () => {
     B.player.walkToClicked();
     B.player.faceClicked();
-    B.prop('Door').animation = 'Door-open';
-    // B.prop('Door').playAnimation('Door-open');
+    
+    if (B.state.getFlag('unlockedDoor')) {
+      B.prop('Door').animation = 'Door-open';
+      B.room.changeTo('outside');
+    } else {
+      B.say`Hank: The door is locked.`;
+    }
+
   });
 
   B.whenPull('Couch', () => {
