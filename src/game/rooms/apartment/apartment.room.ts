@@ -86,4 +86,15 @@ registerRoomScript(({ B }) => {
       B.say`Hank: I can't give something to bread.`
     }
   });
+
+  B.whenLookAt('Bread', () => {
+    B.say`Hank: It's some bread.`;
+  });
+
+  B.whenPickUp('Bread', () => {
+    B.walkToClicked();
+    B.player.faceClicked();
+    B.inventory.add('Bread');
+    B.prop('Bread').hide();
+  });
 });
