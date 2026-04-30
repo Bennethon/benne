@@ -297,46 +297,6 @@
       "baseline": 109
     },
     {
-      "id": "Key",
-      "tag": "Key",
-      "animations": {
-        "Key": {}
-      },
-      "zIndex": 13,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 191,
-            "y": 101
-          },
-          {
-            "x": 198,
-            "y": 100
-          },
-          {
-            "x": 198,
-            "y": 104
-          },
-          {
-            "x": 191,
-            "y": 104
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 193,
-        "y": 114
-      },
-      "lookAtPoint": {
-        "x": 195,
-        "y": 104
-      },
-      "baseline": 103
-    },
-    {
       "id": "Knife",
       "tag": "Knife",
       "animations": {
