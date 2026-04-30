@@ -92,7 +92,7 @@ import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
 import type { InventoryItemData } from '../../types/inventory';
 import type { Point2, RoomData, RoomHotspotData, RoomPropInstance } from '../../types/room';
-import type { GuiData, GuiGridControl } from '../../types/gui';
+import type { GuiButtonControl, GuiData, GuiGridControl } from '../../types/gui';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
 import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
 import { createCharacterScriptContext } from '../scripting/CharacterScriptContext.js';
@@ -111,9 +111,10 @@ import {
 } from '../dialog/dialogOptionVariables';
 import type { Dialog } from '../../types/dialogue';
 import {
-  computeDialogChoicePageSize,
   DialogChoiceDynamicRowState,
   DIALOG_CHOICE_GRID_ID,
+  getDialogChoiceAvailableHeightPx,
+  getDialogChoiceScrollButtonState,
 } from '../dialog/dialogChoiceGuiRuntime';
 import {
   DIALOG_STARTED_EVENT,
@@ -801,12 +802,8 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
     const manager = resolveGameStateManager(this.game);
-    const gridDef = entry.guiData.controls?.find(
-      (c): c is GuiGridControl => c.type === 'grid' && c.id === DIALOG_CHOICE_GRID_ID,
-    );
-    const pageSize = computeDialogChoicePageSize(gridDef);
     const visibleOpts = def.options.filter((o) => readEffectiveDialogOptionEnabled(manager, def, o.id));
-    const maxOffset = Math.max(0, visibleOpts.length - pageSize);
+    const maxOffset = Math.max(0, visibleOpts.length - 1);
     const next = Math.max(0, Math.min(this.activeDialogChoiceSession.scrollOffset + delta, maxOffset));
     this.activeDialogChoiceSession.scrollOffset = next;
     this.refreshDialogChoiceOverlay();
@@ -832,7 +829,11 @@ export class RoomScene extends Phaser.Scene {
     const gridDef = entry.guiData.controls?.find(
       (c): c is GuiGridControl => c.type === 'grid' && c.id === DIALOG_CHOICE_GRID_ID,
     );
-    const pageSize = computeDialogChoicePageSize(gridDef);
+    const viewportAvailableHeightPx = getDialogChoiceAvailableHeightPx(
+      gridDef,
+      entry.guiData.y ?? 0,
+      getInternalHeight(),
+    );
 
     this.dialogChoiceRowState.hideTemplateRow(rt);
     const clampedOffset = this.dialogChoiceRowState.refresh({
@@ -840,39 +841,56 @@ export class RoomScene extends Phaser.Scene {
       gui: entry.guiData,
       baseDepth: entry.baseDepth,
       gridContainer,
+      guiRuntime: rt,
       definition: def,
       manager,
       scrollOffset: session.scrollOffset,
-      pageSize,
+      viewportAvailableHeightPx,
     });
     session.scrollOffset = clampedOffset;
-    this.updateDialogChoiceScrollButtons(session.guiId, def, manager, pageSize);
+    this.updateDialogChoiceScrollButtons(session.guiId, def, manager, entry.guiData);
   }
 
   private updateDialogChoiceScrollButtons(
     guiId: string,
     def: Dialog,
     manager: ReturnType<typeof resolveGameStateManager>,
-    pageSize: number,
+    guiData: GuiData,
   ): void {
     const rt = this.dialogChoiceRuntimeByGuiId.get(guiId);
     if (!rt) {
       return;
     }
+    const gridDef = guiData.controls?.find(
+      (c): c is GuiGridControl => c.type === 'grid' && c.id === DIALOG_CHOICE_GRID_ID,
+    );
+    const buttonDef = guiData.controls?.find(
+      (c): c is GuiButtonControl => c.type === 'button' && c.id === 'Dialog-Option',
+    );
     const visibleOpts = def.options.filter((o) => readEffectiveDialogOptionEnabled(manager, def, o.id));
     const session = this.activeDialogChoiceSession;
     const offset = session?.scrollOffset ?? 0;
-    const maxOffset = Math.max(0, visibleOpts.length - pageSize);
+
+    const { needScroll, showUp, showDown } = getDialogChoiceScrollButtonState({
+      scene: this,
+      gridDef,
+      buttonDef,
+      controls: guiData.controls,
+      visibleOptions: visibleOpts,
+      scrollOffset: offset,
+      guiRootY: guiData.y ?? 0,
+      viewportBottomExclusivePx: getInternalHeight(),
+    });
+
     const up = rt.getControl('scrollUp');
     const down = rt.getControl('scrollDown');
-    const needScroll = visibleOpts.length > pageSize;
     if (!needScroll) {
       up?.setVisible(false);
       down?.setVisible(false);
       return;
     }
-    up?.setVisible(offset > 0);
-    down?.setVisible(offset < maxOffset);
+    up?.setVisible(showUp);
+    down?.setVisible(showDown);
   }
 
   private onDialogChoiceOptionClicked(guiId: string, buttonId: string): void {

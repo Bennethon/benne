@@ -85,7 +85,8 @@ export function spanCellRect(
 ): { x: number; y: number; w: number; h: number } | null {
   const cs = Math.max(1, Math.floor(colspan));
   const rs = Math.max(1, Math.floor(rowspan));
-  if (row < 0 || col < 0 || row + rs > rowOff.length || col + cs > colOff.length) {
+  // Bounds reference track sizes (column/row counts), not offset arrays — they can diverge if mis-built.
+  if (row < 0 || col < 0 || col + cs > colW.length || row + rs > rowH.length) {
     return null;
   }
   const x = colOff[col] ?? 0;
