@@ -20,12 +20,14 @@ import { getRegisteredInventoryDefinitionIds } from '../inventory/inventoryDefin
 import type {
   AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
+  BenneScriptDialogCommandSurface,
   BenneScriptPlayerFacade,
   InventoryWhenGiveRegistrar,
   InventoryWhenUseHandler,
   InventoryWhenUseRegistrar,
   RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
+import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
 
 /**
  * Bennescript facade for `*.inventory.ts`: subscribes to room-scoped and global inventory verb ids so
@@ -56,6 +58,7 @@ export class InventoryBenneScript extends BenneScriptCore {
 
   readonly state: BenneScriptGameStateNamespace;
   readonly inventory: BenneScriptInventoryNamespace;
+  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
 
   /**
    * Extra handlers for the resolved **use** verb; arming still happens unless every registered handler
@@ -85,6 +88,7 @@ export class InventoryBenneScript extends BenneScriptCore {
     this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene, (factory) =>
       this.chain(factory),
     );
+    this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
     const registerWhenUse = (skipActivate: boolean) => {
       return (handler: InventoryWhenUseHandler): void => {
         this.inventoryUseHandlers.push({ skipActivate, handler });

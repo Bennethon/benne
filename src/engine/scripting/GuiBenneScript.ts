@@ -10,7 +10,13 @@ import {
 } from '../events/guiControlHoverEvents.js';
 import { SCENE_ROOM } from '../../game/constants.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
+import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { BenneScriptCore } from './BenneScriptCore.js';
+import type { BenneScriptDialogCommandSurface } from './benneScriptFacades.js';
+import {
+  createBenneScriptDialogAccessor,
+  createNoopDialogCommandSurface,
+} from './DialogBenneScript.js';
 import type { GuiRuntime } from './GuiRuntime.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 
@@ -20,6 +26,8 @@ import type { RoomScene } from '../scenes/RoomScene.js';
  */
 export class GuiBenneScript extends BenneScriptCore {
   private readonly guiId: string;
+  /** Resolves the game lazily — `registerGuiScript` runs before `createBenneGame`. */
+  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
   private readonly onGuiBuiltHandlers: Array<(gui: GuiRuntime) => void> = [];
   /** While `onGuiBuilt` handlers run, supports {@link GuiBenneScript.scene}. */
   private activeGuiRuntime: GuiRuntime | null = null;
@@ -34,6 +42,19 @@ export class GuiBenneScript extends BenneScriptCore {
       },
     );
     this.guiId = guiId;
+    this.dialog = (dialogId: string) => {
+      const manager = tryGetActiveGameStateManager();
+      const game = tryGetActiveBenneGame();
+      if (!manager || !game) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            `[Benne] B.dialog("${dialogId}") from GUI "${this.guiId}": game not ready — no-op surface.`,
+          );
+        }
+        return createNoopDialogCommandSurface();
+      }
+      return createBenneScriptDialogAccessor(manager, game, (factory) => this.chain(factory))(dialogId);
+    };
   }
 
   /**

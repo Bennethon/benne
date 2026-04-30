@@ -27,6 +27,7 @@ import { getRegisteredInventoryDefinitionIds } from '../inventory/inventoryDefin
 import type {
   AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
+  BenneScriptDialogCommandSurface,
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
   RoomInventoryUsedOnRegistrar,
@@ -38,12 +39,14 @@ import {
   type BenneScriptGameStateNamespace,
   type BenneScriptInventoryNamespace,
 } from './benneScriptGameStateApi.js';
+import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
 
 export type {
   AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
+  BenneScriptDialogCommandSurface,
   BenneScriptInventoryItemFacade,
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
@@ -108,6 +111,9 @@ export class BenneScript extends BenneScriptCore {
   /** Item quantities; survives room loads (see `GameStateManager`). */
   readonly inventory: BenneScriptInventoryNamespace;
 
+  /** SCUMM-style dialog session control (`*.dialog.json` + `registerDialogScript`). */
+  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+
   /**
    * Register a handler for "inventory used on target" clicks for this room. Whether the active
    * inventory selection is dropped (active inventory + active verb both cleared) after the handler
@@ -127,6 +133,7 @@ export class BenneScript extends BenneScriptCore {
     this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene, (factory) =>
       this.chain(factory),
     );
+    this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
     this.whenInventoryUsedOn = Object.assign(
       (
         targetId: string,

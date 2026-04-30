@@ -138,6 +138,18 @@ export interface BenneScriptCharacterFacade {
  * constructed with a queue (room / character / inventory / global scripts); **`…Now`** applies immediately.
  * Empty string clears the save override for that field.
  */
+/**
+ * SCUMM-style dialog control from **`B.dialog(dialogId)`** on any script context, or on {@link import('./DialogBenneScript.js').DialogBenneScript}
+ * while a session is active. **`start`** / **`stop`** manage the session; **`optionOn`** / **`optionOff`** write option
+ * enabled state (see {@link import('../dialog/dialogOptionVariables.js').dialogOptionEnabledVariableKey}).
+ */
+export interface BenneScriptDialogCommandSurface {
+  start: BlockingWithNow<[]>;
+  stop: BlockingWithNow<[]>;
+  optionOn: BlockingWithNow<[optionId: string]>;
+  optionOff: BlockingWithNow<[optionId: string]>;
+}
+
 export interface BenneScriptInventoryItemFacade {
   /** Aseprite tag for the inventory row icon (`defaultAnimation`); falls back to JSON when unset in save state. */
   get animation(): string;

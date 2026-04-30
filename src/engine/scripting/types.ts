@@ -5,6 +5,7 @@ import type { CharacterBenneScript } from './CharacterBenneScript.js';
 import type { InventoryBenneScript } from './InventoryBenneScript.js';
 import type { GlobalBenneScript } from './GlobalBenneScript.js';
 import type { GuiBenneScript } from './GuiBenneScript.js';
+import type { DialogBenneScript } from './DialogBenneScript.js';
 import type { BenneScriptSharedSelectionApi } from './benneScriptFacades.js';
 
 export type {
@@ -83,4 +84,15 @@ export interface GuiScriptContext {
   readonly B: GuiBenneScript & BenneScriptSharedSelectionApi;
   readonly events: Phaser.Events.EventEmitter;
   readonly guiId: string;
+}
+
+/** Passed to each `registerDialogScript` callback when a dialog session opens for that id. */
+export interface DialogScriptContext {
+  /**
+   * Includes {@link DialogBenneScript.whenChoice} for line picks (wired to the choice GUI’s synthetic `dc__*` button ids).
+   */
+  readonly B: DialogBenneScript & BenneScriptSharedSelectionApi;
+  readonly events: Phaser.Events.EventEmitter;
+  readonly dialogId: string;
+  readonly game: Phaser.Game;
 }

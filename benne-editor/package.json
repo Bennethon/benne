@@ -26,12 +26,14 @@
     "onCommand:benne-editor.createCharacter",
     "onCommand:benne-editor.createGui",
     "onCommand:benne-editor.createInventoryItem",
+    "onCommand:benne-editor.createDialog",
     "onCommand:benne-editor.importInventoryItemsFromAsepriteTags",
     "onCommand:benne-editor.importAnimationsFromAsepriteTags",
     "onCommand:benne-editor.rebuildRoomPreview",
     "onCommand:benne-editor.rebuildCharacterPreview",
     "onCommand:benne-editor.rebuildGuiPreview",
     "onCommand:benne-editor.rebuildInventoryPreview",
+    "onCommand:benne-editor.rebuildDialogPreview",
     "onCommand:benne-editor.rebuildEditorPreviewBundles",
     "onCommand:benne-editor.addPropVerbEvent",
     "onCommand:benne-editor.makePropClickable",
@@ -222,6 +224,12 @@
         "icon": "$(package)"
       },
       {
+        "command": "benne-editor.createDialog",
+        "title": "Create Dialog",
+        "category": "BENNE",
+        "icon": "$(comment-discussion)"
+      },
+      {
         "command": "benne-editor.importInventoryItemsFromAsepriteTags",
         "title": "Import Inventory Items from Aseprite Tags",
         "category": "BENNE",
@@ -260,6 +268,12 @@
       {
         "command": "benne-editor.rebuildInventoryPreview",
         "title": "Rebuild Inventory Preview Bundle",
+        "category": "BENNE",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "benne-editor.rebuildDialogPreview",
+        "title": "Rebuild Dialog / Inspector Bundle",
         "category": "BENNE",
         "icon": "$(sync)"
       },
@@ -343,6 +357,11 @@
           "group": "navigation@6"
         },
         {
+          "command": "benne-editor.createDialog",
+          "when": "view == benne-editor.main",
+          "group": "navigation@7"
+        },
+        {
           "command": "benne-editor.rebuildCharacterPreview",
           "when": "view == benne-editor.actions",
           "group": "navigation@3"
@@ -358,9 +377,14 @@
           "group": "navigation@5"
         },
         {
+          "command": "benne-editor.rebuildDialogPreview",
+          "when": "view == benne-editor.actions",
+          "group": "navigation@6"
+        },
+        {
           "command": "benne-editor.rebuildEditorPreviewBundles",
           "when": "view == benne-editor.main",
-          "group": "navigation@8"
+          "group": "navigation@9"
         }
       ],
       "view/item/context": [
@@ -411,6 +435,16 @@
         },
         {
           "command": "benne-editor.createInventoryItem",
+          "when": "view == benne-editor.main && viewItem == benneWorkspace",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.createDialog",
+          "when": "view == benne-editor.main && viewItem == benneDialogsGroup",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.createDialog",
           "when": "view == benne-editor.main && viewItem == benneWorkspace",
           "group": "benne@1"
         },
@@ -562,6 +596,11 @@
         {
           "command": "benne-editor.deleteGameEntity",
           "when": "view == benne-editor.main && viewItem == benneGuiControl",
+          "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneDialog",
           "group": "modification@benneDelete"
         }
       ]

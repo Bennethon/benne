@@ -79,6 +79,17 @@ export async function openBenneInventoryTypeScript(
     await applyBenneTwoRowJsonScriptLayout();
 }
 
+/** Opens sibling `*.dialog.ts` in column one (no preview row — Inspector holds JSON). */
+export async function openBenneDialogTypeScript(dialogJsonUri: vscode.Uri, dialogId: string): Promise<void> {
+    const scriptUri = vscode.Uri.joinPath(dialogJsonUri, '..', `${dialogId}.dialog.ts`);
+    try {
+        await vscode.workspace.fs.stat(scriptUri);
+    } catch {
+        return;
+    }
+    await openDocumentPinned(scriptUri, vscode.ViewColumn.One);
+}
+
 /** Open a normal (pinned) editor tab; multiple documents can stay open in the same group. */
 export async function openDocumentPinned(
     uri: vscode.Uri,

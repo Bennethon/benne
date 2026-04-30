@@ -2,14 +2,14 @@
   "id": "dialog",
   "name": "Dialog",
   "description": "",
-  "visible": true,
+  "visible": false,
   "display": {
     "aseprite": true
   },
   "controls": [
     {
       "type": "image",
-      "id": "VerbsBG",
+      "id": "DialogBG",
       "x": 0,
       "y": 0,
       "tag": "VerbsBG",
@@ -19,7 +19,7 @@
     },
     {
       "type": "button",
-      "id": "UpBtn",
+      "id": "scrollUp",
       "x": 2,
       "y": 150,
       "width": 7,
@@ -39,7 +39,7 @@
     },
     {
       "type": "button",
-      "id": "DownBtn",
+      "id": "scrollDown",
       "x": 2,
       "y": 176,
       "width": 7,
@@ -72,27 +72,12 @@
       }
     },
     {
-      "type": "text",
-      "id": "Dialog-Option",
-      "x": 50,
-      "y": 50,
-      "text": "Sample text",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "color": "#ffffff",
-      "gridPlacement": {
-        "gridControlId": "Option-Grid",
-        "row": 0,
-        "col": 1
-      }
-    },
-    {
       "type": "grid",
       "id": "Option-Grid",
       "x": 12,
       "y": 148,
       "width": 334,
-      "height": 12,
+      "height": 14,
       "rows": 1,
       "columns": 2,
       "colWidths": [
@@ -100,6 +85,28 @@
         324
       ],
       "zIndex": 10
+    },
+    {
+      "type": "button",
+      "id": "Dialog-Option",
+      "x": 0,
+      "y": 0,
+      "width": 324,
+      "height": 14,
+      "backgroundAnchor": "top-left",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "left",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "gridPlacement": {
+        "gridControlId": "Option-Grid",
+        "row": 0,
+        "col": 1
+      }
     }
   ]
 }

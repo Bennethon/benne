@@ -344,6 +344,56 @@ export function getInventoryIdFromInventoryJsonUri(inventoryJsonUri: vscode.Uri)
     return path.basename(path.dirname(inventoryJsonUri.fsPath));
 }
 
+/** Folder name for `dialogs/<id>/<id>.dialog.json` (e.g. `clerkTopics`). */
+export function getDialogIdFromDialogJsonUri(dialogJsonUri: vscode.Uri): string {
+    return path.basename(path.dirname(dialogJsonUri.fsPath));
+}
+
+async function readDialogMeta(uri: vscode.Uri, fallbackId: string): Promise<{ name: string }> {
+    try {
+        const raw = await vscode.workspace.fs.readFile(uri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as { displayName?: string; id?: string };
+        const fromDisplay =
+            typeof data.displayName === 'string' && data.displayName.trim().length > 0
+                ? data.displayName.trim()
+                : undefined;
+        const name = fromDisplay ?? fallbackId;
+        return { name };
+    } catch {
+        return { name: fallbackId };
+    }
+}
+
+/** Lists `src/game/dialogs/<id>/<id>.dialog.json` (SCUMM-style topic dialogs). */
+export async function listDialogDefinitions(
+    gameFolder: vscode.WorkspaceFolder
+): Promise<{ id: string; name: string; uri: vscode.Uri }[]> {
+    const dialogsDir = vscode.Uri.joinPath(gameFolder.uri, 'src', 'game', 'dialogs');
+    let entries: [string, vscode.FileType][];
+    try {
+        entries = await vscode.workspace.fs.readDirectory(dialogsDir);
+    } catch {
+        return [];
+    }
+    const result: { id: string; name: string; uri: vscode.Uri }[] = [];
+    for (const [name, type] of entries) {
+        if (type !== vscode.FileType.Directory) {
+            continue;
+        }
+        const uri = vscode.Uri.joinPath(dialogsDir, name, `${name}.dialog.json`);
+        try {
+            await vscode.workspace.fs.stat(uri);
+        } catch {
+            continue;
+        }
+        const meta = await readDialogMeta(uri, name);
+        result.push({ id: name, name: meta.name, uri });
+    }
+    result.sort((a, b) => a.id.localeCompare(b.id));
+    return result;
+}
+
 /** Same layout as `getRoomAsepriteAssetPaths` in the game (`src/game/roomAseprite.ts`). */
 export function getRoomAsepriteAssetRelativePaths(roomId: string): { png: string; json: string } {
     const base = `images/rooms/${roomId}/${roomId}`;

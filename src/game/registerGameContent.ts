@@ -9,6 +9,7 @@ import { getBenneInventoryScriptRegistrations } from '../engine/scripting/regist
 import { getBenneRoomScriptRegistrations } from '../engine/scripting/registerRoomScript';
 import type { GuiScriptContext } from '../engine/scripting/types';
 import { registerInventoryDefinitionsFromGame } from './registerInventoryDefinitions';
+import { registerDialogDefinitionsFromGame } from './registerDialogDefinitions';
 
 const LEGACY_REGISTER_EXPORTS = [
   'registerRoomScript',
@@ -16,6 +17,7 @@ const LEGACY_REGISTER_EXPORTS = [
   'registerGuiScript',
   'registerGlobalScript',
   'registerInventoryScript',
+  'registerDialogScript',
 ] as const;
 
 function warnLegacyRegisterExports(path: string, mod: Record<string, unknown>): void {
@@ -38,6 +40,7 @@ function warnLegacyRegisterExports(path: string, mod: Record<string, unknown>): 
  */
 export function registerGameContent(): void {
   registerInventoryDefinitionsFromGame();
+  registerDialogDefinitionsFromGame();
 
   const roomModules = import.meta.glob('./rooms/**/*.room.ts', { eager: true });
   for (const [path, mod] of Object.entries(roomModules)) {
@@ -61,6 +64,11 @@ export function registerGameContent(): void {
 
   const globalModules = import.meta.glob('./globalScript.ts', { eager: true });
   for (const [path, mod] of Object.entries(globalModules)) {
+    warnLegacyRegisterExports(path, mod as Record<string, unknown>);
+  }
+
+  const dialogModules = import.meta.glob('./dialogs/**/*.dialog.ts', { eager: true });
+  for (const [path, mod] of Object.entries(dialogModules)) {
     warnLegacyRegisterExports(path, mod as Record<string, unknown>);
   }
 

@@ -1,4 +1,4 @@
-import type { GuiGridCellAlign, GuiGridControl, GuiGridPlacement } from '../../types/gui';
+import type { GuiControl, GuiGridCellAlign, GuiGridControl, GuiGridPlacement } from '../../types/gui';
 
 /**
  * Normalizes row or column sizes to sum to `total`. When `explicit` is missing, wrong length, or
@@ -155,4 +155,84 @@ export function isGuiGridPlacement(
     typeof g.col === 'number' &&
     Number.isFinite(g.col)
   );
+}
+
+/** Cached column/row offsets for one {@link GuiGridControl} — used by the compositor and editor preview outlines. */
+export type GuiGridLayoutRuntime = {
+  def: GuiGridControl;
+  colOff: number[];
+  rowOff: number[];
+  colW: number[];
+  rowH: number[];
+};
+
+/** Builds a map of grid `id` → layout data from a GUI’s `controls` list (order-independent). */
+export function buildGuiGridLayoutRuntimeMap(controls: readonly GuiControl[]): Map<string, GuiGridLayoutRuntime> {
+  const map = new Map<string, GuiGridLayoutRuntime>();
+  for (const c of controls) {
+    if (c.type !== 'grid') {
+      continue;
+    }
+    const id = c.id.trim();
+    if (!id) {
+      continue;
+    }
+    const track = layoutGuiGridTracks(c);
+    map.set(id, {
+      def: c,
+      colOff: cumulativeOffsets(track.colWidths),
+      rowOff: cumulativeOffsets(track.rowHeights),
+      colW: track.colWidths,
+      rowH: track.rowHeights,
+    });
+  }
+  return map;
+}
+
+/**
+ * Top-left of a control in **GUI root** space (includes {@link GuiData} `x`/`y` as `rootOffsetX`/`rootOffsetY`),
+ * matching {@link buildGuiOverlay} for either authored `fallbackX`/`fallbackY` or {@link GuiGridPlacement}.
+ */
+export function resolveGuiControlRootTopLeft(
+  gridLayouts: ReadonlyMap<string, GuiGridLayoutRuntime>,
+  rootOffsetX: number,
+  rootOffsetY: number,
+  placement: GuiGridPlacement | undefined,
+  contentW: number,
+  contentH: number,
+  fallbackX: number,
+  fallbackY: number,
+): { x: number; y: number } {
+  const rx = Math.round(rootOffsetX);
+  const ry = Math.round(rootOffsetY);
+  if (!isGuiGridPlacement(placement)) {
+    return { x: rx + Math.round(fallbackX), y: ry + Math.round(fallbackY) };
+  }
+  const gid = placement.gridControlId.trim();
+  const lay = gridLayouts.get(gid);
+  if (!lay) {
+    return { x: rx + Math.round(fallbackX), y: ry + Math.round(fallbackY) };
+  }
+  const cell = spanCellRect(
+    lay.colOff,
+    lay.rowOff,
+    lay.colW,
+    lay.rowH,
+    Math.max(0, Math.floor(placement.col)),
+    Math.max(0, Math.floor(placement.row)),
+    placement.colspan ?? 1,
+    placement.rowspan ?? 1,
+  );
+  if (!cell) {
+    return { x: rx + Math.round(fallbackX), y: ry + Math.round(fallbackY) };
+  }
+  const bw = Math.max(1, contentW);
+  const bh = Math.max(1, contentH);
+  const { hx, vy } = parseGuiGridCellAlign(placement.align);
+  const { dx, dy } = alignBoxTopLeftInCell(hx, vy, cell.w, cell.h, bw, bh);
+  const localX = Math.round(cell.x + dx);
+  const localY = Math.round(cell.y + dy);
+  const gx = Math.round(lay.def.x);
+  const gy = Math.round(lay.def.y);
+  return { x: rx + gx + localX, y: ry + gy + localY };
 }

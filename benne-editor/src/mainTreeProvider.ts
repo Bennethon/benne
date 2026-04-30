@@ -5,6 +5,7 @@ import {
     guiAsepriteSheetFilesComplete,
     listCharacterDefinitions,
     listGuiDefinitions,
+    listDialogDefinitions,
     listInventoryDefinitions,
     listRoomDefinitions,
     propAsepriteAssetTooltip,
@@ -35,6 +36,7 @@ export type MainTreeNode =
     | { kind: 'charsGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'guisGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'inventoryGroup'; folder: vscode.WorkspaceFolder }
+    | { kind: 'dialogsGroup'; folder: vscode.WorkspaceFolder }
     | {
           kind: 'room';
           folder: vscode.WorkspaceFolder;
@@ -136,6 +138,13 @@ export type MainTreeNode =
           uri: vscode.Uri;
           /** Shared sheet missing when `display.aseprite` is `"shared"`, or per-item export missing when `true`. */
           inventorySheetIncomplete?: boolean;
+      }
+    | {
+          kind: 'dialog';
+          folder: vscode.WorkspaceFolder;
+          id: string;
+          name: string;
+          uri: vscode.Uri;
       };
 
 const warningIcon = new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.warningForeground'));
@@ -285,6 +294,14 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
         return items.some((it) => textMatches(it.name, q) || textMatches(it.id, q));
     }
 
+    private async folderHasAnyMatchingDialog(folder: vscode.WorkspaceFolder, q: string): Promise<boolean> {
+        if (!q) {
+            return true;
+        }
+        const dialogs = await listDialogDefinitions(folder);
+        return dialogs.some((d) => textMatches(d.name, q) || textMatches(d.id, q));
+    }
+
     /** Filter match for the fixed "Game Config" tree row (`src/game/game-config.json`). */
     private gameConfigMatchesFilter(q: string): boolean {
         if (!q) {
@@ -395,6 +412,13 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.id = `inventoryGroup:${element.folder.uri.toString()}`;
                 item.iconPath = new vscode.ThemeIcon('package');
                 item.contextValue = 'benneInventoryGroup';
+                return item;
+            }
+            case 'dialogsGroup': {
+                const item = new vscode.TreeItem('Dialogs', vscode.TreeItemCollapsibleState.Expanded);
+                item.id = `dialogsGroup:${element.folder.uri.toString()}`;
+                item.iconPath = new vscode.ThemeIcon('comment-discussion');
+                item.contextValue = 'benneDialogsGroup';
                 return item;
             }
             case 'room': {
@@ -553,6 +577,15 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.contextValue = 'benneInventoryItem';
                 return item;
             }
+            case 'dialog': {
+                const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
+                item.id = `dialog:${element.uri.toString()}`;
+                item.resourceUri = element.uri;
+                item.iconPath = new vscode.ThemeIcon('comment-discussion');
+                item.contextValue = 'benneDialog';
+                item.description = element.id;
+                return item;
+            }
         }
     }
 
@@ -589,6 +622,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 if (!fq || (await this.folderHasAnyMatchingInventory(f, fq))) {
                     nodes.push({ kind: 'inventoryGroup', folder: f });
                 }
+                if (!fq || (await this.folderHasAnyMatchingDialog(f, fq))) {
+                    nodes.push({ kind: 'dialogsGroup', folder: f });
+                }
                 if (fq && nodes.length === 0) {
                     return [
                         {
@@ -608,7 +644,8 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                         (await this.folderHasAnyMatchingRoom(folder, fq)) ||
                         (await this.folderHasAnyMatchingCharacter(folder, fq)) ||
                         (await this.folderHasAnyMatchingGui(folder, fq)) ||
-                        (await this.folderHasAnyMatchingInventory(folder, fq));
+                        (await this.folderHasAnyMatchingInventory(folder, fq)) ||
+                        (await this.folderHasAnyMatchingDialog(folder, fq));
                     if (any) {
                         kept.push({ kind: 'workspace', folder });
                     }
@@ -647,6 +684,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
             }
             if (!fq || (await this.folderHasAnyMatchingInventory(element.folder, fq))) {
                 nodes.push({ kind: 'inventoryGroup', folder: element.folder });
+            }
+            if (!fq || (await this.folderHasAnyMatchingDialog(element.folder, fq))) {
+                nodes.push({ kind: 'dialogsGroup', folder: element.folder });
             }
             if (fq && nodes.length === 0) {
                 return [
@@ -1080,6 +1120,29 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     };
                 })
             );
+        }
+
+        if (element.kind === 'dialogsGroup') {
+            const dialogs = await listDialogDefinitions(element.folder);
+            const dialogList = fq
+                ? dialogs.filter((d) => textMatches(d.name, fq) || textMatches(d.id, fq))
+                : dialogs;
+            if (dialogList.length === 0) {
+                return [
+                    {
+                        kind: 'hint',
+                        key: `no-dialogs:${element.folder.uri}`,
+                        message: fq ? '(no matching dialogs)' : '(no dialogs found)'
+                    }
+                ];
+            }
+            return dialogList.map((d) => ({
+                kind: 'dialog' as const,
+                folder: element.folder,
+                id: d.id,
+                name: d.name,
+                uri: d.uri
+            }));
         }
 
         return [];

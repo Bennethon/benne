@@ -20,9 +20,11 @@ import {
 import type {
   AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
+  BenneScriptDialogCommandSurface,
   BenneScriptPlayerFacade,
   RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
+import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
 
 /**
  * Bennescript facade for `*.character.ts`: self-only verb channels (`characterVerbEventId`) so
@@ -37,6 +39,7 @@ export class CharacterBenneScript extends BenneScriptCore {
 
   readonly state: BenneScriptGameStateNamespace;
   readonly inventory: BenneScriptInventoryNamespace;
+  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
 
   readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
 
@@ -50,6 +53,7 @@ export class CharacterBenneScript extends BenneScriptCore {
     this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene, (factory) =>
       this.chain(factory),
     );
+    this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
     this.whenInventoryUsedOn = Object.assign(
       (
         targetId: string,

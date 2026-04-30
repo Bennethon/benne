@@ -10,7 +10,7 @@ import {
 } from '../events/verbInteractionEvents.js';
 import type { VerbGlobalFallbackPayload, VerbUnhandledPayload } from '../events/verbInteractionEvents.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
-import type { BenneScriptPlayerFacade } from './benneScriptFacades.js';
+import type { BenneScriptDialogCommandSurface, BenneScriptPlayerFacade } from './benneScriptFacades.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { SCENE_ROOM } from '../../game/constants.js';
 import { BenneScriptCore } from './BenneScriptCore.js';
@@ -20,6 +20,7 @@ import {
   type BenneScriptGameStateNamespace,
   type BenneScriptInventoryNamespace,
 } from './benneScriptGameStateApi.js';
+import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
 
@@ -30,6 +31,7 @@ export class GlobalBenneScript extends BenneScriptCore {
   private readonly game: Phaser.Game;
   readonly state: BenneScriptGameStateNamespace;
   readonly inventory: BenneScriptInventoryNamespace;
+  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
 
   constructor(events: Phaser.Events.EventEmitter, game: Phaser.Game) {
     super(
@@ -48,6 +50,7 @@ export class GlobalBenneScript extends BenneScriptCore {
       () => this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined,
       (factory) => this.chain(factory),
     );
+    this.dialog = createBenneScriptDialogAccessor(manager, this.game, (factory) => this.chain(factory));
   }
 
   /**
