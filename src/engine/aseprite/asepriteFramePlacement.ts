@@ -124,7 +124,9 @@ export function syncBenneGuiAsepriteAuthoredWorldPosition(sprite: Phaser.GameObj
   if (ax === undefined || ay === undefined || anchor === undefined) {
     return;
   }
-  const p = resolveAuthoredPositionForAsepriteTrim(anchor, ax, ay, sprite.frame);
+  const ox = (sprite.getData('benneGuiAuthoredOffsetX') as number | undefined) ?? 0;
+  const oy = (sprite.getData('benneGuiAuthoredOffsetY') as number | undefined) ?? 0;
+  const p = resolveAuthoredPositionForAsepriteTrim(anchor, ax + ox, ay + oy, sprite.frame);
   sprite.setPosition(Math.round(p.x), Math.round(p.y));
 }
 

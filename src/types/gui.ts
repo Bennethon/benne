@@ -144,10 +144,22 @@ export interface GuiInventoryPanelControl {
   backgroundTag?: string; // optional Aseprite tag for full panel backdrop
   /** Placement for {@link backgroundTag}; default `top-left`. */
   backgroundAnchor?: GuiSpriteAnchor;
+  /**
+   * Pixel nudge for the backdrop sprite after {@link backgroundAnchor} (ignored when anchor is unused).
+   * Does not affect slot layout or hit areas.
+   */
+  backgroundOffsetX?: number;
+  backgroundOffsetY?: number;
   slotBackgroundTag?: string; // optional per-slot background frame
   slotBackgroundAnchor?: GuiSpriteAnchor;
+  /** Pixel nudge for each slot background sprite after {@link slotBackgroundAnchor}. */
+  slotBackgroundOffsetX?: number;
+  slotBackgroundOffsetY?: number;
   highlightTag?: string; // optional hover/selected overlay tag
   highlightAnchor?: GuiSpriteAnchor;
+  /** Pixel nudge for the highlight overlay sprite after {@link highlightAnchor}. */
+  highlightOffsetX?: number;
+  highlightOffsetY?: number;
   gridPlacement?: GuiGridPlacement;
 }
 
@@ -199,6 +211,9 @@ export interface GuiImageControl {
    * different pivot inside the grid box.
    */
   backgroundAnchor?: GuiSpriteAnchor;
+  /** Pixel nudge for the sheet sprite after {@link backgroundAnchor}. */
+  backgroundOffsetX?: number;
+  backgroundOffsetY?: number;
   /** Optional extra clips from the GUI sheet (Aseprite tags). */
   animations?: GuiSpriteAnimationsMap;
   gridPlacement?: GuiGridPlacement;
@@ -234,6 +249,9 @@ export interface GuiButtonControl {
    * Does not move the hit box: `top-left` pins art to the box’s top-left, `center` to its center, `screen` to canvas (0,0) like full-frame HUD art.
    */
   backgroundAnchor?: GuiSpriteAnchor;
+  /** Pixel nudge for the background sprite after {@link backgroundAnchor}. */
+  backgroundOffsetX?: number;
+  backgroundOffsetY?: number;
   text: string;
   /** Key in `src/game/assets/fonts/fonts.json` (bitmap font). */
   font: string;

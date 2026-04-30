@@ -771,14 +771,26 @@ function renderGuiControlCardBody(state, c) {
           ${guiSheetTagSelectHtml(tags, c.backgroundTag, idx, 'backgroundTag')}
           <span class="benne-pg-lbl">Backdrop anchor</span>
           <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
+          <span class="benne-pg-lbl">Backdrop offset X</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetX" value="${c.backgroundOffsetX ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">Backdrop offset Y</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetY" value="${c.backgroundOffsetY ?? ''}" placeholder="0" />
           <span class="benne-pg-lbl">Slot bg tag</span>
           ${guiSheetTagSelectHtml(tags, c.slotBackgroundTag, idx, 'slotBackgroundTag')}
           <span class="benne-pg-lbl">Slot bg anchor</span>
           <select class="gui-field" data-index="${idx}" data-field="slotBackgroundAnchor">${guiAnchorSelectOptions(c.slotBackgroundAnchor)}</select>
+          <span class="benne-pg-lbl">Slot bg offset X</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="slotBackgroundOffsetX" value="${c.slotBackgroundOffsetX ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">Slot bg offset Y</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="slotBackgroundOffsetY" value="${c.slotBackgroundOffsetY ?? ''}" placeholder="0" />
           <span class="benne-pg-lbl">Highlight tag</span>
           ${guiSheetTagSelectHtml(tags, c.highlightTag, idx, 'highlightTag')}
           <span class="benne-pg-lbl">Highlight anchor</span>
           <select class="gui-field" data-index="${idx}" data-field="highlightAnchor">${guiAnchorSelectOptions(c.highlightAnchor)}</select>
+          <span class="benne-pg-lbl">Highlight offset X</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="highlightOffsetX" value="${c.highlightOffsetX ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">Highlight offset Y</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="highlightOffsetY" value="${c.highlightOffsetY ?? ''}" placeholder="0" />
         </div>`
             : state.usesAseprite
                 ? `<p class="muted small" style="margin-top:8px;">No frame tags found on this GUI’s Aseprite JSON — add tags in Aseprite and re-export.</p>`
@@ -827,6 +839,10 @@ function renderGuiControlCardBody(state, c) {
         <div class="benne-prop-grid benne-prop-grid--tight">
           <span class="benne-pg-lbl">background anchor</span>
           <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
+          <span class="benne-pg-lbl">background offset X</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetX" value="${c.backgroundOffsetX ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">background offset Y</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetY" value="${c.backgroundOffsetY ?? ''}" placeholder="0" />
           <span class="benne-pg-lbl">backgroundTag</span>
           ${guiSheetTagSelectHtml(tags, c.backgroundTag, idx, 'backgroundTag')}
           <span class="benne-pg-lbl">state hover</span>
@@ -879,6 +895,10 @@ function renderGuiControlCardBody(state, c) {
         ${guiSheetTagSelectHtml(tags, c.tag, idx, 'tag')}
         <span class="benne-pg-lbl">background anchor</span>
         <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
+        <span class="benne-pg-lbl">background offset X</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetX" value="${c.backgroundOffsetX ?? ''}" placeholder="0" />
+        <span class="benne-pg-lbl">background offset Y</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetY" value="${c.backgroundOffsetY ?? ''}" placeholder="0" />
       </div>`
             : state.usesAseprite
                 ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
@@ -1647,6 +1667,12 @@ function buildGuiControlFieldPatch(field, el) {
         'itemScale',
         'textOffsetX',
         'textOffsetY',
+        'backgroundOffsetX',
+        'backgroundOffsetY',
+        'slotBackgroundOffsetX',
+        'slotBackgroundOffsetY',
+        'highlightOffsetX',
+        'highlightOffsetY',
         'width',
         'height'
     ]);

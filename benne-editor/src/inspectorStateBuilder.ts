@@ -235,10 +235,16 @@ export type InspectorGuiControlCard =
           forwardButton: string;
           backgroundTag: string;
           backgroundAnchor: InspectorGuiSpriteAnchor;
+          backgroundOffsetX: number | null;
+          backgroundOffsetY: number | null;
           slotBackgroundTag: string;
           slotBackgroundAnchor: InspectorGuiSpriteAnchor;
+          slotBackgroundOffsetX: number | null;
+          slotBackgroundOffsetY: number | null;
           highlightTag: string;
           highlightAnchor: InspectorGuiSpriteAnchor;
+          highlightOffsetX: number | null;
+          highlightOffsetY: number | null;
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
@@ -253,6 +259,8 @@ export type InspectorGuiControlCard =
           visibleMode: '' | 'true' | 'false';
           tag: string;
           backgroundAnchor: InspectorGuiSpriteAnchor;
+          backgroundOffsetX: number | null;
+          backgroundOffsetY: number | null;
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
@@ -269,6 +277,8 @@ export type InspectorGuiControlCard =
           height: number;
           /** Empty string = default placement (`top-left` in JSON when saved from Inspector). */
           backgroundAnchor: InspectorGuiSpriteAnchor;
+          backgroundOffsetX: number | null;
+          backgroundOffsetY: number | null;
           text: string;
           font: string;
           fontSize: number;
@@ -1099,10 +1109,16 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             forwardButton: typeof o.forwardButton === 'string' ? o.forwardButton : '',
             backgroundTag: typeof o.backgroundTag === 'string' ? o.backgroundTag : '',
             backgroundAnchor: guiReadAnchorField(o, 'backgroundAnchor'),
+            backgroundOffsetX: guiReadNumOrNull(o, 'backgroundOffsetX'),
+            backgroundOffsetY: guiReadNumOrNull(o, 'backgroundOffsetY'),
             slotBackgroundTag: typeof o.slotBackgroundTag === 'string' ? o.slotBackgroundTag : '',
             slotBackgroundAnchor: guiReadAnchorField(o, 'slotBackgroundAnchor'),
+            slotBackgroundOffsetX: guiReadNumOrNull(o, 'slotBackgroundOffsetX'),
+            slotBackgroundOffsetY: guiReadNumOrNull(o, 'slotBackgroundOffsetY'),
             highlightTag: typeof o.highlightTag === 'string' ? o.highlightTag : '',
             highlightAnchor: guiReadAnchorField(o, 'highlightAnchor'),
+            highlightOffsetX: guiReadNumOrNull(o, 'highlightOffsetX'),
+            highlightOffsetY: guiReadNumOrNull(o, 'highlightOffsetY'),
             gridPlacement: parseOptionalGridPlacement(o)
         };
     }
@@ -1137,6 +1153,8 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             visibleMode: guiReadVisibleMode(o),
             tag,
             backgroundAnchor,
+            backgroundOffsetX: guiReadNumOrNull(o, 'backgroundOffsetX'),
+            backgroundOffsetY: guiReadNumOrNull(o, 'backgroundOffsetY'),
             gridPlacement: parseOptionalGridPlacement(o)
         };
     }
@@ -1180,6 +1198,8 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             width: guiReadNum(o, 'width', 120),
             height: guiReadNum(o, 'height', 32),
             backgroundAnchor: guiReadAnchorField(o, 'backgroundAnchor'),
+            backgroundOffsetX: guiReadNumOrNull(o, 'backgroundOffsetX'),
+            backgroundOffsetY: guiReadNumOrNull(o, 'backgroundOffsetY'),
             text: typeof o.text === 'string' ? o.text : '',
             font: typeof o.font === 'string' ? o.font : '',
             fontSize: guiReadNum(o, 'fontSize', 16),
