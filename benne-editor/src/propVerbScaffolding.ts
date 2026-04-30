@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { saveDirtyTypeScriptBeforeWorkspaceFsRead } from './saveDirtyScriptBeforeFsRead';
 import { formatJson } from './roomScaffolding';
 import { readRoomProps } from './gameDiscovery';
 import {
@@ -191,6 +192,9 @@ export async function addPropVerbEvent(
     const jsonAlready = existingOnVerb[verbId] === true;
 
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
+    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
+        return { ok: false };
+    }
     let scriptText = '';
     try {
         scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
@@ -298,6 +302,9 @@ export async function addHotspotVerbEvent(
     const jsonAlready = existingOnVerb[verbId] === true;
 
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
+    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
+        return { ok: false };
+    }
     let scriptText = '';
     try {
         scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
@@ -380,6 +387,9 @@ export async function ensureRoomVerbHandlerStubForReveal(
     }
 
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
+    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
+        return { stubInserted: false };
+    }
     let scriptText: string;
     try {
         scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));

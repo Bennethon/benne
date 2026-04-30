@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { formatJson } from './roomScaffolding';
+import { saveDirtyTypeScriptBeforeWorkspaceFsRead } from './saveDirtyScriptBeforeFsRead';
 import {
     characterBenneHandlerSnippet,
     characterScriptRegistersVerb,
@@ -105,6 +106,9 @@ export async function addCharacterVerbEvent(
     const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
 
     const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
+    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
+        return false;
+    }
     let scriptText = '';
     try {
         scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));

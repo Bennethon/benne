@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { formatJson } from './roomScaffolding';
+import { saveDirtyTypeScriptBeforeWorkspaceFsRead } from './saveDirtyScriptBeforeFsRead';
 import {
     inventoryBenneHandlerSnippet,
     inventoryScriptRegistersVerb,
@@ -97,6 +98,9 @@ export async function addInventoryVerbEvent(
     const jsonAlready = existingOnVerb[verbId] === true;
 
     const scriptUri = vscode.Uri.joinPath(inventoryJsonUri, '..', `${itemId}.inventory.ts`);
+    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
+        return false;
+    }
     let scriptText = '';
     try {
         scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));

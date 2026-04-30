@@ -97,4 +97,27 @@ registerRoomScript(({ B }) => {
     B.inventory.add('Bread');
     B.prop('Bread').hide();
   });
+
+  B.whenLookAt('Knife', () => {
+    B.faceClicked();
+    B.say`Hank: It's a knife.`;
+  });
+
+  B.whenPickUp('Knife', () => {
+    B.walkToClicked();
+    B.player.faceClicked();
+    B.inventory.add('Knife');
+    B.prop('Knife').hide();
+  });
+
+  B.whenLookAt('PeanutButter', () => {
+    B.say`Hank: It's some peanut butter.`;
+  });
+
+  B.whenPickUp('PeanutButter', () => {
+    B.walkToClicked();
+    B.player.faceClicked();
+    B.inventory.add('PeanutButter');
+    B.prop('PeanutButter').hide();
+  });
 });
