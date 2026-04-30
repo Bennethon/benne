@@ -121,11 +121,15 @@ export function resolvePointerVerbForTarget(
  * the resolved `inputProfile` slot is the built-in `walkTo`, substitute the item's authored
  * `defaultVerb` (fallback {@link DEFAULT_VERB_FALLBACK}) instead of returning `walkToTarget`.
  *
- * **Active verb is never consumed** on inventory-slot clicks (`consumeActive` is forced to `false`
- * for `verb` resolutions). Applying a verb to an inventory row arms use-on-target (active item +
- * the verb bar selection stays so the next world click can match **`give`**, **`use`**, etc.).
- * World targets use {@link resolvePointerVerbForTarget}; normal room verb dispatch may still clear
- * the active verb when **`consumeActive`** is true, but inventory-on-target does not.
+ * When **no** inventory item is armed for use-on-target, **`consumeActive`** matches
+ * {@link resolvePointerVerbForTarget}: an **active verb** left-click applies to the row and the
+ * caller should clear the active verb after dispatch (same as props / hotspots / characters).
+ *
+ * When **`activeInventoryItemId`** is set, **`consumeActive`** is forced to `false` for `verb`
+ * resolutions so the verb bar selection stays for the next world or inventory-row click (inventory
+ * use-on-target / combine).
+ * World targets use {@link resolvePointerVerbForTarget}; inventory-on-target dispatch does not
+ * clear the active verb from this flag (see room / GUI handlers).
  */
 export function resolvePointerVerbForInventoryItem(
   pointer: Phaser.Input.Pointer,
@@ -142,7 +146,7 @@ export function resolvePointerVerbForInventoryItem(
     activeInventoryItemId,
     { coerceWalkToUseWhenArmed: false },
   );
-  if (base.kind === 'verb' && base.consumeActive) {
+  if (base.kind === 'verb' && base.consumeActive && activeInventoryItemId !== null) {
     return { kind: 'verb', verbId: base.verbId, consumeActive: false };
   }
   if (base.kind !== 'walkToTarget') {
