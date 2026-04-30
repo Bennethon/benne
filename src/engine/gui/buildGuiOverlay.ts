@@ -1547,6 +1547,9 @@ function fillInventoryPanelContent(
             resolution.verbId,
             itemId,
           );
+          if (resolution.consumeActive) {
+            manager.clearActiveVerb();
+          }
         });
       }
 
