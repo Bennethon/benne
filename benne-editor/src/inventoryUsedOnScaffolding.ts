@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { insertIntoRegisterCharacterScriptBody } from './characterVerbScaffolding';
+import { saveDirtyTypeScriptBeforeWorkspaceFsRead } from './saveDirtyScriptBeforeFsRead';
 import { insertIntoRegisterInventoryScriptBody } from './inventoryVerbScaffolding';
 import { insertIntoBenneRegisterRoomScript } from './propVerbScaffolding';
 
@@ -27,6 +28,9 @@ export async function addRoomInventoryUsedOnStub(
 ): Promise<AddInventoryUsedOnResult> {
     void kind;
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
+    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
+        return { ok: false };
+    }
     let scriptText = '';
     try {
         scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
@@ -58,6 +62,9 @@ export async function addCharacterInventoryUsedOnStub(
     characterId: string,
 ): Promise<AddInventoryUsedOnResult> {
     const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
+    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
+        return { ok: false };
+    }
     let scriptText = '';
     try {
         scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
@@ -89,6 +96,9 @@ export async function addInventoryItemInventoryUsedOnStub(
     itemId: string,
 ): Promise<AddInventoryUsedOnResult> {
     const scriptUri = vscode.Uri.joinPath(inventoryJsonUri, '..', `${itemId}.inventory.ts`);
+    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
+        return { ok: false };
+    }
     let scriptText = '';
     try {
         scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));

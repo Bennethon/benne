@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { makeCharacterClickable } from './characterVerbScaffolding';
+import { saveDirtyTypeScriptBeforeWorkspaceFsRead } from './saveDirtyScriptBeforeFsRead';
 import { insertIntoBenneRegisterRoomScript, type AddRoomVerbHandlerResult } from './propVerbScaffolding';
 import {
     benneRoomScriptQualifier,
@@ -67,6 +68,9 @@ export async function addRoomCharacterVerbEvent(
     }
 
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
+    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
+        return { ok: false };
+    }
     let scriptText: string;
     try {
         const scriptRaw = await vscode.workspace.fs.readFile(scriptUri);

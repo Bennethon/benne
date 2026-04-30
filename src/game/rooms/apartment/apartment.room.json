@@ -338,7 +338,11 @@
         "x": 189,
         "y": 110
       },
-      "baseline": 111
+      "baseline": 111,
+      "onVerb": {
+        "look": true,
+        "pickUp": true
+      }
     },
     {
       "id": "PeanutButter",
@@ -378,7 +382,11 @@
         "x": 225,
         "y": 104
       },
-      "baseline": 104
+      "baseline": 104,
+      "onVerb": {
+        "look": true,
+        "pickUp": true
+      }
     },
     {
       "id": "Table",
