@@ -396,7 +396,7 @@ export abstract class BenneScriptCore {
     console.warn(`[Benne] ${message}`);
   }
 
-  private pushVerbWalkContext(payload: unknown): void {
+  protected pushVerbWalkContext(payload: unknown): void {
     const scene = this.getPlayerWalkRoomScene();
     const faceLookWorld =
       scene && scene.player ? resolveFaceLookWorldFromPayload(payload, scene) : null;
@@ -406,7 +406,7 @@ export abstract class BenneScriptCore {
     });
   }
 
-  private popVerbWalkContext(): void {
+  protected popVerbWalkContext(): void {
     this.verbClickContextStack.pop();
   }
 
@@ -592,11 +592,11 @@ export abstract class BenneScriptCore {
     tryGetActiveGameStateManager()?.clearActiveInventoryItem();
   }
 
-  private beginInteraction(): void {
+  protected beginInteraction(): void {
     this.interactionTail = Promise.resolve();
   }
 
-  private endInteraction(): Promise<void> {
+  protected endInteraction(): Promise<void> {
     return this.interactionTail;
   }
 
@@ -606,6 +606,11 @@ export abstract class BenneScriptCore {
    */
   protected chain(factory: () => Promise<unknown>): void {
     this.interactionTail = this.interactionTail.then(factory).then(() => undefined);
+  }
+
+  /** Paired cleanup for listeners not registered via {@link subscribe} (dispose removes `events.off`/`TimerEvent`, etc.). */
+  protected registerDisposable(off: () => void): void {
+    this.disposers.push(off);
   }
 
   protected subscribe(eventId: string, run: (payload: unknown) => void): void {

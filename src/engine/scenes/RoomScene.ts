@@ -297,6 +297,12 @@ export class RoomScene extends Phaser.Scene {
   private genericGuiOverlays: GuiOverlayHandle[] = [];
 
   /**
+   * Parallel to {@link genericGuiOverlays}: each overlay’s effective visibility before the active dialog session hid
+   * them. `null` when no dialog is open.
+   */
+  private genericGuiVisibilityBeforeDialog: boolean[] | null = null;
+
+  /**
    * Choice-dialog GUIs (`dialog` plus any `guiId` from `*.dialog.json`), built like `dialog-text` and kept hidden until
    * {@link DIALOG_STARTED_EVENT}.
    */
@@ -378,6 +384,7 @@ export class RoomScene extends Phaser.Scene {
     this.npcWalkTweens.clear();
     this.unresolvedWalkTargetIdsWarned.clear();
     this.missingDialogTextOverlaySayWarned = false;
+    this.genericGuiVisibilityBeforeDialog = null;
     this.benneCoresForTransitionReset.length = 0;
 
     attachPostProcessingPlaceholder(this.cameras.main);
@@ -617,6 +624,7 @@ export class RoomScene extends Phaser.Scene {
         h.destroy();
       }
       this.genericGuiOverlays = [];
+      this.genericGuiVisibilityBeforeDialog = null;
       this.dialogTextOverlay?.destroy();
       this.dialogTextOverlay = null;
       this.dialogChoiceInputSuppressionActive = false;
@@ -751,8 +759,47 @@ export class RoomScene extends Phaser.Scene {
       }
       return;
     }
+    this.snapshotAndHideGenericGuisForDialog();
     entry.built.handle.setVisible(true);
     this.refreshDialogChoiceOverlay();
+  }
+
+  /**
+   * True if any top-level object in the overlay is currently visible (author / script may have turned the HUD off).
+   */
+  private readGenericGuiOverlayVisibleHint(handle: GuiOverlayHandle): boolean {
+    for (const go of handle.gameObjects) {
+      const v = go as unknown as Phaser.GameObjects.Components.Visible | Phaser.GameObjects.GameObject;
+      if ('visible' in v && (v as Phaser.GameObjects.Components.Visible).visible) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Called when a choice dialog session successfully opens (after {@link DIALOG_STARTED_EVENT}). */
+  private snapshotAndHideGenericGuisForDialog(): void {
+    if (this.genericGuiVisibilityBeforeDialog !== null) {
+      return;
+    }
+    const snap: boolean[] = [];
+    for (const h of this.genericGuiOverlays) {
+      snap.push(this.readGenericGuiOverlayVisibleHint(h));
+      h.setVisible(false);
+    }
+    this.genericGuiVisibilityBeforeDialog = snap;
+  }
+
+  /** Restores generic GUI visibility from {@link genericGuiVisibilityBeforeDialog}. */
+  private restoreGenericGuisAfterDialogSession(): void {
+    const snap = this.genericGuiVisibilityBeforeDialog;
+    if (snap === null) {
+      return;
+    }
+    this.genericGuiVisibilityBeforeDialog = null;
+    for (let i = 0; i < this.genericGuiOverlays.length; i++) {
+      this.genericGuiOverlays[i]!.setVisible(snap[i] ?? false);
+    }
   }
 
   private endDialogChoiceInputSuppressionIfActive(): void {
@@ -764,6 +811,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private onDialogChoiceStopped(_p: DialogStoppedPayload): void {
+    this.restoreGenericGuisAfterDialogSession();
     this.endDialogChoiceInputSuppressionIfActive();
     this.activeDialogChoiceSession = null;
     this.dialogChoiceRowState.clear();
@@ -893,6 +941,40 @@ export class RoomScene extends Phaser.Scene {
     down?.setVisible(showDown);
   }
 
+  /**
+   * Called when a **`whenChoice`** handler starts: hides the choice overlay so queued lines / walks cannot be
+   * interrupted by activating another synthetic **`dc__*`** row. Paired with
+   * {@link restoreDialogChoiceGuiAfterWhenChoiceDrain} after the handler’s interaction tail completes.
+   */
+  suppressDialogChoiceGuiForWhenChoice(guiId: string): void {
+    if (!this.activeDialogChoiceSession || this.activeDialogChoiceSession.guiId !== guiId) {
+      return;
+    }
+    const entry = this.dialogChoiceInstallByGuiId.get(guiId);
+    entry?.built.handle.setVisible(false);
+  }
+
+  /**
+   * Shows the dialog choice overlay again once **`whenChoice`** work finishes, unless the dialog session ended
+   * or this room’s active choice session no longer matches **`dialogId`** / **`guiId`**.
+   */
+  restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId: string, dialogId: string): void {
+    const active = getActiveDialogBenneScript();
+    if (!active || active.dialogId !== dialogId) {
+      return;
+    }
+    const session = this.activeDialogChoiceSession;
+    if (!session || session.guiId !== guiId || session.dialogId !== dialogId) {
+      return;
+    }
+    const entry = this.dialogChoiceInstallByGuiId.get(guiId);
+    if (!entry) {
+      return;
+    }
+    entry.built.handle.setVisible(true);
+    this.refreshDialogChoiceOverlay();
+  }
+
   private onDialogChoiceOptionClicked(guiId: string, buttonId: string): void {
     if (!this.activeDialogChoiceSession || this.activeDialogChoiceSession.guiId !== guiId) {
       return;
@@ -968,13 +1050,20 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Shows or hides every non-`dialog-text` GUI overlay registered under `src/game/guis/**`.
-   * Does not affect the `dialog-text` overlay (that remains driven by {@link setDialogTextOverlay} /
-   * `say`). Intended for preview toolbars and future cutscene HUD-hide logic.
+   * Shows or hides every non-`dialog-text`, non-choice-dialog GUI overlay registered under `src/game/guis/**`.
+   * Does not affect the `dialog-text` overlay or choice-dialog GUIs. During an active dialog session, the room
+   * first snapshots per-overlay visibility and hides these; when the dialog ends, that snapshot is restored.
+   * Any call while a dialog is open updates both the live visibility and the snapshot entry for each overlay
+   * so restore matches the latest explicit state. Also used for preview toolbars and cutscene overrides.
    */
   setGenericGuisVisible(visible: boolean): void {
-    for (const h of this.genericGuiOverlays) {
+    const snap = this.genericGuiVisibilityBeforeDialog;
+    for (let i = 0; i < this.genericGuiOverlays.length; i++) {
+      const h = this.genericGuiOverlays[i]!;
       h.setVisible(visible);
+      if (snap !== null) {
+        snap[i] = visible;
+      }
     }
   }
 
@@ -2344,6 +2433,9 @@ export class RoomScene extends Phaser.Scene {
       if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
         return;
       }
+      if (this.isScriptedDialogInputSuppressed()) {
+        return;
+      }
       const profile = getEffectiveInputProfile(getGameSettings());
       const manager = resolveGameStateManager(this.game);
       const resolution = resolvePointerVerbForTarget(
@@ -2913,7 +3005,9 @@ export class RoomScene extends Phaser.Scene {
     const idleKey = cursorPhaserAnimationKey(settings.cursor!.idleAnimation.trim());
     const activeKey = cursorPhaserAnimationKey(settings.cursor!.activeAnimation.trim());
 
-    const overClickable = this.isCursorOverBenneClickable(this.sortRoomPointerHitStack(pointer));
+    const overClickable = this.resolvePointerVerbStyleActiveCursor(
+      this.sortRoomPointerHitStack(pointer),
+    );
     // Active inventory cursor clips take precedence regardless of hover target.
     const invClip = this.tryActiveInventoryCursorClip();
     const visualKey = invClip
@@ -2942,27 +3036,29 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * True when Phaser’s hit stack includes a room prop (clickable path only registers hit areas),
-   * hotspot zone, clickable character sprite, or GUI `button` hit target.
+   * Whether the verb-style cursor (idle vs active clip) should be **active**.
+   * Walks hits top-first (sorted): GUI / inventory count as interactive even during scripted-dialog
+   * suppression; props / hotspots / clickable NPCs do not flip to active while input is suppressed.
    */
-  private isCursorOverBenneClickable(hits: Phaser.GameObjects.GameObject[]): boolean {
+  private resolvePointerVerbStyleActiveCursor(hits: Phaser.GameObjects.GameObject[]): boolean {
+    const suppressed = this.isScriptedDialogInputSuppressed();
     for (const o of hits) {
       const go = o as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown };
       if (typeof go.getData === 'function') {
-        if (
-          go.getData('benneGuiButton') === true ||
-          go.getData('benneHotspot') === true ||
-          go.getData('benneInventorySlot') === true
-        ) {
+        if (go.getData('benneGuiButton') === true || go.getData('benneInventorySlot') === true) {
           return true;
         }
-        if (go.getData('character')) {
-          return true;
+        if (go.getData('benneHotspot') === true) {
+          return !suppressed;
+        }
+        const charData = go.getData('character') as CharacterData | undefined;
+        if (charData && go.getData('isPlayer') !== true && charData.clickable) {
+          return !suppressed;
         }
       }
       for (const propSprite of this.propSpritesById.values()) {
         if (propSprite === o) {
-          return true;
+          return !suppressed;
         }
       }
     }

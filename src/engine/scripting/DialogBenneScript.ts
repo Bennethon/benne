@@ -320,6 +320,9 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
 
   /**
    * Runs when the player activates a dialog line whose `optionId` matches (see {@link dialogChoiceSyntheticButtonId}).
+   *
+   * While the handler’s synchronous work plus any interaction-tail steps (`say`, `walk`, etc.) run, the
+   * dialog choice GUI is hidden so additional options cannot be activated.
    */
   whenChoice(optionId: string, handler: (() => void) | ((payload: { optionId: string }) => void)): void {
     const id = optionId.trim();
@@ -328,12 +331,35 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
     }
     const syn = dialogChoiceSyntheticButtonId(id);
     const eventId = guiButtonClickEventId(this.dialogGuiId, syn);
-    this.subscribe(eventId, () => {
-      if (handler.length === 0) {
-        (handler as () => void)();
-      } else {
-        (handler as (p: { optionId: string }) => void)({ optionId: id });
+    const guiId = this.dialogGuiId;
+    const dialogScriptId = this.dialogId;
+
+    const wrapped = async (payload: unknown) => {
+      const room = this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
+      room?.suppressDialogChoiceGuiForWhenChoice(guiId);
+
+      this.beginInteraction();
+      try {
+        this.pushVerbWalkContext(payload);
+        try {
+          if (handler.length === 0) {
+            (handler as () => void)();
+          } else {
+            (handler as (p: { optionId: string }) => void)({ optionId: id });
+          }
+        } finally {
+          this.popVerbWalkContext();
+        }
+        await this.endInteraction();
+      } catch (err) {
+        console.error(`[Benne] Error in ${eventId} dialog whenChoice handler:`, err);
+      } finally {
+        const rm = this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
+        rm?.restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId, dialogScriptId);
       }
-    });
+    };
+
+    this.events.on(eventId, wrapped);
+    this.registerDisposable(() => this.events.off(eventId, wrapped));
   }
 }
