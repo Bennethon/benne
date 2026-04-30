@@ -294,7 +294,11 @@
         "x": 208,
         "y": 108
       },
-      "baseline": 109
+      "baseline": 109,
+      "onVerb": {
+        "look": true,
+        "pickUp": true
+      }
     },
     {
       "id": "Knife",

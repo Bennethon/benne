@@ -5,6 +5,13 @@ import type { RoomScene } from './RoomScene.js';
 /**
  * Stops any in-progress player walk before verb / inventory interaction handlers run, so lines and
  * scripted `walkToClicked` do not overlap a prior empty-space or walk-to-target move.
+ *
+ * Also pushes one frame of {@link RoomScene.pushScriptedDialogInputSuppression} for the same pointer
+ * tick: `B.say` queues on the Bennescript interaction tail (microtask), while `createSayLinePromise`
+ * only suppresses room background input when that promise runs — **after** Phaser dispatches
+ * `pointerdown` on the scene. Without this brace, {@link RoomScene.handleRoomPointerDown} can still
+ * treat the click as empty space and start a walk toward the cursor while a verb-only `say` line
+ * is showing (common with **Look at** + no scripted `walkToClicked`).
  */
 export function interruptPlayerWalkForVerbInteraction(): void {
   const game = tryGetActiveBenneGame();
@@ -16,4 +23,8 @@ export function interruptPlayerWalkForVerbInteraction(): void {
     return;
   }
   scene.interruptPlayerWalk();
+  scene.pushScriptedDialogInputSuppression();
+  queueMicrotask(() => {
+    scene.popScriptedDialogInputSuppression();
+  });
 }
