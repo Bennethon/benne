@@ -9,11 +9,12 @@ import {
   readEffectiveInventoryDefaultAnimationTag,
 } from '../inventory/inventoryScriptingAnimations.js';
 import type { BenneScriptInventoryItemFacade } from './benneScriptFacades.js';
+import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
 
 /**
- * When provided to {@link createBenneScriptInventoryNamespace}, inventory item **`animation`** /
- * **`cursorAnimation`** setters enqueue on the owning script’s interaction tail (same ordering as
- * **`B.player.animation`**).
+ * When provided to {@link createBenneScriptInventoryNamespace}, **`B.inventory.add` / `remove`**
+ * (blocking form) and per-item **`animation`** / **`cursorAnimation`** setters enqueue on the owning
+ * script’s interaction tail (same ordering as **`B.player.animation`**).
  */
 export type BenneScriptInventoryInteractionQueue = (factory: () => Promise<unknown>) => void;
 
@@ -60,8 +61,9 @@ export interface BenneScriptGameStateNamespace {
  */
 export interface BenneScriptInventoryNamespace {
   (itemId: string): BenneScriptInventoryItemFacade;
-  add(id: string, quantity?: number): boolean;
-  remove(id: string, quantity?: number): boolean;
+  /** Queues on the owning script interaction tail when wired with chain; `.now` applies immediately. */
+  add: BlockingWithNow<[string, number?]>;
+  remove: BlockingWithNow<[string, number?]>;
   has(id: string): boolean;
   quantityOf(id: string): number;
   /** Legacy accessor for inventory entries; prefer `add`/`remove`/`has`/`quantityOf` for gameplay logic. */
@@ -188,9 +190,38 @@ export function createBenneScriptInventoryNamespace(
   getRoomScene?: () => RoomScene | undefined,
   queueInteraction?: BenneScriptInventoryInteractionQueue,
 ): BenneScriptInventoryNamespace {
+  const queueOrRunSync = (run: () => void): void => {
+    if (queueInteraction) {
+      queueInteraction(() => {
+        run();
+        return Promise.resolve();
+      });
+    } else {
+      run();
+    }
+  };
+
   const methods = {
-    add: (id: string, quantity?: number) => m.addInventory(id, quantity),
-    remove: (id: string, quantity?: number) => m.removeFromInventory(id, quantity),
+    add: withNow(
+      (id: string, quantity?: number) => {
+        queueOrRunSync(() => {
+          void m.addInventory(id, quantity);
+        });
+      },
+      (id: string, quantity?: number) => {
+        void m.addInventory(id, quantity);
+      },
+    ),
+    remove: withNow(
+      (id: string, quantity?: number) => {
+        queueOrRunSync(() => {
+          void m.removeFromInventory(id, quantity);
+        });
+      },
+      (id: string, quantity?: number) => {
+        void m.removeFromInventory(id, quantity);
+      },
+    ),
     has: (id: string) => m.hasInInventory(id),
     quantityOf: (id: string) => m.quantityOf(id),
     get items() {

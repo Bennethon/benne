@@ -17,7 +17,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 - **`registerGuiScript('guiId', ({ B, events, guiId }) => …)`** — at content registration; overlay built per room.
 - **`registerDialogScript('dialogId', ({ B, events, dialogId, game }) => …)`** — runs when **`openDialogSessionForId`** opens that dialog (after **`B.dialog(id).start()`** / **`.start.now()`**).
 
-**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`wait`**, queued animation setters, **`B.room.changeTo`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
+**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`wait`**, queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
 
 **`BlockingWithNow` pattern** — Many APIs are **`(…args) => void`** plus **`.now(…args)`** with the same parameters. The blocking form **queues** on **`interactionTail`**; **`.now`** performs the same work **without** extending the tail, so later lines in your handler still run in source order but do not wait for that action.
 
@@ -219,14 +219,14 @@ Same movement/teleport/play/stop **`say`** / **`face`** pattern as **`B.player`*
 
 **Not on `GuiBenneScript`.** Callable **`B.inventory(itemId)`** returns **`BenneScriptInventoryItemFacade`** (see **[`benneScriptGameStateApi.ts`](../src/engine/scripting/benneScriptGameStateApi.ts)**).
 
-**Quantity API (always synchronous — not queued):**
+**Quantity API** — **`add`** and **`remove`** are **`BlockingWithNow<[string, number?]>`** (queue on **`interactionTail`** when the namespace is wired with **`chain`**; **`.now`** mutates **`GameStateManager`** immediately). **`has`**, **`quantityOf`**, **`items`**, and **`clearInventory`** stay synchronous.
 
 ```ts
 B.inventory(id: string): BenneScriptInventoryItemFacade;
 
 interface BenneScriptInventoryNamespace /* + callable */ {
-  add(id: string, quantity?: number): boolean;
-  remove(id: string, quantity?: number): boolean;
+  add: BlockingWithNow<[string, number?]>;
+  remove: BlockingWithNow<[string, number?]>;
   has(id: string): boolean;
   quantityOf(id: string): number;
   readonly items: ReadonlyArray<{ id: string; quantity: number }>;
@@ -236,8 +236,9 @@ interface BenneScriptInventoryNamespace /* + callable */ {
 
 **Per-item facade:**
 
-| Member | Setter blocking | Immediate |
+| Member | Setter / blocking | Immediate |
 |--------|-----------------|----------|
+| **`add`**, **`remove`** | Queued when namespace wired with **`chain`** | **`add.now(…)`**, **`remove.now(…)`** |
 | **`animation`** get/set — effective **`defaultAnimation`** | Queued when namespace wired with **`chain`** (room/character/inventory/global) | **`animationNow(tag)`** |
 | **`cursorAnimation`** get/set — armed cursor clip | Same | **`cursorAnimationNow(tag)`** |
 | Setter **empty string** | Clears **`GameStateManager`** override for that field (JSON defaults return). |
