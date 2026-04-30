@@ -140,7 +140,7 @@ import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartK
 import { getAllGuiData } from '../../game/loadGuiData';
 import {
   applyRoomStackDepths,
-  compareRoomStackEntities,
+  sortRoomStackEntities,
   type RoomStackEntity,
 } from '../room/roomStackDrawOrder';
 
@@ -255,8 +255,8 @@ export class RoomScene extends Phaser.Scene {
   }> = [];
 
   /**
-   * Props, characters, and hotspot zones sorted each frame by {@link compareRoomStackEntities}
-   * (zIndex + optional baselines).
+   * Props, characters, and hotspot zones reordered each frame by {@link sortRoomStackEntities}
+   * (`zIndex` + optional `baseline` rules, with a deterministic fallback when those rules contradict).
    */
   private roomStackEntities: RoomStackEntity[] = [];
 
@@ -1709,7 +1709,7 @@ export class RoomScene extends Phaser.Scene {
     if (this.roomStackEntities.length === 0) {
       return;
     }
-    const sorted = [...this.roomStackEntities].sort(compareRoomStackEntities);
+    const sorted = sortRoomStackEntities(this.roomStackEntities);
     applyRoomStackDepths(sorted);
   }
 
