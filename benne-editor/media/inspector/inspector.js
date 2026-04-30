@@ -33,7 +33,10 @@ function inspectorStateKey(state) {
     if (state.kind === 'gui') {
         return `gui:${state.guiJsonUri}`;
     }
-    return `inventory:${state.inventoryJsonUri}`;
+    if (state.kind === 'inventory') {
+        return `inventory:${state.inventoryJsonUri}`;
+    }
+    return `dialog:${state.dialogJsonUri}`;
 }
 function captureInspectorOpenState(root) {
     const scroll = root.querySelector('.scroll');
@@ -1070,6 +1073,61 @@ function renderGui(state) {
   </div>
 </div>`;
 }
+function renderDialogOptionCard(state, opt) {
+    const summary = `<div class="benne-card-titles">
+        <div class="benne-card-title">${esc(opt.id)}</div>
+        <div class="benne-card-sub muted">Option ${opt.index + 1}</div>
+      </div>`;
+    const body = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <input type="text" class="dlg-opt-id" data-idx="${opt.index}" value="${esc(opt.id)}" />
+        <span class="benne-pg-lbl">text</span>
+        <textarea class="dlg-opt-text" data-idx="${opt.index}" rows="2">${esc(opt.text)}</textarea>
+        <span class="benne-pg-lbl">enabled</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-enabled" data-idx="${opt.index}" ${opt.enabled ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">used (JSON)</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-used" data-idx="${opt.index}" ${opt.used ? 'checked' : ''} title="Authoring default; runtime may persist picks via game state." /></label>
+        <span class="benne-pg-lbl">script</span>
+        <button type="button" class="btn-secondary dlg-opt-script" data-idx="${opt.index}">Script…</button>
+        <span class="benne-pg-lbl"></span>
+        <button type="button" class="btn-danger dlg-opt-remove" data-idx="${opt.index}">Remove</button>
+      </div>`;
+    return renderInspectorItem({}, 'dialogOption', String(opt.index), '', summary, body);
+}
+function renderDialog(state) {
+    const cards = state.options.map((o) => renderDialogOptionCard(state, o)).join('');
+    return `<div class="inspector-root">
+  <div class="scroll">
+    <details class="section" open>
+      <summary>Dialog metadata</summary>
+      <div class="section-body">
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">id</span>
+          <div class="benne-pg-val"><code class="badge">${esc(state.dialogId)}</code></div>
+          <span class="benne-pg-lbl">display name</span>
+          <input type="text" id="dlg-display-name" value="${esc(state.displayName)}" />
+          <span class="benne-pg-lbl">guiId</span>
+          <input type="text" id="dlg-gui-id" value="${esc(state.guiId)}" placeholder="dialog (default)" title="Choice GUI overlay id; omit or use dialog for the default choice overlay." />
+        </div>
+        <p class="muted small" style="margin-top:8px;">Topic lines are edited as <strong>options</strong> below (SCUMM-style list). The companion <code>.dialog.ts</code> is open in the editor — use <strong>Script…</strong> to add <code>B.whenChoice</code> handlers.</p>
+      </div>
+    </details>
+    <details class="section" open>
+      <summary>Options (${state.options.length})</summary>
+      <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" id="btn-dlg-add-opt">Add option</button>
+        </div>
+        <div class="benne-card-list">${cards || '<p class="muted">No options — click Add option.</p>'}</div>
+      </div>
+    </details>
+  </div>
+  <div class="footer">
+    <button type="button" class="btn-primary" id="btn-save-dlg">Save</button>
+    <button type="button" class="btn-secondary" id="btn-open-json-dlg">Open raw JSON</button>
+  </div>
+</div>`;
+}
 function renderEmpty(msg) {
     return `<p class="empty">${esc(msg)}</p>`;
 }
@@ -1859,6 +1917,81 @@ function mountGuiHandlers(state) {
         });
     });
 }
+function collectDialogMeta() {
+    return {
+        type: 'dialogMeta',
+        displayName: document.getElementById('dlg-display-name')?.value ?? '',
+        guiId: document.getElementById('dlg-gui-id')?.value ?? ''
+    };
+}
+function collectDialogOptionPatches() {
+    const detailsList = document.querySelectorAll('[data-entity="dialogOption"]');
+    const patches = [];
+    detailsList.forEach((details) => {
+        const index = Number(details.dataset.id ?? '-1');
+        if (!Number.isInteger(index) || index < 0) {
+            return;
+        }
+        const optId = details.querySelector(`.dlg-opt-id[data-idx="${index}"]`)?.value ?? '';
+        const text = details.querySelector(`.dlg-opt-text[data-idx="${index}"]`)?.value ?? '';
+        const enabled = details.querySelector(`.dlg-opt-enabled[data-idx="${index}"]`)?.checked ??
+            true;
+        const used = details.querySelector(`.dlg-opt-used[data-idx="${index}"]`)?.checked ??
+            false;
+        patches.push({
+            type: 'dialogOption',
+            index,
+            id: optId,
+            text,
+            enabled,
+            used
+        });
+    });
+    return patches;
+}
+function mountDialogHandlers(state) {
+    const flushMeta = () => {
+        post('applyPatches', { patches: [collectDialogMeta()] });
+    };
+    document.getElementById('btn-save-dlg')?.addEventListener('click', () => {
+        post('applyPatches', {
+            patches: [collectDialogMeta(), ...collectDialogOptionPatches()]
+        });
+    });
+    document.getElementById('btn-open-json-dlg')?.addEventListener('click', () => {
+        post('openRawJson', { dialogJsonUri: state.dialogJsonUri });
+    });
+    document.getElementById('dlg-display-name')?.addEventListener('blur', flushMeta);
+    document.getElementById('dlg-gui-id')?.addEventListener('blur', flushMeta);
+    document.getElementById('btn-dlg-add-opt')?.addEventListener('click', () => {
+        post('applyPatches', { patches: [{ type: 'dialogAddOption' }] });
+    });
+    document.querySelectorAll('.dlg-opt-script').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn;
+            const idx = Number(b.dataset.idx ?? '-1');
+            if (!Number.isInteger(idx) || idx < 0) {
+                return;
+            }
+            const row = b.closest('[data-entity="dialogOption"]');
+            const idInput = row?.querySelector(`.dlg-opt-id[data-idx="${idx}"]`);
+            const optionId = idInput?.value?.trim() ?? '';
+            if (!optionId) {
+                return;
+            }
+            post('dialogEnsureWhenChoice', { dialogJsonUri: state.dialogJsonUri, optionId });
+        });
+    });
+    document.querySelectorAll('.dlg-opt-remove').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const idx = Number(btn.dataset.idx ?? '-1');
+            if (!Number.isInteger(idx) || idx < 0) {
+                return;
+            }
+            post('applyPatches', { patches: [{ type: 'dialogRemoveOption', index: idx }] });
+        });
+    });
+}
 function collectInventoryMeta() {
     return {
         type: 'inventoryMeta',
@@ -1959,6 +2092,9 @@ function render(state) {
     else if (state.kind === 'inventory') {
         root.innerHTML = renderInventory(state);
     }
+    else if (state.kind === 'dialog') {
+        root.innerHTML = renderDialog(state);
+    }
     else {
         root.innerHTML = renderGui(state);
     }
@@ -1975,6 +2111,9 @@ function render(state) {
     }
     else if (state.kind === 'inventory') {
         mountInventoryHandlers(state);
+    }
+    else if (state.kind === 'dialog') {
+        mountDialogHandlers(state);
     }
     else {
         mountGuiHandlers(state);

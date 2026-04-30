@@ -38,6 +38,13 @@ export type DeleteTarget =
           displayLabel: string;
       }
     | {
+          type: 'dialog';
+          folder: vscode.WorkspaceFolder;
+          dialogId: string;
+          dialogJsonUri: vscode.Uri;
+          displayLabel: string;
+      }
+    | {
           type: 'prop';
           folder: vscode.WorkspaceFolder;
           roomId: string;
@@ -145,6 +152,14 @@ export function resolveDeleteTargetFromMainTreeNode(
                 folder: node.folder,
                 itemId: node.id,
                 inventoryJsonUri: node.uri,
+                displayLabel: node.name
+            };
+        case 'dialog':
+            return {
+                type: 'dialog',
+                folder: node.folder,
+                dialogId: node.id,
+                dialogJsonUri: node.uri,
                 displayLabel: node.name
             };
         case 'prop':

@@ -57,10 +57,11 @@ async function findScriptScanUris(folder: vscode.WorkspaceFolder): Promise<vscod
     const roomTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/**/*.room.ts'));
     const charTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/**/*.character.ts'));
     const invTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/**/*.inventory.ts'));
+    const dialogTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/**/*.dialog.ts'));
     const globalTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/globalScript.ts'));
     const seen = new Set<string>();
     const out: vscode.Uri[] = [];
-    for (const u of [...roomTs, ...charTs, ...invTs, ...globalTs]) {
+    for (const u of [...roomTs, ...charTs, ...invTs, ...dialogTs, ...globalTs]) {
         const k = u.toString();
         if (!seen.has(k)) {
             seen.add(k);
@@ -95,6 +96,13 @@ function regexesForDeleteTarget(target: DeleteTarget): RegExp[] {
                 new RegExp(`registerInventoryScript\\s*\\(\\s*['\`]${i}['\`]`),
                 new RegExp(`verb:room:[^'"\`]+:inventory:${i}:`),
                 new RegExp(`verb:inventory:${i}:`)
+            ];
+        }
+        case 'dialog': {
+            const d = escapeRe(target.dialogId);
+            return [
+                new RegExp(`registerDialogScript\\s*\\(\\s*['\`]${d}['\`]`),
+                new RegExp(`B\\.dialog\\s*\\(\\s*['\`]${d}['\`]`)
             ];
         }
         case 'prop': {
@@ -320,6 +328,11 @@ function collectUrisToClose(target: DeleteTarget): vscode.Uri[] {
                 target.inventoryJsonUri,
                 vscode.Uri.joinPath(target.inventoryJsonUri, '..', `${target.itemId}.inventory.ts`)
             ];
+        case 'dialog':
+            return [
+                target.dialogJsonUri,
+                vscode.Uri.joinPath(target.dialogJsonUri, '..', `${target.dialogId}.dialog.ts`)
+            ];
         case 'prop':
         case 'hotspot':
         case 'point':
@@ -343,6 +356,8 @@ function entityKindLabel(target: DeleteTarget): string {
             return 'GUI';
         case 'inventory':
             return 'inventory item';
+        case 'dialog':
+            return 'dialog';
         case 'prop':
             return 'prop';
         case 'hotspot':
@@ -403,6 +418,12 @@ export async function buildDeleteImpactSummary(target: DeleteTarget): Promise<De
                 `• Per-item asset folder src/game/assets/images/inventory/${target.itemId}/ (if present; ignored when using the shared sheet)`
             );
             detailLines.push(...(await gameConfigDependencyLines(target.folder, target)));
+            break;
+        case 'dialog':
+            detailLines.push(`• Dialog folder src/game/dialogs/${target.dialogId}/ (JSON + script)`);
+            detailLines.push(
+                '• Script scan lists references in *.room.ts, *.character.ts, *.dialog.ts, *.inventory.ts, and globalScript.ts — search other files by hand if unsure.'
+            );
             break;
         case 'prop':
             detailLines.push(
@@ -800,6 +821,11 @@ export async function deleteGameEntity(target: DeleteTarget): Promise<void> {
             await deleteDirectoryIfPresent(assetsDir);
             break;
         }
+        case 'dialog': {
+            const dialogDir = vscode.Uri.joinPath(root, 'src', 'game', 'dialogs', target.dialogId);
+            await deleteDirectoryIfPresent(dialogDir);
+            break;
+        }
         case 'prop': {
             const data = await readRoomJsonRecord(target.roomJsonUri);
             if (!data) {
@@ -923,6 +949,14 @@ export function applySelectionAfterDelete(selection: EditorSelection, target: De
             if (
                 selection.focus.kind === 'inventory' &&
                 selection.focus.uri.toString() === target.inventoryJsonUri.toString()
+            ) {
+                selection.clearFocus();
+            }
+            break;
+        case 'dialog':
+            if (
+                selection.focus.kind === 'dialog' &&
+                selection.focus.uri.toString() === target.dialogJsonUri.toString()
             ) {
                 selection.clearFocus();
             }

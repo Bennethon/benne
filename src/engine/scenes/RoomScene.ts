@@ -92,6 +92,7 @@ import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
 import type { InventoryItemData } from '../../types/inventory';
 import type { Point2, RoomData, RoomHotspotData, RoomPropInstance } from '../../types/room';
+import type { GuiData, GuiGridControl } from '../../types/gui';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
 import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
 import { createCharacterScriptContext } from '../scripting/CharacterScriptContext.js';
@@ -103,6 +104,29 @@ import {
   GUI_TEXT_OVERLAY_DEPTH,
   type GuiOverlayHandle,
 } from '../gui/buildGuiOverlay';
+import { getRegisteredDialogChoiceGuiIds, getDialogDefinition } from '../dialog/dialogDefinitionRegistry';
+import {
+  dialogOptionUsedVariableKey,
+  readEffectiveDialogOptionEnabled,
+} from '../dialog/dialogOptionVariables';
+import type { Dialog } from '../../types/dialogue';
+import {
+  computeDialogChoicePageSize,
+  DialogChoiceDynamicRowState,
+  DIALOG_CHOICE_GRID_ID,
+} from '../dialog/dialogChoiceGuiRuntime';
+import {
+  DIALOG_STARTED_EVENT,
+  DIALOG_STOPPED_EVENT,
+  DIALOG_OPTION_ENABLED_CHANGED_EVENT,
+  dialogChoiceSyntheticButtonId,
+  type DialogStartedPayload,
+  type DialogStoppedPayload,
+  type DialogOptionEnabledChangedPayload,
+} from '../events/dialogEvents';
+import { guiAllButtonsClickEventId, guiButtonClickEventId, type GuiAllButtonsClickPayload } from '../events/guiButtonEvents';
+import { endDialogSessionIfMatches, getActiveDialogBenneScript } from '../scripting/dialogSession.js';
+import type { GuiRuntime } from '../scripting/GuiRuntime.js';
 import {
   BENNE_SCREEN_FADE_DEFAULT_COLOR,
   BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
@@ -271,6 +295,25 @@ export class RoomScene extends Phaser.Scene {
   /** Every other registered GUI overlay (authoring under `src/game/guis/<id>/`), built automatically in `create`. */
   private genericGuiOverlays: GuiOverlayHandle[] = [];
 
+  /**
+   * Choice-dialog GUIs (`dialog` plus any `guiId` from `*.dialog.json`), built like `dialog-text` and kept hidden until
+   * {@link DIALOG_STARTED_EVENT}.
+   */
+  private readonly dialogChoiceInstallByGuiId = new Map<
+    string,
+    {
+      built: NonNullable<ReturnType<typeof buildGuiOverlay>>;
+      guiData: GuiData;
+      baseDepth: number;
+    }
+  >();
+  private readonly dialogChoiceRuntimeByGuiId = new Map<string, GuiRuntime>();
+  private readonly dialogChoiceRowState = new DialogChoiceDynamicRowState();
+  private activeDialogChoiceSession: { guiId: string; dialogId: string; scrollOffset: number } | null = null;
+  /** True while {@link pushScriptedDialogInputSuppression} was called for an active choice overlay (paired with {@link onDialogChoiceStopped}). */
+  private dialogChoiceInputSuppressionActive = false;
+  private dialogChoiceUiDisposers: Array<() => void> = [];
+
   private readonly dialogOverlayScreenScratch = new Phaser.Math.Vector2();
   /** Scratch for {@link refreshCustomCursor} when the editor UI camera owns the pointer sprite. */
   private readonly customCursorWorldScratch = new Phaser.Math.Vector2();
@@ -363,7 +406,10 @@ export class RoomScene extends Phaser.Scene {
     this.drawRoomDebugOverlays(data);
 
     const guisSorted = [...getAllGuiData()].sort((a, b) => a.id.localeCompare(b.id));
-    const nonDialogGuis = guisSorted.filter((g) => g.id !== DIALOG_TEXT_GUI_ID);
+    const dialogChoiceGuiIds = new Set(getRegisteredDialogChoiceGuiIds());
+    const nonDialogGuis = guisSorted.filter(
+      (g) => g.id !== DIALOG_TEXT_GUI_ID && !dialogChoiceGuiIds.has(g.id),
+    );
     const dialogGui = guisSorted.find((g) => g.id === DIALOG_TEXT_GUI_ID);
 
     const genericGuiVisibilityOverride = this.game.registry.get(
@@ -417,6 +463,37 @@ export class RoomScene extends Phaser.Scene {
         dialogScript.notifyGuiBuilt(rt);
       }
     }
+
+    stackIndex += 1;
+    const noopDialogQueue = (factory: () => Promise<unknown>): void => {
+      void factory().catch((err) => console.error('[Benne] dialog choice GUI queued step failed:', err));
+    };
+    for (const guiId of [...dialogChoiceGuiIds].sort((a, b) => a.localeCompare(b))) {
+      const gui = guisSorted.find((g) => g.id === guiId);
+      if (!gui) {
+        continue;
+      }
+      const dChoice = GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE;
+      const choiceBuilt = buildGuiOverlay(this, gui, {
+        startVisible: false,
+        depth: dChoice,
+        inventoryPanelPointerContext,
+        verbLineHoverDescription,
+      });
+      stackIndex += 1;
+      if (!choiceBuilt) {
+        continue;
+      }
+      this.dialogChoiceInstallByGuiId.set(guiId, { built: choiceBuilt, guiData: gui, baseDepth: dChoice });
+      const choiceScript = getGuiBenneScript(guiId);
+      const rt = choiceBuilt.createGuiRuntime((factory) =>
+        choiceScript ? choiceScript.queueInteraction(factory) : noopDialogQueue(factory),
+      );
+      this.dialogChoiceRuntimeByGuiId.set(guiId, rt);
+      choiceScript?.notifyGuiBuilt(rt);
+    }
+
+    this.wireDialogChoiceUi();
 
     this.createScreenFadeOverlay();
     const startKind: BenneRoomStartKind =
@@ -524,12 +601,24 @@ export class RoomScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       benneDispose?.();
+      for (const d of this.dialogChoiceUiDisposers) {
+        d();
+      }
+      this.dialogChoiceUiDisposers.length = 0;
+      for (const { built } of this.dialogChoiceInstallByGuiId.values()) {
+        built.handle.destroy();
+      }
+      this.dialogChoiceInstallByGuiId.clear();
+      this.dialogChoiceRuntimeByGuiId.clear();
+      this.dialogChoiceRowState.clear();
+      this.activeDialogChoiceSession = null;
       for (const h of this.genericGuiOverlays) {
         h.destroy();
       }
       this.genericGuiOverlays = [];
       this.dialogTextOverlay?.destroy();
       this.dialogTextOverlay = null;
+      this.dialogChoiceInputSuppressionActive = false;
       this.scriptedDialogInputSuppressionDepth = 0;
       this.scriptedDialogClickToSkip = null;
       this.scale.off('resize', this.onScaleResize, this);
@@ -575,8 +664,238 @@ export class RoomScene extends Phaser.Scene {
     this.interruptPlayerWalk();
     this.setScriptedDialogClickToSkip(null);
     this.setDialogTextOverlay({ visible: false });
+    const activeDialog = getActiveDialogBenneScript();
+    if (activeDialog) {
+      endDialogSessionIfMatches(activeDialog);
+    }
     this.scriptedDialogInputSuppressionDepth = 0;
     this.time.removeAllEvents();
+  }
+
+  private wireDialogChoiceUi(): void {
+    const onStarted = (payload: unknown): void => {
+      const p = payload as DialogStartedPayload;
+      this.onDialogChoiceStarted(p);
+    };
+    const onStopped = (payload: unknown): void => {
+      const p = payload as DialogStoppedPayload;
+      this.onDialogChoiceStopped(p);
+    };
+    const onOptionEnabledChanged = (payload: unknown): void => {
+      const p = payload as DialogOptionEnabledChangedPayload;
+      this.onDialogOptionStateMaybeChanged(p);
+    };
+    const onVar = (payload: unknown): void => {
+      this.onGameStateVariableMaybeRefreshDialogChoice(payload);
+    };
+
+    gameEvents.on(DIALOG_STARTED_EVENT, onStarted);
+    gameEvents.on(DIALOG_STOPPED_EVENT, onStopped);
+    gameEvents.on(DIALOG_OPTION_ENABLED_CHANGED_EVENT, onOptionEnabledChanged);
+    gameEvents.on(GAME_STATE_VARIABLE_CHANGED_EVENT, onVar);
+
+    const scrollHandlers: Array<{ guiId: string; off: () => void }> = [];
+    const pickHandlers: Array<{ guiId: string; off: () => void }> = [];
+    for (const guiId of this.dialogChoiceInstallByGuiId.keys()) {
+      const onScrollUp = (): void => this.onDialogChoiceScroll(guiId, -1);
+      const onScrollDown = (): void => this.onDialogChoiceScroll(guiId, 1);
+      const eUp = guiButtonClickEventId(guiId, 'scrollUp');
+      const eDown = guiButtonClickEventId(guiId, 'scrollDown');
+      gameEvents.on(eUp, onScrollUp);
+      gameEvents.on(eDown, onScrollDown);
+      scrollHandlers.push(
+        { guiId, off: () => gameEvents.off(eUp, onScrollUp) },
+        { guiId, off: () => gameEvents.off(eDown, onScrollDown) },
+      );
+
+      const onPick = (pl: unknown): void => {
+        const pay = pl as GuiAllButtonsClickPayload;
+        this.onDialogChoiceOptionClicked(guiId, pay.buttonId);
+      };
+      const eAll = guiAllButtonsClickEventId(guiId);
+      gameEvents.on(eAll, onPick);
+      pickHandlers.push({ guiId, off: () => gameEvents.off(eAll, onPick) });
+    }
+
+    this.dialogChoiceUiDisposers.push(() => {
+      gameEvents.off(DIALOG_STARTED_EVENT, onStarted);
+      gameEvents.off(DIALOG_STOPPED_EVENT, onStopped);
+      gameEvents.off(DIALOG_OPTION_ENABLED_CHANGED_EVENT, onOptionEnabledChanged);
+      gameEvents.off(GAME_STATE_VARIABLE_CHANGED_EVENT, onVar);
+      for (const { off } of scrollHandlers) {
+        off();
+      }
+      for (const { off } of pickHandlers) {
+        off();
+      }
+    });
+  }
+
+  private onDialogChoiceStarted(p: DialogStartedPayload): void {
+    this.pushScriptedDialogInputSuppression();
+    this.dialogChoiceInputSuppressionActive = true;
+    this.activeDialogChoiceSession = { guiId: p.guiId, dialogId: p.dialogId, scrollOffset: 0 };
+    const entry = this.dialogChoiceInstallByGuiId.get(p.guiId);
+    if (!entry) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[Benne] Dialog "${p.dialogId}" uses guiId "${p.guiId}" but that GUI was not built — choice UI skipped.`,
+        );
+      }
+      this.endDialogChoiceInputSuppressionIfActive();
+      this.activeDialogChoiceSession = null;
+      const orphan = getActiveDialogBenneScript();
+      if (orphan) {
+        endDialogSessionIfMatches(orphan);
+      }
+      return;
+    }
+    entry.built.handle.setVisible(true);
+    this.refreshDialogChoiceOverlay();
+  }
+
+  private endDialogChoiceInputSuppressionIfActive(): void {
+    if (!this.dialogChoiceInputSuppressionActive) {
+      return;
+    }
+    this.dialogChoiceInputSuppressionActive = false;
+    this.popScriptedDialogInputSuppression();
+  }
+
+  private onDialogChoiceStopped(_p: DialogStoppedPayload): void {
+    this.endDialogChoiceInputSuppressionIfActive();
+    this.activeDialogChoiceSession = null;
+    this.dialogChoiceRowState.clear();
+    for (const { built } of this.dialogChoiceInstallByGuiId.values()) {
+      built.handle.setVisible(false);
+    }
+  }
+
+  private onDialogOptionStateMaybeChanged(p: DialogOptionEnabledChangedPayload): void {
+    if (!this.activeDialogChoiceSession || this.activeDialogChoiceSession.dialogId !== p.dialogId) {
+      return;
+    }
+    this.refreshDialogChoiceOverlay();
+  }
+
+  private onGameStateVariableMaybeRefreshDialogChoice(payload: unknown): void {
+    if (!this.activeDialogChoiceSession) {
+      return;
+    }
+    const p = payload as GameStateVariableChangedPayload;
+    const key = typeof p.key === 'string' ? p.key : '';
+    const id = this.activeDialogChoiceSession.dialogId;
+    if (!key.startsWith(`dialog:${id}:option:`)) {
+      return;
+    }
+    this.refreshDialogChoiceOverlay();
+  }
+
+  private onDialogChoiceScroll(guiId: string, delta: number): void {
+    if (!this.activeDialogChoiceSession || this.activeDialogChoiceSession.guiId !== guiId) {
+      return;
+    }
+    const def = getDialogDefinition(this.activeDialogChoiceSession.dialogId);
+    const entry = this.dialogChoiceInstallByGuiId.get(guiId);
+    if (!def || !entry) {
+      return;
+    }
+    const manager = resolveGameStateManager(this.game);
+    const gridDef = entry.guiData.controls?.find(
+      (c): c is GuiGridControl => c.type === 'grid' && c.id === DIALOG_CHOICE_GRID_ID,
+    );
+    const pageSize = computeDialogChoicePageSize(gridDef);
+    const visibleOpts = def.options.filter((o) => readEffectiveDialogOptionEnabled(manager, def, o.id));
+    const maxOffset = Math.max(0, visibleOpts.length - pageSize);
+    const next = Math.max(0, Math.min(this.activeDialogChoiceSession.scrollOffset + delta, maxOffset));
+    this.activeDialogChoiceSession.scrollOffset = next;
+    this.refreshDialogChoiceOverlay();
+  }
+
+  private refreshDialogChoiceOverlay(): void {
+    const session = this.activeDialogChoiceSession;
+    if (!session) {
+      return;
+    }
+    const entry = this.dialogChoiceInstallByGuiId.get(session.guiId);
+    const rt = this.dialogChoiceRuntimeByGuiId.get(session.guiId);
+    const def = getDialogDefinition(session.dialogId);
+    if (!entry || !rt || !def) {
+      return;
+    }
+    const gridCtrl = rt.getControl(DIALOG_CHOICE_GRID_ID);
+    if (!gridCtrl) {
+      return;
+    }
+    const gridContainer = gridCtrl.gameObject as Phaser.GameObjects.Container;
+    const manager = resolveGameStateManager(this.game);
+    const gridDef = entry.guiData.controls?.find(
+      (c): c is GuiGridControl => c.type === 'grid' && c.id === DIALOG_CHOICE_GRID_ID,
+    );
+    const pageSize = computeDialogChoicePageSize(gridDef);
+
+    this.dialogChoiceRowState.hideTemplateRow(rt);
+    const clampedOffset = this.dialogChoiceRowState.refresh({
+      scene: this,
+      gui: entry.guiData,
+      baseDepth: entry.baseDepth,
+      gridContainer,
+      definition: def,
+      manager,
+      scrollOffset: session.scrollOffset,
+      pageSize,
+    });
+    session.scrollOffset = clampedOffset;
+    this.updateDialogChoiceScrollButtons(session.guiId, def, manager, pageSize);
+  }
+
+  private updateDialogChoiceScrollButtons(
+    guiId: string,
+    def: Dialog,
+    manager: ReturnType<typeof resolveGameStateManager>,
+    pageSize: number,
+  ): void {
+    const rt = this.dialogChoiceRuntimeByGuiId.get(guiId);
+    if (!rt) {
+      return;
+    }
+    const visibleOpts = def.options.filter((o) => readEffectiveDialogOptionEnabled(manager, def, o.id));
+    const session = this.activeDialogChoiceSession;
+    const offset = session?.scrollOffset ?? 0;
+    const maxOffset = Math.max(0, visibleOpts.length - pageSize);
+    const up = rt.getControl('scrollUp');
+    const down = rt.getControl('scrollDown');
+    const needScroll = visibleOpts.length > pageSize;
+    if (!needScroll) {
+      up?.setVisible(false);
+      down?.setVisible(false);
+      return;
+    }
+    up?.setVisible(offset > 0);
+    down?.setVisible(offset < maxOffset);
+  }
+
+  private onDialogChoiceOptionClicked(guiId: string, buttonId: string): void {
+    if (!this.activeDialogChoiceSession || this.activeDialogChoiceSession.guiId !== guiId) {
+      return;
+    }
+    if (!buttonId.startsWith('dc__')) {
+      return;
+    }
+    const def = getDialogDefinition(this.activeDialogChoiceSession.dialogId);
+    if (!def) {
+      return;
+    }
+    const opt = def.options.find((o) => dialogChoiceSyntheticButtonId(o.id) === buttonId);
+    if (!opt) {
+      return;
+    }
+    const manager = resolveGameStateManager(this.game);
+    manager.setVariable(
+      dialogOptionUsedVariableKey(this.activeDialogChoiceSession.dialogId, opt.id),
+      true,
+    );
+    this.refreshDialogChoiceOverlay();
   }
 
   private createScreenFadeOverlay(): void {
@@ -1416,6 +1735,9 @@ export class RoomScene extends Phaser.Scene {
       registerOverlay(h);
     }
     registerOverlay(this.dialogTextOverlay);
+    for (const { built } of this.dialogChoiceInstallByGuiId.values()) {
+      registerOverlay(built.handle);
+    }
     if (this.screenFadeRect) {
       this.editorUiGuiObjects.add(this.screenFadeRect);
     }

@@ -334,7 +334,7 @@ function placeGuiButtonBackgroundSpriteLocal(
   }
 }
 
-interface BuiltGuiButton {
+export interface BuiltGuiButton {
   /** Invisible hit box (`width` × `height`); carries pointer handlers. */
   readonly hitTarget: Phaser.GameObjects.Container;
   readonly background: Phaser.GameObjects.Sprite | null;
@@ -532,7 +532,7 @@ function installGuiControlPointerHoverObserver(
  * for non-interactive ones the caller must call `setInteractive` beforehand (triggers, inventory panels, images, text).
  * Returns a disposer that detaches listeners.
  */
-function wireGuiControlHoverEvents(
+export function wireGuiControlHoverEvents(
   gui: GuiData,
   controlId: string,
   target: Phaser.GameObjects.GameObject,
@@ -570,7 +570,7 @@ function applyGuiButtonInteractivity(
   }
 }
 
-function buildGuiButton(
+export function buildGuiButton(
   scene: Phaser.Scene,
   gui: GuiData,
   c: GuiButtonControl,
@@ -855,7 +855,7 @@ function makeBenneGuiImagePixelPerfectHitCallback(
   };
 }
 
-function addGuiImageSprite(
+export function addGuiImageSprite(
   scene: Phaser.Scene,
   gui: GuiData,
   c: GuiImageControl,

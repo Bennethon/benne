@@ -4,6 +4,7 @@ import {
     characterIdFromRoomDefinition,
     DEFAULT_GAME_VERBS,
     getCharacterIdFromCharacterJsonUri,
+    getDialogIdFromDialogJsonUri,
     getGuiIdFromGuiJsonUri,
     getInventoryIdFromInventoryJsonUri,
     getRoomIdFromRoomJsonUri,
@@ -374,11 +375,31 @@ export type InspectorInventoryState = {
     defaultVerb: string;
 };
 
+export type InspectorDialogOptionRow = {
+    index: number;
+    id: string;
+    text: string;
+    enabled: boolean;
+    used: boolean;
+};
+
+export type InspectorDialogState = {
+    kind: 'dialog';
+    rev: number;
+    dialogJsonUri: string;
+    dialogId: string;
+    displayName: string;
+    /** Empty string when omitted in JSON (engine default `dialog`). */
+    guiId: string;
+    options: InspectorDialogOptionRow[];
+};
+
 export type InspectorStatePayload =
     | InspectorRoomState
     | InspectorCharacterState
     | InspectorGuiState
     | InspectorInventoryState
+    | InspectorDialogState
     | InspectorEmptyState;
 
 /** Built-in walk verb id (mirrors engine `WALK_TO_VERB_ID`); never surfaced in the Inspector. */
@@ -460,7 +481,63 @@ export async function buildInspectorState(
     if (focus.kind === 'inventory') {
         return buildInventoryInspectorState(jsonUri, rev);
     }
+    if (focus.kind === 'dialog') {
+        return buildDialogInspectorState(jsonUri, rev);
+    }
     return buildRoomInspectorState(jsonUri, roomPanel, rev);
+}
+
+async function buildDialogInspectorState(dialogJsonUri: vscode.Uri, rev: number): Promise<InspectorStatePayload> {
+    let text: string;
+    try {
+        text = await readRoomJsonText(dialogJsonUri);
+    } catch {
+        return { kind: 'empty', message: 'Could not read dialog JSON.' };
+    }
+    let data: Record<string, unknown>;
+    try {
+        data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        return { kind: 'empty', message: 'Dialog JSON is not valid JSON.' };
+    }
+
+    const dialogId = getDialogIdFromDialogJsonUri(dialogJsonUri);
+    const idInFile = typeof data.id === 'string' && data.id.trim().length > 0 ? data.id.trim() : dialogId;
+    const displayName =
+        typeof data.displayName === 'string' && data.displayName.trim().length > 0
+            ? data.displayName.trim()
+            : idInFile;
+    const guiIdRaw = typeof data.guiId === 'string' ? data.guiId.trim() : '';
+    const guiId = guiIdRaw;
+
+    const optionsRaw = data.options;
+    const options: InspectorDialogOptionRow[] = [];
+    if (Array.isArray(optionsRaw)) {
+        let idx = 0;
+        for (let i = 0; i < optionsRaw.length; i++) {
+            const row = optionsRaw[i];
+            if (!row || typeof row !== 'object' || Array.isArray(row)) {
+                continue;
+            }
+            const o = row as Record<string, unknown>;
+            const id = typeof o.id === 'string' ? o.id : `option${idx}`;
+            const textVal = typeof o.text === 'string' ? o.text : '';
+            const enabled = o.enabled !== false;
+            const used = o.used === true;
+            options.push({ index: idx, id, text: textVal, enabled, used });
+            idx++;
+        }
+    }
+
+    return {
+        kind: 'dialog',
+        rev,
+        dialogJsonUri: dialogJsonUri.toString(),
+        dialogId: idInFile,
+        displayName,
+        guiId,
+        options
+    };
 }
 
 async function buildRoomInspectorState(

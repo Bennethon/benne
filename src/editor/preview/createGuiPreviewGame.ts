@@ -17,11 +17,13 @@ import {
   type GuiFontLoadRequest,
 } from '../../game/collectFontLoadsForGui';
 import {
+  buildGuiGridLayoutRuntimeMap,
   cumulativeOffsets,
   layoutGuiGridTracks,
+  resolveGuiControlRootTopLeft,
   spanCellRect,
 } from '../../engine/gui/guiGridLayout';
-import type { GuiButtonControl, GuiData, GuiGridControl, GuiInventoryPanelControl } from '../../types/gui';
+import type { GuiData, GuiGridControl, GuiInventoryPanelControl } from '../../types/gui';
 import type { GameSettingsInitialGameState } from '../../types/game';
 import { resolveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
 import {
@@ -154,19 +156,6 @@ function guiHasInventoryPanel(gui: GuiData): boolean {
   return (gui.controls ?? []).some((c): c is GuiInventoryPanelControl => c.type === 'inventoryPanel');
 }
 
-function buttonControlWorldRect(c: GuiButtonControl): {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-} {
-  const w = c.width;
-  const h = c.height;
-  const left = Math.round(c.x);
-  const top = Math.round(c.y);
-  return { left, top, right: left + w, bottom: top + h };
-}
-
 function collectButtonControlWorldRects(gui: GuiData): Array<{
   left: number;
   top: number;
@@ -174,9 +163,27 @@ function collectButtonControlWorldRects(gui: GuiData): Array<{
   bottom: number;
 }> {
   const rects: Array<{ left: number; top: number; right: number; bottom: number }> = [];
+  const rootX = Math.round(gui.x ?? 0);
+  const rootY = Math.round(gui.y ?? 0);
+  const caches = buildGuiGridLayoutRuntimeMap(gui.controls ?? []);
   for (const c of gui.controls ?? []) {
     if (c.type === 'button') {
-      rects.push(buttonControlWorldRect(c));
+      const tl = resolveGuiControlRootTopLeft(
+        caches,
+        rootX,
+        rootY,
+        c.gridPlacement,
+        c.width,
+        c.height,
+        c.x,
+        c.y,
+      );
+      rects.push({
+        left: tl.x,
+        top: tl.y,
+        right: tl.x + c.width,
+        bottom: tl.y + c.height,
+      });
     }
   }
   return rects;
@@ -196,6 +203,9 @@ function collectTriggerPreviewOverlayEntries(gui: GuiData): Array<{
     bottom: number;
     label: string;
   }> = [];
+  const rootX = Math.round(gui.x ?? 0);
+  const rootY = Math.round(gui.y ?? 0);
+  const caches = buildGuiGridLayoutRuntimeMap(gui.controls ?? []);
   for (const c of gui.controls ?? []) {
     if (c.type !== 'trigger') {
       continue;
@@ -204,16 +214,24 @@ function collectTriggerPreviewOverlayEntries(gui: GuiData): Array<{
     if (!id || c.width <= 0 || c.height <= 0) {
       continue;
     }
-    const left = Math.round(c.x);
-    const top = Math.round(c.y);
+    const tl = resolveGuiControlRootTopLeft(
+      caches,
+      rootX,
+      rootY,
+      c.gridPlacement,
+      c.width,
+      c.height,
+      c.x,
+      c.y,
+    );
     const w = c.width;
     const h = c.height;
     out.push({
-      left,
-      top,
-      right: left + w,
-      bottom: top + h,
-      label: `${left}, ${top} · ${w}×${h}`,
+      left: tl.x,
+      top: tl.y,
+      right: tl.x + w,
+      bottom: tl.y + h,
+      label: `${tl.x}, ${tl.y} · ${w}×${h}`,
     });
   }
   return out;
@@ -260,14 +278,29 @@ function collectInventoryPanelSlotWorldRects(gui: GuiData, inventoryItemCount: n
   bottom: number;
 }> {
   const rects: Array<{ left: number; top: number; right: number; bottom: number }> = [];
+  const rootX = Math.round(gui.x ?? 0);
+  const rootY = Math.round(gui.y ?? 0);
+  const caches = buildGuiGridLayoutRuntimeMap(gui.controls ?? []);
   for (const c of gui.controls ?? []) {
     if (c.type !== 'inventoryPanel') {
       continue;
     }
     const spacingX = c.spacingX ?? 0;
     const spacingY = c.spacingY ?? 0;
-    const px = Math.round(c.x);
-    const py = Math.round(c.y);
+    const panelW = c.cols * c.slotWidth + Math.max(0, c.cols - 1) * spacingX;
+    const panelH = c.rows * c.slotHeight + Math.max(0, c.rows - 1) * spacingY;
+    const tl = resolveGuiControlRootTopLeft(
+      caches,
+      rootX,
+      rootY,
+      c.gridPlacement,
+      panelW,
+      panelH,
+      c.x,
+      c.y,
+    );
+    const px = tl.x;
+    const py = tl.y;
     for (let row = 0; row < c.rows; row += 1) {
       for (let col = 0; col < c.cols; col += 1) {
         const slotIndex = row * c.cols + col;

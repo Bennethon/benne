@@ -38,6 +38,8 @@ registerRoomScript(({ B }) => {
       `;
     B.character('penny').say('Thats cool.');
     B.player.say('Yes, it is.');
+
+    B.dialog("chatwithpenny").start();
   });
 
   B.whenLookAt('Couch', () => {

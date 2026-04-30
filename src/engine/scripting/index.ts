@@ -40,6 +40,17 @@ export { GlobalBenneScript } from './GlobalBenneScript.js';
 export { registerGuiScript, getBenneGuiScriptRegistrations, getGuiBenneScript } from './registerGuiScript.js';
 export { GuiBenneScript } from './GuiBenneScript.js';
 export {
+  registerDialogScript,
+  getBenneDialogScriptRegistrations,
+} from './registerDialogScript.js';
+export {
+  DialogBenneScript,
+  createBenneScriptDialogAccessor,
+  createNoopDialogCommandSurface,
+  openDialogSessionForId,
+} from './DialogBenneScript.js';
+export type { DialogScriptContext } from './types.js';
+export {
   GuiRuntime,
   ControlFacade,
   type GuiRuntimeOptions,

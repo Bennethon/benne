@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
 import {
     DEFAULT_GAME_VERBS,
+    getDialogIdFromDialogJsonUri,
     getGuiIdFromGuiJsonUri,
     getRoomIdFromRoomJsonUri,
     readCharacterHooks,
@@ -144,6 +145,7 @@ export type ActionTreeNode =
     | { kind: 'rebuildCharacterPreviewBundle' }
     | { kind: 'rebuildGuiPreviewBundle' }
     | { kind: 'rebuildInventoryPreviewBundle' }
+    | { kind: 'rebuildDialogPreviewBundle' }
     | { kind: 'addInventoryItem' }
     | { kind: 'importInventoryFromAseprite' }
     | { kind: 'addGuiControl'; guiJsonUri: vscode.Uri }
@@ -536,6 +538,22 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 };
                 return item;
             }
+            case 'rebuildDialogPreviewBundle': {
+                const item = new vscode.TreeItem(
+                    'Rebuild dialog / Inspector bundle',
+                    vscode.TreeItemCollapsibleState.None
+                );
+                item.id = 'action:rebuildDialogPreviewBundle';
+                item.iconPath = new vscode.ThemeIcon('sync');
+                item.contextValue = 'benneActionRebuildDialogPreview';
+                item.description = 'Extension webpack (Inspector)';
+                item.command = {
+                    command: 'benne-editor.rebuildDialogPreview',
+                    title: 'Rebuild dialog / Inspector bundle',
+                    arguments: []
+                };
+                return item;
+            }
             case 'addInventoryItem': {
                 const item = new vscode.TreeItem(
                     'Add Inventory',
@@ -711,14 +729,26 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             ];
         }
 
+        if (main.kind === 'dialog') {
+            const dialogJsonUri = main.uri;
+            const dialogId = getDialogIdFromDialogJsonUri(dialogJsonUri);
+            const scriptUri = vscode.Uri.joinPath(dialogJsonUri, '..', `${dialogId}.dialog.ts`);
+            return [
+                { kind: 'rebuildDialogPreviewBundle' },
+                { kind: 'guiOpen', label: 'Open dialog JSON', targetUri: dialogJsonUri },
+                { kind: 'guiOpen', label: 'Open dialog script', targetUri: scriptUri }
+            ];
+        }
+
         return [
             { kind: 'rebuildRoomPreviewBundle' },
             { kind: 'rebuildCharacterPreviewBundle' },
             { kind: 'rebuildGuiPreviewBundle' },
             { kind: 'rebuildInventoryPreviewBundle' },
+            { kind: 'rebuildDialogPreviewBundle' },
             {
                 kind: 'hint',
-                message: 'Select a room, character, GUI, inventory item, prop, hotspot, or room character in BENNE'
+                message: 'Select a room, character, GUI, inventory item, dialog, prop, hotspot, or room character in BENNE'
             }
         ];
     }

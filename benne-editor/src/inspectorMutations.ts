@@ -921,3 +921,96 @@ export function updateInventoryAnimationFields(
     }
     return { ok: true };
 }
+
+function readDialogOptionsArray(data: Record<string, unknown>): Record<string, unknown>[] {
+    const raw = data.options;
+    if (!Array.isArray(raw)) {
+        return [];
+    }
+    return raw.filter((o) => o && typeof o === 'object' && !Array.isArray(o)) as Record<string, unknown>[];
+}
+
+export function updateDialogMetaFields(
+    data: Record<string, unknown>,
+    fields: { displayName?: string; guiId?: string }
+): { ok: true } {
+    if (fields.displayName !== undefined) {
+        if (fields.displayName.trim().length > 0) {
+            data.displayName = fields.displayName.trim();
+        } else {
+            delete data.displayName;
+        }
+    }
+    if (fields.guiId !== undefined) {
+        const g = fields.guiId.trim();
+        if (g.length === 0 || g === 'dialog') {
+            delete data.guiId;
+        } else {
+            data.guiId = g;
+        }
+    }
+    return { ok: true };
+}
+
+export function updateDialogOptionAtIndex(
+    data: Record<string, unknown>,
+    index: number,
+    fields: { id?: string; text?: string; enabled?: boolean; used?: boolean }
+): { ok: true } | { ok: false; message: string } {
+    const opts = readDialogOptionsArray(data);
+    if (index < 0 || index >= opts.length) {
+        return { ok: false, message: 'Invalid option index.' };
+    }
+    const o = opts[index]!;
+    if (fields.id !== undefined) {
+        const id = fields.id.trim();
+        if (!id) {
+            return { ok: false, message: 'Option id cannot be empty.' };
+        }
+        o.id = id;
+    }
+    if (fields.text !== undefined) {
+        o.text = fields.text;
+    }
+    if (fields.enabled !== undefined) {
+        if (fields.enabled) {
+            delete o.enabled;
+        } else {
+            o.enabled = false;
+        }
+    }
+    if (fields.used !== undefined) {
+        if (fields.used) {
+            o.used = true;
+        } else {
+            delete o.used;
+        }
+    }
+    data.options = opts;
+    return { ok: true };
+}
+
+export function addDialogOptionRow(data: Record<string, unknown>): { ok: true } {
+    const opts = readDialogOptionsArray(data);
+    const ids = new Set(opts.map((x) => String(x.id ?? '')));
+    const id = nextId('line', ids);
+    opts.push({ id, text: 'New line.', enabled: true });
+    data.options = opts;
+    return { ok: true };
+}
+
+export function removeDialogOptionAtIndex(
+    data: Record<string, unknown>,
+    index: number
+): { ok: true } | { ok: false; message: string } {
+    const opts = readDialogOptionsArray(data);
+    if (index < 0 || index >= opts.length) {
+        return { ok: false, message: 'Invalid option index.' };
+    }
+    if (opts.length <= 1) {
+        return { ok: false, message: 'Dialogs need at least one option.' };
+    }
+    opts.splice(index, 1);
+    data.options = opts;
+    return { ok: true };
+}

@@ -11,6 +11,10 @@ import {
     updateGuiControlPayload,
     updateGuiControlPatch,
     updateGuiFields,
+    addDialogOptionRow,
+    removeDialogOptionAtIndex,
+    updateDialogMetaFields,
+    updateDialogOptionAtIndex,
     updateInventoryAnimationFields,
     updateInventoryFields,
     applyRoomDisplayName,
@@ -31,6 +35,7 @@ import {
 } from './inspectorMutations';
 import {
     getCharacterIdFromCharacterJsonUri,
+    getDialogIdFromDialogJsonUri,
     getGuiIdFromGuiJsonUri,
     getInventoryIdFromInventoryJsonUri,
     getRoomIdFromRoomJsonUri
@@ -47,6 +52,7 @@ import {
 } from './roomScaffolding';
 import { runAddGuiControlWizard, type GuiControlKind } from './guiScaffolding';
 import { ensureGuiButtonClickHandlerAndReveal } from './guiButtonClickScaffolding';
+import { ensureDialogWhenChoiceHandlerAndReveal } from './dialogChoiceScaffolding';
 
 function resolveInspectorJsonUri(selection: EditorSelection): vscode.Uri | undefined {
     const focus = selection.focus;
@@ -54,7 +60,7 @@ function resolveInspectorJsonUri(selection: EditorSelection): vscode.Uri | undef
     if (focus.kind === 'room') {
         return focus.uri;
     }
-    if (focus.kind === 'character' || focus.kind === 'gui' || focus.kind === 'inventory') {
+    if (focus.kind === 'character' || focus.kind === 'gui' || focus.kind === 'inventory' || focus.kind === 'dialog') {
         return focus.uri;
     }
     if (
@@ -636,7 +642,18 @@ type WebviewPatch =
           asepriteMode?: true | 'shared';
           defaultVerb?: string;
       }
-    | { type: 'inventoryAnimation'; id?: string; loop?: boolean; frameDuration?: number | null };
+    | { type: 'inventoryAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
+    | { type: 'dialogMeta'; displayName?: string; guiId?: string }
+    | {
+          type: 'dialogOption';
+          index: number;
+          id?: string;
+          text?: string;
+          enabled?: boolean;
+          used?: boolean;
+      }
+    | { type: 'dialogAddOption' }
+    | { type: 'dialogRemoveOption'; index: number };
 
 export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     private view: vscode.WebviewView | undefined;
@@ -707,7 +724,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         if (!uri) {
             this.postState({
                 kind: 'empty',
-                message: 'Select a room, character, GUI, or inventory item in the BENNE tree to edit data.'
+                message: 'Select a room, character, GUI, inventory item, or dialog in the BENNE tree to edit data.'
             });
             return;
         }
@@ -745,6 +762,20 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             }
             const guiId = getGuiIdFromGuiJsonUri(uri);
             await ensureGuiButtonClickHandlerAndReveal(uri, guiId, buttonId);
+            return;
+        }
+
+        if (msg.action === 'dialogEnsureWhenChoice') {
+            if (focusKind !== 'dialog') {
+                return;
+            }
+            const dialogJsonUriStr = typeof msg.dialogJsonUri === 'string' ? msg.dialogJsonUri : '';
+            const optionId = typeof msg.optionId === 'string' ? msg.optionId.trim() : '';
+            if (!optionId || uri.toString() !== dialogJsonUriStr) {
+                return;
+            }
+            const dialogFolderId = getDialogIdFromDialogJsonUri(uri);
+            await ensureDialogWhenChoiceHandlerAndReveal(uri, dialogFolderId, optionId);
             return;
         }
 
@@ -1045,7 +1076,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         data: Record<string, unknown>,
         uri: vscode.Uri,
         p: WebviewPatch,
-        focusKind: 'none' | 'room' | 'character' | 'gui' | 'inventory'
+        focusKind: 'none' | 'room' | 'character' | 'gui' | 'inventory' | 'dialog'
     ): void {
         void uri;
         if (p.type === 'roomMeta') {
@@ -1268,6 +1299,48 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 return;
             }
             updateInventoryAnimationFields(data, p.id, { loop: p.loop, frameDuration: p.frameDuration });
+            return;
+        }
+        if (p.type === 'dialogMeta') {
+            if (focusKind !== 'dialog') {
+                return;
+            }
+            updateDialogMetaFields(data, {
+                displayName: typeof p.displayName === 'string' ? p.displayName : undefined,
+                guiId: typeof p.guiId === 'string' ? p.guiId : undefined
+            });
+            return;
+        }
+        if (p.type === 'dialogOption' && typeof p.index === 'number') {
+            if (focusKind !== 'dialog') {
+                return;
+            }
+            const r = updateDialogOptionAtIndex(data, p.index, {
+                id: typeof p.id === 'string' ? p.id : undefined,
+                text: typeof p.text === 'string' ? p.text : undefined,
+                enabled: typeof p.enabled === 'boolean' ? p.enabled : undefined,
+                used: typeof p.used === 'boolean' ? p.used : undefined
+            });
+            if (r.ok === false) {
+                void vscode.window.showWarningMessage(r.message);
+            }
+            return;
+        }
+        if (p.type === 'dialogAddOption') {
+            if (focusKind !== 'dialog') {
+                return;
+            }
+            addDialogOptionRow(data);
+            return;
+        }
+        if (p.type === 'dialogRemoveOption' && typeof p.index === 'number') {
+            if (focusKind !== 'dialog') {
+                return;
+            }
+            const r = removeDialogOptionAtIndex(data, p.index);
+            if (r.ok === false) {
+                void vscode.window.showWarningMessage(r.message);
+            }
             return;
         }
     }
