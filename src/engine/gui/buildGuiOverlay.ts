@@ -185,6 +185,38 @@ function bitmapTextLineAlign(align: GuiTextAlign | undefined): number {
 }
 
 /**
+ * Measures wrapped `BitmapText` size for a button label (matches {@link buildGuiButton} font / align / spacing).
+ * Destroys the temporary object; safe to call during layout passes.
+ */
+export function measureGuiButtonTextBlockSize(
+  scene: Phaser.Scene,
+  c: Pick<GuiButtonControl, 'font' | 'fontSize' | 'text' | 'textAlign'>,
+  wordWrapInnerWidth: number,
+): { w: number; h: number } {
+  const fontEntry = manifest[c.font] as GameBitmapFontDefinition | undefined;
+  if (!fontEntry || !scene.cache.bitmapFont.exists(c.font)) {
+    return { w: 64, h: 14 };
+  }
+  const align = c.textAlign ?? 'center';
+  const lineAlign = bitmapTextLineAlign(align);
+  const renderSize = effectiveBitmapFontRenderSize(scene, c.font, c.fontSize);
+  const tmp = scene.add.bitmapText(0, 0, c.font, c.text ?? '', renderSize, lineAlign);
+  tmp.setVisible(false);
+  tmp.setOrigin(align === 'left' ? 0 : align === 'right' ? 1 : 0.5, 0.5);
+  const maxW = evenWordWrapWidth(wordWrapInnerWidth);
+  if (maxW > 0) {
+    tmp.setMaxWidth(maxW);
+  }
+  const letterSpacing = fontEntry.defaultLetterSpacing ?? 0;
+  if (letterSpacing !== 0) {
+    tmp.setLetterSpacing(letterSpacing);
+  }
+  const b = tmp.getBounds();
+  tmp.destroy();
+  return { w: Math.max(1, Math.round(b.width)), h: Math.max(1, Math.round(b.height)) };
+}
+
+/**
  * BMFont XML often uses a negative `info size` (e.g. -8). Phaser scales with `fontSize / fontData.size`; if signs
  * disagree, scale becomes negative and flips/mirrors glyphs. Match the sign of `fontData.size`.
  */
@@ -648,6 +680,12 @@ export function buildGuiButton(
     const letterSpacing = fontEntry.defaultLetterSpacing ?? 0;
     if (letterSpacing !== 0) {
       bt.setLetterSpacing(letterSpacing);
+    }
+    if (c.wordWrapWidth != null && c.wordWrapWidth > 0) {
+      const maxW = evenWordWrapWidth(c.wordWrapWidth);
+      if (maxW > 0) {
+        bt.setMaxWidth(maxW);
+      }
     }
     bt.setScrollFactor(0, 0);
     bt.setVisible(overlayVisible);

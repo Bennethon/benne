@@ -258,6 +258,11 @@ export interface GuiButtonControl {
   fontSize: number;
   textColor: string;
   textAlign?: GuiTextAlign;
+  /**
+   * When &gt; 0, wraps label text via `BitmapText.setMaxWidth` (inner width in pixels).
+   * Hit box (`width` × `height`) is unchanged unless the runtime resizes height (e.g. dialog options).
+   */
+  wordWrapWidth?: number;
   /** Fine-tune label position in pixels (default 0). */
   textOffsetX?: number;
   textOffsetY?: number;
