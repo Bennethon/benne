@@ -20,10 +20,10 @@
     {
       "type": "button",
       "id": "UpBtn",
-      "x": 0,
-      "y": 0,
-      "width": 120,
-      "height": 32,
+      "x": 2,
+      "y": 150,
+      "width": 7,
+      "height": 18,
       "text": "Button",
       "font": "",
       "fontSize": 16,
@@ -32,24 +32,29 @@
       "textOffsetX": 0,
       "textOffsetY": 0,
       "backgroundTag": "UpBtn",
-      "backgroundAnchor": "screen"
+      "backgroundOffsetX": -3,
+      "backgroundOffsetY": -4,
+      "zIndex": 100,
+      "backgroundAnchor": "top-left"
     },
     {
       "type": "button",
       "id": "DownBtn",
-      "x": 0,
-      "y": 0,
-      "width": 120,
-      "height": 32,
+      "x": 2,
+      "y": 176,
+      "width": 7,
+      "height": 18,
       "backgroundAnchor": "top-left",
       "text": "Button",
       "font": "",
       "fontSize": 16,
       "textColor": "#ffffff",
       "textAlign": "center",
-      "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": "DownBtn"
+      "backgroundTag": "DownBtn",
+      "backgroundOffsetX": -3,
+      "backgroundOffsetY": -14,
+      "zIndex": 100
     },
     {
       "type": "image",
@@ -69,12 +74,17 @@
     {
       "type": "text",
       "id": "Dialog-Option",
-      "x": 0,
-      "y": 0,
+      "x": 50,
+      "y": 50,
       "text": "Sample text",
       "font": "lucasfont-alternate",
       "fontSize": 8,
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "gridPlacement": {
+        "gridControlId": "Option-Grid",
+        "row": 0,
+        "col": 1
+      }
     },
     {
       "type": "grid",
@@ -82,12 +92,12 @@
       "x": 12,
       "y": 148,
       "width": 334,
-      "height": 30,
+      "height": 12,
       "rows": 1,
       "columns": 2,
       "colWidths": [
-        26,
-        308
+        10,
+        324
       ],
       "zIndex": 10
     }

@@ -276,26 +276,29 @@ function tryApplyGuiSheetTag(
 /**
  * Positions a GUI-sheet sprite for `top-left`, `center`, or `screen` anchor.
  * `screen`: top-left of the game canvas / internal resolution — ignores `x`/`y` for placement (full-frame HUD art).
+ * `offX` / `offY` are an extra pixel nudge in the same space as `x`/`y` (or canvas space for `screen`).
  */
 function applyGuiSpriteAnchor(
   sprite: Phaser.GameObjects.Sprite,
   anchor: GuiSpriteAnchor,
   x: number,
   y: number,
+  offX = 0,
+  offY = 0,
 ): void {
   switch (anchor) {
     case 'center':
       sprite.setOrigin(0.5, 0.5);
-      sprite.setPosition(Math.round(x), Math.round(y));
+      sprite.setPosition(Math.round(x + offX), Math.round(y + offY));
       break;
     case 'screen':
       sprite.setOrigin(0, 0);
       /** Absolute screen / canvas coordinates; control `x`/`y` are ignored for draw position. */
-      sprite.setPosition(0, 0);
+      sprite.setPosition(Math.round(offX), Math.round(offY));
       break;
     default:
       sprite.setOrigin(0, 0);
-      sprite.setPosition(Math.round(x), Math.round(y));
+      sprite.setPosition(Math.round(x + offX), Math.round(y + offY));
   }
 }
 
@@ -310,21 +313,23 @@ function placeGuiButtonBackgroundSpriteLocal(
   h: number,
   /** World-space top-left of the button container — only used when `anchor === 'screen'`. */
   worldTopLeft: { x: number; y: number },
+  offX = 0,
+  offY = 0,
 ): void {
   const inset = getAsepriteSpriteSourceInset(sprite.frame);
   switch (anchor) {
     case 'center':
       {
         const p = resolveAuthoredPositionForAsepriteTrim('center', w / 2, h / 2, sprite.frame);
-        applyGuiSpriteAnchor(sprite, 'center', p.x, p.y);
+        applyGuiSpriteAnchor(sprite, 'center', p.x, p.y, offX, offY);
       }
       break;
     case 'screen':
       sprite.setOrigin(0, 0);
-      sprite.setPosition(-worldTopLeft.x, -worldTopLeft.y);
+      sprite.setPosition(Math.round(-worldTopLeft.x + offX), Math.round(-worldTopLeft.y + offY));
       break;
     default:
-      applyGuiSpriteAnchor(sprite, 'top-left', -inset.x, -inset.y);
+      applyGuiSpriteAnchor(sprite, 'top-left', -inset.x, -inset.y, offX, offY);
       break;
   }
 }
@@ -589,6 +594,8 @@ function buildGuiButton(
   const d = baseDepth + z;
   const overlayVisible = startVisible && c.visible !== false;
   const bgAnchor = guiSpriteAnchorOrDefault(c.backgroundAnchor);
+  const bgOffX = c.backgroundOffsetX ?? 0;
+  const bgOffY = c.backgroundOffsetY ?? 0;
   const px = Math.round(c.x);
   const py = Math.round(c.y);
   const worldTL = screenBgWorldTopLeft ?? { x: px, y: py };
@@ -617,7 +624,7 @@ function buildGuiButton(
           `GUI "${gui.id}" button "${c.id}" background`,
         );
       }
-      placeGuiButtonBackgroundSpriteLocal(sprite, bgAnchor, w, h, worldTL);
+      placeGuiButtonBackgroundSpriteLocal(sprite, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
       hitTarget.add(sprite);
       bg = sprite;
     }
@@ -663,7 +670,7 @@ function buildGuiButton(
     const dTag = c.states?.disabled?.trim();
     if (bg && dTag) {
       reapplyGuiSheetTag(scene, bg, guiTextureKey, dTag, gui.id);
-      placeGuiButtonBackgroundSpriteLocal(bg, bgAnchor, w, h, worldTL);
+      placeGuiButtonBackgroundSpriteLocal(bg, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
     }
   }
 
@@ -679,7 +686,7 @@ function buildGuiButton(
     const textureKey = guiTextureKey;
     const repositionBg = (): void => {
       if (bg) {
-        placeGuiButtonBackgroundSpriteLocal(bg, bgAnchor, w, h, worldTL);
+        placeGuiButtonBackgroundSpriteLocal(bg, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
       }
     };
     const restoreDefault = (): void => {
@@ -891,6 +898,8 @@ function addGuiImageSprite(
     return null;
   }
   const anchor = guiSpriteAnchorOrDefault(c.backgroundAnchor ?? legacyDisplay?.backgroundAnchor);
+  const bgOffX = c.backgroundOffsetX ?? 0;
+  const bgOffY = c.backgroundOffsetY ?? 0;
   const lx = layout?.x ?? c.x;
   const ly = layout?.y ?? c.y;
   const gridCenterAlign = layout?.gridCenterAlign === true;
@@ -942,20 +951,22 @@ function addGuiImageSprite(
     sprite.setData('benneGuiSpritePlacementAnchor', effAnchor);
     sprite.setData('benneGuiAuthoredX', facadeX);
     sprite.setData('benneGuiAuthoredY', facadeY);
+    sprite.setData('benneGuiAuthoredOffsetX', bgOffX);
+    sprite.setData('benneGuiAuthoredOffsetY', bgOffY);
   }
 
   if (anchor === 'screen' && parent) {
     if (rootTL) {
       sprite.setOrigin(0, 0);
-      sprite.setPosition(-rootTL.x, -rootTL.y);
+      sprite.setPosition(Math.round(-rootTL.x + bgOffX), Math.round(-rootTL.y + bgOffY));
     } else {
       const p = resolveAuthoredPositionForAsepriteTrim('top-left', lx, ly, sprite.frame);
-      applyGuiSpriteAnchor(sprite, 'top-left', p.x, p.y);
+      applyGuiSpriteAnchor(sprite, 'top-left', p.x, p.y, bgOffX, bgOffY);
     }
     parent.add(sprite);
     extraSprites.push(sprite);
   } else if (anchor === 'screen') {
-    applyGuiSpriteAnchor(sprite, anchor, lx, ly);
+    applyGuiSpriteAnchor(sprite, anchor, lx, ly, bgOffX, bgOffY);
     extraSprites.push(sprite);
   } else {
     const p = resolveAuthoredPositionForAsepriteTrim(
@@ -964,7 +975,7 @@ function addGuiImageSprite(
       placementAnchorY,
       sprite.frame,
     );
-    applyGuiSpriteAnchor(sprite, effSpriteAnchor, p.x, p.y);
+    applyGuiSpriteAnchor(sprite, effSpriteAnchor, p.x, p.y, bgOffX, bgOffY);
     if (parent) {
       parent.add(sprite);
     }
@@ -1169,6 +1180,8 @@ function addInventorySlotSheetSprite(
   slotCx: number,
   slotCy: number,
   slotContainer: Phaser.GameObjects.Container,
+  offX = 0,
+  offY = 0,
 ): void {
   const tag = tagRaw?.trim() ?? '';
   if (!tag || !scene.textures.exists(guiTextureKey)) {
@@ -1189,9 +1202,9 @@ function addInventorySlotSheetSprite(
   /** Inside a slot container, `screen` is treated like top-left at the slot origin (full-slot art). */
   if (anchor === 'center') {
     const p = resolveAuthoredPositionForAsepriteTrim('center', slotCx, slotCy, sprite.frame);
-    applyGuiSpriteAnchor(sprite, anchor, p.x, p.y);
+    applyGuiSpriteAnchor(sprite, anchor, p.x, p.y, offX, offY);
   } else {
-    applyGuiSpriteAnchor(sprite, 'top-left', -inset.x, -inset.y);
+    applyGuiSpriteAnchor(sprite, 'top-left', -inset.x, -inset.y, offX, offY);
   }
   slotContainer.add(sprite);
 }
@@ -1259,6 +1272,12 @@ function fillInventoryPanelContent(
   scrollState.offset = Math.max(0, Math.min(maxOffset, scrollState.offset));
 
   const bgTag = c.backgroundTag?.trim() ?? '';
+  const panelBgOffX = c.backgroundOffsetX ?? 0;
+  const panelBgOffY = c.backgroundOffsetY ?? 0;
+  const slotBgOffX = c.slotBackgroundOffsetX ?? 0;
+  const slotBgOffY = c.slotBackgroundOffsetY ?? 0;
+  const hiOffX = c.highlightOffsetX ?? 0;
+  const hiOffY = c.highlightOffsetY ?? 0;
   if (bgTag && wantsGuiSheet) {
     const bgAnchor = guiSpriteAnchorOrDefault(c.backgroundAnchor);
     const backdrop = scene.add.sprite(0, 0, guiTextureKey);
@@ -1275,12 +1294,15 @@ function fillInventoryPanelContent(
       if (bgAnchor === 'screen') {
         /** World (0,0) while staying parented so `panel.setVisible` still toggles the backdrop. */
         backdrop.setOrigin(0, 0);
-        backdrop.setPosition(-anchorRootX, -anchorRootY);
+        backdrop.setPosition(
+          Math.round(-anchorRootX + panelBgOffX),
+          Math.round(-anchorRootY + panelBgOffY),
+        );
       } else if (bgAnchor === 'center') {
         const p = resolveAuthoredPositionForAsepriteTrim('center', panelW / 2, panelH / 2, backdrop.frame);
-        applyGuiSpriteAnchor(backdrop, bgAnchor, p.x, p.y);
+        applyGuiSpriteAnchor(backdrop, bgAnchor, p.x, p.y, panelBgOffX, panelBgOffY);
       } else {
-        applyGuiSpriteAnchor(backdrop, 'top-left', -bgInset.x, -bgInset.y);
+        applyGuiSpriteAnchor(backdrop, 'top-left', -bgInset.x, -bgInset.y, panelBgOffX, panelBgOffY);
       }
       panel.add(backdrop);
     }
@@ -1311,6 +1333,8 @@ function fillInventoryPanelContent(
           slotCx,
           slotCy,
           slotContainer,
+          slotBgOffX,
+          slotBgOffY,
         );
       }
 
@@ -1407,6 +1431,8 @@ function fillInventoryPanelContent(
           slotCx,
           slotCy,
           slotContainer,
+          hiOffX,
+          hiOffY,
         );
       }
 
