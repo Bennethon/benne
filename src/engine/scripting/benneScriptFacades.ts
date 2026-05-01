@@ -71,16 +71,24 @@ export interface InventoryWhenGiveRegistrar {
   doNotActivate(handler: InventoryWhenGiveHandler): void;
 }
 
-/** {@link import('./BenneScript.js').BenneScript.whenInventoryUsedOn} — default clears active inventory after queued steps. */
+/** Return `false` to run global `whenInventoryOnVerbTargetUnhandled` (see global script). */
+export type InventoryWhenUsedOnPayloadHandler =
+  | ((p: AnyInventoryUsedOnPayload) => void | false)
+  | (() => void);
+
+/**
+ * {@link import('./BenneScript.js').BenneScript.whenInventoryUsedOn} — drop policy after tail unless **`doNotClear`**;
+ * **`return false`** from the payload handler delegates to **`B.whenInventoryOnVerbTargetUnhandled`** (no duplicated fallback line).
+ */
 export interface RoomInventoryUsedOnRegistrar {
   (
     targetId: string,
-    handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+    handler: InventoryWhenUsedOnPayloadHandler,
     options?: { doNotClear?: boolean },
   ): void;
   doNotClear(
     targetId: string,
-    handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+    handler: InventoryWhenUsedOnPayloadHandler,
   ): void;
 }
 

@@ -323,7 +323,7 @@ Alias resolution (**`VERB_ALIAS_CANDIDATES`** in **`BenneScriptCore`**): **`look
 | **`whenLookAt`**, **`whenUse`**, **`whenPickUp`**, **`whenPush`**, **`whenPull`**, **`whenOpen`**, **`whenClose`**, **`whenTalkTo`** | `(targetId, handler)` where handler is **`() => void`** **or **`(p: any) => void`** | **`registerVerbForTarget`**: prop id → **`onProp`**; hotspot → **`onHotspot`**; spawned character → **room + character-global** verb events |
 | **`whenVerb`** | `(verbId, targetId, handler)` | Exact verb id |
 | **`whenGive`** | `(itemId, targetId, handler)` | **Prop-only** **`targetId`**; maps payload with **`GivePropInteractPayload`** shape **`{ …RoomPropInteractPayload, itemId }`** |
-| **`whenInventoryUsedOn`** | **`RoomInventoryUsedOnRegistrar`** — `(targetId, handler, opts?)`, **`whenInventoryUsedOn.doNotClear(targetId, handler)`** | Subscribes all registered inventory item ids for prop/hotspot/character **targetId** ; **`subscribeAfterInteractionTail`** + **`shouldDropActiveInventoryOnUse`** for clearing (**`doNotClear`** opts out) |
+| **`whenInventoryUsedOn`** | **`RoomInventoryUsedOnRegistrar`** — `(targetId, handler, opts?)`, **`whenInventoryUsedOn.doNotClear(targetId, handler)`** — payload handler may **`return false`** to delegate to **`whenInventoryOnVerbTargetUnhandled`** (same bus) | Target-wide channels (room / character / inventory row); **`subscribeAfterInteractionTail`** + **`shouldDropActiveInventoryOnUse`** unless **`return false`** delegated (**`doNotClear`** opts out) |
 | **`onProp`** | `(propId, verbId, handler)` | **`RoomPropInteractPayload`** or **`()`** |
 
 ### Room transitions (per-room)
@@ -355,7 +355,7 @@ Self-only verbs — **`characterVerbEventId(characterId, verbId)`** only (**room
 | **`whenLookAt`**, **`whenUse`**, **`whenPickUp`**, **`whenPush`**, **`whenPull`**, **`whenOpen`**, **`whenClose`**, **`whenTalkTo`** | **`() => void`** or **`(p: CharacterVerbInteractPayload) => void`** |
 | **`whenVerb(verbId, handler)`** | Same |
 
-**`whenInventoryUsedOn`** — **`targetId` must equal `characterId`**; otherwise handler not registered (DEV warns once).
+**`whenInventoryUsedOn`** — **`targetId` must equal `characterId`**; otherwise handler not registered (DEV warns once). Payload handlers may **`return false`** so **`whenInventoryOnVerbTargetUnhandled`** runs (see room **`whenInventoryUsedOn`**).
 
 ---
 
@@ -378,7 +378,7 @@ B.whenGive.doNotActivate(handler);
 
 Engine always wires **use/give** → **`subscribeAfterInteractionTail`** so **`setActiveInventory(this.itemId)`** runs **after** handlers unless **every** handler for that verb used **`doNotActivate`**.
 
-**`whenInventoryUsedOn`** — **`targetId` must equal this item id** register use-on-other-item-on-this-row payloads (all source item ids from registry).
+**`whenInventoryUsedOn`** — **`targetId` must equal this item id** (inventory combine row target). Payload handler may **`return false`** for global **`whenInventoryOnVerbTargetUnhandled`** (same as room script).
 
 **`cutscene`** — same as room.
 
@@ -503,7 +503,7 @@ Character scripts omit **`whenGive`** (**give targets props in room layer**).
 
 **Cutscene-style ordering** — Use blocking **`walkTo`**, **`wait`**, **`player.say`**, **`fadeOut`** / **`fadeIn`** inside one handler; reserve **`.now`** for overlapping effects you intentionally do not wait for.
 
-**Use-on-target** — Player arms item via **`B.inventory('key').*`** verb row (**use**/ **give**) or **`B.setActiveInventory`**. Room: **`B.whenInventoryUsedOn('door', ({ itemId }) => { … })`**. Clearing policy: **`doNotClear`** / **`shouldDropActiveInventoryOnUse`** (see [`dispatchInventoryOnVerbTarget`](../src/engine/verbs/dispatchInventoryOnVerbTarget.ts) and [architecture.md — Drop policy](architecture.md#inventory-system)).
+**Use-on-target** — Player arms item via **`B.inventory('key').*`** verb row (**use**/ **give**) or **`B.setActiveInventory`**. Room: **`B.whenInventoryUsedOn('door', ({ itemId }) => { … })`**. Use **`return false`** when no branch handles the combo so **`globalScript.ts`**’s **`whenInventoryOnVerbTargetUnhandled`** runs (no duplicated fallback line). Clearing: **`doNotClear`** / **`shouldDropActiveInventoryOnUse`** on the handler that actually concludes the click (after delegation, that is the global unhandled listener — see [`dispatchInventoryOnVerbTarget`](../src/engine/verbs/dispatchInventoryOnVerbTarget.ts) and [architecture.md — Drop policy](architecture.md#inventory-system)).
 
 **GUI verb bar → world** — From **`whenButtonClick`**, call **`B.setActiveVerb('open')`** (or any configured id).
 

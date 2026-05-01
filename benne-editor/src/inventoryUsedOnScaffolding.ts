@@ -10,7 +10,13 @@ export type AddInventoryUsedOnResult = {
 };
 
 function buildWhenInventoryUsedOnStub(targetId: string): string {
-    return `  B.whenInventoryUsedOn('${escapeTsString(targetId)}', (payload) => {\n    if (payload.itemId === '') {\n      // TODO\n    }\n  });\n`;
+    return (
+        `  B.whenInventoryUsedOn('${escapeTsString(targetId)}', (payload) => {\n` +
+        `    if (payload.itemId === '') {\n      // TODO\n      return;\n    }\n` +
+        `    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).\n` +
+        `    return false;\n` +
+        `  });\n`
+    );
 }
 
 function escapeTsString(s: string): string {

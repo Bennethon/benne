@@ -9,6 +9,7 @@ export {
   type BenneScriptRoomFacade,
   type InventoryWhenGiveHandler,
   type InventoryWhenGiveRegistrar,
+  type InventoryWhenUsedOnPayloadHandler,
   type InventoryWhenUseHandler,
   type InventoryWhenUseRegistrar,
   type RoomInventoryUsedOnRegistrar,

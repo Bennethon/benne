@@ -24,11 +24,11 @@ import {
   roomPropVerbEventId,
 } from '../events/verbInteractionEvents.js';
 import type {
-  AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
   BenneScriptDialogCommandSurface,
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
+  InventoryWhenUsedOnPayloadHandler,
   RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
 import { BenneScriptCore, withNow } from './BenneScriptCore.js';
@@ -53,6 +53,7 @@ export type {
   BenneScriptSharedSelectionApi,
   InventoryWhenGiveHandler,
   InventoryWhenGiveRegistrar,
+  InventoryWhenUsedOnPayloadHandler,
   InventoryWhenUseHandler,
   InventoryWhenUseRegistrar,
   RoomInventoryUsedOnRegistrar,
@@ -119,7 +120,9 @@ export class BenneScript extends BenneScriptCore {
    * Register a handler for "inventory used on target" clicks for this room. Whether the active
    * inventory selection is dropped (active inventory + active verb both cleared) after the handler
    * runs follows {@link import('../verbs/dispatchInventoryOnVerbTarget.js').shouldDropActiveInventoryOnUse}
-   * (per-item **`dropWhenUsed`** → global **`dropWhenInventoryUsed`** → default **`false`**).
+   * (per-item **`dropWhenUsed`** → global **`dropWhenInventoryUsed`** → default **`false`**), unless you
+   * **`return false`** from the payload handler — that re-emits the global **`whenInventoryOnVerbTargetUnhandled`**
+   * path and skips this subscription’s drop-after-tail so the global script owns clearing.
    * **`doNotClear`** is a per-handler hard opt-out: the active inventory always stays armed after
    * this handler's queued steps regardless of policy.
    */
@@ -138,13 +141,13 @@ export class BenneScript extends BenneScriptCore {
     this.whenInventoryUsedOn = Object.assign(
       (
         targetId: string,
-        handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+        handler: InventoryWhenUsedOnPayloadHandler,
         options?: { doNotClear?: boolean },
       ) => {
         this.registerInventoryUsedOnForTarget(targetId, handler, options?.doNotClear === true);
       },
       {
-        doNotClear: (targetId: string, handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void)) => {
+        doNotClear: (targetId: string, handler: InventoryWhenUsedOnPayloadHandler) => {
           this.registerInventoryUsedOnForTarget(targetId, handler, true);
         },
       },
@@ -285,7 +288,7 @@ export class BenneScript extends BenneScriptCore {
 
   private registerInventoryUsedOnForTarget(
     targetId: string,
-    handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+    handler: InventoryWhenUsedOnPayloadHandler,
     doNotClear: boolean,
   ): void {
     if (this.roomScene.getRoomPropInstance(targetId)) {

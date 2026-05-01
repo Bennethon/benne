@@ -17,13 +17,15 @@ registerRoomScript(({ B }) => {
     if (payload.itemId === 'Broom' && payload.verbId === 'use') {
       B.player.walkTo('Couch');
       B.player.say('I used the Broom on the Couch.');
-    } else if (payload.itemId === 'Broom' && payload.verbId === 'give') {
+      return;
+    }
+    if (payload.itemId === 'Broom' && payload.verbId === 'give') {
       B.player.walkTo('Couch');
       B.player.face('U');
       B.player.say('Here, couch.');
-    } else {
-      B.player.say("That doesn't work.");
+      return;
     }
+    return false;
   });
 
   B.whenLookAt('penny', () => {
@@ -83,12 +85,14 @@ registerRoomScript(({ B }) => {
   });
   B.whenInventoryUsedOn('Bread', (payload) => {
     if (payload.itemId === 'Broom' && payload.verbId === 'use') {
-      B.say`Hank: I don't need to clean the bread.`
-    } else if (payload.itemId === 'Broom' && payload.verbId === 'give') {
-      B.say`Hank: I can't give something to bread.`
-    } else {
-      B.player.say("That doesn't work.");
+      B.say`Hank: I don't need to clean the bread.`;
+      return;
     }
+    if (payload.itemId === 'Broom' && payload.verbId === 'give') {
+      B.say`Hank: I can't give something to bread.`;
+      return;
+    }
+    return false;
   });
 
   B.whenLookAt('Bread', () => {
