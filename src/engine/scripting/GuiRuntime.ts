@@ -109,6 +109,97 @@ export class ControlFacade {
       go.alpha = alpha;
     }
   }
+
+  private tryGetGuiTextSurface(): Phaser.GameObjects.BitmapText | Phaser.GameObjects.Text | null {
+    const go = this.gameObject;
+    if (go instanceof Phaser.GameObjects.BitmapText || go instanceof Phaser.GameObjects.Text) {
+      return go;
+    }
+    return null;
+  }
+
+  /** **`text` / `verbLine`** controls (`BitmapText` / `Text`). Throws if this control is not text-backed. */
+  get text(): string {
+    const t = this.tryGetGuiTextSurface();
+    if (!t) {
+      throw new Error('[Benne] GUI control `.text` requires a BitmapText or Text game object.');
+    }
+    return t.text;
+  }
+
+  set text(value: string) {
+    const t = this.tryGetGuiTextSurface();
+    if (!t) {
+      throw new Error('[Benne] GUI control `.text` requires a BitmapText or Text game object.');
+    }
+    t.setText(value);
+  }
+}
+
+/**
+ * Forgiving **`B.gui(…).control('missing')`** path: invisible container + **`.text`** no-ops (**`BitmapText`** on real
+ * controls still uses the base {@link ControlFacade} **`.text`** implementation).
+ */
+export class NoopGuiControlFacade extends ControlFacade {
+  constructor(scene: Phaser.Scene, queueInteraction: (factory: () => Promise<unknown>) => void) {
+    const holder = scene.add.container(0, 0);
+    holder.setVisible(false);
+    super(holder, scene, queueInteraction);
+  }
+
+  override get text(): string {
+    return '';
+  }
+
+  override set text(_value: string) {
+    /* forgiving missing / non-text control */
+  }
+}
+
+export function createBenneNoopGuiControlFacade(
+  scene: Phaser.Scene,
+  queueInteraction: (factory: () => Promise<unknown>) => void,
+): ControlFacade {
+  return new NoopGuiControlFacade(scene, queueInteraction);
+}
+
+/**
+ * When no {@link Phaser.Scene} exists yet (**`GuiBenneScript`** before the game boots). Same authoring surface as
+ * {@link ControlFacade}; skips real tween targets.
+ */
+export function createDetachedBenneNoopGuiControlFacade(
+  queueInteraction: (factory: () => Promise<unknown>) => void,
+): ControlFacade {
+  return new DetachedNoopGuiControlFacade(queueInteraction) as unknown as ControlFacade;
+}
+
+class DetachedNoopGuiControlFacade {
+  readonly gameObject: Phaser.GameObjects.GameObject;
+
+  readonly tweenTo: BlockingWithNow<[props: ControlTweenProps, duration?: number, easing?: string]>;
+
+  constructor(queueInteraction: (factory: () => Promise<unknown>) => void) {
+    this.gameObject = undefined as unknown as Phaser.GameObjects.GameObject;
+    this.tweenTo = withNow(
+      (_props?: ControlTweenProps, _dur?: number, _ease?: string) => {
+        queueInteraction(() => Promise.resolve());
+      },
+      (_props?: ControlTweenProps, _dur?: number, _ease?: string) => {
+        /* immediate */
+      },
+    );
+  }
+
+  setX(_x: number): void {}
+  setY(_y: number): void {}
+  setVisible(_visible: boolean): void {}
+  setAlpha(_alpha: number): void {}
+
+  get text(): string {
+    return '';
+  }
+
+  set text(_value: string) {}
 }
 
 export interface GuiRuntimeOptions {

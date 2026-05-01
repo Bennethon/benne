@@ -219,10 +219,11 @@
       "backgroundTag": ""
     },
     {
-      "type": "verbLine",
-      "id": "verbLine",
+      "type": "text",
+      "id": "verbLineText",
       "x": 176,
       "y": 141,
+      "text": "Walk to",
       "font": "lucasfont-alternate",
       "fontSize": 8,
       "color": "#ffffff",

@@ -92,6 +92,7 @@ import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCEN
 import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
 import type { InventoryItemData } from '../../types/inventory';
+import type { VerbHoverTarget } from '../../types/verbContext';
 import type { Point2, RoomData, RoomHotspotData, RoomPropInstance } from '../../types/room';
 import type { GuiButtonControl, GuiData, GuiGridControl } from '../../types/gui';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
@@ -128,6 +129,12 @@ import {
 } from '../events/dialogEvents';
 import { guiAllButtonsClickEventId, guiButtonClickEventId, type GuiAllButtonsClickPayload } from '../events/guiButtonEvents';
 import { endDialogSessionIfMatches, getActiveDialogBenneScript } from '../scripting/dialogSession.js';
+import {
+  BENNE_VERB_CONTEXT_CHANGED_EVENT,
+  clearBenneVerbHoverContext,
+  getBenneVerbContextChangedEmitter,
+  publishBenneVerbHoverContext,
+} from '../scripting/benneVerbContextScriptSurface.js';
 import type { GuiRuntime } from '../scripting/GuiRuntime.js';
 import {
   BENNE_SCREEN_FADE_DEFAULT_COLOR,
@@ -297,6 +304,9 @@ export class RoomScene extends Phaser.Scene {
   /** Every other registered GUI overlay (authoring under `src/game/guis/<id>/`), built automatically in `create`. */
   private genericGuiOverlays: GuiOverlayHandle[] = [];
 
+  /** Latest {@link GuiRuntime} per overlay id for **`B.gui(…)`** on GUI scripts (generic + dialog-text + choice GUIs). */
+  private guiRuntimeByGuiId = new Map<string, GuiRuntime>();
+
   /**
    * Parallel to {@link genericGuiOverlays}: each overlay’s effective visibility before the active dialog session hid
    * them. `null` when no dialog is open.
@@ -340,6 +350,7 @@ export class RoomScene extends Phaser.Scene {
   /** Dedupes {@link refreshCustomCursor} work when pointer + visual mode are unchanged. */
   private lastCustomCursorVisualKey: string | null = null;
   private readonly refreshAllVerbLineOverlays = (): void => {
+    this.syncVerbHoverScriptSurface(this.input.activePointer);
     for (const h of this.genericGuiOverlays) {
       h.refreshVerbLineText();
     }
@@ -427,6 +438,7 @@ export class RoomScene extends Phaser.Scene {
     const hasGenericGuiVisibilityOverride = typeof genericGuiVisibilityOverride === 'boolean';
 
     this.genericGuiOverlays = [];
+    this.guiRuntimeByGuiId.clear();
     let stackIndex = 0;
     const inventoryPanelPointerContext = {
       roomId: data.room.id,
@@ -449,6 +461,7 @@ export class RoomScene extends Phaser.Scene {
         const guiScript = getGuiBenneScript(gui.id);
         if (guiScript) {
           const rt = built.createGuiRuntime((factory) => guiScript.queueInteraction(factory));
+          this.guiRuntimeByGuiId.set(gui.id, rt);
           guiScript.notifyGuiBuilt(rt);
         }
       }
@@ -469,6 +482,7 @@ export class RoomScene extends Phaser.Scene {
       const dialogScript = getGuiBenneScript(DIALOG_TEXT_GUI_ID);
       if (dialogScript) {
         const rt = dialogBuilt.createGuiRuntime((factory) => dialogScript.queueInteraction(factory));
+        this.guiRuntimeByGuiId.set(DIALOG_TEXT_GUI_ID, rt);
         dialogScript.notifyGuiBuilt(rt);
       }
     }
@@ -499,6 +513,7 @@ export class RoomScene extends Phaser.Scene {
         choiceScript ? choiceScript.queueInteraction(factory) : noopDialogQueue(factory),
       );
       this.dialogChoiceRuntimeByGuiId.set(guiId, rt);
+      this.guiRuntimeByGuiId.set(guiId, rt);
       choiceScript?.notifyGuiBuilt(rt);
     }
 
@@ -628,9 +643,12 @@ export class RoomScene extends Phaser.Scene {
       this.genericGuiVisibilityBeforeDialog = null;
       this.dialogTextOverlay?.destroy();
       this.dialogTextOverlay = null;
+      this.guiRuntimeByGuiId.clear();
       this.dialogChoiceInputSuppressionActive = false;
       this.scriptedDialogInputSuppressionDepth = 0;
       this.scriptedDialogClickToSkip = null;
+      clearBenneVerbHoverContext();
+      getBenneVerbContextChangedEmitter().removeAllListeners(BENNE_VERB_CONTEXT_CHANGED_EVENT);
       this.scale.off('resize', this.onScaleResize, this);
       this.input.off('pointerdown', this.handleRoomPointerDown);
       this.input.off('pointermove', this.onRoomPointerMove);
@@ -657,6 +675,15 @@ export class RoomScene extends Phaser.Scene {
 
   getCurrentRoomId(): string {
     return this.roomData.id;
+  }
+
+  /** Resolves the live {@link GuiRuntime} for an overlay **`guiId`** while this room is active. */
+  tryGetGuiRuntime(guiId: string): GuiRuntime | null {
+    const id = guiId.trim();
+    if (id.length === 0) {
+      return null;
+    }
+    return this.guiRuntimeByGuiId.get(id) ?? null;
   }
 
   registerBenneScriptCoreForReset(core: BenneScriptCore): void {
@@ -1125,10 +1152,12 @@ export class RoomScene extends Phaser.Scene {
    */
   pushScriptedDialogInputSuppression(): void {
     this.scriptedDialogInputSuppressionDepth++;
+    this.syncVerbHoverScriptSurface(this.input.activePointer);
   }
 
   popScriptedDialogInputSuppression(): void {
     this.scriptedDialogInputSuppressionDepth = Math.max(0, this.scriptedDialogInputSuppressionDepth - 1);
+    this.syncVerbHoverScriptSurface(this.input.activePointer);
   }
 
   private isScriptedDialogInputSuppressed(): boolean {
@@ -2885,11 +2914,13 @@ export class RoomScene extends Phaser.Scene {
     return { textureKey, animKey };
   }
 
-  /**
-   * Short label for the prop, hotspot, clickable character, or GUI inventory row under the pointer
-   * (verb line / LucasArts-style).
-   */
-  private resolveVerbLineHoverDescription(pointer: Phaser.Input.Pointer): string | null {
+  private syncVerbHoverScriptSurface(pointer: Phaser.Input.Pointer): void {
+    const t = this.resolveVerbLineHoverPointerContext(pointer);
+    publishBenneVerbHoverContext(t?.description ?? null, t);
+  }
+
+  /** Hover target + verb-line description under the pointer (skips GUI buttons like the verb bar). */
+  private resolveVerbLineHoverPointerContext(pointer: Phaser.Input.Pointer): VerbHoverTarget | null {
     if (this.isScriptedDialogInputSuppressed()) {
       return null;
     }
@@ -2912,11 +2943,14 @@ export class RoomScene extends Phaser.Scene {
           return null;
         }
         const fromDesc = inv.description?.trim();
+        let description: string | null = null;
         if (fromDesc && fromDesc.length > 0) {
-          return fromDesc;
+          description = fromDesc;
+        } else {
+          const fromName = inv.name?.trim();
+          description = fromName && fromName.length > 0 ? fromName : null;
         }
-        const fromName = inv.name?.trim();
-        return fromName && fromName.length > 0 ? fromName : null;
+        return { description, targetType: 'inventoryRow', itemId };
       }
       if (go.getData('benneHotspot') === true) {
         const hid = go.getData('benneHotspotId') as string | undefined;
@@ -2925,7 +2959,8 @@ export class RoomScene extends Phaser.Scene {
         }
         const hs = this.roomData.hotspots.find((h) => h.id === hid);
         const d = hs?.description?.trim();
-        return d && d.length > 0 ? d : null;
+        const description = d && d.length > 0 ? d : null;
+        return { description, targetType: 'hotspot', targetId: hid };
       }
       const charData = go.getData('character') as CharacterData | undefined;
       if (charData) {
@@ -2936,29 +2971,40 @@ export class RoomScene extends Phaser.Scene {
           continue;
         }
         const chDesc = charData.description?.trim();
+        let description: string | null = null;
         if (chDesc && chDesc.length > 0) {
-          return chDesc;
+          description = chDesc;
+        } else {
+          const nm = charData.name?.trim();
+          description = nm && nm.length > 0 ? nm : null;
         }
-        const nm = charData.name?.trim();
-        return nm && nm.length > 0 ? nm : null;
+        return { description, targetType: 'character', targetId: charData.id };
       }
       for (const [propId, propSprite] of this.propSpritesById) {
         if (propSprite === o) {
           const trimmedOverride = this.propDescriptionOverrides.get(propId)?.trim();
+          let description: string;
           if (trimmedOverride && trimmedOverride.length > 0) {
-            return trimmedOverride;
+            description = trimmedOverride;
+          } else {
+            const p = this.roomData.props?.find((rp) => rp.id === propId);
+            const pd = p?.description?.trim();
+            description = pd && pd.length > 0 ? pd : propId;
           }
-          const p = this.roomData.props?.find((rp) => rp.id === propId);
-          const pd = p?.description?.trim();
-          if (pd && pd.length > 0) {
-            return pd;
-          }
-          return propId;
+          return { description, targetType: 'prop', targetId: propId };
         }
       }
       continue;
     }
     return null;
+  }
+
+  /**
+   * Short label for the prop, hotspot, clickable character, or GUI inventory row under the pointer
+   * (verb line / LucasArts-style).
+   */
+  private resolveVerbLineHoverDescription(pointer: Phaser.Input.Pointer): string | null {
+    return this.resolveVerbLineHoverPointerContext(pointer)?.description ?? null;
   }
 
   /**
