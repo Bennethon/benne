@@ -25,7 +25,11 @@ import {
 } from '../../engine/gui/guiGridLayout';
 import type { GuiData, GuiGridControl, GuiInventoryPanelControl } from '../../types/gui';
 import type { GameSettingsInitialGameState } from '../../types/game';
-import { resolveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
+import { resolveGameStateManager, setActiveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
+import {
+  wireBenneVerbContextGameStateRelay,
+  unwireBenneVerbContextGameStateRelay,
+} from '../../engine/scripting/benneVerbContextScriptSurface';
 import {
   PreviewPolygonOverlay,
   type PreviewStrokeRectOverlayExtras,
@@ -134,6 +138,12 @@ class BenneGuiPreviewBoot extends Phaser.Scene {
         : undefined;
     const gameState = new GameStateManager(this.game.events, initial);
     this.game.registry.set(BENNE_GAME_STATE_REGISTRY_KEY, gameState);
+    setActiveGameStateManager(gameState);
+    wireBenneVerbContextGameStateRelay(this.game.events);
+    this.game.events.once(Phaser.Core.Events.DESTROY, () => {
+      unwireBenneVerbContextGameStateRelay(this.game.events);
+      setActiveGameStateManager(null);
+    });
     this.scene.start(PREVIEW, this.payload);
     for (const u of this.payload.revokeObjectUrls) {
       URL.revokeObjectURL(u);

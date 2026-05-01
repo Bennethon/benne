@@ -12,12 +12,17 @@ import { SCENE_ROOM } from '../../game/constants.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { BenneScriptCore } from './BenneScriptCore.js';
-import type { BenneScriptDialogCommandSurface } from './benneScriptFacades.js';
+import type { BenneScriptDialogCommandSurface, BenneScriptGuiOverlayRef } from './benneScriptFacades.js';
+import {
+  createBenneNoopGuiControlFacade,
+  createDetachedBenneNoopGuiControlFacade,
+  type ControlFacade,
+  type GuiRuntime,
+} from './GuiRuntime.js';
 import {
   createBenneScriptDialogAccessor,
   createNoopDialogCommandSurface,
 } from './DialogBenneScript.js';
-import type { GuiRuntime } from './GuiRuntime.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 
 /**
@@ -31,6 +36,68 @@ export class GuiBenneScript extends BenneScriptCore {
   private readonly onGuiBuiltHandlers: Array<(gui: GuiRuntime) => void> = [];
   /** While `onGuiBuilt` handlers run, supports {@link GuiBenneScript.scene}. */
   private activeGuiRuntime: GuiRuntime | null = null;
+
+  /**
+   * Resolve another GUI overlay’s controls by id (same pattern as **`B.dialog`** / **`B.inventory`**).
+   * Call from **`onGuiBuilt`** (after the room registers {@link GuiRuntime} instances — includes **`this.guiId`** overlays).
+   */
+  gui(overlayGuiId: string): BenneScriptGuiOverlayRef {
+    const gid = overlayGuiId.trim();
+    const self = this;
+    return {
+      control(controlId: string): ControlFacade {
+        const id = controlId.trim();
+        const queue = (factory: () => Promise<unknown>) => self.chain(factory);
+        const rm = GuiBenneScript.tryResolveRoomSceneForGuiOverlay();
+        const rt = rm?.tryGetGuiRuntime(gid);
+        const scene = self.resolveSceneForGuiControlNoop(rt, rm);
+        if (!scene) {
+          if (import.meta.env.DEV) {
+            console.warn(
+              `[Benne] B.gui("${gid}").control(${JSON.stringify(controlId)}): no Phaser scene — text/tween calls are no-ops.`,
+            );
+          }
+          return createDetachedBenneNoopGuiControlFacade(queue);
+        }
+        if (!id) {
+          return createBenneNoopGuiControlFacade(scene, queue);
+        }
+        const resolved = rt?.getControl(id);
+        if (resolved) {
+          return resolved;
+        }
+        return createBenneNoopGuiControlFacade(scene, queue);
+      },
+    };
+  }
+
+  private resolveSceneForGuiControlNoop(
+    rt: GuiRuntime | null | undefined,
+    rm: RoomScene | null,
+  ): Phaser.Scene | null {
+    if (rt?.scene) {
+      return rt.scene;
+    }
+    if (this.activeGuiRuntime?.scene) {
+      return this.activeGuiRuntime.scene;
+    }
+    if (rm) {
+      return rm;
+    }
+    const g = tryGetActiveBenneGame();
+    const room = g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
+    if (room) {
+      return room;
+    }
+    const scenes = g?.scene.getScenes(true);
+    const first = scenes?.[0];
+    return first ?? null;
+  }
+
+  private static tryResolveRoomSceneForGuiOverlay(): RoomScene | null {
+    const g = tryGetActiveBenneGame();
+    return (g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined) ?? null;
+  }
 
   constructor(events: Phaser.Events.EventEmitter, guiId: string) {
     super(

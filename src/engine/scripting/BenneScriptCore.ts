@@ -13,7 +13,14 @@ import {
   resolveInitialIdleFacing,
   type CharacterFacing,
 } from '../directionalCharacterAnimation.js';
-import { getEffectiveVerbDefinitions } from '../verbs/verbConfig.js';
+import { getEffectiveVerbDefinitions, WALK_TO_VERB_ID } from '../verbs/verbConfig.js';
+import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
+import type { InventoryItemDefinition, VerbDefinition, VerbHoverTarget } from '../../types/verbContext.js';
+import {
+  getBenneVerbContextChangedEmitter,
+  getBenneVerbContextHoverDescription,
+  getBenneVerbContextHoverTarget,
+} from './benneVerbContextScriptSurface.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerbTarget.js';
@@ -590,6 +597,48 @@ export abstract class BenneScriptCore {
   /** Convenience for `setActiveInventory(null)`. */
   clearActiveInventory(): void {
     tryGetActiveGameStateManager()?.clearActiveInventoryItem();
+  }
+
+  /**
+   * Configured verb object for {@link getActiveVerb}, or `null` in implicit walk pointer mode /
+   * when nothing is armed.
+   */
+  get activeVerb(): VerbDefinition | null {
+    const id = this.getActiveVerb();
+    const trimmed = id?.trim() ?? '';
+    if (trimmed.length === 0 || trimmed === WALK_TO_VERB_ID) {
+      return null;
+    }
+    const defs = getEffectiveVerbDefinitions(getGameSettings());
+    return defs.find((v) => v.id === trimmed) ?? { id: trimmed };
+  }
+
+  /** Registered inventory definition for {@link getActiveInventoryItemId}, or `null`. */
+  get activeInventory(): InventoryItemDefinition | null {
+    const itemId = this.getActiveInventoryItemId();
+    if (itemId == null || itemId.length === 0) {
+      return null;
+    }
+    return getInventoryDefinition(itemId) ?? null;
+  }
+
+  /**
+   * Subscribe with **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, handler)`**
+   * (import **`BENNE_VERB_CONTEXT_CHANGED_EVENT`** from **`@engine/scripting`**). Emits whenever active verb,
+   * active inventory item, or hover target/description changes. **`RoomScene`** removes all listeners for that
+   * event when the scene shuts down (e.g. room change).
+   */
+  get onVerbContextChanged(): Phaser.Events.EventEmitter {
+    return getBenneVerbContextChangedEmitter();
+  }
+
+  /** Verb-line hover description from {@link RoomScene} hit-testing (`null` when none / suppressed). */
+  get currentHoverDescription(): string | null {
+    return getBenneVerbContextHoverDescription();
+  }
+
+  get currentHoverTarget(): VerbHoverTarget | null {
+    return getBenneVerbContextHoverTarget();
   }
 
   protected beginInteraction(): void {

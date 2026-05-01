@@ -3,6 +3,7 @@ import type { Point2 } from '../../types/room.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import type { InventoryVerbInteractPayload } from '../events/inventoryVerbEvents.js';
 import type { BenneScriptCore, BenneScriptSayDialogueHybrid, BlockingWithNow } from './BenneScriptCore.js';
+import type { ControlFacade } from './GuiRuntime.js';
 
 export type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 
@@ -12,6 +13,15 @@ export interface BenneScriptRoomFacade {
   readonly last: string | null;
   changeTo: BlockingWithNow<[string]>;
   changeToNow(roomId: string): void;
+}
+
+/**
+ * Address a GUI overlay by **`*.gui.json` `id`** (**`B.gui('verbs').control('foo')`**).
+ * **`control`** returns the live {@link import('./GuiRuntime.js').ControlFacade}, or an inert noop facade when the overlay
+ * is missing, **`id`** is blank, or the control is unknown (matching forgiving overlay behavior elsewhere).
+ */
+export interface BenneScriptGuiOverlayRef {
+  control(controlId: string): ControlFacade;
 }
 
 /**
@@ -25,6 +35,11 @@ export type BenneScriptSharedSelectionApi = Pick<
   | 'setActiveInventory'
   | 'getActiveInventoryItemId'
   | 'clearActiveInventory'
+  | 'activeVerb'
+  | 'activeInventory'
+  | 'onVerbContextChanged'
+  | 'currentHoverDescription'
+  | 'currentHoverTarget'
   | 'room'
 > & {
   readonly fadeOut: BenneScriptCore['fadeOut'];

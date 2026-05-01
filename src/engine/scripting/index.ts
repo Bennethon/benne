@@ -17,6 +17,7 @@ export {
   type BenneScriptSayDialogueHybrid,
   type BenneSayDialogueScope,
 } from './BenneScript.js';
+export type { BenneScriptGuiOverlayRef } from './benneScriptFacades.js';
 export type { GivePropInteractPayload } from './benneScriptPayloads.js';
 export * from './RoomScriptContext.js';
 export * from './types.js';
@@ -70,3 +71,14 @@ export type {
   BenneScriptInventoryInteractionQueue,
   BenneScriptInventoryNamespace,
 } from './benneScriptGameStateApi.js';
+export {
+  BENNE_VERB_CONTEXT_CHANGED_EVENT,
+  wireBenneVerbContextGameStateRelay,
+  unwireBenneVerbContextGameStateRelay,
+} from './benneVerbContextScriptSurface.js';
+export type {
+  VerbDefinition,
+  VerbHoverTarget,
+  VerbHoverTargetType,
+  InventoryItemDefinition,
+} from '../../types/verbContext.js';

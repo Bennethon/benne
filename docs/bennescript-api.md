@@ -102,6 +102,11 @@ type BenneScriptSayDialogueHybrid = {
 | **`setActiveInventory`** | `(id: string \| null) => void` | Arms use-on-target item id; **`null`/empty clears**. Warns DEV if no game. | Sync |
 | **`getActiveInventoryItemId`** | `() => string \| null` | | Sync |
 | **`clearActiveInventory`** | `() => void` | | Sync |
+| **`activeVerb`** | getter → `VerbDefinition \| null` | Config row for **`getActiveVerb()`**; **`null`** in walk-mode / idle. From **`verbContext`** types + **`composeVerbLineText`** helpers. | Sync |
+| **`activeInventory`** | getter → **`InventoryItemDefinition \| null`** | Full registry row for the armed **use-on-target** item. | Sync |
+| **`onVerbContextChanged`** | getter → **`Phaser.Events.EventEmitter`** | Fires when active verb / active inventory / hover changes. **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, handler)`** — import **`BENNE_VERB_CONTEXT_CHANGED_EVENT`** from **`@engine/scripting`**. Listeners for that event are cleared when **`RoomScene`** shuts down. | Sync |
+| **`currentHoverDescription`** | getter → `string \| null` | Verb-line hover label under the pointer (**`RoomScene`**; **`null`** when suppressed / empty). | Sync |
+| **`currentHoverTarget`** | getter → **`VerbHoverTarget \| null`** | Structured hover (**`verbContext`** types). | Sync |
 | **`room`** | See [`BenneScriptRoomFacade`](architecture.md) | **`current`**, **`last`**, **`changeTo`**, **`changeTo.now`**, **`changeToNow`**. | **`changeTo`** queued; **`.now` / `changeToNow`** via orchestrator **`changeTo(roomId, true)`** |
 
 **`BenneScriptRoomFacade`** (**`bindRoomFacadeForBenneScriptCore`** / [`benneScriptRoomApi.ts`](../src/engine/scripting/benneScriptRoomApi.ts)):
@@ -419,6 +424,8 @@ get scene(): Phaser.Scene;
 onGuiBuilt(callback: (gui: GuiRuntime) => void): void;
 queueInteraction(factory: () => Promise<unknown>): void;
 
+gui(overlayGuiId: string): BenneScriptGuiOverlayRef;
+
 whenButtonClick(buttonId: string, handler: () => void): void;
 whenAnyButtonClick(handler: (buttonId: string) => void): void;
 
@@ -428,7 +435,16 @@ whenMouseLeave(controlId: string, handler: () => void): void;
 notifyGuiBuilt(gui: GuiRuntime): void; // engine-use; runs onGuiBuilt registrations
 ```
 
+```ts
+// Re-exported from @engine/scripting (see benneScriptFacades.ts / GuiRuntime.ts)
+interface BenneScriptGuiOverlayRef {
+  control(controlId: string): ControlFacade;
+}
+```
+
 - **`get scene`** — throws unless called synchronously inside an **`onGuiBuilt`** invocation (during **`notifyGuiBuilt`**); prefer **`gui.scene`** argument.
+- **`B.gui('otherOverlayId')`** — resolves controls on **any** overlay that has a **`*.gui.ts`** (the engine registers **`GuiRuntime`** on **`RoomScene`** before **`onGuiBuilt`** runs). **`control`** always returns a facade: the real control, or a safe inert one when the **`id`** is missing/blank, the overlay/runtime is absent, or the control is unknown ( **`text`** assigns are no-ops on the inert facade). On real **`text`** / **`verbLine`** controls, **`ControlFacade.text`** maps to **`BitmapText`** / **`Text`**.
+- **Verb HUD** — combine **`B.activeVerb`**, **`B.activeInventory`**, **`B.currentHoverDescription`** (or **`composeVerbLineText`** in code); in **`onGuiBuilt`**, call **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, refresh)`** (see **[`verbs.gui.ts`](../src/game/guis/verbs/verbs.gui.ts)**). Subscriptions reset when the room scene shuts down.
 - Hover handlers use **`subscribeImmediate`** (**no interaction-tail wait**).
 - Button clicks use **`subscribe`** (queued with other **`B`** work on **this GUI’s** script instance).
 
