@@ -1,8 +1,10 @@
 {
   "id": "PB",
   "name": "PB",
-  "description": "",
-  "onVerb": {},
+  "description": "peanut butter",
+  "onVerb": {
+    "open": true
+  },
   "stackable": false,
   "animations": {},
   "display": {

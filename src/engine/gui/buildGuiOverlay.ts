@@ -78,6 +78,7 @@ import {
   warnDevIfAsepriteJsonMissingSpriteSourceSize,
   wireBenneGuiAsepriteTrimmedPlacementAfterFrameChanges,
 } from '../aseprite/asepriteFramePlacement';
+import { ensureAsepriteAtlasAnimationsRegisteredOnce } from '../aseprite/ensureAsepriteAtlasAnimationsOnce.js';
 
 /** Slot stroke for `game-config.json` `debug.showGuiOutlines` (distinct from walkable / prop debug colors). */
 const DEBUG_GUI_INVENTORY_SLOT_STROKE = 0x66ccff;
@@ -229,25 +230,6 @@ function effectiveBitmapFontRenderSize(scene: Phaser.Scene, fontKey: string, fon
   return dataSize < 0 ? -Math.abs(fontSize) : Math.abs(fontSize);
 }
 
-const ASEPRITE_ANIMS_FROM_ATLAS_REGISTRY_PREFIX = '__benneAsepriteAnims:';
-
-/**
- * Registers Aseprite frame-tag clips on the scene animation manager (matches GUI / inventory preview boot).
- * Safe to call repeatedly; runs {@link Phaser.Animations.AnimationManager#createFromAseprite} at most once per
- * texture key per {@link Phaser.Game}.
- */
-function ensureAsepriteAnimationsFromAtlas(scene: Phaser.Scene, textureKey: string): void {
-  if (!scene.textures.exists(textureKey)) {
-    return;
-  }
-  const flagKey = `${ASEPRITE_ANIMS_FROM_ATLAS_REGISTRY_PREFIX}${textureKey}`;
-  if (scene.game.registry.get(flagKey)) {
-    return;
-  }
-  scene.anims.createFromAseprite(textureKey);
-  scene.game.registry.set(flagKey, true);
-}
-
 function guiSpriteAnchorOrDefault(a: GuiSpriteAnchor | undefined): GuiSpriteAnchor {
   return a ?? 'top-left';
 }
@@ -286,7 +268,7 @@ function tryApplyGuiSheetTag(
   if (!t || !scene.textures.exists(textureKey)) {
     return false;
   }
-  ensureAsepriteAnimationsFromAtlas(scene, textureKey);
+  ensureAsepriteAtlasAnimationsRegisteredOnce(scene, textureKey);
   const animKey = guiPhaserAnimationKey(guiId, t);
   if (scene.anims.exists(animKey)) {
     sprite.play(animKey);
@@ -1115,7 +1097,7 @@ function estimateImageSizeForGridAlign(scene: Phaser.Scene, gui: GuiData, c: Gui
     return { w: 32, h: 32 };
   }
   try {
-    ensureAsepriteAnimationsFromAtlas(scene, key);
+    ensureAsepriteAtlasAnimationsRegisteredOnce(scene, key);
     const spr = scene.add.sprite(0, 0, key);
     spr.setVisible(false);
     if (tryApplyGuiSheetTag(scene, spr, key, tag, gui.id)) {
@@ -1426,7 +1408,7 @@ function fillInventoryPanelContent(
             : getPerItemInventoryTextureKey(entry.id);
           const animKey = inventoryPhaserAnimationKeyForTag(def, iconTag);
           if (scene.textures.exists(texKey)) {
-            ensureAsepriteAnimationsFromAtlas(scene, texKey);
+            ensureAsepriteAtlasAnimationsRegisteredOnce(scene, texKey);
             const playKey = scene.anims.exists(animKey) ? animKey : null;
             if (playKey) {
               const iconSprite = scene
@@ -1672,7 +1654,7 @@ export function buildGuiOverlay(
   if (usesAsepriteDisplay(gui)) {
     const guiKey = getAsepriteTextureKey(gui.id);
     if (scene.textures.exists(guiKey)) {
-      ensureAsepriteAnimationsFromAtlas(scene, guiKey);
+      ensureAsepriteAtlasAnimationsRegisteredOnce(scene, guiKey);
     }
   }
 

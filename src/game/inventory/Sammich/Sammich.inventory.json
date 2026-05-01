@@ -1,7 +1,7 @@
 {
   "id": "Sammich",
   "name": "Sammich",
-  "description": "",
+  "description": "sammich",
   "onVerb": {},
   "stackable": false,
   "animations": {},

@@ -1,7 +1,7 @@
 {
   "id": "Key",
   "name": "Key",
-  "description": "",
+  "description": "key",
   "onVerb": {},
   "stackable": false,
   "animations": {},
