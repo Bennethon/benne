@@ -1548,7 +1548,13 @@ function fillInventoryPanelContent(
             itemId,
           );
           if (resolution.consumeActive) {
-            manager.clearActiveVerb();
+            const clickedItemId = itemId;
+            queueMicrotask(() => {
+              if (manager.getActiveInventoryItemId() === clickedItemId) {
+                return;
+              }
+              manager.clearActiveVerb();
+            });
           }
         });
       }

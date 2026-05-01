@@ -298,7 +298,8 @@
       "onVerb": {
         "look": true,
         "pickUp": true
-      }
+      },
+      "description": "bread"
     },
     {
       "id": "Knife",
@@ -342,7 +343,8 @@
       "onVerb": {
         "look": true,
         "pickUp": true
-      }
+      },
+      "description": "knife"
     },
     {
       "id": "PeanutButter",
@@ -386,7 +388,8 @@
       "onVerb": {
         "look": true,
         "pickUp": true
-      }
+      },
+      "description": "peanut butter"
     },
     {
       "id": "Table",
@@ -474,7 +477,8 @@
         "x": 203,
         "y": 129
       },
-      "baseline": 128
+      "baseline": 128,
+      "description": "table"
     }
   ],
   "characters": [

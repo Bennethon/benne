@@ -117,7 +117,7 @@ registerRoomScript(({ B }) => {
   B.whenPickUp('PeanutButter', () => {
     B.walkToClicked();
     B.player.faceClicked();
-    B.inventory.add('PeanutButter');
+    B.inventory.add('PB');
     B.prop('PeanutButter').hide();
   });
 });

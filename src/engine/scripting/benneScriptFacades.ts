@@ -71,10 +71,13 @@ export interface RoomInventoryUsedOnRegistrar {
 
 /** Visibility + description overrides for one prop (`BenneScript.prop`). */
 export interface BenneScriptPropFacade {
-  hide(): void;
-  show(): void;
+  hide: BlockingWithNow<[]>;
+  show: BlockingWithNow<[]>;
   get visible(): boolean;
+  /** Queued on the interaction tail (same ordering as {@link animation}). */
   set visible(v: boolean);
+  /** Script visibility immediately (skips interaction tail). */
+  visibleNow(v: boolean): void;
   get description(): string;
   set description(v: string);
   /** Persisted base Aseprite tag; falls back to room JSON default when unset in save state. */
