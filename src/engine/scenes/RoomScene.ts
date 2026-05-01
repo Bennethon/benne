@@ -349,16 +349,13 @@ export class RoomScene extends Phaser.Scene {
   private customCursorSprite: Phaser.GameObjects.Sprite | null = null;
   /** Dedupes {@link refreshCustomCursor} work when pointer + visual mode are unchanged. */
   private lastCustomCursorVisualKey: string | null = null;
-  private readonly refreshAllVerbLineOverlays = (): void => {
+  /** Republish **`B.currentHoverDescription`** / hover target from the active pointer (e.g. after inventory reshuffle). */
+  private readonly syncVerbHoverScriptSurfaceAtActivePointer = (): void => {
     this.syncVerbHoverScriptSurface(this.input.activePointer);
-    for (const h of this.genericGuiOverlays) {
-      h.refreshVerbLineText();
-    }
-    this.dialogTextOverlay?.refreshVerbLineText();
   };
 
   private readonly onRoomPointerMove = (pointer: Phaser.Input.Pointer): void => {
-    this.refreshAllVerbLineOverlays();
+    this.syncVerbHoverScriptSurfaceAtActivePointer();
     if (this.customCursorSprite) {
       this.refreshCustomCursor(pointer);
     }
@@ -446,15 +443,12 @@ export class RoomScene extends Phaser.Scene {
       tryConsumeDialogClickToSkip: (pointer: Phaser.Input.Pointer): boolean =>
         this.tryConsumeScriptedDialogClickToSkip(pointer),
     };
-    const verbLineHoverDescription = (): string | null =>
-      this.resolveVerbLineHoverDescription(this.input.activePointer);
     for (const gui of nonDialogGuis) {
       const built = buildGuiOverlay(this, gui, {
         /** Preview / cutscene override wins; otherwise each GUI's required `visible` boolean. */
         startVisible: hasGenericGuiVisibilityOverride ? genericGuiVisibilityOverride : gui.visible,
         depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
         inventoryPanelPointerContext,
-        verbLineHoverDescription,
       });
       if (built) {
         this.genericGuiOverlays.push(built.handle);
@@ -474,7 +468,6 @@ export class RoomScene extends Phaser.Scene {
           startVisible: false,
           depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
           inventoryPanelPointerContext,
-          verbLineHoverDescription,
         })
       : null;
     this.dialogTextOverlay = dialogBuilt?.handle ?? null;
@@ -501,7 +494,6 @@ export class RoomScene extends Phaser.Scene {
         startVisible: false,
         depth: dChoice,
         inventoryPanelPointerContext,
-        verbLineHoverDescription,
       });
       stackIndex += 1;
       if (!choiceBuilt) {
@@ -528,7 +520,7 @@ export class RoomScene extends Phaser.Scene {
 
     this.setupCustomGameCursor();
     this.input.on('pointermove', this.onRoomPointerMove);
-    gameEvents.on(GAME_STATE_INVENTORY_CHANGED_EVENT, this.refreshAllVerbLineOverlays);
+    gameEvents.on(GAME_STATE_INVENTORY_CHANGED_EVENT, this.syncVerbHoverScriptSurfaceAtActivePointer);
 
     // ─────────────────────────────────────────────────────────────
     // Bennescript: after props, characters, player, and camera exist
@@ -652,7 +644,7 @@ export class RoomScene extends Phaser.Scene {
       this.scale.off('resize', this.onScaleResize, this);
       this.input.off('pointerdown', this.handleRoomPointerDown);
       this.input.off('pointermove', this.onRoomPointerMove);
-      gameEvents.off(GAME_STATE_INVENTORY_CHANGED_EVENT, this.refreshAllVerbLineOverlays);
+      gameEvents.off(GAME_STATE_INVENTORY_CHANGED_EVENT, this.syncVerbHoverScriptSurfaceAtActivePointer);
       this.teardownCustomGameCursor();
       if (this.screenFadeRect) {
         this.tweens.killTweensOf(this.screenFadeRect);
@@ -2915,12 +2907,12 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private syncVerbHoverScriptSurface(pointer: Phaser.Input.Pointer): void {
-    const t = this.resolveVerbLineHoverPointerContext(pointer);
+    const t = this.resolveVerbHoverPointerContext(pointer);
     publishBenneVerbHoverContext(t?.description ?? null, t);
   }
 
-  /** Hover target + verb-line description under the pointer (skips GUI buttons like the verb bar). */
-  private resolveVerbLineHoverPointerContext(pointer: Phaser.Input.Pointer): VerbHoverTarget | null {
+  /** Hover target + description under the pointer for **`B.currentHoverDescription`** (skips GUI buttons like the verb bar). */
+  private resolveVerbHoverPointerContext(pointer: Phaser.Input.Pointer): VerbHoverTarget | null {
     if (this.isScriptedDialogInputSuppressed()) {
       return null;
     }
@@ -2997,14 +2989,6 @@ export class RoomScene extends Phaser.Scene {
       continue;
     }
     return null;
-  }
-
-  /**
-   * Short label for the prop, hotspot, clickable character, or GUI inventory row under the pointer
-   * (verb line / LucasArts-style).
-   */
-  private resolveVerbLineHoverDescription(pointer: Phaser.Input.Pointer): string | null {
-    return this.resolveVerbLineHoverPointerContext(pointer)?.description ?? null;
   }
 
   /**

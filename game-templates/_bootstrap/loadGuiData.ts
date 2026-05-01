@@ -18,7 +18,7 @@ export function collectFontIdsReferencedByGuiControls(): string[] {
   const ids = new Set<string>();
   for (const gui of getAllGuiData()) {
     for (const c of gui.controls ?? []) {
-      if (c.type === 'text' || c.type === 'verbLine' || c.type === 'button') {
+      if (c.type === 'text' || c.type === 'button') {
         ids.add(c.font);
       }
     }

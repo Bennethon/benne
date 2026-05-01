@@ -13,7 +13,6 @@ import {
   guiHasImageControls,
   guiHasTextControls,
   guiHasTriggerControls,
-  guiHasVerbLineControls,
   type GuiFontLoadRequest,
 } from '../../game/collectFontLoadsForGui';
 import {
@@ -388,7 +387,6 @@ class GuiPreviewScene extends Phaser.Scene {
       mount &&
       (guiHasInventoryPanel(guiData) ||
         guiHasTextControls(guiData) ||
-        guiHasVerbLineControls(guiData) ||
         guiHasImageControls(guiData) ||
         guiHasButtonControls(guiData) ||
         guiHasTriggerControls(guiData) ||
