@@ -17,10 +17,10 @@ import {
   roomInventoryOnCharacterAnySourceEventId,
 } from '../events/inventoryOnVerbEvents.js';
 import type {
-  AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
   BenneScriptDialogCommandSurface,
   BenneScriptPlayerFacade,
+  InventoryWhenUsedOnPayloadHandler,
   RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
 import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
@@ -56,13 +56,13 @@ export class CharacterBenneScript extends BenneScriptCore {
     this.whenInventoryUsedOn = Object.assign(
       (
         targetId: string,
-        handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+        handler: InventoryWhenUsedOnPayloadHandler,
         options?: { doNotClear?: boolean },
       ) => {
         this.registerInventoryUsedOnForCharacterTarget(targetId, handler, options?.doNotClear === true);
       },
       {
-        doNotClear: (targetId: string, handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void)) => {
+        doNotClear: (targetId: string, handler: InventoryWhenUsedOnPayloadHandler) => {
           this.registerInventoryUsedOnForCharacterTarget(targetId, handler, true);
         },
       },
@@ -82,7 +82,7 @@ export class CharacterBenneScript extends BenneScriptCore {
 
   private registerInventoryUsedOnForCharacterTarget(
     targetId: string,
-    handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+    handler: InventoryWhenUsedOnPayloadHandler,
     doNotClear: boolean,
   ): void {
     if (targetId !== this.characterId) {

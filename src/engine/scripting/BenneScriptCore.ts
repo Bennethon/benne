@@ -23,6 +23,7 @@ import {
 } from './benneVerbContextScriptSurface.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
+import { INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT } from '../events/inventoryOnVerbEvents.js';
 import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerbTarget.js';
 import type { BenneScriptPlayerFacade } from './benneScriptFacades.js';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
@@ -731,33 +732,48 @@ export abstract class BenneScriptCore {
 
   /**
    * Subscribes to room + global inventory-on-target ids. After the handler’s queued steps, the
-   * active inventory item **and** the active verb are cleared together according to the **drop
-   * policy**:
+   * active inventory item **and** the active verb are cleared together according to the **drop policy**,
+   * unless the handler delegated to {@link INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT}.
    *
-   * - **`doNotClear: true`** — per-handler hard opt-out; never clear.
-   * - Otherwise, consult {@link shouldDropActiveInventoryOnUse} for the payload's `itemId`
+   * **Returning `false` from the payload handler** (“not handled”) re-emits
+   * {@link INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT} so `B.whenInventoryOnVerbTargetUnhandled` runs.
+   * In that case this subscription’s **`afterTail`** does **not** apply the drop policy (the global
+   * listener’s tail owns clearing).
+   *
+   * - **`doNotClear: true`** — per-handler hard opt-out; never clear here.
+   * - Otherwise (and not delegated), consult {@link shouldDropActiveInventoryOnUse} for the payload's `itemId`
    *   (per-item **`dropWhenUsed`** → global **`dropWhenInventoryUsed`** → default **`false`**).
    *
-   * Synchronous clearing of both for the **unhandled** dispatch case (no listeners) is handled
-   * by `RoomScene` and `buildGuiOverlay` at dispatch time, gated on the same drop policy.
+   * Synchronous clearing for dispatch with **no scoped listeners** remains in `RoomScene` / `buildGuiOverlay`.
    */
   protected subscribeInventoryUsedOnTargetEvents(
     roomEventId: string,
     globalEventId: string,
-    handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
+    handler:
+      | ((p: AnyInventoryUsedOnPayload) => void | false)
+      | (() => void),
     doNotClear: boolean,
   ): void {
     let lastPayload: AnyInventoryUsedOnPayload | null = null;
+    let delegatedToGlobalUnhandled = false;
     const run = (payload: unknown): void => {
+      delegatedToGlobalUnhandled = false;
       const p = payload as AnyInventoryUsedOnPayload;
       lastPayload = p;
       if (handler.length === 0) {
         (handler as () => void)();
       } else {
-        (handler as (x: AnyInventoryUsedOnPayload) => void)(p);
+        const result = (handler as (x: AnyInventoryUsedOnPayload) => void | false)(p);
+        if (result === false) {
+          delegatedToGlobalUnhandled = true;
+          this.events.emit(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, p);
+        }
       }
     };
     const afterTail = (): void => {
+      if (delegatedToGlobalUnhandled) {
+        return;
+      }
       this.applyInventoryUseDropPolicyAfterInteraction(lastPayload?.itemId, doNotClear);
     };
     this.subscribeAfterInteractionTail(roomEventId, run, afterTail);
