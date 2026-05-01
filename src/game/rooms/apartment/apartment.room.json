@@ -478,7 +478,10 @@
         "y": 129
       },
       "baseline": 128,
-      "description": "table"
+      "description": "table",
+      "onVerb": {
+        "look": true
+      }
     }
   ],
   "characters": [

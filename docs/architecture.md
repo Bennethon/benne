@@ -660,7 +660,7 @@ The repo can hold **multiple authored game layouts** (e.g. a two-button verb gam
 
 | Path | Role |
 |------|------|
-| **`game-templates/_bootstrap/`** | Shared bootstrap TypeScript next to game content: loaders, `registerGameContent`, asset URL helpers, etc. The set of files is the **top-level filenames** in this folder (no subdirectories). |
+| **`game-templates/_bootstrap/`** | Mirror of shared content next to authored game files (loaders, `registerGameContent`, asset URL helpers, etc.). **`sync-bootstrap-down`** derives what to mirror from **`src/game/`**, not by listing this folder; **flat files only** (no subdirectories). |
 | **`game-templates/<template-id>/`** | Template-specific tree: `game-config.json`, `globalScript.ts`, `assets/`, `rooms/`, `characters/`, `guis/`, `inventory/`, etc. Each folder is one switchable template (e.g. **`2-click`**, **`9-verb`**). |
 | **`src/game/`** | Whatever template is active right now — same shape as today’s shipped game folder. |
 
@@ -674,7 +674,7 @@ Implementation: **[`scripts/switch-game-template.mjs`](../scripts/switch-game-te
 
 | Command | Effect |
 |---------|--------|
-| **`npm run sync-bootstrap-down`** | Mirror bootstrap files from **`src/game/`** → **`game-templates/_bootstrap/`** (same top-level names as in `_bootstrap/`). |
+| **`npm run sync-bootstrap-down`** | Mirror bootstrap files from **`src/game/`** → **`game-templates/_bootstrap/`** (see bootstrap rule below). |
 | **`npm run sync-template-down`** | Read **`name`** from **`src/game/game-config.json`**, then mirror **template** files from **`src/game/`** → **`game-templates/<name>/`**. |
 | **`npm run set-template -- <name>`** | Save the **current** live tree (bootstrap + template sync-down), then **replace** **`src/game/`** with a fresh copy of **`_bootstrap/`** + **`game-templates/<name>/`**. Shorthands: **`npm run set-template:2-click`**, **`npm run set-template:9-verb`**. |
 
@@ -682,8 +682,8 @@ Each mirror builds a **plan** (new / modified / unchanged / orphan deletes), pri
 
 **What counts as “bootstrap” vs “template”**
 
-- **Bootstrap**: any **top-level file** in **`src/game/`** whose basename appears in **`game-templates/_bootstrap/`** (today: the shared `*.ts` helpers only).
-- **Template**: everything else under **`src/game/`** — including **`game-config.json`**, **`globalScript.ts`**, and all subdirectories.
+- **Bootstrap**: every **top-level regular file** in **`src/game/`** **except** **`game-config.json`** and **`globalScript.ts`** (subdirectories never count). New engine helpers added alongside those two are synced automatically — the script does **not** read **`game-templates/_bootstrap/`** to discover names.
+- **Template**: **`game-config.json`**, **`globalScript.ts`**, and **everything under subdirectories** (rooms, assets, dialogs, …).
 
 **Special cases the script handles**
 

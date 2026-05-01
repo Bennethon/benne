@@ -13,6 +13,12 @@
  *
  * Active template name is read from src/game/game-config.json → `name`.
  *
+ * Bootstrap files are every **top-level file** under src/game/ except
+ * **`game-config.json`** and **`globalScript.ts`** (subdirectories never count).
+ * That list drives sync-bootstrap-down and defines which root files belong in
+ * `game-templates/_bootstrap/`, so new engine-side helpers added at the repo
+ * root of `src/game/` are captured automatically.
+ *
  * Template sync ignores editor / OS duplicate filenames (e.g. macOS
  * `game-config copy.json`, Windows `foo - Copy.json`, `foo (1).json`) so they
  * are never written into game-templates/ and are removed from the template
@@ -44,6 +50,8 @@ const SRC_GAME = path.join(REPO_ROOT, 'src', 'game');
 const GAME_TEMPLATES = path.join(REPO_ROOT, 'game-templates');
 const BOOTSTRAP_DIR = path.join(GAME_TEMPLATES, '_bootstrap');
 const GAME_CONFIG_JSON = 'game-config.json';
+/** Game-only bootstrap at repo root (`src/game/`); everything else flat + non-dir is sync’d to `_bootstrap/`. */
+const GLOBAL_SCRIPT_TS = 'globalScript.ts';
 
 // ---------------------------------------------------------------------------
 // CLI parsing
@@ -99,8 +107,7 @@ async function listFilesRecursive(root) {
 }
 
 /**
- * Top-level filenames (non-dir) in `dir`. Used to derive the bootstrap file
- * list from `game-templates/_bootstrap/`.
+ * Top-level filenames (non-dir) in `dir`.
  *
  * @param {string} dir
  * @returns {Promise<string[]>}
@@ -366,32 +373,6 @@ async function readTemplateName(configPath) {
 }
 
 /**
- * Bootstrap file filter (top-level files whose names appear in _bootstrap/).
- *
- * @param {Set<string>} bootstrapNames
- * @returns {(rel: string) => boolean}
- */
-function isBootstrapFile(bootstrapNames) {
-  return (rel) => !rel.includes('/') && bootstrapNames.has(rel);
-}
-
-/**
- * Template file filter: any file under src/game that is NOT a top-level
- * bootstrap file. Everything in subdirectories qualifies by definition.
- * `.gitkeep` markers are ignored — they only exist in template folders to
- * preserve empty subtrees under git and must survive a sync-down round-trip.
- *
- * @param {Set<string>} bootstrapNames
- * @returns {(rel: string) => boolean}
- */
-function isTemplateFile(bootstrapNames) {
-  return (rel) => {
-    if (path.basename(rel) === '.gitkeep') return false;
-    return rel.includes('/') || !bootstrapNames.has(rel);
-  };
-}
-
-/**
  * Files macOS / VS Code / Explorer create when duplicating or auto-renaming
  * (e.g. `game-config copy.json`). These must not be treated as game content
  * when mirroring to game-templates/.
@@ -413,24 +394,68 @@ function isUnmanagedEditorArtifact(rel) {
 }
 
 /**
- * @param {Set<string>} bootstrapNames
- * @returns {(rel: string) => boolean}
+ * `rel` is a bootstrap artifact under src/game/: top-level file, not game
+ * config, not global script, not editor duplicate noise.
+ *
+ * @param {string} rel Relative path (bootstrap mirror uses flat names only).
+ * @returns {boolean}
  */
-function isManagedTemplateFile(bootstrapNames) {
-  const base = isTemplateFile(bootstrapNames);
-  return (rel) => base(rel) && !isUnmanagedEditorArtifact(rel);
+function isLiveBootstrapRootFile(rel) {
+  if (rel.includes('/')) return false;
+  if (rel === GAME_CONFIG_JSON || rel === GLOBAL_SCRIPT_TS) return false;
+  if (isUnmanagedEditorArtifact(rel)) return false;
+  return true;
+}
+
+/**
+ * Basenames mirrored to `game-templates/_bootstrap/` (same rules as
+ * {@link isLiveBootstrapRootFile}).
+ *
+ * @returns {Promise<Set<string>>}
+ */
+async function getLiveBootstrapFilenameSet() {
+  const entries = await readdir(SRC_GAME, { withFileTypes: true });
+  /** @type {string[]} */
+  const names = [];
+  for (const e of entries) {
+    if (!e.isFile()) continue;
+    if (!isLiveBootstrapRootFile(e.name)) continue;
+    names.push(e.name);
+  }
+  return new Set(names);
+}
+
+/**
+ * Template-side files under src/game/: subdirectories, `.gitkeep` excluded,
+ * and exactly the two canonical **top-level** game files (`game-config.json`,
+ * `globalScript.ts`).
+ *
+ * @param {string} rel
+ * @returns {boolean}
+ */
+function isTemplateFile(rel) {
+  if (path.basename(rel) === '.gitkeep') return false;
+  if (rel.includes('/')) return true;
+  return rel === GAME_CONFIG_JSON || rel === GLOBAL_SCRIPT_TS;
+}
+
+/**
+ * @param {string} rel
+ * @returns {boolean}
+ */
+function isManagedTemplateFile(rel) {
+  return isTemplateFile(rel) && !isUnmanagedEditorArtifact(rel);
 }
 
 /**
  * Dest-side mirror domain: managed template files plus editor junk so orphans
- * (junk left from an old sync) get deleted when syncing down.
+ * get deleted when syncing down.
  *
- * @param {Set<string>} bootstrapNames
- * @returns {(rel: string) => boolean}
+ * @param {string} rel
+ * @returns {boolean}
  */
-function isTemplateMirrorDestFile(bootstrapNames) {
-  const managed = isManagedTemplateFile(bootstrapNames);
-  return (rel) => managed(rel) || isUnmanagedEditorArtifact(rel);
+function isTemplateMirrorDestFile(rel) {
+  return isManagedTemplateFile(rel) || isUnmanagedEditorArtifact(rel);
 }
 
 // ---------------------------------------------------------------------------
@@ -458,13 +483,12 @@ async function preflightRepoRoot() {
  * @returns {Promise<{ plan: MirrorPlan; bootstrapNames: Set<string> }>}
  */
 async function buildBootstrapDownPlan() {
-  const bootstrapList = await listTopLevelFiles(BOOTSTRAP_DIR);
-  const bootstrapNames = new Set(bootstrapList);
+  const bootstrapNames = await getLiveBootstrapFilenameSet();
   const plan = await planMirror({
     sourceRoot: SRC_GAME,
     destRoot: BOOTSTRAP_DIR,
     label: 'Sync bootstrap files (src/game → game-templates/_bootstrap)',
-    sourceFilter: isBootstrapFile(bootstrapNames),
+    sourceFilter: (rel) => isLiveBootstrapRootFile(rel),
     destFilter: (rel) => !rel.includes('/'),
   });
   return { plan, bootstrapNames };
@@ -472,10 +496,9 @@ async function buildBootstrapDownPlan() {
 
 /**
  * @param {string} templateName
- * @param {Set<string>} bootstrapNames
  * @returns {Promise<MirrorPlan>}
  */
-async function buildTemplateDownPlan(templateName, bootstrapNames) {
+async function buildTemplateDownPlan(templateName) {
   const destRoot = path.join(GAME_TEMPLATES, templateName);
   const destStat = await stat(destRoot).catch(() => null);
   if (!destStat?.isDirectory()) {
@@ -488,8 +511,8 @@ async function buildTemplateDownPlan(templateName, bootstrapNames) {
     sourceRoot: SRC_GAME,
     destRoot,
     label: `Sync template files (src/game → game-templates/${templateName})`,
-    sourceFilter: isManagedTemplateFile(bootstrapNames),
-    destFilter: isTemplateMirrorDestFile(bootstrapNames),
+    sourceFilter: (rel) => isManagedTemplateFile(rel),
+    destFilter: (rel) => isTemplateMirrorDestFile(rel),
   });
 }
 
@@ -512,8 +535,7 @@ async function runSyncBootstrapDown() {
 
 async function runSyncTemplateDown() {
   const activeName = await readTemplateName(path.join(SRC_GAME, GAME_CONFIG_JSON));
-  const { bootstrapNames } = await buildBootstrapDownPlan();
-  const plan = await buildTemplateDownPlan(activeName, bootstrapNames);
+  const plan = await buildTemplateDownPlan(activeName);
   renderPlan(plan);
   if (!planHasChanges(plan)) {
     console.log('\nAlready in sync. Nothing to do.');
@@ -572,7 +594,7 @@ async function runSetTemplate(targetName) {
     const currentTemplateDir = path.join(GAME_TEMPLATES, currentName);
     const currentStat = await stat(currentTemplateDir).catch(() => null);
     if (currentStat?.isDirectory()) {
-      templatePlan = await buildTemplateDownPlan(currentName, bootstrapNames);
+      templatePlan = await buildTemplateDownPlan(currentName);
     } else {
       console.warn(
         `\n[warn] Active template "${currentName}" has no game-templates/${currentName}/ folder. Skipping sync-template-down.`
