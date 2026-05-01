@@ -89,7 +89,8 @@ export interface GuiScriptContext {
 /** Passed to each `registerDialogScript` callback when a dialog session opens for that id. */
 export interface DialogScriptContext {
   /**
-   * Includes {@link DialogBenneScript.whenChoice} for line picks (wired to the choice GUI’s synthetic `dc__*` button ids).
+   * Includes {@link DialogBenneScript.whenChoice} for line picks (wired to the choice GUI’s synthetic `dc__*` button ids)
+   * and {@link import('./BenneScriptCore.js').BenneScriptCore.character} for NPC lines/movement (same active-room resolution as **`B.player`**).
    */
   readonly B: DialogBenneScript & BenneScriptSharedSelectionApi;
   readonly events: Phaser.Events.EventEmitter;

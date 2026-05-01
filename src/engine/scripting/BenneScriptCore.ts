@@ -25,7 +25,11 @@ import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManag
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import { INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT } from '../events/inventoryOnVerbEvents.js';
 import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerbTarget.js';
-import type { BenneScriptPlayerFacade } from './benneScriptFacades.js';
+import type {
+  BenneScriptCharacterFacade,
+  BenneScriptPlayerFacade,
+  BenneScriptRoomFacade,
+} from './benneScriptFacades.js';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
 import { getCharacterWorldFeet } from '../characterFeet.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
@@ -33,7 +37,6 @@ import {
   BENNE_SCREEN_FADE_DEFAULT_COLOR,
   BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
 } from '../scenes/roomScreenFadeConstants.js';
-import type { BenneScriptRoomFacade } from './benneScriptFacades.js';
 import { bindRoomFacadeForBenneScriptCore } from './benneScriptRoomApi.js';
 
 /**
@@ -256,6 +259,7 @@ export abstract class BenneScriptCore {
   private static walkToClickedDevWarnKeys = new Set<string>();
   private static faceClickedDevWarnKeys = new Set<string>();
   private static warnedScreenFadeNoRoom = false;
+  private static warnedCharacterFacadeNoRoomScene = false;
 
   protected readonly events: Phaser.Events.EventEmitter;
   private disposers: Array<() => void> = [];
@@ -1085,6 +1089,52 @@ export abstract class BenneScriptCore {
     return Object.assign(blocking, { now }) as BenneScriptSayDialogueHybrid;
   }
 
+  /**
+   * Like {@link composeFixedCharacterSayHybrid} but resolves **`RoomScene`** on each call (dialog / global / GUI).
+   */
+  protected composeFixedCharacterSayHybridLazy(
+    getScene: () => RoomScene | undefined,
+    definitionId: string,
+    logSay: (line: string) => void,
+    warnNoRoom: () => void,
+  ): BenneScriptSayDialogueHybrid {
+    const scope: BenneSayDialogueScope = { mode: 'fixed', definitionId };
+    const runStr = (line: string, opts: BenneScriptSayLineOptions | undefined, chain: boolean): void => {
+      const scene = getScene();
+      if (!scene) {
+        warnNoRoom();
+        return;
+      }
+      logSay(line);
+      this.queueSayDialogWithInputLock(scene, line, definitionId, chain, opts);
+    };
+    const blocking = (first: string | TemplateStringsArray, ...rest: unknown[]): void => {
+      const scene = getScene();
+      if (!scene) {
+        warnNoRoom();
+        return;
+      }
+      if (isTemplateStringsArray(first)) {
+        this.runDialogueFromTaggedTemplate(first, rest, scope, true, scene, logSay);
+      } else {
+        runStr(first as string, rest[0] as BenneScriptSayLineOptions | undefined, true);
+      }
+    };
+    const now = (first: string | TemplateStringsArray, ...rest: unknown[]): void => {
+      const scene = getScene();
+      if (!scene) {
+        warnNoRoom();
+        return;
+      }
+      if (isTemplateStringsArray(first)) {
+        this.runDialogueFromTaggedTemplate(first, rest, scope, false, scene, logSay);
+      } else {
+        runStr(first as string, rest[0] as BenneScriptSayLineOptions | undefined, false);
+      }
+    };
+    return Object.assign(blocking, { now }) as BenneScriptSayDialogueHybrid;
+  }
+
   protected composeFixedPlayerSayHybridLazy(
     getScene: () => RoomScene | undefined,
     logSay: (line: string) => void,
@@ -1270,5 +1320,145 @@ export abstract class BenneScriptCore {
         scene.stopCharacterScriptAnimation(pid);
       },
     } as BenneScriptPlayerFacade;
+  }
+
+  /**
+   * Movement / speech / facing for an NPC **spawned in the active room**, resolved via the same
+   * **`getPlayerWalkRoomScene`** hook as **`B.player`** (room/character/inventory pass a stable
+   * **`() => this.roomScene`** closure; dialog/global/gui pass **`() => game.scene.getScene(SCENE_ROOM)`**).
+   */
+  character(definitionId: string): BenneScriptCharacterFacade {
+    return this.makeCharacterFacadeLazy(() => this.getPlayerWalkRoomScene(), definitionId);
+  }
+
+  private makeCharacterFacadeLazy(
+    getScene: () => RoomScene | undefined,
+    definitionId: string,
+  ): BenneScriptCharacterFacade {
+    const core = this;
+    const warnNoRoom = (): void => {
+      if (import.meta.env.DEV && !BenneScriptCore.warnedCharacterFacadeNoRoomScene) {
+        BenneScriptCore.warnedCharacterFacadeNoRoomScene = true;
+        console.warn('[Benne] B.character used while RoomScene is not active — ignored.');
+      }
+    };
+    const logCharacterSay = (line: string): void => {
+      console.log(`[Character ${definitionId}] ${line}`);
+    };
+    const runCharacterFace = (direction: CharacterFacingLetter): void => {
+      const scene = getScene();
+      if (!scene) {
+        warnNoRoom();
+        return;
+      }
+      scene.faceCharacterScriptDirection(definitionId, direction);
+    };
+    const walkCharacterWithNow = withNow(
+      (target: Point2 | string) => {
+        core.chain(() => {
+          const scene = getScene();
+          if (!scene) {
+            warnNoRoom();
+            return Promise.resolve();
+          }
+          return scene.walkCharacterTo(definitionId, target);
+        });
+      },
+      (target: Point2 | string) => {
+        const scene = getScene();
+        if (!scene) {
+          warnNoRoom();
+          return;
+        }
+        void scene.walkCharacterTo(definitionId, target);
+      },
+    );
+    const moveToTeleport = withNow(
+      (target: Point2 | string) => {
+        core.chain(() => {
+          const scene = getScene();
+          if (!scene) {
+            warnNoRoom();
+            return Promise.resolve();
+          }
+          scene.moveCharacterToNow(definitionId, target);
+          return Promise.resolve();
+        });
+      },
+      (target: Point2 | string) => {
+        const scene = getScene();
+        if (!scene) {
+          warnNoRoom();
+          return;
+        }
+        scene.moveCharacterToNow(definitionId, target);
+      },
+    );
+    return {
+      walkTo: walkCharacterWithNow,
+      moveTo: moveToTeleport,
+      moveToNow: (target: Point2 | string) => {
+        moveToTeleport.now(target);
+      },
+      get animation() {
+        const scene = getScene();
+        return scene ? scene.getCharacterScriptEffectiveAnimationTag(definitionId) : '';
+      },
+      set animation(tag: string | null) {
+        core.chain(() => {
+          const scene = getScene();
+          if (!scene) {
+            warnNoRoom();
+          } else {
+            scene.setCharacterScriptAnimationOverride(definitionId, tag);
+          }
+          return Promise.resolve();
+        });
+      },
+      animationNow(tag: string | null): void {
+        const scene = getScene();
+        if (!scene) {
+          warnNoRoom();
+          return;
+        }
+        scene.setCharacterScriptAnimationOverride(definitionId, tag);
+      },
+      playAnimation: withNow(
+        (tag: string) => {
+          core.chain(() => {
+            const scene = getScene();
+            if (!scene) {
+              warnNoRoom();
+              return Promise.resolve();
+            }
+            return scene.playCharacterScriptAnimationOneShot(definitionId, tag);
+          });
+        },
+        (tag: string) => {
+          const scene = getScene();
+          if (scene) {
+            void scene.playCharacterScriptAnimationOneShot(definitionId, tag);
+          }
+        },
+      ),
+      stopAnimation(): void {
+        const scene = getScene();
+        if (!scene) {
+          warnNoRoom();
+          return;
+        }
+        scene.stopCharacterScriptAnimation(definitionId);
+      },
+      say: core.composeFixedCharacterSayHybridLazy(getScene, definitionId, logCharacterSay, warnNoRoom),
+      face: withNow(
+        (direction: CharacterFacingLetter) => {
+          core.chain(() => {
+            runCharacterFace(direction);
+            return Promise.resolve();
+          });
+        },
+        runCharacterFace,
+      ),
+    } as BenneScriptCharacterFacade;
   }
 }
