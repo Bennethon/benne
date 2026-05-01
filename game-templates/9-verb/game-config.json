@@ -5,15 +5,44 @@
     "height": 198
   },
   "verbs": [
-    { "id": "give", "label": "Give", "preposition": "to" },
-    { "id": "pickUp", "label": "Pick up" },
-    { "id": "use", "label": "Use", "preposition": "with" },
-    { "id": "open", "label": "Open" },
-    { "id": "look", "label": "Look at" },
-    { "id": "push", "label": "Push" },
-    { "id": "close", "label": "Close" },
-    { "id": "talkTo", "label": "Talk to" },
-    { "id": "pull", "label": "Pull" }
+    {
+      "id": "give",
+      "label": "Give",
+      "preposition": "to"
+    },
+    {
+      "id": "pickUp",
+      "label": "Pick up"
+    },
+    {
+      "id": "use",
+      "label": "Use",
+      "preposition": "with"
+    },
+    {
+      "id": "open",
+      "label": "Open"
+    },
+    {
+      "id": "look",
+      "label": "Look at"
+    },
+    {
+      "id": "push",
+      "label": "Push"
+    },
+    {
+      "id": "close",
+      "label": "Close"
+    },
+    {
+      "id": "talkTo",
+      "label": "Talk to"
+    },
+    {
+      "id": "pull",
+      "label": "Pull"
+    }
   ],
   "inputProfile": {
     "primaryButtonVerb": "walkTo",
@@ -27,15 +56,8 @@
     "flags": {},
     "variables": {},
     "inventory": [
-      "Key",
-      "Chainsaw",
-      "Ladder",
       "Broom",
-      "Lantern",
-      "SheetMusic",
-      "Vacuum",
-      "Candy1",
-      "Newspaper"
+      "Lantern"
     ]
   },
   "audio": {
@@ -52,9 +74,12 @@
   "dialog": {
     "clickToSkip": true,
     "showText": true,
-    "defaultTalkOffset": { "x": 0, "y": 0 },
+    "defaultTalkOffset": {
+      "x": 0,
+      "y": 0
+    },
     "minDurationMs": 800,
-    "msPerCharacter": 35,
+    "msPerCharacter": 80,
     "maxDurationMs": 4500,
     "durationMultiplier": 1
   },

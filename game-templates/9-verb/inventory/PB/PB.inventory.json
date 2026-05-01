@@ -1,0 +1,14 @@
+{
+  "id": "PB",
+  "name": "PB",
+  "description": "peanut butter",
+  "onVerb": {
+    "open": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "defaultAnimation": "PB"
+}
