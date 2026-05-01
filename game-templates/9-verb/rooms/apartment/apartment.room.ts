@@ -24,20 +24,18 @@ registerRoomScript(({ B }) => {
     }
   });
 
-  B.whenLookAt('henry', () => {
-    B.player.say('Henry is in the room.');
+  B.whenLookAt('penny', () => {
+    B.player.say("It's Penny.");
   });
 
-  B.whenTalkTo('henry', () => {
+  B.whenTalkTo('penny', () => {
     B.walkToClicked();
     B.faceClicked();
     B.say`
-      Hank: Hello, I am saying something!
-      Henry: Oh really? I am too!
-      Player: This feels so good!
+      Hank: Hey Penny!
+      Penny: Hi!
       `;
-    B.character('henry').say('Thats cool.');
-    B.player.say('Yes, it is.');
+    B.dialog("chatwithpenny").start();
   });
 
   B.whenLookAt('Couch', () => {
@@ -46,23 +44,30 @@ registerRoomScript(({ B }) => {
   });
 
   B.whenUse('Door', () => {
+
     B.walkToClicked();
     B.player.faceClicked();
-    B.prop('Door').animation = 'Door-open';
-    B.room.changeTo('outside');
+
+    if (B.state.getFlag('unlockedDoor')) {
+      B.prop('Door').animation = 'Door-open';
+      B.room.changeTo('outside');
+    } else {
+      B.say`Hank: The door is locked.`;
+    }
+    
   });
 
   B.whenOpen('Door', () => {
     B.player.walkToClicked();
     B.player.faceClicked();
-    B.prop('Door').animation = 'Door-open';
-    // B.prop('Door').playAnimation('Door-open');
-  });
+    
+    if (B.state.getFlag('unlockedDoor')) {
+      B.prop('Door').animation = 'Door-open';
+      B.room.changeTo('outside');
+    } else {
+      B.say`Hank: The door is locked.`;
+    }
 
-  B.whenPush('henry', () => {
-    B.character('henry').playAnimation('WalkU');
-    // B.character('henry').animation = 'WalkU';
-    B.inventory('Lantern').animation = 'Lantern-glowing';
   });
 
   B.whenPull('Couch', () => {
@@ -73,5 +78,50 @@ registerRoomScript(({ B }) => {
     B.fadeOut(2, 0x00ff00);
     B.wait(1);
     B.fadeIn(2, 0x00ff00);
+  });
+  B.whenInventoryUsedOn('Bread', (payload) => {
+    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
+      B.say`Hank: I don't need to clean the bread.`
+    } else if (payload.itemId === 'Broom' && payload.verbId === 'give') {
+      B.say`Hank: I can't give something to bread.`
+    }
+  });
+
+  B.whenLookAt('Bread', () => {
+    B.say`Hank: It's some bread.`;
+  });
+
+  B.whenPickUp('Bread', () => {
+    B.walkToClicked();
+    B.player.faceClicked();
+    B.inventory.add('Bread');
+    B.prop('Bread').hide();
+  });
+
+  B.whenLookAt('Knife', () => {
+    B.faceClicked();
+    B.say`Hank: It's a knife.`;
+  });
+
+  B.whenPickUp('Knife', () => {
+    B.walkToClicked();
+    B.player.faceClicked();
+    B.inventory.add('Knife');
+    B.prop('Knife').hide();
+  });
+
+  B.whenLookAt('PeanutButter', () => {
+    B.say`Hank: It's some peanut butter.`;
+  });
+
+  B.whenPickUp('PeanutButter', () => {
+    B.walkToClicked();
+    B.player.faceClicked();
+    B.inventory.add('PB');
+    B.prop('PeanutButter').hide();
+  });
+
+  B.whenLookAt('Table', () => {
+    B.player.say('I like to keep this table here so I can walk around it.');
   });
 });

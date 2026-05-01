@@ -118,14 +118,6 @@
     "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
     "sourceSize": { "w": 352, "h": 198 },
     "duration": 100
-   },
-   "apartment 15.aseprite": {
-    "frame": { "x": 1056, "y": 594, "w": 352, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
-    "sourceSize": { "w": 352, "h": 198 },
-    "duration": 100
    }
  },
  "meta": {
@@ -145,8 +137,7 @@
    { "name": "Table", "from": 11, "to": 11, "direction": "forward", "color": "#000000ff" },
    { "name": "Bread", "from": 12, "to": 12, "direction": "forward", "color": "#000000ff" },
    { "name": "PeanutButter", "from": 13, "to": 13, "direction": "forward", "color": "#000000ff" },
-   { "name": "Knife", "from": 14, "to": 14, "direction": "forward", "color": "#000000ff" },
-   { "name": "Key", "from": 15, "to": 15, "direction": "forward", "color": "#000000ff" }
+   { "name": "Knife", "from": 14, "to": 14, "direction": "forward", "color": "#000000ff" }
   ],
   "layers": [
    { "name": "Walls and Floor", "opacity": 255, "blendMode": "normal" },
@@ -156,12 +147,10 @@
    { "name": "Couch", "opacity": 255, "blendMode": "normal" },
    { "name": "Door", "opacity": 255, "blendMode": "normal" },
    { "name": "Door Open", "opacity": 255, "blendMode": "normal" },
-   { "name": "Pillar", "opacity": 255, "blendMode": "normal" },
    { "name": "Table", "opacity": 255, "blendMode": "normal" },
    { "name": "Bread", "opacity": 255, "blendMode": "normal" },
    { "name": "Peanut butter", "opacity": 255, "blendMode": "normal" },
    { "name": "Knife", "opacity": 255, "blendMode": "normal" },
-   { "name": "Key", "opacity": 255, "blendMode": "normal" },
    { "name": "Fan", "opacity": 255, "blendMode": "normal" },
    { "name": "Hank", "opacity": 255, "blendMode": "normal" },
    { "name": "Verbs", "opacity": 255, "blendMode": "normal" }

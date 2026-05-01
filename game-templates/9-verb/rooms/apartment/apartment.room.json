@@ -294,47 +294,12 @@
         "x": 208,
         "y": 108
       },
-      "baseline": 109
-    },
-    {
-      "id": "Key",
-      "tag": "Key",
-      "animations": {
-        "Key": {}
+      "baseline": 109,
+      "onVerb": {
+        "look": true,
+        "pickUp": true
       },
-      "zIndex": 13,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 191,
-            "y": 101
-          },
-          {
-            "x": 198,
-            "y": 100
-          },
-          {
-            "x": 198,
-            "y": 104
-          },
-          {
-            "x": 191,
-            "y": 104
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 193,
-        "y": 114
-      },
-      "lookAtPoint": {
-        "x": 195,
-        "y": 104
-      },
-      "baseline": 103
+      "description": "bread"
     },
     {
       "id": "Knife",
@@ -374,7 +339,12 @@
         "x": 189,
         "y": 110
       },
-      "baseline": 111
+      "baseline": 111,
+      "onVerb": {
+        "look": true,
+        "pickUp": true
+      },
+      "description": "knife"
     },
     {
       "id": "PeanutButter",
@@ -414,7 +384,12 @@
         "x": 225,
         "y": 104
       },
-      "baseline": 104
+      "baseline": 104,
+      "onVerb": {
+        "look": true,
+        "pickUp": true
+      },
+      "description": "peanut butter"
     },
     {
       "id": "Table",
@@ -502,29 +477,33 @@
         "x": 203,
         "y": 129
       },
-      "baseline": 128
+      "baseline": 128,
+      "description": "table",
+      "onVerb": {
+        "look": true
+      }
     }
   ],
   "characters": [
     {
       "instanceId": "hank-1",
       "definition": "hank/hank.character.json",
-      "x": 106,
-      "y": 136,
+      "x": 260,
+      "y": 115,
       "initialFacing": "L",
       "initialAnimation": "Idle",
       "visible": true,
       "zIndex": 9
     },
     {
-      "instanceId": "henry-1",
-      "definition": "henry/henry.character.json",
-      "x": 260,
-      "y": 120,
-      "initialFacing": "L",
+      "instanceId": "penny-1",
+      "definition": "penny/penny.character.json",
+      "x": 60,
+      "y": 135,
+      "initialFacing": "R",
       "initialAnimation": "Idle",
       "visible": true,
-      "zIndex": 41
+      "zIndex": 42
     }
   ]
 }

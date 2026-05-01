@@ -1,7 +1,7 @@
 {
-  "id": "Newspaper",
-  "name": "Newspaper",
-  "description": "",
+  "id": "Bread",
+  "name": "Bread",
+  "description": "bread",
   "onVerb": {},
   "stackable": false,
   "animations": {},

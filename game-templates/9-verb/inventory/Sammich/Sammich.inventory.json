@@ -1,8 +1,9 @@
 {
-  "id": "Ladder",
-  "name": "Ladder",
-  "description": "",
+  "id": "Sammich",
+  "name": "Sammich",
+  "description": "sammich",
   "onVerb": {
+    "look": true,
     "use": true
   },
   "stackable": false,

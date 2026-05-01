@@ -155,12 +155,22 @@
     {
       "instanceId": "hank-1",
       "definition": "hank/hank.character.json",
-      "x": 300,
+      "x": 280,
       "y": 99,
       "initialFacing": "L",
       "initialAnimation": "Idle",
       "visible": true,
       "zIndex": 30
+    },
+    {
+      "instanceId": "henry-1",
+      "definition": "henry/henry.character.json",
+      "x": 340,
+      "y": 116,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 32
     }
   ]
 }

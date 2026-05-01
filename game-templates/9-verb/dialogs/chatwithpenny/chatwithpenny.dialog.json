@@ -1,0 +1,18 @@
+{
+  "id": "chatwithpenny",
+  "displayName": "ChatWithPenny",
+  "options": [
+    {
+      "id": "greeting",
+      "text": "Hello."
+    },
+    {
+      "id": "door",
+      "text": "Do you know how to open the door? Do you know how to open the door? Do you?"
+    },
+    {
+      "id": "bye",
+      "text": "Ok, bye!"
+    }
+  ]
+}

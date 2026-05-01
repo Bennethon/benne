@@ -1,6 +1,6 @@
 {
   "id": "Lantern",
-  "name": "Lantern",
+  "name": "lantern",
   "description": "",
   "onVerb": {
     "use": true
