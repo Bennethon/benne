@@ -100,9 +100,6 @@
       "lookAtPoint": {
         "x": 169,
         "y": 79
-      },
-      "onVerb": {
-        "look": true
       }
     },
     {
@@ -135,9 +132,6 @@
       "lookAtPoint": {
         "x": 75,
         "y": 91
-      },
-      "onVerb": {
-        "use": true
       }
     }
   ],
@@ -226,11 +220,6 @@
             "y": 101
           }
         ]
-      },
-      "onVerb": {
-        "look": true,
-        "use": true,
-        "slap": true
       }
     },
     {
@@ -268,11 +257,6 @@
             "y": 105
           }
         ]
-      },
-      "onVerb": {
-        "look": true,
-        "use": true,
-        "slap": true
       }
     },
     {
@@ -337,10 +321,6 @@
             "y": 105
           }
         ]
-      },
-      "onVerb": {
-        "look": true,
-        "use": true
       }
     },
     {
@@ -385,10 +365,6 @@
             "y": 99
           }
         ]
-      },
-      "onVerb": {
-        "look": true,
-        "use": true
       }
     },
     {
@@ -426,11 +402,6 @@
             "y": 100
           }
         ]
-      },
-      "onVerb": {
-        "look": true,
-        "use": true,
-        "slap": true
       }
     },
     {

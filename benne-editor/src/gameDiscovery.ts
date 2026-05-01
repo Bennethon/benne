@@ -130,19 +130,6 @@ export async function listCharacterDefinitions(
     return result;
 }
 
-function parseOnVerbRecord(raw: unknown): Record<string, boolean> | undefined {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-        return undefined;
-    }
-    const out: Record<string, boolean> = {};
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-        if (v === true) {
-            out[k] = true;
-        }
-    }
-    return Object.keys(out).length > 0 ? out : undefined;
-}
-
 /** One entry from `game-config.json` `verbs` (mirrors engine `GameVerbDefinition`). */
 export type GameConfigVerbEntry = { id: string; label?: string; preposition?: string };
 
@@ -320,7 +307,6 @@ export interface RoomPropEntry {
     zIndex?: number;
     visible?: boolean;
     clickable?: boolean;
-    onVerb?: Record<string, boolean>;
     onVerbFallback?: boolean;
 }
 
@@ -596,7 +582,6 @@ export async function readRoomProps(uri: vscode.Uri): Promise<RoomPropEntry[]> {
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : undefined,
                 visible: typeof o.visible === 'boolean' ? o.visible : undefined,
                 clickable: typeof o.clickable === 'boolean' ? o.clickable : undefined,
-                onVerb: parseOnVerbRecord(o.onVerb),
                 onVerbFallback:
                     typeof o.onVerbFallback === 'boolean'
                         ? o.onVerbFallback
@@ -613,7 +598,6 @@ export interface RoomHotspotListEntry {
     description?: string;
     zIndex?: number;
     active?: boolean;
-    onVerb?: Record<string, boolean>;
     onVerbFallback?: boolean;
 }
 
@@ -642,7 +626,6 @@ export async function readRoomHotspots(uri: vscode.Uri): Promise<RoomHotspotList
                 description: typeof o.description === 'string' ? o.description : undefined,
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : undefined,
                 active: typeof o.active === 'boolean' ? o.active : undefined,
-                onVerb: parseOnVerbRecord(o.onVerb),
                 onVerbFallback:
                     typeof o.onVerbFallback === 'boolean'
                         ? o.onVerbFallback

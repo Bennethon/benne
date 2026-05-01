@@ -18,6 +18,8 @@ registerRoomScript(({ B }) => {
     if (payload.itemId === 'Broom') {
       B.player.walkTo('Pillar');
       B.player.say('I used the Broom on the Pillar.');
+    } else {
+      B.player.say("That doesn't work.");
     }
   });
 

@@ -10,12 +10,12 @@ import type { GivePropInteractPayload } from './benneScriptPayloads.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
-  globalInventoryOnCharacterEventId,
-  globalInventoryOnHotspotEventId,
-  globalInventoryOnPropEventId,
-  roomInventoryOnCharacterEventId,
-  roomInventoryOnHotspotEventId,
-  roomInventoryOnPropEventId,
+  globalInventoryOnCharacterAnySourceEventId,
+  globalInventoryOnHotspotAnySourceEventId,
+  globalInventoryOnPropAnySourceEventId,
+  roomInventoryOnCharacterAnySourceEventId,
+  roomInventoryOnHotspotAnySourceEventId,
+  roomInventoryOnPropAnySourceEventId,
 } from '../events/inventoryOnVerbEvents.js';
 import {
   characterVerbEventId,
@@ -23,7 +23,6 @@ import {
   roomHotspotVerbEventId,
   roomPropVerbEventId,
 } from '../events/verbInteractionEvents.js';
-import { getRegisteredInventoryDefinitionIds } from '../inventory/inventoryDefinitionRegistry.js';
 import type {
   AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
@@ -156,7 +155,7 @@ export class BenneScript extends BenneScriptCore {
    * Subscribe to a **prop** verb event for this room (**prop id only**). Prefer **`when*`** / **`whenVerb`** for prop → hotspot → character resolution.
    *
    * @param propId - **`props[].id`** in this room’s `.room.json`.
-   * @param verbId - Verb id from **`game-config.json`** `verbs[]` (prop may also list it in **`onVerb`** for authoring; dispatch is listener-first).
+   * @param verbId - Verb id from **`game-config.json`** `verbs[]` (dispatch is listener-first).
    * @param handler - Receives {@link RoomPropInteractPayload} when the handler accepts a parameter.
    *
    * @example
@@ -289,38 +288,31 @@ export class BenneScript extends BenneScriptCore {
     handler: ((p: AnyInventoryUsedOnPayload) => void) | (() => void),
     doNotClear: boolean,
   ): void {
-    const itemIds = getRegisteredInventoryDefinitionIds();
     if (this.roomScene.getRoomPropInstance(targetId)) {
-      for (const itemId of itemIds) {
-        this.subscribeInventoryUsedOnTargetEvents(
-          roomInventoryOnPropEventId(this.roomId, targetId, itemId),
-          globalInventoryOnPropEventId(targetId, itemId),
-          handler,
-          doNotClear,
-        );
-      }
+      this.subscribeInventoryUsedOnTargetEvents(
+        roomInventoryOnPropAnySourceEventId(this.roomId, targetId),
+        globalInventoryOnPropAnySourceEventId(targetId),
+        handler,
+        doNotClear,
+      );
       return;
     }
     if (this.roomScene.getRoomHotspotInstance(targetId)) {
-      for (const itemId of itemIds) {
-        this.subscribeInventoryUsedOnTargetEvents(
-          roomInventoryOnHotspotEventId(this.roomId, targetId, itemId),
-          globalInventoryOnHotspotEventId(targetId, itemId),
-          handler,
-          doNotClear,
-        );
-      }
+      this.subscribeInventoryUsedOnTargetEvents(
+        roomInventoryOnHotspotAnySourceEventId(this.roomId, targetId),
+        globalInventoryOnHotspotAnySourceEventId(targetId),
+        handler,
+        doNotClear,
+      );
       return;
     }
     if (this.roomScene.getCharacterSprite(targetId)) {
-      for (const itemId of itemIds) {
-        this.subscribeInventoryUsedOnTargetEvents(
-          roomInventoryOnCharacterEventId(this.roomId, targetId, itemId),
-          globalInventoryOnCharacterEventId(targetId, itemId),
-          handler,
-          doNotClear,
-        );
-      }
+      this.subscribeInventoryUsedOnTargetEvents(
+        roomInventoryOnCharacterAnySourceEventId(this.roomId, targetId),
+        globalInventoryOnCharacterAnySourceEventId(targetId),
+        handler,
+        doNotClear,
+      );
       return;
     }
     this.warnNoInventoryOnTarget(targetId);

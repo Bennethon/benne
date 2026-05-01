@@ -84,34 +84,15 @@ export function buildPropVerbChips(
     roomScriptText: string
 ): InspectorVerbChip[] {
     const authorable = filterAuthorableVerbs(gameVerbs);
-    const onVerb = prop.onVerb ?? {};
-    const gameVerbIds = new Set(authorable.map((v) => v.id));
     const out: InspectorVerbChip[] = [];
 
     for (const v of authorable) {
-        const inJson = onVerb[v.id] === true;
         const inTs = roomScriptRegistersPropVerb(roomScriptText, roomId, prop.id, v.id, configured);
         out.push({
             verbId: v.id,
             label: v.label?.trim() ? v.label : v.id,
-            defined: inJson || inTs,
+            defined: inTs,
             eventId: roomPropVerbEventId(roomId, prop.id, v.id)
-        });
-    }
-
-    for (const verbId of Object.keys(onVerb).sort()) {
-        if (gameVerbIds.has(verbId) || verbId === WALK_TO_VERB_ID) {
-            continue;
-        }
-        if (onVerb[verbId] !== true) {
-            continue;
-        }
-        const inTs = roomScriptRegistersPropVerb(roomScriptText, roomId, prop.id, verbId, configured);
-        out.push({
-            verbId,
-            label: verbId,
-            defined: onVerb[verbId] === true || inTs,
-            eventId: roomPropVerbEventId(roomId, prop.id, verbId)
         });
     }
 
@@ -138,12 +119,9 @@ export function buildHotspotVerbChips(
     roomPropIds: ReadonlySet<string>
 ): InspectorVerbChip[] {
     const authorable = filterAuthorableVerbs(gameVerbs);
-    const onVerb = hotspot.onVerb ?? {};
-    const gameVerbIds = new Set(authorable.map((v) => v.id));
     const out: InspectorVerbChip[] = [];
 
     for (const v of authorable) {
-        const inJson = onVerb[v.id] === true;
         const inTs = roomScriptRegistersHotspotVerb(
             roomScriptText,
             roomId,
@@ -155,31 +133,8 @@ export function buildHotspotVerbChips(
         out.push({
             verbId: v.id,
             label: v.label?.trim() ? v.label : v.id,
-            defined: inJson || inTs,
+            defined: inTs,
             eventId: roomHotspotVerbEventId(roomId, hotspot.id, v.id)
-        });
-    }
-
-    for (const verbId of Object.keys(onVerb).sort()) {
-        if (gameVerbIds.has(verbId) || verbId === WALK_TO_VERB_ID) {
-            continue;
-        }
-        if (onVerb[verbId] !== true) {
-            continue;
-        }
-        const inTs = roomScriptRegistersHotspotVerb(
-            roomScriptText,
-            roomId,
-            hotspot.id,
-            verbId,
-            configured,
-            roomPropIds
-        );
-        out.push({
-            verbId,
-            label: verbId,
-            defined: onVerb[verbId] === true || inTs,
-            eventId: roomHotspotVerbEventId(roomId, hotspot.id, verbId)
         });
     }
 

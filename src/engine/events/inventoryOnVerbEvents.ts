@@ -10,34 +10,59 @@ const VERB_ROOM_PREFIX = 'verb:room:';
  */
 export const INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT = 'verb:global:inventoryOnVerbTarget:unhandled';
 
-/** `verb:room:<roomId>:inventoryOnProp:<propId>:<itemId>` */
+/** `verb:room:<roomId>:inventoryOnProp:<propId>:<sourceItemId>` — one listener per armed item. */
 export function roomInventoryOnPropEventId(roomId: string, propId: string, itemId: string): string {
   return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnProp:${propId}:${itemId}`;
 }
 
-/** `verb:inventoryOnProp:<propId>:<itemId>` — global fallback after no room-scoped listener. */
+/** `verb:inventoryOnProp:<propId>:<sourceItemId>` — global fallback after no room-scoped listener. */
 export function globalInventoryOnPropEventId(propId: string, itemId: string): string {
   return `verb:inventoryOnProp:${propId}:${itemId}`;
 }
 
-/** `verb:room:<roomId>:inventoryOnHotspot:<hotspotId>:<itemId>` */
+/** Room: armed item id is arbitrary — filter inside the handler via {@link AnyInventoryUsedOnPayload}'s `itemId`. */
+export function roomInventoryOnPropAnySourceEventId(roomId: string, propId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnPropAny:${propId}`;
+}
+
+export function globalInventoryOnPropAnySourceEventId(propId: string): string {
+  return `verb:inventoryOnPropAny:${propId}`;
+}
+
+/** `verb:room:<roomId>:inventoryOnHotspot:<hotspotId>:<sourceItemId>` */
 export function roomInventoryOnHotspotEventId(roomId: string, hotspotId: string, itemId: string): string {
   return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnHotspot:${hotspotId}:${itemId}`;
 }
 
-/** `verb:inventoryOnHotspot:<hotspotId>:<itemId>` */
+/** `verb:inventoryOnHotspot:<hotspotId>:<sourceItemId>` */
 export function globalInventoryOnHotspotEventId(hotspotId: string, itemId: string): string {
   return `verb:inventoryOnHotspot:${hotspotId}:${itemId}`;
 }
 
-/** `verb:room:<roomId>:inventoryOnCharacter:<characterId>:<itemId>` */
+export function roomInventoryOnHotspotAnySourceEventId(roomId: string, hotspotId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnHotspotAny:${hotspotId}`;
+}
+
+export function globalInventoryOnHotspotAnySourceEventId(hotspotId: string): string {
+  return `verb:inventoryOnHotspotAny:${hotspotId}`;
+}
+
+/** `verb:room:<roomId>:inventoryOnCharacter:<characterId>:<sourceItemId>` */
 export function roomInventoryOnCharacterEventId(roomId: string, characterId: string, itemId: string): string {
   return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnCharacter:${characterId}:${itemId}`;
 }
 
-/** `verb:inventoryOnCharacter:<characterId>:<itemId>` */
+/** `verb:inventoryOnCharacter:<characterId>:<sourceItemId>` */
 export function globalInventoryOnCharacterEventId(characterId: string, itemId: string): string {
   return `verb:inventoryOnCharacter:${characterId}:${itemId}`;
+}
+
+export function roomInventoryOnCharacterAnySourceEventId(roomId: string, characterId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnCharacterAny:${characterId}`;
+}
+
+export function globalInventoryOnCharacterAnySourceEventId(characterId: string): string {
+  return `verb:inventoryOnCharacterAny:${characterId}`;
 }
 
 /** `verb:room:<roomId>:inventoryOnInventoryItem:<targetItemId>:<sourceItemId>` */
@@ -52,6 +77,15 @@ export function roomInventoryOnInventoryItemEventId(
 /** `verb:inventoryOnInventoryItem:<targetItemId>:<sourceItemId>` */
 export function globalInventoryOnInventoryItemEventId(targetItemId: string, sourceItemId: string): string {
   return `verb:inventoryOnInventoryItem:${targetItemId}:${sourceItemId}`;
+}
+
+/** Row target only — armed source item id is in {@link InventoryUsedOnInventoryItemPayload} as **`itemId`**. */
+export function roomInventoryOnInventoryRowEventId(roomId: string, targetItemId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnInventoryRow:${targetItemId}`;
+}
+
+export function globalInventoryOnInventoryRowEventId(targetItemId: string): string {
+  return `verb:inventoryOnInventoryRow:${targetItemId}`;
 }
 
 export interface InventoryUsedOnPropPayload {

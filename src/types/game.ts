@@ -62,7 +62,7 @@ export interface GameSettingsDialog {
   durationMultiplier: number;
 }
 
-/** One verb the game exposes (ids power prop/hotspot/inventory `onVerb`, `inputProfile`, and global handler events). */
+/** One verb the game exposes (ids power inventory `onVerb`, `inputProfile`, and global handler events). */
 export interface GameVerbDefinition {
   /** Stable id used in room JSON (props/hotspots), inventory JSON, `inputProfile`, and scripts. */
   id: string;

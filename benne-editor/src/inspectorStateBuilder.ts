@@ -674,10 +674,6 @@ async function buildRoomInspectorState(
                 defaultAnimation: typeof o.defaultAnimation === 'string' ? o.defaultAnimation : undefined,
                 clickable: typeof o.clickable === 'boolean' ? o.clickable : undefined,
                 visible: typeof o.visible === 'boolean' ? o.visible : undefined,
-                onVerb:
-                    o.onVerb && typeof o.onVerb === 'object' && !Array.isArray(o.onVerb)
-                        ? (o.onVerb as Record<string, boolean>)
-                        : undefined,
                 onVerbFallback: typeof o.onVerbFallback === 'boolean' ? o.onVerbFallback : undefined,
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : undefined
             } as RoomPropEntry);
@@ -761,10 +757,6 @@ async function buildRoomInspectorState(
                     description: typeof o.description === 'string' ? o.description : undefined,
                     zIndex: typeof o.zIndex === 'number' ? o.zIndex : undefined,
                     active: typeof o.active === 'boolean' ? o.active : undefined,
-                    onVerb:
-                        o.onVerb && typeof o.onVerb === 'object' && !Array.isArray(o.onVerb)
-                            ? (o.onVerb as Record<string, boolean>)
-                            : undefined,
                     onVerbFallback: typeof o.onVerbFallback === 'boolean' ? o.onVerbFallback : undefined
                 } as RoomHotspotListEntry);
             const verbs = buildHotspotVerbChips(

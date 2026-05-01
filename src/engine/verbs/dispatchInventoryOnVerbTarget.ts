@@ -5,13 +5,21 @@ import {
   INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT,
   buildInventoryUsedOnInventoryItemPayload,
   buildInventoryUsedOnPayload,
+  globalInventoryOnCharacterAnySourceEventId,
   globalInventoryOnCharacterEventId,
+  globalInventoryOnHotspotAnySourceEventId,
   globalInventoryOnHotspotEventId,
   globalInventoryOnInventoryItemEventId,
+  globalInventoryOnInventoryRowEventId,
+  globalInventoryOnPropAnySourceEventId,
   globalInventoryOnPropEventId,
+  roomInventoryOnCharacterAnySourceEventId,
   roomInventoryOnCharacterEventId,
+  roomInventoryOnHotspotAnySourceEventId,
   roomInventoryOnHotspotEventId,
   roomInventoryOnInventoryItemEventId,
+  roomInventoryOnInventoryRowEventId,
+  roomInventoryOnPropAnySourceEventId,
   roomInventoryOnPropEventId,
   type AnyInventoryUsedOnPayload,
 } from '../events/inventoryOnVerbEvents';
@@ -26,18 +34,29 @@ function listenerCount(bus: EventBus, event: string): number {
   return bus.listeners(event).length;
 }
 
-function tryEmitInventoryOnTargetOrGlobalUnhandled(
+/** Per-source handlers first (`…:inventoryOnProp:id:knife`), then target-wide scripts (`inventoryOnPropAny`). */
+function tryEmitInventoryUsedOnFiveTier(
   bus: EventBus,
-  roomEventId: string,
-  globalEventId: string,
+  roomSourceSpecific: string,
+  roomAnySource: string,
+  globalSourceSpecific: string,
+  globalAnySource: string,
   payload: AnyInventoryUsedOnPayload,
 ): boolean {
-  if (listenerCount(bus, roomEventId) > 0) {
-    bus.emit(roomEventId, payload);
+  if (listenerCount(bus, roomSourceSpecific) > 0) {
+    bus.emit(roomSourceSpecific, payload);
     return true;
   }
-  if (listenerCount(bus, globalEventId) > 0) {
-    bus.emit(globalEventId, payload);
+  if (listenerCount(bus, roomAnySource) > 0) {
+    bus.emit(roomAnySource, payload);
+    return true;
+  }
+  if (listenerCount(bus, globalSourceSpecific) > 0) {
+    bus.emit(globalSourceSpecific, payload);
+    return true;
+  }
+  if (listenerCount(bus, globalAnySource) > 0) {
+    bus.emit(globalAnySource, payload);
     return true;
   }
   if (listenerCount(bus, INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT) > 0) {
@@ -91,18 +110,24 @@ export function dispatchInventoryOnVerbTargetInteraction(
   switch (target.type) {
     case 'prop': {
       const roomScoped = roomInventoryOnPropEventId(target.roomId, target.propId, itemId);
+      const roomAny = roomInventoryOnPropAnySourceEventId(target.roomId, target.propId);
       const globalScoped = globalInventoryOnPropEventId(target.propId, itemId);
-      return tryEmitInventoryOnTargetOrGlobalUnhandled(bus, roomScoped, globalScoped, payload);
+      const globalAny = globalInventoryOnPropAnySourceEventId(target.propId);
+      return tryEmitInventoryUsedOnFiveTier(bus, roomScoped, roomAny, globalScoped, globalAny, payload);
     }
     case 'hotspot': {
       const roomScoped = roomInventoryOnHotspotEventId(target.roomId, target.hotspotId, itemId);
+      const roomAny = roomInventoryOnHotspotAnySourceEventId(target.roomId, target.hotspotId);
       const globalScoped = globalInventoryOnHotspotEventId(target.hotspotId, itemId);
-      return tryEmitInventoryOnTargetOrGlobalUnhandled(bus, roomScoped, globalScoped, payload);
+      const globalAny = globalInventoryOnHotspotAnySourceEventId(target.hotspotId);
+      return tryEmitInventoryUsedOnFiveTier(bus, roomScoped, roomAny, globalScoped, globalAny, payload);
     }
     case 'character': {
       const roomScoped = roomInventoryOnCharacterEventId(target.roomId, target.characterId, itemId);
+      const roomAny = roomInventoryOnCharacterAnySourceEventId(target.roomId, target.characterId);
       const globalScoped = globalInventoryOnCharacterEventId(target.characterId, itemId);
-      return tryEmitInventoryOnTargetOrGlobalUnhandled(bus, roomScoped, globalScoped, payload);
+      const globalAny = globalInventoryOnCharacterAnySourceEventId(target.characterId);
+      return tryEmitInventoryUsedOnFiveTier(bus, roomScoped, roomAny, globalScoped, globalAny, payload);
     }
   }
 }
@@ -128,8 +153,10 @@ export function dispatchInventoryOnInventoryItemInteraction(
     description,
   );
   const roomScoped = roomInventoryOnInventoryItemEventId(roomId, targetItemId, sourceItemId);
+  const roomRow = roomInventoryOnInventoryRowEventId(roomId, targetItemId);
   const globalScoped = globalInventoryOnInventoryItemEventId(targetItemId, sourceItemId);
-  return tryEmitInventoryOnTargetOrGlobalUnhandled(bus, roomScoped, globalScoped, payload);
+  const globalRow = globalInventoryOnInventoryRowEventId(targetItemId);
+  return tryEmitInventoryUsedOnFiveTier(bus, roomScoped, roomRow, globalScoped, globalRow, payload);
 }
 
 /** Convenience for call sites that already read {@link getGameSettings}. */

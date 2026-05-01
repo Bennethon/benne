@@ -13,10 +13,9 @@ import {
   type BenneScriptInventoryNamespace,
 } from './benneScriptGameStateApi.js';
 import {
-  globalInventoryOnInventoryItemEventId,
-  roomInventoryOnInventoryItemEventId,
+  globalInventoryOnInventoryRowEventId,
+  roomInventoryOnInventoryRowEventId,
 } from '../events/inventoryOnVerbEvents.js';
-import { getRegisteredInventoryDefinitionIds } from '../inventory/inventoryDefinitionRegistry.js';
 import type {
   AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
@@ -219,14 +218,12 @@ export class InventoryBenneScript extends BenneScriptCore {
       this.warnInventoryOnWrongItem(targetId);
       return;
     }
-    for (const sourceId of getRegisteredInventoryDefinitionIds()) {
-      this.subscribeInventoryUsedOnTargetEvents(
-        roomInventoryOnInventoryItemEventId(this.roomId, this.itemId, sourceId),
-        globalInventoryOnInventoryItemEventId(this.itemId, sourceId),
-        handler,
-        doNotClear,
-      );
-    }
+    this.subscribeInventoryUsedOnTargetEvents(
+      roomInventoryOnInventoryRowEventId(this.roomId, this.itemId),
+      globalInventoryOnInventoryRowEventId(this.itemId),
+      handler,
+      doNotClear,
+    );
   }
 
   private subscribeInventoryVerb(

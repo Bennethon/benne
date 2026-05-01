@@ -465,6 +465,11 @@ export class GameStateManager {
       return;
     }
     const previousValue = this.activeVerbId;
+
+    if (next != null && this.activeInventoryItemId != null) {
+      this.clearActiveInventoryItem();
+    }
+
     this.activeVerbId = next;
     const payload: GameStateActiveVerbChangedPayload = { previousValue, value: next };
     this.events.emit(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, payload);

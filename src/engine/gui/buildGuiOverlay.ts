@@ -1487,6 +1487,7 @@ function fillInventoryPanelContent(
                 );
                 if (!handled && shouldDrop) {
                   manager.clearActiveInventoryItem();
+                  manager.clearActiveVerb();
                 }
                 return;
               }

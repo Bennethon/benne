@@ -79,8 +79,5 @@
       "loop": true
     }
   },
-  "defaultVerb": "talkTo",
-  "onVerb": {
-    "pickUp": true
-  }
+  "defaultVerb": "talkTo"
 }

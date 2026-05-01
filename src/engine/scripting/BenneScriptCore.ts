@@ -710,15 +710,36 @@ export abstract class BenneScriptCore {
   }
 
   /**
+   * Clears active inventory + active verb when {@link shouldDropActiveInventoryOnUse} is true for `sourceItemId`.
+   * **`doNotClear: true`** skips (per-`whenInventoryUsedOn` handler opt-out).
+   */
+  protected applyInventoryUseDropPolicyAfterInteraction(
+    sourceItemId: string | undefined,
+    doNotClear: boolean,
+  ): void {
+    if (doNotClear) {
+      return;
+    }
+    if (sourceItemId == null) {
+      return;
+    }
+    if (shouldDropActiveInventoryOnUse(sourceItemId)) {
+      this.clearActiveInventory();
+      this.clearActiveVerb();
+    }
+  }
+
+  /**
    * Subscribes to room + global inventory-on-target ids. After the handler’s queued steps, the
-   * active inventory item is cleared according to the **drop policy**:
+   * active inventory item **and** the active verb are cleared together according to the **drop
+   * policy**:
    *
    * - **`doNotClear: true`** — per-handler hard opt-out; never clear.
    * - Otherwise, consult {@link shouldDropActiveInventoryOnUse} for the payload's `itemId`
    *   (per-item **`dropWhenUsed`** → global **`dropWhenInventoryUsed`** → default **`false`**).
    *
-   * Synchronous clearing of the **active verb** when it was consumed is handled by `RoomScene`
-   * at dispatch time (also gated on the drop policy).
+   * Synchronous clearing of both for the **unhandled** dispatch case (no listeners) is handled
+   * by `RoomScene` and `buildGuiOverlay` at dispatch time, gated on the same drop policy.
    */
   protected subscribeInventoryUsedOnTargetEvents(
     roomEventId: string,
@@ -737,16 +758,7 @@ export abstract class BenneScriptCore {
       }
     };
     const afterTail = (): void => {
-      if (doNotClear) {
-        return;
-      }
-      const itemId = lastPayload?.itemId;
-      if (itemId == null) {
-        return;
-      }
-      if (shouldDropActiveInventoryOnUse(itemId)) {
-        this.clearActiveInventory();
-      }
+      this.applyInventoryUseDropPolicyAfterInteraction(lastPayload?.itemId, doNotClear);
     };
     this.subscribeAfterInteractionTail(roomEventId, run, afterTail);
     this.subscribeAfterInteractionTail(globalEventId, run, afterTail);
