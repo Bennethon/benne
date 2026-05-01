@@ -4,7 +4,6 @@ import {
   guiHasGridControls,
   guiHasImageControls,
   guiHasTextControls,
-  guiHasVerbLineControls,
 } from '../../game/collectFontLoadsForGui';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
 import {
@@ -118,14 +117,13 @@ async function runLoadGui(msg: {
   }
 
   const hasText = guiHasTextControls(msg.gui);
-  const hasVerbLine = guiHasVerbLineControls(msg.gui);
   const hasInventoryPanel = guiHasInventoryPanel(msg.gui);
   const hasImage = guiHasImageControls(msg.gui);
   const wantsAseprite = usesAsepriteDisplay(msg.gui);
 
   const hasGrid = guiHasGridControls(msg.gui);
-  if (!hasText && !hasVerbLine && !hasInventoryPanel && !wantsAseprite && !hasImage && !hasGrid) {
-    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code>, at least one <code>text</code>, <code>verbLine</code>, <code>image</code>, <code>inventoryPanel</code>, or <code>grid</code> control in <code>controls</code>.</div>`;
+  if (!hasText && !hasInventoryPanel && !wantsAseprite && !hasImage && !hasGrid) {
+    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code>, at least one <code>text</code>, <code>image</code>, <code>inventoryPanel</code>, or <code>grid</code> control in <code>controls</code>.</div>`;
     return;
   }
 

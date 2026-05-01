@@ -9,7 +9,7 @@ export const WALK_TO_VERB_ID = 'walkTo';
 
 /**
  * Default copy for the built-in walk pointer mode when no custom verb is armed
- * (GUI {@link import('../../types/gui.js').GuiVerbLineControl | verbLine}, cursors, etc.).
+ * (HUD status lines authored with **`text`** + **`*.gui.ts`**, cursors, etc.).
  */
 export const WALK_TO_VERB_DISPLAY_LABEL = 'Walk to';
 

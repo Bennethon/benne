@@ -118,7 +118,7 @@ export class ControlFacade {
     return null;
   }
 
-  /** **`text` / `verbLine`** controls (`BitmapText` / `Text`). Throws if this control is not text-backed. */
+  /** **`text`** controls (`BitmapText` / `Text`). Throws if this control is not text-backed. */
   get text(): string {
     const t = this.tryGetGuiTextSurface();
     if (!t) {

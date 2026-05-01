@@ -78,30 +78,6 @@ export interface GuiTextControl {
 }
 
 /**
- * BitmapText line that shows the active verb label from `game-config.json` verbs (via
- * `composeVerbLineText` / `resolveVerbLineDisplayLabel`); defaults to **Walk to** when no verb is armed,
- * and appends hovered prop / hotspot / inventory row descriptions in `RoomScene`. With an armed
- * inventory item and a verb that has `preposition`, the line uses **Verb + item + preposition** over
- * empty space and appends the target when hovered.
- */
-export interface GuiVerbLineControl {
-  type: 'verbLine';
-  id?: string;
-  x: number;
-  y: number;
-  zIndex?: number;
-  visible?: boolean;
-  /** Key in `src/game/assets/fonts/fonts.json` (bitmap font). */
-  font: string;
-  fontSize: number;
-  color: string;
-  align?: GuiTextAlign;
-  wordWrapWidth?: number;
-  letterSpacing?: number;
-  gridPlacement?: GuiGridPlacement;
-}
-
-/**
  * Inventory panel control that displays a scrollable grid of the player's inventory.
  * Populated automatically from GameStateManager inventory on gameState:inventoryChanged.
  */
@@ -307,7 +283,6 @@ export interface GuiTriggerControl {
 
 export type GuiControl =
   | GuiTextControl
-  | GuiVerbLineControl
   | GuiInventoryPanelControl
   | GuiImageControl
   | GuiButtonControl

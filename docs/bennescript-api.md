@@ -443,7 +443,7 @@ interface BenneScriptGuiOverlayRef {
 ```
 
 - **`get scene`** — throws unless called synchronously inside an **`onGuiBuilt`** invocation (during **`notifyGuiBuilt`**); prefer **`gui.scene`** argument.
-- **`B.gui('otherOverlayId')`** — resolves controls on **any** overlay that has a **`*.gui.ts`** (the engine registers **`GuiRuntime`** on **`RoomScene`** before **`onGuiBuilt`** runs). **`control`** always returns a facade: the real control, or a safe inert one when the **`id`** is missing/blank, the overlay/runtime is absent, or the control is unknown ( **`text`** assigns are no-ops on the inert facade). On real **`text`** / **`verbLine`** controls, **`ControlFacade.text`** maps to **`BitmapText`** / **`Text`**.
+- **`B.gui('otherOverlayId')`** — resolves controls on **any** overlay that has a **`*.gui.ts`** (the engine registers **`GuiRuntime`** on **`RoomScene`** before **`onGuiBuilt`** runs). **`control`** always returns a facade: the real control, or a safe inert one when the **`id`** is missing/blank, the overlay/runtime is absent, or the control is unknown ( **`text`** assigns are no-ops on the inert facade). On real **`text`** controls, **`ControlFacade.text`** maps to **`BitmapText`** / **`Text`**.
 - **Verb HUD** — combine **`B.activeVerb`**, **`B.activeInventory`**, **`B.currentHoverDescription`** (or **`composeVerbLineText`** in code); in **`onGuiBuilt`**, call **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, refresh)`** (see **[`verbs.gui.ts`](../src/game/guis/verbs/verbs.gui.ts)**). Subscriptions reset when the room scene shuts down.
 - Hover handlers use **`subscribeImmediate`** (**no interaction-tail wait**).
 - Button clicks use **`subscribe`** (queued with other **`B`** work on **this GUI’s** script instance).

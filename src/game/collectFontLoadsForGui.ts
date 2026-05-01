@@ -15,7 +15,7 @@ export function collectFontLoadsForGui(
   const out: GuiFontLoadRequest[] = [];
   const seen = new Set<string>();
   for (const c of gui.controls ?? []) {
-    if (c.type !== 'text' && c.type !== 'verbLine' && c.type !== 'button') {
+    if (c.type !== 'text' && c.type !== 'button') {
       continue;
     }
     if (seen.has(c.font)) {
@@ -42,10 +42,6 @@ export function collectFontLoadsForGui(
 
 export function guiHasTextControls(gui: GuiData): boolean {
   return (gui.controls ?? []).some((c) => c.type === 'text');
-}
-
-export function guiHasVerbLineControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'verbLine');
 }
 
 export function guiHasImageControls(gui: GuiData): boolean {

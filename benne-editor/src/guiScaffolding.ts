@@ -11,7 +11,6 @@ import {
 
 export type GuiControlKind =
     | 'text'
-    | 'verbLine'
     | 'inventoryPanel'
     | 'image'
     | 'button'
@@ -116,8 +115,6 @@ function guiControlKindLabel(kind: GuiControlKind): string {
     switch (kind) {
         case 'text':
             return 'text';
-        case 'verbLine':
-            return 'verb line';
         case 'inventoryPanel':
             return 'inventory panel';
         case 'image':
@@ -164,16 +161,6 @@ function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, un
                 x: 0,
                 y: 0,
                 text: 'Sample text',
-                font: '',
-                fontSize: 8,
-                color: '#ffffff'
-            };
-        case 'verbLine':
-            return {
-                type: 'verbLine',
-                id,
-                x: 0,
-                y: 0,
                 font: '',
                 fontSize: 8,
                 color: '#ffffff'
@@ -241,7 +228,7 @@ function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, un
 }
 
 /**
- * Append a new control (`text` / `verbLine` / `inventoryPanel` / `image` / `button`) to a GUI's `controls[]` array.
+ * Append a new control (`text` / `inventoryPanel` / `image` / `button` / …) to a GUI's `controls[]` array.
  * Prompts for an optional control id; uses a kind-based default (`<kind>1`, `<kind>2`, …) when empty.
  * Mirrors the `runAddRoom*Wizard` pattern used by the room Inspector's Add buttons.
  */
@@ -383,11 +370,6 @@ export async function runAddGuiControlInteractiveWizard(
             label: 'Text',
             description: 'BitmapText overlay',
             controlKind: 'text'
-        },
-        {
-            label: 'Verb Line',
-            description: 'Shows the active verb label (Walk to when none)',
-            controlKind: 'verbLine'
         },
         {
             label: 'Inventory Panel',

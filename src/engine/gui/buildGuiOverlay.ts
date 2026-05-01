@@ -35,7 +35,6 @@ import type {
   GuiTextAlign,
   GuiTextControl,
   GuiTriggerControl,
-  GuiVerbLineControl,
 } from '../../types/gui';
 import {
   alignBoxTopLeftInCell,
@@ -47,8 +46,6 @@ import {
 } from './guiGridLayout';
 import type { InventoryItemData } from '../../types/inventory';
 import {
-  GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
-  GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
   GAME_STATE_INVENTORY_CHANGED_EVENT,
   GAME_STATE_REPLACED_EVENT,
   GAME_STATE_VARIABLE_CHANGED_EVENT,
@@ -69,7 +66,7 @@ import {
   shouldDropActiveInventoryOnUse,
   trySyncActiveInventoryAfterInventoryUseOrGiveRowDispatch,
 } from '../verbs/dispatchInventoryVerb';
-import { composeVerbLineText, getEffectiveInputProfile } from '../verbs/verbConfig';
+import { getEffectiveInputProfile } from '../verbs/verbConfig';
 import { resolvePointerVerbForInventoryItem } from '../verbs/resolvePointerVerb';
 import {
   getAsepriteSpriteSourceInset,
@@ -110,11 +107,6 @@ export interface GuiOverlayHandle {
   setVisible(visible: boolean): void;
   /** Extra horizontal gap between glyphs (Phaser `BitmapText` letter spacing). */
   setLetterSpacing(spacing: number): void;
-  /**
-   * Recomputes every `verbLine` control from the active verb plus optional hover description
-   * (see {@link BuildGuiOverlayOptions.verbLineHoverDescription}). No-op when this overlay has no verb lines.
-   */
-  refreshVerbLineText(): void;
   /**
    * Top-level scene object(s) for this overlay. After packing, the **movable** authored controls live under
    * one screen-fixed **`Container`** (`gui.root` in **`GuiRuntime`**). Any control **`id`** listed in
@@ -761,23 +753,6 @@ export function buildGuiButton(
   });
 
   return { hitTarget, background: bg, label, enabled, width: w, height: h };
-}
-
-function verbLineControlToBitmapStyle(c: GuiVerbLineControl): GuiTextControl {
-  return {
-    type: 'text',
-    x: c.x,
-    y: c.y,
-    zIndex: c.zIndex,
-    visible: c.visible,
-    text: '',
-    font: c.font,
-    fontSize: c.fontSize,
-    color: c.color,
-    align: c.align,
-    wordWrapWidth: c.wordWrapWidth,
-    letterSpacing: c.letterSpacing,
-  };
 }
 
 function addGuiBitmapLine(
@@ -1561,15 +1536,10 @@ export interface BuildGuiOverlayOptions {
   emptyTextPlaceholder?: string;
   /** Enables interactive inventory slots that emit inventory verb events (requires `roomId`). */
   inventoryPanelPointerContext?: InventoryPanelPointerContext;
-  /**
-   * When set, `verbLine` controls append the hovered prop / hotspot / inventory row description
-   * (see {@link composeVerbLineText}). {@link RoomScene} wires hit-testing here.
-   */
-  verbLineHoverDescription?: () => string | null;
 }
 
 /**
- * Builds screen-space GUI controls from `gui.controls` (`text`, `verbLine`, `inventoryPanel`, `image`, `button`, `trigger`, `grid`).
+ * Builds screen-space GUI controls from `gui.controls` (`text`, `inventoryPanel`, `image`, `button`, `trigger`, `grid`).
  * Starts hidden unless `startVisible`. Font ids resolve via `fonts/fonts.json` (`load.bitmapFont` keys).
  */
 export function buildGuiOverlay(
@@ -1581,48 +1551,7 @@ export function buildGuiOverlay(
   const startVisible = options?.startVisible ?? false;
   const placeholder = options?.emptyTextPlaceholder;
   const invPointerCtx = options?.inventoryPanelPointerContext;
-  const hoverDescFn = options?.verbLineHoverDescription;
-  const readActiveInventoryVerbLineName = (): string | null => {
-    try {
-      const id = resolveGameStateManager(scene.game).getActiveInventoryItemId()?.trim() ?? '';
-      if (id.length === 0) {
-        return null;
-      }
-      const inv = getInventoryDefinition(id) as InventoryItemData | undefined;
-      if (!inv) {
-        return null;
-      }
-      const name = inv.name?.trim();
-      if (name && name.length > 0) {
-        return name;
-      }
-      const d = inv.description?.trim();
-      return d && d.length > 0 ? d : null;
-    } catch {
-      return null;
-    }
-  };
-  const readFullVerbLine = (): string => {
-    let hover: string | null = null;
-    try {
-      hover = hoverDescFn?.() ?? null;
-    } catch {
-      hover = null;
-    }
-    const invName = readActiveInventoryVerbLineName();
-    try {
-      return composeVerbLineText(
-        getGameSettings(),
-        resolveGameStateManager(scene.game).getActiveVerb(),
-        hover,
-        invName,
-      );
-    } catch {
-      return composeVerbLineText(getGameSettings(), null, hover, invName);
-    }
-  };
   const allLines: Phaser.GameObjects.BitmapText[] = [];
-  const verbLines: Phaser.GameObjects.BitmapText[] = [];
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
   const guiButtons: BuiltGuiButton[] = [];
   const triggerZones: Phaser.GameObjects.Rectangle[] = [];
@@ -1928,55 +1857,6 @@ export function buildGuiOverlay(
       continue;
     }
 
-    if (c.type === 'verbLine') {
-      const lineVisible = startVisible && c.visible !== false;
-      const textStyleBase = verbLineControlToBitmapStyle(c);
-      const vlText = readFullVerbLine();
-      const vlEst = estimateTextBlockSizeForGrid(scene, textStyleBase, vlText);
-      const vlPlace = tryResolveGridPlacement(
-        gui,
-        c.gridPlacement,
-        gridsById,
-        gridLayoutById,
-        vlEst.w,
-        vlEst.h,
-        isGuiFixedControlId(c.id),
-      );
-      const textStyle = vlPlace
-        ? { ...textStyleBase, x: vlPlace.localX, y: vlPlace.localY }
-        : textStyleBase;
-      const line = addGuiBitmapLine(scene, textStyle, vlText, depth + (c.zIndex ?? 0), lineVisible);
-      if (!line) {
-        continue;
-      }
-      if (vlPlace) {
-        vlPlace.parent.add(line);
-      }
-      verbLines.push(line);
-      const onVerbLineGameState = (): void => {
-        line.setText(readFullVerbLine());
-      };
-      gameEvents.on(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, onVerbLineGameState);
-      gameEvents.on(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, onVerbLineGameState);
-      gameEvents.on(GAME_STATE_REPLACED_EVENT, onVerbLineGameState);
-      overlayDisposers.push(() => {
-        gameEvents.off(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, onVerbLineGameState);
-        gameEvents.off(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, onVerbLineGameState);
-        gameEvents.off(GAME_STATE_REPLACED_EVENT, onVerbLineGameState);
-      });
-      const vid = c.id?.trim();
-      if (vid) {
-        linesById.set(vid, line);
-        controlsById.set(vid, line);
-        if (!vlPlace) {
-          ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(line as DepthGameObject);
-        }
-      } else if (!vlPlace) {
-        movablePackedParts.push(line as DepthGameObject);
-      }
-      continue;
-    }
-
     if (c.type !== 'text') {
       continue;
     }
@@ -2015,7 +1895,6 @@ export function buildGuiOverlay(
 
   if (
     allLines.length === 0 &&
-    verbLines.length === 0 &&
     inventoryPanels.length === 0 &&
     extraSprites.length === 0 &&
     guiButtons.length === 0 &&
@@ -2073,7 +1952,7 @@ export function buildGuiOverlay(
     );
   }
 
-  /** Dialogue / `setPrimaryText` target — text controls only (never a `verbLine`). */
+  /** Dialogue / `setPrimaryText` target — first `id: line` or first `text` control. */
   const primaryLine = linesById.get('line') ?? allLines[0];
   const primaryInitialX = primaryLine?.x ?? 0;
   const primaryInitialY = primaryLine?.y ?? 0;
@@ -2097,9 +1976,6 @@ export function buildGuiOverlay(
     },
     setVisible(visible: boolean) {
       for (const line of allLines) {
-        line.setVisible(visible);
-      }
-      for (const line of verbLines) {
         line.setVisible(visible);
       }
       for (const panel of inventoryPanels) {
@@ -2130,15 +2006,6 @@ export function buildGuiOverlay(
         line.setLetterSpacing(spacing);
       }
     },
-    refreshVerbLineText() {
-      if (verbLines.length === 0) {
-        return;
-      }
-      const t = readFullVerbLine();
-      for (const line of verbLines) {
-        line.setText(t);
-      }
-    },
     get gameObjects(): Phaser.GameObjects.GameObject[] {
       return [guiContentRoot, ...fixedPackedGameObjects, ...runtimeExtraGameObjects];
     },
@@ -2156,7 +2023,6 @@ export function buildGuiOverlay(
       }
       fixedPackedGameObjects.length = 0;
       allLines.length = 0;
-      verbLines.length = 0;
       inventoryPanels.length = 0;
       extraSprites.length = 0;
       guiButtons.length = 0;
