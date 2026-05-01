@@ -120,4 +120,8 @@ registerRoomScript(({ B }) => {
     B.inventory.add('PB');
     B.prop('PeanutButter').hide();
   });
+
+  B.whenLookAt('Table', () => {
+    B.player.say('I like to keep this table here so I can walk around it.');
+  });
 });
