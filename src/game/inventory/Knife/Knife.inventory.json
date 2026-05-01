@@ -1,7 +1,7 @@
 {
   "id": "Knife",
   "name": "Knife",
-  "description": "",
+  "description": "knife",
   "onVerb": {},
   "stackable": false,
   "animations": {

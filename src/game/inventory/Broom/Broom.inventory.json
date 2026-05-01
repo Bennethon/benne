@@ -1,7 +1,7 @@
 {
   "id": "Broom",
   "name": "Broom",
-  "description": "",
+  "description": "broom",
   "onVerb": {
     "look": true,
     "use": true,

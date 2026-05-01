@@ -35,6 +35,7 @@ import {
   type PlayerWalkStartPayload,
   type PlayerWalkStopPayload,
 } from '../events/playerWalkEvents';
+import { ensureAsepriteAtlasAnimationsRegisteredOnce } from '../aseprite/ensureAsepriteAtlasAnimationsOnce.js';
 import {
   applyCharacterAnimationClips,
   playCharacterAnimation,
@@ -2847,15 +2848,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private ensureAsepriteAnimsFromAtlasOnce(textureKey: string): void {
-    if (!this.textures.exists(textureKey)) {
-      return;
-    }
-    const flagKey = `__benneAsepriteAnims:${textureKey}`;
-    if (this.game.registry.get(flagKey)) {
-      return;
-    }
-    this.anims.createFromAseprite(textureKey);
-    this.game.registry.set(flagKey, true);
+    ensureAsepriteAtlasAnimationsRegisteredOnce(this, textureKey);
   }
 
   /**

@@ -1,6 +1,10 @@
 import * as Phaser from 'phaser';
 import { resolveAuthoredPositionForAsepriteTrim } from '../../engine/aseprite/asepriteFramePlacement';
+import {
+  buildInventoryAnimationsPhaserKeyed,
+} from '../../engine/aseprite/ensureAsepriteAtlasAnimationsOnce.js';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
+import { applyCharacterAnimationClips } from '../../engine/characterAnimationPlayback';
 import type { InventoryItemData } from '../../types/inventory';
 
 const BOOT = 'BenneInventoryPreviewBoot';
@@ -91,7 +95,11 @@ class InventoryPreviewScene extends Phaser.Scene {
       .setOrigin(0.5, 0.5);
 
     if (!this.anims.exists(this.payload.animationKey)) {
-      this.anims.createFromAseprite(this.payload.textureKey);
+      const created = this.anims.createFromAseprite(this.payload.textureKey) ?? [];
+      const clips = buildInventoryAnimationsPhaserKeyed(this.payload.inventory);
+      if (clips) {
+        applyCharacterAnimationClips(created, clips);
+      }
     }
     if (this.anims.exists(this.payload.animationKey)) {
       sprite.play(this.payload.animationKey);

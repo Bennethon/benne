@@ -8,8 +8,17 @@ registerInventoryScript('PB', ({ B }) => {
 
   B.whenInventoryUsedOn('PB', (payload) => {
     if (payload.itemId === 'Knife' && payload.verbId === 'use') {
-      B.say`Hank: I used the Knife on the PB.`;
+      if (B.inventory('PB').animation === 'PB') {
+        B.say`Hank: I need to open the jar first.`;
+      } else {
+        B.inventory('Knife').animation = 'Knife-PB';
+        B.say`Hank: Mmmm... gooey peanut butter.`;
+      }
     }
   });
 
+  B.whenOpen(() => {
+    B.inventory('PB').animation = 'PB-open';
+    B.say`Hank: I opened the jar.`;
+  });
 });
