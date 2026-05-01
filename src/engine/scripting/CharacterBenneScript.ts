@@ -1,11 +1,9 @@
 import * as Phaser from 'phaser';
-import type { CharacterFacingLetter } from '../../types/character.js';
-import type { Point2 } from '../../types/room.js';
 import type { CharacterVerbInteractPayload } from '../events/propInteractionEvents.js';
 import { characterVerbEventId } from '../events/verbInteractionEvents.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
-import { BenneScriptCore, withNow } from './BenneScriptCore.js';
+import { BenneScriptCore } from './BenneScriptCore.js';
 import {
   createBenneScriptGameStateNamespace,
   createBenneScriptInventoryNamespace,
@@ -17,7 +15,6 @@ import {
   roomInventoryOnCharacterAnySourceEventId,
 } from '../events/inventoryOnVerbEvents.js';
 import type {
-  BenneScriptCharacterFacade,
   BenneScriptDialogCommandSurface,
   BenneScriptPlayerFacade,
   InventoryWhenUsedOnPayloadHandler,
@@ -169,85 +166,8 @@ export class CharacterBenneScript extends BenneScriptCore {
     this.subscribeSelfVerb(verbId, handler);
   }
 
-  character(definitionId: string): BenneScriptCharacterFacade {
-    return this.makeCharacterFacade(definitionId);
-  }
-
   get player(): BenneScriptPlayerFacade {
     return this.makePlayerFacade();
-  }
-
-  private makeCharacterFacade(definitionId: string): BenneScriptCharacterFacade {
-    const scene = this.roomScene;
-    const B = this;
-
-    const runCharacterFace = (direction: CharacterFacingLetter): void => {
-      scene.faceCharacterScriptDirection(definitionId, direction);
-    };
-
-    const logCharacterSay = (line: string): void => {
-      console.log(`[Character ${definitionId}] ${line}`);
-    };
-
-    const walkCharacterWithNow = withNow(
-      (target: Point2 | string) => {
-        B.chain(() => scene.walkCharacterTo(definitionId, target));
-      },
-      (target: Point2 | string) => {
-        void scene.walkCharacterTo(definitionId, target);
-      },
-    );
-    const moveToTeleport = withNow(
-      (target: Point2 | string) => {
-        B.chain(() => {
-          scene.moveCharacterToNow(definitionId, target);
-          return Promise.resolve();
-        });
-      },
-      (target: Point2 | string) => {
-        scene.moveCharacterToNow(definitionId, target);
-      },
-    );
-    return {
-      walkTo: walkCharacterWithNow,
-      moveTo: moveToTeleport,
-      moveToNow: (target: Point2 | string) => {
-        moveToTeleport.now(target);
-      },
-      get animation() {
-        return scene.getCharacterScriptEffectiveAnimationTag(definitionId);
-      },
-      set animation(tag: string | null) {
-        B.chain(() => {
-          scene.setCharacterScriptAnimationOverride(definitionId, tag);
-          return Promise.resolve();
-        });
-      },
-      animationNow(tag: string | null): void {
-        scene.setCharacterScriptAnimationOverride(definitionId, tag);
-      },
-      playAnimation: withNow(
-        (tag: string) => {
-          B.chain(() => scene.playCharacterScriptAnimationOneShot(definitionId, tag));
-        },
-        (tag: string) => {
-          void scene.playCharacterScriptAnimationOneShot(definitionId, tag);
-        },
-      ),
-      stopAnimation(): void {
-        scene.stopCharacterScriptAnimation(definitionId);
-      },
-      say: B.composeFixedCharacterSayHybrid(scene, definitionId, logCharacterSay),
-      face: withNow(
-        (direction: CharacterFacingLetter) => {
-          B.chain(() => {
-            runCharacterFace(direction);
-            return Promise.resolve();
-          });
-        },
-        runCharacterFace,
-      ),
-    } as BenneScriptCharacterFacade;
   }
 
   private makePlayerFacade(): BenneScriptPlayerFacade {

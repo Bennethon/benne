@@ -13,7 +13,7 @@ registerDialogScript('chatwithpenny', ({ B }) => {
       B.wait(0.5);
       B.player.say`Uhh...`;
       B.wait(0.5);
-      //B.character('penny').say`Make me a sandwich and I'll give you the key.`;
+      B.character('penny').say`Make me a sandwich and I'll give you the key.`;
   });
 
   B.whenChoice("bye", () => {

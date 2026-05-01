@@ -39,7 +39,8 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 | **`B.state`** / **`B.inventory`** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **`B.dialog(id)`** | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ |
 | **`B.player`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **`B.character(id)`**, **`B.prop(id)`** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **`B.character(id)`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **`B.prop(id)`** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Room **`when*(`target`,`…)` verb sugar**, **`onProp`**, **`whenGive(item,target,…)`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Character self-only **`when*(() => …)`** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Inventory row verbs + **`whenUse` / `whenGive`** registrars | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
@@ -199,9 +200,9 @@ Constructed from active **`RoomScene`** (global/dialog resolve **`SCENE_ROOM` on
 
 ## `B.character(id)` (**`BenneScriptCharacterFacade`**)
 
-Same movement/teleport/play/stop **`say`** / **`face`** pattern as **`B.player`**, routed to **`walkCharacterTo`**, **`moveCharacterToNow`**, **`faceCharacterScriptDirection`**, character animation scripting APIs (**`NPC`** — no **`walkToClicked`** on facade; use top-level **`B.walkToClicked`** / **`B.player.*`**).
+Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / **`face`** pattern as **`B.player`**, routed to **`walkCharacterTo`**, **`moveCharacterToNow`**, **`faceCharacterScriptDirection`**, character animation scripting APIs (**`NPC`** — no **`walkToClicked`** on facade; use top-level **`B.walkToClicked`** / **`B.player.*`**).
 
-**Availability:** Room, Character, Inventory scripts only (**`GlobalBenneScript`** / **`GuiBenneScript`** / **`DialogBenneScript`** do not expose **`B.character`**).
+**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. When there is **no** active **`RoomScene`**, calls no-op and DEV **`console.warn`** once (same spirit as **`B.player`** without a room).
 
 ---
 
@@ -411,7 +412,7 @@ whenEnterAnyRoomAfterFade(handler: (ctx: RoomTransitionContext) => void | Promis
 
 All use **`subscribe`** (queued interaction semantics) except as noted elsewhere. **`B.player`** / **`walkToClicked`** resolve room scene from **`game.scene.getScene(SCENE_ROOM)`**.
 
-**No **`B.prop`**, **`B.character`**, **`cutscene`, or **`when*`** room sugar on global.**
+**No **`B.prop`**, **`cutscene`, or **`when*`** room sugar on global.** **`B.character`** exists (inherited from **`BenneScriptCore`**) but only affects the world when an active **`RoomScene`** is resolved — same as **`B.player`**.
 
 Payload types live in **`src/engine/events/verbInteractionEvents.ts`** and **`inventoryOnVerbEvents.ts`**.
 
@@ -467,7 +468,7 @@ whenChoice(
 
 Wired to **`guiButtonClickEventId(dialogGuiId, dialogChoiceSyntheticButtonId(optionId))`**. **`RoomScene.suppressDialogChoiceGuiForWhenChoice`** hides the choice GUI during handler execution + **`interactionTail`** drain; restored after (**`restoreDialogChoiceGuiAfterWhenChoiceDrain`**).
 
-Tagged **`B.say`** and the rest of **`BenneScriptCore`** (**`wait`**, **`fadeOut`**, **`room`**, **`raw`**, …) apply as usual. **`DialogBenneScript`** adds **`state`** and **`inventory`** but **no** **`cutscene()`**.
+Tagged **`B.say`** and the rest of **`BenneScriptCore`** (**`wait`**, **`fadeOut`**, **`room`**, **`raw`**, **`B.character(id)`** …) apply as usual. **`DialogBenneScript`** adds **`state`** and **`inventory`** but **no** **`cutscene()`**.
 
 ---
 
