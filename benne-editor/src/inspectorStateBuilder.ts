@@ -364,6 +364,8 @@ export type InspectorDialogOptionRow = {
     text: string;
     enabled: boolean;
     used: boolean;
+    /** Engine default when omitted in JSON. */
+    say: boolean;
 };
 
 export type InspectorDialogState = {
@@ -507,7 +509,8 @@ async function buildDialogInspectorState(dialogJsonUri: vscode.Uri, rev: number)
             const textVal = typeof o.text === 'string' ? o.text : '';
             const enabled = o.enabled !== false;
             const used = o.used === true;
-            options.push({ index: idx, id, text: textVal, enabled, used });
+            const say = o.say !== false;
+            options.push({ index: idx, id, text: textVal, enabled, used, say });
             idx++;
         }
     }

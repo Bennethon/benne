@@ -8,6 +8,7 @@ function normalizeOption(raw: DialogOption): DialogOption {
     text: raw.text,
     enabled: raw.enabled !== false,
     used: raw.used === true,
+    say: raw.say !== false,
   };
 }
 

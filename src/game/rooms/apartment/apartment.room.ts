@@ -16,13 +16,15 @@ registerRoomScript(({ B }) => {
   B.whenInventoryUsedOn('Couch', (payload) => {
     if (payload.itemId === 'Broom' && payload.verbId === 'use') {
       B.player.walkTo('Couch');
-      B.player.say('I used the Broom on the Couch.');
+      B.faceClicked();
+      B.player.say('I used the broom on the couch.');
       return;
     }
     if (payload.itemId === 'Broom' && payload.verbId === 'give') {
       B.player.walkTo('Couch');
       B.player.face('U');
       B.player.say('Here, couch.');
+      B.inventory.remove('Broom');
       return;
     }
     return false;
@@ -44,7 +46,7 @@ registerRoomScript(({ B }) => {
 
   B.whenLookAt('Couch', () => {
     B.faceClicked();
-    B.say`Hank: It's my poorly drawn couch.`;
+    B.say`Hank: It's my weird, magical, poorly drawn couch.`;
   });
 
   B.whenUse('Door', () => {

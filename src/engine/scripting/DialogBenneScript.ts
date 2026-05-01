@@ -321,6 +321,9 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
   /**
    * Runs when the player activates a dialog line whose `optionId` matches (see {@link dialogChoiceSyntheticButtonId}).
    *
+   * If the option’s JSON sets `say` to `true` (the default), `B.player.say` is invoked with the option’s `text`
+   * **before** this handler runs (skipped when `say` is `false` or `text` is empty/whitespace).
+   *
    * While the handler’s synchronous work plus any interaction-tail steps (`say`, `walk`, etc.) run, the
    * dialog choice GUI is hidden so additional options cannot be activated.
    */
@@ -342,6 +345,13 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
       try {
         this.pushVerbWalkContext(payload);
         try {
+          const def = getDialogDefinition(dialogScriptId);
+          const opt = def?.options.find((o) => o.id === id);
+          const shouldAutoSay = opt == null || opt.say !== false;
+          const line = (opt?.text ?? '').trim();
+          if (shouldAutoSay && line.length > 0) {
+            this.player.say(line);
+          }
           if (handler.length === 0) {
             (handler as () => void)();
           } else {
