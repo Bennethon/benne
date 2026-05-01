@@ -206,8 +206,8 @@ Same movement/teleport/play/stop **`say`** / **`face`** pattern as **`B.player`*
 
 | Member | Description | Blocking |
 |--------|-------------|--------|
-| **`hide()` / `show()`** | Script visibility overrides. | Sync |
-| **`visible`** get/set | | Sync |
+| **`hide` / `show`** | Script visibility overrides; **`BlockingWithNow<[]>`** (queue vs **`.now`**). | Queued vs **`.now`** |
+| **`visible`** get/set | Setter queues like **`animation`**; **`visibleNow(v)`** applies immediately. | Setter queued |
 | **`description`** get/set | | Sync |
 | **`animation`** get/set | Base prop tag persisted; setter **queued**. | Setter queued |
 | **`animationNow(tag)`** | Immediate persist + sprite. | Immediate |

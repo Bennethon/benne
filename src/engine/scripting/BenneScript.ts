@@ -91,6 +91,7 @@ export { withNow } from './BenneScriptCore.js';
  * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Same dialog overlay as **`B.say`**, plus string form **`B.player.say('…')`**. Scoped tagged blocks: each line is that character (optional **`Player:`** prefix); mismatched **`Name:`** throws (compared **case-insensitively** to the scoped character). Optional second argument **`{ clickToSkip: false \| true }`** on string calls. |
  * | **`B.inventory.add` / `remove`**, **`.now`** | **`GameStateManager`** quantity mutations. Blocking form **queues** on the interaction tail; **`.now`** applies immediately. **`has`**, **`quantityOf`**, **`items`**, **`clearInventory`** stay synchronous. |
  * | **`B.inventory('id').animation`**, **`cursorAnimation`** | Maps to JSON **`defaultAnimation`** / **`cursorAnimation`**; persisted in **`GameStateManager`** variables. Setters **queue** on the interaction tail (same as **`B.player.animation`**); **`animationNow`** / **`cursorAnimationNow`** apply immediately. Empty string clears that field’s override (JSON applies). |
+ * | **`B.prop(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Script visibility overrides. **`hide` / `show` / `visible =`** queue on the interaction tail; **`.now`** / **`visibleNow`** apply immediately. |
  *
  * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in `BenneScriptCore`. **`whenVerb`** uses an exact verb id.
  */
@@ -441,16 +442,38 @@ export class BenneScript extends BenneScriptCore {
     const scene = this.roomScene;
     const B = this;
     return {
-      hide: () => {
-        scene.setPropScriptVisible(propId, false);
-      },
-      show: () => {
-        scene.setPropScriptVisible(propId, true);
-      },
+      hide: withNow(
+        () => {
+          B.chain(() => {
+            scene.setPropScriptVisible(propId, false);
+            return Promise.resolve();
+          });
+        },
+        () => {
+          scene.setPropScriptVisible(propId, false);
+        },
+      ),
+      show: withNow(
+        () => {
+          B.chain(() => {
+            scene.setPropScriptVisible(propId, true);
+            return Promise.resolve();
+          });
+        },
+        () => {
+          scene.setPropScriptVisible(propId, true);
+        },
+      ),
       get visible() {
         return scene.getPropScriptVisible(propId);
       },
       set visible(v: boolean) {
+        B.chain(() => {
+          scene.setPropScriptVisible(propId, v);
+          return Promise.resolve();
+        });
+      },
+      visibleNow(v: boolean): void {
         scene.setPropScriptVisible(propId, v);
       },
       get description() {
