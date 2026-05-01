@@ -12,10 +12,9 @@ import {
   type BenneScriptGameStateNamespace,
   type BenneScriptInventoryNamespace,
 } from './benneScriptGameStateApi.js';
-import { getRegisteredInventoryDefinitionIds } from '../inventory/inventoryDefinitionRegistry.js';
 import {
-  globalInventoryOnCharacterEventId,
-  roomInventoryOnCharacterEventId,
+  globalInventoryOnCharacterAnySourceEventId,
+  roomInventoryOnCharacterAnySourceEventId,
 } from '../events/inventoryOnVerbEvents.js';
 import type {
   AnyInventoryUsedOnPayload,
@@ -90,14 +89,12 @@ export class CharacterBenneScript extends BenneScriptCore {
       this.warnInventoryOnWrongCharacter(targetId);
       return;
     }
-    for (const itemId of getRegisteredInventoryDefinitionIds()) {
-      this.subscribeInventoryUsedOnTargetEvents(
-        roomInventoryOnCharacterEventId(this.roomId, this.characterId, itemId),
-        globalInventoryOnCharacterEventId(this.characterId, itemId),
-        handler,
-        doNotClear,
-      );
-    }
+    this.subscribeInventoryUsedOnTargetEvents(
+      roomInventoryOnCharacterAnySourceEventId(this.roomId, this.characterId),
+      globalInventoryOnCharacterAnySourceEventId(this.characterId),
+      handler,
+      doNotClear,
+    );
   }
 
   private subscribeSelfVerb(

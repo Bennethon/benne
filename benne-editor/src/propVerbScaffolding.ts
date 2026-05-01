@@ -18,7 +18,7 @@ const BENNE_ROOM_SCRIPT_HINT =
 /** Result of adding or repairing a room-scoped verb handler in `*.room.ts`. */
 export type AddRoomVerbHandlerResult = {
     ok: boolean;
-    /** UTF-16 range of a newly inserted stub in `*.room.ts` (omit when only JSON was updated). */
+    /** UTF-16 range of a newly inserted stub in `*.room.ts` when a stub was written. */
     insertedStubRange?: { start: number; end: number };
 };
 
@@ -147,7 +147,7 @@ export async function makeRoomPropClickable(
 }
 
 /**
- * Ensures `onVerb[verbId]` on the prop and a Bennescript stub in `*.room.ts`.
+ * Ensures a Bennescript stub for `verbId` on the prop exists in `*.room.ts`.
  * The room script must use `registerRoomScript((…) => { … })`.
  */
 export async function addPropVerbEvent(
@@ -176,20 +176,13 @@ export async function addPropVerbEvent(
         return { ok: false };
     }
     const props = propsUnknown as Record<string, unknown>[];
-    const prop = props.find((p) => typeof p.id === 'string' && p.id === propId);
-    if (!prop) {
+    if (!props.some((p) => typeof p.id === 'string' && p.id === propId)) {
         void vscode.window.showErrorMessage(`Prop "${propId}" not found in room JSON.`);
         return { ok: false };
     }
 
     const folder = vscode.workspace.getWorkspaceFolder(roomJsonUri);
     const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
-
-    const existingOnVerb =
-        prop.onVerb && typeof prop.onVerb === 'object' && !Array.isArray(prop.onVerb)
-            ? { ...(prop.onVerb as Record<string, unknown>) }
-            : {};
-    const jsonAlready = existingOnVerb[verbId] === true;
 
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
     if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
@@ -202,20 +195,10 @@ export async function addPropVerbEvent(
         /* missing script */
     }
     if (scriptText && roomScriptRegistersPropVerb(scriptText, roomId, propId, verbId, configured)) {
-        if (jsonAlready) {
-            void vscode.window.showInformationMessage(
-                `A ${verbId} handler for prop "${propId}" is already registered in ${roomId}.room.ts.`
-            );
-            return { ok: false };
-        }
-        existingOnVerb[verbId] = true;
-        prop.onVerb = existingOnVerb;
-        data.props = props;
-        await vscode.workspace.fs.writeFile(roomJsonUri, formatJson(data));
         void vscode.window.showInformationMessage(
-            `Enabled "${verbId}" in room JSON (handler was already present in ${roomId}.room.ts).`
+            `A ${verbId} handler for prop "${propId}" is already registered in ${roomId}.room.ts.`
         );
-        return { ok: true };
+        return { ok: false };
     }
 
     if (!scriptText) {
@@ -238,19 +221,12 @@ export async function addPropVerbEvent(
         return { ok: false };
     }
 
-    if (!jsonAlready) {
-        existingOnVerb[verbId] = true;
-        prop.onVerb = existingOnVerb;
-        data.props = props;
-        await vscode.workspace.fs.writeFile(roomJsonUri, formatJson(data));
-    }
-
     void vscode.window.showInformationMessage(`Added ${verbId} handler for prop "${propId}" in ${roomId}.room.ts.`);
     return { ok: true, insertedStubRange: stubRange };
 }
 
 /**
- * Ensures `onVerb[verbId]` on the hotspot and a Bennescript stub in `*.room.ts`.
+ * Ensures a Bennescript stub for `verbId` on the hotspot exists in `*.room.ts`.
  * The room script must use `registerRoomScript((…) => { … })`.
  */
 export async function addHotspotVerbEvent(
@@ -279,8 +255,7 @@ export async function addHotspotVerbEvent(
         return { ok: false };
     }
     const hotspots = listUnknown as Record<string, unknown>[];
-    const hotspot = hotspots.find((h) => typeof h.id === 'string' && h.id === hotspotId);
-    if (!hotspot) {
+    if (!hotspots.some((h) => typeof h.id === 'string' && h.id === hotspotId)) {
         void vscode.window.showErrorMessage(`Hotspot "${hotspotId}" not found in room JSON.`);
         return { ok: false };
     }
@@ -294,12 +269,6 @@ export async function addHotspotVerbEvent(
     } catch {
         /* ignore */
     }
-
-    const existingOnVerb =
-        hotspot.onVerb && typeof hotspot.onVerb === 'object' && !Array.isArray(hotspot.onVerb)
-            ? { ...(hotspot.onVerb as Record<string, unknown>) }
-            : {};
-    const jsonAlready = existingOnVerb[verbId] === true;
 
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
     if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
@@ -315,20 +284,10 @@ export async function addHotspotVerbEvent(
         scriptText &&
         roomScriptRegistersHotspotVerb(scriptText, roomId, hotspotId, verbId, configured, roomPropIds)
     ) {
-        if (jsonAlready) {
-            void vscode.window.showInformationMessage(
-                `A ${verbId} handler for hotspot "${hotspotId}" is already registered in ${roomId}.room.ts.`
-            );
-            return { ok: false };
-        }
-        existingOnVerb[verbId] = true;
-        hotspot.onVerb = existingOnVerb;
-        data.hotspots = hotspots;
-        await vscode.workspace.fs.writeFile(roomJsonUri, formatJson(data));
         void vscode.window.showInformationMessage(
-            `Enabled "${verbId}" in room JSON (handler was already present in ${roomId}.room.ts).`
+            `A ${verbId} handler for hotspot "${hotspotId}" is already registered in ${roomId}.room.ts.`
         );
-        return { ok: true };
+        return { ok: false };
     }
 
     if (!scriptText) {
@@ -351,13 +310,6 @@ export async function addHotspotVerbEvent(
         return { ok: false };
     }
 
-    if (!jsonAlready) {
-        existingOnVerb[verbId] = true;
-        hotspot.onVerb = existingOnVerb;
-        data.hotspots = hotspots;
-        await vscode.workspace.fs.writeFile(roomJsonUri, formatJson(data));
-    }
-
     void vscode.window.showInformationMessage(
         `Added ${verbId} handler for hotspot "${hotspotId}" in ${roomId}.room.ts.`
     );
@@ -367,8 +319,8 @@ export async function addHotspotVerbEvent(
 const ROOM_VERB_EVENT_RX = /^verb:room:([^:]+):(prop|hotspot|character):([^:]+):([^:]+)$/;
 
 /**
- * When reveal cannot find a `verb:room:…` handler in `*.room.ts` but room JSON (or character JSON)
- * already expects it, inserts a Bennescript stub. Skips if any registration pattern already matches.
+ * When reveal cannot find a `verb:room:…` handler in `*.room.ts`, inserts a Bennescript stub.
+ * Skips if any registration pattern already matches.
  */
 export async function ensureRoomVerbHandlerStubForReveal(
     roomJsonUri: vscode.Uri,

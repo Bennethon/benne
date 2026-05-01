@@ -104,14 +104,20 @@ export class GlobalBenneScript extends BenneScriptCore {
   whenInventoryOnVerbTargetUnhandled(
     handler: ((payload: AnyInventoryUsedOnPayload) => void) | (() => void),
   ): void {
-    this.subscribe(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, (payload) => {
+    let lastPayload: AnyInventoryUsedOnPayload | undefined;
+    const run = (payload: unknown): void => {
       const p = payload as AnyInventoryUsedOnPayload;
+      lastPayload = p;
       if (handler.length === 0) {
         (handler as () => void)();
       } else {
         (handler as (x: AnyInventoryUsedOnPayload) => void)(p);
       }
-    });
+    };
+    const afterTail = (): void => {
+      this.applyInventoryUseDropPolicyAfterInteraction(lastPayload?.itemId, false);
+    };
+    this.subscribeAfterInteractionTail(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, run, afterTail);
   }
 
   whenLeaveAnyRoom(

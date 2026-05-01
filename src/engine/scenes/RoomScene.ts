@@ -2497,6 +2497,7 @@ export class RoomScene extends Phaser.Scene {
           });
           if (!handled && shouldDrop) {
             manager.clearActiveInventoryItem();
+            manager.clearActiveVerb();
           }
           return;
         }
@@ -2594,6 +2595,7 @@ export class RoomScene extends Phaser.Scene {
           });
           if (!handled && shouldDrop) {
             manager.clearActiveInventoryItem();
+            manager.clearActiveVerb();
           }
           return;
         }
@@ -2786,6 +2788,7 @@ export class RoomScene extends Phaser.Scene {
           });
           if (!handled && shouldDrop) {
             manager.clearActiveInventoryItem();
+            manager.clearActiveVerb();
           }
           return;
         }

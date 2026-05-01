@@ -265,10 +265,6 @@
         "x": 178,
         "y": 154
       },
-      "onVerb": {
-        "use": true,
-        "look": true
-      },
       "baseline": 151
     }
   ],

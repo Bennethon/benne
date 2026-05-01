@@ -21,6 +21,8 @@ registerRoomScript(({ B }) => {
       B.player.walkTo('Couch');
       B.player.face('U');
       B.player.say('Here, couch.');
+    } else {
+      B.player.say("That doesn't work.");
     }
   });
 
@@ -84,6 +86,8 @@ registerRoomScript(({ B }) => {
       B.say`Hank: I don't need to clean the bread.`
     } else if (payload.itemId === 'Broom' && payload.verbId === 'give') {
       B.say`Hank: I can't give something to bread.`
+    } else {
+      B.player.say("That doesn't work.");
     }
   });
 

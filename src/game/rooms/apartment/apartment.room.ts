@@ -21,6 +21,8 @@ registerRoomScript(({ B }) => {
       B.player.walkTo('Couch');
       B.player.face('U');
       B.player.say('Here, couch.');
+    } else {
+      B.player.say("That doesn't work.");
     }
   });
 
@@ -79,11 +81,14 @@ registerRoomScript(({ B }) => {
     B.wait(1);
     B.fadeIn(2, 0x00ff00);
   });
+  
   B.whenInventoryUsedOn('Bread', (payload) => {
     if (payload.itemId === 'Broom' && payload.verbId === 'use') {
       B.say`Hank: I don't need to clean the bread.`
     } else if (payload.itemId === 'Broom' && payload.verbId === 'give') {
       B.say`Hank: I can't give something to bread.`
+    } else {
+      B.player.say("That doesn't work.");
     }
   });
 

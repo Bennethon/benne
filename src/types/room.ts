@@ -44,8 +44,6 @@ export interface RoomHotspotData {
   walkToPoint?: Point2;
   /** Facing target after walking (optional; pairs with `walkToPoint`). */
   lookAtPoint?: Point2;
-  /** Supported verbs for this hotspot (keys match `game-config.json` `verbs[].id`). */
-  onVerb?: Record<string, boolean>;
   /**
    * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this hotspot.
    * Falls back to `"look"` when omitted.
@@ -146,8 +144,6 @@ export interface RoomPropInstance {
   description?: string;
   /** Hit area in room space; required when `clickable` is true. */
   collider?: RoomPropCollider;
-  /** Supported verbs for this prop (keys match `game-config.json` `verbs[].id`). */
-  onVerb?: Record<string, boolean>;
   /**
    * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this prop.
    * Falls back to `"look"` when omitted. Shown in the Inspector as the "Default verb" dropdown.

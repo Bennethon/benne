@@ -184,12 +184,7 @@
         "x": 108,
         "y": 113
       },
-      "description": "couch",
-      "onVerb": {
-        "look": true,
-        "pull": true,
-        "close": true
-      }
+      "description": "couch"
     },
     {
       "id": "Door",
@@ -230,11 +225,7 @@
         "x": 297,
         "y": 115
       },
-      "description": "door",
-      "onVerb": {
-        "use": true,
-        "open": true
-      }
+      "description": "door"
     },
     {
       "id": "Fan",
@@ -295,10 +286,6 @@
         "y": 108
       },
       "baseline": 109,
-      "onVerb": {
-        "look": true,
-        "pickUp": true
-      },
       "description": "bread"
     },
     {
@@ -340,10 +327,6 @@
         "y": 110
       },
       "baseline": 111,
-      "onVerb": {
-        "look": true,
-        "pickUp": true
-      },
       "description": "knife"
     },
     {
@@ -385,10 +368,6 @@
         "y": 104
       },
       "baseline": 104,
-      "onVerb": {
-        "look": true,
-        "pickUp": true
-      },
       "description": "peanut butter"
     },
     {
@@ -478,10 +457,7 @@
         "y": 129
       },
       "baseline": 128,
-      "description": "table",
-      "onVerb": {
-        "look": true
-      }
+      "description": "table"
     }
   ],
   "characters": [

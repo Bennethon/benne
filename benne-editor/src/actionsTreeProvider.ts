@@ -790,9 +790,6 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         const folder = vscode.workspace.getWorkspaceFolder(roomJsonUri);
         const gameVerbs = folder ? await readGameConfigVerbs(folder.uri) : DEFAULT_GAME_VERBS;
         const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
-        const onVerb = prop.onVerb ?? {};
-
-        const gameVerbIds = new Set(gameVerbs.map((v) => v.id));
 
         const roomScriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
         let roomScriptText = '';
@@ -822,34 +819,6 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                     roomJsonUri,
                     roomId
                 });
-            }
-        }
-
-        for (const verbId of Object.keys(onVerb).sort()) {
-            if (gameVerbIds.has(verbId)) {
-                continue;
-            }
-            if (onVerb[verbId] === true) {
-                const hasTs = roomScriptRegistersPropVerb(roomScriptText, roomId, prop.id, verbId, configured);
-                if (hasTs) {
-                    out.push({
-                        kind: 'propVerb',
-                        verbLabel: `${verbId} — ${title}`,
-                        eventId: roomPropVerbEventId(roomId, prop.id, verbId),
-                        roomJsonUri,
-                        roomId,
-                        verbHandlerHint: benneHandlerDescriptionForProp(prop.id, verbId, configured)
-                    });
-                } else {
-                    out.push({
-                        kind: 'propVerbAdd',
-                        verbId,
-                        verbLabel: `${verbId} — ${title}`,
-                        propId: prop.id,
-                        roomJsonUri,
-                        roomId
-                    });
-                }
             }
         }
 
@@ -889,8 +858,6 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         const folder = vscode.workspace.getWorkspaceFolder(roomJsonUri);
         const gameVerbs = folder ? await readGameConfigVerbs(folder.uri) : DEFAULT_GAME_VERBS;
         const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
-        const onVerb = hotspot.onVerb ?? {};
-        const gameVerbIds = new Set(gameVerbs.map((v) => v.id));
 
         let roomPropIds = new Set<string>();
         try {
@@ -935,41 +902,6 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                     roomJsonUri,
                     roomId
                 });
-            }
-        }
-
-        for (const verbId of Object.keys(onVerb).sort()) {
-            if (gameVerbIds.has(verbId)) {
-                continue;
-            }
-            if (onVerb[verbId] === true) {
-                const hasTs = roomScriptRegistersHotspotVerb(
-                    roomScriptText,
-                    roomId,
-                    hotspot.id,
-                    verbId,
-                    configured,
-                    roomPropIds
-                );
-                if (hasTs) {
-                    out.push({
-                        kind: 'hotspotVerb',
-                        verbLabel: `${verbId} — ${title}`,
-                        eventId: roomHotspotVerbEventId(roomId, hotspot.id, verbId),
-                        roomJsonUri,
-                        roomId,
-                        verbHandlerHint: benneHandlerDescriptionForHotspot(hotspot.id, verbId, configured)
-                    });
-                } else {
-                    out.push({
-                        kind: 'hotspotVerbAdd',
-                        verbId,
-                        verbLabel: `${verbId} — ${title}`,
-                        hotspotId: hotspot.id,
-                        roomJsonUri,
-                        roomId
-                    });
-                }
             }
         }
 
