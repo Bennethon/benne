@@ -4,11 +4,11 @@
   "options": [
     {
       "id": "greeting",
-      "text": "Hello."
+      "text": "How's it goin?"
     },
     {
       "id": "door",
-      "text": "Do you know how to open the door? Do you know how to open the door? Do you?"
+      "text": "The door is locked. How do I get out?"
     },
     {
       "id": "bye",

@@ -23,6 +23,11 @@ export interface DialogOption {
   enabled?: boolean;
   /** When omitted in JSON, treated as `false` (runtime may persist via game state variables). */
   used?: boolean;
+  /**
+   * When `true` (default), the player speaks {@link text} before the option’s `whenChoice` handler runs.
+   * Set to `false` to run the handler without an automatic player line.
+   */
+  say?: boolean;
 }
 
 /**

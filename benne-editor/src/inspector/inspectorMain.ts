@@ -328,6 +328,7 @@ type InspectorDialogOptionRow = {
     text: string;
     enabled: boolean;
     used: boolean;
+    say: boolean;
 };
 
 type InspectorDialogState = {
@@ -1492,7 +1493,7 @@ function renderGui(state: InspectorGuiState): string {
 }
 
 function renderDialogOptionCard(state: InspectorDialogState, opt: InspectorDialogOptionRow): string {
-    const summary = `<div class="benne-card-titles">
+    const summary = `<span class="dlg-opt-drag-handle" draggable="true" data-idx="${opt.index}" title="Drag to reorder" aria-label="Drag to reorder">⋮⋮</span><div class="benne-card-titles">
         <div class="benne-card-title">${esc(opt.id)}</div>
         <div class="benne-card-sub muted">Option ${opt.index + 1}</div>
       </div>`;
@@ -1505,12 +1506,14 @@ function renderDialogOptionCard(state: InspectorDialogState, opt: InspectorDialo
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-enabled" data-idx="${opt.index}" ${opt.enabled ? 'checked' : ''} /></label>
         <span class="benne-pg-lbl">used (JSON)</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-used" data-idx="${opt.index}" ${opt.used ? 'checked' : ''} title="Authoring default; runtime may persist picks via game state." /></label>
+        <span class="benne-pg-lbl">say line</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-say" data-idx="${opt.index}" ${opt.say ? 'checked' : ''} title="When checked, the player speaks the option text before the whenChoice script runs." /></label>
         <span class="benne-pg-lbl">script</span>
         <button type="button" class="btn-secondary dlg-opt-script" data-idx="${opt.index}">Script…</button>
         <span class="benne-pg-lbl"></span>
         <button type="button" class="btn-danger dlg-opt-remove" data-idx="${opt.index}">Remove</button>
       </div>`;
-    return renderInspectorItem({}, 'dialogOption', String(opt.index), '', summary, body);
+    return renderInspectorItem({}, 'dialogOption', String(opt.index), ' benne-card--dialog-opt', summary, body);
 }
 
 function renderDialog(state: InspectorDialogState): string {
@@ -1537,7 +1540,7 @@ function renderDialog(state: InspectorDialogState): string {
         <div class="benne-section-add-row">
           <button type="button" class="btn-secondary" id="btn-dlg-add-opt">Add option</button>
         </div>
-        <div class="benne-card-list">${cards || '<p class="muted">No options — click Add option.</p>'}</div>
+        <div class="benne-card-list" id="dlg-option-card-list">${cards || '<p class="muted">No options — click Add option.</p>'}</div>
       </div>
     </details>
   </div>
@@ -2392,21 +2395,111 @@ function collectDialogOptionPatches(): Record<string, unknown>[] {
         const used =
             (details.querySelector(`.dlg-opt-used[data-idx="${index}"]`) as HTMLInputElement | null)?.checked ??
             false;
+        const say =
+            (details.querySelector(`.dlg-opt-say[data-idx="${index}"]`) as HTMLInputElement | null)?.checked ?? true;
         patches.push({
             type: 'dialogOption',
             index,
             id: optId,
             text,
             enabled,
-            used
+            used,
+            say
         });
     });
     return patches;
 }
 
+function mountDialogOptionDragReorder(): void {
+    const list = document.getElementById('dlg-option-card-list');
+    if (!list) {
+        return;
+    }
+
+    let dragFrom = -1;
+    let draggingRow: Element | null = null;
+
+    list.addEventListener('mousedown', (e) => {
+        const h = (e.target as Element | null)?.closest?.('.dlg-opt-drag-handle');
+        if (h && list.contains(h)) {
+            e.stopPropagation();
+        }
+    });
+
+    list.addEventListener('dragstart', (e) => {
+        const h = (e.target as Element | null)?.closest?.('.dlg-opt-drag-handle');
+        if (!h || !list.contains(h)) {
+            return;
+        }
+        const from = Number((h as HTMLElement).dataset.idx ?? '-1');
+        if (!Number.isInteger(from) || from < 0) {
+            return;
+        }
+        dragFrom = from;
+        draggingRow = h.closest('[data-entity="dialogOption"]');
+        draggingRow?.classList.add('benne-dlg-opt--dragging');
+        const dt = e.dataTransfer;
+        if (dt) {
+            dt.setData('text/plain', String(from));
+            dt.effectAllowed = 'move';
+        }
+    });
+
+    list.addEventListener('dragend', () => {
+        dragFrom = -1;
+        draggingRow?.classList.remove('benne-dlg-opt--dragging');
+        draggingRow = null;
+        list.querySelectorAll('.benne-dlg-opt--drag-over').forEach((el) => el.classList.remove('benne-dlg-opt--drag-over'));
+    });
+
+    list.addEventListener('dragover', (e) => {
+        if (dragFrom < 0) {
+            return;
+        }
+        const row = (e.target as Element | null)?.closest?.('[data-entity="dialogOption"]');
+        if (!row || !list.contains(row)) {
+            return;
+        }
+        e.preventDefault();
+        const dt = e.dataTransfer;
+        if (dt) {
+            dt.dropEffect = 'move';
+        }
+        list.querySelectorAll('.benne-dlg-opt--drag-over').forEach((el) => el.classList.remove('benne-dlg-opt--drag-over'));
+        row.classList.add('benne-dlg-opt--drag-over');
+    });
+
+    list.addEventListener('drop', (e) => {
+        if (dragFrom < 0) {
+            return;
+        }
+        const row = (e.target as Element | null)?.closest?.('[data-entity="dialogOption"]');
+        if (!row || !list.contains(row)) {
+            return;
+        }
+        e.preventDefault();
+        list.querySelectorAll('.benne-dlg-opt--drag-over').forEach((el) => el.classList.remove('benne-dlg-opt--drag-over'));
+        const to = Number((row as HTMLElement).dataset.id ?? '-1');
+        const from = dragFrom;
+        dragFrom = -1;
+        draggingRow?.classList.remove('benne-dlg-opt--dragging');
+        draggingRow = null;
+        if (!Number.isInteger(from) || from < 0 || !Number.isInteger(to) || to < 0 || from === to) {
+            return;
+        }
+        post('applyPatches', { patches: [{ type: 'dialogReorderOption', fromIndex: from, toIndex: to }] });
+    });
+}
+
 function mountDialogHandlers(state: InspectorDialogState): void {
     const flushMeta = (): void => {
         post('applyPatches', { patches: [collectDialogMeta()] });
+    };
+    const flushDialogOptions = (): void => {
+        const patches = collectDialogOptionPatches();
+        if (patches.length > 0) {
+            post('applyPatches', { patches });
+        }
     };
     document.getElementById('btn-save-dlg')?.addEventListener('click', () => {
         post('applyPatches', {
@@ -2418,6 +2511,12 @@ function mountDialogHandlers(state: InspectorDialogState): void {
     });
     document.getElementById('dlg-display-name')?.addEventListener('blur', flushMeta);
     document.getElementById('dlg-gui-id')?.addEventListener('blur', flushMeta);
+    document.querySelectorAll('.dlg-opt-id, .dlg-opt-text').forEach((el) => {
+        el.addEventListener('blur', flushDialogOptions);
+    });
+    document.querySelectorAll('.dlg-opt-enabled, .dlg-opt-used, .dlg-opt-say').forEach((el) => {
+        el.addEventListener('change', flushDialogOptions);
+    });
     document.getElementById('btn-dlg-add-opt')?.addEventListener('click', () => {
         post('applyPatches', { patches: [{ type: 'dialogAddOption' }] });
     });
@@ -2446,6 +2545,7 @@ function mountDialogHandlers(state: InspectorDialogState): void {
             post('applyPatches', { patches: [{ type: 'dialogRemoveOption', index: idx }] });
         });
     });
+    mountDialogOptionDragReorder();
 }
 
 function collectInventoryMeta(): Record<string, unknown> {

@@ -955,7 +955,7 @@ export function updateDialogMetaFields(
 export function updateDialogOptionAtIndex(
     data: Record<string, unknown>,
     index: number,
-    fields: { id?: string; text?: string; enabled?: boolean; used?: boolean }
+    fields: { id?: string; text?: string; enabled?: boolean; used?: boolean; say?: boolean }
 ): { ok: true } | { ok: false; message: string } {
     const opts = readDialogOptionsArray(data);
     if (index < 0 || index >= opts.length) {
@@ -986,6 +986,13 @@ export function updateDialogOptionAtIndex(
             delete o.used;
         }
     }
+    if (fields.say !== undefined) {
+        if (fields.say) {
+            delete o.say;
+        } else {
+            o.say = false;
+        }
+    }
     data.options = opts;
     return { ok: true };
 }
@@ -995,6 +1002,26 @@ export function addDialogOptionRow(data: Record<string, unknown>): { ok: true } 
     const ids = new Set(opts.map((x) => String(x.id ?? '')));
     const id = nextId('line', ids);
     opts.push({ id, text: 'New line.', enabled: true });
+    data.options = opts;
+    return { ok: true };
+}
+
+/** Move one dialog option from `fromIndex` to `toIndex` (indices in the JSON array before the move). */
+export function reorderDialogOptionAtIndex(
+    data: Record<string, unknown>,
+    fromIndex: number,
+    toIndex: number
+): { ok: true } | { ok: false; message: string } {
+    const opts = readDialogOptionsArray(data);
+    const n = opts.length;
+    if (fromIndex < 0 || fromIndex >= n || toIndex < 0 || toIndex >= n) {
+        return { ok: false, message: 'Invalid reorder indices.' };
+    }
+    if (fromIndex === toIndex) {
+        return { ok: true };
+    }
+    const [row] = opts.splice(fromIndex, 1);
+    opts.splice(toIndex, 0, row!);
     data.options = opts;
     return { ok: true };
 }

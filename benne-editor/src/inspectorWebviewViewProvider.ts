@@ -13,6 +13,7 @@ import {
     updateGuiFields,
     addDialogOptionRow,
     removeDialogOptionAtIndex,
+    reorderDialogOptionAtIndex,
     updateDialogMetaFields,
     updateDialogOptionAtIndex,
     updateInventoryAnimationFields,
@@ -431,6 +432,33 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
     }
 
     .benne-card-titles { flex: 1 1 120px; min-width: 0; }
+    /* Dialog options — drag handle reorders the options array in dialog JSON */
+    .benne-card--dialog-opt .dlg-opt-drag-handle {
+      flex-shrink: 0;
+      cursor: grab;
+      padding: 0 4px 0 2px;
+      margin: 0 2px 0 0;
+      line-height: 1.2;
+      border-radius: 3px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 13px;
+      user-select: none;
+      align-self: center;
+    }
+    .benne-card--dialog-opt .dlg-opt-drag-handle:hover {
+      background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 70%, transparent);
+      color: var(--vscode-foreground);
+    }
+    .benne-card--dialog-opt .dlg-opt-drag-handle:active {
+      cursor: grabbing;
+    }
+    .benne-card--dialog-opt.benne-dlg-opt--dragging {
+      opacity: 0.55;
+    }
+    .benne-card--dialog-opt.benne-dlg-opt--drag-over {
+      box-shadow: 0 0 0 2px var(--vscode-focusBorder);
+      border-color: color-mix(in srgb, var(--vscode-focusBorder) 65%, var(--benne-inspector-border));
+    }
     .benne-card-title { font-weight: 600; line-height: 1.25; word-break: break-word; }
     .benne-card-sub { font-size: 11px; margin-top: 2px; }
     .benne-inline-check {
@@ -651,9 +679,11 @@ type WebviewPatch =
           text?: string;
           enabled?: boolean;
           used?: boolean;
+          say?: boolean;
       }
     | { type: 'dialogAddOption' }
-    | { type: 'dialogRemoveOption'; index: number };
+    | { type: 'dialogRemoveOption'; index: number }
+    | { type: 'dialogReorderOption'; fromIndex: number; toIndex: number };
 
 export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     private view: vscode.WebviewView | undefined;
@@ -1314,7 +1344,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 id: typeof p.id === 'string' ? p.id : undefined,
                 text: typeof p.text === 'string' ? p.text : undefined,
                 enabled: typeof p.enabled === 'boolean' ? p.enabled : undefined,
-                used: typeof p.used === 'boolean' ? p.used : undefined
+                used: typeof p.used === 'boolean' ? p.used : undefined,
+                say: typeof p.say === 'boolean' ? p.say : undefined
             });
             if (r.ok === false) {
                 void vscode.window.showWarningMessage(r.message);
@@ -1333,6 +1364,16 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 return;
             }
             const r = removeDialogOptionAtIndex(data, p.index);
+            if (r.ok === false) {
+                void vscode.window.showWarningMessage(r.message);
+            }
+            return;
+        }
+        if (p.type === 'dialogReorderOption' && typeof p.fromIndex === 'number' && typeof p.toIndex === 'number') {
+            if (focusKind !== 'dialog') {
+                return;
+            }
+            const r = reorderDialogOptionAtIndex(data, p.fromIndex, p.toIndex);
             if (r.ok === false) {
                 void vscode.window.showWarningMessage(r.message);
             }

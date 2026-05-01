@@ -25,6 +25,9 @@ function isDialogOption(value: unknown): value is DialogOption {
   if (o.used !== undefined && typeof o.used !== 'boolean') {
     return false;
   }
+  if (o.say !== undefined && typeof o.say !== 'boolean') {
+    return false;
+  }
   return true;
 }
 
