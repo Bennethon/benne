@@ -43,6 +43,8 @@ The content is organized as follows:
 
 <directory_structure>
 package.json
+src/editor/play/bennePlayMain.ts
+src/editor/play/configureBennePlayWebviewAssets.ts
 src/editor/preview/buildPreviewManifest.ts
 src/editor/preview/characterEditorMain.ts
 src/editor/preview/createCharacterPreviewGame.ts
@@ -1327,6 +1329,252 @@ export function clampWalkDestinationTowardClick(
 }
 </file>
 
+<file path="src/game/assets/images/characters/hank/hank.json">
+{ "frames": {
+   "hank 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 130
+   },
+   "hank 1.aseprite": {
+    "frame": { "x": 36, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 130
+   },
+   "hank 2.aseprite": {
+    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 130
+   },
+   "hank 3.aseprite": {
+    "frame": { "x": 108, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 4.aseprite": {
+    "frame": { "x": 144, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 5.aseprite": {
+    "frame": { "x": 180, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 6.aseprite": {
+    "frame": { "x": 0, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 7.aseprite": {
+    "frame": { "x": 36, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 8.aseprite": {
+    "frame": { "x": 72, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 9.aseprite": {
+    "frame": { "x": 108, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 10.aseprite": {
+    "frame": { "x": 144, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 11.aseprite": {
+    "frame": { "x": 180, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 12.aseprite": {
+    "frame": { "x": 0, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 13.aseprite": {
+    "frame": { "x": 36, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 14.aseprite": {
+    "frame": { "x": 72, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 15.aseprite": {
+    "frame": { "x": 108, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 16.aseprite": {
+    "frame": { "x": 144, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 17.aseprite": {
+    "frame": { "x": 180, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 18.aseprite": {
+    "frame": { "x": 0, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 19.aseprite": {
+    "frame": { "x": 36, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 20.aseprite": {
+    "frame": { "x": 72, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 21.aseprite": {
+    "frame": { "x": 108, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 22.aseprite": {
+    "frame": { "x": 144, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 23.aseprite": {
+    "frame": { "x": 180, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 24.aseprite": {
+    "frame": { "x": 0, "y": 256, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 25.aseprite": {
+    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 26.aseprite": {
+    "frame": { "x": 36, "y": 256, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta1-x64",
+  "image": "hank.png",
+  "format": "RGBA8888",
+  "size": { "w": 216, "h": 320 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "IdleL", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
+   { "name": "IdleD", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "IdleU", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "WalkL", "from": 3, "to": 8, "direction": "forward", "color": "#000000ff" },
+   { "name": "WalkD", "from": 9, "to": 14, "direction": "forward", "color": "#000000ff" },
+   { "name": "WalkU", "from": 15, "to": 20, "direction": "forward", "color": "#000000ff" },
+   { "name": "TalkL", "from": 21, "to": 22, "direction": "forward", "color": "#000000ff" },
+   { "name": "TalkD", "from": 23, "to": 24, "direction": "forward", "color": "#000000ff" },
+   { "name": "TalkU", "from": 25, "to": 26, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Layer 2", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
+</file>
+
 <file path="src/game/characterAseprite.ts">
 import type { CharacterData } from '../types/character';
 
@@ -1447,43 +1695,6 @@ export function loadCharacterData(definitionRelativePath: string): CharacterData
   const data = mod.default;
   assertValidCharacterDisplay(data);
   return data;
-}
-</file>
-
-<file path="src/game/loadStartRoom.ts">
-import { getGameSettings } from '../engine/ConfigManager';
-import type { RoomsManifestData } from '../types/game';
-import type { RoomData } from '../types/room';
-import manifestJson from './rooms/rooms.manifest.json';
-
-const roomJsonModules = import.meta.glob('./rooms/**/*.room.json', { eager: true }) as Record<
-  string,
-  { default: RoomData }
->;
-
-/**
- * Resolves the start room from `game-config.json` (`startingRoomId`) when set, otherwise
- * `startRoomId` in `rooms.manifest.json`.
- */
-export function loadStartRoomData(): RoomData {
-  const manifest = manifestJson as RoomsManifestData;
-  const startRoomId = getGameSettings().startingRoomId ?? manifest.startRoomId;
-  const entry = manifest.rooms.find((r) => r.id === startRoomId);
-
-  if (!entry) {
-    throw new Error(`Start room '${startRoomId}' missing from rooms manifest.`);
-  }
-
-  const key = `./rooms/${entry.definition}`;
-  const mod = roomJsonModules[key];
-
-  if (!mod) {
-    throw new Error(
-      `Room JSON not found for manifest entry '${entry.definition}' (expected glob key '${key}'). Keys: ${Object.keys(roomJsonModules).join(', ')}`,
-    );
-  }
-
-  return mod.default;
 }
 </file>
 
@@ -1616,6 +1827,33 @@ export default defineConfig({
     chunkSizeWarningLimit: 2000,
   },
 });
+</file>
+
+<file path="src/editor/play/bennePlayMain.ts">
+import './configureBennePlayWebviewAssets';
+import { createBenneGame } from '../../engine/Game';
+import { gameEvents } from '../../engine/events/EventBus';
+import { wireBenneGlobalScripts } from '../../engine/scripting/wireBenneGlobalScripts';
+import { registerGameContent } from '../../game/registerGameContent';
+
+const parent = document.querySelector<HTMLElement>('#game-container');
+if (!parent) {
+  throw new Error('Missing #game-container');
+}
+
+registerGameContent();
+const game = createBenneGame(parent);
+wireBenneGlobalScripts(game, gameEvents);
+</file>
+
+<file path="src/editor/play/configureBennePlayWebviewAssets.ts">
+import { setBenneWebviewPlayAssetBase } from '../../game/resolveGameAssetUrl';
+
+const g = globalThis as { __BENNE_PLAY_MEDIA_BASE__?: string };
+const raw = typeof g.__BENNE_PLAY_MEDIA_BASE__ === 'string' ? g.__BENNE_PLAY_MEDIA_BASE__ : undefined;
+if (typeof raw === 'string' && raw.trim().length > 0) {
+  setBenneWebviewPlayAssetBase(raw);
+}
 </file>
 
 <file path="src/editor/preview/createCharacterPreviewGame.ts">
@@ -5534,252 +5772,6 @@ export function perItemInventoryPhaserAnimationKey(itemId: string, authorTag: st
 }
 </file>
 
-<file path="src/game/assets/images/characters/hank/hank.json">
-{ "frames": {
-   "hank 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 130
-   },
-   "hank 1.aseprite": {
-    "frame": { "x": 36, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 130
-   },
-   "hank 2.aseprite": {
-    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 130
-   },
-   "hank 3.aseprite": {
-    "frame": { "x": 108, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 4.aseprite": {
-    "frame": { "x": 144, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 5.aseprite": {
-    "frame": { "x": 180, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 6.aseprite": {
-    "frame": { "x": 0, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 7.aseprite": {
-    "frame": { "x": 36, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 8.aseprite": {
-    "frame": { "x": 72, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 9.aseprite": {
-    "frame": { "x": 108, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 10.aseprite": {
-    "frame": { "x": 144, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 11.aseprite": {
-    "frame": { "x": 180, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 12.aseprite": {
-    "frame": { "x": 0, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 13.aseprite": {
-    "frame": { "x": 36, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 14.aseprite": {
-    "frame": { "x": 72, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 15.aseprite": {
-    "frame": { "x": 108, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 16.aseprite": {
-    "frame": { "x": 144, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 17.aseprite": {
-    "frame": { "x": 180, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 18.aseprite": {
-    "frame": { "x": 0, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 19.aseprite": {
-    "frame": { "x": 36, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 20.aseprite": {
-    "frame": { "x": 72, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 21.aseprite": {
-    "frame": { "x": 108, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 22.aseprite": {
-    "frame": { "x": 144, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 23.aseprite": {
-    "frame": { "x": 180, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 24.aseprite": {
-    "frame": { "x": 0, "y": 256, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 25.aseprite": {
-    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 26.aseprite": {
-    "frame": { "x": 36, "y": 256, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta1-x64",
-  "image": "hank.png",
-  "format": "RGBA8888",
-  "size": { "w": 216, "h": 320 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "IdleL", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
-   { "name": "IdleD", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "IdleU", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "WalkL", "from": 3, "to": 8, "direction": "forward", "color": "#000000ff" },
-   { "name": "WalkD", "from": 9, "to": 14, "direction": "forward", "color": "#000000ff" },
-   { "name": "WalkU", "from": 15, "to": 20, "direction": "forward", "color": "#000000ff" },
-   { "name": "TalkL", "from": 21, "to": 22, "direction": "forward", "color": "#000000ff" },
-   { "name": "TalkD", "from": 23, "to": 24, "direction": "forward", "color": "#000000ff" },
-   { "name": "TalkU", "from": 25, "to": 26, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Layer 2", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
-}
-</file>
-
 <file path="src/game/assets/images/characters/penny/penny.json">
 { "frames": {
    "penny 0.aseprite": {
@@ -5965,6 +5957,216 @@ export function perItemInventoryPhaserAnimationKey(itemId: string, authorTag: st
 }
 </file>
 
+<file path="src/game/assets/images/rooms/outside/outside.json">
+{ "frames": {
+   "outside 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 1.aseprite": {
+    "frame": { "x": 600, "y": 0, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 2.aseprite": {
+    "frame": { "x": 1200, "y": 0, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 3.aseprite": {
+    "frame": { "x": 1800, "y": 0, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 4.aseprite": {
+    "frame": { "x": 0, "y": 198, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 5.aseprite": {
+    "frame": { "x": 600, "y": 198, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 6.aseprite": {
+    "frame": { "x": 1200, "y": 198, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 7.aseprite": {
+    "frame": { "x": 1800, "y": 198, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 8.aseprite": {
+    "frame": { "x": 0, "y": 396, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 9.aseprite": {
+    "frame": { "x": 600, "y": 396, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 10.aseprite": {
+    "frame": { "x": 1200, "y": 396, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta2-x64",
+  "image": "outside.png",
+  "format": "RGBA8888",
+  "size": { "w": 2400, "h": 594 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "Sky", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "Trees", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "BG", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "Rock", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
+   { "name": "RockMoved", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
+   { "name": "LeverPulled", "from": 6, "to": 6, "direction": "forward", "color": "#000000ff" },
+   { "name": "FountainOff", "from": 7, "to": 7, "direction": "forward", "color": "#000000ff" },
+   { "name": "FountainOn", "from": 8, "to": 10, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Sky", "opacity": 255, "blendMode": "normal" },
+   { "name": "Clouds", "opacity": 255, "blendMode": "normal" },
+   { "name": "Trees", "opacity": 255, "blendMode": "normal" },
+   { "name": "Ground", "opacity": 255, "blendMode": "normal" },
+   { "name": "Sidewalk", "opacity": 255, "blendMode": "normal" },
+   { "name": "House", "opacity": 255, "blendMode": "normal" },
+   { "name": "Door", "opacity": 255, "blendMode": "normal" },
+   { "name": "Fountain", "opacity": 255, "blendMode": "normal" },
+   { "name": "Lever", "opacity": 255, "blendMode": "normal" },
+   { "name": "Weird Rock", "opacity": 255, "blendMode": "normal" },
+   { "name": "Hank", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
+</file>
+
+<file path="src/game/characters/penny/penny.character.json">
+{
+  "id": "penny",
+  "name": "Penny",
+  "description": "",
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 44,
+    "y": 50
+  },
+  "talkPoint": {
+    "x": 18,
+    "y": 5
+  },
+  "clickable": true,
+  "display": {
+    "aseprite": true
+  },
+  "feet": {
+    "x": 19,
+    "y": 50
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 24,
+        "y": 4
+      },
+      {
+        "x": 28,
+        "y": 51
+      },
+      {
+        "x": 10,
+        "y": 51
+      },
+      {
+        "x": 10,
+        "y": 4
+      }
+    ]
+  },
+  "animations": {
+    "IdleD": {
+      "loop": true
+    },
+    "TalkD": {
+      "loop": true
+    },
+    "IdleL": {
+      "loop": true
+    },
+    "TalkL": {
+      "loop": true
+    },
+    "IdleU": {
+      "loop": true
+    },
+    "TalkU": {
+      "loop": true
+    }
+  }
+}
+</file>
+
+<file path="src/game/characters/penny/penny.character.ts">
+import { registerCharacterScript } from '@engine/scripting';
+
+/**
+ * Character script for `penny` — self-only Bennescript (`B.whenLookAt(() => …)`).
+ * Room-scoped handlers in `*.room.ts` still run first for the same verb.
+ */
+registerCharacterScript('penny', ({ B }) => {
+  // Example: B.whenLookAt(() => { B.player.say('…'); });
+  // Delete this line when you add your first handler.
+  void B;
+
+  B.whenLookAt(() => {
+    B.player.say("It's Penny.");
+  });
+});
+</file>
+
 <file path="src/game/guis/dialog/dialog.gui.ts">
 import { registerGuiScript } from '@engine/scripting';
 
@@ -6030,6 +6232,58 @@ export function loadRoomDataById(roomId: string): RoomData {
 }
 </file>
 
+<file path="src/game/loadStartRoom.ts">
+import { getGameSettings } from '../engine/ConfigManager';
+import type { RoomsManifestData } from '../types/game';
+import type { RoomData } from '../types/room';
+import manifestJson from './rooms/rooms.manifest.json';
+
+const roomJsonModules = import.meta.glob('./rooms/**/*.room.json', { eager: true }) as Record<
+  string,
+  { default: RoomData }
+>;
+
+function runtimeStartRoomOverride(): string | undefined {
+  const injected = (globalThis as { __BENNE_START_ROOM_ID?: unknown }).__BENNE_START_ROOM_ID;
+  if (typeof injected === 'string' && injected.trim().length > 0) {
+    return injected.trim();
+  }
+
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const queryRoomId = params.get('startRoomId') ?? params.get('roomId');
+  return queryRoomId && queryRoomId.trim().length > 0 ? queryRoomId.trim() : undefined;
+}
+
+/**
+ * Resolves the start room from `game-config.json` (`startingRoomId`) when set, otherwise
+ * `startRoomId` in `rooms.manifest.json`.
+ */
+export function loadStartRoomData(): RoomData {
+  const manifest = manifestJson as RoomsManifestData;
+  const startRoomId = runtimeStartRoomOverride() ?? getGameSettings().startingRoomId ?? manifest.startRoomId;
+  const entry = manifest.rooms.find((r) => r.id === startRoomId);
+
+  if (!entry) {
+    throw new Error(`Start room '${startRoomId}' missing from rooms manifest.`);
+  }
+
+  const key = `./rooms/${entry.definition}`;
+  const mod = roomJsonModules[key];
+
+  if (!mod) {
+    throw new Error(
+      `Room JSON not found for manifest entry '${entry.definition}' (expected glob key '${key}'). Keys: ${Object.keys(roomJsonModules).join(', ')}`,
+    );
+  }
+
+  return mod.default;
+}
+</file>
+
 <file path="src/game/resolveGameAssetUrl.ts">
 /**
  * Resolves paths from room JSON (`images/...` under `src/game/assets/`) to Vite-built URLs.
@@ -6052,6 +6306,32 @@ const xmlUrls = import.meta.glob('./assets/**/*.xml', {
   import: 'default',
 }) as Record<string, string>;
 
+/** When set (BENNE Play webview), rewrites relative Vite `?url` paths to absolute extension media URLs. */
+let benneWebviewPlayAssetBase: string | undefined;
+
+/**
+ * Called from the BENNE Play webview bootstrap before the game loads. Vite emits `./assets/…`
+ * URLs that do not resolve correctly against a `vscode-webview://` document; joining them to
+ * this base (from `webview.asWebviewUri(…/media/benne-play/)`) fixes Phaser texture loads.
+ */
+export function setBenneWebviewPlayAssetBase(base: string): void {
+  const b = base.trim();
+  benneWebviewPlayAssetBase = b.length === 0 ? undefined : b.endsWith('/') ? b : `${b}/`;
+}
+
+function absolutizeBundledAssetUrl(url: string): string {
+  if (!benneWebviewPlayAssetBase) {
+    return url;
+  }
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)) {
+    return url;
+  }
+  // Vite commonly emits root-relative `/assets/foo.png` for built files. In a VS Code webview,
+  // that root is not the extension media folder, so make emitted asset URLs bundle-relative.
+  const bundleRelative = url.replace(/^\/+/, '');
+  return new URL(bundleRelative, benneWebviewPlayAssetBase).href;
+}
+
 function normalizeAssetPath(relativePath: string): string {
   return relativePath.replace(/^\.?\/+/, '').replaceAll('\\', '/');
 }
@@ -6067,7 +6347,7 @@ export function resolveGameAssetUrl(relativePath: string): string {
     );
   }
 
-  return url;
+  return absolutizeBundledAssetUrl(url);
 }
 
 /** Aseprite JSON exports and other data JSON under `src/game/assets/`. */
@@ -6082,7 +6362,7 @@ export function resolveGameAssetJsonUrl(relativePath: string): string {
     );
   }
 
-  return url;
+  return absolutizeBundledAssetUrl(url);
 }
 
 /** BMFont XML and other `.xml` under `src/game/assets/` (paths like `fonts/MyFont.xml`). */
@@ -6097,7 +6377,7 @@ export function resolveGameAssetXmlUrl(relativePath: string): string {
     );
   }
 
-  return url;
+  return absolutizeBundledAssetUrl(url);
 }
 </file>
 
@@ -6157,36 +6437,6 @@ export interface VerbHoverTarget {
   targetId?: string;
   /** Set when {@link targetType} is `inventoryRow`. */
   itemId?: string;
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "benne",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "build:room-preview": "tsc && vite build --config vite.room-preview.config.ts",
-    "build:character-preview": "tsc && vite build --config vite.character-preview.config.ts",
-    "build:gui-preview": "tsc && vite build --config vite.gui-preview.config.ts",
-    "build:inventory-preview": "tsc && vite build --config vite.inventory-preview.config.ts",
-    "preview": "vite preview",
-    "sync-bootstrap-down": "node scripts/switch-game-template.mjs sync-bootstrap-down",
-    "sync-template-down": "node scripts/switch-game-template.mjs sync-template-down",
-    "set-template": "node scripts/switch-game-template.mjs set-template",
-    "set-template:2-click": "node scripts/switch-game-template.mjs set-template 2-click",
-    "set-template:9-verb": "node scripts/switch-game-template.mjs set-template 9-verb"
-  },
-  "devDependencies": {
-    "typescript": "~5.9.3",
-    "vite": "^8.0.1"
-  },
-  "dependencies": {
-    "phaser": "4.0.0-rc.7"
-  }
 }
 </file>
 
@@ -7809,216 +8059,6 @@ export function wireBenneGlobalScripts(game: Phaser.Game, events: EventBus): voi
 }
 </file>
 
-<file path="src/game/assets/images/rooms/outside/outside.json">
-{ "frames": {
-   "outside 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 600, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
-    "sourceSize": { "w": 600, "h": 198 },
-    "duration": 100
-   },
-   "outside 1.aseprite": {
-    "frame": { "x": 600, "y": 0, "w": 600, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
-    "sourceSize": { "w": 600, "h": 198 },
-    "duration": 100
-   },
-   "outside 2.aseprite": {
-    "frame": { "x": 1200, "y": 0, "w": 600, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
-    "sourceSize": { "w": 600, "h": 198 },
-    "duration": 100
-   },
-   "outside 3.aseprite": {
-    "frame": { "x": 1800, "y": 0, "w": 600, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
-    "sourceSize": { "w": 600, "h": 198 },
-    "duration": 100
-   },
-   "outside 4.aseprite": {
-    "frame": { "x": 0, "y": 198, "w": 600, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
-    "sourceSize": { "w": 600, "h": 198 },
-    "duration": 100
-   },
-   "outside 5.aseprite": {
-    "frame": { "x": 600, "y": 198, "w": 600, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
-    "sourceSize": { "w": 600, "h": 198 },
-    "duration": 100
-   },
-   "outside 6.aseprite": {
-    "frame": { "x": 1200, "y": 198, "w": 600, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
-    "sourceSize": { "w": 600, "h": 198 },
-    "duration": 100
-   },
-   "outside 7.aseprite": {
-    "frame": { "x": 1800, "y": 198, "w": 600, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
-    "sourceSize": { "w": 600, "h": 198 },
-    "duration": 100
-   },
-   "outside 8.aseprite": {
-    "frame": { "x": 0, "y": 396, "w": 600, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
-    "sourceSize": { "w": 600, "h": 198 },
-    "duration": 100
-   },
-   "outside 9.aseprite": {
-    "frame": { "x": 600, "y": 396, "w": 600, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
-    "sourceSize": { "w": 600, "h": 198 },
-    "duration": 100
-   },
-   "outside 10.aseprite": {
-    "frame": { "x": 1200, "y": 396, "w": 600, "h": 198 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
-    "sourceSize": { "w": 600, "h": 198 },
-    "duration": 100
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta2-x64",
-  "image": "outside.png",
-  "format": "RGBA8888",
-  "size": { "w": 2400, "h": 594 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "Sky", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "Trees", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "BG", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
-   { "name": "Rock", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
-   { "name": "RockMoved", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
-   { "name": "LeverPulled", "from": 6, "to": 6, "direction": "forward", "color": "#000000ff" },
-   { "name": "FountainOff", "from": 7, "to": 7, "direction": "forward", "color": "#000000ff" },
-   { "name": "FountainOn", "from": 8, "to": 10, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Sky", "opacity": 255, "blendMode": "normal" },
-   { "name": "Clouds", "opacity": 255, "blendMode": "normal" },
-   { "name": "Trees", "opacity": 255, "blendMode": "normal" },
-   { "name": "Ground", "opacity": 255, "blendMode": "normal" },
-   { "name": "Sidewalk", "opacity": 255, "blendMode": "normal" },
-   { "name": "House", "opacity": 255, "blendMode": "normal" },
-   { "name": "Door", "opacity": 255, "blendMode": "normal" },
-   { "name": "Fountain", "opacity": 255, "blendMode": "normal" },
-   { "name": "Lever", "opacity": 255, "blendMode": "normal" },
-   { "name": "Weird Rock", "opacity": 255, "blendMode": "normal" },
-   { "name": "Hank", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
-}
-</file>
-
-<file path="src/game/characters/penny/penny.character.json">
-{
-  "id": "penny",
-  "name": "Penny",
-  "description": "",
-  "walkSpeed": 88,
-  "walkToPoint": {
-    "x": 44,
-    "y": 50
-  },
-  "talkPoint": {
-    "x": 18,
-    "y": 5
-  },
-  "clickable": true,
-  "display": {
-    "aseprite": true
-  },
-  "feet": {
-    "x": 19,
-    "y": 50
-  },
-  "collider": {
-    "points": [
-      {
-        "x": 24,
-        "y": 4
-      },
-      {
-        "x": 28,
-        "y": 51
-      },
-      {
-        "x": 10,
-        "y": 51
-      },
-      {
-        "x": 10,
-        "y": 4
-      }
-    ]
-  },
-  "animations": {
-    "IdleD": {
-      "loop": true
-    },
-    "TalkD": {
-      "loop": true
-    },
-    "IdleL": {
-      "loop": true
-    },
-    "TalkL": {
-      "loop": true
-    },
-    "IdleU": {
-      "loop": true
-    },
-    "TalkU": {
-      "loop": true
-    }
-  }
-}
-</file>
-
-<file path="src/game/characters/penny/penny.character.ts">
-import { registerCharacterScript } from '@engine/scripting';
-
-/**
- * Character script for `penny` — self-only Bennescript (`B.whenLookAt(() => …)`).
- * Room-scoped handlers in `*.room.ts` still run first for the same verb.
- */
-registerCharacterScript('penny', ({ B }) => {
-  // Example: B.whenLookAt(() => { B.player.say('…'); });
-  // Delete this line when you add your first handler.
-  void B;
-
-  B.whenLookAt(() => {
-    B.player.say("It's Penny.");
-  });
-});
-</file>
-
 <file path="src/game/cursorAseprite.ts">
 import type * as Phaser from 'phaser';
 import { getAsepriteSpriteSourceInset } from '../engine/aseprite/asepriteFramePlacement';
@@ -8289,6 +8329,210 @@ export function registerDialogDefinitionsFromGame(): void {
 }
 </file>
 
+<file path="src/game/rooms/outside/outside.room.json">
+{
+  "id": "outside",
+  "name": "Outside",
+  "size": {
+    "width": 600,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 600,
+    "height": 198
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "walk-1",
+        "active": true,
+        "points": [
+          {
+            "x": 86,
+            "y": 140
+          },
+          {
+            "x": 578,
+            "y": 135
+          },
+          {
+            "x": 576,
+            "y": 76
+          },
+          {
+            "x": 469,
+            "y": 64
+          },
+          {
+            "x": 362,
+            "y": 74
+          },
+          {
+            "x": 202,
+            "y": 72
+          },
+          {
+            "x": 137,
+            "y": 77
+          },
+          {
+            "x": 137,
+            "y": 120
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [],
+  "points": [
+    {
+      "id": "enter-from-door",
+      "x": 105,
+      "y": 132
+    }
+  ],
+  "regions": [],
+  "props": [
+    {
+      "id": "BG",
+      "tag": "BG",
+      "animations": {
+        "BG": {}
+      },
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Sky",
+      "tag": "Sky",
+      "animations": {
+        "Sky": {}
+      },
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Trees",
+      "tag": "Trees",
+      "animations": {
+        "Trees": {}
+      },
+      "zIndex": 1,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "FountainOff",
+      "tag": "FountainOff",
+      "animations": {
+        "FountainOff": {}
+      },
+      "zIndex": 3,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "FountainOn",
+      "tag": "FountainOn",
+      "animations": {
+        "FountainOn": {
+          "loop": true
+        }
+      },
+      "zIndex": 4,
+      "visible": false,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "LeverPulled",
+      "tag": "LeverPulled",
+      "animations": {
+        "LeverPulled": {}
+      },
+      "zIndex": 5,
+      "visible": false,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "Rock",
+      "tag": "Rock",
+      "animations": {
+        "Rock": {}
+      },
+      "zIndex": 6,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true
+    },
+    {
+      "id": "RockMoved",
+      "tag": "RockMoved",
+      "animations": {
+        "RockMoved": {}
+      },
+      "zIndex": 7,
+      "visible": false,
+      "alpha": 1,
+      "clickable": true
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 280,
+      "y": 99,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 30
+    },
+    {
+      "instanceId": "henry-1",
+      "definition": "henry/henry.character.json",
+      "x": 340,
+      "y": 116,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 32
+    }
+  ]
+}
+</file>
+
+<file path="src/game/rooms/outside/outside.room.ts">
+import { registerRoomScript } from '@engine/scripting';
+
+/**
+ * Room script for `outside` — keep handlers for this room here (PowerQuest-style).
+ *
+ * String ids must match your `outside.room.json` (and character JSON where noted):
+ * - `whenLookAt` / `whenUse` / `whenTalkTo` / `whenPickUp` / `whenPush` / `whenPull` / `whenOpen` / `whenClose`: work on props, hotspots, and characters — same string id, resolution order `props[]` → `hotspots[]` → `CharacterData.id` in this room.
+ * - `whenVerb(verbId, targetId, …)`: any verb id from game config; same target resolution.
+ * - `whenGive`: prop recipient only (for now).
+ * - `B.prop('…')` / `onProp`: `props[].id` only.
+ * - `B.character('…')`: `CharacterData.id` for a character in this room.
+ * - `walkTo('…')`: unified target — prop id → hotspot id → character id → `points[].id`, or `{ x, y }` in room pixels.
+ */
+registerRoomScript(({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
+
+  B.whenEnterRoom( () => {
+    B.player.moveTo.now('enter-from-door');
+  });
+
+});
+</file>
+
 <file path="src/types/character.ts">
 import type { Point2 } from './room';
 
@@ -8422,6 +8666,37 @@ export interface Dialog {
   options: DialogOption[];
   /** GUI overlay id; defaults to `"dialog"` when omitted. */
   guiId?: string;
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "benne",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:room-preview": "tsc && vite build --config vite.room-preview.config.ts",
+    "build:character-preview": "tsc && vite build --config vite.character-preview.config.ts",
+    "build:gui-preview": "tsc && vite build --config vite.gui-preview.config.ts",
+    "build:inventory-preview": "tsc && vite build --config vite.inventory-preview.config.ts",
+    "build:benne-play": "tsc && vite build --config vite.benne-play.config.ts",
+    "preview": "vite preview",
+    "sync-bootstrap-down": "node scripts/switch-game-template.mjs sync-bootstrap-down",
+    "sync-template-down": "node scripts/switch-game-template.mjs sync-template-down",
+    "set-template": "node scripts/switch-game-template.mjs set-template",
+    "set-template:2-click": "node scripts/switch-game-template.mjs set-template 2-click",
+    "set-template:9-verb": "node scripts/switch-game-template.mjs set-template 9-verb"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1"
+  },
+  "dependencies": {
+    "phaser": "4.0.0-rc.7"
+  }
 }
 </file>
 
@@ -9579,873 +9854,6 @@ export class PreviewPolygonOverlay {
 }
 </file>
 
-<file path="src/editor/preview/roomEditorMain.ts">
-import type { Game } from 'phaser';
-import type { RoomScene } from '../../engine/scenes/RoomScene';
-import type { RoomData } from '../../types/room';
-import { SCENE_ROOM } from '../../game/constants';
-import { buildPreviewManifest } from './buildPreviewManifest';
-import { createRoomPreviewPhaserGame } from './createRoomPreviewGame';
-import { guiVisibilityBridge } from './guiVisibilityBridge';
-import { polygonEditBridge } from './polygonEditBridge';
-import type { RoomPolygonPatch } from './polygonPatchTypes';
-import { registerInventoryDefinitionsFromGame } from '../../game/registerInventoryDefinitions';
-
-// Mirror the GUI preview bundle: populate the engine's inventory registry so the room preview can
-// queue `inventoryPanel` Aseprite sheets and honour `stackable` semantics for any Bennescript code
-// that happens to run during preview.
-registerInventoryDefinitionsFromGame();
-
-declare function acquireVsCodeApi(): {
-    postMessage(data: unknown): void;
-    getState<T = unknown>(): T | undefined;
-    setState<T = unknown>(state: T): void;
-};
-
-type PreviewWebviewState = {
-    showGuis?: boolean;
-};
-
-const MIN_POLY_POINTS = 3;
-
-type WalkableSelectTarget = { polygonId: string; holeId: string | null };
-
-function encodeWalkableSelectValue(t: WalkableSelectTarget): string {
-    return JSON.stringify({ p: t.polygonId, h: t.holeId });
-}
-
-function decodeWalkableSelectValue(s: string): WalkableSelectTarget | null {
-    try {
-        const o = JSON.parse(s) as { p?: unknown; h?: unknown };
-        if (typeof o.p !== 'string') {
-            return null;
-        }
-        const h =
-            o.h === null || o.h === undefined ? null : typeof o.h === 'string' ? o.h : null;
-        return { polygonId: o.p, holeId: h };
-    } catch {
-        return null;
-    }
-}
-
-let game: Game | null = null;
-let vscodeApi: ReturnType<typeof acquireVsCodeApi> | null = null;
-let currentRoomJsonUri = '';
-/** Latest room from the host; used for `toolbarUi` updates without reloading Phaser. */
-let lastLoadedRoom: RoomData | null = null;
-
-type PreviewToolbarPayload =
-    | { previewFocus: 'room' }
-    | { previewFocus: 'prop'; propColliderId: string }
-    | { previewFocus: 'hotspot'; hotspotId: string }
-    | { previewFocus: 'region'; regionId: string }
-    | { previewFocus: 'roomPoint'; roomPointId: string };
-
-function parsePreviewToolbarPayload(msg: {
-    previewFocus?: string;
-    propColliderId?: string;
-    hotspotId?: string;
-    regionId?: string;
-    roomPointId?: string;
-}): PreviewToolbarPayload {
-    if (
-        msg.previewFocus === 'prop' &&
-        typeof msg.propColliderId === 'string' &&
-        msg.propColliderId.length > 0
-    ) {
-        return { previewFocus: 'prop', propColliderId: msg.propColliderId };
-    }
-    if (
-        msg.previewFocus === 'hotspot' &&
-        typeof msg.hotspotId === 'string' &&
-        msg.hotspotId.length > 0
-    ) {
-        return { previewFocus: 'hotspot', hotspotId: msg.hotspotId };
-    }
-    if (
-        msg.previewFocus === 'region' &&
-        typeof msg.regionId === 'string' &&
-        msg.regionId.length > 0
-    ) {
-        return { previewFocus: 'region', regionId: msg.regionId };
-    }
-    if (
-        msg.previewFocus === 'roomPoint' &&
-        typeof msg.roomPointId === 'string' &&
-        msg.roomPointId.length > 0
-    ) {
-        return { previewFocus: 'roomPoint', roomPointId: msg.roomPointId };
-    }
-    return { previewFocus: 'room' };
-}
-
-function propColliderLabel(room: RoomData, propId: string): string {
-    const p = room.props?.find((x) => x.id === propId);
-    if (!p) {
-        return propId;
-    }
-    return p.tag ? `${p.tag} (${propId})` : propId;
-}
-
-function hotspotToolbarLabel(room: RoomData, hotspotId: string): string {
-    const h = room.hotspots?.find((x) => x.id === hotspotId);
-    if (!h) {
-        return hotspotId;
-    }
-    if (h.description && h.description.trim()) {
-        return `${h.description.trim()} (${hotspotId})`;
-    }
-    return hotspotId;
-}
-
-
-/** Collider authoring is only for interactive props (matches runtime expectations). */
-function isPropColliderEditable(room: RoomData, propId: string): boolean {
-    const p = room.props?.find((x) => x.id === propId);
-    return p?.clickable === true;
-}
-
-/** Bumps on each `loadRoom` so stale `buildPreviewManifest` completions (e.g. double save) cannot create a game after a newer load cleared the DOM. */
-let loadRoomGeneration = 0;
-
-try {
-    vscodeApi = acquireVsCodeApi();
-} catch {
-    /* not inside a VS Code webview */
-}
-
-/**
- * Rehydrate the "Show GUIs" toggle from webview state (`vscode.getState()`) on first load. Default
- * off: polygon / walkable authoring usually wants a clean view, and authors opt in per the confirmed
- * UX (`docs/architecture.md` room preview spec).
- */
-(function loadPersistedGuiVisibility(): void {
-    try {
-        const s = vscodeApi?.getState<PreviewWebviewState>();
-        if (s && typeof s.showGuis === 'boolean') {
-            guiVisibilityBridge.setVisible(s.showGuis);
-        }
-    } catch {
-        /* ignore — first ever load or unavailable state */
-    }
-})();
-
-function persistWebviewState(): void {
-    try {
-        vscodeApi?.setState<PreviewWebviewState>({ showGuis: guiVisibilityBridge.visible });
-    } catch {
-        /* ignore */
-    }
-}
-
-function wireShowGuisToggle(): void {
-    const input = document.getElementById('benne-show-guis-toggle') as HTMLInputElement | null;
-    if (!input || input.dataset.benneShowGuisWired === '1') {
-        return;
-    }
-    input.dataset.benneShowGuisWired = '1';
-    input.checked = guiVisibilityBridge.visible;
-    input.addEventListener('change', () => {
-        const next = !!input.checked;
-        guiVisibilityBridge.setVisible(next);
-        persistWebviewState();
-        applyGuiVisibilityToRunningScene(next);
-    });
-    // Keep the checkbox in sync when other code flips the bridge (e.g. future programmatic toggles).
-    guiVisibilityBridge.subscribe((visible) => {
-        if (input.checked !== visible) {
-            input.checked = visible;
-        }
-    });
-}
-
-function applyGuiVisibilityToRunningScene(visible: boolean): void {
-    if (!game) {
-        return;
-    }
-    const scene = game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
-    if (!scene || !scene.scene.isActive()) {
-        return;
-    }
-    scene.setGenericGuisVisible(visible);
-}
-
-function setStatus(text: string): void {
-    const el = document.getElementById('benne-polygon-status');
-    if (el) {
-        el.textContent = text;
-    }
-}
-
-/**
- * Phaser queues `destroy` for a later step. We must not mount a new `Phaser.Game` on the same parent
- * until teardown has had time to run. Listening for `game.events` "destroy" is unreliable in VS Code
- * webviews when `requestAnimationFrame` is throttled, so we use a short timer instead.
- */
-async function destroyPreviewGameAsync(): Promise<void> {
-    if (!game) {
-        return;
-    }
-    const g = game;
-    game = null;
-    try {
-        g.destroy(true);
-    } catch {
-        /* canvas may already be detached */
-    }
-    await new Promise<void>((resolve) => {
-        setTimeout(resolve, 150);
-    });
-}
-
-function clearToolbar(): void {
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (bar) {
-        bar.innerHTML = '';
-    }
-    polygonEditBridge.setMode('navigate');
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setWalkableEditTarget('', '');
-}
-
-function buildRoomToolbarHtml(): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <div style="display:inline-flex;align-items:center;gap:6px;">
-        <label for="benne-edit-mode">Mode</label>
-        <select id="benne-edit-mode" style="background:#2a2a3e;color:#eee;border:1px solid #4a4a60;padding:2px 6px;">
-          <option value="navigate">Navigate</option>
-          <option value="walkable">Edit walkable</option>
-          <option value="roomSize">Room Size</option>
-          <option value="scrollBounds">Scroll Bounds</option>
-        </select>
-      </div>
-      <div id="benne-walkable-row" hidden style="align-items:center;gap:6px;display:inline-flex;">
-        <label for="benne-walkable-id">Walkable/Holes</label>
-        <select id="benne-walkable-id" style="background:#2a2a3e;color:#eee;border:1px solid #4a4a60;padding:2px 6px;max-width:280px;"></select>
-      </div>
-      <button type="button" id="benne-save-polygon" hidden style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">New polygon: click ${MIN_POLY_POINTS} times to place vertices. Then double-click an edge to add more. Delete removes the selected vertex (min ${MIN_POLY_POINTS} points).</div>
-  `;
-}
-
-function buildPropTreeToolbarHtml(propLabel: string): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;">Prop — <strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong> (collider, walk, look)</span>
-      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Collider (magenta), cyan <strong>Walk to</strong>, amber <strong>Look at</strong>. New collider: click ${MIN_POLY_POINTS} times, then double-click edges. Delete removes a selected collider vertex only.</div>
-  `;
-}
-
-function buildHotspotToolbarHtml(label: string): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;">Hotspot — <strong style="color:#e8ecff;">${escapeHtml(label)}</strong> (polygon, walk, look)</span>
-      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Orange polygon, cyan <strong>Walk to</strong>, amber <strong>Look at</strong>. Place ${MIN_POLY_POINTS}+ vertices like prop colliders; double-click an edge to add a vertex.</div>
-  `;
-}
-
-function buildRegionToolbarHtml(regionId: string): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;">Region — <strong style="color:#e8ecff;">${escapeHtml(regionId)}</strong></span>
-      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Green polygon. New shape: click ${MIN_POLY_POINTS} times, then double-click edges to add vertices. Delete removes a selected vertex (min ${MIN_POLY_POINTS}).</div>
-  `;
-}
-
-function buildRoomPointToolbarHtml(pointId: string): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;">Point — <strong style="color:#e8ecff;">${escapeHtml(pointId)}</strong></span>
-      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the handle to move this point. Save writes integer <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">x</code> / <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">y</code> to JSON.</div>
-  `;
-}
-
-function buildPropTreeNonClickableToolbarHtml(propLabel: string): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;"><strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong> — not clickable</span>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Collider editing is only available when <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">"clickable": true</code> is set on this prop in the room JSON.</div>
-  `;
-}
-
-/**
- * Ensure `walkable.polygons` and arrays exist so toolbar wiring and Phaser never throw on partial JSON
- * (e.g. unsaved edits) or odd structured-clone payloads from the host.
- */
-function normalizeRoomForPreview(raw: unknown): RoomData {
-    const r =
-        raw && typeof raw === 'object' ? ({ ...(raw as Record<string, unknown>) } as Record<string, unknown>) : {};
-    const id = typeof r.id === 'string' && r.id.length > 0 ? r.id : 'room';
-    const name = typeof r.name === 'string' && r.name.length > 0 ? r.name : id;
-    let polygons: RoomData['walkable']['polygons'] = [];
-    const w = r.walkable;
-    if (w && typeof w === 'object') {
-        const polys = (w as { polygons?: unknown }).polygons;
-        if (Array.isArray(polys)) {
-            polygons = polys as RoomData['walkable']['polygons'];
-        }
-    }
-    r.id = id;
-    r.name = name;
-    r.walkable = { polygons };
-    r.hotspots = Array.isArray(r.hotspots) ? r.hotspots : [];
-    r.points = Array.isArray(r.points) ? r.points : [];
-    r.regions = Array.isArray(r.regions) ? r.regions : [];
-    r.props = Array.isArray(r.props) ? r.props : [];
-    r.characters = Array.isArray(r.characters) ? r.characters : [];
-    return r as unknown as RoomData;
-}
-
-function wireRoomToolbar(room: RoomData): void {
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildRoomToolbarHtml();
-
-    const modeSel = document.getElementById('benne-edit-mode') as HTMLSelectElement;
-    const walkRow = document.getElementById('benne-walkable-row')!;
-    const walkSel = document.getElementById('benne-walkable-id') as HTMLSelectElement;
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    walkSel.innerHTML = '';
-    const polygons = room.walkable?.polygons;
-    const safePolygons = Array.isArray(polygons) ? polygons : [];
-    for (const p of safePolygons) {
-        const optOuter = document.createElement('option');
-        optOuter.value = encodeWalkableSelectValue({ polygonId: p.id, holeId: null });
-        optOuter.textContent = `${p.id} (walkable)`;
-        walkSel.appendChild(optOuter);
-        for (const h of p.holes ?? []) {
-            const optHole = document.createElement('option');
-            optHole.value = encodeWalkableSelectValue({ polygonId: p.id, holeId: h.id });
-            optHole.textContent = `${p.id} › ${h.id} (hole)`;
-            walkSel.appendChild(optHole);
-        }
-    }
-    if (walkSel.options.length > 0) {
-        const d = decodeWalkableSelectValue(walkSel.value);
-        if (d) {
-            polygonEditBridge.setWalkableEditTarget(d.polygonId, d.holeId ?? '');
-        }
-    } else {
-        polygonEditBridge.setWalkableEditTarget('', '');
-    }
-
-    const syncModeUI = (): void => {
-        const m = modeSel.value as 'navigate' | 'walkable' | 'roomSize' | 'scrollBounds';
-        polygonEditBridge.setMode(m);
-        walkRow.hidden = m !== 'walkable';
-        saveBtn.hidden = m === 'navigate';
-
-        const hint = document.getElementById('benne-toolbar-hint');
-        if (hint) {
-            if (m === 'roomSize') {
-                hint.textContent = 'Drag the cyan handles to resize the room art canvas. The origin (top-left) is always 0,0. Press F to fit view. Save writes to room JSON.';
-            } else if (m === 'scrollBounds') {
-                hint.textContent = 'Drag the orange handles to set the camera scroll bounds — the area within which the camera pans. Press F to fit view. Save writes to room JSON.';
-            } else if (m === 'walkable') {
-                hint.textContent = `New polygon: click ${MIN_POLY_POINTS} times to place vertices. Then double-click an edge to add more. Delete removes the selected vertex (min ${MIN_POLY_POINTS} points).`;
-            } else {
-                hint.textContent = '';
-            }
-        }
-    };
-
-    modeSel.value = 'navigate';
-    polygonEditBridge.setMode('navigate');
-    syncModeUI();
-
-    modeSel.addEventListener('change', () => {
-        setStatus('');
-        syncModeUI();
-    });
-    walkSel.addEventListener('change', () => {
-        const d = decodeWalkableSelectValue(walkSel.value);
-        if (d) {
-            polygonEditBridge.setWalkableEditTarget(d.polygonId, d.holeId ?? '');
-        }
-        setStatus('');
-    });
-    saveBtn.addEventListener('click', () => {
-        setStatus('Saving…');
-        window.dispatchEvent(new Event('benne-save-polygon'));
-    });
-}
-
-function wirePropTreeToolbarNonClickable(room: RoomData, propColliderId: string): void {
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildPropTreeNonClickableToolbarHtml(propColliderLabel(room, propColliderId));
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setMode('navigate');
-}
-
-function wireHotspotToolbar(room: RoomData, hotspotId: string): void {
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildHotspotToolbarHtml(hotspotToolbarLabel(room, hotspotId));
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setHotspotId(hotspotId);
-    polygonEditBridge.setMode('hotspotPolygon');
-    saveBtn.addEventListener('click', () => {
-        setStatus('Saving…');
-        window.dispatchEvent(new Event('benne-save-polygon'));
-    });
-}
-
-function wireRegionToolbar(_room: RoomData, regionId: string): void {
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildRegionToolbarHtml(regionId);
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setRegionId(regionId);
-    polygonEditBridge.setMode('regionPolygon');
-    saveBtn.addEventListener('click', () => {
-        setStatus('Saving…');
-        window.dispatchEvent(new Event('benne-save-polygon'));
-    });
-}
-
-function wireRoomPointToolbar(_room: RoomData, roomPointId: string): void {
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildRoomPointToolbarHtml(roomPointId);
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId(roomPointId);
-    polygonEditBridge.setMode('roomPoint');
-    saveBtn.addEventListener('click', () => {
-        setStatus('Saving…');
-        window.dispatchEvent(new Event('benne-save-polygon'));
-    });
-}
-
-function wirePropTreeToolbar(room: RoomData, propColliderId: string): void {
-    if (!isPropColliderEditable(room, propColliderId)) {
-        wirePropTreeToolbarNonClickable(room, propColliderId);
-        return;
-    }
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildPropTreeToolbarHtml(propColliderLabel(room, propColliderId));
-
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setPropId(propColliderId);
-    polygonEditBridge.setMode('propCollider');
-
-    saveBtn.addEventListener('click', () => {
-        setStatus('Saving…');
-        window.dispatchEvent(new Event('benne-save-polygon'));
-    });
-}
-
-function wireToolbarFromPreviewState(room: RoomData, preview: PreviewToolbarPayload): void {
-    if (preview.previewFocus === 'prop') {
-        wirePropTreeToolbar(room, preview.propColliderId);
-    } else if (preview.previewFocus === 'hotspot') {
-        wireHotspotToolbar(room, preview.hotspotId);
-    } else if (preview.previewFocus === 'region') {
-        wireRegionToolbar(room, preview.regionId);
-    } else if (preview.previewFocus === 'roomPoint') {
-        wireRoomPointToolbar(room, preview.roomPointId);
-    } else {
-        wireRoomToolbar(room);
-    }
-}
-
-/** Sync Phaser registry room after disk save (integer-rounded points); avoids full game rebuild. */
-function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
-    if (!game) {
-        return;
-    }
-    const room = game.registry.get('bennePreviewRoom') as RoomData | undefined;
-    if (!room) {
-        return;
-    }
-    if (patch.kind === 'roomPoint') {
-        const p = room.points?.find((x) => x.id === patch.pointId);
-        if (p) {
-            p.x = patch.x;
-            p.y = patch.y;
-        }
-        return;
-    }
-    if (patch.kind === 'roomSize') {
-        room.size = { width: patch.width, height: patch.height };
-        // Re-sync camera so the edit-mode zoom adjusts to the new room dimensions.
-        polygonEditBridge.setMode(polygonEditBridge.mode);
-        return;
-    }
-    if (patch.kind === 'scrollBounds') {
-        room.scrollBounds = { x: patch.x, y: patch.y, width: patch.width, height: patch.height };
-        // Re-sync camera so the scroll bounds update takes effect.
-        polygonEditBridge.setMode(polygonEditBridge.mode);
-        return;
-    }
-    if (patch.kind === 'walkable') {
-        const src = patch.points;
-        const poly = room.walkable.polygons.find((p) => p.id === patch.polygonId);
-        if (!poly) {
-            return;
-        }
-        if (patch.holeId) {
-            let hole = poly.holes?.find((h) => h.id === patch.holeId);
-            if (!hole) {
-                if (!poly.holes) {
-                    poly.holes = [];
-                }
-                hole = { id: patch.holeId, active: true, points: [] };
-                poly.holes.push(hole);
-            }
-            if (!hole.points) {
-                hole.points = [];
-            }
-            const dest = hole.points;
-            if (dest.length === src.length) {
-                for (let i = 0; i < src.length; i++) {
-                    dest[i].x = src[i].x;
-                    dest[i].y = src[i].y;
-                }
-            } else {
-                hole.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
-            }
-            return;
-        }
-        if (poly.points.length === src.length) {
-            for (let i = 0; i < src.length; i++) {
-                poly.points[i].x = src[i].x;
-                poly.points[i].y = src[i].y;
-            }
-        } else {
-            poly.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
-        }
-        return;
-    }
-    if (patch.kind === 'regionPolygon') {
-        const src = patch.points;
-        const reg = room.regions?.find((r) => r.id === patch.regionId);
-        if (!reg) {
-            return;
-        }
-        if (reg.points.length === src.length) {
-            for (let i = 0; i < src.length; i++) {
-                reg.points[i].x = src[i].x;
-                reg.points[i].y = src[i].y;
-            }
-        } else {
-            reg.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
-        }
-        return;
-    }
-    if (patch.kind === 'hotspotPolygon') {
-        const src = patch.points;
-        const hs = room.hotspots?.find((h) => h.id === patch.hotspotId);
-        if (!hs) {
-            return;
-        }
-        if (!hs.points) {
-            hs.points = [];
-        }
-        const dest = hs.points;
-        if (dest.length === src.length) {
-            for (let i = 0; i < src.length; i++) {
-                dest[i].x = src[i].x;
-                dest[i].y = src[i].y;
-            }
-        } else {
-            hs.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
-        }
-        hs.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
-        hs.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
-        if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
-            (hs as { baseline?: number }).baseline = patch.baseline;
-        }
-        return;
-    }
-    const src = patch.points;
-    const prop = room.props?.find((p) => p.id === patch.propId);
-    if (!prop) {
-        return;
-    }
-    if (!prop.collider) {
-        prop.collider = { points: [] };
-    }
-    const dest = prop.collider.points;
-    if (dest.length === src.length) {
-        for (let i = 0; i < src.length; i++) {
-            dest[i].x = src[i].x;
-            dest[i].y = src[i].y;
-        }
-    } else {
-        prop.collider.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
-    }
-    prop.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
-    prop.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
-    if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
-        (prop as { baseline?: number }).baseline = patch.baseline;
-    }
-}
-
-function showError(text: string): void {
-    const root = document.getElementById('benne-preview-root');
-    if (root) {
-        root.innerHTML = `<p style="color:#f88;padding:12px;font-family:system-ui,sans-serif;font-size:13px;">${escapeHtml(
-            text,
-        )}</p>`;
-    }
-}
-
-function escapeHtml(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-async function resetToPlaceholder(): Promise<void> {
-    lastLoadedRoom = null;
-    clearToolbar();
-    await destroyPreviewGameAsync();
-    const root = document.getElementById('benne-preview-root');
-    if (root) {
-        root.innerHTML =
-            '<p style="color:#8892a6;padding:12px;font-family:system-ui,sans-serif;font-size:12px;">Select a room or prop to preview</p>';
-    }
-    currentRoomJsonUri = '';
-}
-
-/**
- * Serialize `clear` / `error` / `loadRoom` so they never overlap. A fire-and-forget `clear` could
- * otherwise finish after a concurrent `loadRoom` and wipe the canvas (e.g. after Refresh).
- */
-let previewLifecycleChain: Promise<void> = Promise.resolve();
-
-function enqueuePreviewLifecycle(work: () => Promise<void>): void {
-    previewLifecycleChain = previewLifecycleChain
-        .then(() => work())
-        .catch((e) => {
-            console.error('[Benne preview] lifecycle', e);
-        });
-}
-
-type HostPreviewMessage = {
-    type?: string;
-    room?: RoomData;
-    gameSrcWebviewUri?: string;
-    roomJsonUri?: string;
-    message?: string;
-    ok?: boolean;
-    appliedPatch?: RoomPolygonPatch;
-    previewFocus?: string;
-    propColliderId?: string;
-    hotspotId?: string;
-    regionId?: string;
-    roomPointId?: string;
-};
-
-async function runPreviewError(msg: HostPreviewMessage): Promise<void> {
-    lastLoadedRoom = null;
-    await destroyPreviewGameAsync();
-    const root = document.getElementById('benne-preview-root');
-    if (root) {
-        root.innerHTML = '';
-    }
-    clearToolbar();
-    showError(msg.message ?? 'Preview error');
-}
-
-async function runLoadRoom(msg: HostPreviewMessage): Promise<void> {
-    if (!document.getElementById('benne-preview-root')?.parentElement) {
-        return;
-    }
-
-    if (!msg.room || !msg.gameSrcWebviewUri) {
-        showError('Missing room data or game root URI.');
-        return;
-    }
-
-    if (typeof msg.roomJsonUri !== 'string' || msg.roomJsonUri.length === 0) {
-        showError('Missing roomJsonUri (save to disk requires it).');
-        return;
-    }
-
-    const gen = ++loadRoomGeneration;
-    await destroyPreviewGameAsync();
-    if (gen !== loadRoomGeneration) {
-        return;
-    }
-
-    const root = document.getElementById('benne-preview-root');
-    if (!root) {
-        showError('Preview container missing.');
-        return;
-    }
-    root.innerHTML = '';
-    const stack = document.createElement('div');
-    stack.style.cssText = 'position:relative;width:100%;height:100%;min-height:0';
-    const phaserMount = document.createElement('div');
-    phaserMount.style.cssText = 'width:100%;height:100%';
-    stack.appendChild(phaserMount);
-    root.appendChild(stack);
-
-    let room: RoomData;
-    try {
-        room = normalizeRoomForPreview(msg.room);
-    } catch (e) {
-        showError(e instanceof Error ? e.message : String(e));
-        return;
-    }
-    currentRoomJsonUri = msg.roomJsonUri;
-    lastLoadedRoom = room;
-
-    try {
-        wireToolbarFromPreviewState(room, parsePreviewToolbarPayload(msg));
-    } catch (e) {
-        showError(
-            `Preview toolbar: ${e instanceof Error ? e.message : String(e)}`,
-        );
-        return;
-    }
-
-    try {
-        const manifest = await buildPreviewManifest(room, msg.gameSrcWebviewUri);
-        const onPolygonPatch = (patch: RoomPolygonPatch): void => {
-            vscodeApi?.postMessage({
-                type: 'benne/preview/polygonPatch',
-                roomJsonUri: currentRoomJsonUri,
-                patch,
-            });
-        };
-        game = createRoomPreviewPhaserGame(phaserMount, manifest, {
-            roomJsonUri: currentRoomJsonUri,
-            onPolygonPatch,
-            initialShowGuis: guiVisibilityBridge.visible,
-        });
-        vscodeApi?.postMessage({ type: 'benne/preview/roomLoadComplete', roomJsonUri: currentRoomJsonUri });
-    } catch (e) {
-        showError(e instanceof Error ? e.message : String(e));
-    }
-}
-
-window.addEventListener('message', (event: MessageEvent) => {
-    const msg = event.data as HostPreviewMessage;
-
-    if (msg?.type === 'benne/preview/polygonPatchResult') {
-        if (msg.ok && msg.appliedPatch) {
-            applyAppliedPatchToPreviewRoom(msg.appliedPatch);
-        }
-        setStatus(msg.ok ? 'Saved.' : `Error: ${msg.message ?? ''}`);
-        return;
-    }
-
-    if (msg?.type === 'benne/preview/toolbarUi') {
-        if (!lastLoadedRoom) {
-            return;
-        }
-        wireToolbarFromPreviewState(lastLoadedRoom, parsePreviewToolbarPayload(msg));
-        return;
-    }
-
-    if (msg?.type === 'benne/preview/inspectorFocus') {
-        if (!lastLoadedRoom) {
-            return;
-        }
-        wireToolbarFromPreviewState(lastLoadedRoom, parsePreviewToolbarPayload(msg));
-        return;
-    }
-
-    if (msg?.type === 'benne/preview/clear') {
-        enqueuePreviewLifecycle(async () => {
-            await resetToPlaceholder();
-        });
-        return;
-    }
-
-    if (msg?.type === 'benne/preview/error') {
-        enqueuePreviewLifecycle(async () => {
-            await runPreviewError(msg);
-        });
-        return;
-    }
-
-    if (msg?.type === 'benne/preview/loadRoom') {
-        enqueuePreviewLifecycle(async () => {
-            await runLoadRoom(msg);
-        });
-        return;
-    }
-});
-
-function wireRefreshPreviewButton(): void {
-    const btn = document.getElementById('benne-refresh-preview');
-    if (!btn || btn.dataset.benneRefreshWired === '1') {
-        return;
-    }
-    btn.dataset.benneRefreshWired = '1';
-    btn.addEventListener('click', () => {
-        vscodeApi?.postMessage({
-            type: 'benne/preview/requestRefresh',
-            roomJsonUri: currentRoomJsonUri,
-        });
-    });
-}
-
-wireRefreshPreviewButton();
-wireShowGuisToggle();
-vscodeApi?.postMessage({ type: 'benne/preview/ready' });
-</file>
-
 <file path="src/engine/gui/guiGridLayout.ts">
 import type { GuiControl, GuiGridCellAlign, GuiGridControl, GuiGridPlacement } from '../../types/gui';
 
@@ -11568,6 +10976,252 @@ export function registerGuiScript(
 }
 </file>
 
+<file path="src/game/assets/images/characters/henry/henry.json">
+{ "frames": {
+   "henry 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 130
+   },
+   "henry 1.aseprite": {
+    "frame": { "x": 36, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 130
+   },
+   "henry 2.aseprite": {
+    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 130
+   },
+   "henry 3.aseprite": {
+    "frame": { "x": 108, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 4.aseprite": {
+    "frame": { "x": 144, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 5.aseprite": {
+    "frame": { "x": 180, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 6.aseprite": {
+    "frame": { "x": 0, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 7.aseprite": {
+    "frame": { "x": 36, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 8.aseprite": {
+    "frame": { "x": 72, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 9.aseprite": {
+    "frame": { "x": 108, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 10.aseprite": {
+    "frame": { "x": 144, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 11.aseprite": {
+    "frame": { "x": 180, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 12.aseprite": {
+    "frame": { "x": 0, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 13.aseprite": {
+    "frame": { "x": 36, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 14.aseprite": {
+    "frame": { "x": 72, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 15.aseprite": {
+    "frame": { "x": 108, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 16.aseprite": {
+    "frame": { "x": 144, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 17.aseprite": {
+    "frame": { "x": 180, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 18.aseprite": {
+    "frame": { "x": 0, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 19.aseprite": {
+    "frame": { "x": 36, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 20.aseprite": {
+    "frame": { "x": 72, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 21.aseprite": {
+    "frame": { "x": 108, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 22.aseprite": {
+    "frame": { "x": 144, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 23.aseprite": {
+    "frame": { "x": 180, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 24.aseprite": {
+    "frame": { "x": 0, "y": 256, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 25.aseprite": {
+    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "henry 26.aseprite": {
+    "frame": { "x": 36, "y": 256, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta1-x64",
+  "image": "henry.png",
+  "format": "RGBA8888",
+  "size": { "w": 216, "h": 320 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "IdleL", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
+   { "name": "IdleD", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "IdleU", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "WalkL", "from": 3, "to": 8, "direction": "forward", "color": "#000000ff" },
+   { "name": "WalkD", "from": 9, "to": 14, "direction": "forward", "color": "#000000ff" },
+   { "name": "WalkU", "from": 15, "to": 20, "direction": "forward", "color": "#000000ff" },
+   { "name": "TalkL", "from": 21, "to": 22, "direction": "forward", "color": "#000000ff" },
+   { "name": "TalkD", "from": 23, "to": 24, "direction": "forward", "color": "#000000ff" },
+   { "name": "TalkU", "from": 25, "to": 26, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Layer 2", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
+</file>
+
 <file path="src/game/assets/images/cursor/cursor.json">
 { "frames": {
    "cursor 0.aseprite": {
@@ -12305,210 +11959,6 @@ export function getCursorAsepriteFrameTagNames(): readonly string[] {
 }
 </file>
 
-<file path="src/game/rooms/outside/outside.room.json">
-{
-  "id": "outside",
-  "name": "Outside",
-  "size": {
-    "width": 600,
-    "height": 198
-  },
-  "scrollBounds": {
-    "x": 0,
-    "y": 0,
-    "width": 600,
-    "height": 198
-  },
-  "walkable": {
-    "polygons": [
-      {
-        "id": "walk-1",
-        "active": true,
-        "points": [
-          {
-            "x": 86,
-            "y": 140
-          },
-          {
-            "x": 578,
-            "y": 135
-          },
-          {
-            "x": 576,
-            "y": 76
-          },
-          {
-            "x": 469,
-            "y": 64
-          },
-          {
-            "x": 362,
-            "y": 74
-          },
-          {
-            "x": 202,
-            "y": 72
-          },
-          {
-            "x": 137,
-            "y": 77
-          },
-          {
-            "x": 137,
-            "y": 120
-          }
-        ]
-      }
-    ]
-  },
-  "hotspots": [],
-  "points": [
-    {
-      "id": "enter-from-door",
-      "x": 105,
-      "y": 132
-    }
-  ],
-  "regions": [],
-  "props": [
-    {
-      "id": "BG",
-      "tag": "BG",
-      "animations": {
-        "BG": {}
-      },
-      "zIndex": 2,
-      "visible": true,
-      "alpha": 1
-    },
-    {
-      "id": "Sky",
-      "tag": "Sky",
-      "animations": {
-        "Sky": {}
-      },
-      "zIndex": 0,
-      "visible": true,
-      "alpha": 1
-    },
-    {
-      "id": "Trees",
-      "tag": "Trees",
-      "animations": {
-        "Trees": {}
-      },
-      "zIndex": 1,
-      "visible": true,
-      "alpha": 1
-    },
-    {
-      "id": "FountainOff",
-      "tag": "FountainOff",
-      "animations": {
-        "FountainOff": {}
-      },
-      "zIndex": 3,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true
-    },
-    {
-      "id": "FountainOn",
-      "tag": "FountainOn",
-      "animations": {
-        "FountainOn": {
-          "loop": true
-        }
-      },
-      "zIndex": 4,
-      "visible": false,
-      "alpha": 1,
-      "clickable": true
-    },
-    {
-      "id": "LeverPulled",
-      "tag": "LeverPulled",
-      "animations": {
-        "LeverPulled": {}
-      },
-      "zIndex": 5,
-      "visible": false,
-      "alpha": 1,
-      "clickable": true
-    },
-    {
-      "id": "Rock",
-      "tag": "Rock",
-      "animations": {
-        "Rock": {}
-      },
-      "zIndex": 6,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true
-    },
-    {
-      "id": "RockMoved",
-      "tag": "RockMoved",
-      "animations": {
-        "RockMoved": {}
-      },
-      "zIndex": 7,
-      "visible": false,
-      "alpha": 1,
-      "clickable": true
-    }
-  ],
-  "characters": [
-    {
-      "instanceId": "hank-1",
-      "definition": "hank/hank.character.json",
-      "x": 280,
-      "y": 99,
-      "initialFacing": "L",
-      "initialAnimation": "Idle",
-      "visible": true,
-      "zIndex": 30
-    },
-    {
-      "instanceId": "henry-1",
-      "definition": "henry/henry.character.json",
-      "x": 340,
-      "y": 116,
-      "initialFacing": "L",
-      "initialAnimation": "Idle",
-      "visible": true,
-      "zIndex": 32
-    }
-  ]
-}
-</file>
-
-<file path="src/game/rooms/outside/outside.room.ts">
-import { registerRoomScript } from '@engine/scripting';
-
-/**
- * Room script for `outside` — keep handlers for this room here (PowerQuest-style).
- *
- * String ids must match your `outside.room.json` (and character JSON where noted):
- * - `whenLookAt` / `whenUse` / `whenTalkTo` / `whenPickUp` / `whenPush` / `whenPull` / `whenOpen` / `whenClose`: work on props, hotspots, and characters — same string id, resolution order `props[]` → `hotspots[]` → `CharacterData.id` in this room.
- * - `whenVerb(verbId, targetId, …)`: any verb id from game config; same target resolution.
- * - `whenGive`: prop recipient only (for now).
- * - `B.prop('…')` / `onProp`: `props[].id` only.
- * - `B.character('…')`: `CharacterData.id` for a character in this room.
- * - `walkTo('…')`: unified target — prop id → hotspot id → character id → `points[].id`, or `{ x, y }` in room pixels.
- */
-registerRoomScript(({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-
-  B.whenEnterRoom( () => {
-    B.player.moveTo.now('enter-from-door');
-  });
-
-});
-</file>
-
 <file path="src/engine/scenes/BootScene.ts">
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../applyAudioFromSettings';
@@ -13027,252 +12477,6 @@ export class GuiRuntime {
 }
 </file>
 
-<file path="src/game/assets/images/characters/henry/henry.json">
-{ "frames": {
-   "henry 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 130
-   },
-   "henry 1.aseprite": {
-    "frame": { "x": 36, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 130
-   },
-   "henry 2.aseprite": {
-    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 130
-   },
-   "henry 3.aseprite": {
-    "frame": { "x": 108, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 4.aseprite": {
-    "frame": { "x": 144, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 5.aseprite": {
-    "frame": { "x": 180, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 6.aseprite": {
-    "frame": { "x": 0, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 7.aseprite": {
-    "frame": { "x": 36, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 8.aseprite": {
-    "frame": { "x": 72, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 9.aseprite": {
-    "frame": { "x": 108, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 10.aseprite": {
-    "frame": { "x": 144, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 11.aseprite": {
-    "frame": { "x": 180, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 12.aseprite": {
-    "frame": { "x": 0, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 13.aseprite": {
-    "frame": { "x": 36, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 14.aseprite": {
-    "frame": { "x": 72, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 15.aseprite": {
-    "frame": { "x": 108, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 16.aseprite": {
-    "frame": { "x": 144, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 17.aseprite": {
-    "frame": { "x": 180, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 18.aseprite": {
-    "frame": { "x": 0, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 19.aseprite": {
-    "frame": { "x": 36, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 20.aseprite": {
-    "frame": { "x": 72, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 21.aseprite": {
-    "frame": { "x": 108, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 22.aseprite": {
-    "frame": { "x": 144, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 23.aseprite": {
-    "frame": { "x": 180, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 24.aseprite": {
-    "frame": { "x": 0, "y": 256, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 25.aseprite": {
-    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "henry 26.aseprite": {
-    "frame": { "x": 36, "y": 256, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta1-x64",
-  "image": "henry.png",
-  "format": "RGBA8888",
-  "size": { "w": 216, "h": 320 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "IdleL", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
-   { "name": "IdleD", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "IdleU", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "WalkL", "from": 3, "to": 8, "direction": "forward", "color": "#000000ff" },
-   { "name": "WalkD", "from": 9, "to": 14, "direction": "forward", "color": "#000000ff" },
-   { "name": "WalkU", "from": 15, "to": 20, "direction": "forward", "color": "#000000ff" },
-   { "name": "TalkL", "from": 21, "to": 22, "direction": "forward", "color": "#000000ff" },
-   { "name": "TalkD", "from": 23, "to": 24, "direction": "forward", "color": "#000000ff" },
-   { "name": "TalkU", "from": 25, "to": 26, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Layer 2", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
-}
-</file>
-
 <file path="src/game/assets/images/guis/verbs/verbs.json">
 { "frames": {
    "verbs 0.aseprite": {
@@ -13527,6 +12731,953 @@ export function registerInventoryDefinitionsFromGame(): void {
     registerInventoryDefinition(raw);
   }
 }
+</file>
+
+<file path="src/editor/preview/roomEditorMain.ts">
+import type { Game } from 'phaser';
+import type { RoomScene } from '../../engine/scenes/RoomScene';
+import type { RoomData } from '../../types/room';
+import { SCENE_ROOM } from '../../game/constants';
+import { buildPreviewManifest } from './buildPreviewManifest';
+import { createRoomPreviewPhaserGame } from './createRoomPreviewGame';
+import { guiVisibilityBridge } from './guiVisibilityBridge';
+import { polygonEditBridge } from './polygonEditBridge';
+import type { RoomPolygonPatch } from './polygonPatchTypes';
+import { registerInventoryDefinitionsFromGame } from '../../game/registerInventoryDefinitions';
+
+// Mirror the GUI preview bundle: populate the engine's inventory registry so the room preview can
+// queue `inventoryPanel` Aseprite sheets and honour `stackable` semantics for any Bennescript code
+// that happens to run during preview.
+registerInventoryDefinitionsFromGame();
+
+declare function acquireVsCodeApi(): {
+    postMessage(data: unknown): void;
+    getState<T = unknown>(): T | undefined;
+    setState<T = unknown>(state: T): void;
+};
+
+type PreviewWebviewState = {
+    showGuis?: boolean;
+};
+
+const MIN_POLY_POINTS = 3;
+
+let game: Game | null = null;
+let vscodeApi: ReturnType<typeof acquireVsCodeApi> | null = null;
+let currentRoomJsonUri = '';
+/** Latest room from the host; used for `toolbarUi` updates without reloading Phaser. */
+let lastLoadedRoom: RoomData | null = null;
+
+type PreviewToolbarPayload =
+    | { previewFocus: 'room' }
+    | { previewFocus: 'walkable'; walkablePolygonId: string; walkableHoleId: string }
+    | { previewFocus: 'roomSize' }
+    | { previewFocus: 'scrollBounds' }
+    | { previewFocus: 'prop'; propColliderId: string }
+    | { previewFocus: 'hotspot'; hotspotId: string }
+    | { previewFocus: 'region'; regionId: string }
+    | { previewFocus: 'roomPoint'; roomPointId: string };
+
+function parsePreviewToolbarPayload(msg: {
+    previewFocus?: string;
+    propColliderId?: string;
+    hotspotId?: string;
+    regionId?: string;
+    roomPointId?: string;
+    walkablePolygonId?: string;
+    walkableHoleId?: string;
+}): PreviewToolbarPayload {
+    if (
+        msg.previewFocus === 'prop' &&
+        typeof msg.propColliderId === 'string' &&
+        msg.propColliderId.length > 0
+    ) {
+        return { previewFocus: 'prop', propColliderId: msg.propColliderId };
+    }
+    if (
+        msg.previewFocus === 'hotspot' &&
+        typeof msg.hotspotId === 'string' &&
+        msg.hotspotId.length > 0
+    ) {
+        return { previewFocus: 'hotspot', hotspotId: msg.hotspotId };
+    }
+    if (
+        msg.previewFocus === 'region' &&
+        typeof msg.regionId === 'string' &&
+        msg.regionId.length > 0
+    ) {
+        return { previewFocus: 'region', regionId: msg.regionId };
+    }
+    if (
+        msg.previewFocus === 'roomPoint' &&
+        typeof msg.roomPointId === 'string' &&
+        msg.roomPointId.length > 0
+    ) {
+        return { previewFocus: 'roomPoint', roomPointId: msg.roomPointId };
+    }
+    if (
+        msg.previewFocus === 'walkable' &&
+        typeof msg.walkablePolygonId === 'string' &&
+        msg.walkablePolygonId.length > 0
+    ) {
+        const hid = typeof msg.walkableHoleId === 'string' ? msg.walkableHoleId : '';
+        return { previewFocus: 'walkable', walkablePolygonId: msg.walkablePolygonId, walkableHoleId: hid };
+    }
+    if (msg.previewFocus === 'roomSize') {
+        return { previewFocus: 'roomSize' };
+    }
+    if (msg.previewFocus === 'scrollBounds') {
+        return { previewFocus: 'scrollBounds' };
+    }
+    return { previewFocus: 'room' };
+}
+
+function propColliderLabel(room: RoomData, propId: string): string {
+    const p = room.props?.find((x) => x.id === propId);
+    if (!p) {
+        return propId;
+    }
+    return p.tag ? `${p.tag} (${propId})` : propId;
+}
+
+function hotspotToolbarLabel(room: RoomData, hotspotId: string): string {
+    const h = room.hotspots?.find((x) => x.id === hotspotId);
+    if (!h) {
+        return hotspotId;
+    }
+    if (h.description && h.description.trim()) {
+        return `${h.description.trim()} (${hotspotId})`;
+    }
+    return hotspotId;
+}
+
+
+/** Collider authoring is only for interactive props (matches runtime expectations). */
+function isPropColliderEditable(room: RoomData, propId: string): boolean {
+    const p = room.props?.find((x) => x.id === propId);
+    return p?.clickable === true;
+}
+
+/** Bumps on each `loadRoom` so stale `buildPreviewManifest` completions (e.g. double save) cannot create a game after a newer load cleared the DOM. */
+let loadRoomGeneration = 0;
+
+try {
+    vscodeApi = acquireVsCodeApi();
+} catch {
+    /* not inside a VS Code webview */
+}
+
+/**
+ * Rehydrate the "Show GUIs" toggle from webview state (`vscode.getState()`) on first load. Default
+ * off: polygon / walkable authoring usually wants a clean view, and authors opt in per the confirmed
+ * UX (`docs/architecture.md` room preview spec).
+ */
+(function loadPersistedGuiVisibility(): void {
+    try {
+        const s = vscodeApi?.getState<PreviewWebviewState>();
+        if (s && typeof s.showGuis === 'boolean') {
+            guiVisibilityBridge.setVisible(s.showGuis);
+        }
+    } catch {
+        /* ignore — first ever load or unavailable state */
+    }
+})();
+
+function persistWebviewState(): void {
+    try {
+        vscodeApi?.setState<PreviewWebviewState>({ showGuis: guiVisibilityBridge.visible });
+    } catch {
+        /* ignore */
+    }
+}
+
+function wireShowGuisToggle(): void {
+    const input = document.getElementById('benne-show-guis-toggle') as HTMLInputElement | null;
+    if (!input || input.dataset.benneShowGuisWired === '1') {
+        return;
+    }
+    input.dataset.benneShowGuisWired = '1';
+    input.checked = guiVisibilityBridge.visible;
+    input.addEventListener('change', () => {
+        const next = !!input.checked;
+        guiVisibilityBridge.setVisible(next);
+        persistWebviewState();
+        applyGuiVisibilityToRunningScene(next);
+    });
+    // Keep the checkbox in sync when other code flips the bridge (e.g. future programmatic toggles).
+    guiVisibilityBridge.subscribe((visible) => {
+        if (input.checked !== visible) {
+            input.checked = visible;
+        }
+    });
+}
+
+function applyGuiVisibilityToRunningScene(visible: boolean): void {
+    if (!game) {
+        return;
+    }
+    const scene = game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
+    if (!scene || !scene.scene.isActive()) {
+        return;
+    }
+    scene.setGenericGuisVisible(visible);
+}
+
+function setStatus(text: string): void {
+    const el = document.getElementById('benne-polygon-status');
+    if (el) {
+        el.textContent = text;
+    }
+}
+
+/**
+ * Phaser queues `destroy` for a later step. We must not mount a new `Phaser.Game` on the same parent
+ * until teardown has had time to run. Listening for `game.events` "destroy" is unreliable in VS Code
+ * webviews when `requestAnimationFrame` is throttled, so we use a short timer instead.
+ */
+async function destroyPreviewGameAsync(): Promise<void> {
+    if (!game) {
+        return;
+    }
+    const g = game;
+    game = null;
+    try {
+        g.destroy(true);
+    } catch {
+        /* canvas may already be detached */
+    }
+    await new Promise<void>((resolve) => {
+        setTimeout(resolve, 150);
+    });
+}
+
+function clearToolbar(): void {
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (bar) {
+        bar.innerHTML = '';
+    }
+    polygonEditBridge.setMode('navigate');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setWalkableEditTarget('', '');
+    setPlayFromHereButtonVisible(false);
+}
+
+/** Shown only in browse/navigate authoring mode (see {@link wireRoomNavigateToolbar}). */
+function setPlayFromHereButtonVisible(visible: boolean): void {
+    const btn = document.getElementById('benne-preview-play') as HTMLButtonElement | null;
+    if (!btn) {
+        return;
+    }
+    btn.style.display = visible ? 'inline-block' : 'none';
+}
+
+function buildRoomNavigateToolbarHtml(): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.55;margin-top:4px;"></div>
+  `;
+}
+
+function walkableToolbarTitle(polygonId: string, holeId: string): string {
+    if (holeId.length > 0) {
+        return `Hole — ${polygonId} › ${holeId}`;
+    }
+    return `Walkable — ${polygonId}`;
+}
+
+function buildWalkableEditToolbarHtml(polygonId: string, holeId: string): string {
+    const title = walkableToolbarTitle(polygonId, holeId);
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">${escapeHtml(title)}</span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">New polygon: click ${MIN_POLY_POINTS} times to place vertices. Then double-click an edge to add more. Delete removes the selected vertex (min ${MIN_POLY_POINTS} points).</div>
+  `;
+}
+
+function buildRoomSizeToolbarHtml(): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;"><strong style="color:#e8ecff;">Room size</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the cyan handles to resize the room art canvas. The origin (top-left) is always 0,0. Press F to fit view. Save writes to room JSON.</div>
+  `;
+}
+
+function buildScrollBoundsToolbarHtml(): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;"><strong style="color:#e8ecff;">Scroll bounds</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the orange handles to set the camera scroll bounds — the area within which the camera pans. Press F to fit view. Save writes to room JSON.</div>
+  `;
+}
+
+function buildPropTreeToolbarHtml(propLabel: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Prop — <strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong> (collider, walk, look)</span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Collider (magenta), cyan <strong>Walk to</strong>, amber <strong>Look at</strong>. New collider: click ${MIN_POLY_POINTS} times, then double-click edges. Delete removes a selected collider vertex only.</div>
+  `;
+}
+
+function buildHotspotToolbarHtml(label: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Hotspot — <strong style="color:#e8ecff;">${escapeHtml(label)}</strong> (polygon, walk, look)</span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Orange polygon, cyan <strong>Walk to</strong>, amber <strong>Look at</strong>. Place ${MIN_POLY_POINTS}+ vertices like prop colliders; double-click an edge to add a vertex.</div>
+  `;
+}
+
+function buildRegionToolbarHtml(regionId: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Region — <strong style="color:#e8ecff;">${escapeHtml(regionId)}</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Green polygon. New shape: click ${MIN_POLY_POINTS} times, then double-click edges to add vertices. Delete removes a selected vertex (min ${MIN_POLY_POINTS}).</div>
+  `;
+}
+
+function buildRoomPointToolbarHtml(pointId: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Point — <strong style="color:#e8ecff;">${escapeHtml(pointId)}</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the handle to move this point. Save writes integer <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">x</code> / <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">y</code> to JSON.</div>
+  `;
+}
+
+function buildPropTreeNonClickableToolbarHtml(propLabel: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;"><strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong> — not clickable</span>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Collider editing is only available when <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">"clickable": true</code> is set on this prop in the room JSON.</div>
+  `;
+}
+
+/**
+ * Ensure `walkable.polygons` and arrays exist so toolbar wiring and Phaser never throw on partial JSON
+ * (e.g. unsaved edits) or odd structured-clone payloads from the host.
+ */
+function normalizeRoomForPreview(raw: unknown): RoomData {
+    const r =
+        raw && typeof raw === 'object' ? ({ ...(raw as Record<string, unknown>) } as Record<string, unknown>) : {};
+    const id = typeof r.id === 'string' && r.id.length > 0 ? r.id : 'room';
+    const name = typeof r.name === 'string' && r.name.length > 0 ? r.name : id;
+    let polygons: RoomData['walkable']['polygons'] = [];
+    const w = r.walkable;
+    if (w && typeof w === 'object') {
+        const polys = (w as { polygons?: unknown }).polygons;
+        if (Array.isArray(polys)) {
+            polygons = polys as RoomData['walkable']['polygons'];
+        }
+    }
+    r.id = id;
+    r.name = name;
+    r.walkable = { polygons };
+    r.hotspots = Array.isArray(r.hotspots) ? r.hotspots : [];
+    r.points = Array.isArray(r.points) ? r.points : [];
+    r.regions = Array.isArray(r.regions) ? r.regions : [];
+    r.props = Array.isArray(r.props) ? r.props : [];
+    r.characters = Array.isArray(r.characters) ? r.characters : [];
+    return r as unknown as RoomData;
+}
+
+function wireRoomNavigateToolbar(_room: RoomData): void {
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildRoomNavigateToolbarHtml();
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setMode('navigate');
+    setPlayFromHereButtonVisible(true);
+}
+
+function wireWalkableEditToolbar(room: RoomData, polygonId: string, holeId: string): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildWalkableEditToolbarHtml(polygonId, holeId);
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    const poly = room.walkable?.polygons?.find((p) => p.id === polygonId);
+    if (!poly) {
+        polygonEditBridge.setWalkableEditTarget('', '');
+        polygonEditBridge.setMode('navigate');
+        setStatus(`Walkable polygon "${polygonId}" not found in room JSON.`);
+        return;
+    }
+    if (holeId.length > 0) {
+        const hole = poly.holes?.find((h) => h.id === holeId);
+        if (!hole) {
+            polygonEditBridge.setWalkableEditTarget('', '');
+            polygonEditBridge.setMode('navigate');
+            setStatus(`Hole "${holeId}" not found under polygon "${polygonId}".`);
+            return;
+        }
+    }
+    polygonEditBridge.setWalkableEditTarget(polygonId, holeId);
+    polygonEditBridge.setMode('walkable');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireRoomSizeToolbar(_room: RoomData): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildRoomSizeToolbarHtml();
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setMode('roomSize');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireScrollBoundsToolbar(_room: RoomData): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildScrollBoundsToolbarHtml();
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setMode('scrollBounds');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wirePropTreeToolbarNonClickable(room: RoomData, propColliderId: string): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildPropTreeNonClickableToolbarHtml(propColliderLabel(room, propColliderId));
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setMode('navigate');
+}
+
+function wireHotspotToolbar(room: RoomData, hotspotId: string): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildHotspotToolbarHtml(hotspotToolbarLabel(room, hotspotId));
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setHotspotId(hotspotId);
+    polygonEditBridge.setMode('hotspotPolygon');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireRegionToolbar(_room: RoomData, regionId: string): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildRegionToolbarHtml(regionId);
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setRegionId(regionId);
+    polygonEditBridge.setMode('regionPolygon');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireRoomPointToolbar(_room: RoomData, roomPointId: string): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildRoomPointToolbarHtml(roomPointId);
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId(roomPointId);
+    polygonEditBridge.setMode('roomPoint');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wirePropTreeToolbar(room: RoomData, propColliderId: string): void {
+    if (!isPropColliderEditable(room, propColliderId)) {
+        wirePropTreeToolbarNonClickable(room, propColliderId);
+        return;
+    }
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildPropTreeToolbarHtml(propColliderLabel(room, propColliderId));
+
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setPropId(propColliderId);
+    polygonEditBridge.setMode('propCollider');
+
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireToolbarFromPreviewState(room: RoomData, preview: PreviewToolbarPayload): void {
+    if (preview.previewFocus === 'prop') {
+        wirePropTreeToolbar(room, preview.propColliderId);
+    } else if (preview.previewFocus === 'hotspot') {
+        wireHotspotToolbar(room, preview.hotspotId);
+    } else if (preview.previewFocus === 'region') {
+        wireRegionToolbar(room, preview.regionId);
+    } else if (preview.previewFocus === 'roomPoint') {
+        wireRoomPointToolbar(room, preview.roomPointId);
+    } else if (preview.previewFocus === 'walkable') {
+        wireWalkableEditToolbar(room, preview.walkablePolygonId, preview.walkableHoleId);
+    } else if (preview.previewFocus === 'roomSize') {
+        wireRoomSizeToolbar(room);
+    } else if (preview.previewFocus === 'scrollBounds') {
+        wireScrollBoundsToolbar(room);
+    } else {
+        wireRoomNavigateToolbar(room);
+    }
+}
+
+/** Sync Phaser registry room after disk save (integer-rounded points); avoids full game rebuild. */
+function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
+    if (!game) {
+        return;
+    }
+    const room = game.registry.get('bennePreviewRoom') as RoomData | undefined;
+    if (!room) {
+        return;
+    }
+    if (patch.kind === 'roomPoint') {
+        const p = room.points?.find((x) => x.id === patch.pointId);
+        if (p) {
+            p.x = patch.x;
+            p.y = patch.y;
+        }
+        return;
+    }
+    if (patch.kind === 'roomSize') {
+        room.size = { width: patch.width, height: patch.height };
+        // Re-sync camera so the edit-mode zoom adjusts to the new room dimensions.
+        polygonEditBridge.setMode(polygonEditBridge.mode);
+        return;
+    }
+    if (patch.kind === 'scrollBounds') {
+        room.scrollBounds = { x: patch.x, y: patch.y, width: patch.width, height: patch.height };
+        // Re-sync camera so the scroll bounds update takes effect.
+        polygonEditBridge.setMode(polygonEditBridge.mode);
+        return;
+    }
+    if (patch.kind === 'walkable') {
+        const src = patch.points;
+        const poly = room.walkable.polygons.find((p) => p.id === patch.polygonId);
+        if (!poly) {
+            return;
+        }
+        if (patch.holeId) {
+            let hole = poly.holes?.find((h) => h.id === patch.holeId);
+            if (!hole) {
+                if (!poly.holes) {
+                    poly.holes = [];
+                }
+                hole = { id: patch.holeId, active: true, points: [] };
+                poly.holes.push(hole);
+            }
+            if (!hole.points) {
+                hole.points = [];
+            }
+            const dest = hole.points;
+            if (dest.length === src.length) {
+                for (let i = 0; i < src.length; i++) {
+                    dest[i].x = src[i].x;
+                    dest[i].y = src[i].y;
+                }
+            } else {
+                hole.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
+            }
+            return;
+        }
+        if (poly.points.length === src.length) {
+            for (let i = 0; i < src.length; i++) {
+                poly.points[i].x = src[i].x;
+                poly.points[i].y = src[i].y;
+            }
+        } else {
+            poly.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
+        }
+        return;
+    }
+    if (patch.kind === 'regionPolygon') {
+        const src = patch.points;
+        const reg = room.regions?.find((r) => r.id === patch.regionId);
+        if (!reg) {
+            return;
+        }
+        if (reg.points.length === src.length) {
+            for (let i = 0; i < src.length; i++) {
+                reg.points[i].x = src[i].x;
+                reg.points[i].y = src[i].y;
+            }
+        } else {
+            reg.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
+        }
+        return;
+    }
+    if (patch.kind === 'hotspotPolygon') {
+        const src = patch.points;
+        const hs = room.hotspots?.find((h) => h.id === patch.hotspotId);
+        if (!hs) {
+            return;
+        }
+        if (!hs.points) {
+            hs.points = [];
+        }
+        const dest = hs.points;
+        if (dest.length === src.length) {
+            for (let i = 0; i < src.length; i++) {
+                dest[i].x = src[i].x;
+                dest[i].y = src[i].y;
+            }
+        } else {
+            hs.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
+        }
+        hs.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
+        hs.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
+        if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
+            (hs as { baseline?: number }).baseline = patch.baseline;
+        }
+        return;
+    }
+    const src = patch.points;
+    const prop = room.props?.find((p) => p.id === patch.propId);
+    if (!prop) {
+        return;
+    }
+    if (!prop.collider) {
+        prop.collider = { points: [] };
+    }
+    const dest = prop.collider.points;
+    if (dest.length === src.length) {
+        for (let i = 0; i < src.length; i++) {
+            dest[i].x = src[i].x;
+            dest[i].y = src[i].y;
+        }
+    } else {
+        prop.collider.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
+    }
+    prop.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
+    prop.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
+    if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
+        (prop as { baseline?: number }).baseline = patch.baseline;
+    }
+}
+
+function showError(text: string): void {
+    const root = document.getElementById('benne-preview-root');
+    if (root) {
+        root.innerHTML = `<p style="color:#f88;padding:12px;font-family:system-ui,sans-serif;font-size:13px;">${escapeHtml(
+            text,
+        )}</p>`;
+    }
+}
+
+function escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function resetToPlaceholder(): Promise<void> {
+    lastLoadedRoom = null;
+    clearToolbar();
+    await destroyPreviewGameAsync();
+    const root = document.getElementById('benne-preview-root');
+    if (root) {
+        root.innerHTML =
+            '<p style="color:#8892a6;padding:12px;font-family:system-ui,sans-serif;font-size:12px;">Select a room or prop to preview</p>';
+    }
+    currentRoomJsonUri = '';
+}
+
+/**
+ * Serialize `clear` / `error` / `loadRoom` so they never overlap. A fire-and-forget `clear` could
+ * otherwise finish after a concurrent `loadRoom` and wipe the canvas (e.g. after Refresh).
+ */
+let previewLifecycleChain: Promise<void> = Promise.resolve();
+
+function enqueuePreviewLifecycle(work: () => Promise<void>): void {
+    previewLifecycleChain = previewLifecycleChain
+        .then(() => work())
+        .catch((e) => {
+            console.error('[Benne preview] lifecycle', e);
+        });
+}
+
+type HostPreviewMessage = {
+    type?: string;
+    room?: RoomData;
+    gameSrcWebviewUri?: string;
+    roomJsonUri?: string;
+    message?: string;
+    ok?: boolean;
+    appliedPatch?: RoomPolygonPatch;
+    previewFocus?: string;
+    propColliderId?: string;
+    hotspotId?: string;
+    regionId?: string;
+    roomPointId?: string;
+    walkablePolygonId?: string;
+    walkableHoleId?: string;
+};
+
+async function runPreviewError(msg: HostPreviewMessage): Promise<void> {
+    lastLoadedRoom = null;
+    await destroyPreviewGameAsync();
+    const root = document.getElementById('benne-preview-root');
+    if (root) {
+        root.innerHTML = '';
+    }
+    clearToolbar();
+    showError(msg.message ?? 'Preview error');
+}
+
+async function runLoadRoom(msg: HostPreviewMessage): Promise<void> {
+    if (!document.getElementById('benne-preview-root')?.parentElement) {
+        return;
+    }
+
+    if (!msg.room || !msg.gameSrcWebviewUri) {
+        showError('Missing room data or game root URI.');
+        return;
+    }
+
+    if (typeof msg.roomJsonUri !== 'string' || msg.roomJsonUri.length === 0) {
+        showError('Missing roomJsonUri (save to disk requires it).');
+        return;
+    }
+
+    const gen = ++loadRoomGeneration;
+    await destroyPreviewGameAsync();
+    if (gen !== loadRoomGeneration) {
+        return;
+    }
+
+    const root = document.getElementById('benne-preview-root');
+    if (!root) {
+        showError('Preview container missing.');
+        return;
+    }
+    root.innerHTML = '';
+    const stack = document.createElement('div');
+    stack.style.cssText = 'position:relative;width:100%;height:100%;min-height:0';
+    const phaserMount = document.createElement('div');
+    phaserMount.style.cssText = 'width:100%;height:100%';
+    stack.appendChild(phaserMount);
+    root.appendChild(stack);
+
+    let room: RoomData;
+    try {
+        room = normalizeRoomForPreview(msg.room);
+    } catch (e) {
+        showError(e instanceof Error ? e.message : String(e));
+        return;
+    }
+    currentRoomJsonUri = msg.roomJsonUri;
+    lastLoadedRoom = room;
+
+    try {
+        wireToolbarFromPreviewState(room, parsePreviewToolbarPayload(msg));
+    } catch (e) {
+        showError(
+            `Preview toolbar: ${e instanceof Error ? e.message : String(e)}`,
+        );
+        return;
+    }
+
+    try {
+        const manifest = await buildPreviewManifest(room, msg.gameSrcWebviewUri);
+        const onPolygonPatch = (patch: RoomPolygonPatch): void => {
+            vscodeApi?.postMessage({
+                type: 'benne/preview/polygonPatch',
+                roomJsonUri: currentRoomJsonUri,
+                patch,
+            });
+        };
+        game = createRoomPreviewPhaserGame(phaserMount, manifest, {
+            roomJsonUri: currentRoomJsonUri,
+            onPolygonPatch,
+            initialShowGuis: guiVisibilityBridge.visible,
+        });
+        vscodeApi?.postMessage({ type: 'benne/preview/roomLoadComplete', roomJsonUri: currentRoomJsonUri });
+    } catch (e) {
+        showError(e instanceof Error ? e.message : String(e));
+    }
+}
+
+window.addEventListener('message', (event: MessageEvent) => {
+    const msg = event.data as HostPreviewMessage;
+
+    if (msg?.type === 'benne/preview/polygonPatchResult') {
+        if (msg.ok && msg.appliedPatch) {
+            applyAppliedPatchToPreviewRoom(msg.appliedPatch);
+        }
+        setStatus(msg.ok ? 'Saved.' : `Error: ${msg.message ?? ''}`);
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/toolbarUi') {
+        if (!lastLoadedRoom) {
+            return;
+        }
+        wireToolbarFromPreviewState(lastLoadedRoom, parsePreviewToolbarPayload(msg));
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/inspectorFocus') {
+        if (!lastLoadedRoom) {
+            return;
+        }
+        wireToolbarFromPreviewState(lastLoadedRoom, parsePreviewToolbarPayload(msg));
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/clear') {
+        enqueuePreviewLifecycle(async () => {
+            await resetToPlaceholder();
+        });
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/error') {
+        enqueuePreviewLifecycle(async () => {
+            await runPreviewError(msg);
+        });
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/loadRoom') {
+        enqueuePreviewLifecycle(async () => {
+            await runLoadRoom(msg);
+        });
+        return;
+    }
+});
+
+function wireRefreshPreviewButton(): void {
+    const btn = document.getElementById('benne-refresh-preview');
+    if (!btn || btn.dataset.benneRefreshWired === '1') {
+        return;
+    }
+    btn.dataset.benneRefreshWired = '1';
+    btn.addEventListener('click', () => {
+        vscodeApi?.postMessage({
+            type: 'benne/preview/requestRefresh',
+            roomJsonUri: currentRoomJsonUri,
+        });
+    });
+}
+
+function wirePlayFromHereButton(): void {
+    const btn = document.getElementById('benne-preview-play');
+    if (!btn || btn.dataset.bennePlayWired === '1') {
+        return;
+    }
+    btn.dataset.bennePlayWired = '1';
+    btn.addEventListener('click', () => {
+        const room = lastLoadedRoom;
+        if (!room || !currentRoomJsonUri) {
+            return;
+        }
+        vscodeApi?.postMessage({
+            type: 'benne/preview/playFromHere',
+            roomJsonUri: currentRoomJsonUri,
+            roomId: room.id,
+            roomName: room.name,
+        });
+    });
+}
+
+wireRefreshPreviewButton();
+wirePlayFromHereButton();
+wireShowGuisToggle();
+vscodeApi?.postMessage({ type: 'benne/preview/ready' });
 </file>
 
 <file path="src/engine/verbs/dispatchVerb.ts">
@@ -15529,6 +15680,361 @@ registerCharacterScript('henry', ({ B }) => {
 }
 </file>
 
+<file path="src/engine/ConfigManager.ts">
+import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
+import type { GameSettings, GameSettingsDialog } from '../types/game';
+import { DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbs/verbConfig';
+import rawSettings from '../game/game-config.json';
+
+const DIALOG_DEFAULTS: GameSettingsDialog = {
+  clickToSkip: false,
+  showText: true,
+  defaultTalkOffset: { x: 0, y: 0 },
+  minDurationMs: 800,
+  msPerCharacter: 35,
+  maxDurationMs: 4500,
+  durationMultiplier: 1.0,
+};
+
+function mergeDialogSettings(data: GameSettings): GameSettingsDialog {
+  const d = data.dialog;
+  if (!d) {
+    return { ...DIALOG_DEFAULTS };
+  }
+  const off = d.defaultTalkOffset;
+  return {
+    clickToSkip: d.clickToSkip ?? DIALOG_DEFAULTS.clickToSkip,
+    showText: d.showText ?? DIALOG_DEFAULTS.showText,
+    defaultTalkOffset:
+      off != null && typeof off === 'object' && Number.isFinite(off.x) && Number.isFinite(off.y)
+        ? { x: off.x, y: off.y }
+        : { ...DIALOG_DEFAULTS.defaultTalkOffset },
+    minDurationMs: d.minDurationMs ?? DIALOG_DEFAULTS.minDurationMs,
+    msPerCharacter: d.msPerCharacter ?? DIALOG_DEFAULTS.msPerCharacter,
+    maxDurationMs: d.maxDurationMs ?? DIALOG_DEFAULTS.maxDurationMs,
+    durationMultiplier: d.durationMultiplier ?? DIALOG_DEFAULTS.durationMultiplier,
+  };
+}
+
+function assertDialogSettings(data: GameSettings): void {
+  const d = data.dialog;
+  if (d === undefined) {
+    return;
+  }
+  if (typeof d !== 'object' || d === null) {
+    throw new Error('game-config dialog must be an object when present');
+  }
+  if (d.clickToSkip !== undefined && typeof d.clickToSkip !== 'boolean') {
+    throw new Error('game-config dialog.clickToSkip must be a boolean when present');
+  }
+  if (d.showText !== undefined && typeof d.showText !== 'boolean') {
+    throw new Error('game-config dialog.showText must be a boolean when present');
+  }
+  const off = d.defaultTalkOffset;
+  if (off !== undefined) {
+    if (typeof off !== 'object' || off === null) {
+      throw new Error('game-config dialog.defaultTalkOffset must be an object when present');
+    }
+    if (!Number.isFinite(off.x) || !Number.isFinite(off.y)) {
+      throw new Error('game-config dialog.defaultTalkOffset.x and .y must be finite numbers when present');
+    }
+  }
+  for (const key of ['minDurationMs', 'msPerCharacter', 'maxDurationMs', 'durationMultiplier'] as const) {
+    const v = d[key];
+    if (v !== undefined && !Number.isFinite(v)) {
+      throw new Error(`game-config dialog.${key} must be a finite number when present`);
+    }
+  }
+  const merged = mergeDialogSettings(data);
+  if (merged.minDurationMs < 0 || merged.maxDurationMs < 0 || merged.msPerCharacter < 0 || merged.durationMultiplier <= 0) {
+    throw new Error(
+      'game-config dialog: minDurationMs, maxDurationMs, and msPerCharacter must be >= 0; durationMultiplier must be > 0',
+    );
+  }
+  if (merged.minDurationMs > merged.maxDurationMs) {
+    throw new Error('game-config dialog.minDurationMs must be <= maxDurationMs');
+  }
+}
+
+function collectEffectiveVerbIds(data: GameSettings): Set<string> {
+  const ids = new Set<string>();
+  if (data.verbs !== undefined && data.verbs.length > 0) {
+    for (const v of data.verbs) {
+      ids.add(v.id);
+    }
+    return ids;
+  }
+  ids.add('look');
+  ids.add('use');
+  return ids;
+}
+
+function assertVerbSettings(data: GameSettings): void {
+  if (data.verbs !== undefined) {
+    if (!Array.isArray(data.verbs)) {
+      throw new Error('game-config verbs must be an array when present');
+    }
+    const seen = new Set<string>();
+    for (const v of data.verbs) {
+      if (typeof v !== 'object' || v === null) {
+        throw new Error('game-config each verbs entry must be an object');
+      }
+      if (typeof v.id !== 'string' || v.id.length === 0) {
+        throw new Error('game-config each verbs[].id must be a non-empty string');
+      }
+      if (v.id === WALK_TO_VERB_ID) {
+        throw new Error(
+          `game-config verbs[] may not declare "${WALK_TO_VERB_ID}" — it is a reserved built-in verb id`,
+        );
+      }
+      if (v.id === DEFAULT_VERB_TOKEN) {
+        throw new Error(
+          `game-config verbs[] may not declare "${DEFAULT_VERB_TOKEN}" — it is a reserved inputProfile token`,
+        );
+      }
+      if (seen.has(v.id)) {
+        throw new Error(`game-config duplicate verb id: ${v.id}`);
+      }
+      seen.add(v.id);
+      if (v.label !== undefined && typeof v.label !== 'string') {
+        throw new Error(`game-config verbs["${v.id}"].label must be a string when present`);
+      }
+      if (v.preposition !== undefined && typeof v.preposition !== 'string') {
+        throw new Error(`game-config verbs["${v.id}"].preposition must be a string when present`);
+      }
+    }
+  }
+
+  const effectiveIds = collectEffectiveVerbIds(data);
+  const isValidSlotValue = (value: string): boolean =>
+    value === WALK_TO_VERB_ID || value === DEFAULT_VERB_TOKEN || effectiveIds.has(value);
+
+  const ip = data.inputProfile;
+  if (ip !== undefined) {
+    if (typeof ip !== 'object' || ip === null) {
+      throw new Error('game-config inputProfile must be an object when present');
+    }
+    if ('kind' in ip) {
+      throw new Error(
+        'game-config inputProfile.kind is no longer supported — remove the field (the profile is flat `primaryButtonVerb` / `secondaryButtonVerb`)',
+      );
+    }
+    if (typeof ip.primaryButtonVerb !== 'string' || ip.primaryButtonVerb.length === 0) {
+      throw new Error('game-config inputProfile.primaryButtonVerb must be a non-empty string');
+    }
+    if (typeof ip.secondaryButtonVerb !== 'string' || ip.secondaryButtonVerb.length === 0) {
+      throw new Error('game-config inputProfile.secondaryButtonVerb must be a non-empty string');
+    }
+    if (!isValidSlotValue(ip.primaryButtonVerb)) {
+      throw new Error(
+        `game-config inputProfile.primaryButtonVerb "${ip.primaryButtonVerb}" must be listed in verbs, or one of "${WALK_TO_VERB_ID}" / "${DEFAULT_VERB_TOKEN}"`,
+      );
+    }
+    if (!isValidSlotValue(ip.secondaryButtonVerb)) {
+      throw new Error(
+        `game-config inputProfile.secondaryButtonVerb "${ip.secondaryButtonVerb}" must be listed in verbs, or one of "${WALK_TO_VERB_ID}" / "${DEFAULT_VERB_TOKEN}"`,
+      );
+    }
+  }
+
+  if (data.defaultFallbackLine !== undefined && typeof data.defaultFallbackLine !== 'string') {
+    throw new Error('game-config defaultFallbackLine must be a string when present');
+  }
+}
+
+function assertInitialGameState(data: GameSettings): void {
+  const init = data.initialGameState;
+  if (init === undefined) {
+    return;
+  }
+  if (typeof init !== 'object' || init === null || Array.isArray(init)) {
+    throw new Error('game-config initialGameState must be an object when present');
+  }
+  if (init.flags !== undefined) {
+    if (typeof init.flags !== 'object' || init.flags === null || Array.isArray(init.flags)) {
+      throw new Error('game-config initialGameState.flags must be a plain object when present');
+    }
+    for (const [k, v] of Object.entries(init.flags)) {
+      if (k.length === 0) {
+        throw new Error('game-config initialGameState.flags keys must be non-empty strings');
+      }
+      const ok = typeof v === 'boolean' || typeof v === 'number' || typeof v === 'string';
+      if (!ok) {
+        throw new Error(
+          `game-config initialGameState.flags["${k}"] must be a boolean, number, or string when present`,
+        );
+      }
+    }
+  }
+  if (init.variables !== undefined) {
+    if (typeof init.variables !== 'object' || init.variables === null || Array.isArray(init.variables)) {
+      throw new Error('game-config initialGameState.variables must be a plain object when present');
+    }
+  }
+  if (init.inventory !== undefined) {
+    if (Array.isArray(init.inventory)) {
+      const seen = new Set<string>();
+      for (const item of init.inventory) {
+        if (typeof item !== 'string' || item.length === 0) {
+          throw new Error('game-config initialGameState.inventory entries must be non-empty strings');
+        }
+        if (seen.has(item)) {
+          console.warn(
+            `[Benne] game-config initialGameState.inventory: duplicate "${item}" — quantities merge at runtime`,
+          );
+        }
+        seen.add(item);
+      }
+    } else if (typeof init.inventory === 'object' && init.inventory !== null && !Array.isArray(init.inventory)) {
+      for (const [k, v] of Object.entries(init.inventory as Record<string, unknown>)) {
+        if (k.length === 0) {
+          throw new Error('game-config initialGameState.inventory keys must be non-empty strings');
+        }
+        const n = typeof v === 'number' ? v : Number(v);
+        if (!Number.isFinite(n) || n < 0) {
+          throw new Error(
+            `game-config initialGameState.inventory["${k}"] must be a non-negative finite number when present`,
+          );
+        }
+      }
+    } else {
+      throw new Error(
+        'game-config initialGameState.inventory must be a string[] id list or Record<string, number> when present',
+      );
+    }
+  }
+}
+
+function assertGameSettings(data: GameSettings): void {
+  const { width, height } = data.resolution;
+  if (!Number.isFinite(width) || width < 1 || !Number.isFinite(height) || height < 1) {
+    throw new Error(`Invalid game-config resolution: ${width} x ${height}`);
+  }
+  const { masterVolume, sfxVolume, musicVolume, dialogueVolume } = data.audio;
+  for (const [key, v] of Object.entries({
+    masterVolume,
+    sfxVolume,
+    musicVolume,
+    dialogueVolume,
+  })) {
+    if (!Number.isFinite(v) || v < 0 || v > 1) {
+      throw new Error(`Invalid game-config audio.${key}: ${v} (expected 0.0–1.0)`);
+    }
+  }
+  if (typeof data.startingPlayerCharacter !== 'string' || data.startingPlayerCharacter.length === 0) {
+    throw new Error('game-config startingPlayerCharacter must be a non-empty string');
+  }
+  if (data.dropWhenInventoryUsed !== undefined && typeof data.dropWhenInventoryUsed !== 'boolean') {
+    throw new Error('game-config dropWhenInventoryUsed must be a boolean when present');
+  }
+  if (data.debug !== undefined) {
+    const d = data.debug;
+    if (typeof d !== 'object' || d === null) {
+      throw new Error('game-config debug must be an object when present');
+    }
+    for (const key of ['showWalkable', 'showPropOutlines', 'showGuiOutlines'] as const) {
+      const v = d[key];
+      if (v !== undefined && typeof v !== 'boolean') {
+        throw new Error(`game-config debug.${key} must be a boolean when present`);
+      }
+    }
+  }
+  assertInitialGameState(data);
+  assertVerbSettings(data);
+  assertDialogSettings(data);
+  assertCursorSettings(data);
+}
+
+function assertCursorSettings(data: GameSettings): void {
+  const c = data.cursor;
+  if (c === undefined) {
+    return;
+  }
+  if (typeof c !== 'object' || c === null || Array.isArray(c)) {
+    throw new Error('game-config cursor must be an object when present');
+  }
+  if (typeof c.idleAnimation !== 'string' || c.idleAnimation.trim().length === 0) {
+    throw new Error('game-config cursor.idleAnimation must be a non-empty string when cursor is set');
+  }
+  if (typeof c.activeAnimation !== 'string' || c.activeAnimation.trim().length === 0) {
+    throw new Error('game-config cursor.activeAnimation must be a non-empty string when cursor is set');
+  }
+  const anims = c.animations;
+  if (anims !== undefined) {
+    if (typeof anims !== 'object' || anims === null || Array.isArray(anims)) {
+      throw new Error('game-config cursor.animations must be a plain object when present');
+    }
+    for (const [tag, clip] of Object.entries(anims)) {
+      if (typeof tag !== 'string' || tag.length === 0) {
+        throw new Error('game-config cursor.animations keys must be non-empty strings');
+      }
+      if (typeof clip !== 'object' || clip === null || Array.isArray(clip)) {
+        throw new Error(`game-config cursor.animations["${tag}"] must be an object when present`);
+      }
+      const rec = clip as Record<string, unknown>;
+      if (rec.loop !== undefined && typeof rec.loop !== 'boolean') {
+        throw new Error(`game-config cursor.animations["${tag}"].loop must be a boolean when present`);
+      }
+      if (rec.frameDuration !== undefined && !Number.isFinite(rec.frameDuration)) {
+        throw new Error(`game-config cursor.animations["${tag}"].frameDuration must be a finite number when present`);
+      }
+    }
+  }
+  const hs = c.hotspot;
+  if (hs !== undefined) {
+    if (typeof hs !== 'string' || !isValidGameSettingsCursorHotspot(hs)) {
+      throw new Error(
+        `game-config cursor.hotspot must be one of: ${CURSOR_HOTSPOT_PRESETS.join(', ')}`,
+      );
+    }
+    if (hs === 'custom') {
+      const p = c.hotspotPixel;
+      if (p === undefined || typeof p !== 'object' || p === null || Array.isArray(p)) {
+        throw new Error('game-config cursor.hotspotPixel { x, y } is required when cursor.hotspot is "custom"');
+      }
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+        throw new Error('game-config cursor.hotspotPixel.x and .y must be finite numbers when hotspot is "custom"');
+      }
+    }
+  } else if (c.hotspotPixel !== undefined) {
+    console.warn('[Benne] game-config cursor.hotspotPixel is ignored unless cursor.hotspot is "custom"');
+  }
+  const disp = c.display;
+  if (disp !== undefined) {
+    if (typeof disp !== 'object' || disp === null || Array.isArray(disp)) {
+      throw new Error('game-config cursor.display must be an object when present');
+    }
+    if (disp.aseprite !== undefined && typeof disp.aseprite !== 'boolean') {
+      throw new Error('game-config cursor.display.aseprite must be a boolean when present');
+    }
+  }
+}
+
+const settings = rawSettings as GameSettings;
+assertGameSettings(settings);
+
+/**
+ * Synchronous access to `src/game/game-config.json` (bundled by Vite at build time).
+ */
+export function getGameSettings(): GameSettings {
+  return settings;
+}
+
+/** Merged `dialog` values from `game-config.json` (defaults apply when the block or fields are omitted). */
+export function getDialogSettings(): GameSettingsDialog {
+  return mergeDialogSettings(settings);
+}
+
+/** How long a `.say()` line should stay on screen from {@link getDialogSettings} timing rules. */
+export function computeDialogLineDurationMs(line: string): number {
+  const dialog = mergeDialogSettings(settings);
+  const n = Array.from(line).length;
+  const scaled = n * dialog.msPerCharacter * dialog.durationMultiplier;
+  const clamped = Math.min(dialog.maxDurationMs, Math.max(dialog.minDurationMs, scaled));
+  return Math.round(clamped);
+}
+</file>
+
 <file path="src/engine/verbs/dispatchInventoryVerb.ts">
 import type { GameSettings } from '../../types/game.js';
 import type { EventBus } from '../events/EventBus';
@@ -15741,6 +16247,20 @@ export {
   ]
  }
 }
+</file>
+
+<file path="src/game/characters/hank/hank.character.ts">
+import { registerCharacterScript } from '@engine/scripting';
+
+/**
+ * Character script for `hank` — self-only Bennescript (`B.whenLookAt(() => …)`).
+ * Room-scoped handlers in `*.room.ts` still run first for the same verb.
+ */
+registerCharacterScript('hank', ({ B }) => {
+  // Example: B.whenLookAt(() => { B.player.say('…'); });
+  // Delete this line when you add your first handler.
+  void B;
+});
 </file>
 
 <file path="src/game/collectFontLoadsForGui.ts">
@@ -16858,18 +17378,89 @@ export function shouldDropActiveInventoryOnUse(itemId: string): boolean {
 }
 </file>
 
-<file path="src/game/characters/hank/hank.character.ts">
-import { registerCharacterScript } from '@engine/scripting';
-
-/**
- * Character script for `hank` — self-only Bennescript (`B.whenLookAt(() => …)`).
- * Room-scoped handlers in `*.room.ts` still run first for the same verb.
- */
-registerCharacterScript('hank', ({ B }) => {
-  // Example: B.whenLookAt(() => { B.player.say('…'); });
-  // Delete this line when you add your first handler.
-  void B;
-});
+<file path="src/game/characters/hank/hank.character.json">
+{
+  "id": "hank",
+  "name": "Hank",
+  "description": "",
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 40,
+    "y": 61
+  },
+  "talkPoint": {
+    "x": 18,
+    "y": -1
+  },
+  "clickable": false,
+  "display": {
+    "aseprite": true
+  },
+  "feet": {
+    "x": 18,
+    "y": 61
+  },
+  "animations": {
+    "IdleL": {
+      "loop": true
+    },
+    "IdleD": {
+      "loop": true
+    },
+    "IdleU": {
+      "loop": true
+    },
+    "WalkL": {
+      "loop": true,
+      "frameDuration": 80
+    },
+    "WalkD": {
+      "loop": true,
+      "frameDuration": 60
+    },
+    "WalkU": {
+      "loop": true,
+      "frameDuration": 60
+    },
+    "TalkL": {
+      "loop": true
+    },
+    "TalkD": {
+      "loop": true
+    },
+    "TalkU": {
+      "loop": true
+    }
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 31,
+        "y": 28
+      },
+      {
+        "x": 26,
+        "y": 0
+      },
+      {
+        "x": 11,
+        "y": 0
+      },
+      {
+        "x": 5,
+        "y": 30
+      },
+      {
+        "x": 7,
+        "y": 64
+      },
+      {
+        "x": 28,
+        "y": 64
+      }
+    ]
+  }
+}
 </file>
 
 <file path="src/game/inventory/Lantern/Lantern.inventory.ts">
@@ -16894,361 +17485,6 @@ registerInventoryScript('Lantern', ({ B }) => {
     
   });
 });
-</file>
-
-<file path="src/engine/ConfigManager.ts">
-import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
-import type { GameSettings, GameSettingsDialog } from '../types/game';
-import { DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbs/verbConfig';
-import rawSettings from '../game/game-config.json';
-
-const DIALOG_DEFAULTS: GameSettingsDialog = {
-  clickToSkip: false,
-  showText: true,
-  defaultTalkOffset: { x: 0, y: 0 },
-  minDurationMs: 800,
-  msPerCharacter: 35,
-  maxDurationMs: 4500,
-  durationMultiplier: 1.0,
-};
-
-function mergeDialogSettings(data: GameSettings): GameSettingsDialog {
-  const d = data.dialog;
-  if (!d) {
-    return { ...DIALOG_DEFAULTS };
-  }
-  const off = d.defaultTalkOffset;
-  return {
-    clickToSkip: d.clickToSkip ?? DIALOG_DEFAULTS.clickToSkip,
-    showText: d.showText ?? DIALOG_DEFAULTS.showText,
-    defaultTalkOffset:
-      off != null && typeof off === 'object' && Number.isFinite(off.x) && Number.isFinite(off.y)
-        ? { x: off.x, y: off.y }
-        : { ...DIALOG_DEFAULTS.defaultTalkOffset },
-    minDurationMs: d.minDurationMs ?? DIALOG_DEFAULTS.minDurationMs,
-    msPerCharacter: d.msPerCharacter ?? DIALOG_DEFAULTS.msPerCharacter,
-    maxDurationMs: d.maxDurationMs ?? DIALOG_DEFAULTS.maxDurationMs,
-    durationMultiplier: d.durationMultiplier ?? DIALOG_DEFAULTS.durationMultiplier,
-  };
-}
-
-function assertDialogSettings(data: GameSettings): void {
-  const d = data.dialog;
-  if (d === undefined) {
-    return;
-  }
-  if (typeof d !== 'object' || d === null) {
-    throw new Error('game-config dialog must be an object when present');
-  }
-  if (d.clickToSkip !== undefined && typeof d.clickToSkip !== 'boolean') {
-    throw new Error('game-config dialog.clickToSkip must be a boolean when present');
-  }
-  if (d.showText !== undefined && typeof d.showText !== 'boolean') {
-    throw new Error('game-config dialog.showText must be a boolean when present');
-  }
-  const off = d.defaultTalkOffset;
-  if (off !== undefined) {
-    if (typeof off !== 'object' || off === null) {
-      throw new Error('game-config dialog.defaultTalkOffset must be an object when present');
-    }
-    if (!Number.isFinite(off.x) || !Number.isFinite(off.y)) {
-      throw new Error('game-config dialog.defaultTalkOffset.x and .y must be finite numbers when present');
-    }
-  }
-  for (const key of ['minDurationMs', 'msPerCharacter', 'maxDurationMs', 'durationMultiplier'] as const) {
-    const v = d[key];
-    if (v !== undefined && !Number.isFinite(v)) {
-      throw new Error(`game-config dialog.${key} must be a finite number when present`);
-    }
-  }
-  const merged = mergeDialogSettings(data);
-  if (merged.minDurationMs < 0 || merged.maxDurationMs < 0 || merged.msPerCharacter < 0 || merged.durationMultiplier <= 0) {
-    throw new Error(
-      'game-config dialog: minDurationMs, maxDurationMs, and msPerCharacter must be >= 0; durationMultiplier must be > 0',
-    );
-  }
-  if (merged.minDurationMs > merged.maxDurationMs) {
-    throw new Error('game-config dialog.minDurationMs must be <= maxDurationMs');
-  }
-}
-
-function collectEffectiveVerbIds(data: GameSettings): Set<string> {
-  const ids = new Set<string>();
-  if (data.verbs !== undefined && data.verbs.length > 0) {
-    for (const v of data.verbs) {
-      ids.add(v.id);
-    }
-    return ids;
-  }
-  ids.add('look');
-  ids.add('use');
-  return ids;
-}
-
-function assertVerbSettings(data: GameSettings): void {
-  if (data.verbs !== undefined) {
-    if (!Array.isArray(data.verbs)) {
-      throw new Error('game-config verbs must be an array when present');
-    }
-    const seen = new Set<string>();
-    for (const v of data.verbs) {
-      if (typeof v !== 'object' || v === null) {
-        throw new Error('game-config each verbs entry must be an object');
-      }
-      if (typeof v.id !== 'string' || v.id.length === 0) {
-        throw new Error('game-config each verbs[].id must be a non-empty string');
-      }
-      if (v.id === WALK_TO_VERB_ID) {
-        throw new Error(
-          `game-config verbs[] may not declare "${WALK_TO_VERB_ID}" — it is a reserved built-in verb id`,
-        );
-      }
-      if (v.id === DEFAULT_VERB_TOKEN) {
-        throw new Error(
-          `game-config verbs[] may not declare "${DEFAULT_VERB_TOKEN}" — it is a reserved inputProfile token`,
-        );
-      }
-      if (seen.has(v.id)) {
-        throw new Error(`game-config duplicate verb id: ${v.id}`);
-      }
-      seen.add(v.id);
-      if (v.label !== undefined && typeof v.label !== 'string') {
-        throw new Error(`game-config verbs["${v.id}"].label must be a string when present`);
-      }
-      if (v.preposition !== undefined && typeof v.preposition !== 'string') {
-        throw new Error(`game-config verbs["${v.id}"].preposition must be a string when present`);
-      }
-    }
-  }
-
-  const effectiveIds = collectEffectiveVerbIds(data);
-  const isValidSlotValue = (value: string): boolean =>
-    value === WALK_TO_VERB_ID || value === DEFAULT_VERB_TOKEN || effectiveIds.has(value);
-
-  const ip = data.inputProfile;
-  if (ip !== undefined) {
-    if (typeof ip !== 'object' || ip === null) {
-      throw new Error('game-config inputProfile must be an object when present');
-    }
-    if ('kind' in ip) {
-      throw new Error(
-        'game-config inputProfile.kind is no longer supported — remove the field (the profile is flat `primaryButtonVerb` / `secondaryButtonVerb`)',
-      );
-    }
-    if (typeof ip.primaryButtonVerb !== 'string' || ip.primaryButtonVerb.length === 0) {
-      throw new Error('game-config inputProfile.primaryButtonVerb must be a non-empty string');
-    }
-    if (typeof ip.secondaryButtonVerb !== 'string' || ip.secondaryButtonVerb.length === 0) {
-      throw new Error('game-config inputProfile.secondaryButtonVerb must be a non-empty string');
-    }
-    if (!isValidSlotValue(ip.primaryButtonVerb)) {
-      throw new Error(
-        `game-config inputProfile.primaryButtonVerb "${ip.primaryButtonVerb}" must be listed in verbs, or one of "${WALK_TO_VERB_ID}" / "${DEFAULT_VERB_TOKEN}"`,
-      );
-    }
-    if (!isValidSlotValue(ip.secondaryButtonVerb)) {
-      throw new Error(
-        `game-config inputProfile.secondaryButtonVerb "${ip.secondaryButtonVerb}" must be listed in verbs, or one of "${WALK_TO_VERB_ID}" / "${DEFAULT_VERB_TOKEN}"`,
-      );
-    }
-  }
-
-  if (data.defaultFallbackLine !== undefined && typeof data.defaultFallbackLine !== 'string') {
-    throw new Error('game-config defaultFallbackLine must be a string when present');
-  }
-}
-
-function assertInitialGameState(data: GameSettings): void {
-  const init = data.initialGameState;
-  if (init === undefined) {
-    return;
-  }
-  if (typeof init !== 'object' || init === null || Array.isArray(init)) {
-    throw new Error('game-config initialGameState must be an object when present');
-  }
-  if (init.flags !== undefined) {
-    if (typeof init.flags !== 'object' || init.flags === null || Array.isArray(init.flags)) {
-      throw new Error('game-config initialGameState.flags must be a plain object when present');
-    }
-    for (const [k, v] of Object.entries(init.flags)) {
-      if (k.length === 0) {
-        throw new Error('game-config initialGameState.flags keys must be non-empty strings');
-      }
-      const ok = typeof v === 'boolean' || typeof v === 'number' || typeof v === 'string';
-      if (!ok) {
-        throw new Error(
-          `game-config initialGameState.flags["${k}"] must be a boolean, number, or string when present`,
-        );
-      }
-    }
-  }
-  if (init.variables !== undefined) {
-    if (typeof init.variables !== 'object' || init.variables === null || Array.isArray(init.variables)) {
-      throw new Error('game-config initialGameState.variables must be a plain object when present');
-    }
-  }
-  if (init.inventory !== undefined) {
-    if (Array.isArray(init.inventory)) {
-      const seen = new Set<string>();
-      for (const item of init.inventory) {
-        if (typeof item !== 'string' || item.length === 0) {
-          throw new Error('game-config initialGameState.inventory entries must be non-empty strings');
-        }
-        if (seen.has(item)) {
-          console.warn(
-            `[Benne] game-config initialGameState.inventory: duplicate "${item}" — quantities merge at runtime`,
-          );
-        }
-        seen.add(item);
-      }
-    } else if (typeof init.inventory === 'object' && init.inventory !== null && !Array.isArray(init.inventory)) {
-      for (const [k, v] of Object.entries(init.inventory as Record<string, unknown>)) {
-        if (k.length === 0) {
-          throw new Error('game-config initialGameState.inventory keys must be non-empty strings');
-        }
-        const n = typeof v === 'number' ? v : Number(v);
-        if (!Number.isFinite(n) || n < 0) {
-          throw new Error(
-            `game-config initialGameState.inventory["${k}"] must be a non-negative finite number when present`,
-          );
-        }
-      }
-    } else {
-      throw new Error(
-        'game-config initialGameState.inventory must be a string[] id list or Record<string, number> when present',
-      );
-    }
-  }
-}
-
-function assertGameSettings(data: GameSettings): void {
-  const { width, height } = data.resolution;
-  if (!Number.isFinite(width) || width < 1 || !Number.isFinite(height) || height < 1) {
-    throw new Error(`Invalid game-config resolution: ${width} x ${height}`);
-  }
-  const { masterVolume, sfxVolume, musicVolume, dialogueVolume } = data.audio;
-  for (const [key, v] of Object.entries({
-    masterVolume,
-    sfxVolume,
-    musicVolume,
-    dialogueVolume,
-  })) {
-    if (!Number.isFinite(v) || v < 0 || v > 1) {
-      throw new Error(`Invalid game-config audio.${key}: ${v} (expected 0.0–1.0)`);
-    }
-  }
-  if (typeof data.startingPlayerCharacter !== 'string' || data.startingPlayerCharacter.length === 0) {
-    throw new Error('game-config startingPlayerCharacter must be a non-empty string');
-  }
-  if (data.dropWhenInventoryUsed !== undefined && typeof data.dropWhenInventoryUsed !== 'boolean') {
-    throw new Error('game-config dropWhenInventoryUsed must be a boolean when present');
-  }
-  if (data.debug !== undefined) {
-    const d = data.debug;
-    if (typeof d !== 'object' || d === null) {
-      throw new Error('game-config debug must be an object when present');
-    }
-    for (const key of ['showWalkable', 'showPropOutlines', 'showGuiOutlines'] as const) {
-      const v = d[key];
-      if (v !== undefined && typeof v !== 'boolean') {
-        throw new Error(`game-config debug.${key} must be a boolean when present`);
-      }
-    }
-  }
-  assertInitialGameState(data);
-  assertVerbSettings(data);
-  assertDialogSettings(data);
-  assertCursorSettings(data);
-}
-
-function assertCursorSettings(data: GameSettings): void {
-  const c = data.cursor;
-  if (c === undefined) {
-    return;
-  }
-  if (typeof c !== 'object' || c === null || Array.isArray(c)) {
-    throw new Error('game-config cursor must be an object when present');
-  }
-  if (typeof c.idleAnimation !== 'string' || c.idleAnimation.trim().length === 0) {
-    throw new Error('game-config cursor.idleAnimation must be a non-empty string when cursor is set');
-  }
-  if (typeof c.activeAnimation !== 'string' || c.activeAnimation.trim().length === 0) {
-    throw new Error('game-config cursor.activeAnimation must be a non-empty string when cursor is set');
-  }
-  const anims = c.animations;
-  if (anims !== undefined) {
-    if (typeof anims !== 'object' || anims === null || Array.isArray(anims)) {
-      throw new Error('game-config cursor.animations must be a plain object when present');
-    }
-    for (const [tag, clip] of Object.entries(anims)) {
-      if (typeof tag !== 'string' || tag.length === 0) {
-        throw new Error('game-config cursor.animations keys must be non-empty strings');
-      }
-      if (typeof clip !== 'object' || clip === null || Array.isArray(clip)) {
-        throw new Error(`game-config cursor.animations["${tag}"] must be an object when present`);
-      }
-      const rec = clip as Record<string, unknown>;
-      if (rec.loop !== undefined && typeof rec.loop !== 'boolean') {
-        throw new Error(`game-config cursor.animations["${tag}"].loop must be a boolean when present`);
-      }
-      if (rec.frameDuration !== undefined && !Number.isFinite(rec.frameDuration)) {
-        throw new Error(`game-config cursor.animations["${tag}"].frameDuration must be a finite number when present`);
-      }
-    }
-  }
-  const hs = c.hotspot;
-  if (hs !== undefined) {
-    if (typeof hs !== 'string' || !isValidGameSettingsCursorHotspot(hs)) {
-      throw new Error(
-        `game-config cursor.hotspot must be one of: ${CURSOR_HOTSPOT_PRESETS.join(', ')}`,
-      );
-    }
-    if (hs === 'custom') {
-      const p = c.hotspotPixel;
-      if (p === undefined || typeof p !== 'object' || p === null || Array.isArray(p)) {
-        throw new Error('game-config cursor.hotspotPixel { x, y } is required when cursor.hotspot is "custom"');
-      }
-      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
-        throw new Error('game-config cursor.hotspotPixel.x and .y must be finite numbers when hotspot is "custom"');
-      }
-    }
-  } else if (c.hotspotPixel !== undefined) {
-    console.warn('[Benne] game-config cursor.hotspotPixel is ignored unless cursor.hotspot is "custom"');
-  }
-  const disp = c.display;
-  if (disp !== undefined) {
-    if (typeof disp !== 'object' || disp === null || Array.isArray(disp)) {
-      throw new Error('game-config cursor.display must be an object when present');
-    }
-    if (disp.aseprite !== undefined && typeof disp.aseprite !== 'boolean') {
-      throw new Error('game-config cursor.display.aseprite must be a boolean when present');
-    }
-  }
-}
-
-const settings = rawSettings as GameSettings;
-assertGameSettings(settings);
-
-/**
- * Synchronous access to `src/game/game-config.json` (bundled by Vite at build time).
- */
-export function getGameSettings(): GameSettings {
-  return settings;
-}
-
-/** Merged `dialog` values from `game-config.json` (defaults apply when the block or fields are omitted). */
-export function getDialogSettings(): GameSettingsDialog {
-  return mergeDialogSettings(settings);
-}
-
-/** How long a `.say()` line should stay on screen from {@link getDialogSettings} timing rules. */
-export function computeDialogLineDurationMs(line: string): number {
-  const dialog = mergeDialogSettings(settings);
-  const n = Array.from(line).length;
-  const scaled = n * dialog.msPerCharacter * dialog.durationMultiplier;
-  const clamped = Math.min(dialog.maxDurationMs, Math.max(dialog.minDurationMs, scaled));
-  return Math.round(clamped);
-}
 </file>
 
 <file path="src/engine/scripting/benneScriptGameStateApi.ts">
@@ -17653,27 +17889,55 @@ export class GlobalBenneScript extends BenneScriptCore {
 }
 </file>
 
-<file path="src/game/characters/hank/hank.character.json">
+<file path="src/game/characters/henry/henry.character.json">
 {
-  "id": "hank",
-  "name": "Hank",
-  "description": "",
+  "id": "henry",
+  "name": "Henry",
+  "description": "Henry",
   "walkSpeed": 88,
   "walkToPoint": {
-    "x": 40,
-    "y": 61
+    "x": -18,
+    "y": 63
   },
   "talkPoint": {
     "x": 18,
-    "y": -1
+    "y": 1
   },
-  "clickable": false,
+  "clickable": true,
   "display": {
     "aseprite": true
   },
   "feet": {
     "x": 18,
-    "y": 61
+    "y": 62
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 11,
+        "y": 3
+      },
+      {
+        "x": 5,
+        "y": 34
+      },
+      {
+        "x": 9,
+        "y": 64
+      },
+      {
+        "x": 28,
+        "y": 64
+      },
+      {
+        "x": 31,
+        "y": 34
+      },
+      {
+        "x": 25,
+        "y": 1
+      }
+    ]
   },
   "animations": {
     "IdleL": {
@@ -17707,34 +17971,7 @@ export class GlobalBenneScript extends BenneScriptCore {
       "loop": true
     }
   },
-  "collider": {
-    "points": [
-      {
-        "x": 31,
-        "y": 28
-      },
-      {
-        "x": 26,
-        "y": 0
-      },
-      {
-        "x": 11,
-        "y": 0
-      },
-      {
-        "x": 5,
-        "y": 30
-      },
-      {
-        "x": 7,
-        "y": 64
-      },
-      {
-        "x": 28,
-        "y": 64
-      }
-    ]
-  }
+  "defaultVerb": "talkTo"
 }
 </file>
 
@@ -17871,6 +18108,211 @@ registerGlobalScript(({ B }) => {
   },
   "defaultAnimation": "Lantern",
   "cursorAnimation": "Lantern"
+}
+</file>
+
+<file path="src/types/game.ts">
+import type { CharacterAnimationsConfig } from './character';
+import type { BenneGameStateFlagValue } from './gameState';
+
+export interface RoomManifestEntry {
+  id: string;
+  definition: string;
+}
+
+export interface RoomsManifestData {
+  startRoomId: string;
+  rooms: RoomManifestEntry[];
+}
+
+/** Optional starting slice for {@link import('../engine/gameState/GameStateManager.js').GameStateManager}. */
+export interface GameSettingsInitialGameState {
+  flags?: Record<string, BenneGameStateFlagValue>;
+  variables?: Record<string, unknown>;
+  /**
+   * Starting inventory: either unique id list (legacy; each becomes quantity 1) or id → quantity map.
+   */
+  inventory?: string[] | Record<string, number>;
+}
+
+/** Loaded from `src/game/game-config.json` (authoritative game bootstrap settings). */
+export interface GameSettingsResolution {
+  width: number;
+  height: number;
+}
+
+export interface GameSettingsAudio {
+  masterVolume: number;
+  sfxVolume: number;
+  musicVolume: number;
+  dialogueVolume: number;
+}
+
+export interface GameSettingsDebug {
+  /** When true, stroke walkable polygons in the room scene (distinct color from prop colliders). */
+  showWalkable?: boolean;
+  /** When true, stroke prop `collider` polygons for props that define one. */
+  showPropOutlines?: boolean;
+  /** When true, stroke each slot rectangle in GUI `inventoryPanel` controls (no default slot fills). */
+  showGuiOutlines?: boolean;
+}
+
+/** Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults. */
+export interface GameSettingsDialog {
+  /**
+   * Default for timed Bennescript `.say` / `.say.now` lines when the call omits **`clickToSkip`** in the options object.
+   * When true, a **left**-click ends the line early (same cleanup as the timer). Per-line overrides:
+   * `say('…', { clickToSkip: false })` always disables skip; `say('…', { clickToSkip: true })` always enables skip even
+   * when this global flag is false.
+   */
+  clickToSkip: boolean;
+  /** When false, `.say()` timing still runs but no dialog-text GUI (reserved for future spoken-only lines). */
+  showText: boolean;
+  /** Extra offset in **game canvas pixels** (same space as GUI `controls[].x` / `y`) applied after projecting the character `talkPoint`. */
+  defaultTalkOffset: { x: number; y: number };
+  minDurationMs: number;
+  msPerCharacter: number;
+  maxDurationMs: number;
+  durationMultiplier: number;
+}
+
+/** One verb the game exposes (ids power inventory `onVerb`, `inputProfile`, and global handler events). */
+export interface GameVerbDefinition {
+  /** Stable id used in room JSON (props/hotspots), inventory JSON, `inputProfile`, and scripts. */
+  id: string;
+  /** Optional label for future in-game verb UIs. */
+  label?: string;
+  /**
+   * Optional short word between verb and object in composed UI copy (e.g. `"at"` → “Look at …”, `"to"` → “Give to …”).
+   */
+  preposition?: string;
+}
+
+/**
+ * Map primary / secondary mouse buttons to verb ids.
+ * Primary is usually the left button, secondary the right (see `RoomScene` + Phaser pointer).
+ *
+ * Each slot accepts **any defined verb id** from {@link GameSettings.verbs}, or one of two reserved
+ * literal tokens:
+ *
+ * - **`"walkTo"`** — built-in universal walk verb. When a pointer click over a clickable resolves to
+ *   this slot, the engine walks the player to the target's stand point instead of dispatching a verb.
+ *   (Empty-space clicks always walk regardless of slot configuration.)
+ * - **`"defaultVerb"`** — substitute with the clicked target's authored `defaultVerb` field
+ *   (per-prop / hotspot / character / inventory item). When the target omits `defaultVerb`, the
+ *   engine falls back to `"look"`.
+ */
+export interface VerbInputProfile {
+  /** Verb id / `"walkTo"` / `"defaultVerb"` for the primary (typically left) mouse button. */
+  primaryButtonVerb: string;
+  /** Verb id / `"walkTo"` / `"defaultVerb"` for the secondary (typically right) mouse button. */
+  secondaryButtonVerb: string;
+}
+
+/**
+ * Central game configuration (not Phaser’s `GameConfig`).
+ * Add optional fields here as the engine grows (language, shaders, accessibility, etc.).
+ */
+export interface GameSettings {
+  /**
+   * Template id used by `scripts/switch-game-template.mjs` to decide where `sync-template-down`
+   * writes. Matches the `game-templates/<name>/` folder (e.g. `"2-click"`, `"9-verb"`).
+   * Not consumed by the engine; purely authoring/tooling metadata.
+   */
+  name?: string;
+  resolution: GameSettingsResolution;
+  /** Folder name under `src/game/characters/` for the default player character. */
+  startingPlayerCharacter: string;
+  /**
+   * Which room id to load first. When set, overrides `startRoomId` in `rooms.manifest.json`.
+   * When omitted, the manifest value is used.
+   */
+  startingRoomId?: string;
+  audio: GameSettingsAudio;
+  /** Editor / QA toggles (polygon overlays, etc.). */
+  debug?: GameSettingsDebug;
+  /**
+   * Declared verbs for this game. When omitted, the engine assumes `look` and `use` (see architecture).
+   */
+  verbs?: GameVerbDefinition[];
+  /**
+   * How pointer input maps to a verb before dispatch. When omitted, defaults to left → `look`, right → `use`
+   * (unless `verbs` overrides ids and you must set an explicit `inputProfile`). Slots accept any
+   * defined verb id plus the reserved literals `"walkTo"` and `"defaultVerb"` — see
+   * {@link VerbInputProfile}.
+   */
+  inputProfile?: VerbInputProfile;
+  /**
+   * Suggested line when no handler handles the verb; emitted on the `verb:unhandled` bus event.
+   */
+  defaultFallbackLine?: string;
+  /**
+   * Global default policy for whether the **active inventory item** is "dropped" (active inventory +
+   * active verb both cleared) after it is used on a clickable target (prop / hotspot / character).
+   *
+   * When **`false`** (default), the active inventory selection stays armed after each use, so the
+   * player can use the same item on several targets in a row. When **`true`**, the active inventory
+   * is cleared after use (classic point-and-click behavior).
+   *
+   * Individual items can override this per-item via **`InventoryItemData.dropWhenUsed`**.
+   */
+  dropWhenInventoryUsed?: boolean;
+  /** In-game dialog line timing and `dialog-text` GUI placement (see `getDialogSettings()`). */
+  dialog?: Partial<GameSettingsDialog>;
+  /** Starting flags, variables, and inventory merged at game creation (see `GameStateManager`). */
+  initialGameState?: GameSettingsInitialGameState;
+  /**
+   * Optional custom pointer art from `src/game/assets/images/cursor/cursor.png` + `cursor.json`
+   * (Aseprite export). Uses the same `animations` / clip keys pattern as `*.character.json`.
+   */
+  cursor?: GameSettingsCursor;
+}
+
+/** `game-config.json` `cursor.display` block (Aseprite sheet only for now). */
+export interface GameSettingsCursorDisplay {
+  /** When true, load the bundled `images/cursor/cursor` Aseprite sheet. */
+  aseprite?: boolean;
+}
+
+/**
+ * Where the logical pointer tip sits on the cursor art (Phaser `setOrigin` fractions, except
+ * **`custom`**, which uses {@link GameSettingsCursor.hotspotPixel} from the sprite top-left).
+ */
+export type GameSettingsCursorHotspot =
+  | 'top-left'
+  | 'top-center'
+  | 'top-right'
+  | 'center-left'
+  | 'center'
+  | 'center-right'
+  | 'bottom-left'
+  | 'bottom-center'
+  | 'bottom-right'
+  | 'custom';
+
+/**
+ * `game-config.json` `cursor` block — same shape as `*.character.json` clip tuning: keys in
+ * {@link GameSettingsCursor.animations} are Aseprite frame tag names; {@link GameSettingsCursor.idleAnimation} /
+ * {@link GameSettingsCursor.activeAnimation} pick which tags drive the two pointer states.
+ */
+export interface GameSettingsCursor {
+  /** Aseprite tag (Phaser animation key) when the pointer is not over a clickable target. */
+  idleAnimation: string;
+  /** Aseprite tag when the pointer is over a prop, hotspot, clickable character, or GUI button. */
+  activeAnimation: string;
+  /** Optional per-tag `loop` / `frameDuration` / `events` (same as character `animations`). */
+  animations?: CharacterAnimationsConfig;
+  /**
+   * Which point on the cursor sprite tracks the hardware pointer. Defaults to **`top-left`**
+   * (Phaser origin `0,0`). Use **`custom`** with {@link GameSettingsCursor.hotspotPixel}.
+   */
+  hotspot?: GameSettingsCursorHotspot;
+  /**
+   * Pixel offset from the sprite’s **top-left** to the pointer hotspot (logical click position).
+   * Required when {@link GameSettingsCursor.hotspot} is **`custom`** (ignored for named presets).
+   */
+  hotspotPixel?: { x: number; y: number };
+  display?: GameSettingsCursorDisplay;
 }
 </file>
 
@@ -18346,297 +18788,6 @@ export function createGuiPreviewPhaserGame(
     ...editorGameConfig(parent, payload.internalWidth, payload.internalHeight),
     scene: [new BenneGuiPreviewBoot(payload), GuiPreviewScene],
   });
-}
-</file>
-
-<file path="src/game/characters/henry/henry.character.json">
-{
-  "id": "henry",
-  "name": "Henry",
-  "description": "Henry",
-  "walkSpeed": 88,
-  "walkToPoint": {
-    "x": -18,
-    "y": 63
-  },
-  "talkPoint": {
-    "x": 18,
-    "y": 1
-  },
-  "clickable": true,
-  "display": {
-    "aseprite": true
-  },
-  "feet": {
-    "x": 18,
-    "y": 62
-  },
-  "collider": {
-    "points": [
-      {
-        "x": 11,
-        "y": 3
-      },
-      {
-        "x": 5,
-        "y": 34
-      },
-      {
-        "x": 9,
-        "y": 64
-      },
-      {
-        "x": 28,
-        "y": 64
-      },
-      {
-        "x": 31,
-        "y": 34
-      },
-      {
-        "x": 25,
-        "y": 1
-      }
-    ]
-  },
-  "animations": {
-    "IdleL": {
-      "loop": true
-    },
-    "IdleD": {
-      "loop": true
-    },
-    "IdleU": {
-      "loop": true
-    },
-    "WalkL": {
-      "loop": true,
-      "frameDuration": 80
-    },
-    "WalkD": {
-      "loop": true,
-      "frameDuration": 60
-    },
-    "WalkU": {
-      "loop": true,
-      "frameDuration": 60
-    },
-    "TalkL": {
-      "loop": true
-    },
-    "TalkD": {
-      "loop": true
-    },
-    "TalkU": {
-      "loop": true
-    }
-  },
-  "defaultVerb": "talkTo"
-}
-</file>
-
-<file path="src/types/game.ts">
-import type { CharacterAnimationsConfig } from './character';
-import type { BenneGameStateFlagValue } from './gameState';
-
-export interface RoomManifestEntry {
-  id: string;
-  definition: string;
-}
-
-export interface RoomsManifestData {
-  startRoomId: string;
-  rooms: RoomManifestEntry[];
-}
-
-/** Optional starting slice for {@link import('../engine/gameState/GameStateManager.js').GameStateManager}. */
-export interface GameSettingsInitialGameState {
-  flags?: Record<string, BenneGameStateFlagValue>;
-  variables?: Record<string, unknown>;
-  /**
-   * Starting inventory: either unique id list (legacy; each becomes quantity 1) or id → quantity map.
-   */
-  inventory?: string[] | Record<string, number>;
-}
-
-/** Loaded from `src/game/game-config.json` (authoritative game bootstrap settings). */
-export interface GameSettingsResolution {
-  width: number;
-  height: number;
-}
-
-export interface GameSettingsAudio {
-  masterVolume: number;
-  sfxVolume: number;
-  musicVolume: number;
-  dialogueVolume: number;
-}
-
-export interface GameSettingsDebug {
-  /** When true, stroke walkable polygons in the room scene (distinct color from prop colliders). */
-  showWalkable?: boolean;
-  /** When true, stroke prop `collider` polygons for props that define one. */
-  showPropOutlines?: boolean;
-  /** When true, stroke each slot rectangle in GUI `inventoryPanel` controls (no default slot fills). */
-  showGuiOutlines?: boolean;
-}
-
-/** Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults. */
-export interface GameSettingsDialog {
-  /**
-   * Default for timed Bennescript `.say` / `.say.now` lines when the call omits **`clickToSkip`** in the options object.
-   * When true, a **left**-click ends the line early (same cleanup as the timer). Per-line overrides:
-   * `say('…', { clickToSkip: false })` always disables skip; `say('…', { clickToSkip: true })` always enables skip even
-   * when this global flag is false.
-   */
-  clickToSkip: boolean;
-  /** When false, `.say()` timing still runs but no dialog-text GUI (reserved for future spoken-only lines). */
-  showText: boolean;
-  /** Extra offset in **game canvas pixels** (same space as GUI `controls[].x` / `y`) applied after projecting the character `talkPoint`. */
-  defaultTalkOffset: { x: number; y: number };
-  minDurationMs: number;
-  msPerCharacter: number;
-  maxDurationMs: number;
-  durationMultiplier: number;
-}
-
-/** One verb the game exposes (ids power inventory `onVerb`, `inputProfile`, and global handler events). */
-export interface GameVerbDefinition {
-  /** Stable id used in room JSON (props/hotspots), inventory JSON, `inputProfile`, and scripts. */
-  id: string;
-  /** Optional label for future in-game verb UIs. */
-  label?: string;
-  /**
-   * Optional short word between verb and object in composed UI copy (e.g. `"at"` → “Look at …”, `"to"` → “Give to …”).
-   */
-  preposition?: string;
-}
-
-/**
- * Map primary / secondary mouse buttons to verb ids.
- * Primary is usually the left button, secondary the right (see `RoomScene` + Phaser pointer).
- *
- * Each slot accepts **any defined verb id** from {@link GameSettings.verbs}, or one of two reserved
- * literal tokens:
- *
- * - **`"walkTo"`** — built-in universal walk verb. When a pointer click over a clickable resolves to
- *   this slot, the engine walks the player to the target's stand point instead of dispatching a verb.
- *   (Empty-space clicks always walk regardless of slot configuration.)
- * - **`"defaultVerb"`** — substitute with the clicked target's authored `defaultVerb` field
- *   (per-prop / hotspot / character / inventory item). When the target omits `defaultVerb`, the
- *   engine falls back to `"look"`.
- */
-export interface VerbInputProfile {
-  /** Verb id / `"walkTo"` / `"defaultVerb"` for the primary (typically left) mouse button. */
-  primaryButtonVerb: string;
-  /** Verb id / `"walkTo"` / `"defaultVerb"` for the secondary (typically right) mouse button. */
-  secondaryButtonVerb: string;
-}
-
-/**
- * Central game configuration (not Phaser’s `GameConfig`).
- * Add optional fields here as the engine grows (language, shaders, accessibility, etc.).
- */
-export interface GameSettings {
-  /**
-   * Template id used by `scripts/switch-game-template.mjs` to decide where `sync-template-down`
-   * writes. Matches the `game-templates/<name>/` folder (e.g. `"2-click"`, `"9-verb"`).
-   * Not consumed by the engine; purely authoring/tooling metadata.
-   */
-  name?: string;
-  resolution: GameSettingsResolution;
-  /** Folder name under `src/game/characters/` for the default player character. */
-  startingPlayerCharacter: string;
-  /**
-   * Which room id to load first. When set, overrides `startRoomId` in `rooms.manifest.json`.
-   * When omitted, the manifest value is used.
-   */
-  startingRoomId?: string;
-  audio: GameSettingsAudio;
-  /** Editor / QA toggles (polygon overlays, etc.). */
-  debug?: GameSettingsDebug;
-  /**
-   * Declared verbs for this game. When omitted, the engine assumes `look` and `use` (see architecture).
-   */
-  verbs?: GameVerbDefinition[];
-  /**
-   * How pointer input maps to a verb before dispatch. When omitted, defaults to left → `look`, right → `use`
-   * (unless `verbs` overrides ids and you must set an explicit `inputProfile`). Slots accept any
-   * defined verb id plus the reserved literals `"walkTo"` and `"defaultVerb"` — see
-   * {@link VerbInputProfile}.
-   */
-  inputProfile?: VerbInputProfile;
-  /**
-   * Suggested line when no handler handles the verb; emitted on the `verb:unhandled` bus event.
-   */
-  defaultFallbackLine?: string;
-  /**
-   * Global default policy for whether the **active inventory item** is "dropped" (active inventory +
-   * active verb both cleared) after it is used on a clickable target (prop / hotspot / character).
-   *
-   * When **`false`** (default), the active inventory selection stays armed after each use, so the
-   * player can use the same item on several targets in a row. When **`true`**, the active inventory
-   * is cleared after use (classic point-and-click behavior).
-   *
-   * Individual items can override this per-item via **`InventoryItemData.dropWhenUsed`**.
-   */
-  dropWhenInventoryUsed?: boolean;
-  /** In-game dialog line timing and `dialog-text` GUI placement (see `getDialogSettings()`). */
-  dialog?: Partial<GameSettingsDialog>;
-  /** Starting flags, variables, and inventory merged at game creation (see `GameStateManager`). */
-  initialGameState?: GameSettingsInitialGameState;
-  /**
-   * Optional custom pointer art from `src/game/assets/images/cursor/cursor.png` + `cursor.json`
-   * (Aseprite export). Uses the same `animations` / clip keys pattern as `*.character.json`.
-   */
-  cursor?: GameSettingsCursor;
-}
-
-/** `game-config.json` `cursor.display` block (Aseprite sheet only for now). */
-export interface GameSettingsCursorDisplay {
-  /** When true, load the bundled `images/cursor/cursor` Aseprite sheet. */
-  aseprite?: boolean;
-}
-
-/**
- * Where the logical pointer tip sits on the cursor art (Phaser `setOrigin` fractions, except
- * **`custom`**, which uses {@link GameSettingsCursor.hotspotPixel} from the sprite top-left).
- */
-export type GameSettingsCursorHotspot =
-  | 'top-left'
-  | 'top-center'
-  | 'top-right'
-  | 'center-left'
-  | 'center'
-  | 'center-right'
-  | 'bottom-left'
-  | 'bottom-center'
-  | 'bottom-right'
-  | 'custom';
-
-/**
- * `game-config.json` `cursor` block — same shape as `*.character.json` clip tuning: keys in
- * {@link GameSettingsCursor.animations} are Aseprite frame tag names; {@link GameSettingsCursor.idleAnimation} /
- * {@link GameSettingsCursor.activeAnimation} pick which tags drive the two pointer states.
- */
-export interface GameSettingsCursor {
-  /** Aseprite tag (Phaser animation key) when the pointer is not over a clickable target. */
-  idleAnimation: string;
-  /** Aseprite tag when the pointer is over a prop, hotspot, clickable character, or GUI button. */
-  activeAnimation: string;
-  /** Optional per-tag `loop` / `frameDuration` / `events` (same as character `animations`). */
-  animations?: CharacterAnimationsConfig;
-  /**
-   * Which point on the cursor sprite tracks the hardware pointer. Defaults to **`top-left`**
-   * (Phaser origin `0,0`). Use **`custom`** with {@link GameSettingsCursor.hotspotPixel}.
-   */
-  hotspot?: GameSettingsCursorHotspot;
-  /**
-   * Pixel offset from the sprite’s **top-left** to the pointer hotspot (logical click position).
-   * Required when {@link GameSettingsCursor.hotspot} is **`custom`** (ignored for named presets).
-   */
-  hotspotPixel?: { x: number; y: number };
-  display?: GameSettingsCursorDisplay;
 }
 </file>
 
@@ -21862,6 +22013,161 @@ export class BenneScript extends BenneScriptCore {
 }
 </file>
 
+<file path="src/game/rooms/apartment/apartment.room.ts">
+import { registerRoomScript } from '@engine/scripting';
+
+/**
+ * Room script for `apartment` — keep handlers for this room here (PowerQuest-style).
+ *
+ * String ids must match your `apartment.room.json` (and character JSON where noted):
+ * - `whenLookAt` / `whenUse` / `whenTalkTo` / `whenPickUp` / `whenPush` / `whenPull` / `whenOpen` / `whenClose`: work on props, hotspots, and characters — same string id, resolution order `props[]` → `hotspots[]` → `CharacterData.id` in this room.
+ * - `whenVerb(verbId, targetId, …)`: any verb id from game config; same target resolution.
+ * - `whenGive`: prop recipient only (for now).
+ * - `B.prop('…')` / `onProp`: `props[].id` only.
+ * - `B.character('…')`: `CharacterData.id` for a character in this room.
+ * - `walkTo('…')`: unified target — prop id → hotspot id → character id → `points[].id`, or `{ x, y }` in room pixels.
+ */
+registerRoomScript(({ B }) => {
+
+  B.whenInventoryUsedOn('Couch', (payload) => {
+    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
+      B.player.walkTo('Couch');
+      B.faceClicked();
+      B.player.say('I used the broom on the couch.');
+      return;
+    }
+    if (payload.itemId === 'Broom' && payload.verbId === 'give') {
+      B.player.walkTo('Couch');
+      B.player.face('U');
+      B.player.say('Here, couch.');
+      B.inventory.remove('Broom');
+      return;
+    }
+    return false;
+  });
+
+  B.whenLookAt('penny', () => {
+    B.player.say("It's Penny.");
+  });
+
+  B.whenTalkTo('penny', () => {
+    B.walkToClicked();
+    B.faceClicked();
+    B.say`
+      Hank: Hey Penny!
+      Penny: Hi!
+      `;
+    B.dialog("chatwithpenny").start();
+  });
+
+  B.whenLookAt('Couch', () => {
+    B.faceClicked();
+    B.say`Hank: It's my weird, magical, poorly drawn couch.`;
+  });
+
+  const handleOpenOrUseDoor = () => {
+    B.walkToClicked();
+    B.player.faceClicked();
+
+    if (B.state.getFlag('unlockedDoor')) {
+      B.prop('Door').animation = 'Door-open';
+      B.room.changeTo('outside');
+    } else {
+      B.say`Hank: The door is locked.`;
+    }
+  };
+  
+  B.whenOpen('Door', handleOpenOrUseDoor); 
+  B.whenUse('Door', handleOpenOrUseDoor);
+
+  B.whenPull('Couch', () => {
+    B.player.moveTo('apartment-point-1');
+  });
+
+  B.whenClose('Couch', () => {
+    B.fadeOut(2, 0x00ff00);
+    B.wait(1);
+    B.fadeIn(2, 0x00ff00);
+  });
+  
+  B.whenInventoryUsedOn('Bread', (payload) => {
+    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
+      B.say`Hank: I don't need to clean the bread.`;
+      return;
+    }
+    if (payload.itemId === 'Broom' && payload.verbId === 'give') {
+      B.say`Hank: I can't give something to bread.`;
+      return;
+    }
+    return false;
+  });
+
+  B.whenLookAt('Bread', () => {
+    B.say`Hank: It's some bread.`;
+  });
+
+  B.whenPickUp('Bread', () => {
+    B.walkToClicked();
+    B.player.faceClicked();
+    B.inventory.add('Bread');
+    B.prop('Bread').hide();
+  });
+
+  B.whenLookAt('Knife', () => {
+    B.faceClicked();
+    B.say`Hank: It's a knife.`;
+  });
+
+  B.whenPickUp('Knife', () => {
+    B.walkToClicked();
+    B.player.faceClicked();
+    B.inventory.add('Knife');
+    B.prop('Knife').hide();
+  });
+
+  B.whenLookAt('PeanutButter', () => {
+    B.say`Hank: It's some peanut butter.`;
+  });
+
+  B.whenPickUp('PeanutButter', () => {
+    B.walkToClicked();
+    B.player.faceClicked();
+    B.inventory.add('PB');
+    B.prop('PeanutButter').hide();
+  });
+
+  B.whenLookAt('Table', () => {
+    B.player.say('I like to keep this table here so I can walk around it.');
+  });
+
+  B.whenInventoryUsedOn('penny', (payload) => {
+    if (payload.itemId === 'Sammich' && payload.verbId === 'give') {
+      B.walkToClicked();
+      B.player.faceClicked();
+      B.say`Hank: Here, Penny! Have a sandwich.`;
+      B.inventory.remove('Sammich');
+      B.character('penny').say`Thank you! Here's the key.`;
+      B.inventory.add('Key');
+      return;
+    }
+    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
+    return false;
+  });
+  B.whenInventoryUsedOn('Door', (payload) => {
+    if (payload.itemId === 'Key' && payload.verbId === 'use') {
+      B.walkToClicked();
+      B.player.faceClicked();
+      B.state.setFlag('unlockedDoor', true);
+      B.inventory.remove('Key');
+      B.player.say('The door is unlocked.');
+      return;
+    }
+    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
+    return false;
+  });
+});
+</file>
+
 <file path="src/game/rooms/apartment/apartment.room.json">
 {
   "id": "apartment",
@@ -21976,13 +22282,7 @@ export class BenneScript extends BenneScriptCore {
       }
     }
   ],
-  "points": [
-    {
-      "id": "apartment-point-1",
-      "x": 288,
-      "y": 136
-    }
-  ],
+  "points": [],
   "regions": [],
   "props": [
     {
@@ -22348,161 +22648,6 @@ export class BenneScript extends BenneScriptCore {
     }
   ]
 }
-</file>
-
-<file path="src/game/rooms/apartment/apartment.room.ts">
-import { registerRoomScript } from '@engine/scripting';
-
-/**
- * Room script for `apartment` — keep handlers for this room here (PowerQuest-style).
- *
- * String ids must match your `apartment.room.json` (and character JSON where noted):
- * - `whenLookAt` / `whenUse` / `whenTalkTo` / `whenPickUp` / `whenPush` / `whenPull` / `whenOpen` / `whenClose`: work on props, hotspots, and characters — same string id, resolution order `props[]` → `hotspots[]` → `CharacterData.id` in this room.
- * - `whenVerb(verbId, targetId, …)`: any verb id from game config; same target resolution.
- * - `whenGive`: prop recipient only (for now).
- * - `B.prop('…')` / `onProp`: `props[].id` only.
- * - `B.character('…')`: `CharacterData.id` for a character in this room.
- * - `walkTo('…')`: unified target — prop id → hotspot id → character id → `points[].id`, or `{ x, y }` in room pixels.
- */
-registerRoomScript(({ B }) => {
-
-  B.whenInventoryUsedOn('Couch', (payload) => {
-    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
-      B.player.walkTo('Couch');
-      B.faceClicked();
-      B.player.say('I used the broom on the couch.');
-      return;
-    }
-    if (payload.itemId === 'Broom' && payload.verbId === 'give') {
-      B.player.walkTo('Couch');
-      B.player.face('U');
-      B.player.say('Here, couch.');
-      B.inventory.remove('Broom');
-      return;
-    }
-    return false;
-  });
-
-  B.whenLookAt('penny', () => {
-    B.player.say("It's Penny.");
-  });
-
-  B.whenTalkTo('penny', () => {
-    B.walkToClicked();
-    B.faceClicked();
-    B.say`
-      Hank: Hey Penny!
-      Penny: Hi!
-      `;
-    B.dialog("chatwithpenny").start();
-  });
-
-  B.whenLookAt('Couch', () => {
-    B.faceClicked();
-    B.say`Hank: It's my weird, magical, poorly drawn couch.`;
-  });
-
-  const handleOpenOrUseDoor = () => {
-    B.walkToClicked();
-    B.player.faceClicked();
-
-    if (B.state.getFlag('unlockedDoor')) {
-      B.prop('Door').animation = 'Door-open';
-      B.room.changeTo('outside');
-    } else {
-      B.say`Hank: The door is locked.`;
-    }
-  };
-  
-  B.whenOpen('Door', handleOpenOrUseDoor); 
-  B.whenUse('Door', handleOpenOrUseDoor);
-
-  B.whenPull('Couch', () => {
-    B.player.moveTo('apartment-point-1');
-  });
-
-  B.whenClose('Couch', () => {
-    B.fadeOut(2, 0x00ff00);
-    B.wait(1);
-    B.fadeIn(2, 0x00ff00);
-  });
-  
-  B.whenInventoryUsedOn('Bread', (payload) => {
-    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
-      B.say`Hank: I don't need to clean the bread.`;
-      return;
-    }
-    if (payload.itemId === 'Broom' && payload.verbId === 'give') {
-      B.say`Hank: I can't give something to bread.`;
-      return;
-    }
-    return false;
-  });
-
-  B.whenLookAt('Bread', () => {
-    B.say`Hank: It's some bread.`;
-  });
-
-  B.whenPickUp('Bread', () => {
-    B.walkToClicked();
-    B.player.faceClicked();
-    B.inventory.add('Bread');
-    B.prop('Bread').hide();
-  });
-
-  B.whenLookAt('Knife', () => {
-    B.faceClicked();
-    B.say`Hank: It's a knife.`;
-  });
-
-  B.whenPickUp('Knife', () => {
-    B.walkToClicked();
-    B.player.faceClicked();
-    B.inventory.add('Knife');
-    B.prop('Knife').hide();
-  });
-
-  B.whenLookAt('PeanutButter', () => {
-    B.say`Hank: It's some peanut butter.`;
-  });
-
-  B.whenPickUp('PeanutButter', () => {
-    B.walkToClicked();
-    B.player.faceClicked();
-    B.inventory.add('PB');
-    B.prop('PeanutButter').hide();
-  });
-
-  B.whenLookAt('Table', () => {
-    B.player.say('I like to keep this table here so I can walk around it.');
-  });
-
-  B.whenInventoryUsedOn('penny', (payload) => {
-    if (payload.itemId === 'Sammich' && payload.verbId === 'give') {
-      B.walkToClicked();
-      B.player.faceClicked();
-      B.say`Hank: Here, Penny! Have a sandwich.`;
-      B.inventory.remove('Sammich');
-      B.character('penny').say`Thank you! Here's the key.`;
-      B.inventory.add('Key');
-      return;
-    }
-    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
-    return false;
-  });
-  B.whenInventoryUsedOn('Door', (payload) => {
-    if (payload.itemId === 'Key' && payload.verbId === 'use') {
-      B.walkToClicked();
-      B.player.faceClicked();
-      B.state.setFlag('unlockedDoor', true);
-      B.inventory.remove('Key');
-      B.player.say('The door is unlocked.');
-      return;
-    }
-    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
-    return false;
-  });
-});
 </file>
 
 <file path="src/engine/gui/buildGuiOverlay.ts">

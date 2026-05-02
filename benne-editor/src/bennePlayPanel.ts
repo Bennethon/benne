@@ -67,11 +67,59 @@ function buildBennePlayHtml(webview: vscode.Webview, extensionUri: vscode.Uri, s
   <style nonce="${nonce}">
     *, *::before, *::after { box-sizing: border-box; }
     html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #0f0f1a; }
-    #game-container { width: 100%; height: 100%; }
+    body { display: flex; flex-direction: column; }
+    #benne-play-topbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      padding: 6px 10px;
+      border-bottom: 1px solid #2e2e44;
+      background: #222230;
+      font-family: system-ui, sans-serif;
+    }
+    #benne-play-topbar label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #c8d0e0;
+      font-size: 12px;
+      user-select: none;
+    }
+    #benne-play-inventory-select {
+      min-width: 180px;
+      max-width: min(420px, 50vw);
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid #5a5a70;
+      background: #1a1a28;
+      color: #e8ecff;
+      font-size: 12px;
+    }
+    #benne-play-give-inventory {
+      flex-shrink: 0;
+      background: #3a3a52;
+      color: #e8ecff;
+      border: 1px solid #5a5a70;
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    #benne-play-give-inventory:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    #game-container { flex: 1; min-height: 0; width: 100%; position: relative; }
     #game-container canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
   </style>
 </head>
 <body>
+  <div id="benne-play-topbar">
+    <label for="benne-play-inventory-select">Inventory</label>
+    <select id="benne-play-inventory-select" aria-label="Inventory item to give"></select>
+    <button type="button" id="benne-play-give-inventory" title="Add the selected item to the player inventory">Give</button>
+  </div>
   <div id="game-container"></div>
   <script nonce="${nonce}">
     globalThis.__BENNE_PLAY_MEDIA_BASE__ = ${JSON.stringify(baseHref)};
