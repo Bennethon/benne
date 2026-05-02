@@ -1,15 +1,32 @@
 import type { DialogScriptContext } from './types.js';
 
-const benneDialogScriptRegistrations: Array<{
+const benneDialogScriptRegistrations = new Map<string, {
   dialogId: string;
   registerFn: (context: DialogScriptContext) => void;
-}> = [];
+}>();
+let fallbackModuleKeyCounter = 0;
+let warnedMissingModuleKey = false;
+
+function resolveModuleKey(moduleKey: string | undefined, dialogId: string): string {
+  const trimmed = moduleKey?.trim();
+  if (trimmed && trimmed.length > 0) {
+    return `${trimmed}::${dialogId}`;
+  }
+  if (import.meta.env.DEV && !warnedMissingModuleKey) {
+    warnedMissingModuleKey = true;
+    console.warn(
+      '[Benne] registerDialogScript called without moduleKey. Pass import.meta.url as the third argument to keep HMR registrations stable.',
+    );
+  }
+  fallbackModuleKeyCounter += 1;
+  return `dialog:legacy:${dialogId}:${fallbackModuleKeyCounter}`;
+}
 
 export function getBenneDialogScriptRegistrations(): ReadonlyArray<{
   dialogId: string;
   registerFn: (context: DialogScriptContext) => void;
 }> {
-  return benneDialogScriptRegistrations;
+  return [...benneDialogScriptRegistrations.values()];
 }
 
 /**
@@ -20,6 +37,8 @@ export function getBenneDialogScriptRegistrations(): ReadonlyArray<{
 export function registerDialogScript(
   dialogId: string,
   registerFn: (context: DialogScriptContext) => void,
+  moduleKey?: string,
 ): void {
-  benneDialogScriptRegistrations.push({ dialogId, registerFn });
+  const resolvedKey = resolveModuleKey(moduleKey, dialogId);
+  benneDialogScriptRegistrations.set(resolvedKey, { dialogId, registerFn });
 }

@@ -18,4 +18,4 @@ registerInventoryScript('Bread', ({ B }) => {
     }
   });
 
-});
+}, import.meta.url);

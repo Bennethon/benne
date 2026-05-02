@@ -12,4 +12,4 @@ registerCharacterScript('penny', ({ B }) => {
   B.whenLookAt(() => {
     B.player.say("It's Penny.");
   });
-});
+}, import.meta.url);

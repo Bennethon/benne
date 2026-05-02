@@ -97,7 +97,7 @@ export async function runCreateGuiWizard(preferredFolder?: vscode.WorkspaceFolde
 registerGuiScript('${id}', ({ B }) => {
   // Delete this line when you add your first handler.
   void B;
-});
+}, import.meta.url);
 `;
 
     await vscode.workspace.fs.createDirectory(guiDir);

@@ -22,7 +22,7 @@ function inventoryScriptTemplate(itemId: string): string {
 registerInventoryScript('${itemId}', ({ B }) => {
   // Example: B.whenLookAt(() => { B.player.say('…'); });
   void B;
-});
+}, import.meta.url);
 `;
 }
 

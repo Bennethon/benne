@@ -112,4 +112,4 @@ registerGlobalScript(({ B }) => {
       console.info(`[Benne 9-verb] verb:unhandled → "${p.fallbackLine}"`, p.target);
     }
   });
-});
+}, import.meta.url);

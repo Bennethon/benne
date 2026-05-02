@@ -18,4 +18,4 @@ registerCharacterScript('henry', ({ B }) => {
     B.faceClicked();
     B.player.say("He's too heavy.");
   });
-});
+}, import.meta.url);

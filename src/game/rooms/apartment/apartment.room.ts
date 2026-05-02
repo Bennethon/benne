@@ -149,4 +149,4 @@ registerRoomScript(({ B }) => {
     // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
     return false;
   });
-});
+}, import.meta.url);

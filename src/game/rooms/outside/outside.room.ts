@@ -19,4 +19,4 @@ registerRoomScript(({ B }) => {
     B.player.moveTo.now('enter-from-door');
   });
 
-});
+}, import.meta.url);

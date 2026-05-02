@@ -13,4 +13,4 @@ registerInventoryScript('Sammich', ({ B }) => {
   B.whenUse.doNotActivate(() => {
     B.player.say('I am not hungry right now.');
   });
-});
+}, import.meta.url);

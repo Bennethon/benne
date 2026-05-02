@@ -18,4 +18,4 @@ registerInventoryScript('Lantern', ({ B }) => {
     }
     
   });
-});
+}, import.meta.url);

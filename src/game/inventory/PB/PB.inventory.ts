@@ -21,4 +21,4 @@ registerInventoryScript('PB', ({ B }) => {
     B.inventory('PB').animation = 'PB-open';
     B.say`Hank: I opened the jar.`;
   });
-});
+}, import.meta.url);

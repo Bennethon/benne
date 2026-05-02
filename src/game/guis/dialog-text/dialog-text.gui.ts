@@ -6,4 +6,4 @@ import { registerGuiScript } from '@engine/scripting';
 registerGuiScript('dialog-text', ({ B }) => {
   // Delete this line when you add your first handler.
   void B;
-});
+}, import.meta.url);

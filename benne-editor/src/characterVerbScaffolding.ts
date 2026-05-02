@@ -20,7 +20,7 @@ function characterScriptTemplate(characterId: string): string {
  */
 registerCharacterScript('${characterId}', ({ B }) => {
   // Example: B.whenLookAt(() => { B.player.say('…'); });
-});
+}, import.meta.url);
 `;
 }
 

@@ -1,20 +1,37 @@
 import type { InventoryScriptContext } from './types.js';
 
-const benneInventoryScriptRegistrations: Array<{
+const benneInventoryScriptRegistrations = new Map<string, {
   itemId: string;
   registerFn: (context: InventoryScriptContext) => void;
-}> = [];
+}>();
+let fallbackModuleKeyCounter = 0;
+let warnedMissingModuleKey = false;
+
+function resolveModuleKey(moduleKey: string | undefined, itemId: string): string {
+  const trimmed = moduleKey?.trim();
+  if (trimmed && trimmed.length > 0) {
+    return `${trimmed}::${itemId}`;
+  }
+  if (import.meta.env.DEV && !warnedMissingModuleKey) {
+    warnedMissingModuleKey = true;
+    console.warn(
+      '[Benne] registerInventoryScript called without moduleKey. Pass import.meta.url as the third argument to keep HMR registrations stable.',
+    );
+  }
+  fallbackModuleKeyCounter += 1;
+  return `inventory:legacy:${itemId}:${fallbackModuleKeyCounter}`;
+}
 
 export function getBenneInventoryScriptRegistrations(): ReadonlyArray<{
   itemId: string;
   registerFn: (context: InventoryScriptContext) => void;
 }> {
-  return benneInventoryScriptRegistrations;
+  return [...benneInventoryScriptRegistrations.values()];
 }
 
 /** Item ids that have a `registerInventoryScript` module (vs JSON-only inventory definitions). */
 export function getInventoryItemIdsWithBenneScripts(): ReadonlySet<string> {
-  return new Set(benneInventoryScriptRegistrations.map((r) => r.itemId));
+  return new Set([...benneInventoryScriptRegistrations.values()].map((r) => r.itemId));
 }
 
 /**
@@ -25,6 +42,8 @@ export function getInventoryItemIdsWithBenneScripts(): ReadonlySet<string> {
 export function registerInventoryScript(
   itemId: string,
   registerFn: (context: InventoryScriptContext) => void,
+  moduleKey?: string,
 ): void {
-  benneInventoryScriptRegistrations.push({ itemId, registerFn });
+  const resolvedKey = resolveModuleKey(moduleKey, itemId);
+  benneInventoryScriptRegistrations.set(resolvedKey, { itemId, registerFn });
 }

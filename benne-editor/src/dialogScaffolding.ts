@@ -81,7 +81,7 @@ export async function runCreateDialogWizard(preferredFolder?: vscode.WorkspaceFo
 registerDialogScript('${id}', ({ B }) => {
   // Player picks are handled with B.whenChoice('optionId', () => { … }) — use the Inspector "Script" button per option.
   void B;
-});
+}, import.meta.url);
 `;
 
     await vscode.workspace.fs.createDirectory(dialogDir);

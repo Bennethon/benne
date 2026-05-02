@@ -39,4 +39,4 @@ registerInventoryScript('Broom', ({ B }) => {
   B.whenVerb("pull", () => {
     B.player.say("I can't pull the broom.");
   });
-});
+}, import.meta.url);

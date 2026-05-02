@@ -28,4 +28,4 @@ registerDialogScript('chatwithpenny', ({ B }) => {
       Penny: Fine.
     `;
   });
-});
+}, import.meta.url);
