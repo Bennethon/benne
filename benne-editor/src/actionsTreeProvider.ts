@@ -94,6 +94,11 @@ export type ActionTreeNode =
           roomId: string;
       }
     | {
+          kind: 'roomPlay';
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+      }
+    | {
           kind: 'roomOpen';
           label: string;
           target: 'json' | 'script' | 'registerFn';
@@ -347,6 +352,18 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                         element.target === 'json'
                             ? [uriStr]
                             : [uriStr, element.roomId]
+                };
+                return item;
+            }
+            case 'roomPlay': {
+                const item = new vscode.TreeItem('Play from here', vscode.TreeItemCollapsibleState.None);
+                item.id = `room:play:${element.roomJsonUri}`;
+                item.iconPath = new vscode.ThemeIcon('play');
+                item.contextValue = 'benneActionRoomPlay';
+                item.command = {
+                    command: 'benne-editor.playFromRoom',
+                    title: 'Play from here',
+                    arguments: [element.roomJsonUri.toString(), element.roomId]
                 };
                 return item;
             }
@@ -625,6 +642,11 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             const showRoomBulkActions = roomPanel.kind === 'none';
 
             const roomOpenNodes: ActionTreeNode[] = [
+                {
+                    kind: 'roomPlay',
+                    roomJsonUri: main.uri,
+                    roomId
+                },
                 {
                     kind: 'roomOpen',
                     label: 'Open room JSON',
