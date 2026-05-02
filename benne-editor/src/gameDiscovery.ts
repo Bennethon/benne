@@ -637,6 +637,58 @@ export async function readRoomHotspots(uri: vscode.Uri): Promise<RoomHotspotList
     return out;
 }
 
+export interface RoomWalkableHoleListEntry {
+    id: string;
+}
+
+export interface RoomWalkablePolygonListEntry {
+    id: string;
+    holes: RoomWalkableHoleListEntry[];
+}
+
+/** Walkable mesh polygons (and hole ids) from `walkable.polygons` for the main tree. */
+export async function readRoomWalkablePolygons(uri: vscode.Uri): Promise<RoomWalkablePolygonListEntry[]> {
+    const raw = await vscode.workspace.fs.readFile(uri);
+    const text = new TextDecoder('utf-8').decode(raw);
+    const data = JSON.parse(text) as { walkable?: unknown };
+    const w = data.walkable;
+    if (!w || typeof w !== 'object') {
+        return [];
+    }
+    const polysUnknown = (w as { polygons?: unknown }).polygons;
+    if (!Array.isArray(polysUnknown)) {
+        return [];
+    }
+    const out: RoomWalkablePolygonListEntry[] = [];
+    for (const poly of polysUnknown) {
+        if (!poly || typeof poly !== 'object') {
+            continue;
+        }
+        const p = poly as Record<string, unknown>;
+        const pid = typeof p.id === 'string' ? p.id.trim() : '';
+        if (!pid) {
+            continue;
+        }
+        const holesRaw = p.holes;
+        const holes: RoomWalkableHoleListEntry[] = [];
+        if (Array.isArray(holesRaw)) {
+            for (const h of holesRaw) {
+                if (!h || typeof h !== 'object') {
+                    continue;
+                }
+                const hid = typeof (h as { id?: unknown }).id === 'string' ? (h as { id: string }).id.trim() : '';
+                if (hid) {
+                    holes.push({ id: hid });
+                }
+            }
+        }
+        holes.sort((a, b) => a.id.localeCompare(b.id));
+        out.push({ id: pid, holes });
+    }
+    out.sort((a, b) => a.id.localeCompare(b.id));
+    return out;
+}
+
 export async function readRoomPoints(uri: vscode.Uri): Promise<RoomPointListEntry[]> {
     const raw = await vscode.workspace.fs.readFile(uri);
     const text = new TextDecoder('utf-8').decode(raw);

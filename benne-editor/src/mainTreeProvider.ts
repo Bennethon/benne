@@ -17,6 +17,7 @@ import {
     readGuiUsesAsepriteDisplay,
     readInventoryDisplayAseprite,
     readRoomRegions,
+    readRoomWalkablePolygons,
     resolveRoomAsepriteSheetForProps,
     perItemInventorySheetFilesComplete,
     roomAsepriteSheetFilesComplete,
@@ -45,6 +46,31 @@ export type MainTreeNode =
           uri: vscode.Uri;
           /** Missing or incomplete `images/rooms/<id>/<id>.{png,json}` under assets. */
           roomSheetIncomplete?: boolean;
+      }
+    | {
+          kind: 'walkableAreasRoot';
+          folder: vscode.WorkspaceFolder;
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+          roomName: string;
+      }
+    | {
+          kind: 'walkablePolygon';
+          folder: vscode.WorkspaceFolder;
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+          roomName: string;
+          polygonId: string;
+          holeCount: number;
+      }
+    | {
+          kind: 'walkableHole';
+          folder: vscode.WorkspaceFolder;
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+          roomName: string;
+          polygonId: string;
+          holeId: string;
       }
     | {
           kind: 'roomSubGroup';
@@ -326,13 +352,24 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
             return true;
         }
         try {
-            const [hotspots, points, regions, props, characters] = await Promise.all([
+            const [hotspots, points, regions, props, characters, walkPolys] = await Promise.all([
                 readRoomHotspots(room.uri),
                 readRoomPoints(room.uri),
                 readRoomRegions(room.uri),
                 readRoomProps(room.uri),
-                readRoomCharacters(room.uri)
+                readRoomCharacters(room.uri),
+                readRoomWalkablePolygons(room.uri)
             ]);
+            for (const wp of walkPolys) {
+                if (textMatches(wp.id, q)) {
+                    return true;
+                }
+                for (const ho of wp.holes) {
+                    if (textMatches(ho.id, q)) {
+                        return true;
+                    }
+                }
+            }
             for (const h of hotspots) {
                 if (textMatches(h.id, q) || textMatches(h.description ?? '', q)) {
                     return true;
@@ -437,6 +474,38 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     item.iconPath = new vscode.ThemeIcon('symbol-structure');
                 }
                 item.contextValue = 'benneRoom';
+                return item;
+            }
+            case 'walkableAreasRoot': {
+                const item = new vscode.TreeItem(
+                    'Walkable areas',
+                    this.isFiltering()
+                        ? vscode.TreeItemCollapsibleState.Expanded
+                        : vscode.TreeItemCollapsibleState.Collapsed
+                );
+                item.id = `walkableRoot:${element.roomJsonUri.toString()}`;
+                item.iconPath = new vscode.ThemeIcon('map');
+                item.contextValue = 'benneWalkableAreasRoot';
+                return item;
+            }
+            case 'walkablePolygon': {
+                const state =
+                    element.holeCount > 0
+                        ? vscode.TreeItemCollapsibleState.Collapsed
+                        : vscode.TreeItemCollapsibleState.None;
+                const item = new vscode.TreeItem(element.polygonId, state);
+                item.id = `walkPoly:${element.roomJsonUri.toString()}:${element.polygonId}`;
+                item.description = 'walkable';
+                item.iconPath = new vscode.ThemeIcon('symbol-interface');
+                item.contextValue = 'benneWalkablePolygon';
+                return item;
+            }
+            case 'walkableHole': {
+                const item = new vscode.TreeItem(element.holeId, vscode.TreeItemCollapsibleState.None);
+                item.id = `walkHole:${element.roomJsonUri.toString()}:${element.polygonId}:${element.holeId}`;
+                item.description = 'hole';
+                item.iconPath = new vscode.ThemeIcon('debug-breakpoint-data-unverified');
+                item.contextValue = 'benneWalkableHole';
                 return item;
             }
             case 'roomSubGroup': {
@@ -743,22 +812,28 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
 
         if (element.kind === 'room') {
             try {
-                const [hotspots, points, regions, props, characters] = await Promise.all([
+                const [hotspots, points, regions, props, characters, walkPolys] = await Promise.all([
                     readRoomHotspots(element.uri),
                     readRoomPoints(element.uri),
                     readRoomRegions(element.uri),
                     readRoomProps(element.uri),
-                    readRoomCharacters(element.uri)
+                    readRoomCharacters(element.uri),
+                    readRoomWalkablePolygons(element.uri)
                 ]);
                 const roomNameHit =
                     fq.length > 0 && (textMatches(element.name, fq) || textMatches(element.id, fq));
-                const children: MainTreeNode[] = [];
                 const base = {
                     folder: element.folder,
                     roomJsonUri: element.uri,
                     roomId: element.id,
                     roomName: element.name
                 };
+                const children: MainTreeNode[] = [
+                    {
+                        kind: 'walkableAreasRoot' as const,
+                        ...base
+                    }
+                ];
                 const hotspotShow = this.filterRoomItems(
                     hotspots,
                     (h) => textMatches(h.id, fq) || textMatches(h.description ?? '', fq),
@@ -824,20 +899,95 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                         ...base
                     });
                 }
-                if (children.length === 0) {
-                    return [
-                        {
-                            kind: 'hint',
-                            key: `no-room-content:${element.uri}`,
-                            message: fq
-                                ? '(no matching hotspots, props, characters, points, or regions)'
-                                : '(no hotspots, props, characters, points, or regions)'
-                        }
-                    ];
+                if (children.length === 1 && !fq) {
+                    const walkFilteredEmpty =
+                        this.filterRoomItems(
+                            walkPolys,
+                            (wp) =>
+                                textMatches(wp.id, fq) ||
+                                wp.holes.some((ho) => textMatches(ho.id, fq)),
+                            roomNameHit
+                        ).length === 0;
+                    if (walkFilteredEmpty) {
+                        return [
+                            children[0],
+                            {
+                                kind: 'hint',
+                                key: `no-room-content:${element.uri}`,
+                                message: '(no hotspots, props, characters, points, or regions)'
+                            }
+                        ];
+                    }
                 }
                 return children;
             } catch {
                 return [{ kind: 'hint', key: `props-err:${element.uri}`, message: 'Could not read room JSON' }];
+            }
+        }
+
+        if (element.kind === 'walkableAreasRoot') {
+            try {
+                const { folder, roomJsonUri, roomId, roomName } = element;
+                const roomNameHit =
+                    fq.length > 0 && (textMatches(roomName, fq) || textMatches(roomId, fq));
+                const walkPolys = await readRoomWalkablePolygons(roomJsonUri);
+                const list = this.filterRoomItems(
+                    walkPolys,
+                    (wp) =>
+                        textMatches(wp.id, fq) || wp.holes.some((ho) => textMatches(ho.id, fq)),
+                    roomNameHit
+                );
+                if (list.length === 0) {
+                    return [
+                        {
+                            kind: 'hint',
+                            key: `no-walk:${roomJsonUri}`,
+                            message: fq ? '(no matching walkable polygons)' : '(no walkable polygons)'
+                        }
+                    ];
+                }
+                return list.map((wp) => ({
+                    kind: 'walkablePolygon' as const,
+                    folder,
+                    roomJsonUri,
+                    roomId,
+                    roomName,
+                    polygonId: wp.id,
+                    holeCount: wp.holes.length
+                }));
+            } catch {
+                return [
+                    { kind: 'hint', key: `walk-err:${element.roomJsonUri}`, message: 'Could not read room JSON' }
+                ];
+            }
+        }
+
+        if (element.kind === 'walkablePolygon') {
+            try {
+                const walkPolys = await readRoomWalkablePolygons(element.roomJsonUri);
+                const poly = walkPolys.find((p) => p.id === element.polygonId);
+                if (!poly || poly.holes.length === 0) {
+                    return [];
+                }
+                const { folder, roomJsonUri, roomId, roomName, polygonId } = element;
+                const roomNameHit =
+                    fq.length > 0 && (textMatches(roomName, fq) || textMatches(roomId, fq));
+                const holes = this.filterRoomItems(
+                    poly.holes,
+                    (ho) => textMatches(ho.id, fq),
+                    roomNameHit
+                );
+                return holes.map((ho) => ({
+                    kind: 'walkableHole' as const,
+                    folder,
+                    roomJsonUri,
+                    roomId,
+                    roomName,
+                    polygonId,
+                    holeId: ho.id
+                }));
+            } catch {
+                return [];
             }
         }
 
