@@ -226,6 +226,16 @@ function clearToolbar(): void {
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId('');
     polygonEditBridge.setWalkableEditTarget('', '');
+    setPlayFromHereButtonVisible(false);
+}
+
+/** Shown only in browse/navigate authoring mode (see {@link wireRoomNavigateToolbar}). */
+function setPlayFromHereButtonVisible(visible: boolean): void {
+    const btn = document.getElementById('benne-preview-play') as HTMLButtonElement | null;
+    if (!btn) {
+        return;
+    }
+    btn.style.display = visible ? 'inline-block' : 'none';
 }
 
 function buildRoomNavigateToolbarHtml(): string {
@@ -372,9 +382,11 @@ function wireRoomNavigateToolbar(_room: RoomData): void {
     polygonEditBridge.setRoomPointId('');
     polygonEditBridge.setWalkableEditTarget('', '');
     polygonEditBridge.setMode('navigate');
+    setPlayFromHereButtonVisible(true);
 }
 
 function wireWalkableEditToolbar(room: RoomData, polygonId: string, holeId: string): void {
+    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -410,6 +422,7 @@ function wireWalkableEditToolbar(room: RoomData, polygonId: string, holeId: stri
 }
 
 function wireRoomSizeToolbar(_room: RoomData): void {
+    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -429,6 +442,7 @@ function wireRoomSizeToolbar(_room: RoomData): void {
 }
 
 function wireScrollBoundsToolbar(_room: RoomData): void {
+    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -448,6 +462,7 @@ function wireScrollBoundsToolbar(_room: RoomData): void {
 }
 
 function wirePropTreeToolbarNonClickable(room: RoomData, propColliderId: string): void {
+    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -462,6 +477,7 @@ function wirePropTreeToolbarNonClickable(room: RoomData, propColliderId: string)
 }
 
 function wireHotspotToolbar(room: RoomData, hotspotId: string): void {
+    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -481,6 +497,7 @@ function wireHotspotToolbar(room: RoomData, hotspotId: string): void {
 }
 
 function wireRegionToolbar(_room: RoomData, regionId: string): void {
+    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -500,6 +517,7 @@ function wireRegionToolbar(_room: RoomData, regionId: string): void {
 }
 
 function wireRoomPointToolbar(_room: RoomData, roomPointId: string): void {
+    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -523,6 +541,7 @@ function wirePropTreeToolbar(room: RoomData, propColliderId: string): void {
         wirePropTreeToolbarNonClickable(room, propColliderId);
         return;
     }
+    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -899,6 +918,27 @@ function wireRefreshPreviewButton(): void {
     });
 }
 
+function wirePlayFromHereButton(): void {
+    const btn = document.getElementById('benne-preview-play');
+    if (!btn || btn.dataset.bennePlayWired === '1') {
+        return;
+    }
+    btn.dataset.bennePlayWired = '1';
+    btn.addEventListener('click', () => {
+        const room = lastLoadedRoom;
+        if (!room || !currentRoomJsonUri) {
+            return;
+        }
+        vscodeApi?.postMessage({
+            type: 'benne/preview/playFromHere',
+            roomJsonUri: currentRoomJsonUri,
+            roomId: room.id,
+            roomName: room.name,
+        });
+    });
+}
+
 wireRefreshPreviewButton();
+wirePlayFromHereButton();
 wireShowGuisToggle();
 vscodeApi?.postMessage({ type: 'benne/preview/ready' });
