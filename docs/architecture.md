@@ -697,6 +697,7 @@ Empty templates still need a **`src/game/rooms/rooms.manifest.json`** (and usual
 - **Audio**: Volume helpers exist; **music loops, voice, and SFX triggers** from events are **future work**.
 - **Dialogue / inventory UI**: **`say`** shows the **`dialog-text`** text overlay. **`inventoryPanel`** GUIs render a carried-items grid with optional **paged scroll** (`scrollDirection`, `backButton`, `forwardButton` in **`*.gui.json`**) and **reactive rebuild** on **`gameState:inventoryChanged`** / **`gameState:replaced`** when scroll is configured. **Richer dialogue** (choices, portraits) and **full inventory UX** (drag-reorder, cursor) remain **future work** — **`B.inventory`** is available for wiring.
 - **Editor**: VS Code extension + **`build:room-preview`** ship a **live `RoomScene` preview** in a webview with **polygon editing** (walkable, prop colliders, **hotspots**, **regions**, and **room points**) via **`RoomPolygonEditScene`**. **`build:character-preview`** adds a separate webview for **feet** + **click collider** polygons — see **§8**.
+- **HMR script registry hygiene:** During dev hot reload, side-effect `register*Script` calls can accumulate stale handlers (e.g. room enter hooks) if registries are append-only. Add HMR-safe registry reset/dedupe behavior (`import.meta.hot.dispose` and/or module-keyed maps) to prevent duplicate/stale hook execution without requiring full page reloads.
 
 ---
 

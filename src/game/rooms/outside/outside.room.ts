@@ -16,7 +16,7 @@ registerRoomScript(({ B }) => {
   void B;
 
   B.whenEnterRoom( () => {
-    B.player.moveTo('enter-from-door');
+    B.player.moveTo.now('enter-from-door');
   });
 
 });

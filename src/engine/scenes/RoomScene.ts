@@ -1721,9 +1721,24 @@ export class RoomScene extends Phaser.Scene {
   }
 
   update(): void {
+    this.snapWalkingSpritesToPixelGrid();
     this.updateParallaxProps();
     this.updateRoomStackDepths();
     this.updatePathDebug();
+  }
+
+  /** Round walk tween targets each frame so scroll + Canvas draw stay pixel-stable (tween runs before this). */
+  private snapWalkingSpritesToPixelGrid(): void {
+    const snap = (go: { x: number; y: number }): void => {
+      go.x = Math.round(go.x);
+      go.y = Math.round(go.y);
+    };
+    if (this.playerMoveTween && this.player) {
+      snap(this.player);
+    }
+    for (const sprite of this.npcWalkTweens.keys()) {
+      snap(sprite);
+    }
   }
 
   /** Re-sorts props, characters, and hotspot zones by `zIndex` and optional `baseline` rules. */
