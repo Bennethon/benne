@@ -27,7 +27,15 @@ export type RoomPanelFocus =
           characterId: string;
       }
     | { kind: 'roomPoint'; roomJsonUri: vscode.Uri; roomId: string; pointId: string }
-    | { kind: 'region'; roomJsonUri: vscode.Uri; roomId: string; regionId: string };
+    | { kind: 'region'; roomJsonUri: vscode.Uri; roomId: string; regionId: string }
+    | {
+          kind: 'walkable';
+          roomJsonUri: vscode.Uri;
+          roomId: string;
+          polygonId: string;
+          /** `null` = outer walkable ring; otherwise hole id under {@link polygonId}. */
+          holeId: string | null;
+      };
 
 export class EditorSelection {
     private _main: EditorFocus = { kind: 'none' };
@@ -106,6 +114,19 @@ export class EditorSelection {
         this._onDidChange.fire();
     }
 
+    setRoomWithWalkable(
+        roomJsonUri: vscode.Uri,
+        roomLabel: string,
+        roomId: string,
+        polygonId: string,
+        holeId: string | null
+    ): void {
+        this._main = { kind: 'room', uri: roomJsonUri, label: roomLabel };
+        this._roomPanel = { kind: 'walkable', roomJsonUri, roomId, polygonId, holeId };
+        this._guiPanel = { kind: 'none' };
+        this._onDidChange.fire();
+    }
+
     setRoomWithRoomCharacter(
         roomJsonUri: vscode.Uri,
         roomLabel: string,
@@ -171,6 +192,11 @@ export class EditorSelection {
 
     setRoomPanelRegion(roomJsonUri: vscode.Uri, roomId: string, regionId: string): void {
         this._roomPanel = { kind: 'region', roomJsonUri, roomId, regionId };
+        this._onDidChange.fire();
+    }
+
+    setRoomPanelWalkable(roomJsonUri: vscode.Uri, roomId: string, polygonId: string, holeId: string | null): void {
+        this._roomPanel = { kind: 'walkable', roomJsonUri, roomId, polygonId, holeId };
         this._onDidChange.fire();
     }
 

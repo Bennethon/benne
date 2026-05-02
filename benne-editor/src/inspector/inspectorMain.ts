@@ -637,6 +637,7 @@ function renderRoom(state: InspectorRoomState): string {
         <td>${esc(r.kind)}</td>
         <td>${esc(r.id)}</td>
         <td><input type="checkbox" class="walk-active" data-polygon="${esc(r.polygonId)}" data-hole="${esc(r.holeId ?? '')}" data-kind="${esc(r.kind)}" data-row="${esc(r.id)}" ${r.active ? 'checked' : ''} /></td>
+        <td><button type="button" class="btn-link" data-edit-preview="walkable" data-polygon="${esc(r.polygonId)}" data-hole="${esc(r.holeId ?? '')}">Edit</button></td>
       </tr>`;
         })
         .join('');
@@ -871,6 +872,9 @@ function renderRoom(state: InspectorRoomState): string {
           <span class="benne-dim-lbl">H</span>
           <input type="number" id="fld-h" value="${sz ? sz.height : ''}" placeholder="198" />
         </div>
+        <div style="margin-top:4px;">
+          <button type="button" class="btn-link" data-edit-preview="roomSize">Edit in Preview</button>
+        </div>
         <button type="button" class="btn-secondary" id="btn-fit-bg" ${state.canFitBackground ? '' : 'disabled'} title="Set room size from PNG background dimensions">Fit to background</button>
         <div class="benne-scroll-bounds-label muted small">Scroll bounds (leave blank to omit)</div>
         <div class="benne-dim-grid" role="group" aria-label="Scroll bounds">
@@ -883,6 +887,9 @@ function renderRoom(state: InspectorRoomState): string {
           <span class="benne-dim-lbl">H</span>
           <input type="number" id="sb-h" value="${sb ? sb.height : ''}" />
         </div>
+        <div style="margin-top:4px;">
+          <button type="button" class="btn-link" data-edit-preview="scrollBounds">Edit in Preview</button>
+        </div>
         <button type="button" class="btn-secondary" id="btn-clear-sb">Clear scroll bounds</button>
       </div>
     </details>
@@ -891,8 +898,8 @@ function renderRoom(state: InspectorRoomState): string {
       <summary>Walkable areas</summary>
       <div class="section-body">
         <table class="grid">
-          <thead><tr><th>Kind</th><th>Id</th><th>Active</th></tr></thead>
-          <tbody>${walkRows || '<tr><td colspan="3" class="muted">None</td></tr>'}</tbody>
+          <thead><tr><th>Kind</th><th>Id</th><th>Active</th><th></th></tr></thead>
+          <tbody>${walkRows || '<tr><td colspan="4" class="muted">None</td></tr>'}</tbody>
         </table>
         <div class="row wrap">
           <button type="button" class="btn-secondary" id="btn-add-poly">Add walkable polygon</button>
@@ -1913,8 +1920,30 @@ function mountHandlers(state: InspectorRoomState): void {
     root.querySelectorAll('[data-edit-preview]').forEach((btn) => {
         btn.addEventListener('click', () => {
             const kind = (btn as HTMLElement).dataset.editPreview;
+            if (!kind) {
+                return;
+            }
+            if (kind === 'walkable') {
+                const polygonId = (btn as HTMLElement).dataset.polygon ?? '';
+                if (!polygonId) {
+                    return;
+                }
+                const holeRaw = (btn as HTMLElement).dataset.hole ?? '';
+                post('editRoomPreview', {
+                    roomJsonUri: state.roomJsonUri,
+                    roomId: state.roomId,
+                    kind: 'walkable',
+                    polygonId,
+                    holeId: holeRaw.length > 0 ? holeRaw : ''
+                });
+                return;
+            }
+            if (kind === 'roomSize' || kind === 'scrollBounds') {
+                post('editRoomPreview', { roomJsonUri: state.roomJsonUri, roomId: state.roomId, kind, id: '' });
+                return;
+            }
             const id = (btn as HTMLElement).dataset.id;
-            if (!kind || !id) {
+            if (!id) {
                 return;
             }
             post('editRoomPreview', { roomJsonUri: state.roomJsonUri, roomId: state.roomId, kind, id });

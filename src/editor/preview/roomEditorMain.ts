@@ -26,26 +26,6 @@ type PreviewWebviewState = {
 
 const MIN_POLY_POINTS = 3;
 
-type WalkableSelectTarget = { polygonId: string; holeId: string | null };
-
-function encodeWalkableSelectValue(t: WalkableSelectTarget): string {
-    return JSON.stringify({ p: t.polygonId, h: t.holeId });
-}
-
-function decodeWalkableSelectValue(s: string): WalkableSelectTarget | null {
-    try {
-        const o = JSON.parse(s) as { p?: unknown; h?: unknown };
-        if (typeof o.p !== 'string') {
-            return null;
-        }
-        const h =
-            o.h === null || o.h === undefined ? null : typeof o.h === 'string' ? o.h : null;
-        return { polygonId: o.p, holeId: h };
-    } catch {
-        return null;
-    }
-}
-
 let game: Game | null = null;
 let vscodeApi: ReturnType<typeof acquireVsCodeApi> | null = null;
 let currentRoomJsonUri = '';
@@ -54,6 +34,9 @@ let lastLoadedRoom: RoomData | null = null;
 
 type PreviewToolbarPayload =
     | { previewFocus: 'room' }
+    | { previewFocus: 'walkable'; walkablePolygonId: string; walkableHoleId: string }
+    | { previewFocus: 'roomSize' }
+    | { previewFocus: 'scrollBounds' }
     | { previewFocus: 'prop'; propColliderId: string }
     | { previewFocus: 'hotspot'; hotspotId: string }
     | { previewFocus: 'region'; regionId: string }
@@ -65,6 +48,8 @@ function parsePreviewToolbarPayload(msg: {
     hotspotId?: string;
     regionId?: string;
     roomPointId?: string;
+    walkablePolygonId?: string;
+    walkableHoleId?: string;
 }): PreviewToolbarPayload {
     if (
         msg.previewFocus === 'prop' &&
@@ -93,6 +78,20 @@ function parsePreviewToolbarPayload(msg: {
         msg.roomPointId.length > 0
     ) {
         return { previewFocus: 'roomPoint', roomPointId: msg.roomPointId };
+    }
+    if (
+        msg.previewFocus === 'walkable' &&
+        typeof msg.walkablePolygonId === 'string' &&
+        msg.walkablePolygonId.length > 0
+    ) {
+        const hid = typeof msg.walkableHoleId === 'string' ? msg.walkableHoleId : '';
+        return { previewFocus: 'walkable', walkablePolygonId: msg.walkablePolygonId, walkableHoleId: hid };
+    }
+    if (msg.previewFocus === 'roomSize') {
+        return { previewFocus: 'roomSize' };
+    }
+    if (msg.previewFocus === 'scrollBounds') {
+        return { previewFocus: 'scrollBounds' };
     }
     return { previewFocus: 'room' };
 }
@@ -229,26 +228,53 @@ function clearToolbar(): void {
     polygonEditBridge.setWalkableEditTarget('', '');
 }
 
-function buildRoomToolbarHtml(): string {
+function buildRoomNavigateToolbarHtml(): string {
     return `
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <div style="display:inline-flex;align-items:center;gap:6px;">
-        <label for="benne-edit-mode">Mode</label>
-        <select id="benne-edit-mode" style="background:#2a2a3e;color:#eee;border:1px solid #4a4a60;padding:2px 6px;">
-          <option value="navigate">Navigate</option>
-          <option value="walkable">Edit walkable</option>
-          <option value="roomSize">Room Size</option>
-          <option value="scrollBounds">Scroll Bounds</option>
-        </select>
-      </div>
-      <div id="benne-walkable-row" hidden style="align-items:center;gap:6px;display:inline-flex;">
-        <label for="benne-walkable-id">Walkable/Holes</label>
-        <select id="benne-walkable-id" style="background:#2a2a3e;color:#eee;border:1px solid #4a4a60;padding:2px 6px;max-width:280px;"></select>
-      </div>
-      <button type="button" id="benne-save-polygon" hidden style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.55;margin-top:4px;"></div>
+  `;
+}
+
+function walkableToolbarTitle(polygonId: string, holeId: string): string {
+    if (holeId.length > 0) {
+        return `Hole — ${polygonId} › ${holeId}`;
+    }
+    return `Walkable — ${polygonId}`;
+}
+
+function buildWalkableEditToolbarHtml(polygonId: string, holeId: string): string {
+    const title = walkableToolbarTitle(polygonId, holeId);
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">${escapeHtml(title)}</span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
       <span id="benne-polygon-status" style="opacity:0.85;"></span>
     </div>
     <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">New polygon: click ${MIN_POLY_POINTS} times to place vertices. Then double-click an edge to add more. Delete removes the selected vertex (min ${MIN_POLY_POINTS} points).</div>
+  `;
+}
+
+function buildRoomSizeToolbarHtml(): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;"><strong style="color:#e8ecff;">Room size</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the cyan handles to resize the room art canvas. The origin (top-left) is always 0,0. Press F to fit view. Save writes to room JSON.</div>
+  `;
+}
+
+function buildScrollBoundsToolbarHtml(): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;"><strong style="color:#e8ecff;">Scroll bounds</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the orange handles to set the camera scroll bounds — the area within which the camera pans. Press F to fit view. Save writes to room JSON.</div>
   `;
 }
 
@@ -334,81 +360,87 @@ function normalizeRoomForPreview(raw: unknown): RoomData {
     return r as unknown as RoomData;
 }
 
-function wireRoomToolbar(room: RoomData): void {
+function wireRoomNavigateToolbar(_room: RoomData): void {
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
     }
-    bar.innerHTML = buildRoomToolbarHtml();
-
-    const modeSel = document.getElementById('benne-edit-mode') as HTMLSelectElement;
-    const walkRow = document.getElementById('benne-walkable-row')!;
-    const walkSel = document.getElementById('benne-walkable-id') as HTMLSelectElement;
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-
+    bar.innerHTML = buildRoomNavigateToolbarHtml();
     polygonEditBridge.setPropId('');
     polygonEditBridge.setHotspotId('');
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId('');
-    walkSel.innerHTML = '';
-    const polygons = room.walkable?.polygons;
-    const safePolygons = Array.isArray(polygons) ? polygons : [];
-    for (const p of safePolygons) {
-        const optOuter = document.createElement('option');
-        optOuter.value = encodeWalkableSelectValue({ polygonId: p.id, holeId: null });
-        optOuter.textContent = `${p.id} (walkable)`;
-        walkSel.appendChild(optOuter);
-        for (const h of p.holes ?? []) {
-            const optHole = document.createElement('option');
-            optHole.value = encodeWalkableSelectValue({ polygonId: p.id, holeId: h.id });
-            optHole.textContent = `${p.id} › ${h.id} (hole)`;
-            walkSel.appendChild(optHole);
-        }
-    }
-    if (walkSel.options.length > 0) {
-        const d = decodeWalkableSelectValue(walkSel.value);
-        if (d) {
-            polygonEditBridge.setWalkableEditTarget(d.polygonId, d.holeId ?? '');
-        }
-    } else {
-        polygonEditBridge.setWalkableEditTarget('', '');
-    }
-
-    const syncModeUI = (): void => {
-        const m = modeSel.value as 'navigate' | 'walkable' | 'roomSize' | 'scrollBounds';
-        polygonEditBridge.setMode(m);
-        walkRow.hidden = m !== 'walkable';
-        saveBtn.hidden = m === 'navigate';
-
-        const hint = document.getElementById('benne-toolbar-hint');
-        if (hint) {
-            if (m === 'roomSize') {
-                hint.textContent = 'Drag the cyan handles to resize the room art canvas. The origin (top-left) is always 0,0. Press F to fit view. Save writes to room JSON.';
-            } else if (m === 'scrollBounds') {
-                hint.textContent = 'Drag the orange handles to set the camera scroll bounds — the area within which the camera pans. Press F to fit view. Save writes to room JSON.';
-            } else if (m === 'walkable') {
-                hint.textContent = `New polygon: click ${MIN_POLY_POINTS} times to place vertices. Then double-click an edge to add more. Delete removes the selected vertex (min ${MIN_POLY_POINTS} points).`;
-            } else {
-                hint.textContent = '';
-            }
-        }
-    };
-
-    modeSel.value = 'navigate';
+    polygonEditBridge.setWalkableEditTarget('', '');
     polygonEditBridge.setMode('navigate');
-    syncModeUI();
+}
 
-    modeSel.addEventListener('change', () => {
-        setStatus('');
-        syncModeUI();
-    });
-    walkSel.addEventListener('change', () => {
-        const d = decodeWalkableSelectValue(walkSel.value);
-        if (d) {
-            polygonEditBridge.setWalkableEditTarget(d.polygonId, d.holeId ?? '');
+function wireWalkableEditToolbar(room: RoomData, polygonId: string, holeId: string): void {
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildWalkableEditToolbarHtml(polygonId, holeId);
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    const poly = room.walkable?.polygons?.find((p) => p.id === polygonId);
+    if (!poly) {
+        polygonEditBridge.setWalkableEditTarget('', '');
+        polygonEditBridge.setMode('navigate');
+        setStatus(`Walkable polygon "${polygonId}" not found in room JSON.`);
+        return;
+    }
+    if (holeId.length > 0) {
+        const hole = poly.holes?.find((h) => h.id === holeId);
+        if (!hole) {
+            polygonEditBridge.setWalkableEditTarget('', '');
+            polygonEditBridge.setMode('navigate');
+            setStatus(`Hole "${holeId}" not found under polygon "${polygonId}".`);
+            return;
         }
-        setStatus('');
+    }
+    polygonEditBridge.setWalkableEditTarget(polygonId, holeId);
+    polygonEditBridge.setMode('walkable');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
     });
+}
+
+function wireRoomSizeToolbar(_room: RoomData): void {
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildRoomSizeToolbarHtml();
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setMode('roomSize');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireScrollBoundsToolbar(_room: RoomData): void {
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildScrollBoundsToolbarHtml();
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setMode('scrollBounds');
     saveBtn.addEventListener('click', () => {
         setStatus('Saving…');
         window.dispatchEvent(new Event('benne-save-polygon'));
@@ -520,8 +552,14 @@ function wireToolbarFromPreviewState(room: RoomData, preview: PreviewToolbarPayl
         wireRegionToolbar(room, preview.regionId);
     } else if (preview.previewFocus === 'roomPoint') {
         wireRoomPointToolbar(room, preview.roomPointId);
+    } else if (preview.previewFocus === 'walkable') {
+        wireWalkableEditToolbar(room, preview.walkablePolygonId, preview.walkableHoleId);
+    } else if (preview.previewFocus === 'roomSize') {
+        wireRoomSizeToolbar(room);
+    } else if (preview.previewFocus === 'scrollBounds') {
+        wireScrollBoundsToolbar(room);
     } else {
-        wireRoomToolbar(room);
+        wireRoomNavigateToolbar(room);
     }
 }
 
@@ -710,6 +748,8 @@ type HostPreviewMessage = {
     hotspotId?: string;
     regionId?: string;
     roomPointId?: string;
+    walkablePolygonId?: string;
+    walkableHoleId?: string;
 };
 
 async function runPreviewError(msg: HostPreviewMessage): Promise<void> {

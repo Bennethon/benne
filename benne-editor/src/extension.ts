@@ -382,6 +382,69 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!sameRoomContext) {
                 await openBenneRoomTypeScript(node.roomJsonUri, node.roomId);
             }
+        } else if (node.kind === 'walkableAreasRoot') {
+            const sameRoomContext =
+                selection.focus.kind === 'room' &&
+                selection.focus.uri.toString() === node.roomJsonUri.toString();
+
+            if (!sameRoomContext) {
+                await resetBenneEditorSurface();
+                await applyBenneTwoRowJsonScriptLayout();
+            } else if (!roomPreview.isRoomPreviewActive()) {
+                await applyBenneTwoRowJsonScriptLayout();
+            }
+
+            selection.setRoom(node.roomJsonUri, node.roomName);
+
+            if (!sameRoomContext) {
+                await openBenneRoomTypeScript(node.roomJsonUri, node.roomId);
+            }
+        } else if (node.kind === 'walkablePolygon') {
+            const sameRoomContext =
+                selection.focus.kind === 'room' &&
+                selection.focus.uri.toString() === node.roomJsonUri.toString();
+
+            if (!sameRoomContext) {
+                await resetBenneEditorSurface();
+                await applyBenneTwoRowJsonScriptLayout();
+            } else if (!roomPreview.isRoomPreviewActive()) {
+                await applyBenneTwoRowJsonScriptLayout();
+            }
+
+            selection.setRoomWithWalkable(
+                node.roomJsonUri,
+                node.roomName,
+                node.roomId,
+                node.polygonId,
+                null
+            );
+
+            if (!sameRoomContext) {
+                await openBenneRoomTypeScript(node.roomJsonUri, node.roomId);
+            }
+        } else if (node.kind === 'walkableHole') {
+            const sameRoomContext =
+                selection.focus.kind === 'room' &&
+                selection.focus.uri.toString() === node.roomJsonUri.toString();
+
+            if (!sameRoomContext) {
+                await resetBenneEditorSurface();
+                await applyBenneTwoRowJsonScriptLayout();
+            } else if (!roomPreview.isRoomPreviewActive()) {
+                await applyBenneTwoRowJsonScriptLayout();
+            }
+
+            selection.setRoomWithWalkable(
+                node.roomJsonUri,
+                node.roomName,
+                node.roomId,
+                node.polygonId,
+                node.holeId
+            );
+
+            if (!sameRoomContext) {
+                await openBenneRoomTypeScript(node.roomJsonUri, node.roomId);
+            }
         } else if (node.kind === 'character') {
             await resetBenneEditorSurface();
             await applyBenneTwoRowJsonScriptLayout();

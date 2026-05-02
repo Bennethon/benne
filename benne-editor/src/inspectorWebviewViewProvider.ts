@@ -1066,6 +1066,21 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 await this.roomPreview.focusInspectorGeometry(uri, { kind: 'roomPoint', id });
             } else if (kind === 'region' && id) {
                 await this.roomPreview.focusInspectorGeometry(uri, { kind: 'region', id });
+            } else if (kind === 'walkable') {
+                const polygonId = typeof (msg as { polygonId?: unknown }).polygonId === 'string' ? (msg as { polygonId: string }).polygonId : '';
+                const holeIdRaw =
+                    typeof (msg as { holeId?: unknown }).holeId === 'string' ? (msg as { holeId: string }).holeId : '';
+                if (polygonId) {
+                    await this.roomPreview.focusInspectorGeometry(uri, {
+                        kind: 'walkable',
+                        polygonId,
+                        holeId: holeIdRaw.length > 0 ? holeIdRaw : null
+                    });
+                }
+            } else if (kind === 'roomSize') {
+                await this.roomPreview.focusInspectorGeometry(uri, { kind: 'roomSize' });
+            } else if (kind === 'scrollBounds') {
+                await this.roomPreview.focusInspectorGeometry(uri, { kind: 'scrollBounds' });
             }
             return;
         }

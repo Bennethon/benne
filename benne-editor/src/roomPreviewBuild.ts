@@ -16,6 +16,7 @@ export function roomPreviewBuildHintUri(selection: EditorSelection): vscode.Uri 
         case 'hotspot':
         case 'roomPoint':
         case 'region':
+        case 'walkable':
             return roomPanel.roomJsonUri;
         default:
             break;
