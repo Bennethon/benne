@@ -628,6 +628,10 @@ export class RoomScene extends Phaser.Scene {
       this.dialogChoiceRuntimeByGuiId.clear();
       this.dialogChoiceRowState.clear();
       this.activeDialogChoiceSession = null;
+      // Detach verb HUD listeners and clear hover *before* destroying overlays — otherwise
+      // `clearBenneVerbHoverContext` emits and `verbs.gui` refresh runs against destroyed BitmapText.
+      getBenneVerbContextChangedEmitter().removeAllListeners(BENNE_VERB_CONTEXT_CHANGED_EVENT);
+      clearBenneVerbHoverContext();
       for (const h of this.genericGuiOverlays) {
         h.destroy();
       }
@@ -639,8 +643,6 @@ export class RoomScene extends Phaser.Scene {
       this.dialogChoiceInputSuppressionActive = false;
       this.scriptedDialogInputSuppressionDepth = 0;
       this.scriptedDialogClickToSkip = null;
-      clearBenneVerbHoverContext();
-      getBenneVerbContextChangedEmitter().removeAllListeners(BENNE_VERB_CONTEXT_CHANGED_EVENT);
       this.scale.off('resize', this.onScaleResize, this);
       this.input.off('pointerdown', this.handleRoomPointerDown);
       this.input.off('pointermove', this.onRoomPointerMove);
