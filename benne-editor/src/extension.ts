@@ -18,11 +18,13 @@ import { CharacterPreviewPanelController } from './characterPreviewPanel';
 import { GuiPreviewPanelController } from './guiPreviewPanel';
 import { InventoryPreviewPanelController } from './inventoryPreviewPanel';
 import { RoomPreviewPanelController } from './roomPreviewPanel';
+import { BennePlayPanelController } from './bennePlayPanel';
 import {
     getRoomPreviewBuildOutputChannel,
     resolveGameFolderForRoomPreviewBuild,
     roomPreviewBuildHintUri,
     runBenneEditorWebpackCompile,
+    runBennePlayBuild,
     runCharacterPreviewBuild,
     runGuiPreviewBuild,
     runInventoryPreviewBuild,
@@ -172,6 +174,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const characterPreview = new CharacterPreviewPanelController(context.extensionUri, selection);
     const guiPreview = new GuiPreviewPanelController(context.extensionUri, selection);
     const inventoryPreview = new InventoryPreviewPanelController(context.extensionUri, selection);
+    const bennePlay = new BennePlayPanelController(context.extensionUri);
 
     let gameConfigRebuildTimer: ReturnType<typeof setTimeout> | undefined;
     let pendingGameConfigUri: vscode.Uri | undefined;
@@ -223,6 +226,7 @@ export function activate(context: vscode.ExtensionContext): void {
         characterPreview,
         guiPreview,
         inventoryPreview,
+        bennePlay,
         mainTreeView,
         actionsTreeView,
         selection,
@@ -505,6 +509,49 @@ export function activate(context: vscode.ExtensionContext): void {
         }
     );
 
+    function resolvePlayRoom(
+        arg?: MainTreeNode | MainTreeNode[] | string,
+        roomIdArg?: string
+    ): { roomJsonUri: vscode.Uri; roomId: string; roomName?: string } | undefined {
+        if (typeof arg === 'string' && typeof roomIdArg === 'string') {
+            return { roomJsonUri: vscode.Uri.parse(arg), roomId: roomIdArg };
+        }
+
+        const node = firstTreeContextArg(Array.isArray(arg) ? arg : arg && typeof arg !== 'string' ? arg : undefined);
+        if (node?.kind === 'room') {
+            return { roomJsonUri: node.uri, roomId: node.id, roomName: node.name };
+        }
+        if (
+            node?.kind === 'roomSubGroup' ||
+            node?.kind === 'prop' ||
+            node?.kind === 'hotspot' ||
+            node?.kind === 'roomPoint' ||
+            node?.kind === 'region' ||
+            node?.kind === 'roomCharacter' ||
+            node?.kind === 'walkableAreasRoot' ||
+            node?.kind === 'walkablePolygon' ||
+            node?.kind === 'walkableHole'
+        ) {
+            return { roomJsonUri: node.roomJsonUri, roomId: node.roomId, roomName: node.roomName };
+        }
+
+        if (selection.roomPanel.kind !== 'none') {
+            return {
+                roomJsonUri: selection.roomPanel.roomJsonUri,
+                roomId: selection.roomPanel.roomId,
+                roomName: selection.focus.kind === 'room' ? selection.focus.label : undefined,
+            };
+        }
+        if (selection.focus.kind === 'room') {
+            return {
+                roomJsonUri: selection.focus.uri,
+                roomId: getRoomIdFromRoomJsonUri(selection.focus.uri),
+                roomName: selection.focus.label,
+            };
+        }
+        return undefined;
+    }
+
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider('benne-editor.inspector', inspectorProvider, {
             webviewOptions: { retainContextWhenHidden: true }
@@ -619,6 +666,23 @@ export function activate(context: vscode.ExtensionContext): void {
                     node?.kind === 'roomsGroup' || node?.kind === 'workspace' ? node.folder : undefined;
                 await runCreateRoomWizard(preferredFolder);
                 refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.playFromRoom',
+            async (arg?: MainTreeNode | MainTreeNode[] | string, roomIdArg?: string) => {
+                const target = resolvePlayRoom(arg, roomIdArg);
+                if (!target) {
+                    void vscode.window.showInformationMessage(
+                        'Choose a room in the BENNE tree, then run "Play from here".'
+                    );
+                    return;
+                }
+                if (!vscode.workspace.getWorkspaceFolder(target.roomJsonUri)) {
+                    void vscode.window.showErrorMessage('Could not resolve workspace folder for room JSON.');
+                    return;
+                }
+                bennePlay.playFromRoom(target.roomId, target.roomName);
             }
         ),
         vscode.commands.registerCommand(
@@ -793,6 +857,20 @@ export function activate(context: vscode.ExtensionContext): void {
                 void vscode.window.showInformationMessage('Inventory preview bundle rebuilt.');
             }
         }),
+        vscode.commands.registerCommand('benne-editor.rebuildBennePlay', async () => {
+            const ch = getRoomPreviewBuildOutputChannel();
+            const folder = await resolveGameFolderForRoomPreviewBuild(roomPreviewBuildHintUri(selection));
+            if (!folder) {
+                void vscode.window.showErrorMessage(
+                    'No BENNE game in the workspace (need a folder with src/game and npm script build:benne-play).'
+                );
+                return;
+            }
+            const ok = await runBennePlayBuild(folder, ch);
+            if (ok) {
+                void vscode.window.showInformationMessage('BENNE Play bundle rebuilt.');
+            }
+        }),
         vscode.commands.registerCommand('benne-editor.rebuildDialogPreview', async () => {
             const ch = getRoomPreviewBuildOutputChannel();
             const folder = await resolveGameFolderForRoomPreviewBuild(roomPreviewBuildHintUri(selection));
@@ -823,35 +901,42 @@ export function activate(context: vscode.ExtensionContext): void {
             }
 
             const roomOk = await runRoomPreviewBuild(folder, ch, {
-                title: 'Rebuilding editor preview bundles (1/5: room)'
+                title: 'Rebuilding editor preview bundles (1/6: room)'
             });
             if (!roomOk) {
                 return;
             }
 
             const characterOk = await runCharacterPreviewBuild(folder, ch, {
-                title: 'Rebuilding editor preview bundles (2/5: character)'
+                title: 'Rebuilding editor preview bundles (2/6: character)'
             });
             if (!characterOk) {
                 return;
             }
 
             const guiOk = await runGuiPreviewBuild(folder, ch, {
-                title: 'Rebuilding editor preview bundles (3/5: GUI)'
+                title: 'Rebuilding editor preview bundles (3/6: GUI)'
             });
             if (!guiOk) {
                 return;
             }
 
             const inventoryOk = await runInventoryPreviewBuild(folder, ch, {
-                title: 'Rebuilding editor preview bundles (4/5: inventory)'
+                title: 'Rebuilding editor preview bundles (4/6: inventory)'
             });
             if (!inventoryOk) {
                 return;
             }
 
+            const playOk = await runBennePlayBuild(folder, ch, {
+                title: 'Rebuilding editor preview bundles (5/6: BENNE Play)'
+            });
+            if (!playOk) {
+                return;
+            }
+
             const editorOk = await runBenneEditorWebpackCompile(context.extensionUri, ch, {
-                title: 'Rebuilding editor preview bundles (5/5: extension webpack / Inspector)'
+                title: 'Rebuilding editor preview bundles (6/6: extension webpack / Inspector)'
             });
             if (!editorOk) {
                 return;
@@ -862,7 +947,7 @@ export function activate(context: vscode.ExtensionContext): void {
             guiPreview.reloadGuiPreviewBundle();
             inventoryPreview.reloadInventoryPreviewBundle();
             void vscode.window.showInformationMessage(
-                'Editor preview bundles rebuilt (room, character, GUI, inventory) and extension webpack (Inspector). Reload the window if the Inspector did not refresh.'
+                'Editor preview bundles rebuilt (room, character, GUI, inventory, BENNE Play) and extension webpack (Inspector). Reload the window if the Inspector did not refresh.'
             );
         }),
         vscode.commands.registerCommand(

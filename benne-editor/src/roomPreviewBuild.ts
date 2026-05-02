@@ -65,7 +65,8 @@ async function readPackageNpmScript(
         | 'build:room-preview'
         | 'build:character-preview'
         | 'build:gui-preview'
-        | 'build:inventory-preview',
+        | 'build:inventory-preview'
+        | 'build:benne-play',
 ): Promise<string | undefined> {
     const pkgUri = vscode.Uri.joinPath(gameRoot, 'package.json');
     try {
@@ -327,6 +328,70 @@ export async function runInventoryPreviewBuild(
     if (exitCode !== 0) {
         void vscode.window.showErrorMessage(
             'Inventory preview rebuild failed (non-zero exit). See the "BENNE room preview build" output channel.',
+        );
+        return false;
+    }
+    return true;
+}
+
+export async function runBennePlayBuild(
+    gameFolder: vscode.WorkspaceFolder,
+    channel: vscode.OutputChannel,
+    opts?: { title?: string },
+): Promise<boolean> {
+    const cwd = gameFolder.uri.fsPath;
+    const script = await readPackageNpmScript(gameFolder.uri, 'build:benne-play');
+    if (!script) {
+        void vscode.window.showErrorMessage(
+            'No npm script "build:benne-play" in this folder\'s package.json.',
+        );
+        return false;
+    }
+
+    const title = opts?.title ?? 'Rebuilding BENNE Play bundle';
+
+    const exitCode = await vscode.window.withProgress(
+        {
+            location: vscode.ProgressLocation.Notification,
+            title,
+            cancellable: false,
+        },
+        () =>
+            new Promise<number>((resolve) => {
+                channel.show(true);
+                channel.appendLine('');
+                channel.appendLine(`$ npm run build:benne-play`);
+                channel.appendLine(`  (cwd: ${cwd})`);
+
+                const proc = spawn('npm', ['run', 'build:benne-play'], {
+                    cwd,
+                    shell: true,
+                    env: process.env,
+                });
+
+                proc.stdout?.on('data', (d: Buffer) => {
+                    const s = d.toString();
+                    if (s.trim()) {
+                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
+                    }
+                });
+                proc.stderr?.on('data', (d: Buffer) => {
+                    const s = d.toString();
+                    if (s.trim()) {
+                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
+                    }
+                });
+                proc.on('error', (e) => {
+                    channel.appendLine(e instanceof Error ? e.message : String(e));
+                    resolve(1);
+                });
+                proc.on('close', (code) => resolve(code ?? 1));
+            }),
+    );
+
+    if (exitCode !== 0) {
+        void vscode.window.showErrorMessage(
+            'BENNE Play rebuild failed (non-zero exit). See the "BENNE room preview build" output channel.',
         );
         return false;
     }
