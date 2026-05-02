@@ -371,7 +371,13 @@ export class RoomPreviewPanelController implements vscode.Disposable {
 
         this.disposables.push(
             this.panel.webview.onDidReceiveMessage(
-                (m: { type?: string; roomJsonUri?: string; patch?: unknown }) => {
+                (m: {
+                    type?: string;
+                    roomJsonUri?: string;
+                    roomId?: string;
+                    roomName?: string;
+                    patch?: unknown;
+                }) => {
                 if (m?.type === 'benne/preview/ready') {
                     this.webviewReady = true;
                     void this.pushPreview();
@@ -391,6 +397,20 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 }
                 if (m?.type === 'benne/preview/roomLoadComplete') {
                     this.flushPendingInspectorFocusIfReady();
+                    return;
+                }
+                if (m?.type === 'benne/preview/playFromHere') {
+                    const uriStr = typeof m.roomJsonUri === 'string' ? m.roomJsonUri : '';
+                    const roomId = typeof m.roomId === 'string' ? m.roomId : '';
+                    if (uriStr.length > 0 && roomId.length > 0) {
+                        const roomName = typeof m.roomName === 'string' ? m.roomName : undefined;
+                        void vscode.commands.executeCommand(
+                            'benne-editor.playFromRoom',
+                            uriStr,
+                            roomId,
+                            roomName
+                        );
+                    }
                     return;
                 }
             }),
@@ -756,6 +776,7 @@ function buildRoomPreviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri)
 </head>
 <body style="margin:0;padding:0;background:#1a1a2e;height:100vh;display:flex;flex-direction:column;">
   <div id="benne-preview-topbar" style="display:flex;align-items:flex-start;gap:10px;flex-shrink:0;padding:6px 10px;border-bottom:1px solid #2e2e44;background:#222230;">
+    <button type="button" id="benne-preview-play" title="Open BENNE Play starting in this room (same as Play from here in the Actions tree)" style="display:none;flex-shrink:0;margin-top:1px;background:#2d6a4f;color:#e8ffef;border:1px solid #40916c;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:system-ui,sans-serif;">Play</button>
     <div id="benne-polygon-toolbar" style="flex:1;min-width:0;"></div>
     <label id="benne-preview-options" title="Show GUIs from src/game/guis in the preview (excludes dialog-text)" style="flex-shrink:0;display:inline-flex;align-items:center;gap:5px;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;margin-top:3px;cursor:pointer;user-select:none;">
       <input type="checkbox" id="benne-show-guis-toggle" style="margin:0;cursor:pointer;" />

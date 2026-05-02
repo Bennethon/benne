@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { EditorSelection } from './editorSelection';
 import {
     characterAsepriteSheetFilesComplete,
     findBenneGameFolders,
@@ -189,6 +190,8 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
 
     /** Raw filter text (trimmed for storage); empty means no filter. */
     private treeFilterText = '';
+
+    constructor(private readonly selection: EditorSelection) {}
 
     refresh(): void {
         this._onDidChangeTreeData.fire();
@@ -459,12 +462,15 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 return item;
             }
             case 'room': {
-                const item = new vscode.TreeItem(
-                    element.name,
-                    this.isFiltering()
-                        ? vscode.TreeItemCollapsibleState.Expanded
-                        : vscode.TreeItemCollapsibleState.Collapsed
-                );
+                const isFocusedRoom =
+                    this.selection.focus.kind === 'room' &&
+                    this.selection.focus.uri.toString() === element.uri.toString();
+                const roomCollapsible = this.isFiltering()
+                    ? vscode.TreeItemCollapsibleState.Expanded
+                    : isFocusedRoom
+                      ? vscode.TreeItemCollapsibleState.Expanded
+                      : vscode.TreeItemCollapsibleState.Collapsed;
+                const item = new vscode.TreeItem(element.name, roomCollapsible);
                 item.id = `room:${element.uri.toString()}`;
                 item.resourceUri = element.uri;
                 if (element.roomSheetIncomplete) {

@@ -146,7 +146,7 @@ function resolveDeleteTargetFromSelectionFocus(
 
 export function activate(context: vscode.ExtensionContext): void {
     const selection = new EditorSelection();
-    const mainProvider = new MainTreeProvider();
+    const mainProvider = new MainTreeProvider(selection);
     const actionsProvider = new ActionsTreeProvider(selection);
 
     registerDialogBenneScriptCompletion(context);
@@ -254,10 +254,28 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
         }
         if (node.kind === 'room') {
-            await resetBenneEditorSurface();
-            await applyBenneTwoRowJsonScriptLayout();
+            const sameRoomContext =
+                selection.focus.kind === 'room' &&
+                selection.focus.uri.toString() === node.uri.toString();
+
+            if (!sameRoomContext) {
+                await resetBenneEditorSurface();
+                await applyBenneTwoRowJsonScriptLayout();
+            } else if (!roomPreview.isRoomPreviewActive()) {
+                await applyBenneTwoRowJsonScriptLayout();
+            }
+
             selection.setRoom(node.uri, node.name);
-            await openBenneRoomTypeScript(node.uri, node.id);
+            mainProvider.refresh();
+            try {
+                await mainTreeView.reveal(node, { expand: true, focus: false });
+            } catch {
+                /* Room row can be absent when the main tree filter hides it. */
+            }
+
+            if (!sameRoomContext) {
+                await openBenneRoomTypeScript(node.uri, node.id);
+            }
         } else if (node.kind === 'roomSubGroup') {
             const sameRoomContext =
                 selection.focus.kind === 'room' &&
@@ -511,10 +529,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
     function resolvePlayRoom(
         arg?: MainTreeNode | MainTreeNode[] | string,
-        roomIdArg?: string
+        roomIdArg?: string,
+        roomNameArg?: string
     ): { roomJsonUri: vscode.Uri; roomId: string; roomName?: string } | undefined {
         if (typeof arg === 'string' && typeof roomIdArg === 'string') {
-            return { roomJsonUri: vscode.Uri.parse(arg), roomId: roomIdArg };
+            return {
+                roomJsonUri: vscode.Uri.parse(arg),
+                roomId: roomIdArg,
+                roomName:
+                    typeof roomNameArg === 'string' && roomNameArg.length > 0 ? roomNameArg : undefined
+            };
         }
 
         const node = firstTreeContextArg(Array.isArray(arg) ? arg : arg && typeof arg !== 'string' ? arg : undefined);
@@ -670,8 +694,8 @@ export function activate(context: vscode.ExtensionContext): void {
         ),
         vscode.commands.registerCommand(
             'benne-editor.playFromRoom',
-            async (arg?: MainTreeNode | MainTreeNode[] | string, roomIdArg?: string) => {
-                const target = resolvePlayRoom(arg, roomIdArg);
+            async (arg?: MainTreeNode | MainTreeNode[] | string, roomIdArg?: string, roomNameArg?: string) => {
+                const target = resolvePlayRoom(arg, roomIdArg, roomNameArg);
                 if (!target) {
                     void vscode.window.showInformationMessage(
                         'Choose a room in the BENNE tree, then run "Play from here".'
