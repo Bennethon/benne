@@ -49,8 +49,7 @@ registerRoomScript(({ B }) => {
     B.say`Hank: It's my weird, magical, poorly drawn couch.`;
   });
 
-  B.whenUse('Door', () => {
-
+  const handleOpenOrUseDoor = () => {
     B.walkToClicked();
     B.player.faceClicked();
 
@@ -60,21 +59,10 @@ registerRoomScript(({ B }) => {
     } else {
       B.say`Hank: The door is locked.`;
     }
-    
-  });
-
-  B.whenOpen('Door', () => {
-    B.player.walkToClicked();
-    B.player.faceClicked();
-    
-    if (B.state.getFlag('unlockedDoor')) {
-      B.prop('Door').animation = 'Door-open';
-      B.room.changeTo('outside');
-    } else {
-      B.say`Hank: The door is locked.`;
-    }
-
-  });
+  };
+  
+  B.whenOpen('Door', handleOpenOrUseDoor); 
+  B.whenUse('Door', handleOpenOrUseDoor);
 
   B.whenPull('Couch', () => {
     B.player.moveTo('apartment-point-1');
@@ -134,5 +122,31 @@ registerRoomScript(({ B }) => {
 
   B.whenLookAt('Table', () => {
     B.player.say('I like to keep this table here so I can walk around it.');
+  });
+
+  B.whenInventoryUsedOn('penny', (payload) => {
+    if (payload.itemId === 'Sammich' && payload.verbId === 'give') {
+      B.walkToClicked();
+      B.player.faceClicked();
+      B.say`Hank: Here, Penny! Have a sandwich.`;
+      B.inventory.remove('Sammich');
+      B.character('penny').say`Thank you! Here's the key.`;
+      B.inventory.add('Key');
+      return;
+    }
+    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
+    return false;
+  });
+  B.whenInventoryUsedOn('Door', (payload) => {
+    if (payload.itemId === 'Key' && payload.verbId === 'use') {
+      B.walkToClicked();
+      B.player.faceClicked();
+      B.state.setFlag('unlockedDoor', true);
+      B.inventory.remove('Key');
+      B.player.say('The door is unlocked.');
+      return;
+    }
+    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
+    return false;
   });
 });
