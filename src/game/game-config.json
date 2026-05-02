@@ -57,7 +57,8 @@
     "variables": {},
     "inventory": [
       "Broom",
-      "Lantern"
+      "Lantern",
+      "Key"
     ]
   },
   "audio": {
