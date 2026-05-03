@@ -100,6 +100,7 @@ import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
 import { createCharacterScriptContext } from '../scripting/CharacterScriptContext.js';
 import { createInventoryScriptContext } from '../scripting/InventoryScriptContext.js';
 import type { CharacterScriptContext, InventoryScriptContext, RoomScriptContext } from '@engine/scripting/types.js';
+import { getCallbacksForRoom } from '../scripting/registerRoomScript.js';
 import {
   buildGuiOverlay,
   GUI_OVERLAY_DEPTH_STRIDE,
@@ -534,8 +535,7 @@ export class RoomScene extends Phaser.Scene {
       .clearPerRoomScriptHooksForRoomId(data.room.id);
     clearPlayFromRegistrationsForRoom(data.room.id);
 
-    const roomScripts = (window as unknown as { __benneRoomScripts?: Array<(ctx: RoomScriptContext) => void> })
-      .__benneRoomScripts;
+    const roomScripts = getCallbacksForRoom(data.room.id);
     const characterScripts = (
       window as unknown as {
         __benneCharacterScripts?: ReadonlyArray<{
@@ -554,7 +554,7 @@ export class RoomScene extends Phaser.Scene {
     ).__benneInventoryScripts;
 
     const benneDisposers: Array<() => void> = [];
-    if (roomScripts && roomScripts.length > 0) {
+    if (roomScripts.length > 0) {
       const ctx = createRoomScriptContext(gameEvents, data.room.id, this);
       this.registerBenneScriptCoreForReset(ctx.B);
       benneDisposers.push(() => ctx.B.dispose());

@@ -15,6 +15,7 @@ import {
   runRoomHandlersSeq,
 } from './RoomTransitionHookRegistry.js';
 import { getPlayFromSetupForRoom } from '../scripting/devPlayFromRegistry.js';
+import { ensureRoomScriptLoaded } from '../scripting/registerRoomScript.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
 import type { BenneScriptCore } from '../scripting/BenneScriptCore.js';
 import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
@@ -105,7 +106,10 @@ export class RoomTransitionOrchestrator {
       const startData = buildRoomSceneStartDataFromRoomData(room);
       queueRoomSceneAssetLoads(fromScene, startData);
 
-      await this.awaitLoaderComplete(fromScene);
+      await Promise.all([
+        this.awaitLoaderComplete(fromScene),
+        ensureRoomScriptLoaded(targetRoomId),
+      ]);
 
       manager.setLastRoom(fromId);
       manager.setCurrentRoom(targetRoomId);
