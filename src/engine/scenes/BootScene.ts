@@ -38,6 +38,7 @@ import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from './roomSceneBootstrap';
 import { BENNE_ROOM_START_KIND_KEY } from './roomStartKindConstants';
 import { tryGetRoomTransitionOrchestrator } from './roomTransitionGlobals';
+import { ensureRoomScriptLoaded } from '../scripting/registerRoomScript';
 
 export type CharacterSpawnLoadKind = 'aseprite' | 'image';
 
@@ -197,14 +198,17 @@ export class BootScene extends Phaser.Scene {
     }
 
     this.load.once(Phaser.Loader.Events.COMPLETE, () => {
-      const orch = tryGetRoomTransitionOrchestrator();
-      if (orch) {
-        orch.startInitialRoomFromBoot(startData);
-      } else {
-        resolveGameStateManager(this.game).setLastRoom(null);
-        this.game.registry.set(BENNE_ROOM_START_KIND_KEY, 'boot');
-        this.scene.start(SCENE_ROOM, startData);
-      }
+      void (async () => {
+        await ensureRoomScriptLoaded(startData.room.id);
+        const orch = tryGetRoomTransitionOrchestrator();
+        if (orch) {
+          orch.startInitialRoomFromBoot(startData);
+        } else {
+          resolveGameStateManager(this.game).setLastRoom(null);
+          this.game.registry.set(BENNE_ROOM_START_KIND_KEY, 'boot');
+          this.scene.start(SCENE_ROOM, startData);
+        }
+      })();
     });
     this.load.start();
   }
