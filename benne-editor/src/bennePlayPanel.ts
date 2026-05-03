@@ -136,7 +136,7 @@ function buildBennePlayHtml(
     globalThis.__BENNE_START_ROOM_ID = ${JSON.stringify(startRoomId)};
     globalThis.__BENNE_PLAY_FROM_NAME = ${JSON.stringify(playFromName ?? '')};
   </script>
-  <script nonce="${nonce}" src="${scriptUri}"></script>
+  <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
 }

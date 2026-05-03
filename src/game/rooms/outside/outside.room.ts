@@ -30,4 +30,9 @@ registerRoomScript(({ B }) => {
   B.whenOpen('door', handleOpenOrUseDoor); 
   B.whenUse('door', handleOpenOrUseDoor);
 
+
+  B.whenLookAt('door', () => {
+    B.faceClicked();
+    B.say`Hank: It's the door to the apartment.`;
+  });
 });

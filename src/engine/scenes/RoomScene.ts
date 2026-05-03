@@ -99,7 +99,7 @@ import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './Bo
 import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
 import { createCharacterScriptContext } from '../scripting/CharacterScriptContext.js';
 import { createInventoryScriptContext } from '../scripting/InventoryScriptContext.js';
-import type { CharacterScriptContext, InventoryScriptContext, RoomScriptContext } from '@engine/scripting/types.js';
+import type { CharacterScriptContext, InventoryScriptContext } from '@engine/scripting/types.js';
 import { getCallbacksForRoom } from '../scripting/registerRoomScript.js';
 import {
   buildGuiOverlay,
