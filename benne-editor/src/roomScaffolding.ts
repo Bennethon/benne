@@ -265,7 +265,8 @@ export async function mainTreeRoomNodeFromRoomJson(
     return { kind: 'room', folder, id: roomId, name, uri: roomJsonUri };
 }
 
-async function resolveRoomTarget(
+/** Resolves `{ roomJsonUri, roomId }` for add-* room wizards from tree context or selection. */
+export async function resolveRoomTarget(
     node: MainTreeNode | undefined,
     selection: EditorSelection
 ): Promise<RoomTarget | undefined> {

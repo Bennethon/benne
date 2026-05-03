@@ -110,6 +110,7 @@ export type ActionTreeNode =
     | { kind: 'addRoomPoint' }
     | { kind: 'addRoomRegion' }
     | { kind: 'addRoomSpawnedCharacter' }
+    | { kind: 'addRoomPlayFrom' }
     | { kind: 'importPropsFromAseprite' }
     | {
           kind: 'charVerb';
@@ -328,6 +329,18 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 item.command = {
                     command: 'benne-editor.importPropsFromAsepriteTags',
                     title: 'Import Props from Aseprite Tags',
+                    arguments: []
+                };
+                return item;
+            }
+            case 'addRoomPlayFrom': {
+                const item = new vscode.TreeItem('Add Play From method', vscode.TreeItemCollapsibleState.None);
+                item.id = 'action:addRoomPlayFrom';
+                item.iconPath = new vscode.ThemeIcon('debug-start', new vscode.ThemeColor('testing.iconPassed'));
+                item.contextValue = 'benneActionAddRoomPlayFrom';
+                item.command = {
+                    command: 'benne-editor.addRoomPlayFromMethod',
+                    title: 'Add Play From method',
                     arguments: []
                 };
                 return item;
@@ -679,6 +692,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                           { kind: 'addRoomRegion' } as const,
                           { kind: 'addRoomProp' } as const,
                           { kind: 'addRoomSpawnedCharacter' } as const,
+                          { kind: 'addRoomPlayFrom' } as const,
                           { kind: 'importPropsFromAseprite' } as const
                       ]
                     : [])

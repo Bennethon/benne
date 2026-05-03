@@ -143,7 +143,11 @@ import {
 } from './roomScreenFadeConstants';
 import { getGuiBenneScript } from '../scripting/registerGuiScript.js';
 import type { BenneScriptCore } from '../scripting/BenneScriptCore.js';
-import { tryGetRoomTransitionOrchestrator } from './roomTransitionGlobals.js';
+import {
+  tryGetGlobalBenneScriptForRoomTransitions,
+  tryGetRoomTransitionOrchestrator,
+} from './roomTransitionGlobals.js';
+import { clearPlayFromRegistrationsForRoom } from '../scripting/devPlayFromRegistry.js';
 import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
 import { getAllGuiData } from '../../game/loadGuiData';
 import {
@@ -528,6 +532,7 @@ export class RoomScene extends Phaser.Scene {
     tryGetRoomTransitionOrchestrator()
       ?.getHookRegistry()
       .clearPerRoomScriptHooksForRoomId(data.room.id);
+    clearPlayFromRegistrationsForRoom(data.room.id);
 
     const roomScripts = (window as unknown as { __benneRoomScripts?: Array<(ctx: RoomScriptContext) => void> })
       .__benneRoomScripts;
@@ -686,6 +691,25 @@ export class RoomScene extends Phaser.Scene {
 
   getBenneScriptCoresForTransitionReset(): readonly BenneScriptCore[] {
     return this.benneCoresForTransitionReset;
+  }
+
+  /**
+   * Await interaction tails for this room’s registered script surfaces plus global **`B`** (if any).
+   * Room-transition **enter** hooks and **playFrom** run outside the verb **`subscribe`** path, so they do
+   * not implicitly await {@link import('../scripting/BenneScriptCore.js').BenneScriptCore.prototype.waitForInteractionQueue};
+   * the orchestrator calls this after those callbacks so **`B.inventory.add`** (without **`.now`**) and
+   * similar queued steps apply before fade-in.
+   */
+  async waitForEnterPhaseBenneScriptQueues(): Promise<void> {
+    const cores: BenneScriptCore[] = [...this.benneCoresForTransitionReset];
+    const globalB = tryGetGlobalBenneScriptForRoomTransitions();
+    if (globalB) {
+      cores.push(globalB);
+    }
+    if (cores.length === 0) {
+      return;
+    }
+    await Promise.all(cores.map((c) => c.waitForInteractionQueue()));
   }
 
   /**

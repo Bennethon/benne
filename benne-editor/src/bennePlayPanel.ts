@@ -15,7 +15,7 @@ export class BennePlayPanelController implements vscode.Disposable {
         this.panel = undefined;
     }
 
-    playFromRoom(roomId: string, roomName?: string): void {
+    playFromRoom(roomId: string, roomName?: string, playFromName?: string): void {
         if (!this.panel) {
             this.panel = vscode.window.createWebviewPanel(
                 'bennePlay',
@@ -38,11 +38,21 @@ export class BennePlayPanelController implements vscode.Disposable {
         }
 
         this.panel.title = `BENNE Play: ${roomName ?? roomId}`;
-        this.panel.webview.html = buildBennePlayHtml(this.panel.webview, this.extensionUri, roomId);
+        this.panel.webview.html = buildBennePlayHtml(
+            this.panel.webview,
+            this.extensionUri,
+            roomId,
+            playFromName,
+        );
     }
 }
 
-function buildBennePlayHtml(webview: vscode.Webview, extensionUri: vscode.Uri, startRoomId: string): string {
+function buildBennePlayHtml(
+    webview: vscode.Webview,
+    extensionUri: vscode.Uri,
+    startRoomId: string,
+    playFromName?: string,
+): string {
     const playRoot = vscode.Uri.joinPath(extensionUri, 'media', 'benne-play');
     const baseHrefRaw = webview.asWebviewUri(playRoot).toString();
     const baseHref = baseHrefRaw.endsWith('/') ? baseHrefRaw : `${baseHrefRaw}/`;
@@ -124,6 +134,7 @@ function buildBennePlayHtml(webview: vscode.Webview, extensionUri: vscode.Uri, s
   <script nonce="${nonce}">
     globalThis.__BENNE_PLAY_MEDIA_BASE__ = ${JSON.stringify(baseHref)};
     globalThis.__BENNE_START_ROOM_ID = ${JSON.stringify(startRoomId)};
+    globalThis.__BENNE_PLAY_FROM_NAME = ${JSON.stringify(playFromName ?? '')};
   </script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

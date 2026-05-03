@@ -655,6 +655,14 @@ export abstract class BenneScriptCore {
   }
 
   /**
+   * Resolves after queued blocking work on this script surface finishes — e.g. `B.inventory.add` without
+   * **`.now`**, **`walkTo`**, **`say`** — all appended via {@link chain}.
+   */
+  waitForInteractionQueue(): Promise<void> {
+    return this.interactionTail;
+  }
+
+  /**
    * Append async work to the interaction tail (lazy `factory` — see class docstring).
    * Subclasses (e.g. GUI Bennescript) use this for queued tweens.
    */

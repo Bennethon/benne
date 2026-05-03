@@ -1,6 +1,8 @@
 import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
+import { getRoomIdFromRoomJsonUri } from './gameDiscovery';
+import { readRoomPlayFromNamesFromSource } from './playFromDiscovery';
 import {
     applyRoomPolygonPatch,
     parseRoomPolygonPatch,
@@ -266,6 +268,34 @@ export class RoomPreviewPanelController implements vscode.Disposable {
      * When a `*.room.json` file changes on disk, reload the preview if that room is currently shown.
      * (Wizards use `fs.writeFile`, which does not always change tree selection.)
      */
+    /**
+     * Reload preview when the sibling `*.room.ts` is saved (Play From names for the toolbar dropdown).
+     */
+    onWorkspaceRoomScriptChanged(scriptUri: vscode.Uri): void {
+        if (!scriptUri.fsPath.endsWith('.room.ts')) {
+            return;
+        }
+        if (!this.panel || !this.webviewReady) {
+            return;
+        }
+        const curJsonStr = this.previewRoomJsonUriForSelection()?.toString() ?? this.lastPushedRoomJsonUri;
+        if (!curJsonStr) {
+            return;
+        }
+        let jsonUri: vscode.Uri;
+        try {
+            jsonUri = vscode.Uri.parse(curJsonStr);
+        } catch {
+            return;
+        }
+        const roomId = getRoomIdFromRoomJsonUri(jsonUri);
+        const expectedTs = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`).toString();
+        if (scriptUri.toString() !== expectedTs) {
+            return;
+        }
+        void this.pushPreview();
+    }
+
     onWorkspaceRoomJsonChanged(uri: vscode.Uri): void {
         if (!uri.fsPath.endsWith('.room.json')) {
             return;
@@ -376,6 +406,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                     roomJsonUri?: string;
                     roomId?: string;
                     roomName?: string;
+                    playFromName?: string;
                     patch?: unknown;
                 }) => {
                 if (m?.type === 'benne/preview/ready') {
@@ -404,11 +435,16 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                     const roomId = typeof m.roomId === 'string' ? m.roomId : '';
                     if (uriStr.length > 0 && roomId.length > 0) {
                         const roomName = typeof m.roomName === 'string' ? m.roomName : undefined;
+                        const playFromName =
+                            typeof m.playFromName === 'string' && m.playFromName.trim().length > 0
+                                ? m.playFromName.trim()
+                                : undefined;
                         void vscode.commands.executeCommand(
                             'benne-editor.playFromRoom',
                             uriStr,
                             roomId,
-                            roomName
+                            roomName,
+                            playFromName
                         );
                     }
                     return;
@@ -693,6 +729,8 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         try {
             const jsonText = await this.readRoomJsonAsUtf8(roomJsonUri);
             const room = JSON.parse(jsonText) as Record<string, unknown>;
+            const rid = typeof room.id === 'string' && room.id.length > 0 ? room.id : getRoomIdFromRoomJsonUri(roomJsonUri);
+            const playFromNames = await this.readRoomScriptPlayFromNames(roomJsonUri, rid);
             const gameSrcWebviewUri = webview.asWebviewUri(gameSrc).toString();
             const uriStr = roomJsonUri.toString();
             const pend = this.pendingInspectorFocus;
@@ -704,6 +742,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 room,
                 gameSrcWebviewUri,
                 roomJsonUri: uriStr,
+                playFromNames,
                 previewFocus: tb.focus,
                 ...(tb.focus === 'prop' ? { propColliderId: tb.propId } : {}),
                 ...(tb.focus === 'hotspot' ? { hotspotId: tb.hotspotId } : {}),
@@ -751,6 +790,26 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         const raw = await vscode.workspace.fs.readFile(uri);
         return Buffer.from(raw).toString('utf8');
     }
+
+    private async readRoomScriptAsUtf8(uri: vscode.Uri): Promise<string> {
+        const uriStr = uri.toString();
+        const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uriStr);
+        if (open) {
+            return open.getText();
+        }
+        const raw = await vscode.workspace.fs.readFile(uri);
+        return Buffer.from(raw).toString('utf8');
+    }
+
+    private async readRoomScriptPlayFromNames(roomJsonUri: vscode.Uri, roomId: string): Promise<string[]> {
+        const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
+        try {
+            const src = await this.readRoomScriptAsUtf8(scriptUri);
+            return readRoomPlayFromNamesFromSource(src);
+        } catch {
+            return [];
+        }
+    }
 }
 
 function buildRoomPreviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
@@ -776,7 +835,13 @@ function buildRoomPreviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri)
 </head>
 <body style="margin:0;padding:0;background:#1a1a2e;height:100vh;display:flex;flex-direction:column;">
   <div id="benne-preview-topbar" style="display:flex;align-items:flex-start;gap:10px;flex-shrink:0;padding:6px 10px;border-bottom:1px solid #2e2e44;background:#222230;">
-    <button type="button" id="benne-preview-play" title="Open BENNE Play starting in this room (same as Play from here in the Actions tree)" style="display:none;flex-shrink:0;margin-top:1px;background:#2d6a4f;color:#e8ffef;border:1px solid #40916c;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:system-ui,sans-serif;">Play</button>
+    <div id="benne-preview-play-toolbar" style="display:none;flex-shrink:0;flex-direction:column;align-items:flex-start;gap:6px;margin-top:1px;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <label for="benne-preview-play-from" style="color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;white-space:nowrap;">Play from</label>
+        <select id="benne-preview-play-from" title="Optional B.playFrom starting state for BENNE Play" aria-label="Play from starting state" style="font-size:12px;min-width:120px;max-width:200px;padding:3px 6px;border-radius:4px;border:1px solid #5a5a70;background:#1a1a28;color:#e8ecff;"></select>
+        <button type="button" id="benne-preview-play" title="Open BENNE Play in this room (runs selected Play From after whenEnterRoom)" style="flex-shrink:0;background:#2d6a4f;color:#e8ffef;border:1px solid #40916c;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:system-ui,sans-serif;">Play</button>
+      </div>
+    </div>
     <div id="benne-polygon-toolbar" style="flex:1;min-width:0;"></div>
     <label id="benne-preview-options" title="Show GUIs from src/game/guis in the preview (excludes dialog-text)" style="flex-shrink:0;display:inline-flex;align-items:center;gap:5px;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;margin-top:3px;cursor:pointer;user-select:none;">
       <input type="checkbox" id="benne-show-guis-toggle" style="margin:0;cursor:pointer;" />

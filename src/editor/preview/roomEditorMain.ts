@@ -215,6 +215,42 @@ async function destroyPreviewGameAsync(): Promise<void> {
     });
 }
 
+function clearPlayFromSelect(): void {
+    const sel = document.getElementById('benne-preview-play-from') as HTMLSelectElement | null;
+    if (!sel) {
+        return;
+    }
+    sel.innerHTML = '';
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = '(none)';
+    sel.appendChild(none);
+    sel.value = '';
+}
+
+function populatePlayFromFromHost(msg: HostPreviewMessage): void {
+    const sel = document.getElementById('benne-preview-play-from') as HTMLSelectElement | null;
+    if (!sel) {
+        return;
+    }
+    sel.innerHTML = '';
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = '(none)';
+    sel.appendChild(none);
+    const raw = msg.playFromNames;
+    const names = Array.isArray(raw)
+        ? raw.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+        : [];
+    for (const n of names) {
+        const opt = document.createElement('option');
+        opt.value = n.trim();
+        opt.textContent = n.trim();
+        sel.appendChild(opt);
+    }
+    sel.value = '';
+}
+
 function clearToolbar(): void {
     const bar = document.getElementById('benne-polygon-toolbar');
     if (bar) {
@@ -226,16 +262,17 @@ function clearToolbar(): void {
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId('');
     polygonEditBridge.setWalkableEditTarget('', '');
+    clearPlayFromSelect();
     setPlayFromHereButtonVisible(false);
 }
 
 /** Shown only in browse/navigate authoring mode (see {@link wireRoomNavigateToolbar}). */
 function setPlayFromHereButtonVisible(visible: boolean): void {
-    const btn = document.getElementById('benne-preview-play') as HTMLButtonElement | null;
-    if (!btn) {
+    const wrap = document.getElementById('benne-preview-play-toolbar') as HTMLElement | null;
+    if (!wrap) {
         return;
     }
-    btn.style.display = visible ? 'inline-block' : 'none';
+    wrap.style.display = visible ? 'flex' : 'none';
 }
 
 function buildRoomNavigateToolbarHtml(): string {
@@ -759,6 +796,7 @@ type HostPreviewMessage = {
     room?: RoomData;
     gameSrcWebviewUri?: string;
     roomJsonUri?: string;
+    playFromNames?: string[];
     message?: string;
     ok?: boolean;
     appliedPatch?: RoomPolygonPatch;
@@ -825,6 +863,7 @@ async function runLoadRoom(msg: HostPreviewMessage): Promise<void> {
     }
     currentRoomJsonUri = msg.roomJsonUri;
     lastLoadedRoom = room;
+    populatePlayFromFromHost(msg);
 
     try {
         wireToolbarFromPreviewState(room, parsePreviewToolbarPayload(msg));
@@ -929,11 +968,15 @@ function wirePlayFromHereButton(): void {
         if (!room || !currentRoomJsonUri) {
             return;
         }
+        const sel = document.getElementById('benne-preview-play-from') as HTMLSelectElement | null;
+        const raw = sel?.value?.trim() ?? '';
+        const playFromName = raw.length > 0 ? raw : undefined;
         vscodeApi?.postMessage({
             type: 'benne/preview/playFromHere',
             roomJsonUri: currentRoomJsonUri,
             roomId: room.id,
             roomName: room.name,
+            ...(playFromName ? { playFromName } : {}),
         });
     });
 }

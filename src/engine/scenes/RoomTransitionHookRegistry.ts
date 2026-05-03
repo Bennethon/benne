@@ -89,3 +89,20 @@ export async function runRoomHandlersSeq(
     await Promise.resolve(h(ctx));
   }
 }
+
+/**
+ * Invokes each handler in order; an error in one does not skip the rest (used for enter / after-fade hooks).
+ */
+export async function runRoomHandlersEachSafe(
+  handlers: readonly ((ctx: RoomTransitionContext) => void | Promise<void>)[],
+  ctx: RoomTransitionContext,
+  logLabel: string,
+): Promise<void> {
+  for (let i = 0; i < handlers.length; i += 1) {
+    try {
+      await Promise.resolve(handlers[i]!(ctx));
+    } catch (e) {
+      console.error(`[Benne] ${logLabel} handler #${i} failed:`, e);
+    }
+  }
+}
