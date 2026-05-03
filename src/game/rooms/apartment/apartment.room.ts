@@ -12,7 +12,6 @@ import { registerRoomScript } from '@engine/scripting';
  * - `walkTo('…')`: unified target — prop id → hotspot id → character id → `points[].id`, or `{ x, y }` in room pixels.
  */
 registerRoomScript(({ B }) => {
-
   B.whenInventoryUsedOn('Couch', (payload) => {
     if (payload.itemId === 'Broom' && payload.verbId === 'use') {
       B.player.walkTo('Couch');
@@ -148,5 +147,13 @@ registerRoomScript(({ B }) => {
     }
     // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
     return false;
+  });
+
+  B.playFrom("gotKey", () => {
+    B.inventory.add('Key');
+  });
+
+  B.playFrom("doorUnlocked", () => {
+    B.state.setFlag('unlockedDoor', true);
   });
 });

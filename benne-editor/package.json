@@ -23,6 +23,7 @@
     "onCommand:benne-editor.addRoomPoint",
     "onCommand:benne-editor.addRoomRegion",
     "onCommand:benne-editor.addRoomSpawnedCharacter",
+    "onCommand:benne-editor.addRoomPlayFromMethod",
     "onCommand:benne-editor.createCharacter",
     "onCommand:benne-editor.createGui",
     "onCommand:benne-editor.createInventoryItem",
@@ -206,6 +207,12 @@
         "title": "Add Spawned Character",
         "category": "BENNE",
         "icon": "$(person-add)"
+      },
+      {
+        "command": "benne-editor.addRoomPlayFromMethod",
+        "title": "Add Play From method",
+        "category": "BENNE",
+        "icon": "$(debug-start)"
       },
       {
         "command": "benne-editor.createCharacter",
@@ -494,6 +501,11 @@
         },
         {
           "command": "benne-editor.addRoomSpawnedCharacter",
+          "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomPlayFromMethod",
           "when": "view == benne-editor.main && viewItem == benneRoom",
           "group": "benne@2"
         },

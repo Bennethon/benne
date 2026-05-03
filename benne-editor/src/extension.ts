@@ -5,6 +5,7 @@ import { MainTreeProvider, type MainTreeNode } from './mainTreeProvider';
 import { runCreateCharacterWizard, runImportAnimationsFromAsepriteTags } from './characterScaffolding';
 import { runCreateInventoryItemWizard, runImportInventoryItemsFromAsepriteTags } from './inventoryScaffolding';
 import { runAddGuiControlInteractiveWizard, runCreateGuiWizard } from './guiScaffolding';
+import { runAddRoomPlayFromWizard } from './playFromScaffolding';
 import {
     runAddRoomHotspotWizard,
     runAddRoomPointWizard,
@@ -530,20 +531,26 @@ export function activate(context: vscode.ExtensionContext): void {
     function resolvePlayRoom(
         arg?: MainTreeNode | MainTreeNode[] | string,
         roomIdArg?: string,
-        roomNameArg?: string
-    ): { roomJsonUri: vscode.Uri; roomId: string; roomName?: string } | undefined {
+        roomNameArg?: string,
+        playFromNameArg?: string
+    ): { roomJsonUri: vscode.Uri; roomId: string; roomName?: string; playFromName?: string } | undefined {
         if (typeof arg === 'string' && typeof roomIdArg === 'string') {
+            const pf =
+                typeof playFromNameArg === 'string' && playFromNameArg.trim().length > 0
+                    ? playFromNameArg.trim()
+                    : undefined;
             return {
                 roomJsonUri: vscode.Uri.parse(arg),
                 roomId: roomIdArg,
                 roomName:
-                    typeof roomNameArg === 'string' && roomNameArg.length > 0 ? roomNameArg : undefined
+                    typeof roomNameArg === 'string' && roomNameArg.length > 0 ? roomNameArg : undefined,
+                playFromName: pf
             };
         }
 
         const node = firstTreeContextArg(Array.isArray(arg) ? arg : arg && typeof arg !== 'string' ? arg : undefined);
         if (node?.kind === 'room') {
-            return { roomJsonUri: node.uri, roomId: node.id, roomName: node.name };
+            return { roomJsonUri: node.uri, roomId: node.id, roomName: node.name, playFromName: undefined };
         }
         if (
             node?.kind === 'roomSubGroup' ||
@@ -556,7 +563,12 @@ export function activate(context: vscode.ExtensionContext): void {
             node?.kind === 'walkablePolygon' ||
             node?.kind === 'walkableHole'
         ) {
-            return { roomJsonUri: node.roomJsonUri, roomId: node.roomId, roomName: node.roomName };
+            return {
+                roomJsonUri: node.roomJsonUri,
+                roomId: node.roomId,
+                roomName: node.roomName,
+                playFromName: undefined
+            };
         }
 
         if (selection.roomPanel.kind !== 'none') {
@@ -564,6 +576,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 roomJsonUri: selection.roomPanel.roomJsonUri,
                 roomId: selection.roomPanel.roomId,
                 roomName: selection.focus.kind === 'room' ? selection.focus.label : undefined,
+                playFromName: undefined
             };
         }
         if (selection.focus.kind === 'room') {
@@ -571,6 +584,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 roomJsonUri: selection.focus.uri,
                 roomId: getRoomIdFromRoomJsonUri(selection.focus.uri),
                 roomName: selection.focus.label,
+                playFromName: undefined
             };
         }
         return undefined;
@@ -694,8 +708,13 @@ export function activate(context: vscode.ExtensionContext): void {
         ),
         vscode.commands.registerCommand(
             'benne-editor.playFromRoom',
-            async (arg?: MainTreeNode | MainTreeNode[] | string, roomIdArg?: string, roomNameArg?: string) => {
-                const target = resolvePlayRoom(arg, roomIdArg, roomNameArg);
+            async (
+                arg?: MainTreeNode | MainTreeNode[] | string,
+                roomIdArg?: string,
+                roomNameArg?: string,
+                playFromNameArg?: string
+            ) => {
+                const target = resolvePlayRoom(arg, roomIdArg, roomNameArg, playFromNameArg);
                 if (!target) {
                     void vscode.window.showInformationMessage(
                         'Choose a room in the BENNE tree, then run "Play from here".'
@@ -706,7 +725,15 @@ export function activate(context: vscode.ExtensionContext): void {
                     void vscode.window.showErrorMessage('Could not resolve workspace folder for room JSON.');
                     return;
                 }
-                bennePlay.playFromRoom(target.roomId, target.roomName);
+                bennePlay.playFromRoom(target.roomId, target.roomName, target.playFromName);
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addRoomPlayFromMethod',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                await runAddRoomPlayFromWizard(selection, node);
+                refreshTrees();
             }
         ),
         vscode.commands.registerCommand(
@@ -1343,6 +1370,9 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.workspace.onDidSaveTextDocument((doc) => {
             if (doc.uri.fsPath.endsWith('.gui.json')) {
                 guiPreview.onWorkspaceGuiJsonChanged(doc.uri);
+            }
+            if (doc.uri.fsPath.endsWith('.room.ts')) {
+                roomPreview.onWorkspaceRoomScriptChanged(doc.uri);
             }
         }),
         roomSheetAssetWatcher,

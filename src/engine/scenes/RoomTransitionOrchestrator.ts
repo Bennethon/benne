@@ -9,7 +9,12 @@ import { BENNE_SCREEN_FADE_DEFAULT_COLOR, BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC
 import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from './roomSceneBootstrap.js';
 import type { RoomSceneStartData } from './BootScene';
 import type { RoomScene } from './RoomScene.js';
-import { RoomTransitionHookRegistry, runRoomHandlersSeq } from './RoomTransitionHookRegistry.js';
+import {
+  RoomTransitionHookRegistry,
+  runRoomHandlersEachSafe,
+  runRoomHandlersSeq,
+} from './RoomTransitionHookRegistry.js';
+import { getPlayFromSetupForRoom } from '../scripting/devPlayFromRegistry.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
 import type { BenneScriptCore } from '../scripting/BenneScriptCore.js';
 import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
@@ -168,10 +173,39 @@ export class RoomTransitionOrchestrator {
       }
       const lastForEnter = manager.getLastRoom();
       const enterCtx: RoomTransitionContext = { roomId, lastRoom: lastForEnter, isFirstEnter: isFirst };
-      await runRoomHandlersSeq(
+      await runRoomHandlersEachSafe(
         [...this.hooks.getEnterHandlersForRoom(roomId), ...this.hooks.getAnyEnter()],
         enterCtx,
+        'onRoomSceneCreateComplete: room enter',
       );
+
+      if (kind === 'boot' || kind === 'preview') {
+        const g = globalThis as { __BENNE_PLAY_FROM_NAME?: unknown };
+        const raw = g.__BENNE_PLAY_FROM_NAME;
+        const playFromName = typeof raw === 'string' ? raw.trim() : '';
+        g.__BENNE_PLAY_FROM_NAME = '';
+        if (playFromName.length > 0) {
+          const playFromHandler = getPlayFromSetupForRoom(roomId, playFromName);
+          if (playFromHandler) {
+            try {
+              await Promise.resolve(playFromHandler());
+            } catch (playFromErr) {
+              if (import.meta.env.DEV) {
+                console.warn(
+                  `[Benne] Play From: setup '${playFromName}' threw an error`,
+                  playFromErr,
+                );
+              }
+            }
+          } else if (import.meta.env.DEV) {
+            console.warn(
+              `[Benne] Play From: no handler named '${playFromName}' for room '${roomId}'`,
+            );
+          }
+        }
+      }
+
+      await roomScene.waitForEnterPhaseBenneScriptQueues();
 
       if (skipEnterFadeIn) {
         roomScene.screenFadeLayer?.setAlpha(0);
@@ -184,9 +218,10 @@ export class RoomTransitionOrchestrator {
       }
 
       const afterCtx: RoomTransitionContext = { roomId, lastRoom: lastForEnter, isFirstEnter: isFirst };
-      await runRoomHandlersSeq(
+      await runRoomHandlersEachSafe(
         [...this.hooks.getAfterFadeHandlersForRoom(roomId), ...this.hooks.getAnyAfterFade()],
         afterCtx,
+        'onRoomSceneCreateComplete: after-fade',
       );
     } catch (e) {
       console.error('[Benne] onRoomSceneCreateComplete:', e);
