@@ -53,7 +53,41 @@
       }
     ]
   },
-  "hotspots": [],
+  "hotspots": [
+    {
+      "id": "door",
+      "active": true,
+      "description": "",
+      "zIndex": 80,
+      "points": [
+        {
+          "x": 70,
+          "y": 69
+        },
+        {
+          "x": 103,
+          "y": 62
+        },
+        {
+          "x": 113,
+          "y": 128
+        },
+        {
+          "x": 81,
+          "y": 139
+        }
+      ],
+      "walkToPoint": {
+        "x": 108,
+        "y": 133
+      },
+      "lookAtPoint": {
+        "x": 95,
+        "y": 130
+      },
+      "baseline": 163
+    }
+  ],
   "points": [
     {
       "id": "enter-from-door",

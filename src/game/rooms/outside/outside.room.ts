@@ -15,4 +15,19 @@ registerRoomScript(({ B }) => {
   B.whenEnterRoom(() => {
     B.player.moveTo.now('enter-from-door');
   });
+
+  const handleOpenOrUseDoor = () => {
+    B.walkToClicked();
+    B.player.faceClicked();
+
+    if (B.state.getFlag('unlockedDoor')) {
+      B.room.changeTo('apartment');
+    } else {
+      B.say`Hank: The door is locked.`;
+    }
+  };
+  
+  B.whenOpen('door', handleOpenOrUseDoor); 
+  B.whenUse('door', handleOpenOrUseDoor);
+
 });
