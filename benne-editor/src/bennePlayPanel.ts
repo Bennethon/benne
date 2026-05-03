@@ -7,15 +7,46 @@ import * as vscode from 'vscode';
  */
 export class BennePlayPanelController implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
+    private lastStartRoomId: string | undefined;
+    private lastRoomName: string | undefined;
+    private lastPlayFromName: string | undefined;
+    private panelDisposeSideEffect: (() => void) | undefined;
 
     constructor(private readonly extensionUri: vscode.Uri) {}
 
     dispose(): void {
         this.panel?.dispose();
         this.panel = undefined;
+        this.clearLastSession();
+    }
+
+    /**
+     * Runs when the Play webview is closed (e.g. stop Vite watch for this session).
+     * Overwritten on each `playFromRoom` while the panel exists.
+     */
+    setPanelDisposeSideEffect(handler: (() => void) | undefined): void {
+        this.panelDisposeSideEffect = handler;
+    }
+
+    /** Re-applies webview HTML so the embedded `benne-play.js` (and chunks) reload after a watch rebuild. */
+    reloadWebview(): void {
+        if (!this.panel || !this.lastStartRoomId) {
+            return;
+        }
+        this.panel.title = `BENNE Play: ${this.lastRoomName ?? this.lastStartRoomId}`;
+        this.panel.webview.html = buildBennePlayHtml(
+            this.panel.webview,
+            this.extensionUri,
+            this.lastStartRoomId,
+            this.lastPlayFromName,
+        );
     }
 
     playFromRoom(roomId: string, roomName?: string, playFromName?: string): void {
+        this.lastStartRoomId = roomId;
+        this.lastRoomName = roomName;
+        this.lastPlayFromName = playFromName;
+
         if (!this.panel) {
             this.panel = vscode.window.createWebviewPanel(
                 'bennePlay',
@@ -31,7 +62,10 @@ export class BennePlayPanelController implements vscode.Disposable {
                 }
             );
             this.panel.onDidDispose(() => {
+                this.panelDisposeSideEffect?.();
+                this.panelDisposeSideEffect = undefined;
                 this.panel = undefined;
+                this.clearLastSession();
             });
         } else {
             this.panel.reveal(vscode.ViewColumn.Beside, false);
@@ -44,6 +78,12 @@ export class BennePlayPanelController implements vscode.Disposable {
             roomId,
             playFromName,
         );
+    }
+
+    private clearLastSession(): void {
+        this.lastStartRoomId = undefined;
+        this.lastRoomName = undefined;
+        this.lastPlayFromName = undefined;
     }
 }
 
