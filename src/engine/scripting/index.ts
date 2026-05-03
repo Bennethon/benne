@@ -25,7 +25,7 @@ export * from './types.js';
 export type { RoomTransitionContext } from '../../types/roomTransition.js';
 export { RoomTransitionOrchestrator } from '../scenes/RoomTransitionOrchestrator.js';
 export { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from '../scenes/roomStartKindConstants.js';
-export { registerRoomScript, getBenneRoomScriptRegistrations, getCallbacksForRoom, ensureRoomScriptLoaded, registerRoomScriptModuleLoaders } from './registerRoomScript.js';
+export { registerRoomScript, getCallbacksForRoom, ensureRoomScriptLoaded, registerRoomScriptModuleLoaders } from './registerRoomScript.js';
 export {
   registerCharacterScript,
   getBenneCharacterScriptRegistrations,

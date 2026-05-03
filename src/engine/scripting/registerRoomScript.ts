@@ -98,14 +98,3 @@ export async function ensureRoomScriptLoaded(roomId: string): Promise<void> {
   }
 }
 
-/**
- * Returns every registered callback across all rooms.
- * @deprecated Kept for the index.ts public export surface; prefer {@link getCallbacksForRoom}.
- */
-export function getBenneRoomScriptRegistrations(): ReadonlyArray<RoomCallback> {
-  const all: RoomCallback[] = [];
-  for (const cbs of perRoomCallbacks.values()) {
-    all.push(...cbs);
-  }
-  return all;
-}
