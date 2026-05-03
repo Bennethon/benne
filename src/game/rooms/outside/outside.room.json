@@ -57,7 +57,7 @@
     {
       "id": "door",
       "active": true,
-      "description": "",
+      "description": "door",
       "zIndex": 80,
       "points": [
         {

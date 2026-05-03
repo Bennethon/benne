@@ -66,7 +66,8 @@ async function readPackageNpmScript(
         | 'build:character-preview'
         | 'build:gui-preview'
         | 'build:inventory-preview'
-        | 'build:benne-play',
+        | 'build:benne-play'
+        | 'watch:benne-play',
 ): Promise<string | undefined> {
     const pkgUri = vscode.Uri.joinPath(gameRoot, 'package.json');
     try {
@@ -76,6 +77,11 @@ async function readPackageNpmScript(
     } catch {
         return undefined;
     }
+}
+
+/** Resolves the `watch:benne-play` npm script when present (editor-started Vite watch for BENNE Play). */
+export async function getWatchBennePlayNpmScript(gameRoot: vscode.Uri): Promise<string | undefined> {
+    return readPackageNpmScript(gameRoot, 'watch:benne-play');
 }
 
 export async function runRoomPreviewBuild(

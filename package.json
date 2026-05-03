@@ -11,6 +11,7 @@
     "build:gui-preview": "tsc && vite build --config vite.gui-preview.config.ts",
     "build:inventory-preview": "tsc && vite build --config vite.inventory-preview.config.ts",
     "build:benne-play": "tsc && vite build --config vite.benne-play.config.ts",
+    "watch:benne-play": "vite build --watch --config vite.benne-play.config.ts",
     "preview": "vite preview",
     "sync-bootstrap-down": "node scripts/switch-game-template.mjs sync-bootstrap-down",
     "sync-template-down": "node scripts/switch-game-template.mjs sync-template-down",

@@ -20,6 +20,7 @@ import { GuiPreviewPanelController } from './guiPreviewPanel';
 import { InventoryPreviewPanelController } from './inventoryPreviewPanel';
 import { RoomPreviewPanelController } from './roomPreviewPanel';
 import { BennePlayPanelController } from './bennePlayPanel';
+import { BennePlayWatchManager } from './bennePlayWatch';
 import {
     getRoomPreviewBuildOutputChannel,
     resolveGameFolderForRoomPreviewBuild,
@@ -176,6 +177,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const guiPreview = new GuiPreviewPanelController(context.extensionUri, selection);
     const inventoryPreview = new InventoryPreviewPanelController(context.extensionUri, selection);
     const bennePlay = new BennePlayPanelController(context.extensionUri);
+    const bennePlayWatch = new BennePlayWatchManager();
 
     let gameConfigRebuildTimer: ReturnType<typeof setTimeout> | undefined;
     let pendingGameConfigUri: vscode.Uri | undefined;
@@ -228,6 +230,7 @@ export function activate(context: vscode.ExtensionContext): void {
         guiPreview,
         inventoryPreview,
         bennePlay,
+        bennePlayWatch,
         mainTreeView,
         actionsTreeView,
         selection,
@@ -724,6 +727,17 @@ export function activate(context: vscode.ExtensionContext): void {
                 if (!vscode.workspace.getWorkspaceFolder(target.roomJsonUri)) {
                     void vscode.window.showErrorMessage('Could not resolve workspace folder for room JSON.');
                     return;
+                }
+                const gameFolder = await resolveGameFolderForRoomPreviewBuild(target.roomJsonUri);
+                if (gameFolder) {
+                    await bennePlayWatch.ensureStarted(gameFolder, () => {
+                        bennePlay.reloadWebview();
+                    });
+                    bennePlay.setPanelDisposeSideEffect(() => {
+                        bennePlayWatch.stop(gameFolder.uri.fsPath);
+                    });
+                } else {
+                    bennePlay.setPanelDisposeSideEffect(undefined);
                 }
                 bennePlay.playFromRoom(target.roomId, target.roomName, target.playFromName);
             }
