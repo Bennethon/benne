@@ -1,5 +1,5 @@
 import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
-import type { GameSettings, GameSettingsDialog } from '../types/game';
+import type { GameSettings, GameSettingsDialog, GameSettingsPerspective } from '../types/game';
 import { DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbs/verbConfig';
 import rawSettings from '../game/game-config.json';
 
@@ -12,6 +12,48 @@ const DIALOG_DEFAULTS: GameSettingsDialog = {
   maxDurationMs: 4500,
   durationMultiplier: 1.0,
 };
+
+const PERSPECTIVE_DEFAULTS: GameSettingsPerspective = {
+  minWalkScale: 0.3,
+  walkScalePower: 0.8,
+};
+
+function mergePerspectiveSettings(data: GameSettings): GameSettingsPerspective {
+  const p = data.perspective;
+  if (!p || typeof p !== 'object') {
+    return { ...PERSPECTIVE_DEFAULTS };
+  }
+  return {
+    minWalkScale:
+      typeof p.minWalkScale === 'number' && Number.isFinite(p.minWalkScale)
+        ? p.minWalkScale
+        : PERSPECTIVE_DEFAULTS.minWalkScale,
+    walkScalePower:
+      typeof p.walkScalePower === 'number' && Number.isFinite(p.walkScalePower)
+        ? p.walkScalePower
+        : PERSPECTIVE_DEFAULTS.walkScalePower,
+  };
+}
+
+function assertPerspectiveSettings(data: GameSettings): void {
+  const p = data.perspective;
+  if (p === undefined) {
+    return;
+  }
+  if (typeof p !== 'object' || p === null || Array.isArray(p)) {
+    throw new Error('game-config perspective must be an object when present');
+  }
+  for (const key of ['minWalkScale', 'walkScalePower'] as const) {
+    const v = p[key];
+    if (v !== undefined && !Number.isFinite(v)) {
+      throw new Error(`game-config perspective.${key} must be a finite number when present`);
+    }
+  }
+  const merged = mergePerspectiveSettings(data);
+  if (merged.minWalkScale <= 0) {
+    throw new Error('game-config perspective.minWalkScale must be > 0');
+  }
+}
 
 function mergeDialogSettings(data: GameSettings): GameSettingsDialog {
   const d = data.dialog;
@@ -259,6 +301,7 @@ function assertGameSettings(data: GameSettings): void {
   assertInitialGameState(data);
   assertVerbSettings(data);
   assertDialogSettings(data);
+  assertPerspectiveSettings(data);
   assertCursorSettings(data);
 }
 
@@ -340,6 +383,11 @@ export function getGameSettings(): GameSettings {
 /** Merged `dialog` values from `game-config.json` (defaults apply when the block or fields are omitted). */
 export function getDialogSettings(): GameSettingsDialog {
   return mergeDialogSettings(settings);
+}
+
+/** Merged `perspective` values for room-region walk-speed scaling (defaults when block or fields are omitted). */
+export function getPerspectiveSettings(): GameSettingsPerspective {
+  return mergePerspectiveSettings(settings);
 }
 
 /** How long a `.say()` line should stay on screen from {@link getDialogSettings} timing rules. */

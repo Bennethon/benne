@@ -43,6 +43,17 @@ export interface GameSettingsDebug {
   showGuiOutlines?: boolean;
 }
 
+/**
+ * Room region **scale walk speed** tuning (`game-config.json` `perspective`).
+ * See {@link computeRoomRegionPerspective} in `src/engine/room/regionCharacterScale.ts`.
+ */
+export interface GameSettingsPerspective {
+  /** Floor for `Math.pow(linearSpriteScale, walkScalePower)` when `RoomRegionData.scaleWalkSpeed` is true. */
+  minWalkScale: number;
+  /** Exponent applied to the linear region scale when deriving the walk-speed multiplier. */
+  walkScalePower: number;
+}
+
 /** Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults. */
 export interface GameSettingsDialog {
   /**
@@ -145,6 +156,11 @@ export interface GameSettings {
   dropWhenInventoryUsed?: boolean;
   /** In-game dialog line timing and `dialog-text` GUI placement (see `getDialogSettings()`). */
   dialog?: Partial<GameSettingsDialog>;
+  /**
+   * Perspective / walk-speed tuning for optional **`scaleWalkSpeed`** on room regions (`RoomRegionData`).
+   * See **`getPerspectiveSettings()`** in **`ConfigManager.ts`**.
+   */
+  perspective?: Partial<GameSettingsPerspective>;
   /** Starting flags, variables, and inventory merged at game creation (see `GameStateManager`). */
   initialGameState?: GameSettingsInitialGameState;
   /**

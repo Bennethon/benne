@@ -76,5 +76,9 @@
     "msPerCharacter": 80,
     "maxDurationMs": 4500,
     "durationMultiplier": 1
+  },
+  "perspective": {
+    "minWalkScale": 0.3,
+    "walkScalePower": 0.8
   }
 }

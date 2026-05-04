@@ -66,6 +66,21 @@ export interface RoomRegionData {
   /** When false, ignored by tooling/runtime that respects regions. Omitted = active. */
   active?: boolean;
   points: Point2[];
+  /**
+   * Character scale at the **top** of the region (smaller room Y). `1` = normal size. Omitted = `1`.
+   * Interpolates linearly with {@link scaleBottom} by feet Y across the region’s vertical bounds.
+   */
+  scaleTop?: number;
+  /**
+   * Character scale at the **bottom** of the region (larger room Y). Omitted = `1`.
+   */
+  scaleBottom?: number;
+  /**
+   * When `true`, walking speed is multiplied by a perspective factor derived from the same linear
+   * {@link scaleTop} / {@link scaleBottom} value as sprite scale (see `game-config.json` `perspective`).
+   * Omitted = `false`.
+   */
+  scaleWalkSpeed?: boolean;
 }
 
 export interface RoomCharacterInstance {

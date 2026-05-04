@@ -95,7 +95,33 @@
       "y": 132
     }
   ],
-  "regions": [],
+  "regions": [
+    {
+      "id": "distance",
+      "active": true,
+      "points": [
+        {
+          "x": 117,
+          "y": 64
+        },
+        {
+          "x": 600,
+          "y": 61
+        },
+        {
+          "x": 600,
+          "y": 101
+        },
+        {
+          "x": 118,
+          "y": 104
+        }
+      ],
+      "scaleTop": 0.00001,
+      "scaleBottom": 1,
+      "scaleWalkSpeed": true
+    }
+  ],
   "props": [
     {
       "id": "BG",
