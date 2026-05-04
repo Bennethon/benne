@@ -550,6 +550,38 @@ export function updateRegionActive(
     return { ok: true };
 }
 
+export function updateRegionScaleFields(
+    data: Record<string, unknown>,
+    regionId: string,
+    scaleTop: number,
+    scaleBottom: number
+): { ok: true } | { ok: false; message: string } {
+    const reg = regionsArray(data).find((x) => typeof x.id === 'string' && (x.id as string) === regionId);
+    if (!reg) {
+        return { ok: false, message: 'Region not found.' };
+    }
+    reg.scaleTop = scaleTop;
+    reg.scaleBottom = scaleBottom;
+    return { ok: true };
+}
+
+export function updateRegionScaleWalkSpeed(
+    data: Record<string, unknown>,
+    regionId: string,
+    scaleWalkSpeed: boolean
+): { ok: true } | { ok: false; message: string } {
+    const reg = regionsArray(data).find((x) => typeof x.id === 'string' && (x.id as string) === regionId);
+    if (!reg) {
+        return { ok: false, message: 'Region not found.' };
+    }
+    if (scaleWalkSpeed) {
+        reg.scaleWalkSpeed = true;
+    } else {
+        delete reg.scaleWalkSpeed;
+    }
+    return { ok: true };
+}
+
 export function deleteRegion(data: Record<string, unknown>, regionId: string): void {
     data.regions = regionsArray(data).filter((r) => !(typeof r.id === 'string' && (r.id as string) === regionId));
 }

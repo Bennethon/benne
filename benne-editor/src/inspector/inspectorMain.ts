@@ -71,7 +71,14 @@ type InspectorCharacterCard = {
 };
 
 type InspectorPointCard = { id: string; x: number; y: number };
-type InspectorRegionCard = { id: string; active: boolean; pointCount: number };
+type InspectorRegionCard = {
+    id: string;
+    active: boolean;
+    pointCount: number;
+    scaleTop: number;
+    scaleBottom: number;
+    scaleWalkSpeed: boolean;
+};
 
 type InspectorRoomState = {
     kind: 'room';
@@ -843,6 +850,12 @@ function renderRoom(state: InspectorRoomState): string {
             const body = `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">Active</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-active" data-id="${esc(r.id)}" ${r.active ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl" title="Scale at top of region (smaller Y). 1 = normal.">Scale top</span>
+        <input type="number" class="rg-scale-top" data-id="${esc(r.id)}" value="${r.scaleTop}" step="0.05" />
+        <span class="benne-pg-lbl" title="Scale at bottom of region (larger Y).">Scale bottom</span>
+        <input type="number" class="rg-scale-bottom" data-id="${esc(r.id)}" value="${r.scaleBottom}" step="0.05" />
+        <span class="benne-pg-lbl" title="Slow or speed up walking by the same perspective factor as sprite scale (see game-config perspective).">Scale walk speed</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-scale-walk" data-id="${esc(r.id)}" ${r.scaleWalkSpeed ? 'checked' : ''} /></label>
       </div>
       <div class="benne-card-actions">
         <div class="benne-card-actions-inner">
@@ -1914,6 +1927,38 @@ function mountHandlers(state: InspectorRoomState): void {
         el.addEventListener('change', () => {
             const inp = el as HTMLInputElement;
             post('applyPatches', { patches: [{ type: 'regionActive', id: inp.dataset.id, active: inp.checked }] });
+        });
+    });
+
+    root.querySelectorAll('.rg-scale-walk').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el as HTMLInputElement;
+            const id = inp.dataset.id;
+            if (!id) {
+                return;
+            }
+            post('applyPatches', { patches: [{ type: 'regionScaleWalkSpeed', id, scaleWalkSpeed: inp.checked }] });
+        });
+    });
+
+    const postRegionScale = (regionId: string): void => {
+        const topEl = root.querySelector(`.rg-scale-top[data-id="${regionId}"]`) as HTMLInputElement;
+        const botEl = root.querySelector(`.rg-scale-bottom[data-id="${regionId}"]`) as HTMLInputElement;
+        const scaleTop = Number(topEl?.value);
+        const scaleBottom = Number(botEl?.value);
+        if (!Number.isFinite(scaleTop) || !Number.isFinite(scaleBottom)) {
+            return;
+        }
+        post('applyPatches', { patches: [{ type: 'regionScale', id: regionId, scaleTop, scaleBottom }] });
+    };
+
+    root.querySelectorAll('.rg-scale-top, .rg-scale-bottom').forEach((el) => {
+        el.addEventListener('change', () => {
+            const id = (el as HTMLElement).dataset.id;
+            if (!id) {
+                return;
+            }
+            postRegionScale(id);
         });
     });
 

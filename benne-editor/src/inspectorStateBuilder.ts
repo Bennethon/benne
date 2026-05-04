@@ -103,7 +103,14 @@ export type InspectorCharacterCard = {
 
 export type InspectorPointCard = { id: string; x: number; y: number };
 
-export type InspectorRegionCard = { id: string; active: boolean; pointCount: number };
+export type InspectorRegionCard = {
+    id: string;
+    active: boolean;
+    pointCount: number;
+    scaleTop: number;
+    scaleBottom: number;
+    scaleWalkSpeed: boolean;
+};
 
 export type InspectorRoomState = {
     kind: 'room';
@@ -889,10 +896,16 @@ async function buildRoomInspectorState(
             }
             const pts = o.points;
             const pointCount = Array.isArray(pts) ? pts.length : 0;
+            const scaleTop = typeof o.scaleTop === 'number' && Number.isFinite(o.scaleTop) ? o.scaleTop : 1;
+            const scaleBottom =
+                typeof o.scaleBottom === 'number' && Number.isFinite(o.scaleBottom) ? o.scaleBottom : 1;
             regions.push({
                 id,
                 active: o.active !== false,
-                pointCount
+                pointCount,
+                scaleTop,
+                scaleBottom,
+                scaleWalkSpeed: o.scaleWalkSpeed === true
             });
         }
     }

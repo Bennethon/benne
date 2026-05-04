@@ -54,7 +54,7 @@ import {
   writeSavedPropBaseAnimationTag,
 } from '../benneAnimationRuntime';
 import type { CharacterFacingLetter } from '../../types/character';
-import { getDialogSettings, getGameSettings } from '../ConfigManager';
+import { getDialogSettings, getGameSettings, getPerspectiveSettings } from '../ConfigManager';
 import {
   applyGameCursorSpriteHotspot,
   CURSOR_TEXTURE_KEY,
@@ -71,7 +71,9 @@ import {
   getCharacterWorldFeet,
   placeSpriteByFeet,
   resolveCharacterFeetLocal,
+  type CharacterFeetLocal,
 } from '../characterFeet';
+import { computeRoomRegionPerspective } from '../room/regionCharacterScale';
 import { clampWalkDestinationTowardClick, pointInPolygon } from '../walkable';
 import { findWalkPath } from '../pathfinding';
 import { dispatchVerbInteraction } from '../verbs/dispatchVerb';
@@ -180,14 +182,16 @@ const CUSTOM_CURSOR_DEPTH = 500_000;
 
 /** `startFollow` offset so the camera tracks {@link getCharacterWorldFeet}, not the sprite top-left. */
 function getFeetFollowOffset(player: Phaser.GameObjects.Sprite): { x: number; y: number } {
+  const sx = player.scaleX;
+  const sy = player.scaleY;
   const lx = player.getData('feetLocalX') as number | undefined;
   const ly = player.getData('feetLocalY') as number | undefined;
   if (typeof lx === 'number' && typeof ly === 'number') {
-    return cameraFollowOffsetForFeet({ x: lx, y: ly });
+    return cameraFollowOffsetForFeet({ x: lx * sx, y: ly * sy });
   }
   const data = player.getData('character') as CharacterData | undefined;
   const feet = data ? resolveCharacterFeetLocal(data, player) : { x: player.frame.width * 0.5, y: player.frame.height };
-  return cameraFollowOffsetForFeet(feet);
+  return cameraFollowOffsetForFeet({ x: feet.x * sx, y: feet.y * sy });
 }
 
 /** Outline color for `debug.showWalkable` (green). */
@@ -1505,6 +1509,43 @@ export class RoomScene extends Phaser.Scene {
     return this.walkPlayerToWorldPoint(dest.x, dest.y);
   }
 
+  private applyFeetWorldWithRegionScale(
+    sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+    feetLocal: CharacterFeetLocal,
+    worldFeetX: number,
+    worldFeetY: number,
+  ): void {
+    const s = computeRoomRegionPerspective(
+      worldFeetX,
+      worldFeetY,
+      this.roomData.regions,
+      getPerspectiveSettings(),
+    ).characterScale;
+    sprite.setScale(s, s);
+    placeSpriteByFeet(sprite as Phaser.GameObjects.Sprite, feetLocal, worldFeetX, worldFeetY);
+  }
+
+  /**
+   * Applies region perspective scale for characters that are not mid–feet-interpolating walk tween.
+   */
+  private syncIdleCharacterRegionScales(): void {
+    for (const e of this.roomStackEntities) {
+      if (e.kind !== 'character') {
+        continue;
+      }
+      const sprite = e.sprite as Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
+      if (sprite === this.player && this.playerMoveTween) {
+        continue;
+      }
+      if (this.npcWalkTweens.has(sprite)) {
+        continue;
+      }
+      const fw = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
+      const feetLocal = this.getSpriteFeetLocal(sprite as Phaser.GameObjects.Sprite);
+      this.applyFeetWorldWithRegionScale(sprite, feetLocal, fw.x, fw.y);
+    }
+  }
+
   /**
    * Instantly place the player’s **feet** at a resolved point (or named target), clamped to the
    * walkable mesh; updates **Idle** facing toward the movement delta, or toward the target when
@@ -1525,7 +1566,7 @@ export class RoomScene extends Phaser.Scene {
     const feetLocal = data
       ? resolveCharacterFeetLocal(data, sprite)
       : { x: sprite.frame.width * 0.5, y: sprite.frame.height };
-    placeSpriteByFeet(sprite, feetLocal, feetWorld.x, feetWorld.y);
+    this.applyFeetWorldWithRegionScale(sprite, feetLocal, feetWorld.x, feetWorld.y);
     const newFeet = getCharacterWorldFeet(sprite);
     this.applyScriptTeleportFacing(sprite, oldFeet, newFeet, target);
   }
@@ -1640,7 +1681,7 @@ export class RoomScene extends Phaser.Scene {
     const feetLocal = data
       ? resolveCharacterFeetLocal(data, sprite)
       : { x: sprite.frame.width * 0.5, y: sprite.frame.height };
-    placeSpriteByFeet(sprite, feetLocal, feetWorld.x, feetWorld.y);
+    this.applyFeetWorldWithRegionScale(sprite, feetLocal, feetWorld.x, feetWorld.y);
     const newFeet = getCharacterWorldFeet(sprite);
     this.applyScriptTeleportFacing(dSprite, oldFeet, newFeet, target);
   }
@@ -1748,6 +1789,7 @@ export class RoomScene extends Phaser.Scene {
 
   update(): void {
     this.snapWalkingSpritesToPixelGrid();
+    this.syncIdleCharacterRegionScales();
     this.updateParallaxProps();
     this.updateRoomStackDepths();
     this.updatePathDebug();
@@ -2101,7 +2143,7 @@ export class RoomScene extends Phaser.Scene {
   ): void {
     const walkSpeed = sprite.getData('walkSpeed') as number | undefined;
     const speed = typeof walkSpeed === 'number' && walkSpeed > 0 ? walkSpeed : 88;
-    const { x: lx, y: ly } = this.getSpriteFeetLocal(sprite);
+    const feetLocal = this.getSpriteFeetLocal(sprite);
 
     const feetNow = getCharacterWorldFeet(sprite);
     const leg = path[legIndex]!;
@@ -2127,27 +2169,60 @@ export class RoomScene extends Phaser.Scene {
       sprite.setData('facing', facing);
     }
 
-    const durationMs = Math.max(1, Math.round((distance / speed) * 1000));
+    const feetStart = { ...feetNow };
+    const legDx = leg.x - feetStart.x;
+    const legDy = leg.y - feetStart.y;
+    const legLen = distance;
+    const regions = this.roomData.regions;
+    let u = 0;
+    let legCompletedNormally = false;
 
+    const tick = { k: 0 };
     const moveTween = this.tweens.add({
-      targets: sprite,
-      x: leg.x - lx,
-      y: leg.y - ly,
-      duration: durationMs,
+      targets: tick,
+      k: 1,
+      duration: 86_400_000,
       ease: 'Linear',
-      onComplete: () => {
-        // Leg was superseded (e.g. stopPlayerMoveTween nulled playerMoveTween) — do nothing.
-        if (this.playerMoveTween !== moveTween) {
+      onUpdate: () => {
+        if (legCompletedNormally || this.playerMoveTween !== moveTween) {
           return;
         }
-        this.playerMoveTween = null;
-        if (legIndex + 1 < path.length) {
-          this.beginPlayerWalkLeg(sprite, path, legIndex + 1);
-        } else {
-          this.finishPlayerWalk(sprite, facing);
+        const dt = Math.min(0.1, this.game.loop.delta / 1000);
+        const mult = computeRoomRegionPerspective(
+          feetStart.x + legDx * u,
+          feetStart.y + legDy * u,
+          regions,
+          getPerspectiveSettings(),
+        ).walkSpeedMultiplier;
+        u += (speed * mult * dt) / legLen;
+        if (u >= 1) {
+          legCompletedNormally = true;
+          u = 1;
+          this.applyFeetWorldWithRegionScale(sprite, feetLocal, leg.x, leg.y);
+          moveTween.stop();
+          return;
         }
+        this.applyFeetWorldWithRegionScale(
+          sprite,
+          feetLocal,
+          feetStart.x + legDx * u,
+          feetStart.y + legDy * u,
+        );
       },
       onStop: () => {
+        if (legCompletedNormally) {
+          if (this.playerMoveTween !== moveTween) {
+            return;
+          }
+          this.playerMoveTween = null;
+          this.applyFeetWorldWithRegionScale(sprite, feetLocal, leg.x, leg.y);
+          if (legIndex + 1 < path.length) {
+            this.beginPlayerWalkLeg(sprite, path, legIndex + 1);
+          } else {
+            this.finishPlayerWalk(sprite, facing);
+          }
+          return;
+        }
         this.onPlayerWalkTweenStopped(moveTween);
       },
     });
@@ -2219,7 +2294,7 @@ export class RoomScene extends Phaser.Scene {
   ): void {
     const walkSpeed = sprite.getData('walkSpeed') as number | undefined;
     const speed = typeof walkSpeed === 'number' && walkSpeed > 0 ? walkSpeed : 88;
-    const { x: lx, y: ly } = this.getSpriteFeetLocal(sprite);
+    const feetLocal = this.getSpriteFeetLocal(sprite as Phaser.GameObjects.Sprite);
 
     const feetNow = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
     const leg = path[legIndex]!;
@@ -2253,35 +2328,66 @@ export class RoomScene extends Phaser.Scene {
       }
     }
 
-    const durationMs = Math.max(1, Math.round((distance / speed) * 1000));
+    const feetStart = { ...feetNow };
+    const legDx = leg.x - feetStart.x;
+    const legDy = leg.y - feetStart.y;
+    const legLen = distance;
+    const regions = this.roomData.regions;
+    let u = 0;
+    let legCompletedNormally = false;
 
+    const tick = { k: 0 };
     const moveTween = this.tweens.add({
-      targets: sprite,
-      x: leg.x - lx,
-      y: leg.y - ly,
-      duration: durationMs,
+      targets: tick,
+      k: 1,
+      duration: 86_400_000,
       ease: 'Linear',
-      onComplete: () => {
-        if (this.npcWalkTweens.get(sprite) !== moveTween) {
+      onUpdate: () => {
+        if (legCompletedNormally || this.npcWalkTweens.get(sprite) !== moveTween) {
           return;
         }
-        this.npcWalkTweens.delete(sprite);
-        if (legIndex + 1 < path.length) {
-          this.beginNpcWalkLeg(sprite, path, legIndex + 1, onArrive);
+        const dt = Math.min(0.1, this.game.loop.delta / 1000);
+        const mult = computeRoomRegionPerspective(
+          feetStart.x + legDx * u,
+          feetStart.y + legDy * u,
+          regions,
+          getPerspectiveSettings(),
+        ).walkSpeedMultiplier;
+        u += (speed * mult * dt) / legLen;
+        if (u >= 1) {
+          legCompletedNormally = true;
+          u = 1;
+          this.applyFeetWorldWithRegionScale(sprite, feetLocal, leg.x, leg.y);
+          moveTween.stop();
           return;
         }
-        if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
-          if (!getCharacterAnimationOverrideTag(sprite as Phaser.GameObjects.Sprite)) {
-            playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Idle', facing);
-          } else {
-            sprite.setData('facing', facing);
-            applyCharacterEffectiveAnimation(sprite as Phaser.GameObjects.Sprite);
-          }
-        }
-        onArrive?.();
+        this.applyFeetWorldWithRegionScale(
+          sprite,
+          feetLocal,
+          feetStart.x + legDx * u,
+          feetStart.y + legDy * u,
+        );
       },
       onStop: () => {
         if (this.npcWalkTweens.get(sprite) !== moveTween) {
+          return;
+        }
+        if (legCompletedNormally) {
+          this.npcWalkTweens.delete(sprite);
+          this.applyFeetWorldWithRegionScale(sprite, feetLocal, leg.x, leg.y);
+          if (legIndex + 1 < path.length) {
+            this.beginNpcWalkLeg(sprite, path, legIndex + 1, onArrive);
+            return;
+          }
+          if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
+            if (!getCharacterAnimationOverrideTag(sprite as Phaser.GameObjects.Sprite)) {
+              playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Idle', facing);
+            } else {
+              sprite.setData('facing', facing);
+              applyCharacterEffectiveAnimation(sprite as Phaser.GameObjects.Sprite);
+            }
+          }
+          onArrive?.();
           return;
         }
         this.npcWalkTweens.delete(sprite);
@@ -2684,7 +2790,7 @@ export class RoomScene extends Phaser.Scene {
 
     const sprite = this.add.image(0, 0, spawn.textureKey);
     const feet = resolveCharacterFeetLocal(spawn.data, sprite as Phaser.GameObjects.Sprite);
-    placeSpriteByFeet(sprite as Phaser.GameObjects.Sprite, feet, spawn.x, spawn.y);
+    this.applyFeetWorldWithRegionScale(sprite, feet, spawn.x, spawn.y);
     sprite.setVisible(spawn.visible !== false);
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
@@ -2732,7 +2838,7 @@ export class RoomScene extends Phaser.Scene {
     }
 
     const feet = resolveCharacterFeetLocal(spawn.data, sprite);
-    placeSpriteByFeet(sprite, feet, spawn.x, spawn.y);
+    this.applyFeetWorldWithRegionScale(sprite, feet, spawn.x, spawn.y);
 
     this.attachCharacterInteraction(roomId, spawn, sprite);
 

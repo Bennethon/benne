@@ -30,6 +30,8 @@ import {
     updatePropAnimationFields,
     updatePropFields,
     updateRegionActive,
+    updateRegionScaleFields,
+    updateRegionScaleWalkSpeed,
     updateRoomCharacterFields,
     writeDataJson,
     writeRoomJson
@@ -645,6 +647,8 @@ type WebviewPatch =
       }
     | { type: 'pointField'; id?: string; x?: number; y?: number }
     | { type: 'regionActive'; id?: string; active?: boolean }
+    | { type: 'regionScale'; id?: string; scaleTop?: number; scaleBottom?: number }
+    | { type: 'regionScaleWalkSpeed'; id?: string; scaleWalkSpeed?: boolean }
     | {
           type: 'characterMeta';
           name?: string;
@@ -1261,6 +1265,27 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 return;
             }
             updateRegionActive(data, p.id, p.active);
+            return;
+        }
+        if (
+            p.type === 'regionScale' &&
+            typeof p.id === 'string' &&
+            typeof p.scaleTop === 'number' &&
+            Number.isFinite(p.scaleTop) &&
+            typeof p.scaleBottom === 'number' &&
+            Number.isFinite(p.scaleBottom)
+        ) {
+            if (focusKind !== 'room') {
+                return;
+            }
+            updateRegionScaleFields(data, p.id, p.scaleTop, p.scaleBottom);
+            return;
+        }
+        if (p.type === 'regionScaleWalkSpeed' && typeof p.id === 'string' && typeof p.scaleWalkSpeed === 'boolean') {
+            if (focusKind !== 'room') {
+                return;
+            }
+            updateRegionScaleWalkSpeed(data, p.id, p.scaleWalkSpeed);
             return;
         }
         if (p.type === 'characterMeta') {

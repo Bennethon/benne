@@ -17,7 +17,7 @@ export function resolveCharacterFeetLocal(data: CharacterData, sprite: Phaser.Ga
   return { x: f.width * 0.5, y: f.height };
 }
 
-/** Top-left sprite position so world feet sit at `(worldFeetX, worldFeetY)`. */
+/** Top-left sprite position so world feet sit at `(worldFeetX, worldFeetY)` (accounts for `sprite.scale`). */
 export function placeSpriteByFeet(
   sprite: Phaser.GameObjects.Sprite,
   feet: CharacterFeetLocal,
@@ -25,7 +25,9 @@ export function placeSpriteByFeet(
   worldFeetY: number,
 ): void {
   sprite.setOrigin(0, 0);
-  sprite.setPosition(worldFeetX - feet.x, worldFeetY - feet.y);
+  const sx = sprite.scaleX;
+  const sy = sprite.scaleY;
+  sprite.setPosition(worldFeetX - feet.x * sx, worldFeetY - feet.y * sy);
   sprite.setData(FEET_LOCAL_X, feet.x);
   sprite.setData(FEET_LOCAL_Y, feet.y);
 }
@@ -36,7 +38,7 @@ export function getCharacterWorldFeet(sprite: Phaser.GameObjects.Sprite): { x: n
   if (typeof lx !== 'number' || typeof ly !== 'number') {
     return { x: sprite.x, y: sprite.y };
   }
-  return { x: sprite.x + lx, y: sprite.y + ly };
+  return { x: sprite.x + lx * sprite.scaleX, y: sprite.y + ly * sprite.scaleY };
 }
 
 /** Camera `startFollow` offset so the follow target is the feet, not the sprite top-left. */
