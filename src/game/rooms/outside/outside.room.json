@@ -143,6 +143,11 @@
       "id": "enter-from-door",
       "x": 105,
       "y": 132
+    },
+    {
+      "id": "henry-fountain",
+      "x": 338,
+      "y": 85
     }
   ],
   "regions": [
@@ -438,7 +443,8 @@
         "x": 530,
         "y": 108
       },
-      "baseline": 110
+      "baseline": 110,
+      "description": ""
     },
     {
       "id": "RockMoved",
