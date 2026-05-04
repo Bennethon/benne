@@ -168,8 +168,8 @@ src/game/dialogs/chatwithpenny/chatwithpenny.dialog.ts
 src/game/game-config.json
 src/game/globalScript.ts
 src/game/guiAseprite.ts
-src/game/guis/dialog-text/dialog-text.gui.json
-src/game/guis/dialog-text/dialog-text.gui.ts
+src/game/guis/speaking-text/speaking-text.gui.json
+src/game/guis/speaking-text/speaking-text.gui.ts
 src/game/guis/dialog/dialog.gui.json
 src/game/guis/dialog/dialog.gui.ts
 src/game/guis/verbs/verbs.gui.json
@@ -2807,7 +2807,7 @@ export function createCharacterPreviewPhaserGame(
  */
 class GuiVisibilityBridgeImpl {
     /**
-     * Whether non-`dialog-text` GUI overlays should be visible in the room preview. The webview
+     * Whether non-`speaking-text` GUI overlays should be visible in the room preview. The webview
      * persists this across reloads via `vscode.getState()`; default on first ever open is `false`.
      */
     visible = false;
@@ -9144,7 +9144,7 @@ export type RoomPreviewGameOptions = {
     roomJsonUri: string;
     onPolygonPatch: (patch: RoomPolygonPatch) => void;
     /**
-     * Initial visibility of non-`dialog-text` GUI overlays. Forwarded to {@link RoomScene} via
+     * Initial visibility of non-`speaking-text` GUI overlays. Forwarded to {@link RoomScene} via
      * the `benneRoomSceneGenericGuisVisible` registry key so authors see the stored "Show GUIs"
      * toolbar state without a first-frame flash.
      */
@@ -9229,7 +9229,7 @@ export function createRoomPreviewPhaserGame(
                 game.registry.set('bennePreviewRoomJsonUri', options.roomJsonUri);
                 game.registry.set('bennePreviewPostPatch', options.onPolygonPatch);
                 /**
-                 * Read by {@link RoomScene.create}; a boolean value overrides every non-`dialog-text`
+                 * Read by {@link RoomScene.create}; a boolean value overrides every non-`speaking-text`
                  * GUI overlay's initial visibility (preview "Show GUIs" toolbar toggle).
                  */
                 game.registry.set('benneRoomSceneGenericGuisVisible', options.initialShowGuis);
@@ -11388,10 +11388,10 @@ registerDialogScript('chatwithpenny', ({ B }) => {
 });
 </file>
 
-<file path="src/game/guis/dialog-text/dialog-text.gui.json">
+<file path="src/game/guis/speaking-text/speaking-text.gui.json">
 {
-  "id": "dialog-text",
-  "name": "Dialog Text",
+  "id": "speaking-text",
+  "name": "Speaking Text",
   "description": "",
   "visible": false,
   "display": {
@@ -11414,13 +11414,13 @@ registerDialogScript('chatwithpenny', ({ B }) => {
 }
 </file>
 
-<file path="src/game/guis/dialog-text/dialog-text.gui.ts">
+<file path="src/game/guis/speaking-text/speaking-text.gui.ts">
 import { registerGuiScript } from '@engine/scripting';
 
 /**
- * GUI script for `dialog-text` — extend with `B.raw` or future GUI lifecycle / control hooks on `B`.
+ * GUI script for `speaking-text` — extend with `B.raw` or future GUI lifecycle / control hooks on `B`.
  */
-registerGuiScript('dialog-text', ({ B }) => {
+registerGuiScript('speaking-text', ({ B }) => {
   // Delete this line when you add your first handler.
   void B;
 });
@@ -18602,7 +18602,7 @@ export interface GameSettingsDialog {
    * when this global flag is false.
    */
   clickToSkip: boolean;
-  /** When false, `.say()` timing still runs but no dialog-text GUI (reserved for future spoken-only lines). */
+  /** When false, `.say()` timing still runs but no speaking-text GUI (reserved for future spoken-only lines). */
   showText: boolean;
   /** Extra offset in **game canvas pixels** (same space as GUI `controls[].x` / `y`) applied after projecting the character `talkPoint`. */
   defaultTalkOffset: { x: number; y: number };
@@ -18693,7 +18693,7 @@ export interface GameSettings {
    * Individual items can override this per-item via **`InventoryItemData.dropWhenUsed`**.
    */
   dropWhenInventoryUsed?: boolean;
-  /** In-game dialog line timing and `dialog-text` GUI placement (see `getDialogSettings()`). */
+  /** In-game dialog line timing and `speaking-text` GUI placement (see `getDialogSettings()`). */
   dialog?: Partial<GameSettingsDialog>;
   /** Starting flags, variables, and inventory merged at game creation (see `GameStateManager`). */
   initialGameState?: GameSettingsInitialGameState;
@@ -21792,7 +21792,7 @@ export interface GuiData {
   fixedControls?: string[];
   /**
    * When **`false`**, the overlay starts hidden at room load; when **`true`**, it starts visible.
-   * (`RoomScene` builds every GUI under `src/game/guis/` except the engine-driven **`dialog-text`** overlay,
+   * (`RoomScene` builds every GUI under `src/game/guis/` except the engine-driven **`speaking-text`** overlay,
    * which is shown via `setDialogTextOverlay` regardless of this flag at boot.)
    * Per-control `visible` can still override for individual controls.
    */
@@ -25344,11 +25344,11 @@ import {
 } from '../room/roomStackDrawOrder';
 
 /** Engine-reserved id for {@link RoomScene.setDialogTextOverlay} (Bennescript `say` / `say.now`). */
-const DIALOG_TEXT_GUI_ID = 'dialog-text';
+const SPEAKING_TEXT_GUI_ID = 'speaking-text';
 
 /**
  * Optional `Phaser.Game.registry` key: when set to a boolean, overrides the initial visibility of
- * every non-`dialog-text` GUI overlay at room load. Used by the BENNE room preview so authors can
+ * every non-`speaking-text` GUI overlay at room load. Used by the BENNE room preview so authors can
  * toggle HUD GUIs on/off from the preview toolbar without hand-editing each GUI's `visible` in `*.gui.json`
  * flags. Unset (the default) preserves per-GUI JSON `visible` semantics (`false` hides at load;
  * omitted/`true` shows).
@@ -25488,16 +25488,16 @@ export class RoomScene extends Phaser.Scene {
    */
   private screenFadeRect: Phaser.GameObjects.Rectangle | null = null;
 
-  /** Screen-fixed dialogue text from `guis/dialog-text/dialog-text.gui.json`. */
+  /** Screen-fixed dialogue text from `guis/speaking-text/speaking-text.gui.json`. */
   private dialogTextOverlay: GuiOverlayHandle | null = null;
 
-  /** Dedupes missing-`dialog-text` warnings for Bennescript `say` (once per room `create`). */
+  /** Dedupes missing-`speaking-text` warnings for Bennescript `say` (once per room `create`). */
   private missingDialogTextOverlaySayWarned = false;
 
   /** Every other registered GUI overlay (authoring under `src/game/guis/<id>/`), built automatically in `create`. */
   private genericGuiOverlays: GuiOverlayHandle[] = [];
 
-  /** Latest {@link GuiRuntime} per overlay id for **`B.gui(…)`** on GUI scripts (generic + dialog-text + choice GUIs). */
+  /** Latest {@link GuiRuntime} per overlay id for **`B.gui(…)`** on GUI scripts (generic + speaking-text + choice GUIs). */
   private guiRuntimeByGuiId = new Map<string, GuiRuntime>();
 
   /**
@@ -25507,7 +25507,7 @@ export class RoomScene extends Phaser.Scene {
   private genericGuiVisibilityBeforeDialog: boolean[] | null = null;
 
   /**
-   * Choice-dialog GUIs (`dialog` plus any `guiId` from `*.dialog.json`), built like `dialog-text` and kept hidden until
+   * Choice-dialog GUIs (`dialog` plus any `guiId` from `*.dialog.json`), built like `speaking-text` and kept hidden until
    * {@link DIALOG_STARTED_EVENT}.
    */
   private readonly dialogChoiceInstallByGuiId = new Map<
@@ -25618,9 +25618,9 @@ export class RoomScene extends Phaser.Scene {
     const guisSorted = [...getAllGuiData()].sort((a, b) => a.id.localeCompare(b.id));
     const dialogChoiceGuiIds = new Set(getRegisteredDialogChoiceGuiIds());
     const nonDialogGuis = guisSorted.filter(
-      (g) => g.id !== DIALOG_TEXT_GUI_ID && !dialogChoiceGuiIds.has(g.id),
+      (g) => g.id !== SPEAKING_TEXT_GUI_ID && !dialogChoiceGuiIds.has(g.id),
     );
-    const dialogGui = guisSorted.find((g) => g.id === DIALOG_TEXT_GUI_ID);
+    const dialogGui = guisSorted.find((g) => g.id === SPEAKING_TEXT_GUI_ID);
 
     const genericGuiVisibilityOverride = this.game.registry.get(
       GENERIC_GUIS_INITIAL_VISIBILITY_REGISTRY_KEY,
@@ -25665,10 +25665,10 @@ export class RoomScene extends Phaser.Scene {
       : null;
     this.dialogTextOverlay = dialogBuilt?.handle ?? null;
     if (dialogBuilt) {
-      const dialogScript = getGuiBenneScript(DIALOG_TEXT_GUI_ID);
+      const dialogScript = getGuiBenneScript(SPEAKING_TEXT_GUI_ID);
       if (dialogScript) {
         const rt = dialogBuilt.createGuiRuntime((factory) => dialogScript.queueInteraction(factory));
-        this.guiRuntimeByGuiId.set(DIALOG_TEXT_GUI_ID, rt);
+        this.guiRuntimeByGuiId.set(SPEAKING_TEXT_GUI_ID, rt);
         dialogScript.notifyGuiBuilt(rt);
       }
     }
@@ -26284,8 +26284,8 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Shows or hides every non-`dialog-text`, non-choice-dialog GUI overlay registered under `src/game/guis/**`.
-   * Does not affect the `dialog-text` overlay or choice-dialog GUIs. During an active dialog session, the room
+   * Shows or hides every non-`speaking-text`, non-choice-dialog GUI overlay registered under `src/game/guis/**`.
+   * Does not affect the `speaking-text` overlay or choice-dialog GUIs. During an active dialog session, the room
    * first snapshots per-overlay visibility and hides these; when the dialog ends, that snapshot is restored.
    * Any call while a dialog is open updates both the live visibility and the snapshot entry for each overlay
    * so restore matches the latest explicit state. Also used for preview toolbars and cutscene overrides.
@@ -26302,7 +26302,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Shows or hides the `dialog-text` GUI line (`controls` text with `id: line` or the first text control).
+   * Shows or hides the `speaking-text` GUI line (`controls` text with `id: line` or the first text control).
    * With `talkCharacterDefinitionId`, places the line so its **bottom-center** sits on the character’s `talkPoint`
    * projected into GUI space (plus `game-config.json` `dialog.defaultTalkOffset`), including wrapped height.
    */
@@ -26316,8 +26316,8 @@ export class RoomScene extends Phaser.Scene {
       if (state.visible && !this.missingDialogTextOverlaySayWarned) {
         this.missingDialogTextOverlaySayWarned = true;
         console.warn(
-          '[Benne] Bennescript `say` cannot show dialogue: no `dialog-text` GUI was loaded. ' +
-            'Add `src/game/guis/dialog-text/dialog-text.gui.json` (see game templates or docs/architecture.md).',
+          '[Benne] Bennescript `say` cannot show dialogue: no `speaking-text` GUI was loaded. ' +
+            'Add `src/game/guis/speaking-text/speaking-text.gui.json` (see game templates or docs/architecture.md).',
         );
       }
       return;

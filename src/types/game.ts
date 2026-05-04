@@ -65,7 +65,7 @@ export interface GameSettingsDialog {
    * when this global flag is false.
    */
   clickToSkip: boolean;
-  /** When false, `.say()` timing still runs but no dialog-text GUI (reserved for future spoken-only lines). */
+  /** When false, `.say()` timing still runs but no Speaking Text (`speaking-text`) GUI (reserved for future spoken-only lines). */
   showText: boolean;
   /** Extra offset in **game canvas pixels** (same space as GUI `controls[].x` / `y`) applied after projecting the character `talkPoint`. */
   defaultTalkOffset: { x: number; y: number };
@@ -156,7 +156,7 @@ export interface GameSettings {
    * Individual items can override this per-item via **`InventoryItemData.dropWhenUsed`**.
    */
   dropWhenInventoryUsed?: boolean;
-  /** In-game dialog line timing and `dialog-text` GUI placement (see `getDialogSettings()`). */
+  /** In-game dialog line timing and Speaking Text (`speaking-text`) overlay placement (see `getDialogSettings()`). */
   dialog?: Partial<GameSettingsDialog>;
   /**
    * Perspective / walk-speed tuning for optional **`scaleWalkSpeed`** on room regions (`RoomRegionData`).

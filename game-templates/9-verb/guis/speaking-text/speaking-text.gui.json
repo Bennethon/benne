@@ -1,6 +1,6 @@
 {
-  "id": "dialog-text",
-  "name": "Dialog Text",
+  "id": "speaking-text",
+  "name": "Speaking Text",
   "description": "",
   "visible": false,
   "display": {

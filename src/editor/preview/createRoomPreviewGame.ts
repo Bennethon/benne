@@ -15,7 +15,7 @@ export type RoomPreviewGameOptions = {
     roomJsonUri: string;
     onPolygonPatch: (patch: RoomPolygonPatch) => void;
     /**
-     * Initial visibility of non-`dialog-text` GUI overlays. Forwarded to {@link RoomScene} via
+     * Initial visibility of non-`speaking-text` GUI overlays. Forwarded to {@link RoomScene} via
      * the `benneRoomSceneGenericGuisVisible` registry key so authors see the stored "Show GUIs"
      * toolbar state without a first-frame flash.
      */
@@ -100,7 +100,7 @@ export function createRoomPreviewPhaserGame(
                 game.registry.set('bennePreviewRoomJsonUri', options.roomJsonUri);
                 game.registry.set('bennePreviewPostPatch', options.onPolygonPatch);
                 /**
-                 * Read by {@link RoomScene.create}; a boolean value overrides every non-`dialog-text`
+                 * Read by {@link RoomScene.create}; a boolean value overrides every non-`speaking-text`
                  * GUI overlay's initial visibility (preview "Show GUIs" toolbar toggle).
                  */
                 game.registry.set('benneRoomSceneGenericGuisVisible', options.initialShowGuis);

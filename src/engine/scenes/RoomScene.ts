@@ -160,11 +160,11 @@ import {
 } from '../room/roomStackDrawOrder';
 
 /** Engine-reserved id for {@link RoomScene.setDialogTextOverlay} (Bennescript `say` / `say.now`). */
-const DIALOG_TEXT_GUI_ID = 'dialog-text';
+const SPEAKING_TEXT_GUI_ID = 'speaking-text';
 
 /**
  * Optional `Phaser.Game.registry` key: when set to a boolean, overrides the initial visibility of
- * every non-`dialog-text` GUI overlay at room load. Used by the BENNE room preview so authors can
+ * every non-`speaking-text` GUI overlay at room load. Used by the BENNE room preview so authors can
  * toggle HUD GUIs on/off from the preview toolbar without hand-editing each GUI's `visible` in `*.gui.json`
  * flags. Unset (the default) preserves per-GUI JSON `visible` semantics (`false` hides at load;
  * omitted/`true` shows).
@@ -306,16 +306,16 @@ export class RoomScene extends Phaser.Scene {
    */
   private screenFadeRect: Phaser.GameObjects.Rectangle | null = null;
 
-  /** Screen-fixed dialogue text from `guis/dialog-text/dialog-text.gui.json`. */
+  /** Screen-fixed Speaking Text overlay (`speaking-text` id): `guis/speaking-text/speaking-text.gui.json`. */
   private dialogTextOverlay: GuiOverlayHandle | null = null;
 
-  /** Dedupes missing-`dialog-text` warnings for Bennescript `say` (once per room `create`). */
+  /** Dedupes missing-`speaking-text` warnings for Bennescript `say` (once per room `create`). */
   private missingDialogTextOverlaySayWarned = false;
 
   /** Every other registered GUI overlay (authoring under `src/game/guis/<id>/`), built automatically in `create`. */
   private genericGuiOverlays: GuiOverlayHandle[] = [];
 
-  /** Latest {@link GuiRuntime} per overlay id for **`B.gui(…)`** on GUI scripts (generic + dialog-text + choice GUIs). */
+  /** Latest {@link GuiRuntime} per overlay id for **`B.gui(…)`** on GUI scripts (generic + speaking-text + choice GUIs). */
   private guiRuntimeByGuiId = new Map<string, GuiRuntime>();
 
   /**
@@ -325,7 +325,7 @@ export class RoomScene extends Phaser.Scene {
   private genericGuiVisibilityBeforeDialog: boolean[] | null = null;
 
   /**
-   * Choice-dialog GUIs (`dialog` plus any `guiId` from `*.dialog.json`), built like `dialog-text` and kept hidden until
+   * Choice-dialog GUIs (`dialog` plus any `guiId` from `*.dialog.json`), built like `speaking-text` and kept hidden until
    * {@link DIALOG_STARTED_EVENT}.
    */
   private readonly dialogChoiceInstallByGuiId = new Map<
@@ -436,9 +436,9 @@ export class RoomScene extends Phaser.Scene {
     const guisSorted = [...getAllGuiData()].sort((a, b) => a.id.localeCompare(b.id));
     const dialogChoiceGuiIds = new Set(getRegisteredDialogChoiceGuiIds());
     const nonDialogGuis = guisSorted.filter(
-      (g) => g.id !== DIALOG_TEXT_GUI_ID && !dialogChoiceGuiIds.has(g.id),
+      (g) => g.id !== SPEAKING_TEXT_GUI_ID && !dialogChoiceGuiIds.has(g.id),
     );
-    const dialogGui = guisSorted.find((g) => g.id === DIALOG_TEXT_GUI_ID);
+    const speakingTextGui = guisSorted.find((g) => g.id === SPEAKING_TEXT_GUI_ID);
 
     const genericGuiVisibilityOverride = this.game.registry.get(
       GENERIC_GUIS_INITIAL_VISIBILITY_REGISTRY_KEY,
@@ -473,21 +473,23 @@ export class RoomScene extends Phaser.Scene {
       stackIndex += 1;
     }
 
-    const dialogBuilt = dialogGui
-      ? buildGuiOverlay(this, dialogGui, {
+    const speakingTextBuilt = speakingTextGui
+      ? buildGuiOverlay(this, speakingTextGui, {
           /** Speech UI is driven by {@link setDialogTextOverlay}, not the JSON `visible` flag at boot. */
           startVisible: false,
           depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
           inventoryPanelPointerContext,
         })
       : null;
-    this.dialogTextOverlay = dialogBuilt?.handle ?? null;
-    if (dialogBuilt) {
-      const dialogScript = getGuiBenneScript(DIALOG_TEXT_GUI_ID);
-      if (dialogScript) {
-        const rt = dialogBuilt.createGuiRuntime((factory) => dialogScript.queueInteraction(factory));
-        this.guiRuntimeByGuiId.set(DIALOG_TEXT_GUI_ID, rt);
-        dialogScript.notifyGuiBuilt(rt);
+    this.dialogTextOverlay = speakingTextBuilt?.handle ?? null;
+    if (speakingTextBuilt) {
+      const speakingTextScript = getGuiBenneScript(SPEAKING_TEXT_GUI_ID);
+      if (speakingTextScript) {
+        const rt = speakingTextBuilt.createGuiRuntime((factory) =>
+          speakingTextScript.queueInteraction(factory),
+        );
+        this.guiRuntimeByGuiId.set(SPEAKING_TEXT_GUI_ID, rt);
+        speakingTextScript.notifyGuiBuilt(rt);
       }
     }
 
@@ -1102,8 +1104,8 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Shows or hides every non-`dialog-text`, non-choice-dialog GUI overlay registered under `src/game/guis/**`.
-   * Does not affect the `dialog-text` overlay or choice-dialog GUIs. During an active dialog session, the room
+   * Shows or hides every non-`speaking-text`, non-choice-dialog GUI overlay registered under `src/game/guis/**`.
+   * Does not affect the `speaking-text` overlay or choice-dialog GUIs. During an active dialog session, the room
    * first snapshots per-overlay visibility and hides these; when the dialog ends, that snapshot is restored.
    * Any call while a dialog is open updates both the live visibility and the snapshot entry for each overlay
    * so restore matches the latest explicit state. Also used for preview toolbars and cutscene overrides.
@@ -1120,7 +1122,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Shows or hides the `dialog-text` GUI line (`controls` text with `id: line` or the first text control).
+   * Shows or hides the `speaking-text` GUI line (`controls` text with `id: line` or the first text control).
    * With `talkCharacterDefinitionId`, places the line so its **bottom-center** sits on the character’s `talkPoint`
    * projected into GUI space (plus `game-config.json` `dialog.defaultTalkOffset`), including wrapped height.
    */
@@ -1134,8 +1136,8 @@ export class RoomScene extends Phaser.Scene {
       if (state.visible && !this.missingDialogTextOverlaySayWarned) {
         this.missingDialogTextOverlaySayWarned = true;
         console.warn(
-          '[Benne] Bennescript `say` cannot show dialogue: no `dialog-text` GUI was loaded. ' +
-            'Add `src/game/guis/dialog-text/dialog-text.gui.json` (see game templates or docs/architecture.md).',
+          '[Benne] Bennescript `say` cannot show dialogue: no `speaking-text` GUI was loaded. ' +
+            'Add `src/game/guis/speaking-text/speaking-text.gui.json` (see game templates or docs/architecture.md).',
         );
       }
       return;

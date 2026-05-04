@@ -843,7 +843,7 @@ function buildRoomPreviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri)
       </div>
     </div>
     <div id="benne-polygon-toolbar" style="flex:1;min-width:0;"></div>
-    <label id="benne-preview-options" title="Show GUIs from src/game/guis in the preview (excludes dialog-text)" style="flex-shrink:0;display:inline-flex;align-items:center;gap:5px;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;margin-top:3px;cursor:pointer;user-select:none;">
+    <label id="benne-preview-options" title="Show GUIs from src/game/guis in the preview (excludes Speaking Text, speaking-text id)" style="flex-shrink:0;display:inline-flex;align-items:center;gap:5px;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;margin-top:3px;cursor:pointer;user-select:none;">
       <input type="checkbox" id="benne-show-guis-toggle" style="margin:0;cursor:pointer;" />
       <span>Show GUIs</span>
     </label>
