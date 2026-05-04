@@ -51,7 +51,7 @@ export class BennePlayPanelController implements vscode.Disposable {
             this.panel = vscode.window.createWebviewPanel(
                 'bennePlay',
                 'BENNE Play',
-                { viewColumn: vscode.ViewColumn.Beside, preserveFocus: false },
+                { viewColumn: vscode.ViewColumn.Active, preserveFocus: false },
                 {
                     enableScripts: true,
                     retainContextWhenHidden: false,
@@ -68,7 +68,7 @@ export class BennePlayPanelController implements vscode.Disposable {
                 this.clearLastSession();
             });
         } else {
-            this.panel.reveal(vscode.ViewColumn.Beside, false);
+            this.panel.reveal(vscode.ViewColumn.Active, false);
         }
 
         this.panel.title = `BENNE Play: ${roomName ?? roomId}`;
