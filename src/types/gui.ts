@@ -314,8 +314,8 @@ export interface GuiData {
   fixedControls?: string[];
   /**
    * When **`false`**, the overlay starts hidden at room load; when **`true`**, it starts visible.
-   * (`RoomScene` builds every GUI under `src/game/guis/` except the engine-driven **`dialog-text`** overlay,
-   * which is shown via `setDialogTextOverlay` regardless of this flag at boot.)
+   * (`RoomScene` builds every GUI under `src/game/guis/` except the engine-driven Speaking Text
+   * **`speaking-text`** overlay, shown via `setDialogTextOverlay` regardless of this flag at boot.)
    * Per-control `visible` can still override for individual controls.
    */
   visible: boolean;

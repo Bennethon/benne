@@ -7,7 +7,7 @@
  */
 class GuiVisibilityBridgeImpl {
     /**
-     * Whether non-`dialog-text` GUI overlays should be visible in the room preview. The webview
+     * Whether non-`speaking-text` GUI overlays should be visible in the room preview. The webview
      * persists this across reloads via `vscode.getState()`; default on first ever open is `false`.
      */
     visible = false;
