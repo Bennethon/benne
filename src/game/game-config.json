@@ -70,7 +70,8 @@
   "debug": {
     "showWalkable": false,
     "showPropOutlines": false,
-    "showGuiOutlines": false
+    "showGuiOutlines": false,
+    "showRegionOutlines": false
   },
   "dialog": {
     "clickToSkip": true,
@@ -85,8 +86,8 @@
     "durationMultiplier": 1
   },
   "perspective": {
-    "minWalkScale": 0.3,
-    "walkScalePower": 0.8
+    "minWalkScale": 0.1,
+    "walkScalePower": 1.3
   },
   "cursor": {
     "idleAnimation": "Idle",

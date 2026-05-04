@@ -41,6 +41,8 @@ export interface GameSettingsDebug {
   showPropOutlines?: boolean;
   /** When true, stroke each slot rectangle in GUI `inventoryPanel` controls (no default slot fills). */
   showGuiOutlines?: boolean;
+  /** When true, stroke each room `regions[]` polygon (distinct color from walkable / prop debug strokes). */
+  showRegionOutlines?: boolean;
 }
 
 /**
