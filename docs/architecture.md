@@ -664,6 +664,7 @@ A full **Refresh** or **`loadRoom`** **destroys** the previous **`Phaser.Game`**
 
 - **`src/engine/walkable.ts`**: **`isPointInWalkablePolygon`** — inside **active** outer, not inside any **active** hole; **`isPointInWalkableArea`** unions polygons; **`clampWalkDestinationTowardClick`** uses holed closest-point logic (used as the goal-clamping step inside pathfinding, and as the fallback when no path is reachable).
 - **`RoomScene`** debug **`showWalkable`**: strokes **active** outers and **active** hole rings (distinct colors), and draws the **live player pathfinding polyline** in cyan with small square handles at each waypoint (updated per frame from `currentPlayerPath` while a walk is active).
+- **`RoomScene`** debug **`showRegionOutlines`**: strokes **active** `regions[]` polygons in amber (distinct from walkable green, prop magenta, and path cyan).
 
 ### Pathfinding (engine)
 

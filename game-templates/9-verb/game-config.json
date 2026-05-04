@@ -69,7 +69,8 @@
   "debug": {
     "showWalkable": false,
     "showPropOutlines": false,
-    "showGuiOutlines": false
+    "showGuiOutlines": false,
+    "showRegionOutlines": false
   },
   "dialog": {
     "clickToSkip": true,

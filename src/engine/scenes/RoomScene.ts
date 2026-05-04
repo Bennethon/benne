@@ -200,6 +200,8 @@ const DEBUG_WALKABLE_STROKE = 0x33dd66;
 const DEBUG_WALKABLE_HOLE_STROKE = 0x229955;
 /** Outline color for `debug.showPropOutlines` (magenta). */
 const DEBUG_PROP_COLLIDER_STROKE = 0xff44cc;
+/** Outline color for `debug.showRegionOutlines` (amber; distinct from walkable / prop / path). */
+const DEBUG_REGION_STROKE = 0xffaa33;
 /** Live pathfinding polyline overlay color (cyan). */
 const DEBUG_WALK_PATH_STROKE = 0x33ccff;
 
@@ -2424,7 +2426,7 @@ export class RoomScene extends Phaser.Scene {
 
   private drawRoomDebugOverlays(data: RoomSceneStartData): void {
     const debug = getGameSettings().debug;
-    if (!debug?.showWalkable && !debug?.showPropOutlines) {
+    if (!debug?.showWalkable && !debug?.showPropOutlines && !debug?.showRegionOutlines) {
       return;
     }
 
@@ -2453,6 +2455,19 @@ export class RoomScene extends Phaser.Scene {
       gHoles.setDepth(DEBUG_OVERLAY_DEPTH);
     }
 
+    if (debug.showRegionOutlines) {
+      const g = this.add.graphics();
+      g.lineStyle(lineWidth, DEBUG_REGION_STROKE, 1);
+      for (const region of this.roomData.regions ?? []) {
+        if (region.active === false || region.points.length < 3) {
+          continue;
+        }
+        const vecs = region.points.map((p) => new Phaser.Math.Vector2(p.x, p.y));
+        g.strokePoints(vecs, true);
+      }
+      g.setDepth(DEBUG_OVERLAY_DEPTH + 1);
+    }
+
     if (debug.showPropOutlines) {
       const g = this.add.graphics();
       g.lineStyle(lineWidth, DEBUG_PROP_COLLIDER_STROKE, 1);
@@ -2464,14 +2479,14 @@ export class RoomScene extends Phaser.Scene {
         const vecs = pts.map((p) => new Phaser.Math.Vector2(p.x, p.y));
         g.strokePoints(vecs, true);
       }
-      g.setDepth(DEBUG_OVERLAY_DEPTH + 1);
+      g.setDepth(DEBUG_OVERLAY_DEPTH + 2);
     }
 
     if (debug.showWalkable) {
       // Shared Graphics reused every frame by updatePathDebug() — authoring-time visual feedback
       // for the pathfinding route around holes / concavities.
       this.debugPathGraphics = this.add.graphics();
-      this.debugPathGraphics.setDepth(DEBUG_OVERLAY_DEPTH + 2);
+      this.debugPathGraphics.setDepth(DEBUG_OVERLAY_DEPTH + 3);
     }
   }
 
