@@ -151,6 +151,25 @@ type InspectorGuiGridPlacement = {
     align: InspectorGuiGridCellAlign;
 };
 
+type InspectorGuiTextOutlineSides =
+    | 'allSides'
+    | 'topLeft'
+    | 'top'
+    | 'topRight'
+    | 'left'
+    | 'right'
+    | 'bottomLeft'
+    | 'bottom'
+    | 'bottomRight';
+
+type InspectorGuiTextOutline = {
+    enabled: boolean;
+    color: string;
+    alpha: number;
+    thickness: number;
+    sides: InspectorGuiTextOutlineSides;
+};
+
 type InspectorGuiControlCard =
     | {
           controlKind: 'text';
@@ -168,6 +187,7 @@ type InspectorGuiControlCard =
           color: string;
           align: 'left' | 'center' | 'right' | '';
           wordWrapWidth: number | null;
+          textOutline: InspectorGuiTextOutline;
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
@@ -248,6 +268,7 @@ type InspectorGuiControlCard =
           statesPressed: string;
           statesDisabled: string;
           enabled: boolean;
+          textOutline: InspectorGuiTextOutline;
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
@@ -1127,6 +1148,72 @@ function guiButtonIdSelectHtml(
     return `<select class="gui-field" data-index="${dataIndex}" data-field="${esc(dataField)}">${inner}</select>`;
 }
 
+function guiTextOutlineSidesSelectOptions(val: InspectorGuiTextOutlineSides): string {
+    const opts: [InspectorGuiTextOutlineSides, string][] = [
+        ['allSides', 'All sides'],
+        ['topLeft', 'Top left'],
+        ['top', 'Top'],
+        ['topRight', 'Top right'],
+        ['left', 'Left'],
+        ['right', 'Right'],
+        ['bottomLeft', 'Bottom left'],
+        ['bottom', 'Bottom'],
+        ['bottomRight', 'Bottom right']
+    ];
+    return opts
+        .map(([v, lab]) => `<option value="${esc(v)}"${val === v ? ' selected' : ''}>${esc(lab)}</option>`)
+        .join('');
+}
+
+function renderGuiTextOutlineAccordion(idx: number, o: InspectorGuiTextOutline): string {
+    const th = o.thickness;
+    const al = o.alpha;
+    return `<details class="benne-card-subsection" style="margin-top:10px;">
+  <summary>Outline</summary>
+  <div class="section-body">
+    <div class="benne-prop-grid benne-prop-grid--tight" data-outline-wrap="${idx}">
+      <span class="benne-pg-lbl">enabled</span>
+      <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-outline-field" data-o-field="enabled" ${o.enabled ? 'checked' : ''} /></label>
+      <span class="benne-pg-lbl">color</span>
+      <input type="text" class="gui-outline-field" data-o-field="color" value="${esc(o.color)}" placeholder="#000000" />
+      <span class="benne-pg-lbl">alpha</span>
+      <input type="number" class="gui-outline-field" data-o-field="alpha" value="${al}" min="0" max="1" step="0.05" />
+      <span class="benne-pg-lbl">thickness</span>
+      <input type="number" class="gui-outline-field" data-o-field="thickness" value="${th}" min="1" step="1" />
+      <span class="benne-pg-lbl">sides</span>
+      <select class="gui-outline-field" data-o-field="sides">${guiTextOutlineSidesSelectOptions(o.sides)}</select>
+    </div>
+  </div>
+</details>`;
+}
+
+function collectGuiTextOutlinePatchFromDom(idx: number): Record<string, unknown> | null {
+    const wrap = document.querySelector(`[data-outline-wrap="${String(idx)}"]`);
+    if (!wrap) {
+        return null;
+    }
+    const enabled =
+        (wrap.querySelector('[data-o-field="enabled"]') as HTMLInputElement | null)?.checked ?? false;
+    const color =
+        (wrap.querySelector('[data-o-field="color"]') as HTMLInputElement | null)?.value.trim() ?? '#000000';
+    const alphaRaw = (wrap.querySelector('[data-o-field="alpha"]') as HTMLInputElement | null)?.value.trim() ?? '1';
+    const alphaN = Number(alphaRaw);
+    const thickRaw =
+        (wrap.querySelector('[data-o-field="thickness"]') as HTMLInputElement | null)?.value.trim() ?? '1';
+    const thickN = Number(thickRaw);
+    const sides =
+        (wrap.querySelector('[data-o-field="sides"]') as HTMLSelectElement | null)?.value ?? 'allSides';
+    return {
+        textOutline: {
+            enabled,
+            color,
+            alpha: Number.isFinite(alphaN) ? Math.min(1, Math.max(0, alphaN)) : 1,
+            thickness: Number.isFinite(thickN) ? Math.max(1, Math.trunc(thickN)) : 1,
+            sides
+        }
+    };
+}
+
 function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiControlCard): string {
     if (c.controlKind === 'unknown') {
         return `<label class="benne-field-label muted small">Control JSON</label>
@@ -1175,6 +1262,7 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
         <span class="benne-pg-lbl">wordWrapWidth</span>
         <input type="number" class="gui-field" data-index="${idx}" data-field="wordWrapWidth" value="${c.wordWrapWidth ?? ''}" placeholder="—" />
       </div>
+      ${renderGuiTextOutlineAccordion(idx, c.textOutline)}
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
       ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
@@ -1306,6 +1394,7 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
         <span class="benne-pg-lbl">textOffsetY</span>
         <input type="number" class="gui-field" data-index="${idx}" data-field="textOffsetY" value="${c.textOffsetY ?? ''}" placeholder="0" />
       </div>
+      ${renderGuiTextOutlineAccordion(idx, c.textOutline)}
       <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
       ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
       ${sheetBlock}
@@ -2428,6 +2517,29 @@ function mountGuiHandlers(state: InspectorGuiState): void {
             const patch = buildGuiControlFieldPatch(field, he);
             if (patch) {
                 postGuiPatch(idx, patch);
+            }
+        });
+    });
+    document.querySelectorAll('[data-outline-wrap]').forEach((wrap) => {
+        const idx = Number((wrap as HTMLElement).dataset.outlineWrap ?? '-1');
+        if (!Number.isInteger(idx) || idx < 0) {
+            return;
+        }
+        const flushOutline = (): void => {
+            const patch = collectGuiTextOutlinePatchFromDom(idx);
+            if (patch) {
+                postGuiPatch(idx, patch);
+            }
+        };
+        wrap.querySelectorAll('.gui-outline-field').forEach((el) => {
+            if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLSelectElement)) {
+                return;
+            }
+            const inp = el as HTMLInputElement | HTMLSelectElement;
+            if (inp instanceof HTMLSelectElement || (inp instanceof HTMLInputElement && inp.type === 'checkbox')) {
+                inp.addEventListener('change', flushOutline);
+            } else {
+                inp.addEventListener('blur', flushOutline);
             }
         });
     });

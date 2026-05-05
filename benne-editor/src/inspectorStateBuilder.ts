@@ -183,6 +183,64 @@ export type InspectorGuiGridPlacement = {
     align: InspectorGuiGridCellAlign;
 };
 
+export type InspectorGuiTextOutlineSides =
+    | 'allSides'
+    | 'topLeft'
+    | 'top'
+    | 'topRight'
+    | 'left'
+    | 'right'
+    | 'bottomLeft'
+    | 'bottom'
+    | 'bottomRight';
+
+export type InspectorGuiTextOutline = {
+    enabled: boolean;
+    color: string;
+    alpha: number;
+    thickness: number;
+    sides: InspectorGuiTextOutlineSides;
+};
+
+const GUI_TEXT_OUTLINE_SIDES_SET = new Set<string>([
+    'allSides',
+    'topLeft',
+    'top',
+    'topRight',
+    'left',
+    'right',
+    'bottomLeft',
+    'bottom',
+    'bottomRight'
+]);
+
+function parseInspectorGuiTextOutline(o: Record<string, unknown>): InspectorGuiTextOutline {
+    const raw = o.textOutline;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {
+            enabled: false,
+            color: '#000000',
+            alpha: 1,
+            thickness: 1,
+            sides: 'allSides'
+        };
+    }
+    const t = raw as Record<string, unknown>;
+    const sidesRaw = typeof t.sides === 'string' ? t.sides : '';
+    const sides: InspectorGuiTextOutlineSides = GUI_TEXT_OUTLINE_SIDES_SET.has(sidesRaw)
+        ? (sidesRaw as InspectorGuiTextOutlineSides)
+        : 'allSides';
+    const thicknessN = guiReadNum(t, 'thickness', 1);
+    const alphaN = typeof t.alpha === 'number' && Number.isFinite(t.alpha) ? t.alpha : 1;
+    return {
+        enabled: t.enabled === true,
+        color: typeof t.color === 'string' && t.color.trim().length > 0 ? t.color.trim() : '#000000',
+        alpha: Math.min(1, Math.max(0, alphaN)),
+        thickness: Math.max(1, Math.trunc(thicknessN)),
+        sides
+    };
+}
+
 export type InspectorGuiControlCard =
     | {
           controlKind: 'text';
@@ -201,6 +259,7 @@ export type InspectorGuiControlCard =
           color: string;
           align: 'left' | 'center' | 'right' | '';
           wordWrapWidth: number | null;
+          textOutline: InspectorGuiTextOutline;
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
@@ -282,6 +341,7 @@ export type InspectorGuiControlCard =
           statesPressed: string;
           statesDisabled: string;
           enabled: boolean;
+          textOutline: InspectorGuiTextOutline;
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
@@ -1123,6 +1183,7 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             color: typeof o.color === 'string' ? o.color : '#ffffff',
             align,
             wordWrapWidth: guiReadNumOrNull(o, 'wordWrapWidth'),
+            textOutline: parseInspectorGuiTextOutline(o),
             gridPlacement: parseOptionalGridPlacement(o)
         };
     }
@@ -1257,6 +1318,7 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             statesPressed: typeof statesRaw.pressed === 'string' ? statesRaw.pressed : '',
             statesDisabled: typeof statesRaw.disabled === 'string' ? statesRaw.disabled : '',
             enabled: o.enabled !== false,
+            textOutline: parseInspectorGuiTextOutline(o),
             gridPlacement: parseOptionalGridPlacement(o)
         };
     }

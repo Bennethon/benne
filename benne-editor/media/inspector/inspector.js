@@ -1,1 +1,2346 @@
-(()=>{"use strict";(()=>{let e=null;try{e=acquireVsCodeApi()}catch{}let n=null,t=null,a=null,s=null,l=null;function i(e){return e.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;")}function d(n,t){e?.postMessage({action:n,...t})}function o(e,n,t,a,s,l){const d=function(e,n,t){const a=e.expanded;return!(!a||a.entity!==n||a.id!==t)}(e,n,t)?" open":"";return`<details class="benne-inspector-item benne-card${a}" data-entity="${i(n)}" data-id="${i(t)}"${d}>\n  <summary class="benne-inspector-item-summary">${s}</summary>\n  <div class="benne-inspector-item-body">${l}</div>\n</details>`}function c(e,n,t,a){return 0===t.length?'<div class="benne-verb-chips benne-verb-chips--empty"><span class="muted small">No verbs</span></div>':`<div class="benne-verb-chips">${t.map(e=>{const n=e.defined,t=n?"⚡":"+";return`<button type="button" class="${n?"verb-chip verb-defined":"verb-chip verb-add"}" ${n?`data-reveal="1" data-event="${i(e.eventId)}"`:""} ${n||e.isFallback?"":`data-add="1" data-verb="${i(e.verbId)}"`} data-ctx="${i(a)}" title="${i(e.label)}"><span class="verb-chip-glyph" aria-hidden="true">${t}</span><span class="verb-chip-txt">${i(e.verbId)}</span></button>`}).join("")}</div>`}function r(e,n){return`<div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">\n    <button type="button" class="btn-secondary btn-inv-usedon" data-inv-target="${i(e)}" data-inv-target-id="${i(n)}" title="Insert B.whenInventoryUsedOn stub in the room script">Inv</button>\n    <span class="muted small"><code>B.whenInventoryUsedOn</code> (room script)</span>\n  </div>`}function p(e,n,t,a,s=""){const l=new Set(a.map(e=>e.id)),d=[];t&&!l.has(t)&&d.push(`<option value="${i(t)}" selected>${i(t)} (missing)</option>`);for(const e of a){const n=(e.label&&e.label.trim().length>0?e.label:e.id).trim(),a=e.id===t?" selected":"";d.push(`<option value="${i(e.id)}"${a}>${i(n)}</option>`)}return`<select class="${e}" ${n} ${s}>${d.join("")}</select>`}function u(e,n){return`<div class="benne-dim-grid" role="group" aria-label="${i(e)}">\n  <span class="benne-dim-lbl">X</span>\n  <input type="number" id="${i(e)}-x" value="${n?n.x:""}" />\n  <span class="benne-dim-lbl">Y</span>\n  <input type="number" id="${i(e)}-y" value="${n?n.y:""}" />\n</div>`}function b(e,n,t,a){const s=`gui-c${e}-pos`,l=null!=a?`\n  <span class="benne-dim-lbl">W</span>\n  <input type="number" class="gui-field" data-index="${e}" data-field="width" id="${i(s)}-w" value="${a.width}" />\n  <span class="benne-dim-lbl">H</span>\n  <input type="number" class="gui-field" data-index="${e}" data-field="height" id="${i(s)}-h" value="${a.height}" />`:"";return`<div class="benne-dim-grid" role="group" aria-label="${null!=a?"Position and size":"Position"}">\n  <span class="benne-dim-lbl">X</span>\n  <input type="number" class="gui-field" data-index="${e}" data-field="x" id="${i(s)}-x" value="${n}" />\n  <span class="benne-dim-lbl">Y</span>\n  <input type="number" class="gui-field" data-index="${e}" data-field="y" id="${i(s)}-y" value="${t}" />${l}\n</div>`}function g(e){return[["","(default)"],["top-left","top-left"],["center","center"],["screen","screen"]].map(([n,t])=>`<option value="${i(n)}"${e===n?" selected":""}>${i(t)}</option>`).join("")}function m(e,n,t,a){const s=n.trim();let l='<option value="">(none)</option>';const d=new Set(e);s.length>0&&!d.has(s)&&(l+=`<option value="${i(s)}" selected>${i(s)} (missing from sheet)</option>`);for(const n of e){const e=n===s?" selected":"";l+=`<option value="${i(n)}"${e}>${i(n)}</option>`}return`<select class="gui-field" data-index="${t}" data-field="${i(a)}">${l}</select>`}function v(e,n,t){const a=new Set(e);let s="";n.length>0&&!a.has(n)&&(s+=`<option value="${i(n)}" selected>${i(n)} (not in fonts.json)</option>`);for(const t of e){const e=t===n?" selected":"";s+=`<option value="${i(t)}"${e}>${i(t)}</option>`}return`<select class="gui-field" data-index="${t}" data-field="font">${s}</select>`}function h(e,n,t){const a=function(e){return e.controls.filter(e=>"grid"===e.controlKind).map(e=>e.controlId.trim()).filter(e=>e.length>0)}(e);if(0===a.length)return'<p class="muted small" style="margin-top:10px;">Add a <strong>grid</strong> control to place this widget in a cell (<code>gridPlacement</code>).</p>';const s=t?.gridControlId?.trim()??"";let l='<option value="">— none —</option>';const d=new Set(a);s&&!d.has(s)&&(l+=`<option value="${i(s)}" selected>${i(s)} (missing)</option>`);for(const e of a)l+=`<option value="${i(e)}"${e===s?" selected":""}>${i(e)}</option>`;return`<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Grid placement</div>\n<div class="benne-prop-grid benne-prop-grid--tight" data-gp-wrap="${n}">\n  <span class="benne-pg-lbl">grid id</span>\n  <select class="gui-gp-field" data-gp="gridId">${l}</select>\n  <span class="benne-pg-lbl">row</span>\n  <input type="number" class="gui-gp-field" data-gp="row" value="${t?.row??0}" step="1" />\n  <span class="benne-pg-lbl">col</span>\n  <input type="number" class="gui-gp-field" data-gp="col" value="${t?.col??0}" step="1" />\n  <span class="benne-pg-lbl">rowspan</span>\n  <input type="number" class="gui-gp-field" data-gp="rowspan" value="${t?.rowspan??""}" placeholder="1" />\n  <span class="benne-pg-lbl">colspan</span>\n  <input type="number" class="gui-gp-field" data-gp="colspan" value="${t?.colspan??""}" placeholder="1" />\n  <span class="benne-pg-lbl">align</span>\n  <select class="gui-gp-field" data-gp="align">${o=t?.align??"",[["","(default top-left)"],["top-left","top-left"],["top-center","top-center"],["top-right","top-right"],["center-left","center-left"],["center","center"],["center-right","center-right"],["bottom-left","bottom-left"],["bottom-center","bottom-center"],["bottom-right","bottom-right"]].map(([e,n])=>`<option value="${i(e)}"${o===e?" selected":""}>${i(n)}</option>`).join("")}</select>\n</div>`;var o}function y(e,n,t,a){const s=n.trim();let l=`<option value=""${""===s?" selected":""}>—</option>`;const d=new Set(e);s.length>0&&!d.has(s)&&(l+=`<option value="${i(s)}" selected>${i(s)} (no button control)</option>`);for(const n of e){const e=n===s?" selected":"";l+=`<option value="${i(n)}"${e}>${i(n)}</option>`}return`<select class="gui-field" data-index="${t}" data-field="${i(a)}">${l}</select>`}function f(){const e=document.getElementById("fld-name")?.value??"",n=document.getElementById("fld-w")?.value??"",t=document.getElementById("fld-h")?.value??"",a=""===n?null:Number(n),s=""===t?null:Number(t),l=document.getElementById("sb-x")?.value??"",i=document.getElementById("sb-y")?.value??"",d=document.getElementById("sb-w")?.value??"",o=document.getElementById("sb-h")?.value??"";return{type:"roomMeta",displayName:e,size:null!==a&&null!==s&&Number.isFinite(a)&&Number.isFinite(s)?{width:a,height:s}:null,scrollBounds:""!==l&&""!==i&&""!==d&&""!==o?{x:Number(l),y:Number(i),width:Number(d),height:Number(o)}:null}}function $(e){const n=document.getElementById(`${e}-x`)?.value??"",t=document.getElementById(`${e}-y`)?.value??"";if(""===n||""===t)return null;const a=Number(n),s=Number(t);return Number.isFinite(a)&&Number.isFinite(s)?{x:a,y:s}:null}function k(){return{type:"guiMeta",name:document.getElementById("gui-name")?.value??"",description:document.getElementById("gui-description")?.value??"",rootVisibleAtLoad:document.getElementById("gui-visible")?.checked??!0}}function x(e,n){if("tag"===e)return{tag:0===n.value.trim().length?null:n.value};if("statesHover"===e||"statesPressed"===e||"statesDisabled"===e){const t="statesHover"===e?"hover":"statesPressed"===e?"pressed":"disabled",a=n.value.trim();return{states:{[t]:0===a.length?null:n.value}}}if("enabled"===e)return{enabled:!!n.checked&&null};if("active"===e)return{active:!!n.checked&&null};if("name"===e)return{name:0===n.value.trim().length?null:n.value};if("visible"===e){const e=n.value;return""===e?{visible:null}:{visible:"true"===e}}if("align"===e){const e=n.value;return"left"===e?{align:null}:{align:e}}if("textAlign"===e){const e=n.value;return""===e||"center"===e?{textAlign:null}:{textAlign:e}}if("scrollDirection"===e){const e=n.value.trim();return""===e?{scrollDirection:null}:"horizontal"===e||"vertical"===e?{scrollDirection:e}:null}if("backButton"===e||"forwardButton"===e){const t=n.value.trim();return""===t?{[e]:null}:{[e]:t}}if(new Set(["backgroundAnchor","slotBackgroundAnchor","highlightAnchor"]).has(e)){const t=n.value.trim();return""===t||"top-left"===t?{[e]:null}:{[e]:t}}if(new Set(["x","y","rows","cols","columns","slotWidth","slotHeight","fontSize"]).has(e)){const t=Number(n.value);return Number.isFinite(t)?{[e]:Math.trunc(t)}:null}if(new Set(["zIndex","wordWrapWidth","spacingX","spacingY","itemScale","textOffsetX","textOffsetY","backgroundOffsetX","backgroundOffsetY","slotBackgroundOffsetX","slotBackgroundOffsetY","highlightOffsetX","highlightOffsetY","width","height"]).has(e)){const t=n.value.trim();if(""===t)return{[e]:null};const a=Number(t);return Number.isFinite(a)?{[e]:a}:null}return"showEmptySlots"===e?{showEmptySlots:n.checked}:new Set(["text","font","color","textColor","backgroundTag","slotBackgroundTag","highlightTag"]).has(e)?{[e]:n.value}:null}function E(e){const n=()=>{d("applyPatches",{patches:[k()]})},t=(e,n)=>{d("applyPatches",{patches:[{type:"guiControlUpdate",index:e,patch:n}]})};document.getElementById("btn-save-gui")?.addEventListener("click",()=>{const e=[];document.querySelectorAll(".gui-control-payload").forEach(n=>{const t=n,a=Number(t.dataset.index??"-1");Number.isInteger(a)&&a>=0&&e.push({type:"guiControlPayload",index:a,payload:t.value})}),d("applyPatches",{patches:[k(),...e]})}),document.getElementById("btn-open-json-gui")?.addEventListener("click",()=>{d("openRawJson",{guiJsonUri:e.guiJsonUri})}),document.getElementById("gui-name")?.addEventListener("blur",n),document.getElementById("gui-description")?.addEventListener("blur",n),document.getElementById("gui-visible")?.addEventListener("change",n),document.querySelectorAll(".gui-control-payload").forEach(e=>{e.addEventListener("blur",()=>{const n=e,t=Number(n.dataset.index??"-1");!Number.isInteger(t)||t<0||d("applyPatches",{patches:[{type:"guiControlPayload",index:t,payload:n.value}]})})}),document.getElementById("btn-add-gui-control")?.addEventListener("click",()=>{d("addGuiControl",{})}),document.querySelectorAll(".gui-field").forEach(e=>{if(!(e instanceof HTMLInputElement||e instanceof HTMLSelectElement))return;const n=e,a=Number(n.dataset.index??"-1"),s=n.dataset.field??"";if(!Number.isInteger(a)||a<0||!s)return;const l=()=>{const e=x(s,n);e&&t(a,e)};n instanceof HTMLSelectElement?n.addEventListener("change",l):n.addEventListener("blur",l)});document.querySelectorAll("[data-gp-wrap]").forEach(e=>{const n=Number(e.dataset.gpWrap??"-1");!Number.isInteger(n)||n<0||e.querySelectorAll(".gui-gp-field").forEach(e=>{if(!(e instanceof HTMLInputElement||e instanceof HTMLSelectElement))return;const a=e,s=()=>{(e=>{const n=function(e){const n=document.querySelector(`[data-gp-wrap="${String(e)}"]`);if(!n)return null;const t=n.querySelector('[data-gp="gridId"]')?.value.trim()??"";if(!t)return{gridPlacement:null};const a=Number(n.querySelector('[data-gp="row"]')?.value??"0"),s=Number(n.querySelector('[data-gp="col"]')?.value??"0");if(!Number.isFinite(a)||!Number.isFinite(s))return null;const l={gridControlId:t,row:Math.trunc(a),col:Math.trunc(s)},i=n.querySelector('[data-gp="rowspan"]')?.value.trim()??"";if(""!==i){const e=Number(i);Number.isFinite(e)&&e>0&&(l.rowspan=Math.trunc(e))}const d=n.querySelector('[data-gp="colspan"]')?.value.trim()??"";if(""!==d){const e=Number(d);Number.isFinite(e)&&e>0&&(l.colspan=Math.trunc(e))}const o=n.querySelector('[data-gp="align"]')?.value??"";return o.length>0&&(l.align=o),{gridPlacement:l}}(e);n&&t(e,n)})(n)};a instanceof HTMLSelectElement?a.addEventListener("change",s):a.addEventListener("blur",s)})}),document.querySelectorAll(".gui-field-cb").forEach(e=>{if(!(e instanceof HTMLInputElement))return;const n=e,a=Number(n.dataset.index??"-1"),s=n.dataset.field??"";!Number.isInteger(a)||a<0||!s||n.addEventListener("change",()=>{const e=x(s,n);e&&t(a,e)})}),document.querySelectorAll(".gui-on-click-btn").forEach(n=>{n.addEventListener("click",()=>{const t=n.dataset.buttonId??"";t&&d("guiEnsureButtonClickHandler",{guiJsonUri:e.guiJsonUri,buttonId:t})})})}function I(){return{type:"dialogMeta",displayName:document.getElementById("dlg-display-name")?.value??"",guiId:document.getElementById("dlg-gui-id")?.value??""}}function w(){const e=document.querySelectorAll('[data-entity="dialogOption"]'),n=[];return e.forEach(e=>{const t=Number(e.dataset.id??"-1");if(!Number.isInteger(t)||t<0)return;const a=e.querySelector(`.dlg-opt-id[data-idx="${t}"]`)?.value??"",s=e.querySelector(`.dlg-opt-text[data-idx="${t}"]`)?.value??"",l=e.querySelector(`.dlg-opt-enabled[data-idx="${t}"]`)?.checked??!0,i=e.querySelector(`.dlg-opt-used[data-idx="${t}"]`)?.checked??!1,d=e.querySelector(`.dlg-opt-say[data-idx="${t}"]`)?.checked??!0;n.push({type:"dialogOption",index:t,id:a,text:s,enabled:l,used:i,say:d})}),n}function S(){return{type:"inventoryMeta",name:document.getElementById("inv-name")?.value??"",description:document.getElementById("inv-description")?.value??"",stackable:document.getElementById("inv-stackable")?.checked??!1,defaultAnimation:document.getElementById("inv-default-animation")?.value??"",cursorAnimation:document.getElementById("inv-cursor-animation")?.value??"",asepriteMode:"true"===(document.getElementById("inv-aseprite")?.value??"shared")||"shared",defaultVerb:document.querySelector(".inv-default-verb")?.value??""}}function A(e){const k=document.getElementById("benne-inspector-app");if(!k)return;if("empty"===e.kind)return l=null,void(k.innerHTML=(x=e.message,`<p class="empty">${i(x)}</p>`));var x;let A=null;const L=null!==k.querySelector(".inspector-root"),N=function(e){return"room"===e.kind?`room:${e.roomJsonUri}`:"character"===e.kind?`character:${e.characterJsonUri}`:"gui"===e.kind?`gui:${e.guiJsonUri}`:"inventory"===e.kind?`inventory:${e.inventoryJsonUri}`:`dialog:${e.dialogJsonUri}`}(e);L&&l===N&&(A=function(e){const n=e.querySelector(".scroll");if(!n)return null;const t=[];n.querySelectorAll(":scope > details.section").forEach(e=>{e instanceof HTMLDetailsElement&&t.push(e.open)});const a={};return n.querySelectorAll("details.benne-inspector-item").forEach(e=>{if(!(e instanceof HTMLDetailsElement))return;const n=e.dataset.entity,t=e.dataset.id;n&&t&&(a[`${n}\0${t}`]=e.open)}),{sections:t,items:a}}(k)),"room"===e.kind?k.innerHTML=function(e){const n=e.size,t=e.scrollBounds,a=e.walkableRows.map(e=>`<tr>\n        <td>${i(e.kind)}</td>\n        <td>${i(e.id)}</td>\n        <td><input type="checkbox" class="walk-active" data-polygon="${i(e.polygonId)}" data-hole="${i(e.holeId??"")}" data-kind="${i(e.kind)}" data-row="${i(e.id)}" ${e.active?"checked":""} /></td>\n        <td><button type="button" class="btn-link" data-edit-preview="walkable" data-polygon="${i(e.polygonId)}" data-hole="${i(e.holeId??"")}">Edit</button></td>\n      </tr>`).join(""),s=e.walkableRows.filter(e=>"polygon"===e.kind).map(e=>`<option value="${i(e.polygonId)}">${i(e.id)}</option>`).join(""),l=e.props.map(n=>{const t=i(n.tag??n.id),a=c(e.roomJsonUri,e.roomId,n.verbs,`prop:${n.id}`),s="string"==typeof n.tag?n.tag.trim():"",l=n.animations.length>0?(()=>{let e=n.animations.map(e=>{const n=e.id===s?" selected":"";return`<option value="${i(e.id)}"${n}>${i(e.id)}</option>`}).join("");return s.length>0&&!n.animations.some(e=>e.id===s)&&(e=`<option value="${i(s)}" selected>${i(s)}</option>${e}`),e})():`<option value="${i(s||n.id)}" selected>${i(s||n.id)}</option>`,d=n.animations.map(t=>{const a=`${i(n.id)}::${i(t.id)}`,s=`<div class="benne-card-titles">\n        <div class="benne-card-title">${i(t.id)}</div>\n        <div class="benne-card-sub muted">Aseprite clip</div>\n      </div>`,l=`<div class="benne-prop-grid benne-prop-grid--tight prop-anim-row" data-prop-id="${i(n.id)}" data-anim-tag="${i(t.id)}">\n        <span class="benne-pg-lbl">loop</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-anim-loop" ${t.loop?"checked":""} /></label>\n        <span class="benne-pg-lbl">frameDuration</span>\n        <input type="number" class="prop-anim-dur" value="${t.frameDuration??""}" min="1" step="1" placeholder="(Aseprite)" title="Leave blank to use per-frame durations from the Aseprite export" />\n      </div>`;return o(e,"propAnimation",a," benne-card--character",s,l)}).join(""),u=n.animations.length>0?`<div class="benne-card-subsection-body"><div class="benne-card-list">${d}</div></div>`:'<div class="benne-card-subsection-body">\n        <p class="muted small">No animation clips listed — add <code>animations</code> in JSON or ensure the room sheet has matching frame tags.</p>\n      </div>',b=`<details class="benne-card-subsection">\n      <summary>Animations (${n.animations.length})</summary>\n      ${u}\n    </details>`,g=n.clickable?" benne-card--prop-clickable":"",m=n.clickable?`<div class="benne-card-actions">\n        <div class="benne-card-actions-inner">\n          <button type="button" class="btn-link" data-edit-preview="prop" data-id="${i(n.id)}">Edit in Preview →</button>\n        </div>\n      </div>`:"",v=`<div class="benne-card-titles">\n          <div class="benne-card-title tag">${t}</div>\n          <div class="benne-card-sub muted">${i(n.id)}</div>\n        </div>`,h=`<div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">Visible</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-visible" data-id="${i(n.id)}" ${n.visible?"checked":""} /></label>\n        <span class="benne-pg-lbl">zIndex</span>\n        <input type="number" class="prop-z" data-id="${i(n.id)}" value="${n.zIndex}" />\n        <span class="benne-pg-lbl">baseline Y</span>\n        <input type="number" step="1" class="prop-baseline" data-id="${i(n.id)}" value="${n.baseline??""}" placeholder="—" title="Optional room-space Y: walkers with feet below this line draw in front of this prop" />\n        <span class="benne-pg-lbl">Parallax</span>\n        <input type="number" step="0.05" class="prop-par" data-id="${i(n.id)}" value="${n.parallaxDepth}" />\n        <span class="benne-pg-lbl">Alpha</span>\n        <input type="number" step="0.05" min="0" max="1" class="prop-alpha" data-id="${i(n.id)}" value="${n.alpha}" />\n        <span class="benne-pg-lbl">Clickable</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-clickable" data-id="${i(n.id)}" ${n.clickable?"checked":""} /></label>\n        <span class="benne-pg-lbl">Displayed tag</span>\n        <select class="prop-tag-select" data-id="${i(n.id)}" title="Aseprite frame tag shown for this prop">${l}</select>\n        <span class="benne-pg-lbl">Family root</span>\n        <input type="text" class="prop-default-animation" data-id="${i(n.id)}" value="${i(n.defaultAnimation)}" placeholder="(optional) e.g. door when id differs" title="Optional second root for &lt;root&gt;-* tag grouping alongside prop id" />\n      </div>\n      <label class="benne-field-label muted small">Description</label>\n      <textarea class="benne-card-desc prop-desc" data-id="${i(n.id)}" rows="2" title="${i(n.description)}">${i(n.description)}</textarea>\n      <label class="benne-field-label muted small">Default verb</label>\n      ${n.clickable?p("prop-default-verb",`data-id="${i(n.id)}"`,n.defaultVerb,n.availableVerbs,"title=\"Verb invoked when inputProfile resolves to 'defaultVerb' on this prop\""):'<span class="muted small">(not clickable)</span>'}\n      <label class="benne-field-label muted small">Verbs</label>\n      ${a}\n      ${n.clickable?r("prop",n.id):""}\n      ${b}\n      ${m}`;return o(e,"prop",n.id,` benne-card--prop${g}`,v,h)}).join(""),d=e.hotspots.map(n=>{const t=n.active?"":'<div class="banner">Inactive (not hit-tested)</div>',a=c(e.roomJsonUri,e.roomId,n.verbs,`hotspot:${n.id}`),s=`<div class="benne-card-titles">\n          <div class="benne-card-title">${i(n.description.trim()?n.description.trim():n.id)}</div>\n          <div class="benne-card-sub muted">${i(n.id)}</div>\n        </div>`,l=`${t}\n      <div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">Active</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="hs-active" data-id="${i(n.id)}" ${n.active?"checked":""} /></label>\n        <span class="benne-pg-lbl">zIndex</span>\n        <input type="number" class="hs-z" data-id="${i(n.id)}" value="${n.zIndex}" />\n        <span class="benne-pg-lbl">baseline Y</span>\n        <input type="number" step="1" class="hs-baseline" data-id="${i(n.id)}" value="${n.baseline??""}" placeholder="—" title="Optional room-space Y: walkers with feet below this line draw in front of this hotspot zone" />\n      </div>\n      <label class="benne-field-label muted small">Description</label>\n      <textarea class="benne-card-desc hs-desc" data-id="${i(n.id)}" rows="2" title="${i(n.description)}">${i(n.description)}</textarea>\n      <label class="benne-field-label muted small">Default verb</label>\n      ${p("hs-default-verb",`data-id="${i(n.id)}"`,n.defaultVerb,n.availableVerbs,"title=\"Verb invoked when inputProfile resolves to 'defaultVerb' on this hotspot\"")}\n      <label class="benne-field-label muted small">Verbs</label>\n      ${a}\n      ${n.active?r("hotspot",n.id):""}\n      <div class="benne-card-actions">\n        <div class="benne-card-actions-inner">\n          <button type="button" class="btn-link" data-edit-preview="hotspot" data-id="${i(n.id)}">Edit in Preview →</button>\n        </div>\n      </div>`;return o(e,"hotspot",n.id," benne-card--hotspot",s,l)}).join(""),u=e.characters.map(n=>{const t=c(e.roomJsonUri,e.roomId,n.verbs,`char:${n.instanceId}:${n.characterId}`),a=n.characterClickable?"":'<div class="banner">Character definition is not clickable — enable in character JSON first.</div>',s=`<div class="benne-card-titles">\n          <div class="benne-card-title">${i(n.characterId)}</div>\n          <div class="benne-card-sub muted">${i(n.instanceId)}</div>\n        </div>`,l=`${a}\n      <div class="benne-dim-grid" role="group" aria-label="Position">\n        <span class="benne-dim-lbl">X</span>\n        <input type="number" class="ch-x" data-id="${i(n.instanceId)}" value="${n.x}" />\n        <span class="benne-dim-lbl">Y</span>\n        <input type="number" class="ch-y" data-id="${i(n.instanceId)}" value="${n.y}" />\n      </div>\n      <div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">Visible</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="ch-visible" data-id="${i(n.instanceId)}" ${n.visible?"checked":""} /></label>\n        <span class="benne-pg-lbl">Clickable</span>\n        <label class="benne-pg-check benne-inline-check" title="Defined in character JSON"><input type="checkbox" ${n.characterClickable?"checked":""} disabled /></label>\n        <span class="benne-pg-lbl">zIndex</span>\n        <input type="number" class="ch-z" data-id="${i(n.instanceId)}" value="${n.zIndex}" />\n        <span class="benne-pg-lbl">Facing</span>\n        <input type="text" class="ch-face" data-id="${i(n.instanceId)}" value="${i(n.initialFacing??"")}" />\n        <span class="benne-pg-lbl">Animation</span>\n        <input type="text" class="ch-anim" data-id="${i(n.instanceId)}" value="${i(n.initialAnimation??"")}" />\n      </div>\n      <label class="benne-field-label muted small">Default verb</label>\n      <div class="benne-prop-grid benne-prop-grid--tight" title="Edit from the character Inspector; stored in the character's own JSON.">\n        <span class="benne-pg-lbl">${i(n.defaultVerb)}</span>\n        <span class="muted small">(from character JSON)</span>\n      </div>\n      <label class="benne-field-label muted small">Verbs</label>\n      ${t}\n      ${n.characterClickable?r("character",n.characterId):""}`;return o(e,"character",n.instanceId," benne-card--character",s,l)}).join(""),b=e.points.map(n=>{const t=`<div class="benne-card-titles">\n          <div class="benne-card-title">${i(n.id)}</div>\n          <div class="benne-card-sub muted">Room point</div>\n        </div>`,a=`<div class="benne-dim-grid" role="group" aria-label="Position">\n        <span class="benne-dim-lbl">X</span>\n        <input type="number" class="pt-x" data-id="${i(n.id)}" value="${n.x}" />\n        <span class="benne-dim-lbl">Y</span>\n        <input type="number" class="pt-y" data-id="${i(n.id)}" value="${n.y}" />\n      </div>\n      <div class="benne-card-actions">\n        <div class="benne-card-actions-inner">\n          <button type="button" class="btn-link" data-edit-preview="point" data-id="${i(n.id)}">Edit in Preview →</button>\n        </div>\n      </div>`;return o(e,"point",n.id," benne-card--point",t,a)}).join(""),g=e.regions.map(n=>{const t=`<div class="benne-card-titles">\n          <div class="benne-card-title">${i(n.id)}</div>\n          <div class="benne-card-sub muted">${n.pointCount} points</div>\n        </div>`,a=`<div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">Active</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-active" data-id="${i(n.id)}" ${n.active?"checked":""} /></label>\n        <span class="benne-pg-lbl" title="Scale at top of region (smaller Y). 1 = normal.">Scale top</span>\n        <input type="number" class="rg-scale-top" data-id="${i(n.id)}" value="${n.scaleTop}" step="0.05" />\n        <span class="benne-pg-lbl" title="Scale at bottom of region (larger Y).">Scale bottom</span>\n        <input type="number" class="rg-scale-bottom" data-id="${i(n.id)}" value="${n.scaleBottom}" step="0.05" />\n        <span class="benne-pg-lbl" title="Slow or speed up walking by the same perspective factor as sprite scale (see game-config perspective).">Scale walk speed</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-scale-walk" data-id="${i(n.id)}" ${n.scaleWalkSpeed?"checked":""} /></label>\n      </div>\n      <div class="benne-card-actions">\n        <div class="benne-card-actions-inner">\n          <button type="button" class="btn-link" data-edit-preview="region" data-id="${i(n.id)}">Edit in Preview →</button>\n        </div>\n      </div>`;return o(e,"region",n.id," benne-card--region",t,a)}).join("");return`\n<div class="inspector-root">\n  <div class="scroll">\n    <details class="section" open>\n      <summary>Room metadata</summary>\n      <div class="section-body">\n        <div class="benne-prop-grid benne-prop-grid--tight">\n          <span class="benne-pg-lbl">Display name</span>\n          <input type="text" id="fld-name" value="${i(e.displayName)}" />\n          <span class="benne-pg-lbl">Room ID</span>\n          <div class="benne-pg-val"><code class="badge">${i(e.roomId)}</code></div>\n        </div>\n        <div class="benne-room-size-hint muted small">Room size</div>\n        <div class="benne-dim-grid" role="group" aria-label="Room size">\n          <span class="benne-dim-lbl">W</span>\n          <input type="number" id="fld-w" value="${n?n.width:""}" placeholder="352" />\n          <span class="benne-dim-lbl">H</span>\n          <input type="number" id="fld-h" value="${n?n.height:""}" placeholder="198" />\n        </div>\n        <div style="margin-top:4px;">\n          <button type="button" class="btn-link" data-edit-preview="roomSize">Edit in Preview</button>\n        </div>\n        <button type="button" class="btn-secondary" id="btn-fit-bg" ${e.canFitBackground?"":"disabled"} title="Set room size from PNG background dimensions">Fit to background</button>\n        <div class="benne-scroll-bounds-label muted small">Scroll bounds (leave blank to omit)</div>\n        <div class="benne-dim-grid" role="group" aria-label="Scroll bounds">\n          <span class="benne-dim-lbl">X</span>\n          <input type="number" id="sb-x" value="${t?t.x:""}" />\n          <span class="benne-dim-lbl">Y</span>\n          <input type="number" id="sb-y" value="${t?t.y:""}" />\n          <span class="benne-dim-lbl">W</span>\n          <input type="number" id="sb-w" value="${t?t.width:""}" />\n          <span class="benne-dim-lbl">H</span>\n          <input type="number" id="sb-h" value="${t?t.height:""}" />\n        </div>\n        <div style="margin-top:4px;">\n          <button type="button" class="btn-link" data-edit-preview="scrollBounds">Edit in Preview</button>\n        </div>\n        <button type="button" class="btn-secondary" id="btn-clear-sb">Clear scroll bounds</button>\n      </div>\n    </details>\n\n    <details class="section">\n      <summary>Walkable areas</summary>\n      <div class="section-body">\n        <table class="grid">\n          <thead><tr><th>Kind</th><th>Id</th><th>Active</th><th></th></tr></thead>\n          <tbody>${a||'<tr><td colspan="4" class="muted">None</td></tr>'}</tbody>\n        </table>\n        <div class="row wrap">\n          <button type="button" class="btn-secondary" id="btn-add-poly">Add walkable polygon</button>\n          <button type="button" class="btn-secondary" id="btn-add-hole">Add hole to</button>\n          <select id="hole-parent">${s||'<option value="">(add polygon first)</option>'}</select>\n        </div>\n      </div>\n    </details>\n\n    <details class="section">\n      <summary>Hotspots (${e.hotspots.length})</summary>\n      <div class="section-body">\n        <div class="benne-section-add-row">\n          <button type="button" class="btn-secondary" data-add-room-item="hotspot">Add Hotspot</button>\n        </div>\n        <div class="benne-card-list">${d||'<p class="muted">None</p>'}</div>\n      </div>\n    </details>\n    <details class="section">\n      <summary>Props (${e.props.length})</summary>\n      <div class="section-body">\n        <div class="benne-section-add-row">\n          <button type="button" class="btn-secondary" data-add-room-item="prop">Add Prop</button>\n        </div>\n        <div class="benne-card-list">${l||'<p class="muted">None</p>'}</div>\n      </div>\n    </details>\n    <details class="section">\n      <summary>Spawned characters (${e.characters.length})</summary>\n      <div class="section-body">\n        <div class="benne-section-add-row">\n          <button type="button" class="btn-secondary" data-add-room-item="character">Add Character</button>\n        </div>\n        <div class="benne-card-list">${u||'<p class="muted">None</p>'}</div>\n      </div>\n    </details>\n    <details class="section">\n      <summary>Points (${e.points.length})</summary>\n      <div class="section-body">\n        <div class="benne-section-add-row">\n          <button type="button" class="btn-secondary" data-add-room-item="point">Add Point</button>\n        </div>\n        <div class="benne-card-list">${b||'<p class="muted">None</p>'}</div>\n      </div>\n    </details>\n    <details class="section">\n      <summary>Regions (${e.regions.length})</summary>\n      <div class="section-body">\n        <div class="benne-section-add-row">\n          <button type="button" class="btn-secondary" data-add-room-item="region">Add Region</button>\n        </div>\n        <div class="benne-card-list">${g||'<p class="muted">None</p>'}</div>\n      </div>\n    </details>\n  </div>\n  <div class="footer">\n    <button type="button" class="btn-primary" id="btn-save">Save</button>\n    <button type="button" class="btn-secondary" id="btn-open-json">Open raw JSON</button>\n  </div>\n</div>`}(e):"character"===e.kind?k.innerHTML=function(e){const n=c(e.characterJsonUri,e.characterId,e.verbs,`characterDef:${e.characterId}`),t=e.animations.map(e=>{const n=`<div class="benne-card-titles">\n        <div class="benne-card-title">${i(e.id)}</div>\n        <div class="benne-card-sub muted">Animation clip</div>\n      </div>`,t=`<div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">name</span>\n        <div class="benne-pg-val"><code class="badge">${i(e.id)}</code></div>\n        <span class="benne-pg-lbl">loop</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="char-anim-loop" data-id="${i(e.id)}" ${e.loop?"checked":""} /></label>\n        <span class="benne-pg-lbl">frameDuration</span>\n        <input type="number" class="char-anim-dur" data-id="${i(e.id)}" value="${e.frameDuration??""}" />\n      </div>`;return o({},"animation",e.id," benne-card--character",n,t)}).join("");return`<div class="inspector-root">\n  <div class="scroll">\n    <details class="section" open>\n      <summary>Character metadata</summary>\n      <div class="section-body">\n        <div class="benne-prop-grid benne-prop-grid--tight">\n          <span class="benne-pg-lbl">id</span>\n          <div class="benne-pg-val"><code class="badge">${i(e.characterId)}</code></div>\n          <span class="benne-pg-lbl">name</span>\n          <input type="text" id="char-name" value="${i(e.name)}" />\n          <span class="benne-pg-lbl">walkSpeed</span>\n          <input type="number" id="char-walk-speed" value="${e.walkSpeed}" />\n          <span class="benne-pg-lbl">clickable</span>\n          <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="char-clickable" ${e.clickable?"checked":""} /></label>\n        </div>\n        <label class="benne-field-label muted small">Description</label>\n        <textarea id="char-description" rows="3">${i(e.description)}</textarea>\n        <div class="benne-scroll-bounds-label muted small">walkToPoint</div>\n        ${u("char-walk",e.walkToPoint)}\n        <div class="benne-scroll-bounds-label muted small">talkPoint</div>\n        ${u("char-talk",e.talkPoint)}\n        <div class="benne-scroll-bounds-label muted small">feet</div>\n        ${u("char-feet",e.feet)}\n      </div>\n    </details>\n\n    <details class="section" open>\n      <summary>Verbs</summary>\n      <div class="section-body">\n        <label class="benne-field-label muted small">Default verb</label>\n        ${p("char-default-verb","",e.defaultVerb,e.availableVerbs,"title=\"Verb invoked when inputProfile resolves to 'defaultVerb' on this character\"")}\n        <label class="benne-field-label muted small" style="margin-top:10px;">Configured verbs</label>\n        ${n}\n        ${e.clickable?'<div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">\n    <button type="button" class="btn-secondary btn-inv-usedon-char" title="Insert B.whenInventoryUsedOn stub in the character script">Inv</button>\n    <span class="muted small"><code>B.whenInventoryUsedOn</code> (character script)</span>\n  </div>':""}\n      </div>\n    </details>\n\n    <details class="section" open>\n      <summary>Animations (${e.animations.length})</summary>\n      <div class="section-body">\n        <div class="benne-section-add-row">\n          <button type="button" class="btn-secondary" id="btn-import-char-anims">Import Animations from Aseprite Tags</button>\n        </div>\n        <div class="benne-card-list">${t||'<p class="muted">None</p>'}</div>\n      </div>\n    </details>\n  </div>\n  <div class="footer">\n    <button type="button" class="btn-primary" id="btn-save-char">Save</button>\n    <button type="button" class="btn-secondary" id="btn-open-json-char">Open raw JSON</button>\n  </div>\n</div>`}(e):"inventory"===e.kind?k.innerHTML=function(e){const n=e.animations.map(e=>{const n=`<div class="benne-card-titles">\n        <div class="benne-card-title">${i(e.id)}</div>\n        <div class="benne-card-sub muted">Animation clip</div>\n      </div>`,t=`<div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">name</span>\n        <div class="benne-pg-val"><code class="badge">${i(e.id)}</code></div>\n        <span class="benne-pg-lbl">loop</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="inv-anim-loop" data-id="${i(e.id)}" ${e.loop?"checked":""} /></label>\n        <span class="benne-pg-lbl">frameDuration</span>\n        <input type="number" class="inv-anim-dur" data-id="${i(e.id)}" value="${e.frameDuration??""}" />\n      </div>`;return o({},"inventoryAnimation",e.id," benne-card--character",n,t)}).join(""),t=function(e){return 0===e.verbs.length?'<div class="benne-verb-chips benne-verb-chips--empty"><span class="muted small">No verbs</span></div>':`<div class="benne-verb-chips">${e.verbs.map(n=>{const t=n.defined?"⚡":"+";return`<button type="button" class="${n.defined?"verb-chip verb-defined inv-verb-chip":"verb-chip verb-add inv-verb-chip"}" ${n.defined?`data-reveal="1" data-event="${i(n.eventId)}"`:""} ${n.defined||n.isFallback?"":`data-add="1" data-verb="${i(n.verbId)}"`} data-ctx="inventoryDef:${i(e.inventoryId)}" title="${i(n.label)}"><span class="verb-chip-glyph" aria-hidden="true">${t}</span><span class="verb-chip-txt">${i(n.verbId)}</span></button>`}).join("")}</div>`}(e);return`<div class="inspector-root">\n  <div class="scroll">\n    <details class="section" open>\n      <summary>Inventory metadata</summary>\n      <div class="section-body">\n        <div class="benne-prop-grid benne-prop-grid--tight">\n          <span class="benne-pg-lbl">id</span>\n          <div class="benne-pg-val"><code class="badge">${i(e.inventoryId)}</code></div>\n          <span class="benne-pg-lbl">name</span>\n          <input type="text" id="inv-name" value="${i(e.name)}" />\n          <span class="benne-pg-lbl">stackable</span>\n          <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="inv-stackable" ${e.stackable?"checked":""} /></label>\n          <span class="benne-pg-lbl">aseprite</span>\n          <select id="inv-aseprite">\n            <option value="shared" ${"shared"===e.asepriteMode?"selected":""}>shared</option>\n            <option value="true" ${!0===e.asepriteMode?"selected":""}>per-item</option>\n          </select>\n          <span class="benne-pg-lbl">default frame tag</span>\n          <input type="text" id="inv-default-animation" value="${i(e.defaultAnimation)}" title="JSON key: defaultAnimation. Empty = use item id." />\n          <span class="benne-pg-lbl">cursor clip (active item)</span>\n          <input type="text" id="inv-cursor-animation" value="${i(e.cursorAnimation)}" title="JSON key: cursorAnimation — Aseprite tag on this item’s sheet for the custom game cursor when this item is armed for use-on-target. Leave empty for default cursor." placeholder="(optional) e.g. useCursor" />\n        </div>\n        <label class="benne-field-label muted small">Description</label>\n        <textarea id="inv-description" rows="3">${i(e.description)}</textarea>\n      </div>\n    </details>\n    <details class="section" open>\n      <summary>Verbs</summary>\n      <div class="section-body">\n        <label class="benne-field-label muted small">Default verb</label>\n        ${p("inv-default-verb","",e.defaultVerb,e.availableVerbs,"title=\"Verb invoked when inputProfile resolves to 'defaultVerb' on this inventory item\"")}\n        <label class="benne-field-label muted small" style="margin-top:10px;">Configured verbs</label>\n        ${t}\n        <div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">\n    <button type="button" class="btn-secondary btn-inv-usedon-inv" title="Insert B.whenInventoryUsedOn stub in the inventory item script">Inv</button>\n    <span class="muted small"><code>B.whenInventoryUsedOn</code> (inventory script)</span>\n  </div>\n      </div>\n    </details>\n    <details class="section" open>\n      <summary>Animations (${e.animations.length})</summary>\n      <div class="section-body">\n        <div class="benne-card-list">${n||'<p class="muted">None</p>'}</div>\n      </div>\n    </details>\n  </div>\n  <div class="footer">\n    <button type="button" class="btn-primary" id="btn-save-inv">Save</button>\n    <button type="button" class="btn-secondary" id="btn-open-json-inv">Open raw JSON</button>\n  </div>\n</div>`}(e):"dialog"===e.kind?k.innerHTML=function(e){const n=e.options.map(e=>function(e,n){const t=`<span class="dlg-opt-drag-handle" draggable="true" data-idx="${n.index}" title="Drag to reorder" aria-label="Drag to reorder">⋮⋮</span><div class="benne-card-titles">\n        <div class="benne-card-title">${i(n.id)}</div>\n        <div class="benne-card-sub muted">Option ${n.index+1}</div>\n      </div>`,a=`<div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">id</span>\n        <input type="text" class="dlg-opt-id" data-idx="${n.index}" value="${i(n.id)}" />\n        <span class="benne-pg-lbl">text</span>\n        <textarea class="dlg-opt-text" data-idx="${n.index}" rows="2">${i(n.text)}</textarea>\n        <span class="benne-pg-lbl">enabled</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-enabled" data-idx="${n.index}" ${n.enabled?"checked":""} /></label>\n        <span class="benne-pg-lbl">used (JSON)</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-used" data-idx="${n.index}" ${n.used?"checked":""} title="Authoring default; runtime may persist picks via game state." /></label>\n        <span class="benne-pg-lbl">say line</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-say" data-idx="${n.index}" ${n.say?"checked":""} title="When checked, the player speaks the option text before the whenChoice script runs." /></label>\n        <span class="benne-pg-lbl">script</span>\n        <button type="button" class="btn-secondary dlg-opt-script" data-idx="${n.index}">Script…</button>\n        <span class="benne-pg-lbl"></span>\n        <button type="button" class="btn-danger dlg-opt-remove" data-idx="${n.index}">Remove</button>\n      </div>`;return o({},"dialogOption",String(n.index)," benne-card--dialog-opt",t,a)}(0,e)).join("");return`<div class="inspector-root">\n  <div class="scroll">\n    <details class="section" open>\n      <summary>Dialog metadata</summary>\n      <div class="section-body">\n        <div class="benne-prop-grid benne-prop-grid--tight">\n          <span class="benne-pg-lbl">id</span>\n          <div class="benne-pg-val"><code class="badge">${i(e.dialogId)}</code></div>\n          <span class="benne-pg-lbl">display name</span>\n          <input type="text" id="dlg-display-name" value="${i(e.displayName)}" />\n          <span class="benne-pg-lbl">guiId</span>\n          <input type="text" id="dlg-gui-id" value="${i(e.guiId)}" placeholder="dialog (default)" title="Choice GUI overlay id; omit or use dialog for the default choice overlay." />\n        </div>\n        <p class="muted small" style="margin-top:8px;">Topic lines are edited as <strong>options</strong> below (SCUMM-style list). The companion <code>.dialog.ts</code> is open in the editor — use <strong>Script…</strong> to add <code>B.whenChoice</code> handlers.</p>\n      </div>\n    </details>\n    <details class="section" open>\n      <summary>Options (${e.options.length})</summary>\n      <div class="section-body">\n        <div class="benne-section-add-row">\n          <button type="button" class="btn-secondary" id="btn-dlg-add-opt">Add option</button>\n        </div>\n        <div class="benne-card-list" id="dlg-option-card-list">${n||'<p class="muted">No options — click Add option.</p>'}</div>\n      </div>\n    </details>\n  </div>\n  <div class="footer">\n    <button type="button" class="btn-primary" id="btn-save-dlg">Save</button>\n    <button type="button" class="btn-secondary" id="btn-open-json-dlg">Open raw JSON</button>\n  </div>\n</div>`}(e):k.innerHTML=function(e){const n=e.controls.map(n=>{const t="unknown"===n.controlKind?n.typeLabel:n.controlKind,a=`<div class="benne-card-titles">\n        <div class="benne-card-title">${i(n.summary)}</div>\n        <div class="benne-card-sub muted">${i(t)}</div>\n      </div>`,s=function(e,n){if("unknown"===n.controlKind)return`<label class="benne-field-label muted small">Control JSON</label>\n      <textarea class="gui-control-payload" data-index="${n.index}" rows="8">${i(n.payload)}</textarea>`;const t=n.index,a=e.guiSheetTags,s=e.fontIds,l=`<span class="benne-pg-lbl">visible</span>\n      <select class="gui-field" data-index="${t}" data-field="visible">\n        <option value=""${""===n.visibleMode?" selected":""}>Inherit overlay</option>\n        <option value="true"${"true"===n.visibleMode?" selected":""}>Shown</option>\n        <option value="false"${"false"===n.visibleMode?" selected":""}>Hidden</option>\n      </select>`,d="trigger"===n.controlKind?"":`<span class="benne-pg-lbl">zIndex</span>\n      <input type="number" class="gui-field" data-index="${t}" data-field="zIndex" value="${n.zIndex??""}" placeholder="—" />`;if("text"===n.controlKind){const a=`<select class="gui-field" data-index="${t}" data-field="align">\n        <option value="left"${""===n.align||"left"===n.align?" selected":""}>left</option>\n        <option value="center"${"center"===n.align?" selected":""}>center</option>\n        <option value="right"${"right"===n.align?" selected":""}>right</option>\n      </select>`;return`<div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">id</span>\n        <div class="benne-pg-val"><code class="badge">${i(n.controlId||"—")}</code></div>\n        ${d}\n        ${l}\n        <span class="benne-pg-lbl">text</span>\n        <input type="text" class="gui-field" data-index="${t}" data-field="text" value="${i(n.text)}" />\n        <span class="benne-pg-lbl">font</span>\n        ${v(s,n.font,t)}\n        <span class="benne-pg-lbl">fontSize</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="fontSize" value="${n.fontSize}" />\n        <span class="benne-pg-lbl">color</span>\n        <input type="text" class="gui-field" data-index="${t}" data-field="color" value="${i(n.color)}" />\n        <span class="benne-pg-lbl">align</span>\n        ${a}\n        <span class="benne-pg-lbl">wordWrapWidth</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="wordWrapWidth" value="${n.wordWrapWidth??""}" placeholder="—" />\n      </div>\n      <div class="benne-scroll-bounds-label muted small">Position</div>\n      ${b(t,n.x,n.y)}\n      ${h(e,t,n.gridPlacement)}\n      <p class="muted small" style="margin:8px 0 0;">Sheet animations are not used for <code>text</code> controls.</p>`}if("inventoryPanel"===n.controlKind){const s=e.controls.filter(e=>"button"===e.controlKind&&e.controlId.trim().length>0).map(e=>"button"===e.controlKind?e.controlId.trim():""),o=`<select class="gui-field" data-index="${t}" data-field="scrollDirection">\n        <option value=""${""===n.scrollDirection?" selected":""}>—</option>\n        <option value="horizontal"${"horizontal"===n.scrollDirection?" selected":""}>horizontal</option>\n        <option value="vertical"${"vertical"===n.scrollDirection?" selected":""}>vertical</option>\n      </select>`,c=e.usesAseprite&&a.length>0?`<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>\n        <div class="benne-prop-grid benne-prop-grid--tight">\n          <span class="benne-pg-lbl">Backdrop tag</span>\n          ${m(a,n.backgroundTag,t,"backgroundTag")}\n          <span class="benne-pg-lbl">Backdrop anchor</span>\n          <select class="gui-field" data-index="${t}" data-field="backgroundAnchor">${g(n.backgroundAnchor)}</select>\n          <span class="benne-pg-lbl">Backdrop offset X</span>\n          <input type="number" class="gui-field" data-index="${t}" data-field="backgroundOffsetX" value="${n.backgroundOffsetX??""}" placeholder="0" />\n          <span class="benne-pg-lbl">Backdrop offset Y</span>\n          <input type="number" class="gui-field" data-index="${t}" data-field="backgroundOffsetY" value="${n.backgroundOffsetY??""}" placeholder="0" />\n          <span class="benne-pg-lbl">Slot bg tag</span>\n          ${m(a,n.slotBackgroundTag,t,"slotBackgroundTag")}\n          <span class="benne-pg-lbl">Slot bg anchor</span>\n          <select class="gui-field" data-index="${t}" data-field="slotBackgroundAnchor">${g(n.slotBackgroundAnchor)}</select>\n          <span class="benne-pg-lbl">Slot bg offset X</span>\n          <input type="number" class="gui-field" data-index="${t}" data-field="slotBackgroundOffsetX" value="${n.slotBackgroundOffsetX??""}" placeholder="0" />\n          <span class="benne-pg-lbl">Slot bg offset Y</span>\n          <input type="number" class="gui-field" data-index="${t}" data-field="slotBackgroundOffsetY" value="${n.slotBackgroundOffsetY??""}" placeholder="0" />\n          <span class="benne-pg-lbl">Highlight tag</span>\n          ${m(a,n.highlightTag,t,"highlightTag")}\n          <span class="benne-pg-lbl">Highlight anchor</span>\n          <select class="gui-field" data-index="${t}" data-field="highlightAnchor">${g(n.highlightAnchor)}</select>\n          <span class="benne-pg-lbl">Highlight offset X</span>\n          <input type="number" class="gui-field" data-index="${t}" data-field="highlightOffsetX" value="${n.highlightOffsetX??""}" placeholder="0" />\n          <span class="benne-pg-lbl">Highlight offset Y</span>\n          <input type="number" class="gui-field" data-index="${t}" data-field="highlightOffsetY" value="${n.highlightOffsetY??""}" placeholder="0" />\n        </div>`:e.usesAseprite?'<p class="muted small" style="margin-top:8px;">No frame tags found on this GUI’s Aseprite JSON — add tags in Aseprite and re-export.</p>':'<p class="muted small" style="margin-top:8px;">Enable <code>display.aseprite</code> to bind sheet tags here.</p>';return`<div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">id</span>\n        <div class="benne-pg-val"><code class="badge">${i(n.controlId||"—")}</code></div>\n        ${d}\n        ${l}\n        <span class="benne-pg-lbl">rows</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="rows" value="${n.rows}" />\n        <span class="benne-pg-lbl">cols</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="cols" value="${n.cols}" />\n        <span class="benne-pg-lbl">slotWidth</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="slotWidth" value="${n.slotWidth}" />\n        <span class="benne-pg-lbl">slotHeight</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="slotHeight" value="${n.slotHeight}" />\n        <span class="benne-pg-lbl">spacingX</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="spacingX" value="${n.spacingX??""}" placeholder="0" />\n        <span class="benne-pg-lbl">spacingY</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="spacingY" value="${n.spacingY??""}" placeholder="0" />\n        <span class="benne-pg-lbl">itemScale</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="itemScale" value="${n.itemScale??""}" placeholder="1" step="0.05" />\n        <span class="benne-pg-lbl">showEmptySlots</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${t}" data-field="showEmptySlots" ${n.showEmptySlots?"checked":""} /></label>\n        <span class="benne-pg-lbl">scrollDirection</span>\n        ${o}\n        <span class="benne-pg-lbl">backButton</span>\n        ${y(s,n.backButton,t,"backButton")}\n        <span class="benne-pg-lbl">forwardButton</span>\n        ${y(s,n.forwardButton,t,"forwardButton")}\n      </div>\n      <div class="benne-scroll-bounds-label muted small">Position</div>\n      ${b(t,n.x,n.y)}\n      ${h(e,t,n.gridPlacement)}\n      ${c}`}if("button"===n.controlKind){const o=`<select class="gui-field" data-index="${t}" data-field="textAlign">\n        <option value="left"${"left"===n.textAlign?" selected":""}>left</option>\n        <option value="center"${""===n.textAlign||"center"===n.textAlign?" selected":""}>center</option>\n        <option value="right"${"right"===n.textAlign?" selected":""}>right</option>\n      </select>`,c=e.usesAseprite&&a.length>0?`<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Sheet</div>\n        <div class="benne-prop-grid benne-prop-grid--tight">\n          <span class="benne-pg-lbl">background anchor</span>\n          <select class="gui-field" data-index="${t}" data-field="backgroundAnchor">${g(n.backgroundAnchor)}</select>\n          <span class="benne-pg-lbl">background offset X</span>\n          <input type="number" class="gui-field" data-index="${t}" data-field="backgroundOffsetX" value="${n.backgroundOffsetX??""}" placeholder="0" />\n          <span class="benne-pg-lbl">background offset Y</span>\n          <input type="number" class="gui-field" data-index="${t}" data-field="backgroundOffsetY" value="${n.backgroundOffsetY??""}" placeholder="0" />\n          <span class="benne-pg-lbl">backgroundTag</span>\n          ${m(a,n.backgroundTag,t,"backgroundTag")}\n          <span class="benne-pg-lbl">state hover</span>\n          ${m(a,n.statesHover,t,"statesHover")}\n          <span class="benne-pg-lbl">state pressed</span>\n          ${m(a,n.statesPressed,t,"statesPressed")}\n          <span class="benne-pg-lbl">state disabled</span>\n          ${m(a,n.statesDisabled,t,"statesDisabled")}\n        </div>`:e.usesAseprite?'<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>':'<p class="muted small" style="margin-top:8px;">Set <code>display.aseprite: true</code> to pick sheet tags.</p>';return`<div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">id</span>\n        <div class="benne-pg-val"><code class="badge">${i(n.controlId||"—")}</code></div>\n        ${d}\n        ${l}\n        <span class="benne-pg-lbl">enabled</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${t}" data-field="enabled" ${n.enabled?"checked":""} /></label>\n        <span class="benne-pg-lbl">text</span>\n        <input type="text" class="gui-field" data-index="${t}" data-field="text" value="${i(n.text)}" />\n        <span class="benne-pg-lbl">font</span>\n        ${v(s,n.font,t)}\n        <span class="benne-pg-lbl">fontSize</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="fontSize" value="${n.fontSize}" />\n        <span class="benne-pg-lbl">textColor</span>\n        <input type="text" class="gui-field" data-index="${t}" data-field="textColor" value="${i(n.textColor)}" />\n        <span class="benne-pg-lbl">textAlign</span>\n        ${o}\n        <span class="benne-pg-lbl">textOffsetX</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="textOffsetX" value="${n.textOffsetX??""}" placeholder="0" />\n        <span class="benne-pg-lbl">textOffsetY</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="textOffsetY" value="${n.textOffsetY??""}" placeholder="0" />\n      </div>\n      <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>\n      ${b(t,n.x,n.y,{width:n.width,height:n.height})}\n      ${c}\n      ${h(e,t,n.gridPlacement)}\n      ${n.controlId?`<div style="margin:8px 0 0;">\n        <button type="button" class="btn-secondary gui-on-click-btn" data-button-id="${i(n.controlId)}">On Click</button>\n      </div>`:'<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> in raw JSON for <code>B.whenButtonClick</code>.</p>'}`}if("image"===n.controlKind){const s=e.usesAseprite&&a.length>0?`<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>\n      <div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">tag</span>\n        ${m(a,n.tag,t,"tag")}\n        <span class="benne-pg-lbl">background anchor</span>\n        <select class="gui-field" data-index="${t}" data-field="backgroundAnchor">${g(n.backgroundAnchor)}</select>\n        <span class="benne-pg-lbl">background offset X</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="backgroundOffsetX" value="${n.backgroundOffsetX??""}" placeholder="0" />\n        <span class="benne-pg-lbl">background offset Y</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="backgroundOffsetY" value="${n.backgroundOffsetY??""}" placeholder="0" />\n      </div>`:e.usesAseprite?'<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>':'<p class="muted small" style="margin-top:8px;">Set <code>display.aseprite: true</code> to use sheet tags.</p>';return`<div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">id</span>\n        <div class="benne-pg-val"><code class="badge">${i(n.controlId||"—")}</code></div>\n        ${d}\n        ${l}\n      </div>\n      <div class="benne-scroll-bounds-label muted small">Position</div>\n      ${b(t,n.x,n.y)}\n      ${h(e,t,n.gridPlacement)}\n      ${s}`}return"trigger"===n.controlKind?`<div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">id</span>\n        <div class="benne-pg-val"><code class="badge">${i(n.controlId||"—")}</code></div>\n        <span class="benne-pg-lbl">name</span>\n        <input type="text" class="gui-field" data-index="${t}" data-field="name" value="${i(n.name)}" placeholder="optional label" />\n        ${l}\n        <span class="benne-pg-lbl">active</span>\n        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${t}" data-field="active" ${n.active?"checked":""} /></label>\n      </div>\n      <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>\n      ${b(t,n.x,n.y,{width:n.width,height:n.height})}\n      ${h(e,t,n.gridPlacement)}\n      <p class="muted small" style="margin:8px 0 0;">Invisible hit zone. Wire <code>B.whenMouseEnter('${i(n.controlId||"id")}', …)</code> and <code>B.whenMouseLeave</code> in <code>*.gui.ts</code>.</p>`:"grid"===n.controlKind?`<div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">id</span>\n        <div class="benne-pg-val"><code class="badge">${i(n.controlId||"—")}</code></div>\n        ${d}\n        ${l}\n        <span class="benne-pg-lbl">rows</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="rows" value="${n.rows}" />\n        <span class="benne-pg-lbl">columns</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="columns" value="${n.columns}" />\n      </div>\n      <div class="benne-scroll-bounds-label muted small">Position</div>\n      ${b(t,n.x,n.y)}\n      <div class="benne-scroll-bounds-label muted small" style="margin-top:8px;">Optional container size</div>\n      <div class="benne-prop-grid benne-prop-grid--tight">\n        <span class="benne-pg-lbl">width</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="width" value="${n.width??""}" placeholder="—" />\n        <span class="benne-pg-lbl">height</span>\n        <input type="number" class="gui-field" data-index="${t}" data-field="height" value="${n.height??""}" placeholder="—" />\n      </div>\n      <p class="muted small" style="margin:8px 0 0;">Optional <code>rowHeights</code> / <code>colWidths</code> arrays: edit in raw JSON.</p>`:'<p class="muted">Unsupported control kind.</p>'}(e,n);return o(e,"guiControl",n.key," benne-card--region",a,s)}).join("");return`<div class="inspector-root">\n  <div class="scroll">\n    <details class="section" open>\n      <summary>GUI metadata</summary>\n      <div class="section-body">\n        <div class="benne-prop-grid benne-prop-grid--tight">\n          <span class="benne-pg-lbl">id</span>\n          <div class="benne-pg-val"><code class="badge">${i(e.guiId)}</code></div>\n          <span class="benne-pg-lbl">name</span>\n          <input type="text" id="gui-name" value="${i(e.name)}" />\n          <span class="benne-pg-lbl">visible</span>\n          <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="gui-visible" ${e.rootVisibleAtLoad?"checked":""} /></label>\n        </div>\n        <label class="benne-field-label muted small">Description</label>\n        <textarea id="gui-description" rows="3">${i(e.description)}</textarea>\n      </div>\n    </details>\n    <details class="section" open>\n      <summary>Controls (${e.controls.length})</summary>\n      <div class="section-body">\n        <div class="benne-section-add-row">\n          <button type="button" class="btn-secondary" id="btn-add-gui-control">Add Control</button>\n        </div>\n        <div class="benne-card-list">${n||'<p class="muted">None</p>'}</div>\n      </div>\n    </details>\n  </div>\n  <div class="footer">\n    <button type="button" class="btn-primary" id="btn-save-gui">Save</button>\n    <button type="button" class="btn-secondary" id="btn-open-json-gui">Open raw JSON</button>\n  </div>\n</div>`}(e),l=N,A&&function(e,n){const t=e.querySelector(".scroll");if(!t)return;const a=t.querySelectorAll(":scope > details.section");for(let e=0;e<n.sections.length&&e<a.length;e++){const t=a.item(e);t instanceof HTMLDetailsElement&&(t.open=n.sections[e])}t.querySelectorAll("details.benne-inspector-item").forEach(e=>{if(!(e instanceof HTMLDetailsElement))return;const t=e.dataset.entity,a=e.dataset.id;if(!t||!a)return;const s=`${t}\0${a}`;Object.prototype.hasOwnProperty.call(n.items,s)&&(e.open=n.items[s])})}(k,A),"room"===e.kind?(function(e){const n=document.getElementById("benne-inspector-app");if(!n)return;const t=()=>{d("applyPatches",{patches:[f()]})};document.getElementById("btn-save")?.addEventListener("click",()=>{t()}),document.getElementById("btn-open-json")?.addEventListener("click",()=>{d("openRawJson",{roomJsonUri:e.roomJsonUri})}),document.getElementById("btn-fit-bg")?.addEventListener("click",()=>{d("fitBackground",{roomJsonUri:e.roomJsonUri})}),document.getElementById("btn-clear-sb")?.addEventListener("click",()=>{d("applyPatches",{patches:[{type:"clearScrollBounds"}]})}),document.getElementById("btn-add-poly")?.addEventListener("click",()=>{d("applyPatches",{patches:[{type:"addWalkablePolygon"}]})}),document.getElementById("btn-add-hole")?.addEventListener("click",()=>{const e=document.getElementById("hole-parent"),n=e?.value??"";n&&d("applyPatches",{patches:[{type:"addWalkableHole",polygonId:n}]})}),n.querySelectorAll("[data-add-room-item]").forEach(e=>{e.addEventListener("click",()=>{const n=e.dataset.addRoomItem??"";n&&d("addRoomItem",{kind:n})})}),["fld-name","fld-w","fld-h","sb-x","sb-y","sb-w","sb-h"].forEach(e=>{document.getElementById(e)?.addEventListener("blur",t)}),n.querySelectorAll(".walk-active").forEach(e=>{e.addEventListener("change",e=>{const n=e.target;d("applyPatches",{patches:[{type:"walkableActive",kind:n.dataset.kind,polygonId:n.dataset.polygon,holeId:n.dataset.hole,rowId:n.dataset.row,active:n.checked}]})})});const a=(e,n)=>{d("applyPatches",{patches:[{type:"propField",id:e,...n}]})};n.querySelectorAll(".prop-desc").forEach(e=>{e.addEventListener("blur",()=>{const n=e;a(n.dataset.id??"",{description:n.value})})}),n.querySelectorAll(".prop-visible, .prop-clickable").forEach(e=>{e.addEventListener("change",()=>{const n=e,t=n.classList.contains("prop-visible")?"visible":"clickable";a(n.dataset.id??"",{[t]:n.checked})})}),n.querySelectorAll(".prop-z, .prop-par, .prop-alpha, .prop-baseline").forEach(e=>{e.addEventListener("change",()=>{const n=e,t=n.dataset.id??"";if(n.classList.contains("prop-z"))a(t,{zIndex:Number(n.value)});else if(n.classList.contains("prop-par"))a(t,{parallaxDepth:Number(n.value)});else if(n.classList.contains("prop-baseline")){const e=n.value.trim(),s=Number(e);a(t,{baseline:""!==e&&Number.isFinite(s)?s:null})}else a(t,{alpha:Number(n.value)})})}),n.querySelectorAll(".prop-tag-select").forEach(e=>{e.addEventListener("change",()=>{const n=e;a(n.dataset.id??"",{tag:n.value})})}),n.querySelectorAll(".prop-default-animation").forEach(e=>{e.addEventListener("blur",()=>{const n=e;a(n.dataset.id??"",{defaultAnimation:n.value})})}),n.querySelectorAll(".prop-default-verb").forEach(e=>{e.addEventListener("change",()=>{const n=e;a(n.dataset.id??"",{defaultVerb:n.value})})}),n.querySelectorAll(".prop-anim-row").forEach(e=>{const n=()=>{if(!(e instanceof HTMLElement))return;const n=e.dataset.propId??"",t=e.dataset.animTag??"";if(!n||!t)return;const a=e.querySelector(".prop-anim-loop"),s=e.querySelector(".prop-anim-dur");if(!a)return;const l=a.checked,i=s?.value??"";d("applyPatches",{patches:[{type:"propAnimation",propId:n,animationTag:t,loop:l,frameDuration:""===i?null:Number(i)}]})};e.querySelectorAll(".prop-anim-loop, .prop-anim-dur").forEach(e=>{e.addEventListener("change",n)})}),n.querySelectorAll(".hs-desc").forEach(e=>{e.addEventListener("blur",()=>{const n=e;d("applyPatches",{patches:[{type:"hotspotField",id:n.dataset.id,description:n.value}]})})}),n.querySelectorAll(".hs-active").forEach(e=>{e.addEventListener("change",()=>{const n=e;d("applyPatches",{patches:[{type:"hotspotField",id:n.dataset.id,active:n.checked}]})})}),n.querySelectorAll(".hs-z").forEach(e=>{e.addEventListener("change",()=>{const n=e;d("applyPatches",{patches:[{type:"hotspotField",id:n.dataset.id,zIndex:Number(n.value)}]})})}),n.querySelectorAll(".hs-baseline").forEach(e=>{e.addEventListener("change",()=>{const n=e,t=n.value.trim(),a=Number(t);d("applyPatches",{patches:[{type:"hotspotField",id:n.dataset.id,baseline:""!==t&&Number.isFinite(a)?a:null}]})})}),n.querySelectorAll(".hs-default-verb").forEach(e=>{e.addEventListener("change",()=>{const n=e;d("applyPatches",{patches:[{type:"hotspotField",id:n.dataset.id,defaultVerb:n.value}]})})}),n.querySelectorAll(".ch-visible").forEach(e=>{e.addEventListener("change",()=>{const n=e;d("applyPatches",{patches:[{type:"characterField",instanceId:n.dataset.id,visible:n.checked}]})})}),n.querySelectorAll(".ch-x, .ch-y, .ch-z, .ch-face, .ch-anim").forEach(e=>{e.addEventListener("blur",()=>{const t=e.dataset.id;if(!t)return;const a=n.querySelector(`.ch-x[data-id="${t}"]`),s=n.querySelector(`.ch-y[data-id="${t}"]`),l=n.querySelector(`.ch-z[data-id="${t}"]`),i=n.querySelector(`.ch-face[data-id="${t}"]`),o=n.querySelector(`.ch-anim[data-id="${t}"]`);d("applyPatches",{patches:[{type:"characterField",instanceId:t,x:Number(a?.value),y:Number(s?.value),zIndex:Number(l?.value),initialFacing:i?.value??"",initialAnimation:o?.value??""}]})})}),n.querySelectorAll(".pt-x, .pt-y").forEach(e=>{e.addEventListener("change",()=>{const t=e.dataset.id;t&&d("applyPatches",{patches:[{type:"pointField",id:t,x:Number(n.querySelector(`.pt-x[data-id="${t}"]`)?.value),y:Number(n.querySelector(`.pt-y[data-id="${t}"]`)?.value)}]})})}),n.querySelectorAll(".rg-active").forEach(e=>{e.addEventListener("change",()=>{const n=e;d("applyPatches",{patches:[{type:"regionActive",id:n.dataset.id,active:n.checked}]})})}),n.querySelectorAll(".rg-scale-walk").forEach(e=>{e.addEventListener("change",()=>{const n=e,t=n.dataset.id;t&&d("applyPatches",{patches:[{type:"regionScaleWalkSpeed",id:t,scaleWalkSpeed:n.checked}]})})}),n.querySelectorAll(".rg-scale-top, .rg-scale-bottom").forEach(e=>{e.addEventListener("change",()=>{const t=e.dataset.id;t&&(e=>{const t=n.querySelector(`.rg-scale-top[data-id="${e}"]`),a=n.querySelector(`.rg-scale-bottom[data-id="${e}"]`),s=Number(t?.value),l=Number(a?.value);Number.isFinite(s)&&Number.isFinite(l)&&d("applyPatches",{patches:[{type:"regionScale",id:e,scaleTop:s,scaleBottom:l}]})})(t)})}),n.querySelectorAll("[data-edit-preview]").forEach(n=>{n.addEventListener("click",()=>{const t=n.dataset.editPreview;if(!t)return;if("walkable"===t){const t=n.dataset.polygon??"";if(!t)return;const a=n.dataset.hole??"";return void d("editRoomPreview",{roomJsonUri:e.roomJsonUri,roomId:e.roomId,kind:"walkable",polygonId:t,holeId:a.length>0?a:""})}if("roomSize"===t||"scrollBounds"===t)return void d("editRoomPreview",{roomJsonUri:e.roomJsonUri,roomId:e.roomId,kind:t,id:""});const a=n.dataset.id;a&&d("editRoomPreview",{roomJsonUri:e.roomJsonUri,roomId:e.roomId,kind:t,id:a})})}),n.querySelectorAll(".verb-chip").forEach(n=>{n.addEventListener("click",()=>{const t=n,a=t.dataset.ctx??"";if(t.dataset.reveal)d("verbReveal",{roomJsonUri:e.roomJsonUri,roomId:e.roomId,eventId:t.dataset.event});else if(t.dataset.add){const n=t.dataset.verb??"";if(a.startsWith("prop:"))d("verbAdd",{roomJsonUri:e.roomJsonUri,roomId:e.roomId,target:"prop",targetId:a.slice(5),verbId:n});else if(a.startsWith("hotspot:"))d("verbAdd",{roomJsonUri:e.roomJsonUri,roomId:e.roomId,target:"hotspot",targetId:a.slice(8),verbId:n});else if(a.startsWith("char:")){const t=a.slice(5),s=t.indexOf(":"),l=s>=0?t.slice(s+1):"";d("verbAdd",{roomJsonUri:e.roomJsonUri,roomId:e.roomId,target:"character",characterId:l,verbId:n})}}})}),n.querySelectorAll(".btn-inv-usedon").forEach(n=>{n.addEventListener("click",()=>{const t=n,a=t.dataset.invTarget,s=t.dataset.invTargetId??"";"prop"!==a&&"hotspot"!==a&&"character"!==a||s&&d("inventoryUsedOnAdd",{roomJsonUri:e.roomJsonUri,roomId:e.roomId,target:a,targetId:s})})})}(e),function(e){e.roomJsonUri!==n&&(n=e.roomJsonUri,t=null);const a=e.expanded;if(!a)return;const s=`${a.entity}\0${a.id}`;s!==t&&(t=s,requestAnimationFrame(()=>{let e=null;const n=document.querySelectorAll(".benne-inspector-item");for(let t=0;t<n.length;t++){const s=n.item(t);if(s instanceof HTMLElement&&s.dataset.entity===a.entity&&s.dataset.id===a.id){e=s;break}}if(!e)return;const t=e.closest("details.section");t&&!t.hasAttribute("open")&&t.setAttribute("open",""),e.hasAttribute("open")||e.setAttribute("open",""),e.scrollIntoView({block:"nearest",behavior:"smooth"})}))}(e)):"character"===e.kind?function(e){const n=()=>{d("applyPatches",{patches:[{type:"characterMeta",name:document.getElementById("char-name")?.value??"",walkSpeed:Number(document.getElementById("char-walk-speed")?.value??"0"),clickable:document.getElementById("char-clickable")?.checked??!1,description:document.getElementById("char-description")?.value??"",walkToPoint:$("char-walk"),talkPoint:$("char-talk"),feet:$("char-feet"),defaultVerb:document.querySelector(".char-default-verb")?.value??""}]})};document.getElementById("btn-save-char")?.addEventListener("click",n),document.getElementById("btn-open-json-char")?.addEventListener("click",()=>{d("openRawJson",{characterJsonUri:e.characterJsonUri})}),["char-name","char-walk-speed","char-clickable","char-description","char-walk-x","char-walk-y","char-talk-x","char-talk-y","char-feet-x","char-feet-y"].forEach(e=>{document.getElementById(e)?.addEventListener("blur",n),document.getElementById(e)?.addEventListener("change",n)}),document.querySelectorAll(".char-default-verb").forEach(e=>{e.addEventListener("change",n)}),document.querySelectorAll(".char-anim-loop, .char-anim-dur").forEach(e=>{e.addEventListener("change",()=>{const n=e.dataset.id??"";if(!n)return;const t=document.querySelector(`.char-anim-loop[data-id="${n}"]`)?.checked??!1,a=document.querySelector(`.char-anim-dur[data-id="${n}"]`)?.value??"";d("applyPatches",{patches:[{type:"characterAnimation",id:n,loop:t,frameDuration:""===a?null:Number(a)}]})})}),document.getElementById("btn-import-char-anims")?.addEventListener("click",()=>{d("importCharacterAnimations")}),document.querySelectorAll(".verb-chip").forEach(n=>{n.addEventListener("click",()=>{const t=n,a=t.dataset.ctx??"";if(t.dataset.reveal)return void d("verbReveal",{characterJsonUri:e.characterJsonUri,characterId:e.characterId,eventId:t.dataset.event});if(!t.dataset.add||!a.startsWith("characterDef:"))return;const s=t.dataset.verb??"";d("verbAdd",{characterJsonUri:e.characterJsonUri,target:"characterDef",characterId:e.characterId,verbId:s})})}),document.querySelectorAll(".btn-inv-usedon-char").forEach(n=>{n.addEventListener("click",()=>{d("inventoryUsedOnAdd",{characterJsonUri:e.characterJsonUri})})})}(e):"inventory"===e.kind?function(e){const n=()=>{d("applyPatches",{patches:[S()]})};document.getElementById("btn-save-inv")?.addEventListener("click",()=>{d("applyPatches",{patches:[S()]})}),document.getElementById("btn-open-json-inv")?.addEventListener("click",()=>{d("openRawJson",{inventoryJsonUri:e.inventoryJsonUri})}),["inv-name","inv-description","inv-stackable","inv-default-animation","inv-cursor-animation","inv-aseprite"].forEach(e=>{document.getElementById(e)?.addEventListener("blur",n),document.getElementById(e)?.addEventListener("change",n)}),document.querySelectorAll(".inv-default-verb").forEach(e=>{e.addEventListener("change",n)}),document.querySelectorAll(".inv-verb-chip").forEach(n=>{n.addEventListener("click",()=>{const t=n;if(t.dataset.reveal)return void d("verbReveal",{inventoryJsonUri:e.inventoryJsonUri,itemId:e.inventoryId,eventId:t.dataset.event});if(!t.dataset.add)return;const a=t.dataset.verb??"";d("verbAdd",{inventoryJsonUri:e.inventoryJsonUri,target:"inventoryDef",itemId:e.inventoryId,verbId:a})})}),document.querySelectorAll(".inv-anim-loop, .inv-anim-dur").forEach(e=>{e.addEventListener("change",()=>{const n=e.dataset.id??"";if(!n)return;const t=document.querySelector(`.inv-anim-loop[data-id="${n}"]`)?.checked??!1,a=document.querySelector(`.inv-anim-dur[data-id="${n}"]`)?.value??"";d("applyPatches",{patches:[{type:"inventoryAnimation",id:n,loop:t,frameDuration:""===a?null:Number(a)}]})})}),document.querySelectorAll(".btn-inv-usedon-inv").forEach(n=>{n.addEventListener("click",()=>{d("inventoryUsedOnAdd",{inventoryJsonUri:e.inventoryJsonUri})})})}(e):"dialog"===e.kind?function(e){const n=()=>{d("applyPatches",{patches:[I()]})},t=()=>{const e=w();e.length>0&&d("applyPatches",{patches:e})};document.getElementById("btn-save-dlg")?.addEventListener("click",()=>{d("applyPatches",{patches:[I(),...w()]})}),document.getElementById("btn-open-json-dlg")?.addEventListener("click",()=>{d("openRawJson",{dialogJsonUri:e.dialogJsonUri})}),document.getElementById("dlg-display-name")?.addEventListener("blur",n),document.getElementById("dlg-gui-id")?.addEventListener("blur",n),document.querySelectorAll(".dlg-opt-id, .dlg-opt-text").forEach(e=>{e.addEventListener("blur",t)}),document.querySelectorAll(".dlg-opt-enabled, .dlg-opt-used, .dlg-opt-say").forEach(e=>{e.addEventListener("change",t)}),document.getElementById("btn-dlg-add-opt")?.addEventListener("click",()=>{d("applyPatches",{patches:[{type:"dialogAddOption"}]})}),document.querySelectorAll(".dlg-opt-script").forEach(n=>{n.addEventListener("click",()=>{const t=n,a=Number(t.dataset.idx??"-1");if(!Number.isInteger(a)||a<0)return;const s=t.closest('[data-entity="dialogOption"]'),l=s?.querySelector(`.dlg-opt-id[data-idx="${a}"]`),i=l?.value?.trim()??"";i&&d("dialogEnsureWhenChoice",{dialogJsonUri:e.dialogJsonUri,optionId:i})})}),document.querySelectorAll(".dlg-opt-remove").forEach(e=>{e.addEventListener("click",()=>{const n=Number(e.dataset.idx??"-1");!Number.isInteger(n)||n<0||d("applyPatches",{patches:[{type:"dialogRemoveOption",index:n}]})})}),function(){const e=document.getElementById("dlg-option-card-list");if(!e)return;let n=-1,t=null;e.addEventListener("mousedown",n=>{const t=n.target?.closest?.(".dlg-opt-drag-handle");t&&e.contains(t)&&n.stopPropagation()}),e.addEventListener("dragstart",a=>{const s=a.target?.closest?.(".dlg-opt-drag-handle");if(!s||!e.contains(s))return;const l=Number(s.dataset.idx??"-1");if(!Number.isInteger(l)||l<0)return;n=l,t=s.closest('[data-entity="dialogOption"]'),t?.classList.add("benne-dlg-opt--dragging");const i=a.dataTransfer;i&&(i.setData("text/plain",String(l)),i.effectAllowed="move")}),e.addEventListener("dragend",()=>{n=-1,t?.classList.remove("benne-dlg-opt--dragging"),t=null,e.querySelectorAll(".benne-dlg-opt--drag-over").forEach(e=>e.classList.remove("benne-dlg-opt--drag-over"))}),e.addEventListener("dragover",t=>{if(n<0)return;const a=t.target?.closest?.('[data-entity="dialogOption"]');if(!a||!e.contains(a))return;t.preventDefault();const s=t.dataTransfer;s&&(s.dropEffect="move"),e.querySelectorAll(".benne-dlg-opt--drag-over").forEach(e=>e.classList.remove("benne-dlg-opt--drag-over")),a.classList.add("benne-dlg-opt--drag-over")}),e.addEventListener("drop",a=>{if(n<0)return;const s=a.target?.closest?.('[data-entity="dialogOption"]');if(!s||!e.contains(s))return;a.preventDefault(),e.querySelectorAll(".benne-dlg-opt--drag-over").forEach(e=>e.classList.remove("benne-dlg-opt--drag-over"));const l=Number(s.dataset.id??"-1"),i=n;n=-1,t?.classList.remove("benne-dlg-opt--dragging"),t=null,!Number.isInteger(i)||i<0||!Number.isInteger(l)||l<0||i===l||d("applyPatches",{patches:[{type:"dialogReorderOption",fromIndex:i,toIndex:l}]})})}()}(e):(E(e),function(e){e.guiJsonUri!==a&&(a=e.guiJsonUri,s=null);const n=e.expanded;if(!n)return;const t=`${n.entity}\0${n.id}`;t!==s&&(s=t,requestAnimationFrame(()=>{let e=null;const t=document.querySelectorAll(".benne-inspector-item");for(let a=0;a<t.length;a++){const s=t.item(a);if(s instanceof HTMLElement&&s.dataset.entity===n.entity&&s.dataset.id===n.id){e=s;break}}if(!e)return;const a=e.closest("details.section");a&&!a.hasAttribute("open")&&a.setAttribute("open",""),e.hasAttribute("open")||e.setAttribute("open",""),e.scrollIntoView({block:"nearest",behavior:"smooth"})}))}(e))}window.addEventListener("message",e=>{const n=e.data;"benne/inspector/state"===n?.type&&n.state&&A(n.state)}),A({kind:"empty",message:"Loading…"})})()})();
+/******/ (() => { // webpackBootstrap
+/******/ 	"use strict";
+var __webpack_exports__ = {};
+// This entry needs to be wrapped in an IIFE because it uses a non-standard name for the exports (exports).
+(() => {
+var exports = __webpack_exports__;
+
+/** BENNE Inspector webview (bundled for `media/inspector/inspector.js`). */
+/// <reference lib="dom" />
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+let vscodeApi = null;
+try {
+    vscodeApi = acquireVsCodeApi();
+}
+catch {
+    /* */
+}
+/** Avoid re-scrolling when the same tree item stays selected but room state `rev` bumps. */
+let lastInspectorScrollRoomUri = null;
+let lastInspectorScrollExpandedKey = null;
+/** Same as room scroll de-dupe, for GUI Inspector control cards. */
+let lastInspectorScrollGuiUri = null;
+let lastInspectorScrollGuiExpandedKey = null;
+/** Last room URI we preserved accordion state for (same file, new `rev`). */
+let lastInspectorPreserveRoomUri = null;
+function inspectorStateKey(state) {
+    if (state.kind === 'room') {
+        return `room:${state.roomJsonUri}`;
+    }
+    if (state.kind === 'character') {
+        return `character:${state.characterJsonUri}`;
+    }
+    if (state.kind === 'gui') {
+        return `gui:${state.guiJsonUri}`;
+    }
+    if (state.kind === 'inventory') {
+        return `inventory:${state.inventoryJsonUri}`;
+    }
+    return `dialog:${state.dialogJsonUri}`;
+}
+function captureInspectorOpenState(root) {
+    const scroll = root.querySelector('.scroll');
+    if (!scroll) {
+        return null;
+    }
+    const sections = [];
+    scroll.querySelectorAll(':scope > details.section').forEach((el) => {
+        if (el instanceof HTMLDetailsElement) {
+            sections.push(el.open);
+        }
+    });
+    const items = {};
+    scroll.querySelectorAll('details.benne-inspector-item').forEach((node) => {
+        if (!(node instanceof HTMLDetailsElement)) {
+            return;
+        }
+        const entity = node.dataset.entity;
+        const id = node.dataset.id;
+        if (entity && id) {
+            items[`${entity}\0${id}`] = node.open;
+        }
+    });
+    return { sections, items };
+}
+function restoreInspectorOpenState(root, captured) {
+    const scroll = root.querySelector('.scroll');
+    if (!scroll) {
+        return;
+    }
+    const sectionEls = scroll.querySelectorAll(':scope > details.section');
+    for (let i = 0; i < captured.sections.length && i < sectionEls.length; i++) {
+        const el = sectionEls.item(i);
+        if (el instanceof HTMLDetailsElement) {
+            el.open = captured.sections[i];
+        }
+    }
+    scroll.querySelectorAll('details.benne-inspector-item').forEach((node) => {
+        if (!(node instanceof HTMLDetailsElement)) {
+            return;
+        }
+        const entity = node.dataset.entity;
+        const id = node.dataset.id;
+        if (!entity || !id) {
+            return;
+        }
+        const key = `${entity}\0${id}`;
+        if (Object.prototype.hasOwnProperty.call(captured.items, key)) {
+            node.open = captured.items[key];
+        }
+    });
+}
+function scrollExpandedCardIntoView(state) {
+    if (state.roomJsonUri !== lastInspectorScrollRoomUri) {
+        lastInspectorScrollRoomUri = state.roomJsonUri;
+        lastInspectorScrollExpandedKey = null;
+    }
+    const ex = state.expanded;
+    if (!ex) {
+        return;
+    }
+    const key = `${ex.entity}\0${ex.id}`;
+    if (key === lastInspectorScrollExpandedKey) {
+        return;
+    }
+    lastInspectorScrollExpandedKey = key;
+    const run = () => {
+        let item = null;
+        const nodes = document.querySelectorAll('.benne-inspector-item');
+        for (let i = 0; i < nodes.length; i++) {
+            const el = nodes.item(i);
+            if (el instanceof HTMLElement && el.dataset.entity === ex.entity && el.dataset.id === ex.id) {
+                item = el;
+                break;
+            }
+        }
+        if (!item) {
+            return;
+        }
+        const section = item.closest('details.section');
+        if (section && !section.hasAttribute('open')) {
+            section.setAttribute('open', '');
+        }
+        if (!item.hasAttribute('open')) {
+            item.setAttribute('open', '');
+        }
+        item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
+    requestAnimationFrame(run);
+}
+function scrollExpandedGuiCardIntoView(state) {
+    if (state.guiJsonUri !== lastInspectorScrollGuiUri) {
+        lastInspectorScrollGuiUri = state.guiJsonUri;
+        lastInspectorScrollGuiExpandedKey = null;
+    }
+    const ex = state.expanded;
+    if (!ex) {
+        return;
+    }
+    const key = `${ex.entity}\0${ex.id}`;
+    if (key === lastInspectorScrollGuiExpandedKey) {
+        return;
+    }
+    lastInspectorScrollGuiExpandedKey = key;
+    const run = () => {
+        let item = null;
+        const nodes = document.querySelectorAll('.benne-inspector-item');
+        for (let i = 0; i < nodes.length; i++) {
+            const el = nodes.item(i);
+            if (el instanceof HTMLElement && el.dataset.entity === ex.entity && el.dataset.id === ex.id) {
+                item = el;
+                break;
+            }
+        }
+        if (!item) {
+            return;
+        }
+        const section = item.closest('details.section');
+        if (section && !section.hasAttribute('open')) {
+            section.setAttribute('open', '');
+        }
+        if (!item.hasAttribute('open')) {
+            item.setAttribute('open', '');
+        }
+        item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
+    requestAnimationFrame(run);
+}
+function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+}
+function post(action, payload) {
+    vscodeApi?.postMessage({ action, ...payload });
+}
+function inspectorItemExpanded(state, entity, id) {
+    const ex = state.expanded;
+    return !!(ex && ex.entity === entity && ex.id === id);
+}
+function renderInspectorItem(state, entity, id, cardModifierClasses, summaryInnerHtml, bodyInnerHtml) {
+    const open = inspectorItemExpanded(state, entity, id) ? ' open' : '';
+    return `<details class="benne-inspector-item benne-card${cardModifierClasses}" data-entity="${esc(entity)}" data-id="${esc(id)}"${open}>
+  <summary class="benne-inspector-item-summary">${summaryInnerHtml}</summary>
+  <div class="benne-inspector-item-body">${bodyInnerHtml}</div>
+</details>`;
+}
+function renderVerbChipRow(roomJsonUri, roomId, verbs, ctx) {
+    void roomJsonUri;
+    void roomId;
+    if (verbs.length === 0) {
+        return '<div class="benne-verb-chips benne-verb-chips--empty"><span class="muted small">No verbs</span></div>';
+    }
+    const inner = verbs
+        .map((v) => {
+        const def = v.defined;
+        const icon = def ? '⚡' : '+';
+        const cls = def ? 'verb-chip verb-defined' : 'verb-chip verb-add';
+        const dataReveal = def ? `data-reveal="1" data-event="${esc(v.eventId)}"` : '';
+        const dataAdd = !def && !v.isFallback ? `data-add="1" data-verb="${esc(v.verbId)}"` : '';
+        return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} data-ctx="${esc(ctx)}" title="${esc(v.label)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(v.verbId)}</span></button>`;
+    })
+        .join('');
+    return `<div class="benne-verb-chips">${inner}</div>`;
+}
+function renderInventoryUsedOnInvRoomButton(target, targetId) {
+    return `<div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <button type="button" class="btn-secondary btn-inv-usedon" data-inv-target="${esc(target)}" data-inv-target-id="${esc(targetId)}" title="Insert B.whenInventoryUsedOn stub in the room script">Inv</button>
+    <span class="muted small"><code>B.whenInventoryUsedOn</code> (room script)</span>
+  </div>`;
+}
+function renderInventoryUsedOnInvCharacterDefButton() {
+    return `<div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <button type="button" class="btn-secondary btn-inv-usedon-char" title="Insert B.whenInventoryUsedOn stub in the character script">Inv</button>
+    <span class="muted small"><code>B.whenInventoryUsedOn</code> (character script)</span>
+  </div>`;
+}
+function renderInventoryUsedOnInvInventoryItemButton() {
+    return `<div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <button type="button" class="btn-secondary btn-inv-usedon-inv" title="Insert B.whenInventoryUsedOn stub in the inventory item script">Inv</button>
+    <span class="muted small"><code>B.whenInventoryUsedOn</code> (inventory script)</span>
+  </div>`;
+}
+/**
+ * Renders the per-clickable "Default verb" dropdown. The selected value is the currently-authored
+ * verb (falling back to `"look"` when JSON omits `defaultVerb`). Classes below drive the change
+ * handlers installed in each panel's mount function.
+ */
+function renderDefaultVerbSelect(cls, dataAttr, current, available, extra = '') {
+    const ids = new Set(available.map((v) => v.id));
+    // If the authored value is unknown (e.g. verb was removed from game-config), include it as a
+    // selected option so the Inspector doesn't silently rewrite the value on the next save.
+    const rows = [];
+    if (current && !ids.has(current)) {
+        rows.push(`<option value="${esc(current)}" selected>${esc(current)} (missing)</option>`);
+    }
+    for (const v of available) {
+        const label = (v.label && v.label.trim().length > 0 ? v.label : v.id).trim();
+        const sel = v.id === current ? ' selected' : '';
+        rows.push(`<option value="${esc(v.id)}"${sel}>${esc(label)}</option>`);
+    }
+    return `<select class="${cls}" ${dataAttr} ${extra}>${rows.join('')}</select>`;
+}
+function renderRoom(state) {
+    const sz = state.size;
+    const sb = state.scrollBounds;
+    const walkRows = state.walkableRows
+        .map((r) => {
+        return `<tr>
+        <td>${esc(r.kind)}</td>
+        <td>${esc(r.id)}</td>
+        <td><input type="checkbox" class="walk-active" data-polygon="${esc(r.polygonId)}" data-hole="${esc(r.holeId ?? '')}" data-kind="${esc(r.kind)}" data-row="${esc(r.id)}" ${r.active ? 'checked' : ''} /></td>
+        <td><button type="button" class="btn-link" data-edit-preview="walkable" data-polygon="${esc(r.polygonId)}" data-hole="${esc(r.holeId ?? '')}">Edit</button></td>
+      </tr>`;
+    })
+        .join('');
+    const polyOptions = state.walkableRows
+        .filter((r) => r.kind === 'polygon')
+        .map((r) => `<option value="${esc(r.polygonId)}">${esc(r.id)}</option>`)
+        .join('');
+    const propCards = state.props
+        .map((p) => {
+        const title = esc(p.tag ?? p.id);
+        const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, p.verbs, `prop:${p.id}`);
+        const tagTrim = typeof p.tag === 'string' ? p.tag.trim() : '';
+        const tagSelectOptions = p.animations.length > 0
+            ? (() => {
+                let inner = p.animations
+                    .map((a) => {
+                    const sel = a.id === tagTrim ? ' selected' : '';
+                    return `<option value="${esc(a.id)}"${sel}>${esc(a.id)}</option>`;
+                })
+                    .join('');
+                if (tagTrim.length > 0 && !p.animations.some((a) => a.id === tagTrim)) {
+                    inner = `<option value="${esc(tagTrim)}" selected>${esc(tagTrim)}</option>${inner}`;
+                }
+                return inner;
+            })()
+            : `<option value="${esc(tagTrim || p.id)}" selected>${esc(tagTrim || p.id)}</option>`;
+        const animRows = p.animations
+            .map((anim) => {
+            const rowKey = `${esc(p.id)}::${esc(anim.id)}`;
+            const summary = `<div class="benne-card-titles">
+        <div class="benne-card-title">${esc(anim.id)}</div>
+        <div class="benne-card-sub muted">Aseprite clip</div>
+      </div>`;
+            const body = `<div class="benne-prop-grid benne-prop-grid--tight prop-anim-row" data-prop-id="${esc(p.id)}" data-anim-tag="${esc(anim.id)}">
+        <span class="benne-pg-lbl">loop</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-anim-loop" ${anim.loop ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">frameDuration</span>
+        <input type="number" class="prop-anim-dur" value="${anim.frameDuration ?? ''}" min="1" step="1" placeholder="(Aseprite)" title="Leave blank to use per-frame durations from the Aseprite export" />
+      </div>`;
+            return renderInspectorItem(state, 'propAnimation', rowKey, ' benne-card--character', summary, body);
+        })
+            .join('');
+        const animSubbody = p.animations.length > 0
+            ? `<div class="benne-card-subsection-body"><div class="benne-card-list">${animRows}</div></div>`
+            : `<div class="benne-card-subsection-body">
+        <p class="muted small">No animation clips listed — add <code>animations</code> in JSON or ensure the room sheet has matching frame tags.</p>
+      </div>`;
+        const animSection = `<details class="benne-card-subsection">
+      <summary>Animations (${p.animations.length})</summary>
+      ${animSubbody}
+    </details>`;
+        const propClickableCls = p.clickable ? ' benne-card--prop-clickable' : '';
+        const propActions = p.clickable
+            ? `<div class="benne-card-actions">
+        <div class="benne-card-actions-inner">
+          <button type="button" class="btn-link" data-edit-preview="prop" data-id="${esc(p.id)}">Edit in Preview →</button>
+        </div>
+      </div>`
+            : '';
+        const summary = `<div class="benne-card-titles">
+          <div class="benne-card-title tag">${title}</div>
+          <div class="benne-card-sub muted">${esc(p.id)}</div>
+        </div>`;
+        const body = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">Visible</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-visible" data-id="${esc(p.id)}" ${p.visible ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">zIndex</span>
+        <input type="number" class="prop-z" data-id="${esc(p.id)}" value="${p.zIndex}" />
+        <span class="benne-pg-lbl">baseline Y</span>
+        <input type="number" step="1" class="prop-baseline" data-id="${esc(p.id)}" value="${p.baseline ?? ''}" placeholder="—" title="Optional room-space Y: walkers with feet below this line draw in front of this prop" />
+        <span class="benne-pg-lbl">Parallax</span>
+        <input type="number" step="0.05" class="prop-par" data-id="${esc(p.id)}" value="${p.parallaxDepth}" />
+        <span class="benne-pg-lbl">Alpha</span>
+        <input type="number" step="0.05" min="0" max="1" class="prop-alpha" data-id="${esc(p.id)}" value="${p.alpha}" />
+        <span class="benne-pg-lbl">Clickable</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-clickable" data-id="${esc(p.id)}" ${p.clickable ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">Displayed tag</span>
+        <select class="prop-tag-select" data-id="${esc(p.id)}" title="Aseprite frame tag shown for this prop">${tagSelectOptions}</select>
+        <span class="benne-pg-lbl">Family root</span>
+        <input type="text" class="prop-default-animation" data-id="${esc(p.id)}" value="${esc(p.defaultAnimation)}" placeholder="(optional) e.g. door when id differs" title="Optional second root for &lt;root&gt;-* tag grouping alongside prop id" />
+      </div>
+      <label class="benne-field-label muted small">Description</label>
+      <textarea class="benne-card-desc prop-desc" data-id="${esc(p.id)}" rows="2" title="${esc(p.description)}">${esc(p.description)}</textarea>
+      <label class="benne-field-label muted small">Default verb</label>
+      ${p.clickable
+            ? renderDefaultVerbSelect('prop-default-verb', `data-id="${esc(p.id)}"`, p.defaultVerb, p.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this prop"')
+            : '<span class="muted small">(not clickable)</span>'}
+      <label class="benne-field-label muted small">Verbs</label>
+      ${verbHtml}
+      ${p.clickable ? renderInventoryUsedOnInvRoomButton('prop', p.id) : ''}
+      ${animSection}
+      ${propActions}`;
+        return renderInspectorItem(state, 'prop', p.id, ` benne-card--prop${propClickableCls}`, summary, body);
+    })
+        .join('');
+    const hotspotCards = state.hotspots
+        .map((h) => {
+        const inactive = !h.active ? '<div class="banner">Inactive (not hit-tested)</div>' : '';
+        const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, h.verbs, `hotspot:${h.id}`);
+        const headTitle = esc(h.description.trim() ? h.description.trim() : h.id);
+        const summary = `<div class="benne-card-titles">
+          <div class="benne-card-title">${headTitle}</div>
+          <div class="benne-card-sub muted">${esc(h.id)}</div>
+        </div>`;
+        const body = `${inactive}
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">Active</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="hs-active" data-id="${esc(h.id)}" ${h.active ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">zIndex</span>
+        <input type="number" class="hs-z" data-id="${esc(h.id)}" value="${h.zIndex}" />
+        <span class="benne-pg-lbl">baseline Y</span>
+        <input type="number" step="1" class="hs-baseline" data-id="${esc(h.id)}" value="${h.baseline ?? ''}" placeholder="—" title="Optional room-space Y: walkers with feet below this line draw in front of this hotspot zone" />
+      </div>
+      <label class="benne-field-label muted small">Description</label>
+      <textarea class="benne-card-desc hs-desc" data-id="${esc(h.id)}" rows="2" title="${esc(h.description)}">${esc(h.description)}</textarea>
+      <label class="benne-field-label muted small">Default verb</label>
+      ${renderDefaultVerbSelect('hs-default-verb', `data-id="${esc(h.id)}"`, h.defaultVerb, h.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this hotspot"')}
+      <label class="benne-field-label muted small">Verbs</label>
+      ${verbHtml}
+      ${h.active ? renderInventoryUsedOnInvRoomButton('hotspot', h.id) : ''}
+      <div class="benne-card-actions">
+        <div class="benne-card-actions-inner">
+          <button type="button" class="btn-link" data-edit-preview="hotspot" data-id="${esc(h.id)}">Edit in Preview →</button>
+        </div>
+      </div>`;
+        return renderInspectorItem(state, 'hotspot', h.id, ' benne-card--hotspot', summary, body);
+    })
+        .join('');
+    const charCards = state.characters
+        .map((c) => {
+        const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, c.verbs, `char:${c.instanceId}:${c.characterId}`);
+        const clickHint = !c.characterClickable
+            ? '<div class="banner">Character definition is not clickable — enable in character JSON first.</div>'
+            : '';
+        const summary = `<div class="benne-card-titles">
+          <div class="benne-card-title">${esc(c.characterId)}</div>
+          <div class="benne-card-sub muted">${esc(c.instanceId)}</div>
+        </div>`;
+        const body = `${clickHint}
+      <div class="benne-dim-grid" role="group" aria-label="Position">
+        <span class="benne-dim-lbl">X</span>
+        <input type="number" class="ch-x" data-id="${esc(c.instanceId)}" value="${c.x}" />
+        <span class="benne-dim-lbl">Y</span>
+        <input type="number" class="ch-y" data-id="${esc(c.instanceId)}" value="${c.y}" />
+      </div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">Visible</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="ch-visible" data-id="${esc(c.instanceId)}" ${c.visible ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">Clickable</span>
+        <label class="benne-pg-check benne-inline-check" title="Defined in character JSON"><input type="checkbox" ${c.characterClickable ? 'checked' : ''} disabled /></label>
+        <span class="benne-pg-lbl">zIndex</span>
+        <input type="number" class="ch-z" data-id="${esc(c.instanceId)}" value="${c.zIndex}" />
+        <span class="benne-pg-lbl">Facing</span>
+        <input type="text" class="ch-face" data-id="${esc(c.instanceId)}" value="${esc(c.initialFacing ?? '')}" />
+        <span class="benne-pg-lbl">Animation</span>
+        <input type="text" class="ch-anim" data-id="${esc(c.instanceId)}" value="${esc(c.initialAnimation ?? '')}" />
+      </div>
+      <label class="benne-field-label muted small">Default verb</label>
+      <div class="benne-prop-grid benne-prop-grid--tight" title="Edit from the character Inspector; stored in the character's own JSON.">
+        <span class="benne-pg-lbl">${esc(c.defaultVerb)}</span>
+        <span class="muted small">(from character JSON)</span>
+      </div>
+      <label class="benne-field-label muted small">Verbs</label>
+      ${verbHtml}
+      ${c.characterClickable ? renderInventoryUsedOnInvRoomButton('character', c.characterId) : ''}`;
+        return renderInspectorItem(state, 'character', c.instanceId, ' benne-card--character', summary, body);
+    })
+        .join('');
+    const pointCards = state.points
+        .map((pt) => {
+        const summary = `<div class="benne-card-titles">
+          <div class="benne-card-title">${esc(pt.id)}</div>
+          <div class="benne-card-sub muted">Room point</div>
+        </div>`;
+        const body = `<div class="benne-dim-grid" role="group" aria-label="Position">
+        <span class="benne-dim-lbl">X</span>
+        <input type="number" class="pt-x" data-id="${esc(pt.id)}" value="${pt.x}" />
+        <span class="benne-dim-lbl">Y</span>
+        <input type="number" class="pt-y" data-id="${esc(pt.id)}" value="${pt.y}" />
+      </div>
+      <div class="benne-card-actions">
+        <div class="benne-card-actions-inner">
+          <button type="button" class="btn-link" data-edit-preview="point" data-id="${esc(pt.id)}">Edit in Preview →</button>
+        </div>
+      </div>`;
+        return renderInspectorItem(state, 'point', pt.id, ' benne-card--point', summary, body);
+    })
+        .join('');
+    const regionCards = state.regions
+        .map((r) => {
+        const summary = `<div class="benne-card-titles">
+          <div class="benne-card-title">${esc(r.id)}</div>
+          <div class="benne-card-sub muted">${r.pointCount} points</div>
+        </div>`;
+        const body = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">Active</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-active" data-id="${esc(r.id)}" ${r.active ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl" title="Scale at top of region (smaller Y). 1 = normal.">Scale top</span>
+        <input type="number" class="rg-scale-top" data-id="${esc(r.id)}" value="${r.scaleTop}" step="0.05" />
+        <span class="benne-pg-lbl" title="Scale at bottom of region (larger Y).">Scale bottom</span>
+        <input type="number" class="rg-scale-bottom" data-id="${esc(r.id)}" value="${r.scaleBottom}" step="0.05" />
+        <span class="benne-pg-lbl" title="Slow or speed up walking by the same perspective factor as sprite scale (see game-config perspective).">Scale walk speed</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-scale-walk" data-id="${esc(r.id)}" ${r.scaleWalkSpeed ? 'checked' : ''} /></label>
+      </div>
+      <div class="benne-card-actions">
+        <div class="benne-card-actions-inner">
+          <button type="button" class="btn-link" data-edit-preview="region" data-id="${esc(r.id)}">Edit in Preview →</button>
+        </div>
+      </div>`;
+        return renderInspectorItem(state, 'region', r.id, ' benne-card--region', summary, body);
+    })
+        .join('');
+    return `
+<div class="inspector-root">
+  <div class="scroll">
+    <details class="section" open>
+      <summary>Room metadata</summary>
+      <div class="section-body">
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">Display name</span>
+          <input type="text" id="fld-name" value="${esc(state.displayName)}" />
+          <span class="benne-pg-lbl">Room ID</span>
+          <div class="benne-pg-val"><code class="badge">${esc(state.roomId)}</code></div>
+        </div>
+        <div class="benne-room-size-hint muted small">Room size</div>
+        <div class="benne-dim-grid" role="group" aria-label="Room size">
+          <span class="benne-dim-lbl">W</span>
+          <input type="number" id="fld-w" value="${sz ? sz.width : ''}" placeholder="352" />
+          <span class="benne-dim-lbl">H</span>
+          <input type="number" id="fld-h" value="${sz ? sz.height : ''}" placeholder="198" />
+        </div>
+        <div style="margin-top:4px;">
+          <button type="button" class="btn-link" data-edit-preview="roomSize">Edit in Preview</button>
+        </div>
+        <button type="button" class="btn-secondary" id="btn-fit-bg" ${state.canFitBackground ? '' : 'disabled'} title="Set room size from PNG background dimensions">Fit to background</button>
+        <div class="benne-scroll-bounds-label muted small">Scroll bounds (leave blank to omit)</div>
+        <div class="benne-dim-grid" role="group" aria-label="Scroll bounds">
+          <span class="benne-dim-lbl">X</span>
+          <input type="number" id="sb-x" value="${sb ? sb.x : ''}" />
+          <span class="benne-dim-lbl">Y</span>
+          <input type="number" id="sb-y" value="${sb ? sb.y : ''}" />
+          <span class="benne-dim-lbl">W</span>
+          <input type="number" id="sb-w" value="${sb ? sb.width : ''}" />
+          <span class="benne-dim-lbl">H</span>
+          <input type="number" id="sb-h" value="${sb ? sb.height : ''}" />
+        </div>
+        <div style="margin-top:4px;">
+          <button type="button" class="btn-link" data-edit-preview="scrollBounds">Edit in Preview</button>
+        </div>
+        <button type="button" class="btn-secondary" id="btn-clear-sb">Clear scroll bounds</button>
+      </div>
+    </details>
+
+    <details class="section">
+      <summary>Walkable areas</summary>
+      <div class="section-body">
+        <table class="grid">
+          <thead><tr><th>Kind</th><th>Id</th><th>Active</th><th></th></tr></thead>
+          <tbody>${walkRows || '<tr><td colspan="4" class="muted">None</td></tr>'}</tbody>
+        </table>
+        <div class="row wrap">
+          <button type="button" class="btn-secondary" id="btn-add-poly">Add walkable polygon</button>
+          <button type="button" class="btn-secondary" id="btn-add-hole">Add hole to</button>
+          <select id="hole-parent">${polyOptions || '<option value="">(add polygon first)</option>'}</select>
+        </div>
+      </div>
+    </details>
+
+    <details class="section">
+      <summary>Hotspots (${state.hotspots.length})</summary>
+      <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" data-add-room-item="hotspot">Add Hotspot</button>
+        </div>
+        <div class="benne-card-list">${hotspotCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+    <details class="section">
+      <summary>Props (${state.props.length})</summary>
+      <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" data-add-room-item="prop">Add Prop</button>
+        </div>
+        <div class="benne-card-list">${propCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+    <details class="section">
+      <summary>Spawned characters (${state.characters.length})</summary>
+      <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" data-add-room-item="character">Add Character</button>
+        </div>
+        <div class="benne-card-list">${charCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+    <details class="section">
+      <summary>Points (${state.points.length})</summary>
+      <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" data-add-room-item="point">Add Point</button>
+        </div>
+        <div class="benne-card-list">${pointCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+    <details class="section">
+      <summary>Regions (${state.regions.length})</summary>
+      <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" data-add-room-item="region">Add Region</button>
+        </div>
+        <div class="benne-card-list">${regionCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+  </div>
+  <div class="footer">
+    <button type="button" class="btn-primary" id="btn-save">Save</button>
+    <button type="button" class="btn-secondary" id="btn-open-json">Open raw JSON</button>
+  </div>
+</div>`;
+}
+function pointInputs(prefix, value) {
+    return `<div class="benne-dim-grid" role="group" aria-label="${esc(prefix)}">
+  <span class="benne-dim-lbl">X</span>
+  <input type="number" id="${esc(prefix)}-x" value="${value ? value.x : ''}" />
+  <span class="benne-dim-lbl">Y</span>
+  <input type="number" id="${esc(prefix)}-y" value="${value ? value.y : ''}" />
+</div>`;
+}
+function guiDimInputsForControl(index, x, y, size) {
+    const prefix = `gui-c${index}-pos`;
+    const whRow = size != null
+        ? `
+  <span class="benne-dim-lbl">W</span>
+  <input type="number" class="gui-field" data-index="${index}" data-field="width" id="${esc(prefix)}-w" value="${size.width}" />
+  <span class="benne-dim-lbl">H</span>
+  <input type="number" class="gui-field" data-index="${index}" data-field="height" id="${esc(prefix)}-h" value="${size.height}" />`
+        : '';
+    const aria = size != null ? 'Position and size' : 'Position';
+    return `<div class="benne-dim-grid" role="group" aria-label="${aria}">
+  <span class="benne-dim-lbl">X</span>
+  <input type="number" class="gui-field" data-index="${index}" data-field="x" id="${esc(prefix)}-x" value="${x}" />
+  <span class="benne-dim-lbl">Y</span>
+  <input type="number" class="gui-field" data-index="${index}" data-field="y" id="${esc(prefix)}-y" value="${y}" />${whRow}
+</div>`;
+}
+function guiAnchorSelectOptions(val) {
+    const opts = [
+        ['', '(default)'],
+        ['top-left', 'top-left'],
+        ['center', 'center'],
+        ['screen', 'screen']
+    ];
+    return opts
+        .map(([v, lab]) => `<option value="${esc(v)}"${val === v ? ' selected' : ''}>${esc(lab)}</option>`)
+        .join('');
+}
+function guiSheetTagSelectHtml(tags, current, dataIndex, dataField) {
+    const cur = current.trim();
+    let inner = `<option value="">(none)</option>`;
+    const tagSet = new Set(tags);
+    if (cur.length > 0 && !tagSet.has(cur)) {
+        inner += `<option value="${esc(cur)}" selected>${esc(cur)} (missing from sheet)</option>`;
+    }
+    for (const t of tags) {
+        const sel = t === cur ? ' selected' : '';
+        inner += `<option value="${esc(t)}"${sel}>${esc(t)}</option>`;
+    }
+    return `<select class="gui-field" data-index="${dataIndex}" data-field="${esc(dataField)}">${inner}</select>`;
+}
+function guiFontSelectHtml(fontIds, current, dataIndex) {
+    const set = new Set(fontIds);
+    let inner = '';
+    if (current.length > 0 && !set.has(current)) {
+        inner += `<option value="${esc(current)}" selected>${esc(current)} (not in fonts.json)</option>`;
+    }
+    for (const f of fontIds) {
+        const sel = f === current ? ' selected' : '';
+        inner += `<option value="${esc(f)}"${sel}>${esc(f)}</option>`;
+    }
+    return `<select class="gui-field" data-index="${dataIndex}" data-field="font">${inner}</select>`;
+}
+function guiGridControlIds(state) {
+    return state.controls
+        .filter((c) => c.controlKind === 'grid')
+        .map((c) => c.controlId.trim())
+        .filter((id) => id.length > 0);
+}
+function guiGridCellAlignSelectOptions(val) {
+    const opts = [
+        ['', '(default top-left)'],
+        ['top-left', 'top-left'],
+        ['top-center', 'top-center'],
+        ['top-right', 'top-right'],
+        ['center-left', 'center-left'],
+        ['center', 'center'],
+        ['center-right', 'center-right'],
+        ['bottom-left', 'bottom-left'],
+        ['bottom-center', 'bottom-center'],
+        ['bottom-right', 'bottom-right']
+    ];
+    return opts
+        .map(([v, lab]) => `<option value="${esc(v)}"${val === v ? ' selected' : ''}>${esc(lab)}</option>`)
+        .join('');
+}
+function guiGridPlacementEditorHtml(state, idx, gp) {
+    const grids = guiGridControlIds(state);
+    if (grids.length === 0) {
+        return `<p class="muted small" style="margin-top:10px;">Add a <strong>grid</strong> control to place this widget in a cell (<code>gridPlacement</code>).</p>`;
+    }
+    const curGrid = gp?.gridControlId?.trim() ?? '';
+    let gridOpts = '<option value="">— none —</option>';
+    const gset = new Set(grids);
+    if (curGrid && !gset.has(curGrid)) {
+        gridOpts += `<option value="${esc(curGrid)}" selected>${esc(curGrid)} (missing)</option>`;
+    }
+    for (const g of grids) {
+        gridOpts += `<option value="${esc(g)}"${g === curGrid ? ' selected' : ''}>${esc(g)}</option>`;
+    }
+    return `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Grid placement</div>
+<div class="benne-prop-grid benne-prop-grid--tight" data-gp-wrap="${idx}">
+  <span class="benne-pg-lbl">grid id</span>
+  <select class="gui-gp-field" data-gp="gridId">${gridOpts}</select>
+  <span class="benne-pg-lbl">row</span>
+  <input type="number" class="gui-gp-field" data-gp="row" value="${gp?.row ?? 0}" step="1" />
+  <span class="benne-pg-lbl">col</span>
+  <input type="number" class="gui-gp-field" data-gp="col" value="${gp?.col ?? 0}" step="1" />
+  <span class="benne-pg-lbl">rowspan</span>
+  <input type="number" class="gui-gp-field" data-gp="rowspan" value="${gp?.rowspan ?? ''}" placeholder="1" />
+  <span class="benne-pg-lbl">colspan</span>
+  <input type="number" class="gui-gp-field" data-gp="colspan" value="${gp?.colspan ?? ''}" placeholder="1" />
+  <span class="benne-pg-lbl">align</span>
+  <select class="gui-gp-field" data-gp="align">${guiGridCellAlignSelectOptions(gp?.align ?? '')}</select>
+</div>`;
+}
+function guiButtonIdSelectHtml(buttonIds, current, dataIndex, dataField) {
+    const cur = current.trim();
+    let inner = `<option value=""${cur === '' ? ' selected' : ''}>—</option>`;
+    const idSet = new Set(buttonIds);
+    if (cur.length > 0 && !idSet.has(cur)) {
+        inner += `<option value="${esc(cur)}" selected>${esc(cur)} (no button control)</option>`;
+    }
+    for (const id of buttonIds) {
+        const sel = id === cur ? ' selected' : '';
+        inner += `<option value="${esc(id)}"${sel}>${esc(id)}</option>`;
+    }
+    return `<select class="gui-field" data-index="${dataIndex}" data-field="${esc(dataField)}">${inner}</select>`;
+}
+function guiTextOutlineSidesSelectOptions(val) {
+    const opts = [
+        ['allSides', 'All sides'],
+        ['topLeft', 'Top left'],
+        ['top', 'Top'],
+        ['topRight', 'Top right'],
+        ['left', 'Left'],
+        ['right', 'Right'],
+        ['bottomLeft', 'Bottom left'],
+        ['bottom', 'Bottom'],
+        ['bottomRight', 'Bottom right']
+    ];
+    return opts
+        .map(([v, lab]) => `<option value="${esc(v)}"${val === v ? ' selected' : ''}>${esc(lab)}</option>`)
+        .join('');
+}
+function renderGuiTextOutlineAccordion(idx, o) {
+    const th = o.thickness;
+    const al = o.alpha;
+    return `<details class="benne-card-subsection" style="margin-top:10px;">
+  <summary>Outline</summary>
+  <div class="section-body">
+    <div class="benne-prop-grid benne-prop-grid--tight" data-outline-wrap="${idx}">
+      <span class="benne-pg-lbl">enabled</span>
+      <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-outline-field" data-o-field="enabled" ${o.enabled ? 'checked' : ''} /></label>
+      <span class="benne-pg-lbl">color</span>
+      <input type="text" class="gui-outline-field" data-o-field="color" value="${esc(o.color)}" placeholder="#000000" />
+      <span class="benne-pg-lbl">alpha</span>
+      <input type="number" class="gui-outline-field" data-o-field="alpha" value="${al}" min="0" max="1" step="0.05" />
+      <span class="benne-pg-lbl">thickness</span>
+      <input type="number" class="gui-outline-field" data-o-field="thickness" value="${th}" min="1" step="1" />
+      <span class="benne-pg-lbl">sides</span>
+      <select class="gui-outline-field" data-o-field="sides">${guiTextOutlineSidesSelectOptions(o.sides)}</select>
+    </div>
+  </div>
+</details>`;
+}
+function collectGuiTextOutlinePatchFromDom(idx) {
+    const wrap = document.querySelector(`[data-outline-wrap="${String(idx)}"]`);
+    if (!wrap) {
+        return null;
+    }
+    const enabled = wrap.querySelector('[data-o-field="enabled"]')?.checked ?? false;
+    const color = wrap.querySelector('[data-o-field="color"]')?.value.trim() ?? '#000000';
+    const alphaRaw = wrap.querySelector('[data-o-field="alpha"]')?.value.trim() ?? '1';
+    const alphaN = Number(alphaRaw);
+    const thickRaw = wrap.querySelector('[data-o-field="thickness"]')?.value.trim() ?? '1';
+    const thickN = Number(thickRaw);
+    const sides = wrap.querySelector('[data-o-field="sides"]')?.value ?? 'allSides';
+    return {
+        textOutline: {
+            enabled,
+            color,
+            alpha: Number.isFinite(alphaN) ? Math.min(1, Math.max(0, alphaN)) : 1,
+            thickness: Number.isFinite(thickN) ? Math.max(1, Math.trunc(thickN)) : 1,
+            sides
+        }
+    };
+}
+function renderGuiControlCardBody(state, c) {
+    if (c.controlKind === 'unknown') {
+        return `<label class="benne-field-label muted small">Control JSON</label>
+      <textarea class="gui-control-payload" data-index="${c.index}" rows="8">${esc(c.payload)}</textarea>`;
+    }
+    const idx = c.index;
+    const tags = state.guiSheetTags;
+    const fontIds = state.fontIds;
+    const visibleSelect = `<span class="benne-pg-lbl">visible</span>
+      <select class="gui-field" data-index="${idx}" data-field="visible">
+        <option value=""${c.visibleMode === '' ? ' selected' : ''}>Inherit overlay</option>
+        <option value="true"${c.visibleMode === 'true' ? ' selected' : ''}>Shown</option>
+        <option value="false"${c.visibleMode === 'false' ? ' selected' : ''}>Hidden</option>
+      </select>`;
+    /** `trigger` controls do not author a zIndex (they always sit above other controls in this overlay). */
+    const renderZRow = (z) => `<span class="benne-pg-lbl">zIndex</span>
+      <input type="number" class="gui-field" data-index="${idx}" data-field="zIndex" value="${z ?? ''}" placeholder="—" />`;
+    const zRow = c.controlKind === 'trigger' ? '' : renderZRow(c.zIndex);
+    if (c.controlKind === 'text') {
+        const alignLeftSel = c.align === '' || c.align === 'left';
+        const alignSel = `<select class="gui-field" data-index="${idx}" data-field="align">
+        <option value="left"${alignLeftSel ? ' selected' : ''}>left</option>
+        <option value="center"${c.align === 'center' ? ' selected' : ''}>center</option>
+        <option value="right"${c.align === 'right' ? ' selected' : ''}>right</option>
+      </select>`;
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">text</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="text" value="${esc(c.text)}" />
+        <span class="benne-pg-lbl">font</span>
+        ${guiFontSelectHtml(fontIds, c.font, idx)}
+        <span class="benne-pg-lbl">fontSize</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="fontSize" value="${c.fontSize}" />
+        <span class="benne-pg-lbl">color</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="color" value="${esc(c.color)}" />
+        <span class="benne-pg-lbl">align</span>
+        ${alignSel}
+        <span class="benne-pg-lbl">wordWrapWidth</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="wordWrapWidth" value="${c.wordWrapWidth ?? ''}" placeholder="—" />
+      </div>
+      ${renderGuiTextOutlineAccordion(idx, c.textOutline)}
+      <div class="benne-scroll-bounds-label muted small">Position</div>
+      ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
+      <p class="muted small" style="margin:8px 0 0;">Sheet animations are not used for <code>text</code> controls.</p>`;
+    }
+    if (c.controlKind === 'inventoryPanel') {
+        const buttonIds = state.controls
+            .filter((bc) => bc.controlKind === 'button' && bc.controlId.trim().length > 0)
+            .map((bc) => (bc.controlKind === 'button' ? bc.controlId.trim() : ''));
+        const scrollDirSel = `<select class="gui-field" data-index="${idx}" data-field="scrollDirection">
+        <option value=""${c.scrollDirection === '' ? ' selected' : ''}>—</option>
+        <option value="horizontal"${c.scrollDirection === 'horizontal' ? ' selected' : ''}>horizontal</option>
+        <option value="vertical"${c.scrollDirection === 'vertical' ? ' selected' : ''}>vertical</option>
+      </select>`;
+        const animBlock = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">Backdrop tag</span>
+          ${guiSheetTagSelectHtml(tags, c.backgroundTag, idx, 'backgroundTag')}
+          <span class="benne-pg-lbl">Backdrop anchor</span>
+          <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
+          <span class="benne-pg-lbl">Backdrop offset X</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetX" value="${c.backgroundOffsetX ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">Backdrop offset Y</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetY" value="${c.backgroundOffsetY ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">Slot bg tag</span>
+          ${guiSheetTagSelectHtml(tags, c.slotBackgroundTag, idx, 'slotBackgroundTag')}
+          <span class="benne-pg-lbl">Slot bg anchor</span>
+          <select class="gui-field" data-index="${idx}" data-field="slotBackgroundAnchor">${guiAnchorSelectOptions(c.slotBackgroundAnchor)}</select>
+          <span class="benne-pg-lbl">Slot bg offset X</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="slotBackgroundOffsetX" value="${c.slotBackgroundOffsetX ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">Slot bg offset Y</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="slotBackgroundOffsetY" value="${c.slotBackgroundOffsetY ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">Highlight tag</span>
+          ${guiSheetTagSelectHtml(tags, c.highlightTag, idx, 'highlightTag')}
+          <span class="benne-pg-lbl">Highlight anchor</span>
+          <select class="gui-field" data-index="${idx}" data-field="highlightAnchor">${guiAnchorSelectOptions(c.highlightAnchor)}</select>
+          <span class="benne-pg-lbl">Highlight offset X</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="highlightOffsetX" value="${c.highlightOffsetX ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">Highlight offset Y</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="highlightOffsetY" value="${c.highlightOffsetY ?? ''}" placeholder="0" />
+        </div>`
+            : state.usesAseprite
+                ? `<p class="muted small" style="margin-top:8px;">No frame tags found on this GUI’s Aseprite JSON — add tags in Aseprite and re-export.</p>`
+                : `<p class="muted small" style="margin-top:8px;">Enable <code>display.aseprite</code> to bind sheet tags here.</p>`;
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">rows</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="rows" value="${c.rows}" />
+        <span class="benne-pg-lbl">cols</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="cols" value="${c.cols}" />
+        <span class="benne-pg-lbl">slotWidth</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="slotWidth" value="${c.slotWidth}" />
+        <span class="benne-pg-lbl">slotHeight</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="slotHeight" value="${c.slotHeight}" />
+        <span class="benne-pg-lbl">spacingX</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="spacingX" value="${c.spacingX ?? ''}" placeholder="0" />
+        <span class="benne-pg-lbl">spacingY</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="spacingY" value="${c.spacingY ?? ''}" placeholder="0" />
+        <span class="benne-pg-lbl">itemScale</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="itemScale" value="${c.itemScale ?? ''}" placeholder="1" step="0.05" />
+        <span class="benne-pg-lbl">showEmptySlots</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="showEmptySlots" ${c.showEmptySlots ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">scrollDirection</span>
+        ${scrollDirSel}
+        <span class="benne-pg-lbl">backButton</span>
+        ${guiButtonIdSelectHtml(buttonIds, c.backButton, idx, 'backButton')}
+        <span class="benne-pg-lbl">forwardButton</span>
+        ${guiButtonIdSelectHtml(buttonIds, c.forwardButton, idx, 'forwardButton')}
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position</div>
+      ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
+      ${animBlock}`;
+    }
+    if (c.controlKind === 'button') {
+        const textAlignSel = `<select class="gui-field" data-index="${idx}" data-field="textAlign">
+        <option value="left"${c.textAlign === 'left' ? ' selected' : ''}>left</option>
+        <option value="center"${c.textAlign === '' || c.textAlign === 'center' ? ' selected' : ''}>center</option>
+        <option value="right"${c.textAlign === 'right' ? ' selected' : ''}>right</option>
+      </select>`;
+        const sheetBlock = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Sheet</div>
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">background anchor</span>
+          <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
+          <span class="benne-pg-lbl">background offset X</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetX" value="${c.backgroundOffsetX ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">background offset Y</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetY" value="${c.backgroundOffsetY ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">backgroundTag</span>
+          ${guiSheetTagSelectHtml(tags, c.backgroundTag, idx, 'backgroundTag')}
+          <span class="benne-pg-lbl">state hover</span>
+          ${guiSheetTagSelectHtml(tags, c.statesHover, idx, 'statesHover')}
+          <span class="benne-pg-lbl">state pressed</span>
+          ${guiSheetTagSelectHtml(tags, c.statesPressed, idx, 'statesPressed')}
+          <span class="benne-pg-lbl">state disabled</span>
+          ${guiSheetTagSelectHtml(tags, c.statesDisabled, idx, 'statesDisabled')}
+        </div>`
+            : state.usesAseprite
+                ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
+                : `<p class="muted small" style="margin-top:8px;">Set <code>display.aseprite: true</code> to pick sheet tags.</p>`;
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">enabled</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="enabled" ${c.enabled ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">text</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="text" value="${esc(c.text)}" />
+        <span class="benne-pg-lbl">font</span>
+        ${guiFontSelectHtml(fontIds, c.font, idx)}
+        <span class="benne-pg-lbl">fontSize</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="fontSize" value="${c.fontSize}" />
+        <span class="benne-pg-lbl">textColor</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="textColor" value="${esc(c.textColor)}" />
+        <span class="benne-pg-lbl">textAlign</span>
+        ${textAlignSel}
+        <span class="benne-pg-lbl">textOffsetX</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="textOffsetX" value="${c.textOffsetX ?? ''}" placeholder="0" />
+        <span class="benne-pg-lbl">textOffsetY</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="textOffsetY" value="${c.textOffsetY ?? ''}" placeholder="0" />
+      </div>
+      ${renderGuiTextOutlineAccordion(idx, c.textOutline)}
+      <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
+      ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
+      ${sheetBlock}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
+      ${c.controlId
+            ? `<div style="margin:8px 0 0;">
+        <button type="button" class="btn-secondary gui-on-click-btn" data-button-id="${esc(c.controlId)}">On Click</button>
+      </div>`
+            : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> in raw JSON for <code>B.whenButtonClick</code>.</p>`}`;
+    }
+    if (c.controlKind === 'image') {
+        const animImg = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">tag</span>
+        ${guiSheetTagSelectHtml(tags, c.tag, idx, 'tag')}
+        <span class="benne-pg-lbl">background anchor</span>
+        <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
+        <span class="benne-pg-lbl">background offset X</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetX" value="${c.backgroundOffsetX ?? ''}" placeholder="0" />
+        <span class="benne-pg-lbl">background offset Y</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetY" value="${c.backgroundOffsetY ?? ''}" placeholder="0" />
+      </div>`
+            : state.usesAseprite
+                ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
+                : `<p class="muted small" style="margin-top:8px;">Set <code>display.aseprite: true</code> to use sheet tags.</p>`;
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position</div>
+      ${guiDimInputsForControl(idx, c.x, c.y)}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
+      ${animImg}`;
+    }
+    if (c.controlKind === 'trigger') {
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        <span class="benne-pg-lbl">name</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="name" value="${esc(c.name)}" placeholder="optional label" />
+        ${visibleSelect}
+        <span class="benne-pg-lbl">active</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="active" ${c.active ? 'checked' : ''} /></label>
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
+      ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
+      <p class="muted small" style="margin:8px 0 0;">Invisible hit zone. Wire <code>B.whenMouseEnter('${esc(c.controlId || 'id')}', …)</code> and <code>B.whenMouseLeave</code> in <code>*.gui.ts</code>.</p>`;
+    }
+    if (c.controlKind === 'grid') {
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">rows</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="rows" value="${c.rows}" />
+        <span class="benne-pg-lbl">columns</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="columns" value="${c.columns}" />
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position</div>
+      ${guiDimInputsForControl(idx, c.x, c.y)}
+      <div class="benne-scroll-bounds-label muted small" style="margin-top:8px;">Optional container size</div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">width</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="width" value="${c.width ?? ''}" placeholder="—" />
+        <span class="benne-pg-lbl">height</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="height" value="${c.height ?? ''}" placeholder="—" />
+      </div>
+      <p class="muted small" style="margin:8px 0 0;">Optional <code>rowHeights</code> / <code>colWidths</code> arrays: edit in raw JSON.</p>`;
+    }
+    return `<p class="muted">Unsupported control kind.</p>`;
+}
+function renderCharacter(state) {
+    const verbHtml = renderVerbChipRow(state.characterJsonUri, state.characterId, state.verbs, `characterDef:${state.characterId}`);
+    const animationCards = state.animations
+        .map((anim) => {
+        const summary = `<div class="benne-card-titles">
+        <div class="benne-card-title">${esc(anim.id)}</div>
+        <div class="benne-card-sub muted">Animation clip</div>
+      </div>`;
+        const body = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">name</span>
+        <div class="benne-pg-val"><code class="badge">${esc(anim.id)}</code></div>
+        <span class="benne-pg-lbl">loop</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="char-anim-loop" data-id="${esc(anim.id)}" ${anim.loop ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">frameDuration</span>
+        <input type="number" class="char-anim-dur" data-id="${esc(anim.id)}" value="${anim.frameDuration ?? ''}" />
+      </div>`;
+        return renderInspectorItem({}, 'animation', anim.id, ' benne-card--character', summary, body);
+    })
+        .join('');
+    return `<div class="inspector-root">
+  <div class="scroll">
+    <details class="section" open>
+      <summary>Character metadata</summary>
+      <div class="section-body">
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">id</span>
+          <div class="benne-pg-val"><code class="badge">${esc(state.characterId)}</code></div>
+          <span class="benne-pg-lbl">name</span>
+          <input type="text" id="char-name" value="${esc(state.name)}" />
+          <span class="benne-pg-lbl">walkSpeed</span>
+          <input type="number" id="char-walk-speed" value="${state.walkSpeed}" />
+          <span class="benne-pg-lbl">clickable</span>
+          <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="char-clickable" ${state.clickable ? 'checked' : ''} /></label>
+        </div>
+        <label class="benne-field-label muted small">Description</label>
+        <textarea id="char-description" rows="3">${esc(state.description)}</textarea>
+        <div class="benne-scroll-bounds-label muted small">walkToPoint</div>
+        ${pointInputs('char-walk', state.walkToPoint)}
+        <div class="benne-scroll-bounds-label muted small">talkPoint</div>
+        ${pointInputs('char-talk', state.talkPoint)}
+        <div class="benne-scroll-bounds-label muted small">feet</div>
+        ${pointInputs('char-feet', state.feet)}
+      </div>
+    </details>
+
+    <details class="section" open>
+      <summary>Verbs</summary>
+      <div class="section-body">
+        <label class="benne-field-label muted small">Default verb</label>
+        ${renderDefaultVerbSelect('char-default-verb', '', state.defaultVerb, state.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this character"')}
+        <label class="benne-field-label muted small" style="margin-top:10px;">Configured verbs</label>
+        ${verbHtml}
+        ${state.clickable ? renderInventoryUsedOnInvCharacterDefButton() : ''}
+      </div>
+    </details>
+
+    <details class="section" open>
+      <summary>Animations (${state.animations.length})</summary>
+      <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" id="btn-import-char-anims">Import Animations from Aseprite Tags</button>
+        </div>
+        <div class="benne-card-list">${animationCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+  </div>
+  <div class="footer">
+    <button type="button" class="btn-primary" id="btn-save-char">Save</button>
+    <button type="button" class="btn-secondary" id="btn-open-json-char">Open raw JSON</button>
+  </div>
+</div>`;
+}
+function renderGui(state) {
+    const cards = state.controls
+        .map((control) => {
+        const typeLabel = control.controlKind === 'unknown' ? control.typeLabel : control.controlKind;
+        const summary = `<div class="benne-card-titles">
+        <div class="benne-card-title">${esc(control.summary)}</div>
+        <div class="benne-card-sub muted">${esc(typeLabel)}</div>
+      </div>`;
+        const body = renderGuiControlCardBody(state, control);
+        return renderInspectorItem(state, 'guiControl', control.key, ' benne-card--region', summary, body);
+    })
+        .join('');
+    return `<div class="inspector-root">
+  <div class="scroll">
+    <details class="section" open>
+      <summary>GUI metadata</summary>
+      <div class="section-body">
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">id</span>
+          <div class="benne-pg-val"><code class="badge">${esc(state.guiId)}</code></div>
+          <span class="benne-pg-lbl">name</span>
+          <input type="text" id="gui-name" value="${esc(state.name)}" />
+          <span class="benne-pg-lbl">visible</span>
+          <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="gui-visible" ${state.rootVisibleAtLoad ? 'checked' : ''} /></label>
+        </div>
+        <label class="benne-field-label muted small">Description</label>
+        <textarea id="gui-description" rows="3">${esc(state.description)}</textarea>
+      </div>
+    </details>
+    <details class="section" open>
+      <summary>Controls (${state.controls.length})</summary>
+      <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" id="btn-add-gui-control">Add Control</button>
+        </div>
+        <div class="benne-card-list">${cards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+  </div>
+  <div class="footer">
+    <button type="button" class="btn-primary" id="btn-save-gui">Save</button>
+    <button type="button" class="btn-secondary" id="btn-open-json-gui">Open raw JSON</button>
+  </div>
+</div>`;
+}
+function renderDialogOptionCard(state, opt) {
+    const summary = `<span class="dlg-opt-drag-handle" draggable="true" data-idx="${opt.index}" title="Drag to reorder" aria-label="Drag to reorder">⋮⋮</span><div class="benne-card-titles">
+        <div class="benne-card-title">${esc(opt.id)}</div>
+        <div class="benne-card-sub muted">Option ${opt.index + 1}</div>
+      </div>`;
+    const body = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <input type="text" class="dlg-opt-id" data-idx="${opt.index}" value="${esc(opt.id)}" />
+        <span class="benne-pg-lbl">text</span>
+        <textarea class="dlg-opt-text" data-idx="${opt.index}" rows="2">${esc(opt.text)}</textarea>
+        <span class="benne-pg-lbl">enabled</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-enabled" data-idx="${opt.index}" ${opt.enabled ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">used (JSON)</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-used" data-idx="${opt.index}" ${opt.used ? 'checked' : ''} title="Authoring default; runtime may persist picks via game state." /></label>
+        <span class="benne-pg-lbl">say line</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-say" data-idx="${opt.index}" ${opt.say ? 'checked' : ''} title="When checked, the player speaks the option text before the whenChoice script runs." /></label>
+        <span class="benne-pg-lbl">script</span>
+        <button type="button" class="btn-secondary dlg-opt-script" data-idx="${opt.index}">Script…</button>
+        <span class="benne-pg-lbl"></span>
+        <button type="button" class="btn-danger dlg-opt-remove" data-idx="${opt.index}">Remove</button>
+      </div>`;
+    return renderInspectorItem({}, 'dialogOption', String(opt.index), ' benne-card--dialog-opt', summary, body);
+}
+function renderDialog(state) {
+    const cards = state.options.map((o) => renderDialogOptionCard(state, o)).join('');
+    return `<div class="inspector-root">
+  <div class="scroll">
+    <details class="section" open>
+      <summary>Dialog metadata</summary>
+      <div class="section-body">
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">id</span>
+          <div class="benne-pg-val"><code class="badge">${esc(state.dialogId)}</code></div>
+          <span class="benne-pg-lbl">display name</span>
+          <input type="text" id="dlg-display-name" value="${esc(state.displayName)}" />
+          <span class="benne-pg-lbl">guiId</span>
+          <input type="text" id="dlg-gui-id" value="${esc(state.guiId)}" placeholder="dialog (default)" title="Choice GUI overlay id; omit or use dialog for the default choice overlay." />
+        </div>
+        <p class="muted small" style="margin-top:8px;">Topic lines are edited as <strong>options</strong> below (SCUMM-style list). The companion <code>.dialog.ts</code> is open in the editor — use <strong>Script…</strong> to add <code>B.whenChoice</code> handlers.</p>
+      </div>
+    </details>
+    <details class="section" open>
+      <summary>Options (${state.options.length})</summary>
+      <div class="section-body">
+        <div class="benne-section-add-row">
+          <button type="button" class="btn-secondary" id="btn-dlg-add-opt">Add option</button>
+        </div>
+        <div class="benne-card-list" id="dlg-option-card-list">${cards || '<p class="muted">No options — click Add option.</p>'}</div>
+      </div>
+    </details>
+  </div>
+  <div class="footer">
+    <button type="button" class="btn-primary" id="btn-save-dlg">Save</button>
+    <button type="button" class="btn-secondary" id="btn-open-json-dlg">Open raw JSON</button>
+  </div>
+</div>`;
+}
+function renderEmpty(msg) {
+    return `<p class="empty">${esc(msg)}</p>`;
+}
+function renderInventoryVerbChips(state) {
+    if (state.verbs.length === 0) {
+        return '<div class="benne-verb-chips benne-verb-chips--empty"><span class="muted small">No verbs</span></div>';
+    }
+    const chips = state.verbs
+        .map((v) => {
+        const icon = v.defined ? '⚡' : '+';
+        const cls = v.defined ? 'verb-chip verb-defined inv-verb-chip' : 'verb-chip verb-add inv-verb-chip';
+        const dataReveal = v.defined ? `data-reveal="1" data-event="${esc(v.eventId)}"` : '';
+        const dataAdd = !v.defined && !v.isFallback ? `data-add="1" data-verb="${esc(v.verbId)}"` : '';
+        return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} data-ctx="inventoryDef:${esc(state.inventoryId)}" title="${esc(v.label)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(v.verbId)}</span></button>`;
+    })
+        .join('');
+    return `<div class="benne-verb-chips">${chips}</div>`;
+}
+function renderInventory(state) {
+    const animationCards = state.animations
+        .map((anim) => {
+        const summary = `<div class="benne-card-titles">
+        <div class="benne-card-title">${esc(anim.id)}</div>
+        <div class="benne-card-sub muted">Animation clip</div>
+      </div>`;
+        const body = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">name</span>
+        <div class="benne-pg-val"><code class="badge">${esc(anim.id)}</code></div>
+        <span class="benne-pg-lbl">loop</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="inv-anim-loop" data-id="${esc(anim.id)}" ${anim.loop ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">frameDuration</span>
+        <input type="number" class="inv-anim-dur" data-id="${esc(anim.id)}" value="${anim.frameDuration ?? ''}" />
+      </div>`;
+        return renderInspectorItem({}, 'inventoryAnimation', anim.id, ' benne-card--character', summary, body);
+    })
+        .join('');
+    const verbChips = renderInventoryVerbChips(state);
+    return `<div class="inspector-root">
+  <div class="scroll">
+    <details class="section" open>
+      <summary>Inventory metadata</summary>
+      <div class="section-body">
+        <div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">id</span>
+          <div class="benne-pg-val"><code class="badge">${esc(state.inventoryId)}</code></div>
+          <span class="benne-pg-lbl">name</span>
+          <input type="text" id="inv-name" value="${esc(state.name)}" />
+          <span class="benne-pg-lbl">stackable</span>
+          <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="inv-stackable" ${state.stackable ? 'checked' : ''} /></label>
+          <span class="benne-pg-lbl">aseprite</span>
+          <select id="inv-aseprite">
+            <option value="shared" ${state.asepriteMode === 'shared' ? 'selected' : ''}>shared</option>
+            <option value="true" ${state.asepriteMode === true ? 'selected' : ''}>per-item</option>
+          </select>
+          <span class="benne-pg-lbl">default frame tag</span>
+          <input type="text" id="inv-default-animation" value="${esc(state.defaultAnimation)}" title="JSON key: defaultAnimation. Empty = use item id." />
+          <span class="benne-pg-lbl">cursor clip (active item)</span>
+          <input type="text" id="inv-cursor-animation" value="${esc(state.cursorAnimation)}" title="JSON key: cursorAnimation — Aseprite tag on this item’s sheet for the custom game cursor when this item is armed for use-on-target. Leave empty for default cursor." placeholder="(optional) e.g. useCursor" />
+        </div>
+        <label class="benne-field-label muted small">Description</label>
+        <textarea id="inv-description" rows="3">${esc(state.description)}</textarea>
+      </div>
+    </details>
+    <details class="section" open>
+      <summary>Verbs</summary>
+      <div class="section-body">
+        <label class="benne-field-label muted small">Default verb</label>
+        ${renderDefaultVerbSelect('inv-default-verb', '', state.defaultVerb, state.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this inventory item"')}
+        <label class="benne-field-label muted small" style="margin-top:10px;">Configured verbs</label>
+        ${verbChips}
+        ${renderInventoryUsedOnInvInventoryItemButton()}
+      </div>
+    </details>
+    <details class="section" open>
+      <summary>Animations (${state.animations.length})</summary>
+      <div class="section-body">
+        <div class="benne-card-list">${animationCards || '<p class="muted">None</p>'}</div>
+      </div>
+    </details>
+  </div>
+  <div class="footer">
+    <button type="button" class="btn-primary" id="btn-save-inv">Save</button>
+    <button type="button" class="btn-secondary" id="btn-open-json-inv">Open raw JSON</button>
+  </div>
+</div>`;
+}
+function collectRoomMeta() {
+    const name = document.getElementById('fld-name')?.value ?? '';
+    const wStr = document.getElementById('fld-w')?.value ?? '';
+    const hStr = document.getElementById('fld-h')?.value ?? '';
+    const w = wStr === '' ? null : Number(wStr);
+    const h = hStr === '' ? null : Number(hStr);
+    const sbx = document.getElementById('sb-x')?.value ?? '';
+    const sby = document.getElementById('sb-y')?.value ?? '';
+    const sbw = document.getElementById('sb-w')?.value ?? '';
+    const sbh = document.getElementById('sb-h')?.value ?? '';
+    return {
+        type: 'roomMeta',
+        displayName: name,
+        size: w !== null && h !== null && Number.isFinite(w) && Number.isFinite(h) ? { width: w, height: h } : null,
+        scrollBounds: sbx !== '' && sby !== '' && sbw !== '' && sbh !== ''
+            ? {
+                x: Number(sbx),
+                y: Number(sby),
+                width: Number(sbw),
+                height: Number(sbh)
+            }
+            : null
+    };
+}
+function mountHandlers(state) {
+    const root = document.getElementById('benne-inspector-app');
+    if (!root) {
+        return;
+    }
+    const flushMeta = () => {
+        post('applyPatches', { patches: [collectRoomMeta()] });
+    };
+    document.getElementById('btn-save')?.addEventListener('click', () => {
+        flushMeta();
+    });
+    document.getElementById('btn-open-json')?.addEventListener('click', () => {
+        post('openRawJson', { roomJsonUri: state.roomJsonUri });
+    });
+    document.getElementById('btn-fit-bg')?.addEventListener('click', () => {
+        post('fitBackground', { roomJsonUri: state.roomJsonUri });
+    });
+    document.getElementById('btn-clear-sb')?.addEventListener('click', () => {
+        post('applyPatches', { patches: [{ type: 'clearScrollBounds' }] });
+    });
+    document.getElementById('btn-add-poly')?.addEventListener('click', () => {
+        post('applyPatches', { patches: [{ type: 'addWalkablePolygon' }] });
+    });
+    document.getElementById('btn-add-hole')?.addEventListener('click', () => {
+        const sel = document.getElementById('hole-parent');
+        const polygonId = sel?.value ?? '';
+        if (!polygonId) {
+            return;
+        }
+        post('applyPatches', { patches: [{ type: 'addWalkableHole', polygonId }] });
+    });
+    root.querySelectorAll('[data-add-room-item]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const kind = btn.dataset.addRoomItem ?? '';
+            if (!kind) {
+                return;
+            }
+            post('addRoomItem', { kind });
+        });
+    });
+    ['fld-name', 'fld-w', 'fld-h', 'sb-x', 'sb-y', 'sb-w', 'sb-h'].forEach((id) => {
+        document.getElementById(id)?.addEventListener('blur', flushMeta);
+    });
+    root.querySelectorAll('.walk-active').forEach((el) => {
+        el.addEventListener('change', (ev) => {
+            const t = ev.target;
+            post('applyPatches', {
+                patches: [
+                    {
+                        type: 'walkableActive',
+                        kind: t.dataset.kind,
+                        polygonId: t.dataset.polygon,
+                        holeId: t.dataset.hole,
+                        rowId: t.dataset.row,
+                        active: t.checked
+                    }
+                ]
+            });
+        });
+    });
+    const propPatch = (id, patch) => {
+        post('applyPatches', { patches: [{ type: 'propField', id, ...patch }] });
+    };
+    root.querySelectorAll('.prop-desc').forEach((el) => {
+        el.addEventListener('blur', () => {
+            const ta = el;
+            propPatch(ta.dataset.id ?? '', { description: ta.value });
+        });
+    });
+    root.querySelectorAll('.prop-visible, .prop-clickable').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el;
+            const field = inp.classList.contains('prop-visible') ? 'visible' : 'clickable';
+            propPatch(inp.dataset.id ?? '', { [field]: inp.checked });
+        });
+    });
+    root.querySelectorAll('.prop-z, .prop-par, .prop-alpha, .prop-baseline').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el;
+            const id = inp.dataset.id ?? '';
+            if (inp.classList.contains('prop-z')) {
+                propPatch(id, { zIndex: Number(inp.value) });
+            }
+            else if (inp.classList.contains('prop-par')) {
+                propPatch(id, { parallaxDepth: Number(inp.value) });
+            }
+            else if (inp.classList.contains('prop-baseline')) {
+                const raw = inp.value.trim();
+                const n = Number(raw);
+                propPatch(id, { baseline: raw === '' || !Number.isFinite(n) ? null : n });
+            }
+            else {
+                propPatch(id, { alpha: Number(inp.value) });
+            }
+        });
+    });
+    root.querySelectorAll('.prop-tag-select').forEach((el) => {
+        el.addEventListener('change', () => {
+            const sel = el;
+            propPatch(sel.dataset.id ?? '', { tag: sel.value });
+        });
+    });
+    root.querySelectorAll('.prop-default-animation').forEach((el) => {
+        el.addEventListener('blur', () => {
+            const inp = el;
+            propPatch(inp.dataset.id ?? '', { defaultAnimation: inp.value });
+        });
+    });
+    root.querySelectorAll('.prop-default-verb').forEach((el) => {
+        el.addEventListener('change', () => {
+            const sel = el;
+            propPatch(sel.dataset.id ?? '', { defaultVerb: sel.value });
+        });
+    });
+    root.querySelectorAll('.prop-anim-row').forEach((row) => {
+        const flushPropAnim = () => {
+            if (!(row instanceof HTMLElement)) {
+                return;
+            }
+            const propId = row.dataset.propId ?? '';
+            const animationTag = row.dataset.animTag ?? '';
+            if (!propId || !animationTag) {
+                return;
+            }
+            const loopEl = row.querySelector('.prop-anim-loop');
+            const durEl = row.querySelector('.prop-anim-dur');
+            if (!loopEl) {
+                return;
+            }
+            const loop = loopEl.checked;
+            const durRaw = durEl?.value ?? '';
+            const frameDuration = durRaw === '' ? null : Number(durRaw);
+            post('applyPatches', {
+                patches: [{ type: 'propAnimation', propId, animationTag, loop, frameDuration }]
+            });
+        };
+        row.querySelectorAll('.prop-anim-loop, .prop-anim-dur').forEach((inp) => {
+            inp.addEventListener('change', flushPropAnim);
+        });
+    });
+    root.querySelectorAll('.hs-desc').forEach((el) => {
+        el.addEventListener('blur', () => {
+            const ta = el;
+            post('applyPatches', { patches: [{ type: 'hotspotField', id: ta.dataset.id, description: ta.value }] });
+        });
+    });
+    root.querySelectorAll('.hs-active').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el;
+            post('applyPatches', { patches: [{ type: 'hotspotField', id: inp.dataset.id, active: inp.checked }] });
+        });
+    });
+    root.querySelectorAll('.hs-z').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el;
+            post('applyPatches', { patches: [{ type: 'hotspotField', id: inp.dataset.id, zIndex: Number(inp.value) }] });
+        });
+    });
+    root.querySelectorAll('.hs-baseline').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el;
+            const raw = inp.value.trim();
+            const n = Number(raw);
+            post('applyPatches', {
+                patches: [
+                    {
+                        type: 'hotspotField',
+                        id: inp.dataset.id,
+                        baseline: raw === '' || !Number.isFinite(n) ? null : n
+                    }
+                ]
+            });
+        });
+    });
+    root.querySelectorAll('.hs-default-verb').forEach((el) => {
+        el.addEventListener('change', () => {
+            const sel = el;
+            post('applyPatches', { patches: [{ type: 'hotspotField', id: sel.dataset.id, defaultVerb: sel.value }] });
+        });
+    });
+    root.querySelectorAll('.ch-visible').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el;
+            post('applyPatches', { patches: [{ type: 'characterField', instanceId: inp.dataset.id, visible: inp.checked }] });
+        });
+    });
+    root.querySelectorAll('.ch-x, .ch-y, .ch-z, .ch-face, .ch-anim').forEach((el) => {
+        el.addEventListener('blur', () => {
+            const id = el.dataset.id;
+            if (!id) {
+                return;
+            }
+            const box = root.querySelector(`.ch-x[data-id="${id}"]`);
+            const boy = root.querySelector(`.ch-y[data-id="${id}"]`);
+            const bz = root.querySelector(`.ch-z[data-id="${id}"]`);
+            const bf = root.querySelector(`.ch-face[data-id="${id}"]`);
+            const ba = root.querySelector(`.ch-anim[data-id="${id}"]`);
+            post('applyPatches', {
+                patches: [
+                    {
+                        type: 'characterField',
+                        instanceId: id,
+                        x: Number(box?.value),
+                        y: Number(boy?.value),
+                        zIndex: Number(bz?.value),
+                        initialFacing: bf?.value ?? '',
+                        initialAnimation: ba?.value ?? ''
+                    }
+                ]
+            });
+        });
+    });
+    root.querySelectorAll('.pt-x, .pt-y').forEach((el) => {
+        el.addEventListener('change', () => {
+            const id = el.dataset.id;
+            if (!id) {
+                return;
+            }
+            const x = Number(root.querySelector(`.pt-x[data-id="${id}"]`)?.value);
+            const y = Number(root.querySelector(`.pt-y[data-id="${id}"]`)?.value);
+            post('applyPatches', { patches: [{ type: 'pointField', id, x, y }] });
+        });
+    });
+    root.querySelectorAll('.rg-active').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el;
+            post('applyPatches', { patches: [{ type: 'regionActive', id: inp.dataset.id, active: inp.checked }] });
+        });
+    });
+    root.querySelectorAll('.rg-scale-walk').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el;
+            const id = inp.dataset.id;
+            if (!id) {
+                return;
+            }
+            post('applyPatches', { patches: [{ type: 'regionScaleWalkSpeed', id, scaleWalkSpeed: inp.checked }] });
+        });
+    });
+    const postRegionScale = (regionId) => {
+        const topEl = root.querySelector(`.rg-scale-top[data-id="${regionId}"]`);
+        const botEl = root.querySelector(`.rg-scale-bottom[data-id="${regionId}"]`);
+        const scaleTop = Number(topEl?.value);
+        const scaleBottom = Number(botEl?.value);
+        if (!Number.isFinite(scaleTop) || !Number.isFinite(scaleBottom)) {
+            return;
+        }
+        post('applyPatches', { patches: [{ type: 'regionScale', id: regionId, scaleTop, scaleBottom }] });
+    };
+    root.querySelectorAll('.rg-scale-top, .rg-scale-bottom').forEach((el) => {
+        el.addEventListener('change', () => {
+            const id = el.dataset.id;
+            if (!id) {
+                return;
+            }
+            postRegionScale(id);
+        });
+    });
+    root.querySelectorAll('[data-edit-preview]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const kind = btn.dataset.editPreview;
+            if (!kind) {
+                return;
+            }
+            if (kind === 'walkable') {
+                const polygonId = btn.dataset.polygon ?? '';
+                if (!polygonId) {
+                    return;
+                }
+                const holeRaw = btn.dataset.hole ?? '';
+                post('editRoomPreview', {
+                    roomJsonUri: state.roomJsonUri,
+                    roomId: state.roomId,
+                    kind: 'walkable',
+                    polygonId,
+                    holeId: holeRaw.length > 0 ? holeRaw : ''
+                });
+                return;
+            }
+            if (kind === 'roomSize' || kind === 'scrollBounds') {
+                post('editRoomPreview', { roomJsonUri: state.roomJsonUri, roomId: state.roomId, kind, id: '' });
+                return;
+            }
+            const id = btn.dataset.id;
+            if (!id) {
+                return;
+            }
+            post('editRoomPreview', { roomJsonUri: state.roomJsonUri, roomId: state.roomId, kind, id });
+        });
+    });
+    root.querySelectorAll('.verb-chip').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn;
+            const ctx = b.dataset.ctx ?? '';
+            if (b.dataset.reveal) {
+                post('verbReveal', {
+                    roomJsonUri: state.roomJsonUri,
+                    roomId: state.roomId,
+                    eventId: b.dataset.event
+                });
+            }
+            else if (b.dataset.add) {
+                const verbId = b.dataset.verb ?? '';
+                if (ctx.startsWith('prop:')) {
+                    post('verbAdd', {
+                        roomJsonUri: state.roomJsonUri,
+                        roomId: state.roomId,
+                        target: 'prop',
+                        targetId: ctx.slice('prop:'.length),
+                        verbId
+                    });
+                }
+                else if (ctx.startsWith('hotspot:')) {
+                    post('verbAdd', {
+                        roomJsonUri: state.roomJsonUri,
+                        roomId: state.roomId,
+                        target: 'hotspot',
+                        targetId: ctx.slice('hotspot:'.length),
+                        verbId
+                    });
+                }
+                else if (ctx.startsWith('char:')) {
+                    const rest = ctx.slice('char:'.length);
+                    const idx = rest.indexOf(':');
+                    const characterId = idx >= 0 ? rest.slice(idx + 1) : '';
+                    post('verbAdd', {
+                        roomJsonUri: state.roomJsonUri,
+                        roomId: state.roomId,
+                        target: 'character',
+                        characterId,
+                        verbId
+                    });
+                }
+            }
+        });
+    });
+    root.querySelectorAll('.btn-inv-usedon').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const el = btn;
+            const target = el.dataset.invTarget;
+            const targetId = el.dataset.invTargetId ?? '';
+            if (target !== 'prop' && target !== 'hotspot' && target !== 'character') {
+                return;
+            }
+            if (!targetId) {
+                return;
+            }
+            post('inventoryUsedOnAdd', {
+                roomJsonUri: state.roomJsonUri,
+                roomId: state.roomId,
+                target,
+                targetId
+            });
+        });
+    });
+}
+function readPointFields(prefix) {
+    const xStr = document.getElementById(`${prefix}-x`)?.value ?? '';
+    const yStr = document.getElementById(`${prefix}-y`)?.value ?? '';
+    if (xStr === '' || yStr === '') {
+        return null;
+    }
+    const x = Number(xStr);
+    const y = Number(yStr);
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+}
+function collectCharacterMeta() {
+    return {
+        type: 'characterMeta',
+        name: document.getElementById('char-name')?.value ?? '',
+        walkSpeed: Number(document.getElementById('char-walk-speed')?.value ?? '0'),
+        clickable: document.getElementById('char-clickable')?.checked ?? false,
+        description: document.getElementById('char-description')?.value ?? '',
+        walkToPoint: readPointFields('char-walk'),
+        talkPoint: readPointFields('char-talk'),
+        feet: readPointFields('char-feet'),
+        defaultVerb: document.querySelector('.char-default-verb')?.value ?? ''
+    };
+}
+function mountCharacterHandlers(state) {
+    const flush = () => {
+        post('applyPatches', { patches: [collectCharacterMeta()] });
+    };
+    document.getElementById('btn-save-char')?.addEventListener('click', flush);
+    document.getElementById('btn-open-json-char')?.addEventListener('click', () => {
+        post('openRawJson', { characterJsonUri: state.characterJsonUri });
+    });
+    ['char-name', 'char-walk-speed', 'char-clickable', 'char-description', 'char-walk-x', 'char-walk-y', 'char-talk-x', 'char-talk-y', 'char-feet-x', 'char-feet-y'].forEach((id) => {
+        document.getElementById(id)?.addEventListener('blur', flush);
+        document.getElementById(id)?.addEventListener('change', flush);
+    });
+    document.querySelectorAll('.char-default-verb').forEach((el) => {
+        el.addEventListener('change', flush);
+    });
+    document.querySelectorAll('.char-anim-loop, .char-anim-dur').forEach((el) => {
+        el.addEventListener('change', () => {
+            const id = el.dataset.id ?? '';
+            if (!id) {
+                return;
+            }
+            const loop = document.querySelector(`.char-anim-loop[data-id="${id}"]`)?.checked ?? false;
+            const durRaw = document.querySelector(`.char-anim-dur[data-id="${id}"]`)?.value ?? '';
+            const frameDuration = durRaw === '' ? null : Number(durRaw);
+            post('applyPatches', { patches: [{ type: 'characterAnimation', id, loop, frameDuration }] });
+        });
+    });
+    document.getElementById('btn-import-char-anims')?.addEventListener('click', () => {
+        post('importCharacterAnimations');
+    });
+    document.querySelectorAll('.verb-chip').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn;
+            const ctx = b.dataset.ctx ?? '';
+            if (b.dataset.reveal) {
+                post('verbReveal', {
+                    characterJsonUri: state.characterJsonUri,
+                    characterId: state.characterId,
+                    eventId: b.dataset.event
+                });
+                return;
+            }
+            if (!b.dataset.add || !ctx.startsWith('characterDef:')) {
+                return;
+            }
+            const verbId = b.dataset.verb ?? '';
+            post('verbAdd', {
+                characterJsonUri: state.characterJsonUri,
+                target: 'characterDef',
+                characterId: state.characterId,
+                verbId
+            });
+        });
+    });
+    document.querySelectorAll('.btn-inv-usedon-char').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            post('inventoryUsedOnAdd', { characterJsonUri: state.characterJsonUri });
+        });
+    });
+}
+function collectGuiMeta() {
+    return {
+        type: 'guiMeta',
+        name: document.getElementById('gui-name')?.value ?? '',
+        description: document.getElementById('gui-description')?.value ?? '',
+        rootVisibleAtLoad: document.getElementById('gui-visible')?.checked ?? true
+    };
+}
+function buildGuiControlFieldPatch(field, el) {
+    if (field === 'tag') {
+        const raw = el.value.trim();
+        return { tag: raw.length === 0 ? null : el.value };
+    }
+    if (field === 'statesHover' || field === 'statesPressed' || field === 'statesDisabled') {
+        const sub = field === 'statesHover' ? 'hover' : field === 'statesPressed' ? 'pressed' : 'disabled';
+        const raw = el.value.trim();
+        return { states: { [sub]: raw.length === 0 ? null : el.value } };
+    }
+    if (field === 'enabled') {
+        return { enabled: el.checked ? null : false };
+    }
+    if (field === 'active') {
+        return { active: el.checked ? null : false };
+    }
+    if (field === 'name') {
+        const raw = el.value.trim();
+        return { name: raw.length === 0 ? null : el.value };
+    }
+    if (field === 'visible') {
+        const raw = el.value;
+        if (raw === '') {
+            return { visible: null };
+        }
+        return { visible: raw === 'true' };
+    }
+    if (field === 'align') {
+        const raw = el.value;
+        if (raw === 'left') {
+            return { align: null };
+        }
+        return { align: raw };
+    }
+    if (field === 'textAlign') {
+        const raw = el.value;
+        if (raw === '' || raw === 'center') {
+            return { textAlign: null };
+        }
+        return { textAlign: raw };
+    }
+    if (field === 'scrollDirection') {
+        const raw = el.value.trim();
+        if (raw === '') {
+            return { scrollDirection: null };
+        }
+        if (raw === 'horizontal' || raw === 'vertical') {
+            return { scrollDirection: raw };
+        }
+        return null;
+    }
+    if (field === 'backButton' || field === 'forwardButton') {
+        const raw = el.value.trim();
+        if (raw === '') {
+            return { [field]: null };
+        }
+        return { [field]: raw };
+    }
+    const anchorTop = new Set(['backgroundAnchor', 'slotBackgroundAnchor', 'highlightAnchor']);
+    if (anchorTop.has(field)) {
+        const raw = el.value.trim();
+        if (raw === '' || raw === 'top-left') {
+            return { [field]: null };
+        }
+        return { [field]: raw };
+    }
+    const intRequired = new Set([
+        'x',
+        'y',
+        'rows',
+        'cols',
+        'columns',
+        'slotWidth',
+        'slotHeight',
+        'fontSize'
+    ]);
+    if (intRequired.has(field)) {
+        const n = Number(el.value);
+        if (!Number.isFinite(n)) {
+            return null;
+        }
+        return { [field]: Math.trunc(n) };
+    }
+    const optNum = new Set([
+        'zIndex',
+        'wordWrapWidth',
+        'spacingX',
+        'spacingY',
+        'itemScale',
+        'textOffsetX',
+        'textOffsetY',
+        'backgroundOffsetX',
+        'backgroundOffsetY',
+        'slotBackgroundOffsetX',
+        'slotBackgroundOffsetY',
+        'highlightOffsetX',
+        'highlightOffsetY',
+        'width',
+        'height'
+    ]);
+    if (optNum.has(field)) {
+        const raw = el.value.trim();
+        if (raw === '') {
+            return { [field]: null };
+        }
+        const n = Number(raw);
+        if (!Number.isFinite(n)) {
+            return null;
+        }
+        return { [field]: n };
+    }
+    if (field === 'showEmptySlots') {
+        return { showEmptySlots: el.checked };
+    }
+    const tagStr = new Set([
+        'text',
+        'font',
+        'color',
+        'textColor',
+        'backgroundTag',
+        'slotBackgroundTag',
+        'highlightTag'
+    ]);
+    if (tagStr.has(field)) {
+        return { [field]: el.value };
+    }
+    return null;
+}
+function collectGridPlacementPatchFromDom(idx) {
+    const wrap = document.querySelector(`[data-gp-wrap="${String(idx)}"]`);
+    if (!wrap) {
+        return null;
+    }
+    const gridId = wrap.querySelector('[data-gp="gridId"]')?.value.trim() ?? '';
+    if (!gridId) {
+        return { gridPlacement: null };
+    }
+    const row = Number(wrap.querySelector('[data-gp="row"]')?.value ?? '0');
+    const col = Number(wrap.querySelector('[data-gp="col"]')?.value ?? '0');
+    if (!Number.isFinite(row) || !Number.isFinite(col)) {
+        return null;
+    }
+    const placement = {
+        gridControlId: gridId,
+        row: Math.trunc(row),
+        col: Math.trunc(col)
+    };
+    const rs = wrap.querySelector('[data-gp="rowspan"]')?.value.trim() ?? '';
+    if (rs !== '') {
+        const n = Number(rs);
+        if (Number.isFinite(n) && n > 0) {
+            placement.rowspan = Math.trunc(n);
+        }
+    }
+    const cs = wrap.querySelector('[data-gp="colspan"]')?.value.trim() ?? '';
+    if (cs !== '') {
+        const n = Number(cs);
+        if (Number.isFinite(n) && n > 0) {
+            placement.colspan = Math.trunc(n);
+        }
+    }
+    const al = wrap.querySelector('[data-gp="align"]')?.value ?? '';
+    if (al.length > 0) {
+        placement.align = al;
+    }
+    return { gridPlacement: placement };
+}
+function mountGuiHandlers(state) {
+    const flushMeta = () => {
+        post('applyPatches', { patches: [collectGuiMeta()] });
+    };
+    const postGuiPatch = (index, patch) => {
+        post('applyPatches', { patches: [{ type: 'guiControlUpdate', index, patch }] });
+    };
+    document.getElementById('btn-save-gui')?.addEventListener('click', () => {
+        const payloadPatches = [];
+        document.querySelectorAll('.gui-control-payload').forEach((el) => {
+            const ta = el;
+            const idx = Number(ta.dataset.index ?? '-1');
+            if (Number.isInteger(idx) && idx >= 0) {
+                payloadPatches.push({ type: 'guiControlPayload', index: idx, payload: ta.value });
+            }
+        });
+        post('applyPatches', { patches: [collectGuiMeta(), ...payloadPatches] });
+    });
+    document.getElementById('btn-open-json-gui')?.addEventListener('click', () => {
+        post('openRawJson', { guiJsonUri: state.guiJsonUri });
+    });
+    document.getElementById('gui-name')?.addEventListener('blur', flushMeta);
+    document.getElementById('gui-description')?.addEventListener('blur', flushMeta);
+    document.getElementById('gui-visible')?.addEventListener('change', flushMeta);
+    document.querySelectorAll('.gui-control-payload').forEach((el) => {
+        el.addEventListener('blur', () => {
+            const ta = el;
+            const idx = Number(ta.dataset.index ?? '-1');
+            if (!Number.isInteger(idx) || idx < 0) {
+                return;
+            }
+            post('applyPatches', { patches: [{ type: 'guiControlPayload', index: idx, payload: ta.value }] });
+        });
+    });
+    const bindGuiField = (el) => {
+        if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLSelectElement)) {
+            return;
+        }
+        const he = el;
+        const idx = Number(he.dataset.index ?? '-1');
+        const field = he.dataset.field ?? '';
+        if (!Number.isInteger(idx) || idx < 0 || !field) {
+            return;
+        }
+        const flush = () => {
+            const patch = buildGuiControlFieldPatch(field, he);
+            if (patch) {
+                postGuiPatch(idx, patch);
+            }
+        };
+        if (he instanceof HTMLSelectElement) {
+            he.addEventListener('change', flush);
+        }
+        else {
+            he.addEventListener('blur', flush);
+        }
+    };
+    document.getElementById('btn-add-gui-control')?.addEventListener('click', () => {
+        post('addGuiControl', {});
+    });
+    document.querySelectorAll('.gui-field').forEach(bindGuiField);
+    const flushGridPlacement = (index) => {
+        const patch = collectGridPlacementPatchFromDom(index);
+        if (patch) {
+            postGuiPatch(index, patch);
+        }
+    };
+    document.querySelectorAll('[data-gp-wrap]').forEach((wrap) => {
+        const idx = Number(wrap.dataset.gpWrap ?? '-1');
+        if (!Number.isInteger(idx) || idx < 0) {
+            return;
+        }
+        wrap.querySelectorAll('.gui-gp-field').forEach((el) => {
+            if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLSelectElement)) {
+                return;
+            }
+            const he = el;
+            const flushGp = () => {
+                flushGridPlacement(idx);
+            };
+            if (he instanceof HTMLSelectElement) {
+                he.addEventListener('change', flushGp);
+            }
+            else {
+                he.addEventListener('blur', flushGp);
+            }
+        });
+    });
+    document.querySelectorAll('.gui-field-cb').forEach((el) => {
+        if (!(el instanceof HTMLInputElement)) {
+            return;
+        }
+        const he = el;
+        const idx = Number(he.dataset.index ?? '-1');
+        const field = he.dataset.field ?? '';
+        if (!Number.isInteger(idx) || idx < 0 || !field) {
+            return;
+        }
+        he.addEventListener('change', () => {
+            const patch = buildGuiControlFieldPatch(field, he);
+            if (patch) {
+                postGuiPatch(idx, patch);
+            }
+        });
+    });
+    document.querySelectorAll('[data-outline-wrap]').forEach((wrap) => {
+        const idx = Number(wrap.dataset.outlineWrap ?? '-1');
+        if (!Number.isInteger(idx) || idx < 0) {
+            return;
+        }
+        const flushOutline = () => {
+            const patch = collectGuiTextOutlinePatchFromDom(idx);
+            if (patch) {
+                postGuiPatch(idx, patch);
+            }
+        };
+        wrap.querySelectorAll('.gui-outline-field').forEach((el) => {
+            if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLSelectElement)) {
+                return;
+            }
+            const inp = el;
+            if (inp instanceof HTMLSelectElement || (inp instanceof HTMLInputElement && inp.type === 'checkbox')) {
+                inp.addEventListener('change', flushOutline);
+            }
+            else {
+                inp.addEventListener('blur', flushOutline);
+            }
+        });
+    });
+    document.querySelectorAll('.gui-on-click-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn;
+            const buttonId = b.dataset.buttonId ?? '';
+            if (!buttonId) {
+                return;
+            }
+            post('guiEnsureButtonClickHandler', { guiJsonUri: state.guiJsonUri, buttonId });
+        });
+    });
+}
+function collectDialogMeta() {
+    return {
+        type: 'dialogMeta',
+        displayName: document.getElementById('dlg-display-name')?.value ?? '',
+        guiId: document.getElementById('dlg-gui-id')?.value ?? ''
+    };
+}
+function collectDialogOptionPatches() {
+    const detailsList = document.querySelectorAll('[data-entity="dialogOption"]');
+    const patches = [];
+    detailsList.forEach((details) => {
+        const index = Number(details.dataset.id ?? '-1');
+        if (!Number.isInteger(index) || index < 0) {
+            return;
+        }
+        const optId = details.querySelector(`.dlg-opt-id[data-idx="${index}"]`)?.value ?? '';
+        const text = details.querySelector(`.dlg-opt-text[data-idx="${index}"]`)?.value ?? '';
+        const enabled = details.querySelector(`.dlg-opt-enabled[data-idx="${index}"]`)?.checked ??
+            true;
+        const used = details.querySelector(`.dlg-opt-used[data-idx="${index}"]`)?.checked ??
+            false;
+        const say = details.querySelector(`.dlg-opt-say[data-idx="${index}"]`)?.checked ?? true;
+        patches.push({
+            type: 'dialogOption',
+            index,
+            id: optId,
+            text,
+            enabled,
+            used,
+            say
+        });
+    });
+    return patches;
+}
+function mountDialogOptionDragReorder() {
+    const list = document.getElementById('dlg-option-card-list');
+    if (!list) {
+        return;
+    }
+    let dragFrom = -1;
+    let draggingRow = null;
+    list.addEventListener('mousedown', (e) => {
+        const h = e.target?.closest?.('.dlg-opt-drag-handle');
+        if (h && list.contains(h)) {
+            e.stopPropagation();
+        }
+    });
+    list.addEventListener('dragstart', (e) => {
+        const h = e.target?.closest?.('.dlg-opt-drag-handle');
+        if (!h || !list.contains(h)) {
+            return;
+        }
+        const from = Number(h.dataset.idx ?? '-1');
+        if (!Number.isInteger(from) || from < 0) {
+            return;
+        }
+        dragFrom = from;
+        draggingRow = h.closest('[data-entity="dialogOption"]');
+        draggingRow?.classList.add('benne-dlg-opt--dragging');
+        const dt = e.dataTransfer;
+        if (dt) {
+            dt.setData('text/plain', String(from));
+            dt.effectAllowed = 'move';
+        }
+    });
+    list.addEventListener('dragend', () => {
+        dragFrom = -1;
+        draggingRow?.classList.remove('benne-dlg-opt--dragging');
+        draggingRow = null;
+        list.querySelectorAll('.benne-dlg-opt--drag-over').forEach((el) => el.classList.remove('benne-dlg-opt--drag-over'));
+    });
+    list.addEventListener('dragover', (e) => {
+        if (dragFrom < 0) {
+            return;
+        }
+        const row = e.target?.closest?.('[data-entity="dialogOption"]');
+        if (!row || !list.contains(row)) {
+            return;
+        }
+        e.preventDefault();
+        const dt = e.dataTransfer;
+        if (dt) {
+            dt.dropEffect = 'move';
+        }
+        list.querySelectorAll('.benne-dlg-opt--drag-over').forEach((el) => el.classList.remove('benne-dlg-opt--drag-over'));
+        row.classList.add('benne-dlg-opt--drag-over');
+    });
+    list.addEventListener('drop', (e) => {
+        if (dragFrom < 0) {
+            return;
+        }
+        const row = e.target?.closest?.('[data-entity="dialogOption"]');
+        if (!row || !list.contains(row)) {
+            return;
+        }
+        e.preventDefault();
+        list.querySelectorAll('.benne-dlg-opt--drag-over').forEach((el) => el.classList.remove('benne-dlg-opt--drag-over'));
+        const to = Number(row.dataset.id ?? '-1');
+        const from = dragFrom;
+        dragFrom = -1;
+        draggingRow?.classList.remove('benne-dlg-opt--dragging');
+        draggingRow = null;
+        if (!Number.isInteger(from) || from < 0 || !Number.isInteger(to) || to < 0 || from === to) {
+            return;
+        }
+        post('applyPatches', { patches: [{ type: 'dialogReorderOption', fromIndex: from, toIndex: to }] });
+    });
+}
+function mountDialogHandlers(state) {
+    const flushMeta = () => {
+        post('applyPatches', { patches: [collectDialogMeta()] });
+    };
+    const flushDialogOptions = () => {
+        const patches = collectDialogOptionPatches();
+        if (patches.length > 0) {
+            post('applyPatches', { patches });
+        }
+    };
+    document.getElementById('btn-save-dlg')?.addEventListener('click', () => {
+        post('applyPatches', {
+            patches: [collectDialogMeta(), ...collectDialogOptionPatches()]
+        });
+    });
+    document.getElementById('btn-open-json-dlg')?.addEventListener('click', () => {
+        post('openRawJson', { dialogJsonUri: state.dialogJsonUri });
+    });
+    document.getElementById('dlg-display-name')?.addEventListener('blur', flushMeta);
+    document.getElementById('dlg-gui-id')?.addEventListener('blur', flushMeta);
+    document.querySelectorAll('.dlg-opt-id, .dlg-opt-text').forEach((el) => {
+        el.addEventListener('blur', flushDialogOptions);
+    });
+    document.querySelectorAll('.dlg-opt-enabled, .dlg-opt-used, .dlg-opt-say').forEach((el) => {
+        el.addEventListener('change', flushDialogOptions);
+    });
+    document.getElementById('btn-dlg-add-opt')?.addEventListener('click', () => {
+        post('applyPatches', { patches: [{ type: 'dialogAddOption' }] });
+    });
+    document.querySelectorAll('.dlg-opt-script').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn;
+            const idx = Number(b.dataset.idx ?? '-1');
+            if (!Number.isInteger(idx) || idx < 0) {
+                return;
+            }
+            const row = b.closest('[data-entity="dialogOption"]');
+            const idInput = row?.querySelector(`.dlg-opt-id[data-idx="${idx}"]`);
+            const optionId = idInput?.value?.trim() ?? '';
+            if (!optionId) {
+                return;
+            }
+            post('dialogEnsureWhenChoice', { dialogJsonUri: state.dialogJsonUri, optionId });
+        });
+    });
+    document.querySelectorAll('.dlg-opt-remove').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const idx = Number(btn.dataset.idx ?? '-1');
+            if (!Number.isInteger(idx) || idx < 0) {
+                return;
+            }
+            post('applyPatches', { patches: [{ type: 'dialogRemoveOption', index: idx }] });
+        });
+    });
+    mountDialogOptionDragReorder();
+}
+function collectInventoryMeta() {
+    return {
+        type: 'inventoryMeta',
+        name: document.getElementById('inv-name')?.value ?? '',
+        description: document.getElementById('inv-description')?.value ?? '',
+        stackable: document.getElementById('inv-stackable')?.checked ?? false,
+        defaultAnimation: document.getElementById('inv-default-animation')?.value ?? '',
+        cursorAnimation: document.getElementById('inv-cursor-animation')?.value ?? '',
+        asepriteMode: (document.getElementById('inv-aseprite')?.value ?? 'shared') ===
+            'true'
+            ? true
+            : 'shared',
+        defaultVerb: document.querySelector('.inv-default-verb')?.value ?? ''
+    };
+}
+function mountInventoryHandlers(state) {
+    const flushMeta = () => {
+        post('applyPatches', { patches: [collectInventoryMeta()] });
+    };
+    document.getElementById('btn-save-inv')?.addEventListener('click', () => {
+        post('applyPatches', {
+            patches: [collectInventoryMeta()]
+        });
+    });
+    document.getElementById('btn-open-json-inv')?.addEventListener('click', () => {
+        post('openRawJson', { inventoryJsonUri: state.inventoryJsonUri });
+    });
+    ['inv-name', 'inv-description', 'inv-stackable', 'inv-default-animation', 'inv-cursor-animation', 'inv-aseprite'].forEach((id) => {
+        document.getElementById(id)?.addEventListener('blur', flushMeta);
+        document.getElementById(id)?.addEventListener('change', flushMeta);
+    });
+    document.querySelectorAll('.inv-default-verb').forEach((el) => {
+        el.addEventListener('change', flushMeta);
+    });
+    document.querySelectorAll('.inv-verb-chip').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn;
+            if (b.dataset.reveal) {
+                post('verbReveal', {
+                    inventoryJsonUri: state.inventoryJsonUri,
+                    itemId: state.inventoryId,
+                    eventId: b.dataset.event
+                });
+                return;
+            }
+            if (!b.dataset.add) {
+                return;
+            }
+            const verbId = b.dataset.verb ?? '';
+            post('verbAdd', {
+                inventoryJsonUri: state.inventoryJsonUri,
+                target: 'inventoryDef',
+                itemId: state.inventoryId,
+                verbId
+            });
+        });
+    });
+    document.querySelectorAll('.inv-anim-loop, .inv-anim-dur').forEach((el) => {
+        el.addEventListener('change', () => {
+            const id = el.dataset.id ?? '';
+            if (!id) {
+                return;
+            }
+            const loop = document.querySelector(`.inv-anim-loop[data-id="${id}"]`)?.checked ?? false;
+            const durRaw = document.querySelector(`.inv-anim-dur[data-id="${id}"]`)?.value ?? '';
+            const frameDuration = durRaw === '' ? null : Number(durRaw);
+            post('applyPatches', { patches: [{ type: 'inventoryAnimation', id, loop, frameDuration }] });
+        });
+    });
+    document.querySelectorAll('.btn-inv-usedon-inv').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            post('inventoryUsedOnAdd', { inventoryJsonUri: state.inventoryJsonUri });
+        });
+    });
+}
+function render(state) {
+    const root = document.getElementById('benne-inspector-app');
+    if (!root) {
+        return;
+    }
+    if (state.kind === 'empty') {
+        lastInspectorPreserveRoomUri = null;
+        root.innerHTML = renderEmpty(state.message);
+        return;
+    }
+    let preserved = null;
+    const hadRoomShell = root.querySelector('.inspector-root') !== null;
+    const stateKey = inspectorStateKey(state);
+    if (hadRoomShell && lastInspectorPreserveRoomUri === stateKey) {
+        preserved = captureInspectorOpenState(root);
+    }
+    if (state.kind === 'room') {
+        root.innerHTML = renderRoom(state);
+    }
+    else if (state.kind === 'character') {
+        root.innerHTML = renderCharacter(state);
+    }
+    else if (state.kind === 'inventory') {
+        root.innerHTML = renderInventory(state);
+    }
+    else if (state.kind === 'dialog') {
+        root.innerHTML = renderDialog(state);
+    }
+    else {
+        root.innerHTML = renderGui(state);
+    }
+    lastInspectorPreserveRoomUri = stateKey;
+    if (preserved) {
+        restoreInspectorOpenState(root, preserved);
+    }
+    if (state.kind === 'room') {
+        mountHandlers(state);
+        scrollExpandedCardIntoView(state);
+    }
+    else if (state.kind === 'character') {
+        mountCharacterHandlers(state);
+    }
+    else if (state.kind === 'inventory') {
+        mountInventoryHandlers(state);
+    }
+    else if (state.kind === 'dialog') {
+        mountDialogHandlers(state);
+    }
+    else {
+        mountGuiHandlers(state);
+        scrollExpandedGuiCardIntoView(state);
+    }
+}
+window.addEventListener('message', (event) => {
+    const msg = event.data;
+    if (msg?.type === 'benne/inspector/state' && msg.state) {
+        render(msg.state);
+    }
+});
+render({ kind: 'empty', message: 'Loading…' });
+
+})();
+
+/******/ })()
+;

@@ -588,6 +588,9 @@ export class DialogChoiceDynamicRowState {
       if (built.label) {
         built.label.setAlpha(used ? 0.45 : 1);
       }
+      for (const lo of built.labelOutlines) {
+        lo.setAlpha(used ? 0.45 : 1);
+      }
       if (built.background) {
         built.background.setAlpha(used ? 0.45 : 1);
       }

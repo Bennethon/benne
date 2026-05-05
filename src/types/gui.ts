@@ -12,6 +12,36 @@ export interface GuiDisplayData {
 
 export type GuiTextAlign = 'left' | 'center' | 'right';
 
+/**
+ * Which directions receive outline copies behind the main {@link GuiTextControl} / button label text.
+ * Offsets expand by {@link GuiTextOutline.thickness} along each included axis / diagonal.
+ */
+export type GuiTextOutlineSides =
+  | 'allSides'
+  | 'topLeft'
+  | 'top'
+  | 'topRight'
+  | 'left'
+  | 'right'
+  | 'bottomLeft'
+  | 'bottom'
+  | 'bottomRight';
+
+/**
+ * Optional stroke behind bitmap-font GUI text. Omitted or {@link GuiTextOutline.enabled} not `true` draws no outline.
+ */
+export interface GuiTextOutline {
+  enabled?: boolean;
+  /** RGB hex (e.g. `#ff0000`); alpha from {@link GuiTextOutline.alpha}. */
+  color?: string;
+  /** 0–1; default `1` when omitted. */
+  alpha?: number;
+  /** Pixel thickness (integer ≥ 1 at runtime); default `1`. */
+  thickness?: number;
+  /** Default {@link GuiTextOutlineSides} `allSides`. */
+  sides?: GuiTextOutlineSides;
+}
+
 /** Alignment of a control within its grid cell (see {@link GuiGridPlacement}). */
 export type GuiGridCellAlign =
   | 'top-left'
@@ -74,6 +104,8 @@ export interface GuiTextControl {
    * When omitted, `defaultLetterSpacing` for this control's `font` in `src/game/assets/fonts/fonts.json` is used, else 0.
    */
   letterSpacing?: number;
+  /** Optional outline drawn behind this line. */
+  textOutline?: GuiTextOutline;
   gridPlacement?: GuiGridPlacement;
 }
 
@@ -252,6 +284,8 @@ export interface GuiButtonControl {
    * (Runtime compositor will map this to visuals + hit testing.)
    */
   enabled?: boolean;
+  /** Optional outline drawn behind the label. */
+  textOutline?: GuiTextOutline;
   gridPlacement?: GuiGridPlacement;
 }
 
