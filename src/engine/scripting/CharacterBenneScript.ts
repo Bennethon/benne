@@ -174,7 +174,4 @@ export class CharacterBenneScript extends BenneScriptCore {
     return this.makePlayerFacadeFromScene(() => this.roomScene);
   }
 
-  cutscene(callback: () => void): void {
-    callback();
-  }
 }

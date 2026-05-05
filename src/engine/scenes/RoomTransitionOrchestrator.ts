@@ -177,39 +177,46 @@ export class RoomTransitionOrchestrator {
       }
       const lastForEnter = manager.getLastRoom();
       const enterCtx: RoomTransitionContext = { roomId, lastRoom: lastForEnter, isFirstEnter: isFirst };
-      await runRoomHandlersEachSafe(
-        [...this.hooks.getEnterHandlersForRoom(roomId), ...this.hooks.getAnyEnter()],
-        enterCtx,
-        'onRoomSceneCreateComplete: room enter',
-      );
+      // Enter handlers and the enter-phase queue drain run inside a cutscene block so the room
+      // is protected from player input during invisible setup (moveTo, music, etc.).
+      roomScene.pushCutscene();
+      try {
+        await runRoomHandlersEachSafe(
+          [...this.hooks.getEnterHandlersForRoom(roomId), ...this.hooks.getAnyEnter()],
+          enterCtx,
+          'onRoomSceneCreateComplete: room enter',
+        );
 
-      if (kind === 'boot' || kind === 'preview') {
-        const g = globalThis as { __BENNE_PLAY_FROM_NAME?: unknown };
-        const raw = g.__BENNE_PLAY_FROM_NAME;
-        const playFromName = typeof raw === 'string' ? raw.trim() : '';
-        g.__BENNE_PLAY_FROM_NAME = '';
-        if (playFromName.length > 0) {
-          const playFromHandler = getPlayFromSetupForRoom(roomId, playFromName);
-          if (playFromHandler) {
-            try {
-              await Promise.resolve(playFromHandler());
-            } catch (playFromErr) {
-              if (import.meta.env.DEV) {
-                console.warn(
-                  `[Benne] Play From: setup '${playFromName}' threw an error`,
-                  playFromErr,
-                );
+        if (kind === 'boot' || kind === 'preview') {
+          const g = globalThis as { __BENNE_PLAY_FROM_NAME?: unknown };
+          const raw = g.__BENNE_PLAY_FROM_NAME;
+          const playFromName = typeof raw === 'string' ? raw.trim() : '';
+          g.__BENNE_PLAY_FROM_NAME = '';
+          if (playFromName.length > 0) {
+            const playFromHandler = getPlayFromSetupForRoom(roomId, playFromName);
+            if (playFromHandler) {
+              try {
+                await Promise.resolve(playFromHandler());
+              } catch (playFromErr) {
+                if (import.meta.env.DEV) {
+                  console.warn(
+                    `[Benne] Play From: setup '${playFromName}' threw an error`,
+                    playFromErr,
+                  );
+                }
               }
+            } else if (import.meta.env.DEV) {
+              console.warn(
+                `[Benne] Play From: no handler named '${playFromName}' for room '${roomId}'`,
+              );
             }
-          } else if (import.meta.env.DEV) {
-            console.warn(
-              `[Benne] Play From: no handler named '${playFromName}' for room '${roomId}'`,
-            );
           }
         }
-      }
 
-      await roomScene.waitForEnterPhaseBenneScriptQueues();
+        await roomScene.waitForEnterPhaseBenneScriptQueues();
+      } finally {
+        roomScene.popCutscene();
+      }
 
       if (skipEnterFadeIn) {
         roomScene.screenFadeLayer?.setAlpha(0);
@@ -222,11 +229,22 @@ export class RoomTransitionOrchestrator {
       }
 
       const afterCtx: RoomTransitionContext = { roomId, lastRoom: lastForEnter, isFirstEnter: isFirst };
-      await runRoomHandlersEachSafe(
-        [...this.hooks.getAfterFadeHandlersForRoom(roomId), ...this.hooks.getAnyAfterFade()],
-        afterCtx,
-        'onRoomSceneCreateComplete: after-fade',
-      );
+      // After-fade handlers (walk-in animations, visible cutscenes) also run inside a cutscene
+      // block so input remains suppressed for their full duration.
+      // Handlers are typically synchronous (they queue B.* steps on the interaction tail without
+      // awaiting), so we must drain the tail with waitForEnterPhaseBenneScriptQueues() inside the
+      // cutscene block — otherwise popCutscene() fires before say/walk/wait steps execute.
+      roomScene.pushCutscene();
+      try {
+        await runRoomHandlersEachSafe(
+          [...this.hooks.getAfterFadeHandlersForRoom(roomId), ...this.hooks.getAnyAfterFade()],
+          afterCtx,
+          'onRoomSceneCreateComplete: after-fade',
+        );
+        await roomScene.waitForEnterPhaseBenneScriptQueues();
+      } finally {
+        roomScene.popCutscene();
+      }
     } catch (e) {
       console.error('[Benne] onRoomSceneCreateComplete:', e);
     } finally {

@@ -557,6 +557,62 @@ Bennescript separates a **saved** “what should this prop/character show by def
 
 This layer turns BENNE from "wiring events" into "telling a story" while keeping the engine clean and data-driven.
 
+### Cutscene mode
+
+BENNE supports **PowerQuest-style uncancelable sequences** that suppress all player input for the duration of a scripted sequence.
+
+**Automatic activation** — the following handlers are always wrapped in a cutscene block with no author changes required:
+
+| Handler | When active |
+|---------|-------------|
+| `B.whenEnterRoom(…)` | Before fade-in; covers the enter-phase queue drain |
+| `B.whenEnterRoomAfterFade(…)` | After fade-in; typical walk-in / scripted intro |
+| `B.whenEnterAnyRoom(…)` | Same timing as `whenEnterRoom` (global script) |
+| `B.whenEnterAnyRoomAfterFade(…)` | Same timing as `whenEnterRoomAfterFade` (global script) |
+| `B.whenChoice(optionId, …)` | Full `say` + interaction-tail drain after the player picks an option |
+
+**Explicit API** — `B.cutscene(callback)` / `B.cutscene.now(callback)` is available on every Bennescript surface (room, character, inventory, global, GUI, dialog):
+
+```ts
+B.cutscene(() => {
+  B.walkToClicked();
+  B.player.say('I'll do it!');
+  B.wait(0.5);
+  B.character('guard').say('Stop right there.');
+});
+```
+
+- **Blocking form**: waits for any previously-queued steps to drain, pushes the cutscene flag, runs `callback` synchronously (which may queue further `B.*` steps), then pops after all those steps complete.
+- **`.now` form**: pushes the cutscene flag immediately, runs the callback, then pops after any steps the callback queued finish.
+
+Both forms use the interaction tail so they chain correctly with `walkTo`, `say`, `wait`, fades, etc.
+
+**What is suppressed** — push/pop are reference-counted so nested cutscenes are safe:
+
+| Input | During cutscene | During `say`-line only |
+|-------|:---------------:|:----------------------:|
+| Background empty-floor walks | ✗ | ✗ |
+| Prop / hotspot / character clicks | ✗ | ✗ |
+| Inventory row clicks | ✗ | ✗ |
+| GUI button clicks | ✗ | **✓ live** |
+| Hover descriptions (`B.currentHoverDescription`) | suppressed (null) | suppressed (null) |
+| Click-to-skip scripted `say` lines | **✓ always live** | ✓ live |
+
+**Walk promise contract** — inside a cutscene, if a scripted walk is interrupted (e.g. a new `walkTo` starts before the prior one finishes), the pending `walkPlayerTo` promise resolves immediately so the interaction chain does not hang. Outside cutscene mode, interrupting a walk drops the arrive callback (existing behaviour).
+
+**Custom cursor** — when the Aseprite cursor is enabled, `game-config.json`'s `cursor.busyAnimation` controls the appearance during a cutscene:
+
+- Non-empty string and the animation key exists → cursor plays that tag.
+- Missing, blank, or clip not found → cursor sprite is hidden entirely (classic PowerQuest style).
+
+Both `idle` and `active` animations are fully restored when the cutscene ends.
+
+**`B.state.isCutsceneActive`** — read-only `boolean` on every `B.state`, true while any cutscene block is active on the current `RoomScene`. Safe to read from GUI / global scripts.
+
+**Key modules:** `src/engine/scenes/RoomScene.ts` (`pushCutscene` / `popCutscene` / `isCutsceneActive`), `src/engine/scripting/BenneScriptCore.ts` (`cutscene` / `cutscene.now`), `src/engine/scenes/RoomTransitionOrchestrator.ts` (automatic enter / after-fade wrapping + queue drain), `src/engine/scripting/DialogBenneScript.ts` (automatic `whenChoice` wrapping), `src/engine/gui/buildGuiOverlay.ts` (`isButtonClickSuppressed` callback), `src/engine/scripting/benneScriptGameStateApi.ts` (`B.state.isCutsceneActive`), `src/types/game.ts` (`GameSettingsCursor.busyAnimation`).
+
+---
+
 ### GUI behavior runtime (`GuiRuntime`, `B.onGuiBuilt`)
 
 After **`buildGuiOverlay`** composes a GUI in **`RoomScene`**, the engine constructs a **`GuiRuntime`** for that overlay and invokes every **`B.onGuiBuilt((gui) => { … })`** callback registered in the matching **`registerGuiScript('guiId', …)`** facade. The same path runs for the reserved Speaking Text (**`speaking-text`**) overlay. Authors use this for **low-level, composable** UI behavior (slide panels, fades, hover bands, etc.) without adding opinionated helpers to the engine core.
