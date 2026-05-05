@@ -5,6 +5,7 @@
  */
 import * as Phaser from 'phaser';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
+import { getInternalWidth } from '../../game/constants';
 import { isBenneGameCursorAsepriteEnabled } from '../../game/cursorAseprite';
 import { guiPhaserAnimationKey } from '../../game/asepritePhaserAnimationKeys';
 import { getGameSettings } from '../ConfigManager';
@@ -41,6 +42,7 @@ import {
   applyGuiBitmapTextFillTint,
   attachGuiBitmapTextOutlineList,
   BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY,
+  BENNE_GUI_BITMAP_TEXT_OUTLINE_KEY,
   BENNE_GUI_OUTLINE_CANVAS_TINT_KEY,
   BENNE_GUI_OUTLINE_DX_KEY,
   BENNE_GUI_OUTLINE_DY_KEY,
@@ -109,12 +111,89 @@ export const GUI_TEXT_OVERLAY_DEPTH = 25_000;
  */
 export const GUI_OVERLAY_DEPTH_STRIDE = 10_000;
 
+/**
+ * Minimum gap between Speaking Text (primary line + outline clones) and the internal canvas edges when using
+ * {@link GuiOverlayHandle.setPrimaryScreenPositionBottomCenter}.
+ */
+const PRIMARY_LINE_SCREEN_EDGE_INSET = 2;
+
+function unionOutlinedBitmapTextScreenBounds(main: Phaser.GameObjects.BitmapText): {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+} {
+  let left = Number.POSITIVE_INFINITY;
+  let top = Number.POSITIVE_INFINITY;
+  let right = Number.NEGATIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
+  const expand = (r: Phaser.Geom.Rectangle): void => {
+    left = Math.min(left, r.x);
+    top = Math.min(top, r.y);
+    right = Math.max(right, r.x + r.width);
+    bottom = Math.max(bottom, r.y + r.height);
+  };
+  expand(main.getBounds());
+  const outs = main.getData(BENNE_GUI_BITMAP_TEXT_OUTLINE_KEY) as Phaser.GameObjects.BitmapText[] | undefined;
+  if (Array.isArray(outs)) {
+    for (const o of outs) {
+      expand(o.getBounds());
+    }
+  }
+  return { left, top, right, bottom };
+}
+
+/**
+ * Positions the primary line with bottom-center at `(anchorX, anchorY)`, then nudges it so the unioned bounds
+ * (including outline layers) stay inside `[inset, width - inset]` horizontally and do not cross above `y = inset`.
+ */
+function clampPrimaryLineBottomCenterToScreen(
+  primaryLine: Phaser.GameObjects.BitmapText,
+  anchorX: number,
+  anchorY: number,
+  viewW: number,
+  inset: number,
+): void {
+  primaryLine.setOrigin(0.5, 1);
+  primaryLine.setPosition(Math.round(anchorX), Math.round(anchorY));
+  syncOutlinedGuiBitmapTextPositions(primaryLine);
+  const bb = unionOutlinedBitmapTextScreenBounds(primaryLine);
+  if (!(bb.right > bb.left && bb.bottom > bb.top)) {
+    return;
+  }
+  const minX = inset;
+  const maxX = viewW - inset;
+  const minY = inset;
+  let dx = 0;
+  let dy = 0;
+  const innerW = maxX - minX;
+  const spanW = bb.right - bb.left;
+  if (innerW > 0 && spanW <= innerW) {
+    if (bb.left < minX) {
+      dx = minX - bb.left;
+    } else if (bb.right > maxX) {
+      dx = maxX - bb.right;
+    }
+  } else if (innerW > 0) {
+    /** Wider than the safe band: keep the start edge inside the inset (right may still clip). */
+    dx = minX - bb.left;
+  }
+  if (bb.top < minY) {
+    dy = minY - bb.top;
+  }
+  if (dx !== 0 || dy !== 0) {
+    primaryLine.setPosition(Math.round(anchorX + dx), Math.round(anchorY + dy));
+    syncOutlinedGuiBitmapTextPositions(primaryLine);
+  }
+}
+
 export interface GuiOverlayHandle {
   /** Updates the dialogue line control (`id: line`) if present, else the first text control. */
   setPrimaryText(text: string): void;
   /**
    * Places the **bottom-center** of the primary line (after word wrap) at `(x, y)` in game-canvas space,
-   * then rounds. Restores authored origin/position via {@link resetPrimaryScreenPosition}.
+   * then rounds and **clamps** so the line plus any outline layers stay inside the internal resolution (inset from
+   * left/right/top). Restores authored origin/position via {@link resetPrimaryScreenPosition}.
    */
   setPrimaryScreenPositionBottomCenter(x: number, y: number): void;
   /** Restores the primary line to its authored GUI position and display origin. */
@@ -2093,9 +2172,13 @@ export function buildGuiOverlay(
     },
     setPrimaryScreenPositionBottomCenter(x: number, y: number) {
       if (primaryLine) {
-        primaryLine.setOrigin(0.5, 1);
-        primaryLine.setPosition(Math.round(x), Math.round(y));
-        syncOutlinedGuiBitmapTextPositions(primaryLine);
+        clampPrimaryLineBottomCenterToScreen(
+          primaryLine,
+          x,
+          y,
+          getInternalWidth(),
+          PRIMARY_LINE_SCREEN_EDGE_INSET,
+        );
       }
     },
     resetPrimaryScreenPosition() {
