@@ -305,6 +305,24 @@ export abstract class BenneScriptCore {
   /** Full-screen fade to transparent. Same defaults and queuing as {@link fadeOut}. */
   readonly fadeIn: BlockingWithNow<[durationSeconds?: number, color?: number]>;
 
+  /**
+   * PowerQuest-style uncancelable sequence. Increments the active {@link RoomScene}'s cutscene
+   * depth counter while the callback's queued steps execute, then decrements it.
+   *
+   * **Blocking form** (`B.cutscene(callback)`): waits for any previously-queued steps to drain,
+   * then pushes the cutscene flag, runs `callback` synchronously (which may queue further
+   * `B.*` steps on this tail), and pops the flag after all those steps complete.
+   *
+   * **`.now` form** (`B.cutscene.now(callback)`): pushes the cutscene flag and runs the callback
+   * immediately (without waiting for the existing queue), then pops after any steps queued by
+   * the callback finish.
+   *
+   * During the cutscene: all pointer input is suppressed (props, hotspots, characters, GUI
+   * buttons, inventory rows, background walks); the custom cursor switches to the configured
+   * `busyAnimation` or is hidden. Only the click-to-skip scripted dialog path remains live.
+   */
+  readonly cutscene: BlockingWithNow<[callback: () => void]>;
+
   /** Room id / transitions (`B.room.changeTo`, `current` / `last` from game state). */
   readonly room: BenneScriptRoomFacade;
 
@@ -378,6 +396,34 @@ export abstract class BenneScriptCore {
         this.performScreenFade(0, true, durationSeconds, color),
       (durationSeconds?: number, color?: number) =>
         this.performScreenFade(0, false, durationSeconds, color),
+    );
+
+    this.cutscene = withNow(
+      (callback: () => void) => {
+        // Blocking form: wait for prior tail to drain, then push cutscene, run callback
+        // (which appends its own sub-steps to the tail), then append the pop.
+        // Crucially the pop must be chained INSIDE the factory (after callback()), not in the
+        // outer synchronous call, so it comes after callback's sub-steps rather than before them.
+        this.chain(() => {
+          this.getPlayerWalkRoomScene()?.pushCutscene();
+          callback(); // synchronously appends sub-steps A, B, … to this.interactionTail
+          // Pop step is appended here, after A and B — final chain order: push → A → B → pop.
+          this.chain(() => {
+            this.getPlayerWalkRoomScene()?.popCutscene();
+            return Promise.resolve();
+          });
+          return Promise.resolve();
+        });
+      },
+      (callback: () => void) => {
+        // .now: push immediately, run callback, chain pop at end of whatever callback added.
+        this.getPlayerWalkRoomScene()?.pushCutscene();
+        callback(); // appends sub-steps to this.interactionTail
+        this.chain(() => {
+          this.getPlayerWalkRoomScene()?.popCutscene();
+          return Promise.resolve();
+        });
+      },
     );
 
     this.say = this.createFreeScopeSayDialogue();

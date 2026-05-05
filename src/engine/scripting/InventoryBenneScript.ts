@@ -298,7 +298,4 @@ export class InventoryBenneScript extends BenneScriptCore {
     return this.makePlayerFacadeFromScene(() => this.roomScene);
   }
 
-  cutscene(callback: () => void): void {
-    callback();
-  }
 }

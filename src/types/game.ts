@@ -204,6 +204,13 @@ export interface GameSettingsCursor {
   idleAnimation: string;
   /** Aseprite tag when the pointer is over a prop, hotspot, clickable character, or GUI button. */
   activeAnimation: string;
+  /**
+   * Optional Aseprite tag to play on the cursor sprite while a cutscene is active.
+   * When non-empty and the animation key exists, the cursor plays this tag during cutscene mode
+   * (PowerQuest-style "busy" pointer). When blank, missing, or the clip does not exist, the cursor
+   * sprite is hidden entirely during cutscene (classic PowerQuest style — no pointer visible).
+   */
+  busyAnimation?: string;
   /** Optional per-tag `loop` / `frameDuration` / `events` (same as character `animations`). */
   animations?: CharacterAnimationsConfig;
   /**

@@ -1,6 +1,6 @@
 # Bennescript API Reference
 
-> Last updated: 2026-04-30 — generated from source (`src/engine/scripting/*.ts`)
+> Last updated: 2026-05-05 — generated from source (`src/engine/scripting/*.ts`)
 
 For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt), and the **Blocking interaction queue** / API tables in §7.
 
@@ -49,7 +49,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 | **`whenLeaveAnyRoom`**, **`whenEnterAnyRoom`**, **`whenEnterAnyRoomAfterFade`** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **`whenButtonClick`**, **`onGuiBuilt`**, **`scene`**, hover | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | **`whenChoice`** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **`cutscene`** (sync invoke today) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **`cutscene`** / **`cutscene.now`** — see [Cutscene mode](#cutscene-mode) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 \*GUI: if game/manager are not ready, **`B.dialog(id)`** returns a **no-op** surface (**`GuiBenneScript`** constructor).
 
@@ -337,14 +337,6 @@ whenEnterRoomAfterFade(handler: (ctx: RoomTransitionContext) => void | Promise<v
 
 Registry from **`tryGetGlobalRoomHookRegistry()`** — if missing, DEV warns and handlers are **not** wired.
 
-### Miscellaneous
-
-```ts
-cutscene(callback: () => void): void;
-```
-
-Current implementation invokes **`callback()`** synchronously (placeholder hook).
-
 ---
 
 ## Character script — `CharacterBenneScript` extras
@@ -381,8 +373,6 @@ Engine always wires **use/give** → **`subscribeAfterInteractionTail`** so **`s
 
 **`whenInventoryUsedOn`** — **`targetId` must equal this item id** (inventory combine row target). Payload handler may **`return false`** for global **`whenInventoryOnVerbTargetUnhandled`** (same as room script).
 
-**`cutscene`** — same as room.
-
 ---
 
 ## Global script — `GlobalBenneScript` extras
@@ -412,7 +402,7 @@ whenEnterAnyRoomAfterFade(handler: (ctx: RoomTransitionContext) => void | Promis
 
 All use **`subscribe`** (queued interaction semantics) except as noted elsewhere. **`B.player`** / **`walkToClicked`** resolve room scene from **`game.scene.getScene(SCENE_ROOM)`**.
 
-**No **`B.prop`**, **`cutscene`, or **`when*`** room sugar on global.** **`B.character`** exists (inherited from **`BenneScriptCore`**) but only affects the world when an active **`RoomScene`** is resolved — same as **`B.player`**.
+**No **`B.prop`** or **`when*`** room sugar on global.** **`B.character`** exists (inherited from **`BenneScriptCore`**) but only affects the world when an active **`RoomScene`** is resolved — same as **`B.player`**.
 
 Payload types live in **`src/engine/events/verbInteractionEvents.ts`** and **`inventoryOnVerbEvents.ts`**.
 
@@ -468,7 +458,7 @@ whenChoice(
 
 Wired to **`guiButtonClickEventId(dialogGuiId, dialogChoiceSyntheticButtonId(optionId))`**. **`RoomScene.suppressDialogChoiceGuiForWhenChoice`** hides the choice GUI during handler execution + **`interactionTail`** drain; restored after (**`restoreDialogChoiceGuiAfterWhenChoiceDrain`**).
 
-Tagged **`B.say`** and the rest of **`BenneScriptCore`** (**`wait`**, **`fadeOut`**, **`room`**, **`raw`**, **`B.character(id)`** …) apply as usual. **`DialogBenneScript`** adds **`state`** and **`inventory`** but **no** **`cutscene()`**.
+Tagged **`B.say`** and the rest of **`BenneScriptCore`** (**`wait`**, **`fadeOut`**, **`room`**, **`raw`**, **`B.character(id)`** …) apply as usual. **`DialogBenneScript`** adds **`state`** and **`inventory`**; **`cutscene`** / **`cutscene.now`** are inherited from **`BenneScriptCore`** like all other surfaces.
 
 ---
 
@@ -500,9 +490,31 @@ Character scripts omit **`whenGive`** (**give targets props in room layer**).
 
 ---
 
+## Cutscene mode
+
+Enter-room handlers (`whenEnterRoom`, `whenEnterRoomAfterFade`, and their `Any` variants) and `whenChoice` handlers are **automatically** wrapped in a cutscene block. For other sequences, use `B.cutscene(callback)` (or `.now`), available on every Bennescript surface:
+
+```ts
+B.cutscene(() => {
+  B.player.walkTo('gate');
+  B.player.say('Here we go.');
+  B.wait(0.5);
+  B.character('guard').say('Stop right there!');
+});
+```
+
+- **Blocking form** — waits for prior queued steps, pushes the cutscene flag, runs the callback (queueing further `B.*` steps), then pops after those steps complete.
+- **`.now` form** — pushes immediately, runs the callback, pops after the callback's steps complete.
+
+While active, all pointer input is suppressed (props, hotspots, characters, GUI buttons, inventory rows, background walks, hover descriptions). Click-to-skip scripted `say` lines remain live. `B.state.isCutsceneActive` exposes the flag for GUI and global scripts.
+
+For the full reference — automatic activation table, suppressed-input matrix, walk promise contract, `busyAnimation` cursor config, and implementation modules — see [architecture.md §7 → Cutscene mode](architecture.md#cutscene-mode).
+
+---
+
 ## Common patterns
 
-**Cutscene-style ordering** — Use blocking **`walkTo`**, **`wait`**, **`player.say`**, **`fadeOut`** / **`fadeIn`** inside one handler; reserve **`.now`** for overlapping effects you intentionally do not wait for.
+**Cutscene-style ordering** — Use the automatic wrapping from `whenEnterRoomAfterFade` / `whenChoice`, or wrap explicit sequences with `B.cutscene(…)`. Use blocking **`walkTo`**, **`wait`**, **`player.say`**, **`fadeOut`** / **`fadeIn`** inside; reserve **`.now`** for overlapping effects you intentionally do not wait for.
 
 **Use-on-target** — Player arms item via **`B.inventory('key').*`** verb row (**use**/ **give**) or **`B.setActiveInventory`**. Room: **`B.whenInventoryUsedOn('door', ({ itemId }) => { … })`**. Use **`return false`** when no branch handles the combo so **`globalScript.ts`**’s **`whenInventoryOnVerbTargetUnhandled`** runs (no duplicated fallback line). Clearing: **`doNotClear`** / **`shouldDropActiveInventoryOnUse`** on the handler that actually concludes the click (after delegation, that is the global unhandled listener — see [`dispatchInventoryOnVerbTarget`](../src/engine/verbs/dispatchInventoryOnVerbTarget.ts) and [architecture.md — Drop policy](architecture.md#inventory-system)).
 
@@ -529,8 +541,8 @@ Strict typing when bypassing **`(p: any)`**:
 
 | Module | Role |
 |--------|------|
-| [`BenneScriptCore.ts`](../src/engine/scripting/BenneScriptCore.ts) | **`BlockingWithNow`**, queue, **`say`/`wait`/fades/clicks/active selection**, **`events`/`raw`**, inventory-on-target **`subscribe*`** helpers |
-| [`BenneScript.ts`](../src/engine/scripting/BenneScript.ts) | Room **`B`**, verb sugar, **`prop`/`character`/`player`**, **`state`/`inventory`/`dialog`**, **`cutscene`** |
+| [`BenneScriptCore.ts`](../src/engine/scripting/BenneScriptCore.ts) | **`BlockingWithNow`**, queue, **`say`/`wait`/fades/clicks/active selection**, **`events`/`raw`**, inventory-on-target **`subscribe*`** helpers, **`cutscene`** / **`cutscene.now`** |
+| [`BenneScript.ts`](../src/engine/scripting/BenneScript.ts) | Room **`B`**, verb sugar, **`prop`/`character`/`player`**, **`state`/`inventory`/`dialog`** |
 | [`CharacterBenneScript.ts`](../src/engine/scripting/CharacterBenneScript.ts) | Character facade |
 | [`InventoryBenneScript.ts`](../src/engine/scripting/InventoryBenneScript.ts) | Inventory row façade |
 | [`GlobalBenneScript.ts`](../src/engine/scripting/GlobalBenneScript.ts) | Global fallbacks + any-room hooks |

@@ -559,7 +559,4 @@ export class BenneScript extends BenneScriptCore {
     registerPlayFromForRoom(this.roomId, id, handler);
   }
 
-  cutscene(callback: () => void): void {
-    callback();
-  }
 }

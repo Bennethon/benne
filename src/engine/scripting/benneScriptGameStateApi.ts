@@ -10,6 +10,8 @@ import {
 } from '../inventory/inventoryScriptingAnimations.js';
 import type { BenneScriptInventoryItemFacade } from './benneScriptFacades.js';
 import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
+import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
+import { SCENE_ROOM } from '../../game/constants.js';
 
 /**
  * When provided to {@link createBenneScriptInventoryNamespace}, **`B.inventory.add` / `remove`**
@@ -53,6 +55,13 @@ export interface BenneScriptGameStateNamespace {
   getLastRoom(): string | null;
   setCurrentRoom(roomId: string): void;
   setLastRoom(roomId: string | null): void;
+  /**
+   * Read-only: `true` while a cutscene block is active on the current {@link RoomScene}
+   * (any of: `B.cutscene(…)`, `whenEnterRoom`, `whenEnterAnyRoom`, `whenEnterRoomAfterFade`,
+   * `whenEnterAnyRoomAfterFade`, or `whenChoice` handler). `false` outside a room or when
+   * no cutscene is in progress.
+   */
+  readonly isCutsceneActive: boolean;
 }
 
 /**
@@ -96,6 +105,14 @@ export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneS
     getLastRoom: () => m.getLastRoom(),
     setCurrentRoom: (roomId) => m.setCurrentRoom(roomId),
     setLastRoom: (roomId) => m.setLastRoom(roomId),
+    get isCutsceneActive(): boolean {
+      const game = tryGetActiveBenneGame();
+      if (!game) {
+        return false;
+      }
+      const scene = game.scene.getScene(SCENE_ROOM) as RoomScene | null;
+      return scene?.isCutsceneActive() ?? false;
+    },
   };
 }
 

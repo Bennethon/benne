@@ -664,6 +664,11 @@ export function buildGuiButton(
    * Used only for `backgroundAnchor: 'screen'` so full-frame art stays pinned to the canvas when the button sits in a grid.
    */
   screenBgWorldTopLeft?: { x: number; y: number },
+  /**
+   * Optional guard called on `pointerup`: when it returns **`true`** the click is swallowed.
+   * Provided by {@link RoomScene} for cutscene-mode suppression.
+   */
+  isClickSuppressed?: () => boolean,
 ): BuiltGuiButton | null {
   const w = c.width;
   const h = c.height;
@@ -838,6 +843,9 @@ export function buildGuiButton(
 
   hitTarget.on('pointerup', (pointer: Phaser.Input.Pointer) => {
     if (!enabled || !hitTarget.visible || !pointer.leftButtonReleased()) {
+      return;
+    }
+    if (isClickSuppressed?.()) {
       return;
     }
     onBeforeEmit?.();
@@ -1636,6 +1644,12 @@ export interface BuildGuiOverlayOptions {
   emptyTextPlaceholder?: string;
   /** Enables interactive inventory slots that emit inventory verb events (requires `roomId`). */
   inventoryPanelPointerContext?: InventoryPanelPointerContext;
+  /**
+   * When provided and returns **`true`**, GUI button `pointerup` clicks are swallowed.
+   * Used by {@link RoomScene} to block buttons during cutscene mode. Inventory slots are gated
+   * separately via {@link InventoryPanelPointerContext.isInputSuppressed}.
+   */
+  isButtonClickSuppressed?: () => boolean;
 }
 
 /**
@@ -1651,6 +1665,7 @@ export function buildGuiOverlay(
   const startVisible = options?.startVisible ?? false;
   const placeholder = options?.emptyTextPlaceholder;
   const invPointerCtx = options?.inventoryPanelPointerContext;
+  const isButtonClickSuppressed = options?.isButtonClickSuppressed;
   const allLines: Phaser.GameObjects.BitmapText[] = [];
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
   const guiButtons: BuiltGuiButton[] = [];
@@ -1908,6 +1923,7 @@ export function buildGuiOverlay(
         startVisible,
         preEmit,
         btnPlace ? btnPlace.rootTopLeft : undefined,
+        isButtonClickSuppressed,
       );
       if (built) {
         if (btnPlace) {

@@ -340,6 +340,9 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
     const wrapped = async (payload: unknown) => {
       const room = this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
       room?.suppressDialogChoiceGuiForWhenChoice(guiId);
+      // Wrap the entire handler + interaction-tail drain in a cutscene block so additional
+      // dialog options and other input are suppressed while the choice plays out.
+      room?.pushCutscene();
 
       this.beginInteraction();
       try {
@@ -364,6 +367,7 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
       } catch (err) {
         console.error(`[Benne] Error in ${eventId} dialog whenChoice handler:`, err);
       } finally {
+        room?.popCutscene();
         const rm = this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
         rm?.restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId, dialogScriptId);
       }

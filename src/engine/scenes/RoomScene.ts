@@ -353,6 +353,14 @@ export class RoomScene extends Phaser.Scene {
    */
   private scriptedDialogInputSuppressionDepth = 0;
 
+  /**
+   * Reference-counted cutscene depth. While > 0 ALL pointer input (props, hotspots, characters,
+   * GUI buttons, inventory rows, background walks, hover descriptions) is suppressed. Only the
+   * click-to-skip scripted-dialog path remains live. Increment via {@link pushCutscene},
+   * decrement via {@link popCutscene}. Reset to 0 on room transitions.
+   */
+  private cutsceneDepth = 0;
+
   /** When set, a left-click should end the active scripted dialog line early (global or per-line `say` options). */
   private scriptedDialogClickToSkip: (() => void) | null = null;
 
@@ -450,16 +458,18 @@ export class RoomScene extends Phaser.Scene {
     let stackIndex = 0;
     const inventoryPanelPointerContext = {
       roomId: data.room.id,
-      isInputSuppressed: (): boolean => this.isScriptedDialogInputSuppressed(),
+      isInputSuppressed: (): boolean => this.isInputSuppressed(),
       tryConsumeDialogClickToSkip: (pointer: Phaser.Input.Pointer): boolean =>
         this.tryConsumeScriptedDialogClickToSkip(pointer),
     };
+    const isButtonClickSuppressed = (): boolean => this.isCutsceneActive();
     for (const gui of nonDialogGuis) {
       const built = buildGuiOverlay(this, gui, {
         /** Preview / cutscene override wins; otherwise each GUI's required `visible` boolean. */
         startVisible: hasGenericGuiVisibilityOverride ? genericGuiVisibilityOverride : gui.visible,
         depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
         inventoryPanelPointerContext,
+        isButtonClickSuppressed,
       });
       if (built) {
         this.genericGuiOverlays.push(built.handle);
@@ -479,6 +489,7 @@ export class RoomScene extends Phaser.Scene {
           startVisible: false,
           depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
           inventoryPanelPointerContext,
+          isButtonClickSuppressed,
         })
       : null;
     this.dialogTextOverlay = speakingTextBuilt?.handle ?? null;
@@ -507,6 +518,7 @@ export class RoomScene extends Phaser.Scene {
         startVisible: false,
         depth: dChoice,
         inventoryPanelPointerContext,
+        isButtonClickSuppressed,
       });
       stackIndex += 1;
       if (!choiceBuilt) {
@@ -732,6 +744,7 @@ export class RoomScene extends Phaser.Scene {
       endDialogSessionIfMatches(activeDialog);
     }
     this.scriptedDialogInputSuppressionDepth = 0;
+    this.cutsceneDepth = 0;
     this.time.removeAllEvents();
   }
 
@@ -1188,6 +1201,40 @@ export class RoomScene extends Phaser.Scene {
 
   private isScriptedDialogInputSuppressed(): boolean {
     return this.scriptedDialogInputSuppressionDepth > 0;
+  }
+
+  /**
+   * True while ANY scripted-dialog line OR cutscene is active — gates props, hotspots, characters,
+   * inventory rows, hover descriptions, and background walks. GUI buttons are additionally gated
+   * only when {@link isCutsceneActive} is true (they remain live during say-line suppression).
+   */
+  private isInputSuppressed(): boolean {
+    return this.scriptedDialogInputSuppressionDepth > 0 || this.cutsceneDepth > 0;
+  }
+
+  /**
+   * Increment the cutscene depth counter. While non-zero, all input is suppressed and the custom
+   * cursor switches to the busy animation (or hidden). Called automatically by {@link BenneScriptCore}
+   * `B.cutscene`, enter-room hooks, and `whenChoice` handlers.
+   */
+  pushCutscene(): void {
+    this.cutsceneDepth++;
+    this.lastCustomCursorVisualKey = null;
+    this.refreshCustomCursor(this.input.activePointer);
+    this.syncVerbHoverScriptSurface(this.input.activePointer);
+  }
+
+  /** Decrement the cutscene depth counter. When it reaches 0, normal input resumes. */
+  popCutscene(): void {
+    this.cutsceneDepth = Math.max(0, this.cutsceneDepth - 1);
+    this.lastCustomCursorVisualKey = null;
+    this.refreshCustomCursor(this.input.activePointer);
+    this.syncVerbHoverScriptSurface(this.input.activePointer);
+  }
+
+  /** True while a cutscene is in progress (cutscene depth > 0). */
+  isCutsceneActive(): boolean {
+    return this.cutsceneDepth > 0;
   }
 
   /**
@@ -2000,7 +2047,7 @@ export class RoomScene extends Phaser.Scene {
     if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
       return;
     }
-    if (this.isScriptedDialogInputSuppressed()) {
+    if (this.isInputSuppressed()) {
       return;
     }
 
@@ -2048,9 +2095,14 @@ export class RoomScene extends Phaser.Scene {
    * with reason `interrupted` (used when tearing down the scene).
    */
   private stopPlayerMoveTween(emitStop: boolean): void {
+    const arriveCallback = this.walkArriveCallback;
     this.walkArriveCallback = null;
     this.currentPlayerPath = null;
     if (!this.playerMoveTween) {
+      // During a cutscene the walk promise must still resolve so the interaction chain continues.
+      if (this.cutsceneDepth > 0 && arriveCallback) {
+        arriveCallback();
+      }
       return;
     }
     const tween = this.playerMoveTween;
@@ -2062,6 +2114,12 @@ export class RoomScene extends Phaser.Scene {
         roomId: this.roomData.id,
         reason: 'interrupted',
       } satisfies PlayerWalkStopPayload);
+    }
+    // During a cutscene, resolve the interrupted walk's promise so the interaction chain
+    // can continue without hanging — player clicks are suppressed, so the only interruptions
+    // are scripted (room transitions reset the tail separately).
+    if (this.cutsceneDepth > 0 && arriveCallback) {
+      arriveCallback();
     }
   }
 
@@ -2621,7 +2679,7 @@ export class RoomScene extends Phaser.Scene {
       if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
         return;
       }
-      if (this.isScriptedDialogInputSuppressed()) {
+      if (this.isInputSuppressed()) {
         return;
       }
       const profile = getEffectiveInputProfile(getGameSettings());
@@ -2690,7 +2748,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private emitPropVerbInteraction(roomId: string, spawn: RoomPropSpawn, verbId: string): void {
-    if (this.isScriptedDialogInputSuppressed()) {
+    if (this.isInputSuppressed()) {
       return;
     }
     console.log(`[Benne] verb "${verbId}" prop ${spawn.id}`);
@@ -2719,7 +2777,7 @@ export class RoomScene extends Phaser.Scene {
       if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
         return;
       }
-      if (this.isScriptedDialogInputSuppressed()) {
+      if (this.isInputSuppressed()) {
         return;
       }
       const handlers = getHotspotVerbHandlers(hotspot);
@@ -2905,7 +2963,7 @@ export class RoomScene extends Phaser.Scene {
       if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
         return;
       }
-      if (this.isScriptedDialogInputSuppressed()) {
+      if (this.isInputSuppressed()) {
         return;
       }
       const profile = getEffectiveInputProfile(getGameSettings());
@@ -3082,7 +3140,7 @@ export class RoomScene extends Phaser.Scene {
 
   /** Hover target + description under the pointer for **`B.currentHoverDescription`** (skips GUI buttons like the verb bar). */
   private resolveVerbHoverPointerContext(pointer: Phaser.Input.Pointer): VerbHoverTarget | null {
-    if (this.isScriptedDialogInputSuppressed()) {
+    if (this.isInputSuppressed()) {
       return null;
     }
     const hits = this.sortRoomPointerHitStack(pointer);
@@ -3194,8 +3252,31 @@ export class RoomScene extends Phaser.Scene {
       applyGameCursorSpriteHotspot(sprite, pointer, settings.cursor!);
     }
 
-    const idleKey = cursorPhaserAnimationKey(settings.cursor!.idleAnimation.trim());
-    const activeKey = cursorPhaserAnimationKey(settings.cursor!.activeAnimation.trim());
+    const cfg = settings.cursor!;
+    const idleKey = cursorPhaserAnimationKey(cfg.idleAnimation.trim());
+    const activeKey = cursorPhaserAnimationKey(cfg.activeAnimation.trim());
+
+    // Cutscene: show busy animation if configured and exists, otherwise hide the cursor.
+    if (this.cutsceneDepth > 0) {
+      const busyAuthor = cfg.busyAnimation?.trim() ?? '';
+      const busyKey = busyAuthor.length > 0 ? cursorPhaserAnimationKey(busyAuthor) : '';
+      const hasBusy = busyKey.length > 0 && this.anims.exists(busyKey);
+      const visualKey = hasBusy ? `busy|${busyKey}` : 'busy|hide';
+      if (this.lastCustomCursorVisualKey !== visualKey) {
+        this.lastCustomCursorVisualKey = visualKey;
+        if (hasBusy) {
+          sprite.setVisible(true);
+          sprite.setTexture(CURSOR_TEXTURE_KEY);
+          sprite.play(busyKey);
+        } else {
+          sprite.setVisible(false);
+        }
+      }
+      return;
+    }
+
+    // Outside cutscene: restore visibility in case it was hidden.
+    sprite.setVisible(true);
 
     const overClickable = this.resolvePointerVerbStyleActiveCursor(
       this.sortRoomPointerHitStack(pointer),
@@ -3229,11 +3310,15 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Whether the verb-style cursor (idle vs active clip) should be **active**.
-   * Walks hits top-first (sorted): GUI / inventory count as interactive even during scripted-dialog
-   * suppression; props / hotspots / clickable NPCs do not flip to active while input is suppressed.
+   * Walks hits top-first (sorted): during cutscene everything returns false; during scripted-dialog
+   * suppression only, GUI / inventory still count as interactive; props / hotspots / clickable NPCs
+   * do not flip to active while any input suppression is in effect.
    */
   private resolvePointerVerbStyleActiveCursor(hits: Phaser.GameObjects.GameObject[]): boolean {
-    const suppressed = this.isScriptedDialogInputSuppressed();
+    if (this.cutsceneDepth > 0) {
+      return false;
+    }
+    const dialogSuppressed = this.isScriptedDialogInputSuppressed();
     for (const o of hits) {
       const go = o as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown };
       if (typeof go.getData === 'function') {
@@ -3241,16 +3326,16 @@ export class RoomScene extends Phaser.Scene {
           return true;
         }
         if (go.getData('benneHotspot') === true) {
-          return !suppressed;
+          return !dialogSuppressed;
         }
         const charData = go.getData('character') as CharacterData | undefined;
         if (charData && go.getData('isPlayer') !== true && charData.clickable) {
-          return !suppressed;
+          return !dialogSuppressed;
         }
       }
       for (const propSprite of this.propSpritesById.values()) {
         if (propSprite === o) {
-          return !suppressed;
+          return !dialogSuppressed;
         }
       }
     }
