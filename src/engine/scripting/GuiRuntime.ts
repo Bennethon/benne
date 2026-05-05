@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { syncBenneGuiAsepriteAuthoredWorldPosition } from '../aseprite/asepriteFramePlacement';
+import { syncOutlinedGuiBitmapTextAll, syncOutlinedGuiBitmapTextPositions } from '../gui/guiTextOutline';
 import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
 
 export type ControlTweenProps = Partial<Phaser.Types.Tweens.TweenBuilderConfig>;
@@ -73,6 +74,9 @@ export class ControlFacade {
     } else if (typeof go.x === 'number') {
       go.x = x;
     }
+    if (go instanceof Phaser.GameObjects.BitmapText) {
+      syncOutlinedGuiBitmapTextPositions(go);
+    }
   }
 
   setY(y: number): void {
@@ -89,6 +93,9 @@ export class ControlFacade {
       go.setY(y);
     } else if (typeof go.y === 'number') {
       go.y = y;
+    }
+    if (go instanceof Phaser.GameObjects.BitmapText) {
+      syncOutlinedGuiBitmapTextPositions(go);
     }
   }
 
@@ -132,7 +139,11 @@ export class ControlFacade {
     if (!t) {
       throw new Error('[Benne] GUI control `.text` requires a BitmapText or Text game object.');
     }
-    t.setText(value);
+    if (t instanceof Phaser.GameObjects.BitmapText) {
+      syncOutlinedGuiBitmapTextAll(t, value);
+    } else {
+      t.setText(value);
+    }
   }
 }
 

@@ -26,6 +26,8 @@
 
 > **BENNE Play watch + auto-reload** (2026-05-03): **`benne-editor.playFromRoom`** starts **`npm run watch:benne-play`** (**`vite build --watch`**, no `tsc`) in the game repo when **`watch:benne-play`** exists in **`package.json`**; **`BennePlayWatchManager`** (**`benne-editor/src/bennePlayWatch.ts`**) watches **`benne-editor/media/benne-play/benne-play.js`** and debounces a webview HTML refresh so saves to room JSON / TS and the rest of the Vite graph update Play without manual **`build:benne-play`**. The watch stops when the Play panel closes or the extension deactivates.
 
+> **GUI BitmapText color + text outline** (2026-05-04): `text` and `button` controls in **`*.gui.json`** now support a `color` field (`GuiTextControl.color`, hex string, default `#ffffff`) and an optional **`textOutline`** object (`GuiTextOutline` in **`src/types/gui.ts`**) with sub-fields `enabled`, `color`, `alpha` (0–1), `thickness` (px integer ≥ 1), and `sides` (`GuiTextOutlineSides`). Outline `sides` selects which pixel offsets to generate: **`allSides`** (full 8-direction stroke) or directional drop-shadows (`topLeft`, `top`, `topRight`, `left`, `right`, `bottomLeft`, `bottom`, `bottomRight`); each direction emits `thickness` copies at increasing pixel distances. Runtime: **`createGuiBitmapTextOutlines`** in **`buildGuiOverlay.ts`** spawns offset `BitmapText` clones behind the main label at depth-ceiling − ε. **`applyGuiBitmapTextFillTint`** in **`guiTextOutline.ts`** applies colour via `setTint` + `setTintMode(Phaser.TintModes.FILL)` and writes it to a `setData` key. **`syncOutlinedGuiBitmapTextAll`** re-applies tints after `setText` so dialogue updates preserve colour. Phaser 4's Canvas `BitmapText` renderer ignores tint properties entirely (WebGL-only in Phaser's default path); a **pre-tinted atlas cache** in **`benneOutlineBitmapTextCanvasRenderer.ts`** builds a colourised copy of the font atlas once per `(image, tintColour)` pair using `destination-in` compositing (fill solid colour → mask with glyph alpha), caches it permanently, and the patched `renderCanvas` simply swaps in that canvas as the `drawImage` source — zero per-glyph overhead and no FPS impact. **`installBitmapTextCanvasGuiOutlineTintPatch.ts`** patches `BitmapText.prototype.renderCanvas` for any object carrying `BENNE_GUI_OUTLINE_CANVAS_TINT_KEY` (outline clones) or `BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY` (main labels) and passes through unchanged for white (0xffffff) tints and all non-BENNE objects. **Inspector**: each `text` and `button` control shows an **Outline** collapsible accordion (`renderGuiTextOutlineAccordion` in `inspectorMain.ts`) with enabled checkbox, colour swatch, alpha, thickness, and sides dropdown; changes are merged via `mergeGuiTextOutlinePatch` (`inspectorMutations.ts`) as a shallow patch so unrelated fields are not overwritten. Engine files: **`src/engine/gui/guiTextOutline.ts`**, **`benneOutlineBitmapTextCanvasRenderer.ts`**, **`installBitmapTextCanvasGuiOutlineTintPatch.ts`**, **`buildGuiOverlay.ts`** (`createGuiBitmapTextOutlines`, `addGuiBitmapLine`, `buildGuiButton` label). Schema: **`src/types/gui.ts`** (`GuiTextOutline`, `GuiTextOutlineSides`).
+
 > **Room regions — perspective character scale** (2026-05-03): **`RoomData.regions`** (**`RoomRegionData`**, **`src/types/room.ts`**) may set **`scaleTop`** / **`scaleBottom`** (default **`1`**) and optional **`scaleWalkSpeed`** (default **`false`**). While a character’s **world feet** are inside an **active** region polygon, **`RoomScene`** uses **`computeRoomRegionPerspective`** (**`src/engine/room/regionCharacterScale.ts`**) with **`getPerspectiveSettings()`** (**`ConfigManager.ts`**, merged from **`game-config.json`** **`perspective`**: **`minWalkScale`**, **`walkScalePower`**) for **uniform sprite scale** and, when the winning region sets **`scaleWalkSpeed: true`**, a **walk-speed multiplier** `max(minWalkScale, pow(linearScale, walkScalePower))` updated each frame along a leg. **`characterFeet.ts`** and camera follow offset respect **`sprite.scale`**. Overlaps: **last** match in **`regions[]`** wins. Inspector: **Scale top** / **Scale bottom** (**`regionScale`**), **Scale walk speed** (**`regionScaleWalkSpeed`**). Details: **§3 → Room regions (perspective character scale)**.
 
 > **Play From (dev starting states, 2026-05-02)** — **Runtime**: **`B.playFrom('Name', () => { … })`** registers via **`src/engine/scripting/devPlayFromRegistry.ts`** (**`roomId` → name → setup**), cleared at the start of each **`RoomScene.create`** with per-room transition hooks. **`RoomTransitionOrchestrator.onRoomSceneCreateComplete`** runs **`whenEnterRoom`** / **`whenEnterAnyRoom`** with **per-handler isolation** (a throwing hook does not skip Play From), then on **`boot`** or **`preview`** reads **`globalThis.__BENNE_PLAY_FROM_NAME`** (from **`bennePlayPanel.ts`** / **`benne-editor.playFromRoom`** optional 4th arg), clears it, and invokes the matching setup for the current **`roomId`**. **`RoomScene.waitForEnterPhaseBenneScriptQueues()`** drains queued **`B.*`** on room + global surfaces before fade-in. **`playFrom`** does not run on in-game **`changeTo`** (**`transition`**). **Editor**: **`benne-editor.addRoomPlayFromMethod`** (**`playFromScaffolding.ts`**) scaffolds **`B.playFrom`** inside **`registerRoomScript`**; **`readRoomPlayFromNamesFromSource`** (**`playFromDiscovery.ts`**) fills the room preview **Play from** dropdown via **`benne/preview/loadRoom` → `playFromNames`**; **Play** posts **`benne/preview/playFromHere`** with optional **`playFromName`**. Saving sibling **`*.room.ts`** calls **`RoomPreviewPanelController.onWorkspaceRoomScriptChanged`** to refresh names.
@@ -133,6 +135,59 @@ The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build 
 - **Layers**: Background image (optional, full-frame) → **room stack** (`RoomScene`): props, active hotspot zones, and spawned characters are **sorted every frame** into sequential Phaser depths (from `ROOM_STACK_DEPTH_BASE` in `src/engine/room/roomStackDrawOrder.ts` via **`sortRoomStackEntities`**). **Primary order** is authored **`zIndex`** (higher draws in front). **Optional `baseline`** on **`RoomPropInstance`** and **`RoomHotspotData`**: a **room-space Y** (pixels, y down). If a character’s **world feet Y** (from **`CharacterData.feet`** or the bottom-centre fallback) is **strictly greater** than that baseline, the character draws **in front** of that prop/hotspot even with a lower **`zIndex`**. **Character vs character** uses **feet Y** only (y-sort when feet differ, then **`zIndex`**). At the same **`zIndex`** when baseline/feet rules do not decide, draw order is **prop → hotspot → character** (then stable id / feet tie-breaks). If baseline exceptions and **`zIndex`** bands together would imply a **cycle**, that character is placed using **`zIndex` / kind / feet / sortKey only** (no baseline jumps) for that insertion so order stays **deterministic** when props change. **Debug** graphics and **GUI** overlays sit above this stack.
 - **`PostEffects.ts`**: **`attachPostProcessingPlaceholder(this.cameras.main)`** — extension point for Phaser 4 camera filters; **no shaders shipped yet**.
 - **Aseprite tags vs. Phaser animation keys (global `createFromAseprite`)**: When several atlases register clips on **`scene.anims`**, their **animation key** is the Aseprite tag name unless the engine rewrites tags at load (see the **Aseprite clip namespacing** note at the top of this doc). Keep using the **same short tag names** in **`*.room.json`** (prop **`tag`**, **`animations`** keys), **`*.gui.json`**, **`*.inventory.json`**, and **`game-config.json`** **`cursor.idleAnimation` / `activeAnimation`**; do not hand-author the **`room:`** / **`gui:`** / **`invitem:`** / **`cursor:`** prefixes in those files unless you intentionally match the normalized atlas.
+
+### GUI BitmapText color and text outlines
+
+`text` and `button` controls in `*.gui.json` support two colour / outline fields:
+
+**`color`** — hex string (e.g. `"#ff0000"`); default `#ffffff`. Applied to the main `BitmapText` via `applyGuiBitmapTextFillTint` in `guiTextOutline.ts`.
+
+**`textOutline`** — `GuiTextOutline` object (`src/types/gui.ts`):
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `enabled` | `boolean` | — | Must be `true` for the outline to appear. |
+| `color` | hex string | `#000000` | Outline colour. |
+| `alpha` | 0–1 | `1` | Outline opacity. |
+| `thickness` | integer ≥ 1 | `1` | Pixel distance of each offset copy. |
+| `sides` | `GuiTextOutlineSides` | `allSides` | Which directions receive copies (see below). |
+
+**`GuiTextOutlineSides`** — `allSides` (full 8-direction stroke) or one of 8 directional shadow presets: `topLeft`, `top`, `topRight`, `left`, `right`, `bottomLeft`, `bottom`, `bottomRight`. For `allSides` with `thickness: 1` this produces 8 offset clones; with `thickness: 2` it produces 16 (each direction gets copies at 1 px and 2 px offset, deduplicated).
+
+**Runtime (engine)**
+
+- `createGuiBitmapTextOutlines` (`buildGuiOverlay.ts`) reads `resolveEffectiveGuiTextOutline` (from `guiTextOutline.ts`) which expands `sides` + `thickness` into a deduplicated `{ dx, dy }` offset list. One `BitmapText` clone is created per offset, at depth-ceiling − i × ε so clones stack below the main label in a predictable fixed order.
+- Each clone has `BENNE_GUI_OUTLINE_CANVAS_TINT_KEY` and `BENNE_GUI_OUTLINE_DX_KEY` / `BENNE_GUI_OUTLINE_DY_KEY` stored via `setData` (accessed without `getData` in the Canvas patch so data is never auto-vivified on regular BitmapText objects).
+- `attachGuiBitmapTextOutlineList` stores the clone array on the main BitmapText via `setData(BENNE_GUI_BITMAP_TEXT_OUTLINE_KEY, ...)`.
+- `syncOutlinedGuiBitmapTextAll(main, text)` (called by `GuiRuntime` whenever speaking-text / verb-line content changes) calls `setText` on main and each clone, then re-applies fill tints from the stored data keys so colours survive text updates.
+- `syncOutlinedGuiBitmapTextPositions(main)` re-anchors clones after the main label moves (e.g. Speaking Text bottom-centre repositioning).
+
+**Canvas tinting (`benneOutlineBitmapTextCanvasRenderer.ts`)**
+
+Phaser 4's Canvas `BitmapText` renderer (`BitmapTextCanvasRenderer.js`) draws glyphs with plain `ctx.drawImage` and never reads the Tint mixin (documented `@webglOnly`). BENNE supplies a lightweight prototype patch:
+
+1. **Pre-tinted atlas cache** — `buildTintedAtlas(image, tint)` creates a same-size canvas, flood-fills it with the solid RGB tint colour, then composites `destination-in drawImage(original)` to mask the colour to the glyph alpha channel. This is created once per `(CanvasImageSource, tintHex)` pair and cached in a module-level `Map`. Subsequent render calls do a `Map.get` lookup (O(1)) and `drawImage` — zero per-glyph work, no FPS impact.
+2. **Prototype patch** (`installBitmapTextCanvasGuiOutlineTintPatch.ts`) — replaces `BitmapText.prototype.renderCanvas` with a guard function. For any object that has `BENNE_GUI_OUTLINE_CANVAS_TINT_KEY` **or** `BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY` in its data list and whose `tintTopLeft` is not `0xffffff` (white = no tint), it calls `renderTintedBitmapTextCanvas` (a verbatim copy of Phaser's canvas render loop with the `image` source replaced by the cached tinted atlas). All other `BitmapText` objects call the original renderer unchanged.
+3. **`applyGuiBitmapTextFillTint(go, tint)`** — sets `setTint(tint)` + `setTintMode(Phaser.TintModes.FILL)` + explicit corner assignment (for WebGL path correctness) and stores the tint in `BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY` / `BENNE_GUI_OUTLINE_FILL_TINT_KEY` data keys so `syncOutlinedGuiBitmapTextAll` can re-apply after `setText`.
+
+**Atlas requirement**: font PNGs must have glyphs on a **transparent background** (not a solid colour fill). The `destination-in` masking colourises only the alpha-bearing pixels; opaque background pixels would also receive the tint colour and appear as coloured blocks.
+
+**Inspector (BENNE Editor)**
+
+An **Outline** collapsible accordion (`renderGuiTextOutlineAccordion` in `benne-editor/src/inspector/inspectorMain.ts`) appears beneath the text / font fields for every `text` and `button` control. Fields: **enabled** checkbox, **color** text input, **alpha** number, **thickness** number, **sides** dropdown. On blur/change the Inspector posts a `mergeGuiTextOutlinePatch` mutation (`benne-editor/src/inspectorMutations.ts`), which deep-merges only the outline sub-object into the control row so unrelated fields are not overwritten. `normalizeGuiTextOutlineOnControlRow` validates `sides` values and strips empty strings before saving.
+
+**Core files**
+
+| File | Role |
+|------|------|
+| `src/types/gui.ts` | `GuiTextOutline`, `GuiTextOutlineSides` schema types |
+| `src/engine/gui/guiTextOutline.ts` | Data keys, `resolveEffectiveGuiTextOutline`, `applyGuiBitmapTextFillTint`, `attachGuiBitmapTextOutlineList`, `syncOutlinedGuiBitmapText*` |
+| `src/engine/gui/benneOutlineBitmapTextCanvasRenderer.ts` | Pre-tinted atlas cache, `renderTintedBitmapTextCanvas`, guard function |
+| `src/engine/gui/installBitmapTextCanvasGuiOutlineTintPatch.ts` | Prototype patch installer (side-effect import in `buildGuiOverlay.ts`) |
+| `src/engine/gui/buildGuiOverlay.ts` | `createGuiBitmapTextOutlines`, tint calls in `addGuiBitmapLine` and `buildGuiButton` |
+| `benne-editor/src/inspector/inspectorMain.ts` | `renderGuiTextOutlineAccordion`, `collectGuiTextOutlinePatchFromDom` |
+| `benne-editor/src/inspectorStateBuilder.ts` | `parseInspectorGuiTextOutline` |
+| `benne-editor/src/inspectorMutations.ts` | `mergeGuiTextOutlinePatch`, `normalizeGuiTextOutlineOnControlRow` |
 
 ### Prop parallax
 

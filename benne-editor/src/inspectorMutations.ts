@@ -714,6 +714,85 @@ function pruneEmptyButtonStates(states: Record<string, unknown>): void {
     }
 }
 
+const GUI_OUTLINE_SIDES = new Set([
+    'allSides',
+    'topLeft',
+    'top',
+    'topRight',
+    'left',
+    'right',
+    'bottomLeft',
+    'bottom',
+    'bottomRight'
+]);
+
+function mergeGuiTextOutlinePatch(row: Record<string, unknown>, incoming: Record<string, unknown>): void {
+    const prev =
+        row.textOutline && typeof row.textOutline === 'object' && !Array.isArray(row.textOutline)
+            ? { ...(row.textOutline as Record<string, unknown>) }
+            : {};
+    for (const [sk, sv] of Object.entries(incoming)) {
+        if (sv === null || sv === undefined) {
+            delete prev[sk];
+        } else {
+            prev[sk] = sv;
+        }
+    }
+    if (Object.keys(prev).length === 0) {
+        delete row.textOutline;
+    } else {
+        row.textOutline = prev;
+    }
+}
+
+function normalizeGuiTextOutlineOnControlRow(row: Record<string, unknown>): void {
+    if (row.type !== 'text' && row.type !== 'button') {
+        return;
+    }
+    const raw = row.textOutline;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return;
+    }
+    const o = raw as Record<string, unknown>;
+    if (o.enabled !== true) {
+        o.enabled = false;
+        row.textOutline = o;
+        return;
+    }
+    const sides = o.sides;
+    if (typeof sides === 'string' && !GUI_OUTLINE_SIDES.has(sides)) {
+        delete o.sides;
+    } else if (sides === 'allSides') {
+        delete o.sides;
+    }
+    const th = o.thickness;
+    if (typeof th === 'number' && Number.isFinite(th)) {
+        const ti = Math.max(1, Math.trunc(th));
+        if (ti <= 1) {
+            delete o.thickness;
+        } else {
+            o.thickness = ti;
+        }
+    } else {
+        delete o.thickness;
+    }
+    const al = o.alpha;
+    if (typeof al === 'number' && Number.isFinite(al)) {
+        const a = Math.min(1, Math.max(0, al));
+        if (a >= 1) {
+            delete o.alpha;
+        } else {
+            o.alpha = a;
+        }
+    } else {
+        delete o.alpha;
+    }
+    if (typeof o.color === 'string' && o.color.trim().length === 0) {
+        delete o.color;
+    }
+    row.textOutline = o;
+}
+
 /**
  * Shallow-merge fields into `controls[controlIndex]`. Use `null` as a patch value to remove a key.
  * For `button` controls, `states` is deep-merged the same way.
@@ -757,6 +836,10 @@ export function updateGuiControlPatch(
             } else {
                 row.states = prev;
             }
+            continue;
+        }
+        if (k === 'textOutline' && v && typeof v === 'object' && !Array.isArray(v)) {
+            mergeGuiTextOutlinePatch(row, v as Record<string, unknown>);
             continue;
         }
         if (v === null) {
@@ -848,6 +931,10 @@ export function updateGuiControlPatch(
                 delete g.align;
             }
         }
+    }
+
+    if (row.type === 'text' || row.type === 'button') {
+        normalizeGuiTextOutlineOnControlRow(row);
     }
 
     return { ok: true };
