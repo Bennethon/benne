@@ -82,6 +82,13 @@ registerRoomScript(({ B }) => {
     B.player.say('I think I can move it.');
     B.prop('Rock').hide();
     B.prop('RockMoved').show();
-    B.player.say('Huh.');
+    B.player.say('Huh, some weird lever hidden under the rock.');
+  });
+
+  B.whenLookAt('RockMoved', () => {
+    B.faceClicked();
+    B.say`
+    Hank: I wonder what this lever does...
+    `;
   });
 });

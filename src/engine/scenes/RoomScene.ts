@@ -2597,9 +2597,11 @@ export class RoomScene extends Phaser.Scene {
     if (!d.clickable) {
       return;
     }
-    if (d.visible === false) {
-      return;
-    }
+
+    // Props may start hidden (`visible: false`) and be shown later via `B.prop(id).show()` /
+    // `setPropScriptVisible`. Interactive must still be registered: Phaser's hit test skips
+    // objects that do not `willRender` (including invisible sprites), so hidden props stay
+    // non-interactive until visibly shown.
 
     const pts = d.collider?.points;
     if (!pts || pts.length < 3) {
@@ -2879,9 +2881,9 @@ export class RoomScene extends Phaser.Scene {
     spawn: RoomCharacterSpawn,
     sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite,
   ): void {
-    if (spawn.visible === false) {
-      return;
-    }
+    // Same as clickable props starting hidden (`visible: false`): register input anyway;
+    // Phaser only considers candidates that `willRender`, so invisible spawns stay inert.
+
     if (!spawn.data.clickable) {
       return;
     }
