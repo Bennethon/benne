@@ -5,4 +5,6 @@ import{t as e}from"../benne-play.js";e(({B:e})=>{e.whenEnterRoom(()=>{e.player.m
     Hank: The fountain is running!.
     `}),e.whenLookAt(`Rock`,()=>{e.faceClicked(),e.say`
     Hank: It's a weird looking, out of place rock.
-    `}),e.whenPush(`Rock`,()=>{e.walkToClicked(),e.player.faceClicked(),e.player.say(`I think I can move it.`),e.prop(`Rock`).hide(),e.prop(`RockMoved`).show(),e.player.say(`Huh.`)})});
+    `}),e.whenPush(`Rock`,()=>{e.walkToClicked(),e.player.faceClicked(),e.player.say(`I think I can move it.`),e.prop(`Rock`).hide(),e.prop(`RockMoved`).show(),e.player.say(`Huh, some weird lever hidden under the rock.`)}),e.whenLookAt(`RockMoved`,()=>{e.faceClicked(),e.say`
+    Hank: I wonder what this lever does...
+    `})});
