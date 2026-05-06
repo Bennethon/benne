@@ -33,7 +33,6 @@ registerGuiScript('verbs', ({ B }) => {
           ? undefined
           : (hover.defaultVerb?.trim().length ? hover.defaultVerb.trim() : DEFAULT_VERB_FALLBACK);
 
-
       // == Verb Line ==
       let text = verb?.label ?? 'Walk to';
       if (item) {
@@ -46,17 +45,13 @@ registerGuiScript('verbs', ({ B }) => {
       line.text = text.trim();
 
       // == Default-verb button highlight ==
-
       // First, reset everything to normal
       Object.values(verbButtons).forEach(btn => {
         btn.setVisualState('normal');
       });
 
       // Then highlight the matching button if we have a hover default verb
-      if (
-        effectiveDefaultVerb &&
-        verbButtons[effectiveDefaultVerb as keyof typeof verbButtons]
-      ) {
+      if ( effectiveDefaultVerb && verbButtons[effectiveDefaultVerb as keyof typeof verbButtons] ) {
         verbButtons[effectiveDefaultVerb as keyof typeof verbButtons].setVisualState('hover');
       }
 
