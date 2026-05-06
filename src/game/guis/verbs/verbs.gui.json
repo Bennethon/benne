@@ -76,11 +76,14 @@
       "text": "Give",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      }
     },
     {
       "type": "button",
@@ -93,11 +96,14 @@
       "text": "Open",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      }
     },
     {
       "type": "button",
@@ -110,11 +116,14 @@
       "text": "Close",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      }
     },
     {
       "type": "button",
@@ -127,11 +136,14 @@
       "text": "Pick up",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      }
     },
     {
       "type": "button",
@@ -144,11 +156,14 @@
       "text": "Talk to",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      }
     },
     {
       "type": "button",
@@ -161,11 +176,14 @@
       "text": "Look at",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      }
     },
     {
       "type": "button",
@@ -178,11 +196,14 @@
       "text": "Use",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      }
     },
     {
       "type": "button",
@@ -195,11 +216,14 @@
       "text": "Push",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      }
     },
     {
       "type": "button",
@@ -212,11 +236,14 @@
       "text": "Pull",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      }
     },
     {
       "type": "text",
@@ -226,7 +253,7 @@
       "text": "Walk to",
       "font": "lucasfont-alternate",
       "fontSize": 8,
-      "color": "#ffffff",
+      "color": "#28c074",
       "align": "center"
     }
   ]

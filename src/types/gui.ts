@@ -234,6 +234,13 @@ export interface GuiButtonStates {
   disabled?: string;
 }
 
+/** Per-interaction text colours for button labels (hex strings like `#ffffff`). */
+export interface GuiButtonTextColorStates {
+  hover?: string;
+  pressed?: string;
+  disabled?: string;
+}
+
 /**
  * Text + sheet-backed hit target. Uses the GUI’s Aseprite export when `display.aseprite` is true.
  * `x` and `y` are the **top-left** of the hit box (`width` × `height`); the label is laid out inside that box.
@@ -278,6 +285,8 @@ export interface GuiButtonControl {
   backgroundTag: string;
   /** Hover / pressed / disabled sheet tags. */
   states?: GuiButtonStates;
+  /** Optional hover / pressed / disabled colours for the button label text. */
+  textColorStates?: GuiButtonTextColorStates;
   animations?: GuiSpriteAnimationsMap;
   /**
    * When false, the button ignores input; default true when omitted.
