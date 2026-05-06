@@ -340,6 +340,9 @@ export type InspectorGuiControlCard =
           statesHover: string;
           statesPressed: string;
           statesDisabled: string;
+          textColorStatesHover: string;
+          textColorStatesPressed: string;
+          textColorStatesDisabled: string;
           enabled: boolean;
           textOutline: InspectorGuiTextOutline;
           gridPlacement: InspectorGuiGridPlacement | null;
@@ -1288,6 +1291,10 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             o.states && typeof o.states === 'object' && !Array.isArray(o.states)
                 ? (o.states as Record<string, unknown>)
                 : {};
+        const textColorStatesRaw =
+            o.textColorStates && typeof o.textColorStates === 'object' && !Array.isArray(o.textColorStates)
+                ? (o.textColorStates as Record<string, unknown>)
+                : {};
         const alignRaw = o.textAlign;
         const textAlign: 'left' | 'center' | 'right' | '' =
             alignRaw === 'center' || alignRaw === 'right' || alignRaw === 'left' ? alignRaw : '';
@@ -1317,6 +1324,10 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             statesHover: typeof statesRaw.hover === 'string' ? statesRaw.hover : '',
             statesPressed: typeof statesRaw.pressed === 'string' ? statesRaw.pressed : '',
             statesDisabled: typeof statesRaw.disabled === 'string' ? statesRaw.disabled : '',
+            textColorStatesHover: typeof textColorStatesRaw.hover === 'string' ? textColorStatesRaw.hover : '',
+            textColorStatesPressed: typeof textColorStatesRaw.pressed === 'string' ? textColorStatesRaw.pressed : '',
+            textColorStatesDisabled:
+                typeof textColorStatesRaw.disabled === 'string' ? textColorStatesRaw.disabled : '',
             enabled: o.enabled !== false,
             textOutline: parseInspectorGuiTextOutline(o),
             gridPlacement: parseOptionalGridPlacement(o)

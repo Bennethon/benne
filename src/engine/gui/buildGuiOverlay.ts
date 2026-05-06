@@ -870,6 +870,21 @@ export function buildGuiButton(
   const hoverTag = c.states?.hover?.trim();
   const pressedTag = c.states?.pressed?.trim();
   const disabledTag = c.states?.disabled?.trim();
+  const hoverTextColor = c.textColorStates?.hover?.trim();
+  const pressedTextColor = c.textColorStates?.pressed?.trim();
+  const disabledTextColor = c.textColorStates?.disabled?.trim();
+  const defaultTextTint = hexStringToTint(c.textColor ?? '#ffffff');
+  const hoverTextTint = hoverTextColor ? hexStringToTint(hoverTextColor) : defaultTextTint;
+  const pressedTextTint = pressedTextColor ? hexStringToTint(pressedTextColor) : defaultTextTint;
+  const disabledTextTint = disabledTextColor ? hexStringToTint(disabledTextColor) : defaultTextTint;
+
+  const setLabelTint = (tint: number): void => {
+    if (!label) {
+      return;
+    }
+    applyGuiBitmapTextFillTint(label, tint);
+    label.setData(BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY, tint);
+  };
 
   if (bg && enabled && (hoverTag || pressedTag || disabledTag)) {
     const textureKey = guiTextureKey;
@@ -918,6 +933,37 @@ export function buildGuiButton(
       }
       restoreDefault();
     });
+  }
+
+  if (label && enabled && (hoverTextColor || pressedTextColor || disabledTextColor)) {
+    const restoreLabelDefault = (): void => {
+      setLabelTint(defaultTextTint);
+    };
+    hitTarget.on('pointerover', () => {
+      if (!enabled) {
+        return;
+      }
+      setLabelTint(hoverTextTint);
+    });
+    hitTarget.on('pointerout', () => {
+      restoreLabelDefault();
+    });
+    hitTarget.on('pointerdown', () => {
+      if (!enabled) {
+        return;
+      }
+      setLabelTint(pressedTextTint);
+    });
+    hitTarget.on('pointerup', () => {
+      if (!enabled) {
+        return;
+      }
+      restoreLabelDefault();
+    });
+  }
+
+  if (!enabled && label && disabledTextColor) {
+    setLabelTint(disabledTextTint);
   }
 
   hitTarget.on('pointerup', (pointer: Phaser.Input.Pointer) => {

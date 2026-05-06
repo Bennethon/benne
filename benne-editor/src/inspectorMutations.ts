@@ -838,6 +838,27 @@ export function updateGuiControlPatch(
             }
             continue;
         }
+        if (k === 'textColorStates' && v && typeof v === 'object' && !Array.isArray(v)) {
+            const prev =
+                row.textColorStates && typeof row.textColorStates === 'object' && !Array.isArray(row.textColorStates)
+                    ? { ...(row.textColorStates as Record<string, unknown>) }
+                    : {};
+            const incoming = v as Record<string, unknown>;
+            for (const [sk, sv] of Object.entries(incoming)) {
+                if (sv === null || sv === '') {
+                    delete prev[sk];
+                } else {
+                    prev[sk] = sv;
+                }
+            }
+            pruneEmptyButtonStates(prev);
+            if (Object.keys(prev).length === 0) {
+                delete row.textColorStates;
+            } else {
+                row.textColorStates = prev;
+            }
+            continue;
+        }
         if (k === 'textOutline' && v && typeof v === 'object' && !Array.isArray(v)) {
             mergeGuiTextOutlinePatch(row, v as Record<string, unknown>);
             continue;
@@ -883,6 +904,12 @@ export function updateGuiControlPatch(
             pruneEmptyButtonStates(row.states as Record<string, unknown>);
             if (Object.keys(row.states as Record<string, unknown>).length === 0) {
                 delete row.states;
+            }
+        }
+        if (row.textColorStates && typeof row.textColorStates === 'object' && !Array.isArray(row.textColorStates)) {
+            pruneEmptyButtonStates(row.textColorStates as Record<string, unknown>);
+            if (Object.keys(row.textColorStates as Record<string, unknown>).length === 0) {
+                delete row.textColorStates;
             }
         }
     }

@@ -267,6 +267,9 @@ type InspectorGuiControlCard =
           statesHover: string;
           statesPressed: string;
           statesDisabled: string;
+          textColorStatesHover: string;
+          textColorStatesPressed: string;
+          textColorStatesDisabled: string;
           enabled: boolean;
           textOutline: InspectorGuiTextOutline;
           gridPlacement: InspectorGuiGridPlacement | null;
@@ -1387,6 +1390,12 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
         <input type="number" class="gui-field" data-index="${idx}" data-field="fontSize" value="${c.fontSize}" />
         <span class="benne-pg-lbl">textColor</span>
         <input type="text" class="gui-field" data-index="${idx}" data-field="textColor" value="${esc(c.textColor)}" />
+        <span class="benne-pg-lbl">text color hover</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="textColorStatesHover" value="${esc(c.textColorStatesHover)}" placeholder="#ffffff" />
+        <span class="benne-pg-lbl">text color pressed</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="textColorStatesPressed" value="${esc(c.textColorStatesPressed)}" placeholder="#ffffff" />
+        <span class="benne-pg-lbl">text color disabled</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="textColorStatesDisabled" value="${esc(c.textColorStatesDisabled)}" placeholder="#ffffff" />
         <span class="benne-pg-lbl">textAlign</span>
         ${textAlignSel}
         <span class="benne-pg-lbl">textOffsetX</span>
@@ -2257,6 +2266,20 @@ function buildGuiControlFieldPatch(
         const raw = el.value.trim();
         return { states: { [sub]: raw.length === 0 ? null : el.value } };
     }
+    if (
+        field === 'textColorStatesHover' ||
+        field === 'textColorStatesPressed' ||
+        field === 'textColorStatesDisabled'
+    ) {
+        const sub =
+            field === 'textColorStatesHover'
+                ? 'hover'
+                : field === 'textColorStatesPressed'
+                  ? 'pressed'
+                  : 'disabled';
+        const raw = el.value.trim();
+        return { textColorStates: { [sub]: raw.length === 0 ? null : el.value } };
+    }
     if (field === 'enabled') {
         return { enabled: (el as HTMLInputElement).checked ? null : false };
     }
@@ -2366,6 +2389,9 @@ function buildGuiControlFieldPatch(
         'font',
         'color',
         'textColor',
+        'textColorStatesHover',
+        'textColorStatesPressed',
+        'textColorStatesDisabled',
         'backgroundTag',
         'slotBackgroundTag',
         'highlightTag'

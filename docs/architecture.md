@@ -138,7 +138,7 @@ The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build 
 
 ### GUI BitmapText color and text outlines
 
-`text` and `button` controls in `*.gui.json` support two colour / outline fields:
+`text` and `button` controls in `*.gui.json` support colour and outline fields:
 
 **`color`** — hex string (e.g. `"#ff0000"`); default `#ffffff`. Applied to the main `BitmapText` via `applyGuiBitmapTextFillTint` in `guiTextOutline.ts`.
 
@@ -152,11 +152,22 @@ The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build 
 | `thickness` | integer ≥ 1 | `1` | Pixel distance of each offset copy. |
 | `sides` | `GuiTextOutlineSides` | `allSides` | Which directions receive copies (see below). |
 
+For `button` controls, text can also switch colour per button state:
+
+**`textColorStates`** — `GuiButtonTextColorStates` object (`src/types/gui.ts`):
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `hover` | hex string | falls back to `textColor` | Applied while pointer is over the button. |
+| `pressed` | hex string | falls back to `textColor` | Applied while pointer is down on the button. |
+| `disabled` | hex string | falls back to `textColor` | Applied when `enabled: false`. |
+
 **`GuiTextOutlineSides`** — `allSides` (full 8-direction stroke) or one of 8 directional shadow presets: `topLeft`, `top`, `topRight`, `left`, `right`, `bottomLeft`, `bottom`, `bottomRight`. For `allSides` with `thickness: 1` this produces 8 offset clones; with `thickness: 2` it produces 16 (each direction gets copies at 1 px and 2 px offset, deduplicated).
 
 **Runtime (engine)**
 
 - `createGuiBitmapTextOutlines` (`buildGuiOverlay.ts`) reads `resolveEffectiveGuiTextOutline` (from `guiTextOutline.ts`) which expands `sides` + `thickness` into a deduplicated `{ dx, dy }` offset list. One `BitmapText` clone is created per offset, at depth-ceiling − i × ε so clones stack below the main label in a predictable fixed order.
+- `buildGuiButton` (`buildGuiOverlay.ts`) applies `textColorStates.hover` / `pressed` / `disabled` to button labels in the same pointer/event flow used for sprite `states.*` tag swaps, with per-state fallback to base `textColor`.
 - Each clone has `BENNE_GUI_OUTLINE_CANVAS_TINT_KEY` and `BENNE_GUI_OUTLINE_DX_KEY` / `BENNE_GUI_OUTLINE_DY_KEY` stored via `setData` (accessed without `getData` in the Canvas patch so data is never auto-vivified on regular BitmapText objects).
 - `attachGuiBitmapTextOutlineList` stores the clone array on the main BitmapText via `setData(BENNE_GUI_BITMAP_TEXT_OUTLINE_KEY, ...)`.
 - `syncOutlinedGuiBitmapTextAll(main, text)` (called by `GuiRuntime` whenever speaking-text / verb-line content changes) calls `setText` on main and each clone, then re-applies fill tints from the stored data keys so colours survive text updates.
@@ -174,7 +185,7 @@ Phaser 4's Canvas `BitmapText` renderer (`BitmapTextCanvasRenderer.js`) draws gl
 
 **Inspector (BENNE Editor)**
 
-An **Outline** collapsible accordion (`renderGuiTextOutlineAccordion` in `benne-editor/src/inspector/inspectorMain.ts`) appears beneath the text / font fields for every `text` and `button` control. Fields: **enabled** checkbox, **color** text input, **alpha** number, **thickness** number, **sides** dropdown. On blur/change the Inspector posts a `mergeGuiTextOutlinePatch` mutation (`benne-editor/src/inspectorMutations.ts`), which deep-merges only the outline sub-object into the control row so unrelated fields are not overwritten. `normalizeGuiTextOutlineOnControlRow` validates `sides` values and strips empty strings before saving.
+An **Outline** collapsible accordion (`renderGuiTextOutlineAccordion` in `benne-editor/src/inspector/inspectorMain.ts`) appears beneath the text / font fields for every `text` and `button` control. Fields: **enabled** checkbox, **color** text input, **alpha** number, **thickness** number, **sides** dropdown. On blur/change the Inspector posts a `mergeGuiTextOutlinePatch` mutation (`benne-editor/src/inspectorMutations.ts`), which deep-merges only the outline sub-object into the control row so unrelated fields are not overwritten. `normalizeGuiTextOutlineOnControlRow` validates `sides` values and strips empty strings before saving. Button cards also expose **text color hover / pressed / disabled** fields that map to `textColorStates.*`.
 
 **Core files**
 
