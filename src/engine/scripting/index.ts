@@ -83,3 +83,4 @@ export type {
   VerbHoverTargetType,
   InventoryItemDefinition,
 } from '../../types/verbContext.js';
+export type { BenneGuiScriptButtonVisualState } from '../../types/gui.js';

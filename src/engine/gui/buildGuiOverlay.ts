@@ -25,6 +25,7 @@ import {
   guiControlMouseLeaveEventId,
 } from '../events/guiControlHoverEvents';
 import type {
+  BenneGuiScriptButtonVisualState,
   GuiButtonControl,
   GuiControl,
   GuiData,
@@ -77,6 +78,10 @@ import {
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { GuiRuntime } from '../scripting/GuiRuntime.js';
+import {
+  BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY,
+  benneGuiButtonReadVisualScriptLock,
+} from './guiButtonVisualStateScript.js';
 import {
   dispatchInventoryOnInventoryItemInteraction,
   dispatchInventoryVerbInteraction,
@@ -886,79 +891,100 @@ export function buildGuiButton(
     label.setData(BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY, tint);
   };
 
-  if (bg && enabled && (hoverTag || pressedTag || disabledTag)) {
-    const textureKey = guiTextureKey;
-    const repositionBg = (): void => {
-      if (bg) {
-        placeGuiButtonBackgroundSpriteLocal(bg, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
-      }
-    };
-    const restoreDefault = (): void => {
+  const repositionButtonBg = (): void => {
+    if (bg) {
+      placeGuiButtonBackgroundSpriteLocal(bg, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
+    }
+  };
+
+  const syncButtonChromeAlpha = (a: number): void => {
+    hitTarget.setAlpha(a);
+    bg?.setAlpha(a);
+    label?.setAlpha(a);
+    for (const lo of labelOutlines) {
+      lo.setAlpha(a);
+    }
+  };
+
+  const applyChromeVisual = (visual: BenneGuiScriptButtonVisualState): void => {
+    if (!enabled) {
+      return;
+    }
+    const applyBgForState = (tag: string | undefined): void => {
       if (!bg) {
         return;
       }
-      reapplyGuiSheetTag(scene, bg, textureKey, defaultBgTag, gui.id);
-      repositionBg();
+      const t = tag?.trim();
+      if (t && reapplyGuiSheetTag(scene, bg, guiTextureKey, t, gui.id)) {
+        repositionButtonBg();
+        return;
+      }
+      reapplyGuiSheetTag(scene, bg, guiTextureKey, defaultBgTag, gui.id);
+      repositionButtonBg();
     };
 
-    hitTarget.on('pointerover', () => {
-      if (!enabled || !bg) {
-        return;
-      }
-      if (hoverTag && !reapplyGuiSheetTag(scene, bg, textureKey, hoverTag, gui.id)) {
-        restoreDefault();
-        return;
-      }
-      repositionBg();
-    });
-    hitTarget.on('pointerout', () => {
-      if (!bg) {
-        return;
-      }
-      restoreDefault();
-    });
-    hitTarget.on('pointerdown', () => {
-      if (!enabled || !bg) {
-        return;
-      }
-      if (pressedTag && !reapplyGuiSheetTag(scene, bg, textureKey, pressedTag, gui.id)) {
-        restoreDefault();
-        return;
-      }
-      repositionBg();
-    });
-    hitTarget.on('pointerup', () => {
-      if (!enabled || !bg) {
-        return;
-      }
-      restoreDefault();
-    });
+    switch (visual) {
+      case 'normal':
+        if (bg) {
+          reapplyGuiSheetTag(scene, bg, guiTextureKey, defaultBgTag, gui.id);
+          repositionButtonBg();
+        }
+        setLabelTint(defaultTextTint);
+        syncButtonChromeAlpha(1);
+        break;
+      case 'hover':
+        applyBgForState(hoverTag);
+        setLabelTint(hoverTextColor ? hoverTextTint : defaultTextTint);
+        syncButtonChromeAlpha(1);
+        break;
+      case 'pressed':
+        applyBgForState(pressedTag);
+        setLabelTint(pressedTextColor ? pressedTextTint : defaultTextTint);
+        syncButtonChromeAlpha(1);
+        break;
+      case 'disabled':
+        applyBgForState(disabledTag);
+        setLabelTint(disabledTextColor ? disabledTextTint : defaultTextTint);
+        syncButtonChromeAlpha(0.45);
+        break;
+      default:
+        break;
+    }
+  };
+
+  if (enabled) {
+    hitTarget.setData(BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY, applyChromeVisual);
   }
 
-  if (label && enabled && (hoverTextColor || pressedTextColor || disabledTextColor)) {
-    const restoreLabelDefault = (): void => {
-      setLabelTint(defaultTextTint);
-    };
+  const pointerDrivesChrome =
+    enabled &&
+    ((bg !== null && (Boolean(hoverTag) || Boolean(pressedTag) || Boolean(disabledTag))) ||
+      (label !== null && (Boolean(hoverTextColor) || Boolean(pressedTextColor) || Boolean(disabledTextColor))));
+
+  if (pointerDrivesChrome) {
     hitTarget.on('pointerover', () => {
-      if (!enabled) {
+      if (benneGuiButtonReadVisualScriptLock(hitTarget)) {
         return;
       }
-      setLabelTint(hoverTextTint);
+      applyChromeVisual('hover');
     });
     hitTarget.on('pointerout', () => {
-      restoreLabelDefault();
+      if (benneGuiButtonReadVisualScriptLock(hitTarget)) {
+        return;
+      }
+      applyChromeVisual('normal');
     });
     hitTarget.on('pointerdown', () => {
-      if (!enabled) {
+      if (benneGuiButtonReadVisualScriptLock(hitTarget)) {
         return;
       }
-      setLabelTint(pressedTextTint);
+      applyChromeVisual('pressed');
     });
     hitTarget.on('pointerup', () => {
-      if (!enabled) {
+      if (benneGuiButtonReadVisualScriptLock(hitTarget)) {
         return;
       }
-      restoreLabelDefault();
+      applyChromeVisual('normal');
     });
   }
 

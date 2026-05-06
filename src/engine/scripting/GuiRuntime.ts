@@ -1,5 +1,11 @@
 import * as Phaser from 'phaser';
 import { syncBenneGuiAsepriteAuthoredWorldPosition } from '../aseprite/asepriteFramePlacement';
+import {
+  BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY,
+  BENNE_GUI_BUTTON_VISUAL_SCRIPT_LOCK_DATA_KEY,
+  type BenneGuiButtonApplyVisualStateFn,
+  parseBenneGuiScriptButtonVisualState,
+} from '../gui/guiButtonVisualStateScript.js';
 import { syncOutlinedGuiBitmapTextAll, syncOutlinedGuiBitmapTextPositions } from '../gui/guiTextOutline';
 import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
 
@@ -145,6 +151,29 @@ export class ControlFacade {
       t.setText(value);
     }
   }
+
+  /**
+   * Forces the **button** sheet label + background chrome to a named state (same frames / tints pointer
+   * interaction would use). **`'normal'`** also releases a script override so pointer hover / press works again.
+   * @throws When this control is not a composable **`button`** hit target.
+   */
+  setVisualState(state: string): void {
+    const go = this.gameObject as Phaser.GameObjects.GameObject & {
+      getData?: (key: string) => unknown;
+      setData?: (key: string, value: unknown) => void;
+    };
+    const applyRaw =
+      typeof go.getData === 'function' ? go.getData(BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY) : undefined;
+    if (typeof applyRaw !== 'function') {
+      throw new Error('[Benne] GUI control `.setVisualState` is only supported on `button` controls.');
+    }
+    const apply = applyRaw as BenneGuiButtonApplyVisualStateFn;
+    const normalized = parseBenneGuiScriptButtonVisualState(state);
+    apply(normalized);
+    if (typeof go.setData === 'function') {
+      go.setData(BENNE_GUI_BUTTON_VISUAL_SCRIPT_LOCK_DATA_KEY, normalized !== 'normal');
+    }
+  }
 }
 
 /**
@@ -164,6 +193,10 @@ export class NoopGuiControlFacade extends ControlFacade {
 
   override set text(_value: string) {
     /* forgiving missing / non-text control */
+  }
+
+  override setVisualState(_state: string): void {
+    /* forgiving missing control / non-button */
   }
 }
 
@@ -211,6 +244,8 @@ class DetachedNoopGuiControlFacade {
   }
 
   set text(_value: string) {}
+
+  setVisualState(_state: string): void {}
 }
 
 export interface GuiRuntimeOptions {

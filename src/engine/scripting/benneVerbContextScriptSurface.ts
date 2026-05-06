@@ -25,7 +25,8 @@ function targetsEqual(a: VerbHoverTarget | null, b: VerbHoverTarget | null): boo
     a.description === b.description &&
     a.targetType === b.targetType &&
     a.targetId === b.targetId &&
-    a.itemId === b.itemId
+    a.itemId === b.itemId &&
+    a.defaultVerb === b.defaultVerb
   );
 }
 
