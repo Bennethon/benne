@@ -36,7 +36,6 @@ registerRoomScript(({ B }) => {
 
   const handleOpenOrUseDoor = () => {
     B.walkToClicked();
-    B.player.faceClicked();
 
     if (B.state.getFlag('unlockedDoor')) {
       B.room.changeTo('apartment');
@@ -78,7 +77,6 @@ registerRoomScript(({ B }) => {
 
   B.whenPush('Rock', () => {
     B.walkToClicked();
-    B.player.faceClicked();
     B.player.say('I think I can move it.');
     B.prop('Rock').hide();
     B.prop('RockMoved').show();

@@ -281,10 +281,11 @@ export abstract class BenneScriptCore {
   /**
    * Walk the player to the **current verb interaction** target (prop / hotspot / character id, or
    * the same shape as **`B.player.walkTo('…')`**), using {@link RoomScene.walkPlayerTo} (same string
-   * id resolution as **`walkTo`**). **`.now`** does not block the interaction queue. Only meaningful
-   * inside handlers registered via **`subscribe`** / **`subscribeAfterInteractionTail`** (room / global
-   * / character / inventory verbs, inventory use-on-target, etc.); outside that, a **dev** one-time
-   * **`console.warn`** applies.
+   * id resolution as **`walkTo`**), then applies the same facing as **`faceClicked`** once the walk
+   * finishes (see {@link RoomScene.facePlayerTowardClicked}). **`.now`** does not block the interaction
+   * queue. Only meaningful inside handlers registered via **`subscribe`** /
+   * **`subscribeAfterInteractionTail`** (room / global / character / inventory verbs, inventory
+   * use-on-target, etc.); outside that, a **dev** one-time **`console.warn`** applies.
    */
   readonly walkToClicked: BlockingWithNow<[]>;
 
@@ -504,7 +505,8 @@ export abstract class BenneScriptCore {
   }
 
   /**
-   * Queues (or fires) **`walkPlayerTo`** for the innermost verb payload’s walk target.
+   * Queues (or fires) **`walkPlayerTo`** for the innermost verb payload’s walk target, then
+   * {@link RoomScene.facePlayerTowardClicked} with the same payload snapshot **`faceClicked`** uses.
    * Shared by **`B.walkToClicked`** and **`B.player.walkToClicked`** on the same script instance.
    */
   protected performWalkToClicked(chain: boolean): void {
@@ -525,7 +527,8 @@ export abstract class BenneScriptCore {
       return;
     }
 
-    const target = this.verbClickContextStack[this.verbClickContextStack.length - 1]!.walkTarget;
+    const ctx = this.verbClickContextStack[this.verbClickContextStack.length - 1]!;
+    const target = ctx.walkTarget;
     if (target == null) {
       BenneScriptCore.warnWalkToClickedDevOnce(
         'walkToClicked:no-world-target',
@@ -534,10 +537,14 @@ export abstract class BenneScriptCore {
       return;
     }
 
+    const faceAfterWalk = (): void => {
+      scene.facePlayerTowardClicked(ctx.faceLookWorld, ctx.walkTarget);
+    };
+
     if (chain) {
-      this.chain(() => scene.walkPlayerTo(target));
+      this.chain(() => scene.walkPlayerTo(target).then(faceAfterWalk));
     } else {
-      void scene.walkPlayerTo(target);
+      void scene.walkPlayerTo(target).then(faceAfterWalk);
     }
   }
 

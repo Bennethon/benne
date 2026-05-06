@@ -35,7 +35,6 @@ registerRoomScript(({ B }) => {
 
   B.whenTalkTo('penny', () => {
     B.walkToClicked();
-    B.faceClicked();
     B.say`
       Hank: Hey Penny!
       Penny: Hi!
@@ -50,7 +49,6 @@ registerRoomScript(({ B }) => {
 
   const handleOpenOrUseDoor = () => {
     B.walkToClicked();
-    B.player.faceClicked();
 
     if (B.state.getFlag('unlockedDoor')) {
       B.prop('Door').animation = 'Door-open';
@@ -64,7 +62,8 @@ registerRoomScript(({ B }) => {
   B.whenUse('Door', handleOpenOrUseDoor);
 
   B.whenPull('Couch', () => {
-    B.player.moveTo('apartment-point-1');
+    B.walkToClicked();
+    B.player.say('It\'s too heavy.');
   });
 
   B.whenClose('Couch', () => {
@@ -91,7 +90,6 @@ registerRoomScript(({ B }) => {
 
   B.whenPickUp('Bread', () => {
     B.walkToClicked();
-    B.player.faceClicked();
     B.inventory.add('Bread');
     B.prop('Bread').hide();
   });
@@ -103,7 +101,6 @@ registerRoomScript(({ B }) => {
 
   B.whenPickUp('Knife', () => {
     B.walkToClicked();
-    B.player.faceClicked();
     B.inventory.add('Knife');
     B.prop('Knife').hide();
   });
@@ -114,7 +111,6 @@ registerRoomScript(({ B }) => {
 
   B.whenPickUp('PeanutButter', () => {
     B.walkToClicked();
-    B.player.faceClicked();
     B.inventory.add('PB');
     B.prop('PeanutButter').hide();
   });
@@ -126,7 +122,6 @@ registerRoomScript(({ B }) => {
   B.whenInventoryUsedOn('penny', (payload) => {
     if (payload.itemId === 'Sammich' && payload.verbId === 'give') {
       B.walkToClicked();
-      B.player.faceClicked();
       B.say`Hank: Here, Penny! Have a sandwich.`;
       B.inventory.remove('Sammich');
       B.character('penny').say`Thank you! Here's the key.`;
@@ -139,7 +134,6 @@ registerRoomScript(({ B }) => {
   B.whenInventoryUsedOn('Door', (payload) => {
     if (payload.itemId === 'Key' && payload.verbId === 'use') {
       B.walkToClicked();
-      B.player.faceClicked();
       B.state.setFlag('unlockedDoor', true);
       B.inventory.remove('Key');
       B.player.say('The door is unlocked.');

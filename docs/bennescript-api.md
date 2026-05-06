@@ -129,7 +129,7 @@ interface BenneScriptRoomFacade {
 
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
-| **`walkToClicked`** | `BlockingWithNow<[]>` | **`RoomScene.walkPlayerTo`** to payload-derived target (prop/hotspot/character id); no-op + DEV warn when no **`RoomScene`**, outside verb handler, or no world target (e.g. inventory row only). | Queued vs **`.now`** |
+| **`walkToClicked`** | `BlockingWithNow<[]>` | **`RoomScene.walkPlayerTo`** to payload-derived target (prop/hotspot/character id), then **`RoomScene.facePlayerTowardClicked`** with the same payload snapshot as **`faceClicked`** after the walk completes; no-op + DEV warn when no **`RoomScene`**, outside verb handler, or no world target (e.g. inventory row only). | Queued vs **`.now`** |
 | **`faceClicked`** | `BlockingWithNow<[]>` | **`RoomScene.facePlayerTowardClicked`** uses **`lookAtPoint`**, NPC feet, or walk stand point. Same guard rails as **`walkToClicked`**. | Queued vs **`.now`** |
 
 ### Screen fade
@@ -153,8 +153,7 @@ Example:
 B.say`Player: Hello.
 Npc: Hi there.`; // queued in order per line on interaction tail
 
-B.walkToClicked();
-B.faceClicked();
+B.walkToClicked(); // walk + same facing as B.faceClicked() when the walk finishes
 B.player.say('Closer look…', { clickToSkip: true });
 ```
 
