@@ -30,8 +30,8 @@
             "y": 77
           },
           {
-            "x": 137,
-            "y": 76
+            "x": 138,
+            "y": 78
           },
           {
             "x": 137,
@@ -157,11 +157,11 @@
       "points": [
         {
           "x": 118,
-          "y": 73
+          "y": 70
         },
         {
           "x": 600,
-          "y": 73
+          "y": 72
         },
         {
           "x": 600,
@@ -172,7 +172,7 @@
           "y": 104
         }
       ],
-      "scaleTop": 0.1,
+      "scaleTop": 0,
       "scaleBottom": 1,
       "scaleWalkSpeed": true
     }
@@ -502,8 +502,8 @@
     {
       "instanceId": "hank-1",
       "definition": "hank/hank.character.json",
-      "x": 280,
-      "y": 99,
+      "x": 290,
+      "y": 86,
       "initialFacing": "L",
       "initialAnimation": "Idle",
       "visible": true,
