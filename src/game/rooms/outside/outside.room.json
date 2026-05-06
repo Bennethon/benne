@@ -276,7 +276,8 @@
         "x": 320,
         "y": 85
       },
-      "baseline": 84
+      "baseline": 84,
+      "description": "fountain"
     },
     {
       "id": "FountainOn",
@@ -346,7 +347,8 @@
         "x": 320,
         "y": 85
       },
-      "baseline": 84
+      "baseline": 84,
+      "description": "fountain"
     },
     {
       "id": "LeverPulled",
@@ -357,7 +359,7 @@
       "zIndex": 12,
       "visible": false,
       "alpha": 1,
-      "clickable": true,
+      "clickable": false,
       "description": "",
       "collider": {
         "points": [
@@ -444,7 +446,7 @@
         "y": 108
       },
       "baseline": 110,
-      "description": ""
+      "description": "rock"
     },
     {
       "id": "RockMoved",
@@ -492,7 +494,8 @@
         "x": 530,
         "y": 108
       },
-      "baseline": 110
+      "baseline": 110,
+      "description": "lever"
     }
   ],
   "characters": [

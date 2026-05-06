@@ -2,9 +2,9 @@ import{t as e}from"../benne-play.js";e(({B:e})=>{e.whenEnterRoom(()=>{e.player.m
     Hank: It's a fountain.
     Hank: It's not running.
     `}),e.whenLookAt(`FountainOn`,()=>{e.faceClicked(),e.say`
-    Hank: The fountain is running!.
+    Hank: I got it working!.
     `}),e.whenLookAt(`Rock`,()=>{e.faceClicked(),e.say`
     Hank: It's a weird looking, out of place rock.
     `}),e.whenPush(`Rock`,()=>{e.walkToClicked(),e.player.say(`I think I can move it.`),e.prop(`Rock`).hide(),e.prop(`RockMoved`).show(),e.player.say(`Huh, some weird lever hidden under the rock.`)}),e.whenLookAt(`RockMoved`,()=>{e.faceClicked(),e.say`
     Hank: I wonder what this lever does...
-    `})});
+    `});let n=()=>{e.walkToClicked(),e.say`Hank: Let's see what this does...`,e.prop(`RockMoved`).hide(),e.prop(`LeverPulled`).show(),e.prop(`FountainOff`).hide(),e.prop(`FountainOn`).show()};e.whenPull(`RockMoved`,n),e.whenPush(`RockMoved`,n)});

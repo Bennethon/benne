@@ -64,7 +64,7 @@ registerRoomScript(({ B }) => {
   B.whenLookAt('FountainOn', () => {
     B.faceClicked();
     B.say`
-    Hank: The fountain is running!.
+    Hank: I got it working!.
     `;
   });
 
@@ -89,4 +89,18 @@ registerRoomScript(({ B }) => {
     Hank: I wonder what this lever does...
     `;
   });
+
+  const handlePushOrPullLever = () => {
+    B.walkToClicked();
+
+    B.say`Hank: Let's see what this does...`;
+    B.prop('RockMoved').hide();
+    B.prop('LeverPulled').show();
+    B.prop('FountainOff').hide();
+    B.prop('FountainOn').show();
+  };
+
+  B.whenPull('RockMoved', handlePushOrPullLever);
+  B.whenPush('RockMoved', handlePushOrPullLever);
+  
 });
