@@ -234,6 +234,9 @@ export interface GuiButtonStates {
   disabled?: string;
 }
 
+/** Argument to **`B.gui(…).control(…).setVisualState`** for `button` controls. */
+export type BenneGuiScriptButtonVisualState = 'normal' | 'hover' | 'pressed' | 'disabled';
+
 /** Per-interaction text colours for button labels (hex strings like `#ffffff`). */
 export interface GuiButtonTextColorStates {
   hover?: string;

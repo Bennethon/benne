@@ -88,7 +88,7 @@ import {
   getPropVerbHandlers,
 } from '../verbs/normalizeHandlers';
 import { getEffectiveInputProfile } from '../verbs/verbConfig';
-import { resolvePointerVerbForTarget } from '../verbs/resolvePointerVerb';
+import { resolvePointerVerbForTarget, type PointerVerbTarget } from '../verbs/resolvePointerVerb';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
@@ -215,6 +215,11 @@ function mergeRoomPropAnimationClips(spawns: readonly RoomPropSpawn[], roomId: s
     }
   }
   return out;
+}
+
+function verbHoverDefaultVerbPatch(def: PointerVerbTarget): Pick<VerbHoverTarget, 'defaultVerb'> {
+  const v = def.defaultVerb;
+  return v && v.length > 0 ? { defaultVerb: v } : {};
 }
 
 export class RoomScene extends Phaser.Scene {
@@ -3169,7 +3174,7 @@ export class RoomScene extends Phaser.Scene {
           const fromName = inv.name?.trim();
           description = fromName && fromName.length > 0 ? fromName : null;
         }
-        return { description, targetType: 'inventoryRow', itemId };
+        return { description, targetType: 'inventoryRow', itemId, ...verbHoverDefaultVerbPatch(inv) };
       }
       if (go.getData('benneHotspot') === true) {
         const hid = go.getData('benneHotspotId') as string | undefined;
@@ -3179,7 +3184,12 @@ export class RoomScene extends Phaser.Scene {
         const hs = this.roomData.hotspots.find((h) => h.id === hid);
         const d = hs?.description?.trim();
         const description = d && d.length > 0 ? d : null;
-        return { description, targetType: 'hotspot', targetId: hid };
+        return {
+          description,
+          targetType: 'hotspot',
+          targetId: hid,
+          ...verbHoverDefaultVerbPatch(hs ?? {}),
+        };
       }
       const charData = go.getData('character') as CharacterData | undefined;
       if (charData) {
@@ -3197,20 +3207,30 @@ export class RoomScene extends Phaser.Scene {
           const nm = charData.name?.trim();
           description = nm && nm.length > 0 ? nm : null;
         }
-        return { description, targetType: 'character', targetId: charData.id };
+        return {
+          description,
+          targetType: 'character',
+          targetId: charData.id,
+          ...verbHoverDefaultVerbPatch(charData),
+        };
       }
       for (const [propId, propSprite] of this.propSpritesById) {
         if (propSprite === o) {
           const trimmedOverride = this.propDescriptionOverrides.get(propId)?.trim();
+          const p = this.roomData.props?.find((rp) => rp.id === propId);
           let description: string;
           if (trimmedOverride && trimmedOverride.length > 0) {
             description = trimmedOverride;
           } else {
-            const p = this.roomData.props?.find((rp) => rp.id === propId);
             const pd = p?.description?.trim();
             description = pd && pd.length > 0 ? pd : propId;
           }
-          return { description, targetType: 'prop', targetId: propId };
+          return {
+            description,
+            targetType: 'prop',
+            targetId: propId,
+            ...verbHoverDefaultVerbPatch(p ?? {}),
+          };
         }
       }
       continue;

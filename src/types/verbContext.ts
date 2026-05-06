@@ -21,4 +21,9 @@ export interface VerbHoverTarget {
   targetId?: string;
   /** Set when {@link targetType} is `inventoryRow`. */
   itemId?: string;
+  /**
+   * Non-empty authored `defaultVerb` from prop / hotspot / character / inventory JSON — the same field
+   * `resolvePointerVerbForTarget` reads (`src/engine/verbs/resolvePointerVerb.ts`).
+   */
+  defaultVerb?: string;
 }

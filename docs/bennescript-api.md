@@ -110,6 +110,8 @@ type BenneScriptSayDialogueHybrid = {
 | **`currentHoverTarget`** | getter → **`VerbHoverTarget \| null`** | Structured hover (**`verbContext`** types). | Sync |
 | **`room`** | See [`BenneScriptRoomFacade`](architecture.md) | **`current`**, **`last`**, **`changeTo`**, **`changeTo.now`**, **`changeToNow`**. | **`changeTo`** queued; **`.now` / `changeToNow`** via orchestrator **`changeTo(roomId, true)`** |
 
+**`VerbHoverTarget`** ([`verbContext.ts`](../src/types/verbContext.ts)): **`description`**; **`targetType`** (`prop` \| `hotspot` \| `character` \| `inventoryRow` \| `null`); **`targetId`** (room entity id) when not an inventory row; **`itemId`** when **`targetType === 'inventoryRow'`**; optional **`defaultVerb`** — non-empty authored **`defaultVerb`** from the same JSON row **`resolvePointerVerbForTarget`** uses (omitted when unset or empty).
+
 **`BenneScriptRoomFacade`** (**`bindRoomFacadeForBenneScriptCore`** / [`benneScriptRoomApi.ts`](../src/engine/scripting/benneScriptRoomApi.ts)):
 
 ```ts
@@ -439,6 +441,8 @@ interface BenneScriptGuiOverlayRef {
 - Button clicks use **`subscribe`** (queued with other **`B`** work on **this GUI’s** script instance).
 
 [`GuiRuntime` / **`ControlFacade`**](architecture.md) — **`tweenTo`** / **`tweenTo.now`** participate in **`queueInteraction`**.
+
+**`ControlFacade.setVisualState(state)`** — **`button`** controls only. **`state`** is **`'normal'`** \| **`'hover'`** \| **`'pressed'`** \| **`'disabled'`** (case-insensitive strings accepted). Applies the same Aseprite frame tags (**`states.*`** in **`*.gui.json`**) and label **`textColorStates`** tints the pointer pipeline would (**`'disabled'`** also dims chrome to **`0.45`** alpha like authoring **`enabled: false`**). **`'normal'`** restores full alpha and **releases** manual control so hover / pressed tracking works again; the other modes **suppress** pointer-driven chrome until the next **`'normal'`** call.
 
 ---
 
