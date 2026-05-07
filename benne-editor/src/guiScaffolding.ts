@@ -13,6 +13,7 @@ export type GuiControlKind =
     | 'text'
     | 'inventoryPanel'
     | 'image'
+    | 'nineSliceImage'
     | 'button'
     | 'trigger'
     | 'grid';
@@ -119,6 +120,8 @@ function guiControlKindLabel(kind: GuiControlKind): string {
             return 'inventory panel';
         case 'image':
             return 'image';
+        case 'nineSliceImage':
+            return '9-slice image';
         case 'button':
             return 'button';
         case 'trigger':
@@ -183,6 +186,27 @@ function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, un
                 id,
                 x: 0,
                 y: 0
+            };
+        case 'nineSliceImage':
+            return {
+                type: 'nineSliceImage',
+                id,
+                x: 0,
+                y: 0,
+                width: 120,
+                height: 48,
+                tag: '',
+                sliceNames: {
+                    topLeft: 'TopLeft',
+                    topCenter: 'TopMid',
+                    topRight: 'TopRight',
+                    middleLeft: 'MidLeft',
+                    center: 'Mid',
+                    middleRight: 'MidRight',
+                    bottomLeft: 'BottomLeft',
+                    bottomCenter: 'BottomMid',
+                    bottomRight: 'BottomRight'
+                }
             };
         case 'button':
             return {
@@ -380,6 +404,11 @@ export async function runAddGuiControlInteractiveWizard(
             label: 'Image',
             description: 'Aseprite tag / animation from this GUI sheet',
             controlKind: 'image'
+        },
+        {
+            label: '9-slice image',
+            description: 'Scalable panel from Aseprite slices + meta.slices',
+            controlKind: 'nineSliceImage'
         },
         {
             label: 'Button',

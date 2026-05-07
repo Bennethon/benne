@@ -475,6 +475,7 @@ export class RoomScene extends Phaser.Scene {
         depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
         inventoryPanelPointerContext,
         isButtonClickSuppressed,
+        previewGuiAsepriteSheetJson: data.previewGuiAsepriteSheetJsonById?.[gui.id],
       });
       if (built) {
         this.genericGuiOverlays.push(built.handle);
@@ -495,6 +496,7 @@ export class RoomScene extends Phaser.Scene {
           depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
           inventoryPanelPointerContext,
           isButtonClickSuppressed,
+          previewGuiAsepriteSheetJson: data.previewGuiAsepriteSheetJsonById?.[SPEAKING_TEXT_GUI_ID],
         })
       : null;
     this.dialogTextOverlay = speakingTextBuilt?.handle ?? null;
@@ -524,6 +526,7 @@ export class RoomScene extends Phaser.Scene {
         depth: dChoice,
         inventoryPanelPointerContext,
         isButtonClickSuppressed,
+        previewGuiAsepriteSheetJson: data.previewGuiAsepriteSheetJsonById?.[gui.id],
       });
       stackIndex += 1;
       if (!choiceBuilt) {

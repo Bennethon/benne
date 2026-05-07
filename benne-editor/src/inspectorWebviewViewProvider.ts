@@ -870,6 +870,11 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                     controlKind: 'image'
                 },
                 {
+                    label: '9-slice image',
+                    description: 'Scalable panel from Aseprite slices + meta.slices',
+                    controlKind: 'nineSliceImage'
+                },
+                {
                     label: 'Button',
                     description: 'Sheet-backed label + click target (B.whenButtonClick)',
                     controlKind: 'button'

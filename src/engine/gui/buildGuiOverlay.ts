@@ -33,12 +33,14 @@ import type {
   GuiGridPlacement,
   GuiImageControl,
   GuiInventoryPanelControl,
+  GuiNineSliceImageControl,
   GuiSpriteAnchor,
   GuiTextAlign,
   GuiTextControl,
   GuiTextOutline,
   GuiTriggerControl,
 } from '../../types/gui';
+import { addGuiNineSliceImage, estimateNineSliceSizeForGridAlign } from './guiNineSliceImage.js';
 import {
   applyGuiBitmapTextFillTint,
   attachGuiBitmapTextOutlineList,
@@ -1110,7 +1112,7 @@ export function addGuiImageSprite(
   c: GuiImageControl,
   depth: number,
   startVisible: boolean,
-  extraSprites: Phaser.GameObjects.Sprite[],
+  extraSprites: Phaser.GameObjects.GameObject[],
   controlsById: Map<string, Phaser.GameObjects.GameObject>,
   /** In-world hit targets that must receive input ahead of this image (same overlay). Filled as controls are built. */
   imageInputDeferBelow: Phaser.GameObjects.GameObject[],
@@ -1801,10 +1803,15 @@ export interface BuildGuiOverlayOptions {
    * separately via {@link InventoryPanelPointerContext.isInputSuppressed}.
    */
   isButtonClickSuppressed?: () => boolean;
+  /**
+   * Raw / disk-shaped GUI sheet JSON (`meta.slices`, frame tags). VS Code GUI preview and room
+   * preview inject this when `import.meta.glob` cannot supply {@link getBundledGuiAsepriteRawJson}.
+   */
+  previewGuiAsepriteSheetJson?: Record<string, unknown>;
 }
 
 /**
- * Builds screen-space GUI controls from `gui.controls` (`text`, `inventoryPanel`, `image`, `button`, `trigger`, `grid`).
+ * Builds screen-space GUI controls from `gui.controls` (`text`, `inventoryPanel`, `image`, `nineSliceImage`, `button`, `trigger`, `grid`).
  * Starts hidden unless `startVisible`. Font ids resolve via `fonts/fonts.json` (`load.bitmapFont` keys).
  */
 export function buildGuiOverlay(
@@ -1817,13 +1824,14 @@ export function buildGuiOverlay(
   const placeholder = options?.emptyTextPlaceholder;
   const invPointerCtx = options?.inventoryPanelPointerContext;
   const isButtonClickSuppressed = options?.isButtonClickSuppressed;
+  const previewGuiAsepriteSheetJson = options?.previewGuiAsepriteSheetJson;
   const allLines: Phaser.GameObjects.BitmapText[] = [];
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
   const guiButtons: BuiltGuiButton[] = [];
   const triggerZones: Phaser.GameObjects.Rectangle[] = [];
   const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
   const controlsById = new Map<string, Phaser.GameObjects.GameObject>();
-  const extraSprites: Phaser.GameObjects.Sprite[] = [];
+  const extraSprites: Phaser.GameObjects.GameObject[] = [];
   const overlayDisposers: Array<() => void> = [];
   const runtimeExtraGameObjects: Phaser.GameObjects.GameObject[] = [];
   let disposeGuiRuntime: (() => void) | null = null;
@@ -2001,6 +2009,50 @@ export function buildGuiOverlay(
       guiImageInputDeferBelow.push(panel);
       if (!invPlace) {
         ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(panel as DepthGameObject);
+      }
+      continue;
+    }
+
+    if (c.type === 'nineSliceImage') {
+      const ns = c as GuiNineSliceImageControl;
+      const imgSz = estimateNineSliceSizeForGridAlign(ns);
+      const imgPlace = tryResolveGridPlacement(
+        gui,
+        ns.gridPlacement,
+        gridsById,
+        gridLayoutById,
+        imgSz.w,
+        imgSz.h,
+        isGuiFixedControlId(ns.id),
+      );
+      const { hx, vy } = parseGuiGridCellAlign(ns.gridPlacement?.align);
+      const gridCenterAlign = hx === 0.5 && vy === 0.5;
+      const panel = addGuiNineSliceImage(
+        scene,
+        gui,
+        ns,
+        depth,
+        startVisible,
+        extraSprites,
+        controlsById,
+        guiImageInputDeferBelow,
+        overlayDisposers,
+        imgPlace
+          ? {
+              x: imgPlace.localX,
+              y: imgPlace.localY,
+              parent: imgPlace.parent,
+              screenRootTopLeft: imgPlace.rootTopLeft,
+              gridContentBox: { w: imgSz.w, h: imgSz.h },
+              gridCenterAlign,
+            }
+          : undefined,
+        previewGuiAsepriteSheetJson,
+      );
+      if (panel) {
+        if (!imgPlace) {
+          ;(isGuiFixedControlId(ns.id) ? fixedPackedGameObjects : movablePackedParts).push(panel as DepthGameObject);
+        }
       }
       continue;
     }
@@ -2274,7 +2326,7 @@ export function buildGuiOverlay(
         panel.setVisible(visible);
       }
       for (const s of extraSprites) {
-        s.setVisible(visible);
+        (s as Phaser.GameObjects.Components.Visible & Phaser.GameObjects.GameObject).setVisible(visible);
       }
       for (const b of guiButtons) {
         b.hitTarget.setVisible(visible);

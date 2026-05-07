@@ -123,7 +123,7 @@ async function runLoadGui(msg: {
 
   const hasGrid = guiHasGridControls(msg.gui);
   if (!hasText && !hasInventoryPanel && !wantsAseprite && !hasImage && !hasGrid) {
-    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code>, at least one <code>text</code>, <code>image</code>, <code>inventoryPanel</code>, or <code>grid</code> control in <code>controls</code>.</div>`;
+    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code>, at least one <code>text</code>, <code>image</code>, <code>nineSliceImage</code>, <code>inventoryPanel</code>, or <code>grid</code> control in <code>controls</code>.</div>`;
     return;
   }
 
@@ -134,6 +134,8 @@ async function runLoadGui(msg: {
   );
 
   let aseprite: GuiPreviewGamePayload['aseprite'] = null;
+  /** Same JSON as on disk — nine-slice reads meta.slices (preview bundles often lack the globbed module map). */
+  let previewGuiAsepriteSheetJson: Record<string, unknown> | undefined;
   const revokeObjectUrls: string[] = [];
   let asepriteError: string | null = null;
 
@@ -144,6 +146,7 @@ async function runLoadGui(msg: {
 
     try {
       const raw = await fetchJson(jsonUrl);
+      previewGuiAsepriteSheetJson = raw;
       const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
       prefixGuiAsepriteFrameTags(norm, msg.guiId);
       const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
@@ -206,6 +209,7 @@ async function runLoadGui(msg: {
     internalWidth,
     internalHeight,
     revokeObjectUrls,
+    previewGuiAsepriteSheetJson,
     aseprite,
     previewInitialGameState,
     sharedInventoryAseprite,

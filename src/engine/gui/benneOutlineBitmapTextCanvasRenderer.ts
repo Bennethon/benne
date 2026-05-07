@@ -2,7 +2,6 @@ import * as Phaser from 'phaser';
 import {
   BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY,
   BENNE_GUI_OUTLINE_CANVAS_TINT_KEY,
-  BENNE_GUI_OUTLINE_DX_KEY,
 } from './guiTextOutline';
 
 // ---------------------------------------------------------------------------

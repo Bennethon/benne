@@ -863,6 +863,22 @@ export function updateGuiControlPatch(
             mergeGuiTextOutlinePatch(row, v as Record<string, unknown>);
             continue;
         }
+        if (k === 'sliceNames' && v && typeof v === 'object' && !Array.isArray(v)) {
+            const prev =
+                row.sliceNames && typeof row.sliceNames === 'object' && !Array.isArray(row.sliceNames)
+                    ? { ...(row.sliceNames as Record<string, unknown>) }
+                    : {};
+            const incoming = v as Record<string, unknown>;
+            for (const [sk, sv] of Object.entries(incoming)) {
+                if (sv === null || sv === '') {
+                    delete prev[sk];
+                } else {
+                    prev[sk] = sv;
+                }
+            }
+            row.sliceNames = prev;
+            continue;
+        }
         if (v === null) {
             delete row[k];
         } else {
@@ -892,6 +908,43 @@ export function updateGuiControlPatch(
         const a = row.backgroundAnchor;
         if (a === '' || a === undefined || a === 'top-left') {
             delete row.backgroundAnchor;
+        }
+    }
+
+    if (row.type === 'nineSliceImage') {
+        const legacy = row.display;
+        if (legacy && typeof legacy === 'object' && !Array.isArray(legacy)) {
+            const d = legacy as Record<string, unknown>;
+            if (!patchKeys.has('tag') && typeof d.tag === 'string') {
+                row.tag = d.tag;
+            }
+            if (!patchKeys.has('backgroundAnchor')) {
+                const a = d.backgroundAnchor;
+                if (a === 'center' || a === 'screen' || a === 'top-left') {
+                    row.backgroundAnchor = a;
+                }
+            }
+            delete row.display;
+        }
+        const t = row.tag;
+        if (t === '' || t === undefined) {
+            delete row.tag;
+        }
+        const a = row.backgroundAnchor;
+        if (a === '' || a === undefined || a === 'top-left') {
+            delete row.backgroundAnchor;
+        }
+        const w = row.width as number;
+        const h = row.height as number;
+        if (!Number.isFinite(w) || w < 1) {
+            row.width = 1;
+        }
+        if (!Number.isFinite(h) || h < 1) {
+            row.height = 1;
+        }
+        const sn = row.sliceNames;
+        if (!sn || typeof sn !== 'object' || Array.isArray(sn)) {
+            row.sliceNames = {};
         }
     }
 
