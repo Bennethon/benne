@@ -217,11 +217,13 @@ function makeGuiRectHitWithDefer(
   };
 }
 
+type PositionableGo = { x: number; y: number; setPosition(x: number, y: number): void };
+
 /**
  * Positions the top-left of a `width`×`height` panel using the same trim + anchor math as GUI `image` sprites.
  */
 function positionNineSlicePanelContainer(args: {
-  container: Phaser.GameObjects.Container;
+  go: PositionableGo;
   anchor: GuiSpriteAnchor;
   effSpriteAnchor: GuiSpriteAnchor;
   lx: number;
@@ -237,7 +239,7 @@ function positionNineSlicePanelContainer(args: {
   rootTL?: { x: number; y: number };
 }): void {
   const {
-    container,
+    go,
     anchor,
     effSpriteAnchor,
     lx,
@@ -254,11 +256,11 @@ function positionNineSlicePanelContainer(args: {
   } = args;
 
   const topLeft = (px: number, py: number): void => {
-    container.setPosition(Math.round(px), Math.round(py));
+    go.setPosition(Math.round(px), Math.round(py));
   };
 
   const fromCenterPoint = (cx: number, cy: number): void => {
-    container.setPosition(Math.round(cx - outW / 2), Math.round(cy - outH / 2));
+    go.setPosition(Math.round(cx - outW / 2), Math.round(cy - outH / 2));
   };
 
   if (anchor === 'screen' && parent) {
@@ -301,8 +303,19 @@ const CELL_ORDER: (keyof GuiNineSliceImageSliceNames)[] = [
   'bottomRight',
 ];
 
-function layoutNineSliceImages(
-  guiTextureKey: string,
+/**
+ * Draws the nine tiles directly to a Canvas 2D context (the RenderTexture's canvas).
+ *
+ * Using `ctx.drawImage` instead of Phaser's `batchSprite` is critical: `batchSprite` adds
+ * `fw += 0.5` when `camera.roundPixels` is true to prevent inter-tile gaps.  For corner tiles
+ * (scaleX = 1) this stretches e.g. 5 source pixels to 22 screen pixels at zoom 4 — a
+ * non-uniform 4.4× mapping — causing transparent notch edges to appear blurry.
+ * With direct `ctx.drawImage` the corner tiles get an exact 1:1 source→RT pixel mapping
+ * (5 source → 5 RT pixels, then the RT itself is displayed at zoom scale with negligible
+ * per-pixel error across its full width).
+ */
+function drawNineSliceTilesToCanvas(
+  ctx: CanvasRenderingContext2D,
   probe: Phaser.GameObjects.Sprite,
   raw: Record<string, unknown>,
   sliceMap: Map<string, AsepriteSliceEntry>,
@@ -311,10 +324,11 @@ function layoutNineSliceImages(
   guiId: string,
   outW: number,
   outH: number,
-  tiles: Phaser.GameObjects.Sprite[],
 ): boolean {
   const timelineFrame = resolveAsepriteTimelineFrame(probe, raw, authorTag, guiId);
   const inset = getAsepriteSpriteSourceInset(probe.frame);
+  const frame = probe.frame;
+  const atlasImage = frame.source.image as unknown as CanvasImageSource;
 
   const rects: (Rect | null)[] = [];
   for (const cell of CELL_ORDER) {
@@ -370,7 +384,6 @@ function layoutNineSliceImages(
   const midW = Math.max(0, Math.round(outW - leftW - rightW));
   const midH = Math.max(0, Math.round(outH - topH - bottomH));
 
-  const frameName = probe.frame.name;
   const layoutSpec: { crop: Rect; dx: number; dy: number; dw: number; dh: number }[] = [
     { crop: tl, dx: 0, dy: 0, dw: leftW, dh: topH },
     { crop: tc, dx: leftW, dy: 0, dw: midW, dh: topH },
@@ -383,43 +396,17 @@ function layoutNineSliceImages(
     { crop: br, dx: leftW + midW, dy: topH + midH, dw: rightW, dh: bottomH },
   ];
 
-  for (let i = 0; i < 9; i++) {
-    const spr = tiles[i]!;
-    const spec = layoutSpec[i]!;
+  for (const spec of layoutSpec) {
     const cr = sliceInsetCrop(spec.crop, inset);
-    if (cr.w <= 0 || cr.h <= 0) {
-      spr.setVisible(false);
-      spr.setCrop();
-      continue;
-    }
+    if (cr.w <= 0 || cr.h <= 0) continue;
     const dw = Math.max(0, Math.round(spec.dw));
     const dh = Math.max(0, Math.round(spec.dh));
-    if (dw <= 0 || dh <= 0) {
-      spr.setVisible(false);
-      spr.setCrop();
-      continue;
-    }
-    spr.setVisible(true);
-    spr.setTexture(guiTextureKey, frameName);
-    spr.setCrop(cr.x, cr.y, cr.w, cr.h);
-    /**
-     * Canvas `batchSprite` computes the drawImage dest offset as:
-     *   x = -displayOriginX + crop.x
-     * If origin=(0,0) this becomes +crop.x, displacing tiles whose crop starts at x>0.
-     *
-     * Fix — set origin to (cr.x/cr.w, cr.y/cr.h) so displayOriginX = cr.x, which makes the
-     * offset: -cr.x + cr.x = 0. The tile then draws flush at its container position.
-     *
-     * setSize(cr.w, cr.h) must come first: updateDisplayOrigin() inside setOrigin multiplies
-     * originX by _sizeWidth, so we need _sizeWidth = cr.w (not the full atlas realWidth).
-     *
-     * setScale(dw/cr.w, dh/cr.h) scales the cropped region to the target cell size
-     * because batchSprite dest size = crop.cw * scaleX = dw.
-     */
-    spr.setScale(dw / cr.w, dh / cr.h);
-    spr.setSize(cr.w, cr.h);
-    spr.setOrigin(cr.x / cr.w, cr.y / cr.h);
-    spr.setPosition(Math.round(spec.dx), Math.round(spec.dy));
+    if (dw <= 0 || dh <= 0) continue;
+    ctx.drawImage(
+      atlasImage,
+      frame.cutX + cr.x, frame.cutY + cr.y, cr.w, cr.h,
+      Math.round(spec.dx), Math.round(spec.dy), dw, dh,
+    );
   }
 
   return true;
@@ -435,7 +422,12 @@ export function estimateNineSliceSizeForGridAlign(c: GuiNineSliceImageControl): 
 }
 
 /**
- * Builds a 9-slice GUI control: nine cropped sprites in a container (Canvas renderer).
+ * Builds a 9-slice GUI control: tiles drawn directly to a RenderTexture (Canvas renderer).
+ *
+ * A RenderTexture is used instead of nine Sprite children in a Container so that tiles are
+ * drawn with `ctx.drawImage` (exact integer pixel mapping) rather than Phaser's `batchSprite`
+ * (which adds `fw += 0.5` when `camera.roundPixels` is true, causing non-uniform scaling that
+ * blurs transparent notch corners in the corner tiles).
  */
 export function addGuiNineSliceImage(
   scene: Phaser.Scene,
@@ -457,7 +449,7 @@ export function addGuiNineSliceImage(
   },
   /** Editor previews: disk-shaped sheet JSON with `meta.slices` when bundled glob is unavailable. */
   previewSheetJson?: Record<string, unknown>,
-): Phaser.GameObjects.Container | null {
+): Phaser.GameObjects.RenderTexture | null {
   if (!usesAsepriteDisplay(gui)) {
     return null;
   }
@@ -508,34 +500,31 @@ export function addGuiNineSliceImage(
     warnDevIfAsepriteJsonMissingSpriteSourceSize(probe.frame, `GUI "${gui.id}" nineSliceImage`);
   }
 
-  const container = scene.add.container(0, 0);
-  container.setScrollFactor(0, 0);
-  container.setDepth(depth + (c.zIndex ?? 0));
+  /**
+   * RenderTexture sized exactly to the panel.  Tiles are drawn into it via `ctx.drawImage`
+   * (bypassing `batchSprite`) so each tile gets exact integer pixel mapping with no `fw += 0.5`
+   * stretch.  The RT is then displayed as a single game object; its own slight `fw += 0.5`
+   * overdraw at the panel edges is handled by the GeometryMask below.
+   */
+  const rt = scene.add.renderTexture(0, 0, outW, outH);
+  rt.setScrollFactor(0, 0);
+  rt.setDepth(depth + (c.zIndex ?? 0));
+  rt.setOrigin(0, 0);
   const vis = startVisible && c.visible !== false;
-  container.setVisible(vis);
-
-  const tiles: Phaser.GameObjects.Sprite[] = [];
-  for (let i = 0; i < 9; i++) {
-    const spr = scene.add.sprite(0, 0, guiTextureKey, probe.frame.name);
-    spr.setScrollFactor(0, 0);
-    spr.setVisible(false);
-    container.add(spr);
-    tiles.push(spr);
-  }
+  rt.setVisible(vis);
 
   const relayout = (): void => {
-    layoutNineSliceImages(
-      guiTextureKey,
-      probe,
-      raw,
-      sliceMap,
-      c.sliceNames,
-      authorTag,
-      gui.id,
-      outW,
-      outH,
-      tiles,
-    );
+    /**
+     * RenderTexture in Phaser 4 is an Image backed by a DynamicTexture.
+     * The 2D canvas context lives on the DynamicTexture (rt.texture), not on the RT itself.
+     * In Canvas mode, batchSprite renders `frame.source.image` which IS that same canvas, so
+     * drawing here directly (bypassing the command buffer) is safe in the default RENDER mode.
+     */
+    const ctx = (rt.texture as unknown as { context: CanvasRenderingContext2D | null }).context;
+    if (!ctx) return;
+    ctx.clearRect(0, 0, outW, outH);
+    ctx.imageSmoothingEnabled = false;
+    drawNineSliceTilesToCanvas(ctx, probe, raw, sliceMap, c.sliceNames, authorTag, gui.id, outW, outH);
   };
 
   const anchor = guiSpriteAnchorOrDefault(c.backgroundAnchor ?? legacyDisplay?.backgroundAnchor);
@@ -564,9 +553,9 @@ export function addGuiNineSliceImage(
   const facadePlacementX = anchor === 'screen' && parent && !rootTL ? lx : placementAnchorX;
   const facadePlacementY = anchor === 'screen' && parent && !rootTL ? ly : placementAnchorY;
 
-  const positionContainer = (): void => {
+  const positionRT = (): void => {
     positionNineSlicePanelContainer({
-      container,
+      go: rt,
       anchor,
       effSpriteAnchor: effPlacementAnchor,
       lx,
@@ -583,40 +572,61 @@ export function addGuiNineSliceImage(
     });
   };
 
-  positionContainer();
+  positionRT();
   relayout();
 
+  /**
+   * Phaser's `batchSprite` adds `fw += 0.5` / `fh += 0.5` when `camera.roundPixels` is true.
+   * For the RT itself (displayed at scale 1) this adds ~0.5 canvas units of overdraw at the
+   * panel's right/bottom edges.  A GeometryMask clips the RT to its exact bounds.
+   * The mask Graphics lives in world space with scroll-factor 0, and is re-synced whenever
+   * the RT is repositioned (e.g. on animation frame changes).
+   */
+  const clipMaskGfx = scene.make.graphics({ add: false } as Phaser.Types.GameObjects.Graphics.Options);
+  clipMaskGfx.setScrollFactor(0, 0);
+  clipMaskGfx.fillStyle(0xffffff, 1);
+  clipMaskGfx.fillRect(0, 0, outW, outH);
+  clipMaskGfx.setPosition(rt.x, rt.y);
+  rt.setMask(clipMaskGfx.createGeometryMask());
+
+  const syncClipMask = (): void => {
+    clipMaskGfx.setPosition(rt.x, rt.y);
+  };
+
   const syncFrame = (): void => {
-    positionContainer();
+    positionRT();
     relayout();
+    syncClipMask();
   };
   probe.on(Phaser.Animations.Events.ANIMATION_UPDATE, syncFrame);
   probe.on(Phaser.Animations.Events.ANIMATION_COMPLETE, syncFrame);
   overlayDisposers.push(() => {
     probe.off(Phaser.Animations.Events.ANIMATION_UPDATE, syncFrame);
     probe.off(Phaser.Animations.Events.ANIMATION_COMPLETE, syncFrame);
+    rt.clearMask();
+    clipMaskGfx.destroy();
   });
 
   const hitRect = new Phaser.Geom.Rectangle(0, 0, outW, outH);
-  container.setInteractive({
+  rt.setInteractive({
     hitArea: hitRect,
     hitAreaCallback: makeGuiRectHitWithDefer(scene, hitRect, imageInputDeferBelow),
     draggable: false,
   });
-  container.setData('benneGuiControl', true);
+  rt.setData('benneGuiControl', true);
 
   if (parent) {
-    parent.add(container);
+    parent.add(rt);
   }
-  extraDrawables.push(container);
+  extraDrawables.push(rt);
   overlayDisposers.push(() => {
     probe.destroy();
   });
 
   const cid = c.id?.trim();
   if (cid) {
-    controlsById.set(cid, container);
+    controlsById.set(cid, rt);
   }
 
-  return container;
+  return rt;
 }
