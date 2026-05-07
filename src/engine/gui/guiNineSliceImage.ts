@@ -17,6 +17,28 @@ import {
 
 type Rect = { x: number; y: number; w: number; h: number };
 
+/**
+ * Registry key on nine-slice {@link Phaser.GameObjects.RenderTexture} for {@link tryResizeGuiNineSlicePanel}.
+ */
+export const BENNE_GUI_NINE_SLICE_RESIZE_FN_KEY = 'benneGuiNineSliceResizeFn';
+
+/**
+ * Resizes a GUI nine-slice panel built by {@link addGuiNineSliceImage} (updates DynamicTexture, mask, hit area,
+ * and redraws tiles). Returns false when **`rt`** is not a nine-slice control with a resize hook.
+ */
+export function tryResizeGuiNineSlicePanel(
+  rt: Phaser.GameObjects.RenderTexture,
+  width: number,
+  height: number,
+): boolean {
+  const fn = rt.getData(BENNE_GUI_NINE_SLICE_RESIZE_FN_KEY) as ((w: number, h: number) => void) | undefined;
+  if (typeof fn !== 'function') {
+    return false;
+  }
+  fn(width, height);
+  return true;
+}
+
 type AsepriteSliceEntry = {
   name: string;
   keys: { frame: number; bounds: Rect }[];
@@ -482,9 +504,9 @@ export function addGuiNineSliceImage(
     return null;
   }
 
-  const outW = Math.round(c.width);
-  const outH = Math.round(c.height);
-  if (outW < 1 || outH < 1) {
+  let panelW = Math.round(c.width);
+  let panelH = Math.round(c.height);
+  if (panelW < 1 || panelH < 1) {
     return null;
   }
 
@@ -506,7 +528,7 @@ export function addGuiNineSliceImage(
    * stretch.  The RT is then displayed as a single game object; its own slight `fw += 0.5`
    * overdraw at the panel edges is handled by the GeometryMask below.
    */
-  const rt = scene.add.renderTexture(0, 0, outW, outH);
+  const rt = scene.add.renderTexture(0, 0, panelW, panelH);
   rt.setScrollFactor(0, 0);
   rt.setDepth(depth + (c.zIndex ?? 0));
   rt.setOrigin(0, 0);
@@ -522,9 +544,9 @@ export function addGuiNineSliceImage(
      */
     const ctx = (rt.texture as unknown as { context: CanvasRenderingContext2D | null }).context;
     if (!ctx) return;
-    ctx.clearRect(0, 0, outW, outH);
+    ctx.clearRect(0, 0, panelW, panelH);
     ctx.imageSmoothingEnabled = false;
-    drawNineSliceTilesToCanvas(ctx, probe, raw, sliceMap, c.sliceNames, authorTag, gui.id, outW, outH);
+    drawNineSliceTilesToCanvas(ctx, probe, raw, sliceMap, c.sliceNames, authorTag, gui.id, panelW, panelH);
   };
 
   const anchor = guiSpriteAnchorOrDefault(c.backgroundAnchor ?? legacyDisplay?.backgroundAnchor);
@@ -564,8 +586,8 @@ export function addGuiNineSliceImage(
       placementAnchorY: facadePlacementY,
       bgOffX,
       bgOffY,
-      outW,
-      outH,
+      outW: panelW,
+      outH: panelH,
       frame: probe.frame,
       parent,
       rootTL,
@@ -585,7 +607,7 @@ export function addGuiNineSliceImage(
   const clipMaskGfx = scene.make.graphics({ add: false } as Phaser.Types.GameObjects.Graphics.Options);
   clipMaskGfx.setScrollFactor(0, 0);
   clipMaskGfx.fillStyle(0xffffff, 1);
-  clipMaskGfx.fillRect(0, 0, outW, outH);
+  clipMaskGfx.fillRect(0, 0, panelW, panelH);
   clipMaskGfx.setPosition(rt.x, rt.y);
   rt.setMask(clipMaskGfx.createGeometryMask());
 
@@ -604,16 +626,40 @@ export function addGuiNineSliceImage(
     probe.off(Phaser.Animations.Events.ANIMATION_UPDATE, syncFrame);
     probe.off(Phaser.Animations.Events.ANIMATION_COMPLETE, syncFrame);
     rt.clearMask();
+    rt.setData(BENNE_GUI_NINE_SLICE_RESIZE_FN_KEY, undefined);
     clipMaskGfx.destroy();
   });
 
-  const hitRect = new Phaser.Geom.Rectangle(0, 0, outW, outH);
-  rt.setInteractive({
-    hitArea: hitRect,
-    hitAreaCallback: makeGuiRectHitWithDefer(scene, hitRect, imageInputDeferBelow),
-    draggable: false,
-  });
+  const hitRect = new Phaser.Geom.Rectangle(0, 0, panelW, panelH);
+  const wireNineSliceInteractivity = (): void => {
+    rt.setInteractive({
+      hitArea: hitRect,
+      hitAreaCallback: makeGuiRectHitWithDefer(scene, hitRect, imageInputDeferBelow),
+      draggable: false,
+    });
+  };
+  wireNineSliceInteractivity();
   rt.setData('benneGuiControl', true);
+
+  /** Runtime resize for Display Text and similar dynamic nine-slice panels. */
+  const applyNineSlicePanelSize = (nw: number, nh: number): void => {
+    const W = Math.max(1, Math.round(nw));
+    const H = Math.max(1, Math.round(nh));
+    panelW = W;
+    panelH = H;
+    const tex = rt.texture as Phaser.Textures.DynamicTexture;
+    tex.setSize(W, H);
+    clipMaskGfx.clear();
+    clipMaskGfx.fillStyle(0xffffff, 1);
+    clipMaskGfx.fillRect(0, 0, W, H);
+    hitRect.width = W;
+    hitRect.height = H;
+    wireNineSliceInteractivity();
+    positionRT();
+    relayout();
+    syncClipMask();
+  };
+  rt.setData(BENNE_GUI_NINE_SLICE_RESIZE_FN_KEY, applyNineSlicePanelSize);
 
   if (parent) {
     parent.add(rt);
