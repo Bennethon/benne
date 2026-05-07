@@ -942,6 +942,51 @@ function renderGuiControlCardBody(state, c) {
       </div>`
             : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> in raw JSON for <code>B.whenButtonClick</code>.</p>`}`;
     }
+    if (c.controlKind === 'nineSliceImage') {
+        const animImg = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Sheet clip &amp; 9 slices</div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">tag</span>
+        ${guiSheetTagSelectHtml(tags, c.tag, idx, 'tag')}
+        <span class="benne-pg-lbl">background anchor</span>
+        <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
+        <span class="benne-pg-lbl">background offset X</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetX" value="${c.backgroundOffsetX ?? ''}" placeholder="0" />
+        <span class="benne-pg-lbl">background offset Y</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetY" value="${c.backgroundOffsetY ?? ''}" placeholder="0" />
+        <span class="benne-pg-lbl">slice top-left</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="sliceNineTopLeft" value="${esc(c.sliceTopLeft)}" placeholder="Aseprite slice name" />
+        <span class="benne-pg-lbl">slice top-center</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="sliceNineTopCenter" value="${esc(c.sliceTopCenter)}" placeholder="Aseprite slice name" />
+        <span class="benne-pg-lbl">slice top-right</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="sliceNineTopRight" value="${esc(c.sliceTopRight)}" placeholder="Aseprite slice name" />
+        <span class="benne-pg-lbl">slice middle-left</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="sliceNineMiddleLeft" value="${esc(c.sliceMiddleLeft)}" placeholder="Aseprite slice name" />
+        <span class="benne-pg-lbl">slice center</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="sliceNineCenter" value="${esc(c.sliceCenter)}" placeholder="Aseprite slice name" />
+        <span class="benne-pg-lbl">slice middle-right</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="sliceNineMiddleRight" value="${esc(c.sliceMiddleRight)}" placeholder="Aseprite slice name" />
+        <span class="benne-pg-lbl">slice bottom-left</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="sliceNineBottomLeft" value="${esc(c.sliceBottomLeft)}" placeholder="Aseprite slice name" />
+        <span class="benne-pg-lbl">slice bottom-center</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="sliceNineBottomCenter" value="${esc(c.sliceBottomCenter)}" placeholder="Aseprite slice name" />
+        <span class="benne-pg-lbl">slice bottom-right</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="sliceNineBottomRight" value="${esc(c.sliceBottomRight)}" placeholder="Aseprite slice name" />
+      </div>`
+            : state.usesAseprite
+                ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
+                : `<p class="muted small" style="margin-top:8px;">Set <code>display.aseprite: true</code> to use sheet tags.</p>`;
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
+      ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
+      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
+      ${animImg}`;
+    }
     if (c.controlKind === 'image') {
         const animImg = state.usesAseprite && tags.length > 0
             ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>
@@ -1740,6 +1785,22 @@ function collectGuiMeta() {
     };
 }
 function buildGuiControlFieldPatch(field, el) {
+    const SLICE_SUB = {
+        sliceNineTopLeft: 'topLeft',
+        sliceNineTopCenter: 'topCenter',
+        sliceNineTopRight: 'topRight',
+        sliceNineMiddleLeft: 'middleLeft',
+        sliceNineCenter: 'center',
+        sliceNineMiddleRight: 'middleRight',
+        sliceNineBottomLeft: 'bottomLeft',
+        sliceNineBottomCenter: 'bottomCenter',
+        sliceNineBottomRight: 'bottomRight'
+    };
+    const sliceSub = SLICE_SUB[field];
+    if (sliceSub) {
+        const raw = el.value.trim();
+        return { sliceNames: { [sliceSub]: raw } };
+    }
     if (field === 'tag') {
         const raw = el.value.trim();
         return { tag: raw.length === 0 ? null : el.value };

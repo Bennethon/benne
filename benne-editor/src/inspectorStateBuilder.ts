@@ -314,6 +314,33 @@ export type InspectorGuiControlCard =
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
+          controlKind: 'nineSliceImage';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          width: number;
+          height: number;
+          tag: string;
+          backgroundAnchor: InspectorGuiSpriteAnchor;
+          backgroundOffsetX: number | null;
+          backgroundOffsetY: number | null;
+          sliceTopLeft: string;
+          sliceTopCenter: string;
+          sliceTopRight: string;
+          sliceMiddleLeft: string;
+          sliceCenter: string;
+          sliceMiddleRight: string;
+          sliceBottomLeft: string;
+          sliceBottomCenter: string;
+          sliceBottomRight: string;
+          gridPlacement: InspectorGuiGridPlacement | null;
+      }
+    | {
           controlKind: 'button';
           key: string;
           index: number;
@@ -1264,6 +1291,57 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             backgroundAnchor,
             backgroundOffsetX: guiReadNumOrNull(o, 'backgroundOffsetX'),
             backgroundOffsetY: guiReadNumOrNull(o, 'backgroundOffsetY'),
+            gridPlacement: parseOptionalGridPlacement(o)
+        };
+    }
+
+    if (type === 'nineSliceImage') {
+        const legacyDisp =
+            o.display && typeof o.display === 'object' && !Array.isArray(o.display)
+                ? (o.display as Record<string, unknown>)
+                : null;
+        const tag =
+            typeof o.tag === 'string'
+                ? o.tag
+                : typeof legacyDisp?.tag === 'string'
+                  ? legacyDisp.tag
+                  : '';
+        const anchorSource: Record<string, unknown> = {};
+        if (typeof o.backgroundAnchor === 'string' && o.backgroundAnchor.length > 0) {
+            anchorSource.backgroundAnchor = o.backgroundAnchor;
+        } else if (typeof legacyDisp?.backgroundAnchor === 'string') {
+            anchorSource.backgroundAnchor = legacyDisp.backgroundAnchor;
+        }
+        const backgroundAnchor = guiReadAnchorField(anchorSource, 'backgroundAnchor');
+        const sn = o.sliceNames && typeof o.sliceNames === 'object' && !Array.isArray(o.sliceNames)
+            ? (o.sliceNames as Record<string, unknown>)
+            : {};
+        const gs = (k: string): string => (typeof sn[k] === 'string' ? sn[k] : '');
+        return {
+            controlKind: 'nineSliceImage',
+            key,
+            index,
+            summary,
+            controlId,
+            x: guiReadNum(o, 'x', 0),
+            y: guiReadNum(o, 'y', 0),
+            zIndex: guiReadNumOrNull(o, 'zIndex'),
+            visibleMode: guiReadVisibleMode(o),
+            width: guiReadNum(o, 'width', 64),
+            height: guiReadNum(o, 'height', 64),
+            tag,
+            backgroundAnchor,
+            backgroundOffsetX: guiReadNumOrNull(o, 'backgroundOffsetX'),
+            backgroundOffsetY: guiReadNumOrNull(o, 'backgroundOffsetY'),
+            sliceTopLeft: gs('topLeft'),
+            sliceTopCenter: gs('topCenter'),
+            sliceTopRight: gs('topRight'),
+            sliceMiddleLeft: gs('middleLeft'),
+            sliceCenter: gs('center'),
+            sliceMiddleRight: gs('middleRight'),
+            sliceBottomLeft: gs('bottomLeft'),
+            sliceBottomCenter: gs('bottomCenter'),
+            sliceBottomRight: gs('bottomRight'),
             gridPlacement: parseOptionalGridPlacement(o)
         };
     }

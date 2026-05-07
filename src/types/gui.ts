@@ -199,6 +199,49 @@ export interface GuiGridControl {
  * Static or animated art from the GUI Aseprite sheet when the GUI root {@link GuiData.display}
  * has `aseprite: true` (same sheet as buttons / inventory panel on that GUI).
  */
+/**
+ * Names of Aseprite `meta.slices[]` entries for each 3×3 cell. Values must match slice **names**
+ * from the exported `*.json` (not frame tags — those stay on **`tag`**).
+ */
+export interface GuiNineSliceImageSliceNames {
+  topLeft: string;
+  topCenter: string;
+  topRight: string;
+  middleLeft: string;
+  center: string;
+  middleRight: string;
+  bottomLeft: string;
+  bottomCenter: string;
+  bottomRight: string;
+}
+
+/**
+ * Scalable GUI art via a 3×3 grid: corners keep source pixel size, edges stretch on one axis,
+ * the center stretches both ways. Implemented with nine cropped atlas images (Canvas-safe;
+ * Phaser `NineSlice` does not render on Canvas).
+ */
+export interface GuiNineSliceImageControl {
+  type: 'nineSliceImage';
+  id?: string;
+  x: number;
+  y: number;
+  zIndex?: number;
+  visible?: boolean;
+  /** Total drawn width/height in screen pixels (required). */
+  width: number;
+  height: number;
+  /** Aseprite frame tag on the GUI sheet (same as {@link GuiImageControl.tag}). */
+  tag?: string;
+  backgroundAnchor?: GuiSpriteAnchor;
+  backgroundOffsetX?: number;
+  backgroundOffsetY?: number;
+  /** Maps each 3×3 cell to an Aseprite slice name on this tag’s cel(s). */
+  sliceNames: GuiNineSliceImageSliceNames;
+  /** Optional extra clips from the GUI sheet (Aseprite tags). */
+  animations?: GuiSpriteAnimationsMap;
+  gridPlacement?: GuiGridPlacement;
+}
+
 export interface GuiImageControl {
   type: 'image';
   id?: string;
@@ -206,7 +249,7 @@ export interface GuiImageControl {
   y: number;
   zIndex?: number;
   visible?: boolean;
-  /** Reserved for future clipping / 9-slice; does not affect `screen` background placement. */
+  /** Optional width/height for grid alignment when the sheet size should not drive the cell box. */
   width?: number;
   height?: number;
   /** Aseprite frame tag on the GUI sheet; omit or empty to show nothing. */
@@ -331,6 +374,7 @@ export type GuiControl =
   | GuiTextControl
   | GuiInventoryPanelControl
   | GuiImageControl
+  | GuiNineSliceImageControl
   | GuiButtonControl
   | GuiTriggerControl
   | GuiGridControl;

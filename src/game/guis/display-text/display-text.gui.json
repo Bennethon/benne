@@ -1,0 +1,31 @@
+{
+  "id": "display-text",
+  "name": "Display Text",
+  "description": "",
+  "visible": true,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "nineSliceImage",
+      "id": "dialogPanelBg",
+      "x": 20,
+      "y": 20,
+      "width": 201,
+      "height": 80,
+      "tag": "9-slice-BG",
+      "sliceNames": {
+        "topLeft": "TopLeft",
+        "topCenter": "TopMid",
+        "topRight": "TopRight",
+        "middleLeft": "MidLeft",
+        "center": "Mid",
+        "middleRight": "MidRight",
+        "bottomLeft": "BottomLeft",
+        "bottomCenter": "BottomMid",
+        "bottomRight": "BottomRight"
+      }
+    }
+  ]
+}

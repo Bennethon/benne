@@ -188,7 +188,7 @@ export async function buildPreviewManifest(
     // Always queue GUI assets so the "Show GUIs" toolbar toggle can flip them on without needing
     // a preview reload. Fonts / Aseprite loads are small; keeping load-on-toggle symmetric with
     // the shipped game (see `BootScene` which also queues all GUI assets) avoids editor drift.
-    await queueGuiAndInventoryLoads(loads, assetsBase, revokeLater);
+    const previewGuiAsepriteSheetJsonById = await queueGuiAndInventoryLoads(loads, assetsBase, revokeLater);
     await queueGameCursorLoad(loads, assetsBase, revokeLater);
 
     const startData: RoomSceneStartData = {
@@ -197,6 +197,7 @@ export async function buildPreviewManifest(
         characters: spawns,
         props: propSpawns,
         roomPropsTextureKey,
+        previewGuiAsepriteSheetJsonById,
     };
 
     return { loads, startData, revokeObjectUrls };
@@ -239,7 +240,9 @@ async function queueGuiAndInventoryLoads(
     loads: PreviewLoadEntry[],
     assetsBase: string,
     revokeLater: (url: string) => string,
-): Promise<void> {
+): Promise<Record<string, Record<string, unknown>>> {
+    /** Unprefixed on-disk JSON (`meta.slices`, frame tag names) for nine-slice layout in the webview. */
+    const guiSheetRawById: Record<string, Record<string, unknown>> = {};
     const guis = getAllGuiData();
     const fontsManifest = gameFontsManifest as GameFontsManifest;
 
@@ -268,6 +271,7 @@ async function queueGuiAndInventoryLoads(
             const jsonUrl = joinGameWebviewUri(assetsBase, paths.json);
             const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
             const raw = await fetchJson(jsonUrl);
+            guiSheetRawById[gui.id] = raw;
             const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
             prefixGuiAsepriteFrameTags(norm, gui.id);
             const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
@@ -284,7 +288,7 @@ async function queueGuiAndInventoryLoads(
     }
 
     if (!guisHaveInventoryPanel(guis)) {
-        return;
+        return guiSheetRawById;
     }
 
     let queuedSharedInventory = false;
@@ -349,6 +353,8 @@ async function queueGuiAndInventoryLoads(
             }
         }
     }
+
+    return guiSheetRawById;
 }
 
 function guisHaveInventoryPanel(guis: readonly GuiData[]): boolean {

@@ -46,7 +46,10 @@
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": "UpBtn"
+      "backgroundTag": "UpBtn",
+      "states": {
+        "hover": "UpBtn-hover"
+      }
     },
     {
       "type": "button",
@@ -63,7 +66,10 @@
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": "DownBtn"
+      "backgroundTag": "DownBtn",
+      "states": {
+        "hover": "DownBtn-hover"
+      }
     },
     {
       "type": "button",

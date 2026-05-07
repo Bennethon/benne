@@ -49,6 +49,8 @@ export type GuiPreviewGamePayload = {
   internalWidth: number;
   internalHeight: number;
   revokeObjectUrls: string[];
+  /** On-disk-shaped sheet JSON (`meta.slices`) when the preview bundle has no Vite glob for this GUI. */
+  previewGuiAsepriteSheetJson?: Record<string, unknown>;
   /** When set, loads and plays the Aseprite sheet; otherwise text-only preview. */
   aseprite: GuiPreviewAsepritePayload | null;
   /**
@@ -371,6 +373,7 @@ class GuiPreviewScene extends Phaser.Scene {
       depth: PREVIEW_GUI_TEXT_DEPTH,
       startVisible: true,
       emptyTextPlaceholder: 'Lorem ipsum dolor sit amet.',
+      previewGuiAsepriteSheetJson: this.payload.previewGuiAsepriteSheetJson,
     });
 
     this.add

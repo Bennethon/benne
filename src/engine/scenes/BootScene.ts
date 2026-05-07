@@ -72,6 +72,11 @@ export interface RoomSceneStartData {
   props: RoomPropSpawn[];
   /** Aseprite key for `room.props`; null when the room has no props. */
   roomPropsTextureKey: string | null;
+  /**
+   * Editor room preview only: unprefixed GUI sheet JSON (`meta.slices`) keyed by GUI id — same shape as on disk.
+   * Used when nine-slice controls cannot read slices from the Vite-bundled glob inside the webview build.
+   */
+  previewGuiAsepriteSheetJsonById?: Record<string, Record<string, unknown>>;
 }
 
 export class BootScene extends Phaser.Scene {
