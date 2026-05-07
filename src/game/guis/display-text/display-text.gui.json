@@ -2,18 +2,18 @@
   "id": "display-text",
   "name": "Display Text",
   "description": "",
-  "visible": true,
+  "visible": false,
   "display": {
     "aseprite": true
   },
   "controls": [
     {
       "type": "nineSliceImage",
-      "id": "dialogPanelBg",
-      "x": 30,
-      "y": 10,
-      "width": 201,
-      "height": 80,
+      "id": "displayTextBg",
+      "x": 176,
+      "y": 99,
+      "width": 200,
+      "height": 66,
       "tag": "9-slice-BG",
       "sliceNames": {
         "topLeft": "TopLeft",
@@ -25,7 +25,22 @@
         "bottomLeft": "BottomLeft",
         "bottomCenter": "BottomMid",
         "bottomRight": "BottomRight"
-      }
+      },
+      "zIndex": 1,
+      "backgroundAnchor": "center"
+    },
+    {
+      "type": "text",
+      "id": "text",
+      "x": 176,
+      "y": 70,
+      "text": "Even if a woodchuck could chuck wood and even if a woodchuck would chuck wood, should a woodchuck chuck wood?",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#ffffff",
+      "zIndex": 2,
+      "wordWrapWidth": 158,
+      "align": "center"
     }
   ]
 }
