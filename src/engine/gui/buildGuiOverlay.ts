@@ -1853,31 +1853,34 @@ function wireDisplayTextOverlayLayout(
   }
 
   const authoredBgW = Math.round(nineCtl.width);
-  const authoredBgH = Math.round(nineCtl.height);
-  const authoredBgY = nineCtl.y;
-  const authoredTextY = textCtl.y;
   const wrapInner =
     textCtl.wordWrapWidth != null && textCtl.wordWrapWidth > 0
       ? evenWordWrapWidth(textCtl.wordWrapWidth)
       : 0;
 
-  const refBounds = textLine.getBounds();
-  const authoredRefTextH = Math.max(1, Math.ceil(refBounds.height));
+  /**
+   * Measure padding once after {@link buildGuiOverlay} parents controls under `guiContentRoot`. Using JSON `y`
+   * plus `getBounds().height` mixes anchor space with AABB space (BitmapText tops rarely equal `.y`), and using
+   * the placeholder's height for bottom chrome while sizing with live `b.height` biases short strings downward.
+   */
+  const refTextBounds = textLine.getBounds();
+  const refBgBounds = bgRt.getBounds();
+  const authoredPadTop = Math.max(0, Math.round(refTextBounds.top - refBgBounds.top));
+  const authoredPadBottom = Math.max(0, Math.round(refBgBounds.bottom - refTextBounds.bottom));
 
   return (text: string): void => {
     syncOutlinedGuiBitmapTextAll(textLine, text);
     const b = textLine.getBounds();
     const padX = Math.max(0, authoredBgW - wrapInner);
     const newBgW = Math.max(32, Math.ceil(b.width + padX));
-
-    const chromeTop = Math.max(0, authoredBgY - authoredTextY);
-    const chromeBottom = Math.max(0, authoredBgY + authoredBgH - authoredTextY - authoredRefTextH);
-    const newBgH = Math.max(32, Math.ceil(b.height + chromeTop + chromeBottom));
+    const newBgH = Math.max(32, Math.ceil(authoredPadTop + b.height + authoredPadBottom));
 
     tryResizeGuiNineSlicePanel(bgRt, newBgW, newBgH);
 
-    const newTextY = bgRt.y + (authoredTextY - authoredBgY);
-    textLine.setY(newTextY);
+    const bgAfter = bgRt.getBounds();
+    const textAfter = textLine.getBounds();
+    const padTopNow = textAfter.top - bgAfter.top;
+    textLine.setY(textLine.y + Math.round(authoredPadTop - padTopNow));
     syncOutlinedGuiBitmapTextPositions(textLine);
   };
 }
