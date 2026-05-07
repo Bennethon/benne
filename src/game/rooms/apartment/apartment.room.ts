@@ -55,7 +55,8 @@ registerRoomScript(({ B }) => {
       B.room.changeTo('outside');
     } else {
       B.say`Hank: The door is locked.`;
-      B.display('The door is locked.');
+      B.display('The door is locked. AHH! I can\'t get out! HELP ME! HELP ME! SOMEBODY HELP ME! PLEASE HELP ME!');
+      B.display('Ok calm down.');
     }
   };
   
