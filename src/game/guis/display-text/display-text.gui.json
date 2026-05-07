@@ -10,8 +10,8 @@
     {
       "type": "nineSliceImage",
       "id": "dialogPanelBg",
-      "x": 20,
-      "y": 20,
+      "x": 30,
+      "y": 10,
       "width": 201,
       "height": 80,
       "tag": "9-slice-BG",

@@ -22,15 +22,15 @@
    { "name": "Layer 1", "opacity": 255, "blendMode": "normal" }
   ],
   "slices": [
-   { "name": "Mid", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 5, "y": 5, "w": 20, "h": 10 } }] },
-   { "name": "MidRight", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 25, "y": 5, "w": 5, "h": 10 } }] },
-   { "name": "BottomMid", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 5, "y": 15, "w": 20, "h": 5 } }] },
-   { "name": "MidLeft", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 0, "y": 5, "w": 5, "h": 10 } }] },
-   { "name": "TopMid", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 5, "y": 0, "w": 20, "h": 5 } }] },
-   { "name": "TopRight", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 25, "y": 0, "w": 5, "h": 5 } }] },
-   { "name": "BottomRight", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 25, "y": 15, "w": 5, "h": 5 } }] },
-   { "name": "BottomLeft", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 0, "y": 15, "w": 5, "h": 5 } }] },
-   { "name": "TopLeft", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 0, "y": 0, "w": 5, "h": 5 } }] }
+   { "name": "Mid", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 7, "y": 7, "w": 16, "h": 6 } }] },
+   { "name": "MidRight", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 23, "y": 7, "w": 7, "h": 6 } }] },
+   { "name": "BottomMid", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 7, "y": 13, "w": 16, "h": 7 } }] },
+   { "name": "MidLeft", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 0, "y": 7, "w": 7, "h": 6 } }] },
+   { "name": "TopMid", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 7, "y": 0, "w": 16, "h": 7 } }] },
+   { "name": "TopRight", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 23, "y": 0, "w": 7, "h": 7 } }] },
+   { "name": "BottomRight", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 23, "y": 13, "w": 7, "h": 7 } }] },
+   { "name": "BottomLeft", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 0, "y": 13, "w": 7, "h": 7 } }] },
+   { "name": "TopLeft", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 0, "y": 0, "w": 7, "h": 7 } }] }
   ]
  }
 }
