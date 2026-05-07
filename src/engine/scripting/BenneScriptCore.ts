@@ -256,6 +256,7 @@ export abstract class BenneScriptCore {
   private static unresolvedVerbWarnings = new Set<string>();
   private static warnedPlayerFacadeNoRoomScene = false;
   private static warnedSayDialogueNoRoomScene = false;
+  private static warnedDisplayDialogueNoRoomScene = false;
   private static walkToClickedDevWarnKeys = new Set<string>();
   private static faceClickedDevWarnKeys = new Set<string>();
   private static warnedScreenFadeNoRoom = false;
@@ -331,6 +332,12 @@ export abstract class BenneScriptCore {
    * PowerQuest-style **`B.say`**…``: lines **`Speaker: text`** (blank lines and **`//`** line / trailing comments ignored). **`Player`** (any case) → starting player character. Queues each line on the interaction tail; **`B.say.now`**… does not wait behind prior queued steps (each line still uses the dialog overlay lock).
    */
   readonly say: BenneScriptSayDialogueTagged;
+
+  /**
+   * Narration / on-screen Display Text via the **`display-text`** GUI. Blocks until the player
+   * left-clicks to dismiss (same input suppression as scripted **`say`** lines). **`display.now`** skips the interaction tail.
+   */
+  readonly display: BlockingWithNow<[text: string]>;
 
   readonly raw: {
     on: (event: string | symbol, fn: (...args: unknown[]) => void, context?: unknown) => void;
@@ -428,6 +435,25 @@ export abstract class BenneScriptCore {
     );
 
     this.say = this.createFreeScopeSayDialogue();
+
+    this.display = withNow(
+      (text: string) => {
+        const scene = this.getPlayerWalkRoomScene();
+        if (!scene) {
+          BenneScriptCore.warnDisplayDialogueNoRoomOnce();
+          return;
+        }
+        this.chain(() => this.createDisplayTextPromise(scene, text));
+      },
+      (text: string) => {
+        const scene = this.getPlayerWalkRoomScene();
+        if (!scene) {
+          BenneScriptCore.warnDisplayDialogueNoRoomOnce();
+          return;
+        }
+        void this.createDisplayTextPromise(scene, text);
+      },
+    );
 
     this.room = bindRoomFacadeForBenneScriptCore((f) => this.chain(f));
   }
@@ -957,6 +983,30 @@ export abstract class BenneScriptCore {
     });
   }
 
+  /**
+   * Display Text overlay — click anywhere to dismiss (no timer), same scripted-input suppression as **`say`**.
+   */
+  protected createDisplayTextPromise(scene: RoomScene, line: string): Promise<void> {
+    return new Promise<void>((resolve) => {
+      let completed = false;
+
+      const finish = (): void => {
+        if (completed) {
+          return;
+        }
+        completed = true;
+        scene.clearScriptedDialogClickToSkip();
+        scene.setDisplayTextOverlay({ visible: false });
+        scene.popScriptedDialogInputSuppression();
+        resolve();
+      };
+
+      scene.pushScriptedDialogInputSuppression();
+      scene.setDisplayTextOverlay({ visible: true, text: line });
+      scene.setScriptedDialogClickToSkip(finish);
+    });
+  }
+
   protected queueSayDialogWithInputLock(
     scene: RoomScene,
     line: string,
@@ -977,6 +1027,14 @@ export abstract class BenneScriptCore {
     }
     BenneScriptCore.warnedSayDialogueNoRoomScene = true;
     console.warn('[Benne] B.say`…`: RoomScene is not active — ignored.');
+  }
+
+  private static warnDisplayDialogueNoRoomOnce(): void {
+    if (!import.meta.env.DEV || BenneScriptCore.warnedDisplayDialogueNoRoomScene) {
+      return;
+    }
+    BenneScriptCore.warnedDisplayDialogueNoRoomScene = true;
+    console.warn('[Benne] B.display: RoomScene is not active — ignored.');
   }
 
   /**

@@ -162,6 +162,9 @@ import {
 /** Engine-reserved id for {@link RoomScene.setDialogTextOverlay} (Bennescript `say` / `say.now`). */
 const SPEAKING_TEXT_GUI_ID = 'speaking-text';
 
+/** Engine-reserved id for {@link RoomScene.setDisplayTextOverlay} (Bennescript `display` / `display.now`). */
+const DISPLAY_TEXT_GUI_ID = 'display-text';
+
 /**
  * Optional `Phaser.Game.registry` key: when set to a boolean, overrides the initial visibility of
  * every non-`speaking-text` GUI overlay at room load. Used by the BENNE room preview so authors can
@@ -314,8 +317,14 @@ export class RoomScene extends Phaser.Scene {
   /** Screen-fixed Speaking Text overlay (`speaking-text` id): `guis/speaking-text/speaking-text.gui.json`. */
   private dialogTextOverlay: GuiOverlayHandle | null = null;
 
+  /** Screen-fixed Display Text overlay (`display-text` id): `guis/display-text/display-text.gui.json`. */
+  private displayTextOverlay: GuiOverlayHandle | null = null;
+
   /** Dedupes missing-`speaking-text` warnings for Bennescript `say` (once per room `create`). */
   private missingDialogTextOverlaySayWarned = false;
+
+  /** Dedupes missing-`display-text` warnings for Bennescript `display` (once per room `create`). */
+  private missingDisplayTextOverlayWarned = false;
 
   /** Every other registered GUI overlay (authoring under `src/game/guis/<id>/`), built automatically in `create`. */
   private genericGuiOverlays: GuiOverlayHandle[] = [];
@@ -417,6 +426,7 @@ export class RoomScene extends Phaser.Scene {
     this.npcWalkTweens.clear();
     this.unresolvedWalkTargetIdsWarned.clear();
     this.missingDialogTextOverlaySayWarned = false;
+    this.missingDisplayTextOverlayWarned = false;
     this.genericGuiVisibilityBeforeDialog = null;
     this.benneCoresForTransitionReset.length = 0;
 
@@ -449,9 +459,13 @@ export class RoomScene extends Phaser.Scene {
     const guisSorted = [...getAllGuiData()].sort((a, b) => a.id.localeCompare(b.id));
     const dialogChoiceGuiIds = new Set(getRegisteredDialogChoiceGuiIds());
     const nonDialogGuis = guisSorted.filter(
-      (g) => g.id !== SPEAKING_TEXT_GUI_ID && !dialogChoiceGuiIds.has(g.id),
+      (g) =>
+        g.id !== SPEAKING_TEXT_GUI_ID &&
+        g.id !== DISPLAY_TEXT_GUI_ID &&
+        !dialogChoiceGuiIds.has(g.id),
     );
     const speakingTextGui = guisSorted.find((g) => g.id === SPEAKING_TEXT_GUI_ID);
+    const displayTextGui = guisSorted.find((g) => g.id === DISPLAY_TEXT_GUI_ID);
 
     const genericGuiVisibilityOverride = this.game.registry.get(
       GENERIC_GUIS_INITIAL_VISIBILITY_REGISTRY_KEY,
@@ -508,6 +522,29 @@ export class RoomScene extends Phaser.Scene {
         );
         this.guiRuntimeByGuiId.set(SPEAKING_TEXT_GUI_ID, rt);
         speakingTextScript.notifyGuiBuilt(rt);
+      }
+    }
+
+    stackIndex += 1;
+    const displayTextBuilt = displayTextGui
+      ? buildGuiOverlay(this, displayTextGui, {
+          /** Display Text UI is driven by {@link setDisplayTextOverlay}, not the JSON `visible` flag at boot. */
+          startVisible: false,
+          depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
+          inventoryPanelPointerContext,
+          isButtonClickSuppressed,
+          previewGuiAsepriteSheetJson: data.previewGuiAsepriteSheetJsonById?.[DISPLAY_TEXT_GUI_ID],
+        })
+      : null;
+    this.displayTextOverlay = displayTextBuilt?.handle ?? null;
+    if (displayTextBuilt) {
+      const displayTextScript = getGuiBenneScript(DISPLAY_TEXT_GUI_ID);
+      if (displayTextScript) {
+        const rt = displayTextBuilt.createGuiRuntime((factory) =>
+          displayTextScript.queueInteraction(factory),
+        );
+        this.guiRuntimeByGuiId.set(DISPLAY_TEXT_GUI_ID, rt);
+        displayTextScript.notifyGuiBuilt(rt);
       }
     }
 
@@ -672,6 +709,8 @@ export class RoomScene extends Phaser.Scene {
       this.genericGuiVisibilityBeforeDialog = null;
       this.dialogTextOverlay?.destroy();
       this.dialogTextOverlay = null;
+      this.displayTextOverlay?.destroy();
+      this.displayTextOverlay = null;
       this.guiRuntimeByGuiId.clear();
       this.dialogChoiceInputSuppressionActive = false;
       this.scriptedDialogInputSuppressionDepth = 0;
@@ -747,6 +786,7 @@ export class RoomScene extends Phaser.Scene {
     this.interruptPlayerWalk();
     this.setScriptedDialogClickToSkip(null);
     this.setDialogTextOverlay({ visible: false });
+    this.setDisplayTextOverlay({ visible: false });
     const activeDialog = getActiveDialogBenneScript();
     if (activeDialog) {
       endDialogSessionIfMatches(activeDialog);
@@ -1189,6 +1229,32 @@ export class RoomScene extends Phaser.Scene {
       }
     } else {
       h.resetPrimaryScreenPosition();
+    }
+    h.setVisible(true);
+  }
+
+  /**
+   * Shows or hides the `display-text` GUI for Bennescript **`display`** / **`display.now`**.
+   * Updates `text` + nine-slice sizing via {@link GuiOverlayHandle.setDisplayTextLayout}.
+   */
+  setDisplayTextOverlay(state: { visible: boolean; text?: string }): void {
+    const h = this.displayTextOverlay;
+    if (!h) {
+      if (state.visible && !this.missingDisplayTextOverlayWarned) {
+        this.missingDisplayTextOverlayWarned = true;
+        console.warn(
+          '[Benne] Bennescript `display` cannot show narration: no `display-text` GUI was loaded. ' +
+            'Add `src/game/guis/display-text/display-text.gui.json` (see game templates or docs/architecture.md).',
+        );
+      }
+      return;
+    }
+    if (!state.visible) {
+      h.setVisible(false);
+      return;
+    }
+    if (state.text !== undefined) {
+      h.setDisplayTextLayout(state.text);
     }
     h.setVisible(true);
   }
@@ -2006,6 +2072,7 @@ export class RoomScene extends Phaser.Scene {
       registerOverlay(h);
     }
     registerOverlay(this.dialogTextOverlay);
+    registerOverlay(this.displayTextOverlay);
     for (const { built } of this.dialogChoiceInstallByGuiId.values()) {
       registerOverlay(built.handle);
     }

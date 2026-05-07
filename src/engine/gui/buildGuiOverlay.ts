@@ -40,7 +40,11 @@ import type {
   GuiTextOutline,
   GuiTriggerControl,
 } from '../../types/gui';
-import { addGuiNineSliceImage, estimateNineSliceSizeForGridAlign } from './guiNineSliceImage.js';
+import {
+  addGuiNineSliceImage,
+  estimateNineSliceSizeForGridAlign,
+  tryResizeGuiNineSlicePanel,
+} from './guiNineSliceImage.js';
 import {
   applyGuiBitmapTextFillTint,
   attachGuiBitmapTextOutlineList,
@@ -206,6 +210,11 @@ export interface GuiOverlayHandle {
   /** Restores the primary line to its authored GUI position and display origin. */
   resetPrimaryScreenPosition(): void;
   setControlText(id: string, text: string): void;
+  /**
+   * **`display-text` GUI only** — sets narration text and resizes `displayTextBg` / `text` to fit.
+   * No-op when this overlay is not the reserved Display Text layout (missing controls → no-op).
+   */
+  setDisplayTextLayout(text: string): void;
   setVisible(visible: boolean): void;
   /** Extra horizontal gap between glyphs (Phaser `BitmapText` letter spacing). */
   setLetterSpacing(spacing: number): void;
@@ -1814,6 +1823,65 @@ export interface BuildGuiOverlayOptions {
  * Builds screen-space GUI controls from `gui.controls` (`text`, `inventoryPanel`, `image`, `nineSliceImage`, `button`, `trigger`, `grid`).
  * Starts hidden unless `startVisible`. Font ids resolve via `fonts/fonts.json` (`load.bitmapFont` keys).
  */
+/**
+ * Builds {@link GuiOverlayHandle.setDisplayTextLayout} for the reserved **`display-text`** overlay.
+ */
+function wireDisplayTextOverlayLayout(
+  gui: GuiData,
+  controlsById: Map<string, Phaser.GameObjects.GameObject>,
+  linesById: Map<string, Phaser.GameObjects.BitmapText>,
+): ((text: string) => void) | null {
+  if (gui.id !== 'display-text') {
+    return null;
+  }
+  const controls = gui.controls ?? [];
+  const nineCtl = controls.find(
+    (cc): cc is GuiNineSliceImageControl =>
+      cc.type === 'nineSliceImage' && typeof cc.id === 'string' && cc.id === 'displayTextBg',
+  );
+  const textCtl = controls.find(
+    (cc): cc is GuiTextControl =>
+      cc.type === 'text' && typeof cc.id === 'string' && cc.id === 'text',
+  );
+  const bgRt = controlsById.get('displayTextBg');
+  const textLine = linesById.get('text');
+  if (!nineCtl || !textCtl || !bgRt || !textLine) {
+    return null;
+  }
+  if (!(bgRt instanceof Phaser.GameObjects.RenderTexture)) {
+    return null;
+  }
+
+  const authoredBgW = Math.round(nineCtl.width);
+  const authoredBgH = Math.round(nineCtl.height);
+  const authoredBgY = nineCtl.y;
+  const authoredTextY = textCtl.y;
+  const wrapInner =
+    textCtl.wordWrapWidth != null && textCtl.wordWrapWidth > 0
+      ? evenWordWrapWidth(textCtl.wordWrapWidth)
+      : 0;
+
+  const refBounds = textLine.getBounds();
+  const authoredRefTextH = Math.max(1, Math.ceil(refBounds.height));
+
+  return (text: string): void => {
+    syncOutlinedGuiBitmapTextAll(textLine, text);
+    const b = textLine.getBounds();
+    const padX = Math.max(0, authoredBgW - wrapInner);
+    const newBgW = Math.max(32, Math.ceil(b.width + padX));
+
+    const chromeTop = Math.max(0, authoredBgY - authoredTextY);
+    const chromeBottom = Math.max(0, authoredBgY + authoredBgH - authoredTextY - authoredRefTextH);
+    const newBgH = Math.max(32, Math.ceil(b.height + chromeTop + chromeBottom));
+
+    tryResizeGuiNineSlicePanel(bgRt, newBgW, newBgH);
+
+    const newTextY = bgRt.y + (authoredTextY - authoredBgY);
+    textLine.setY(newTextY);
+    syncOutlinedGuiBitmapTextPositions(textLine);
+  };
+}
+
 export function buildGuiOverlay(
   scene: Phaser.Scene,
   gui: GuiData,
@@ -2288,6 +2356,9 @@ export function buildGuiOverlay(
   const primaryInitialOriginX = primaryLine?.originX ?? 0;
   const primaryInitialOriginY = primaryLine?.originY ?? 0;
 
+  const runDisplayTextLayout =
+    wireDisplayTextOverlayLayout(gui, controlsById, linesById) ?? ((_t: string) => {});
+
   const handle: GuiOverlayHandle = {
     setPrimaryText(text: string) {
       if (primaryLine) {
@@ -2317,6 +2388,9 @@ export function buildGuiOverlay(
       if (ln) {
         syncOutlinedGuiBitmapTextAll(ln, text);
       }
+    },
+    setDisplayTextLayout(text: string) {
+      runDisplayTextLayout(text);
     },
     setVisible(visible: boolean) {
       for (const line of allLines) {

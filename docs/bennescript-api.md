@@ -1,6 +1,6 @@
 # Bennescript API Reference
 
-> Last updated: 2026-05-05 — generated from source (`src/engine/scripting/*.ts`)
+> Last updated: 2026-05-07 — generated from source (`src/engine/scripting/*.ts`)
 
 For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt), and the **Blocking interaction queue** / API tables in §7.
 
@@ -17,7 +17,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 - **`registerGuiScript('guiId', ({ B, events, guiId }) => …)`** — at content registration; overlay built per room.
 - **`registerDialogScript('dialogId', ({ B, events, dialogId, game }) => …)`** — runs when **`openDialogSessionForId`** opens that dialog (after **`B.dialog(id).start()`** / **`.start.now()`**).
 
-**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`wait`**, queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
+**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`display`**, **`wait`**, queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
 
 **`BlockingWithNow` pattern** — Many APIs are **`(…args) => void`** plus **`.now(…args)`** with the same parameters. The blocking form **queues** on **`interactionTail`**; **`.now`** performs the same work **without** extending the tail, so later lines in your handler still run in source order but do not wait for that action.
 
@@ -35,7 +35,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 
 | Surface | Room | Character | Inventory | Global | GUI | Dialog (session) |
 |--------|:----:|:---------:|:---------:|:------:|:---:|:----------------:|
-| Core queue, **`raw`**, **`wait`**, **`say`**, **`walkToClicked`**, **`faceClicked`**, fades, **`room`**, active verb/inventory helpers | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Core queue, **`raw`**, **`wait`**, **`say`**, **`display`**, **`walkToClicked`**, **`faceClicked`**, fades, **`room`**, active verb/inventory helpers | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.state`** / **`B.inventory`** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **`B.dialog(id)`** | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ |
 | **`B.player`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -157,6 +157,21 @@ Npc: Hi there.`; // queued in order per line on interaction tail
 
 B.walkToClicked(); // walk + same facing as B.faceClicked() when the walk finishes
 B.player.say('Closer look…', { clickToSkip: true });
+```
+
+### Narration — **`B.display`**
+
+| Member | Signature | Context | Blocking |
+|--------|-----------|---------|----------|
+| **`display`** | **`BlockingWithNow<[text: string]>`** | Same **`BenneScriptCore`** surfaces as **`say`** (room / character / inventory / global / GUI / dialog session). Shows the reserved **`display-text`** overlay (`guis/display-text/display-text.gui.json`); **click anywhere** to dismiss (same scripted-dialog input suppression as **`say`** lines — gameplay paused; verb HUD buttons stay live). No auto-hide timer. | Queued vs **`display.now`** |
+
+Requires active **`RoomScene`** (DEV warn otherwise). See **`setDisplayTextOverlay`** / **`GuiOverlayHandle.setDisplayTextLayout`** in [`RoomScene.ts`](../src/engine/scenes/RoomScene.ts) and [`buildGuiOverlay.ts`](../src/engine/gui/buildGuiOverlay.ts).
+
+Example:
+
+```ts
+B.display('The ancient door refused to budge.');
+B.player.say('Maybe later.');
 ```
 
 ### Timing & raw bus
