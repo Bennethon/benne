@@ -510,6 +510,20 @@ export class BenneScript extends BenneScriptCore {
           void scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds);
         },
       ),
+      moveTo: withNow(
+        (point) => {
+          B.chain(() => {
+            scene.movePropToNow(propId, point);
+            return Promise.resolve();
+          });
+        },
+        (point) => {
+          scene.movePropToNow(propId, point);
+        },
+      ),
+      moveToNow(point): void {
+        scene.movePropToNow(propId, point);
+      },
     } as BenneScriptPropFacade;
   }
 

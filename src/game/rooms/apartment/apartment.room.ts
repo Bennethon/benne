@@ -182,4 +182,8 @@ registerRoomScript(({ B }) => {
   B.whenClose('penny', () => {
     B.character('penny').hide();
   });
+
+  B.whenTalkTo('Couch', () => {
+    B.prop('Couch').moveTo({ x: 5, y: 5 });
+  });
 });

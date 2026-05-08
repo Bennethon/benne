@@ -273,6 +273,10 @@ export class RoomTransitionOrchestrator {
   }
 
   private prepareForLeave(roomScene: RoomScene, mgr: ReturnType<typeof resolveGameStateManager>): void {
+    // Pull live character feet positions and prop authoring positions into game state BEFORE
+    // tearing down the scene so the next room (re)load can restore them. See
+    // `RoomScene.flushRuntimeStateToGameState` and `gameState/snapshotFlushHooks.ts`.
+    roomScene.flushRuntimeStateToGameState();
     mgr.clearActiveVerb();
     mgr.clearActiveInventoryItem();
     tryGetBenneSoundManager(this.game)?.stopAllSfx();

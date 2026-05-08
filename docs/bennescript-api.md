@@ -287,14 +287,17 @@ B.character('penny').fade.now(1, 0, 1); // start fade-out immediately, don't blo
 | **`animationNow(tag)`** | Immediate persist + sprite. | Immediate |
 | **`playAnimation`** | **`BlockingWithNow<[string]>`** one-shot → restore base tag. | Queued vs **`.now`** |
 | **`fade`** | **`BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>`** — tween the prop sprite's `alpha` from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`** (`Linear`); alphas clamp to `[0, 1]`, duration to `>= 0` (`0` snaps to **`toAlpha`**). Each call kills running tweens on the sprite first, then sets `alpha = fromAlpha` before tweening. **`toAlpha`** is **persisted** to **`GameStateManager`** (key `` `room:<roomId>:prop:<propId>:alpha` ``) at call time and re-applied on every spawn (saving mid-fade restores the intended final alpha). Routes through **`RoomScene.fadePropScriptAlpha`**. | Queued (waits for tween) vs **`.now`** |
+| **`moveTo`** | **`BlockingWithNow<[Point2]>`** — teleport the prop's **authoring** origin (top-left for canvas placement, the authored origin for **`spritePlacement: "tight"`**, or the parallax base for **`parallaxDepth !== 1`**) to **`{ x, y }`** in room space. **No tween**; **no string-id resolution** (props don't have feet / stand-points). Routes through **`RoomScene.movePropToNow`**, which updates whichever placement field actually drives rendering. Position is **not** eagerly persisted on the call — it is captured on the next snapshot flush (room-leave, **`getSnapshot`**, or **`B.state.flush()`**), keyed `` `room:<roomId>:prop:<propId>:position` ``. | Queued vs **`.now`** |
+| **`moveToNow(point)`** | Alias for **`moveTo.now(point)`** — immediate teleport, skips the queue. | Immediate |
 
 ```ts
 B.prop('Knife').fade(1, 0.5, 2); // fade Knife from opaque to 50% over 2 s; persisted alpha = 0.5
 B.prop('Knife').fade.now(0.5, 1, 1); // start fade back to opaque without blocking the chain
 B.prop('Knife').hide(); // persisted; the prop stays hidden after B.room.changeTo and reload
+B.prop('Rock').moveTo.now({ x: 80, y: 90 }); // teleport authoring origin; persisted on next flush
 ```
 
-**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`saveToBrowser` / `loadFromBrowser`** like any other **`B.state`** value.
+**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`saveToBrowser` / `loadFromBrowser`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`saveToBrowser`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
 
 ---
 
@@ -349,6 +352,7 @@ loadFromBrowser(slot?: number): boolean;
 clearBrowserSave(slot?: number): void;
 exportJson(): string;
 importJson(json: string): void;
+flush(): void; // pull lazily-saved runtime state (today: positions) into GameStateManager.variables
 
 // Duplicated selection + room shortcuts (same as B.* helpers)
 setActiveVerb(verbId: string | null): void;
@@ -362,6 +366,8 @@ getLastRoom(): string | null;
 setCurrentRoom(roomId: string): void;
 setLastRoom(roomId: string | null): void;
 ```
+
+**`flush()`** runs every registered **snapshot flush hook** (see [architecture.md §3 → Game state](architecture.md#game-state-v1) and [§7 → Sprite animation & persistence → Snapshot flush hooks](architecture.md#7-scripting--interaction-system-bennescript)). It pulls **lazily-saved** runtime state on the active **`RoomScene`** — today, character feet world positions and prop authoring positions — into **`GameStateManager.variables`** so the next room load (or save snapshot) restores them. **Most state is already eagerly persisted** on every change (visibility, alpha, animation overrides, flags, variables, inventory) — `flush` exists for fields that are too noisy to write per-tick during walks. It also runs **automatically** inside **`getSnapshot`** (so **`saveToBrowser`** / **`exportJson`** already pick everything up) and on room-transition leave (**`RoomTransitionOrchestrator.prepareForLeave`**). Call it directly only at custom save points.
 
 State change events are observable via **`B.raw.on`** (see **`src/types/gameState.ts`** and [architecture.md — EventBus](architecture.md#game-state-v1)).
 
@@ -647,4 +653,6 @@ Strict typing when bypassing **`(p: any)`**:
 | [`benneScriptFacades.ts`](../src/engine/scripting/benneScriptFacades.ts) | **`BenneScript*Facade`** interfaces |
 | [`benneScriptGameStateApi.ts`](../src/engine/scripting/benneScriptGameStateApi.ts) | **`B.state`**, **`B.inventory`** factories |
 | [`benneScriptRoomApi.ts`](../src/engine/scripting/benneScriptRoomApi.ts) | **`B.room`** |
+| [`snapshotFlushHooks.ts`](../src/engine/gameState/snapshotFlushHooks.ts) | **`registerSnapshotFlushHook`** / **`runSnapshotFlushHooks`** (powers **`B.state.flush`**, run inside **`getSnapshot`** and **`prepareForLeave`**) |
+| [`benneAnimationRuntime.ts`](../src/engine/benneAnimationRuntime.ts) | Variable-key + read/write helpers for prop/character animation, visibility, alpha, **and position** |
 | [`types.ts`](../src/engine/scripting/types.ts) | **`RoomScriptContext`**, **`CharacterScriptContext`**, etc. |
