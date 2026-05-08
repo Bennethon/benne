@@ -6,6 +6,8 @@
 
 > **Display Text GUI (`display-text`)** (2026-05-07): The default **`B.display`** narration overlay lives under **`src/game/guis/display-text/display-text.gui.json`** (typically **`nineSliceImage`** **`displayTextBg`** + **`text`** **`text`**). The engine reserves this **`guiId`** like **`speaking-text`**: **`RoomScene`** builds it hidden at boot and drives it via **`setDisplayTextOverlay`** / **`GuiOverlayHandle.setDisplayTextLayout`** (sizes the 9-slice to wrapped **`BitmapText`**). **`B.display`** / **`B.display.now`** use the same scripted-dialog input suppression + click-to-dismiss path as **`say`** (without a line timer).
 
+> **Sound (`B.sound`)** (2026-05-07): **SFX** and **music** use **`Phaser.Game#sound`** via **`SoundManager`** (**`src/engine/sound/SoundManager.ts`**, registry **`benneSoundManager`** in **`createBenneGame`**). Authors place files under **`src/game/assets/audio/sfx/<stem>.{wav,mp3,ogg,m4a}`** and **`src/game/assets/audio/music/<stem>.…`**; **`B.sound.play('stem')`** / **`playMusic('stem')`** take basename-only ids. **`getBenneAudioBootEntries`** (**`resolveGameAssetUrl.ts`**) feeds **`queueBenneAudioForBootLoader`** from **`BootScene`** when **`benneAudioScriptDisabled`** is unset (editor preview **`Phaser.Game`** instances set it in **`preBoot`** so previews stay silent). **`stopAllSfx`** runs on room-leave (**`RoomTransitionOrchestrator.prepareForLeave`**) and dialog session end (**`dialogSession.ts`**); music is intentionally **not** stopped on room change. Blocking **`B.sound.play`** is queued on the Bennescript **`interactionTail`** so it runs **after** **`walkToClicked`** / **`wait`** — use **`playAndWait`** when the next step should wait for the clip to finish.
+
 > **Inventory use-on-target** (runtime active item + **`whenInventoryUsedOn`** / **`dispatchInventoryOnVerbTarget`**), optional per-item **`cursorAnimation`** for the Aseprite game cursor, VS Code Inspector **Inv** scaffolding (**`benne-editor.addRoomInventoryUsedOnStub`** / **`addCharacterInventoryUsedOnStub`**), **`resolvePointerVerbForInventoryItem`** + deferred **`clearActiveVerb`** in **`buildGuiOverlay`** ( **`consumeActive`** when unarmed matches room clickables; **`queueMicrotask`** skips the clear if **`activeInventoryItemId`** equals the clicked row so combine works for **any** verb id that arms that row — 2026-04-30), and descriptive **`GameStateManager`** **`console.log`** lines for active-verb / active-inventory changes (2026-04-21).
 
 > **Drop policy clears the active verb too** (2026-05-01): when **`shouldDropActiveInventoryOnUse`** resolves to **drop** after a use-on-target click (combine on **`inventoryPanel`** rows **and** inventory-on-prop / hotspot / character), the runtime **active verb** is now cleared in lockstep with **`activeInventoryItemId`** so the verb HUD resets after the combine instead of leaving "Use …" armed. **`BenneScriptCore.subscribeInventoryUsedOnTargetEvents`** clears both after the handler tail; **`RoomScene`** prop / hotspot / character pointer handlers and **`buildGuiOverlay`** inventory-on-inventory clear both synchronously when dispatch was unhandled. **`whenInventoryUsedOn.doNotClear(...)`** still wins (both stay armed); items / global config with **`dropWhenUsed`** / **`dropWhenInventoryUsed: false`** also still keep both armed.
@@ -317,13 +319,44 @@ The sprite’s **`facing`** data stores the **logical** facing the gameplay aske
 ### Asset management / loading
 
 - **Room & character JSON** for Aseprite: **eager globs** in `loadAsepriteAtlasData.ts` (and friends); **normalized** for Phaser frame indices (`normalizeAsepriteJson.ts`).
-- **Binary assets**: **`resolveGameAssetUrl` / `resolveGameAssetJsonUrl` / `resolveGameAssetXmlUrl`** map paths under `src/game/assets/**` to **Vite-built URLs** (images, JSON, BMFont XML for GUI bitmap fonts).
+- **Binary assets**: **`resolveGameAssetUrl` / `resolveGameAssetJsonUrl` / `resolveGameAssetXmlUrl`** map paths under `src/game/assets/**` to **Vite-built URLs** (images, JSON, BMFont XML for GUI bitmap fonts). **Audio** uses additional globs on **`./assets/audio/sfx/**`** and **`./assets/audio/music/**`** (.mp3 / .ogg / .wav / .m4a); **`getBenneAudioBootEntries()`** groups stems + URLs for **`queueBenneAudioForBootLoader`** (Phaser **`load.audio`** keys **`benne:sfx:<stem>`** / **`benne:music:<stem>`** via **`benneAudioCacheKeys.ts`**).
 - **Boot-time loading only** in `BootScene` (Phaser loader); **no streaming** or mid-room asset packs yet.
 
 ### Audio system
 
-- **`applyBootAudioSettings`**: Sets Phaser sound manager volume from **`masterVolume`**.
-- **Helpers**: `getEffectiveSfxVolume`, `getEffectiveMusicVolume`, `getEffectiveDialogueVolume` — for future SFX/music/dialogue; **no music/dialogue pipeline** is implemented in scenes yet beyond volume knobs in config.
+**Goals**
+
+- **`Phaser.Game#sound` only** (`SoundManager` never uses `scene.sound`) so playback survives **`RoomScene`** teardown — **music** can continue across **`B.room.changeTo`** without restarting.
+- **Volumes**: **`applyBootAudioSettings`** (**`BootScene`**) sets the Phaser sound manager cap from **`game-config.json`** **`audio.masterVolume`**. Per-call playback multiplies **`getEffectiveSfxVolume`** / **`getEffectiveMusicVolume`** (**`applyAudioFromSettings.ts`**) with optional **`SoundPlayOptions.volume`** / **`MusicPlayOptions.volume`** (0–1) and with **`SoundManager`** session multipliers set by **`B.sound.setSfxVolume`** / **`setMusicVolume`** (runtime-only scalars; reapplied to active instances when changed).
+
+**Asset discovery**
+
+- **`registerGameContent`** does **not** glob audio; **`resolveGameAssetUrl.ts`** holds **`import.meta.glob`** tables for **`assets/audio/sfx/**`** and **`assets/audio/music/**`**. **`getBenneAudioBootEntries()`** returns one boot row per **stem** (filename without extension); multiple formats for the same stem become a **fallback URL array** for **`load.audio`**.
+- **`queueBenneAudioForBootLoader`** runs from **`BootScene.create`** only when **`game.registry`** **`benneAudioScriptDisabled`** is **not** `true` (VS Code **room / GUI / inventory / character** previews set **`benneAudioScriptDisabled`** in **`Phaser.Game` `callbacks.preBoot`**).
+
+**Runtime**
+
+- **`SoundManager`** (**`src/engine/sound/SoundManager.ts`**) — **`playSfx` / `playSfxAndWait`**, **`playMusic`**, **`stopSfx`**, **`stopAllSfx`**, **`stopMusic`**, **`destroy`**. **SFX** instances are tracked until **`complete`** / **`destroy`** or **`stop`**; **`playAndWait`** resolves when the sound finishes or is stopped.
+- **Registry** — **`benneSoundRegistry.ts`**: **`BENNE_SOUND_MANAGER_KEY`**, **`tryGetBenneSoundManager`**, **`setBenneSoundManager`**; **`BENNE_AUDIO_SCRIPT_DISABLED_KEY`** (**`benneAudioScriptDisabled`**).
+- **`Game.ts`** — constructs **`SoundManager`** after **`new Phaser.Game`**, registers it, **`destroy()`** on **`Phaser.Core.Events.DESTROY`** and removes the registry entry.
+
+**Bennescript**
+
+- **`createBenneScriptSoundFacade`** (**`benneScriptSoundApi.ts`**) wires **`B.sound`** on **`BenneScriptCore`** and exposes the **same object** on **`B.player.sound`**, **`B.character('…').sound`**, **`B.prop('…').sound`**.
+- **Blocking `B.sound.play`** appends to **`interactionTail`** so it orders **after** **`walkToClicked`**, **`wait`**, etc.; **`B.sound.play.now`** plays immediately without tail sequencing. **`playAndWait`** chains **`SoundManager.playSfxAndWait`**; **`playAndWait.now`** starts playback without waiting on prior tail steps (same spirit as **`wait.now`**).
+- **Author ids**: **`^[a-zA-Z0-9_-]+$`** map to loader keys **`benne:sfx:id`** / **`benne:music:id`**.
+
+**Lifecycle**
+
+| Event | SFX | Music |
+|-------|-----|--------|
+| **`RoomTransitionOrchestrator.prepareForLeave`** | **`stopAllSfx()`** | unchanged |
+| **`endDialogSessionIfMatches`** (**`dialogSession.ts`**) | **`stopAllSfx()`** after dialog **`dispose`** | unchanged |
+| **`Phaser.Game` destroy** | **`SoundManager.destroy()`** stops all | stopped |
+
+**Helpers**
+
+- **`getEffectiveDialogueVolume`** remains for future spoken-line mixing; dialogue playback is not routed through **`SoundManager`** in v1.
 
 ### Game state (v1)
 
@@ -498,6 +531,10 @@ These schedule work on the queue when called from a handler (or any code path us
 | `B.room` — read **`GameStateManager`** (same values as **`B.state.getCurrentRoom` / `getLastRoom`**) | `current` (getter), `last` (getter) | — |
 | `B.room` — change room (queued **leave** path; **`.now` / `changeToNow`** skip the **leave** fade) | `changeTo(roomId)` | `changeTo.now(roomId)` or **`changeToNow(roomId)`** |
 | `B.fadeOut` / `B.fadeIn` — full-screen overlay ( **`RoomScene`**; see top **Full-screen fade** note) | `fadeOut(duration?, color?)`, `fadeIn(duration?, color?)` | `fadeOut.now(…)`, `fadeIn.now(…)` |
+| **`B.sound`** — one-shot SFX | `play(key, opts?)` — **queued** after prior tail steps | `play.now(key, opts?)` |
+| **`B.sound`** — SFX until end / stop | `playAndWait(key, opts?)` | `playAndWait.now(…)` — starts without waiting on prior tail; does not block following lines on sound end |
+| **`B.sound`** — background music (single slot; new track replaces old) | `playMusic(key, opts?)` | `playMusic.now(…)` |
+| **`B.sound`** — stop SFX (all or one stem) / stop music | `stop(key?)`, `stopMusic()` | `stop.now(…)`, `stopMusic.now()` |
 
 **`.now` semantics**  
 
@@ -541,6 +578,8 @@ Bennescript separates a **saved** “what should this prop/character show by def
 - `src/engine/benneAnimationRuntime.ts` — prop/character animation persistence keys, sprite override helpers, **`promiseWhenSpriteAnimationFinishes`**. **`src/engine/inventory/inventoryScriptingAnimations.ts`** — inventory animation variable keys + effective-tag reads.  
 - `src/engine/scripting/BenneScriptCore.ts` — shared queue, verb alias resolution, dialog line + input lock, `wait`, `raw`; **`makePlayerFacadeFromScene`** (player **`animation`** / **`animationNow`** / **`stopAnimation`**).  
 - `src/engine/scripting/benneScriptGameStateApi.ts` — **`createBenneScriptGameStateNamespace`**, **`createBenneScriptInventoryNamespace`** (optional **`queueInteraction`** → **`BenneScriptInventoryInteractionQueue`** wires **`B.inventory.add` / `remove`**, **`B.inventory(…).animation`** / **`cursorAnimation`** setters to each script’s **`chain`**).  
+- `src/engine/sound/SoundManager.ts`, **`benneSoundRegistry.ts`**, **`queueBenneAudioBoot.ts`**, **`benneAudioCacheKeys.ts`** — **`SoundManager`**, boot audio queue, cache keys. **`src/engine/applyAudioFromSettings.ts`** — **`applyBootAudioSettings`**, **`getEffectiveSfxVolume`** / **`getEffectiveMusicVolume`**.  
+- `src/engine/scripting/benneScriptSoundApi.ts` — **`createBenneScriptSoundFacade`** (**`B.sound`**).  
 - `src/engine/scripting/BenneScript.ts` — room `B` (`whenLookAt('target', …)`, `player`, `prop`, …).  
 - `src/engine/scripting/CharacterBenneScript.ts` — character `B` with **self-only** `whenLookAt(() => …)` (character-global bus ids).  
 - `src/engine/scripting/GlobalBenneScript.ts` / `GuiBenneScript.ts` — global and GUI facades.  
@@ -862,7 +901,7 @@ Empty templates still need a **`src/game/rooms/rooms.manifest.json`** (and usual
 
 - **Room transitions (extensions)**: The shipped path **restarts `RoomScene`** with new **`RoomSceneStartData`** via **`RoomTransitionOrchestrator`**. Deeper work might add **preloading**, **shared caches**, or **non-black cutscene transitions**; **global narrative state** should remain on **`GameStateManager`** unless a game explicitly resets it.
 - **Post-processing**: `PostEffects.ts` is ready for **camera filter** composition (CRT, dither, etc.).
-- **Audio**: Volume helpers exist; **music loops, voice, and SFX triggers** from events are **future work**.
+- **Audio**: **`B.sound`** covers **SFX + music** from authored assets and **`BlockingWithNow`** sequencing; further work might add **spatial audio**, **voice/dialogue bus mixing**, or **event-driven triggers** outside scripts.
 - **Dialogue / inventory UI**: **`say`** shows the **Speaking Text** overlay (**`speaking-text`**). **`inventoryPanel`** GUIs render a carried-items grid with optional **paged scroll** (`scrollDirection`, `backButton`, `forwardButton` in **`*.gui.json`**) and **reactive rebuild** on **`gameState:inventoryChanged`** / **`gameState:replaced`** when scroll is configured. **Richer dialogue** (choices, portraits) and **full inventory UX** (drag-reorder, cursor) remain **future work** — **`B.inventory`** is available for wiring.
 - **Editor**: VS Code extension + **`build:room-preview`** ship a **live `RoomScene` preview** in a webview with **polygon editing** (walkable, prop colliders, **hotspots**, **regions**, and **room points**) via **`RoomPolygonEditScene`**. **`build:character-preview`** adds a separate webview for **feet** + **click collider** polygons. **`build:benne-play`** ships the **BENNE Play** full-runtime panel (same boot as **`main.ts`**, not the preview loader) — see **§8**.
 - **HMR script registry hygiene:** During dev hot reload, side-effect `register*Script` calls can accumulate stale handlers (e.g. room enter hooks) if registries are append-only. Add HMR-safe registry reset/dedupe behavior (`import.meta.hot.dispose` and/or module-keyed maps) to prevent duplicate/stale hook execution without requiring full page reloads.

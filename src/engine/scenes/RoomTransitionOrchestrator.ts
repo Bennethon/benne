@@ -18,6 +18,7 @@ import { getPlayFromSetupForRoom } from '../scripting/devPlayFromRegistry.js';
 import { ensureRoomScriptLoaded } from '../scripting/registerRoomScript.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
 import type { BenneScriptCore } from '../scripting/BenneScriptCore.js';
+import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
 import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
 
 /**
@@ -256,6 +257,7 @@ export class RoomTransitionOrchestrator {
   private prepareForLeave(roomScene: RoomScene, mgr: ReturnType<typeof resolveGameStateManager>): void {
     mgr.clearActiveVerb();
     mgr.clearActiveInventoryItem();
+    tryGetBenneSoundManager(this.game)?.stopAllSfx();
     roomScene.clearStateForRoomTransition();
     for (const s of roomScene.getBenneScriptCoresForTransitionReset()) {
       s.resetInteractionTailForEngine();

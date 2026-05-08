@@ -6,6 +6,7 @@ import {
   type CharacterFeetLocal,
 } from '../../engine/characterFeet';
 import { getBenneRendererConfigFields } from '../../engine/gameConfig';
+import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from '../../engine/sound/benneSoundRegistry';
 import type { CharacterData } from '../../types/character';
 import type { Point2 } from '../../types/room';
 import { PreviewPolygonOverlay } from './previewPolygonOverlay';
@@ -843,6 +844,11 @@ export function createCharacterPreviewPhaserGame(
 ): Phaser.Game {
   return new Phaser.Game({
     ...editorGameConfig(parent),
+    callbacks: {
+      preBoot: (game: Phaser.Game) => {
+        game.registry.set(BENNE_AUDIO_SCRIPT_DISABLED_KEY, true);
+      },
+    },
     scene: [new BenneCharacterPreviewBoot(payload), CharacterPreviewScene],
   });
 }

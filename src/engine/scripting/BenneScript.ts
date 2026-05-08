@@ -48,6 +48,7 @@ export type {
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
   BenneScriptRoomFacade,
+  BenneScriptSoundFacade,
   BenneScriptSharedSelectionApi,
   InventoryWhenGiveHandler,
   InventoryWhenGiveRegistrar,
@@ -64,6 +65,7 @@ export type {
   BenneSayDialogueScope,
   BlockingWithNow,
 } from './BenneScriptCore.js';
+export type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
 export { withNow } from './BenneScriptCore.js';
 
 /**
@@ -437,6 +439,7 @@ export class BenneScript extends BenneScriptCore {
     const scene = this.roomScene;
     const B = this;
     return {
+      sound: this.sound,
       hide: withNow(
         () => {
           B.chain(() => {

@@ -35,6 +35,8 @@ import { getGameSettings } from '../ConfigManager';
 import type { CharacterFacingLetter, CharacterData } from '../../types/character';
 import type { RoomData, RoomPropInstance } from '../../types/room';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
+import { isBenneAudioScriptDisabled } from '../sound/benneSoundRegistry.js';
+import { queueBenneAudioForBootLoader } from '../sound/queueBenneAudioBoot.js';
 import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from './roomSceneBootstrap';
 import { BENNE_ROOM_START_KIND_KEY } from './roomStartKindConstants';
 import { tryGetRoomTransitionOrchestrator } from './roomTransitionGlobals';
@@ -200,6 +202,10 @@ export class BootScene extends Phaser.Scene {
           '[Benne] game-config enables cursor.display.aseprite but assets/images/cursor/cursor.json is not bundled — add the Aseprite export.',
         );
       }
+    }
+
+    if (!isBenneAudioScriptDisabled(this.game)) {
+      queueBenneAudioForBootLoader(this.load);
     }
 
     this.load.once(Phaser.Loader.Events.COMPLETE, () => {

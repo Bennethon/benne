@@ -29,7 +29,9 @@ import type {
   BenneScriptCharacterFacade,
   BenneScriptPlayerFacade,
   BenneScriptRoomFacade,
+  BenneScriptSoundFacade,
 } from './benneScriptFacades.js';
+import { createBenneScriptSoundFacade } from './benneScriptSoundApi.js';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
 import { getCharacterWorldFeet } from '../characterFeet.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
@@ -328,6 +330,9 @@ export abstract class BenneScriptCore {
   /** Room id / transitions (`B.room.changeTo`, `current` / `last` from game state). */
   readonly room: BenneScriptRoomFacade;
 
+  /** SFX + music (`B.sound.play('creak')`, `B.sound.playMusic('song')`, …). */
+  readonly sound: BenneScriptSoundFacade;
+
   /**
    * PowerQuest-style **`B.say`**…``: lines **`Speaker: text`** (blank lines and **`//`** line / trailing comments ignored). **`Player`** (any case) → starting player character. Queues each line on the interaction tail; **`B.say.now`**… does not wait behind prior queued steps (each line still uses the dialog overlay lock).
    */
@@ -456,6 +461,7 @@ export abstract class BenneScriptCore {
     );
 
     this.room = bindRoomFacadeForBenneScriptCore((f) => this.chain(f));
+    this.sound = createBenneScriptSoundFacade((f) => this.chain(f));
   }
 
   /**
@@ -1366,6 +1372,7 @@ export abstract class BenneScriptCore {
       },
     );
     return {
+      sound: core.sound,
       walkTo: walkPlayerWithNow,
       moveTo: moveToTeleport,
       moveToNow: (target: Point2 | string) => {
@@ -1514,6 +1521,7 @@ export abstract class BenneScriptCore {
       },
     );
     return {
+      sound: core.sound,
       walkTo: walkCharacterWithNow,
       moveTo: moveToTeleport,
       moveToNow: (target: Point2 | string) => {

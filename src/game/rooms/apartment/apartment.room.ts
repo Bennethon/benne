@@ -12,6 +12,11 @@ import { registerRoomScript } from '@engine/scripting';
  * - `walkTo('…')`: unified target — prop id → hotspot id → character id → `points[].id`, or `{ x, y }` in room pixels.
  */
 registerRoomScript(({ B }) => {
+
+  B.whenEnterRoomAfterFade(() => {
+    B.sound.playMusic('my-cat-is-crazy');
+  });
+
   B.whenInventoryUsedOn('Couch', (payload) => {
     if (payload.itemId === 'Broom' && payload.verbId === 'use') {
       B.player.walkTo('Couch');
@@ -52,6 +57,7 @@ registerRoomScript(({ B }) => {
 
     if (B.state.getFlag('unlockedDoor')) {
       B.prop('Door').animation = 'Door-open';
+      B.sound.playAndWait('doorOpen');
       B.room.changeTo('outside');
     } else {
       B.say`Hank: The door is locked.`;
@@ -151,5 +157,17 @@ registerRoomScript(({ B }) => {
 
   B.playFrom("doorUnlocked", () => {
     B.state.setFlag('unlockedDoor', true);
+  });
+
+
+  B.whenInventoryUsedOn('Table', (payload) => {
+    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
+      B.walkToClicked();
+      B.sound.playAndWait('sweeping');
+      B.player.say('I cleaned the table.');
+      return;
+    }
+    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
+    return false;
   });
 });
