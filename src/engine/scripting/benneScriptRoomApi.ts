@@ -1,4 +1,5 @@
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import { getRoomVisitCount } from '../gameState/roomVisitState.js';
 import { tryGetRoomTransitionOrchestrator } from '../scenes/roomTransitionGlobals.js';
 import type { BenneScriptRoomFacade } from './benneScriptFacades.js';
 import { withNow } from './BenneScriptCore.js';
@@ -35,6 +36,17 @@ export function createBenneScriptRoomFacade(
     },
     get last(): string | null {
       return tryGetActiveGameStateManager()?.getLastRoom() ?? null;
+    },
+    get visitCount(): number {
+      const m = tryGetActiveGameStateManager();
+      const roomId = m?.getCurrentRoom() ?? '';
+      if (roomId.length === 0 || !m) {
+        return 0;
+      }
+      return getRoomVisitCount(m, roomId);
+    },
+    get isFirstVisit(): boolean {
+      return this.visitCount === 1;
     },
     changeTo: makeChangeTo(),
     changeToNow: (roomId: string) => {

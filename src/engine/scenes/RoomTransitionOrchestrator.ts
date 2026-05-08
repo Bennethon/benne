@@ -20,6 +20,7 @@ import type { RoomTransitionContext } from '../../types/roomTransition.js';
 import type { BenneScriptCore } from '../scripting/BenneScriptCore.js';
 import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
 import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
+import { getRoomVisitCount, incrementRoomVisitCount } from '../gameState/roomVisitState.js';
 
 /**
  * **Runtime** service for `B.room.changeTo` — leave → fade → load → create → enter → fade → after-fade.
@@ -87,7 +88,13 @@ export class RoomTransitionOrchestrator {
     try {
       this.prepareForLeave(fromScene, manager);
       const lastSnap = manager.getLastRoom();
-      const leaveCtx: RoomTransitionContext = { roomId: fromId, lastRoom: lastSnap, isFirstEnter: false };
+      const leaveVisit = getRoomVisitCount(manager, fromId);
+      const leaveCtx: RoomTransitionContext = {
+        roomId: fromId,
+        lastRoom: lastSnap,
+        isFirstEnter: false,
+        visitCount: leaveVisit,
+      };
       await runRoomHandlersSeq(
         [...this.hooks.getLeaveHandlersForRoom(fromId), ...this.hooks.getAnyLeave()],
         leaveCtx,
@@ -172,12 +179,18 @@ export class RoomTransitionOrchestrator {
         }
       }
 
+      const visitCount = incrementRoomVisitCount(manager, roomId);
       const isFirst = !this.sessionEnteredRoomIds.has(roomId);
       if (isFirst) {
         this.sessionEnteredRoomIds.add(roomId);
       }
       const lastForEnter = manager.getLastRoom();
-      const enterCtx: RoomTransitionContext = { roomId, lastRoom: lastForEnter, isFirstEnter: isFirst };
+      const enterCtx: RoomTransitionContext = {
+        roomId,
+        lastRoom: lastForEnter,
+        isFirstEnter: isFirst,
+        visitCount,
+      };
       // Enter handlers and the enter-phase queue drain run inside a cutscene block so the room
       // is protected from player input during invisible setup (moveTo, music, etc.).
       roomScene.pushCutscene();
@@ -229,7 +242,12 @@ export class RoomTransitionOrchestrator {
         );
       }
 
-      const afterCtx: RoomTransitionContext = { roomId, lastRoom: lastForEnter, isFirstEnter: isFirst };
+      const afterCtx: RoomTransitionContext = {
+        roomId,
+        lastRoom: lastForEnter,
+        isFirstEnter: isFirst,
+        visitCount,
+      };
       // After-fade handlers (walk-in animations, visible cutscenes) also run inside a cutscene
       // block so input remains suppressed for their full duration.
       // Handlers are typically synchronous (they queue B.* steps on the interaction tail without

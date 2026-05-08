@@ -27,6 +27,13 @@ export interface BenneScriptSoundFacade {
 export interface BenneScriptRoomFacade {
   readonly current: string;
   readonly last: string | null;
+  /**
+   * Persisted number of times the player has entered the **current** room (1 on first enter, 2 on the next, …).
+   * `0` when there is no active manager or **`currentRoom`** is empty.
+   */
+  readonly visitCount: number;
+  /** `true` when {@link visitCount} is `1` for the current room (first persisted enter). */
+  readonly isFirstVisit: boolean;
   changeTo: BlockingWithNow<[string]>;
   changeToNow(roomId: string): void;
 }
@@ -174,6 +181,13 @@ export interface BenneScriptCharacterFacade {
   /** Teleport (see {@link BenneScriptPlayerFacade.moveTo}). */
   moveTo: BlockingWithNow<[Point2 | string]>;
   moveToNow: (target: Point2 | string) => void;
+  hide: BlockingWithNow<[]>;
+  show: BlockingWithNow<[]>;
+  get visible(): boolean;
+  /** Queued on the interaction tail (same ordering as {@link animation}). */
+  set visible(v: boolean);
+  /** Script visibility immediately (skips interaction tail). */
+  visibleNow(v: boolean): void;
   get animation(): string;
   /** Queues override + save on the interaction tail; `null` clears. */
   set animation(tag: string | null);
