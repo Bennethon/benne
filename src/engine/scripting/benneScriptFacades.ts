@@ -143,6 +143,22 @@ export interface BenneScriptPropFacade {
    * starts the same tween without blocking subsequent script lines. Alpha is **not** persisted across room loads.
    */
   fade: BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>;
+  /**
+   * Teleport the prop's authoring position to a `Point2` in room space (top-left for canvas
+   * placement, the authored origin for `tight` placement, or the parallax base for parallax
+   * props). No tween. Position is **not** eagerly persisted on the call — it goes to game
+   * state on the next snapshot flush (room-leave, `getSnapshot`, or `B.state.flush()`),
+   * matching how character positions are tracked.
+   *
+   * **Blocking** form queues on the interaction tail (same ordering as {@link visible} /
+   * {@link animation}); **`moveTo.now`** / {@link moveToNow} apply immediately.
+   *
+   * Only `Point2` is accepted — string id resolution doesn't translate to a meaningful prop
+   * origin (props don't have feet / stand-points the way characters do).
+   */
+  moveTo: BlockingWithNow<[Point2]>;
+  /** Same as `moveTo.now` — immediate teleport, skips the queue. */
+  moveToNow(point: Point2): void;
 }
 
 /** Movement + animation + facing for the player. */

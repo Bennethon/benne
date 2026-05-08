@@ -11,6 +11,7 @@ import {
 import type { BenneScriptInventoryItemFacade } from './benneScriptFacades.js';
 import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
+import { runSnapshotFlushHooks } from '../gameState/snapshotFlushHooks.js';
 import { SCENE_ROOM } from '../../game/constants.js';
 
 /**
@@ -62,6 +63,19 @@ export interface BenneScriptGameStateNamespace {
    * no cutscene is in progress.
    */
   readonly isCutsceneActive: boolean;
+  /**
+   * Pull live runtime state on the active room scene (currently: character feet world
+   * positions and prop authoring positions) into the {@link GameStateManager} so the next
+   * room load — or save snapshot — restores it. Most state (visibility, alpha, animation
+   * overrides, flags, variables, inventory) is already eagerly persisted on every change;
+   * `flush` exists for **lazily-saved** fields that aren't worth writing per-tick.
+   *
+   * Also runs automatically inside {@link GameStateManager.getSnapshot} (so
+   * `B.state.saveToBrowser` / `exportJson` already pick everything up) and on room-transition
+   * leave (see `RoomTransitionOrchestrator.prepareForLeave`). Call it directly only at custom
+   * save points.
+   */
+  flush(): void;
 }
 
 /**
@@ -113,6 +127,7 @@ export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneS
       const scene = game.scene.getScene(SCENE_ROOM) as RoomScene | null;
       return scene?.isCutsceneActive() ?? false;
     },
+    flush: () => runSnapshotFlushHooks(),
   };
 }
 

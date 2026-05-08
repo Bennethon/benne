@@ -49,18 +49,23 @@ import {
   promiseWhenSpriteAnimationFinishes,
   readSavedCharacterAlpha,
   readSavedCharacterAnimationOverride,
+  readSavedCharacterPosition,
   readSavedCharacterVisible,
   readSavedPropAlpha,
   readSavedPropBaseAnimationTag,
+  readSavedPropPosition,
   readSavedPropVisible,
   setCharacterAnimationOverrideTagOnSprite,
   writeSavedCharacterAlpha,
   writeSavedCharacterAnimationOverride,
+  writeSavedCharacterPosition,
   writeSavedCharacterVisible,
   writeSavedPropAlpha,
   writeSavedPropBaseAnimationTag,
+  writeSavedPropPosition,
   writeSavedPropVisible,
 } from '../benneAnimationRuntime';
+import { registerSnapshotFlushHook } from '../gameState/snapshotFlushHooks';
 import type { CharacterFacingLetter } from '../../types/character';
 import { getDialogSettings, getGameSettings, getPerspectiveSettings } from '../ConfigManager';
 import {
@@ -324,6 +329,12 @@ export class RoomScene extends Phaser.Scene {
   private unresolvedWalkTargetIdsWarned = new Set<string>();
 
   /**
+   * Unregister handle for the snapshot flush hook installed in {@link create} and torn down on
+   * {@link Phaser.Scenes.Events.SHUTDOWN}. Null when no hook is registered (preview / pre-create).
+   */
+  private snapshotFlushHookUnregister: (() => void) | null = null;
+
+  /**
    * Full-screen fade (above all GUI overlays, below the custom pointer). Tweened by
    * {@link queueScreenFadeToAlpha} (`B.fadeOut` / `B.fadeIn`). Null only before `create` or after shutdown.
    */
@@ -445,6 +456,14 @@ export class RoomScene extends Phaser.Scene {
     this.missingDisplayTextOverlayWarned = false;
     this.genericGuiVisibilityBeforeDialog = null;
     this.benneCoresForTransitionReset.length = 0;
+
+    // Pull-up character/prop positions whenever a snapshot is taken, the room is left, or
+    // `B.state.flush()` is called. Eagerly-saved fields (visibility, alpha, animation override)
+    // are unaffected. The unregister fn fires on SHUTDOWN below.
+    this.snapshotFlushHookUnregister?.();
+    this.snapshotFlushHookUnregister = registerSnapshotFlushHook(() => {
+      this.flushRuntimeStateToGameState();
+    });
 
     attachPostProcessingPlaceholder(this.cameras.main);
 
@@ -709,6 +728,8 @@ export class RoomScene extends Phaser.Scene {
     }
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.snapshotFlushHookUnregister?.();
+      this.snapshotFlushHookUnregister = null;
       benneDispose?.();
       for (const d of this.dialogChoiceUiDisposers) {
         d();
@@ -817,6 +838,51 @@ export class RoomScene extends Phaser.Scene {
     this.scriptedDialogInputSuppressionDepth = 0;
     this.cutsceneDepth = 0;
     this.time.removeAllEvents();
+  }
+
+  /**
+   * Pull live character feet world positions and prop authoring positions into the
+   * {@link import('../gameState/GameStateManager.js').GameStateManager} so the next room load
+   * (or save snapshot) restores them. Called from
+   * {@link import('../gameState/snapshotFlushHooks.js').runSnapshotFlushHooks} via the hook
+   * registered in {@link create} — i.e. on room-transition leave (see
+   * {@link import('./RoomTransitionOrchestrator.js').RoomTransitionOrchestrator.prepareForLeave}),
+   * inside {@link import('../gameState/GameStateManager.js').GameStateManager.getSnapshot}, and
+   * on `B.state.flush()`.
+   *
+   * Position is **not** eagerly written on every walk tick — that is the whole point of this
+   * method.
+   */
+  flushRuntimeStateToGameState(): void {
+    const manager = resolveGameStateManager(this.game);
+    const roomId = this.roomData.id;
+
+    for (const [defId, sprite] of this.characterSpritesByDefId) {
+      const feet = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
+      writeSavedCharacterPosition(manager, roomId, defId, feet);
+    }
+
+    for (const [propId, sprite] of this.propSpritesById) {
+      writeSavedPropPosition(manager, roomId, propId, this.getPropAuthoringPosition(sprite));
+    }
+  }
+
+  /**
+   * Authoring (i.e. JSON-equivalent) world position for a prop sprite. Tight-placement props
+   * store the original authored value in `benneRoomPropAuthoredX/Y`; pure parallax props store
+   * theirs in {@link parallaxProps} `baseX / baseY`; everything else uses the live `sprite.x / y`.
+   */
+  private getPropAuthoringPosition(sprite: Phaser.GameObjects.Sprite): { x: number; y: number } {
+    const tightX = sprite.getData('benneRoomPropAuthoredX');
+    const tightY = sprite.getData('benneRoomPropAuthoredY');
+    if (typeof tightX === 'number' && typeof tightY === 'number') {
+      return { x: tightX, y: tightY };
+    }
+    const parallax = this.parallaxProps.find((p) => p.sprite === sprite);
+    if (parallax) {
+      return { x: parallax.baseX, y: parallax.baseY };
+    }
+    return { x: sprite.x, y: sprite.y };
   }
 
   private wireDialogChoiceUi(): void {
@@ -1640,6 +1706,44 @@ export class RoomScene extends Phaser.Scene {
   setPropScriptVisible(propId: string, visible: boolean): void {
     writeSavedPropVisible(resolveGameStateManager(this.game), this.roomData.id, propId, visible);
     this.propSpritesById.get(propId)?.setVisible(visible);
+  }
+
+  /**
+   * Teleport a prop's authoring origin to `point` (room space). For `tight` placement the
+   * authored coords drive {@link syncBenneRoomPropTightWorldPosition}; for parallax the base
+   * `(x, y)` drives the per-frame parallax tick; otherwise the live `sprite.x / y` is the
+   * authoring origin and we set it directly.
+   *
+   * Position is **not** eagerly persisted here — it goes to game state on the next snapshot
+   * flush, matching how character positions are tracked. Backs **`B.prop(id).moveTo`** /
+   * **`moveTo.now`** / **`moveToNow`**.
+   */
+  movePropToNow(propId: string, point: { x: number; y: number }): void {
+    const sprite = this.propSpritesById.get(propId);
+    if (!sprite) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[Benne] movePropToNow: prop "${propId}" not in room "${this.roomData.id}".`,
+        );
+      }
+      return;
+    }
+
+    const isTight = sprite.getData('benneRoomPropPlacement') === 'tight';
+    if (isTight) {
+      sprite.setData('benneRoomPropAuthoredX', point.x);
+      sprite.setData('benneRoomPropAuthoredY', point.y);
+      syncBenneRoomPropTightWorldPosition(sprite);
+    } else {
+      sprite.x = point.x;
+      sprite.y = point.y;
+    }
+
+    const parallax = this.parallaxProps.find((p) => p.sprite === sprite);
+    if (parallax) {
+      parallax.baseX = sprite.x;
+      parallax.baseY = sprite.y;
+    }
   }
 
   /**
@@ -2801,10 +2905,17 @@ export class RoomScene extends Phaser.Scene {
 
     const manager = resolveGameStateManager(this.game);
     for (const spawn of sorted) {
+      // Saved authoring position (from a prior flush) overrides the room JSON `(x, y)` — same
+      // pattern as `readSavedPropVisible` / `readSavedPropAlpha` below. Uses the prop's
+      // authoring position (tight authored coords / parallax baseX,Y / sprite.x,y) so it
+      // round-trips through `flushRuntimeStateToGameState`.
+      const savedXY = readSavedPropPosition(manager, data.room.id, spawn.id);
+      const spawnX = savedXY ? savedXY.x : spawn.x;
+      const spawnY = savedXY ? savedXY.y : spawn.y;
       // Props render at their natural Aseprite frame dimensions. For full-room composite
       // sheets (the typical BENNE workflow) each frame already covers the full room width
       // and height, so no explicit setDisplaySize is needed.
-      const sprite = this.add.sprite(spawn.x, spawn.y, textureKey).setOrigin(0, 0);
+      const sprite = this.add.sprite(spawnX, spawnY, textureKey).setOrigin(0, 0);
       const jsonVisible = spawn.data.visible !== false;
       const jsonAlpha = spawn.data.alpha ?? 1;
       sprite.setVisible(readSavedPropVisible(manager, data.room.id, spawn.id, jsonVisible));
@@ -2828,8 +2939,8 @@ export class RoomScene extends Phaser.Scene {
       const placement = spawn.data.spritePlacement ?? 'canvas';
       if (placement === 'tight') {
         sprite.setData('benneRoomPropPlacement', 'tight');
-        sprite.setData('benneRoomPropAuthoredX', spawn.x);
-        sprite.setData('benneRoomPropAuthoredY', spawn.y);
+        sprite.setData('benneRoomPropAuthoredX', spawnX);
+        sprite.setData('benneRoomPropAuthoredY', spawnY);
         syncBenneRoomPropTightWorldPosition(sprite);
         wireBenneRoomPropTightPlacementAfterFrameChanges(sprite);
       }
@@ -3074,8 +3185,14 @@ export class RoomScene extends Phaser.Scene {
 
     const sprite = this.add.image(0, 0, spawn.textureKey);
     const feet = resolveCharacterFeetLocal(spawn.data, sprite as Phaser.GameObjects.Sprite);
-    this.applyFeetWorldWithRegionScale(sprite, feet, spawn.x, spawn.y);
     const manager = resolveGameStateManager(this.game);
+    // Saved feet world position (from a prior flush) overrides the room JSON `(x, y)` — same
+    // pattern as `readSavedCharacterVisible` / `readSavedCharacterAlpha` below. Per-room key,
+    // so the same character id appearing in two rooms doesn't clobber across rooms.
+    const savedFeet = readSavedCharacterPosition(manager, roomId, spawn.data.id);
+    const feetX = savedFeet ? savedFeet.x : spawn.x;
+    const feetY = savedFeet ? savedFeet.y : spawn.y;
+    this.applyFeetWorldWithRegionScale(sprite, feet, feetX, feetY);
     const jsonVisible = spawn.visible !== false;
     sprite.setVisible(readSavedCharacterVisible(manager, spawn.data.id, jsonVisible));
     sprite.setAlpha(readSavedCharacterAlpha(manager, spawn.data.id, 1));
@@ -3127,7 +3244,14 @@ export class RoomScene extends Phaser.Scene {
     }
 
     const feet = resolveCharacterFeetLocal(spawn.data, sprite);
-    this.applyFeetWorldWithRegionScale(sprite, feet, spawn.x, spawn.y);
+    // Saved feet world position (from a prior flush) overrides room JSON `(x, y)`. Player
+    // rooms with a `whenEnterRoom` that calls `B.player.moveTo.now('entry-point')` still
+    // work — the spawn applies the saved position, then the enter hook teleports the player
+    // to the entry, and the next flush records the new spot.
+    const savedFeet = readSavedCharacterPosition(manager, roomId, spawn.data.id);
+    const feetX = savedFeet ? savedFeet.x : spawn.x;
+    const feetY = savedFeet ? savedFeet.y : spawn.y;
+    this.applyFeetWorldWithRegionScale(sprite, feet, feetX, feetY);
 
     this.attachCharacterInteraction(roomId, spawn, sprite);
 

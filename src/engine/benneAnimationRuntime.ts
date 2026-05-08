@@ -32,6 +32,16 @@ export function characterVisibleVariableKey(characterId: string): string {
   return `character:${characterId}:visible`;
 }
 
+/** Saved per-room character feet world position (lazily written via flush hooks; see {@link writeSavedCharacterPosition}). */
+export function characterPositionVariableKey(roomId: string, characterId: string): string {
+  return `room:${roomId}:character:${characterId}:position`;
+}
+
+/** Saved per-room prop top-left world position (lazily written via flush hooks; see {@link writeSavedPropPosition}). */
+export function roomPropPositionVariableKey(roomId: string, propId: string): string {
+  return `room:${roomId}:prop:${propId}:position`;
+}
+
 /** Sprite data: persisted override tag (`string`) or `null` when cleared. */
 export const BENNE_CHARACTER_ANIMATION_OVERRIDE_KEY = 'benneAnimationOverride';
 
@@ -173,6 +183,83 @@ export function writeSavedCharacterVisible(
   visible: boolean,
 ): void {
   manager.setVariable(characterVisibleVariableKey(characterId), visible);
+}
+
+function readSavedXY(manager: GameStateManager, key: string): { x: number; y: number } | null {
+  const v = manager.getVariable(key);
+  if (
+    v != null &&
+    typeof v === 'object' &&
+    typeof (v as { x?: unknown }).x === 'number' &&
+    typeof (v as { y?: unknown }).y === 'number' &&
+    Number.isFinite((v as { x: number }).x) &&
+    Number.isFinite((v as { y: number }).y)
+  ) {
+    return { x: (v as { x: number }).x, y: (v as { y: number }).y };
+  }
+  return null;
+}
+
+/**
+ * Per-room saved feet world position for a character definition id, or `null` when no
+ * position has been flushed for this `(roomId, characterId)` pair.
+ *
+ * Spawn paths use this to override the room JSON `(x, y)` so an NPC moved during gameplay
+ * stays where the player last left them (until the next flush updates it).
+ */
+export function readSavedCharacterPosition(
+  manager: GameStateManager,
+  roomId: string,
+  characterId: string,
+): { x: number; y: number } | null {
+  return readSavedXY(manager, characterPositionVariableKey(roomId, characterId));
+}
+
+/**
+ * Persist a character's feet world position for `(roomId, characterId)`. Called from
+ * {@link import('./scenes/RoomScene.js').RoomScene.flushRuntimeStateToGameState} only —
+ * not from per-tick walk callbacks.
+ */
+export function writeSavedCharacterPosition(
+  manager: GameStateManager,
+  roomId: string,
+  characterId: string,
+  position: { x: number; y: number },
+): void {
+  manager.setVariable(characterPositionVariableKey(roomId, characterId), {
+    x: position.x,
+    y: position.y,
+  });
+}
+
+/**
+ * Per-room saved sprite top-left world position for a room prop id, or `null` when no
+ * position has been flushed for this `(roomId, propId)` pair. For parallax props this is
+ * the **authored** origin (i.e. the value written into `benneRoomPropAuthoredX/Y`), not
+ * the parallax-displaced live `sprite.x / y`.
+ */
+export function readSavedPropPosition(
+  manager: GameStateManager,
+  roomId: string,
+  propId: string,
+): { x: number; y: number } | null {
+  return readSavedXY(manager, roomPropPositionVariableKey(roomId, propId));
+}
+
+/**
+ * Persist a prop's top-left (or authored, for parallax) world position for `(roomId, propId)`.
+ * Called from {@link import('./scenes/RoomScene.js').RoomScene.flushRuntimeStateToGameState}.
+ */
+export function writeSavedPropPosition(
+  manager: GameStateManager,
+  roomId: string,
+  propId: string,
+  position: { x: number; y: number },
+): void {
+  manager.setVariable(roomPropPositionVariableKey(roomId, propId), {
+    x: position.x,
+    y: position.y,
+  });
 }
 
 /** Non-directional override clip when set; otherwise directional idle from current `facing`. */

@@ -26,6 +26,7 @@ import {
   GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT,
   GAME_STATE_VARIABLE_CHANGED_EVENT,
 } from '../../types/gameState.js';
+import { runSnapshotFlushHooks } from './snapshotFlushHooks.js';
 
 export type GameStateInitialSlice = Partial<
   Pick<SerializableBenneGameState, 'flags' | 'variables' | 'inventory' | 'currentRoom' | 'lastRoom'>
@@ -147,6 +148,7 @@ export class GameStateManager {
   }
 
   getSnapshot(): SerializableBenneGameState {
+    runSnapshotFlushHooks();
     return {
       ...cloneSnapshot(this.state),
       activeInventoryItemId: this.activeInventoryItemId,
