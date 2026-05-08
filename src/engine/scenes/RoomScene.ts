@@ -47,11 +47,17 @@ import {
   getCharacterAnimationOverrideTag,
   getCharacterEffectiveAnimationTag,
   promiseWhenSpriteAnimationFinishes,
+  readSavedCharacterAlpha,
   readSavedCharacterAnimationOverride,
+  readSavedPropAlpha,
   readSavedPropBaseAnimationTag,
+  readSavedPropVisible,
   setCharacterAnimationOverrideTagOnSprite,
+  writeSavedCharacterAlpha,
   writeSavedCharacterAnimationOverride,
+  writeSavedPropAlpha,
   writeSavedPropBaseAnimationTag,
+  writeSavedPropVisible,
 } from '../benneAnimationRuntime';
 import type { CharacterFacingLetter } from '../../types/character';
 import { getDialogSettings, getGameSettings, getPerspectiveSettings } from '../ConfigManager';
@@ -1593,16 +1599,29 @@ export class RoomScene extends Phaser.Scene {
     this.propDescriptionOverrides.set(propId, value);
   }
 
+  /**
+   * Effective `B.prop(id).visible` — saved override (set by **`setPropScriptVisible`**) wins, then
+   * the live sprite, then JSON `RoomPropInstance.visible`. Authors expect this to match what the
+   * sprite is showing right now.
+   */
   getPropScriptVisible(propId: string): boolean {
     const sprite = this.propSpritesById.get(propId);
     if (sprite) {
       return sprite.visible;
     }
     const inst = this.getRoomPropInstance(propId);
-    return inst?.visible !== false;
+    const jsonDefault = inst?.visible !== false;
+    const manager = resolveGameStateManager(this.game);
+    return readSavedPropVisible(manager, this.roomData.id, propId, jsonDefault);
   }
 
+  /**
+   * Persist + apply visibility for one prop. The save survives room reloads; spawn re-applies it
+   * via {@link readSavedPropVisible}. Backs **`B.prop(id).hide` / `show` / `visible = …` /
+   * `visibleNow(…)`**.
+   */
   setPropScriptVisible(propId: string, visible: boolean): void {
+    writeSavedPropVisible(resolveGameStateManager(this.game), this.roomData.id, propId, visible);
     this.propSpritesById.get(propId)?.setVisible(visible);
   }
 
@@ -1610,7 +1629,9 @@ export class RoomScene extends Phaser.Scene {
    * Tween a prop sprite's alpha from `fromAlpha` to `toAlpha` over `durationSeconds`. Kills any
    * running fade tweens on the sprite first; clamps both alphas to `[0, 1]` and `durationSeconds`
    * to `>= 0`. Resolves when the tween completes (or immediately if the prop is not in this room).
-   * Backs **`B.prop(id).fade`** / **`fade.now`**; alpha is **not** persisted to {@link GameStateManager}.
+   * Persists **`toAlpha`** to {@link GameStateManager} at call time so a save mid-fade or a room
+   * reload restores the **intended final** alpha; spawn re-applies it via {@link readSavedPropAlpha}.
+   * Backs **`B.prop(id).fade`** / **`fade.now`**.
    */
   fadePropScriptAlpha(
     propId: string,
@@ -1618,6 +1639,7 @@ export class RoomScene extends Phaser.Scene {
     toAlpha: number,
     durationSeconds: number,
   ): Promise<void> {
+    writeSavedPropAlpha(resolveGameStateManager(this.game), this.roomData.id, propId, toAlpha);
     const sprite = this.propSpritesById.get(propId);
     if (!sprite) {
       return Promise.resolve();
@@ -1629,7 +1651,9 @@ export class RoomScene extends Phaser.Scene {
    * Tween a character sprite's alpha from `fromAlpha` to `toAlpha` over `durationSeconds`. Kills any
    * running fade tweens on the sprite first; clamps both alphas to `[0, 1]` and `durationSeconds`
    * to `>= 0`. Resolves when the tween completes (or immediately if the character is not spawned).
-   * Backs **`B.character(id).fade`** / **`fade.now`**; alpha is **not** persisted to {@link GameStateManager}.
+   * Persists **`toAlpha`** to {@link GameStateManager} at call time (global key per character id) so
+   * a save mid-fade or a room reload restores the **intended final** alpha; spawn re-applies it via
+   * {@link readSavedCharacterAlpha}. Backs **`B.character(id).fade`** / **`fade.now`**.
    */
   fadeCharacterScriptAlpha(
     definitionId: string,
@@ -1637,6 +1661,7 @@ export class RoomScene extends Phaser.Scene {
     toAlpha: number,
     durationSeconds: number,
   ): Promise<void> {
+    writeSavedCharacterAlpha(resolveGameStateManager(this.game), definitionId, toAlpha);
     const sprite = this.characterSpritesByDefId.get(definitionId);
     if (!sprite) {
       return Promise.resolve();
@@ -2739,8 +2764,10 @@ export class RoomScene extends Phaser.Scene {
       // sheets (the typical BENNE workflow) each frame already covers the full room width
       // and height, so no explicit setDisplaySize is needed.
       const sprite = this.add.sprite(spawn.x, spawn.y, textureKey).setOrigin(0, 0);
-      sprite.setVisible(spawn.data.visible !== false);
-      sprite.setAlpha(spawn.data.alpha ?? 1);
+      const jsonVisible = spawn.data.visible !== false;
+      const jsonAlpha = spawn.data.alpha ?? 1;
+      sprite.setVisible(readSavedPropVisible(manager, data.room.id, spawn.id, jsonVisible));
+      sprite.setAlpha(readSavedPropAlpha(manager, data.room.id, spawn.id, jsonAlpha));
 
       const baseAuthorTag = readSavedPropBaseAnimationTag(manager, data.room.id, spawn.id, spawn.tag);
       const basePhaserKey = roomPropPhaserAnimationKey(data.room.id, baseAuthorTag);
@@ -3008,6 +3035,7 @@ export class RoomScene extends Phaser.Scene {
     const feet = resolveCharacterFeetLocal(spawn.data, sprite as Phaser.GameObjects.Sprite);
     this.applyFeetWorldWithRegionScale(sprite, feet, spawn.x, spawn.y);
     sprite.setVisible(spawn.visible !== false);
+    sprite.setAlpha(readSavedCharacterAlpha(resolveGameStateManager(this.game), spawn.data.id, 1));
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
     sprite.setData('instanceId', spawn.instanceId);
@@ -3027,6 +3055,7 @@ export class RoomScene extends Phaser.Scene {
   private spawnAsepriteCharacter(roomId: string, spawn: RoomCharacterSpawn): void {
     const sprite = this.add.sprite(0, 0, spawn.textureKey);
     sprite.setVisible(spawn.visible !== false);
+    sprite.setAlpha(readSavedCharacterAlpha(resolveGameStateManager(this.game), spawn.data.id, 1));
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
     sprite.setData('instanceId', spawn.instanceId);

@@ -257,7 +257,7 @@ Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / *
 
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
-| **`fade`** | `BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>` | Tween the character sprite's `alpha` from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`** (`Linear`); alphas clamp to `[0, 1]`, duration to `>= 0` (`0` snaps to **`toAlpha`**). Each call kills running tweens on the sprite first, then sets `alpha = fromAlpha` before tweening. Routes through **`RoomScene.fadeCharacterScriptAlpha`**. **Not** persisted in **`GameStateManager`** — resets on next room load. | Queued (waits for tween) vs **`.now`** |
+| **`fade`** | `BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>` | Tween the character sprite's `alpha` from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`** (`Linear`); alphas clamp to `[0, 1]`, duration to `>= 0` (`0` snaps to **`toAlpha`**). Each call kills running tweens on the sprite first, then sets `alpha = fromAlpha` before tweening. **`toAlpha`** is **persisted** to **`GameStateManager`** (key `` `character:<characterId>:alpha` ``) at call time and re-applied on every spawn (saving mid-fade restores the intended final alpha). Routes through **`RoomScene.fadeCharacterScriptAlpha`**. | Queued (waits for tween) vs **`.now`** |
 
 ```ts
 B.character('penny').fade(0, 1, 0.5); // fade Penny in from transparent to opaque over 0.5 s
@@ -273,18 +273,21 @@ B.character('penny').fade.now(1, 0, 1); // start fade-out immediately, don't blo
 | Member | Description | Blocking |
 |--------|-------------|--------|
 | **`sound`** | Same **`BenneScriptSoundFacade`** as **`B.sound`**. | See [Sound (`B.sound`)](#sound-bsound) |
-| **`hide` / `show`** | Script visibility overrides; **`BlockingWithNow<[]>`** (queue vs **`.now`**). | Queued vs **`.now`** |
-| **`visible`** get/set | Setter queues like **`animation`**; **`visibleNow(v)`** applies immediately. | Setter queued |
+| **`hide` / `show`** | Script visibility overrides (persisted — see below); **`BlockingWithNow<[]>`** (queue vs **`.now`**). | Queued vs **`.now`** |
+| **`visible`** get/set | Setter queues like **`animation`**; **`visibleNow(v)`** applies immediately. Both setter and **`hide` / `show`** persist the boolean to **`GameStateManager`** (key `` `room:<roomId>:prop:<propId>:visible` ``); **`getPropScriptVisible`** returns the live sprite when one exists, else the saved override, else JSON. | Setter queued |
 | **`description`** get/set | | Sync |
 | **`animation`** get/set | Base prop tag persisted; setter **queued**. | Setter queued |
 | **`animationNow(tag)`** | Immediate persist + sprite. | Immediate |
 | **`playAnimation`** | **`BlockingWithNow<[string]>`** one-shot → restore base tag. | Queued vs **`.now`** |
-| **`fade`** | **`BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>`** — tween the prop sprite's `alpha` from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`** (`Linear`); alphas clamp to `[0, 1]`, duration to `>= 0` (`0` snaps to **`toAlpha`**). Each call kills running tweens on the sprite first, then sets `alpha = fromAlpha` before tweening. Routes through **`RoomScene.fadePropScriptAlpha`**. **Not** persisted in **`GameStateManager`** — resets on next room load. | Queued (waits for tween) vs **`.now`** |
+| **`fade`** | **`BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>`** — tween the prop sprite's `alpha` from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`** (`Linear`); alphas clamp to `[0, 1]`, duration to `>= 0` (`0` snaps to **`toAlpha`**). Each call kills running tweens on the sprite first, then sets `alpha = fromAlpha` before tweening. **`toAlpha`** is **persisted** to **`GameStateManager`** (key `` `room:<roomId>:prop:<propId>:alpha` ``) at call time and re-applied on every spawn (saving mid-fade restores the intended final alpha). Routes through **`RoomScene.fadePropScriptAlpha`**. | Queued (waits for tween) vs **`.now`** |
 
 ```ts
-B.prop('Knife').fade(1, 0.5, 2); // fade Knife from opaque to 50% over 2 s
+B.prop('Knife').fade(1, 0.5, 2); // fade Knife from opaque to 50% over 2 s; persisted alpha = 0.5
 B.prop('Knife').fade.now(0.5, 1, 1); // start fade back to opaque without blocking the chain
+B.prop('Knife').hide(); // persisted; the prop stays hidden after B.room.changeTo and reload
 ```
+
+**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`saveToBrowser` / `loadFromBrowser`** like any other **`B.state`** value.
 
 ---
 
