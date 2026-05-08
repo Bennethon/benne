@@ -10,6 +10,11 @@ import { GameStateManager, normalizeSerializedInventory } from './gameState/Game
 import { BENNE_GAME_STATE_REGISTRY_KEY } from './gameState/registryKey.js';
 import { setActiveGameStateManager } from './gameState/resolveGameStateManager.js';
 import { getBennePhaserGameConfigBase } from './gameConfig.js';
+import {
+  BENNE_SOUND_MANAGER_KEY,
+  setBenneSoundManager,
+} from './sound/benneSoundRegistry.js';
+import { SoundManager } from './sound/SoundManager.js';
 import { BootScene } from './scenes/BootScene.js';
 import { RoomScene } from './scenes/RoomScene.js';
 
@@ -47,7 +52,11 @@ export function createBenneGame(parent: HTMLElement | string): Phaser.Game {
   setActiveGameStateManager(gameState);
   wireBenneVerbContextGameStateRelay(gameEvents);
   setActiveBenneGame(game);
+  const soundManager = new SoundManager(game);
+  setBenneSoundManager(game, soundManager);
   game.events.once(Phaser.Core.Events.DESTROY, () => {
+    soundManager.destroy();
+    game.registry.remove(BENNE_SOUND_MANAGER_KEY);
     unwireBenneVerbContextGameStateRelay(gameEvents);
     setActiveGameStateManager(null);
     setActiveBenneGame(null);

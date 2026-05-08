@@ -1,8 +1,8 @@
 # Bennescript API Reference
 
-> Last updated: 2026-05-07 — generated from source (`src/engine/scripting/*.ts`)
+> Last updated: 2026-05-07 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
 
-For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt), and the **Blocking interaction queue** / API tables in §7.
+For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§3 → Audio system](architecture.md#audio-system), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt), and the **Blocking interaction queue** / API tables in §7.
 
 ---
 
@@ -17,7 +17,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 - **`registerGuiScript('guiId', ({ B, events, guiId }) => …)`** — at content registration; overlay built per room.
 - **`registerDialogScript('dialogId', ({ B, events, dialogId, game }) => …)`** — runs when **`openDialogSessionForId`** opens that dialog (after **`B.dialog(id).start()`** / **`.start.now()`**).
 
-**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`display`**, **`wait`**, queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
+**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`display`**, **`wait`**, **`B.sound.play`**, **`B.sound.playAndWait`**, **`B.sound.playMusic`**, **`B.sound.stop`**, **`B.sound.stopMusic`**, queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
 
 **`BlockingWithNow` pattern** — Many APIs are **`(…args) => void`** plus **`.now(…args)`** with the same parameters. The blocking form **queues** on **`interactionTail`**; **`.now`** performs the same work **without** extending the tail, so later lines in your handler still run in source order but do not wait for that action.
 
@@ -35,7 +35,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 
 | Surface | Room | Character | Inventory | Global | GUI | Dialog (session) |
 |--------|:----:|:---------:|:---------:|:------:|:---:|:----------------:|
-| Core queue, **`raw`**, **`wait`**, **`say`**, **`display`**, **`walkToClicked`**, **`faceClicked`**, fades, **`room`**, active verb/inventory helpers | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Core queue, **`raw`**, **`wait`**, **`say`**, **`display`**, **`sound`** (**`B.sound`** — same object on **`B.player.sound`**, **`B.character('…').sound`**, **`B.prop('…').sound`** where applicable), **`walkToClicked`**, **`faceClicked`**, fades, **`room`**, active verb/inventory helpers | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.state`** / **`B.inventory`** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **`B.dialog(id)`** | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ |
 | **`B.player`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -192,6 +192,40 @@ B.whenUse('machine', () => {
 });
 ```
 
+### Sound (`B.sound`)
+
+Available on every **`BenneScriptCore`** facade (**room / character / inventory / global / GUI / dialog session**). The **same** facade object is exposed as **`B.player.sound`**, **`B.character('…').sound`**, and **`B.prop('…').sound`** (room scripts) for readability.
+
+**Assets** — Put files under **`src/game/assets/audio/sfx/<name>.<ext>`** (sound effects) and **`src/game/assets/audio/music/<name>.<ext>`** (music). Supported extensions include **`.wav`**, **`.mp3`**, **`.ogg`**, **`.m4a`**. Reference them by **basename only** (e.g. **`B.sound.play('creak')`** for **`…/audio/sfx/creak.wav`**). Ids must match **`^[a-zA-Z0-9_-]+$`**.
+
+**Volumes** — Playback uses **`getEffectiveSfxVolume`** / **`getEffectiveMusicVolume`** from **`game-config.json`** **`audio`** (master × category). Optional **`volume`** on **`play` / `playAndWait` / `playMusic`** (0–1) is an extra multiplier. **`setSfxVolume` / `setMusicVolume`** apply **session** multipliers on top of config (see [architecture.md §3 → Audio system](architecture.md#audio-system)).
+
+| Member | Signature | Description | Blocking |
+|--------|-----------|-------------|--------|
+| **`play`** | `BlockingWithNow<[key: string, options?: SoundPlayOptions]>` | Start a one-shot SFX. **Blocking** form **queues** on the interaction tail — use this so **`play`** runs **after** **`walkToClicked`**, **`wait`**, etc. **`play.now`** starts immediately without tail ordering. | Queued vs **`.now`** |
+| **`playAndWait`** | `BlockingWithNow<[key: string, options?: SoundPlayOptions]>` | Same as **`play`**, but the **blocking** form **waits** until the sound **finishes or is stopped**. **`playAndWait.now`** starts playback without waiting on prior tail steps; it does **not** make following script lines wait for the sound to end. | Queued vs **`.now`** |
+| **`playMusic`** | `BlockingWithNow<[key: string, options?: MusicPlayOptions]>` | One **music** slot; a new **`playMusic`** replaces the current track. Default **`loop: true`** for music; SFX default **`loop: false`**. | Queued vs **`.now`** |
+| **`stop`** | `BlockingWithNow<[key?: string]>` | **`stop()`** / **`stop.now()`** with **no** argument stops **all** SFX; with a **key**, stops instances of that stem only. | Queued vs **`.now`** |
+| **`stopMusic`** | `BlockingWithNow<[]>` | Stops the current music instance. | Queued vs **`.now`** |
+| **`setSfxVolume`** | `(volume: number) => void` | Session SFX multiplier (0–1). | Sync |
+| **`setMusicVolume`** | `(volume: number) => void` | Session music multiplier (0–1). | Sync |
+| **`isPlaying`** | `(key: string) => boolean` | Whether an SFX with that stem is playing. | Sync |
+| **`isMusicPlaying`** | `() => boolean` | Whether music is playing. | Sync |
+
+**`SoundPlayOptions` / `MusicPlayOptions`** — optional **`volume?: number`**, **`loop?: boolean`**.
+
+**Editor previews** — VS Code **room / GUI / inventory / character** previews set **`benneAudioScriptDisabled`** so **`B.sound`** does not load or play audio (full runtime and **BENNE Play** behave normally).
+
+Example (SFX after walk, then a line):
+
+```ts
+B.walkToClicked();
+B.sound.play('sweeping');
+B.player.say('I used the Broom on the Table.');
+```
+
+Use **`B.sound.playAndWait('sweeping')`** when the **next** queued step should run only **after** the clip ends.
+
 ---
 
 ## `B.player` (**`BenneScriptPlayerFacade`**)
@@ -200,6 +234,7 @@ Constructed from active **`RoomScene`** (global/dialog resolve **`SCENE_ROOM` on
 
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
+| **`sound`** | **`BenneScriptSoundFacade`** | Alias of top-level **`B.sound`** (same object). | See [Sound (`B.sound`)](#sound-bsound) |
 | **`walkTo`** | `BlockingWithNow<[Point2 \| string]>` | Pathfind + walk tween. | Queued vs **`.now`** |
 | **`moveTo`** | `BlockingWithNow<[Point2 \| string]>` | Teleport feet (**`movePlayerToNow`**); updates idle facing. | Queued vs **`.now`** |
 | **`moveToNow`** | `(target: Point2 \| string) => void` | Alias for **`moveTo.now`**. | Immediate |
@@ -216,7 +251,7 @@ Constructed from active **`RoomScene`** (global/dialog resolve **`SCENE_ROOM` on
 
 ## `B.character(id)` (**`BenneScriptCharacterFacade`**)
 
-Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / **`face`** pattern as **`B.player`**, routed to **`walkCharacterTo`**, **`moveCharacterToNow`**, **`faceCharacterScriptDirection`**, character animation scripting APIs (**`NPC`** — no **`walkToClicked`** on facade; use top-level **`B.walkToClicked`** / **`B.player.*`**).
+Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / **`face`** pattern as **`B.player`**, routed to **`walkCharacterTo`**, **`moveCharacterToNow`**, **`faceCharacterScriptDirection`**, character animation scripting APIs (**`NPC`** — no **`walkToClicked`** on facade; use top-level **`B.walkToClicked`** / **`B.player.*`**). Exposes **`sound`** (**same object** as **`B.sound`**).
 
 **Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. When there is **no** active **`RoomScene`**, calls no-op and DEV **`console.warn`** once (same spirit as **`B.player`** without a room).
 
@@ -228,6 +263,7 @@ Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / *
 
 | Member | Description | Blocking |
 |--------|-------------|--------|
+| **`sound`** | Same **`BenneScriptSoundFacade`** as **`B.sound`**. | See [Sound (`B.sound`)](#sound-bsound) |
 | **`hide` / `show`** | Script visibility overrides; **`BlockingWithNow<[]>`** (queue vs **`.now`**). | Queued vs **`.now`** |
 | **`visible`** get/set | Setter queues like **`animation`**; **`visibleNow(v)`** applies immediately. | Setter queued |
 | **`description`** get/set | | Sync |
@@ -559,7 +595,9 @@ Strict typing when bypassing **`(p: any)`**:
 
 | Module | Role |
 |--------|------|
-| [`BenneScriptCore.ts`](../src/engine/scripting/BenneScriptCore.ts) | **`BlockingWithNow`**, queue, **`say`/`wait`/fades/clicks/active selection**, **`events`/`raw`**, inventory-on-target **`subscribe*`** helpers, **`cutscene`** / **`cutscene.now`** |
+| [`BenneScriptCore.ts`](../src/engine/scripting/BenneScriptCore.ts) | **`BlockingWithNow`**, queue, **`say`/`wait`/fades/clicks/active selection**, **`sound`**, **`events`/`raw`**, inventory-on-target **`subscribe*`** helpers, **`cutscene`** / **`cutscene.now`** |
+| [`benneScriptSoundApi.ts`](../src/engine/scripting/benneScriptSoundApi.ts) | **`createBenneScriptSoundFacade`** (**`B.sound`**) |
+| [`SoundManager.ts`](../src/engine/sound/SoundManager.ts) | **`Phaser.Game#sound`** playback, SFX tracking, music slot, lifecycle |
 | [`BenneScript.ts`](../src/engine/scripting/BenneScript.ts) | Room **`B`**, verb sugar, **`prop`/`character`/`player`**, **`state`/`inventory`/`dialog`** |
 | [`CharacterBenneScript.ts`](../src/engine/scripting/CharacterBenneScript.ts) | Character facade |
 | [`InventoryBenneScript.ts`](../src/engine/scripting/InventoryBenneScript.ts) | Inventory row façade |

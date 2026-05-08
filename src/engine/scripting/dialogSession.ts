@@ -6,6 +6,7 @@ import {
 } from '../events/dialogEvents.js';
 import { BENNE_ACTIVE_DIALOG_ID_VARIABLE } from '../dialog/dialogOptionVariables.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
 
 /** Minimal surface for {@link import('./DialogBenneScript.js').DialogBenneScript} in session bookkeeping (avoids import cycles). */
 export interface DialogSessionScript {
@@ -35,6 +36,7 @@ export function endDialogSessionIfMatches(script: DialogSessionScript): void {
   manager.clearVariable(BENNE_ACTIVE_DIALOG_ID_VARIABLE);
   script.dispose();
   script.resetInteractionTailForEngine();
+  tryGetBenneSoundManager(script.game)?.stopAllSfx();
   const payload: DialogStoppedPayload = { dialogId };
   gameEvents.emit(DIALOG_STOPPED_EVENT, payload);
 }

@@ -2,12 +2,28 @@ import type { CharacterFacingLetter } from '../../types/character.js';
 import type { Point2 } from '../../types/room.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import type { InventoryVerbInteractPayload } from '../events/inventoryVerbEvents.js';
+import type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
 import type { BenneScriptCore, BenneScriptSayDialogueHybrid, BlockingWithNow } from './BenneScriptCore.js';
 import type { ControlFacade } from './GuiRuntime.js';
 
 export type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 
 /** `B.room` — `changeTo` / `changeToNow` and save-game room context from {@link import('../gameState/GameStateManager.js').GameStateManager}. */
+/**
+ * {@link import('./BenneScriptCore.js').BenneScriptCore.sound} — shared reference on `B`, nested facades, and GUIs.
+ */
+export interface BenneScriptSoundFacade {
+  readonly play: BlockingWithNow<[string, SoundPlayOptions?]>;
+  readonly playAndWait: BlockingWithNow<[string, SoundPlayOptions?]>;
+  readonly playMusic: BlockingWithNow<[string, MusicPlayOptions?]>;
+  readonly stop: BlockingWithNow<[string | undefined]>;
+  readonly stopMusic: BlockingWithNow<[]>;
+  setSfxVolume(volume: number): void;
+  setMusicVolume(volume: number): void;
+  isPlaying(key: string): boolean;
+  isMusicPlaying(): boolean;
+}
+
 export interface BenneScriptRoomFacade {
   readonly current: string;
   readonly last: string | null;
@@ -41,6 +57,7 @@ export type BenneScriptSharedSelectionApi = Pick<
   | 'currentHoverDescription'
   | 'currentHoverTarget'
   | 'room'
+  | 'sound'
 > & {
   readonly fadeOut: BenneScriptCore['fadeOut'];
   readonly fadeIn: BenneScriptCore['fadeIn'];
@@ -94,6 +111,7 @@ export interface RoomInventoryUsedOnRegistrar {
 
 /** Visibility + description overrides for one prop (`BenneScript.prop`). */
 export interface BenneScriptPropFacade {
+  readonly sound: BenneScriptSoundFacade;
   hide: BlockingWithNow<[]>;
   show: BlockingWithNow<[]>;
   get visible(): boolean;
@@ -115,6 +133,7 @@ export interface BenneScriptPropFacade {
 
 /** Movement + animation + facing for the player. */
 export interface BenneScriptPlayerFacade {
+  readonly sound: BenneScriptSoundFacade;
   walkTo: BlockingWithNow<[Point2 | string]>;
   /**
    * Teleport feet to a resolved point (clamped to walkable); updates **Idle** facing. Queued on the
@@ -143,6 +162,7 @@ export interface BenneScriptPlayerFacade {
 
 /** Movement + animation + facing for an NPC. */
 export interface BenneScriptCharacterFacade {
+  readonly sound: BenneScriptSoundFacade;
   walkTo: BlockingWithNow<[Point2 | string]>;
   /** Teleport (see {@link BenneScriptPlayerFacade.moveTo}). */
   moveTo: BlockingWithNow<[Point2 | string]>;

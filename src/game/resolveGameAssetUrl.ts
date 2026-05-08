@@ -1,3 +1,5 @@
+import { benneMusicCacheKey, benneSfxCacheKey } from '../engine/sound/benneAudioCacheKeys.js';
+
 /**
  * Resolves paths from room JSON (`images/...` under `src/game/assets/`) to Vite-built URLs.
  */
@@ -14,6 +16,18 @@ const jsonUrls = import.meta.glob('./assets/**/*.json', {
 }) as Record<string, string>;
 
 const xmlUrls = import.meta.glob('./assets/**/*.xml', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+const sfxAudioUrls = import.meta.glob('./assets/audio/sfx/**/*.{mp3,ogg,wav,m4a}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+const musicAudioUrls = import.meta.glob('./assets/audio/music/**/*.{mp3,ogg,wav,m4a}', {
   eager: true,
   query: '?url',
   import: 'default',
@@ -91,4 +105,64 @@ export function resolveGameAssetXmlUrl(relativePath: string): string {
   }
 
   return absolutizeBundledAssetUrl(url);
+}
+
+export interface BenneAudioBootEntry {
+  readonly cacheKey: string;
+  /** Resolved URLs (often one); multiple formats for the same stem → Phaser tries fallbacks. */
+  readonly urls: readonly string[];
+}
+
+function stemFromAudioGlobKey(globKey: string): string | null {
+  const seg = globKey.replace(/^\.?\//, '').split('/');
+  const file = seg[seg.length - 1];
+  if (!file || !file.includes('.')) {
+    return null;
+  }
+  return file.slice(0, file.lastIndexOf('.'));
+}
+
+function groupAudioByStem(urlMap: Record<string, string>): Map<string, string[]> {
+  const byStem = new Map<string, Set<string>>();
+  for (const [globKey, rawUrl] of Object.entries(urlMap)) {
+    const stem = stemFromAudioGlobKey(globKey);
+    if (stem == null || stem.length === 0) {
+      continue;
+    }
+    let set = byStem.get(stem);
+    if (!set) {
+      set = new Set<string>();
+      byStem.set(stem, set);
+    }
+    set.add(absolutizeBundledAssetUrl(rawUrl));
+  }
+  const out = new Map<string, string[]>();
+  for (const [stem, urlSet] of byStem) {
+    out.set(stem, [...urlSet].sort());
+  }
+  return out;
+}
+
+/**
+ * Entries for {@link import('../engine/sound/queueBenneAudioBoot.js').queueBenneAudioForBootLoader}.
+ * Keys match {@link import('../engine/sound/benneAudioCacheKeys.js').benneSfxCacheKey} /
+ * {@link import('../engine/sound/benneAudioCacheKeys.js').benneMusicCacheKey}.
+ */
+export function getBenneAudioBootEntries(): { sfx: BenneAudioBootEntry[]; music: BenneAudioBootEntry[] } {
+  const sfxGrouped = groupAudioByStem(sfxAudioUrls);
+  const musicGrouped = groupAudioByStem(musicAudioUrls);
+
+  const sfx: BenneAudioBootEntry[] = [];
+  for (const [stem, urls] of sfxGrouped) {
+    sfx.push({ cacheKey: benneSfxCacheKey(stem), urls });
+  }
+  sfx.sort((a, b) => a.cacheKey.localeCompare(b.cacheKey));
+
+  const music: BenneAudioBootEntry[] = [];
+  for (const [stem, urls] of musicGrouped) {
+    music.push({ cacheKey: benneMusicCacheKey(stem), urls });
+  }
+  music.sort((a, b) => a.cacheKey.localeCompare(b.cacheKey));
+
+  return { sfx, music };
 }
