@@ -63,7 +63,13 @@ function resolveInspectorJsonUri(selection: EditorSelection): vscode.Uri | undef
     if (focus.kind === 'room') {
         return focus.uri;
     }
-    if (focus.kind === 'character' || focus.kind === 'gui' || focus.kind === 'inventory' || focus.kind === 'dialog') {
+    if (
+        focus.kind === 'character' ||
+        focus.kind === 'gui' ||
+        focus.kind === 'inventory' ||
+        focus.kind === 'dialog' ||
+        focus.kind === 'pdc'
+    ) {
         return focus.uri;
     }
     if (
@@ -758,7 +764,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         if (!uri) {
             this.postState({
                 kind: 'empty',
-                message: 'Select a room, character, GUI, inventory item, or dialog in the BENNE tree to edit data.'
+                message:
+                    'Select a room, character, GUI, inventory item, dialog, or puzzle dependency chart in the BENNE tree to edit data.'
             });
             return;
         }
@@ -782,6 +789,10 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
 
         if (msg.action === 'openRawJson') {
             await vscode.window.showTextDocument(uri, { preview: false });
+            return;
+        }
+
+        if (focusKind === 'pdc') {
             return;
         }
 
@@ -1125,7 +1136,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         data: Record<string, unknown>,
         uri: vscode.Uri,
         p: WebviewPatch,
-        focusKind: 'none' | 'room' | 'character' | 'gui' | 'inventory' | 'dialog'
+        focusKind: 'none' | 'room' | 'character' | 'gui' | 'inventory' | 'dialog' | 'pdc'
     ): void {
         void uri;
         if (p.type === 'roomMeta') {

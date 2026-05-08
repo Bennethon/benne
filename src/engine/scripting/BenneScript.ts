@@ -94,6 +94,7 @@ export { withNow } from './BenneScriptCore.js';
  * | **`B.inventory.add` / `remove`**, **`.now`** | **`GameStateManager`** quantity mutations. Blocking form **queues** on the interaction tail; **`.now`** applies immediately. **`has`**, **`quantityOf`**, **`items`**, **`clearInventory`** stay synchronous. |
  * | **`B.inventory('id').animation`**, **`cursorAnimation`** | Maps to JSON **`defaultAnimation`** / **`cursorAnimation`**; persisted in **`GameStateManager`** variables. Setters **queue** on the interaction tail (same as **`B.player.animation`**); **`animationNow`** / **`cursorAnimationNow`** apply immediately. Empty string clears that field’s override (JSON applies). |
  * | **`B.prop(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Script visibility overrides. **`hide` / `show` / `visible =`** queue on the interaction tail; **`.now`** / **`visibleNow`** apply immediately. |
+ * | **`B.prop(id).fade(from, to, durationSeconds)`** / **`.now`**, **`B.character(id).fade(...)`** / **`.now`** | Sprite alpha tween (linear ease) from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`**; alphas clamp to **`[0, 1]`**. Blocking form queues on the interaction tail and waits for completion; **`fade.now`** starts immediately. Not persisted to **`GameStateManager`**. |
  *
  * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in `BenneScriptCore`. **`whenVerb`** uses an exact verb id.
  */
@@ -498,6 +499,14 @@ export class BenneScript extends BenneScriptCore {
         },
         (tag: string) => {
           void scene.playPropScriptAnimationOneShot(propId, tag);
+        },
+      ),
+      fade: withNow(
+        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
+          B.chain(() => scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds));
+        },
+        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
+          void scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds);
         },
       ),
     } as BenneScriptPropFacade;

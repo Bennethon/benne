@@ -170,4 +170,12 @@ registerRoomScript(({ B }) => {
     // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
     return false;
   });
+
+  B.whenOpen('Couch', () => {
+    B.prop('Couch').fade(1, 0.5, 1);
+  });
+
+  B.whenOpen('penny', () => {
+    B.character('penny').fade(1, 0.5, 1);
+  });
 });

@@ -1607,6 +1607,70 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
+   * Tween a prop sprite's alpha from `fromAlpha` to `toAlpha` over `durationSeconds`. Kills any
+   * running fade tweens on the sprite first; clamps both alphas to `[0, 1]` and `durationSeconds`
+   * to `>= 0`. Resolves when the tween completes (or immediately if the prop is not in this room).
+   * Backs **`B.prop(id).fade`** / **`fade.now`**; alpha is **not** persisted to {@link GameStateManager}.
+   */
+  fadePropScriptAlpha(
+    propId: string,
+    fromAlpha: number,
+    toAlpha: number,
+    durationSeconds: number,
+  ): Promise<void> {
+    const sprite = this.propSpritesById.get(propId);
+    if (!sprite) {
+      return Promise.resolve();
+    }
+    return this.tweenSpriteAlphaFromTo(sprite, fromAlpha, toAlpha, durationSeconds);
+  }
+
+  /**
+   * Tween a character sprite's alpha from `fromAlpha` to `toAlpha` over `durationSeconds`. Kills any
+   * running fade tweens on the sprite first; clamps both alphas to `[0, 1]` and `durationSeconds`
+   * to `>= 0`. Resolves when the tween completes (or immediately if the character is not spawned).
+   * Backs **`B.character(id).fade`** / **`fade.now`**; alpha is **not** persisted to {@link GameStateManager}.
+   */
+  fadeCharacterScriptAlpha(
+    definitionId: string,
+    fromAlpha: number,
+    toAlpha: number,
+    durationSeconds: number,
+  ): Promise<void> {
+    const sprite = this.characterSpritesByDefId.get(definitionId);
+    if (!sprite) {
+      return Promise.resolve();
+    }
+    return this.tweenSpriteAlphaFromTo(sprite, fromAlpha, toAlpha, durationSeconds);
+  }
+
+  private tweenSpriteAlphaFromTo(
+    sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+    fromAlpha: number,
+    toAlpha: number,
+    durationSeconds: number,
+  ): Promise<void> {
+    this.tweens.killTweensOf(sprite);
+    const from = Phaser.Math.Clamp(fromAlpha, 0, 1);
+    const to = Phaser.Math.Clamp(toAlpha, 0, 1);
+    sprite.setAlpha(from);
+    const durMs = Math.max(0, durationSeconds * 1000);
+    if (durMs === 0) {
+      sprite.setAlpha(to);
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.tweens.add({
+        targets: sprite,
+        alpha: to,
+        duration: durMs,
+        ease: 'Linear',
+        onComplete: () => resolve(),
+      });
+    });
+  }
+
+  /**
    * Walk the player’s feet to a point in walkable space, routing around holes and concavities.
    * The path is computed in {@link findWalkPath} (visibility graph + A\*). Resolves when the
    * final leg completes, or immediately if there is no player / no usable geometry / the player

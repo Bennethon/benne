@@ -45,6 +45,14 @@ export type DeleteTarget =
           displayLabel: string;
       }
     | {
+          /** Designer-only puzzle dependency chart (`*.pdc.json`; not shipped with the game). */
+          type: 'pdc';
+          folder: vscode.WorkspaceFolder;
+          pdcId: string;
+          pdcJsonUri: vscode.Uri;
+          displayLabel: string;
+      }
+    | {
           type: 'prop';
           folder: vscode.WorkspaceFolder;
           roomId: string;
@@ -160,6 +168,14 @@ export function resolveDeleteTargetFromMainTreeNode(
                 folder: node.folder,
                 dialogId: node.id,
                 dialogJsonUri: node.uri,
+                displayLabel: node.name
+            };
+        case 'pdc':
+            return {
+                type: 'pdc',
+                folder: node.folder,
+                pdcId: node.id,
+                pdcJsonUri: node.uri,
                 displayLabel: node.name
             };
         case 'prop':

@@ -48,7 +48,8 @@
     "onCommand:benne-editor.addCharacterInventoryUsedOnStub",
     "onCommand:benne-editor.filterMainTree",
     "onCommand:benne-editor.clearMainTreeFilter",
-    "onCommand:benne-editor.deleteGameEntity"
+    "onCommand:benne-editor.deleteGameEntity",
+    "onCommand:benne-editor.createPdc"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -239,6 +240,12 @@
         "icon": "$(comment-discussion)"
       },
       {
+        "command": "benne-editor.createPdc",
+        "title": "Create Puzzle Chart",
+        "category": "BENNE",
+        "icon": "$(git-merge)"
+      },
+      {
         "command": "benne-editor.importInventoryItemsFromAsepriteTags",
         "title": "Import Inventory Items from Aseprite Tags",
         "category": "BENNE",
@@ -383,6 +390,11 @@
           "group": "navigation@7"
         },
         {
+          "command": "benne-editor.createPdc",
+          "when": "view == benne-editor.main",
+          "group": "navigation@8"
+        },
+        {
           "command": "benne-editor.rebuildCharacterPreview",
           "when": "view == benne-editor.actions",
           "group": "navigation@3"
@@ -405,7 +417,7 @@
         {
           "command": "benne-editor.rebuildEditorPreviewBundles",
           "when": "view == benne-editor.main",
-          "group": "navigation@9"
+          "group": "navigation@10"
         }
       ],
       "view/item/context": [
@@ -466,6 +478,16 @@
         },
         {
           "command": "benne-editor.createDialog",
+          "when": "view == benne-editor.main && viewItem == benneWorkspace",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.createPdc",
+          "when": "view == benne-editor.main && viewItem == bennePdcsGroup",
+          "group": "benne@1"
+        },
+        {
+          "command": "benne-editor.createPdc",
           "when": "view == benne-editor.main && viewItem == benneWorkspace",
           "group": "benne@1"
         },
@@ -633,6 +655,11 @@
           "command": "benne-editor.deleteGameEntity",
           "when": "view == benne-editor.main && viewItem == benneDialog",
           "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == bennePdc",
+          "group": "modification@benneDelete"
         }
       ]
     }
@@ -654,16 +681,19 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.56.1",
-    "eslint": "^9.39.3",
-    "typescript": "^5.9.3",
-    "ts-loader": "^9.5.4",
-    "webpack": "^5.105.3",
-    "webpack-cli": "^6.0.1",
+    "@types/vscode": "^1.85.0",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.39.3",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1",
+    "webpack": "^5.105.3",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "cytoscape": "^3.31.2"
   }
 }

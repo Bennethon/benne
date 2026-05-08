@@ -776,6 +776,16 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             ];
         }
 
+        if (main.kind === 'pdc') {
+            return [
+                { kind: 'guiOpen', label: 'Open chart JSON', targetUri: main.uri },
+                {
+                    kind: 'hint',
+                    message: 'Edit the graph in the PDC Editor panel: add nodes, set labels, link two nodes with “Link nodes”, delete with “Delete selected”.'
+                }
+            ];
+        }
+
         return [
             { kind: 'rebuildRoomPreviewBundle' },
             { kind: 'rebuildCharacterPreviewBundle' },
@@ -784,7 +794,8 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             { kind: 'rebuildDialogPreviewBundle' },
             {
                 kind: 'hint',
-                message: 'Select a room, character, GUI, inventory item, dialog, prop, hotspot, or room character in BENNE'
+                message:
+                    'Select a room, character, GUI, inventory item, dialog, puzzle chart, prop, hotspot, or room character in BENNE'
             }
         ];
     }

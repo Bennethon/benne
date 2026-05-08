@@ -105,6 +105,8 @@ function regexesForDeleteTarget(target: DeleteTarget): RegExp[] {
                 new RegExp(`B\\.dialog\\s*\\(\\s*['\`]${d}['\`]`)
             ];
         }
+        case 'pdc':
+            return [];
         case 'prop': {
             const rr = escapeRe(target.roomId);
             const pr = escapeRe(target.prop.id);
@@ -333,6 +335,8 @@ function collectUrisToClose(target: DeleteTarget): vscode.Uri[] {
                 target.dialogJsonUri,
                 vscode.Uri.joinPath(target.dialogJsonUri, '..', `${target.dialogId}.dialog.ts`)
             ];
+        case 'pdc':
+            return [target.pdcJsonUri];
         case 'prop':
         case 'hotspot':
         case 'point':
@@ -358,6 +362,8 @@ function entityKindLabel(target: DeleteTarget): string {
             return 'inventory item';
         case 'dialog':
             return 'dialog';
+        case 'pdc':
+            return 'puzzle chart';
         case 'prop':
             return 'prop';
         case 'hotspot':
@@ -424,6 +430,9 @@ export async function buildDeleteImpactSummary(target: DeleteTarget): Promise<De
             detailLines.push(
                 '• Script scan lists references in *.room.ts, *.character.ts, *.dialog.ts, *.inventory.ts, and globalScript.ts — search other files by hand if unsure.'
             );
+            break;
+        case 'pdc':
+            detailLines.push(`• Puzzle chart folder src/game/pdcs/${target.pdcId}/ (JSON only — editor tooling)`);
             break;
         case 'prop':
             detailLines.push(
@@ -826,6 +835,11 @@ export async function deleteGameEntity(target: DeleteTarget): Promise<void> {
             await deleteDirectoryIfPresent(dialogDir);
             break;
         }
+        case 'pdc': {
+            const pdcDir = vscode.Uri.joinPath(root, 'src', 'game', 'pdcs', target.pdcId);
+            await deleteDirectoryIfPresent(pdcDir);
+            break;
+        }
         case 'prop': {
             const data = await readRoomJsonRecord(target.roomJsonUri);
             if (!data) {
@@ -957,6 +971,14 @@ export function applySelectionAfterDelete(selection: EditorSelection, target: De
             if (
                 selection.focus.kind === 'dialog' &&
                 selection.focus.uri.toString() === target.dialogJsonUri.toString()
+            ) {
+                selection.clearFocus();
+            }
+            break;
+        case 'pdc':
+            if (
+                selection.focus.kind === 'pdc' &&
+                selection.focus.uri.toString() === target.pdcJsonUri.toString()
             ) {
                 selection.clearFocus();
             }

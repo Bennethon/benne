@@ -38,6 +38,7 @@ import {
     getCharacterIdFromCharacterJsonUri,
     getDialogIdFromDialogJsonUri,
     getGuiIdFromGuiJsonUri,
+    getPdcIdFromPdcJsonUri,
     getInventoryIdFromInventoryJsonUri,
     getRoomIdFromRoomJsonUri,
     readRoomProps
@@ -55,6 +56,8 @@ import {
 } from './propVerbScaffolding';
 import { registerDialogBenneScriptCompletion } from './dialogCompletion';
 import { openDialogScriptEditorOnly, runCreateDialogWizard } from './dialogScaffolding';
+import { runCreatePdcWizard } from './pdcScaffolding';
+import { PdcEditorPanelController } from './pdcPreviewPanel';
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import {
     BENNE_SCRIPT_VIEW_COLUMN,
@@ -143,6 +146,15 @@ function resolveDeleteTargetFromSelectionFocus(
             displayLabel: focus.label
         };
     }
+    if (focus.kind === 'pdc') {
+        return {
+            type: 'pdc',
+            folder,
+            pdcId: getPdcIdFromPdcJsonUri(focus.uri),
+            pdcJsonUri: focus.uri,
+            displayLabel: focus.label
+        };
+    }
     return undefined;
 }
 
@@ -176,6 +188,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const characterPreview = new CharacterPreviewPanelController(context.extensionUri, selection);
     const guiPreview = new GuiPreviewPanelController(context.extensionUri, selection);
     const inventoryPreview = new InventoryPreviewPanelController(context.extensionUri, selection);
+    const pdcEditor = new PdcEditorPanelController(context.extensionUri, selection);
     const bennePlay = new BennePlayPanelController(context.extensionUri);
     const bennePlayWatch = new BennePlayWatchManager();
 
@@ -229,6 +242,7 @@ export function activate(context: vscode.ExtensionContext): void {
         characterPreview,
         guiPreview,
         inventoryPreview,
+        pdcEditor,
         bennePlay,
         bennePlayWatch,
         mainTreeView,
@@ -244,6 +258,7 @@ export function activate(context: vscode.ExtensionContext): void {
         characterPreview.resetPreviewPanel();
         guiPreview.resetPreviewPanel();
         inventoryPreview.resetPreviewPanel();
+        pdcEditor.resetPreviewPanel();
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
     }
 
@@ -507,6 +522,9 @@ export function activate(context: vscode.ExtensionContext): void {
             await resetBenneEditorSurface();
             selection.setDialog(node.uri, node.name);
             await openDialogScriptEditorOnly(node.uri, node.id);
+        } else if (node.kind === 'pdc') {
+            await resetBenneEditorSurface();
+            selection.setPdc(node.uri, node.name);
         }
     }
 
@@ -602,7 +620,7 @@ export function activate(context: vscode.ExtensionContext): void {
             const value = await vscode.window.showInputBox({
                 title: 'Filter BENNE tree',
                 prompt:
-                    'Show only rooms, props, characters, GUIs, inventory entries, and other entries whose name or id contains this text (case-insensitive). Leave empty and press Enter to clear the filter.',
+                    'Show only rooms, props, characters, GUIs, inventory entries, puzzle charts, dialogs, and other entries whose name or id contains this text (case-insensitive). Leave empty and press Enter to clear the filter.',
                 value: mainProvider.getTreeFilter()
             });
             if (value === undefined) {
@@ -629,7 +647,7 @@ export function activate(context: vscode.ExtensionContext): void {
                     resolveDeleteTargetFromSelectionFocus(selection);
                 if (!target) {
                     void vscode.window.showInformationMessage(
-                        'Choose a room, character, GUI, GUI control, inventory item, dialog, prop, hotspot, point, region, or spawned character in the BENNE tree (or run this from its context menu), then try again.'
+                        'Choose a room, character, GUI, GUI control, inventory item, dialog, puzzle chart, prop, hotspot, point, region, or spawned character in the BENNE tree (or run this from its context menu), then try again.'
                     );
                     return;
                 }
@@ -660,11 +678,13 @@ export function activate(context: vscode.ExtensionContext): void {
                     target.type === 'character' ||
                     target.type === 'gui' ||
                     target.type === 'inventory' ||
-                    target.type === 'dialog'
+                    target.type === 'dialog' ||
+                    target.type === 'pdc'
                 ) {
                     roomPreview.resetPreviewPanel();
                     characterPreview.resetPreviewPanel();
                     guiPreview.resetPreviewPanel();
+                    pdcEditor.resetPreviewPanel();
                 } else if (target.type === 'guiControl') {
                     guiPreview.onWorkspaceGuiJsonChanged(target.guiJsonUri);
                 } else if ('roomJsonUri' in target) {
@@ -685,6 +705,12 @@ export function activate(context: vscode.ExtensionContext): void {
                         break;
                     case 'inventory':
                         kindLabel = 'inventory item';
+                        break;
+                    case 'dialog':
+                        kindLabel = 'dialog';
+                        break;
+                    case 'pdc':
+                        kindLabel = 'puzzle chart';
                         break;
                     case 'spawnedCharacter':
                         kindLabel = 'spawned character';
@@ -795,6 +821,16 @@ export function activate(context: vscode.ExtensionContext): void {
                 const preferredFolder =
                     node?.kind === 'dialogsGroup' || node?.kind === 'workspace' ? node.folder : undefined;
                 await runCreateDialogWizard(preferredFolder);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.createPdc',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                const preferredFolder =
+                    node?.kind === 'pdcsGroup' || node?.kind === 'workspace' ? node.folder : undefined;
+                await runCreatePdcWizard(preferredFolder);
                 refreshTrees();
             }
         ),
@@ -1369,11 +1405,13 @@ export function activate(context: vscode.ExtensionContext): void {
             refreshTrees();
             roomPreview.onWorkspaceRoomJsonChanged(uri);
             guiPreview.onWorkspaceGuiJsonChanged(uri);
+            pdcEditor.onWorkspacePdcJsonChanged(uri);
         }),
         jsonWatcher.onDidCreate((uri) => {
             refreshTrees();
             roomPreview.onWorkspaceRoomJsonChanged(uri);
             guiPreview.onWorkspaceGuiJsonChanged(uri);
+            pdcEditor.onWorkspacePdcJsonChanged(uri);
         }),
         jsonWatcher.onDidDelete(refreshTrees),
         vscode.workspace.onDidChangeTextDocument((e) => {

@@ -8,6 +8,7 @@ import {
     listGuiDefinitions,
     listDialogDefinitions,
     listInventoryDefinitions,
+    listPdcDefinitions,
     listRoomDefinitions,
     propAsepriteAssetTooltip,
     readCharacterUsesAsepriteDisplay,
@@ -39,6 +40,7 @@ export type MainTreeNode =
     | { kind: 'guisGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'inventoryGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'dialogsGroup'; folder: vscode.WorkspaceFolder }
+    | { kind: 'pdcsGroup'; folder: vscode.WorkspaceFolder }
     | {
           kind: 'room';
           folder: vscode.WorkspaceFolder;
@@ -168,6 +170,13 @@ export type MainTreeNode =
       }
     | {
           kind: 'dialog';
+          folder: vscode.WorkspaceFolder;
+          id: string;
+          name: string;
+          uri: vscode.Uri;
+      }
+    | {
+          kind: 'pdc';
           folder: vscode.WorkspaceFolder;
           id: string;
           name: string;
@@ -331,6 +340,14 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
         return dialogs.some((d) => textMatches(d.name, q) || textMatches(d.id, q));
     }
 
+    private async folderHasAnyMatchingPdc(folder: vscode.WorkspaceFolder, q: string): Promise<boolean> {
+        if (!q) {
+            return true;
+        }
+        const pdcs = await listPdcDefinitions(folder);
+        return pdcs.some((p) => textMatches(p.name, q) || textMatches(p.id, q));
+    }
+
     /** Filter match for the fixed "Game Config" tree row (`src/game/game-config.json`). */
     private gameConfigMatchesFilter(q: string): boolean {
         if (!q) {
@@ -459,6 +476,16 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.id = `dialogsGroup:${element.folder.uri.toString()}`;
                 item.iconPath = new vscode.ThemeIcon('comment-discussion');
                 item.contextValue = 'benneDialogsGroup';
+                return item;
+            }
+            case 'pdcsGroup': {
+                const item = new vscode.TreeItem(
+                    'Puzzle Dependency Charts',
+                    vscode.TreeItemCollapsibleState.Expanded
+                );
+                item.id = `pdcsGroup:${element.folder.uri.toString()}`;
+                item.iconPath = new vscode.ThemeIcon('git-merge');
+                item.contextValue = 'bennePdcsGroup';
                 return item;
             }
             case 'room': {
@@ -661,6 +688,15 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.description = element.id;
                 return item;
             }
+            case 'pdc': {
+                const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
+                item.id = `pdc:${element.uri.toString()}`;
+                item.resourceUri = element.uri;
+                item.iconPath = new vscode.ThemeIcon('git-merge');
+                item.contextValue = 'bennePdc';
+                item.description = element.id;
+                return item;
+            }
         }
     }
 
@@ -700,6 +736,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 if (!fq || (await this.folderHasAnyMatchingDialog(f, fq))) {
                     nodes.push({ kind: 'dialogsGroup', folder: f });
                 }
+                if (!fq || (await this.folderHasAnyMatchingPdc(f, fq))) {
+                    nodes.push({ kind: 'pdcsGroup', folder: f });
+                }
                 if (fq && nodes.length === 0) {
                     return [
                         {
@@ -720,7 +759,8 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                         (await this.folderHasAnyMatchingCharacter(folder, fq)) ||
                         (await this.folderHasAnyMatchingGui(folder, fq)) ||
                         (await this.folderHasAnyMatchingInventory(folder, fq)) ||
-                        (await this.folderHasAnyMatchingDialog(folder, fq));
+                        (await this.folderHasAnyMatchingDialog(folder, fq)) ||
+                        (await this.folderHasAnyMatchingPdc(folder, fq));
                     if (any) {
                         kept.push({ kind: 'workspace', folder });
                     }
@@ -762,6 +802,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
             }
             if (!fq || (await this.folderHasAnyMatchingDialog(element.folder, fq))) {
                 nodes.push({ kind: 'dialogsGroup', folder: element.folder });
+            }
+            if (!fq || (await this.folderHasAnyMatchingPdc(element.folder, fq))) {
+                nodes.push({ kind: 'pdcsGroup', folder: element.folder });
             }
             if (fq && nodes.length === 0) {
                 return [
@@ -1298,6 +1341,27 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 id: d.id,
                 name: d.name,
                 uri: d.uri
+            }));
+        }
+
+        if (element.kind === 'pdcsGroup') {
+            const pdcs = await listPdcDefinitions(element.folder);
+            const list = fq ? pdcs.filter((p) => textMatches(p.name, fq) || textMatches(p.id, fq)) : pdcs;
+            if (list.length === 0) {
+                return [
+                    {
+                        kind: 'hint',
+                        key: `no-pdcs:${element.folder.uri}`,
+                        message: fq ? '(no matching puzzle charts)' : '(no puzzle charts found)'
+                    }
+                ];
+            }
+            return list.map((p) => ({
+                kind: 'pdc' as const,
+                folder: element.folder,
+                id: p.id,
+                name: p.name,
+                uri: p.uri
             }));
         }
 

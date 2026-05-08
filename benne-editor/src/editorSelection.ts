@@ -7,7 +7,8 @@ export type EditorFocus =
     | { kind: 'character'; uri: vscode.Uri; label: string }
     | { kind: 'gui'; uri: vscode.Uri; label: string }
     | { kind: 'inventory'; uri: vscode.Uri; label: string }
-    | { kind: 'dialog'; uri: vscode.Uri; label: string };
+    | { kind: 'dialog'; uri: vscode.Uri; label: string }
+    | { kind: 'pdc'; uri: vscode.Uri; label: string };
 
 /** Control row selected under a GUI in the BENNE tree (drives Inspector scroll / expand). */
 export type GuiPanelFocus =
@@ -170,6 +171,13 @@ export class EditorSelection {
 
     setDialog(uri: vscode.Uri, label: string): void {
         this._main = { kind: 'dialog', uri, label };
+        this._roomPanel = { kind: 'none' };
+        this._guiPanel = { kind: 'none' };
+        this._onDidChange.fire();
+    }
+
+    setPdc(uri: vscode.Uri, label: string): void {
+        this._main = { kind: 'pdc', uri, label };
         this._roomPanel = { kind: 'none' };
         this._guiPanel = { kind: 'none' };
         this._onDidChange.fire();
