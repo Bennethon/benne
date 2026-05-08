@@ -19,19 +19,21 @@ registerRoomScript(({ B }) => {
   });
 
   B.whenEnterRoomAfterFade(() => {
-    B.character('henry').say('Hey, Hank!');
-    B.character('henry').say('Come here!');
-    B.player.walkTo('henry');
-    B.player.say('What\'s up?');
-    B.character('henry').walkTo('henry-fountain');
-    B.character('henry').face('L');
-    B.character('henry').say('Check out this fountain!');
-    B.player.walkTo('FountainOff');
-    B.player.face('R');
-    B.wait(1);
-    B.player.say('What about it?');
-    B.character('henry').say('I need you to turn it on. It\'s really important.');
-    B.player.say('Uh, ok.');
+    if (B.room.isFirstVisit) {
+      B.character('henry').say('Hey, Hank!');
+      B.character('henry').say('Come here!');
+      B.player.walkTo('henry');
+      B.player.say('What\'s up?');
+      B.character('henry').walkTo('henry-fountain');
+      B.character('henry').face('L');
+      B.character('henry').say('Check out this fountain!');
+      B.player.walkTo('FountainOff');
+      B.player.face('R');
+      B.wait(1);
+      B.player.say('What about it?');
+      B.character('henry').say('I need you to turn it on. It\'s really important.');
+      B.player.say('Uh, ok.');
+    }
   });
 
   const handleOpenOrUseDoor = () => {
@@ -98,6 +100,8 @@ registerRoomScript(({ B }) => {
     B.prop('LeverPulled').show();
     B.prop('FountainOff').hide();
     B.prop('FountainOn').show();
+    B.state.setFlag('turnedOnFountain', true);
+    B.display('You won!');
   };
 
   B.whenPull('RockMoved', handlePushOrPullLever);

@@ -7,6 +7,8 @@ import type { RoomScene } from '../scenes/RoomScene.js';
 import {
   applyCharacterEffectiveAnimation,
   getCharacterAnimationOverrideTag,
+  readSavedCharacterVisible,
+  writeSavedCharacterVisible,
 } from '../benneAnimationRuntime.js';
 import {
   playDirectionalAnimation,
@@ -1526,6 +1528,105 @@ export abstract class BenneScriptCore {
       moveTo: moveToTeleport,
       moveToNow: (target: Point2 | string) => {
         moveToTeleport.now(target);
+      },
+      hide: withNow(
+        () => {
+          core.chain(() => {
+            const scene = getScene();
+            if (scene) {
+              scene.setCharacterScriptVisible(definitionId, false);
+            } else {
+              const mgr = tryGetActiveGameStateManager();
+              if (mgr) {
+                writeSavedCharacterVisible(mgr, definitionId, false);
+              } else {
+                warnNoRoom();
+              }
+            }
+            return Promise.resolve();
+          });
+        },
+        () => {
+          const scene = getScene();
+          if (scene) {
+            scene.setCharacterScriptVisible(definitionId, false);
+            return;
+          }
+          const mgr = tryGetActiveGameStateManager();
+          if (mgr) {
+            writeSavedCharacterVisible(mgr, definitionId, false);
+            return;
+          }
+          warnNoRoom();
+        },
+      ),
+      show: withNow(
+        () => {
+          core.chain(() => {
+            const scene = getScene();
+            if (scene) {
+              scene.setCharacterScriptVisible(definitionId, true);
+            } else {
+              const mgr = tryGetActiveGameStateManager();
+              if (mgr) {
+                writeSavedCharacterVisible(mgr, definitionId, true);
+              } else {
+                warnNoRoom();
+              }
+            }
+            return Promise.resolve();
+          });
+        },
+        () => {
+          const scene = getScene();
+          if (scene) {
+            scene.setCharacterScriptVisible(definitionId, true);
+            return;
+          }
+          const mgr = tryGetActiveGameStateManager();
+          if (mgr) {
+            writeSavedCharacterVisible(mgr, definitionId, true);
+            return;
+          }
+          warnNoRoom();
+        },
+      ),
+      get visible() {
+        const scene = getScene();
+        if (scene) {
+          return scene.getCharacterScriptVisible(definitionId);
+        }
+        const mgr = tryGetActiveGameStateManager();
+        return mgr ? readSavedCharacterVisible(mgr, definitionId, true) : true;
+      },
+      set visible(v: boolean) {
+        core.chain(() => {
+          const scene = getScene();
+          if (scene) {
+            scene.setCharacterScriptVisible(definitionId, v);
+          } else {
+            const mgr = tryGetActiveGameStateManager();
+            if (mgr) {
+              writeSavedCharacterVisible(mgr, definitionId, v);
+            } else {
+              warnNoRoom();
+            }
+          }
+          return Promise.resolve();
+        });
+      },
+      visibleNow(v: boolean): void {
+        const scene = getScene();
+        if (scene) {
+          scene.setCharacterScriptVisible(definitionId, v);
+          return;
+        }
+        const mgr = tryGetActiveGameStateManager();
+        if (mgr) {
+          writeSavedCharacterVisible(mgr, definitionId, v);
+          return;
+        }
+        warnNoRoom();
       },
       get animation() {
         const scene = getScene();

@@ -178,4 +178,8 @@ registerRoomScript(({ B }) => {
   B.whenOpen('penny', () => {
     B.character('penny').fade(1, 0.5, 1);
   });
+
+  B.whenClose('penny', () => {
+    B.character('penny').hide();
+  });
 });

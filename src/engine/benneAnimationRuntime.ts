@@ -28,6 +28,10 @@ export function characterAlphaVariableKey(characterId: string): string {
   return `character:${characterId}:alpha`;
 }
 
+export function characterVisibleVariableKey(characterId: string): string {
+  return `character:${characterId}:visible`;
+}
+
 /** Sprite data: persisted override tag (`string`) or `null` when cleared. */
 export const BENNE_CHARACTER_ANIMATION_OVERRIDE_KEY = 'benneAnimationOverride';
 
@@ -150,6 +154,25 @@ export function writeSavedCharacterAlpha(
 ): void {
   const clamped = Math.min(1, Math.max(0, alpha));
   manager.setVariable(characterAlphaVariableKey(characterId), clamped);
+}
+
+/** Effective `B.character(id).visible` — saved override (boolean) when set, else `jsonDefault`. */
+export function readSavedCharacterVisible(
+  manager: GameStateManager,
+  characterId: string,
+  jsonDefault: boolean,
+): boolean {
+  const v = manager.getVariable(characterVisibleVariableKey(characterId));
+  return typeof v === 'boolean' ? v : jsonDefault;
+}
+
+/** Persist `B.character(id).hide` / `show` / `visible = …` / `visibleNow(…)` for this character id. */
+export function writeSavedCharacterVisible(
+  manager: GameStateManager,
+  characterId: string,
+  visible: boolean,
+): void {
+  manager.setVariable(characterVisibleVariableKey(characterId), visible);
 }
 
 /** Non-directional override clip when set; otherwise directional idle from current `facing`. */

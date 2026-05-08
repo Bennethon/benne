@@ -108,7 +108,7 @@ type BenneScriptSayDialogueHybrid = {
 | **`onVerbContextChanged`** | getter → **`Phaser.Events.EventEmitter`** | Fires when active verb / active inventory / hover changes. **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, handler)`** — import **`BENNE_VERB_CONTEXT_CHANGED_EVENT`** from **`@engine/scripting`**. Listeners for that event are cleared when **`RoomScene`** shuts down. | Sync |
 | **`currentHoverDescription`** | getter → `string \| null` | Verb-line hover label under the pointer (**`RoomScene`**; **`null`** when suppressed / empty). | Sync |
 | **`currentHoverTarget`** | getter → **`VerbHoverTarget \| null`** | Structured hover (**`verbContext`** types). | Sync |
-| **`room`** | See [`BenneScriptRoomFacade`](architecture.md) | **`current`**, **`last`**, **`changeTo`**, **`changeTo.now`**, **`changeToNow`**. | **`changeTo`** queued; **`.now` / `changeToNow`** via orchestrator **`changeTo(roomId, true)`** |
+| **`room`** | See [`BenneScriptRoomFacade`](architecture.md) | **`current`**, **`last`**, **`visitCount`**, **`isFirstVisit`**, **`changeTo`**, **`changeTo.now`**, **`changeToNow`**. | **`changeTo`** queued; **`.now` / `changeToNow`** via orchestrator **`changeTo(roomId, true)`** |
 
 **`VerbHoverTarget`** ([`verbContext.ts`](../src/types/verbContext.ts)): **`description`**; **`targetType`** (`prop` \| `hotspot` \| `character` \| `inventoryRow` \| `null`); **`targetId`** (room entity id) when not an inventory row; **`itemId`** when **`targetType === 'inventoryRow'`**; optional **`defaultVerb`** — non-empty authored **`defaultVerb`** from the same JSON row **`resolvePointerVerbForTarget`** uses (omitted when unset or empty).
 
@@ -118,12 +118,16 @@ type BenneScriptSayDialogueHybrid = {
 interface BenneScriptRoomFacade {
   readonly current: string;
   readonly last: string | null;
+  readonly visitCount: number;
+  readonly isFirstVisit: boolean;
   changeTo: BlockingWithNow<[roomId: string]>;
   changeToNow(roomId: string): void;
 }
 ```
 
 - **`current` / `last`** mirror **`GameStateManager`** (same idea as **`B.state.getCurrentRoom`** / **`getLastRoom`**).
+- **`visitCount`** — persisted number of times the player has **entered** the **current** room (**`1`** on the first enter, **`2`** on the next, …). Stored under **`GameStateManager.variables`** as `` `room:<roomId>:visitCount` ``; **`0`** when there is no manager or **`current`** is empty. Incremented by the engine at room load **before** **`whenEnterRoom`** / **`whenEnterAnyRoom`** (and the same counter in the VS Code room preview). Survives **`B.state.exportJson` / `importJson`** and browser saves.
+- **`isFirstVisit`** — **`true`** when **`visitCount === 1`** for the current room (convenience for first-time-enter logic).
 - **`changeTo`** queues **`RoomTransitionOrchestrator.changeTo(roomId, false)`** through the facade’s **`chain`**.
 - **`changeTo.now`** / **`changeToNow`** call **`orch.changeTo(roomId, true)`** (skip leave-queue behavior per orchestrator).
 
@@ -253,13 +257,16 @@ Constructed from active **`RoomScene`** (global/dialog resolve **`SCENE_ROOM` on
 
 Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / **`face`** pattern as **`B.player`**, routed to **`walkCharacterTo`**, **`moveCharacterToNow`**, **`faceCharacterScriptDirection`**, character animation scripting APIs (**`NPC`** — no **`walkToClicked`** on facade; use top-level **`B.walkToClicked`** / **`B.player.*`**). Exposes **`sound`** (**same object** as **`B.sound`**).
 
-**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. When there is **no** active **`RoomScene`**, calls no-op and DEV **`console.warn`** once (same spirit as **`B.player`** without a room).
+**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. Movement / **`face`** / **`fade`** with no room no-op and DEV **`console.warn`** once. **`hide` / `show` / `visible` / `visibleNow`** still persist to **`GameStateManager`** when a manager is active so visibility survives the next room load even if **`RoomScene`** is not resolved yet.
 
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
+| **`hide` / `show`** | **`BlockingWithNow<[]>`** | Script visibility overrides (persisted — see [architecture.md §7](architecture.md#7-scripting--interaction-system-bennescript)); queue vs **`.now`**. | Queued vs **`.now`** |
+| **`visible`** get/set | Setter queues like **`animation`**; **`visibleNow(v)`** applies immediately. Both persist a boolean to **`GameStateManager`** (key `` `character:<characterId>:visible` ``). **`getCharacterScriptVisible`** returns the live sprite when one exists, else the saved override, then the first room JSON placement default. | Setter queued |
 | **`fade`** | `BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>` | Tween the character sprite's `alpha` from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`** (`Linear`); alphas clamp to `[0, 1]`, duration to `>= 0` (`0` snaps to **`toAlpha`**). Each call kills running tweens on the sprite first, then sets `alpha = fromAlpha` before tweening. **`toAlpha`** is **persisted** to **`GameStateManager`** (key `` `character:<characterId>:alpha` ``) at call time and re-applied on every spawn (saving mid-fade restores the intended final alpha). Routes through **`RoomScene.fadeCharacterScriptAlpha`**. | Queued (waits for tween) vs **`.now`** |
 
 ```ts
+B.character('penny').hide(); // persisted; stays hidden after room change / save when Penny is in the room
 B.character('penny').fade(0, 1, 0.5); // fade Penny in from transparent to opaque over 0.5 s
 B.character('penny').fade.now(1, 0, 1); // start fade-out immediately, don't block following lines
 ```
@@ -404,6 +411,21 @@ whenLeaveRoom(handler: (ctx: RoomTransitionContext) => void | Promise<void>): vo
 whenEnterRoom(handler: (ctx: RoomTransitionContext) => void | Promise<void>): void;
 whenEnterRoomAfterFade(handler: (ctx: RoomTransitionContext) => void | Promise<void>): void;
 ```
+
+**`RoomTransitionContext`** (`src/types/roomTransition.ts`):
+
+```ts
+interface RoomTransitionContext {
+  roomId: string;
+  lastRoom: string | null;
+  /** First enter to this roomId in the current browser session (in-memory). */
+  isFirstEnter: boolean;
+  /** Persisted cumulative enter count for roomId (includes this entry on enter / after-fade). */
+  visitCount: number;
+}
+```
+
+**`isFirstEnter`** vs **`visitCount` / `B.room.isFirstVisit`** — session-scoped **first enter** vs save-backed **visit counter** (see [architecture.md — Room transitions](architecture.md) callout).
 
 Registry from **`tryGetGlobalRoomHookRegistry()`** — if missing, DEV warns and handlers are **not** wired.
 

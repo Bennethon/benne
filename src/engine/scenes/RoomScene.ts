@@ -49,12 +49,14 @@ import {
   promiseWhenSpriteAnimationFinishes,
   readSavedCharacterAlpha,
   readSavedCharacterAnimationOverride,
+  readSavedCharacterVisible,
   readSavedPropAlpha,
   readSavedPropBaseAnimationTag,
   readSavedPropVisible,
   setCharacterAnimationOverrideTagOnSprite,
   writeSavedCharacterAlpha,
   writeSavedCharacterAnimationOverride,
+  writeSavedCharacterVisible,
   writeSavedPropAlpha,
   writeSavedPropBaseAnimationTag,
   writeSavedPropVisible,
@@ -96,6 +98,7 @@ import {
 import { getEffectiveInputProfile } from '../verbs/verbConfig';
 import { resolvePointerVerbForTarget, type PointerVerbTarget } from '../verbs/resolvePointerVerb';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
+import { incrementRoomVisitCount } from '../gameState/roomVisitState';
 import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
@@ -305,6 +308,12 @@ export class RoomScene extends Phaser.Scene {
     Phaser.GameObjects.Sprite | Phaser.GameObjects.Image
   >();
 
+  /**
+   * First JSON `RoomCharacterInstance.visible` fold (`!== false`) per character definition id
+   * in this room (same “first wins” rule as {@link characterSpritesByDefId}).
+   */
+  private characterJsonVisibleByDefId = new Map<string, boolean>();
+
   /** Active scripted walks for non-player characters (by sprite identity). */
   private npcWalkTweens = new Map<
     Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
@@ -429,6 +438,7 @@ export class RoomScene extends Phaser.Scene {
     this.propSpritesById.clear();
     this.propDescriptionOverrides.clear();
     this.characterSpritesByDefId.clear();
+    this.characterJsonVisibleByDefId.clear();
     this.npcWalkTweens.clear();
     this.unresolvedWalkTargetIdsWarned.clear();
     this.missingDialogTextOverlaySayWarned = false;
@@ -455,6 +465,12 @@ export class RoomScene extends Phaser.Scene {
       (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0),
     );
     sortedHotspots.forEach((hotspot) => this.createHotspot(data.room.id, hotspot, roomW, roomH));
+    for (const spawn of data.characters) {
+      const defId = spawn.data.id;
+      if (!this.characterJsonVisibleByDefId.has(defId)) {
+        this.characterJsonVisibleByDefId.set(defId, spawn.visible !== false);
+      }
+    }
     data.characters.forEach((spawn) => this.spawnCharacter(data.room.id, spawn));
     this.updateRoomStackDepths();
 
@@ -689,6 +705,7 @@ export class RoomScene extends Phaser.Scene {
       if (cur == null || cur.length === 0) {
         mgr.setCurrentRoom(this.roomData.id);
       }
+      incrementRoomVisitCount(mgr, this.roomData.id);
     }
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -1623,6 +1640,30 @@ export class RoomScene extends Phaser.Scene {
   setPropScriptVisible(propId: string, visible: boolean): void {
     writeSavedPropVisible(resolveGameStateManager(this.game), this.roomData.id, propId, visible);
     this.propSpritesById.get(propId)?.setVisible(visible);
+  }
+
+  /**
+   * Effective `B.character(id).visible` — saved override wins, then the live sprite, then the
+   * first room JSON placement default for this definition id.
+   */
+  getCharacterScriptVisible(definitionId: string): boolean {
+    const sprite = this.getCharacterSprite(definitionId);
+    if (sprite) {
+      return sprite.visible;
+    }
+    const jsonDefault = this.characterJsonVisibleByDefId.get(definitionId) ?? true;
+    const manager = resolveGameStateManager(this.game);
+    return readSavedCharacterVisible(manager, definitionId, jsonDefault);
+  }
+
+  /**
+   * Persist + apply visibility for one spawned character definition id. Survives room reloads;
+   * spawn re-applies via {@link readSavedCharacterVisible}. Backs **`B.character(id).hide` / `show` /
+   * `visible = …` / `visibleNow(…)`**.
+   */
+  setCharacterScriptVisible(definitionId: string, visible: boolean): void {
+    writeSavedCharacterVisible(resolveGameStateManager(this.game), definitionId, visible);
+    this.getCharacterSprite(definitionId)?.setVisible(visible);
   }
 
   /**
@@ -3034,8 +3075,10 @@ export class RoomScene extends Phaser.Scene {
     const sprite = this.add.image(0, 0, spawn.textureKey);
     const feet = resolveCharacterFeetLocal(spawn.data, sprite as Phaser.GameObjects.Sprite);
     this.applyFeetWorldWithRegionScale(sprite, feet, spawn.x, spawn.y);
-    sprite.setVisible(spawn.visible !== false);
-    sprite.setAlpha(readSavedCharacterAlpha(resolveGameStateManager(this.game), spawn.data.id, 1));
+    const manager = resolveGameStateManager(this.game);
+    const jsonVisible = spawn.visible !== false;
+    sprite.setVisible(readSavedCharacterVisible(manager, spawn.data.id, jsonVisible));
+    sprite.setAlpha(readSavedCharacterAlpha(manager, spawn.data.id, 1));
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
     sprite.setData('instanceId', spawn.instanceId);
@@ -3054,8 +3097,10 @@ export class RoomScene extends Phaser.Scene {
 
   private spawnAsepriteCharacter(roomId: string, spawn: RoomCharacterSpawn): void {
     const sprite = this.add.sprite(0, 0, spawn.textureKey);
-    sprite.setVisible(spawn.visible !== false);
-    sprite.setAlpha(readSavedCharacterAlpha(resolveGameStateManager(this.game), spawn.data.id, 1));
+    const manager = resolveGameStateManager(this.game);
+    const jsonVisible = spawn.visible !== false;
+    sprite.setVisible(readSavedCharacterVisible(manager, spawn.data.id, jsonVisible));
+    sprite.setAlpha(readSavedCharacterAlpha(manager, spawn.data.id, 1));
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
     sprite.setData('instanceId', spawn.instanceId);
@@ -3068,7 +3113,6 @@ export class RoomScene extends Phaser.Scene {
 
     const animBase = spawn.initialAnimation ?? 'Idle';
     const facing = resolveSpawnIdleFacing(sprite, spawn.initialFacing);
-    const manager = resolveGameStateManager(this.game);
     const savedOverride = readSavedCharacterAnimationOverride(manager, spawn.data.id);
     if (savedOverride && sprite.anims.exists(savedOverride)) {
       setCharacterAnimationOverrideTagOnSprite(sprite, savedOverride);
@@ -3107,8 +3151,9 @@ export class RoomScene extends Phaser.Scene {
     spawn: RoomCharacterSpawn,
     sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite,
   ): void {
-    // Same as clickable props starting hidden (`visible: false`): register input anyway;
-    // Phaser only considers candidates that `willRender`, so invisible spawns stay inert.
+    // Same as clickable props starting hidden (`visible: false`) and `B.character(id).hide()`:
+    // register input anyway. Phaser only considers candidates that `willRender`, so invisible
+    // spawns stay inert.
 
     if (!spawn.data.clickable) {
       return;
