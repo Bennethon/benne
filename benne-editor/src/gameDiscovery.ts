@@ -351,6 +351,53 @@ async function readDialogMeta(uri: vscode.Uri, fallbackId: string): Promise<{ na
     }
 }
 
+async function readPdcMeta(uri: vscode.Uri, fallbackId: string): Promise<{ name: string }> {
+    try {
+        const raw = await vscode.workspace.fs.readFile(uri);
+        const text = new TextDecoder('utf-8').decode(raw);
+        const data = JSON.parse(text) as { name?: string };
+        const name =
+            typeof data.name === 'string' && data.name.trim().length > 0 ? data.name.trim() : fallbackId;
+        return { name };
+    } catch {
+        return { name: fallbackId };
+    }
+}
+
+/** Folder name for `pdcs/<id>/<id>.pdc.json`. */
+export function getPdcIdFromPdcJsonUri(pdcJsonUri: vscode.Uri): string {
+    return path.basename(path.dirname(pdcJsonUri.fsPath));
+}
+
+/** Lists designer-only puzzle dependency charts under `src/game/pdcs/<id>/<id>.pdc.json`. */
+export async function listPdcDefinitions(
+    gameFolder: vscode.WorkspaceFolder
+): Promise<{ id: string; name: string; uri: vscode.Uri }[]> {
+    const pdcsDir = vscode.Uri.joinPath(gameFolder.uri, 'src', 'game', 'pdcs');
+    let entries: [string, vscode.FileType][];
+    try {
+        entries = await vscode.workspace.fs.readDirectory(pdcsDir);
+    } catch {
+        return [];
+    }
+    const result: { id: string; name: string; uri: vscode.Uri }[] = [];
+    for (const [name, type] of entries) {
+        if (type !== vscode.FileType.Directory) {
+            continue;
+        }
+        const uri = vscode.Uri.joinPath(pdcsDir, name, `${name}.pdc.json`);
+        try {
+            await vscode.workspace.fs.stat(uri);
+        } catch {
+            continue;
+        }
+        const meta = await readPdcMeta(uri, name);
+        result.push({ id: name, name: meta.name, uri });
+    }
+    result.sort((a, b) => a.id.localeCompare(b.id));
+    return result;
+}
+
 /** Lists `src/game/dialogs/<id>/<id>.dialog.json` (SCUMM-style topic dialogs). */
 export async function listDialogDefinitions(
     gameFolder: vscode.WorkspaceFolder

@@ -129,6 +129,13 @@ export interface BenneScriptPropFacade {
   animationNow(tag: string): void;
   /** One-shot clip (not saved); restores {@link animation} when the clip ends. */
   playAnimation: BlockingWithNow<[string]>;
+  /**
+   * Tween the prop sprite's alpha from `fromAlpha` to `toAlpha` over `durationSeconds`.
+   * Kills any running fade tweens on the sprite first; alphas clamp to `[0, 1]` and duration to `>= 0`.
+   * **Blocking** form queues on the interaction tail and waits for the tween to complete; **`fade.now`**
+   * starts the same tween without blocking subsequent script lines. Alpha is **not** persisted across room loads.
+   */
+  fade: BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>;
 }
 
 /** Movement + animation + facing for the player. */
@@ -176,6 +183,13 @@ export interface BenneScriptCharacterFacade {
   stopAnimation(): void;
   say: BenneScriptSayDialogueHybrid;
   face: BlockingWithNow<[CharacterFacingLetter]>;
+  /**
+   * Tween the character sprite's alpha from `fromAlpha` to `toAlpha` over `durationSeconds`.
+   * Kills any running fade tweens on the sprite first; alphas clamp to `[0, 1]` and duration to `>= 0`.
+   * **Blocking** form queues on the interaction tail and waits for the tween to complete; **`fade.now`**
+   * starts the same tween without blocking subsequent script lines. Alpha is **not** persisted across room loads.
+   */
+  fade: BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>;
 }
 
 /**

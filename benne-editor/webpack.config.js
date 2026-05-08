@@ -71,4 +71,32 @@ const inspectorWebviewConfig = {
   },
 };
 
-module.exports = [extensionConfig, inspectorWebviewConfig];
+/** PDC editor webview (Cytoscape.js). */
+/** @type WebpackConfig */
+const pdcEditorWebviewConfig = {
+  target: 'web',
+  mode: 'none',
+  entry: './src/pdc/pdcEditorMain.ts',
+  output: {
+    path: path.resolve(__dirname, 'media', 'pdc-editor'),
+    filename: 'pdc-editor.js',
+  },
+  resolve: {
+    extensions: ['.ts', '.js'],
+  },
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        exclude: /node_modules/,
+        use: [{ loader: 'ts-loader' }],
+      },
+    ],
+  },
+  devtool: false,
+  infrastructureLogging: {
+    level: 'log',
+  },
+};
+
+module.exports = [extensionConfig, inspectorWebviewConfig, pdcEditorWebviewConfig];

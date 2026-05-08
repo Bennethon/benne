@@ -566,6 +566,13 @@ export async function buildInspectorState(
     if (focus.kind === 'dialog') {
         return buildDialogInspectorState(jsonUri, rev);
     }
+    if (focus.kind === 'pdc') {
+        return {
+            kind: 'empty',
+            message:
+                'This puzzle dependency chart is edited in the PDC Editor panel (Cytoscape). Use Actions → Open chart JSON if you need the raw file.'
+        };
+    }
     return buildRoomInspectorState(jsonUri, roomPanel, rev);
 }
 

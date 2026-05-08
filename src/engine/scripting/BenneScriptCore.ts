@@ -1586,6 +1586,26 @@ export abstract class BenneScriptCore {
         },
         runCharacterFace,
       ),
+      fade: withNow(
+        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
+          core.chain(() => {
+            const scene = getScene();
+            if (!scene) {
+              warnNoRoom();
+              return Promise.resolve();
+            }
+            return scene.fadeCharacterScriptAlpha(definitionId, fromAlpha, toAlpha, durationSeconds);
+          });
+        },
+        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
+          const scene = getScene();
+          if (!scene) {
+            warnNoRoom();
+            return;
+          }
+          void scene.fadeCharacterScriptAlpha(definitionId, fromAlpha, toAlpha, durationSeconds);
+        },
+      ),
     } as BenneScriptCharacterFacade;
   }
 }
