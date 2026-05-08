@@ -12,8 +12,20 @@ export function roomPropAnimationVariableKey(roomId: string, propId: string): st
   return `room:${roomId}:prop:${propId}:animation`;
 }
 
+export function roomPropVisibleVariableKey(roomId: string, propId: string): string {
+  return `room:${roomId}:prop:${propId}:visible`;
+}
+
+export function roomPropAlphaVariableKey(roomId: string, propId: string): string {
+  return `room:${roomId}:prop:${propId}:alpha`;
+}
+
 export function characterAnimationVariableKey(characterId: string): string {
   return `character:${characterId}:animation`;
+}
+
+export function characterAlphaVariableKey(characterId: string): string {
+  return `character:${characterId}:alpha`;
 }
 
 /** Sprite data: persisted override tag (`string`) or `null` when cleared. */
@@ -69,6 +81,75 @@ export function writeSavedPropBaseAnimationTag(
   tag: string,
 ): void {
   manager.setVariable(roomPropAnimationVariableKey(roomId, propId), tag);
+}
+
+/** Effective `B.prop(id).visible` — saved override (boolean) when set, else `jsonDefault`. */
+export function readSavedPropVisible(
+  manager: GameStateManager,
+  roomId: string,
+  propId: string,
+  jsonDefault: boolean,
+): boolean {
+  const v = manager.getVariable(roomPropVisibleVariableKey(roomId, propId));
+  return typeof v === 'boolean' ? v : jsonDefault;
+}
+
+/** Persist `B.prop(id).visible` for this room+prop pair (booleans only). */
+export function writeSavedPropVisible(
+  manager: GameStateManager,
+  roomId: string,
+  propId: string,
+  visible: boolean,
+): void {
+  manager.setVariable(roomPropVisibleVariableKey(roomId, propId), visible);
+}
+
+/** Effective `B.prop(id)` alpha — saved override when set in `[0, 1]`, else `jsonDefault`. */
+export function readSavedPropAlpha(
+  manager: GameStateManager,
+  roomId: string,
+  propId: string,
+  jsonDefault: number,
+): number {
+  const v = manager.getVariable(roomPropAlphaVariableKey(roomId, propId));
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    return Math.min(1, Math.max(0, v));
+  }
+  return jsonDefault;
+}
+
+/** Persist the **final** alpha (`toAlpha`) after a `B.prop(id).fade(...)` call (clamped to `[0, 1]`). */
+export function writeSavedPropAlpha(
+  manager: GameStateManager,
+  roomId: string,
+  propId: string,
+  alpha: number,
+): void {
+  const clamped = Math.min(1, Math.max(0, alpha));
+  manager.setVariable(roomPropAlphaVariableKey(roomId, propId), clamped);
+}
+
+/** Effective `B.character(id)` alpha — saved override when set in `[0, 1]`, else `jsonDefault` (typically `1`). */
+export function readSavedCharacterAlpha(
+  manager: GameStateManager,
+  characterId: string,
+  jsonDefault: number = 1,
+): number {
+  const v = manager.getVariable(characterAlphaVariableKey(characterId));
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    return Math.min(1, Math.max(0, v));
+  }
+  return jsonDefault;
+}
+
+/** Persist the **final** alpha (`toAlpha`) after a `B.character(id).fade(...)` call (clamped to `[0, 1]`). */
+export function writeSavedCharacterAlpha(
+  manager: GameStateManager,
+  characterId: string,
+  alpha: number,
+): void {
+  const clamped = Math.min(1, Math.max(0, alpha));
+  manager.setVariable(characterAlphaVariableKey(characterId), clamped);
 }
 
 /** Non-directional override clip when set; otherwise directional idle from current `facing`. */
