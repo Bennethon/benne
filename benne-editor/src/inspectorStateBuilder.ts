@@ -30,7 +30,11 @@ import {
     buildRoomCharacterVerbChips,
     type InspectorVerbChip
 } from './verbInspectorModel';
-import { readConfiguredVerbIdSet } from './verbHandlerPresence';
+import {
+    readConfiguredVerbIdSet,
+    roomScriptRegistersRegionWhenEnter,
+    roomScriptRegistersRegionWhenExit
+} from './verbHandlerPresence';
 
 export type InspectorWalkableRow = {
     kind: 'polygon' | 'hole';
@@ -110,6 +114,8 @@ export type InspectorRegionCard = {
     scaleTop: number;
     scaleBottom: number;
     scaleWalkSpeed: boolean;
+    whenEnterDefined: boolean;
+    whenExitDefined: boolean;
 };
 
 export type InspectorRoomState = {
@@ -1002,7 +1008,9 @@ async function buildRoomInspectorState(
                 pointCount,
                 scaleTop,
                 scaleBottom,
-                scaleWalkSpeed: o.scaleWalkSpeed === true
+                scaleWalkSpeed: o.scaleWalkSpeed === true,
+                whenEnterDefined: roomScriptRegistersRegionWhenEnter(roomScriptText, roomId, id),
+                whenExitDefined: roomScriptRegistersRegionWhenExit(roomScriptText, roomId, id)
             });
         }
     }

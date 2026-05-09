@@ -26,6 +26,7 @@ import type {
   BenneScriptDialogCommandSurface,
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
+  BenneScriptRegionFacade,
   InventoryWhenUsedOnPayloadHandler,
   RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
@@ -39,6 +40,8 @@ import {
 import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
+import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
+import { roomRegionEnterEventId, roomRegionExitEventId } from '../events/regionEnterExitEvents.js';
 
 export type {
   AnyInventoryUsedOnPayload,
@@ -47,6 +50,7 @@ export type {
   BenneScriptInventoryItemFacade,
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
+  BenneScriptRegionFacade,
   BenneScriptRoomFacade,
   BenneScriptSoundFacade,
   BenneScriptSharedSelectionApi,
@@ -87,6 +91,7 @@ export { withNow } from './BenneScriptCore.js';
  * | **`animation` / `animation =`**, **`animationNow(...)`** | Setters queue on the **interaction tail** (order with **`walkTo`** / **`say`** / **`playAnimation`**); **`animationNow`** applies persist + sprite **immediately**. Props: persisted base tag. Characters / player: effective get; set / **`animationNow`** accept **`string \| null`** (`null` clears). **`stopAnimation()`** (characters / player) clears override + save, always immediate. |
  * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
  * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
+ * | **`B.region(id).whenEnter` / `whenExit`**, **`B.whenEnterRegion` / `whenExitRegion`** | **`regions[].id`** in this room’s JSON. Feet crossing uses the same **last-wins** active polygon test as perspective scale (**`resolveWinningRoomRegionIdAtFeet`**). Handlers wire through **`subscribe`** (interaction queue + verb click context rules, like **`whenLookAt`**). Payload: **`RegionEnterExitContext`**. |
  * | **`B.say` / `B.say.now`** | Tagged **`B.say`**…``: PowerQuest-style block — lines **`Speaker: text`** (`Player` any case → protagonist id; other names match spawned character ids **case-insensitively**). Blank lines and **`//`** comments ignored; unknown speakers throw. Queues each line; **`B.say.now`**… skips the interaction tail (see implementation notes in **`BenneScriptCore`**). |
  * | **`B.display` / `B.display.now`** | Narration via **`display-text`** GUI — **`B.display('…')`** blocks until the player clicks to dismiss (no timer). Same interaction-tail rules as **`B.wait`** / **`say`**; **`.now`** skips the tail. |
  * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Same dialog overlay as **`B.say`**, plus string form **`B.player.say('…')`**. Scoped tagged blocks: each line is that character (optional **`Player:`** prefix); mismatched **`Name:`** throws (compared **case-insensitively** to the scoped character). Optional second argument **`{ clickToSkip: false \| true }`** on string calls. |
@@ -99,6 +104,11 @@ export { withNow } from './BenneScriptCore.js';
  *
  * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in `BenneScriptCore`. **`whenVerb`** uses an exact verb id.
  */
+
+const noopBenneScriptRegionFacade: BenneScriptRegionFacade = {
+  whenEnter(): void {},
+  whenExit(): void {},
+};
 
 /**
  * High-level API passed as **`B`** in the `registerRoomScript` callback. Chains async steps (walk, delays) in order; use **`await`** only if you expose promises yourself.
@@ -529,6 +539,55 @@ export class BenneScript extends BenneScriptCore {
 
   get player(): BenneScriptPlayerFacade {
     return this.makePlayerFacadeFromScene(() => this.roomScene);
+  }
+
+  region(regionId: string): BenneScriptRegionFacade {
+    const rid = String(regionId).trim();
+    if (rid.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.region: region id must be a non-empty string.');
+      }
+      return noopBenneScriptRegionFacade;
+    }
+    const B = this;
+    return {
+      whenEnter(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void {
+        const eventId = roomRegionEnterEventId(B.roomId, rid);
+        B.subscribe(eventId, (payload) => {
+          const p = payload as RegionEnterExitContext;
+          if (handler.length === 0) {
+            (handler as () => void)();
+          } else {
+            (handler as (x: RegionEnterExitContext) => void)(p);
+          }
+        });
+      },
+      whenExit(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void {
+        const eventId = roomRegionExitEventId(B.roomId, rid);
+        B.subscribe(eventId, (payload) => {
+          const p = payload as RegionEnterExitContext;
+          if (handler.length === 0) {
+            (handler as () => void)();
+          } else {
+            (handler as (x: RegionEnterExitContext) => void)(p);
+          }
+        });
+      },
+    };
+  }
+
+  whenEnterRegion(
+    regionId: string,
+    handler: (() => void) | ((ctx: RegionEnterExitContext) => void),
+  ): void {
+    this.region(regionId).whenEnter(handler);
+  }
+
+  whenExitRegion(
+    regionId: string,
+    handler: (() => void) | ((ctx: RegionEnterExitContext) => void),
+  ): void {
+    this.region(regionId).whenExit(handler);
   }
 
   whenLeaveRoom(

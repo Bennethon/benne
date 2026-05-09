@@ -78,6 +78,8 @@ type InspectorRegionCard = {
     scaleTop: number;
     scaleBottom: number;
     scaleWalkSpeed: boolean;
+    whenEnterDefined: boolean;
+    whenExitDefined: boolean;
 };
 
 type InspectorRoomState = {
@@ -637,6 +639,21 @@ function renderVerbChipRow(roomJsonUri: string, roomId: string, verbs: Inspector
     return `<div class="benne-verb-chips">${inner}</div>`;
 }
 
+function renderRegionScriptHandlerChips(r: InspectorRegionCard): string {
+    const mk = (mode: 'enter' | 'exit', defined: boolean, label: string, title: string): string => {
+        const cls = defined ? 'verb-chip verb-defined' : 'verb-chip verb-add';
+        const icon = defined ? '⚡' : '+';
+        const reveal = defined ? 'data-reveal-region="1"' : '';
+        const add = !defined ? 'data-add-region="1"' : '';
+        return `<button type="button" class="${cls}" ${reveal} ${add} data-region-id="${esc(r.id)}" data-mode="${mode}" title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(label)}</span></button>`;
+    };
+    return `<label class="benne-field-label muted small">Script</label>
+<div class="benne-verb-chips" role="group" aria-label="Region enter and exit handlers">
+${mk('enter', r.whenEnterDefined, 'When Enter', 'B.region(…).whenEnter — reveal or add stub')}
+${mk('exit', r.whenExitDefined, 'When Exit', 'B.region(…).whenExit — reveal or add stub')}
+</div>`;
+}
+
 function renderInventoryUsedOnInvRoomButton(target: 'prop' | 'hotspot' | 'character', targetId: string): string {
     return `<div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
     <button type="button" class="btn-secondary btn-inv-usedon" data-inv-target="${esc(target)}" data-inv-target-id="${esc(targetId)}" title="Insert B.whenInventoryUsedOn stub in the room script">Inv</button>
@@ -908,6 +925,7 @@ function renderRoom(state: InspectorRoomState): string {
         <span class="benne-pg-lbl" title="Slow or speed up walking by the same perspective factor as sprite scale (see game-config perspective).">Scale walk speed</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-scale-walk" data-id="${esc(r.id)}" ${r.scaleWalkSpeed ? 'checked' : ''} /></label>
       </div>
+      ${renderRegionScriptHandlerChips(r)}
       <div class="benne-card-actions">
         <div class="benne-card-actions-inner">
           <button type="button" class="btn-link" data-edit-preview="region" data-id="${esc(r.id)}">Edit in Preview →</button>
@@ -2170,6 +2188,26 @@ function mountHandlers(state: InspectorRoomState): void {
     root.querySelectorAll('.verb-chip').forEach((btn) => {
         btn.addEventListener('click', () => {
             const b = btn as HTMLButtonElement;
+            const regionId = b.dataset.regionId ?? '';
+            if (regionId && (b.dataset.revealRegion === '1' || b.dataset.addRegion === '1')) {
+                const mode = b.dataset.mode === 'exit' ? 'exit' : 'enter';
+                if (b.dataset.revealRegion === '1') {
+                    post('regionHandlerReveal', {
+                        roomJsonUri: state.roomJsonUri,
+                        roomId: state.roomId,
+                        regionId,
+                        mode
+                    });
+                } else {
+                    post('regionHandlerAdd', {
+                        roomJsonUri: state.roomJsonUri,
+                        roomId: state.roomId,
+                        regionId,
+                        mode
+                    });
+                }
+                return;
+            }
             const ctx = b.dataset.ctx ?? '';
             if (b.dataset.reveal) {
                 post('verbReveal', {

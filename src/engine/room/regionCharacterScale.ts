@@ -1,6 +1,36 @@
 import type { RoomRegionData } from '../../types/room';
 import { pointInPolygon } from '../walkable';
 
+/**
+ * Which authored region “wins” at the feet position — **last** active polygon in `regions[]` that
+ * contains the point (same overlap rule as {@link computeRoomRegionPerspective}). `null` when
+ * outside all regions or when `regions` is empty / unusable.
+ */
+export function resolveWinningRoomRegionIdAtFeet(
+  feetX: number,
+  feetY: number,
+  regions: readonly RoomRegionData[] | undefined,
+): string | null {
+  if (!regions || regions.length === 0) {
+    return null;
+  }
+  let id: string | null = null;
+  for (const r of regions) {
+    if (r.active === false) {
+      continue;
+    }
+    const pts = r.points;
+    if (!pts || pts.length < 3) {
+      continue;
+    }
+    if (!pointInPolygon(feetX, feetY, pts)) {
+      continue;
+    }
+    id = r.id;
+  }
+  return id;
+}
+
 /** Tunable caps for {@link computeRoomRegionPerspective} walk-speed multiplier (from `game-config.json`). */
 export type RoomRegionPerspectiveSettings = {
   minWalkScale: number;

@@ -5,6 +5,7 @@ import type { InventoryVerbInteractPayload } from '../events/inventoryVerbEvents
 import type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
 import type { BenneScriptCore, BenneScriptSayDialogueHybrid, BlockingWithNow } from './BenneScriptCore.js';
 import type { ControlFacade } from './GuiRuntime.js';
+import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
 
 export type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 
@@ -114,6 +115,12 @@ export interface RoomInventoryUsedOnRegistrar {
     targetId: string,
     handler: InventoryWhenUsedOnPayloadHandler,
   ): void;
+}
+
+/** Enter / exit hooks for one room region (`BenneScript.region`). */
+export interface BenneScriptRegionFacade {
+  whenEnter(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void;
+  whenExit(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void;
 }
 
 /** Visibility + description overrides for one prop (`BenneScript.prop`). */

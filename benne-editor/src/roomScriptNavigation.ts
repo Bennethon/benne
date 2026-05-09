@@ -6,6 +6,7 @@ import { ensureRoomVerbHandlerStubForReveal } from './propVerbScaffolding';
 import {
     findCharacterScriptVerbRangeForEventId,
     findInventoryScriptVerbRangeForEventId,
+    findRoomScriptRegionHandlerRangeRobust,
     findRoomScriptVerbRangeForEventIdRobust,
     readConfiguredVerbIdSet
 } from './verbHandlerPresence';
@@ -108,6 +109,33 @@ export async function openDocumentUri(uri: vscode.Uri, preview: boolean, viewCol
 }
 
 /** Select `[start, end)` UTF-16 offsets in `scriptUri` and scroll the range into view. */
+/** Scroll to `B.region(…).whenEnter` / `whenExit` (or flat sugar / `roomRegion*EventId`) in `*.room.ts`. */
+export async function revealRoomRegionHandlerInDocument(
+    scriptUri: vscode.Uri,
+    roomId: string,
+    regionId: string,
+    kind: 'enter' | 'exit',
+    viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active
+): Promise<boolean> {
+    try {
+        await vscode.workspace.fs.stat(scriptUri);
+    } catch {
+        void vscode.window.showWarningMessage(`Script not found: ${scriptUri.fsPath}`);
+        return false;
+    }
+    const doc = await vscode.workspace.openTextDocument(scriptUri);
+    const text = doc.getText();
+    const br = findRoomScriptRegionHandlerRangeRobust(text, roomId, regionId, kind);
+    if (br) {
+        return revealSourceRangeInDocument(scriptUri, br.start, br.end, viewColumn);
+    }
+    void vscode.window.showInformationMessage(
+        `Could not find a region ${kind === 'enter' ? 'whenEnter' : 'whenExit'} handler for "${regionId}" in ${path.basename(scriptUri.fsPath)}.`
+    );
+    await revealSourceRangeInDocument(scriptUri, 0, 0, viewColumn);
+    return false;
+}
+
 export async function revealSourceRangeInDocument(
     scriptUri: vscode.Uri,
     start: number,

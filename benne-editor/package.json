@@ -44,6 +44,8 @@
     "onCommand:benne-editor.makeCharacterClickable",
     "onCommand:benne-editor.addCharacterVerbEvent",
     "onCommand:benne-editor.addRoomCharacterVerbEvent",
+    "onCommand:benne-editor.revealRoomRegionHandler",
+    "onCommand:benne-editor.addRoomRegionHandler",
     "onCommand:benne-editor.addRoomInventoryUsedOnStub",
     "onCommand:benne-editor.addCharacterInventoryUsedOnStub",
     "onCommand:benne-editor.filterMainTree",
@@ -112,6 +114,17 @@
         "command": "benne-editor.revealRoomScriptEvent",
         "title": "Reveal room script event",
         "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.revealRoomRegionHandler",
+        "title": "Reveal room region whenEnter / whenExit handler",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.addRoomRegionHandler",
+        "title": "Add room region whenEnter / whenExit stub",
+        "category": "BENNE",
+        "icon": "$(add)"
       },
       {
         "command": "benne-editor.addPropVerbEvent",
