@@ -78,6 +78,8 @@ type InspectorRegionCard = {
     scaleTop: number;
     scaleBottom: number;
     scaleWalkSpeed: boolean;
+    tint: string;
+    tintAlpha: number;
     whenEnterDefined: boolean;
     whenExitDefined: boolean;
 };
@@ -924,6 +926,10 @@ function renderRoom(state: InspectorRoomState): string {
         <input type="number" class="rg-scale-bottom" data-id="${esc(r.id)}" value="${r.scaleBottom}" step="0.05" />
         <span class="benne-pg-lbl" title="Slow or speed up walking by the same perspective factor as sprite scale (see game-config perspective).">Scale walk speed</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-scale-walk" data-id="${esc(r.id)}" ${r.scaleWalkSpeed ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl" title="Hex RGB multiply tint while feet are in this region (empty = none).">Character tint</span>
+        <input type="text" class="rg-tint" data-id="${esc(r.id)}" value="${esc(r.tint)}" placeholder="#88ccff" />
+        <span class="benne-pg-lbl" title="0 = no tint, 1 = full tint color (multiplicative blend).">Tint alpha</span>
+        <input type="number" class="rg-tint-alpha" data-id="${esc(r.id)}" value="${r.tintAlpha}" min="0" max="1" step="0.05" />
       </div>
       ${renderRegionScriptHandlerChips(r)}
       <div class="benne-card-actions">
@@ -2149,6 +2155,36 @@ function mountHandlers(state: InspectorRoomState): void {
                 return;
             }
             postRegionScale(id);
+        });
+    });
+
+    const postRegionTint = (regionId: string): void => {
+        const tintEl = root.querySelector(`.rg-tint[data-id="${regionId}"]`) as HTMLInputElement;
+        const aEl = root.querySelector(`.rg-tint-alpha[data-id="${regionId}"]`) as HTMLInputElement;
+        const tint = tintEl?.value ?? '';
+        const tintAlpha = Number(aEl?.value);
+        post('applyPatches', {
+            patches: [{ type: 'regionTint', id: regionId, tint, tintAlpha }]
+        });
+    };
+
+    root.querySelectorAll('.rg-tint').forEach((el) => {
+        el.addEventListener('change', () => {
+            const id = (el as HTMLElement).dataset.id;
+            if (!id) {
+                return;
+            }
+            postRegionTint(id);
+        });
+    });
+
+    root.querySelectorAll('.rg-tint-alpha').forEach((el) => {
+        el.addEventListener('change', () => {
+            const id = (el as HTMLElement).dataset.id;
+            if (!id) {
+                return;
+            }
+            postRegionTint(id);
         });
     });
 

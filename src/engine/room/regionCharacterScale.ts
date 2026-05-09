@@ -1,6 +1,43 @@
 import type { RoomRegionData } from '../../types/room';
 import { pointInPolygon } from '../walkable';
 
+function isActiveRegionContainingFeet(
+  r: RoomRegionData,
+  feetX: number,
+  feetY: number,
+): boolean {
+  if (r.active === false) {
+    return false;
+  }
+  const pts = r.points;
+  if (!pts || pts.length < 3) {
+    return false;
+  }
+  return pointInPolygon(feetX, feetY, pts);
+}
+
+/**
+ * **Last** active polygon in `regions[]` that contains the feet point (same overlap rule as
+ * {@link computeRoomRegionPerspective}). `null` when outside all regions or when `regions` is empty.
+ */
+export function resolveWinningRoomRegionDataAtFeet(
+  feetX: number,
+  feetY: number,
+  regions: readonly RoomRegionData[] | undefined,
+): RoomRegionData | null {
+  if (!regions || regions.length === 0) {
+    return null;
+  }
+  let winner: RoomRegionData | null = null;
+  for (const r of regions) {
+    if (!isActiveRegionContainingFeet(r, feetX, feetY)) {
+      continue;
+    }
+    winner = r;
+  }
+  return winner;
+}
+
 /**
  * Which authored region “wins” at the feet position — **last** active polygon in `regions[]` that
  * contains the point (same overlap rule as {@link computeRoomRegionPerspective}). `null` when
@@ -11,24 +48,44 @@ export function resolveWinningRoomRegionIdAtFeet(
   feetY: number,
   regions: readonly RoomRegionData[] | undefined,
 ): string | null {
-  if (!regions || regions.length === 0) {
+  return resolveWinningRoomRegionDataAtFeet(feetX, feetY, regions)?.id ?? null;
+}
+
+function tryParseTintHexRgb(hex: string): number | null {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!m) {
     return null;
   }
-  let id: string | null = null;
-  for (const r of regions) {
-    if (r.active === false) {
-      continue;
-    }
-    const pts = r.points;
-    if (!pts || pts.length < 3) {
-      continue;
-    }
-    if (!pointInPolygon(feetX, feetY, pts)) {
-      continue;
-    }
-    id = r.id;
+  return parseInt(m[1], 16);
+}
+
+/**
+ * Raw tint color (`0xRRGGBB`) and alpha (`0`–`1`) from the **winning** region, or `null` when the
+ * region has no authored `tint` field. Used by the Canvas renderer patch
+ * (`benneCharacterRegionTintCanvasPatch.ts`) which applies the tint via `source-atop` compositing.
+ */
+export function regionTintForWinningRegion(
+  region: RoomRegionData | null | undefined,
+): { color: number; alpha: number } | null {
+  if (!region) {
+    return null;
   }
-  return id;
+  const hex = region.tint;
+  if (typeof hex !== 'string') {
+    return null;
+  }
+  const color = tryParseTintHexRgb(hex);
+  if (color == null) {
+    return null;
+  }
+  const alpha =
+    typeof region.tintAlpha === 'number' && Number.isFinite(region.tintAlpha)
+      ? Math.max(0, Math.min(1, region.tintAlpha))
+      : 1;
+  if (alpha <= 0) {
+    return null;
+  }
+  return { color, alpha };
 }
 
 /** Tunable caps for {@link computeRoomRegionPerspective} walk-speed multiplier (from `game-config.json`). */
@@ -45,6 +102,8 @@ export type RoomRegionPerspectiveResult = {
    * otherwise `1`.
    */
   walkSpeedMultiplier: number;
+  /** Last region whose polygon contained the feet (same winner as {@link resolveWinningRoomRegionIdAtFeet}). */
+  winningRegion: RoomRegionData | null;
 };
 
 function linearScaleForRegionFeetY(region: RoomRegionData, feetY: number): number {
@@ -81,21 +140,16 @@ export function computeRoomRegionPerspective(
   perspective: RoomRegionPerspectiveSettings,
 ): RoomRegionPerspectiveResult {
   if (!regions || regions.length === 0) {
-    return { characterScale: 1, walkSpeedMultiplier: 1 };
+    return { characterScale: 1, walkSpeedMultiplier: 1, winningRegion: null };
   }
   let characterScale = 1;
   let walkSpeedMultiplier = 1;
+  let winningRegion: RoomRegionData | null = null;
   for (const r of regions) {
-    if (r.active === false) {
+    if (!isActiveRegionContainingFeet(r, feetX, feetY)) {
       continue;
     }
-    const pts = r.points;
-    if (!pts || pts.length < 3) {
-      continue;
-    }
-    if (!pointInPolygon(feetX, feetY, pts)) {
-      continue;
-    }
+    winningRegion = r;
     const linear = linearScaleForRegionFeetY(r, feetY);
     characterScale = linear;
     if (r.scaleWalkSpeed === true) {
@@ -107,7 +161,7 @@ export function computeRoomRegionPerspective(
       walkSpeedMultiplier = 1;
     }
   }
-  return { characterScale, walkSpeedMultiplier };
+  return { characterScale, walkSpeedMultiplier, winningRegion };
 }
 
 /**

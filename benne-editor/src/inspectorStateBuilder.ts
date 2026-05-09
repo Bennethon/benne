@@ -114,6 +114,10 @@ export type InspectorRegionCard = {
     scaleTop: number;
     scaleBottom: number;
     scaleWalkSpeed: boolean;
+    /** Hex RGB or empty when unset. */
+    tint: string;
+    /** 0–1; effective default 1 when tint is set in JSON. */
+    tintAlpha: number;
     whenEnterDefined: boolean;
     whenExitDefined: boolean;
 };
@@ -1002,6 +1006,9 @@ async function buildRoomInspectorState(
             const scaleTop = typeof o.scaleTop === 'number' && Number.isFinite(o.scaleTop) ? o.scaleTop : 1;
             const scaleBottom =
                 typeof o.scaleBottom === 'number' && Number.isFinite(o.scaleBottom) ? o.scaleBottom : 1;
+            const tint = typeof o.tint === 'string' ? o.tint : '';
+            const tintAlpha =
+                typeof o.tintAlpha === 'number' && Number.isFinite(o.tintAlpha) ? o.tintAlpha : 1;
             regions.push({
                 id,
                 active: o.active !== false,
@@ -1009,6 +1016,8 @@ async function buildRoomInspectorState(
                 scaleTop,
                 scaleBottom,
                 scaleWalkSpeed: o.scaleWalkSpeed === true,
+                tint,
+                tintAlpha,
                 whenEnterDefined: roomScriptRegistersRegionWhenEnter(roomScriptText, roomId, id),
                 whenExitDefined: roomScriptRegistersRegionWhenExit(roomScriptText, roomId, id)
             });

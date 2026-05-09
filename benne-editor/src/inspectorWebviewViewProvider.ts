@@ -32,6 +32,7 @@ import {
     updateRegionActive,
     updateRegionScaleFields,
     updateRegionScaleWalkSpeed,
+    updateRegionTintFields,
     updateRoomCharacterFields,
     writeDataJson,
     writeRoomJson
@@ -655,6 +656,7 @@ type WebviewPatch =
     | { type: 'regionActive'; id?: string; active?: boolean }
     | { type: 'regionScale'; id?: string; scaleTop?: number; scaleBottom?: number }
     | { type: 'regionScaleWalkSpeed'; id?: string; scaleWalkSpeed?: boolean }
+    | { type: 'regionTint'; id?: string; tint?: string; tintAlpha?: number }
     | {
           type: 'characterMeta';
           name?: string;
@@ -1334,6 +1336,15 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 return;
             }
             updateRegionScaleWalkSpeed(data, p.id, p.scaleWalkSpeed);
+            return;
+        }
+        if (p.type === 'regionTint' && typeof p.id === 'string') {
+            if (focusKind !== 'room') {
+                return;
+            }
+            const tintAlpha =
+                typeof p.tintAlpha === 'number' && Number.isFinite(p.tintAlpha) ? p.tintAlpha : 1;
+            updateRegionTintFields(data, p.id, typeof p.tint === 'string' ? p.tint : '', tintAlpha);
             return;
         }
         if (p.type === 'characterMeta') {
