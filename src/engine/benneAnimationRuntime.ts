@@ -42,6 +42,35 @@ export function roomPropPositionVariableKey(roomId: string, propId: string): str
   return `room:${roomId}:prop:${propId}:position`;
 }
 
+/** Persistence key for `B.region(id).active` overrides. */
+export function roomRegionActiveVariableKey(roomId: string, regionId: string): string {
+  return `room:${roomId}:region:${regionId}:active`;
+}
+
+/**
+ * Effective `B.region(id).active` — saved override (boolean) when set, else `jsonDefault`
+ * (`true` when the JSON field is omitted or anything other than `false`).
+ */
+export function readSavedRegionActive(
+  manager: GameStateManager,
+  roomId: string,
+  regionId: string,
+  jsonDefault: boolean,
+): boolean {
+  const v = manager.getVariable(roomRegionActiveVariableKey(roomId, regionId));
+  return typeof v === 'boolean' ? v : jsonDefault;
+}
+
+/** Persist `B.region(id).active = …` for this room+region pair. */
+export function writeSavedRegionActive(
+  manager: GameStateManager,
+  roomId: string,
+  regionId: string,
+  active: boolean,
+): void {
+  manager.setVariable(roomRegionActiveVariableKey(roomId, regionId), active);
+}
+
 /** Sprite data: persisted override tag (`string`) or `null` when cleared. */
 export const BENNE_CHARACTER_ANIMATION_OVERRIDE_KEY = 'benneAnimationOverride';
 

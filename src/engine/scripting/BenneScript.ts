@@ -106,6 +106,8 @@ export { withNow } from './BenneScriptCore.js';
  */
 
 const noopBenneScriptRegionFacade: BenneScriptRegionFacade = {
+  get active() { return true; },
+  set active(_v: boolean) {},
   whenEnter(): void {},
   whenExit(): void {},
 };
@@ -550,7 +552,14 @@ export class BenneScript extends BenneScriptCore {
       return noopBenneScriptRegionFacade;
     }
     const B = this;
+    const scene = this.roomScene;
     return {
+      get active() {
+        return scene.getRegionScriptActive(rid);
+      },
+      set active(v: boolean) {
+        scene.setRegionScriptActive(rid, v);
+      },
       whenEnter(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void {
         const eventId = roomRegionEnterEventId(B.roomId, rid);
         B.subscribe(eventId, (payload) => {
