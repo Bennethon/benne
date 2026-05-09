@@ -537,6 +537,23 @@ function regionsArray(data: Record<string, unknown>): Record<string, unknown>[] 
     return Array.isArray(r) ? (r as Record<string, unknown>[]) : [];
 }
 
+export function updateRegionWalkable(
+    data: Record<string, unknown>,
+    regionId: string,
+    walkable: boolean
+): { ok: true } | { ok: false; message: string } {
+    const reg = regionsArray(data).find((x) => typeof x.id === 'string' && (x.id as string) === regionId);
+    if (!reg) {
+        return { ok: false, message: 'Region not found.' };
+    }
+    if (walkable) {
+        delete reg.walkable;
+    } else {
+        reg.walkable = false;
+    }
+    return { ok: true };
+}
+
 export function updateRegionActive(
     data: Record<string, unknown>,
     regionId: string,
