@@ -81,6 +81,15 @@ export interface RoomRegionData {
    * Omitted = `false`.
    */
   scaleWalkSpeed?: boolean;
+  /**
+   * Hex RGB (e.g. `#aabbcc`). When set, characters whose feet are inside this **winning** region
+   * multiply-tint toward this color. Omitted or invalid hex = no tint from this region.
+   */
+  tint?: string;
+  /**
+   * 0–1 blend between no tint and full {@link tint} multiply (`1` = full strength). Omitted = `1` when `tint` is set.
+   */
+  tintAlpha?: number;
 }
 
 export interface RoomCharacterInstance {

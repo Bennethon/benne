@@ -194,4 +194,8 @@ registerRoomScript(({ B }) => {
   B.region("leave").whenExit(() => {
     B.say`Hank: I'm back.`;
   });
+
+  B.region("darkness").whenEnter(() => {
+    B.say`Hank: It's dark over here.`;
+  });
 });

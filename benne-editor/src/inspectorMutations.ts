@@ -582,6 +582,40 @@ export function updateRegionScaleWalkSpeed(
     return { ok: true };
 }
 
+export function updateRegionTintFields(
+    data: Record<string, unknown>,
+    regionId: string,
+    tintRaw: string,
+    tintAlpha: number
+): { ok: true } | { ok: false; message: string } {
+    const reg = regionsArray(data).find((x) => typeof x.id === 'string' && (x.id as string) === regionId);
+    if (!reg) {
+        return { ok: false, message: 'Region not found.' };
+    }
+    const trimmed = tintRaw.trim();
+    if (!trimmed) {
+        delete reg.tint;
+        delete reg.tintAlpha;
+        return { ok: true };
+    }
+    let hex = trimmed;
+    if (!hex.startsWith('#')) {
+        hex = `#${hex}`;
+    }
+    reg.tint = hex.toLowerCase();
+    if (!Number.isFinite(tintAlpha)) {
+        delete reg.tintAlpha;
+        return { ok: true };
+    }
+    const a = Math.max(0, Math.min(1, tintAlpha));
+    if (a >= 1 - 1e-9) {
+        delete reg.tintAlpha;
+    } else {
+        reg.tintAlpha = a;
+    }
+    return { ok: true };
+}
+
 export function deleteRegion(data: Record<string, unknown>, regionId: string): void {
     data.regions = regionsArray(data).filter((r) => !(typeof r.id === 'string' && (r.id as string) === regionId));
 }
