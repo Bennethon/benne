@@ -55,6 +55,8 @@ import {
   readSavedPropBaseAnimationTag,
   readSavedPropPosition,
   readSavedPropVisible,
+  readSavedRegionActive,
+  writeSavedRegionActive,
   setCharacterAnimationOverrideTagOnSprite,
   writeSavedCharacterAlpha,
   writeSavedCharacterAnimationOverride,
@@ -473,6 +475,7 @@ export class RoomScene extends Phaser.Scene {
     this.npcWalkTweens.clear();
     this.characterFeetWinningRegionId.clear();
     this.regionEnterExitSeeded = false;
+    this.restoreRegionActiveOverrides();
     this.unresolvedWalkTargetIdsWarned.clear();
     this.missingDialogTextOverlaySayWarned = false;
     this.missingDisplayTextOverlayWarned = false;
@@ -1728,6 +1731,47 @@ export class RoomScene extends Phaser.Scene {
   setPropScriptVisible(propId: string, visible: boolean): void {
     writeSavedPropVisible(resolveGameStateManager(this.game), this.roomData.id, propId, visible);
     this.propSpritesById.get(propId)?.setVisible(visible);
+  }
+
+  /**
+   * Effective `B.region(id).active` — saved override wins; falls back to the JSON `active` field
+   * (`undefined` / omitted = `true`, explicit `false` = inactive).
+   */
+  getRegionScriptActive(regionId: string): boolean {
+    const region = this.roomData.regions?.find((r) => r.id === regionId);
+    const jsonDefault = region ? region.active !== false : true;
+    return readSavedRegionActive(resolveGameStateManager(this.game), this.roomData.id, regionId, jsonDefault);
+  }
+
+  /**
+   * Persist + immediately apply the `active` state for a region. Mutates the live `roomData.regions`
+   * entry so region overlap tests (`resolveWinningRoomRegionIdAtFeet`, perspective scale, enter/exit
+   * detection) pick it up without a room reload. Backs **`B.region(id).active = …`**.
+   */
+  setRegionScriptActive(regionId: string, active: boolean): void {
+    writeSavedRegionActive(resolveGameStateManager(this.game), this.roomData.id, regionId, active);
+    const region = this.roomData.regions?.find((r) => r.id === regionId);
+    if (region) {
+      region.active = active;
+    }
+  }
+
+  /**
+   * Re-apply saved `B.region(id).active` overrides to `roomData.regions` entries at room load.
+   * Called at the top of {@link create} so that the live region data reflects any persisted state
+   * before the first `update` pass or walkable-mesh build.
+   */
+  private restoreRegionActiveOverrides(): void {
+    const regions = this.roomData?.regions;
+    if (!regions || regions.length === 0) return;
+    const manager = resolveGameStateManager(this.game);
+    for (const region of regions) {
+      const jsonDefault = region.active !== false;
+      const saved = readSavedRegionActive(manager, this.roomData.id, region.id, jsonDefault);
+      if (saved !== jsonDefault) {
+        region.active = saved;
+      }
+    }
   }
 
   /**

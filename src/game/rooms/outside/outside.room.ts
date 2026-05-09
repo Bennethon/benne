@@ -19,6 +19,7 @@ registerRoomScript(({ B }) => {
   });
 
   B.whenEnterRoomAfterFade(() => {
+    B.sound.play('doorClose');
     if (B.room.isFirstVisit) {
       B.character('henry').say('Hey, Hank!');
       B.character('henry').say('Come here!');

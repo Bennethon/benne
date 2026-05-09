@@ -450,8 +450,19 @@ B.whenExitRegion('stage-front', (ctx) => {
 });
 ```
 
-- **`B.region(regionId)`** returns **`{ whenEnter, whenExit }`**. **`whenEnterRegion(regionId, handler)`** / **`whenExitRegion`** are optional flat sugar.
+- **`B.region(regionId)`** returns **`{ active, whenEnter, whenExit }`**. **`whenEnterRegion(regionId, handler)`** / **`whenExitRegion`** are optional flat sugar.
 - **`regionId`** must match **`regions[].id`** in this room’s **`*.room.json`**. Empty / whitespace-only ids: DEV warns, registrations are no-ops.
+
+**`active` get/set** — reads and writes the active state of the region immediately (not queued on the interaction tail). Persisted to **`GameStateManager`** (key `` `room:<roomId>:region:<regionId>:active` ``), so it survives room changes and save/load. Re-applied to the live `roomData.regions` entry at room load. Deactivating a region prevents it from matching any character’s feet (no enter/exit events, no perspective scale, no character tint from that region). The JSON `active: false` field is the authoring default; the script override is layered on top.
+
+```ts
+B.region('darkness').active = false;   // immediately deactivate; persisted
+
+if (B.region('leave').active) {
+  // only runs when the region is currently active
+}
+```
+
 - Handlers use **`subscribe`** (same interaction queue as **`whenLookAt`** — queued **`walkTo`**, **`say`**, etc., run to completion before the tail resolves). They are **not** automatically wrapped in **`B.cutscene`** (contrast **`whenEnterRoom` / `whenEnterRoomAfterFade`** in the orchestrator); wrap the body in **`B.cutscene(() => { … })`** when you need full pointer suppression for a beat.
 - **`RegionEnterExitContext`** (`src/types/regionEnterExit.ts`): **`roomId`**, **`regionId`**, **`characterId`** (**`CharacterData.id`**), **`isPlayer`** (**`true`** when **`characterId`** equals **`game-config.json`** **`startingPlayerCharacter`**), **`feetX`**, **`feetY`** (room pixels at detection).
 - The engine tracks the **winning** region at feet each frame (**last** overlapping active polygon with ≥3 points — same rule as perspective **`computeRoomRegionPerspective`**). The **first** frame after **`RoomScene`** load only seeds internal state (no **`whenEnter`** if the character already spawns inside the polygon). Crossing from region A to B fires **`whenExit`** on **A** then **`whenEnter`** on **B**.

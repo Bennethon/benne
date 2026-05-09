@@ -15,6 +15,12 @@ registerRoomScript(({ B }) => {
 
   B.whenEnterRoomAfterFade(() => {
     B.sound.playMusic('my-cat-is-crazy');
+
+    if (B.room.last === 'outside') {
+      B.wait(.5);
+      B.sound.play('doorClose');
+      B.prop('Door').animation = 'Door';
+    }
   });
 
   B.whenInventoryUsedOn('Couch', (payload) => {
@@ -185,14 +191,6 @@ registerRoomScript(({ B }) => {
 
   B.whenTalkTo('Couch', () => {
     B.prop('Couch').moveTo({ x: 5, y: 5 });
-  });
-
-  B.region('leave').whenEnter(() => {
-    B.say`Hank: I'm leaving.`;
-  });
-
-  B.region("leave").whenExit(() => {
-    B.say`Hank: I'm back.`;
   });
 
   B.region("darkness").whenEnter(() => {
