@@ -186,4 +186,12 @@ registerRoomScript(({ B }) => {
   B.whenTalkTo('Couch', () => {
     B.prop('Couch').moveTo({ x: 5, y: 5 });
   });
+
+  B.region('leave').whenEnter(() => {
+    B.say`Hank: I'm leaving.`;
+  });
+
+  B.region("leave").whenExit(() => {
+    B.say`Hank: I'm back.`;
+  });
 });

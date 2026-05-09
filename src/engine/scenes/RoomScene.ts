@@ -86,7 +86,12 @@ import {
   resolveCharacterFeetLocal,
   type CharacterFeetLocal,
 } from '../characterFeet';
-import { computeRoomRegionPerspective } from '../room/regionCharacterScale';
+import {
+  computeRoomRegionPerspective,
+  resolveWinningRoomRegionIdAtFeet,
+} from '../room/regionCharacterScale';
+import { roomRegionEnterEventId, roomRegionExitEventId } from '../events/regionEnterExitEvents';
+import type { RegionEnterExitContext } from '../../types/regionEnterExit';
 import { clampWalkDestinationTowardClick, pointInPolygon } from '../walkable';
 import { findWalkPath } from '../pathfinding';
 import { dispatchVerbInteraction } from '../verbs/dispatchVerb';
@@ -401,6 +406,15 @@ export class RoomScene extends Phaser.Scene {
    */
   private cutsceneDepth = 0;
 
+  /**
+   * Character definition id → last frame’s winning `room.regions[].id` at world feet (`null` = outside all).
+   * Used with {@link syncCharacterRegionEnterExit} (Bennescript **`B.region`…`whenEnter` / `whenExit`**).
+   */
+  private characterFeetWinningRegionId = new Map<string, string | null>();
+
+  /** First `update` pass seeds {@link characterFeetWinningRegionId} without emitting enter/exit. */
+  private regionEnterExitSeeded = false;
+
   /** When set, a left-click should end the active scripted dialog line early (global or per-line `say` options). */
   private scriptedDialogClickToSkip: (() => void) | null = null;
 
@@ -451,6 +465,8 @@ export class RoomScene extends Phaser.Scene {
     this.characterSpritesByDefId.clear();
     this.characterJsonVisibleByDefId.clear();
     this.npcWalkTweens.clear();
+    this.characterFeetWinningRegionId.clear();
+    this.regionEnterExitSeeded = false;
     this.unresolvedWalkTargetIdsWarned.clear();
     this.missingDialogTextOverlaySayWarned = false;
     this.missingDisplayTextOverlayWarned = false;
@@ -1906,6 +1922,63 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
+   * Detects feet crossing region boundaries (same polygon + overlap winner as perspective scale).
+   * Emits scoped bus ids consumed by **`B.region(id).whenEnter` / `whenExit`** in **`registerRoomScript`**.
+   */
+  private syncCharacterRegionEnterExit(): void {
+    const roomId = this.roomData.id;
+    const regions = this.roomData.regions;
+    const playerCharacterId = getStartingPlayerCharacterId();
+
+    if (!this.regionEnterExitSeeded) {
+      for (const [characterId, sprite] of this.characterSpritesByDefId) {
+        const feet = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
+        this.characterFeetWinningRegionId.set(
+          characterId,
+          resolveWinningRoomRegionIdAtFeet(feet.x, feet.y, regions),
+        );
+      }
+      this.regionEnterExitSeeded = true;
+      return;
+    }
+
+    for (const [characterId, sprite] of this.characterSpritesByDefId) {
+      const feet = getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
+      const next = resolveWinningRoomRegionIdAtFeet(feet.x, feet.y, regions);
+      const prev = this.characterFeetWinningRegionId.has(characterId)
+        ? (this.characterFeetWinningRegionId.get(characterId) ?? null)
+        : null;
+
+      if (prev === next) {
+        continue;
+      }
+
+      this.characterFeetWinningRegionId.set(characterId, next);
+
+      const base = {
+        roomId,
+        characterId,
+        isPlayer: characterId === playerCharacterId,
+        feetX: feet.x,
+        feetY: feet.y,
+      };
+
+      if (prev != null && prev !== next) {
+        gameEvents.emit(roomRegionExitEventId(roomId, prev), {
+          ...base,
+          regionId: prev,
+        } satisfies RegionEnterExitContext);
+      }
+      if (next != null && next !== prev) {
+        gameEvents.emit(roomRegionEnterEventId(roomId, next), {
+          ...base,
+          regionId: next,
+        } satisfies RegionEnterExitContext);
+      }
+    }
+  }
+
+  /**
    * Instantly place the player’s **feet** at a resolved point (or named target), clamped to the
    * walkable mesh; updates **Idle** facing toward the movement delta, or toward the target when
    * the feet do not move.
@@ -2149,6 +2222,7 @@ export class RoomScene extends Phaser.Scene {
   update(): void {
     this.snapWalkingSpritesToPixelGrid();
     this.syncIdleCharacterRegionScales();
+    this.syncCharacterRegionEnterExit();
     this.updateParallaxProps();
     this.updateRoomStackDepths();
     this.updatePathDebug();

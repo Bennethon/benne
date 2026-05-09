@@ -229,6 +229,106 @@ export function roomScriptRegistersHotspotVerb(
     return false;
 }
 
+/** `B.region('id').whenEnter(` / `B.region("…").whenEnter(` (matches {@link JSON.stringify} form from editor stubs). */
+function rxBennescriptRegionChain(regionId: string, hook: 'whenEnter' | 'whenExit'): RegExp {
+    const jsonLit = escapeRegex(JSON.stringify(regionId));
+    return new RegExp(
+        `\\b\\w+\\.region\\s*\\(\\s*(?:${quotedId(regionId)}|${jsonLit})\\s*\\)\\s*\\.\\s*${hook}\\s*\\(`,
+        'm'
+    );
+}
+
+function rxWhenEnterExitRegionFlat(regionId: string, hook: 'whenEnterRegion' | 'whenExitRegion'): RegExp {
+    const jsonLit = escapeRegex(JSON.stringify(regionId));
+    return new RegExp(
+        `\\b\\w+\\.${hook}\\s*\\(\\s*(?:${quotedId(regionId)}|${jsonLit})\\s*,`,
+        'm'
+    );
+}
+
+function rxRoomRegionEventIdCall(roomId: string, regionId: string, which: 'Enter' | 'Exit'): RegExp {
+    const jsonLit = escapeRegex(JSON.stringify(regionId));
+    return new RegExp(
+        `roomRegion${which}EventId\\s*\\(\\s*${quotedId(roomId)}\\s*,\\s*(?:${quotedId(regionId)}|${jsonLit})\\s*\\)`,
+        'm'
+    );
+}
+
+function regionEnterExitHandlerPatterns(
+    roomId: string,
+    regionId: string,
+    kind: 'enter' | 'exit'
+): Array<{ rx: RegExp }> {
+    if (kind === 'enter') {
+        const ev = `benne:room:${roomId}:region:${regionId}:enter`;
+        return [
+            { rx: rxBennescriptRegionChain(regionId, 'whenEnter') },
+            { rx: rxWhenEnterExitRegionFlat(regionId, 'whenEnterRegion') },
+            { rx: rxRoomRegionEventIdCall(roomId, regionId, 'Enter') },
+            { rx: new RegExp(`['\`"]${escapeRegex(ev)}['\`"]`, 'm') }
+        ];
+    }
+    const ev = `benne:room:${roomId}:region:${regionId}:exit`;
+    return [
+        { rx: rxBennescriptRegionChain(regionId, 'whenExit') },
+        { rx: rxWhenEnterExitRegionFlat(regionId, 'whenExitRegion') },
+        { rx: rxRoomRegionEventIdCall(roomId, regionId, 'Exit') },
+        { rx: new RegExp(`['\`"]${escapeRegex(ev)}['\`"]`, 'm') }
+    ];
+}
+
+export function roomScriptRegistersRegionWhenEnter(
+    source: string,
+    roomId: string,
+    regionId: string
+): boolean {
+    const stripped = stripLineAndBlockComments(source);
+    const patterns = regionEnterExitHandlerPatterns(roomId, regionId, 'enter');
+    return patterns.some(({ rx }) => firstMatchIndex(stripped, rx) >= 0);
+}
+
+export function roomScriptRegistersRegionWhenExit(
+    source: string,
+    roomId: string,
+    regionId: string
+): boolean {
+    const stripped = stripLineAndBlockComments(source);
+    const patterns = regionEnterExitHandlerPatterns(roomId, regionId, 'exit');
+    return patterns.some(({ rx }) => firstMatchIndex(stripped, rx) >= 0);
+}
+
+export function findRoomScriptRegionHandlerRangeRobust(
+    source: string,
+    roomId: string,
+    regionId: string,
+    kind: 'enter' | 'exit'
+): { start: number; end: number } | null {
+    const patterns = regionEnterExitHandlerPatterns(roomId, regionId, kind);
+    const primary = earliestRange(source, patterns);
+    if (primary) {
+        return primary;
+    }
+    const stripped = stripLineAndBlockComments(source);
+    const sec = earliestRange(stripped, patterns);
+    if (!sec) {
+        return null;
+    }
+    const snippet = stripped.slice(sec.start, sec.end);
+    let i = source.indexOf(snippet);
+    if (i >= 0) {
+        return { start: i, end: i + snippet.length };
+    }
+    const firstLine = snippet.trim().split('\n')[0] ?? '';
+    if (firstLine.length < 4) {
+        return null;
+    }
+    i = source.indexOf(firstLine);
+    if (i < 0) {
+        return null;
+    }
+    return { start: i, end: Math.min(source.length, i + snippet.length) };
+}
+
 export function roomScriptRegistersRoomCharacterVerb(
     source: string,
     roomId: string,

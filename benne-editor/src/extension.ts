@@ -54,6 +54,7 @@ import {
     addPropVerbEvent,
     makeRoomPropClickable
 } from './propVerbScaffolding';
+import { addRoomRegionHandler } from './regionScriptScaffolding';
 import { registerDialogBenneScriptCompletion } from './dialogCompletion';
 import { openDialogScriptEditorOnly, runCreateDialogWizard } from './dialogScaffolding';
 import { runCreatePdcWizard } from './pdcScaffolding';
@@ -68,6 +69,7 @@ import {
     openDocumentUri,
     openBenneRoomTypeScript,
     revealEventInDocument,
+    revealRoomRegionHandlerInDocument,
     revealSourceRangeInDocument
 } from './roomScriptNavigation';
 import { InspectorWebviewViewProvider } from './inspectorWebviewViewProvider';
@@ -1095,6 +1097,62 @@ export function activate(context: vscode.ExtensionContext): void {
                 const jsonUri = vscode.Uri.parse(roomJsonUriStr);
                 const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
                 await revealEventInDocument(scriptUri, eventId, BENNE_SCRIPT_VIEW_COLUMN);
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.revealRoomRegionHandler',
+            async (
+                roomJsonUriStr?: string,
+                roomId?: string,
+                regionId?: string,
+                mode?: 'enter' | 'exit'
+            ) => {
+                if (
+                    typeof roomJsonUriStr !== 'string' ||
+                    typeof roomId !== 'string' ||
+                    typeof regionId !== 'string' ||
+                    (mode !== 'enter' && mode !== 'exit')
+                ) {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(roomJsonUriStr);
+                const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
+                await revealRoomRegionHandlerInDocument(scriptUri, roomId, regionId, mode, BENNE_SCRIPT_VIEW_COLUMN);
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addRoomRegionHandler',
+            async (roomJsonUriStr?: string, roomId?: string, regionId?: string, mode?: 'enter' | 'exit') => {
+                if (
+                    typeof roomJsonUriStr !== 'string' ||
+                    typeof roomId !== 'string' ||
+                    typeof regionId !== 'string' ||
+                    (mode !== 'enter' && mode !== 'exit')
+                ) {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(roomJsonUriStr);
+                const r = await addRoomRegionHandler(jsonUri, roomId, regionId, mode);
+                refreshTrees();
+                if (r.ok) {
+                    const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
+                    if (r.insertedStubRange) {
+                        await revealSourceRangeInDocument(
+                            scriptUri,
+                            r.insertedStubRange.start,
+                            r.insertedStubRange.end,
+                            BENNE_SCRIPT_VIEW_COLUMN
+                        );
+                    } else {
+                        await revealRoomRegionHandlerInDocument(
+                            scriptUri,
+                            roomId,
+                            regionId,
+                            mode,
+                            BENNE_SCRIPT_VIEW_COLUMN
+                        );
+                    }
+                }
             }
         ),
         vscode.commands.registerCommand(

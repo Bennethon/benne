@@ -1,6 +1,6 @@
 # Bennescript API Reference
 
-> Last updated: 2026-05-08 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
+> Last updated: 2026-05-09 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
 
 For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§3 → Audio system](architecture.md#audio-system), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt), and the **Blocking interaction queue** / API tables in §7.
 
@@ -41,6 +41,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 | **`B.player`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.character(id)`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.prop(id)`** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **`B.region(id)`** (**`whenEnter`**, **`whenExit`**), **`whenEnterRegion` / `whenExitRegion`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Room **`when*(`target`,`…)` verb sugar**, **`onProp`**, **`whenGive(item,target,…)`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Character self-only **`when*(() => …)`** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Inventory row verbs + **`whenUse` / `whenGive`** registrars | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
@@ -435,6 +436,28 @@ interface RoomTransitionContext {
 
 Registry from **`tryGetGlobalRoomHookRegistry()`** — if missing, DEV warns and handlers are **not** wired.
 
+### Room regions — enter / exit
+
+```ts
+B.region('stage-front').whenEnter((ctx) => {
+  if (ctx.isPlayer) {
+    B.player.say('Stepping into the light.');
+  }
+});
+
+B.whenExitRegion('stage-front', (ctx) => {
+  // same as B.region('stage-front').whenExit(…)
+});
+```
+
+- **`B.region(regionId)`** returns **`{ whenEnter, whenExit }`**. **`whenEnterRegion(regionId, handler)`** / **`whenExitRegion`** are optional flat sugar.
+- **`regionId`** must match **`regions[].id`** in this room’s **`*.room.json`**. Empty / whitespace-only ids: DEV warns, registrations are no-ops.
+- Handlers use **`subscribe`** (same interaction queue as **`whenLookAt`** — queued **`walkTo`**, **`say`**, etc., run to completion before the tail resolves). They are **not** automatically wrapped in **`B.cutscene`** (contrast **`whenEnterRoom` / `whenEnterRoomAfterFade`** in the orchestrator); wrap the body in **`B.cutscene(() => { … })`** when you need full pointer suppression for a beat.
+- **`RegionEnterExitContext`** (`src/types/regionEnterExit.ts`): **`roomId`**, **`regionId`**, **`characterId`** (**`CharacterData.id`**), **`isPlayer`** (**`true`** when **`characterId`** equals **`game-config.json`** **`startingPlayerCharacter`**), **`feetX`**, **`feetY`** (room pixels at detection).
+- The engine tracks the **winning** region at feet each frame (**last** overlapping active polygon with ≥3 points — same rule as perspective **`computeRoomRegionPerspective`**). The **first** frame after **`RoomScene`** load only seeds internal state (no **`whenEnter`** if the character already spawns inside the polygon). Crossing from region A to B fires **`whenExit`** on **A** then **`whenEnter`** on **B**.
+
+Advanced: stable event strings **`roomRegionEnterEventId(roomId, regionId)`** / **`roomRegionExitEventId`** in **`src/engine/events/regionEnterExitEvents.ts`** for **`B.raw.on`** tooling.
+
 ---
 
 ## Character script — `CharacterBenneScript` extras
@@ -572,6 +595,7 @@ Tagged **`B.say`** and the rest of **`BenneScriptCore`** (**`wait`**, **`fadeOut
 | **`whenUse`**, **`whenPickUp`**, **`whenPush`**, **`whenPull`**, **`whenOpen`**, **`whenClose`**, **`whenTalkTo`** | Aliased verbs |
 | **`whenVerb(id, target, …)`** | Explicit id |
 | **`whenGive(itemId, targetPropId, …)`** | **Give** on **that prop** ; payload includes **`itemId`** |
+| **`B.region(id).whenEnter` / `whenExit`**, **`whenEnterRegion` / `whenExitRegion`** | **`RegionEnterExitContext`** (not verb dispatch) |
 
 ### Character (**`CharacterBenneScript`**)
 
@@ -592,7 +616,7 @@ Character scripts omit **`whenGive`** (**give targets props in room layer**).
 
 ## Cutscene mode
 
-Enter-room handlers (`whenEnterRoom`, `whenEnterRoomAfterFade`, and their `Any` variants) and `whenChoice` handlers are **automatically** wrapped in a cutscene block. For other sequences, use `B.cutscene(callback)` (or `.now`), available on every Bennescript surface:
+Enter-room handlers (`whenEnterRoom`, `whenEnterRoomAfterFade`, and their `Any` variants) and `whenChoice` handlers are **automatically** wrapped in a cutscene block. Region **`whenEnter` / `whenExit`** handlers are **not** — use **`B.cutscene`** inside them when you need the same suppression. For other sequences, use `B.cutscene(callback)` (or `.now`), available on every Bennescript surface:
 
 ```ts
 B.cutscene(() => {
@@ -633,6 +657,7 @@ Strict typing when bypassing **`(p: any)`**:
 - Use-on-target: **`AnyInventoryUsedOnPayload`** (`inventoryOnVerbEvents.ts`).
 - Global fallbacks: **`VerbGlobalFallbackPayload`**, **`VerbUnhandledPayload`** (`verbInteractionEvents.ts`).
 - Room hooks: **`RoomTransitionContext`** (`types/roomTransition.ts`).
+- Region enter/exit: **`RegionEnterExitContext`** (`types/regionEnterExit.ts`).
 - Give-on-prop augmentation: **`GivePropInteractPayload`** (`benneScriptPayloads.ts`).
 
 ---
@@ -644,7 +669,7 @@ Strict typing when bypassing **`(p: any)`**:
 | [`BenneScriptCore.ts`](../src/engine/scripting/BenneScriptCore.ts) | **`BlockingWithNow`**, queue, **`say`/`wait`/fades/clicks/active selection**, **`sound`**, **`events`/`raw`**, inventory-on-target **`subscribe*`** helpers, **`cutscene`** / **`cutscene.now`** |
 | [`benneScriptSoundApi.ts`](../src/engine/scripting/benneScriptSoundApi.ts) | **`createBenneScriptSoundFacade`** (**`B.sound`**) |
 | [`SoundManager.ts`](../src/engine/sound/SoundManager.ts) | **`Phaser.Game#sound`** playback, SFX tracking, music slot, lifecycle |
-| [`BenneScript.ts`](../src/engine/scripting/BenneScript.ts) | Room **`B`**, verb sugar, **`prop`/`character`/`player`**, **`state`/`inventory`/`dialog`** |
+| [`BenneScript.ts`](../src/engine/scripting/BenneScript.ts) | Room **`B`**, verb sugar, **`prop`/`character`/`player`/`region`**, **`state`/`inventory`/`dialog`** |
 | [`CharacterBenneScript.ts`](../src/engine/scripting/CharacterBenneScript.ts) | Character facade |
 | [`InventoryBenneScript.ts`](../src/engine/scripting/InventoryBenneScript.ts) | Inventory row façade |
 | [`GlobalBenneScript.ts`](../src/engine/scripting/GlobalBenneScript.ts) | Global fallbacks + any-room hooks |
