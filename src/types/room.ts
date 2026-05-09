@@ -60,11 +60,16 @@ export interface RoomPointData {
   y: number;
 }
 
-/** Non-walkable logical area (puzzle bounds, triggers) as a closed polygon in room space. */
+/** Logical area (perspective scale, tint, walk blocking, triggers) as a closed polygon in room space. */
 export interface RoomRegionData {
   id: string;
   /** When false, ignored by tooling/runtime that respects regions. Omitted = active. */
   active?: boolean;
+  /**
+   * When `false`, characters cannot walk through this polygon (treated as a hole in the walkable mesh).
+   * Omitted or `true` = walkable (no movement restriction from this region).
+   */
+  walkable?: boolean;
   points: Point2[];
   /**
    * Character scale at the **top** of the region (smaller room Y). `1` = normal size. Omitted = `1`.

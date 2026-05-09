@@ -30,6 +30,7 @@ import {
     updatePropAnimationFields,
     updatePropFields,
     updateRegionActive,
+    updateRegionWalkable,
     updateRegionScaleFields,
     updateRegionScaleWalkSpeed,
     updateRegionTintFields,
@@ -654,6 +655,7 @@ type WebviewPatch =
       }
     | { type: 'pointField'; id?: string; x?: number; y?: number }
     | { type: 'regionActive'; id?: string; active?: boolean }
+    | { type: 'regionWalkable'; id?: string; walkable?: boolean }
     | { type: 'regionScale'; id?: string; scaleTop?: number; scaleBottom?: number }
     | { type: 'regionScaleWalkSpeed'; id?: string; scaleWalkSpeed?: boolean }
     | { type: 'regionTint'; id?: string; tint?: string; tintAlpha?: number }
@@ -1315,6 +1317,13 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 return;
             }
             updateRegionActive(data, p.id, p.active);
+            return;
+        }
+        if (p.type === 'regionWalkable' && typeof p.id === 'string' && typeof p.walkable === 'boolean') {
+            if (focusKind !== 'room') {
+                return;
+            }
+            updateRegionWalkable(data, p.id, p.walkable);
             return;
         }
         if (

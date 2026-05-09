@@ -110,6 +110,8 @@ export type InspectorPointCard = { id: string; x: number; y: number };
 export type InspectorRegionCard = {
     id: string;
     active: boolean;
+    /** `false` when JSON has `walkable: false`; the region acts as a hole in the walk mesh. */
+    walkable: boolean;
     pointCount: number;
     scaleTop: number;
     scaleBottom: number;
@@ -1012,6 +1014,7 @@ async function buildRoomInspectorState(
             regions.push({
                 id,
                 active: o.active !== false,
+                walkable: o.walkable !== false,
                 pointCount,
                 scaleTop,
                 scaleBottom,

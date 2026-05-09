@@ -1,4 +1,4 @@
-import type { WalkablePolygon } from '../types/room';
+import type { RoomRegionData, WalkablePolygon } from '../types/room';
 
 /**
  * Ray-casting point-in-polygon test. Vertices are in room/world space (game pixels).
@@ -243,6 +243,105 @@ function closestPointInWalkableUnion(
  * @returns `null` only if there is no usable polygon geometry (e.g. all regions have fewer than
  *          three vertices).
  */
+/** Intersection point of lines P1→P2 and P3→P4, or null if parallel. */
+function lineLineIntersect(
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  p3: { x: number; y: number },
+  p4: { x: number; y: number },
+): { x: number; y: number } | null {
+  const d1x = p2.x - p1.x;
+  const d1y = p2.y - p1.y;
+  const d2x = p4.x - p3.x;
+  const d2y = p4.y - p3.y;
+  const denom = d1x * d2y - d1y * d2x;
+  if (Math.abs(denom) < 1e-9) return null;
+  const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / denom;
+  return { x: p1.x + t * d1x, y: p1.y + t * d1y };
+}
+
+/**
+ * Clips `subject` to the interior of `clip` using Sutherland–Hodgman.
+ * Handles both CW and CCW winding for `clip` (determined from signed area).
+ * Returns `[]` when there is no intersection.
+ */
+function clipToPolygon(
+  subject: readonly { x: number; y: number }[],
+  clip: readonly { x: number; y: number }[],
+): { x: number; y: number }[] {
+  if (clip.length < 3 || subject.length < 3) return [];
+  let area = 0;
+  for (let i = 0, n = clip.length; i < n; i++) {
+    const a = clip[i]!;
+    const b = clip[(i + 1) % n]!;
+    area += a.x * b.y - b.x * a.y;
+  }
+  if (area === 0) return [];
+  const negArea = area < 0;
+
+  let output = subject.slice() as { x: number; y: number }[];
+  for (let i = 0, n = clip.length; i < n && output.length > 0; i++) {
+    const a = clip[i]!;
+    const b = clip[(i + 1) % n]!;
+    const input = output;
+    output = [];
+    for (let j = 0; j < input.length; j++) {
+      const curr = input[j]!;
+      const prev = input[(j - 1 + input.length) % input.length]!;
+      const xc = (b.x - a.x) * (curr.y - a.y) - (b.y - a.y) * (curr.x - a.x);
+      const xp = (b.x - a.x) * (prev.y - a.y) - (b.y - a.y) * (prev.x - a.x);
+      const currIn = negArea ? xc <= 0 : xc >= 0;
+      const prevIn = negArea ? xp <= 0 : xp >= 0;
+      if (currIn) {
+        if (!prevIn) {
+          const isect = lineLineIntersect(prev, curr, a, b);
+          if (isect) output.push(isect);
+        }
+        output.push(curr);
+      } else if (prevIn) {
+        const isect = lineLineIntersect(prev, curr, a, b);
+        if (isect) output.push(isect);
+      }
+    }
+  }
+  return output;
+}
+
+/**
+ * Returns the walkable polygons with any active `walkable: false` regions injected as synthetic
+ * holes. Each region is clipped to the walkable polygon's outer ring first so hole vertices
+ * always lie on the walkable boundary — giving the pathfinder valid corner nodes to route around.
+ *
+ * Returns the original array unchanged when no blocking regions exist (no allocation).
+ */
+export function withNonWalkableRegionsAsHoles(
+  polygons: readonly WalkablePolygon[],
+  regions: readonly RoomRegionData[] | undefined,
+): readonly WalkablePolygon[] {
+  const blocking = (regions ?? []).filter(
+    (r) => r.active !== false && r.walkable === false && r.points.length >= 3,
+  );
+  if (blocking.length === 0) {
+    return polygons;
+  }
+  return polygons.map((poly) => {
+    if (!isActive(poly.active) || poly.points.length < 3) {
+      return poly;
+    }
+    const added: { id: string; points: { x: number; y: number }[] }[] = [];
+    for (const r of blocking) {
+      const clipped = clipToPolygon(r.points, poly.points);
+      if (clipped.length >= 3) {
+        added.push({ id: r.id, points: clipped });
+      }
+    }
+    if (added.length === 0) {
+      return poly;
+    }
+    return { ...poly, holes: [...(poly.holes ?? []), ...added] };
+  });
+}
+
 export function clampWalkDestinationTowardClick(
   playerX: number,
   playerY: number,

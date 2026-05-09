@@ -98,7 +98,7 @@ import {
 import '../room/benneCharacterRegionTintCanvasPatch';
 import { roomRegionEnterEventId, roomRegionExitEventId } from '../events/regionEnterExitEvents';
 import type { RegionEnterExitContext } from '../../types/regionEnterExit';
-import { clampWalkDestinationTowardClick, pointInPolygon } from '../walkable';
+import { clampWalkDestinationTowardClick, pointInPolygon, withNonWalkableRegionsAsHoles } from '../walkable';
 import { findWalkPath } from '../pathfinding';
 import { dispatchVerbInteraction } from '../verbs/dispatchVerb';
 import {
@@ -2001,7 +2001,7 @@ export class RoomScene extends Phaser.Scene {
     this.stopPlayerMoveTween(false);
     const oldFeet = getCharacterWorldFeet(sprite);
     const raw = this.resolveMovementTarget(target, oldFeet);
-    const polys = this.roomData.walkable.polygons;
+    const polys = withNonWalkableRegionsAsHoles(this.roomData.walkable.polygons, this.roomData.regions);
     const clamped = clampWalkDestinationTowardClick(oldFeet.x, oldFeet.y, raw.x, raw.y, polys);
     const feetWorld = clamped ?? raw;
     const data = sprite.getData('character') as CharacterData | undefined;
@@ -2136,7 +2136,7 @@ export class RoomScene extends Phaser.Scene {
     const dSprite = sprite as DirectionalCharacterSprite;
     const oldFeet = getCharacterWorldFeet(sprite);
     const raw = this.resolveMovementTarget(target, oldFeet);
-    const polys = this.roomData.walkable.polygons;
+    const polys = withNonWalkableRegionsAsHoles(this.roomData.walkable.polygons, this.roomData.regions);
     const clamped = clampWalkDestinationTowardClick(oldFeet.x, oldFeet.y, raw.x, raw.y, polys);
     const feetWorld = clamped ?? raw;
     const data = sprite.getData('character') as CharacterData | undefined;
@@ -2553,7 +2553,7 @@ export class RoomScene extends Phaser.Scene {
     const path = findWalkPath(
       feetNow,
       { x: destX, y: destY },
-      this.roomData.walkable.polygons,
+      withNonWalkableRegionsAsHoles(this.roomData.walkable.polygons, this.roomData.regions),
     );
 
     if (path.length === 0) {
@@ -2737,7 +2737,7 @@ export class RoomScene extends Phaser.Scene {
     const path = findWalkPath(
       feetNow,
       { x: destX, y: destY },
-      this.roomData.walkable.polygons,
+      withNonWalkableRegionsAsHoles(this.roomData.walkable.polygons, this.roomData.regions),
     );
 
     if (path.length === 0) {

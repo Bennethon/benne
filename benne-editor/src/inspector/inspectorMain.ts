@@ -74,6 +74,7 @@ type InspectorPointCard = { id: string; x: number; y: number };
 type InspectorRegionCard = {
     id: string;
     active: boolean;
+    walkable: boolean;
     pointCount: number;
     scaleTop: number;
     scaleBottom: number;
@@ -920,6 +921,8 @@ function renderRoom(state: InspectorRoomState): string {
             const body = `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">Active</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-active" data-id="${esc(r.id)}" ${r.active ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl" title="When unchecked, characters cannot walk through this region (acts as a hole in the walk mesh).">Walkable</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-walkable" data-id="${esc(r.id)}" ${r.walkable ? 'checked' : ''} /></label>
         <span class="benne-pg-lbl" title="Scale at top of region (smaller Y). 1 = normal.">Scale top</span>
         <input type="number" class="rg-scale-top" data-id="${esc(r.id)}" value="${r.scaleTop}" step="0.05" />
         <span class="benne-pg-lbl" title="Scale at bottom of region (larger Y).">Scale bottom</span>
@@ -2123,6 +2126,15 @@ function mountHandlers(state: InspectorRoomState): void {
         el.addEventListener('change', () => {
             const inp = el as HTMLInputElement;
             post('applyPatches', { patches: [{ type: 'regionActive', id: inp.dataset.id, active: inp.checked }] });
+        });
+    });
+
+    root.querySelectorAll('.rg-walkable').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el as HTMLInputElement;
+            const id = inp.dataset.id;
+            if (!id) { return; }
+            post('applyPatches', { patches: [{ type: 'regionWalkable', id, walkable: inp.checked }] });
         });
     });
 
