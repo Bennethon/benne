@@ -2023,6 +2023,26 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
+   * Stops click-to-walk / script walk for the character who is about to speak a **`say`** line so
+   * movement does not overlap speech and the **Talk** directional clip can replace **Walk**.
+   * Region / timer handlers do not go through verb dispatch (which already interrupts the player walk).
+   */
+  interruptCharacterWalkForScriptedSpeech(characterDefinitionId: string): void {
+    if (characterDefinitionId === getStartingPlayerCharacterId()) {
+      this.interruptPlayerWalk();
+      return;
+    }
+    const sprite = this.characterSpritesByDefId.get(characterDefinitionId);
+    if (!sprite) {
+      return;
+    }
+    const tween = this.npcWalkTweens.get(sprite);
+    if (tween) {
+      tween.stop();
+    }
+  }
+
+  /**
    * Turn the player to face a **look-at** point in room space (e.g. prop / hotspot **`lookAtPoint`**),
    * or when **`lookAtWorld`** is omitted, the same walk destination as {@link walkPlayerTo} for
    * **`walkFallbackTarget`**. If the vector from the player’s feet to the target is ~0, leaves

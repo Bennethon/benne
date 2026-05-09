@@ -971,6 +971,7 @@ export abstract class BenneScriptCore {
         resolve();
       };
 
+      scene.interruptCharacterWalkForScriptedSpeech(talkCharacterDefinitionId);
       scene.pushScriptedDialogInputSuppression();
       scene.setDialogTextOverlay({
         visible: true,
