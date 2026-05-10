@@ -8,13 +8,7 @@ export const BENNE_GUI_BITMAP_TEXT_OUTLINE_KEY = 'benneGuiOutlineTexts';
 export const BENNE_GUI_OUTLINE_DX_KEY = 'benneGuiOutlineDx';
 export const BENNE_GUI_OUTLINE_DY_KEY = 'benneGuiOutlineDy';
 
-/**
- * Set only on outline-clone {@link Phaser.GameObjects.BitmapText} instances. Used by the Canvas tint path so we
- * never treat normal labels as outline layers (and so we do not need `getData`, which auto-vivifies `data`).
- */
-export const BENNE_GUI_OUTLINE_CANVAS_TINT_KEY = 'benneGuiOutlineCanvasTint';
-
-/** Main-line fill tint for Canvas `setTintFill`; reapplied in {@link syncOutlinedGuiBitmapTextAll}. */
+/** Main-line fill tint; reapplied in {@link syncOutlinedGuiBitmapTextAll} after `setText`. */
 export const BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY = 'benneGuiBitmapTextFillTint';
 
 /** Outline clone fill tint / alpha; reapplied in {@link syncOutlinedGuiBitmapTextAll} after `setText`. */

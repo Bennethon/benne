@@ -3,10 +3,10 @@ import { getGameSettings } from './ConfigManager';
 
 /**
  * Renderer / pixel-output fields that **must** stay identical between the shipped game and every
- * VS Code webview preview (room, GUI, character). Phaser 4's WebGL path renders `BitmapText` with
- * unreliable glyph output (wrapped dialogue looked uneven; in the room preview, fixed-to-camera
- * `BitmapText` lines produced no pixels at all even with `visible: true` and non-zero bounds), so
- * we standardise on `Phaser.CANVAS` + `roundPixels: true` across the whole editor surface.
+ * VS Code webview preview (room, GUI, character, inventory) and **BENNE Play**. Use
+ * `Phaser.WEBGL` so the Tint pipeline applies to `BitmapText` and character sprites without
+ * Canvas-only patches; keep `pixelArt`, `roundPixels`, and `antialias: false` for crisp pixel fonts
+ * and stable integer placement.
  *
  * **Keep this module side-effect free** — previews import `getBenneRendererConfigFields` from
  * here, and if this file pulls in `BootScene` / `RoomScene` at the top level, Vite's eager
@@ -22,13 +22,31 @@ export function getBenneRendererConfigFields(): Pick<
   'type' | 'backgroundColor' | 'pixelArt' | 'roundPixels' | 'antialias' | 'render'
 > {
   return {
-    type: Phaser.CANVAS,
+    type: Phaser.WEBGL,
     backgroundColor: '#1a1a2e',
     pixelArt: true,
     roundPixels: true,
     antialias: false,
     render: {
       powerPreference: 'high-performance',
+    },
+  };
+}
+
+/**
+ * Room (and any other) preview config that shares renderer fields with the shipped game but uses
+ * `Scale.RESIZE` so the canvas fills the VS Code panel; letterboxing in navigate mode is handled in
+ * `RoomScene.setEditorCameraMode`.
+ */
+export function getEditorPhaserGameConfig(
+  parent: HTMLElement,
+): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
+  return {
+    ...getBenneRendererConfigFields(),
+    parent,
+    scale: {
+      parent,
+      mode: Phaser.Scale.RESIZE,
     },
   };
 }

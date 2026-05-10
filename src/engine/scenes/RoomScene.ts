@@ -89,15 +89,10 @@ import {
   type CharacterFeetLocal,
 } from '../characterFeet';
 import {
+  applyCharacterSpriteRegionTintFromWinningRegion,
   computeRoomRegionPerspective,
-  regionTintForWinningRegion,
   resolveWinningRoomRegionIdAtFeet,
 } from '../room/regionCharacterScale';
-import {
-  BENNE_REGION_TINT_ALPHA_KEY,
-  BENNE_REGION_TINT_COLOR_KEY,
-} from '../room/benneCharacterRegionTintCanvasPatch';
-import '../room/benneCharacterRegionTintCanvasPatch';
 import { roomRegionEnterEventId, roomRegionExitEventId } from '../events/regionEnterExitEvents';
 import type { RegionEnterExitContext } from '../../types/regionEnterExit';
 import { clampWalkDestinationTowardClick, pointInPolygon, withNonWalkableRegionsAsHoles } from '../walkable';
@@ -1949,9 +1944,7 @@ export class RoomScene extends Phaser.Scene {
     const s = perspective.characterScale;
     sprite.setScale(s, s);
     placeSpriteByFeet(sprite as Phaser.GameObjects.Sprite, feetLocal, worldFeetX, worldFeetY);
-    const regionTint = regionTintForWinningRegion(perspective.winningRegion);
-    sprite.setData(BENNE_REGION_TINT_COLOR_KEY, regionTint ? regionTint.color : null);
-    sprite.setData(BENNE_REGION_TINT_ALPHA_KEY, regionTint ? regionTint.alpha : null);
+    applyCharacterSpriteRegionTintFromWinningRegion(sprite, perspective.winningRegion);
   }
 
   /**
