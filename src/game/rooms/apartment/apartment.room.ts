@@ -13,8 +13,13 @@ import { registerRoomScript } from '@engine/scripting';
  */
 registerRoomScript(({ B }) => {
 
+  B.whenEnterRoom(() => {
+    if (!B.sound.isMusicPlaying()) {
+      B.sound.playMusic('my-cat-is-crazy');
+    }
+  });
+
   B.whenEnterRoomAfterFade(() => {
-    B.sound.playMusic('my-cat-is-crazy');
 
     if (B.room.last === 'outside') {
       B.wait(.5);
