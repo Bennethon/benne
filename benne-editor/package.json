@@ -47,6 +47,9 @@
     "onCommand:benne-editor.revealRoomRegionHandler",
     "onCommand:benne-editor.addRoomRegionHandler",
     "onCommand:benne-editor.addRoomInventoryUsedOnStub",
+    "onCommand:benne-editor.revealRoomInventoryUsedOn",
+    "onCommand:benne-editor.revealCharacterInventoryUsedOn",
+    "onCommand:benne-editor.revealInventoryItemInventoryUsedOn",
     "onCommand:benne-editor.addCharacterInventoryUsedOnStub",
     "onCommand:benne-editor.filterMainTree",
     "onCommand:benne-editor.clearMainTreeFilter",
@@ -173,6 +176,21 @@
       {
         "command": "benne-editor.addInventoryItemInventoryUsedOnStub",
         "title": "Add B.whenInventoryUsedOn stub (inventory item script)",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.revealRoomInventoryUsedOn",
+        "title": "Reveal B.whenInventoryUsedOn handler (room script)",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.revealCharacterInventoryUsedOn",
+        "title": "Reveal B.whenInventoryUsedOn handler (character script)",
+        "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.revealInventoryItemInventoryUsedOn",
+        "title": "Reveal B.whenInventoryUsedOn handler (inventory item script)",
         "category": "BENNE"
       },
       {

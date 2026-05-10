@@ -182,23 +182,27 @@ function renderInspectorItem(state, entity, id, cardModifierClasses, summaryInne
   <div class="benne-inspector-item-body">${bodyInnerHtml}</div>
 </details>`;
 }
-function renderVerbChipRow(roomJsonUri, roomId, verbs, ctx) {
+function renderVerbChipRow(roomJsonUri, roomId, verbs, ctx, invChipInner) {
     void roomJsonUri;
     void roomId;
-    if (verbs.length === 0) {
+    if (verbs.length === 0 && !invChipInner) {
         return '<div class="benne-verb-chips benne-verb-chips--empty"><span class="muted small">No verbs</span></div>';
     }
-    const inner = verbs
-        .map((v) => {
-        const def = v.defined;
-        const icon = def ? '⚡' : '+';
-        const cls = def ? 'verb-chip verb-defined' : 'verb-chip verb-add';
-        const dataReveal = def ? `data-reveal="1" data-event="${esc(v.eventId)}"` : '';
-        const dataAdd = !def && !v.isFallback ? `data-add="1" data-verb="${esc(v.verbId)}"` : '';
-        return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} data-ctx="${esc(ctx)}" title="${esc(v.label)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(v.verbId)}</span></button>`;
-    })
-        .join('');
-    return `<div class="benne-verb-chips">${inner}</div>`;
+    const inner = verbs.length === 0
+        ? '<span class="muted small">No verbs</span>'
+        : verbs
+            .map((v) => {
+            const def = v.defined;
+            const icon = def ? '⚡' : '+';
+            const cls = def ? 'verb-chip verb-defined' : 'verb-chip verb-add';
+            const dataReveal = def ? `data-reveal="1" data-event="${esc(v.eventId)}"` : '';
+            const dataAdd = !def && !v.isFallback ? `data-add="1" data-verb="${esc(v.verbId)}"` : '';
+            return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} data-ctx="${esc(ctx)}" title="${esc(v.label)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(v.verbId)}</span></button>`;
+        })
+            .join('');
+    const inv = invChipInner ?? '';
+    const emptyMod = verbs.length === 0 && invChipInner ? ' benne-verb-chips--empty' : '';
+    return `<div class="benne-verb-chips${emptyMod}">${inner}${inv}</div>`;
 }
 function renderRegionScriptHandlerChips(r) {
     const mk = (mode, defined, label, title) => {
@@ -214,23 +218,37 @@ ${mk('enter', r.whenEnterDefined, 'When Enter', 'B.region(…).whenEnter — rev
 ${mk('exit', r.whenExitDefined, 'When Exit', 'B.region(…).whenExit — reveal or add stub')}
 </div>`;
 }
-function renderInventoryUsedOnInvRoomButton(target, targetId) {
-    return `<div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-    <button type="button" class="btn-secondary btn-inv-usedon" data-inv-target="${esc(target)}" data-inv-target-id="${esc(targetId)}" title="Insert B.whenInventoryUsedOn stub in the room script">Inv</button>
-    <span class="muted small"><code>B.whenInventoryUsedOn</code> (room script)</span>
-  </div>`;
+function renderRoomInvUsedOnChipInner(target, targetId, defined) {
+    const icon = defined ? '⚡' : '+';
+    const cls = defined ? 'verb-chip verb-defined inv-usedon-chip' : 'verb-chip verb-add inv-usedon-chip';
+    const dataReveal = defined ? 'data-inv-reveal="1"' : '';
+    const dataAdd = !defined ? 'data-inv-add="1"' : '';
+    const title = defined
+        ? `Reveal B.whenInventoryUsedOn('${targetId}', …) in room script`
+        : `Insert B.whenInventoryUsedOn('${targetId}', …) stub in room script`;
+    return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} data-inv-target="${esc(target)}" data-inv-target-id="${esc(targetId)}" title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">Inv</span></button>`;
 }
-function renderInventoryUsedOnInvCharacterDefButton() {
-    return `<div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-    <button type="button" class="btn-secondary btn-inv-usedon-char" title="Insert B.whenInventoryUsedOn stub in the character script">Inv</button>
-    <span class="muted small"><code>B.whenInventoryUsedOn</code> (character script)</span>
-  </div>`;
+function renderCharacterDefInvUsedOnChipInner(defined, characterId) {
+    const icon = defined ? '⚡' : '+';
+    const cls = defined ? 'verb-chip verb-defined inv-usedon-chip' : 'verb-chip verb-add inv-usedon-chip';
+    const dataReveal = defined ? 'data-inv-reveal="1"' : '';
+    const dataAdd = !defined ? 'data-inv-add="1"' : '';
+    const title = defined
+        ? `Reveal B.whenInventoryUsedOn('${characterId}', …) in character script`
+        : `Insert B.whenInventoryUsedOn('${characterId}', …) stub in character script`;
+    return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">Inv</span></button>`;
 }
-function renderInventoryUsedOnInvInventoryItemButton() {
-    return `<div class="benne-inv-usedon-wrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-    <button type="button" class="btn-secondary btn-inv-usedon-inv" title="Insert B.whenInventoryUsedOn stub in the inventory item script">Inv</button>
-    <span class="muted small"><code>B.whenInventoryUsedOn</code> (inventory script)</span>
-  </div>`;
+function renderInventoryItemInvUsedOnChipInner(defined, itemId) {
+    const icon = defined ? '⚡' : '+';
+    const cls = defined
+        ? 'verb-chip verb-defined inv-usedon-chip inv-inventory-usedon-chip'
+        : 'verb-chip verb-add inv-usedon-chip inv-inventory-usedon-chip';
+    const dataReveal = defined ? 'data-inv-reveal="1"' : '';
+    const dataAdd = !defined ? 'data-inv-add="1"' : '';
+    const title = defined
+        ? `Reveal B.whenInventoryUsedOn('${itemId}', …) in inventory script`
+        : `Insert B.whenInventoryUsedOn('${itemId}', …) stub in inventory script`;
+    return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">Inv</span></button>`;
 }
 /**
  * Renders the per-clickable "Default verb" dropdown. The selected value is the currently-authored
@@ -272,7 +290,10 @@ function renderRoom(state) {
     const propCards = state.props
         .map((p) => {
         const title = esc(p.tag ?? p.id);
-        const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, p.verbs, `prop:${p.id}`);
+        const invInner = p.clickable
+            ? renderRoomInvUsedOnChipInner('prop', p.id, p.inventoryUsedOnDefined)
+            : undefined;
+        const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, p.verbs, `prop:${p.id}`, invInner);
         const tagTrim = typeof p.tag === 'string' ? p.tag.trim() : '';
         const tagSelectOptions = p.animations.length > 0
             ? (() => {
@@ -351,7 +372,6 @@ function renderRoom(state) {
             : '<span class="muted small">(not clickable)</span>'}
       <label class="benne-field-label muted small">Verbs</label>
       ${verbHtml}
-      ${p.clickable ? renderInventoryUsedOnInvRoomButton('prop', p.id) : ''}
       ${animSection}
       ${propActions}`;
         return renderInspectorItem(state, 'prop', p.id, ` benne-card--prop${propClickableCls}`, summary, body);
@@ -360,7 +380,10 @@ function renderRoom(state) {
     const hotspotCards = state.hotspots
         .map((h) => {
         const inactive = !h.active ? '<div class="banner">Inactive (not hit-tested)</div>' : '';
-        const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, h.verbs, `hotspot:${h.id}`);
+        const invInner = h.active
+            ? renderRoomInvUsedOnChipInner('hotspot', h.id, h.inventoryUsedOnDefined)
+            : undefined;
+        const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, h.verbs, `hotspot:${h.id}`, invInner);
         const headTitle = esc(h.description.trim() ? h.description.trim() : h.id);
         const summary = `<div class="benne-card-titles">
           <div class="benne-card-title">${headTitle}</div>
@@ -381,7 +404,6 @@ function renderRoom(state) {
       ${renderDefaultVerbSelect('hs-default-verb', `data-id="${esc(h.id)}"`, h.defaultVerb, h.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this hotspot"')}
       <label class="benne-field-label muted small">Verbs</label>
       ${verbHtml}
-      ${h.active ? renderInventoryUsedOnInvRoomButton('hotspot', h.id) : ''}
       <div class="benne-card-actions">
         <div class="benne-card-actions-inner">
           <button type="button" class="btn-link" data-edit-preview="hotspot" data-id="${esc(h.id)}">Edit in Preview →</button>
@@ -392,7 +414,10 @@ function renderRoom(state) {
         .join('');
     const charCards = state.characters
         .map((c) => {
-        const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, c.verbs, `char:${c.instanceId}:${c.characterId}`);
+        const invInner = c.characterClickable
+            ? renderRoomInvUsedOnChipInner('character', c.characterId, c.inventoryUsedOnDefined)
+            : undefined;
+        const verbHtml = renderVerbChipRow(state.roomJsonUri, state.roomId, c.verbs, `char:${c.instanceId}:${c.characterId}`, invInner);
         const clickHint = !c.characterClickable
             ? '<div class="banner">Character definition is not clickable — enable in character JSON first.</div>'
             : '';
@@ -425,8 +450,7 @@ function renderRoom(state) {
         <span class="muted small">(from character JSON)</span>
       </div>
       <label class="benne-field-label muted small">Verbs</label>
-      ${verbHtml}
-      ${c.characterClickable ? renderInventoryUsedOnInvRoomButton('character', c.characterId) : ''}`;
+      ${verbHtml}`;
         return renderInspectorItem(state, 'character', c.instanceId, ' benne-card--character', summary, body);
     })
         .join('');
@@ -1075,7 +1099,10 @@ function renderGuiControlCardBody(state, c) {
     return `<p class="muted">Unsupported control kind.</p>`;
 }
 function renderCharacter(state) {
-    const verbHtml = renderVerbChipRow(state.characterJsonUri, state.characterId, state.verbs, `characterDef:${state.characterId}`);
+    const invInner = state.clickable
+        ? renderCharacterDefInvUsedOnChipInner(state.inventoryUsedOnDefined, state.characterId)
+        : undefined;
+    const verbHtml = renderVerbChipRow(state.characterJsonUri, state.characterId, state.verbs, `characterDef:${state.characterId}`, invInner);
     const animationCards = state.animations
         .map((anim) => {
         const summary = `<div class="benne-card-titles">
@@ -1126,7 +1153,6 @@ function renderCharacter(state) {
         ${renderDefaultVerbSelect('char-default-verb', '', state.defaultVerb, state.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this character"')}
         <label class="benne-field-label muted small" style="margin-top:10px;">Configured verbs</label>
         ${verbHtml}
-        ${state.clickable ? renderInventoryUsedOnInvCharacterDefButton() : ''}
       </div>
     </details>
 
@@ -1252,8 +1278,9 @@ function renderEmpty(msg) {
     return `<p class="empty">${esc(msg)}</p>`;
 }
 function renderInventoryVerbChips(state) {
+    const invBtn = renderInventoryItemInvUsedOnChipInner(state.inventoryUsedOnDefined, state.inventoryId);
     if (state.verbs.length === 0) {
-        return '<div class="benne-verb-chips benne-verb-chips--empty"><span class="muted small">No verbs</span></div>';
+        return `<div class="benne-verb-chips benne-verb-chips--empty"><span class="muted small">No verbs</span>${invBtn}</div>`;
     }
     const chips = state.verbs
         .map((v) => {
@@ -1264,7 +1291,7 @@ function renderInventoryVerbChips(state) {
         return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} data-ctx="inventoryDef:${esc(state.inventoryId)}" title="${esc(v.label)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(v.verbId)}</span></button>`;
     })
         .join('');
-    return `<div class="benne-verb-chips">${chips}</div>`;
+    return `<div class="benne-verb-chips">${chips}${invBtn}</div>`;
 }
 function renderInventory(state) {
     const animationCards = state.animations
@@ -1318,7 +1345,6 @@ function renderInventory(state) {
         ${renderDefaultVerbSelect('inv-default-verb', '', state.defaultVerb, state.availableVerbs, 'title="Verb invoked when inputProfile resolves to \'defaultVerb\' on this inventory item"')}
         <label class="benne-field-label muted small" style="margin-top:10px;">Configured verbs</label>
         ${verbChips}
-        ${renderInventoryUsedOnInvInventoryItemButton()}
       </div>
     </details>
     <details class="section" open>
@@ -1752,9 +1778,24 @@ function mountHandlers(state) {
             }
         });
     });
-    root.querySelectorAll('.btn-inv-usedon').forEach((btn) => {
+    root.querySelectorAll('.inv-usedon-chip').forEach((btn) => {
         btn.addEventListener('click', () => {
             const el = btn;
+            if (el.dataset.invReveal === '1') {
+                const targetId = el.dataset.invTargetId ?? '';
+                if (!targetId) {
+                    return;
+                }
+                post('inventoryUsedOnReveal', {
+                    roomJsonUri: state.roomJsonUri,
+                    roomId: state.roomId,
+                    targetId
+                });
+                return;
+            }
+            if (el.dataset.invAdd !== '1') {
+                return;
+            }
             const target = el.dataset.invTarget;
             const targetId = el.dataset.invTargetId ?? '';
             if (target !== 'prop' && target !== 'hotspot' && target !== 'character') {
@@ -1849,9 +1890,16 @@ function mountCharacterHandlers(state) {
             });
         });
     });
-    document.querySelectorAll('.btn-inv-usedon-char').forEach((btn) => {
+    document.querySelectorAll('.inv-usedon-chip').forEach((btn) => {
         btn.addEventListener('click', () => {
-            post('inventoryUsedOnAdd', { characterJsonUri: state.characterJsonUri });
+            const el = btn;
+            if (el.dataset.invReveal === '1') {
+                post('inventoryUsedOnReveal', { characterJsonUri: state.characterJsonUri });
+                return;
+            }
+            if (el.dataset.invAdd === '1') {
+                post('inventoryUsedOnAdd', { characterJsonUri: state.characterJsonUri });
+            }
         });
     });
 }
@@ -2433,9 +2481,16 @@ function mountInventoryHandlers(state) {
             post('applyPatches', { patches: [{ type: 'inventoryAnimation', id, loop, frameDuration }] });
         });
     });
-    document.querySelectorAll('.btn-inv-usedon-inv').forEach((btn) => {
+    document.querySelectorAll('.inv-inventory-usedon-chip').forEach((btn) => {
         btn.addEventListener('click', () => {
-            post('inventoryUsedOnAdd', { inventoryJsonUri: state.inventoryJsonUri });
+            const el = btn;
+            if (el.dataset.invReveal === '1') {
+                post('inventoryUsedOnReveal', { inventoryJsonUri: state.inventoryJsonUri });
+                return;
+            }
+            if (el.dataset.invAdd === '1') {
+                post('inventoryUsedOnAdd', { inventoryJsonUri: state.inventoryJsonUri });
+            }
         });
     });
 }

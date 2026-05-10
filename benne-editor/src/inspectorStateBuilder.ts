@@ -33,7 +33,8 @@ import {
 import {
     readConfiguredVerbIdSet,
     roomScriptRegistersRegionWhenEnter,
-    roomScriptRegistersRegionWhenExit
+    roomScriptRegistersRegionWhenExit,
+    scriptRegistersWhenInventoryUsedOn
 } from './verbHandlerPresence';
 
 export type InspectorWalkableRow = {
@@ -70,6 +71,8 @@ export type InspectorPropCard = {
     defaultVerb: string;
     /** Game-config verbs (minus `walkTo`) available in the Default verb dropdown. */
     availableVerbs: GameConfigVerbEntry[];
+    /** Room script has `B.whenInventoryUsedOn` for this prop id (Inspector chip highlight). */
+    inventoryUsedOnDefined: boolean;
 };
 
 export type InspectorHotspotCard = {
@@ -82,6 +85,8 @@ export type InspectorHotspotCard = {
     verbs: InspectorVerbChip[];
     defaultVerb: string;
     availableVerbs: GameConfigVerbEntry[];
+    /** Room script has `B.whenInventoryUsedOn` for this hotspot id. */
+    inventoryUsedOnDefined: boolean;
 };
 
 export type InspectorCharacterCard = {
@@ -103,6 +108,8 @@ export type InspectorCharacterCard = {
      */
     defaultVerb: string;
     availableVerbs: GameConfigVerbEntry[];
+    /** Room script has `B.whenInventoryUsedOn` for this character definition id. */
+    inventoryUsedOnDefined: boolean;
 };
 
 export type InspectorPointCard = { id: string; x: number; y: number };
@@ -170,6 +177,8 @@ export type InspectorCharacterState = {
     verbs: InspectorVerbChip[];
     defaultVerb: string;
     availableVerbs: GameConfigVerbEntry[];
+    /** Character script has `B.whenInventoryUsedOn` for this definition id. */
+    inventoryUsedOnDefined: boolean;
 };
 
 export type InspectorGuiSpriteAnchor = '' | 'top-left' | 'center' | 'screen';
@@ -465,6 +474,8 @@ export type InspectorInventoryState = {
     availableVerbs: GameConfigVerbEntry[];
     animations: InspectorInventoryAnimationCard[];
     defaultVerb: string;
+    /** Item script has `B.whenInventoryUsedOn` for this item id. */
+    inventoryUsedOnDefined: boolean;
 };
 
 export type InspectorDialogOptionRow = {
@@ -851,7 +862,9 @@ async function buildRoomInspectorState(
                 alpha: typeof o.alpha === 'number' ? o.alpha : 1,
                 verbs,
                 defaultVerb: readDefaultVerbField(o),
-                availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS)
+                availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS),
+                inventoryUsedOnDefined:
+                    entry.clickable === true ? scriptRegistersWhenInventoryUsedOn(roomScriptText, id) : false
             });
         }
     }
@@ -894,7 +907,9 @@ async function buildRoomInspectorState(
                 baseline: typeof o.baseline === 'number' && Number.isFinite(o.baseline) ? o.baseline : null,
                 verbs,
                 defaultVerb: readDefaultVerbField(o),
-                availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS)
+                availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS),
+                inventoryUsedOnDefined:
+                    entry.active !== false ? scriptRegistersWhenInventoryUsedOn(roomScriptText, id) : false
             });
         }
     }
@@ -966,7 +981,11 @@ async function buildRoomInspectorState(
                 characterJsonUri: charJsonUri.toString(),
                 verbs,
                 defaultVerb: charDefaultVerb,
-                availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS)
+                availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS),
+                inventoryUsedOnDefined:
+                    hooks.clickable === true
+                        ? scriptRegistersWhenInventoryUsedOn(roomScriptText, characterId)
+                        : false
             });
         }
     }
@@ -1131,7 +1150,8 @@ async function buildCharacterInspectorState(
         animations: anims.sort((a, b) => a.id.localeCompare(b.id)),
         verbs,
         defaultVerb: readDefaultVerbField(data),
-        availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS)
+        availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS),
+        inventoryUsedOnDefined: clickable ? scriptRegistersWhenInventoryUsedOn(scriptText, characterId) : false
     };
 }
 
@@ -1635,6 +1655,7 @@ async function buildInventoryInspectorState(
         verbs,
         availableVerbs: filterSelectableVerbs(effectiveVerbs),
         animations,
-        defaultVerb: readDefaultVerbField(data)
+        defaultVerb: readDefaultVerbField(data),
+        inventoryUsedOnDefined: scriptRegistersWhenInventoryUsedOn(scriptText, inventoryId)
     };
 }

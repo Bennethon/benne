@@ -78,6 +78,11 @@ function quotedId(id: string): string {
     return `['\`"]${escapeRegex(id)}['\`]`;
 }
 
+/** `B.whenInventoryUsedOn('targetId',` (optional `B.` prefix matches generated stubs). */
+function rxWhenInventoryUsedOnCall(targetId: string): RegExp {
+    return new RegExp(`(?:B\\.)?whenInventoryUsedOn\\s*\\(\\s*${quotedId(targetId)}\\s*,`, 'm');
+}
+
 /** `B.onProp('propId', 'verbId',` or `onProp('propId', 'verbId',` */
 function rxOnProp(propId: string, verbId: string): RegExp {
     return new RegExp(
@@ -796,6 +801,41 @@ export function benneHandlerDescriptionForCharacter(
     configuredVerbIds: ReadonlySet<string>
 ): string {
     return benneHandlerDescriptionForRoomCharacter(characterId, verbId, configuredVerbIds);
+}
+
+export function scriptRegistersWhenInventoryUsedOn(source: string, targetId: string): boolean {
+    const stripped = stripLineAndBlockComments(source);
+    return firstMatchIndex(stripped, rxWhenInventoryUsedOnCall(targetId)) >= 0;
+}
+
+export function findWhenInventoryUsedOnHandlerRangeRobust(
+    source: string,
+    targetId: string
+): { start: number; end: number } | null {
+    const patterns = [{ rx: rxWhenInventoryUsedOnCall(targetId) }];
+    const primary = earliestRange(source, patterns);
+    if (primary) {
+        return primary;
+    }
+    const stripped = stripLineAndBlockComments(source);
+    const sec = earliestRange(stripped, patterns);
+    if (!sec) {
+        return null;
+    }
+    const snippet = stripped.slice(sec.start, sec.end);
+    let i = source.indexOf(snippet);
+    if (i >= 0) {
+        return { start: i, end: i + snippet.length };
+    }
+    const firstLine = snippet.trim().split('\n')[0] ?? '';
+    if (firstLine.length < 4) {
+        return null;
+    }
+    i = source.indexOf(firstLine);
+    if (i < 0) {
+        return null;
+    }
+    return { start: i, end: Math.min(source.length, i + snippet.length) };
 }
 
 export async function readConfiguredVerbIdSet(gameRoot: vscode.Uri): Promise<Set<string>> {
