@@ -70,7 +70,8 @@ import {
     openBenneRoomTypeScript,
     revealEventInDocument,
     revealRoomRegionHandlerInDocument,
-    revealSourceRangeInDocument
+    revealSourceRangeInDocument,
+    revealWhenInventoryUsedOnHandlerInDocument
 } from './roomScriptNavigation';
 import { InspectorWebviewViewProvider } from './inspectorWebviewViewProvider';
 import { resolveDeleteTargetFromMainTreeNode } from './delete/deleteTarget';
@@ -1343,6 +1344,44 @@ export function activate(context: vscode.ExtensionContext): void {
                     const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${itemIdArg}.inventory.ts`);
                     await revealEventInDocument(scriptUri, 'whenInventoryUsedOn', BENNE_SCRIPT_VIEW_COLUMN);
                 }
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.revealRoomInventoryUsedOn',
+            async (roomJsonUriStr?: string, roomIdArg?: string, targetIdArg?: string) => {
+                if (
+                    typeof roomJsonUriStr !== 'string' ||
+                    typeof roomIdArg !== 'string' ||
+                    typeof targetIdArg !== 'string' ||
+                    !targetIdArg
+                ) {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(roomJsonUriStr);
+                const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomIdArg}.room.ts`);
+                await revealWhenInventoryUsedOnHandlerInDocument(scriptUri, targetIdArg, BENNE_SCRIPT_VIEW_COLUMN);
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.revealCharacterInventoryUsedOn',
+            async (characterJsonUriStr?: string, characterIdArg?: string) => {
+                if (typeof characterJsonUriStr !== 'string' || typeof characterIdArg !== 'string' || !characterIdArg) {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(characterJsonUriStr);
+                const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${characterIdArg}.character.ts`);
+                await revealWhenInventoryUsedOnHandlerInDocument(scriptUri, characterIdArg, BENNE_SCRIPT_VIEW_COLUMN);
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.revealInventoryItemInventoryUsedOn',
+            async (inventoryJsonUriStr?: string, itemIdArg?: string) => {
+                if (typeof inventoryJsonUriStr !== 'string' || typeof itemIdArg !== 'string' || !itemIdArg) {
+                    return;
+                }
+                const jsonUri = vscode.Uri.parse(inventoryJsonUriStr);
+                const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${itemIdArg}.inventory.ts`);
+                await revealWhenInventoryUsedOnHandlerInDocument(scriptUri, itemIdArg, BENNE_SCRIPT_VIEW_COLUMN);
             }
         ),
         vscode.commands.registerCommand(

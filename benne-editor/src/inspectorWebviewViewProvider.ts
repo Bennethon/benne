@@ -972,6 +972,33 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             return;
         }
 
+        if (msg.action === 'inventoryUsedOnReveal') {
+            const targetId = typeof msg.targetId === 'string' ? msg.targetId : '';
+            if (focusKind === 'room' && targetId) {
+                await vscode.commands.executeCommand(
+                    'benne-editor.revealRoomInventoryUsedOn',
+                    uri.toString(),
+                    roomId,
+                    targetId
+                );
+            } else if (focusKind === 'character') {
+                const characterId = getCharacterIdFromCharacterJsonUri(uri);
+                await vscode.commands.executeCommand(
+                    'benne-editor.revealCharacterInventoryUsedOn',
+                    uri.toString(),
+                    characterId
+                );
+            } else if (focusKind === 'inventory') {
+                const itemId = getInventoryIdFromInventoryJsonUri(uri);
+                await vscode.commands.executeCommand(
+                    'benne-editor.revealInventoryItemInventoryUsedOn',
+                    uri.toString(),
+                    itemId
+                );
+            }
+            return;
+        }
+
         if (msg.action === 'regionHandlerReveal') {
             const regionId = typeof msg.regionId === 'string' ? msg.regionId : '';
             const mode = msg.mode === 'exit' ? 'exit' : 'enter';

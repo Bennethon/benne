@@ -8,6 +8,7 @@ import {
     findInventoryScriptVerbRangeForEventId,
     findRoomScriptRegionHandlerRangeRobust,
     findRoomScriptVerbRangeForEventIdRobust,
+    findWhenInventoryUsedOnHandlerRangeRobust,
     readConfiguredVerbIdSet
 } from './verbHandlerPresence';
 
@@ -356,4 +357,34 @@ function findCanonicalHelperRange(source: string, eventId: string): { start: num
 
 function escapeRegex(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export async function revealWhenInventoryUsedOnHandlerInDocument(
+    scriptUri: vscode.Uri,
+    targetId: string,
+    viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active
+): Promise<boolean> {
+    try {
+        await vscode.workspace.fs.stat(scriptUri);
+    } catch {
+        void vscode.window.showWarningMessage(`Script not found: ${scriptUri.fsPath}`);
+        return false;
+    }
+    const doc = await vscode.workspace.openTextDocument(scriptUri);
+    const text = doc.getText();
+    const br = findWhenInventoryUsedOnHandlerRangeRobust(text, targetId);
+    if (!br) {
+        void vscode.window.showInformationMessage(
+            `Could not find B.whenInventoryUsedOn('${targetId}', …) in ${path.basename(scriptUri.fsPath)}.`
+        );
+        const editor = await vscode.window.showTextDocument(doc, {
+            preview: false,
+            viewColumn
+        });
+        const start = doc.positionAt(0);
+        editor.selection = new vscode.Selection(start, start);
+        editor.revealRange(new vscode.Range(start, start));
+        return false;
+    }
+    return revealSourceRangeInDocument(scriptUri, br.start, br.end, viewColumn);
 }
