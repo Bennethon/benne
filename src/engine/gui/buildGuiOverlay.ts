@@ -1,7 +1,6 @@
 /**
- * Composes GUI `BitmapText` overlays. The shipped game uses the **Canvas** renderer (`gameConfig.ts`) so glyphs
- * respect `roundPixels`; Phaser’s **WebGL** `BitmapText` path does not round per character — avoid switching the
- * main game to WebGL without revisiting dialogue crispness.
+ * Composes GUI `BitmapText` overlays. Renderer settings (`pixelArt`, `roundPixels`, WebGL) come from
+ * `getBenneRendererConfigFields` / `getBennePhaserGameConfigBase` — keep in sync with every preview surface.
  */
 import * as Phaser from 'phaser';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
@@ -50,7 +49,6 @@ import {
   attachGuiBitmapTextOutlineList,
   BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY,
   BENNE_GUI_BITMAP_TEXT_OUTLINE_KEY,
-  BENNE_GUI_OUTLINE_CANVAS_TINT_KEY,
   BENNE_GUI_OUTLINE_DX_KEY,
   BENNE_GUI_OUTLINE_DY_KEY,
   BENNE_GUI_OUTLINE_FILL_ALPHA_KEY,
@@ -60,7 +58,6 @@ import {
   syncOutlinedGuiBitmapTextAll,
   syncOutlinedGuiBitmapTextPositions,
 } from './guiTextOutline';
-import './installBitmapTextCanvasGuiOutlineTintPatch';
 import {
   alignBoxTopLeftInCell,
   cumulativeOffsets,
@@ -303,7 +300,6 @@ function createGuiBitmapTextOutlines(
     o.setVisible(visible);
     o.setData(BENNE_GUI_OUTLINE_DX_KEY, dx);
     o.setData(BENNE_GUI_OUTLINE_DY_KEY, dy);
-    o.setData(BENNE_GUI_OUTLINE_CANVAS_TINT_KEY, true);
     if (spec) {
       applyGuiBitmapTextFillTint(o, spec.tint);
       o.setAlpha(spec.alpha);
