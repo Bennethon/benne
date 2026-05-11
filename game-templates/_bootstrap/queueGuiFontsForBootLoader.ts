@@ -6,7 +6,10 @@ import { resolveGameAssetUrl, resolveGameAssetXmlUrl } from './resolveGameAssetU
 
 const manifest = gameFontsManifest as GameFontsManifest;
 
-/** Queue `load.bitmapFont` for every font id used by GUI text controls (see `fonts/fonts.json`). */
+/**
+ * Queue `load.bitmapFont` for every font id used by GUI text controls (see `fonts/fonts.json`).
+ * Wire `wireBenneBitmapFontNearestFilterOnLoader` from the boot scene after queuing (see shipped `BootScene`).
+ */
 export function queueGuiFontsForBootLoader(loader: Phaser.Loader.LoaderPlugin): void {
   for (const fontId of collectFontIdsReferencedByGuiControls()) {
     const def = manifest[fontId];

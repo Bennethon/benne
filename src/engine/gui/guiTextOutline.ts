@@ -26,6 +26,14 @@ export function applyGuiBitmapTextFillTint(go: Phaser.GameObjects.BitmapText, ti
   go.tintTopLeft = go.tintTopRight = go.tintBottomLeft = go.tintBottomRight = tint;
 }
 
+/**
+ * With WebGL + scaled canvas, GUI `BitmapText` should align glyph quads to whole pixels whenever the active
+ * camera uses `roundPixels` (see `getBenneRendererConfigFields`). Use for every label and each outline clone.
+ */
+export function configureBenneGuiBitmapTextForRoundPixels(go: Phaser.GameObjects.BitmapText): void {
+  go.setVertexRoundMode('fullAuto');
+}
+
 const SIDE_UNIT_DIRS: Record<GuiTextOutlineSides, readonly [number, number][]> = {
   allSides: [
     [-1, -1],

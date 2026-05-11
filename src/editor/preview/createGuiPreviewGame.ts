@@ -30,6 +30,7 @@ import {
   wireBenneVerbContextGameStateRelay,
   unwireBenneVerbContextGameStateRelay,
 } from '../../engine/scripting/benneVerbContextScriptSurface';
+import { wireBenneBitmapFontNearestFilterOnLoader } from '../../game/benneBitmapFontTextureFilter';
 import {
   PreviewPolygonOverlay,
   type PreviewStrokeRectOverlayExtras,
@@ -123,6 +124,9 @@ class BenneGuiPreviewBoot extends Phaser.Scene {
         textureURL: inv.textureURL,
         atlasURL: inv.atlasURL,
       });
+    }
+    if (this.payload.fontLoads.length > 0) {
+      wireBenneBitmapFontNearestFilterOnLoader(this);
     }
   }
 

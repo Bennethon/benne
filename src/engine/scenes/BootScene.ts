@@ -28,6 +28,7 @@ import {
   usesAsepriteDisplay as usesGuiAsepriteDisplay,
 } from '../../game/guiAseprite';
 import { getAllGuiData } from '../../game/loadGuiData';
+import { wireBenneBitmapFontNearestFilterOnLoader } from '../../game/benneBitmapFontTextureFilter';
 import { queueGuiFontsForBootLoader } from '../../game/queueGuiFontsForBootLoader';
 import { resolveGameAssetUrl } from '../../game/resolveGameAssetUrl';
 import { CURSOR_TEXTURE_KEY, getCursorAsepriteAssetPaths, isBenneGameCursorAsepriteEnabled } from '../../game/cursorAseprite';
@@ -142,6 +143,7 @@ export class BootScene extends Phaser.Scene {
     }
 
     queueGuiFontsForBootLoader(this.load);
+    wireBenneBitmapFontNearestFilterOnLoader(this);
 
     const queuedGuiAsepriteIds = new Set<string>();
     for (const gui of getAllGuiData()) {

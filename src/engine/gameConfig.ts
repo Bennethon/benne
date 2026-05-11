@@ -6,7 +6,9 @@ import { getGameSettings } from './ConfigManager';
  * VS Code webview preview (room, GUI, character, inventory) and **BENNE Play**. Use
  * `Phaser.WEBGL` so the Tint pipeline applies to `BitmapText` and character sprites without
  * Canvas-only patches; keep `pixelArt`, `roundPixels`, and `antialias: false` for crisp pixel fonts
- * and stable integer placement.
+ * and stable integer placement. BMFont atlas textures additionally use explicit
+ * `texture.setFilter(Phaser.Textures.FilterMode.NEAREST)` after load (see `benneBitmapFontTextureFilter.ts`)
+ * so glyph sheets are not left on LINEAR when scaled from the internal resolution.
  *
  * **Keep this module side-effect free** — previews import `getBenneRendererConfigFields` from
  * here, and if this file pulls in `BootScene` / `RoomScene` at the top level, Vite's eager

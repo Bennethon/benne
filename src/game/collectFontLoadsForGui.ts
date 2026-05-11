@@ -6,6 +6,7 @@ export type GuiFontLoadRequest = { fontId: string; textureUrl: string; dataUrl: 
 /**
  * Bitmap font files to load for one GUI's `text` controls (deduped by font id).
  * `resolveAssetUrl` maps paths under `src/game/assets/` to a fetchable URL.
+ * Preview entrypoints call `load.bitmapFont` then `wireBenneBitmapFontNearestFilterOnLoader` so atlas textures use NEAREST filtering.
  */
 export function collectFontLoadsForGui(
   gui: GuiData,

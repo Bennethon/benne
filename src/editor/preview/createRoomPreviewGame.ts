@@ -11,6 +11,7 @@ import { SCENE_ROOM } from '../../game/constants';
 import type { PreviewManifest } from './buildPreviewManifest';
 import type { RoomPolygonPatch } from './polygonPatchTypes';
 import { BENNE_POLYGON_EDIT_SCENE, RoomPolygonEditScene } from './RoomPolygonEditScene';
+import { wireBenneBitmapFontNearestFilterOnLoader } from '../../game/benneBitmapFontTextureFilter';
 
 export type RoomPreviewGameOptions = {
     roomJsonUri: string;
@@ -48,6 +49,9 @@ export function createRoomPreviewPhaserGame(
                 } else {
                     this.load.bitmapFont(L.key, L.textureURL, L.dataURL);
                 }
+            }
+            if (manifestRef.loads.some((L) => L.kind === 'bitmapFont')) {
+                wireBenneBitmapFontNearestFilterOnLoader(this);
             }
         }
 

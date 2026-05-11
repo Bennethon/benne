@@ -1,6 +1,8 @@
 /**
  * Composes GUI `BitmapText` overlays. Renderer settings (`pixelArt`, `roundPixels`, WebGL) come from
  * `getBenneRendererConfigFields` / `getBennePhaserGameConfigBase` — keep in sync with every preview surface.
+ * BMFont atlases get `FilterMode.NEAREST` after load (`benneBitmapFontTextureFilter.ts`); every GUI `BitmapText`
+ * (including outline clones) uses `configureBenneGuiBitmapTextForRoundPixels` for Phaser 4 vertex rounding.
  */
 import * as Phaser from 'phaser';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
@@ -53,6 +55,7 @@ import {
   BENNE_GUI_OUTLINE_DY_KEY,
   BENNE_GUI_OUTLINE_FILL_ALPHA_KEY,
   BENNE_GUI_OUTLINE_FILL_TINT_KEY,
+  configureBenneGuiBitmapTextForRoundPixels,
   guiTextOutlineMaxAbsOffsetForBounds,
   resolveEffectiveGuiTextOutline,
   syncOutlinedGuiBitmapTextAll,
@@ -288,6 +291,7 @@ function createGuiBitmapTextOutlines(
   const ls = (main as { letterSpacing?: number }).letterSpacing ?? 0;
   for (const { dx, dy } of spec.offsets) {
     const o = scene.add.bitmapText(main.x + dx, main.y + dy, main.font, main.text, main.fontSize, main.align);
+    configureBenneGuiBitmapTextForRoundPixels(o);
     o.setOrigin(main.originX, main.originY);
     if (ls !== 0) {
       o.setLetterSpacing(ls);
@@ -354,6 +358,7 @@ export function measureGuiButtonTextBlockSize(
   const lineAlign = bitmapTextLineAlign(align);
   const renderSize = effectiveBitmapFontRenderSize(scene, c.font, c.fontSize);
   const tmp = scene.add.bitmapText(0, 0, c.font, c.text ?? '', renderSize, lineAlign);
+  configureBenneGuiBitmapTextForRoundPixels(tmp);
   tmp.setVisible(false);
   tmp.setOrigin(align === 'left' ? 0 : align === 'right' ? 1 : 0.5, 0.5);
   const maxW = evenWordWrapWidth(wordWrapInnerWidth);
@@ -821,6 +826,7 @@ export function buildGuiButton(
     const lineAlign = bitmapTextLineAlign(align);
     const renderSize = effectiveBitmapFontRenderSize(scene, c.font, c.fontSize);
     const bt = scene.add.bitmapText(labelX, labelY, c.font, c.text ?? '', renderSize, lineAlign);
+    configureBenneGuiBitmapTextForRoundPixels(bt);
     bt.setOrigin(align === 'left' ? 0 : align === 'right' ? 1 : 0.5, 0.5);
     const labelTint = hexStringToTint(c.textColor ?? '#ffffff');
     applyGuiBitmapTextFillTint(bt, labelTint);
@@ -1038,6 +1044,7 @@ function addGuiBitmapLine(
   const lineAlign = bitmapTextLineAlign(c.align);
   const renderSize = effectiveBitmapFontRenderSize(scene, c.font, c.fontSize);
   const bt = scene.add.bitmapText(x, y, c.font, initial, renderSize, lineAlign);
+  configureBenneGuiBitmapTextForRoundPixels(bt);
   bt.setOrigin(o.x, o.y);
   const mainTint = hexStringToTint(c.color ?? '#ffffff');
   applyGuiBitmapTextFillTint(bt, mainTint);
@@ -1360,6 +1367,7 @@ function estimateTextBlockSizeForGrid(
   const lineAlign = bitmapTextLineAlign(c.align);
   const renderSize = effectiveBitmapFontRenderSize(scene, c.font, c.fontSize);
   const tmp = scene.add.bitmapText(0, 0, c.font, initial, renderSize, lineAlign);
+  configureBenneGuiBitmapTextForRoundPixels(tmp);
   tmp.setVisible(false);
   const o = originFromAlign(c.align);
   tmp.setOrigin(o.x, o.y);
@@ -1886,6 +1894,9 @@ export function buildGuiOverlay(
   gui: GuiData,
   options?: BuildGuiOverlayOptions,
 ): BuiltGuiOverlay | null {
+  for (const cam of scene.cameras.cameras) {
+    cam.setRoundPixels(true);
+  }
   const depth = options?.depth ?? GUI_TEXT_OVERLAY_DEPTH;
   const startVisible = options?.startVisible ?? false;
   const placeholder = options?.emptyTextPlaceholder;
