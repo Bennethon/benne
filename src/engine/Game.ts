@@ -10,6 +10,7 @@ import { GameStateManager, normalizeSerializedInventory } from './gameState/Game
 import { BENNE_GAME_STATE_REGISTRY_KEY } from './gameState/registryKey.js';
 import { setActiveGameStateManager } from './gameState/resolveGameStateManager.js';
 import { getBennePhaserGameConfigBase } from './gameConfig.js';
+import { wireBennePhaserDomContainerLayerOrder } from './gui/bennePhaserDomLayerOrder.js';
 import {
   BENNE_SOUND_MANAGER_KEY,
   setBenneSoundManager,
@@ -37,6 +38,7 @@ function createGameConfig(parent: HTMLElement | string): Phaser.Types.Core.GameC
  */
 export function createBenneGame(parent: HTMLElement | string): Phaser.Game {
   const game = new Phaser.Game(createGameConfig(parent));
+  wireBennePhaserDomContainerLayerOrder(game);
   const rawInit = getGameSettings().initialGameState;
   const initial =
     rawInit != null

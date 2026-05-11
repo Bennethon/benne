@@ -1,7 +1,10 @@
 import * as Phaser from 'phaser';
 import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from '../../engine/sound/benneSoundRegistry';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
-import { getBenneRendererConfigFields } from '../../engine/gameConfig';
+import { getBenneDomGameConfigFields, getBenneRendererConfigFields } from '../../engine/gameConfig';
+import { wireBennePhaserDomContainerLayerOrder } from '../../engine/gui/bennePhaserDomLayerOrder';
+import { ensureBenneDomGuiFontFacesRegistered } from '../../engine/gui/benneDomGuiFontFaces';
+import { ensureBenneDomGuiTextBaseCss } from '../../engine/gui/benneDomGuiTextCss';
 import { buildGuiOverlay, GUI_TEXT_OVERLAY_DEPTH } from '../../engine/gui/buildGuiOverlay';
 import {
   GameStateManager,
@@ -78,6 +81,7 @@ function editorGameConfig(
     /** Renderer fields come from `getBenneRendererConfigFields` (`gameConfig.ts`) — keeps every
      * BENNE surface on the same Phaser renderer (see `benne-preview-rendering-parity.mdc`). */
     ...getBenneRendererConfigFields(),
+    ...getBenneDomGameConfigFields(),
     parent,
     width,
     height,
@@ -106,6 +110,8 @@ class BenneGuiPreviewBoot extends Phaser.Scene {
   }
 
   preload(): void {
+    ensureBenneDomGuiFontFacesRegistered();
+    ensureBenneDomGuiTextBaseCss();
     for (const f of this.payload.fontLoads) {
       this.load.bitmapFont(f.fontId, f.textureUrl, f.dataUrl);
     }
@@ -334,7 +340,7 @@ function collectInventoryPanelSlotWorldRects(gui: GuiData, inventoryItemCount: n
   return rects;
 }
 
-function collectBitmapTextControlWorldRects(scene: Phaser.Scene): Array<{
+function collectGuiTextDebugWorldRects(scene: Phaser.Scene): Array<{
   left: number;
   top: number;
   right: number;
@@ -344,6 +350,12 @@ function collectBitmapTextControlWorldRects(scene: Phaser.Scene): Array<{
   for (const obj of scene.children.list) {
     if (obj instanceof Phaser.GameObjects.BitmapText) {
       const gr = obj.getBounds();
+      if (gr.width > 0 && gr.height > 0) {
+        rects.push({ left: gr.x, top: gr.y, right: gr.x + gr.width, bottom: gr.y + gr.height });
+      }
+    } else if (obj instanceof Phaser.GameObjects.DOMElement) {
+      const withBounds = obj as Phaser.GameObjects.DOMElement & { getBounds(): Phaser.Geom.Rectangle };
+      const gr = withBounds.getBounds();
       if (gr.width > 0 && gr.height > 0) {
         rects.push({ left: gr.x, top: gr.y, right: gr.x + gr.width, bottom: gr.y + gr.height });
       }
@@ -438,7 +450,7 @@ class GuiPreviewScene extends Phaser.Scene {
     }
     const inventoryRects = collectInventoryPanelSlotWorldRects(this.payload.guiData, count);
     const textRects = guiHasTextControls(this.payload.guiData)
-      ? collectBitmapTextControlWorldRects(this)
+      ? collectGuiTextDebugWorldRects(this)
       : [];
     const buttonRects = guiHasButtonControls(this.payload.guiData)
       ? collectButtonControlWorldRects(this.payload.guiData)
@@ -473,7 +485,7 @@ export function createGuiPreviewPhaserGame(
   parent: HTMLElement,
   payload: GuiPreviewGamePayload,
 ): Phaser.Game {
-  return new Phaser.Game({
+  const game = new Phaser.Game({
     ...editorGameConfig(parent, payload.internalWidth, payload.internalHeight),
     callbacks: {
       preBoot: (game: Phaser.Game) => {
@@ -482,4 +494,6 @@ export function createGuiPreviewPhaserGame(
     },
     scene: [new BenneGuiPreviewBoot(payload), GuiPreviewScene],
   });
+  wireBennePhaserDomContainerLayerOrder(game);
+  return game;
 }

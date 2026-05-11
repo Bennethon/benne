@@ -38,7 +38,6 @@ import type {
   GuiSpriteAnchor,
   GuiTextAlign,
   GuiTextControl,
-  GuiTextOutline,
   GuiTriggerControl,
 } from '../../types/gui';
 import {
@@ -46,21 +45,26 @@ import {
   estimateNineSliceSizeForGridAlign,
   tryResizeGuiNineSlicePanel,
 } from './guiNineSliceImage.js';
+import { configureBenneGuiBitmapTextForRoundPixels, guiTextOutlineMaxAbsOffsetForBounds } from './guiTextOutline';
+import { getDomFontCssFamilyForBitmapFontId, hasDomFontEntryForBitmapFontId } from './benneDomGuiFontFaces';
 import {
-  applyGuiBitmapTextFillTint,
-  attachGuiBitmapTextOutlineList,
-  BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY,
-  BENNE_GUI_BITMAP_TEXT_OUTLINE_KEY,
-  BENNE_GUI_OUTLINE_DX_KEY,
-  BENNE_GUI_OUTLINE_DY_KEY,
-  BENNE_GUI_OUTLINE_FILL_ALPHA_KEY,
-  BENNE_GUI_OUTLINE_FILL_TINT_KEY,
-  configureBenneGuiBitmapTextForRoundPixels,
-  guiTextOutlineMaxAbsOffsetForBounds,
-  resolveEffectiveGuiTextOutline,
-  syncOutlinedGuiBitmapTextAll,
-  syncOutlinedGuiBitmapTextPositions,
-} from './guiTextOutline';
+  clampGuiTextLineBottomCenterToScreen,
+  createGuiTextLineHandle,
+  estimateDomGuiTextBlockSize,
+  guiTextLineApplyFillTint,
+  guiTextLineControlObject,
+  guiTextLineGetBoundsUnion,
+  guiTextLinePackObjects,
+  guiTextLineSetAlpha,
+  guiTextLineSetLetterSpacing,
+  guiTextLineSetOrigin,
+  guiTextLineSetPosition,
+  guiTextLineSetText,
+  guiTextLineSetVisible,
+  guiTextLineSyncAfterMainMove,
+  type GuiTextLineHandle,
+} from './guiTextSurface';
+import { resolveGuiTextBackendForControl } from './resolveGuiTextBackend';
 import {
   alignBoxTopLeftInCell,
   cumulativeOffsets,
@@ -127,76 +131,6 @@ export const GUI_OVERLAY_DEPTH_STRIDE = 10_000;
  * {@link GuiOverlayHandle.setPrimaryScreenPositionBottomCenter}.
  */
 const PRIMARY_LINE_SCREEN_EDGE_INSET = 2;
-
-function unionOutlinedBitmapTextScreenBounds(main: Phaser.GameObjects.BitmapText): {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-} {
-  let left = Number.POSITIVE_INFINITY;
-  let top = Number.POSITIVE_INFINITY;
-  let right = Number.NEGATIVE_INFINITY;
-  let bottom = Number.NEGATIVE_INFINITY;
-  const expand = (r: Phaser.Geom.Rectangle): void => {
-    left = Math.min(left, r.x);
-    top = Math.min(top, r.y);
-    right = Math.max(right, r.x + r.width);
-    bottom = Math.max(bottom, r.y + r.height);
-  };
-  expand(main.getBounds());
-  const outs = main.getData(BENNE_GUI_BITMAP_TEXT_OUTLINE_KEY) as Phaser.GameObjects.BitmapText[] | undefined;
-  if (Array.isArray(outs)) {
-    for (const o of outs) {
-      expand(o.getBounds());
-    }
-  }
-  return { left, top, right, bottom };
-}
-
-/**
- * Positions the primary line with bottom-center at `(anchorX, anchorY)`, then nudges it so the unioned bounds
- * (including outline layers) stay inside `[inset, width - inset]` horizontally and do not cross above `y = inset`.
- */
-function clampPrimaryLineBottomCenterToScreen(
-  primaryLine: Phaser.GameObjects.BitmapText,
-  anchorX: number,
-  anchorY: number,
-  viewW: number,
-  inset: number,
-): void {
-  primaryLine.setOrigin(0.5, 1);
-  primaryLine.setPosition(Math.round(anchorX), Math.round(anchorY));
-  syncOutlinedGuiBitmapTextPositions(primaryLine);
-  const bb = unionOutlinedBitmapTextScreenBounds(primaryLine);
-  if (!(bb.right > bb.left && bb.bottom > bb.top)) {
-    return;
-  }
-  const minX = inset;
-  const maxX = viewW - inset;
-  const minY = inset;
-  let dx = 0;
-  let dy = 0;
-  const innerW = maxX - minX;
-  const spanW = bb.right - bb.left;
-  if (innerW > 0 && spanW <= innerW) {
-    if (bb.left < minX) {
-      dx = minX - bb.left;
-    } else if (bb.right > maxX) {
-      dx = maxX - bb.right;
-    }
-  } else if (innerW > 0) {
-    /** Wider than the safe band: keep the start edge inside the inset (right may still clip). */
-    dx = minX - bb.left;
-  }
-  if (bb.top < minY) {
-    dy = minY - bb.top;
-  }
-  if (dx !== 0 || dy !== 0) {
-    primaryLine.setPosition(Math.round(anchorX + dx), Math.round(anchorY + dy));
-    syncOutlinedGuiBitmapTextPositions(primaryLine);
-  }
-}
 
 export interface GuiOverlayHandle {
   /** Updates the dialogue line control (`id: line`) if present, else the first text control. */
@@ -271,53 +205,6 @@ const GUI_BUTTON_OUTLINE_DEPTH_BELOW_LABEL = 19;
 const GUI_BUTTON_BG_DEPTH = 0;
 
 /**
- * Creates outline `BitmapText` copies behind `main` (caller sets `main.setDepth` above all outlines).
- * Each outline uses `outlineDepthCeiling - i * ε` so ordering stays stable and below the main label.
- */
-function createGuiBitmapTextOutlines(
-  scene: Phaser.Scene,
-  main: Phaser.GameObjects.BitmapText,
-  outline: GuiTextOutline | undefined,
-  visible: boolean,
-  outlineDepthCeiling: number,
-): Phaser.GameObjects.BitmapText[] {
-  const spec = resolveEffectiveGuiTextOutline(outline);
-  if (!spec) {
-    return [];
-  }
-  const outs: Phaser.GameObjects.BitmapText[] = [];
-  let i = 0;
-  const mw = (main as { maxWidth?: number }).maxWidth;
-  const ls = (main as { letterSpacing?: number }).letterSpacing ?? 0;
-  for (const { dx, dy } of spec.offsets) {
-    const o = scene.add.bitmapText(main.x + dx, main.y + dy, main.font, main.text, main.fontSize, main.align);
-    configureBenneGuiBitmapTextForRoundPixels(o);
-    o.setOrigin(main.originX, main.originY);
-    if (ls !== 0) {
-      o.setLetterSpacing(ls);
-    }
-    if (typeof mw === 'number' && mw > 0) {
-      o.setMaxWidth(mw);
-    }
-    o.setScrollFactor(0, 0);
-    o.setDepth(outlineDepthCeiling - i * 0.0001);
-    o.setVisible(visible);
-    o.setData(BENNE_GUI_OUTLINE_DX_KEY, dx);
-    o.setData(BENNE_GUI_OUTLINE_DY_KEY, dy);
-    if (spec) {
-      applyGuiBitmapTextFillTint(o, spec.tint);
-      o.setAlpha(spec.alpha);
-      o.setData(BENNE_GUI_OUTLINE_FILL_TINT_KEY, spec.tint);
-      o.setData(BENNE_GUI_OUTLINE_FILL_ALPHA_KEY, spec.alpha);
-    }
-    outs.push(o);
-    i += 1;
-  }
-  attachGuiBitmapTextOutlineList(main, outs);
-  return outs;
-}
-
-/**
  * Phaser WebGL `BitmapText` uses unrounded per-glyph positions from `GetBitmapTextSize`; center/right alignment
  * often adds half-pixel offsets. For wrapped text, using an **even** max width makes longest-line metrics more
  * often land on whole pixels (debug: compare `align: left` vs `center` on the same string).
@@ -347,9 +234,27 @@ function bitmapTextLineAlign(align: GuiTextAlign | undefined): number {
  */
 export function measureGuiButtonTextBlockSize(
   scene: Phaser.Scene,
-  c: Pick<GuiButtonControl, 'font' | 'fontSize' | 'text' | 'textAlign' | 'textOutline'>,
+  c: Pick<GuiButtonControl, 'font' | 'fontSize' | 'text' | 'textAlign' | 'textOutline' | 'textRendering'>,
   wordWrapInnerWidth: number,
 ): { w: number; h: number } {
+  const hasDom = hasDomFontEntryForBitmapFontId(c.font);
+  const backend = resolveGuiTextBackendForControl(c.textRendering, hasDom);
+  if (backend === 'dom' && hasDom) {
+    const fe = manifest[c.font] as GameBitmapFontDefinition | undefined;
+    return estimateDomGuiTextBlockSize(
+      scene,
+      {
+        font: c.font,
+        fontSize: c.fontSize,
+        align: (c.textAlign ?? 'center') as GuiTextAlign,
+        wordWrapWidth: wordWrapInnerWidth,
+        letterSpacing: fe?.defaultLetterSpacing,
+        textOutline: c.textOutline,
+        color: '#ffffff',
+      },
+      c.text ?? '',
+    );
+  }
   const fontEntry = manifest[c.font] as GameBitmapFontDefinition | undefined;
   if (!fontEntry || !scene.cache.bitmapFont.exists(c.font)) {
     return { w: 64, h: 14 };
@@ -513,9 +418,8 @@ export interface BuiltGuiButton {
   /** Invisible hit box (`width` × `height`); carries pointer handlers. */
   readonly hitTarget: Phaser.GameObjects.Container;
   readonly background: Phaser.GameObjects.Sprite | null;
-  readonly label: Phaser.GameObjects.BitmapText | null;
-  /** Outline copies behind {@link BuiltGuiButton.label}; empty when no outline. */
-  readonly labelOutlines: readonly Phaser.GameObjects.BitmapText[];
+  /** Button label as bitmap + outlines or DOM (see {@link createGuiTextLineHandle}). */
+  readonly labelLine: GuiTextLineHandle | null;
   readonly enabled: boolean;
   readonly width: number;
   readonly height: number;
@@ -813,55 +717,77 @@ export function buildGuiButton(
     }
   }
 
-  let label: Phaser.GameObjects.BitmapText | null = null;
-  const labelOutlines: Phaser.GameObjects.BitmapText[] = [];
   const fontEntry = manifest[c.font] as GameBitmapFontDefinition | undefined;
-  if (fontEntry && scene.cache.bitmapFont.exists(c.font)) {
-    const align = c.textAlign ?? 'center';
-    const ox = c.textOffsetX ?? 0;
-    const oy = c.textOffsetY ?? 0;
-    const pad = 4;
-    const labelX = align === 'left' ? pad + ox : align === 'right' ? w - pad + ox : w / 2 + ox;
-    const labelY = h / 2 + oy;
-    const lineAlign = bitmapTextLineAlign(align);
-    const renderSize = effectiveBitmapFontRenderSize(scene, c.font, c.fontSize);
-    const bt = scene.add.bitmapText(labelX, labelY, c.font, c.text ?? '', renderSize, lineAlign);
-    configureBenneGuiBitmapTextForRoundPixels(bt);
-    bt.setOrigin(align === 'left' ? 0 : align === 'right' ? 1 : 0.5, 0.5);
-    const labelTint = hexStringToTint(c.textColor ?? '#ffffff');
-    applyGuiBitmapTextFillTint(bt, labelTint);
-    bt.setData(BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY, labelTint);
-    const letterSpacing = fontEntry.defaultLetterSpacing ?? 0;
-    if (letterSpacing !== 0) {
-      bt.setLetterSpacing(letterSpacing);
-    }
-    if (c.wordWrapWidth != null && c.wordWrapWidth > 0) {
-      const maxW = evenWordWrapWidth(c.wordWrapWidth);
-      if (maxW > 0) {
-        bt.setMaxWidth(maxW);
+  const hasDomFont = hasDomFontEntryForBitmapFontId(c.font);
+  const textBackend = resolveGuiTextBackendForControl(c.textRendering, hasDomFont);
+  let labelLine: GuiTextLineHandle | null = null;
+  const align = (c.textAlign ?? 'center') as GuiTextAlign;
+  const ox = c.textOffsetX ?? 0;
+  const oy = c.textOffsetY ?? 0;
+  const pad = 4;
+  const labelX = align === 'left' ? pad + ox : align === 'right' ? w - pad + ox : w / 2 + ox;
+  const labelY = h / 2 + oy;
+  const letterSpacingBtn = fontEntry?.defaultLetterSpacing ?? 0;
+  const wrapInner =
+    c.wordWrapWidth != null && c.wordWrapWidth > 0 ? evenWordWrapWidth(c.wordWrapWidth) : undefined;
+
+  if (textBackend === 'bitmap') {
+    if (!fontEntry || !scene.cache.bitmapFont.exists(c.font)) {
+      if (c.font.trim().length > 0) {
+        console.warn(`[Benne] GUI button "${c.id}": unknown or unloaded font "${c.font}".`);
       }
+    } else {
+      const renderSize = effectiveBitmapFontRenderSize(scene, c.font, c.fontSize);
+      labelLine = createGuiTextLineHandle({
+        scene,
+        backend: 'bitmap',
+        x: labelX,
+        y: labelY,
+        depth: d + GUI_BUTTON_LABEL_DEPTH,
+        visible: overlayVisible,
+        initialText: c.text ?? '',
+        fontKey: c.font,
+        fontSize: c.fontSize,
+        colorHex: c.textColor ?? '#ffffff',
+        align,
+        wordWrapWidth: wrapInner,
+        letterSpacing: letterSpacingBtn,
+        textOutline: c.textOutline,
+        bitmapRenderSize: renderSize,
+        cssFamily: '',
+        outlineDepthCeiling: d + GUI_BUTTON_OUTLINE_DEPTH_BELOW_LABEL,
+        parent: hitTarget,
+        labelOriginY: 0.5,
+      });
     }
-    bt.setScrollFactor(0, 0);
-    bt.setVisible(overlayVisible);
-    const outs = createGuiBitmapTextOutlines(
-      scene,
-      bt,
-      c.textOutline,
-      overlayVisible,
-      GUI_BUTTON_OUTLINE_DEPTH_BELOW_LABEL,
-    );
-    for (const o of outs) {
-      hitTarget.add(o);
-      labelOutlines.push(o);
+  } else {
+    const cssFam = getDomFontCssFamilyForBitmapFontId(c.font);
+    if (cssFam) {
+      labelLine = createGuiTextLineHandle({
+        scene,
+        backend: 'dom',
+        x: labelX,
+        y: labelY,
+        depth: d + GUI_BUTTON_LABEL_DEPTH,
+        visible: overlayVisible,
+        initialText: c.text ?? '',
+        fontKey: c.font,
+        fontSize: c.fontSize,
+        colorHex: c.textColor ?? '#ffffff',
+        align,
+        wordWrapWidth: wrapInner,
+        letterSpacing: letterSpacingBtn,
+        textOutline: c.textOutline,
+        bitmapRenderSize: c.fontSize,
+        cssFamily: cssFam,
+        outlineDepthCeiling: d + GUI_BUTTON_OUTLINE_DEPTH_BELOW_LABEL,
+        parent: hitTarget,
+        labelOriginY: 0.5,
+      });
     }
-    bt.setDepth(GUI_BUTTON_LABEL_DEPTH);
-    hitTarget.add(bt);
-    label = bt;
-  } else if (c.font.trim().length > 0) {
-    console.warn(`[Benne] GUI button "${c.id}": unknown or unloaded font "${c.font}".`);
   }
 
-  if (!bg && !label) {
+  if (!bg && !labelLine) {
     hitTarget.destroy();
     return null;
   }
@@ -870,10 +796,7 @@ export function buildGuiButton(
   if (!enabled) {
     hitTarget.setAlpha(0.45);
     bg?.setAlpha(0.45);
-    label?.setAlpha(0.45);
-    for (const lo of labelOutlines) {
-      lo.setAlpha(0.45);
-    }
+    guiTextLineSetAlpha(labelLine, 0.45);
     const dTag = c.states?.disabled?.trim();
     if (bg && dTag) {
       reapplyGuiSheetTag(scene, bg, guiTextureKey, dTag, gui.id);
@@ -897,11 +820,10 @@ export function buildGuiButton(
   const disabledTextTint = disabledTextColor ? hexStringToTint(disabledTextColor) : defaultTextTint;
 
   const setLabelTint = (tint: number): void => {
-    if (!label) {
+    if (!labelLine) {
       return;
     }
-    applyGuiBitmapTextFillTint(label, tint);
-    label.setData(BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY, tint);
+    guiTextLineApplyFillTint(labelLine, tint);
   };
 
   const repositionButtonBg = (): void => {
@@ -913,10 +835,7 @@ export function buildGuiButton(
   const syncButtonChromeAlpha = (a: number): void => {
     hitTarget.setAlpha(a);
     bg?.setAlpha(a);
-    label?.setAlpha(a);
-    for (const lo of labelOutlines) {
-      lo.setAlpha(a);
-    }
+    guiTextLineSetAlpha(labelLine, a);
   };
 
   const applyChromeVisual = (visual: BenneGuiScriptButtonVisualState): void => {
@@ -972,7 +891,7 @@ export function buildGuiButton(
   const pointerDrivesChrome =
     enabled &&
     ((bg !== null && (Boolean(hoverTag) || Boolean(pressedTag) || Boolean(disabledTag))) ||
-      (label !== null && (Boolean(hoverTextColor) || Boolean(pressedTextColor) || Boolean(disabledTextColor))));
+      (labelLine !== null && (Boolean(hoverTextColor) || Boolean(pressedTextColor) || Boolean(disabledTextColor))));
 
   if (pointerDrivesChrome) {
     hitTarget.on('pointerover', () => {
@@ -1001,7 +920,7 @@ export function buildGuiButton(
     });
   }
 
-  if (!enabled && label && disabledTextColor) {
+  if (!enabled && labelLine && disabledTextColor) {
     setLabelTint(disabledTextTint);
   }
 
@@ -1017,53 +936,57 @@ export function buildGuiButton(
     gameEvents.emit(guiAllButtonsClickEventId(gui.id), { buttonId: c.id } satisfies GuiAllButtonsClickPayload);
   });
 
-  return { hitTarget, background: bg, label, labelOutlines, enabled, width: w, height: h };
+  return { hitTarget, background: bg, labelLine, enabled, width: w, height: h };
 }
 
-function addGuiBitmapLine(
+function addGuiTextLine(
   scene: Phaser.Scene,
   c: GuiTextControl,
   initial: string,
-  depth: number,
+  lineDepth: number,
   visible: boolean,
-): { main: Phaser.GameObjects.BitmapText; outlines: Phaser.GameObjects.BitmapText[] } | null {
+): GuiTextLineHandle | null {
   const fontEntry = manifest[c.font] as GameBitmapFontDefinition | undefined;
-  if (!fontEntry) {
-    console.warn(`[Benne] Unknown GUI font id "${c.font}" — add it to src/game/assets/fonts/fonts.json.`);
-    return null;
-  }
-
-  if (!scene.cache.bitmapFont.exists(c.font)) {
-    console.warn(`[Benne] Bitmap font "${c.font}" is not in the cache (preload order?).`);
-    return null;
-  }
-
-  const o = originFromAlign(c.align);
-  const x = Math.round(c.x);
-  const y = Math.round(c.y);
-  const lineAlign = bitmapTextLineAlign(c.align);
-  const renderSize = effectiveBitmapFontRenderSize(scene, c.font, c.fontSize);
-  const bt = scene.add.bitmapText(x, y, c.font, initial, renderSize, lineAlign);
-  configureBenneGuiBitmapTextForRoundPixels(bt);
-  bt.setOrigin(o.x, o.y);
-  const mainTint = hexStringToTint(c.color ?? '#ffffff');
-  applyGuiBitmapTextFillTint(bt, mainTint);
-  bt.setData(BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY, mainTint);
-  if (c.wordWrapWidth != null && c.wordWrapWidth > 0) {
-    const maxW = evenWordWrapWidth(c.wordWrapWidth);
-    if (maxW > 0) {
-      bt.setMaxWidth(maxW);
+  const hasDom = hasDomFontEntryForBitmapFontId(c.font);
+  const backend = resolveGuiTextBackendForControl(c.textRendering, hasDom);
+  if (backend === 'bitmap') {
+    if (!fontEntry) {
+      console.warn(`[Benne] Unknown GUI font id "${c.font}" — add it to src/game/assets/fonts/fonts.json.`);
+      return null;
+    }
+    if (!scene.cache.bitmapFont.exists(c.font)) {
+      console.warn(`[Benne] Bitmap font "${c.font}" is not in the cache (preload order?).`);
+      return null;
     }
   }
-  const letterSpacing = c.letterSpacing ?? fontEntry.defaultLetterSpacing ?? 0;
-  if (letterSpacing !== 0) {
-    bt.setLetterSpacing(letterSpacing);
-  }
-  bt.setScrollFactor(0, 0);
-  const outlines = createGuiBitmapTextOutlines(scene, bt, c.textOutline, visible, depth - 0.0001);
-  bt.setDepth(depth);
-  bt.setVisible(visible);
-  return { main: bt, outlines };
+  const renderSize =
+    fontEntry && scene.cache.bitmapFont.exists(c.font)
+      ? effectiveBitmapFontRenderSize(scene, c.font, c.fontSize)
+      : c.fontSize;
+  const cssFam = getDomFontCssFamilyForBitmapFontId(c.font) ?? '';
+  const x = Math.round(c.x);
+  const y = Math.round(c.y);
+  const letterSpacing = c.letterSpacing ?? fontEntry?.defaultLetterSpacing ?? 0;
+  const wrap = c.wordWrapWidth != null && c.wordWrapWidth > 0 ? evenWordWrapWidth(c.wordWrapWidth) : undefined;
+  return createGuiTextLineHandle({
+    scene,
+    backend,
+    x,
+    y,
+    depth: lineDepth,
+    visible,
+    initialText: initial,
+    fontKey: c.font,
+    fontSize: c.fontSize,
+    colorHex: c.color ?? '#ffffff',
+    align: c.align,
+    wordWrapWidth: wrap,
+    letterSpacing,
+    textOutline: c.textOutline,
+    bitmapRenderSize: renderSize,
+    cssFamily: cssFam,
+    outlineDepthCeiling: lineDepth - 0.0001,
+  });
 }
 
 /**
@@ -1360,6 +1283,11 @@ function estimateTextBlockSizeForGrid(
   c: GuiTextControl,
   initial: string,
 ): { w: number; h: number } {
+  const hasDom = hasDomFontEntryForBitmapFontId(c.font);
+  const backend = resolveGuiTextBackendForControl(c.textRendering, hasDom);
+  if (backend === 'dom' && hasDom) {
+    return estimateDomGuiTextBlockSize(scene, c, initial);
+  }
   const fontEntry = manifest[c.font] as GameBitmapFontDefinition | undefined;
   if (!fontEntry || !scene.cache.bitmapFont.exists(c.font)) {
     return { w: 64, h: 16 };
@@ -1833,7 +1761,7 @@ export interface BuildGuiOverlayOptions {
 function wireDisplayTextOverlayLayout(
   gui: GuiData,
   controlsById: Map<string, Phaser.GameObjects.GameObject>,
-  linesById: Map<string, Phaser.GameObjects.BitmapText>,
+  linesById: Map<string, GuiTextLineHandle>,
 ): ((text: string) => void) | null {
   if (gui.id !== 'display-text') {
     return null;
@@ -1848,8 +1776,8 @@ function wireDisplayTextOverlayLayout(
       cc.type === 'text' && typeof cc.id === 'string' && cc.id === 'text',
   );
   const bgRt = controlsById.get('displayTextBg');
-  const textLine = linesById.get('text');
-  if (!nineCtl || !textCtl || !bgRt || !textLine) {
+  const textHandle = linesById.get('text');
+  if (!nineCtl || !textCtl || !bgRt || !textHandle) {
     return null;
   }
   if (!(bgRt instanceof Phaser.GameObjects.RenderTexture)) {
@@ -1867,14 +1795,14 @@ function wireDisplayTextOverlayLayout(
    * plus `getBounds().height` mixes anchor space with AABB space (BitmapText tops rarely equal `.y`), and using
    * the placeholder's height for bottom chrome while sizing with live `b.height` biases short strings downward.
    */
-  const refTextBounds = textLine.getBounds();
+  const refUnion = guiTextLineGetBoundsUnion(textHandle);
   const refBgBounds = bgRt.getBounds();
-  const authoredPadTop = Math.max(0, Math.round(refTextBounds.top - refBgBounds.top));
-  const authoredPadBottom = Math.max(0, Math.round(refBgBounds.bottom - refTextBounds.bottom));
+  const authoredPadTop = Math.max(0, Math.round(refUnion.y - refBgBounds.y));
+  const authoredPadBottom = Math.max(0, Math.round(refBgBounds.bottom - refUnion.bottom));
 
   return (text: string): void => {
-    syncOutlinedGuiBitmapTextAll(textLine, text);
-    const b = textLine.getBounds();
+    guiTextLineSetText(textHandle, text);
+    const b = guiTextLineGetBoundsUnion(textHandle);
     const padX = Math.max(0, authoredBgW - wrapInner);
     const newBgW = Math.max(32, Math.ceil(b.width + padX));
     const newBgH = Math.max(32, Math.ceil(authoredPadTop + b.height + authoredPadBottom));
@@ -1882,10 +1810,12 @@ function wireDisplayTextOverlayLayout(
     tryResizeGuiNineSlicePanel(bgRt, newBgW, newBgH);
 
     const bgAfter = bgRt.getBounds();
-    const textAfter = textLine.getBounds();
-    const padTopNow = textAfter.top - bgAfter.top;
-    textLine.setY(textLine.y + Math.round(authoredPadTop - padTopNow));
-    syncOutlinedGuiBitmapTextPositions(textLine);
+    const textAfter = guiTextLineGetBoundsUnion(textHandle);
+    const padTopNow = textAfter.y - bgAfter.y;
+    const xNow = textHandle.kind === 'bitmap' ? textHandle.main.x : textHandle.dom.x;
+    const yNow = textHandle.kind === 'bitmap' ? textHandle.main.y : textHandle.dom.y;
+    guiTextLineSetPosition(textHandle, xNow, yNow + Math.round(authoredPadTop - padTopNow));
+    guiTextLineSyncAfterMainMove(textHandle);
   };
 }
 
@@ -1903,11 +1833,11 @@ export function buildGuiOverlay(
   const invPointerCtx = options?.inventoryPanelPointerContext;
   const isButtonClickSuppressed = options?.isButtonClickSuppressed;
   const previewGuiAsepriteSheetJson = options?.previewGuiAsepriteSheetJson;
-  const allLines: Phaser.GameObjects.BitmapText[] = [];
+  const textLineHandles: GuiTextLineHandle[] = [];
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
   const guiButtons: BuiltGuiButton[] = [];
   const triggerZones: Phaser.GameObjects.Rectangle[] = [];
-  const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
+  const linesById = new Map<string, GuiTextLineHandle>();
   const controlsById = new Map<string, Phaser.GameObjects.GameObject>();
   const extraSprites: Phaser.GameObjects.GameObject[] = [];
   const overlayDisposers: Array<() => void> = [];
@@ -2271,37 +2201,35 @@ export function buildGuiOverlay(
       isGuiFixedControlId(c.id),
     );
     const textModel: GuiTextControl = txPlace ? { ...c, x: txPlace.localX, y: txPlace.localY } : c;
-    const stack = addGuiBitmapLine(scene, textModel, initial, depth + (c.zIndex ?? 0), lineVisible);
-    if (!stack) {
+    const lineDepth = depth + (c.zIndex ?? 0);
+    const handleLine = addGuiTextLine(scene, textModel, initial, lineDepth, lineVisible);
+    if (!handleLine) {
       continue;
     }
-    const { main: line, outlines } = stack;
+    const pack = guiTextLinePackObjects(handleLine);
     if (txPlace) {
-      for (const o of outlines) {
+      for (const o of pack) {
         txPlace.parent.add(o);
       }
-      txPlace.parent.add(line);
     }
-    allLines.push(...outlines, line);
+    textLineHandles.push(handleLine);
     if (c.id) {
-      linesById.set(c.id, line);
-      controlsById.set(c.id, line);
+      linesById.set(c.id, handleLine);
+      controlsById.set(c.id, guiTextLineControlObject(handleLine));
       if (!txPlace) {
-        for (const o of outlines) {
+        for (const o of pack) {
           ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(o as DepthGameObject);
         }
-        ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(line as DepthGameObject);
       }
     } else if (!txPlace) {
-      for (const o of outlines) {
+      for (const o of pack) {
         movablePackedParts.push(o as DepthGameObject);
       }
-      movablePackedParts.push(line as DepthGameObject);
     }
   }
 
   if (
-    allLines.length === 0 &&
+    textLineHandles.length === 0 &&
     inventoryPanels.length === 0 &&
     extraSprites.length === 0 &&
     guiButtons.length === 0 &&
@@ -2360,25 +2288,45 @@ export function buildGuiOverlay(
   }
 
   /** Dialogue / `setPrimaryText` target — first `id: line` or first `text` control. */
-  const primaryLine = linesById.get('line') ?? allLines[0];
-  const primaryInitialX = primaryLine?.x ?? 0;
-  const primaryInitialY = primaryLine?.y ?? 0;
-  const primaryInitialOriginX = primaryLine?.originX ?? 0;
-  const primaryInitialOriginY = primaryLine?.originY ?? 0;
+  const primaryLineHandle = linesById.get('line') ?? textLineHandles[0] ?? null;
+  const primaryInitialX =
+    primaryLineHandle?.kind === 'bitmap'
+      ? primaryLineHandle.main.x
+      : primaryLineHandle?.kind === 'dom'
+        ? primaryLineHandle.dom.x
+        : 0;
+  const primaryInitialY =
+    primaryLineHandle?.kind === 'bitmap'
+      ? primaryLineHandle.main.y
+      : primaryLineHandle?.kind === 'dom'
+        ? primaryLineHandle.dom.y
+        : 0;
+  const primaryInitialOriginX =
+    primaryLineHandle?.kind === 'bitmap'
+      ? primaryLineHandle.main.originX
+      : primaryLineHandle?.kind === 'dom'
+        ? primaryLineHandle.dom.originX
+        : 0;
+  const primaryInitialOriginY =
+    primaryLineHandle?.kind === 'bitmap'
+      ? primaryLineHandle.main.originY
+      : primaryLineHandle?.kind === 'dom'
+        ? primaryLineHandle.dom.originY
+        : 0;
 
   const runDisplayTextLayout =
     wireDisplayTextOverlayLayout(gui, controlsById, linesById) ?? ((_t: string) => {});
 
   const handle: GuiOverlayHandle = {
     setPrimaryText(text: string) {
-      if (primaryLine) {
-        syncOutlinedGuiBitmapTextAll(primaryLine, text);
+      if (primaryLineHandle) {
+        guiTextLineSetText(primaryLineHandle, text);
       }
     },
     setPrimaryScreenPositionBottomCenter(x: number, y: number) {
-      if (primaryLine) {
-        clampPrimaryLineBottomCenterToScreen(
-          primaryLine,
+      if (primaryLineHandle) {
+        clampGuiTextLineBottomCenterToScreen(
+          primaryLineHandle,
           x,
           y,
           getInternalWidth(),
@@ -2387,24 +2335,24 @@ export function buildGuiOverlay(
       }
     },
     resetPrimaryScreenPosition() {
-      if (primaryLine) {
-        primaryLine.setOrigin(primaryInitialOriginX, primaryInitialOriginY);
-        primaryLine.setPosition(primaryInitialX, primaryInitialY);
-        syncOutlinedGuiBitmapTextPositions(primaryLine);
+      if (primaryLineHandle) {
+        guiTextLineSetOrigin(primaryLineHandle, primaryInitialOriginX, primaryInitialOriginY);
+        guiTextLineSetPosition(primaryLineHandle, primaryInitialX, primaryInitialY);
+        guiTextLineSyncAfterMainMove(primaryLineHandle);
       }
     },
     setControlText(id: string, text: string) {
       const ln = linesById.get(id);
       if (ln) {
-        syncOutlinedGuiBitmapTextAll(ln, text);
+        guiTextLineSetText(ln, text);
       }
     },
     setDisplayTextLayout(text: string) {
       runDisplayTextLayout(text);
     },
     setVisible(visible: boolean) {
-      for (const line of allLines) {
-        line.setVisible(visible);
+      for (const line of textLineHandles) {
+        guiTextLineSetVisible(line, visible);
       }
       for (const panel of inventoryPanels) {
         panel.setVisible(visible);
@@ -2415,9 +2363,8 @@ export function buildGuiOverlay(
       for (const b of guiButtons) {
         b.hitTarget.setVisible(visible);
         b.background?.setVisible(visible);
-        b.label?.setVisible(visible);
-        for (const lo of b.labelOutlines) {
-          lo.setVisible(visible);
+        if (b.labelLine) {
+          guiTextLineSetVisible(b.labelLine, visible);
         }
         if (visible && b.enabled) {
           applyGuiButtonInteractivity(b.hitTarget, b.width, b.height, b.enabled);
@@ -2433,8 +2380,8 @@ export function buildGuiOverlay(
       }
     },
     setLetterSpacing(spacing: number) {
-      for (const line of allLines) {
-        line.setLetterSpacing(spacing);
+      for (const line of textLineHandles) {
+        guiTextLineSetLetterSpacing(line, spacing);
       }
     },
     get gameObjects(): Phaser.GameObjects.GameObject[] {
@@ -2453,7 +2400,7 @@ export function buildGuiOverlay(
         go.destroy();
       }
       fixedPackedGameObjects.length = 0;
-      allLines.length = 0;
+      textLineHandles.length = 0;
       inventoryPanels.length = 0;
       extraSprites.length = 0;
       guiButtons.length = 0;

@@ -1,0 +1,10 @@
+{
+  "lucasarts-scumm-solid": {
+    "ttfFile": "benne-dom-ui.ttf",
+    "cssFamily": "BenneDomLucasartsScummSolid"
+  },
+  "lucasfont-alternate": {
+    "ttfFile": "benne-dom-ui.ttf",
+    "cssFamily": "BenneDomLucasfontAlternate"
+  }
+}

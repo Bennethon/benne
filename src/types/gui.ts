@@ -81,6 +81,9 @@ export interface GuiSpriteAnimationClip {
 /** Map of clip name → options; same optional shape for `image` and `button` controls. */
 export type GuiSpriteAnimationsMap = Record<string, GuiSpriteAnimationClip>;
 
+/** Override global `ui.text.textRendering` for this control (`hybrid` / `dom` modes). */
+export type GuiTextRenderingOverride = 'bitmap' | 'dom';
+
 export interface GuiTextControl {
   type: 'text';
   /** Prefer `line` for dialogue body; otherwise the first text control is the primary line. */
@@ -107,6 +110,8 @@ export interface GuiTextControl {
   /** Optional outline drawn behind this line. */
   textOutline?: GuiTextOutline;
   gridPlacement?: GuiGridPlacement;
+  /** When set with global `ui.text.textRendering` `hybrid` or `dom`, selects DOM vs bitmap for this line. */
+  textRendering?: GuiTextRenderingOverride;
 }
 
 /**
@@ -342,6 +347,8 @@ export interface GuiButtonControl {
   /** Optional outline drawn behind the label. */
   textOutline?: GuiTextOutline;
   gridPlacement?: GuiGridPlacement;
+  /** When set with global `ui.text.textRendering` `hybrid` or `dom`, selects DOM vs bitmap for this button label. */
+  textRendering?: GuiTextRenderingOverride;
 }
 
 /**

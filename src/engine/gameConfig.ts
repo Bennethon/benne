@@ -36,6 +36,19 @@ export function getBenneRendererConfigFields(): Pick<
 }
 
 /**
+ * Required for `Phaser.GameObjects.DOMElement`; keep in sync on every `Phaser.Game` (previews + BENNE Play).
+ * Phaser inserts the DOM layer before the canvas; {@link wireBennePhaserDomContainerLayerOrder} reorders
+ * after boot so GUI HTML is painted above WebGL.
+ */
+export function getBenneDomGameConfigFields(): Pick<Phaser.Types.Core.GameConfig, 'dom'> {
+  return {
+    dom: {
+      createContainer: true,
+    },
+  };
+}
+
+/**
  * Room (and any other) preview config that shares renderer fields with the shipped game but uses
  * `Scale.RESIZE` so the canvas fills the VS Code panel; letterboxing in navigate mode is handled in
  * `RoomScene.setEditorCameraMode`.
@@ -45,6 +58,7 @@ export function getEditorPhaserGameConfig(
 ): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
   return {
     ...getBenneRendererConfigFields(),
+    ...getBenneDomGameConfigFields(),
     parent,
     scale: {
       parent,
@@ -61,6 +75,7 @@ export function getBennePhaserGameConfigBase(
 
   return {
     ...getBenneRendererConfigFields(),
+    ...getBenneDomGameConfigFields(),
     parent,
     width,
     height,

@@ -1,5 +1,10 @@
 import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
-import type { GameSettings, GameSettingsDialog, GameSettingsPerspective } from '../types/game';
+import type {
+  GameSettings,
+  GameSettingsDialog,
+  GameSettingsPerspective,
+  GameSettingsUiTextResolved,
+} from '../types/game';
 import { DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbs/verbConfig';
 import rawSettings from '../game/game-config.json';
 
@@ -17,6 +22,39 @@ const PERSPECTIVE_DEFAULTS: GameSettingsPerspective = {
   minWalkScale: 0.3,
   walkScalePower: 0.8,
 };
+
+const UI_TEXT_DEFAULTS: GameSettingsUiTextResolved = {
+  textRendering: 'bitmap',
+};
+
+function mergeUiTextSettings(data: GameSettings): GameSettingsUiTextResolved {
+  const tr = data.ui?.text?.textRendering;
+  if (tr === 'bitmap' || tr === 'dom' || tr === 'hybrid') {
+    return { textRendering: tr };
+  }
+  return { ...UI_TEXT_DEFAULTS };
+}
+
+function assertUiSettings(data: GameSettings): void {
+  const ui = data.ui;
+  if (ui === undefined) {
+    return;
+  }
+  if (typeof ui !== 'object' || ui === null || Array.isArray(ui)) {
+    throw new Error('game-config ui must be an object when present');
+  }
+  const text = ui.text;
+  if (text === undefined) {
+    return;
+  }
+  if (typeof text !== 'object' || text === null || Array.isArray(text)) {
+    throw new Error('game-config ui.text must be an object when present');
+  }
+  const tr = text.textRendering;
+  if (tr !== undefined && tr !== 'bitmap' && tr !== 'dom' && tr !== 'hybrid') {
+    throw new Error('game-config ui.text.textRendering must be "bitmap", "dom", or "hybrid" when present');
+  }
+}
 
 function mergePerspectiveSettings(data: GameSettings): GameSettingsPerspective {
   const p = data.perspective;
@@ -303,6 +341,7 @@ function assertGameSettings(data: GameSettings): void {
   assertDialogSettings(data);
   assertPerspectiveSettings(data);
   assertCursorSettings(data);
+  assertUiSettings(data);
 }
 
 function assertCursorSettings(data: GameSettings): void {
@@ -388,6 +427,11 @@ export function getDialogSettings(): GameSettingsDialog {
 /** Merged `perspective` values for room-region walk-speed scaling (defaults when block or fields are omitted). */
 export function getPerspectiveSettings(): GameSettingsPerspective {
   return mergePerspectiveSettings(settings);
+}
+
+/** Merged `ui.text` values (defaults when `ui` / `ui.text` omitted). */
+export function getUiTextSettings(): GameSettingsUiTextResolved {
+  return mergeUiTextSettings(settings);
 }
 
 /** How long a `.say()` line should stay on screen from {@link getDialogSettings} timing rules. */

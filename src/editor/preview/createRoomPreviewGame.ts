@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
 import { gameEvents } from '../../engine/events/EventBus';
 import { getEditorPhaserGameConfig } from '../../engine/gameConfig';
+import { wireBennePhaserDomContainerLayerOrder } from '../../engine/gui/bennePhaserDomLayerOrder';
 import { GameStateManager } from '../../engine/gameState/GameStateManager';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKey';
 import { RoomScene } from '../../engine/scenes/RoomScene';
@@ -74,7 +75,7 @@ export function createRoomPreviewPhaserGame(
         }
     }
 
-    return new Phaser.Game({
+    const game = new Phaser.Game({
         ...getEditorPhaserGameConfig(parent),
         callbacks: {
             preBoot: (game: Phaser.Game) => {
@@ -91,4 +92,6 @@ export function createRoomPreviewPhaserGame(
         },
         scene: [BennePreviewLoader, RoomScene, RoomPolygonEditScene],
     });
+    wireBennePhaserDomContainerLayerOrder(game);
+    return game;
 }

@@ -159,6 +159,51 @@ export function attachGuiBitmapTextOutlineList(
 }
 
 /**
+ * Creates outline `BitmapText` copies behind `main` (caller sets `main.setDepth` above all outlines).
+ * Each outline uses `outlineDepthCeiling - i * ε` so ordering stays stable and below the main label.
+ */
+export function createGuiBitmapTextOutlines(
+  scene: Phaser.Scene,
+  main: Phaser.GameObjects.BitmapText,
+  outline: GuiTextOutline | undefined,
+  visible: boolean,
+  outlineDepthCeiling: number,
+): Phaser.GameObjects.BitmapText[] {
+  const spec = resolveEffectiveGuiTextOutline(outline);
+  if (!spec) {
+    return [];
+  }
+  const outs: Phaser.GameObjects.BitmapText[] = [];
+  let i = 0;
+  const mw = (main as { maxWidth?: number }).maxWidth;
+  const ls = (main as { letterSpacing?: number }).letterSpacing ?? 0;
+  for (const { dx, dy } of spec.offsets) {
+    const o = scene.add.bitmapText(main.x + dx, main.y + dy, main.font, main.text, main.fontSize, main.align);
+    configureBenneGuiBitmapTextForRoundPixels(o);
+    o.setOrigin(main.originX, main.originY);
+    if (ls !== 0) {
+      o.setLetterSpacing(ls);
+    }
+    if (typeof mw === 'number' && mw > 0) {
+      o.setMaxWidth(mw);
+    }
+    o.setScrollFactor(0, 0);
+    o.setDepth(outlineDepthCeiling - i * 0.0001);
+    o.setVisible(visible);
+    o.setData(BENNE_GUI_OUTLINE_DX_KEY, dx);
+    o.setData(BENNE_GUI_OUTLINE_DY_KEY, dy);
+    applyGuiBitmapTextFillTint(o, spec.tint);
+    o.setAlpha(spec.alpha);
+    o.setData(BENNE_GUI_OUTLINE_FILL_TINT_KEY, spec.tint);
+    o.setData(BENNE_GUI_OUTLINE_FILL_ALPHA_KEY, spec.alpha);
+    outs.push(o);
+    i += 1;
+  }
+  attachGuiBitmapTextOutlineList(main, outs);
+  return outs;
+}
+
+/**
  * Repositions outline copies to stay locked to `main` after `main` moves or its origin changes
  * (e.g. Speaking Text {@link GuiOverlayHandle.setPrimaryScreenPositionBottomCenter}).
  */

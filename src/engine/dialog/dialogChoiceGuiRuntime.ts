@@ -16,6 +16,7 @@ import {
   wireGuiControlHoverEvents,
   type BuiltGuiButton,
 } from '../gui/buildGuiOverlay.js';
+import { guiTextLineSetAlpha } from '../gui/guiTextSurface.js';
 import {
   alignBoxTopLeftInCell,
   cumulativeOffsets,
@@ -585,11 +586,8 @@ export class DialogChoiceDynamicRowState {
       }
       gridContainer.add(built.hitTarget);
       built.hitTarget.setAlpha(used ? 0.45 : 1);
-      if (built.label) {
-        built.label.setAlpha(used ? 0.45 : 1);
-      }
-      for (const lo of built.labelOutlines) {
-        lo.setAlpha(used ? 0.45 : 1);
+      if (built.labelLine) {
+        guiTextLineSetAlpha(built.labelLine, used ? 0.45 : 1);
       }
       if (built.background) {
         built.background.setAlpha(used ? 0.45 : 1);

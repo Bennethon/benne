@@ -83,6 +83,7 @@ export class ControlFacade {
     if (go instanceof Phaser.GameObjects.BitmapText) {
       syncOutlinedGuiBitmapTextPositions(go);
     }
+    /* DOMElement has no outline siblings to sync */
   }
 
   setY(y: number): void {
@@ -123,19 +124,26 @@ export class ControlFacade {
     }
   }
 
-  private tryGetGuiTextSurface(): Phaser.GameObjects.BitmapText | Phaser.GameObjects.Text | null {
+  private tryGetGuiTextSurface(): Phaser.GameObjects.BitmapText | Phaser.GameObjects.Text | Phaser.GameObjects.DOMElement | null {
     const go = this.gameObject;
-    if (go instanceof Phaser.GameObjects.BitmapText || go instanceof Phaser.GameObjects.Text) {
+    if (
+      go instanceof Phaser.GameObjects.BitmapText ||
+      go instanceof Phaser.GameObjects.Text ||
+      go instanceof Phaser.GameObjects.DOMElement
+    ) {
       return go;
     }
     return null;
   }
 
-  /** **`text`** controls (`BitmapText` / `Text`). Throws if this control is not text-backed. */
+  /** **`text`** controls (`BitmapText` / `Text` / `DOMElement`). Throws if this control is not text-backed. */
   get text(): string {
     const t = this.tryGetGuiTextSurface();
     if (!t) {
-      throw new Error('[Benne] GUI control `.text` requires a BitmapText or Text game object.');
+      throw new Error('[Benne] GUI control `.text` requires a BitmapText, Text, or DOMElement game object.');
+    }
+    if (t instanceof Phaser.GameObjects.DOMElement) {
+      return t.node instanceof HTMLElement ? t.node.innerText : '';
     }
     return t.text;
   }
@@ -143,10 +151,12 @@ export class ControlFacade {
   set text(value: string) {
     const t = this.tryGetGuiTextSurface();
     if (!t) {
-      throw new Error('[Benne] GUI control `.text` requires a BitmapText or Text game object.');
+      throw new Error('[Benne] GUI control `.text` requires a BitmapText, Text, or DOMElement game object.');
     }
     if (t instanceof Phaser.GameObjects.BitmapText) {
       syncOutlinedGuiBitmapTextAll(t, value);
+    } else if (t instanceof Phaser.GameObjects.DOMElement) {
+      t.setText(value);
     } else {
       t.setText(value);
     }

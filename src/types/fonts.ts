@@ -21,3 +21,16 @@ export interface GameBitmapFontDefinition {
 export type GameFontDefinition = GameBitmapFontDefinition;
 
 export type GameFontsManifest = Record<string, GameFontDefinition>;
+
+/**
+ * DOM / CSS font registry in `src/game/assets/fonts/fonts-dom.json`.
+ * Keys align with bitmap font ids in {@link GameFontsManifest} when the same logical font is used for DOM labels.
+ */
+export interface GameDomFontDefinition {
+  /** Filename under `src/game/assets/fonts/` (e.g. `MyHud.ttf`). */
+  ttfFile: string;
+  /** `font-family` name used in generated `@font-face` and inline styles. */
+  cssFamily: string;
+}
+
+export type GameDomFontsManifest = Record<string, GameDomFontDefinition>;

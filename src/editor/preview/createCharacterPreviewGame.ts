@@ -5,7 +5,8 @@ import {
   resolveCharacterFeetLocal,
   type CharacterFeetLocal,
 } from '../../engine/characterFeet';
-import { getBenneRendererConfigFields } from '../../engine/gameConfig';
+import { getBenneDomGameConfigFields, getBenneRendererConfigFields } from '../../engine/gameConfig';
+import { wireBennePhaserDomContainerLayerOrder } from '../../engine/gui/bennePhaserDomLayerOrder';
 import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from '../../engine/sound/benneSoundRegistry';
 import type { CharacterData } from '../../types/character';
 import type { Point2 } from '../../types/room';
@@ -147,6 +148,7 @@ export type CharacterPreviewGamePayload = {
 function editorGameConfig(parent: HTMLElement): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
   return {
     ...getBenneRendererConfigFields(),
+    ...getBenneDomGameConfigFields(),
     parent,
     scale: {
       parent,
@@ -842,7 +844,7 @@ export function createCharacterPreviewPhaserGame(
   parent: HTMLElement,
   payload: CharacterPreviewGamePayload,
 ): Phaser.Game {
-  return new Phaser.Game({
+  const game = new Phaser.Game({
     ...editorGameConfig(parent),
     callbacks: {
       preBoot: (game: Phaser.Game) => {
@@ -851,4 +853,6 @@ export function createCharacterPreviewPhaserGame(
     },
     scene: [new BenneCharacterPreviewBoot(payload), CharacterPreviewScene],
   });
+  wireBennePhaserDomContainerLayerOrder(game);
+  return game;
 }

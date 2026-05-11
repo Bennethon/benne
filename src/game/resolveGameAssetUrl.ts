@@ -21,6 +21,12 @@ const xmlUrls = import.meta.glob('./assets/**/*.xml', {
   import: 'default',
 }) as Record<string, string>;
 
+const ttfFontUrls = import.meta.glob('./assets/fonts/**/*.ttf', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
 const sfxAudioUrls = import.meta.glob('./assets/audio/sfx/**/*.{mp3,ogg,wav,m4a}', {
   eager: true,
   query: '?url',
@@ -101,6 +107,21 @@ export function resolveGameAssetXmlUrl(relativePath: string): string {
   if (!url) {
     throw new Error(
       `Missing XML asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(xmlUrls).sort().join(', ')}`,
+    );
+  }
+
+  return absolutizeBundledAssetUrl(url);
+}
+
+/** TrueType fonts under `src/game/assets/fonts/` (DOM `@font-face` `src`). */
+export function resolveGameAssetFontTtfUrl(relativePath: string): string {
+  const normalized = normalizeAssetPath(relativePath);
+  const key = `./assets/${normalized}`;
+  const url = ttfFontUrls[key];
+
+  if (!url) {
+    throw new Error(
+      `Missing TTF font '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(ttfFontUrls).sort().join(', ')}`,
     );
   }
 

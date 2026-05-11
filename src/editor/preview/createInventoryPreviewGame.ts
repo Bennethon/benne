@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { resolveAuthoredPositionForAsepriteTrim } from '../../engine/aseprite/asepriteFramePlacement';
-import { getBenneRendererConfigFields } from '../../engine/gameConfig';
+import { getBenneDomGameConfigFields, getBenneRendererConfigFields } from '../../engine/gameConfig';
+import { wireBennePhaserDomContainerLayerOrder } from '../../engine/gui/bennePhaserDomLayerOrder';
 import {
   buildInventoryAnimationsPhaserKeyed,
 } from '../../engine/aseprite/ensureAsepriteAtlasAnimationsOnce.js';
@@ -29,6 +30,7 @@ function editorGameConfig(
 ): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
   return {
     ...getBenneRendererConfigFields(),
+    ...getBenneDomGameConfigFields(),
     parent,
     width,
     height,
@@ -115,7 +117,7 @@ export function createInventoryPreviewPhaserGame(
   parent: HTMLElement,
   payload: InventoryPreviewGamePayload,
 ): Phaser.Game {
-  return new Phaser.Game({
+  const game = new Phaser.Game({
     ...editorGameConfig(parent, 352, 198),
     callbacks: {
       preBoot: (game: Phaser.Game) => {
@@ -124,4 +126,6 @@ export function createInventoryPreviewPhaserGame(
     },
     scene: [new BenneInventoryPreviewBoot(payload), InventoryPreviewScene],
   });
+  wireBennePhaserDomContainerLayerOrder(game);
+  return game;
 }

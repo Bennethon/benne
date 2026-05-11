@@ -34,6 +34,33 @@ export interface GameSettingsAudio {
   dialogueVolume: number;
 }
 
+/** Per-control override for GUI text rendering (`*.gui.json` `text` / `button`). */
+export type GameSettingsGuiTextControlRendering = 'bitmap' | 'dom';
+
+/**
+ * Global GUI text backend policy (`game-config.json` `ui.text.textRendering`).
+ * - **`bitmap`** — all GUI text uses Phaser `BitmapText` (ignores per-control `textRendering: 'dom'`; dev warn once optional).
+ * - **`dom`** — DOM (`DOMElement`) for text/button labels unless a control sets **`textRendering: 'bitmap'`**.
+ * - **`hybrid`** — `BitmapText` by default; controls may opt in with **`textRendering: 'dom'`**.
+ */
+export type GameSettingsTextRendering = 'bitmap' | 'dom' | 'hybrid';
+
+/** Optional `game-config.json` `ui.text` block — DOM GUI text + TTF `@font-face` (see `fonts-dom.json`). */
+export interface GameSettingsUiText {
+  /** Default `bitmap` when omitted. */
+  textRendering?: GameSettingsTextRendering;
+}
+
+/** Merged `ui.text` after defaults (see {@link getUiTextSettings}). */
+export interface GameSettingsUiTextResolved {
+  textRendering: GameSettingsTextRendering;
+}
+
+/** Optional `game-config.json` `ui` block. */
+export interface GameSettingsUi {
+  text?: GameSettingsUiText;
+}
+
 export interface GameSettingsDebug {
   /** When true, stroke walkable polygons in the room scene (distinct color from prop colliders). */
   showWalkable?: boolean;
@@ -170,6 +197,8 @@ export interface GameSettings {
    * (Aseprite export). Uses the same `animations` / clip keys pattern as `*.character.json`.
    */
   cursor?: GameSettingsCursor;
+  /** Optional UI tuning (GUI text rendering backend, etc.). */
+  ui?: GameSettingsUi;
 }
 
 /** `game-config.json` `cursor.display` block (Aseprite sheet only for now). */

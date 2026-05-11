@@ -42,6 +42,8 @@ import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from '.
 import { BENNE_ROOM_START_KIND_KEY } from './roomStartKindConstants';
 import { tryGetRoomTransitionOrchestrator } from './roomTransitionGlobals';
 import { ensureRoomScriptLoaded } from '../scripting/registerRoomScript';
+import { ensureBenneDomGuiFontFacesRegistered } from '../gui/benneDomGuiFontFaces.js';
+import { ensureBenneDomGuiTextBaseCss } from '../gui/benneDomGuiTextCss.js';
 
 export type CharacterSpawnLoadKind = 'aseprite' | 'image';
 
@@ -89,6 +91,8 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     applyBootAudioSettings(this);
+    ensureBenneDomGuiFontFacesRegistered();
+    ensureBenneDomGuiTextBaseCss();
 
     const room = loadStartRoomData();
     const startData = buildRoomSceneStartDataFromRoomData(room);
