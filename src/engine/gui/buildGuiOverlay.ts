@@ -1,7 +1,6 @@
 /**
- * Composes GUI `BitmapText` overlays. The shipped game uses the **Canvas** renderer (`gameConfig.ts`) so glyphs
- * respect `roundPixels`; Phaser’s **WebGL** `BitmapText` path does not round per character — avoid switching the
- * main game to WebGL without revisiting dialogue crispness.
+ * Composes GUI `BitmapText` overlays. Renderer settings (`pixelArt`, `roundPixels`, WebGL) come from
+ * `getBenneRendererConfigFields` / `getBennePhaserGameConfigBase` — keep in sync with every preview surface.
  */
 import * as Phaser from 'phaser';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
@@ -50,7 +49,6 @@ import {
   attachGuiBitmapTextOutlineList,
   BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY,
   BENNE_GUI_BITMAP_TEXT_OUTLINE_KEY,
-  BENNE_GUI_OUTLINE_CANVAS_TINT_KEY,
   BENNE_GUI_OUTLINE_DX_KEY,
   BENNE_GUI_OUTLINE_DY_KEY,
   BENNE_GUI_OUTLINE_FILL_ALPHA_KEY,
@@ -60,7 +58,6 @@ import {
   syncOutlinedGuiBitmapTextAll,
   syncOutlinedGuiBitmapTextPositions,
 } from './guiTextOutline';
-import './installBitmapTextCanvasGuiOutlineTintPatch';
 import {
   alignBoxTopLeftInCell,
   cumulativeOffsets,
@@ -303,7 +300,6 @@ function createGuiBitmapTextOutlines(
     o.setVisible(visible);
     o.setData(BENNE_GUI_OUTLINE_DX_KEY, dx);
     o.setData(BENNE_GUI_OUTLINE_DY_KEY, dy);
-    o.setData(BENNE_GUI_OUTLINE_CANVAS_TINT_KEY, true);
     if (spec) {
       applyGuiBitmapTextFillTint(o, spec.tint);
       o.setAlpha(spec.alpha);
@@ -1848,7 +1844,7 @@ function wireDisplayTextOverlayLayout(
   if (!nineCtl || !textCtl || !bgRt || !textLine) {
     return null;
   }
-  if (!(bgRt instanceof Phaser.GameObjects.RenderTexture)) {
+  if (!(bgRt instanceof Phaser.GameObjects.NineSlice)) {
     return null;
   }
 
@@ -1866,7 +1862,10 @@ function wireDisplayTextOverlayLayout(
   const refTextBounds = textLine.getBounds();
   const refBgBounds = bgRt.getBounds();
   const authoredPadTop = Math.max(0, Math.round(refTextBounds.top - refBgBounds.top));
-  const authoredPadBottom = Math.max(0, Math.round(refBgBounds.bottom - refTextBounds.bottom));
+  // Use symmetric chrome: the space from the text top to the panel top defines the chrome on
+  // every side. Deriving bottom padding from the placeholder's bottom is unreliable — if the
+  // placeholder is short it inflates the gap, and if it overflows the panel it collapses to 0.
+  const authoredPadBottom = authoredPadTop;
 
   return (text: string): void => {
     syncOutlinedGuiBitmapTextAll(textLine, text);

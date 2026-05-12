@@ -12,10 +12,11 @@ Whenever you change **how the game draws** (Phaser renderer, scale mode, `pixelA
 | Shipped game | Editor preview(s) |
 |---------------|-------------------|
 | `src/engine/gameConfig.ts` — `getBennePhaserGameConfigBase` | `src/editor/preview/createGuiPreviewGame.ts` (`editorGameConfig`) |
-| Same `gameConfig` fields where previews mirror the room | `src/editor/preview/createRoomPreviewGame.ts` |
+| Same `gameConfig` fields where previews mirror the room | `src/editor/preview/createRoomPreviewGame.ts` (`getEditorPhaserGameConfig` from `gameConfig.ts`) |
 | Same where previews mirror characters | `src/editor/preview/createCharacterPreviewGame.ts` |
+| Same where previews mirror inventory items | `src/editor/preview/createInventoryPreviewGame.ts` |
 
-**Single source of truth for renderer-identity fields:** `getBenneRendererConfigFields()` in `src/engine/gameConfig.ts` returns the exact `type` / `backgroundColor` / `pixelArt` / `roundPixels` / `antialias` / `render` block used by the shipped game. Every preview config **must** spread this helper (not inline literal `type: Phaser.WEBGL`, ad-hoc `pixelArt`, etc.). Otherwise `BitmapText` silently stops rendering in the preview even though `visible`, `alpha`, `depth`, and bounds all look correct — Phaser 4's WebGL path is unreliable for fixed-to-camera `BitmapText`. (This is how the "Show GUIs" room-preview toggle first broke.)
+**Single source of truth for renderer-identity fields:** `getBenneRendererConfigFields()` in `src/engine/gameConfig.ts` returns the exact `type` / `backgroundColor` / `pixelArt` / `roundPixels` / `antialias` / `render` block used by the shipped game, **BENNE Play**, and every preview. Each preview **must** spread this helper (not inline literals) so `BitmapText` tinting, scale, and pixel snapping stay aligned across surfaces.
 
 GUI overlay composition is already shared: `src/engine/gui/buildGuiOverlay.ts` (used by `RoomScene` and GUI preview).
 
@@ -28,4 +29,4 @@ GUI overlay composition is already shared: `src/engine/gui/buildGuiOverlay.ts` (
 
 ## Renderer note
 
-`BitmapText` glyph snapping differs between Phaser **Canvas** and **WebGL** paths. If you switch the main game or any preview between them, **align all previews that show the same UI** and update this rule’s table if new preview entrypoints are added.
+The stack standardises on **WebGL** (`Phaser.WEBGL`) with `pixelArt` + `roundPixels` for crisp UI. If you ever split renderer modes again, **align every surface that shows the same UI** and extend this rule’s table for new preview entrypoints.
