@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
 import { gameEvents } from '../../engine/events/EventBus';
-import { getBenneRendererConfigFields } from '../../engine/gameConfig';
+import { getEditorPhaserGameConfig } from '../../engine/gameConfig';
 import { GameStateManager } from '../../engine/gameState/GameStateManager';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKey';
 import { RoomScene } from '../../engine/scenes/RoomScene';
@@ -22,29 +22,6 @@ export type RoomPreviewGameOptions = {
      */
     initialShowGuis: boolean;
 };
-
-/**
- * Editor-specific Phaser config.
- *
- * Uses `Scale.RESIZE` so the canvas always fills the preview panel (camera management for
- * navigate-letterbox vs edit-full-panel is handled by `RoomScene.setEditorCameraMode`). This
- * differs from the shipped game (`gameConfig.ts`) which uses `Scale.FIT` with integer zoom —
- * that is the **only** intentional divergence; renderer/pixel-output fields come from the
- * shared helper so `BitmapText` rendering matches the runtime (Phaser 4 WebGL did not render
- * fixed-to-camera `BitmapText` reliably — see `.cursor/rules/benne-preview-rendering-parity.mdc`).
- */
-function getEditorPhaserGameConfig(
-    parent: HTMLElement,
-): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
-    return {
-        ...getBenneRendererConfigFields(),
-        parent,
-        scale: {
-            parent,
-            mode: Phaser.Scale.RESIZE,
-        },
-    };
-}
 
 export function createRoomPreviewPhaserGame(
     parent: HTMLElement,

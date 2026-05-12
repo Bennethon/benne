@@ -10,7 +10,6 @@ import type {
 } from '../../types/gui.js';
 import { ensureAsepriteAtlasAnimationsRegisteredOnce } from '../aseprite/ensureAsepriteAtlasAnimationsOnce.js';
 import {
-  getAsepriteSpriteSourceInset,
   resolveAuthoredPositionForAsepriteTrim,
   warnDevIfAsepriteJsonMissingSpriteSourceSize,
 } from '../aseprite/asepriteFramePlacement.js';
@@ -18,20 +17,20 @@ import {
 type Rect = { x: number; y: number; w: number; h: number };
 
 /**
- * Registry key on nine-slice {@link Phaser.GameObjects.RenderTexture} for {@link tryResizeGuiNineSlicePanel}.
+ * Registry key on a nine-slice {@link Phaser.GameObjects.NineSlice} for {@link tryResizeGuiNineSlicePanel}.
  */
 export const BENNE_GUI_NINE_SLICE_RESIZE_FN_KEY = 'benneGuiNineSliceResizeFn';
 
 /**
- * Resizes a GUI nine-slice panel built by {@link addGuiNineSliceImage} (updates DynamicTexture, mask, hit area,
- * and redraws tiles). Returns false when **`rt`** is not a nine-slice control with a resize hook.
+ * Resizes a GUI nine-slice panel built by {@link addGuiNineSliceImage} (updates NineSlice geometry,
+ * hit area, and repositions). Returns false when `ns` is not a nine-slice control with a resize hook.
  */
 export function tryResizeGuiNineSlicePanel(
-  rt: Phaser.GameObjects.RenderTexture,
+  ns: Phaser.GameObjects.NineSlice,
   width: number,
   height: number,
 ): boolean {
-  const fn = rt.getData(BENNE_GUI_NINE_SLICE_RESIZE_FN_KEY) as ((w: number, h: number) => void) | undefined;
+  const fn = ns.getData(BENNE_GUI_NINE_SLICE_RESIZE_FN_KEY) as ((w: number, h: number) => void) | undefined;
   if (typeof fn !== 'function') {
     return false;
   }
@@ -181,13 +180,111 @@ function resolveAsepriteTimelineFrame(
   return start + inClip;
 }
 
-function sliceInsetCrop(bounds: Rect, inset: { x: number; y: number }): { x: number; y: number; w: number; h: number } {
-  return {
-    x: bounds.x - inset.x,
-    y: bounds.y - inset.y,
-    w: bounds.w,
-    h: bounds.h,
+type NineSliceParams = { leftW: number; rightW: number; topH: number; bottomH: number };
+
+/**
+ * Reads the four border measurements from Aseprite `meta.slices` data for the given animation frame.
+ * These map directly to Phaser's `NineSlice` constructor parameters.
+ *
+ * The widths/heights of slices are invariant to any sprite trim inset (only positions are affected by
+ * insets, not dimensions), so they can be passed to `NineSlice` without adjustment.
+ */
+function readNineSliceParams(
+  probe: Phaser.GameObjects.Sprite,
+  raw: Record<string, unknown>,
+  sliceMap: Map<string, AsepriteSliceEntry>,
+  sliceNames: GuiNineSliceImageSliceNames,
+  authorTag: string,
+  guiId: string,
+): NineSliceParams | null {
+  const timelineFrame = resolveAsepriteTimelineFrame(probe, raw, authorTag, guiId);
+
+  const getRect = (cell: keyof GuiNineSliceImageSliceNames): Rect | null => {
+    const sliceName = sliceNames[cell]?.trim() ?? '';
+    if (!sliceName) {
+      console.warn(`[Benne] nineSliceImage: missing sliceNames.${String(cell)}.`);
+      return null;
+    }
+    const slice = sliceMap.get(sliceName);
+    if (!slice) {
+      console.warn(`[Benne] nineSliceImage: no Aseprite slice named "${sliceName}" in GUI sheet JSON.`);
+      return null;
+    }
+    const b = pickSliceBoundsForTimelineFrame(slice, timelineFrame);
+    if (!b) {
+      console.warn(`[Benne] nineSliceImage: slice "${sliceName}" has no key for frame ${timelineFrame}.`);
+      return null;
+    }
+    return b;
   };
+
+  const tl = getRect('topLeft');
+  const tr = getRect('topRight');
+  const bl = getRect('bottomLeft');
+  if (!tl || !tr || !bl) return null;
+
+  if (import.meta.env.DEV) {
+    // Read remaining slices only for consistency warnings.
+    const tc = getRect('topCenter');
+    const ml = getRect('middleLeft');
+    const mr = getRect('middleRight');
+    const bc = getRect('bottomCenter');
+    const br = getRect('bottomRight');
+    const warn = (label: string, v1: number, v2: number) => {
+      if (Math.abs(v1 - v2) > 0.5) {
+        console.warn(
+          `[Benne] nineSliceImage: ${label} mismatch (${v1} vs ${v2}) — using top-left / top row / left column.`,
+        );
+      }
+    };
+    if (ml) warn('left column width', tl.w, ml.w);
+    if (bl) warn('left column width', tl.w, bl.w);
+    if (mr) warn('right column width', tr.w, mr.w);
+    if (br) warn('right column width', tr.w, br.w);
+    if (tc) warn('top row height', tl.h, tc.h);
+    if (tr) warn('top row height', tl.h, tr.h);
+    if (bc) warn('bottom row height', bl.h, bc.h);
+    if (br) warn('bottom row height', bl.h, br.h);
+  }
+
+  return { leftW: tl.w, rightW: tr.w, topH: tl.h, bottomH: bl.h };
+}
+
+/**
+ * Phaser's `NineSlice.updateUVs()` normalises slice pixel positions by `frame.realWidth/realHeight`
+ * and uses those values as final texture UVs (0-1). This is correct only when `frame.u0=0, frame.u1=1`
+ * AND `frame.cutWidth = frame.realWidth` (no atlas padding).
+ *
+ * Aseprite's "Power of 2" export option pads the atlas to the next power-of-two, so the frame may be
+ * 32×32 while `sourceSize` (= `realWidth/realHeight`) is 30×20. In that case `cutWidth > realWidth`,
+ * `frame.u1 = 1` still maps the *full* 32px, and UV fractions like `7/30` sample at pixel 7.47 instead
+ * of 7 — causing severe vertical misalignment for the row boundaries.
+ *
+ * Fix: add a one-time sub-frame covering only the content area (`realWidth × realHeight` at the same
+ * atlas origin). That sub-frame gets `u1 = realW/atlasW < 1`, so `updateQuadUVs` correctly scales
+ * each UV fraction through the frame's range and maps 7/30 → 7/32. The vertex positions (determined by
+ * `this.width/height`, not the frame) are unaffected.
+ */
+function ensureNineSliceUVCorrectedFrame(
+  tex: Phaser.Textures.Texture,
+  origFrame: Phaser.Textures.Frame,
+): string | number {
+  const contentW = origFrame.realWidth;
+  const contentH = origFrame.realHeight;
+  const atlasW = origFrame.cutWidth;
+  const atlasH = origFrame.cutHeight;
+
+  if (atlasW <= contentW && atlasH <= contentH) {
+    return origFrame.name; // No atlas padding — original frame UV is correct.
+  }
+
+  const correctedName = `${String(origFrame.name)}__benne_ns_uv`;
+  if (!tex.has(correctedName)) {
+    // Create a frame covering only the content area (realWidth × realHeight) at the same atlas origin.
+    // Its u1 = (cutX + contentW) / sourceImageWidth < 1, so UV fractions map correctly.
+    tex.add(correctedName, origFrame.sourceIndex, origFrame.cutX, origFrame.cutY, contentW, contentH);
+  }
+  return correctedName;
 }
 
 function guiSpriteAnchorOrDefault(a: GuiSpriteAnchor | undefined): GuiSpriteAnchor {
@@ -239,13 +336,11 @@ function makeGuiRectHitWithDefer(
   };
 }
 
-type PositionableGo = { x: number; y: number; setPosition(x: number, y: number): void };
-
 /**
  * Positions the top-left of a `width`×`height` panel using the same trim + anchor math as GUI `image` sprites.
  */
-function positionNineSlicePanelContainer(args: {
-  go: PositionableGo;
+function positionNineSlicePanel(args: {
+  go: { x: number; y: number; setPosition(x: number, y: number): void };
   anchor: GuiSpriteAnchor;
   effSpriteAnchor: GuiSpriteAnchor;
   lx: number;
@@ -313,127 +408,6 @@ function positionNineSlicePanelContainer(args: {
   }
 }
 
-const CELL_ORDER: (keyof GuiNineSliceImageSliceNames)[] = [
-  'topLeft',
-  'topCenter',
-  'topRight',
-  'middleLeft',
-  'center',
-  'middleRight',
-  'bottomLeft',
-  'bottomCenter',
-  'bottomRight',
-];
-
-/**
- * Draws the nine tiles directly to a Canvas 2D context (the RenderTexture's canvas).
- *
- * Using `ctx.drawImage` instead of Phaser's `batchSprite` is critical: `batchSprite` adds
- * `fw += 0.5` when `camera.roundPixels` is true to prevent inter-tile gaps.  For corner tiles
- * (scaleX = 1) this stretches e.g. 5 source pixels to 22 screen pixels at zoom 4 — a
- * non-uniform 4.4× mapping — causing transparent notch edges to appear blurry.
- * With direct `ctx.drawImage` the corner tiles get an exact 1:1 source→RT pixel mapping
- * (5 source → 5 RT pixels, then the RT itself is displayed at zoom scale with negligible
- * per-pixel error across its full width).
- */
-function drawNineSliceTilesToCanvas(
-  ctx: CanvasRenderingContext2D,
-  probe: Phaser.GameObjects.Sprite,
-  raw: Record<string, unknown>,
-  sliceMap: Map<string, AsepriteSliceEntry>,
-  sliceNames: GuiNineSliceImageSliceNames,
-  authorTag: string,
-  guiId: string,
-  outW: number,
-  outH: number,
-): boolean {
-  const timelineFrame = resolveAsepriteTimelineFrame(probe, raw, authorTag, guiId);
-  const inset = getAsepriteSpriteSourceInset(probe.frame);
-  const frame = probe.frame;
-  const atlasImage = frame.source.image as unknown as CanvasImageSource;
-
-  const rects: (Rect | null)[] = [];
-  for (const cell of CELL_ORDER) {
-    const sliceName = sliceNames[cell]?.trim() ?? '';
-    if (!sliceName) {
-      console.warn(`[Benne] nineSliceImage: missing sliceNames.${String(cell)}.`);
-      return false;
-    }
-    const slice = sliceMap.get(sliceName);
-    if (!slice) {
-      console.warn(`[Benne] nineSliceImage: no Aseprite slice named "${sliceName}" in GUI sheet JSON.`);
-      return false;
-    }
-    const b = pickSliceBoundsForTimelineFrame(slice, timelineFrame);
-    if (!b) {
-      console.warn(`[Benne] nineSliceImage: slice "${sliceName}" has no key for frame ${timelineFrame}.`);
-      return false;
-    }
-    rects.push(b);
-  }
-
-  const tl = rects[0]!,
-    tc = rects[1]!,
-    tr = rects[2]!,
-    ml = rects[3]!,
-    c = rects[4]!,
-    mr = rects[5]!,
-    bl = rects[6]!,
-    bc = rects[7]!,
-    br = rects[8]!;
-
-  const leftW = tl.w;
-  const rightW = tr.w;
-  const topH = tl.h;
-  const bottomH = bl.h;
-
-  if (import.meta.env.DEV) {
-    const warn = (a: string, v1: number, v2: number) => {
-      if (Math.abs(v1 - v2) > 0.5) {
-        console.warn(`[Benne] nineSliceImage: ${a} width/height mismatch (${v1} vs ${v2}) — using top-left / top row / left column.`);
-      }
-    };
-    warn('left column', leftW, ml.w);
-    warn('left column', leftW, bl.w);
-    warn('right column', rightW, mr.w);
-    warn('right column', rightW, br.w);
-    warn('top row', topH, tc.h);
-    warn('top row', topH, tr.h);
-    warn('bottom row', bottomH, bc.h);
-    warn('bottom row', bottomH, br.h);
-  }
-
-  const midW = Math.max(0, Math.round(outW - leftW - rightW));
-  const midH = Math.max(0, Math.round(outH - topH - bottomH));
-
-  const layoutSpec: { crop: Rect; dx: number; dy: number; dw: number; dh: number }[] = [
-    { crop: tl, dx: 0, dy: 0, dw: leftW, dh: topH },
-    { crop: tc, dx: leftW, dy: 0, dw: midW, dh: topH },
-    { crop: tr, dx: leftW + midW, dy: 0, dw: rightW, dh: topH },
-    { crop: ml, dx: 0, dy: topH, dw: leftW, dh: midH },
-    { crop: c, dx: leftW, dy: topH, dw: midW, dh: midH },
-    { crop: mr, dx: leftW + midW, dy: topH, dw: rightW, dh: midH },
-    { crop: bl, dx: 0, dy: topH + midH, dw: leftW, dh: bottomH },
-    { crop: bc, dx: leftW, dy: topH + midH, dw: midW, dh: bottomH },
-    { crop: br, dx: leftW + midW, dy: topH + midH, dw: rightW, dh: bottomH },
-  ];
-
-  for (const spec of layoutSpec) {
-    const cr = sliceInsetCrop(spec.crop, inset);
-    if (cr.w <= 0 || cr.h <= 0) continue;
-    const dw = Math.max(0, Math.round(spec.dw));
-    const dh = Math.max(0, Math.round(spec.dh));
-    if (dw <= 0 || dh <= 0) continue;
-    ctx.drawImage(
-      atlasImage,
-      frame.cutX + cr.x, frame.cutY + cr.y, cr.w, cr.h,
-      Math.round(spec.dx), Math.round(spec.dy), dw, dh,
-    );
-  }
-
-  return true;
-}
-
 export function estimateNineSliceSizeForGridAlign(c: GuiNineSliceImageControl): { w: number; h: number } {
   const w = c.width;
   const h = c.height;
@@ -444,12 +418,10 @@ export function estimateNineSliceSizeForGridAlign(c: GuiNineSliceImageControl): 
 }
 
 /**
- * Builds a 9-slice GUI control: tiles drawn directly to a RenderTexture (Canvas renderer).
+ * Builds a 9-slice GUI control using Phaser's native {@link Phaser.GameObjects.NineSlice} (WebGL).
  *
- * A RenderTexture is used instead of nine Sprite children in a Container so that tiles are
- * drawn with `ctx.drawImage` (exact integer pixel mapping) rather than Phaser's `batchSprite`
- * (which adds `fw += 0.5` when `camera.roundPixels` is true, causing non-uniform scaling that
- * blurs transparent notch corners in the corner tiles).
+ * Slice dimensions (left/right column widths, top/bottom row heights) are read from Aseprite's
+ * `meta.slices` JSON and passed directly to Phaser — no Canvas drawing workarounds required.
  */
 export function addGuiNineSliceImage(
   scene: Phaser.Scene,
@@ -471,7 +443,7 @@ export function addGuiNineSliceImage(
   },
   /** Editor previews: disk-shaped sheet JSON with `meta.slices` when bundled glob is unavailable. */
   previewSheetJson?: Record<string, unknown>,
-): Phaser.GameObjects.RenderTexture | null {
+): Phaser.GameObjects.NineSlice | null {
   if (!usesAsepriteDisplay(gui)) {
     return null;
   }
@@ -510,6 +482,7 @@ export function addGuiNineSliceImage(
     return null;
   }
 
+  /** Invisible sprite used only to resolve the correct atlas frame + drive animation updates. */
   const probe = scene.add.sprite(0, 0, guiTextureKey);
   probe.setVisible(false);
   probe.setScrollFactor(0, 0);
@@ -522,32 +495,27 @@ export function addGuiNineSliceImage(
     warnDevIfAsepriteJsonMissingSpriteSourceSize(probe.frame, `GUI "${gui.id}" nineSliceImage`);
   }
 
-  /**
-   * RenderTexture sized exactly to the panel.  Tiles are drawn into it via `ctx.drawImage`
-   * (bypassing `batchSprite`) so each tile gets exact integer pixel mapping with no `fw += 0.5`
-   * stretch.  The RT is then displayed as a single game object; its own slight `fw += 0.5`
-   * overdraw at the panel edges is handled by the GeometryMask below.
-   */
-  const rt = scene.add.renderTexture(0, 0, panelW, panelH);
-  rt.setScrollFactor(0, 0);
-  rt.setDepth(depth + (c.zIndex ?? 0));
-  rt.setOrigin(0, 0);
-  const vis = startVisible && c.visible !== false;
-  rt.setVisible(vis);
+  const sliceParams = readNineSliceParams(probe, raw, sliceMap, c.sliceNames, authorTag, gui.id);
+  if (!sliceParams) {
+    probe.destroy();
+    return null;
+  }
+  const { leftW, rightW, topH, bottomH } = sliceParams;
 
-  const relayout = (): void => {
-    /**
-     * RenderTexture in Phaser 4 is an Image backed by a DynamicTexture.
-     * The 2D canvas context lives on the DynamicTexture (rt.texture), not on the RT itself.
-     * In Canvas mode, batchSprite renders `frame.source.image` which IS that same canvas, so
-     * drawing here directly (bypassing the command buffer) is safe in the default RENDER mode.
-     */
-    const ctx = (rt.texture as unknown as { context: CanvasRenderingContext2D | null }).context;
-    if (!ctx) return;
-    ctx.clearRect(0, 0, panelW, panelH);
-    ctx.imageSmoothingEnabled = false;
-    drawNineSliceTilesToCanvas(ctx, probe, raw, sliceMap, c.sliceNames, authorTag, gui.id, panelW, panelH);
-  };
+  const nsFrameName = ensureNineSliceUVCorrectedFrame(scene.textures.get(guiTextureKey), probe.frame);
+
+  const ns = scene.add.nineslice(
+    0, 0,
+    guiTextureKey,
+    nsFrameName,
+    panelW, panelH,
+    leftW, rightW, topH, bottomH,
+  );
+  ns.setScrollFactor(0, 0);
+  ns.setDepth(depth + (c.zIndex ?? 0));
+  ns.setOrigin(0, 0);
+  const vis = startVisible && c.visible !== false;
+  ns.setVisible(vis);
 
   const anchor = guiSpriteAnchorOrDefault(c.backgroundAnchor ?? legacyDisplay?.backgroundAnchor);
   const bgOffX = c.backgroundOffsetX ?? 0;
@@ -575,9 +543,9 @@ export function addGuiNineSliceImage(
   const facadePlacementX = anchor === 'screen' && parent && !rootTL ? lx : placementAnchorX;
   const facadePlacementY = anchor === 'screen' && parent && !rootTL ? ly : placementAnchorY;
 
-  const positionRT = (): void => {
-    positionNineSlicePanelContainer({
-      go: rt,
+  const positionPanel = (): void => {
+    positionNineSlicePanel({
+      go: ns,
       anchor,
       effSpriteAnchor: effPlacementAnchor,
       lx,
@@ -594,52 +562,31 @@ export function addGuiNineSliceImage(
     });
   };
 
-  positionRT();
-  relayout();
+  positionPanel();
 
-  /**
-   * Phaser's `batchSprite` adds `fw += 0.5` / `fh += 0.5` when `camera.roundPixels` is true.
-   * For the RT itself (displayed at scale 1) this adds ~0.5 canvas units of overdraw at the
-   * panel's right/bottom edges.  A GeometryMask clips the RT to its exact bounds.
-   * The mask Graphics lives in world space with scroll-factor 0, and is re-synced whenever
-   * the RT is repositioned (e.g. on animation frame changes).
-   */
-  const clipMaskGfx = scene.make.graphics({ add: false } as Phaser.Types.GameObjects.Graphics.Options);
-  clipMaskGfx.setScrollFactor(0, 0);
-  clipMaskGfx.fillStyle(0xffffff, 1);
-  clipMaskGfx.fillRect(0, 0, panelW, panelH);
-  clipMaskGfx.setPosition(rt.x, rt.y);
-  rt.setMask(clipMaskGfx.createGeometryMask());
-
-  const syncClipMask = (): void => {
-    clipMaskGfx.setPosition(rt.x, rt.y);
-  };
-
+  /** Update NineSlice frame when the probe's animation advances. */
   const syncFrame = (): void => {
-    positionRT();
-    relayout();
-    syncClipMask();
+    positionPanel();
+    ns.setFrame(ensureNineSliceUVCorrectedFrame(scene.textures.get(guiTextureKey), probe.frame));
   };
   probe.on(Phaser.Animations.Events.ANIMATION_UPDATE, syncFrame);
   probe.on(Phaser.Animations.Events.ANIMATION_COMPLETE, syncFrame);
   overlayDisposers.push(() => {
     probe.off(Phaser.Animations.Events.ANIMATION_UPDATE, syncFrame);
     probe.off(Phaser.Animations.Events.ANIMATION_COMPLETE, syncFrame);
-    rt.clearMask();
-    rt.setData(BENNE_GUI_NINE_SLICE_RESIZE_FN_KEY, undefined);
-    clipMaskGfx.destroy();
+    ns.setData(BENNE_GUI_NINE_SLICE_RESIZE_FN_KEY, undefined);
   });
 
   const hitRect = new Phaser.Geom.Rectangle(0, 0, panelW, panelH);
-  const wireNineSliceInteractivity = (): void => {
-    rt.setInteractive({
+  const wireInteractivity = (): void => {
+    ns.setInteractive({
       hitArea: hitRect,
       hitAreaCallback: makeGuiRectHitWithDefer(scene, hitRect, imageInputDeferBelow),
       draggable: false,
     });
   };
-  wireNineSliceInteractivity();
-  rt.setData('benneGuiControl', true);
+  wireInteractivity();
+  ns.setData('benneGuiControl', true);
 
   /** Runtime resize for Display Text and similar dynamic nine-slice panels. */
   const applyNineSlicePanelSize = (nw: number, nh: number): void => {
@@ -647,32 +594,26 @@ export function addGuiNineSliceImage(
     const H = Math.max(1, Math.round(nh));
     panelW = W;
     panelH = H;
-    const tex = rt.texture as Phaser.Textures.DynamicTexture;
-    tex.setSize(W, H);
-    clipMaskGfx.clear();
-    clipMaskGfx.fillStyle(0xffffff, 1);
-    clipMaskGfx.fillRect(0, 0, W, H);
+    ns.setSlices(W, H, leftW, rightW, topH, bottomH);
     hitRect.width = W;
     hitRect.height = H;
-    wireNineSliceInteractivity();
-    positionRT();
-    relayout();
-    syncClipMask();
+    wireInteractivity();
+    positionPanel();
   };
-  rt.setData(BENNE_GUI_NINE_SLICE_RESIZE_FN_KEY, applyNineSlicePanelSize);
+  ns.setData(BENNE_GUI_NINE_SLICE_RESIZE_FN_KEY, applyNineSlicePanelSize);
 
   if (parent) {
-    parent.add(rt);
+    parent.add(ns);
   }
-  extraDrawables.push(rt);
+  extraDrawables.push(ns);
   overlayDisposers.push(() => {
     probe.destroy();
   });
 
   const cid = c.id?.trim();
   if (cid) {
-    controlsById.set(cid, rt);
+    controlsById.set(cid, ns);
   }
 
-  return rt;
+  return ns;
 }

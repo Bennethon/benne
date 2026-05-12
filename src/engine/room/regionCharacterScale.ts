@@ -1,3 +1,4 @@
+import * as Phaser from 'phaser';
 import type { RoomRegionData } from '../../types/room';
 import { pointInPolygon } from '../walkable';
 
@@ -61,8 +62,7 @@ function tryParseTintHexRgb(hex: string): number | null {
 
 /**
  * Raw tint color (`0xRRGGBB`) and alpha (`0`–`1`) from the **winning** region, or `null` when the
- * region has no authored `tint` field. Used by the Canvas renderer patch
- * (`benneCharacterRegionTintCanvasPatch.ts`) which applies the tint via `source-atop` compositing.
+ * region has no authored `tint` field.
  */
 export function regionTintForWinningRegion(
   region: RoomRegionData | null | undefined,
@@ -86,6 +86,48 @@ export function regionTintForWinningRegion(
     return null;
   }
   return { color, alpha };
+}
+
+/**
+ * Packed `0xRRGGBB` suitable for Phaser **multiply** `setTint`: interpolates each channel from
+ * white (`255`) toward `rgb` by `strength` (region `tintAlpha`). At strength `0` returns white
+ * (identity multiply); at `1` returns the authored RGB.
+ */
+export function packedMultiplyTintFromRgbAndStrength(rgb: number, strength: number): number {
+  const a = Math.max(0, Math.min(1, strength));
+  const tr = (rgb >> 16) & 0xff;
+  const tg = (rgb >> 8) & 0xff;
+  const tb = rgb & 0xff;
+  const r = Math.round(255 + (tr - 255) * a);
+  const g = Math.round(255 + (tg - 255) * a);
+  const b = Math.round(255 + (tb - 255) * a);
+  return (r << 16) | (g << 8) | b;
+}
+
+/**
+ * Multiply tint for the winning region, or `null` when no tint applies (`clearTint` in that case).
+ */
+export function packedTintFromWinningRegion(region: RoomRegionData | null | undefined): number | null {
+  const spec = regionTintForWinningRegion(region);
+  if (!spec) {
+    return null;
+  }
+  return packedMultiplyTintFromRgbAndStrength(spec.color, spec.alpha);
+}
+
+/**
+ * Applies region multiply-tint on a character `Sprite` / `Image`, or clears tint outside regions.
+ */
+export function applyCharacterSpriteRegionTintFromWinningRegion(
+  sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+  winningRegion: RoomRegionData | null | undefined,
+): void {
+  const packed = packedTintFromWinningRegion(winningRegion);
+  if (packed == null) {
+    sprite.clearTint();
+    return;
+  }
+  sprite.setTint(packed);
 }
 
 /** Tunable caps for {@link computeRoomRegionPerspective} walk-speed multiplier (from `game-config.json`). */

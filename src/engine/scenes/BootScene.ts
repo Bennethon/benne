@@ -40,6 +40,7 @@ import { queueBenneAudioForBootLoader } from '../sound/queueBenneAudioBoot.js';
 import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from './roomSceneBootstrap';
 import { BENNE_ROOM_START_KIND_KEY } from './roomStartKindConstants';
 import { tryGetRoomTransitionOrchestrator } from './roomTransitionGlobals';
+import { syncBenneRuntimeHiDpiSceneMainCameras } from '../benneRuntimeHiDpiScale.js';
 import { ensureRoomScriptLoaded } from '../scripting/registerRoomScript';
 
 export type CharacterSpawnLoadKind = 'aseprite' | 'image';
@@ -88,6 +89,7 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     applyBootAudioSettings(this);
+    syncBenneRuntimeHiDpiSceneMainCameras(this.game);
 
     const room = loadStartRoomData();
     const startData = buildRoomSceneStartDataFromRoomData(room);

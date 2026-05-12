@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { resolveAuthoredPositionForAsepriteTrim } from '../../engine/aseprite/asepriteFramePlacement';
+import { getBenneRendererConfigFields } from '../../engine/gameConfig';
 import {
   buildInventoryAnimationsPhaserKeyed,
 } from '../../engine/aseprite/ensureAsepriteAtlasAnimationsOnce.js';
@@ -27,15 +28,10 @@ function editorGameConfig(
   height: number,
 ): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
   return {
-    /** Keep parity with runtime UI rendering (`getBennePhaserGameConfigBase` in `gameConfig.ts`). */
-    type: Phaser.CANVAS,
+    ...getBenneRendererConfigFields(),
     parent,
     width,
     height,
-    backgroundColor: '#1a1a2e',
-    pixelArt: true,
-    roundPixels: true,
-    antialias: false,
     scale: {
       parent,
       mode: Phaser.Scale.FIT,
@@ -44,9 +40,6 @@ function editorGameConfig(
       autoCenter: Phaser.Scale.CENTER_BOTH,
       zoom: Phaser.Scale.MAX_ZOOM,
       autoRound: true,
-    },
-    render: {
-      powerPreference: 'high-performance',
     },
   };
 }
