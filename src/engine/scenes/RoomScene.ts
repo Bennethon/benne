@@ -2532,7 +2532,7 @@ export class RoomScene extends Phaser.Scene {
     }
     const main = this.cameras.main;
     uiCam.setViewport(main.x, main.y, main.width, main.height);
-    uiCam.setZoom(main.zoom);
+    uiCam.setZoom(main.zoomX, main.zoomY);
     uiCam.setScroll(0, 0);
   }
 
