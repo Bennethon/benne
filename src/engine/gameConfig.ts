@@ -51,7 +51,55 @@ export function getEditorPhaserGameConfig(
   };
 }
 
-/** Shared Phaser settings (resolution, scale, render) — scenes are added per entrypoint. */
+/**
+ * Shipped runtime (`Scale.NONE` + hi-DPI canvas): largest integer **n ≥ 1** such that
+ * `internal × n` fits in the parent in CSS pixels — same rule as Phaser’s `getMaxZoom()` with a
+ * fixed internal game size (the old `Scale.FIT` + `MAX_ZOOM` integer step).
+ */
+export function computeBenneIntegerCrispScale(
+  parentCssWidth: number,
+  parentCssHeight: number,
+  internalWidth: number,
+  internalHeight: number,
+): number {
+  if (internalWidth <= 0 || internalHeight <= 0 || parentCssWidth <= 0 || parentCssHeight <= 0) {
+    return 1;
+  }
+  const sx = Math.floor(parentCssWidth / internalWidth);
+  const sy = Math.floor(parentCssHeight / internalHeight);
+  return Math.max(1, Math.min(sx, sy));
+}
+
+/**
+ * Shipped runtime: largest rectangle that fits inside the parent while keeping the internal
+ * resolution’s aspect ratio — same letterboxing footprint Phaser’s `Scale.FIT` uses for the
+ * canvas CSS size (before device-pixel backing store is applied separately).
+ */
+export function computeBenneFitLetterboxCssDisplaySize(
+  parentCssWidth: number,
+  parentCssHeight: number,
+  internalWidth: number,
+  internalHeight: number,
+): { width: number; height: number } {
+  if (parentCssWidth <= 0 || parentCssHeight <= 0 || internalWidth <= 0 || internalHeight <= 0) {
+    return { width: 1, height: 1 };
+  }
+  const aspect = internalWidth / internalHeight;
+  let w = parentCssWidth;
+  let h = w / aspect;
+  if (h > parentCssHeight) {
+    h = parentCssHeight;
+    w = h * aspect;
+  }
+  return { width: Math.max(1, Math.floor(w)), height: Math.max(1, Math.floor(h)) };
+}
+
+/** Shared Phaser settings (resolution, scale, render) — scenes are added per entrypoint.
+ *
+ * Shipped scaling uses {@link Phaser.Scale.NONE} plus {@link wireBenneRuntimeHiDpiCanvasScale} in
+ * `Game.ts` (PixUI-style: parent×DPR buffer, `zoom: 1/DPR`; internal aspect via main-camera viewport
+ * — see `benneRuntimeHiDpiScale.ts`).
+ */
 export function getBennePhaserGameConfigBase(
   parent: HTMLElement | string,
 ): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
@@ -64,11 +112,11 @@ export function getBennePhaserGameConfigBase(
     height,
     scale: {
       parent,
-      mode: Phaser.Scale.FIT,
+      mode: Phaser.Scale.NONE,
       autoCenter: Phaser.Scale.CENTER_BOTH,
       width,
       height,
-      zoom: Phaser.Scale.MAX_ZOOM,
+      zoom: 1,
       autoRound: true,
     },
   };

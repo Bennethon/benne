@@ -82,6 +82,10 @@ import {
 } from '../aseprite/asepriteFramePlacement';
 import { attachPostProcessingPlaceholder } from '../postfx/PostEffects';
 import {
+  BENNE_RUNTIME_HI_DPI_WIRED_REGISTRY_KEY,
+  syncBenneRuntimeHiDpiSceneMainCameras,
+} from '../benneRuntimeHiDpiScale.js';
+import {
   cameraFollowOffsetForFeet,
   getCharacterWorldFeet,
   placeSpriteByFeet,
@@ -261,8 +265,9 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Dedicated UI camera used **only** in the editor preview (`setEditorCameraMode`). In the
-   * shipped game `cameras.main.zoom` stays at 1 (`Scale.FIT`) so `scrollFactor: 0` overlays
-   * render at their literal `(x, y)`. In the preview the main camera is zoomed (`Scale.RESIZE`
+   * shipped game `cameras.main.zoom` follows {@link syncBenneRuntimeHiDpiSceneMainCameras} (hi-DPI
+   * `Scale.NONE` layout) so `scrollFactor: 0` overlays stay aligned with the main viewport. In the
+   * preview the main camera is zoomed (`Scale.RESIZE`
    * + `cam.setZoom(scale)` to letterbox the game viewport inside the panel), and Phaser 4's
    * origin-aware zoom math pushes `scrollFactor=0` GUIs by `(origin × (1 − zoom))` — hundreds
    * of pixels off the viewport at typical editor scales. This camera has `origin=(0, 0)`,
@@ -486,6 +491,7 @@ export class RoomScene extends Phaser.Scene {
     });
 
     attachPostProcessingPlaceholder(this.cameras.main);
+    syncBenneRuntimeHiDpiSceneMainCameras(this.game);
 
     const vW = getInternalWidth();
     const vH = getInternalHeight();
@@ -650,6 +656,7 @@ export class RoomScene extends Phaser.Scene {
     }
 
     this.setupCustomGameCursor();
+    this.setupRuntimeUiCameraIfNeeded();
     this.input.on('pointermove', this.onRoomPointerMove);
     gameEvents.on(GAME_STATE_INVENTORY_CHANGED_EVENT, this.syncVerbHoverScriptSurfaceAtActivePointer);
 
@@ -1464,7 +1471,13 @@ export class RoomScene extends Phaser.Scene {
 
   /** Maps room/world pixels to coordinates in the same space as GUI `controls[].x` / `y` for this camera. */
   private worldPointToDialogOverlayScreen(wx: number, wy: number): Point2 {
-    this.cameras.main.matrixCombined.transformPoint(wx, wy, this.dialogOverlayScreenScratch);
+    const cam = this.cameras.main;
+    const view = cam.worldView;
+    const vw = Math.max(1, view.width);
+    const vh = Math.max(1, view.height);
+    const sx = ((wx - view.x) / vw) * getInternalWidth();
+    const sy = ((wy - view.y) / vh) * getInternalHeight();
+    this.dialogOverlayScreenScratch.set(sx, sy);
     return { x: this.dialogOverlayScreenScratch.x, y: this.dialogOverlayScreenScratch.y };
   }
 
@@ -2464,17 +2477,51 @@ export class RoomScene extends Phaser.Scene {
       uiCam.ignore(nonGui);
     }
 
-    const onAdded = (obj: Phaser.GameObjects.GameObject): void => {
-      if (this.editorUiGuiObjects.has(obj)) {
+    const routeObjectToCameras = (obj: Phaser.GameObjects.GameObject): void => {
+      if (this.isEditorUiGuiObject(obj)) {
         main.ignore(obj);
       } else {
         uiCam.ignore(obj);
       }
     };
+    const onAdded = (obj: Phaser.GameObjects.GameObject): void => {
+      // Runtime dialog rows are created first, then parented into a GUI grid container.
+      // Defer classification by one frame so parentContainer ancestry is settled.
+      const isRuntimeHiDpi = this.editorCameraMode === null &&
+        this.game.registry.get(BENNE_RUNTIME_HI_DPI_WIRED_REGISTRY_KEY);
+      if (isRuntimeHiDpi) {
+        requestAnimationFrame(() => {
+          if (!obj.scene) {
+            return;
+          }
+          routeObjectToCameras(obj);
+        });
+        return;
+      }
+      routeObjectToCameras(obj);
+    };
     this.events.on(Phaser.Scenes.Events.ADDED_TO_SCENE, onAdded);
     this.editorUiChildListenerOff = () => {
       this.events.off(Phaser.Scenes.Events.ADDED_TO_SCENE, onAdded);
     };
+  }
+
+  private isEditorUiGuiObject(obj: Phaser.GameObjects.GameObject): boolean {
+    if (this.editorUiGuiObjects.has(obj)) {
+      return true;
+    }
+    let parent = (obj as Phaser.GameObjects.GameObject & {
+      parentContainer?: Phaser.GameObjects.Container | null;
+    }).parentContainer;
+    while (parent) {
+      if (this.editorUiGuiObjects.has(parent)) {
+        return true;
+      }
+      parent = (parent as Phaser.GameObjects.Container & {
+        parentContainer?: Phaser.GameObjects.Container | null;
+      }).parentContainer ?? null;
+    }
+    return false;
   }
 
   /** Keeps the editor UI camera's viewport and zoom aligned with the main camera. */
@@ -2487,6 +2534,33 @@ export class RoomScene extends Phaser.Scene {
     uiCam.setViewport(main.x, main.y, main.width, main.height);
     uiCam.setZoom(main.zoom);
     uiCam.setScroll(0, 0);
+  }
+
+  /**
+   * Runtime (`Scale.NONE` + hi-DPI letterbox) uses the same dedicated UI camera strategy as
+   * editor preview navigate mode so `scrollFactor: 0` overlays stay aligned without changing
+   * the main world camera origin math.
+   */
+  private setupRuntimeUiCameraIfNeeded(): void {
+    if (this.editorCameraMode !== null) {
+      return;
+    }
+    if (!this.game.registry.get(BENNE_RUNTIME_HI_DPI_WIRED_REGISTRY_KEY)) {
+      return;
+    }
+    this.ensureEditorUiCamera();
+    this.syncEditorUiCameraToMain();
+  }
+
+  /** Called by `applyBenneRuntimeHiDpiCameras` after main camera layout updates. */
+  syncRuntimeHiDpiUiCameraToMain(): void {
+    if (this.editorCameraMode !== null || !this.editorUiCamera) {
+      return;
+    }
+    if (!this.game.registry.get(BENNE_RUNTIME_HI_DPI_WIRED_REGISTRY_KEY)) {
+      return;
+    }
+    this.syncEditorUiCameraToMain();
   }
 
   private readonly handleRoomPointerDown = (

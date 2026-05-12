@@ -142,7 +142,7 @@ export type CharacterPreviewGamePayload = {
  * Renderer fields come from the shared helper so the character preview matches the shipped game
  * and the other previews (see `.cursor/rules/benne-preview-rendering-parity.mdc`). Only the scale
  * mode intentionally differs — `Scale.RESIZE` lets the canvas fill the webview panel instead of
- * the runtime's integer-zoom `Scale.FIT`.
+ * the shipped runtime's `Scale.NONE` hi-DPI + integer letterboxing layout.
  */
 function editorGameConfig(parent: HTMLElement): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
   return {
