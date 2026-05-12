@@ -9,6 +9,7 @@ import { setActiveBenneGame } from './gameState/activeBenneGame.js';
 import { GameStateManager, normalizeSerializedInventory } from './gameState/GameStateManager.js';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from './gameState/registryKey.js';
 import { setActiveGameStateManager } from './gameState/resolveGameStateManager.js';
+import { wireBenneRuntimeHiDpiCanvasScale } from './benneRuntimeHiDpiScale.js';
 import { getBennePhaserGameConfigBase } from './gameConfig.js';
 import {
   BENNE_SOUND_MANAGER_KEY,
@@ -32,11 +33,13 @@ function createGameConfig(parent: HTMLElement | string): Phaser.Types.Core.GameC
 
 /**
  * Creates the root {@link Phaser.Game} instance (Benne engine entry).
- * Resolution and scale mode come from `src/game/game-config.json` via {@link createGameConfig}.
+ * Logical resolution comes from `src/game/game-config.json` via {@link createGameConfig}; hi-DPI
+ * canvas sizing and integer letterboxing are applied by {@link wireBenneRuntimeHiDpiCanvasScale}.
  * Registers {@link GameStateManager} on `game.registry` for cross-room state.
  */
 export function createBenneGame(parent: HTMLElement | string): Phaser.Game {
   const game = new Phaser.Game(createGameConfig(parent));
+  wireBenneRuntimeHiDpiCanvasScale(game);
   const rawInit = getGameSettings().initialGameState;
   const initial =
     rawInit != null
