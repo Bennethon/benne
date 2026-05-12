@@ -1844,7 +1844,7 @@ function wireDisplayTextOverlayLayout(
   if (!nineCtl || !textCtl || !bgRt || !textLine) {
     return null;
   }
-  if (!(bgRt instanceof Phaser.GameObjects.RenderTexture)) {
+  if (!(bgRt instanceof Phaser.GameObjects.NineSlice)) {
     return null;
   }
 
@@ -1862,7 +1862,10 @@ function wireDisplayTextOverlayLayout(
   const refTextBounds = textLine.getBounds();
   const refBgBounds = bgRt.getBounds();
   const authoredPadTop = Math.max(0, Math.round(refTextBounds.top - refBgBounds.top));
-  const authoredPadBottom = Math.max(0, Math.round(refBgBounds.bottom - refTextBounds.bottom));
+  // Use symmetric chrome: the space from the text top to the panel top defines the chrome on
+  // every side. Deriving bottom padding from the placeholder's bottom is unreliable — if the
+  // placeholder is short it inflates the gap, and if it overflows the panel it collapses to 0.
+  const authoredPadBottom = authoredPadTop;
 
   return (text: string): void => {
     syncOutlinedGuiBitmapTextAll(textLine, text);
