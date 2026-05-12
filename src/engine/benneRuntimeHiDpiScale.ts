@@ -1,15 +1,14 @@
 import * as Phaser from 'phaser';
-import { computeBenneIntegerCrispScale } from './gameConfig.js';
 import { getInternalHeight, getInternalWidth } from '../game/constants.js';
 
 /**
  * PixUI-style hi-DPI canvas sizing (see `https://github.com/skhoroshavin/phaser-pixui/blob/main/example/src/main.ts`):
  * `Scale.NONE`, backing store = **parent CSS size × DPR**, `scale.zoom = 1 / DPR` so the canvas CSS
- * fills the parent. Benne then letterboxes the fixed internal resolution inside that buffer via
- * `Camera#setViewport` + `Camera#setZoom` (same approach as RoomScene editor navigate letterboxing).
+ * fills the parent. Benne maps the fixed internal resolution to the full camera viewport with
+ * non-integer `Camera#setZoom(x, y)` for smooth continuous resize.
  */
 
-/** Registry key for the main-camera zoom factor used with {@link syncBenneRuntimeHiDpiSceneMainCameras}. */
+/** Registry key for the main-camera zoom used with {@link syncBenneRuntimeHiDpiSceneMainCameras}. */
 export const BENNE_RUNTIME_HI_DPI_CAM_ZOOM_REGISTRY_KEY = 'benneRuntimeHiDpiCamZoom';
 
 /** Set by {@link wireBenneRuntimeHiDpiCanvasScale} so previews that share {@link RoomScene} can skip camera sync. */
@@ -44,11 +43,8 @@ function applyBenneRuntimeHiDpiCameras(game: Phaser.Game): void {
   const internalW = getInternalWidth();
   const internalH = getInternalHeight();
   /**
-   * Integer crisp step must be derived from the **same** logical size Phaser uses for the
-   * backing store (`baseSize` × `scale.zoom` → `displaySize`), not raw `getBoundingClientRect`.
-   * Before {@link applyBenneRuntimeHiDpiLayout} promotes the buffer, the parent can be huge while
-   * `scale.width` is still the config internal size — mixing the two produced `vw` ≫ buffer and
-   * broken zoom/viewport until a later resize.
+   * Derive scaling from Phaser's own display size (`baseSize × scale.zoom`) so camera mapping and
+   * the live canvas CSS box stay in lockstep across boot + resize timing.
    */
   const cssW = scale.displaySize.width;
   const cssH = scale.displaySize.height;
@@ -56,11 +52,15 @@ function applyBenneRuntimeHiDpiCameras(game: Phaser.Game): void {
     return;
   }
 
-  const crispN = computeBenneIntegerCrispScale(cssW, cssH, internalW, internalH);
   const scaleZoom = scale.zoom > 0 ? scale.zoom : 1;
-  const camZoom = crispN / scaleZoom;
+  /**
+   * Continuous uniform scaling (no integer steps): keep internal aspect ratio, maximize footprint,
+   * and center the game frame in the available viewport.
+   */
+  const uniformCssScale = Math.min(cssW / internalW, cssH / internalH);
+  const camZoom = uniformCssScale / scaleZoom;
   const vw = Math.max(1, Math.floor(internalW * camZoom));
-  const vh = Math.max(1, Math.floor((vw * internalH) / internalW));
+  const vh = Math.max(1, Math.floor(internalH * camZoom));
   const vx = Math.floor((bufferW - vw) / 2);
   const vy = Math.floor((bufferH - vh) / 2);
   game.registry.set(BENNE_RUNTIME_HI_DPI_CAM_ZOOM_REGISTRY_KEY, camZoom);
