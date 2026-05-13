@@ -84,6 +84,10 @@ import {
 } from '../aseprite/asepriteFramePlacement';
 import { attachPostProcessingPlaceholder } from '../postfx/PostEffects';
 import {
+  attachBenneCharacterPerspectiveRenderNodes,
+  registerBenneCharacterPerspectiveBatch,
+} from '../rendering/benneCharacterPerspectiveBatch.js';
+import {
   BENNE_RUNTIME_HI_DPI_WIRED_REGISTRY_KEY,
   syncBenneRuntimeHiDpiSceneMainCameras,
 } from '../benneRuntimeHiDpiScale.js';
@@ -466,6 +470,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   create(data: RoomSceneStartData): void {
+    registerBenneCharacterPerspectiveBatch(this.game);
     this.roomData = data.room;
     this.player = null;
     this.playerMoveTween = null;
@@ -3551,6 +3556,7 @@ export class RoomScene extends Phaser.Scene {
       character: spawn.data,
       sortKey: `character:${spawn.instanceId}`,
     });
+    attachBenneCharacterPerspectiveRenderNodes(sprite);
     this.attachCharacterInteraction(roomId, spawn, sprite);
   }
 
@@ -3595,8 +3601,6 @@ export class RoomScene extends Phaser.Scene {
     const feetY = savedFeet ? savedFeet.y : spawn.y;
     this.applyFeetWorldWithRegionScale(sprite, feet, feetX, feetY);
 
-    this.attachCharacterInteraction(roomId, spawn, sprite);
-
     if (isPlayer) {
       this.player = sprite as DirectionalCharacterSprite;
     }
@@ -3610,6 +3614,8 @@ export class RoomScene extends Phaser.Scene {
       character: spawn.data,
       sortKey: `character:${spawn.instanceId}`,
     });
+    attachBenneCharacterPerspectiveRenderNodes(sprite);
+    this.attachCharacterInteraction(roomId, spawn, sprite);
   }
 
   private attachCharacterInteraction(
