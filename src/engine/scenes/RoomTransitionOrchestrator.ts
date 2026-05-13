@@ -21,6 +21,7 @@ import type { BenneScriptCore } from '../scripting/BenneScriptCore.js';
 import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
 import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
 import { getRoomVisitCount, incrementRoomVisitCount } from '../gameState/roomVisitState.js';
+import { syncBenneRuntimeHiDpiSceneMainCameras } from '../benneRuntimeHiDpiScale.js';
 
 /**
  * **Runtime** service for `B.room.changeTo` — leave → fade → load → create → enter → fade → after-fade.
@@ -235,11 +236,20 @@ export class RoomTransitionOrchestrator {
       if (skipEnterFadeIn) {
         roomScene.screenFadeLayer?.setAlpha(0);
       } else {
-        await roomScene.queueScreenFadeToAlpha(
-          0,
-          BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
-          BENNE_SCREEN_FADE_DEFAULT_COLOR,
-        );
+        syncBenneRuntimeHiDpiSceneMainCameras(this.game);
+        roomScene.syncRuntimeHiDpiUiCameraToMain();
+        await new Promise<void>((resolve, reject) => {
+          roomScene.time.delayedCall(0, () => {
+            void roomScene
+              .queueScreenFadeToAlpha(
+                0,
+                BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
+                BENNE_SCREEN_FADE_DEFAULT_COLOR,
+              )
+              .then(resolve)
+              .catch(reject);
+          });
+        });
       }
 
       const afterCtx: RoomTransitionContext = {

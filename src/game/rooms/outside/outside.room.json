@@ -135,7 +135,8 @@
         "x": 95,
         "y": 130
       },
-      "baseline": 163
+      "baseline": 163,
+      "defaultVerb": "open"
     }
   ],
   "points": [
