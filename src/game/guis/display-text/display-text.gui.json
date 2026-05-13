@@ -11,9 +11,9 @@
       "type": "nineSliceImage",
       "id": "displayTextBg",
       "x": 176,
-      "y": 99,
+      "y": 104,
       "width": 200,
-      "height": 66,
+      "height": 80,
       "tag": "9-slice-BG",
       "sliceNames": {
         "topLeft": "TopLeft",

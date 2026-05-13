@@ -461,7 +461,13 @@ function inspectorStateKey(
 type InspectorOpenPreserve = {
     sections: boolean[];
     items: Record<string, boolean>;
+    /** Nested `details.benne-card-subsection` with `data-sub-pe` / `data-sub-pid` / `data-sub-k`. */
+    subsections: Record<string, boolean>;
 };
+
+function inspectorSubsectionOpenKey(pe: string, pid: string, sk: string): string {
+    return `${pe}\0${pid}\0${sk}`;
+}
 
 function captureInspectorOpenState(root: HTMLElement): InspectorOpenPreserve | null {
     const scroll = root.querySelector('.scroll');
@@ -485,7 +491,19 @@ function captureInspectorOpenState(root: HTMLElement): InspectorOpenPreserve | n
             items[`${entity}\0${id}`] = node.open;
         }
     });
-    return { sections, items };
+    const subsections: Record<string, boolean> = {};
+    scroll.querySelectorAll('details.benne-card-subsection[data-sub-pe]').forEach((node) => {
+        if (!(node instanceof HTMLDetailsElement)) {
+            return;
+        }
+        const pe = node.dataset.subPe;
+        const pid = node.dataset.subPid;
+        const sk = node.dataset.subK;
+        if (pe && pid !== undefined && sk) {
+            subsections[inspectorSubsectionOpenKey(pe, pid, sk)] = node.open;
+        }
+    });
+    return { sections, items, subsections };
 }
 
 function restoreInspectorOpenState(root: HTMLElement, captured: InspectorOpenPreserve): void {
@@ -514,6 +532,24 @@ function restoreInspectorOpenState(root: HTMLElement, captured: InspectorOpenPre
             node.open = captured.items[key];
         }
     });
+    const subCaptured = captured.subsections;
+    if (subCaptured) {
+        scroll.querySelectorAll('details.benne-card-subsection[data-sub-pe]').forEach((node) => {
+            if (!(node instanceof HTMLDetailsElement)) {
+                return;
+            }
+            const pe = node.dataset.subPe;
+            const pid = node.dataset.subPid;
+            const sk = node.dataset.subK;
+            if (!pe || pid === undefined || !sk) {
+                return;
+            }
+            const skKey = inspectorSubsectionOpenKey(pe, pid, sk);
+            if (Object.prototype.hasOwnProperty.call(subCaptured, skKey)) {
+                node.open = subCaptured[skKey];
+            }
+        });
+    }
 }
 
 function scrollExpandedCardIntoView(state: InspectorRoomState): void {
@@ -804,7 +840,9 @@ function renderRoom(state: InspectorRoomState): string {
                     : `<div class="benne-card-subsection-body">
         <p class="muted small">No animation clips listed — add <code>animations</code> in JSON or ensure the room sheet has matching frame tags.</p>
       </div>`;
-            const animSection = `<details class="benne-card-subsection">
+            const animSection = `<details class="benne-card-subsection" data-sub-pe="prop" data-sub-pid="${esc(
+                p.id
+            )}" data-sub-k="animations">
       <summary>Animations (${p.animations.length})</summary>
       ${animSubbody}
     </details>`;
@@ -1268,11 +1306,13 @@ function guiTextOutlineSidesSelectOptions(val: InspectorGuiTextOutlineSides): st
         .join('');
 }
 
-function renderGuiTextOutlineAccordion(idx: number, o: InspectorGuiTextOutline): string {
+function renderGuiTextOutlineAccordion(controlKey: string, idx: number, o: InspectorGuiTextOutline): string {
     const th = o.thickness;
     const al = o.alpha;
-    return `<details class="benne-card-subsection" style="margin-top:10px;">
-  <summary>Outline</summary>
+    return `<details class="benne-card-subsection" style="margin-top:10px;" data-sub-pe="guiControl" data-sub-pid="${esc(
+        controlKey
+    )}" data-sub-k="textOutline">
+  <summary>Text Outline</summary>
   <div class="section-body">
     <div class="benne-prop-grid benne-prop-grid--tight" data-outline-wrap="${idx}">
       <span class="benne-pg-lbl">enabled</span>
@@ -1352,6 +1392,9 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
         <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
         ${zRow}
         ${visibleSelect}
+      </div>
+      <div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Text</div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">text</span>
         <input type="text" class="gui-field" data-index="${idx}" data-field="text" value="${esc(c.text)}" />
         <span class="benne-pg-lbl">font</span>
@@ -1365,7 +1408,7 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
         <span class="benne-pg-lbl">wordWrapWidth</span>
         <input type="number" class="gui-field" data-index="${idx}" data-field="wordWrapWidth" value="${c.wordWrapWidth ?? ''}" placeholder="—" />
       </div>
-      ${renderGuiTextOutlineAccordion(idx, c.textOutline)}
+      ${renderGuiTextOutlineAccordion(c.key, idx, c.textOutline)}
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
       ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
@@ -1482,6 +1525,9 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
         ${visibleSelect}
         <span class="benne-pg-lbl">enabled</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="enabled" ${c.enabled ? 'checked' : ''} /></label>
+      </div>
+      <div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Text</div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">text</span>
         <input type="text" class="gui-field" data-index="${idx}" data-field="text" value="${esc(c.text)}" />
         <span class="benne-pg-lbl">font</span>
@@ -1503,7 +1549,7 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
         <span class="benne-pg-lbl">textOffsetY</span>
         <input type="number" class="gui-field" data-index="${idx}" data-field="textOffsetY" value="${c.textOffsetY ?? ''}" placeholder="0" />
       </div>
-      ${renderGuiTextOutlineAccordion(idx, c.textOutline)}
+      ${renderGuiTextOutlineAccordion(c.key, idx, c.textOutline)}
       <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
       ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
       ${sheetBlock}

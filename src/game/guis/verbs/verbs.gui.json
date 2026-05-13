@@ -89,6 +89,11 @@
       "backgroundTag": "",
       "textColorStates": {
         "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
       }
     },
     {
@@ -109,6 +114,11 @@
       "backgroundTag": "",
       "textColorStates": {
         "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
       }
     },
     {
@@ -129,6 +139,11 @@
       "backgroundTag": "",
       "textColorStates": {
         "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
       }
     },
     {
@@ -149,6 +164,11 @@
       "backgroundTag": "",
       "textColorStates": {
         "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
       }
     },
     {
@@ -169,6 +189,11 @@
       "backgroundTag": "",
       "textColorStates": {
         "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
       }
     },
     {
@@ -189,6 +214,11 @@
       "backgroundTag": "",
       "textColorStates": {
         "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
       }
     },
     {
@@ -209,6 +239,11 @@
       "backgroundTag": "",
       "textColorStates": {
         "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
       }
     },
     {
@@ -229,6 +264,11 @@
       "backgroundTag": "",
       "textColorStates": {
         "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
       }
     },
     {
@@ -249,6 +289,11 @@
       "backgroundTag": "",
       "textColorStates": {
         "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
       }
     },
     {
