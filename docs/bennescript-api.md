@@ -1,6 +1,6 @@
 # Bennescript API Reference
 
-> Last updated: 2026-05-09 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
+> Last updated: 2026-05-12 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
 
 For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§3 → Audio system](architecture.md#audio-system), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt), and the **Blocking interaction queue** / API tables in §7.
 
@@ -42,6 +42,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 | **`B.character(id)`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.prop(id)`** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **`B.region(id)`** (**`whenEnter`**, **`whenExit`**), **`whenEnterRegion` / `whenExitRegion`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **`B.hotspot(id).active`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Room **`when*(`target`,`…)` verb sugar**, **`onProp`**, **`whenGive(item,target,…)`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Character self-only **`when*(() => …)`** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Inventory row verbs + **`whenUse` / `whenGive`** registrars | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
@@ -469,6 +470,21 @@ if (B.region('leave').active) {
 - **Character tint** (data-only): optional **`tint`** (`#rrggbb`) and **`tintAlpha`** (0–1) on a region in **`*.room.json`** multiply-tint character sprites while their feet are in that **winning** region (Phaser **`setTint`** / **`clearTint`** via **`applyCharacterSpriteRegionTintFromWinningRegion`**); see **`RoomRegionData`** in **`src/types/room.ts`** and **`packedTintFromWinningRegion`** / **`applyCharacterSpriteRegionTintFromWinningRegion`** in **`src/engine/room/regionCharacterScale.ts`**. There is no separate Bennescript API — clear the **Character tint** field in the Inspector (or omit both keys in JSON) to disable.
 
 Advanced: stable event strings **`roomRegionEnterEventId(roomId, regionId)`** / **`roomRegionExitEventId`** in **`src/engine/events/regionEnterExitEvents.ts`** for **`B.raw.on`** tooling.
+
+### Room hotspots — `active`
+
+**`registerRoomScript`** only — **`B.hotspot('hotspotId').active`** getter and setter (same persistence pattern as **`B.region(…).active`**).
+
+- **`active` get/set** — immediate (not queued on the interaction tail). Persisted to **`GameStateManager`** (key `` `room:<roomId>:hotspot:<hotspotId>:active` ``), re-applied to the live **`roomData.hotspots`** entry at room load. When **inactive**, the engine removes the polygon input zone (no hit-test, hover, or verb dispatch for that hotspot). When **active** and the hotspot has a valid polygon (≥3 points), the zone is mounted or left mounted. **`RoomScene.resolveMovementTarget`** still resolves string ids to hotspot geometry for **`walkTo` / `moveTo`** even when the hotspot is inactive — **`active`** gates **interaction** only.
+- **`hotspotId`** must match **`hotspots[].id`** in this room’s **`*.room.json`** exactly (**case-sensitive**). If there is no matching row, the getter returns **`false`**, the setter is a no-op, and DEV logs once per room load with the list of known hotspot ids.
+
+```ts
+B.hotspot('secret-door').active = false;
+
+if (B.hotspot('secret-door').active) {
+  // …
+}
+```
 
 ---
 

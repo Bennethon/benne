@@ -24,6 +24,7 @@ import {
 } from '../events/verbInteractionEvents.js';
 import type {
   BenneScriptDialogCommandSurface,
+  BenneScriptHotspotFacade,
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
   BenneScriptRegionFacade,
@@ -47,6 +48,7 @@ export type {
   AnyInventoryUsedOnPayload,
   BenneScriptCharacterFacade,
   BenneScriptDialogCommandSurface,
+  BenneScriptHotspotFacade,
   BenneScriptInventoryItemFacade,
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
@@ -92,6 +94,7 @@ export { withNow } from './BenneScriptCore.js';
  * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
  * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
  * | **`B.region(id).whenEnter` / `whenExit`**, **`B.whenEnterRegion` / `whenExitRegion`** | **`regions[].id`** in this room’s JSON. Feet crossing uses the same **last-wins** active polygon test as perspective scale (**`resolveWinningRoomRegionIdAtFeet`**). Handlers wire through **`subscribe`** (interaction queue + verb click context rules, like **`whenLookAt`**). Payload: **`RegionEnterExitContext`**. |
+ * | **`B.hotspot(id).active`** | **`hotspots[].id`** (case-sensitive, exact JSON match) — get/set persisted **active** (immediate, not queued). Mounts or removes the polygon input zone; **`resolveMovementTarget`** still resolves inactive hotspot ids. Unknown id: getter **`false`**, setter no-op, DEV warn once per room load. |
  * | **`B.say` / `B.say.now`** | Tagged **`B.say`**…``: PowerQuest-style block — lines **`Speaker: text`** (`Player` any case → protagonist id; other names match spawned character ids **case-insensitively**). Blank lines and **`//`** comments ignored; unknown speakers throw. Queues each line; **`B.say.now`**… skips the interaction tail (see implementation notes in **`BenneScriptCore`**). |
  * | **`B.display` / `B.display.now`** | Narration via **`display-text`** GUI — **`B.display('…')`** blocks until the player clicks to dismiss (no timer). Same interaction-tail rules as **`B.wait`** / **`say`**; **`.now`** skips the tail. |
  * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Same dialog overlay as **`B.say`**, plus string form **`B.player.say('…')`**. Scoped tagged blocks: each line is that character (optional **`Player:`** prefix); mismatched **`Name:`** throws (compared **case-insensitively** to the scoped character). Optional second argument **`{ clickToSkip: false \| true }`** on string calls. |
@@ -110,6 +113,11 @@ const noopBenneScriptRegionFacade: BenneScriptRegionFacade = {
   set active(_v: boolean) {},
   whenEnter(): void {},
   whenExit(): void {},
+};
+
+const noopBenneScriptHotspotFacade: BenneScriptHotspotFacade = {
+  get active() { return true; },
+  set active(_v: boolean) {},
 };
 
 /**
@@ -581,6 +589,25 @@ export class BenneScript extends BenneScriptCore {
             (handler as (x: RegionEnterExitContext) => void)(p);
           }
         });
+      },
+    };
+  }
+
+  hotspot(hotspotId: string): BenneScriptHotspotFacade {
+    const hid = String(hotspotId).trim();
+    if (hid.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.hotspot: hotspot id must be a non-empty string.');
+      }
+      return noopBenneScriptHotspotFacade;
+    }
+    const scene = this.roomScene;
+    return {
+      get active() {
+        return scene.getHotspotScriptActive(hid);
+      },
+      set active(v: boolean) {
+        scene.setHotspotScriptActive(hid, v);
       },
     };
   }

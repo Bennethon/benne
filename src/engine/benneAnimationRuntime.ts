@@ -71,6 +71,35 @@ export function writeSavedRegionActive(
   manager.setVariable(roomRegionActiveVariableKey(roomId, regionId), active);
 }
 
+/** Persistence key for `B.hotspot(id).active` overrides. */
+export function roomHotspotActiveVariableKey(roomId: string, hotspotId: string): string {
+  return `room:${roomId}:hotspot:${hotspotId}:active`;
+}
+
+/**
+ * Effective `B.hotspot(id).active` — saved override (boolean) when set, else `jsonDefault`
+ * (`true` when the JSON field is omitted or anything other than `false`).
+ */
+export function readSavedHotspotActive(
+  manager: GameStateManager,
+  roomId: string,
+  hotspotId: string,
+  jsonDefault: boolean,
+): boolean {
+  const v = manager.getVariable(roomHotspotActiveVariableKey(roomId, hotspotId));
+  return typeof v === 'boolean' ? v : jsonDefault;
+}
+
+/** Persist `B.hotspot(id).active = …` for this room+hotspot pair. */
+export function writeSavedHotspotActive(
+  manager: GameStateManager,
+  roomId: string,
+  hotspotId: string,
+  active: boolean,
+): void {
+  manager.setVariable(roomHotspotActiveVariableKey(roomId, hotspotId), active);
+}
+
 /** Sprite data: persisted override tag (`string`) or `null` when cleared. */
 export const BENNE_CHARACTER_ANIMATION_OVERRIDE_KEY = 'benneAnimationOverride';
 

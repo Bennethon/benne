@@ -55,7 +55,9 @@ import {
   readSavedPropBaseAnimationTag,
   readSavedPropPosition,
   readSavedPropVisible,
+  readSavedHotspotActive,
   readSavedRegionActive,
+  writeSavedHotspotActive,
   writeSavedRegionActive,
   setCharacterAnimationOverrideTagOnSprite,
   writeSavedCharacterAlpha,
@@ -341,6 +343,9 @@ export class RoomScene extends Phaser.Scene {
   /** String ids that already triggered `walkTo` resolution warnings (warn once per id per room load). */
   private unresolvedWalkTargetIdsWarned = new Set<string>();
 
+  /** `B.hotspot(id)` with an id not in `roomData.hotspots` — warn once per id per room load. */
+  private unknownHotspotScriptIdsWarned = new Set<string>();
+
   /**
    * Unregister handle for the snapshot flush hook installed in {@link create} and torn down on
    * {@link Phaser.Scenes.Events.SHUTDOWN}. Null when no hook is registered (preview / pre-create).
@@ -476,7 +481,9 @@ export class RoomScene extends Phaser.Scene {
     this.characterFeetWinningRegionId.clear();
     this.regionEnterExitSeeded = false;
     this.restoreRegionActiveOverrides();
+    this.restoreHotspotActiveOverrides();
     this.unresolvedWalkTargetIdsWarned.clear();
+    this.unknownHotspotScriptIdsWarned.clear();
     this.missingDialogTextOverlaySayWarned = false;
     this.missingDisplayTextOverlayWarned = false;
     this.genericGuiVisibilityBeforeDialog = null;
@@ -1780,6 +1787,84 @@ export class RoomScene extends Phaser.Scene {
         region.active = saved;
       }
     }
+  }
+
+  /**
+   * Re-apply saved `B.hotspot(id).active` overrides to `roomData.hotspots` entries at room load.
+   * Called in {@link create} before hotspot zones are spawned.
+   */
+  private restoreHotspotActiveOverrides(): void {
+    const hotspots = this.roomData?.hotspots;
+    if (!hotspots || hotspots.length === 0) return;
+    const manager = resolveGameStateManager(this.game);
+    for (const hotspot of hotspots) {
+      const jsonDefault = hotspot.active !== false;
+      const saved = readSavedHotspotActive(manager, this.roomData.id, hotspot.id, jsonDefault);
+      if (saved !== jsonDefault) {
+        hotspot.active = saved;
+      }
+    }
+  }
+
+  /**
+   * Effective `B.hotspot(id).active` — saved override wins; falls back to the JSON `active` field
+   * (`undefined` / omitted = `true`, explicit `false` = inactive). Unknown ids return **`false`**
+   * (no hotspot row) and log once in DEV with the room’s hotspot id list.
+   */
+  getHotspotScriptActive(hotspotId: string): boolean {
+    const hotspot = this.roomData.hotspots.find((h) => h.id === hotspotId);
+    if (!hotspot) {
+      this.warnIfUnknownHotspotScriptId(hotspotId);
+      return false;
+    }
+    const jsonDefault = hotspot.active !== false;
+    return readSavedHotspotActive(resolveGameStateManager(this.game), this.roomData.id, hotspotId, jsonDefault);
+  }
+
+  /**
+   * Persist + immediately apply the `active` state for a hotspot. Mutates the live `roomData.hotspots`
+   * entry and mounts or removes the Phaser input zone. Backs **`B.hotspot(id).active = …`**.
+   * No-op when **`hotspotId`** is not in this room’s **`hotspots[]`** (DEV warns once per id per load).
+   */
+  setHotspotScriptActive(hotspotId: string, active: boolean): void {
+    const hotspot = this.roomData.hotspots.find((h) => h.id === hotspotId);
+    if (!hotspot) {
+      this.warnIfUnknownHotspotScriptId(hotspotId);
+      return;
+    }
+    writeSavedHotspotActive(resolveGameStateManager(this.game), this.roomData.id, hotspotId, active);
+    hotspot.active = active;
+    if (!active) {
+      this.removeHotspotInteractiveZone(hotspotId);
+      return;
+    }
+    const pts = hotspot.points;
+    if (!pts || pts.length < 3) {
+      return;
+    }
+    if (this.hotspotInteractiveZoneExists(hotspotId)) {
+      return;
+    }
+    const vW = getInternalWidth();
+    const vH = getInternalHeight();
+    const roomW = this.roomData.size?.width ?? vW;
+    const roomH = this.roomData.size?.height ?? vH;
+    this.mountHotspotInteractiveZone(this.roomData.id, hotspot, roomW, roomH);
+    this.updateRoomStackDepths();
+  }
+
+  private warnIfUnknownHotspotScriptId(hotspotId: string): void {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+    if (this.unknownHotspotScriptIdsWarned.has(hotspotId)) {
+      return;
+    }
+    this.unknownHotspotScriptIdsWarned.add(hotspotId);
+    const ids = this.roomData.hotspots.map((h) => h.id).join(', ');
+    console.warn(
+      `[Benne] B.hotspot('${hotspotId}'): no hotspot with this id in room '${this.roomData.id}'. Known ids: ${ids || '(none)'} — ids are case-sensitive and must match *.room.json.`,
+    );
   }
 
   /**
@@ -3296,11 +3381,40 @@ export class RoomScene extends Phaser.Scene {
     });
   }
 
-  private createHotspot(roomId: string, hotspot: RoomHotspotData, roomW: number, roomH: number): void {
-    if (hotspot.active === false) {
+  private hotspotInteractiveZoneExists(hotspotId: string): boolean {
+    for (const e of this.roomStackEntities) {
+      if (e.kind !== 'hotspot') continue;
+      const id = e.zone.getData('benneHotspotId') as string | undefined;
+      if (id === hotspotId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private removeHotspotInteractiveZone(hotspotId: string): void {
+    for (let i = this.roomStackEntities.length - 1; i >= 0; i--) {
+      const e = this.roomStackEntities[i]!;
+      if (e.kind !== 'hotspot') continue;
+      const id = e.zone.getData('benneHotspotId') as string | undefined;
+      if (id !== hotspotId) continue;
+      this.roomStackEntities.splice(i, 1);
+      e.zone.destroy();
+      this.updateRoomStackDepths();
       return;
     }
+  }
 
+  /**
+   * Spawns the polygon hit zone and stack entry for one active hotspot (caller ensures polygon
+   * validity and that the hotspot should be interactive).
+   */
+  private mountHotspotInteractiveZone(
+    roomId: string,
+    hotspot: RoomHotspotData,
+    roomW: number,
+    roomH: number,
+  ): void {
     const pts = hotspot.points;
     if (!pts || pts.length < 3) {
       return;
@@ -3390,6 +3504,19 @@ export class RoomScene extends Phaser.Scene {
       baselineRoomY: hotspot.baseline,
       sortKey: `hotspot:${hotspot.id}`,
     });
+  }
+
+  private createHotspot(roomId: string, hotspot: RoomHotspotData, roomW: number, roomH: number): void {
+    if (hotspot.active === false) {
+      return;
+    }
+
+    const pts = hotspot.points;
+    if (!pts || pts.length < 3) {
+      return;
+    }
+
+    this.mountHotspotInteractiveZone(roomId, hotspot, roomW, roomH);
   }
 
   private spawnCharacter(roomId: string, spawn: RoomCharacterSpawn): void {
