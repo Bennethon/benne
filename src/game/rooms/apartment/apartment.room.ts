@@ -201,4 +201,15 @@ registerRoomScript(({ B }) => {
   B.region("darkness").whenEnter(() => {
     B.say`Hank: It's dark over here.`;
   });
+
+  B.whenPush('Couch', () => {
+    // Hotspot id matches `hotspots[].id` in apartment.room.json (`window`, not `Window`).
+    if (B.hotspot('window').active) {
+      B.hotspot('window').active = false;
+      B.say`Hank: Goodbye window.`;
+    } else {
+      B.hotspot('window').active = true;
+      B.say`Hank: Hello window.`;
+    }
+  });
 });

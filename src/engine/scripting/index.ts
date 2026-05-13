@@ -2,6 +2,7 @@ export {
   BenneScript,
   type AnyInventoryUsedOnPayload,
   type BenneScriptCharacterFacade,
+  type BenneScriptHotspotFacade,
   type BenneScriptInventoryItemFacade,
   type BenneScriptPlayerFacade,
   type BenneScriptPropFacade,

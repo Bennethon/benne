@@ -126,6 +126,17 @@ export interface BenneScriptRegionFacade {
   whenExit(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void;
 }
 
+/** Active flag for one room hotspot (`BenneScript.hotspot`). Ids are case-sensitive and must match `hotspots[].id`. */
+export interface BenneScriptHotspotFacade {
+  /**
+   * Whether this hotspot is interactive (polygon hit-test, hover, verbs). Setter is immediate
+   * (not queued). Does not change {@link import('../scenes/RoomScene.js').RoomScene.resolveMovementTarget}
+   * for string ids — movement resolution still finds the hotspot row.
+   */
+  get active(): boolean;
+  set active(v: boolean);
+}
+
 /** Visibility + description overrides for one prop (`BenneScript.prop`). */
 export interface BenneScriptPropFacade {
   readonly sound: BenneScriptSoundFacade;
