@@ -643,6 +643,7 @@ export function updateCharacterFields(
         name?: string;
         walkSpeed?: number;
         clickable?: boolean;
+        movable?: boolean;
         description?: string;
         walkToPoint?: { x: number; y: number } | null;
         talkPoint?: { x: number; y: number } | null;
@@ -658,6 +659,13 @@ export function updateCharacterFields(
     }
     if (fields.clickable !== undefined) {
         data.clickable = fields.clickable;
+    }
+    if (fields.movable !== undefined) {
+        if (fields.movable) {
+            delete data.movable;
+        } else {
+            data.movable = false;
+        }
     }
     if (fields.description !== undefined) {
         data.description = fields.description;
