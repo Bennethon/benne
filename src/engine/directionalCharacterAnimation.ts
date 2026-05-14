@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import type { Point2 } from '../types/room.js';
 import { playCharacterAnimation, type CharacterAnimSprite } from './characterAnimationPlayback';
 
 /** Matches Aseprite frame-tag suffix convention (IdleL, WalkDR, …). */
@@ -7,7 +8,7 @@ export type CharacterFacing = 'L' | 'R' | 'U' | 'D' | 'UL' | 'UR' | 'DL' | 'DR';
 const SQRT1_2 = Math.SQRT1_2;
 
 /** Screen-space unit dirs (y+ down). */
-const FACING_UNIT: Record<CharacterFacing, [number, number]> = {
+export const CHARACTER_FACING_UNIT: Record<CharacterFacing, [number, number]> = {
   R: [1, 0],
   DR: [SQRT1_2, SQRT1_2],
   D: [0, 1],
@@ -84,7 +85,7 @@ export function facingFromWorldDelta(dx: number, dy: number): CharacterFacing {
   let best: CharacterFacing = 'D';
   let bestDot = -Infinity;
   for (const dir of ALL_FACINGS) {
-    const [vx, vy] = FACING_UNIT[dir];
+    const [vx, vy] = CHARACTER_FACING_UNIT[dir];
     const dot = nx * vx + ny * vy;
     if (dot > bestDot + 1e-9) {
       bestDot = dot;
@@ -124,6 +125,20 @@ export function resolveSpawnIdleFacing(
     return initialFacing as CharacterFacing;
   }
   return resolveInitialIdleFacing(sprite);
+}
+
+/**
+ * Rotates `{ x, y }` from the character's local follow frame into world space: local +x is forward
+ * ({@link CHARACTER_FACING_UNIT}), local +y is 90° clockwise from forward (screen y+ down).
+ */
+export function offsetWorldByCharacterFacing(facing: CharacterFacing, offset: Point2): Point2 {
+  const [fx, fy] = CHARACTER_FACING_UNIT[facing];
+  const rx = fy;
+  const ry = -fx;
+  return {
+    x: fx * offset.x + rx * offset.y,
+    y: fy * offset.x + ry * offset.y,
+  };
 }
 
 /**

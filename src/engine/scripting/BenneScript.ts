@@ -63,6 +63,7 @@ export type {
   InventoryWhenUseRegistrar,
   RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
+export type { CharacterFollowOptions } from '../../types/characterFollow.js';
 export type {
   BenneScriptSayArgs,
   BenneScriptSayLineOptions,
