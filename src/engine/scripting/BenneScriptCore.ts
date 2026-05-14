@@ -1714,6 +1714,33 @@ export abstract class BenneScriptCore {
         },
         runCharacterFace,
       ),
+      startFacingCharacter(character: string, minWaitTime?: number, maxWaitTime?: number): void {
+        core.chain(() => {
+          const scene = getScene();
+          if (!scene) {
+            warnNoRoom();
+            return Promise.resolve();
+          }
+          scene.startCharacterFacingCharacter(
+            definitionId,
+            character,
+            minWaitTime ?? 0.2,
+            maxWaitTime ?? 0.4,
+          );
+          return Promise.resolve();
+        });
+      },
+      stopFacingCharacter(): void {
+        core.chain(() => {
+          const scene = getScene();
+          if (!scene) {
+            warnNoRoom();
+            return Promise.resolve();
+          }
+          scene.stopCharacterFacingCharacter(definitionId);
+          return Promise.resolve();
+        });
+      },
       fade: withNow(
         (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
           core.chain(() => {

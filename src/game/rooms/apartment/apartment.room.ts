@@ -29,6 +29,8 @@ registerRoomScript(({ B }) => {
       B.prop('Door').animation = 'Door';
     }
 
+    B.character('penny').startFacingCharacter('hank');
+
   });
 
   B.whenInventoryUsedOn('Couch', (payload) => {
@@ -59,6 +61,8 @@ registerRoomScript(({ B }) => {
       Penny: Hi!
       `;
     B.dialog("chatwithpenny").start();
+
+    B.character('penny').stopFacingCharacter();
   });
 
   B.whenLookAt('Couch', () => {

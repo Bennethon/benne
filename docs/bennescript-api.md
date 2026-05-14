@@ -1,6 +1,6 @@
 # Bennescript API Reference
 
-> Last updated: 2026-05-12 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
+> Last updated: 2026-05-13 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
 
 For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§3 → Audio system](architecture.md#audio-system), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt), and the **Blocking interaction queue** / API tables in §7.
 
@@ -137,7 +137,7 @@ interface BenneScriptRoomFacade {
 
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
-| **`walkToClicked`** | `BlockingWithNow<[]>` | **`RoomScene.walkPlayerTo`** to payload-derived target (prop/hotspot/character id), then **`RoomScene.facePlayerTowardClicked`** with the same payload snapshot as **`faceClicked`** after the walk completes; no-op + DEV warn when no **`RoomScene`**, outside verb handler, or no world target (e.g. inventory row only). | Queued vs **`.now`** |
+| **`walkToClicked`** | `BlockingWithNow<[]>` | **`RoomScene.walkPlayerTo`** to payload-derived target (prop/hotspot/character id), then **`RoomScene.facePlayerTowardClicked`** with the same payload snapshot as **`faceClicked`** after the walk completes; no-op + DEV warn when no **`RoomScene`**, outside verb handler, or no world target (e.g. inventory row only). Also a **no-op** when **`B.player.movable`** is **`false`** (no walk tween; facing still runs after the skipped walk). | Queued vs **`.now`** |
 | **`faceClicked`** | `BlockingWithNow<[]>` | **`RoomScene.facePlayerTowardClicked`** uses **`lookAtPoint`**, NPC feet, or walk stand point. Same guard rails as **`walkToClicked`**. | Queued vs **`.now`** |
 
 ### Screen fade
@@ -241,10 +241,10 @@ Constructed from active **`RoomScene`** (global/dialog resolve **`SCENE_ROOM` on
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
 | **`sound`** | **`BenneScriptSoundFacade`** | Alias of top-level **`B.sound`** (same object). | See [Sound (`B.sound`)](#sound-bsound) |
-| **`walkTo`** | `BlockingWithNow<[Point2 \| string]>` | Pathfind + walk tween. | Queued vs **`.now`** |
-| **`moveTo`** | `BlockingWithNow<[Point2 \| string]>` | Teleport feet (**`movePlayerToNow`**); updates idle facing. | Queued vs **`.now`** |
+| **`walkTo`** | `BlockingWithNow<[Point2 \| string]>` | Pathfind + walk tween. **No-op** when **`movable`** is **`false`** (promise resolves immediately). | Queued vs **`.now`** |
+| **`moveTo`** | `BlockingWithNow<[Point2 \| string]>` | Teleport feet (**`movePlayerToNow`**); updates idle facing. **Not** gated by **`movable`**. | Queued vs **`.now`** |
 | **`moveToNow`** | `(target: Point2 \| string) => void` | Alias for **`moveTo.now`**. | Immediate |
-| **`walkToClicked`** | `BlockingWithNow<[]>` | Delegates core **`performWalkToClicked`**. | |
+| **`walkToClicked`** | `BlockingWithNow<[]>` | Delegates core **`performWalkToClicked`** (no-op when **`movable`** is **`false`**). | |
 | **`faceClicked`** | `BlockingWithNow<[]>` | Delegates **`performFaceClicked`**. | |
 | **`animation`** | getter **`string`**; setter **`string \| null`** | Effective clip tag; **`null`** clears persisted override on set. Setter **queued**. | Setter queued |
 | **`animationNow`** | `(tag: string \| null) => void` | Immediate override / clear. | Immediate |
@@ -252,23 +252,32 @@ Constructed from active **`RoomScene`** (global/dialog resolve **`SCENE_ROOM` on
 | **`stopAnimation`** | `() => void` | Clears override + returns to directional idle. | Immediate |
 | **`say`** | **`BenneScriptSayDialogueHybrid`** | **`'line'`**, **`say.now('line', opts?)`**, or tagged scoped to player id. **`clickToSkip`** from arg or **`getDialogSettings().clickToSkip`**. | Per hybrid rules |
 | **`face`** | `BlockingWithNow<[CharacterFacingLetter]>` | **`facePlayerScriptDirection`**. | Queued vs **`.now`** |
+| **`movable`** get/set | `boolean` | When **`false`**, **`walkTo`**, **`walkToClicked`**, click-to-walk, and verb-driven player walks are ignored; **`moveTo`** / **`moveTo.now` / `moveToNow`** still teleport. Setter **queues** on the interaction tail (like **`visible`** on **`B.character`**); persists `` `character:<startingPlayerId>:movable` `` (see [architecture.md §7 → Persistence](architecture.md#7-scripting--interaction-system-bennescript)). Getter with no **`RoomScene`** falls back to saved state, else **`true`**. | Setter queued |
 
 ---
 
 ## `B.character(id)` (**`BenneScriptCharacterFacade`**)
 
-Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / **`face`** pattern as **`B.player`**, routed to **`walkCharacterTo`**, **`moveCharacterToNow`**, **`faceCharacterScriptDirection`**, character animation scripting APIs (**`NPC`** — no **`walkToClicked`** on facade; use top-level **`B.walkToClicked`** / **`B.player.*`**). Exposes **`sound`** (**same object** as **`B.sound`**).
+Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / **`face`** / **`movable`** pattern as **`B.player`**, routed to **`walkCharacterTo`**, **`moveCharacterToNow`**, **`faceCharacterScriptDirection`**, **`startCharacterFacingCharacter` / `stopCharacterFacingCharacter`**, character animation scripting APIs (**`NPC`** — no **`walkToClicked`** on facade; use top-level **`B.walkToClicked`** / **`B.player.*`**). Exposes **`sound`** (**same object** as **`B.sound`**).
 
-**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. Movement / **`face`** / **`fade`** with no room no-op and DEV **`console.warn`** once. **`hide` / `show` / `visible` / `visibleNow`** still persist to **`GameStateManager`** when a manager is active so visibility survives the next room load even if **`RoomScene`** is not resolved yet.
+**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. Movement / **`face`** / **`fade`** / **`startFacingCharacter` / `stopFacingCharacter`** with no room no-op and DEV **`console.warn`** once. **`hide` / `show` / `visible` / `visibleNow`** and **`movable`** setters still persist to **`GameStateManager`** when a manager is active so values survive the next room load even if **`RoomScene`** is not resolved yet.
+
+**`movable` getter:** Effective value is the saved override (if any), else **`CharacterData.movable`** from the **first** spawn of that **`characterId`** in the active room’s JSON (**`true`** when omitted). If that id is **not** spawned in the current room, there is no JSON row from this room — the getter still returns a saved **`character:<id>:movable`** boolean when set; otherwise **`true`**. Use **`B.player.movable`** when you mean the protagonist, not an arbitrary **`B.character('…')`** id that might be absent from the room.
 
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
 | **`hide` / `show`** | **`BlockingWithNow<[]>`** | Script visibility overrides (persisted — see [architecture.md §7](architecture.md#7-scripting--interaction-system-bennescript)); queue vs **`.now`**. | Queued vs **`.now`** |
 | **`visible`** get/set | Setter queues like **`animation`**; **`visibleNow(v)`** applies immediately. Both persist a boolean to **`GameStateManager`** (key `` `character:<characterId>:visible` ``). **`getCharacterScriptVisible`** returns the live sprite when one exists, else the saved override, then the first room JSON placement default. | Setter queued |
+| **`movable`** get/set | When **`false`**, **`walkTo`** is a no-op for this NPC (**`walkCharacterTo`** returns immediately). Setter queues like **`visible`**; persists `` `character:<characterId>:movable` ``. **`moveTo`** is **not** gated. | Setter queued |
+| **`startFacingCharacter`** | **`(targetCharacterId: string, minWaitTime?: number, maxWaitTime?: number) => void`** | Keeps this NPC’s **Idle** facing toward **`targetCharacterId`**’s **feet** (same **`CharacterData.id`** as other **`B.character`** calls). When either character’s feet move by more than a small epsilon, **`RoomScene`** cancels any pending turn and schedules a new one after a **uniform random** delay in **`[minWaitTime, maxWaitTime]`** seconds — defaults **`0.2`** and **`0.4`**. Negative bounds clamp to **`0`**; if **`minWaitTime > maxWaitTime`**, the engine swaps them. Calling **`startFacingCharacter`** again on the same observer replaces the previous target and timing. No-op when observer **equals** target, or when either id has no **`Sprite`** instance in the room. Not persisted across room loads (cleared in **`RoomScene`** **`create`** / **shutdown**). | Queued |
+| **`stopFacingCharacter`** | **`() => void`** | Removes the observer’s active face-target lock and cancels its pending timer. | Queued |
 | **`fade`** | `BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>` | Tween the character sprite's `alpha` from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`** (`Linear`); alphas clamp to `[0, 1]`, duration to `>= 0` (`0` snaps to **`toAlpha`**). Each call kills running tweens on the sprite first, then sets `alpha = fromAlpha` before tweening. **`toAlpha`** is **persisted** to **`GameStateManager`** (key `` `character:<characterId>:alpha` ``) at call time and re-applied on every spawn (saving mid-fade restores the intended final alpha). Routes through **`RoomScene.fadeCharacterScriptAlpha`**. | Queued (waits for tween) vs **`.now`** |
 
 ```ts
+B.character('penny').movable = false; // queued; penny won't pathfind-walk until set true again
 B.character('penny').hide(); // persisted; stays hidden after room change / save when Penny is in the room
+B.character('henry').startFacingCharacter('hank');
+B.character('henry').stopFacingCharacter();
 B.character('penny').fade(0, 1, 0.5); // fade Penny in from transparent to opaque over 0.5 s
 B.character('penny').fade.now(1, 0, 1); // start fade-out immediately, don't block following lines
 ```
@@ -299,7 +308,7 @@ B.prop('Knife').hide(); // persisted; the prop stays hidden after B.room.changeT
 B.prop('Rock').moveTo.now({ x: 80, y: 90 }); // teleport authoring origin; persisted on next flush
 ```
 
-**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`saveToBrowser` / `loadFromBrowser`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`saveToBrowser`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
+**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, **movable**, alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`saveToBrowser` / `loadFromBrowser`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`saveToBrowser`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
 
 ---
 

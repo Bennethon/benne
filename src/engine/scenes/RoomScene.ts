@@ -348,6 +348,26 @@ export class RoomScene extends Phaser.Scene {
     Phaser.Tweens.Tween
   >();
 
+  /**
+   * `B.character(observer).startFacingCharacter(target)` — observer keeps turning toward target’s
+   * feet after short random delays when either character’s feet move.
+   */
+  private characterFaceTowardCharacterLocks = new Map<
+    string,
+    {
+      targetDefId: string;
+      minWaitSec: number;
+      maxWaitSec: number;
+      refObsFeet: Point2;
+      refTgtFeet: Point2;
+      pendingTimer: Phaser.Time.TimerEvent | null;
+      /** Incremented whenever a new delayed callback is armed so stale callbacks no-op. */
+      scheduleGen: number;
+    }
+  >();
+
+  private static readonly CHARACTER_FACE_TOWARD_MOVE_EPS = 0.35;
+
   /** String ids that already triggered `walkTo` resolution warnings (warn once per id per room load). */
   private unresolvedWalkTargetIdsWarned = new Set<string>();
 
@@ -488,6 +508,7 @@ export class RoomScene extends Phaser.Scene {
     this.characterJsonVisibleByDefId.clear();
     this.characterJsonMovableByDefId.clear();
     this.npcWalkTweens.clear();
+    this.clearCharacterFaceTowardCharacterLocks();
     this.characterFeetWinningRegionId.clear();
     this.regionEnterExitSeeded = false;
     this.restoreRegionActiveOverrides();
@@ -825,6 +846,7 @@ export class RoomScene extends Phaser.Scene {
         t.stop();
       }
       this.npcWalkTweens.clear();
+      this.clearCharacterFaceTowardCharacterLocks();
       this.debugPathGraphics = null;
       this.benneCoresForTransitionReset.length = 0;
     });
@@ -1724,6 +1746,148 @@ export class RoomScene extends Phaser.Scene {
     characterFaceLetterRespectingOverride(pl, direction);
   }
 
+  /**
+   * Bennescript **`B.character(observer).startFacingCharacter(target, …)`** — keeps the observer’s
+   * **Idle** facing toward the target’s feet; when either character’s feet move, a new random delay
+   * in **[minWaitSeconds, maxWaitSeconds]** runs before the next turn (defaults **0.2** / **0.4**).
+   */
+  startCharacterFacingCharacter(
+    observerDefinitionId: string,
+    targetDefinitionId: string,
+    minWaitSeconds = 0.2,
+    maxWaitSeconds = 0.4,
+  ): void {
+    if (observerDefinitionId === targetDefinitionId) {
+      return;
+    }
+    let minSec = Math.max(0, minWaitSeconds);
+    let maxSec = Math.max(0, maxWaitSeconds);
+    if (minSec > maxSec) {
+      const swap = minSec;
+      minSec = maxSec;
+      maxSec = swap;
+    }
+    this.stopCharacterFacingCharacter(observerDefinitionId);
+    const obsSprite = this.characterSpritesByDefId.get(observerDefinitionId);
+    const tgtSprite = this.characterSpritesByDefId.get(targetDefinitionId);
+    if (!(obsSprite instanceof Phaser.GameObjects.Sprite) || !(tgtSprite instanceof Phaser.GameObjects.Sprite)) {
+      return;
+    }
+    const oFeet = getCharacterWorldFeet(obsSprite);
+    const tFeet = getCharacterWorldFeet(tgtSprite);
+    this.characterFaceTowardCharacterLocks.set(observerDefinitionId, {
+      targetDefId: targetDefinitionId,
+      minWaitSec: minSec,
+      maxWaitSec: maxSec,
+      refObsFeet: { x: oFeet.x, y: oFeet.y },
+      refTgtFeet: { x: tFeet.x, y: tFeet.y },
+      pendingTimer: null,
+      scheduleGen: 0,
+    });
+    this.armCharacterFaceTowardDelayedTurn(observerDefinitionId);
+  }
+
+  /** Bennescript **`B.character(observer).stopFacingCharacter()`**. */
+  stopCharacterFacingCharacter(observerDefinitionId: string): void {
+    const entry = this.characterFaceTowardCharacterLocks.get(observerDefinitionId);
+    if (entry) {
+      entry.pendingTimer?.remove(false);
+      entry.pendingTimer = null;
+    }
+    this.characterFaceTowardCharacterLocks.delete(observerDefinitionId);
+  }
+
+  private clearCharacterFaceTowardCharacterLocks(): void {
+    for (const entry of this.characterFaceTowardCharacterLocks.values()) {
+      entry.pendingTimer?.remove(false);
+      entry.pendingTimer = null;
+    }
+    this.characterFaceTowardCharacterLocks.clear();
+  }
+
+  private randomFaceTowardDelayMs(entry: { minWaitSec: number; maxWaitSec: number }): number {
+    const span = entry.maxWaitSec - entry.minWaitSec;
+    const seconds = entry.minWaitSec + Math.random() * span;
+    return Math.max(0, seconds) * 1000;
+  }
+
+  private armCharacterFaceTowardDelayedTurn(observerDefinitionId: string): void {
+    const entry = this.characterFaceTowardCharacterLocks.get(observerDefinitionId);
+    if (!entry) {
+      return;
+    }
+    entry.pendingTimer?.remove(false);
+    entry.scheduleGen += 1;
+    const expectedGen = entry.scheduleGen;
+    const delayMs = this.randomFaceTowardDelayMs(entry);
+    entry.pendingTimer = this.time.delayedCall(delayMs, () => {
+      entry.pendingTimer = null;
+      const still = this.characterFaceTowardCharacterLocks.get(observerDefinitionId);
+      if (still !== entry || still.scheduleGen !== expectedGen) {
+        return;
+      }
+      const obsSprite = this.characterSpritesByDefId.get(observerDefinitionId);
+      const tgtSprite = this.characterSpritesByDefId.get(still.targetDefId);
+      if (!(obsSprite instanceof Phaser.GameObjects.Sprite) || !(tgtSprite instanceof Phaser.GameObjects.Sprite)) {
+        this.characterFaceTowardCharacterLocks.delete(observerDefinitionId);
+        return;
+      }
+      const tgtFeet = getCharacterWorldFeet(tgtSprite);
+      this.applyCharacterSpriteFaceTowardWorldFeet(obsSprite, tgtFeet);
+      const oAfter = getCharacterWorldFeet(obsSprite);
+      still.refObsFeet.x = oAfter.x;
+      still.refObsFeet.y = oAfter.y;
+      still.refTgtFeet.x = tgtFeet.x;
+      still.refTgtFeet.y = tgtFeet.y;
+    });
+  }
+
+  private applyCharacterSpriteFaceTowardWorldFeet(
+    observer: Phaser.GameObjects.Sprite,
+    targetFeet: Point2,
+  ): void {
+    const feet = getCharacterWorldFeet(observer);
+    const dx = targetFeet.x - feet.x;
+    const dy = targetFeet.y - feet.y;
+    if (Math.hypot(dx, dy) < 1e-2) {
+      return;
+    }
+    const facing = facingFromWorldDelta(dx, dy);
+    if (getCharacterAnimationOverrideTag(observer)) {
+      observer.setData('facing', facing);
+      return;
+    }
+    playDirectionalAnimation(observer, 'Idle', facing);
+  }
+
+  private updateCharacterFaceTowardCharacterLocks(): void {
+    if (this.characterFaceTowardCharacterLocks.size === 0) {
+      return;
+    }
+    const eps = RoomScene.CHARACTER_FACE_TOWARD_MOVE_EPS;
+    for (const [observerId, entry] of [...this.characterFaceTowardCharacterLocks]) {
+      const obsSprite = this.characterSpritesByDefId.get(observerId);
+      const tgtSprite = this.characterSpritesByDefId.get(entry.targetDefId);
+      if (!(obsSprite instanceof Phaser.GameObjects.Sprite) || !(tgtSprite instanceof Phaser.GameObjects.Sprite)) {
+        this.stopCharacterFacingCharacter(observerId);
+        continue;
+      }
+      const oFeet = getCharacterWorldFeet(obsSprite);
+      const tFeet = getCharacterWorldFeet(tgtSprite);
+      const obsMoved =
+        Math.hypot(oFeet.x - entry.refObsFeet.x, oFeet.y - entry.refObsFeet.y) > eps;
+      const tgtMoved =
+        Math.hypot(tFeet.x - entry.refTgtFeet.x, tFeet.y - entry.refTgtFeet.y) > eps;
+      if (obsMoved || tgtMoved) {
+        entry.refObsFeet.x = oFeet.x;
+        entry.refObsFeet.y = oFeet.y;
+        entry.refTgtFeet.x = tFeet.x;
+        entry.refTgtFeet.y = tFeet.y;
+        this.armCharacterFaceTowardDelayedTurn(observerId);
+      }
+    }
+  }
+
   getPropScriptDescription(propId: string): string {
     if (this.propDescriptionOverrides.has(propId)) {
       return this.propDescriptionOverrides.get(propId) ?? '';
@@ -2426,6 +2590,7 @@ export class RoomScene extends Phaser.Scene {
 
   update(): void {
     this.snapWalkingSpritesToPixelGrid();
+    this.updateCharacterFaceTowardCharacterLocks();
     this.syncIdleCharacterRegionScales();
     this.syncCharacterRegionEnterExit();
     this.updateParallaxProps();

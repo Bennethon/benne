@@ -241,6 +241,15 @@ export interface BenneScriptCharacterFacade {
   say: BenneScriptSayDialogueHybrid;
   face: BlockingWithNow<[CharacterFacingLetter]>;
   /**
+   * Keeps this character’s **Idle** facing toward another spawned character’s feet while either moves;
+   * re-aim uses a random delay in **[`minWaitTime`, `maxWaitTime`]** seconds (defaults **0.2** / **0.4**)
+   * after feet settle. Queues on the interaction tail. No-op when the observer or target has no live
+   * sprite in the active room, or when ids are equal. Replaces any prior lock for this observer.
+   */
+  startFacingCharacter(character: string, minWaitTime?: number, maxWaitTime?: number): void;
+  /** Clears {@link startFacingCharacter} for this observer. Queues on the interaction tail. */
+  stopFacingCharacter(): void;
+  /**
    * Tween the character sprite's alpha from `fromAlpha` to `toAlpha` over `durationSeconds`.
    * Kills any running fade tweens on the sprite first; alphas clamp to `[0, 1]` and duration to `>= 0`.
    * **Blocking** form queues on the interaction tail and waits for the tween to complete; **`fade.now`**
