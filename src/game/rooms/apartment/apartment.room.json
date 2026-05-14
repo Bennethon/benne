@@ -2,14 +2,14 @@
   "id": "apartment",
   "name": "Apartment",
   "size": {
-    "width": 352,
-    "height": 198
+    "width": 320,
+    "height": 180
   },
   "scrollBounds": {
     "x": 0,
     "y": 0,
-    "width": 352,
-    "height": 198
+    "width": 320,
+    "height": 180
   },
   "walkable": {
     "polygons": [
@@ -18,28 +18,28 @@
         "active": true,
         "points": [
           {
-            "x": 67,
-            "y": 117
+            "x": 50,
+            "y": 131
           },
           {
-            "x": 41,
-            "y": 141
+            "x": 10,
+            "y": 171
           },
           {
-            "x": 314,
-            "y": 141
+            "x": 306,
+            "y": 172
           },
           {
-            "x": 277,
-            "y": 107
+            "x": 258,
+            "y": 120
           },
           {
-            "x": 153,
-            "y": 108
+            "x": 137,
+            "y": 121
           },
           {
-            "x": 146,
-            "y": 117
+            "x": 123,
+            "y": 131
           }
         ],
         "holes": [
@@ -48,28 +48,28 @@
             "active": true,
             "points": [
               {
+                "x": 143,
+                "y": 149
+              },
+              {
                 "x": 162,
-                "y": 124
+                "y": 156
               },
               {
-                "x": 177,
-                "y": 133
+                "x": 199,
+                "y": 156
               },
               {
-                "x": 229,
-                "y": 133
+                "x": 219,
+                "y": 148
               },
               {
-                "x": 245,
-                "y": 125
+                "x": 198,
+                "y": 141
               },
               {
-                "x": 229,
-                "y": 117
-              },
-              {
-                "x": 176,
-                "y": 117
+                "x": 161,
+                "y": 141
               }
             ]
           }
@@ -77,67 +77,9 @@
       }
     ]
   },
-  "hotspots": [
-    {
-      "id": "window",
-      "active": true,
-      "description": "window",
-      "zIndex": 0,
-      "points": [
-        {
-          "x": 0,
-          "y": 70
-        },
-        {
-          "x": 54,
-          "y": 58
-        },
-        {
-          "x": 59,
-          "y": 94
-        },
-        {
-          "x": 4,
-          "y": 120
-        }
-      ],
-      "walkToPoint": {
-        "x": 58,
-        "y": 130
-      },
-      "lookAtPoint": {
-        "x": 33,
-        "y": 102
-      }
-    }
-  ],
+  "hotspots": [],
   "points": [],
-  "regions": [
-    {
-      "id": "darkness",
-      "active": true,
-      "points": [
-        {
-          "x": 250,
-          "y": 47
-        },
-        {
-          "x": 286,
-          "y": 48
-        },
-        {
-          "x": 286,
-          "y": 111
-        },
-        {
-          "x": 251,
-          "y": 108
-        }
-      ],
-      "tint": "#000000",
-      "tintAlpha": 0.75
-    }
-  ],
+  "regions": [],
   "props": [
     {
       "id": "BG",
@@ -146,6 +88,18 @@
         "BG": {}
       },
       "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Fan",
+      "tag": "Fan",
+      "animations": {
+        "Fan": {
+          "loop": true
+        }
+      },
+      "zIndex": 1,
       "visible": true,
       "alpha": 1
     },
@@ -162,53 +116,66 @@
       "collider": {
         "points": [
           {
-            "x": 66,
-            "y": 117
+            "x": 56,
+            "y": 98
           },
           {
-            "x": 60,
-            "y": 96
-          },
-          {
-            "x": 71,
+            "x": 58,
             "y": 85
           },
           {
-            "x": 71,
-            "y": 74
+            "x": 70,
+            "y": 83
           },
           {
-            "x": 82,
-            "y": 68
+            "x": 122,
+            "y": 82
           },
           {
-            "x": 147,
-            "y": 69
+            "x": 131,
+            "y": 87
           },
           {
-            "x": 151,
+            "x": 130,
+            "y": 99
+          },
+          {
+            "x": 134,
+            "y": 102
+          },
+          {
+            "x": 135,
+            "y": 121
+          },
+          {
+            "x": 128,
+            "y": 128
+          },
+          {
+            "x": 50,
+            "y": 129
+          },
+          {
+            "x": 44,
             "y": 109
-          },
-          {
-            "x": 146,
-            "y": 117
           }
         ]
       },
       "walkToPoint": {
-        "x": 125,
-        "y": 123
+        "x": 101,
+        "y": 133
       },
       "lookAtPoint": {
-        "x": 108,
-        "y": 113
+        "x": 88,
+        "y": 126
       },
-      "description": "couch"
+      "baseline": 121
     },
     {
       "id": "Door",
       "tag": "Door",
       "animations": {
+        "Door": {},
         "Door-open": {}
       },
       "zIndex": 3,
@@ -218,45 +185,31 @@
       "collider": {
         "points": [
           {
-            "x": 289,
-            "y": 51
+            "x": 271,
+            "y": 63
           },
           {
-            "x": 309,
-            "y": 60
+            "x": 293,
+            "y": 72
           },
           {
-            "x": 307,
-            "y": 132
+            "x": 291,
+            "y": 143
           },
           {
-            "x": 287,
-            "y": 114
+            "x": 270,
+            "y": 126
           }
         ]
       },
       "walkToPoint": {
-        "x": 286,
-        "y": 124
+        "x": 268,
+        "y": 133
       },
       "lookAtPoint": {
-        "x": 297,
-        "y": 115
-      },
-      "description": "door",
-      "defaultVerb": "open"
-    },
-    {
-      "id": "Fan",
-      "tag": "Fan",
-      "animations": {
-        "Fan": {
-          "loop": true
-        }
-      },
-      "zIndex": 5,
-      "visible": true,
-      "alpha": 1
+        "x": 279,
+        "y": 129
+      }
     },
     {
       "id": "Bread",
@@ -264,48 +217,10 @@
       "animations": {
         "Bread": {}
       },
-      "zIndex": 14,
+      "zIndex": 10,
       "visible": true,
       "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 205,
-            "y": 104
-          },
-          {
-            "x": 212,
-            "y": 103
-          },
-          {
-            "x": 215,
-            "y": 106
-          },
-          {
-            "x": 211,
-            "y": 109
-          },
-          {
-            "x": 202,
-            "y": 108
-          },
-          {
-            "x": 201,
-            "y": 106
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 219,
-        "y": 130
-      },
-      "lookAtPoint": {
-        "x": 208,
-        "y": 108
-      },
-      "baseline": 109,
-      "description": "bread"
+      "clickable": true
     },
     {
       "id": "Knife",
@@ -313,78 +228,21 @@
       "animations": {
         "Knife": {}
       },
-      "zIndex": 12,
+      "zIndex": 9,
       "visible": true,
       "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 181,
-            "y": 109
-          },
-          {
-            "x": 184,
-            "y": 104
-          },
-          {
-            "x": 197,
-            "y": 108
-          },
-          {
-            "x": 194,
-            "y": 113
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 172,
-        "y": 128
-      },
-      "lookAtPoint": {
-        "x": 189,
-        "y": 110
-      },
-      "baseline": 111,
-      "description": "knife"
+      "clickable": true
     },
     {
       "id": "PeanutButter",
       "tag": "PeanutButter",
-      "zIndex": 11,
+      "animations": {
+        "PeanutButter": {}
+      },
+      "zIndex": 8,
       "visible": true,
       "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 230,
-            "y": 95
-          },
-          {
-            "x": 230,
-            "y": 105
-          },
-          {
-            "x": 221,
-            "y": 105
-          },
-          {
-            "x": 221,
-            "y": 94
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 241,
-        "y": 120
-      },
-      "lookAtPoint": {
-        "x": 225,
-        "y": 104
-      },
-      "baseline": 104,
-      "description": "peanut butter"
+      "clickable": true
     },
     {
       "id": "Table",
@@ -392,110 +250,75 @@
       "animations": {
         "Table": {}
       },
-      "zIndex": 10,
+      "zIndex": 7,
       "visible": true,
       "alpha": 1,
       "clickable": true,
       "collider": {
         "points": [
           {
-            "x": 168,
-            "y": 105
-          },
-          {
-            "x": 176,
-            "y": 101
-          },
-          {
-            "x": 188,
-            "y": 99
-          },
-          {
-            "x": 218,
-            "y": 99
-          },
-          {
-            "x": 229,
-            "y": 101
-          },
-          {
-            "x": 238,
-            "y": 105
-          },
-          {
-            "x": 237,
-            "y": 112
-          },
-          {
-            "x": 232,
-            "y": 115
-          },
-          {
-            "x": 215,
-            "y": 118
-          },
-          {
             "x": 214,
-            "y": 126
-          },
-          {
-            "x": 210,
-            "y": 129
+            "y": 140
           },
           {
             "x": 196,
-            "y": 129
+            "y": 143
           },
           {
             "x": 192,
-            "y": 126
-          },
-          {
-            "x": 191,
-            "y": 118
-          },
-          {
-            "x": 181,
-            "y": 117
+            "y": 154
           },
           {
             "x": 169,
-            "y": 113
+            "y": 153
+          },
+          {
+            "x": 166,
+            "y": 143
+          },
+          {
+            "x": 150,
+            "y": 141
+          },
+          {
+            "x": 145,
+            "y": 130
+          },
+          {
+            "x": 153,
+            "y": 123
+          },
+          {
+            "x": 205,
+            "y": 123
+          },
+          {
+            "x": 216,
+            "y": 130
           }
         ]
       },
       "walkToPoint": {
-        "x": 162,
-        "y": 129
+        "x": 141,
+        "y": 145
       },
       "lookAtPoint": {
-        "x": 203,
-        "y": 129
+        "x": 180,
+        "y": 151
       },
-      "baseline": 128,
-      "description": "table"
+      "baseline": 152
     }
   ],
   "characters": [
     {
       "instanceId": "hank-1",
       "definition": "hank/hank.character.json",
-      "x": 260,
-      "y": 115,
+      "x": 236,
+      "y": 132,
       "initialFacing": "L",
       "initialAnimation": "Idle",
       "visible": true,
-      "zIndex": 9
-    },
-    {
-      "instanceId": "penny-1",
-      "definition": "penny/penny.character.json",
-      "x": 60,
-      "y": 135,
-      "initialFacing": "R",
-      "initialAnimation": "Idle",
-      "visible": true,
-      "zIndex": 42
+      "zIndex": 6
     }
   ]
 }

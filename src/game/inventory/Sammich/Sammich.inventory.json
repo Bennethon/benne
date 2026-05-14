@@ -1,11 +1,8 @@
 {
   "id": "Sammich",
   "name": "Sammich",
-  "description": "sammich",
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
+  "description": "",
+  "onVerb": {},
   "stackable": false,
   "animations": {},
   "display": {

@@ -583,11 +583,11 @@ type GuiHoverObservableGameObject = Phaser.GameObjects.GameObject & {
 };
 
 /**
- * Computes the current **screen-space** bounds of a `scrollFactor: 0` GUI control. Prefers `getBounds()` because
+ * Computes the current **world-space** bounds of a `scrollFactor: 0` GUI control. Prefers `getBounds()` because
  * it handles arbitrary transforms / packed children (e.g. `inventoryPanel` containers); falls back to a centered
  * rect for plain `Rectangle` game objects (whose `getBounds()` is sometimes 0-sized on Phaser 4 when the Shape
- * has no stroke). `pointer.x` / `pointer.y` are already in screen space, and `scrollFactor: 0` keeps world ==
- * screen for these objects, so no camera math is needed in the non-editor runtime path.
+ * has no stroke). Hit tests map the pointer through the GUI camera (`editor-ui` when present, else `main`) via
+ * {@link Phaser.Cameras.Scene2D.Camera#getWorldPoint} so coordinates match under hi-DPI letterboxing.
  */
 function computeGuiControlWorldRect(
   target: GuiHoverObservableGameObject,
@@ -658,6 +658,7 @@ function installGuiControlPointerHoverObserver(
     gameEvents.emit(guiControlMouseLeaveEventId(gui.id, id));
   };
 
+  const ptrWorldScratch = new Phaser.Math.Vector2();
   const onPointerMove = (pointer: Phaser.Input.Pointer): void => {
     if (!isEffectivelyVisible()) {
       emitLeaveIfInside();
@@ -668,8 +669,10 @@ function installGuiControlPointerHoverObserver(
       emitLeaveIfInside();
       return;
     }
+    const cam = scene.cameras.getCamera('editor-ui') ?? scene.cameras.main;
+    const wp = cam.getWorldPoint(pointer.x, pointer.y, ptrWorldScratch);
     const inRect =
-      pointer.x >= rect.left && pointer.x <= rect.right && pointer.y >= rect.top && pointer.y <= rect.bottom;
+      wp.x >= rect.left && wp.x <= rect.right && wp.y >= rect.top && wp.y <= rect.bottom;
     if (inRect && !inside) {
       inside = true;
       gameEvents.emit(guiControlMouseEnterEventId(gui.id, id));
