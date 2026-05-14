@@ -34,6 +34,7 @@ registerRoomScript(({ B }) => {
       B.player.say('What about it?');
       B.character('henry').say('I need you to turn it on. It\'s really important.');
       B.player.say('Uh, ok.');
+      B.character('henry').startFollowingCharacter('hank');
     }
   });
 

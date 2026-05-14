@@ -1,12 +1,16 @@
 import * as Phaser from 'phaser';
 import type { CharacterFacingLetter } from '../../types/character.js';
+import type { CharacterFollowOptions } from '../../types/characterFollow.js';
 import type { Point2 } from '../../types/room.js';
 import { getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants.js';
 import { computeDialogLineDurationMs, getDialogSettings, getGameSettings } from '../ConfigManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
   applyCharacterEffectiveAnimation,
+  applyPersistedCharacterFollowFromScript,
+  clearSavedCharacterFollowState,
   getCharacterAnimationOverrideTag,
+  readSavedCharacterFollowingTarget,
   readSavedCharacterMovable,
   readSavedCharacterVisible,
   writeSavedCharacterMovable,
@@ -1474,6 +1478,42 @@ export abstract class BenneScriptCore {
           return Promise.resolve();
         });
       },
+      startFollowingCharacter(targetId: string, options?: CharacterFollowOptions): void {
+        core.chain(() => {
+          const scene = getScene();
+          const mgr = tryGetActiveGameStateManager();
+          if (scene) {
+            scene.startCharacterFollowingCharacter(pid, targetId, options);
+          } else if (mgr) {
+            applyPersistedCharacterFollowFromScript(mgr, pid, targetId, options);
+          } else {
+            warnNoRoom();
+          }
+          return Promise.resolve();
+        });
+      },
+      stopFollowingCharacter(): void {
+        core.chain(() => {
+          const scene = getScene();
+          const mgr = tryGetActiveGameStateManager();
+          if (scene) {
+            scene.stopCharacterFollowingCharacter(pid);
+          } else if (mgr) {
+            clearSavedCharacterFollowState(mgr, pid);
+          } else {
+            warnNoRoom();
+          }
+          return Promise.resolve();
+        });
+      },
+      get isFollowing() {
+        const mgr = tryGetActiveGameStateManager();
+        return mgr ? readSavedCharacterFollowingTarget(mgr, pid) != null : false;
+      },
+      get followingTarget() {
+        const mgr = tryGetActiveGameStateManager();
+        return mgr ? readSavedCharacterFollowingTarget(mgr, pid) : null;
+      },
     } as BenneScriptPlayerFacade;
   }
 
@@ -1784,6 +1824,42 @@ export abstract class BenneScriptCore {
           }
           return Promise.resolve();
         });
+      },
+      startFollowingCharacter(targetId: string, options?: CharacterFollowOptions): void {
+        core.chain(() => {
+          const scene = getScene();
+          const mgr = tryGetActiveGameStateManager();
+          if (scene) {
+            scene.startCharacterFollowingCharacter(definitionId, targetId, options);
+          } else if (mgr) {
+            applyPersistedCharacterFollowFromScript(mgr, definitionId, targetId, options);
+          } else {
+            warnNoRoom();
+          }
+          return Promise.resolve();
+        });
+      },
+      stopFollowingCharacter(): void {
+        core.chain(() => {
+          const scene = getScene();
+          const mgr = tryGetActiveGameStateManager();
+          if (scene) {
+            scene.stopCharacterFollowingCharacter(definitionId);
+          } else if (mgr) {
+            clearSavedCharacterFollowState(mgr, definitionId);
+          } else {
+            warnNoRoom();
+          }
+          return Promise.resolve();
+        });
+      },
+      get isFollowing() {
+        const mgr = tryGetActiveGameStateManager();
+        return mgr ? readSavedCharacterFollowingTarget(mgr, definitionId) != null : false;
+      },
+      get followingTarget() {
+        const mgr = tryGetActiveGameStateManager();
+        return mgr ? readSavedCharacterFollowingTarget(mgr, definitionId) : null;
       },
     } as BenneScriptCharacterFacade;
   }

@@ -88,5 +88,6 @@ export type {
   InventoryItemDefinition,
 } from '../../types/verbContext.js';
 export type { BenneGuiScriptButtonVisualState } from '../../types/gui.js';
+export type { CharacterFollowOptions } from '../../types/characterFollow.js';
 export type { BenneScriptSoundFacade } from './benneScriptFacades.js';
 export type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';

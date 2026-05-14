@@ -1,4 +1,7 @@
 import * as Phaser from 'phaser';
+import { getStartingPlayerCharacterId } from '../game/constants.js';
+import type { CharacterFollowOptions } from '../types/characterFollow.js';
+import type { Point2 } from '../types/room.js';
 import type { CharacterFacingLetter } from '../types/character.js';
 import { playCharacterAnimation } from './characterAnimationPlayback.js';
 import type { GameStateManager } from './gameState/GameStateManager.js';
@@ -402,6 +405,158 @@ export function getCharacterEffectiveAnimationTag(sprite: Phaser.GameObjects.Spr
   }
   const name = sprite.anims.getName();
   return typeof name === 'string' ? name : '';
+}
+
+/** Sprite `setData` key: transient speed multiplier for follow-initiated walks (cleared when the walk ends). */
+export const BENNE_FOLLOW_SPEED_MULT_KEY = 'benneFollowWalkSpeedMult';
+
+/** Sprite `setData` key: `'follow'` while a walk tween was started by the character-follow driver. */
+export const BENNE_FOLLOW_WALK_PURPOSE_KEY = 'benneFollowWalkPurpose';
+
+export function characterFollowingTargetVariableKey(characterId: string): string {
+  return `character:${characterId}:followingTarget`;
+}
+
+export function characterFollowOptionsVariableKey(characterId: string): string {
+  return `character:${characterId}:followOptions`;
+}
+
+/** Fully resolved follow options (used for runtime + persisted JSON). */
+export interface CharacterFollowEffectiveOptions {
+  minDistance: number;
+  repathThreshold: number;
+  offset: Point2;
+  speedMultiplier: number;
+  faceTargetWhenIdle: boolean;
+  pauseDuringCutscene: boolean;
+}
+
+function coerceFinitePositive(n: unknown, fallback: number): number {
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/**
+ * Merges author input into effective follow options (defaults match the Bennescript API contract).
+ */
+export function mergeCharacterFollowOptions(input?: CharacterFollowOptions | null): CharacterFollowEffectiveOptions {
+  const minDistance = coerceFinitePositive(input?.minDistance, 32);
+  let repathThreshold = coerceFinitePositive(input?.repathThreshold, minDistance + 12);
+  if (repathThreshold < minDistance) {
+    repathThreshold = minDistance + 12;
+  }
+  const ox = input?.offset?.x;
+  const oy = input?.offset?.y;
+  const offset: Point2 = {
+    x: typeof ox === 'number' && Number.isFinite(ox) ? ox : 0,
+    y: typeof oy === 'number' && Number.isFinite(oy) ? oy : 0,
+  };
+  const speedMultiplier = coerceFinitePositive(input?.speedMultiplier, 1);
+  const faceTargetWhenIdle = input?.faceTargetWhenIdle !== false;
+  const pauseDuringCutscene = input?.pauseDuringCutscene !== false;
+  return {
+    minDistance,
+    repathThreshold,
+    offset,
+    speedMultiplier,
+    faceTargetWhenIdle,
+    pauseDuringCutscene,
+  };
+}
+
+function parseFollowOptionsVariable(raw: unknown): CharacterFollowOptions | null {
+  if (raw == null || typeof raw !== 'object') {
+    return null;
+  }
+  const o = raw as Record<string, unknown>;
+  return {
+    minDistance: o.minDistance as number | undefined,
+    repathThreshold: o.repathThreshold as number | undefined,
+    offset:
+      o.offset != null && typeof o.offset === 'object'
+        ? {
+            x: (o.offset as { x?: unknown }).x as number,
+            y: (o.offset as { y?: unknown }).y as number,
+          }
+        : undefined,
+    speedMultiplier: o.speedMultiplier as number | undefined,
+    faceTargetWhenIdle: o.faceTargetWhenIdle as boolean | undefined,
+    pauseDuringCutscene: o.pauseDuringCutscene as boolean | undefined,
+  };
+}
+
+/** Persisted follow target id (`"player"` or a character definition id), or `null` when not following. */
+export function readSavedCharacterFollowingTarget(
+  manager: GameStateManager,
+  characterId: string,
+): string | null {
+  const v = manager.getVariable(characterFollowingTargetVariableKey(characterId));
+  if (typeof v === 'string' && v.length > 0) {
+    return v;
+  }
+  return null;
+}
+
+export function readSavedCharacterFollowEffectiveOptions(
+  manager: GameStateManager,
+  characterId: string,
+): CharacterFollowEffectiveOptions {
+  const raw = manager.getVariable(characterFollowOptionsVariableKey(characterId));
+  return mergeCharacterFollowOptions(parseFollowOptionsVariable(raw));
+}
+
+export function writeSavedCharacterFollowState(
+  manager: GameStateManager,
+  followerId: string,
+  targetId: string,
+  options: CharacterFollowEffectiveOptions,
+): void {
+  manager.setVariable(characterFollowingTargetVariableKey(followerId), targetId);
+  manager.setVariable(characterFollowOptionsVariableKey(followerId), {
+    minDistance: options.minDistance,
+    repathThreshold: options.repathThreshold,
+    offset: { x: options.offset.x, y: options.offset.y },
+    speedMultiplier: options.speedMultiplier,
+    faceTargetWhenIdle: options.faceTargetWhenIdle,
+    pauseDuringCutscene: options.pauseDuringCutscene,
+  });
+}
+
+export function clearSavedCharacterFollowState(manager: GameStateManager, followerId: string): void {
+  manager.clearVariable(characterFollowingTargetVariableKey(followerId));
+  manager.clearVariable(characterFollowOptionsVariableKey(followerId));
+}
+
+/**
+ * Validates and persists follow state for **`B.character(…).startFollowingCharacter`** /
+ * **`B.player.startFollowingCharacter`** (also used from {@link RoomScene} when a room is active).
+ * Returns **`false`** when the call is a no-op (self-follow, empty target).
+ */
+export function applyPersistedCharacterFollowFromScript(
+  manager: GameStateManager,
+  followerId: string,
+  targetIdRaw: string,
+  options?: CharacterFollowOptions | null,
+): boolean {
+  const trimmed = targetIdRaw.trim();
+  if (!trimmed) {
+    if (import.meta.env.DEV) {
+      console.warn('[Benne] startFollowingCharacter: empty target id — no-op.');
+    }
+    return false;
+  }
+  const targetPersist = trimmed.toLowerCase() === 'player' ? 'player' : trimmed;
+  const targetDef = targetPersist === 'player' ? getStartingPlayerCharacterId() : targetPersist;
+  if (targetDef === followerId) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        `[Benne] startFollowingCharacter: "${followerId}" cannot follow themselves — no-op.`,
+      );
+    }
+    return false;
+  }
+  const effective = mergeCharacterFollowOptions(options ?? undefined);
+  writeSavedCharacterFollowState(manager, followerId, targetPersist, effective);
+  return true;
 }
 
 /**

@@ -233,6 +233,8 @@ export class RoomTransitionOrchestrator {
         roomScene.popCutscene();
       }
 
+      roomScene.setCharacterFollowBehaviorEnabled(true);
+
       if (skipEnterFadeIn) {
         roomScene.screenFadeLayer?.setAlpha(0);
       } else {

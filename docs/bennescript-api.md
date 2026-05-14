@@ -253,14 +253,20 @@ Constructed from active **`RoomScene`** (global/dialog resolve **`SCENE_ROOM` on
 | **`say`** | **`BenneScriptSayDialogueHybrid`** | **`'line'`**, **`say.now('line', opts?)`**, or tagged scoped to player id. **`clickToSkip`** from arg or **`getDialogSettings().clickToSkip`**. | Per hybrid rules |
 | **`face`** | `BlockingWithNow<[CharacterFacingLetter]>` | **`facePlayerScriptDirection`**. | Queued vs **`.now`** |
 | **`movable`** get/set | `boolean` | When **`false`**, **`walkTo`**, **`walkToClicked`**, click-to-walk, and verb-driven player walks are ignored; **`moveTo`** / **`moveTo.now` / `moveToNow`** still teleport. Setter **queues** on the interaction tail (like **`visible`** on **`B.character`**); persists `` `character:<startingPlayerId>:movable` `` (see [architecture.md §7 → Persistence](architecture.md#7-scripting--interaction-system-bennescript)). Getter with no **`RoomScene`** falls back to saved state, else **`true`**. | Setter queued |
+| **`startFollowingCharacter`** | **`(targetId: string, options?: CharacterFollowOptions) => void`** | Persists follow state for the starting player (keys `` `character:<startingPlayerId>:followingTarget` `` and `` `character:<startingPlayerId>:followOptions` ``). **`targetId`** is another character’s definition id or the string **`"player"`** (case-insensitive **`"player"`** is stored as lowercase **`"player"`** — resolves to the same starting player id at runtime). Idempotent for the same target; re-call merges new **`options`**. Self-follow / empty target: DEV warn + no-op. When a **`RoomScene`** is active, **`RoomScene.startCharacterFollowingCharacter`** also clears the follow goal cache for repath; without a room, **`applyPersistedCharacterFollowFromScript`** still writes **`GameStateManager`** if a manager exists. | Queued |
+| **`stopFollowingCharacter`** | **`() => void`** | Clears persisted follow keys and stops a follow-initiated walk tween if the player’s sprite has follow purpose data. | Queued |
+| **`isFollowing`** | getter **`boolean`** | **`true`** when `` `character:<startingPlayerId>:followingTarget` `` is set in **`GameStateManager`**; **`false`** when no manager. | Sync |
+| **`followingTarget`** | getter **`string \| null`** | Raw persisted target string (**`"player"`** or a character id), or **`null`**. | Sync |
+
+The **`options`** argument is **`CharacterFollowOptions`** (**`src/types/characterFollow.ts`**); see **`B.character(id)`** below for defaults and examples.
 
 ---
 
 ## `B.character(id)` (**`BenneScriptCharacterFacade`**)
 
-Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / **`face`** / **`movable`** pattern as **`B.player`**, routed to **`walkCharacterTo`**, **`moveCharacterToNow`**, **`faceCharacterScriptDirection`**, **`startCharacterFacingCharacter` / `stopCharacterFacingCharacter`**, character animation scripting APIs (**`NPC`** — no **`walkToClicked`** on facade; use top-level **`B.walkToClicked`** / **`B.player.*`**). Exposes **`sound`** (**same object** as **`B.sound`**).
+Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / **`face`** / **`movable`** / **follow** pattern as **`B.player`**, routed to **`walkCharacterTo`**, **`moveCharacterToNow`**, **`faceCharacterScriptDirection`**, **`startCharacterFollowingCharacter` / `stopCharacterFollowingCharacter`**, **`startCharacterFacingCharacter` / `stopCharacterFacingCharacter`**, character animation scripting APIs (**`NPC`** — no **`walkToClicked`** on facade; use top-level **`B.walkToClicked`** / **`B.player.*`**). Exposes **`sound`** (**same object** as **`B.sound`**).
 
-**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. Movement / **`face`** / **`fade`** / **`startFacingCharacter` / `stopFacingCharacter`** with no room no-op and DEV **`console.warn`** once. **`hide` / `show` / `visible` / `visibleNow`** and **`movable`** setters still persist to **`GameStateManager`** when a manager is active so values survive the next room load even if **`RoomScene`** is not resolved yet.
+**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. Movement / **`face`** / **`fade`** / **`startFacingCharacter` / `stopFacingCharacter`** with no room no-op and DEV **`console.warn`** once. **`hide` / `show` / `visible` / `visibleNow`**, **`movable`**, **`startFollowingCharacter` / `stopFollowingCharacter`** setters still persist to **`GameStateManager`** when a manager is active so values survive the next room load even if **`RoomScene`** is not resolved yet.
 
 **`movable` getter:** Effective value is the saved override (if any), else **`CharacterData.movable`** from the **first** spawn of that **`characterId`** in the active room’s JSON (**`true`** when omitted). If that id is **not** spawned in the current room, there is no JSON row from this room — the getter still returns a saved **`character:<id>:movable`** boolean when set; otherwise **`true`**. Use **`B.player.movable`** when you mean the protagonist, not an arbitrary **`B.character('…')`** id that might be absent from the room.
 
@@ -269,6 +275,10 @@ Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / *
 | **`hide` / `show`** | **`BlockingWithNow<[]>`** | Script visibility overrides (persisted — see [architecture.md §7](architecture.md#7-scripting--interaction-system-bennescript)); queue vs **`.now`**. | Queued vs **`.now`** |
 | **`visible`** get/set | Setter queues like **`animation`**; **`visibleNow(v)`** applies immediately. Both persist a boolean to **`GameStateManager`** (key `` `character:<characterId>:visible` ``). **`getCharacterScriptVisible`** returns the live sprite when one exists, else the saved override, then the first room JSON placement default. | Setter queued |
 | **`movable`** get/set | When **`false`**, **`walkTo`** is a no-op for this NPC (**`walkCharacterTo`** returns immediately). Setter queues like **`visible`**; persists `` `character:<characterId>:movable` ``. **`moveTo`** is **not** gated. | Setter queued |
+| **`startFollowingCharacter`** | **`(targetId: string, options?: CharacterFollowOptions) => void`** | Same persistence and semantics as **`B.player.startFollowingCharacter`** (keys use this NPC’s **`characterId`**). **`RoomScene.startCharacterFollowingCharacter`** when a room is active. | Queued |
+| **`stopFollowingCharacter`** | **`() => void`** | Clears follow state and stops a follow-initiated NPC walk if applicable. | Queued |
+| **`isFollowing`** | getter **`boolean`** | Whether this id has a persisted **`followingTarget`**. | Sync |
+| **`followingTarget`** | getter **`string \| null`** | Persisted target id or **`null`**. | Sync |
 | **`startFacingCharacter`** | **`(targetCharacterId: string, minWaitTime?: number, maxWaitTime?: number) => void`** | Keeps this NPC’s **Idle** facing toward **`targetCharacterId`**’s **feet** (same **`CharacterData.id`** as other **`B.character`** calls). When either character’s feet move by more than a small epsilon, **`RoomScene`** cancels any pending turn and schedules a new one after a **uniform random** delay in **`[minWaitTime, maxWaitTime]`** seconds — defaults **`0.2`** and **`0.4`**. Negative bounds clamp to **`0`**; if **`minWaitTime > maxWaitTime`**, the engine swaps them. Calling **`startFacingCharacter`** again on the same observer replaces the previous target and timing. No-op when observer **equals** target, or when either id has no **`Sprite`** instance in the room. Not persisted across room loads (cleared in **`RoomScene`** **`create`** / **shutdown**). | Queued |
 | **`stopFacingCharacter`** | **`() => void`** | Removes the observer’s active face-target lock and cancels its pending timer. | Queued |
 | **`fade`** | `BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>` | Tween the character sprite's `alpha` from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`** (`Linear`); alphas clamp to `[0, 1]`, duration to `>= 0` (`0` snaps to **`toAlpha`**). Each call kills running tweens on the sprite first, then sets `alpha = fromAlpha` before tweening. **`toAlpha`** is **persisted** to **`GameStateManager`** (key `` `character:<characterId>:alpha` ``) at call time and re-applied on every spawn (saving mid-fade restores the intended final alpha). Routes through **`RoomScene.fadeCharacterScriptAlpha`**. | Queued (waits for tween) vs **`.now`** |
@@ -276,11 +286,23 @@ Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / *
 ```ts
 B.character('penny').movable = false; // queued; penny won't pathfind-walk until set true again
 B.character('penny').hide(); // persisted; stays hidden after room change / save when Penny is in the room
+B.character('penny').startFollowingCharacter('hank');
+B.character('penny').startFollowingCharacter('hank', {
+  minDistance: 60,
+  offset: { x: 40, y: 0 },
+  speedMultiplier: 0.9,
+});
+B.character('penny').stopFollowingCharacter();
+if (B.character('penny').followingTarget === 'hank') {
+  B.character('penny').stopFollowingCharacter();
+}
 B.character('henry').startFacingCharacter('hank');
 B.character('henry').stopFacingCharacter();
 B.character('penny').fade(0, 1, 0.5); // fade Penny in from transparent to opaque over 0.5 s
 B.character('penny').fade.now(1, 0, 1); // start fade-out immediately, don't block following lines
 ```
+
+**`CharacterFollowOptions`** (all fields optional) — TypeScript type in **`src/types/characterFollow.ts`**; exported from **`BenneScript`** / **`@engine/scripting`** as **`CharacterFollowOptions`**. Defaults: **`minDistance`** `32`; **`repathThreshold`** `minDistance + 12` (clamped to be **`>= minDistance`**); **`offset`** `{ x: 0, y: 0 }` in the target’s facing frame (**`+x`** forward, **`+y`** 90° clockwise in screen space); **`speedMultiplier`** `1`; **`faceTargetWhenIdle`** `true`; **`pauseDuringCutscene`** `true` (while **`RoomScene`** input suppression is active — cutscene depth or scripted-dialog suppression — the follow driver does not start new follow walks).
 
 ---
 
@@ -308,7 +330,7 @@ B.prop('Knife').hide(); // persisted; the prop stays hidden after B.room.changeT
 B.prop('Rock').moveTo.now({ x: 80, y: 90 }); // teleport authoring origin; persisted on next flush
 ```
 
-**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, **movable**, alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`saveToBrowser` / `loadFromBrowser`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`saveToBrowser`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
+**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, **movable**, **follow** (**`followingTarget`** + **`followOptions`**), alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`saveToBrowser` / `loadFromBrowser`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`saveToBrowser`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
 
 ---
 
