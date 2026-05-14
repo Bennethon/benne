@@ -1,7 +1,7 @@
 {
   "id": "Bread",
   "name": "Bread",
-  "description": "bread",
+  "description": "",
   "onVerb": {},
   "stackable": false,
   "animations": {},

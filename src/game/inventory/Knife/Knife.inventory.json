@@ -1,14 +1,10 @@
 {
   "id": "Knife",
   "name": "Knife",
-  "description": "knife",
+  "description": "",
   "onVerb": {},
   "stackable": false,
-  "animations": {
-    "Knife-PB": {
-      "loop": true
-    }
-  },
+  "animations": {},
   "display": {
     "aseprite": "shared"
   }

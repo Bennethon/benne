@@ -217,6 +217,11 @@ function collectTriggerPreviewOverlayEntries(gui: GuiData): Array<{
   }> = [];
   const rootX = Math.round(gui.x ?? 0);
   const rootY = Math.round(gui.y ?? 0);
+  const fixedControlIds = new Set(
+    (gui.fixedControls ?? [])
+      .map((fid) => String(fid).trim())
+      .filter((fid) => fid.length > 0),
+  );
   const caches = buildGuiGridLayoutRuntimeMap(gui.controls ?? []);
   for (const c of gui.controls ?? []) {
     if (c.type !== 'trigger') {
@@ -226,10 +231,13 @@ function collectTriggerPreviewOverlayEntries(gui: GuiData): Array<{
     if (!id || c.width <= 0 || c.height <= 0) {
       continue;
     }
+    /** Match {@link buildGuiOverlay}: fixed controls are not offset by `guiContentRoot` (`gui.x` / `gui.y`). */
+    const ox = fixedControlIds.has(id) ? 0 : rootX;
+    const oy = fixedControlIds.has(id) ? 0 : rootY;
     const tl = resolveGuiControlRootTopLeft(
       caches,
-      rootX,
-      rootY,
+      ox,
+      oy,
       c.gridPlacement,
       c.width,
       c.height,
