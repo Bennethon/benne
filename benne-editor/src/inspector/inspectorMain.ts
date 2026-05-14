@@ -107,6 +107,9 @@ type InspectorRoomState = {
     points: InspectorPointCard[];
     regions: InspectorRegionCard[];
     expanded: { entity: string; id: string } | null;
+    whenEnterRoomDefined: boolean;
+    whenEnterRoomAfterFadeDefined: boolean;
+    onUpdateDefined: boolean;
 };
 
 type InspectorEmptyState = { kind: 'empty'; message: string };
@@ -650,6 +653,26 @@ function inspectorItemExpanded(
     return !!(ex && ex.entity === entity && ex.id === id);
 }
 
+function renderRoomLifecycleHookRow(state: InspectorRoomState): string {
+    const mk = (
+        hook: 'whenEnterRoom' | 'whenEnterRoomAfterFade' | 'onUpdate',
+        defined: boolean,
+        label: string
+    ): string => {
+        const cls = defined ? 'verb-chip verb-defined' : 'verb-chip verb-add';
+        const icon = defined ? '⚡' : '+';
+        const title = defined
+            ? `Reveal ${label} in room script`
+            : `Insert ${label} stub in room script and focus it`;
+        return `<button type="button" class="${cls}" data-room-lifecycle="${esc(hook)}" title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(label)}</span></button>`;
+    };
+    return `<div class="benne-room-lifecycle row wrap" role="group" aria-label="Room script lifecycle hooks" style="margin-bottom:10px;">
+${mk('whenEnterRoom', state.whenEnterRoomDefined, 'whenEnterRoom')}
+${mk('whenEnterRoomAfterFade', state.whenEnterRoomAfterFadeDefined, 'whenEnterRoomAfterFade')}
+${mk('onUpdate', state.onUpdateDefined, 'onUpdate')}
+</div>`;
+}
+
 function renderInspectorItem(
     state: { expanded?: { entity: string; id: string } | null },
     entity: string,
@@ -1032,6 +1055,7 @@ function renderRoom(state: InspectorRoomState): string {
     return `
 <div class="inspector-root">
   <div class="scroll">
+    ${renderRoomLifecycleHookRow(state)}
     <details class="section" open>
       <summary>Room metadata</summary>
       <div class="section-body">
@@ -2339,6 +2363,15 @@ function mountHandlers(state: InspectorRoomState): void {
     root.querySelectorAll('.verb-chip').forEach((btn) => {
         btn.addEventListener('click', () => {
             const b = btn as HTMLButtonElement;
+            const hook = b.dataset.roomLifecycle ?? '';
+            if (hook === 'whenEnterRoom' || hook === 'whenEnterRoomAfterFade' || hook === 'onUpdate') {
+                post('roomLifecycleHook', {
+                    roomJsonUri: state.roomJsonUri,
+                    roomId: state.roomId,
+                    hook
+                });
+                return;
+            }
             const regionId = b.dataset.regionId ?? '';
             if (regionId && (b.dataset.revealRegion === '1' || b.dataset.addRegion === '1')) {
                 const mode = b.dataset.mode === 'exit' ? 'exit' : 'enter';

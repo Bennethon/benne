@@ -57,6 +57,13 @@ import {
 } from './roomScaffolding';
 import { runAddGuiControlWizard, type GuiControlKind } from './guiScaffolding';
 import { ensureGuiButtonClickHandlerAndReveal } from './guiButtonClickScaffolding';
+import { ensureRoomLifecycleHookInRoomScript } from './roomLifecycleScriptScaffolding';
+import type { RoomLifecycleHookKind } from './verbHandlerPresence';
+import {
+    BENNE_SCRIPT_VIEW_COLUMN,
+    revealRoomLifecycleHookInDocument,
+    revealSourceRangeInDocument
+} from './roomScriptNavigation';
 import { ensureDialogWhenChoiceHandlerAndReveal } from './dialogChoiceScaffolding';
 
 function resolveInspectorJsonUri(selection: EditorSelection): vscode.Uri | undefined {
@@ -1029,6 +1036,38 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             }
             this.refreshMainAndActions();
             await this.pushState();
+            return;
+        }
+
+        if (msg.action === 'roomLifecycleHook') {
+            if (focusKind !== 'room') {
+                return;
+            }
+            const hookRaw = typeof msg.hook === 'string' ? msg.hook : '';
+            const hook: RoomLifecycleHookKind | null =
+                hookRaw === 'whenEnterRoom' || hookRaw === 'whenEnterRoomAfterFade' || hookRaw === 'onUpdate'
+                    ? hookRaw
+                    : null;
+            if (!hook) {
+                return;
+            }
+            const scriptUri = vscode.Uri.joinPath(uri, '..', `${roomId}.room.ts`);
+            const r = await ensureRoomLifecycleHookInRoomScript(uri, roomId, hook);
+            if (r.outcome === 'error') {
+                return;
+            }
+            if (r.outcome === 'inserted') {
+                await revealSourceRangeInDocument(
+                    scriptUri,
+                    r.insertedStubRange.start,
+                    r.insertedStubRange.end,
+                    BENNE_SCRIPT_VIEW_COLUMN
+                );
+                this.refreshMainAndActions();
+                await this.pushState();
+                return;
+            }
+            await revealRoomLifecycleHookInDocument(scriptUri, hook, BENNE_SCRIPT_VIEW_COLUMN);
             return;
         }
 
