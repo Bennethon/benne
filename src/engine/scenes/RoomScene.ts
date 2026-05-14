@@ -144,8 +144,9 @@ import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './Bo
 import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
 import { createCharacterScriptContext } from '../scripting/CharacterScriptContext.js';
 import { createInventoryScriptContext } from '../scripting/InventoryScriptContext.js';
-import type { CharacterScriptContext, InventoryScriptContext } from '@engine/scripting/types.js';
+import type { CharacterScriptContext, InventoryScriptContext, UpdateContext } from '@engine/scripting/types.js';
 import { getCallbacksForRoom } from '../scripting/registerRoomScript.js';
+import { runGlobalBenneScriptOnUpdateHandlers } from '../scripting/benneScriptOnUpdateRegistry.js';
 import {
   buildGuiOverlay,
   GUI_OVERLAY_DEPTH_STRIDE,
@@ -330,6 +331,9 @@ export class RoomScene extends Phaser.Scene {
 
   /** Bennescript cores active for this `RoomScene` (reset interaction tails before leave / transition). */
   private benneCoresForTransitionReset: BenneScriptCore[] = [];
+
+  /** Room **`B.onUpdate`** handlers for this scene (cleared on shutdown). */
+  private benneScriptRoomOnUpdateHandlers: Array<(ctx: UpdateContext) => void> = [];
 
   /** Props that need per-frame position updates for parallax scrolling. */
   private parallaxProps: Array<{
@@ -561,6 +565,7 @@ export class RoomScene extends Phaser.Scene {
     this.missingDisplayTextOverlayWarned = false;
     this.genericGuiVisibilityBeforeDialog = null;
     this.benneCoresForTransitionReset.length = 0;
+    this.benneScriptRoomOnUpdateHandlers.length = 0;
 
     // Pull-up character/prop positions whenever a snapshot is taken, the room is left, or
     // `B.state.flush()` is called. Eagerly-saved fields (visibility, alpha, animation override)
@@ -841,6 +846,7 @@ export class RoomScene extends Phaser.Scene {
       this.snapshotFlushHookUnregister?.();
       this.snapshotFlushHookUnregister = null;
       benneDispose?.();
+      this.benneScriptRoomOnUpdateHandlers.length = 0;
       for (const d of this.dialogChoiceUiDisposers) {
         d();
       }
@@ -896,6 +902,32 @@ export class RoomScene extends Phaser.Scene {
 
   getCurrentRoomId(): string {
     return this.roomData.id;
+  }
+
+  /**
+   * Registers a room-script **`B.onUpdate`** handler; returns unregister for {@link BenneScriptCore.dispose}.
+   */
+  registerBenneScriptOnUpdateHandler(handler: (ctx: UpdateContext) => void): () => void {
+    this.benneScriptRoomOnUpdateHandlers.push(handler);
+    return () => {
+      const i = this.benneScriptRoomOnUpdateHandlers.indexOf(handler);
+      if (i >= 0) {
+        this.benneScriptRoomOnUpdateHandlers.splice(i, 1);
+      }
+    };
+  }
+
+  private invokeBenneScriptOnUpdateHandlers(deltaSeconds: number): void {
+    const ctx: UpdateContext = { deltaSeconds, roomId: this.roomData.id };
+    const roomSnapshot = [...this.benneScriptRoomOnUpdateHandlers];
+    for (let i = 0; i < roomSnapshot.length; i += 1) {
+      try {
+        roomSnapshot[i]!(ctx);
+      } catch (e) {
+        console.error(`[Benne] B.onUpdate (room) handler #${i} failed:`, e);
+      }
+    }
+    runGlobalBenneScriptOnUpdateHandlers(ctx);
   }
 
   /** Resolves the live {@link GuiRuntime} for an overlay **`guiId`** while this room is active. */
@@ -2951,6 +2983,7 @@ export class RoomScene extends Phaser.Scene {
     this.updateParallaxProps();
     this.updateRoomStackDepths();
     this.updatePathDebug();
+    this.invokeBenneScriptOnUpdateHandlers(this.game.loop.delta / 1000);
   }
 
   /** Round walk tween targets each frame so scroll + Canvas draw stay pixel-stable (tween runs before this). */

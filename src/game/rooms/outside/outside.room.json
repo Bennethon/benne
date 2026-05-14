@@ -154,7 +154,7 @@
   "regions": [
     {
       "id": "distance",
-      "active": false,
+      "active": true,
       "points": [
         {
           "x": 118,

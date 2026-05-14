@@ -18,7 +18,7 @@ registerRoomScript(({ B }) => {
     if (!B.sound.isMusicPlaying()) {
       B.sound.playMusic('my-cat-is-crazy');
     }
-    
+
   });
 
   B.whenEnterRoomAfterFade(() => {
@@ -28,8 +28,6 @@ registerRoomScript(({ B }) => {
       B.sound.play('doorClose');
       B.prop('Door').animation = 'Door';
     }
-
-    B.character('penny').startFacingCharacter('hank');
 
   });
 
@@ -61,8 +59,6 @@ registerRoomScript(({ B }) => {
       Penny: Hi!
       `;
     B.dialog("chatwithpenny").start();
-
-    B.character('penny').stopFacingCharacter();
   });
 
   B.whenLookAt('Couch', () => {

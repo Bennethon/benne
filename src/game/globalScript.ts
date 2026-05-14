@@ -16,6 +16,12 @@ registerGlobalScript(({ B }) => {
   B.state.setFlag('unlockedDoor', false);
   B.state.setFlag('turnedOnFountain', false);
 
+  /**
+   * Global update handler. Runs every frame while the game is running. Can also be used in room scripts.
+   * @param ctx - The update context.
+   * @returns void
+   */
+  B.onUpdate((ctx) => { })
 
   // ─────────────────────────────────────────────────────────────
   // Room transitions (global hooks — optional)

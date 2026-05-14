@@ -42,6 +42,7 @@ import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
 import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
+import type { UpdateContext } from './types.js';
 import { roomRegionEnterEventId, roomRegionExitEventId } from '../events/regionEnterExitEvents.js';
 
 export type {
@@ -96,6 +97,7 @@ export { withNow } from './BenneScriptCore.js';
  * | **`startFacingCharacter` / `stopFacingCharacter`** on **`B.character('…')`** | **`startFacingCharacter(targetCharacterId, minWaitTime?, maxWaitTime?)`** keeps the NPC’s **Idle** facing toward the other character’s **feet**; when either’s feet move, a new random delay in **[`minWaitTime`, `maxWaitTime`]** seconds (defaults **0.2** / **0.4**) runs before turning again. **`stopFacingCharacter()`** clears it. Both queue on the interaction tail; routed through **`RoomScene.startCharacterFacingCharacter` / `stopCharacterFacingCharacter`**. |
  * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
  * | **`B.region(id).whenEnter` / `whenExit`**, **`B.whenEnterRegion` / `whenExitRegion`** | **`regions[].id`** in this room’s JSON. Feet crossing uses the same **last-wins** active polygon test as perspective scale (**`resolveWinningRoomRegionIdAtFeet`**). Handlers wire through **`subscribe`** (interaction queue + verb click context rules, like **`whenLookAt`**). Payload: **`RegionEnterExitContext`**. |
+ * | **`B.onUpdate`** | Non-blocking per-frame hook (**`UpdateContext`**: **`deltaSeconds`**, **`roomId`**). Runs after engine **`RoomScene.update`** work; **not** on the interaction tail; **no** **`.now`**. Cleaned up when the room script’s **`B`** is disposed (room unload). Global **`B.onUpdate`** runs after room handlers. |
  * | **`B.hotspot(id).active`** | **`hotspots[].id`** (case-sensitive, exact JSON match) — get/set persisted **active** (immediate, not queued). Mounts or removes the polygon input zone; **`resolveMovementTarget`** still resolves inactive hotspot ids. Unknown id: getter **`false`**, setter no-op, DEV warn once per room load. |
  * | **`B.say` / `B.say.now`** | Tagged **`B.say`**…``: PowerQuest-style block — lines **`Speaker: text`** (`Player` any case → protagonist id; other names match spawned character ids **case-insensitively**). Blank lines and **`//`** comments ignored; unknown speakers throw. Queues each line; **`B.say.now`**… skips the interaction tail (see implementation notes in **`BenneScriptCore`**). |
  * | **`B.display` / `B.display.now`** | Narration via **`display-text`** GUI — **`B.display('…')`** blocks until the player clicks to dismiss (no timer). Same interaction-tail rules as **`B.wait`** / **`say`**; **`.now`** skips the tail. |
@@ -179,6 +181,10 @@ export class BenneScript extends BenneScriptCore {
         },
       },
     ) as RoomInventoryUsedOnRegistrar;
+  }
+
+  protected acquireOnUpdateSubscription(handler: (ctx: UpdateContext) => void): () => void {
+    return this.roomScene.registerBenneScriptOnUpdateHandler(handler);
   }
 
   /**

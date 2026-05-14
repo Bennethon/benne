@@ -8,6 +8,14 @@ import type { GuiBenneScript } from './GuiBenneScript.js';
 import type { DialogBenneScript } from './DialogBenneScript.js';
 import type { BenneScriptSharedSelectionApi } from './benneScriptFacades.js';
 
+/** Context for {@link import('./BenneScriptCore.js').BenneScriptCore.prototype.onUpdate} (room + global scripts). */
+export interface UpdateContext {
+  /** Time elapsed since the previous frame, in seconds (from Phaser update) */
+  deltaSeconds: number;
+  /** ID of the currently active room */
+  roomId: string;
+}
+
 export type {
   AnyInventoryUsedOnPayload,
   BenneScriptSharedSelectionApi,
