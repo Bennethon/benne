@@ -46,7 +46,10 @@
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": "UpBtn"
+      "backgroundTag": "UpBtn",
+      "states": {
+        "hover": "UpBtn-hover"
+      }
     },
     {
       "type": "button",
@@ -63,7 +66,10 @@
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": "DownBtn"
+      "backgroundTag": "DownBtn",
+      "states": {
+        "hover": "DownBtn-hover"
+      }
     },
     {
       "type": "button",
@@ -76,11 +82,19 @@
       "text": "Give",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
     },
     {
       "type": "button",
@@ -93,11 +107,19 @@
       "text": "Open",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
     },
     {
       "type": "button",
@@ -110,11 +132,19 @@
       "text": "Close",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
     },
     {
       "type": "button",
@@ -127,11 +157,19 @@
       "text": "Pick up",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
     },
     {
       "type": "button",
@@ -144,11 +182,19 @@
       "text": "Talk to",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
     },
     {
       "type": "button",
@@ -161,11 +207,19 @@
       "text": "Look at",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
     },
     {
       "type": "button",
@@ -178,11 +232,19 @@
       "text": "Use",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
     },
     {
       "type": "button",
@@ -195,11 +257,19 @@
       "text": "Push",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
     },
     {
       "type": "button",
@@ -212,11 +282,19 @@
       "text": "Pull",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "center",
       "textOffsetX": 0,
       "textOffsetY": 0,
-      "backgroundTag": ""
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
     },
     {
       "type": "text",
@@ -226,7 +304,7 @@
       "text": "Walk to",
       "font": "lucasfont-alternate",
       "fontSize": 8,
-      "color": "#ffffff",
+      "color": "#28c074",
       "align": "center"
     }
   ]

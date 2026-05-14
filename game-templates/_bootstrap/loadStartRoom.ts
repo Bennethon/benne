@@ -8,13 +8,28 @@ const roomJsonModules = import.meta.glob('./rooms/**/*.room.json', { eager: true
   { default: RoomData }
 >;
 
+function runtimeStartRoomOverride(): string | undefined {
+  const injected = (globalThis as { __BENNE_START_ROOM_ID?: unknown }).__BENNE_START_ROOM_ID;
+  if (typeof injected === 'string' && injected.trim().length > 0) {
+    return injected.trim();
+  }
+
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const queryRoomId = params.get('startRoomId') ?? params.get('roomId');
+  return queryRoomId && queryRoomId.trim().length > 0 ? queryRoomId.trim() : undefined;
+}
+
 /**
  * Resolves the start room from `game-config.json` (`startingRoomId`) when set, otherwise
  * `startRoomId` in `rooms.manifest.json`.
  */
 export function loadStartRoomData(): RoomData {
   const manifest = manifestJson as RoomsManifestData;
-  const startRoomId = getGameSettings().startingRoomId ?? manifest.startRoomId;
+  const startRoomId = runtimeStartRoomOverride() ?? getGameSettings().startingRoomId ?? manifest.startRoomId;
   const entry = manifest.rooms.find((r) => r.id === startRoomId);
 
   if (!entry) {
