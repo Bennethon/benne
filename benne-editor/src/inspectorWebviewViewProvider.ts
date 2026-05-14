@@ -664,6 +664,7 @@ type WebviewPatch =
           name?: string;
           walkSpeed?: number;
           clickable?: boolean;
+          movable?: boolean;
           description?: string;
           walkToPoint?: { x: number; y: number } | null;
           talkPoint?: { x: number; y: number } | null;
@@ -1391,6 +1392,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 name: p.name,
                 walkSpeed: p.walkSpeed,
                 clickable: p.clickable,
+                movable: p.movable,
                 description: p.description,
                 walkToPoint: p.walkToPoint,
                 talkPoint: p.talkPoint,

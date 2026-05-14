@@ -73,6 +73,11 @@ export interface CharacterData {
   talkPoint?: Point2;
   /** Game pixels per second when walking (used when movement is implemented). */
   walkSpeed: number;
+  /**
+   * When false, pathfind walking is disabled for this character (`walkTo`, click-to-walk, verb walks).
+   * Teleports (`moveTo` / `moveToNow`) still apply. Default true when omitted.
+   */
+  movable?: boolean;
   clickable: boolean;
   display: CharacterDisplayData;
   /** Optional per Aseprite-tag playback (keys must match `meta.frameTags` on `images/characters/<id>/<id>.json`). */

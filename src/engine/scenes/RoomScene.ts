@@ -49,6 +49,7 @@ import {
   promiseWhenSpriteAnimationFinishes,
   readSavedCharacterAlpha,
   readSavedCharacterAnimationOverride,
+  readSavedCharacterMovable,
   readSavedCharacterPosition,
   readSavedCharacterVisible,
   readSavedPropAlpha,
@@ -62,6 +63,7 @@ import {
   setCharacterAnimationOverrideTagOnSprite,
   writeSavedCharacterAlpha,
   writeSavedCharacterAnimationOverride,
+  writeSavedCharacterMovable,
   writeSavedCharacterPosition,
   writeSavedCharacterVisible,
   writeSavedPropAlpha,
@@ -337,6 +339,8 @@ export class RoomScene extends Phaser.Scene {
    * in this room (same “first wins” rule as {@link characterSpritesByDefId}).
    */
   private characterJsonVisibleByDefId = new Map<string, boolean>();
+  /** Definition JSON default for `CharacterData.movable` (first spawn in this room wins). */
+  private characterJsonMovableByDefId = new Map<string, boolean>();
 
   /** Active scripted walks for non-player characters (by sprite identity). */
   private npcWalkTweens = new Map<
@@ -482,6 +486,7 @@ export class RoomScene extends Phaser.Scene {
     this.propDescriptionOverrides.clear();
     this.characterSpritesByDefId.clear();
     this.characterJsonVisibleByDefId.clear();
+    this.characterJsonMovableByDefId.clear();
     this.npcWalkTweens.clear();
     this.characterFeetWinningRegionId.clear();
     this.regionEnterExitSeeded = false;
@@ -526,6 +531,9 @@ export class RoomScene extends Phaser.Scene {
       const defId = spawn.data.id;
       if (!this.characterJsonVisibleByDefId.has(defId)) {
         this.characterJsonVisibleByDefId.set(defId, spawn.visible !== false);
+      }
+      if (!this.characterJsonMovableByDefId.has(defId)) {
+        this.characterJsonMovableByDefId.set(defId, spawn.data.movable !== false);
       }
     }
     data.characters.forEach((spawn) => this.spawnCharacter(data.room.id, spawn));
@@ -1935,6 +1943,21 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
+   * Effective movability for pathfind walking (`walkTo`, click-to-walk, verb walks). Saved script
+   * override wins, else the first spawned definition’s {@link CharacterData.movable} default for this room.
+   */
+  getCharacterScriptMovable(definitionId: string): boolean {
+    const jsonDefault = this.characterJsonMovableByDefId.get(definitionId) ?? true;
+    const manager = resolveGameStateManager(this.game);
+    return readSavedCharacterMovable(manager, definitionId, jsonDefault);
+  }
+
+  /** Persist movability for one character definition id (backs **`B.character` / `B.player` `.movable`**). */
+  setCharacterScriptMovable(definitionId: string, movable: boolean): void {
+    writeSavedCharacterMovable(resolveGameStateManager(this.game), definitionId, movable);
+  }
+
+  /**
    * Tween a prop sprite's alpha from `fromAlpha` to `toAlpha` over `durationSeconds`. Kills any
    * running fade tweens on the sprite first; clamps both alphas to `[0, 1]` and `durationSeconds`
    * to `>= 0`. Resolves when the tween completes (or immediately if the prop is not in this room).
@@ -2012,6 +2035,10 @@ export class RoomScene extends Phaser.Scene {
    */
   walkPlayerToWorldPoint(worldX: number, worldY: number): Promise<void> {
     if (!this.player) {
+      return Promise.resolve();
+    }
+    const playerId = getStartingPlayerCharacterId();
+    if (!this.getCharacterScriptMovable(playerId)) {
       return Promise.resolve();
     }
     return new Promise((resolve) => {
@@ -2251,6 +2278,9 @@ export class RoomScene extends Phaser.Scene {
    * Walk a room character (by definition id) to an explicit point or a named target.
    */
   walkCharacterTo(definitionId: string, target: Point2 | string): Promise<void> {
+    if (!this.getCharacterScriptMovable(definitionId)) {
+      return Promise.resolve();
+    }
     const sprite = this.characterSpritesByDefId.get(definitionId);
     if (!sprite) {
       return Promise.resolve();
@@ -2293,6 +2323,11 @@ export class RoomScene extends Phaser.Scene {
     worldX: number,
     worldY: number,
   ): Promise<void> {
+    const data = sprite.getData('character') as CharacterData | undefined;
+    const id = data?.id;
+    if (id && !this.getCharacterScriptMovable(id)) {
+      return Promise.resolve();
+    }
     return new Promise((resolve) => {
       this.moveNpcToward(sprite, worldX, worldY, resolve);
     });
@@ -2746,6 +2781,10 @@ export class RoomScene extends Phaser.Scene {
   private movePlayerToward(destX: number, destY: number, onArrive?: () => void): void {
     const sprite = this.player;
     if (!sprite) {
+      onArrive?.();
+      return;
+    }
+    if (!this.getCharacterScriptMovable(getStartingPlayerCharacterId())) {
       onArrive?.();
       return;
     }

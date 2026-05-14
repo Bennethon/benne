@@ -233,6 +233,8 @@ export async function readCharacterHooks(
 ): Promise<{
     onVerbFallback?: boolean;
     clickable?: boolean;
+    /** When false, character JSON declares `movable: false` (engine: no pathfind walks). */
+    movable?: boolean;
     /** True when `collider.points` has at least three vertices (engine hit-test). */
     hasColliderPolygon?: boolean;
 }> {
@@ -247,6 +249,7 @@ export async function readCharacterHooks(
                     ? data.onVerbFallback
                     : undefined,
             clickable: typeof data.clickable === 'boolean' ? data.clickable : undefined,
+            movable: typeof data.movable === 'boolean' ? data.movable : undefined,
             hasColliderPolygon: n >= 3
         };
     } catch {

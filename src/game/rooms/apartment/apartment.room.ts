@@ -14,9 +14,11 @@ import { registerRoomScript } from '@engine/scripting';
 registerRoomScript(({ B }) => {
 
   B.whenEnterRoom(() => {
+
     if (!B.sound.isMusicPlaying()) {
       B.sound.playMusic('my-cat-is-crazy');
     }
+    
   });
 
   B.whenEnterRoomAfterFade(() => {
@@ -26,6 +28,7 @@ registerRoomScript(({ B }) => {
       B.sound.play('doorClose');
       B.prop('Door').animation = 'Door';
     }
+
   });
 
   B.whenInventoryUsedOn('Couch', (payload) => {

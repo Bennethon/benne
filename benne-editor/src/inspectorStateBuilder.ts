@@ -169,6 +169,8 @@ export type InspectorCharacterState = {
     name: string;
     walkSpeed: number;
     clickable: boolean;
+    /** When false, `movable: false` is stored in JSON; omitted / true means movable (engine default). */
+    movable: boolean;
     description: string;
     walkToPoint: { x: number; y: number } | null;
     talkPoint: { x: number; y: number } | null;
@@ -1088,6 +1090,7 @@ async function buildCharacterInspectorState(
     const name = typeof data.name === 'string' ? data.name : characterId;
     const walkSpeed = typeof data.walkSpeed === 'number' ? data.walkSpeed : 0;
     const clickable = data.clickable === true;
+    const movable = data.movable !== false;
     const description = typeof data.description === 'string' ? data.description : '';
 
     const toPoint = (v: unknown): { x: number; y: number } | null => {
@@ -1143,6 +1146,7 @@ async function buildCharacterInspectorState(
         name,
         walkSpeed,
         clickable,
+        movable,
         description,
         walkToPoint: toPoint(data.walkToPoint),
         talkPoint: toPoint(data.talkPoint),

@@ -209,6 +209,12 @@ export interface BenneScriptPlayerFacade {
   stopAnimation(): void;
   say: BenneScriptSayDialogueHybrid;
   face: BlockingWithNow<[CharacterFacingLetter]>;
+  /**
+   * When false, pathfind walking (`walkTo`, `walkToClicked`, verb walks) is ignored; `moveTo` still teleports.
+   * Queued setter; persists under `` `character:<id>:movable` `` (saved override over the JSON **`movable`** default from **`*.character.json`**).
+   */
+  get movable(): boolean;
+  set movable(v: boolean);
 }
 
 /** Movement + animation + facing for an NPC. */
@@ -241,6 +247,12 @@ export interface BenneScriptCharacterFacade {
    * starts the same tween without blocking subsequent script lines. Alpha is **not** persisted across room loads.
    */
   fade: BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>;
+  /**
+   * When false, pathfind walking (`walkTo`, verb walks) is ignored; `moveTo` still teleports.
+   * Queued setter; persists under `` `character:<id>:movable` `` (saved override over the JSON **`movable`** default from **`*.character.json`**).
+   */
+  get movable(): boolean;
+  set movable(v: boolean);
 }
 
 /**

@@ -32,6 +32,10 @@ export function characterVisibleVariableKey(characterId: string): string {
   return `character:${characterId}:visible`;
 }
 
+export function characterMovableVariableKey(characterId: string): string {
+  return `character:${characterId}:movable`;
+}
+
 /** Saved per-room character feet world position (lazily written via flush hooks; see {@link writeSavedCharacterPosition}). */
 export function characterPositionVariableKey(roomId: string, characterId: string): string {
   return `room:${roomId}:character:${characterId}:position`;
@@ -241,6 +245,28 @@ export function writeSavedCharacterVisible(
   visible: boolean,
 ): void {
   manager.setVariable(characterVisibleVariableKey(characterId), visible);
+}
+
+/**
+ * Effective `B.character(id).movable` / `B.player.movable` — saved override (boolean) when set,
+ * else `jsonDefault` (`true` when the JSON field is omitted or anything other than `false`).
+ */
+export function readSavedCharacterMovable(
+  manager: GameStateManager,
+  characterId: string,
+  jsonDefault: boolean,
+): boolean {
+  const v = manager.getVariable(characterMovableVariableKey(characterId));
+  return typeof v === 'boolean' ? v : jsonDefault;
+}
+
+/** Persist script `movable = …` for this character definition id. */
+export function writeSavedCharacterMovable(
+  manager: GameStateManager,
+  characterId: string,
+  movable: boolean,
+): void {
+  manager.setVariable(characterMovableVariableKey(characterId), movable);
 }
 
 function readSavedXY(manager: GameStateManager, key: string): { x: number; y: number } | null {

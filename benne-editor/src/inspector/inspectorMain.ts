@@ -126,6 +126,7 @@ type InspectorCharacterState = {
     name: string;
     walkSpeed: number;
     clickable: boolean;
+    movable: boolean;
     description: string;
     walkToPoint: { x: number; y: number } | null;
     talkPoint: { x: number; y: number } | null;
@@ -1724,6 +1725,8 @@ function renderCharacter(state: InspectorCharacterState): string {
           <input type="number" id="char-walk-speed" value="${state.walkSpeed}" />
           <span class="benne-pg-lbl">clickable</span>
           <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="char-clickable" ${state.clickable ? 'checked' : ''} /></label>
+          <span class="benne-pg-lbl">movable</span>
+          <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="char-movable" ${state.movable ? 'checked' : ''} title="When off, character cannot pathfind-walk (JSON movable: false)" /></label>
         </div>
         <label class="benne-field-label muted small">Description</label>
         <textarea id="char-description" rows="3">${esc(state.description)}</textarea>
@@ -2450,6 +2453,7 @@ function collectCharacterMeta(): Record<string, unknown> {
         name: (document.getElementById('char-name') as HTMLInputElement | null)?.value ?? '',
         walkSpeed: Number((document.getElementById('char-walk-speed') as HTMLInputElement | null)?.value ?? '0'),
         clickable: (document.getElementById('char-clickable') as HTMLInputElement | null)?.checked ?? false,
+        movable: (document.getElementById('char-movable') as HTMLInputElement | null)?.checked ?? true,
         description: (document.getElementById('char-description') as HTMLTextAreaElement | null)?.value ?? '',
         walkToPoint: readPointFields('char-walk'),
         talkPoint: readPointFields('char-talk'),
@@ -2466,7 +2470,7 @@ function mountCharacterHandlers(state: InspectorCharacterState): void {
     document.getElementById('btn-open-json-char')?.addEventListener('click', () => {
         post('openRawJson', { characterJsonUri: state.characterJsonUri });
     });
-    ['char-name', 'char-walk-speed', 'char-clickable', 'char-description', 'char-walk-x', 'char-walk-y', 'char-talk-x', 'char-talk-y', 'char-feet-x', 'char-feet-y'].forEach((id) => {
+    ['char-name', 'char-walk-speed', 'char-clickable', 'char-movable', 'char-description', 'char-walk-x', 'char-walk-y', 'char-talk-x', 'char-talk-y', 'char-feet-x', 'char-feet-y'].forEach((id) => {
         document.getElementById(id)?.addEventListener('blur', flush);
         document.getElementById(id)?.addEventListener('change', flush);
     });

@@ -7,7 +7,9 @@ import type { RoomScene } from '../scenes/RoomScene.js';
 import {
   applyCharacterEffectiveAnimation,
   getCharacterAnimationOverrideTag,
+  readSavedCharacterMovable,
   readSavedCharacterVisible,
+  writeSavedCharacterMovable,
   writeSavedCharacterVisible,
 } from '../benneAnimationRuntime.js';
 import {
@@ -1448,6 +1450,30 @@ export abstract class BenneScriptCore {
         }
         scene.stopCharacterScriptAnimation(pid);
       },
+      get movable() {
+        const scene = getScene();
+        if (scene) {
+          return scene.getCharacterScriptMovable(pid);
+        }
+        const mgr = tryGetActiveGameStateManager();
+        return mgr ? readSavedCharacterMovable(mgr, pid, true) : true;
+      },
+      set movable(v: boolean) {
+        core.chain(() => {
+          const scene = getScene();
+          if (scene) {
+            scene.setCharacterScriptMovable(pid, v);
+          } else {
+            const mgr = tryGetActiveGameStateManager();
+            if (mgr) {
+              writeSavedCharacterMovable(mgr, pid, v);
+            } else {
+              warnNoRoom();
+            }
+          }
+          return Promise.resolve();
+        });
+      },
     } as BenneScriptPlayerFacade;
   }
 
@@ -1708,6 +1734,30 @@ export abstract class BenneScriptCore {
           void scene.fadeCharacterScriptAlpha(definitionId, fromAlpha, toAlpha, durationSeconds);
         },
       ),
+      get movable() {
+        const scene = getScene();
+        if (scene) {
+          return scene.getCharacterScriptMovable(definitionId);
+        }
+        const mgr = tryGetActiveGameStateManager();
+        return mgr ? readSavedCharacterMovable(mgr, definitionId, true) : true;
+      },
+      set movable(v: boolean) {
+        core.chain(() => {
+          const scene = getScene();
+          if (scene) {
+            scene.setCharacterScriptMovable(definitionId, v);
+          } else {
+            const mgr = tryGetActiveGameStateManager();
+            if (mgr) {
+              writeSavedCharacterMovable(mgr, definitionId, v);
+            } else {
+              warnNoRoom();
+            }
+          }
+          return Promise.resolve();
+        });
+      },
     } as BenneScriptCharacterFacade;
   }
 }
