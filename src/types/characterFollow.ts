@@ -5,7 +5,12 @@ import type { Point2 } from './room.js';
  * / {@link import('../engine/scripting/benneScriptFacades.js').BenneScriptPlayerFacade} (same API).
  */
 export interface CharacterFollowOptions {
-  /** Minimum distance (world pixels) to maintain from the target's feet. Default: 32. */
+  /**
+   * Feet–feet distance (world pixels) inside which the follower **does not** start a new follow-walk
+   * (the leader may come closer without the follower shuffling away). Catch-up walks only begin when
+   * the leader is **farther** than this and the stand goal has drifted past **`repathThreshold`**.
+   * Default: 48.
+   */
   minDistance?: number;
 
   /**

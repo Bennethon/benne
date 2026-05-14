@@ -302,7 +302,7 @@ B.character('penny').fade(0, 1, 0.5); // fade Penny in from transparent to opaqu
 B.character('penny').fade.now(1, 0, 1); // start fade-out immediately, don't block following lines
 ```
 
-**`CharacterFollowOptions`** (all fields optional) — TypeScript type in **`src/types/characterFollow.ts`**; exported from **`BenneScript`** / **`@engine/scripting`** as **`CharacterFollowOptions`**. Defaults: **`minDistance`** `32`; **`repathThreshold`** `minDistance + 12` (clamped to be **`>= minDistance`**); **`offset`** `{ x: 0, y: 0 }` in the target’s facing frame (**`+x`** forward, **`+y`** 90° clockwise in screen space); **`speedMultiplier`** `1`; **`faceTargetWhenIdle`** `true`; **`pauseDuringCutscene`** `true` (while **`RoomScene`** input suppression is active — cutscene depth or scripted-dialog suppression — the follow driver does not start new follow walks).
+**`CharacterFollowOptions`** (all fields optional) — TypeScript type in **`src/types/characterFollow.ts`**; exported from **`BenneScript`** / **`@engine/scripting`** as **`CharacterFollowOptions`**. Defaults: **`minDistance`** `48`; **`repathThreshold`** `minDistance + 12` (clamped to be **`>= minDistance`**); **`offset`** `{ x: 0, y: 0 }` in the target’s facing frame (**`+x`** forward, **`+y`** 90° clockwise in screen space); **`speedMultiplier`** `1`; **`faceTargetWhenIdle`** `true`; **`pauseDuringCutscene`** `true` (while **`RoomScene`** input suppression is active — cutscene depth or scripted-dialog suppression — the follow driver does not start new follow walks).
 
 ---
 

@@ -138,7 +138,7 @@ import type { CharacterData } from '../../types/character';
 import type { CharacterFollowOptions } from '../../types/characterFollow';
 import type { InventoryItemData } from '../../types/inventory';
 import type { VerbHoverTarget } from '../../types/verbContext';
-import type { Point2, RoomData, RoomHotspotData, RoomPropInstance } from '../../types/room';
+import type { Point2, RoomData, RoomHotspotData, RoomPropInstance, WalkablePolygon } from '../../types/room';
 import type { GuiButtonControl, GuiData, GuiGridControl } from '../../types/gui';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
 import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
@@ -225,8 +225,14 @@ const MIN_WALK_DISTANCE_PX = 6;
  */
 const FOLLOW_STOP_TOOCLOSE_SLACK_PX = 2;
 
-/** On leader walk stop: snap feet only if straight-line distance to stand goal is below this. */
-const FOLLOW_STOP_SNAP_GOAL_PX = 22;
+/**
+ * After the leader stops: if follower feet are still within this many pixels of the leader’s
+ * feet, nudge them outward (leader-stop snap), so offset‑0 follow does not stack sprites.
+ */
+const FOLLOW_STOP_MIN_LEADER_CLEARANCE_PX = 18;
+
+/** If feet–feet distance drops by more than this vs last frame, treat the leader as approaching (suppress follow walks). */
+const FOLLOW_LEADER_APPROACH_EPS_PX = 2;
 
 /** Walkable / prop debug strokes render above characters. */
 const DEBUG_OVERLAY_DEPTH = 20_000;
@@ -376,6 +382,9 @@ export class RoomScene extends Phaser.Scene {
 
   /** Last frame’s “leader is mid–pathfind walk” flag per follower (for follow snap / interrupt). */
   private characterFollowPrevLeaderWalkingByFollowerId = new Map<string, boolean>();
+
+  /** Last frame’s follower→leader feet distance (world px) for “leader approaching” suppression. */
+  private characterFollowPrevDistToLeaderByFollowerId = new Map<string, number>();
 
   /**
    * `B.character(observer).startFacingCharacter(target)` — observer keeps turning toward target’s
@@ -540,6 +549,7 @@ export class RoomScene extends Phaser.Scene {
     this.characterFollowBehaviorEnabled = false;
     this.characterFollowLastGoalByFollowerId.clear();
     this.characterFollowPrevLeaderWalkingByFollowerId.clear();
+    this.characterFollowPrevDistToLeaderByFollowerId.clear();
     this.clearCharacterFaceTowardCharacterLocks();
     this.characterFeetWinningRegionId.clear();
     this.regionEnterExitSeeded = false;
@@ -1947,6 +1957,7 @@ export class RoomScene extends Phaser.Scene {
     }
     this.characterFollowLastGoalByFollowerId.delete(followerDefinitionId);
     this.characterFollowPrevLeaderWalkingByFollowerId.delete(followerDefinitionId);
+    this.characterFollowPrevDistToLeaderByFollowerId.delete(followerDefinitionId);
   }
 
   /** Bennescript `B.character(id).stopFollowingCharacter` / `B.player.stopFollowingCharacter`. */
@@ -1955,6 +1966,7 @@ export class RoomScene extends Phaser.Scene {
     clearSavedCharacterFollowState(manager, followerDefinitionId);
     this.characterFollowLastGoalByFollowerId.delete(followerDefinitionId);
     this.characterFollowPrevLeaderWalkingByFollowerId.delete(followerDefinitionId);
+    this.characterFollowPrevDistToLeaderByFollowerId.delete(followerDefinitionId);
     this.interruptFollowWalkIfPurposeMatches(followerDefinitionId, 'follow');
   }
 
@@ -1983,12 +1995,50 @@ export class RoomScene extends Phaser.Scene {
     const tw = this.npcWalkTweens.get(sprite);
     if (tw) {
       tw.stop();
+      this.npcWalkTweens.delete(sprite);
     }
   }
 
   /**
+   * Walkable-clamped feet position as far as practical from **`leaderFeet`** near a ring of radius
+   * **`clearancePx`**: tries several directions from the leader (follower-ward, then octants) so a
+   * tight mesh clamp does not leave the follower stacked on the leader.
+   */
+  private resolveFollowStopFeetClearOfLeader(
+    followerFeet: Point2,
+    leaderFeet: Point2,
+    leaderFacing: CharacterFacing,
+    clearancePx: number,
+    polys: readonly WalkablePolygon[],
+  ): Point2 {
+    const base =
+      Math.hypot(followerFeet.x - leaderFeet.x, followerFeet.y - leaderFeet.y) < 3
+        ? Math.atan2(
+            -CHARACTER_FACING_UNIT[leaderFacing][1],
+            -CHARACTER_FACING_UNIT[leaderFacing][0],
+          )
+        : Math.atan2(followerFeet.y - leaderFeet.y, followerFeet.x - leaderFeet.x);
+    let best: Point2 | null = null;
+    let bestD = -1;
+    for (let i = 0; i < 8; i++) {
+      const a = base + (i * Math.PI) / 4;
+      const gx = leaderFeet.x + Math.cos(a) * clearancePx;
+      const gy = leaderFeet.y + Math.sin(a) * clearancePx;
+      const c =
+        clampWalkDestinationTowardClick(followerFeet.x, followerFeet.y, gx, gy, polys) ??
+        ({ x: gx, y: gy } satisfies Point2);
+      const d = Math.hypot(c.x - leaderFeet.x, c.y - leaderFeet.y);
+      if (d > bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    return best ?? followerFeet;
+  }
+
+  /**
    * Ends an in-progress follow tween by snapping feet to **`dest`** (already walkable-clamped).
-   * Used when the leader stops so the follower does not slide through / past them on an old path.
+   * Used after leader-stop interrupt when nudging the follower off the leader’s feet.
    */
   private finishFollowWalkSnapFeetToDest(
     followerId: string,
@@ -2033,23 +2083,31 @@ export class RoomScene extends Phaser.Scene {
       const targetRaw = readSavedCharacterFollowingTarget(manager, followerId);
       if (!targetRaw) {
         this.characterFollowPrevLeaderWalkingByFollowerId.delete(followerId);
+        this.characterFollowPrevDistToLeaderByFollowerId.delete(followerId);
         continue;
       }
       const targetDef = targetRaw === 'player' ? playerId : targetRaw;
       if (targetDef === followerId) {
         this.characterFollowPrevLeaderWalkingByFollowerId.delete(followerId);
+        this.characterFollowPrevDistToLeaderByFollowerId.delete(followerId);
         continue;
       }
       const followerSprite = this.characterSpritesByDefId.get(followerId);
       const targetSprite = this.characterSpritesByDefId.get(targetDef);
       if (!followerSprite || !targetSprite) {
         this.characterFollowPrevLeaderWalkingByFollowerId.delete(followerId);
+        this.characterFollowPrevDistToLeaderByFollowerId.delete(followerId);
         continue;
       }
       if (!this.getCharacterScriptMovable(followerId)) {
         this.characterFollowPrevLeaderWalkingByFollowerId.delete(followerId);
+        this.characterFollowPrevDistToLeaderByFollowerId.delete(followerId);
         continue;
       }
+
+      const followerFeet = getCharacterWorldFeet(followerSprite as Phaser.GameObjects.Sprite);
+      const targetFeet = getCharacterWorldFeet(targetSprite as Phaser.GameObjects.Sprite);
+      const distToTarget = Math.hypot(followerFeet.x - targetFeet.x, followerFeet.y - targetFeet.y);
 
       const opts = readSavedCharacterFollowEffectiveOptions(manager, followerId);
       const targetWalking =
@@ -2058,6 +2116,7 @@ export class RoomScene extends Phaser.Scene {
           : this.npcWalkTweens.has(targetSprite);
       if (opts.pauseDuringCutscene && this.isInputSuppressed()) {
         this.characterFollowPrevLeaderWalkingByFollowerId.set(followerId, targetWalking);
+        this.characterFollowPrevDistToLeaderByFollowerId.set(followerId, distToTarget);
         continue;
       }
 
@@ -2071,26 +2130,9 @@ export class RoomScene extends Phaser.Scene {
         (targetSprite instanceof Phaser.GameObjects.Sprite
           ? resolveInitialIdleFacing(targetSprite as Phaser.GameObjects.Sprite)
           : 'D');
-      const targetFeet = getCharacterWorldFeet(targetSprite as Phaser.GameObjects.Sprite);
       const wOff = offsetWorldByCharacterFacing(tgtFacing, opts.offset);
-      let goalX = targetFeet.x + wOff.x;
-      let goalY = targetFeet.y + wOff.y;
-
-      const followerFeet = getCharacterWorldFeet(followerSprite as Phaser.GameObjects.Sprite);
-      const distToTarget = Math.hypot(followerFeet.x - targetFeet.x, followerFeet.y - targetFeet.y);
-      if (distToTarget < opts.minDistance) {
-        const rdx = followerFeet.x - targetFeet.x;
-        const rdy = followerFeet.y - targetFeet.y;
-        const d = Math.hypot(rdx, rdy);
-        if (d > 1e-3) {
-          goalX = targetFeet.x + (rdx / d) * opts.minDistance;
-          goalY = targetFeet.y + (rdy / d) * opts.minDistance;
-        } else {
-          const f = CHARACTER_FACING_UNIT[tgtFacing];
-          goalX = targetFeet.x - f[0] * opts.minDistance;
-          goalY = targetFeet.y - f[1] * opts.minDistance;
-        }
-      }
+      const goalX = targetFeet.x + wOff.x;
+      const goalY = targetFeet.y + wOff.y;
 
       const clamped = clampWalkDestinationTowardClick(
         followerFeet.x,
@@ -2103,42 +2145,78 @@ export class RoomScene extends Phaser.Scene {
       const dGoal = Math.hypot(dest.x - followerFeet.x, dest.y - followerFeet.y);
 
       const followPurpose = followerSprite.getData(BENNE_FOLLOW_WALK_PURPOSE_KEY) === 'follow';
+      const prevDistToLeader = this.characterFollowPrevDistToLeaderByFollowerId.get(followerId);
+      const leaderApproaching =
+        prevDistToLeader !== undefined &&
+        distToTarget < prevDistToLeader - FOLLOW_LEADER_APPROACH_EPS_PX;
+
+      // Leader is closing the gap — stop chasing a stale stand goal (no retreat shuffle).
+      if (walking && followPurpose && leaderApproaching) {
+        this.interruptFollowWalkIfPurposeMatches(followerId, 'follow');
+        this.characterFollowLastGoalByFollowerId.delete(followerId);
+        this.characterFollowPrevLeaderWalkingByFollowerId.set(followerId, targetWalking);
+        this.characterFollowPrevDistToLeaderByFollowerId.set(followerId, distToTarget);
+        continue;
+      }
+
       const prevLeaderWalking =
         this.characterFollowPrevLeaderWalkingByFollowerId.get(followerId) ?? false;
       const leaderJustStopped = prevLeaderWalking && !targetWalking;
 
-      // On the frame the leader stops walking: drop a stale follow path (snap only when tight).
-      if (walking && followPurpose && leaderJustStopped) {
-        const overlappingLead =
-          distToTarget < opts.minDistance + FOLLOW_STOP_TOOCLOSE_SLACK_PX;
-        const nearStopGoal = dGoal < FOLLOW_STOP_SNAP_GOAL_PX;
-        if (overlappingLead || nearStopGoal) {
-          this.finishFollowWalkSnapFeetToDest(followerId, followerSprite, dest, isPlayerFollower);
-        } else {
+      // Leader stopped walking: interrupt any active follow leg, then nudge if feet are still too
+      // close (must not require followPurpose — tween `.finally` clears purpose before we run).
+      if (leaderJustStopped) {
+        if (walking && followPurpose) {
           this.interruptFollowWalkIfPurposeMatches(followerId, 'follow');
           this.characterFollowLastGoalByFollowerId.delete(followerId);
         }
+        const feetAfterStop = getCharacterWorldFeet(
+          followerSprite as Phaser.GameObjects.Sprite,
+        );
+        const distAfter = Math.hypot(
+          feetAfterStop.x - targetFeet.x,
+          feetAfterStop.y - targetFeet.y,
+        );
+        const clearancePx = Math.max(FOLLOW_STOP_MIN_LEADER_CLEARANCE_PX, opts.minDistance);
+        if (distAfter < clearancePx - FOLLOW_STOP_TOOCLOSE_SLACK_PX) {
+          const safe = this.resolveFollowStopFeetClearOfLeader(
+            feetAfterStop,
+            targetFeet,
+            tgtFacing,
+            clearancePx,
+            polys,
+          );
+          this.finishFollowWalkSnapFeetToDest(
+            followerId,
+            followerSprite,
+            safe,
+            isPlayerFollower,
+          );
+        }
+        const feetPrev = getCharacterWorldFeet(followerSprite as Phaser.GameObjects.Sprite);
+        const distPrev = Math.hypot(feetPrev.x - targetFeet.x, feetPrev.y - targetFeet.y);
         this.characterFollowPrevLeaderWalkingByFollowerId.set(followerId, targetWalking);
+        this.characterFollowPrevDistToLeaderByFollowerId.set(followerId, distPrev);
         continue;
       }
 
-      // While the leader is idle, do not start another follow-walk if we're already at the stand
-      // goal and outside the min-distance disk (prevents walk / snap / walk ping-pong).
+      // Idle leader: stay put when already close or when stand goal has not drifted past repathThreshold.
       const leaderIdleComfort =
         !targetWalking &&
-        distToTarget >= opts.minDistance &&
-        dGoal <= opts.repathThreshold;
+        (distToTarget <= opts.minDistance ||
+          (distToTarget > opts.minDistance && dGoal <= opts.repathThreshold));
 
       const needsWalk =
         !walking &&
         !leaderIdleComfort &&
-        (distToTarget < opts.minDistance || dGoal > opts.repathThreshold) &&
+        !leaderApproaching &&
+        distToTarget > opts.minDistance &&
+        dGoal > opts.repathThreshold &&
         dGoal > MIN_WALK_DISTANCE_PX;
       if (needsWalk) {
         const last = this.characterFollowLastGoalByFollowerId.get(followerId);
         const goalMovedMuch = !last || Math.hypot(last.x - dest.x, last.y - dest.y) > 8;
-        const forceBecauseTooClose = distToTarget < opts.minDistance - 0.5;
-        if (goalMovedMuch || forceBecauseTooClose) {
+        if (goalMovedMuch) {
           followerSprite.setData(BENNE_FOLLOW_SPEED_MULT_KEY, opts.speedMultiplier);
           followerSprite.setData(BENNE_FOLLOW_WALK_PURPOSE_KEY, 'follow');
           const clear = (): void => this.clearBenneFollowWalkSpriteData(followerSprite);
@@ -2160,6 +2238,7 @@ export class RoomScene extends Phaser.Scene {
       }
 
       this.characterFollowPrevLeaderWalkingByFollowerId.set(followerId, targetWalking);
+      this.characterFollowPrevDistToLeaderByFollowerId.set(followerId, distToTarget);
     }
   }
 

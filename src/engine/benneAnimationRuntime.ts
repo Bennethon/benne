@@ -439,7 +439,7 @@ function coerceFinitePositive(n: unknown, fallback: number): number {
  * Merges author input into effective follow options (defaults match the Bennescript API contract).
  */
 export function mergeCharacterFollowOptions(input?: CharacterFollowOptions | null): CharacterFollowEffectiveOptions {
-  const minDistance = coerceFinitePositive(input?.minDistance, 32);
+  const minDistance = coerceFinitePositive(input?.minDistance, 48);
   let repathThreshold = coerceFinitePositive(input?.repathThreshold, minDistance + 12);
   if (repathThreshold < minDistance) {
     repathThreshold = minDistance + 12;
