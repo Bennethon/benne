@@ -208,6 +208,21 @@ function inspectorItemExpanded(state, entity, id) {
     const ex = state.expanded;
     return !!(ex && ex.entity === entity && ex.id === id);
 }
+function renderRoomLifecycleHookRow(state) {
+    const mk = (hook, defined, label) => {
+        const cls = defined ? 'verb-chip verb-defined' : 'verb-chip verb-add';
+        const icon = defined ? '⚡' : '+';
+        const title = defined
+            ? `Reveal ${label} in room script`
+            : `Insert ${label} stub in room script and focus it`;
+        return `<button type="button" class="${cls}" data-room-lifecycle="${esc(hook)}" title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(label)}</span></button>`;
+    };
+    return `<div class="benne-room-lifecycle row wrap" role="group" aria-label="Room script lifecycle hooks" style="margin-bottom:10px;">
+${mk('whenEnterRoom', state.whenEnterRoomDefined, 'whenEnterRoom')}
+${mk('whenEnterRoomAfterFade', state.whenEnterRoomAfterFadeDefined, 'whenEnterRoomAfterFade')}
+${mk('onUpdate', state.onUpdateDefined, 'onUpdate')}
+</div>`;
+}
 function renderInspectorItem(state, entity, id, cardModifierClasses, summaryInnerHtml, bodyInnerHtml) {
     const open = inspectorItemExpanded(state, entity, id) ? ' open' : '';
     return `<details class="benne-inspector-item benne-card${cardModifierClasses}" data-entity="${esc(entity)}" data-id="${esc(id)}"${open}>
@@ -541,6 +556,7 @@ function renderRoom(state) {
     return `
 <div class="inspector-root">
   <div class="scroll">
+    ${renderRoomLifecycleHookRow(state)}
     <details class="section" open>
       <summary>Room metadata</summary>
       <div class="section-body">
@@ -1755,6 +1771,15 @@ function mountHandlers(state) {
     root.querySelectorAll('.verb-chip').forEach((btn) => {
         btn.addEventListener('click', () => {
             const b = btn;
+            const hook = b.dataset.roomLifecycle ?? '';
+            if (hook === 'whenEnterRoom' || hook === 'whenEnterRoomAfterFade' || hook === 'onUpdate') {
+                post('roomLifecycleHook', {
+                    roomJsonUri: state.roomJsonUri,
+                    roomId: state.roomId,
+                    hook
+                });
+                return;
+            }
             const regionId = b.dataset.regionId ?? '';
             if (regionId && (b.dataset.revealRegion === '1' || b.dataset.addRegion === '1')) {
                 const mode = b.dataset.mode === 'exit' ? 'exit' : 'enter';

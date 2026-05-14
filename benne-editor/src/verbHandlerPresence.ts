@@ -334,6 +334,51 @@ export function findRoomScriptRegionHandlerRangeRobust(
     return { start: i, end: Math.min(source.length, i + snippet.length) };
 }
 
+/** Room-level `registerRoomScript` hooks (see `BenneScript` / `registerRoomScript` docs). */
+export type RoomLifecycleHookKind = 'whenEnterRoom' | 'whenEnterRoomAfterFade' | 'onUpdate';
+
+function roomLifecycleHookPatterns(hook: RoomLifecycleHookKind): Array<{ rx: RegExp }> {
+    return [{ rx: new RegExp(`\\b\\w+\\.${hook}\\s*\\(`, 'm') }];
+}
+
+export function roomScriptRegistersRoomLifecycleHook(
+    source: string,
+    hook: RoomLifecycleHookKind
+): boolean {
+    const stripped = stripLineAndBlockComments(source);
+    return roomLifecycleHookPatterns(hook).some(({ rx }) => firstMatchIndex(stripped, rx) >= 0);
+}
+
+export function findRoomScriptRoomLifecycleHookRangeRobust(
+    source: string,
+    hook: RoomLifecycleHookKind
+): { start: number; end: number } | null {
+    const patterns = roomLifecycleHookPatterns(hook);
+    const primary = earliestRange(source, patterns);
+    if (primary) {
+        return primary;
+    }
+    const stripped = stripLineAndBlockComments(source);
+    const sec = earliestRange(stripped, patterns);
+    if (!sec) {
+        return null;
+    }
+    const snippet = stripped.slice(sec.start, sec.end);
+    let i = source.indexOf(snippet);
+    if (i >= 0) {
+        return { start: i, end: i + snippet.length };
+    }
+    const firstLine = snippet.trim().split('\n')[0] ?? '';
+    if (firstLine.length < 4) {
+        return null;
+    }
+    i = source.indexOf(firstLine);
+    if (i < 0) {
+        return null;
+    }
+    return { start: i, end: Math.min(source.length, i + snippet.length) };
+}
+
 export function roomScriptRegistersRoomCharacterVerb(
     source: string,
     roomId: string,

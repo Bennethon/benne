@@ -215,4 +215,5 @@ registerRoomScript(({ B }) => {
       B.say`Hank: Hello window.`;
     }
   });
+
 });

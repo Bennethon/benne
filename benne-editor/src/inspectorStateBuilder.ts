@@ -34,6 +34,7 @@ import {
     readConfiguredVerbIdSet,
     roomScriptRegistersRegionWhenEnter,
     roomScriptRegistersRegionWhenExit,
+    roomScriptRegistersRoomLifecycleHook,
     scriptRegistersWhenInventoryUsedOn
 } from './verbHandlerPresence';
 
@@ -150,6 +151,9 @@ export type InspectorRoomState = {
     points: InspectorPointCard[];
     regions: InspectorRegionCard[];
     expanded: { entity: string; id: string } | null;
+    whenEnterRoomDefined: boolean;
+    whenEnterRoomAfterFadeDefined: boolean;
+    onUpdateDefined: boolean;
 };
 
 export type InspectorEmptyState = { kind: 'empty'; message: string };
@@ -1065,7 +1069,13 @@ async function buildRoomInspectorState(
         characters,
         points,
         regions,
-        expanded: expandedFromRoomPanel(roomPanel)
+        expanded: expandedFromRoomPanel(roomPanel),
+        whenEnterRoomDefined: roomScriptRegistersRoomLifecycleHook(roomScriptText, 'whenEnterRoom'),
+        whenEnterRoomAfterFadeDefined: roomScriptRegistersRoomLifecycleHook(
+            roomScriptText,
+            'whenEnterRoomAfterFade'
+        ),
+        onUpdateDefined: roomScriptRegistersRoomLifecycleHook(roomScriptText, 'onUpdate')
     };
 }
 
