@@ -23,6 +23,8 @@ import {
 import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
+import { registerGlobalBenneScriptOnUpdateHandler } from './benneScriptOnUpdateRegistry.js';
+import type { UpdateContext } from './types.js';
 
 /**
  * Bennescript facade for `globalScript.ts`: global verb fallback chain and `raw` bus access.
@@ -51,6 +53,10 @@ export class GlobalBenneScript extends BenneScriptCore {
       (factory) => this.chain(factory),
     );
     this.dialog = createBenneScriptDialogAccessor(manager, this.game, (factory) => this.chain(factory));
+  }
+
+  protected acquireOnUpdateSubscription(handler: (ctx: UpdateContext) => void): () => void {
+    return registerGlobalBenneScriptOnUpdateHandler(handler);
   }
 
   /**

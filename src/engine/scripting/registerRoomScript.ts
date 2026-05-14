@@ -45,7 +45,8 @@ export function registerRoomScriptModuleLoaders(
  *
  * @param registerFn - Receives `{ B, events, roomId, roomScene, … }`. Use **`B`** for authoring;
  *   see the **module-level table** in `BenneScript.ts` for which string ids to pass to
- *   `whenLookAt`, `walkTo`, etc.
+ *   `whenLookAt`, `walkTo`, etc. **`B.onUpdate`** registers a non-blocking per-frame hook (see
+ *   `UpdateContext` in `types.ts`).
  */
 export function registerRoomScript(registerFn: RoomCallback): void {
   const rid = _currentLoadingRoomId;

@@ -10,6 +10,7 @@ import {
   setGlobalBenneScriptForRoomTransitions,
   setRoomTransitionOrchestratorInstance,
 } from '../scenes/roomTransitionGlobals.js';
+import { clearGlobalBenneScriptOnUpdateHandlers } from './benneScriptOnUpdateRegistry.js';
 
 /**
  * Invokes all `registerGlobalScript` callbacks with a {@link GlobalBenneScript} bound to the live game.
@@ -27,6 +28,9 @@ export function wireBenneGlobalScripts(game: Phaser.Game, events: EventBus): voi
 
   const B = new GlobalBenneScript(events, game);
   setGlobalBenneScriptForRoomTransitions(B);
+  game.events.once(Phaser.Core.Events.DESTROY, () => {
+    clearGlobalBenneScriptOnUpdateHandlers();
+  });
   const ctx: GlobalScriptContext = { B, events, game };
 
   for (const registerFn of registrations) {

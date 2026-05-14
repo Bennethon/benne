@@ -48,6 +48,7 @@ import {
   BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
 } from '../scenes/roomScreenFadeConstants.js';
 import { bindRoomFacadeForBenneScriptCore } from './benneScriptRoomApi.js';
+import type { UpdateContext } from './types.js';
 
 /**
  * Callable that participates in the interaction queue; **`fn.now`** runs the same action immediately
@@ -263,6 +264,7 @@ function stripTrailingLineComment(line: string): string {
  * for room, character, global, and GUI Bennescript facades.
  */
 export abstract class BenneScriptCore {
+  private static warnedOnUpdateUnsupported = false;
   private static unresolvedVerbWarnings = new Set<string>();
   private static warnedPlayerFacadeNoRoomScene = false;
   private static warnedSayDialogueNoRoomScene = false;
@@ -638,6 +640,30 @@ export abstract class BenneScriptCore {
       off();
     }
     this.disposers = [];
+  }
+
+  /**
+   * Non-blocking per-frame hook (PowerQuest **`void Update()`** equivalent). Runs every
+   * {@link RoomScene} frame **outside** the interaction queue; **no** **`.now`** variant.
+   * Supported on **room** and **global** **`B`** only — other facades log once in dev and ignore.
+   */
+  onUpdate(handler: (ctx: UpdateContext) => void): void {
+    const off = this.acquireOnUpdateSubscription(handler);
+    if (off == null) {
+      if (import.meta.env.DEV && !BenneScriptCore.warnedOnUpdateUnsupported) {
+        BenneScriptCore.warnedOnUpdateUnsupported = true;
+        console.warn('[Benne] B.onUpdate is only supported on room and global script facades.');
+      }
+      return;
+    }
+    this.registerDisposable(off);
+  }
+
+  /**
+   * Room / global subclasses return an unregister callback; all others return **`null`**.
+   */
+  protected acquireOnUpdateSubscription(_handler: (ctx: UpdateContext) => void): (() => void) | null {
+    return null;
   }
 
   /**

@@ -34,7 +34,7 @@ registerRoomScript(({ B }) => {
       B.player.say('What about it?');
       B.character('henry').say('I need you to turn it on. It\'s really important.');
       B.player.say('Uh, ok.');
-      B.character('henry').startFollowingCharacter('hank');
+      B.character('henry').startFacingCharacter('hank');
     }
   });
 
@@ -103,6 +103,7 @@ registerRoomScript(({ B }) => {
     B.prop('FountainOff').hide();
     B.prop('FountainOn').show();
     B.state.setFlag('turnedOnFountain', true);
+    B.character('henry').say('WOO HOO! IT\'S WORKING!');
     B.display('You won!');
   };
 

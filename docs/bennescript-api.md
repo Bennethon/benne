@@ -1,6 +1,6 @@
 # Bennescript API Reference
 
-> Last updated: 2026-05-13 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
+> Last updated: 2026-05-14 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
 
 For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§3 → Audio system](architecture.md#audio-system), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt), and the **Blocking interaction queue** / API tables in §7.
 
@@ -25,7 +25,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 
 **`subscribeImmediate`** — GUI **`B.whenMouseEnter`** / **`B.whenMouseLeave`** use this: handler runs synchronously and does **not** wait on **`interactionTail`** (avoids HUD hover starving behind **`say`/tween** queues).
 
-**Disposal** — **`BenneScript.dispose()`** runs registered cleanups (**`events.off`**, etc.). The engine calls it on **`RoomScene`** shutdown for room/character instances and when a dialog session ends for **`DialogBenneScript`** (see [architecture.md — Runtime wiring](architecture.md#7-scripting--interaction-system-bennescript)).
+**Disposal** — **`BenneScript.dispose()`** runs registered cleanups (**`events.off`**, **`B.onUpdate`** unregister, etc.). The engine calls it on **`RoomScene`** shutdown for room/character instances and when a dialog session ends for **`DialogBenneScript`** (see [architecture.md — Runtime wiring](architecture.md#7-scripting--interaction-system-bennescript)). Global **`B.onUpdate`** handlers are cleared when the **`Phaser.Game`** fires **`Phaser.Core.Events.DESTROY`** (see **`wireBenneGlobalScripts`**).
 
 **`events` field** — Every **`BenneScriptCore`** subclass exposes **`readonly events`** (**`Phaser.Events.EventEmitter`**) backing **`B.raw`**.
 
@@ -43,6 +43,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 | **`B.prop(id)`** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **`B.region(id)`** (**`whenEnter`**, **`whenExit`**), **`whenEnterRegion` / `whenExitRegion`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **`B.hotspot(id).active`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **`B.onUpdate`** (per-frame, **not** on **`interactionTail`**) | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | Room **`when*(`target`,`…)` verb sugar**, **`onProp`**, **`whenGive(item,target,…)`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Character self-only **`when*(() => …)`** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Inventory row verbs + **`whenUse` / `whenGive`** registrars | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
@@ -517,6 +518,26 @@ if (B.hotspot('secret-door').active) {
 }
 ```
 
+### Per-frame hook — `B.onUpdate`
+
+```ts
+import type { UpdateContext } from '@engine/scripting/types';
+
+B.onUpdate((ctx: UpdateContext) => {
+  // runs every frame while this room is active — outside the interaction queue
+});
+```
+
+- **Where** — **`registerRoomScript`** and **`registerGlobalScript`** only (room **`B`** and global **`B`**). Other facades inherit **`BenneScriptCore.onUpdate`** but it is a no-op with a **one-time** dev **`console.warn`**.
+- **Not queued** — unlike **`whenLookAt`**, **`B.region(…).whenEnter`**, or **`B.wait`**, **`B.onUpdate`** does **not** use **`interactionTail`** and has **no** **`.now`** variant.
+- **Order** — Each frame, after **`RoomScene.update`** finishes its engine work (walking snap, character follow, region scale/tint + enter/exit detection, parallax, stack depths, path debug), **room** script handlers run **first** (registration order within the room), then **global** script handlers (registration order). Same “room first, then global” spirit as verb dispatch fallbacks.
+- **Cutscenes** — Handlers **always** run; the engine does **not** suppress **`B.onUpdate`** when **`cutsceneDepth > 0`**.
+- **`UpdateContext`** (`src/engine/scripting/types.ts`):
+  - **`deltaSeconds`** — `game.loop.delta / 1000` from the active room scene’s Phaser step (uncapped; same source as other room timing code that clamps elsewhere).
+  - **`roomId`** — the active room’s id (**`roomData.id`**).
+- **Lifecycle** — Room: each handler is tied to that room load’s **`BenneScript`**; **`RoomScene`** **`SHUTDOWN`** calls **`B.dispose()`**, which runs the per-registration unregister (removes that callback from the room list). Global: **`wireBenneGlobalScripts`** registers **`Phaser.Core.Events.DESTROY`** on the **`Phaser.Game`** to call **`clearGlobalBenneScriptOnUpdateHandlers`** (drops every global **`B.onUpdate`** subscription). Each global registration also pushes the same unregister onto **`BenneScriptCore`**’s disposable list so a future **`GlobalBenneScript.dispose()`** would remove that handler individually if you call it.
+- **Errors** — A throwing handler is logged (`[Benne] B.onUpdate (room|global) handler #… failed:`); other handlers still run.
+
 ---
 
 ## Character script — `CharacterBenneScript` extras
@@ -717,6 +738,7 @@ Strict typing when bypassing **`(p: any)`**:
 - Global fallbacks: **`VerbGlobalFallbackPayload`**, **`VerbUnhandledPayload`** (`verbInteractionEvents.ts`).
 - Room hooks: **`RoomTransitionContext`** (`types/roomTransition.ts`).
 - Region enter/exit: **`RegionEnterExitContext`** (`types/regionEnterExit.ts`).
+- Per-frame hook: **`UpdateContext`** (`src/engine/scripting/types.ts`).
 - Give-on-prop augmentation: **`GivePropInteractPayload`** (`benneScriptPayloads.ts`).
 
 ---
@@ -725,7 +747,8 @@ Strict typing when bypassing **`(p: any)`**:
 
 | Module | Role |
 |--------|------|
-| [`BenneScriptCore.ts`](../src/engine/scripting/BenneScriptCore.ts) | **`BlockingWithNow`**, queue, **`say`/`wait`/fades/clicks/active selection**, **`sound`**, **`events`/`raw`**, inventory-on-target **`subscribe*`** helpers, **`cutscene`** / **`cutscene.now`** |
+| [`BenneScriptCore.ts`](../src/engine/scripting/BenneScriptCore.ts) | **`BlockingWithNow`**, queue, **`say`/`wait`/fades/clicks/active selection**, **`sound`**, **`events`/`raw`**, inventory-on-target **`subscribe*`** helpers, **`cutscene`** / **`cutscene.now`**, **`onUpdate`** (room/global subclasses) |
+| [`benneScriptOnUpdateRegistry.ts`](../src/engine/scripting/benneScriptOnUpdateRegistry.ts) | Global **`B.onUpdate`** handler list + **`runGlobalBenneScriptOnUpdateHandlers`**, **`clearGlobalBenneScriptOnUpdateHandlers`** (game **`DESTROY`**) |
 | [`benneScriptSoundApi.ts`](../src/engine/scripting/benneScriptSoundApi.ts) | **`createBenneScriptSoundFacade`** (**`B.sound`**) |
 | [`SoundManager.ts`](../src/engine/sound/SoundManager.ts) | **`Phaser.Game#sound`** playback, SFX tracking, music slot, lifecycle |
 | [`BenneScript.ts`](../src/engine/scripting/BenneScript.ts) | Room **`B`**, verb sugar, **`prop`/`character`/`player`/`region`**, **`state`/`inventory`/`dialog`** |
@@ -739,4 +762,4 @@ Strict typing when bypassing **`(p: any)`**:
 | [`benneScriptRoomApi.ts`](../src/engine/scripting/benneScriptRoomApi.ts) | **`B.room`** |
 | [`snapshotFlushHooks.ts`](../src/engine/gameState/snapshotFlushHooks.ts) | **`registerSnapshotFlushHook`** / **`runSnapshotFlushHooks`** (powers **`B.state.flush`**, run inside **`getSnapshot`** and **`prepareForLeave`**) |
 | [`benneAnimationRuntime.ts`](../src/engine/benneAnimationRuntime.ts) | Variable-key + read/write helpers for prop/character animation, visibility, alpha, **and position** |
-| [`types.ts`](../src/engine/scripting/types.ts) | **`RoomScriptContext`**, **`CharacterScriptContext`**, etc. |
+| [`types.ts`](../src/engine/scripting/types.ts) | **`RoomScriptContext`**, **`CharacterScriptContext`**, **`UpdateContext`**, etc. |
