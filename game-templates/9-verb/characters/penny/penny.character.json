@@ -58,5 +58,6 @@
     "TalkU": {
       "loop": true
     }
-  }
+  },
+  "defaultVerb": "talkTo"
 }

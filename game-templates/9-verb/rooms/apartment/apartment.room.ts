@@ -13,16 +13,36 @@ import { registerRoomScript } from '@engine/scripting';
  */
 registerRoomScript(({ B }) => {
 
+  B.whenEnterRoom(() => {
+
+    if (!B.sound.isMusicPlaying()) {
+      B.sound.playMusic('my-cat-is-crazy');
+    }
+
+  });
+
+  B.whenEnterRoomAfterFade(() => {
+
+    if (B.room.last === 'outside') {
+      B.wait(.5);
+      B.sound.play('doorClose');
+      B.prop('Door').animation = 'Door';
+    }
+
+  });
+
   B.whenInventoryUsedOn('Couch', (payload) => {
     if (payload.itemId === 'Broom' && payload.verbId === 'use') {
       B.player.walkTo('Couch');
-      B.player.say('I used the Broom on the Couch.');
+      B.faceClicked();
+      B.player.say('I used the broom on the couch.');
       return;
     }
     if (payload.itemId === 'Broom' && payload.verbId === 'give') {
       B.player.walkTo('Couch');
       B.player.face('U');
       B.player.say('Here, couch.');
+      B.inventory.remove('Broom');
       return;
     }
     return false;
@@ -34,7 +54,6 @@ registerRoomScript(({ B }) => {
 
   B.whenTalkTo('penny', () => {
     B.walkToClicked();
-    B.faceClicked();
     B.say`
       Hank: Hey Penny!
       Penny: Hi!
@@ -44,38 +63,29 @@ registerRoomScript(({ B }) => {
 
   B.whenLookAt('Couch', () => {
     B.faceClicked();
-    B.say`Hank: It's my poorly drawn couch.`;
+    B.say`Hank: It's my weird, magical, poorly drawn couch.`;
   });
 
-  B.whenUse('Door', () => {
-
+  const handleOpenOrUseDoor = () => {
     B.walkToClicked();
-    B.player.faceClicked();
 
     if (B.state.getFlag('unlockedDoor')) {
       B.prop('Door').animation = 'Door-open';
+      B.sound.playAndWait('doorOpen');
       B.room.changeTo('outside');
     } else {
       B.say`Hank: The door is locked.`;
+      B.display('The door is locked. AHH! I can\'t get out! HELP ME! HELP ME! SOMEBODY HELP ME! PLEASE HELP ME!');
+      B.display('Ok calm down.');
     }
-    
-  });
-
-  B.whenOpen('Door', () => {
-    B.player.walkToClicked();
-    B.player.faceClicked();
-    
-    if (B.state.getFlag('unlockedDoor')) {
-      B.prop('Door').animation = 'Door-open';
-      B.room.changeTo('outside');
-    } else {
-      B.say`Hank: The door is locked.`;
-    }
-
-  });
+  };
+  
+  B.whenOpen('Door', handleOpenOrUseDoor); 
+  B.whenUse('Door', handleOpenOrUseDoor);
 
   B.whenPull('Couch', () => {
-    B.player.moveTo('apartment-point-1');
+    B.walkToClicked();
+    B.player.say('It\'s too heavy.');
   });
 
   B.whenClose('Couch', () => {
@@ -83,6 +93,7 @@ registerRoomScript(({ B }) => {
     B.wait(1);
     B.fadeIn(2, 0x00ff00);
   });
+  
   B.whenInventoryUsedOn('Bread', (payload) => {
     if (payload.itemId === 'Broom' && payload.verbId === 'use') {
       B.say`Hank: I don't need to clean the bread.`;
@@ -101,7 +112,6 @@ registerRoomScript(({ B }) => {
 
   B.whenPickUp('Bread', () => {
     B.walkToClicked();
-    B.player.faceClicked();
     B.inventory.add('Bread');
     B.prop('Bread').hide();
   });
@@ -113,7 +123,6 @@ registerRoomScript(({ B }) => {
 
   B.whenPickUp('Knife', () => {
     B.walkToClicked();
-    B.player.faceClicked();
     B.inventory.add('Knife');
     B.prop('Knife').hide();
   });
@@ -124,7 +133,6 @@ registerRoomScript(({ B }) => {
 
   B.whenPickUp('PeanutButter', () => {
     B.walkToClicked();
-    B.player.faceClicked();
     B.inventory.add('PB');
     B.prop('PeanutButter').hide();
   });
@@ -132,4 +140,80 @@ registerRoomScript(({ B }) => {
   B.whenLookAt('Table', () => {
     B.player.say('I like to keep this table here so I can walk around it.');
   });
+
+  B.whenInventoryUsedOn('penny', (payload) => {
+    if (payload.itemId === 'Sammich' && payload.verbId === 'give') {
+      B.walkToClicked();
+      B.say`Hank: Here, Penny! Have a sandwich.`;
+      B.inventory.remove('Sammich');
+      B.character('penny').say`Thank you! Here's the key.`;
+      B.inventory.add('Key');
+      return;
+    }
+    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
+    return false;
+  });
+  B.whenInventoryUsedOn('Door', (payload) => {
+    if (payload.itemId === 'Key' && payload.verbId === 'use') {
+      B.walkToClicked();
+      B.state.setFlag('unlockedDoor', true);
+      B.inventory.remove('Key');
+      B.player.say('The door is unlocked.');
+      return;
+    }
+    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
+    return false;
+  });
+
+  B.playFrom("gotKey", () => {
+    B.inventory.add('Key');
+  });
+
+  B.playFrom("doorUnlocked", () => {
+    B.state.setFlag('unlockedDoor', true);
+  });
+
+
+  B.whenInventoryUsedOn('Table', (payload) => {
+    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
+      B.walkToClicked();
+      B.sound.playAndWait('sweeping');
+      B.player.say('I cleaned the table.');
+      return;
+    }
+    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
+    return false;
+  });
+
+  B.whenOpen('Couch', () => {
+    B.prop('Couch').fade(1, 0.5, 1);
+  });
+
+  B.whenOpen('penny', () => {
+    B.character('penny').fade(1, 0.5, 1);
+  });
+
+  B.whenClose('penny', () => {
+    B.character('penny').hide();
+  });
+
+  B.whenTalkTo('Couch', () => {
+    B.prop('Couch').moveTo({ x: 5, y: 5 });
+  });
+
+  B.region("darkness").whenEnter(() => {
+    B.say`Hank: It's dark over here.`;
+  });
+
+  B.whenPush('Couch', () => {
+    // Hotspot id matches `hotspots[].id` in apartment.room.json (`window`, not `Window`).
+    if (B.hotspot('window').active) {
+      B.hotspot('window').active = false;
+      B.say`Hank: Goodbye window.`;
+    } else {
+      B.hotspot('window').active = true;
+      B.say`Hank: Hello window.`;
+    }
+  });
+
 });

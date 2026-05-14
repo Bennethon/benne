@@ -92,6 +92,11 @@ function getBundledAsepriteRawJson(kind: AsepriteAssetSheetKind, id: string): Re
   return rawJsonFromModule(mod);
 }
 
+/** Raw GUI sheet JSON (unprefixed `meta.frameTags` / `meta.slices`; used by 9-slice layout). */
+export function getBundledGuiAsepriteRawJson(guiId: string): Record<string, unknown> {
+  return getBundledAsepriteRawJson('gui', guiId);
+}
+
 /**
  * Names from Aseprite `meta.frameTags`. Cels with no tag do not appear — only tagged clips can be referenced
  * as prop `tag`, character animation keys, inventory sheet tags, etc.

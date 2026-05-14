@@ -15,9 +15,13 @@
       "text": "Even if a woodchuck could chuck wood and even if a woodchuck would chuck wood, should a woodchuck chuck wood?",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "color": "#f5f5dc",
+      "color": "#ffffff",
       "align": "center",
-      "wordWrapWidth": 200
+      "wordWrapWidth": 200,
+      "textOutline": {
+        "enabled": true,
+        "color": "#000000"
+      }
     }
   ]
 }

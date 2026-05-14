@@ -111,14 +111,33 @@
       }
     }
   ],
-  "points": [
+  "points": [],
+  "regions": [
     {
-      "id": "apartment-point-1",
-      "x": 288,
-      "y": 136
+      "id": "darkness",
+      "active": true,
+      "points": [
+        {
+          "x": 250,
+          "y": 47
+        },
+        {
+          "x": 286,
+          "y": 48
+        },
+        {
+          "x": 286,
+          "y": 111
+        },
+        {
+          "x": 251,
+          "y": 108
+        }
+      ],
+      "tint": "#000000",
+      "tintAlpha": 0.75
     }
   ],
-  "regions": [],
   "props": [
     {
       "id": "BG",
@@ -190,7 +209,6 @@
       "id": "Door",
       "tag": "Door",
       "animations": {
-        "Door": {},
         "Door-open": {}
       },
       "zIndex": 3,
@@ -225,7 +243,8 @@
         "x": 297,
         "y": 115
       },
-      "description": "door"
+      "description": "door",
+      "defaultVerb": "open"
     },
     {
       "id": "Fan",
@@ -332,9 +351,6 @@
     {
       "id": "PeanutButter",
       "tag": "PeanutButter",
-      "animations": {
-        "PeanutButter": {}
-      },
       "zIndex": 11,
       "visible": true,
       "alpha": 1,

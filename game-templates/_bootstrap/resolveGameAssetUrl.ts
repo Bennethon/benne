@@ -33,6 +33,32 @@ const musicAudioUrls = import.meta.glob('./assets/audio/music/**/*.{mp3,ogg,wav,
   import: 'default',
 }) as Record<string, string>;
 
+/** When set (BENNE Play webview), rewrites relative Vite `?url` paths to absolute extension media URLs. */
+let benneWebviewPlayAssetBase: string | undefined;
+
+/**
+ * Called from the BENNE Play webview bootstrap before the game loads. Vite emits `./assets/…`
+ * URLs that do not resolve correctly against a `vscode-webview://` document; joining them to
+ * this base (from `webview.asWebviewUri(…/media/benne-play/)`) fixes Phaser texture loads.
+ */
+export function setBenneWebviewPlayAssetBase(base: string): void {
+  const b = base.trim();
+  benneWebviewPlayAssetBase = b.length === 0 ? undefined : b.endsWith('/') ? b : `${b}/`;
+}
+
+function absolutizeBundledAssetUrl(url: string): string {
+  if (!benneWebviewPlayAssetBase) {
+    return url;
+  }
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)) {
+    return url;
+  }
+  // Vite commonly emits root-relative `/assets/foo.png` for built files. In a VS Code webview,
+  // that root is not the extension media folder, so make emitted asset URLs bundle-relative.
+  const bundleRelative = url.replace(/^\/+/, '');
+  return new URL(bundleRelative, benneWebviewPlayAssetBase).href;
+}
+
 function normalizeAssetPath(relativePath: string): string {
   return relativePath.replace(/^\.?\/+/, '').replaceAll('\\', '/');
 }
@@ -48,7 +74,7 @@ export function resolveGameAssetUrl(relativePath: string): string {
     );
   }
 
-  return url;
+  return absolutizeBundledAssetUrl(url);
 }
 
 /** Aseprite JSON exports and other data JSON under `src/game/assets/`. */
@@ -63,7 +89,7 @@ export function resolveGameAssetJsonUrl(relativePath: string): string {
     );
   }
 
-  return url;
+  return absolutizeBundledAssetUrl(url);
 }
 
 /** BMFont XML and other `.xml` under `src/game/assets/` (paths like `fonts/MyFont.xml`). */
@@ -78,11 +104,12 @@ export function resolveGameAssetXmlUrl(relativePath: string): string {
     );
   }
 
-  return url;
+  return absolutizeBundledAssetUrl(url);
 }
 
 export interface BenneAudioBootEntry {
   readonly cacheKey: string;
+  /** Resolved URLs (often one); multiple formats for the same stem → Phaser tries fallbacks. */
   readonly urls: readonly string[];
 }
 
@@ -107,7 +134,7 @@ function groupAudioByStem(urlMap: Record<string, string>): Map<string, string[]>
       set = new Set<string>();
       byStem.set(stem, set);
     }
-    set.add(rawUrl);
+    set.add(absolutizeBundledAssetUrl(rawUrl));
   }
   const out = new Map<string, string[]>();
   for (const [stem, urlSet] of byStem) {
@@ -116,6 +143,11 @@ function groupAudioByStem(urlMap: Record<string, string>): Map<string, string[]>
   return out;
 }
 
+/**
+ * Entries for {@link import('../engine/sound/queueBenneAudioBoot.js').queueBenneAudioForBootLoader}.
+ * Keys match {@link import('../engine/sound/benneAudioCacheKeys.js').benneSfxCacheKey} /
+ * {@link import('../engine/sound/benneAudioCacheKeys.js').benneMusicCacheKey}.
+ */
 export function getBenneAudioBootEntries(): { sfx: BenneAudioBootEntry[]; music: BenneAudioBootEntry[] } {
   const sfxGrouped = groupAudioByStem(sfxAudioUrls);
   const musicGrouped = groupAudioByStem(musicAudioUrls);
