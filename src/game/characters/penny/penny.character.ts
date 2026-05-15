@@ -8,4 +8,8 @@ registerCharacterScript('penny', ({ B }) => {
   // Example: B.whenLookAt(() => { B.player.say('…'); });
   // Delete this line when you add your first handler.
   void B;
+
+  B.whenLookAt(() => {
+    B.player.say("It's Penny.");
+  });
 });

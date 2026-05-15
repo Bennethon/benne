@@ -1,0 +1,15 @@
+{
+  "id": "Knife",
+  "name": "Knife",
+  "description": "",
+  "onVerb": {
+    "use": true,
+    "look": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "cursorAnimation": "Knife"
+}

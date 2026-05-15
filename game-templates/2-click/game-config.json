@@ -39,15 +39,8 @@
     "flags": {},
     "variables": {},
     "inventory": [
-      "Key",
-      "Chainsaw",
-      "Ladder",
       "Broom",
-      "Lantern",
-      "SheetMusic",
-      "Vacuum",
-      "Candy1",
-      "Newspaper"
+      "Lantern"
     ]
   },
   "cursor": {
@@ -59,6 +52,9 @@
         "loop": true
       },
       "Active": {
+        "loop": true
+      },
+      "Talk": {
         "loop": true
       }
     },

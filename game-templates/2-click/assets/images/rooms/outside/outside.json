@@ -1,0 +1,124 @@
+{ "frames": {
+   "outside 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 600, "h": 180 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
+    "sourceSize": { "w": 600, "h": 180 },
+    "duration": 100
+   },
+   "outside 1.aseprite": {
+    "frame": { "x": 600, "y": 0, "w": 600, "h": 180 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
+    "sourceSize": { "w": 600, "h": 180 },
+    "duration": 100
+   },
+   "outside 2.aseprite": {
+    "frame": { "x": 1200, "y": 0, "w": 600, "h": 180 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
+    "sourceSize": { "w": 600, "h": 180 },
+    "duration": 100
+   },
+   "outside 3.aseprite": {
+    "frame": { "x": 1800, "y": 0, "w": 600, "h": 180 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
+    "sourceSize": { "w": 600, "h": 180 },
+    "duration": 100
+   },
+   "outside 4.aseprite": {
+    "frame": { "x": 0, "y": 180, "w": 600, "h": 180 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
+    "sourceSize": { "w": 600, "h": 180 },
+    "duration": 100
+   },
+   "outside 5.aseprite": {
+    "frame": { "x": 600, "y": 180, "w": 600, "h": 180 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
+    "sourceSize": { "w": 600, "h": 180 },
+    "duration": 100
+   },
+   "outside 6.aseprite": {
+    "frame": { "x": 1200, "y": 180, "w": 600, "h": 180 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
+    "sourceSize": { "w": 600, "h": 180 },
+    "duration": 100
+   },
+   "outside 7.aseprite": {
+    "frame": { "x": 1800, "y": 180, "w": 600, "h": 180 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
+    "sourceSize": { "w": 600, "h": 180 },
+    "duration": 100
+   },
+   "outside 8.aseprite": {
+    "frame": { "x": 0, "y": 360, "w": 600, "h": 180 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
+    "sourceSize": { "w": 600, "h": 180 },
+    "duration": 100
+   },
+   "outside 9.aseprite": {
+    "frame": { "x": 600, "y": 360, "w": 600, "h": 180 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
+    "sourceSize": { "w": 600, "h": 180 },
+    "duration": 100
+   },
+   "outside 10.aseprite": {
+    "frame": { "x": 1200, "y": 360, "w": 600, "h": 180 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
+    "sourceSize": { "w": 600, "h": 180 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta3-x64",
+  "image": "outside.png",
+  "format": "RGBA8888",
+  "size": { "w": 2400, "h": 540 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "Sky", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "Trees", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "BG", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "Rock", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
+   { "name": "RockMoved", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
+   { "name": "LeverPulled", "from": 6, "to": 6, "direction": "forward", "color": "#000000ff" },
+   { "name": "FountainOff", "from": 7, "to": 7, "direction": "forward", "color": "#000000ff" },
+   { "name": "FountainOn", "from": 8, "to": 10, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Sky", "opacity": 255, "blendMode": "normal" },
+   { "name": "Clouds", "opacity": 255, "blendMode": "normal" },
+   { "name": "Trees", "opacity": 255, "blendMode": "normal" },
+   { "name": "Ground", "opacity": 255, "blendMode": "normal" },
+   { "name": "Sidewalk", "opacity": 255, "blendMode": "normal" },
+   { "name": "House", "opacity": 255, "blendMode": "normal" },
+   { "name": "Door", "opacity": 255, "blendMode": "normal" },
+   { "name": "Fountain", "opacity": 255, "blendMode": "normal" },
+   { "name": "Lever", "opacity": 255, "blendMode": "normal" },
+   { "name": "Weird Rock", "opacity": 255, "blendMode": "normal" },
+   { "name": "Hank", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}

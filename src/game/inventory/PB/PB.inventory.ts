@@ -1,35 +1,24 @@
 import { registerInventoryScript } from '@engine/scripting';
 
 registerInventoryScript('PB', ({ B }) => {
-
-  B.whenLookAt(() => {
-    B.say`Hank: It's some peanut butter.`;
-  });
-
-  B.whenUse.doNotActivate(() => {
-    if (B.inventory('PB').animation === 'PB') {
-      B.inventory('PB').animation = 'PB-open';
-      B.say`Hank: I opened the jar.`;
-    } else {
-      B.say`Hank: It's already open.`;
-    }
-  });
+  // "Use" / "Give" on this item will automatically make it active for combining with world targets.
+  // Add B.whenUse / B.whenGive only if you need extra behavior (sound, dialogue, consumption, etc.).
+  // Use B.whenUse.doNotActivate / B.whenGive.doNotActivate if this item should never become active.
+  void B; // keep this until you add real handlers
 
   B.whenInventoryUsedOn('PB', (payload) => {
-    if (payload.itemId === 'Knife') {
-      
+    if (payload.itemId === 'Knife' && payload.verbId === 'use') {
       if (B.inventory('PB').animation === 'PB') {
         B.say`Hank: I need to open the jar first.`;
       } else {
         B.inventory('Knife').animation = 'Knife-PB';
-        B.inventory('Knife').cursorAnimation = 'Knife-PB';
         B.say`Hank: Mmmm... gooey peanut butter.`;
       }
-      
-      return;
     }
-    
-    return false;
   });
 
+  B.whenOpen(() => {
+    B.inventory('PB').animation = 'PB-open';
+    B.say`Hank: I opened the jar.`;
+  });
 });
