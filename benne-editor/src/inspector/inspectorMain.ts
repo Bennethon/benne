@@ -41,6 +41,7 @@ type InspectorPropCard = {
     defaultVerb: string;
     availableVerbs: { id: string; label?: string; preposition?: string }[];
     inventoryUsedOnDefined: boolean;
+    activeCursorOverride: string;
 };
 
 type InspectorHotspotCard = {
@@ -53,6 +54,7 @@ type InspectorHotspotCard = {
     defaultVerb: string;
     availableVerbs: { id: string; label?: string; preposition?: string }[];
     inventoryUsedOnDefined: boolean;
+    activeCursorOverride: string;
 };
 
 type InspectorCharacterCard = {
@@ -139,6 +141,7 @@ type InspectorCharacterState = {
     defaultVerb: string;
     availableVerbs: { id: string; label?: string; preposition?: string }[];
     inventoryUsedOnDefined: boolean;
+    activeCursorOverride: string;
 };
 
 type InspectorGuiSpriteAnchor = '' | 'top-left' | 'center' | 'screen';
@@ -899,6 +902,12 @@ function renderRoom(state: InspectorRoomState): string {
         <select class="prop-tag-select" data-id="${esc(p.id)}" title="Aseprite frame tag shown for this prop">${tagSelectOptions}</select>
         <span class="benne-pg-lbl">Family root</span>
         <input type="text" class="prop-default-animation" data-id="${esc(p.id)}" value="${esc(p.defaultAnimation)}" placeholder="(optional) e.g. door when id differs" title="Optional second root for &lt;root&gt;-* tag grouping alongside prop id" />
+        ${p.clickable
+            ? `<span class="benne-pg-lbl">Active cursor</span>
+        <input type="text" class="prop-active-cursor-override" data-id="${esc(p.id)}" value="${esc(
+              p.activeCursorOverride
+          )}" placeholder="(optional)" title="JSON: activeCursorOverride — game cursor sheet tag while hovering this clickable prop. Empty = game-config cursor.activeAnimation." />`
+            : ''}
       </div>
       <label class="benne-field-label muted small">Description</label>
       <textarea class="benne-card-desc prop-desc" data-id="${esc(p.id)}" rows="2" title="${esc(p.description)}">${esc(p.description)}</textarea>
@@ -934,6 +943,10 @@ function renderRoom(state: InspectorRoomState): string {
         <input type="number" class="hs-z" data-id="${esc(h.id)}" value="${h.zIndex}" />
         <span class="benne-pg-lbl">baseline Y</span>
         <input type="number" step="1" class="hs-baseline" data-id="${esc(h.id)}" value="${h.baseline ?? ''}" placeholder="—" title="Optional room-space Y: walkers with feet below this line draw in front of this hotspot zone" />
+        <span class="benne-pg-lbl">Active cursor</span>
+        <input type="text" class="hs-active-cursor-override" data-id="${esc(h.id)}" value="${esc(
+              h.activeCursorOverride
+          )}" placeholder="(optional)" title="JSON: activeCursorOverride — game cursor sheet tag while hovering this hotspot. Empty = game-config cursor.activeAnimation." />
       </div>
       <label class="benne-field-label muted small">Description</label>
       <textarea class="benne-card-desc hs-desc" data-id="${esc(h.id)}" rows="2" title="${esc(h.description)}">${esc(h.description)}</textarea>
@@ -1751,6 +1764,8 @@ function renderCharacter(state: InspectorCharacterState): string {
           <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="char-clickable" ${state.clickable ? 'checked' : ''} /></label>
           <span class="benne-pg-lbl">movable</span>
           <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="char-movable" ${state.movable ? 'checked' : ''} title="When off, character cannot pathfind-walk (JSON movable: false)" /></label>
+          <span class="benne-pg-lbl">Active cursor override</span>
+          <input type="text" id="char-active-cursor-override" value="${esc(state.activeCursorOverride)}" placeholder="(optional)" title="JSON key: activeCursorOverride — Aseprite tag on the game cursor sheet while hovering this clickable character. Empty = use game-config cursor.activeAnimation. Inventory item cursor still wins." ${state.clickable ? '' : 'disabled'} />
         </div>
         <label class="benne-field-label muted small">Description</label>
         <textarea id="char-description" rows="3">${esc(state.description)}</textarea>
@@ -2093,6 +2108,12 @@ function mountHandlers(state: InspectorRoomState): void {
             propPatch(ta.dataset.id ?? '', { description: ta.value });
         });
     });
+    root.querySelectorAll('.prop-active-cursor-override').forEach((el) => {
+        el.addEventListener('blur', () => {
+            const inp = el as HTMLInputElement;
+            propPatch(inp.dataset.id ?? '', { activeCursorOverride: inp.value });
+        });
+    });
     root.querySelectorAll('.prop-visible, .prop-clickable').forEach((el) => {
         el.addEventListener('change', () => {
             const inp = el as HTMLInputElement;
@@ -2201,6 +2222,14 @@ function mountHandlers(state: InspectorRoomState): void {
         el.addEventListener('change', () => {
             const sel = el as HTMLSelectElement;
             post('applyPatches', { patches: [{ type: 'hotspotField', id: sel.dataset.id, defaultVerb: sel.value }] });
+        });
+    });
+    root.querySelectorAll('.hs-active-cursor-override').forEach((el) => {
+        el.addEventListener('blur', () => {
+            const inp = el as HTMLInputElement;
+            post('applyPatches', {
+                patches: [{ type: 'hotspotField', id: inp.dataset.id, activeCursorOverride: inp.value }]
+            });
         });
     });
 
@@ -2491,7 +2520,9 @@ function collectCharacterMeta(): Record<string, unknown> {
         walkToPoint: readPointFields('char-walk'),
         talkPoint: readPointFields('char-talk'),
         feet: readPointFields('char-feet'),
-        defaultVerb: (document.querySelector('.char-default-verb') as HTMLSelectElement | null)?.value ?? ''
+        defaultVerb: (document.querySelector('.char-default-verb') as HTMLSelectElement | null)?.value ?? '',
+        activeCursorOverride:
+            (document.getElementById('char-active-cursor-override') as HTMLInputElement | null)?.value ?? ''
     };
 }
 
@@ -2503,7 +2534,7 @@ function mountCharacterHandlers(state: InspectorCharacterState): void {
     document.getElementById('btn-open-json-char')?.addEventListener('click', () => {
         post('openRawJson', { characterJsonUri: state.characterJsonUri });
     });
-    ['char-name', 'char-walk-speed', 'char-clickable', 'char-movable', 'char-description', 'char-walk-x', 'char-walk-y', 'char-talk-x', 'char-talk-y', 'char-feet-x', 'char-feet-y'].forEach((id) => {
+    ['char-name', 'char-walk-speed', 'char-clickable', 'char-movable', 'char-description', 'char-walk-x', 'char-walk-y', 'char-talk-x', 'char-talk-y', 'char-feet-x', 'char-feet-y', 'char-active-cursor-override'].forEach((id) => {
         document.getElementById(id)?.addEventListener('blur', flush);
         document.getElementById(id)?.addEventListener('change', flush);
     });

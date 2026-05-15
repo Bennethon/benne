@@ -416,6 +416,9 @@ export class RoomScene extends Phaser.Scene {
   /** `B.hotspot(id)` with an id not in `roomData.hotspots` — warn once per id per room load. */
   private unknownHotspotScriptIdsWarned = new Set<string>();
 
+  /** `activeCursorOverride` tags that are missing on the game cursor sheet — warn once per tag per room load. */
+  private unknownActiveCursorOverrideTagsWarned = new Set<string>();
+
   /**
    * Unregister handle for the snapshot flush hook installed in {@link create} and torn down on
    * {@link Phaser.Scenes.Events.SHUTDOWN}. Null when no hook is registered (preview / pre-create).
@@ -561,6 +564,7 @@ export class RoomScene extends Phaser.Scene {
     this.restoreHotspotActiveOverrides();
     this.unresolvedWalkTargetIdsWarned.clear();
     this.unknownHotspotScriptIdsWarned.clear();
+    this.unknownActiveCursorOverrideTagsWarned.clear();
     this.missingDialogTextOverlaySayWarned = false;
     this.missingDisplayTextOverlayWarned = false;
     this.genericGuiVisibilityBeforeDialog = null;
@@ -4558,7 +4562,7 @@ export class RoomScene extends Phaser.Scene {
 
     const cfg = settings.cursor!;
     const idleKey = cursorPhaserAnimationKey(cfg.idleAnimation.trim());
-    const activeKey = cursorPhaserAnimationKey(cfg.activeAnimation.trim());
+    const defaultActiveAuthor = cfg.activeAnimation.trim();
 
     // Cutscene: show busy animation if configured and exists, otherwise hide the cursor.
     if (this.cutsceneDepth > 0) {
@@ -4582,14 +4586,18 @@ export class RoomScene extends Phaser.Scene {
     // Outside cutscene: restore visibility in case it was hidden.
     sprite.setVisible(true);
 
-    const overClickable = this.resolvePointerVerbStyleActiveCursor(
-      this.sortRoomPointerHitStack(pointer),
-    );
+    const hover = this.resolvePointerVerbStyleHoverCursor(this.sortRoomPointerHitStack(pointer));
     // Active inventory cursor clips take precedence regardless of hover target.
     const invClip = this.tryActiveInventoryCursorClip();
+    const resolvedActiveAuthor = invClip
+      ? defaultActiveAuthor
+      : hover.useActiveVerbCursor
+        ? this.resolveGameCursorActiveAuthorFromOptionalOverride(hover.overrideAuthor) || defaultActiveAuthor
+        : defaultActiveAuthor;
+    const activeKey = cursorPhaserAnimationKey(resolvedActiveAuthor);
     const visualKey = invClip
       ? `inv|${invClip.textureKey}|${invClip.animKey}`
-      : overClickable
+      : hover.useActiveVerbCursor
         ? `verb|${activeKey}`
         : `idle|${idleKey}`;
 
@@ -4603,7 +4611,7 @@ export class RoomScene extends Phaser.Scene {
       sprite.play(invClip.animKey);
       return;
     }
-    if (!overClickable) {
+    if (!hover.useActiveVerbCursor) {
       sprite.setTexture(CURSOR_TEXTURE_KEY);
       sprite.play(idleKey);
       return;
@@ -4613,37 +4621,93 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Whether the verb-style cursor (idle vs active clip) should be **active**.
-   * Walks hits top-first (sorted): during cutscene everything returns false; during scripted-dialog
-   * suppression only, GUI / inventory still count as interactive; props / hotspots / clickable NPCs
-   * do not flip to active while any input suppression is in effect.
+   * When `authorTag` is a non-empty cursor-sheet tag that exists on this scene, returns the trimmed
+   * author tag; otherwise returns empty string (caller falls back to `game-config.json` `cursor.activeAnimation`).
    */
-  private resolvePointerVerbStyleActiveCursor(hits: Phaser.GameObjects.GameObject[]): boolean {
+  private resolveGameCursorActiveAuthorFromOptionalOverride(authorTag: string): string {
+    const t = authorTag.trim();
+    if (t.length === 0) {
+      return '';
+    }
+    const key = cursorPhaserAnimationKey(t);
+    if (this.anims.exists(key)) {
+      return t;
+    }
+    if (import.meta.env.DEV && !this.unknownActiveCursorOverrideTagsWarned.has(t)) {
+      this.unknownActiveCursorOverrideTagsWarned.add(t);
+      console.warn(
+        `[Benne] activeCursorOverride "${t}" is not a frame tag on the game cursor sheet — using cursor.activeAnimation.`,
+      );
+    }
+    return '';
+  }
+
+  /**
+   * Walks hits top-first (sorted): GUI / inventory slots request the active verb cursor; room
+   * hotspots / clickable props / clickable NPCs do so unless scripted-dialog input suppression is on.
+   * {@link overrideAuthor} is the raw JSON `activeCursorOverride` for that room target (may be empty).
+   */
+  private resolvePointerVerbStyleHoverCursor(hits: Phaser.GameObjects.GameObject[]): {
+    useActiveVerbCursor: boolean;
+    overrideAuthor: string;
+  } {
     if (this.cutsceneDepth > 0) {
-      return false;
+      return { useActiveVerbCursor: false, overrideAuthor: '' };
     }
     const dialogSuppressed = this.isScriptedDialogInputSuppressed();
     for (const o of hits) {
       const go = o as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown };
       if (typeof go.getData === 'function') {
         if (go.getData('benneGuiButton') === true || go.getData('benneInventorySlot') === true) {
-          return true;
+          return { useActiveVerbCursor: true, overrideAuthor: '' };
         }
         if (go.getData('benneHotspot') === true) {
-          return !dialogSuppressed;
+          if (dialogSuppressed) {
+            return { useActiveVerbCursor: false, overrideAuthor: '' };
+          }
+          const hid = go.getData('benneHotspotId') as string | undefined;
+          const hs = hid ? this.roomData.hotspots.find((h) => h.id === hid) : undefined;
+          const raw = hs?.activeCursorOverride;
+          return {
+            useActiveVerbCursor: true,
+            overrideAuthor: typeof raw === 'string' ? raw.trim() : '',
+          };
         }
         const charData = go.getData('character') as CharacterData | undefined;
         if (charData && go.getData('isPlayer') !== true && charData.clickable) {
-          return !dialogSuppressed;
+          if (dialogSuppressed) {
+            return { useActiveVerbCursor: false, overrideAuthor: '' };
+          }
+          const raw = charData.activeCursorOverride;
+          return {
+            useActiveVerbCursor: true,
+            overrideAuthor: typeof raw === 'string' ? raw.trim() : '',
+          };
         }
       }
-      for (const propSprite of this.propSpritesById.values()) {
+      let propHitThisObject = false;
+      for (const [propId, propSprite] of this.propSpritesById) {
         if (propSprite === o) {
-          return !dialogSuppressed;
+          propHitThisObject = true;
+          if (dialogSuppressed) {
+            return { useActiveVerbCursor: false, overrideAuthor: '' };
+          }
+          const row = this.roomData.props?.find((p) => p.id === propId);
+          if (row?.clickable === true) {
+            const raw = row.activeCursorOverride;
+            return {
+              useActiveVerbCursor: true,
+              overrideAuthor: typeof raw === 'string' ? raw.trim() : '',
+            };
+          }
+          break;
         }
+      }
+      if (propHitThisObject) {
+        continue;
       }
     }
-    return false;
+    return { useActiveVerbCursor: false, overrideAuthor: '' };
   }
 }
 

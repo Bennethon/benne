@@ -631,6 +631,7 @@ type WebviewPatch =
           tag?: string;
           defaultAnimation?: string;
           defaultVerb?: string;
+          activeCursorOverride?: string;
       }
     | {
           type: 'propAnimation';
@@ -649,6 +650,7 @@ type WebviewPatch =
           zIndex?: number;
           baseline?: number | null;
           defaultVerb?: string;
+          activeCursorOverride?: string;
       }
     | {
           type: 'characterField';
@@ -677,6 +679,7 @@ type WebviewPatch =
           talkPoint?: { x: number; y: number } | null;
           feet?: { x: number; y: number } | null;
           defaultVerb?: string;
+          activeCursorOverride?: string;
       }
     | { type: 'characterAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
     | { type: 'guiMeta'; name?: string; description?: string; rootVisibleAtLoad?: boolean }
@@ -1320,7 +1323,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 alpha: p.alpha,
                 tag: p.tag,
                 defaultAnimation: p.defaultAnimation,
-                defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined
+                defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined,
+                activeCursorOverride: typeof p.activeCursorOverride === 'string' ? p.activeCursorOverride : undefined
             });
             return;
         }
@@ -1354,7 +1358,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 active: p.active,
                 zIndex: p.zIndex,
                 baseline: p.baseline,
-                defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined
+                defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined,
+                activeCursorOverride: typeof p.activeCursorOverride === 'string' ? p.activeCursorOverride : undefined
             });
             return;
         }
@@ -1436,7 +1441,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 walkToPoint: p.walkToPoint,
                 talkPoint: p.talkPoint,
                 feet: p.feet,
-                defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined
+                defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined,
+                activeCursorOverride: typeof p.activeCursorOverride === 'string' ? p.activeCursorOverride : undefined
             });
             return;
         }

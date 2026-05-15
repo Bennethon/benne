@@ -58,5 +58,6 @@
         "y": 50
       }
     ]
-  }
+  },
+  "activeCursorOverride": "Talk"
 }

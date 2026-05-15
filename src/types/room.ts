@@ -51,6 +51,12 @@ export interface RoomHotspotData {
   defaultVerb?: string;
   /** Enables object-level fallback dispatch when no supported verb matches. */
   onVerbFallback?: boolean;
+  /**
+   * Optional Aseprite tag on the **game** cursor sheet (`game-config.json` `cursor` + `images/cursor/`).
+   * When set and the pointer hovers this hotspot, the custom cursor uses this tag instead of
+   * `cursor.activeAnimation`. Active inventory with `cursorAnimation` still wins.
+   */
+  activeCursorOverride?: string;
 }
 
 /** Named marker in room space (spawns, triggers, script anchors). */
@@ -180,6 +186,11 @@ export interface RoomPropInstance {
   defaultVerb?: string;
   /** Enables object-level fallback dispatch when no supported verb matches (before global handlers). */
   onVerbFallback?: boolean;
+  /**
+   * Optional Aseprite tag on the **game** cursor sheet. When set and the pointer hovers this clickable
+   * prop, the cursor uses this tag instead of `cursor.activeAnimation`. Inventory cursor clips take precedence.
+   */
+  activeCursorOverride?: string;
   /** Per-tag playback (loop, frameDuration); keys match Aseprite tags on this room's sheet. */
   animations?: CharacterAnimationsConfig;
   /**
