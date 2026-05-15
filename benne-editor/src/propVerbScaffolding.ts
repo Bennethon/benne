@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { saveDirtyTypeScriptBeforeWorkspaceFsRead } from './saveDirtyScriptBeforeFsRead';
-import { formatJson } from './roomScaffolding';
+import { formatJson, gameRootContaining, resolveRoomWidthHeight, defaultClickablePropInteractionFields } from './roomScaffolding';
 import { readRoomProps } from './gameDiscovery';
 import {
     benneRoomScriptQualifier,
@@ -101,9 +101,16 @@ async function writeBenneRoomVerbStub(
     return { start: inserted.start, end: inserted.end };
 }
 
-/**
- * Sets `clickable: true` on a prop in room JSON (author must still add a collider in the preview / JSON).
- */
+function propNeedsDefaultCollider(prop: Record<string, unknown>): boolean {
+    const collider = prop.collider as { points?: unknown } | undefined;
+    const pts = collider?.points;
+    if (!Array.isArray(pts)) {
+        return true;
+    }
+    return pts.length < 3;
+}
+
+/** Sets `clickable: true` on a prop and seeds collider + walk/look when none exists (same defaults as new hotspots in the room preview). */
 export async function makeRoomPropClickable(
     roomJsonUri: vscode.Uri,
     propId: string
@@ -137,11 +144,25 @@ export async function makeRoomPropClickable(
         void vscode.window.showInformationMessage('This prop is already clickable.');
         return false;
     }
-    prop.clickable = true;
+    const seededCollider = propNeedsDefaultCollider(prop);
+    if (seededCollider) {
+        const gameRoot = await gameRootContaining(roomJsonUri);
+        if (!gameRoot) {
+            void vscode.window.showErrorMessage('Could not locate BENNE game root for this room.');
+            return false;
+        }
+        const { width: roomW, height: roomH } = await resolveRoomWidthHeight(data, gameRoot);
+        prop.clickable = true;
+        Object.assign(prop, defaultClickablePropInteractionFields(roomW, roomH));
+    } else {
+        prop.clickable = true;
+    }
     data.props = props;
     await vscode.workspace.fs.writeFile(roomJsonUri, formatJson(data));
     void vscode.window.showInformationMessage(
-        `Prop "${propId}" is now clickable. Add a collider (≥3 points) in the room preview or JSON so hit-testing works.`
+        seededCollider
+            ? `Prop "${propId}" is now clickable with a default collider—adjust it in the room preview if needed.`
+            : `Prop "${propId}" is now clickable.`
     );
     return true;
 }
