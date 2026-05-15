@@ -31,10 +31,15 @@ function gameConfigJsonUri(folder: vscode.WorkspaceFolder): vscode.Uri {
     return vscode.Uri.joinPath(folder.uri, 'src', 'game', 'game-config.json');
 }
 
+function globalScriptTsUri(folder: vscode.WorkspaceFolder): vscode.Uri {
+    return vscode.Uri.joinPath(folder.uri, 'src', 'game', 'globalScript.ts');
+}
+
 export type MainTreeNode =
     | { kind: 'hint'; key: string; message: string }
     | { kind: 'workspace'; folder: vscode.WorkspaceFolder }
     | { kind: 'gameConfig'; folder: vscode.WorkspaceFolder; uri: vscode.Uri }
+    | { kind: 'globalScript'; folder: vscode.WorkspaceFolder; uri: vscode.Uri }
     | { kind: 'roomsGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'charsGroup'; folder: vscode.WorkspaceFolder }
     | { kind: 'guisGroup'; folder: vscode.WorkspaceFolder }
@@ -361,6 +366,20 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
         );
     }
 
+    /** Filter match for the fixed "Global Script" tree row (`src/game/globalScript.ts`). */
+    private globalScriptMatchesFilter(q: string): boolean {
+        if (!q) {
+            return true;
+        }
+        return (
+            textMatches('global script', q) ||
+            textMatches('globalscript', q) ||
+            textMatches('global-script', q) ||
+            textMatches('globalscript.ts', q) ||
+            textMatches('global script.ts', q)
+        );
+    }
+
     private async roomDeepMatches(
         room: { uri: vscode.Uri; id: string; name: string },
         q: string
@@ -441,6 +460,14 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 item.resourceUri = element.uri;
                 item.iconPath = new vscode.ThemeIcon('settings-gear');
                 item.contextValue = 'benneGameConfig';
+                return item;
+            }
+            case 'globalScript': {
+                const item = new vscode.TreeItem('Global Script', vscode.TreeItemCollapsibleState.None);
+                item.id = `globalScript:${element.folder.uri.toString()}`;
+                item.resourceUri = element.uri;
+                item.iconPath = new vscode.ThemeIcon('code');
+                item.contextValue = 'benneGlobalScript';
                 return item;
             }
             case 'roomsGroup': {
@@ -721,6 +748,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 if (!fq || this.gameConfigMatchesFilter(fq)) {
                     nodes.push({ kind: 'gameConfig', folder: f, uri: gameConfigJsonUri(f) });
                 }
+                if (!fq || this.globalScriptMatchesFilter(fq)) {
+                    nodes.push({ kind: 'globalScript', folder: f, uri: globalScriptTsUri(f) });
+                }
                 if (!fq || (await this.folderHasAnyMatchingRoom(f, fq))) {
                     nodes.push({ kind: 'roomsGroup', folder: f });
                 }
@@ -755,6 +785,7 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 for (const folder of gameFolders) {
                     const any =
                         this.gameConfigMatchesFilter(fq) ||
+                        this.globalScriptMatchesFilter(fq) ||
                         (await this.folderHasAnyMatchingRoom(folder, fq)) ||
                         (await this.folderHasAnyMatchingCharacter(folder, fq)) ||
                         (await this.folderHasAnyMatchingGui(folder, fq)) ||
@@ -788,6 +819,13 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     uri: gameConfigJsonUri(element.folder)
                 });
             }
+            if (!fq || this.globalScriptMatchesFilter(fq)) {
+                nodes.push({
+                    kind: 'globalScript',
+                    folder: element.folder,
+                    uri: globalScriptTsUri(element.folder)
+                });
+            }
             if (!fq || (await this.folderHasAnyMatchingRoom(element.folder, fq))) {
                 nodes.push({ kind: 'roomsGroup', folder: element.folder });
             }
@@ -819,6 +857,10 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
         }
 
         if (element.kind === 'gameConfig') {
+            return [];
+        }
+
+        if (element.kind === 'globalScript') {
             return [];
         }
 
