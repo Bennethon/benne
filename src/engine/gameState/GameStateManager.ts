@@ -389,6 +389,7 @@ export class GameStateManager {
     if (!stackable) {
       delete this.state.inventory[itemId];
       this.emitInventory('remove', itemId);
+      this.disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(itemId);
       return true;
     }
     const q = Math.max(1, Math.floor(quantity));
@@ -399,7 +400,24 @@ export class GameStateManager {
       this.state.inventory[itemId] = next;
     }
     this.emitInventory('remove', itemId);
+    this.disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(itemId);
     return true;
+  }
+
+  /**
+   * Script / engine inventory removal: if the player had this item armed for use-on-target and
+   * it is no longer carried, clear active verb + active inventory regardless of
+   * `dropWhenInventoryUsed` (that flag only affects post–use-on-target click policy).
+   */
+  private disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(removedItemId: string): void {
+    if (this.activeInventoryItemId !== removedItemId) {
+      return;
+    }
+    if (this.hasInInventory(removedItemId)) {
+      return;
+    }
+    this.clearActiveVerb();
+    this.clearActiveInventoryItem();
   }
 
   clearInventory(): void {

@@ -71,7 +71,6 @@ registerRoomScript(({ B }) => {
       B.walkToClicked();
       B.state.setFlag('unlockedDoor', true);
       B.inventory.remove('Key');
-      B.clearActiveInventory();
       B.player.say('The door is unlocked.');
       return;
     }
@@ -94,7 +93,6 @@ registerRoomScript(({ B }) => {
       B.walkToClicked();
       B.say`Hank: Here, Penny! Have a sandwich.`;
       B.inventory.remove('Sammich');
-      B.clearActiveInventory();
       B.character('penny').say`Thank you! Here's the key.`;
       B.inventory.add('Key');
       return;
