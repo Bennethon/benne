@@ -220,7 +220,36 @@
       "zIndex": 10,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 179,
+            "y": 127
+          },
+          {
+            "x": 192,
+            "y": 127
+          },
+          {
+            "x": 192,
+            "y": 133
+          },
+          {
+            "x": 178,
+            "y": 133
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 169,
+        "y": 157
+      },
+      "lookAtPoint": {
+        "x": 185,
+        "y": 132
+      },
+      "baseline": 132
     },
     {
       "id": "Knife",
@@ -231,7 +260,36 @@
       "zIndex": 9,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 162,
+            "y": 127
+          },
+          {
+            "x": 157,
+            "y": 132
+          },
+          {
+            "x": 173,
+            "y": 137
+          },
+          {
+            "x": 174,
+            "y": 132
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 149,
+        "y": 151
+      },
+      "lookAtPoint": {
+        "x": 168,
+        "y": 134
+      },
+      "baseline": 134
     },
     {
       "id": "PeanutButter",
@@ -242,7 +300,36 @@
       "zIndex": 8,
       "visible": true,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 199,
+            "y": 119
+          },
+          {
+            "x": 199,
+            "y": 129
+          },
+          {
+            "x": 207,
+            "y": 129
+          },
+          {
+            "x": 207,
+            "y": 119
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 217,
+        "y": 140
+      },
+      "lookAtPoint": {
+        "x": 203,
+        "y": 127
+      },
+      "baseline": 128
     },
     {
       "id": "Table",

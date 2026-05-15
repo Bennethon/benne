@@ -107,6 +107,7 @@ registerRoomScript(({ B }) => {
   });
 
   B.whenLookAt('Bread', () => {
+    B.faceClicked();
     B.say`Hank: It's some bread.`;
   });
 
@@ -128,6 +129,7 @@ registerRoomScript(({ B }) => {
   });
 
   B.whenLookAt('PeanutButter', () => {
+    B.faceClicked();
     B.say`Hank: It's some peanut butter.`;
   });
 
