@@ -202,7 +202,7 @@ export type GameSettingsCursorHotspot =
 export interface GameSettingsCursor {
   /** Aseprite tag (Phaser animation key) when the pointer is not over a clickable target. */
   idleAnimation: string;
-  /** Aseprite tag when the pointer is over a prop, hotspot, clickable character, or GUI button. */
+  /** Aseprite tag when the pointer is over a prop, hotspot, clickable character, or GUI button (unless a per-target `activeCursorOverride` applies). */
   activeAnimation: string;
   /**
    * Optional Aseprite tag to play on the cursor sprite while a cutscene is active.

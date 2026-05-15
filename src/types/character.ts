@@ -89,4 +89,9 @@ export interface CharacterData {
   defaultVerb?: string;
   /** Enables character fallback dispatch when no supported verb matches. */
   onVerbFallback?: boolean;
+  /**
+   * Optional Aseprite tag on the **game** cursor sheet. When set and the pointer hovers this clickable
+   * character, the cursor uses this tag instead of `cursor.activeAnimation`. Inventory cursor clips take precedence.
+   */
+  activeCursorOverride?: string;
 }

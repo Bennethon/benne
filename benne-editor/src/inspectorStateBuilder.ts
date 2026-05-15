@@ -74,6 +74,8 @@ export type InspectorPropCard = {
     availableVerbs: GameConfigVerbEntry[];
     /** Room script has `B.whenInventoryUsedOn` for this prop id (Inspector chip highlight). */
     inventoryUsedOnDefined: boolean;
+    /** Game cursor sheet tag while hovering this clickable prop; empty when unset in JSON. */
+    activeCursorOverride: string;
 };
 
 export type InspectorHotspotCard = {
@@ -88,6 +90,8 @@ export type InspectorHotspotCard = {
     availableVerbs: GameConfigVerbEntry[];
     /** Room script has `B.whenInventoryUsedOn` for this hotspot id. */
     inventoryUsedOnDefined: boolean;
+    /** Game cursor sheet tag while hovering this hotspot; empty when unset in JSON. */
+    activeCursorOverride: string;
 };
 
 export type InspectorCharacterCard = {
@@ -185,6 +189,8 @@ export type InspectorCharacterState = {
     availableVerbs: GameConfigVerbEntry[];
     /** Character script has `B.whenInventoryUsedOn` for this definition id. */
     inventoryUsedOnDefined: boolean;
+    /** Game cursor sheet tag while hovering this clickable character; empty when unset in JSON. */
+    activeCursorOverride: string;
 };
 
 export type InspectorGuiSpriteAnchor = '' | 'top-left' | 'center' | 'screen';
@@ -870,7 +876,9 @@ async function buildRoomInspectorState(
                 defaultVerb: readDefaultVerbField(o),
                 availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS),
                 inventoryUsedOnDefined:
-                    entry.clickable === true ? scriptRegistersWhenInventoryUsedOn(roomScriptText, id) : false
+                    entry.clickable === true ? scriptRegistersWhenInventoryUsedOn(roomScriptText, id) : false,
+                activeCursorOverride:
+                    typeof o.activeCursorOverride === 'string' ? o.activeCursorOverride.trim() : ''
             });
         }
     }
@@ -915,7 +923,9 @@ async function buildRoomInspectorState(
                 defaultVerb: readDefaultVerbField(o),
                 availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS),
                 inventoryUsedOnDefined:
-                    entry.active !== false ? scriptRegistersWhenInventoryUsedOn(roomScriptText, id) : false
+                    entry.active !== false ? scriptRegistersWhenInventoryUsedOn(roomScriptText, id) : false,
+                activeCursorOverride:
+                    typeof o.activeCursorOverride === 'string' ? o.activeCursorOverride.trim() : ''
             });
         }
     }
@@ -1165,7 +1175,9 @@ async function buildCharacterInspectorState(
         verbs,
         defaultVerb: readDefaultVerbField(data),
         availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS),
-        inventoryUsedOnDefined: clickable ? scriptRegistersWhenInventoryUsedOn(scriptText, characterId) : false
+        inventoryUsedOnDefined: clickable ? scriptRegistersWhenInventoryUsedOn(scriptText, characterId) : false,
+        activeCursorOverride:
+            typeof data.activeCursorOverride === 'string' ? data.activeCursorOverride.trim() : ''
     };
 }
 

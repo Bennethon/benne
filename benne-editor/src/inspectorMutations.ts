@@ -339,6 +339,8 @@ export function updatePropFields(
         defaultVerb?: string;
         /** Room-space Y; `null` clears. */
         baseline?: number | null;
+        /** Game cursor sheet tag; empty string removes from JSON. */
+        activeCursorOverride?: string;
     }
 ): { ok: true } | { ok: false; message: string } {
     const props = propsArray(data);
@@ -389,6 +391,14 @@ export function updatePropFields(
             prop.baseline = fields.baseline;
         }
     }
+    if (fields.activeCursorOverride !== undefined) {
+        const t = fields.activeCursorOverride.trim();
+        if (t.length === 0) {
+            delete prop.activeCursorOverride;
+        } else {
+            prop.activeCursorOverride = t;
+        }
+    }
     return { ok: true };
 }
 
@@ -414,6 +424,8 @@ export function updateHotspotFields(
         defaultVerb?: string;
         /** Room-space Y; `null` clears. */
         baseline?: number | null;
+        /** Game cursor sheet tag; empty string removes from JSON. */
+        activeCursorOverride?: string;
     }
 ): { ok: true } | { ok: false; message: string } {
     const list = hotspotsArray(data);
@@ -438,6 +450,14 @@ export function updateHotspotFields(
             delete hs.baseline;
         } else {
             hs.baseline = fields.baseline;
+        }
+    }
+    if (fields.activeCursorOverride !== undefined) {
+        const t = fields.activeCursorOverride.trim();
+        if (t.length === 0) {
+            delete hs.activeCursorOverride;
+        } else {
+            hs.activeCursorOverride = t;
         }
     }
     return { ok: true };
@@ -649,6 +669,8 @@ export function updateCharacterFields(
         talkPoint?: { x: number; y: number } | null;
         feet?: { x: number; y: number } | null;
         defaultVerb?: string;
+        /** Game cursor sheet tag while hovering this clickable character; empty removes from JSON. */
+        activeCursorOverride?: string;
     }
 ): { ok: true } {
     if (fields.name !== undefined) {
@@ -692,6 +714,14 @@ export function updateCharacterFields(
             data.feet = fields.feet;
         } else {
             delete data.feet;
+        }
+    }
+    if (fields.activeCursorOverride !== undefined) {
+        const t = fields.activeCursorOverride.trim();
+        if (t.length === 0) {
+            delete data.activeCursorOverride;
+        } else {
+            data.activeCursorOverride = t;
         }
     }
     return { ok: true };
