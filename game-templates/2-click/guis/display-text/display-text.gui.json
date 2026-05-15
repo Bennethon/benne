@@ -10,7 +10,7 @@
     {
       "type": "nineSliceImage",
       "id": "displayTextBg",
-      "x": 176,
+      "x": 160,
       "y": 99,
       "width": 200,
       "height": 66,
@@ -32,9 +32,9 @@
     {
       "type": "text",
       "id": "text",
-      "x": 176,
+      "x": 160,
       "y": 70,
-      "text": "",
+      "text": "Even if a woodchuck could chuck wood and even if a woodchuck would chuck wood, should a woodchuck chuck wood?",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
       "color": "#ffffff",

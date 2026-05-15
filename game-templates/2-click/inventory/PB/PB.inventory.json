@@ -1,0 +1,15 @@
+{
+  "id": "PB",
+  "name": "PB",
+  "description": "",
+  "onVerb": {
+    "look": true,
+    "use": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "cursorAnimation": "PB"
+}

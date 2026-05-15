@@ -1,5 +1,5 @@
 {
-  "startRoomId": "office",
+  "startRoomId": "apartment",
   "rooms": [
     {
       "id": "apartment",
@@ -16,10 +16,6 @@
     {
       "id": "garage",
       "definition": "garage/garage.room.json"
-    },
-    {
-      "id": "office",
-      "definition": "office/office.room.json"
     },
     {
       "id": "outside",
