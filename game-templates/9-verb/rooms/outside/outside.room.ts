@@ -40,12 +40,7 @@ registerRoomScript(({ B }) => {
 
   const handleOpenOrUseDoor = () => {
     B.walkToClicked();
-
-    if (B.state.getFlag('unlockedDoor')) {
-      B.room.changeTo('apartment');
-    } else {
-      B.say`Hank: The door is locked.`;
-    }
+    B.room.changeTo('apartment');
   };
   
   B.whenOpen('door', handleOpenOrUseDoor); 
@@ -96,7 +91,6 @@ registerRoomScript(({ B }) => {
 
   const handlePushOrPullLever = () => {
     B.walkToClicked();
-
     B.say`Hank: Let's see what this does...`;
     B.prop('RockMoved').hide();
     B.prop('LeverPulled').show();

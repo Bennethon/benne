@@ -150,7 +150,33 @@
       "y": 118
     }
   ],
-  "regions": [],
+  "regions": [
+    {
+      "id": "distance",
+      "active": true,
+      "points": [
+        {
+          "x": 127,
+          "y": 105
+        },
+        {
+          "x": 600,
+          "y": 101
+        },
+        {
+          "x": 600,
+          "y": 134
+        },
+        {
+          "x": 126,
+          "y": 137
+        }
+      ],
+      "scaleTop": 0.1,
+      "scaleBottom": 1,
+      "scaleWalkSpeed": true
+    }
+  ],
   "props": [
     {
       "id": "BG",
@@ -323,7 +349,7 @@
       "zIndex": 12,
       "visible": false,
       "alpha": 1,
-      "clickable": true,
+      "clickable": false,
       "collider": {
         "points": [
           {
@@ -405,7 +431,7 @@
         "RockMoved": {}
       },
       "zIndex": 12,
-      "visible": true,
+      "visible": false,
       "alpha": 1,
       "clickable": true,
       "collider": {
