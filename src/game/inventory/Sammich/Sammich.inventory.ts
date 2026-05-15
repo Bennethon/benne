@@ -3,7 +3,7 @@ import { registerInventoryScript } from '@engine/scripting';
 registerInventoryScript('Sammich', ({ B }) => {
 
   B.whenLookAt(() => {
-    // TODO
+    B.say`Hank: It looks delicious!`;
   });
 
   B.whenUse(() => {

@@ -7,6 +7,6 @@ registerInventoryScript('Knife', ({ B }) => {
   });
 
   B.whenLookAt(() => {
-    // TODO
+    B.say`Hank: It's a knife.`;
   });
 });
