@@ -275,6 +275,12 @@ export function activate(context: vscode.ExtensionContext): void {
             await openDocumentPinned(node.uri);
             return;
         }
+        if (node.kind === 'globalScript') {
+            await resetBenneEditorSurface();
+            selection.clearFocus();
+            await openDocumentPinned(node.uri);
+            return;
+        }
         if (node.kind === 'room') {
             const sameRoomContext =
                 selection.focus.kind === 'room' &&
