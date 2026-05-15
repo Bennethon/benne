@@ -1,0 +1,1 @@
+import{t as e}from"../benne-play.js";e(({B:e})=>{});

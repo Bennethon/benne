@@ -137,14 +137,15 @@ function insertPointOnEdge(pts: Point2[], edgeIdx: number, wx: number, wy: numbe
     pts.splice(edgeIdx + 1, 0, { x: ix, y: iy });
 }
 
-function defaultStandPointForProp(prop: RoomPropInstance): Point2 {
+function baselineDisplayWorldYForProp(prop: RoomPropInstance, roomH: number): number {
+    if (typeof prop.baseline === 'number' && Number.isFinite(prop.baseline)) {
+        return prop.baseline;
+    }
     const c = prop.collider?.points;
     if (c && c.length > 0) {
-        return centroidFromPoints(c);
+        return centroidFromPoints(c).y;
     }
-    const x = prop.x ?? 0;
-    const y = prop.y ?? 0;
-    return { x, y };
+    return Math.round(roomH / 2);
 }
 
 function centroidFromPoints(c: Point2[]): Point2 {
@@ -155,13 +156,6 @@ function centroidFromPoints(c: Point2[]): Point2 {
         sy += p.y;
     }
     return { x: Math.round(sx / c.length), y: Math.round(sy / c.length) };
-}
-
-function baselineDisplayWorldYForProp(prop: RoomPropInstance): number {
-    if (typeof prop.baseline === 'number' && Number.isFinite(prop.baseline)) {
-        return prop.baseline;
-    }
-    return defaultStandPointForProp(prop).y;
 }
 
 function baselineDisplayWorldYForHotspot(h: RoomHotspotData): number {
@@ -495,11 +489,12 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 },
             ];
             const roomWGuide = this.room.size?.width ?? getInternalWidth();
+            const roomHGuide = this.room.size?.height ?? getInternalHeight();
             let baselineWorldY = 0;
             if (polygonEditBridge.mode === 'propCollider') {
                 const p = this.getActiveProp();
                 if (p) {
-                    baselineWorldY = baselineDisplayWorldYForProp(p);
+                    baselineWorldY = baselineDisplayWorldYForProp(p, roomHGuide);
                 }
             } else {
                 const h = this.getActiveHotspot();
@@ -634,13 +629,27 @@ export class RoomPolygonEditScene extends Phaser.Scene {
     }
 
     private ensurePropWalkLook(prop: RoomPropInstance): void {
+        const roomW = this.room.size?.width ?? getInternalWidth();
+        const roomH = this.room.size?.height ?? getInternalHeight();
         if (!prop.collider) {
             prop.collider = { points: [] };
         }
         if (!prop.collider.points) {
             prop.collider.points = [];
         }
-        const base = defaultStandPointForProp(prop);
+        const pts = prop.collider.points;
+        if (pts.length < MIN_POINTS) {
+            const cx = Math.round(roomW / 2);
+            const cy = Math.round(roomH / 2);
+            const s = 24;
+            prop.collider.points = [
+                { x: cx - s, y: cy - s },
+                { x: cx + s, y: cy - s },
+                { x: cx + s, y: cy + s },
+                { x: cx - s, y: cy + s },
+            ];
+        }
+        const base = centroidFromPoints(prop.collider.points);
         if (!prop.walkToPoint) {
             prop.walkToPoint = { x: base.x, y: base.y };
         }
@@ -733,7 +742,8 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             if (!p) {
                 return false;
             }
-            worldY = baselineDisplayWorldYForProp(p);
+            const roomH = this.room.size?.height ?? getInternalHeight();
+            worldY = baselineDisplayWorldYForProp(p, roomH);
         } else if (polygonEditBridge.mode === 'hotspotPolygon') {
             const h = this.getActiveHotspot();
             if (!h) {

@@ -47,13 +47,13 @@ export async function pickWorkspaceFolder(
     return picked?.folder;
 }
 
-async function gameRootContaining(roomJsonUri: vscode.Uri): Promise<vscode.Uri | undefined> {
+export async function gameRootContaining(roomJsonUri: vscode.Uri): Promise<vscode.Uri | undefined> {
     const folders = await findBenneGameFolders();
     return folders.find((f) => roomJsonUri.fsPath.startsWith(f.uri.fsPath))?.uri;
 }
 
 /** Prefer `room.size` when valid; otherwise `game-config.json` resolution. */
-async function resolveRoomWidthHeight(
+export async function resolveRoomWidthHeight(
     data: Record<string, unknown>,
     gameRoot: vscode.Uri
 ): Promise<{ width: number; height: number }> {
@@ -97,6 +97,24 @@ function defaultCenteredSquarePoints(
         { x: cx + s, y: cy + s },
         { x: cx - s, y: cy + s }
     ];
+}
+
+/**
+ * Collider + walk/look seed for new clickable props — matches room-preview `ensureHotspotWalkLook`
+ * (centered 48×48 square, walk/look at polygon centroid).
+ */
+export function defaultClickablePropInteractionFields(roomW: number, roomH: number): {
+    collider: { points: { x: number; y: number }[] };
+    walkToPoint: { x: number; y: number };
+    lookAtPoint: { x: number; y: number };
+} {
+    const { cx, cy } = roomCenterFromExtents(roomW, roomH);
+    const halfSide = 24;
+    return {
+        collider: { points: defaultCenteredSquarePoints(halfSide, roomW, roomH) },
+        walkToPoint: { x: cx, y: cy },
+        lookAtPoint: { x: cx + 12, y: cy },
+    };
 }
 
 /**
@@ -400,6 +418,17 @@ export async function runAddRoomPropWizard(
         return;
     }
 
+    let clickableSeed: ReturnType<typeof defaultClickablePropInteractionFields> | undefined;
+    if (clickable) {
+        const gameRoot = await gameRootContaining(target.roomJsonUri);
+        if (!gameRoot) {
+            void vscode.window.showErrorMessage('Could not locate BENNE game root for this room.');
+            return;
+        }
+        const { width: roomW, height: roomH } = await resolveRoomWidthHeight(data, gameRoot);
+        clickableSeed = defaultClickablePropInteractionFields(roomW, roomH);
+    }
+
     const zIndex = nextPropZIndexFromProps(props);
 
     const newProp: Record<string, unknown> = {
@@ -411,6 +440,7 @@ export async function runAddRoomPropWizard(
     };
     if (clickable) {
         newProp.clickable = true;
+        Object.assign(newProp, clickableSeed!);
     }
     props.push(newProp);
 
@@ -648,6 +678,17 @@ export async function runImportPropsFromAsepriteTags(
         }
         const clickable = clickablePick.label === 'Yes';
 
+        let clickableSeed: ReturnType<typeof defaultClickablePropInteractionFields> | undefined;
+        if (clickable) {
+            const gameRoot = await gameRootContaining(roomRef.roomJsonUri);
+            if (!gameRoot) {
+                void vscode.window.showErrorMessage('Could not locate BENNE game root for this room.');
+                return;
+            }
+            const { width: roomW, height: roomH } = await resolveRoomWidthHeight(data, gameRoot);
+            clickableSeed = defaultClickablePropInteractionFields(roomW, roomH);
+        }
+
         let z = nextPropZIndexFromProps(props);
         for (const tag of toImport) {
             const id = allocateUniquePropId(roomRef.roomId, tag, usedIds);
@@ -660,6 +701,7 @@ export async function runImportPropsFromAsepriteTags(
             };
             if (clickable) {
                 newProp.clickable = true;
+                Object.assign(newProp, clickableSeed!);
             }
             props.push(newProp);
             z += 1;
@@ -744,6 +786,17 @@ export async function runImportPropsFromAsepriteTags(
     }
     const clickableGrouped = clickablePickGrouped.label === 'Yes';
 
+    let clickableSeedGrouped: ReturnType<typeof defaultClickablePropInteractionFields> | undefined;
+    if (clickableGrouped) {
+        const gameRoot = await gameRootContaining(roomRef.roomJsonUri);
+        if (!gameRoot) {
+            void vscode.window.showErrorMessage('Could not locate BENNE game root for this room.');
+            return;
+        }
+        const { width: roomW, height: roomH } = await resolveRoomWidthHeight(data, gameRoot);
+        clickableSeedGrouped = defaultClickablePropInteractionFields(roomW, roomH);
+    }
+
     let z = nextPropZIndexFromProps(props);
     let added = 0;
     for (const { base, members } of filtered) {
@@ -774,6 +827,7 @@ export async function runImportPropsFromAsepriteTags(
         }
         if (clickableGrouped) {
             newProp.clickable = true;
+            Object.assign(newProp, clickableSeedGrouped!);
         }
         props.push(newProp);
         for (const m of members) {
