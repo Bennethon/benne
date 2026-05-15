@@ -1,0 +1,62 @@
+{
+  "id": "penny",
+  "name": "Penny",
+  "description": "",
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 41,
+    "y": 50
+  },
+  "talkPoint": {
+    "x": 18,
+    "y": 3
+  },
+  "clickable": true,
+  "display": {
+    "aseprite": true
+  },
+  "animations": {
+    "IdleD": {
+      "loop": true
+    },
+    "TalkD": {
+      "loop": true
+    },
+    "IdleL": {
+      "loop": true
+    },
+    "TalkL": {
+      "loop": true
+    },
+    "IdleU": {
+      "loop": true
+    },
+    "TalkU": {
+      "loop": true
+    }
+  },
+  "feet": {
+    "x": 20,
+    "y": 50
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 8,
+        "y": 5
+      },
+      {
+        "x": 26,
+        "y": 4
+      },
+      {
+        "x": 28,
+        "y": 50
+      },
+      {
+        "x": 8,
+        "y": 50
+      }
+    ]
+  }
+}

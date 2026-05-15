@@ -1,0 +1,18 @@
+{
+  "id": "chatwithpenny",
+  "displayName": "ChatWithPenny",
+  "options": [
+    {
+      "id": "greeting",
+      "text": "How's it goin?"
+    },
+    {
+      "id": "door",
+      "text": "The door is locked. How do I get out?"
+    },
+    {
+      "id": "bye",
+      "text": "Ok, bye!"
+    }
+  ]
+}

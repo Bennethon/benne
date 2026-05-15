@@ -74,7 +74,7 @@
  },
  "meta": {
   "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta2-x64",
+  "version": "1.3.18-beta3-x64",
   "image": "penny.png",
   "format": "RGBA8888",
   "size": { "w": 108, "h": 165 },
@@ -88,9 +88,7 @@
    { "name": "TalkU", "from": 7, "to": 8, "direction": "forward", "color": "#000000ff" }
   ],
   "layers": [
-   { "name": "Up", "opacity": 255, "blendMode": "normal" },
-   { "name": "Left", "opacity": 255, "blendMode": "normal" },
-   { "name": "Down", "opacity": 255, "blendMode": "normal" }
+   { "name": "Up", "opacity": 255, "blendMode": "normal" }
   ],
   "slices": [
   ]
