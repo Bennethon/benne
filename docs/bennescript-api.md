@@ -339,7 +339,7 @@ B.prop('Rock').moveTo.now({ x: 80, y: 90 }); // teleport authoring origin; persi
 
 **Not on `GuiBenneScript`.** Callable **`B.inventory(itemId)`** returns **`BenneScriptInventoryItemFacade`** (see **[`benneScriptGameStateApi.ts`](../src/engine/scripting/benneScriptGameStateApi.ts)**).
 
-**Quantity API** — **`add`** and **`remove`** are **`BlockingWithNow<[string, number?]>`** (queue on **`interactionTail`** when the namespace is wired with **`chain`**; **`.now`** mutates **`GameStateManager`** immediately). **`has`**, **`quantityOf`**, **`items`**, and **`clearInventory`** stay synchronous.
+**Quantity API** — **`add`** and **`remove`** are **`BlockingWithNow<[string, number?]>`** (queue on **`interactionTail`** when the namespace is wired with **`chain`**; **`.now`** mutates **`GameStateManager`** immediately). **`has`**, **`quantityOf`**, **`items`**, and **`clearInventory`** stay synchronous. After **`remove`**, if that id was the armed use-on-target item (**`activeInventory`**) and the id is no longer carried (quantity 0), the engine clears **active verb** and **active inventory** — even when **`dropWhenInventoryUsed`** is **`false`** in **`game-config.json`** (that flag applies to post–use-on-target clicks, not script removal).
 
 ```ts
 B.inventory(id: string): BenneScriptInventoryItemFacade;
