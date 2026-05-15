@@ -22,6 +22,7 @@ registerInventoryScript('PB', ({ B }) => {
         B.say`Hank: I need to open the jar first.`;
       } else {
         B.inventory('Knife').animation = 'Knife-PB';
+        B.inventory('Knife').cursorAnimation = 'Knife-PB';
         B.say`Hank: Mmmm... gooey peanut butter.`;
       }
       

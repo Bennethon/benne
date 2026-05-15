@@ -1,6 +1,6 @@
 # Bennescript API Reference
 
-> Last updated: 2026-05-14 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
+> Last updated: 2026-05-15 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
 
 For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§3 → Audio system](architecture.md#audio-system), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt), and the **Blocking interaction queue** / API tables in §7.
 
@@ -352,6 +352,16 @@ interface BenneScriptInventoryNamespace /* + callable */ {
   readonly items: ReadonlyArray<{ id: string; quantity: number }>;
   clearInventory(): void;
 }
+
+/** Per-item row: effective GUI icon tag + armed use-on-target cursor tag (see below). */
+interface BenneScriptInventoryItemFacade {
+  get animation(): string;
+  set animation(tag: string);
+  animationNow(tag: string): void;
+  get cursorAnimation(): string;
+  set cursorAnimation(tag: string);
+  cursorAnimationNow(tag: string): void;
+}
 ```
 
 **Per-item facade:**
@@ -359,9 +369,21 @@ interface BenneScriptInventoryNamespace /* + callable */ {
 | Member | Setter / blocking | Immediate |
 |--------|-----------------|----------|
 | **`add`**, **`remove`** | Queued when namespace wired with **`chain`** | **`add.now(…)`**, **`remove.now(…)`** |
-| **`animation`** get/set — effective **`defaultAnimation`** | Queued when namespace wired with **`chain`** (room/character/inventory/global) | **`animationNow(tag)`** |
-| **`cursorAnimation`** get/set — armed cursor clip | Same | **`cursorAnimationNow(tag)`** |
+| **`animation`** get/set — effective **`defaultAnimation`** | Queued when namespace wired with **`chain`** (room/character/inventory/global/dialog) | **`animationNow(tag)`** |
+| **`cursorAnimation`** get/set — effective armed cursor Aseprite tag (`InventoryItemData.cursorAnimation` ± save override) | Same | **`cursorAnimationNow(tag)`** |
 | Setter **empty string** | Clears **`GameStateManager`** override for that field (JSON defaults return). |
+
+**`cursorAnimation` getter** — Returns the **effective** tag the engine uses when this item is **`activeInventory`** (same resolution as the custom game cursor). **`''`** means *no* per-item cursor clip (fall back to the verb / global cursor). Unknown **`itemId`** yields **`''`** (DEV may warn).
+
+Example:
+
+```ts
+if (B.inventory('Knife').cursorAnimation === 'Knife-PB') {
+  // matches JSON and/or a runtime override for that tag
+}
+B.inventory('Knife').cursorAnimation = 'Knife-alt'; // queued on interaction tail
+B.inventory('Knife').cursorAnimationNow('Knife-alt'); // immediate
+```
 
 ---
 

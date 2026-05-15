@@ -15,7 +15,11 @@ registerInventoryScript('Bread', ({ B }) => {
         B.inventory.remove('Bread');
         B.say`Hank: This looks delicious!`;
       }
+
+      return;
     }
+
+    return false;
   });
 
 });

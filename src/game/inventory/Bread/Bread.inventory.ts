@@ -18,6 +18,7 @@ registerInventoryScript('Bread', ({ B }) => {
       } else {
         B.inventory.add('Sammich');
         B.inventory.remove('Bread');
+        B.clearActiveInventory();
         B.say`Hank: This looks delicious!`;
       }
       

@@ -24,7 +24,7 @@
       "animations": {
         "BG": {}
       },
-      "zIndex": 0,
+      "zIndex": 3,
       "visible": true,
       "alpha": 1
     },
@@ -36,7 +36,8 @@
       },
       "zIndex": 1,
       "visible": true,
-      "alpha": 1
+      "alpha": 1,
+      "parallaxDepth": 0.75
     },
     {
       "id": "Trees",
@@ -46,7 +47,8 @@
       },
       "zIndex": 2,
       "visible": true,
-      "alpha": 1
+      "alpha": 1,
+      "parallaxDepth": 0.9
     },
     {
       "id": "FountainOff",
@@ -55,9 +57,34 @@
         "FountainOff": {}
       },
       "zIndex": 3,
-      "visible": true,
+      "visible": false,
       "alpha": 1,
-      "clickable": true
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 320,
+            "y": 120
+          },
+          {
+            "x": 320,
+            "y": 91
+          },
+          {
+            "x": 310,
+            "y": 114
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 297,
+        "y": 99
+      },
+      "lookAtPoint": {
+        "x": 302,
+        "y": 110
+      },
+      "baseline": 127
     },
     {
       "id": "FountainOn",
@@ -77,7 +104,7 @@
         "LeverPulled": {}
       },
       "zIndex": 5,
-      "visible": true,
+      "visible": false,
       "alpha": 1,
       "clickable": true
     },
@@ -99,7 +126,7 @@
         "RockMoved": {}
       },
       "zIndex": 7,
-      "visible": true,
+      "visible": false,
       "alpha": 1,
       "clickable": true
     }
