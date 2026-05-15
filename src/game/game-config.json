@@ -54,6 +54,9 @@
       },
       "Active": {
         "loop": true
+      },
+      "Talk": {
+        "loop": true
       }
     },
     "display": {

@@ -2,11 +2,15 @@
   "id": "Lantern",
   "name": "Lantern",
   "description": "",
-  "onVerb": {},
+  "onVerb": {
+    "look": true,
+    "use": true
+  },
   "stackable": false,
   "animations": {},
   "display": {
     "aseprite": "shared"
   },
-  "defaultAnimation": "Lantern"
+  "defaultAnimation": "Lantern",
+  "cursorAnimation": "Lantern"
 }

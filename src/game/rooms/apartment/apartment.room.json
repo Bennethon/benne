@@ -319,6 +319,16 @@
       "initialAnimation": "Idle",
       "visible": true,
       "zIndex": 6
+    },
+    {
+      "instanceId": "penny-1",
+      "definition": "penny/penny.character.json",
+      "x": 34,
+      "y": 158,
+      "initialFacing": "R",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 7
     }
   ]
 }
