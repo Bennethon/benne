@@ -2,7 +2,7 @@
   "id": "hover-text",
   "name": "Hover Text",
   "description": "",
-  "visible": false,
+  "visible": true,
   "display": {
     "aseprite": true
   },
