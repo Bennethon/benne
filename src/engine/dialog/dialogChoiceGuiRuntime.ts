@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import type { GameSettingsDialog } from '../../types/game.js';
 import type { Dialog, DialogOption } from '../../types/dialogue.js';
 import type {
   GuiButtonControl,
@@ -18,7 +19,6 @@ import {
 } from '../gui/buildGuiOverlay.js';
 import {
   alignBoxTopLeftInCell,
-  cumulativeOffsets,
   layoutGuiGridTracks,
   parseGuiGridCellAlign,
 } from '../gui/guiGridLayout.js';
@@ -128,17 +128,45 @@ export function resolveDialogChoiceOptionWordWrapMaxPx(
   return innerCap;
 }
 
+/**
+ * Resolved cap for choice option stacking: per-GUI override, then `game-config` `dialog` block.
+ * Returns `undefined` when neither is set (extend to screen bottom).
+ */
+export function resolveDialogChoiceViewportHeightPx(
+  guiData: Pick<GuiData, 'choiceOptionsViewportHeightPx'>,
+  dialogSettings: Pick<GameSettingsDialog, 'choiceOptionsViewportHeightPx'>,
+): number | undefined {
+  const guiCap = guiData.choiceOptionsViewportHeightPx;
+  if (typeof guiCap === 'number' && Number.isFinite(guiCap) && guiCap > 0) {
+    return guiCap;
+  }
+  const configCap = dialogSettings.choiceOptionsViewportHeightPx;
+  if (typeof configCap === 'number' && Number.isFinite(configCap) && configCap > 0) {
+    return configCap;
+  }
+  return undefined;
+}
+
 /** Vertical space (px) available for dialog option rows under `Option-Grid`. */
 export function getDialogChoiceAvailableHeightPx(
   gridDef: GuiGridControl | undefined,
   guiRootY: number,
   viewportBottomExclusivePx: number,
+  maxViewportHeightPx?: number,
 ): number {
   const gridTop = Math.round(guiRootY + (gridDef?.y ?? 0));
-  return Math.max(
+  const toBottom = Math.max(
     0,
     viewportBottomExclusivePx - DIALOG_CHOICE_VIEWPORT_BOTTOM_MARGIN_PX - gridTop,
   );
+  if (
+    typeof maxViewportHeightPx === 'number' &&
+    Number.isFinite(maxViewportHeightPx) &&
+    maxViewportHeightPx > 0
+  ) {
+    return Math.min(toBottom, maxViewportHeightPx);
+  }
+  return toBottom;
 }
 
 /** Minimum option row height from the template (matches template button height when present). */
@@ -183,77 +211,191 @@ function measureDialogChoiceRowHeightPx(
   return Math.max(minRowH, h + DIALOG_OPTION_ROW_TEXT_V_PAD_PX);
 }
 
-export type DialogChoicePackedRow = {
+export type DialogChoiceOptionLayout = {
   option: DialogOption;
-  rowHeightPx: number;
+  topPx: number;
+  heightPx: number;
 };
 
-/**
- * Fills the viewport with whole options starting at `scrollOffset`, using per-option height (wrapped text).
- */
-export function packDialogChoiceOptionRows(params: {
+/** One pixel slice of an option row visible in the current viewport window. */
+export type DialogChoiceViewportSegment = {
+  option: DialogOption;
+  fullRowHeightPx: number;
+  rowTopInViewportPx: number;
+  clipTopPx: number;
+  visibleHeightPx: number;
+};
+
+/** Cumulative layout of enabled options in list order (heights match drawn rows). */
+export function measureDialogChoiceOptionsLayout(params: {
   scene: Phaser.Scene;
   gridDef: GuiGridControl | undefined;
   buttonDef: GuiButtonControl;
   controls: readonly GuiControl[] | undefined;
   visibleOptions: readonly DialogOption[];
-  scrollOffset: number;
+  wrapInnerWidth: number;
+}): { layouts: DialogChoiceOptionLayout[]; totalHeightPx: number } {
+  const { scene, gridDef, buttonDef, controls, visibleOptions, wrapInnerWidth } = params;
+  const layouts: DialogChoiceOptionLayout[] = [];
+  let topPx = 0;
+  for (const option of visibleOptions) {
+    const heightPx = measureDialogChoiceRowHeightPx(
+      scene,
+      buttonDef,
+      gridDef,
+      controls,
+      option.text,
+      wrapInnerWidth,
+    );
+    layouts.push({ option, topPx, heightPx });
+    topPx += heightPx;
+  }
+  return { layouts, totalHeightPx: topPx };
+}
+
+function clampDialogChoiceScrollTopPx(scrollTopPx: number, totalHeightPx: number, viewportH: number): number {
+  const maxScroll = Math.max(0, totalHeightPx - viewportH);
+  return Math.max(0, Math.min(Math.floor(scrollTopPx), maxScroll));
+}
+
+/**
+ * Discrete scroll positions: each page fills the viewport (last page may be shorter).
+ * Avoids line-by-line stops that split multi-line options awkwardly.
+ */
+export function computeDialogChoiceScrollPageStarts(
+  totalHeightPx: number,
+  viewportHeightPx: number,
+): number[] {
+  if (viewportHeightPx <= 0 || totalHeightPx <= viewportHeightPx + 1e-6) {
+    return [0];
+  }
+  const maxScroll = Math.max(0, totalHeightPx - viewportHeightPx);
+  const starts: number[] = [0];
+  let pos = 0;
+  while (pos < maxScroll - 1e-6) {
+    pos = Math.min(Math.floor(pos + viewportHeightPx), maxScroll);
+    if (starts[starts.length - 1] === pos) {
+      break;
+    }
+    starts.push(pos);
+  }
+  return starts;
+}
+
+export function snapDialogChoiceScrollTopToPage(
+  scrollTopPx: number,
+  totalHeightPx: number,
+  viewportHeightPx: number,
+): number {
+  const pages = computeDialogChoiceScrollPageStarts(totalHeightPx, viewportHeightPx);
+  let idx = 0;
+  for (let i = 0; i < pages.length; i += 1) {
+    if (pages[i]! <= scrollTopPx + 0.5) {
+      idx = i;
+    }
+  }
+  return pages[idx] ?? 0;
+}
+
+export function advanceDialogChoiceScrollTopPx(
+  scrollTopPx: number,
+  deltaPages: number,
+  totalHeightPx: number,
+  viewportHeightPx: number,
+): number {
+  const pages = computeDialogChoiceScrollPageStarts(totalHeightPx, viewportHeightPx);
+  if (pages.length === 0) {
+    return 0;
+  }
+  let idx = 0;
+  for (let i = 0; i < pages.length; i += 1) {
+    if (pages[i]! <= scrollTopPx + 0.5) {
+      idx = i;
+    }
+  }
+  const nextIdx = Math.max(0, Math.min(idx + deltaPages, pages.length - 1));
+  return pages[nextIdx]!;
+}
+
+/**
+ * Slices the virtual option list to what fits in `[scrollTopPx, scrollTopPx + viewportH)`, including partial rows.
+ */
+export function layoutDialogChoiceViewportSegments(params: {
+  scene: Phaser.Scene;
+  gridDef: GuiGridControl | undefined;
+  buttonDef: GuiButtonControl;
+  controls: readonly GuiControl[] | undefined;
+  visibleOptions: readonly DialogOption[];
+  scrollTopPx: number;
   viewportAvailableHeightPx: number;
-}): { rows: DialogChoicePackedRow[]; clampedScrollOffset: number } {
+}): {
+  segments: DialogChoiceViewportSegment[];
+  clampedScrollTopPx: number;
+  totalHeightPx: number;
+} {
   const {
     scene,
     gridDef,
     buttonDef,
     controls,
     visibleOptions,
-    scrollOffset,
+    scrollTopPx,
     viewportAvailableHeightPx,
   } = params;
 
-  const n = visibleOptions.length;
-  if (n === 0) {
-    return { rows: [], clampedScrollOffset: 0 };
-  }
-
-  /** Match template `Dialog-Option` width / wrap used by {@link buildGuiOverlay} so row heights match drawn rows. */
   const optionButtonWidthPx = Math.max(1, Math.round(buttonDef.width));
   const wrapPx = resolveDialogChoiceOptionWordWrapMaxPx(buttonDef, optionButtonWidthPx);
-  const start = Math.max(0, Math.min(Math.floor(scrollOffset), n - 1));
+  const { layouts, totalHeightPx } = measureDialogChoiceOptionsLayout({
+    scene,
+    gridDef,
+    buttonDef,
+    controls,
+    visibleOptions,
+    wrapInnerWidth: wrapPx,
+  });
 
-  let yAcc = 0;
-  const rows: DialogChoicePackedRow[] = [];
+  if (layouts.length === 0 || viewportAvailableHeightPx <= 0) {
+    return { segments: [], clampedScrollTopPx: 0, totalHeightPx };
+  }
 
-  for (let i = start; i < n; i += 1) {
-    const option = visibleOptions[i]!;
-    const rowH = measureDialogChoiceRowHeightPx(
-      scene,
-      buttonDef,
-      gridDef,
-      controls,
-      option.text,
-      wrapPx,
-    );
-    if (yAcc + rowH > viewportAvailableHeightPx && rows.length > 0) {
-      break;
+  const clampedScrollTopPx = snapDialogChoiceScrollTopToPage(
+    clampDialogChoiceScrollTopPx(scrollTopPx, totalHeightPx, viewportAvailableHeightPx),
+    totalHeightPx,
+    viewportAvailableHeightPx,
+  );
+  const windowEnd = clampedScrollTopPx + viewportAvailableHeightPx;
+  const segments: DialogChoiceViewportSegment[] = [];
+
+  for (const { option, topPx, heightPx } of layouts) {
+    const optionEnd = topPx + heightPx;
+    const intersectStart = Math.max(clampedScrollTopPx, topPx);
+    const intersectEnd = Math.min(windowEnd, optionEnd);
+    if (intersectStart >= intersectEnd) {
+      continue;
     }
-    rows.push({ option, rowHeightPx: rowH });
-    yAcc += rowH;
+    segments.push({
+      option,
+      fullRowHeightPx: heightPx,
+      rowTopInViewportPx: intersectStart - clampedScrollTopPx,
+      clipTopPx: intersectStart - topPx,
+      visibleHeightPx: intersectEnd - intersectStart,
+    });
   }
 
-  if (rows.length === 0) {
-    const option = visibleOptions[start]!;
-    const rowH = measureDialogChoiceRowHeightPx(
-      scene,
-      buttonDef,
-      gridDef,
-      controls,
-      option.text,
-      wrapPx,
-    );
-    rows.push({ option, rowHeightPx: rowH });
+  if (segments.length === 0) {
+    const first = layouts[0]!;
+    const clipTop = Math.min(first.heightPx, clampedScrollTopPx);
+    const visibleHeightPx = Math.min(first.heightPx - clipTop, viewportAvailableHeightPx);
+    segments.push({
+      option: first.option,
+      fullRowHeightPx: first.heightPx,
+      rowTopInViewportPx: 0,
+      clipTopPx: clipTop,
+      visibleHeightPx: Math.max(1, visibleHeightPx),
+    });
   }
 
-  return { rows, clampedScrollOffset: start };
+  return { segments, clampedScrollTopPx, totalHeightPx };
 }
 
 function sumAllDialogChoiceRowHeightsPx(
@@ -304,9 +446,10 @@ export function getDialogChoiceScrollButtonState(params: {
   buttonDef: GuiButtonControl | undefined;
   controls: readonly GuiControl[] | undefined;
   visibleOptions: readonly DialogOption[];
-  scrollOffset: number;
+  scrollTopPx: number;
   guiRootY: number;
   viewportBottomExclusivePx: number;
+  maxViewportHeightPx?: number;
 }): { needScroll: boolean; showUp: boolean; showDown: boolean } {
   const {
     scene,
@@ -314,18 +457,22 @@ export function getDialogChoiceScrollButtonState(params: {
     buttonDef,
     controls,
     visibleOptions,
-    scrollOffset,
+    scrollTopPx,
     guiRootY,
     viewportBottomExclusivePx,
+    maxViewportHeightPx,
   } = params;
 
   if (!buttonDef || visibleOptions.length === 0) {
     return { needScroll: false, showUp: false, showDown: false };
   }
 
-  const viewportH = getDialogChoiceAvailableHeightPx(gridDef, guiRootY, viewportBottomExclusivePx);
-  const n = visibleOptions.length;
-  const clamped = Math.max(0, Math.min(Math.floor(scrollOffset), n - 1));
+  const viewportH = getDialogChoiceAvailableHeightPx(
+    gridDef,
+    guiRootY,
+    viewportBottomExclusivePx,
+    maxViewportHeightPx,
+  );
 
   const allFit = dialogChoiceAllOptionsFitInViewport({
     scene,
@@ -340,23 +487,34 @@ export function getDialogChoiceScrollButtonState(params: {
     return { needScroll: false, showUp: false, showDown: false };
   }
 
-  const { rows } = packDialogChoiceOptionRows({
+  const optionButtonWidthPx = Math.max(1, Math.round(buttonDef.width));
+  const wrapPx = resolveDialogChoiceOptionWordWrapMaxPx(buttonDef, optionButtonWidthPx);
+  const { totalHeightPx } = measureDialogChoiceOptionsLayout({
     scene,
     gridDef,
     buttonDef,
     controls,
     visibleOptions,
-    scrollOffset: clamped,
-    viewportAvailableHeightPx: viewportH,
+    wrapInnerWidth: wrapPx,
   });
-
-  const last = visibleOptions[n - 1]!;
-  const pageShowsLast = rows.some((r) => r.option.id === last.id);
+  const pages = computeDialogChoiceScrollPageStarts(totalHeightPx, viewportH);
+  const clampedScrollTopPx = snapDialogChoiceScrollTopToPage(
+    clampDialogChoiceScrollTopPx(scrollTopPx, totalHeightPx, viewportH),
+    totalHeightPx,
+    viewportH,
+  );
+  let pageIdx = 0;
+  for (let i = 0; i < pages.length; i += 1) {
+    if (pages[i] === clampedScrollTopPx) {
+      pageIdx = i;
+      break;
+    }
+  }
 
   return {
     needScroll: true,
-    showUp: clamped > 0,
-    showDown: !pageShowsLast,
+    showUp: pageIdx > 0,
+    showDown: pageIdx < pages.length - 1,
   };
 }
 
@@ -366,6 +524,7 @@ export class DialogChoiceDynamicRowState {
   private readonly hoverDisposers: Array<() => void> = [];
   private readonly controlsById = new Map<string, Phaser.GameObjects.GameObject>();
   private readonly deferBelow: Phaser.GameObjects.GameObject[] = [];
+  private viewportClipContainer: Phaser.GameObjects.Container | null = null;
 
   clear(): void {
     for (const d of this.hoverDisposers) {
@@ -380,6 +539,10 @@ export class DialogChoiceDynamicRowState {
       s.destroy();
     }
     this.extraSprites.length = 0;
+    if (this.viewportClipContainer) {
+      this.viewportClipContainer.destroy(true);
+      this.viewportClipContainer = null;
+    }
     this.controlsById.clear();
     this.deferBelow.length = 0;
   }
@@ -403,7 +566,7 @@ export class DialogChoiceDynamicRowState {
     guiRuntime: GuiRuntime;
     definition: Dialog;
     manager: GameStateManager;
-    scrollOffset: number;
+    scrollTopPx: number;
     viewportAvailableHeightPx: number;
   }): number {
     this.clear();
@@ -415,7 +578,7 @@ export class DialogChoiceDynamicRowState {
       guiRuntime,
       definition,
       manager,
-      scrollOffset,
+      scrollTopPx,
       viewportAvailableHeightPx,
     } = params;
 
@@ -436,18 +599,15 @@ export class DialogChoiceDynamicRowState {
       return 0;
     }
 
-    const { rows: page, clampedScrollOffset: off } = packDialogChoiceOptionRows({
+    const { segments: page, clampedScrollTopPx: off } = layoutDialogChoiceViewportSegments({
       scene,
       gridDef,
       buttonDef,
       controls,
       visibleOptions: visibleOpts,
-      scrollOffset,
+      scrollTopPx,
       viewportAvailableHeightPx,
     });
-
-    const rowHeights = page.map((p) => p.rowHeightPx);
-    const rowOff = cumulativeOffsets(rowHeights);
 
     const gx = Math.round(gridDef.x);
     const gy = Math.round(gridDef.y);
@@ -484,10 +644,25 @@ export class DialogChoiceDynamicRowState {
       return { localX, localY, rootTopLeft: { x: gx + localX, y: gy + localY } };
     };
 
+    const gridTrack = layoutGuiGridTracks(gridDef);
+    const viewportClipW = Math.max(
+      1,
+      Math.round(gridTrack.contentW),
+      colLayout.textColumnLeftPx + colLayout.textColumnWidthPx,
+    );
+    const viewportClip = scene.add.container(0, 0);
+    viewportClip.setScrollFactor(0, 0);
+    const viewportMask = scene.add.graphics();
+    viewportMask.fillStyle(0xffffff);
+    viewportMask.fillRect(0, 0, viewportClipW, viewportAvailableHeightPx);
+    viewportMask.setVisible(false);
+    viewportClip.add(viewportMask);
+    viewportClip.setMask(viewportMask.createGeometryMask());
+    gridContainer.add(viewportClip);
+    this.viewportClipContainer = viewportClip;
+
     for (let i = 0; i < page.length; i += 1) {
-      const { option: opt, rowHeightPx } = page[i]!;
-      const row = i;
-      const rowTop = rowOff[row] ?? 0;
+      const { option: opt, fullRowHeightPx, rowTopInViewportPx, clipTopPx, visibleHeightPx } = page[i]!;
       const used = readEffectiveDialogOptionUsed(manager, definition, opt.id);
 
       let bulletLocalX: number;
@@ -496,71 +671,80 @@ export class DialogChoiceDynamicRowState {
       let btnLocalX: number;
       let btnLocalY: number;
 
+      const contentShiftY = -clipTopPx;
+
       if (useTemplateOptionAnchor) {
         btnLocalX = Math.round(tplOptionXY!.x);
-        btnLocalY = Math.round(rowTop + tplOptionXY!.y);
+        btnLocalY = Math.round(rowTopInViewportPx + tplOptionXY!.y + contentShiftY);
       } else {
         const btnPlace = placeAnchoredContent(
           colLayout.textColumnLeftPx,
-          rowTop,
+          rowTopInViewportPx,
           colLayout.textColumnWidthPx,
-          rowHeightPx,
+          visibleHeightPx,
           colLayout.optionButtonWidthPx,
-          rowHeightPx,
+          visibleHeightPx,
           buttonDef.gridPlacement?.align,
         );
         btnLocalX = btnPlace.localX;
-        btnLocalY = btnPlace.localY;
+        btnLocalY = btnPlace.localY + contentShiftY;
       }
 
-      if (useTemplateOptionAnchor) {
-        /** Keep bullet centered in column 0 relative to the resolved option-column x. */
-        bulletLocalX = Math.round(btnLocalX - colLayout.textColumnLeftPx / 2);
-        bulletLocalY = Math.round(rowTop + rowHeightPx / 2);
+      /** Bullet only when this option starts at the top of the slice (not a continuation from a prior page). */
+      const showBullet = clipTopPx === 0;
+      if (showBullet) {
+        if (useTemplateOptionAnchor) {
+          /**
+           * Same layout as the hidden template row: bullet centered in column 0, vertically centered on the
+           * option row (`backgroundAnchor: "center"` on the bullet image). Do not read `tplBullet.x` from
+           * Phaser — that is the sprite anchor in built space and can sit near the grid horizontal center.
+           */
+          bulletLocalX = Math.round(btnLocalX - colLayout.bulletColumnWidthPx / 2);
+          bulletLocalY = Math.round(rowTopInViewportPx + fullRowHeightPx / 2);
+        } else {
+          const bulletPlace = placeAnchoredContent(
+            0,
+            rowTopInViewportPx,
+            colLayout.bulletColumnWidthPx,
+            fullRowHeightPx,
+            imgEstW,
+            fullRowHeightPx,
+            bulletDef.gridPlacement?.align,
+          );
+          bulletLocalX = bulletPlace.localX;
+          bulletLocalY = bulletPlace.localY;
+        }
         bulletRoot = { x: gx + bulletLocalX, y: gy + bulletLocalY };
-      } else {
-        const bulletPlace = placeAnchoredContent(
-          0,
-          rowTop,
-          colLayout.bulletColumnWidthPx,
-          rowHeightPx,
-          imgEstW,
-          rowHeightPx,
-          bulletDef.gridPlacement?.align,
-        );
-        bulletLocalX = bulletPlace.localX;
-        bulletLocalY = bulletPlace.localY;
-        bulletRoot = bulletPlace.rootTopLeft;
-      }
 
-      const spr = addGuiImageSprite(
-        scene,
-        gui,
-        bulletDef,
-        baseDepth,
-        true,
-        this.extraSprites,
-        this.controlsById,
-        this.deferBelow,
-        useTemplateOptionAnchor
-          ? {
-              x: bulletLocalX,
-              y: bulletLocalY,
-              parent: gridContainer,
-              screenRootTopLeft: bulletRoot,
-            }
-          : {
-              x: bulletLocalX,
-              y: bulletLocalY,
-              parent: gridContainer,
-              screenRootTopLeft: bulletRoot,
-              gridContentBox: { w: imgEstW, h: rowHeightPx },
-              gridCenterAlign: bulletDef.gridPlacement?.align === 'center',
-            },
-      );
-      if (spr) {
-        spr.disableInteractive();
-        spr.setAlpha(used ? 0.45 : 1);
+        const spr = addGuiImageSprite(
+          scene,
+          gui,
+          bulletDef,
+          baseDepth,
+          true,
+          this.extraSprites,
+          this.controlsById,
+          this.deferBelow,
+          useTemplateOptionAnchor
+            ? {
+                x: bulletLocalX,
+                y: bulletLocalY,
+                parent: viewportClip,
+                screenRootTopLeft: bulletRoot,
+              }
+            : {
+                x: bulletLocalX,
+                y: bulletLocalY,
+                parent: viewportClip,
+                screenRootTopLeft: bulletRoot,
+                gridContentBox: { w: imgEstW, h: fullRowHeightPx },
+                gridCenterAlign: bulletDef.gridPlacement?.align === 'center',
+              },
+        );
+        if (spr) {
+          spr.disableInteractive();
+          spr.setAlpha(used ? 0.45 : 1);
+        }
       }
 
       const synId = dialogChoiceSyntheticButtonId(opt.id);
@@ -571,7 +755,7 @@ export class DialogChoiceDynamicRowState {
         id: synId,
         text: opt.text,
         width: rowW,
-        height: rowHeightPx,
+        height: fullRowHeightPx,
         wordWrapWidth: rowWrap,
         textOffsetX: buttonDef.textOffsetX ?? 0,
         x: btnLocalX,
@@ -583,7 +767,16 @@ export class DialogChoiceDynamicRowState {
       if (!built) {
         continue;
       }
-      gridContainer.add(built.hitTarget);
+      viewportClip.add(built.hitTarget);
+      if (clipTopPx > 0 || visibleHeightPx < fullRowHeightPx) {
+        if (built.hitTarget.input) {
+          built.hitTarget.disableInteractive();
+          built.hitTarget.setInteractive(
+            new Phaser.Geom.Rectangle(0, clipTopPx, rowW, visibleHeightPx),
+            Phaser.Geom.Rectangle.Contains,
+          );
+        }
+      }
       built.hitTarget.setAlpha(used ? 0.45 : 1);
       if (built.label) {
         built.label.setAlpha(used ? 0.45 : 1);

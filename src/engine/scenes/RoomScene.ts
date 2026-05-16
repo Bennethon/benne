@@ -164,6 +164,10 @@ import {
   DIALOG_CHOICE_GRID_ID,
   getDialogChoiceAvailableHeightPx,
   getDialogChoiceScrollButtonState,
+  advanceDialogChoiceScrollTopPx,
+  measureDialogChoiceOptionsLayout,
+  resolveDialogChoiceOptionWordWrapMaxPx,
+  resolveDialogChoiceViewportHeightPx,
 } from '../dialog/dialogChoiceGuiRuntime';
 import {
   DIALOG_STARTED_EVENT,
@@ -469,7 +473,7 @@ export class RoomScene extends Phaser.Scene {
   >();
   private readonly dialogChoiceRuntimeByGuiId = new Map<string, GuiRuntime>();
   private readonly dialogChoiceRowState = new DialogChoiceDynamicRowState();
-  private activeDialogChoiceSession: { guiId: string; dialogId: string; scrollOffset: number } | null = null;
+  private activeDialogChoiceSession: { guiId: string; dialogId: string; scrollTopPx: number } | null = null;
   /** True while {@link pushScriptedDialogInputSuppression} was called for an active choice overlay (paired with {@link onDialogChoiceStopped}). */
   private dialogChoiceInputSuppressionActive = false;
   private dialogChoiceUiDisposers: Array<() => void> = [];
@@ -1094,7 +1098,7 @@ export class RoomScene extends Phaser.Scene {
   private onDialogChoiceStarted(p: DialogStartedPayload): void {
     this.pushScriptedDialogInputSuppression();
     this.dialogChoiceInputSuppressionActive = true;
-    this.activeDialogChoiceSession = { guiId: p.guiId, dialogId: p.dialogId, scrollOffset: 0 };
+    this.activeDialogChoiceSession = { guiId: p.guiId, dialogId: p.dialogId, scrollTopPx: 0 };
     const entry = this.dialogChoiceInstallByGuiId.get(p.guiId);
     if (!entry) {
       if (import.meta.env.DEV) {
@@ -1200,11 +1204,40 @@ export class RoomScene extends Phaser.Scene {
     if (!def || !entry) {
       return;
     }
+    const gridDef = entry.guiData.controls?.find(
+      (c): c is GuiGridControl => c.type === 'grid' && c.id === DIALOG_CHOICE_GRID_ID,
+    );
+    const buttonDef = entry.guiData.controls?.find(
+      (c): c is GuiButtonControl => c.type === 'button' && c.id === 'Dialog-Option',
+    );
+    if (!buttonDef) {
+      return;
+    }
     const manager = resolveGameStateManager(this.game);
     const visibleOpts = def.options.filter((o) => readEffectiveDialogOptionEnabled(manager, def, o.id));
-    const maxOffset = Math.max(0, visibleOpts.length - 1);
-    const next = Math.max(0, Math.min(this.activeDialogChoiceSession.scrollOffset + delta, maxOffset));
-    this.activeDialogChoiceSession.scrollOffset = next;
+    const maxViewportHeightPx = resolveDialogChoiceViewportHeightPx(entry.guiData, getDialogSettings());
+    const viewportH = getDialogChoiceAvailableHeightPx(
+      gridDef,
+      entry.guiData.y ?? 0,
+      getInternalHeight(),
+      maxViewportHeightPx,
+    );
+    const optionButtonWidthPx = Math.max(1, Math.round(buttonDef.width));
+    const wrapPx = resolveDialogChoiceOptionWordWrapMaxPx(buttonDef, optionButtonWidthPx);
+    const { totalHeightPx } = measureDialogChoiceOptionsLayout({
+      scene: this,
+      gridDef,
+      buttonDef,
+      controls: entry.guiData.controls,
+      visibleOptions: visibleOpts,
+      wrapInnerWidth: wrapPx,
+    });
+    this.activeDialogChoiceSession.scrollTopPx = advanceDialogChoiceScrollTopPx(
+      this.activeDialogChoiceSession.scrollTopPx,
+      delta,
+      totalHeightPx,
+      viewportH,
+    );
     this.refreshDialogChoiceOverlay();
   }
 
@@ -1228,14 +1261,19 @@ export class RoomScene extends Phaser.Scene {
     const gridDef = entry.guiData.controls?.find(
       (c): c is GuiGridControl => c.type === 'grid' && c.id === DIALOG_CHOICE_GRID_ID,
     );
+    const maxViewportHeightPx = resolveDialogChoiceViewportHeightPx(
+      entry.guiData,
+      getDialogSettings(),
+    );
     const viewportAvailableHeightPx = getDialogChoiceAvailableHeightPx(
       gridDef,
       entry.guiData.y ?? 0,
       getInternalHeight(),
+      maxViewportHeightPx,
     );
 
     this.dialogChoiceRowState.hideTemplateRow(rt);
-    const clampedOffset = this.dialogChoiceRowState.refresh({
+    const clampedScrollTopPx = this.dialogChoiceRowState.refresh({
       scene: this,
       gui: entry.guiData,
       baseDepth: entry.baseDepth,
@@ -1243,10 +1281,10 @@ export class RoomScene extends Phaser.Scene {
       guiRuntime: rt,
       definition: def,
       manager,
-      scrollOffset: session.scrollOffset,
+      scrollTopPx: session.scrollTopPx,
       viewportAvailableHeightPx,
     });
-    session.scrollOffset = clampedOffset;
+    session.scrollTopPx = clampedScrollTopPx;
     this.updateDialogChoiceScrollButtons(session.guiId, def, manager, entry.guiData);
   }
 
@@ -1268,7 +1306,8 @@ export class RoomScene extends Phaser.Scene {
     );
     const visibleOpts = def.options.filter((o) => readEffectiveDialogOptionEnabled(manager, def, o.id));
     const session = this.activeDialogChoiceSession;
-    const offset = session?.scrollOffset ?? 0;
+    const scrollTopPx = session?.scrollTopPx ?? 0;
+    const maxViewportHeightPx = resolveDialogChoiceViewportHeightPx(guiData, getDialogSettings());
 
     const { needScroll, showUp, showDown } = getDialogChoiceScrollButtonState({
       scene: this,
@@ -1276,9 +1315,10 @@ export class RoomScene extends Phaser.Scene {
       buttonDef,
       controls: guiData.controls,
       visibleOptions: visibleOpts,
-      scrollOffset: offset,
+      scrollTopPx,
       guiRootY: guiData.y ?? 0,
       viewportBottomExclusivePx: getInternalHeight(),
+      maxViewportHeightPx,
     });
 
     const up = rt.getControl('scrollUp');

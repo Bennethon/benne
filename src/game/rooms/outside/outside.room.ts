@@ -19,7 +19,7 @@ registerRoomScript(({ B }) => {
   });
 
   B.whenEnterRoomAfterFade(() => {
-    B.sound.playMusic('halloween-spooky', { fadeSeconds: 2.0 });
+    B.sound.playMusic.now('halloween-spooky', { fadeSeconds: 10.0 });
     B.sound.play('doorClose');
     if (B.room.isFirstVisit) {
       B.character('henry').say('Hey, Hank!');

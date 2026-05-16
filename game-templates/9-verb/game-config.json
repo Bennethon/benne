@@ -83,7 +83,8 @@
     "minDurationMs": 800,
     "msPerCharacter": 80,
     "maxDurationMs": 4500,
-    "durationMultiplier": 1
+    "durationMultiplier": 1,
+    "choiceOptionsViewportHeightPx": 46
   },
   "perspective": {
     "minWalkScale": 0.1,

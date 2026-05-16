@@ -462,6 +462,8 @@ interface BenneScriptDialogCommandSurface {
 
 Related events/variables — [architecture.md — Dialog system](architecture.md#dialog-system-choice-topics).
 
+**Choice GUI layout (authoring, not Bennescript)** — Option rows and scroll paging use a vertical budget below **`Option-Grid`**. By default that budget runs to the bottom of the internal resolution; for top-of-screen or short strips, set **`choiceOptionsViewportHeightPx`** in **`game-config.json`** (`dialog` block) and/or on the choice GUI’s **`*.gui.json`** root (per-GUI overrides game-config). See [architecture.md — Dialog system](architecture.md#dialog-system-choice-topics).
+
 ---
 
 ## Room script — `BenneScript` extras
