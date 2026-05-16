@@ -164,4 +164,8 @@ registerRoomScript(({ B }) => {
       B.prop('Door').animation = 'Door';
     }
   });
+
+  B.whenUse('Table', () => {
+    B.walkToClicked();
+  });
 });
