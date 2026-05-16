@@ -410,5 +410,10 @@ export interface GuiData {
    */
   visible: boolean;
   display: GuiDisplayData;
+  /**
+   * Choice-dialog GUIs only (`Option-Grid` + dynamic rows): max pixels for stacking option rows below the grid top.
+   * Overrides `game-config.json` **`dialog.choiceOptionsViewportHeightPx`** when set.
+   */
+  choiceOptionsViewportHeightPx?: number;
   controls?: GuiControl[];
 }

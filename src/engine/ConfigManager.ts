@@ -72,6 +72,11 @@ function mergeDialogSettings(data: GameSettings): GameSettingsDialog {
     msPerCharacter: d.msPerCharacter ?? DIALOG_DEFAULTS.msPerCharacter,
     maxDurationMs: d.maxDurationMs ?? DIALOG_DEFAULTS.maxDurationMs,
     durationMultiplier: d.durationMultiplier ?? DIALOG_DEFAULTS.durationMultiplier,
+    choiceOptionsViewportHeightPx:
+      typeof d.choiceOptionsViewportHeightPx === 'number' &&
+      Number.isFinite(d.choiceOptionsViewportHeightPx)
+        ? d.choiceOptionsViewportHeightPx
+        : undefined,
   };
 }
 
@@ -102,6 +107,14 @@ function assertDialogSettings(data: GameSettings): void {
     const v = d[key];
     if (v !== undefined && !Number.isFinite(v)) {
       throw new Error(`game-config dialog.${key} must be a finite number when present`);
+    }
+  }
+  if (d.choiceOptionsViewportHeightPx !== undefined) {
+    if (!Number.isFinite(d.choiceOptionsViewportHeightPx)) {
+      throw new Error('game-config dialog.choiceOptionsViewportHeightPx must be a finite number when present');
+    }
+    if (d.choiceOptionsViewportHeightPx <= 0) {
+      throw new Error('game-config dialog.choiceOptionsViewportHeightPx must be > 0 when present');
     }
   }
   const merged = mergeDialogSettings(data);

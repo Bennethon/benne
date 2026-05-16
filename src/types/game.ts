@@ -73,6 +73,11 @@ export interface GameSettingsDialog {
   msPerCharacter: number;
   maxDurationMs: number;
   durationMultiplier: number;
+  /**
+   * When set, caps how many pixels of choice option rows may stack below **`Option-Grid`** (see
+   * {@link getDialogChoiceAvailableHeightPx}). Omitted = extend to the bottom of the internal canvas.
+   */
+  choiceOptionsViewportHeightPx?: number;
 }
 
 /** One verb the game exposes (ids power inventory `onVerb`, `inputProfile`, and global handler events). */
