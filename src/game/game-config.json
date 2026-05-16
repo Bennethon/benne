@@ -1,66 +1,28 @@
 {
-  "name": "9-verb",
+  "name": "2-click",
   "resolution": {
-    "width": 352,
-    "height": 198
+    "width": 320,
+    "height": 180
   },
   "verbs": [
-    {
-      "id": "give",
-      "label": "Give",
-      "preposition": "to"
-    },
-    {
-      "id": "pickUp",
-      "label": "Pick up"
-    },
-    {
-      "id": "use",
-      "label": "Use",
-      "preposition": "with"
-    },
-    {
-      "id": "open",
-      "label": "Open"
-    },
     {
       "id": "look",
       "label": "Look at"
     },
     {
-      "id": "push",
-      "label": "Push"
-    },
-    {
-      "id": "close",
-      "label": "Close"
-    },
-    {
-      "id": "talkTo",
-      "label": "Talk to"
-    },
-    {
-      "id": "pull",
-      "label": "Pull"
+      "id": "use",
+      "label": "Use",
+      "preposition": "with"
     }
   ],
   "inputProfile": {
-    "primaryButtonVerb": "walkTo",
-    "secondaryButtonVerb": "defaultVerb"
+    "primaryButtonVerb": "use",
+    "secondaryButtonVerb": "look"
   },
-  "dropWhenInventoryUsed": true,
-  "defaultFallbackLine": "That doesn't seem to work.",
+  "dropWhenInventoryUsed": false,
+  "defaultFallbackLine": "You can't do that.",
   "startingPlayerCharacter": "hank",
   "startingRoomId": "apartment",
-  "initialGameState": {
-    "flags": {},
-    "variables": {},
-    "inventory": [
-      "Broom",
-      "Lantern",
-      "Key"
-    ]
-  },
   "audio": {
     "masterVolume": 1,
     "sfxVolume": 1,
@@ -72,6 +34,33 @@
     "showPropOutlines": false,
     "showGuiOutlines": false,
     "showRegionOutlines": false
+  },
+  "initialGameState": {
+    "flags": {},
+    "variables": {},
+    "inventory": [
+      "Broom",
+      "Lantern"
+    ]
+  },
+  "cursor": {
+    "idleAnimation": "Idle",
+    "activeAnimation": "Active",
+    "hotspot": "center",
+    "animations": {
+      "Idle": {
+        "loop": true
+      },
+      "Active": {
+        "loop": true
+      },
+      "Talk": {
+        "loop": true
+      }
+    },
+    "display": {
+      "aseprite": true
+    }
   },
   "dialog": {
     "clickToSkip": true,
@@ -86,23 +75,7 @@
     "durationMultiplier": 1
   },
   "perspective": {
-    "minWalkScale": 0.1,
-    "walkScalePower": 1.3
-  },
-  "cursor": {
-    "idleAnimation": "Idle",
-    "activeAnimation": "Active",
-    "hotspot": "center",
-    "animations": {
-      "Idle": {
-        "loop": true
-      },
-      "Active": {
-        "loop": true
-      }
-    },
-    "display": {
-      "aseprite": true
-    }
+    "minWalkScale": 0.3,
+    "walkScalePower": 0.8
   }
 }

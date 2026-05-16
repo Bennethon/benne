@@ -1,0 +1,26 @@
+{
+  "id": "hover-text",
+  "name": "Hover Text",
+  "description": "",
+  "visible": false,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "text",
+      "id": "text",
+      "x": 160,
+      "y": 160,
+      "text": "rubber chicken",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#28c074",
+      "align": "center",
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243"
+      }
+    }
+  ]
+}

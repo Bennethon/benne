@@ -1,14 +1,15 @@
 {
   "id": "PB",
   "name": "PB",
-  "description": "peanut butter",
+  "description": "",
   "onVerb": {
-    "open": true
+    "look": true,
+    "use": true
   },
   "stackable": false,
   "animations": {},
   "display": {
     "aseprite": "shared"
   },
-  "defaultAnimation": "PB"
+  "cursorAnimation": "PB"
 }
