@@ -211,7 +211,7 @@ Available on every **`BenneScriptCore`** facade (**room / character / inventory 
 |--------|-----------|-------------|--------|
 | **`play`** | `BlockingWithNow<[key: string, options?: SoundPlayOptions]>` | Start a one-shot SFX. **Blocking** form **queues** on the interaction tail — use this so **`play`** runs **after** **`walkToClicked`**, **`wait`**, etc. **`play.now`** starts immediately without tail ordering. | Queued vs **`.now`** |
 | **`playAndWait`** | `BlockingWithNow<[key: string, options?: SoundPlayOptions]>` | Same as **`play`**, but the **blocking** form **waits** until the sound **finishes or is stopped**. **`playAndWait.now`** starts playback without waiting on prior tail steps; it does **not** make following script lines wait for the sound to end. | Queued vs **`.now`** |
-| **`playMusic`** | `BlockingWithNow<[key: string, options?: MusicPlayOptions]>` | One **music** slot; a new **`playMusic`** replaces the current track. Default **`loop: true`** for music; SFX default **`loop: false`**. | Queued vs **`.now`** |
+| **`playMusic`** | `BlockingWithNow<[key: string, options?: MusicPlayOptions]>` | One **music** slot; a new **`playMusic`** replaces the current track (instant by default). With **`fadeSeconds` > 0**, volumes crossfade and the **blocking** form waits for that duration. **`sync: true`** (with a fade) seeks the new clip to the outgoing playback position when supported. Default **`loop: true`** for music; SFX default **`loop: false`**. | Queued vs **`.now`** |
 | **`stop`** | `BlockingWithNow<[key?: string]>` | **`stop()`** / **`stop.now()`** with **no** argument stops **all** SFX; with a **key**, stops instances of that stem only. | Queued vs **`.now`** |
 | **`stopMusic`** | `BlockingWithNow<[]>` | Stops the current music instance. | Queued vs **`.now`** |
 | **`setSfxVolume`** | `(volume: number) => void` | Session SFX multiplier (0–1). | Sync |
@@ -219,7 +219,7 @@ Available on every **`BenneScriptCore`** facade (**room / character / inventory 
 | **`isPlaying`** | `(key: string) => boolean` | Whether an SFX with that stem is playing. | Sync |
 | **`isMusicPlaying`** | `() => boolean` | Whether music is playing. | Sync |
 
-**`SoundPlayOptions` / `MusicPlayOptions`** — optional **`volume?: number`**, **`loop?: boolean`**.
+**`SoundPlayOptions` / `MusicPlayOptions`** — optional **`volume?: number`**, **`loop?: boolean`**. Music-only: **`fadeSeconds?: number`**, **`sync?: boolean`** (see examples below).
 
 **Editor previews** — VS Code **room / GUI / inventory / character** previews set **`benneAudioScriptDisabled`** so **`B.sound`** does not load or play audio (full runtime and **BENNE Play** behave normally).
 
@@ -232,6 +232,18 @@ B.player.say('I used the Broom on the Table.');
 ```
 
 Use **`B.sound.playAndWait('sweeping')`** when the **next** queued step should run only **after** the clip ends.
+
+Crossfade to a new room theme (blocking call waits **2** seconds before the tail continues):
+
+```ts
+B.sound.playMusic('outside-ambient', { fadeSeconds: 2 });
+```
+
+Same handoff but aligned to the outgoing track’s playback head (best effort; falls back to a plain crossfade):
+
+```ts
+B.sound.playMusic('outside-ambient', { fadeSeconds: 2, sync: true });
+```
 
 ---
 

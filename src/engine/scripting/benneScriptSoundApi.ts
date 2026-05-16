@@ -38,10 +38,7 @@ export function createBenneScriptSoundFacade(
     ),
     playMusic: withNow(
       (key: string, options?: MusicPlayOptions) => {
-        chain(() => {
-          resolveSoundManager()?.playMusic(key, options);
-          return Promise.resolve();
-        });
+        chain(() => resolveSoundManager()?.playMusic(key, options) ?? Promise.resolve());
       },
       (key: string, options?: MusicPlayOptions) => {
         resolveSoundManager()?.playMusic(key, options);

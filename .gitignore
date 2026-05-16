@@ -25,3 +25,5 @@ benne-editor/out
 *.njsproj
 *.sln
 *.sw?
+
+.VSCodeCounter/
