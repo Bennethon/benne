@@ -1,0 +1,78 @@
+{
+  "id": "game-menu",
+  "name": "Game Menu",
+  "description": "",
+  "visible": true,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "nineSliceImage",
+      "id": "menu-bg",
+      "x": 100,
+      "y": 30,
+      "width": 120,
+      "height": 120,
+      "tag": "9-slice-BG",
+      "sliceNames": {
+        "topLeft": "TopLeft",
+        "topCenter": "TopMid",
+        "topRight": "TopRight",
+        "middleLeft": "MidLeft",
+        "center": "Mid",
+        "middleRight": "MidRight",
+        "bottomLeft": "BottomLeft",
+        "bottomCenter": "BottomMid",
+        "bottomRight": "BottomRight"
+      },
+      "zIndex": 1
+    },
+    {
+      "type": "grid",
+      "id": "menu-layout",
+      "x": 109,
+      "y": 39,
+      "width": 102,
+      "height": 96,
+      "rows": 5,
+      "columns": 1,
+      "zIndex": 2
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "x": 0,
+      "y": 0,
+      "text": "Menu",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#ffffff",
+      "gridPlacement": {
+        "gridControlId": "menu-layout",
+        "row": 0,
+        "col": 0,
+        "align": "center"
+      },
+      "zIndex": 3
+    },
+    {
+      "type": "button",
+      "id": "save",
+      "x": 0,
+      "y": 0,
+      "width": 120,
+      "height": 32,
+      "backgroundAnchor": "top-left",
+      "text": "Save",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "zIndex": 5
+    }
+  ]
+}
