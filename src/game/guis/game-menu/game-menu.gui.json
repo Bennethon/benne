@@ -11,9 +11,9 @@
       "type": "nineSliceImage",
       "id": "menu-bg",
       "x": 102,
-      "y": 41,
+      "y": 33,
       "width": 116,
-      "height": 98,
+      "height": 114,
       "tag": "9-slice-BG",
       "sliceNames": {
         "topLeft": "TopLeft",
@@ -32,10 +32,10 @@
       "type": "grid",
       "id": "menu-layout",
       "x": 109,
-      "y": 45,
+      "y": 36,
       "width": 102,
-      "height": 85,
-      "rows": 5,
+      "height": 102,
+      "rows": 6,
       "columns": 1,
       "zIndex": 2
     },
@@ -47,7 +47,7 @@
       "text": "Menu",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "color": "#10908e",
+      "color": "#1a466b",
       "gridPlacement": {
         "gridControlId": "menu-layout",
         "row": 0,
@@ -61,7 +61,7 @@
       "id": "save",
       "x": 0,
       "y": 0,
-      "width": 102,
+      "width": 50,
       "height": 15,
       "backgroundAnchor": "top-left",
       "text": "Save",
@@ -75,9 +75,9 @@
       "zIndex": 5,
       "gridPlacement": {
         "gridControlId": "menu-layout",
-        "row": 1,
+        "row": 2,
         "col": 0,
-        "align": "center"
+        "align": "center-left"
       },
       "backgroundColor": "#132243",
       "backgroundColorStates": {
@@ -91,7 +91,7 @@
       "id": "load",
       "x": 0,
       "y": 0,
-      "width": 102,
+      "width": 50,
       "height": 15,
       "backgroundAnchor": "top-left",
       "text": "Load",
@@ -107,7 +107,7 @@
         "gridControlId": "menu-layout",
         "row": 2,
         "col": 0,
-        "align": "center"
+        "align": "center-right"
       },
       "backgroundColor": "#132243",
       "backgroundColorStates": {
@@ -163,6 +163,64 @@
       "textOffsetY": -1,
       "backgroundTag": "",
       "zIndex": 5,
+      "gridPlacement": {
+        "gridControlId": "menu-layout",
+        "row": 5,
+        "col": 0,
+        "align": "center"
+      },
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    },
+    {
+      "type": "button",
+      "id": "resume",
+      "x": 0,
+      "y": 0,
+      "width": 102,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Resume",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "gridPlacement": {
+        "gridControlId": "menu-layout",
+        "row": 1,
+        "col": 0,
+        "align": "center"
+      },
+      "backgroundColor": "#1a466b",
+      "backgroundColorStates": {
+        "hover": "#10908e",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    },
+    {
+      "type": "button",
+      "id": "title-screen",
+      "x": 0,
+      "y": 0,
+      "width": 102,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Title Screen",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
       "gridPlacement": {
         "gridControlId": "menu-layout",
         "row": 4,
