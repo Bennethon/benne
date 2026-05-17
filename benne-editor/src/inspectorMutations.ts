@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
+import { readInspectorJsonText, syncOpenJsonDocumentFromData } from './inspectorJsonDocument';
 import { formatJson } from './roomScaffolding';
 import { readPngDimensions } from './inspectorPngDimensions';
-import { readRoomJsonText } from './inspectorStateBuilder';
 
 const DEFAULT_W = 352;
 const DEFAULT_H = 198;
@@ -35,41 +35,19 @@ function nextId(prefix: string, existing: Set<string>): string {
     return `${prefix}${n}`;
 }
 
-/**
- * When the JSON file is open in an editor tab, `readRoomJsonText` reads the buffer (not disk).
- * Inspector saves go through `workspace.fs.writeFile`, which does not update that buffer — so the
- * next `pushState` would rebuild from stale text and newly patched fields (e.g. `backgroundColor`)
- * vanish in the UI. Keep the open document in sync with what we just wrote.
- */
-async function syncOpenJsonDocumentIfPresent(uri: vscode.Uri, data: Record<string, unknown>): Promise<void> {
-    const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
-    if (!open) {
-        return;
-    }
-    const nextText = new TextDecoder().decode(formatJson(data));
-    const current = open.getText();
-    if (current === nextText) {
-        return;
-    }
-    const edit = new vscode.WorkspaceEdit();
-    const fullRange = new vscode.Range(open.positionAt(0), open.positionAt(current.length));
-    edit.replace(uri, fullRange, nextText);
-    await vscode.workspace.applyEdit(edit);
-}
-
 export async function writeRoomJson(uri: vscode.Uri, data: Record<string, unknown>): Promise<void> {
     await vscode.workspace.fs.writeFile(uri, formatJson(data));
-    await syncOpenJsonDocumentIfPresent(uri, data);
+    await syncOpenJsonDocumentFromData(uri, data);
 }
 
 export async function writeDataJson(uri: vscode.Uri, data: Record<string, unknown>): Promise<void> {
     await vscode.workspace.fs.writeFile(uri, formatJson(data));
-    await syncOpenJsonDocumentIfPresent(uri, data);
+    await syncOpenJsonDocumentFromData(uri, data);
 }
 
 export async function loadRoomData(uri: vscode.Uri): Promise<Record<string, unknown> | null> {
     try {
-        const text = await readRoomJsonText(uri);
+        const text = await readInspectorJsonText(uri);
         return JSON.parse(text) as Record<string, unknown>;
     } catch {
         return null;

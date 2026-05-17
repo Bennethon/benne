@@ -21,6 +21,7 @@ import {
     type RoomHotspotListEntry,
     type RoomPropEntry
 } from './gameDiscovery';
+import { readInspectorJsonText } from './inspectorJsonDocument';
 import { readPngDimensions } from './inspectorPngDimensions';
 import {
     buildInventoryVerbChips,
@@ -540,18 +541,9 @@ function readDefaultVerbField(o: Record<string, unknown>): string {
     return DEFAULT_VERB_FALLBACK;
 }
 
-function readRoomJsonFromBuffer(uri: vscode.Uri): string | undefined {
-    const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
-    return open?.getText();
-}
-
+/** @see readInspectorJsonText — disk/buffer reconciliation for Inspector and tooling. */
 export async function readRoomJsonText(uri: vscode.Uri): Promise<string> {
-    const buf = readRoomJsonFromBuffer(uri);
-    if (buf !== undefined) {
-        return buf;
-    }
-    const raw = await vscode.workspace.fs.readFile(uri);
-    return new TextDecoder('utf-8').decode(raw);
+    return readInspectorJsonText(uri);
 }
 
 function expandedFromRoomPanel(
