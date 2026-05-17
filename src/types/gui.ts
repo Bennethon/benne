@@ -423,6 +423,16 @@ export interface GuiData {
    * Per-control `visible` can still override for individual controls.
    */
   visible: boolean;
+  /**
+   * When **`true`**, a full-screen invisible pointer catcher is active while this overlay is visible,
+   * blocking room input and any GUI rendered below this overlay's depth. Default false when omitted.
+   */
+  modal?: boolean;
+  /**
+   * Stack order among GUI overlays (lower = behind). Omitted = **0**.
+   * Distinct from per-control **`zIndex`** in **`controls[]`**, which only layers widgets inside this GUI.
+   */
+  zIndex?: number;
   display: GuiDisplayData;
   /**
    * Choice-dialog GUIs only (`Option-Grid` + dynamic rows): max pixels for stacking option rows below the grid top.

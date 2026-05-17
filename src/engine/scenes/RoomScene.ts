@@ -149,10 +149,15 @@ import { getCallbacksForRoom } from '../scripting/registerRoomScript.js';
 import { runGlobalBenneScriptOnUpdateHandlers } from '../scripting/benneScriptOnUpdateRegistry.js';
 import {
   buildGuiOverlay,
+  type BuildGuiOverlayOptions,
   GUI_OVERLAY_DEPTH_STRIDE,
   GUI_TEXT_OVERLAY_DEPTH,
+  hasAnyVisibleModal,
+  isGuiDepthBehindVisibleModal,
   type GuiOverlayHandle,
+  type ModalGuiDepthEntry,
 } from '../gui/buildGuiOverlay';
+import { sortGuisForOverlayStack } from '../gui/guiStackOrder';
 import { getRegisteredDialogChoiceGuiIds, getDialogDefinition } from '../dialog/dialogDefinitionRegistry';
 import {
   dialogOptionUsedVariableKey,
@@ -459,6 +464,9 @@ export class RoomScene extends Phaser.Scene {
    */
   private genericGuiVisibilityBeforeDialog: boolean[] | null = null;
 
+  /** Visible modal overlays (`GuiData.modal`) for depth-based pointer blocking. */
+  private modalGuiEntries: ModalGuiDepthEntry[] = [];
+
   /**
    * Choice-dialog GUIs (`dialog` plus any `guiId` from `*.dialog.json`), built like `speaking-text` and kept hidden until
    * {@link DIALOG_STARTED_EVENT}.
@@ -572,6 +580,7 @@ export class RoomScene extends Phaser.Scene {
     this.missingDialogTextOverlaySayWarned = false;
     this.missingDisplayTextOverlayWarned = false;
     this.genericGuiVisibilityBeforeDialog = null;
+    this.modalGuiEntries = [];
     this.benneCoresForTransitionReset.length = 0;
     this.benneScriptRoomOnUpdateHandlers.length = 0;
 
@@ -619,16 +628,8 @@ export class RoomScene extends Phaser.Scene {
     this.applyPlayerCameraFollow(roomW, roomH);
     this.drawRoomDebugOverlays(data);
 
-    const guisSorted = [...getAllGuiData()].sort((a, b) => a.id.localeCompare(b.id));
     const dialogChoiceGuiIds = new Set(getRegisteredDialogChoiceGuiIds());
-    const nonDialogGuis = guisSorted.filter(
-      (g) =>
-        g.id !== SPEAKING_TEXT_GUI_ID &&
-        g.id !== DISPLAY_TEXT_GUI_ID &&
-        !dialogChoiceGuiIds.has(g.id),
-    );
-    const speakingTextGui = guisSorted.find((g) => g.id === SPEAKING_TEXT_GUI_ID);
-    const displayTextGui = guisSorted.find((g) => g.id === DISPLAY_TEXT_GUI_ID);
+    const guisForStack = sortGuisForOverlayStack(getAllGuiData());
 
     const genericGuiVisibilityOverride = this.game.registry.get(
       GENERIC_GUIS_INITIAL_VISIBILITY_REGISTRY_KEY,
@@ -637,6 +638,10 @@ export class RoomScene extends Phaser.Scene {
 
     this.genericGuiOverlays = [];
     this.guiRuntimeByGuiId.clear();
+    this.dialogTextOverlay = null;
+    this.displayTextOverlay = null;
+    this.dialogChoiceInstallByGuiId.clear();
+    this.dialogChoiceRuntimeByGuiId.clear();
     let stackIndex = 0;
     const inventoryPanelPointerContext = {
       roomId: data.room.id,
@@ -645,16 +650,74 @@ export class RoomScene extends Phaser.Scene {
         this.tryConsumeScriptedDialogClickToSkip(pointer),
     };
     const isButtonClickSuppressed = (): boolean => this.isCutsceneActive();
-    for (const gui of nonDialogGuis) {
-      const built = buildGuiOverlay(this, gui, {
-        /** Preview / cutscene override wins; otherwise each GUI's required `visible` boolean. */
-        startVisible: hasGenericGuiVisibilityOverride ? genericGuiVisibilityOverride : gui.visible,
-        depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
-        inventoryPanelPointerContext,
-        isButtonClickSuppressed,
-        previewGuiAsepriteSheetJson: data.previewGuiAsepriteSheetJsonById?.[gui.id],
-      });
-      if (built) {
+    const noopDialogQueue = (factory: () => Promise<unknown>): void => {
+      void factory().catch((err) => console.error('[Benne] dialog choice GUI queued step failed:', err));
+    };
+    for (const gui of guisForStack) {
+      const isSpeakingText = gui.id === SPEAKING_TEXT_GUI_ID;
+      const isDisplayText = gui.id === DISPLAY_TEXT_GUI_ID;
+      const isChoiceDialog = dialogChoiceGuiIds.has(gui.id);
+      const isGenericHud = !isSpeakingText && !isDisplayText && !isChoiceDialog;
+
+      const guiDepth = GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE;
+      const guiStartVisible =
+        isSpeakingText || isDisplayText || isChoiceDialog
+          ? false
+          : hasGenericGuiVisibilityOverride
+            ? genericGuiVisibilityOverride
+            : gui.visible;
+
+      const built = buildGuiOverlay(
+        this,
+        gui,
+        this.makeGuiOverlayBuildOptions(guiDepth, {
+          startVisible: guiStartVisible,
+          inventoryPanelPointerContext,
+          isButtonClickSuppressed,
+          previewGuiAsepriteSheetJson: data.previewGuiAsepriteSheetJsonById?.[gui.id],
+        }),
+      );
+      stackIndex += 1;
+      if (!built) {
+        continue;
+      }
+
+      this.registerModalGuiOverlay(gui, guiDepth, built.handle, guiStartVisible);
+
+      if (isSpeakingText) {
+        this.dialogTextOverlay = built.handle;
+        const speakingTextScript = getGuiBenneScript(SPEAKING_TEXT_GUI_ID);
+        if (speakingTextScript) {
+          const rt = built.createGuiRuntime((factory) =>
+            speakingTextScript.queueInteraction(factory),
+          );
+          this.guiRuntimeByGuiId.set(SPEAKING_TEXT_GUI_ID, rt);
+          speakingTextScript.notifyGuiBuilt(rt);
+        }
+      } else if (isDisplayText) {
+        this.displayTextOverlay = built.handle;
+        const displayTextScript = getGuiBenneScript(DISPLAY_TEXT_GUI_ID);
+        if (displayTextScript) {
+          const rt = built.createGuiRuntime((factory) =>
+            displayTextScript.queueInteraction(factory),
+          );
+          this.guiRuntimeByGuiId.set(DISPLAY_TEXT_GUI_ID, rt);
+          displayTextScript.notifyGuiBuilt(rt);
+        }
+      } else if (isChoiceDialog) {
+        this.dialogChoiceInstallByGuiId.set(gui.id, {
+          built,
+          guiData: gui,
+          baseDepth: guiDepth,
+        });
+        const choiceScript = getGuiBenneScript(gui.id);
+        const rt = built.createGuiRuntime((factory) =>
+          choiceScript ? choiceScript.queueInteraction(factory) : noopDialogQueue(factory),
+        );
+        this.dialogChoiceRuntimeByGuiId.set(gui.id, rt);
+        this.guiRuntimeByGuiId.set(gui.id, rt);
+        choiceScript?.notifyGuiBuilt(rt);
+      } else if (isGenericHud) {
         this.genericGuiOverlays.push(built.handle);
         const guiScript = getGuiBenneScript(gui.id);
         if (guiScript) {
@@ -663,83 +726,6 @@ export class RoomScene extends Phaser.Scene {
           guiScript.notifyGuiBuilt(rt);
         }
       }
-      stackIndex += 1;
-    }
-
-    const speakingTextBuilt = speakingTextGui
-      ? buildGuiOverlay(this, speakingTextGui, {
-          /** Speech UI is driven by {@link setDialogTextOverlay}, not the JSON `visible` flag at boot. */
-          startVisible: false,
-          depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
-          inventoryPanelPointerContext,
-          isButtonClickSuppressed,
-          previewGuiAsepriteSheetJson: data.previewGuiAsepriteSheetJsonById?.[SPEAKING_TEXT_GUI_ID],
-        })
-      : null;
-    this.dialogTextOverlay = speakingTextBuilt?.handle ?? null;
-    if (speakingTextBuilt) {
-      const speakingTextScript = getGuiBenneScript(SPEAKING_TEXT_GUI_ID);
-      if (speakingTextScript) {
-        const rt = speakingTextBuilt.createGuiRuntime((factory) =>
-          speakingTextScript.queueInteraction(factory),
-        );
-        this.guiRuntimeByGuiId.set(SPEAKING_TEXT_GUI_ID, rt);
-        speakingTextScript.notifyGuiBuilt(rt);
-      }
-    }
-
-    stackIndex += 1;
-    const displayTextBuilt = displayTextGui
-      ? buildGuiOverlay(this, displayTextGui, {
-          /** Display Text UI is driven by {@link setDisplayTextOverlay}, not the JSON `visible` flag at boot. */
-          startVisible: false,
-          depth: GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE,
-          inventoryPanelPointerContext,
-          isButtonClickSuppressed,
-          previewGuiAsepriteSheetJson: data.previewGuiAsepriteSheetJsonById?.[DISPLAY_TEXT_GUI_ID],
-        })
-      : null;
-    this.displayTextOverlay = displayTextBuilt?.handle ?? null;
-    if (displayTextBuilt) {
-      const displayTextScript = getGuiBenneScript(DISPLAY_TEXT_GUI_ID);
-      if (displayTextScript) {
-        const rt = displayTextBuilt.createGuiRuntime((factory) =>
-          displayTextScript.queueInteraction(factory),
-        );
-        this.guiRuntimeByGuiId.set(DISPLAY_TEXT_GUI_ID, rt);
-        displayTextScript.notifyGuiBuilt(rt);
-      }
-    }
-
-    stackIndex += 1;
-    const noopDialogQueue = (factory: () => Promise<unknown>): void => {
-      void factory().catch((err) => console.error('[Benne] dialog choice GUI queued step failed:', err));
-    };
-    for (const guiId of [...dialogChoiceGuiIds].sort((a, b) => a.localeCompare(b))) {
-      const gui = guisSorted.find((g) => g.id === guiId);
-      if (!gui) {
-        continue;
-      }
-      const dChoice = GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE;
-      const choiceBuilt = buildGuiOverlay(this, gui, {
-        startVisible: false,
-        depth: dChoice,
-        inventoryPanelPointerContext,
-        isButtonClickSuppressed,
-        previewGuiAsepriteSheetJson: data.previewGuiAsepriteSheetJsonById?.[gui.id],
-      });
-      stackIndex += 1;
-      if (!choiceBuilt) {
-        continue;
-      }
-      this.dialogChoiceInstallByGuiId.set(guiId, { built: choiceBuilt, guiData: gui, baseDepth: dChoice });
-      const choiceScript = getGuiBenneScript(guiId);
-      const rt = choiceBuilt.createGuiRuntime((factory) =>
-        choiceScript ? choiceScript.queueInteraction(factory) : noopDialogQueue(factory),
-      );
-      this.dialogChoiceRuntimeByGuiId.set(guiId, rt);
-      this.guiRuntimeByGuiId.set(guiId, rt);
-      choiceScript?.notifyGuiBuilt(rt);
     }
 
     this.wireDialogChoiceUi();
@@ -875,6 +861,7 @@ export class RoomScene extends Phaser.Scene {
       }
       this.genericGuiOverlays = [];
       this.genericGuiVisibilityBeforeDialog = null;
+      this.modalGuiEntries = [];
       this.dialogTextOverlay?.destroy();
       this.dialogTextOverlay = null;
       this.displayTextOverlay?.destroy();
@@ -1585,6 +1572,38 @@ export class RoomScene extends Phaser.Scene {
   /** True while a cutscene is in progress (cutscene depth > 0). */
   isCutsceneActive(): boolean {
     return this.cutsceneDepth > 0;
+  }
+
+  private makeGuiOverlayBuildOptions(
+    depth: number,
+    rest: Omit<BuildGuiOverlayOptions, 'depth' | 'isBehindVisibleModal'>,
+  ): BuildGuiOverlayOptions {
+    return {
+      ...rest,
+      depth,
+      isBehindVisibleModal: () => isGuiDepthBehindVisibleModal(depth, this.modalGuiEntries),
+    };
+  }
+
+  /**
+   * Tracks overlay visibility for {@link GuiData.modal} GUIs so {@link isGuiDepthBehindVisibleModal} stays accurate.
+   */
+  private registerModalGuiOverlay(
+    gui: GuiData,
+    depth: number,
+    handle: GuiOverlayHandle,
+    startVisible: boolean,
+  ): void {
+    if (gui.modal !== true) {
+      return;
+    }
+    let overlayVisible = startVisible;
+    const originalSetVisible = handle.setVisible.bind(handle);
+    handle.setVisible = (visible: boolean) => {
+      overlayVisible = visible;
+      originalSetVisible(visible);
+    };
+    this.modalGuiEntries.push({ depth, isVisible: () => overlayVisible });
   }
 
   /**
@@ -4473,7 +4492,7 @@ export class RoomScene extends Phaser.Scene {
 
   /** Hover target + description under the pointer for **`B.currentHoverDescription`** (skips GUI buttons like the verb bar). */
   private resolveVerbHoverPointerContext(pointer: Phaser.Input.Pointer): VerbHoverTarget | null {
-    if (this.isInputSuppressed()) {
+    if (this.isInputSuppressed() || hasAnyVisibleModal(this.modalGuiEntries)) {
       return null;
     }
     const hits = this.sortRoomPointerHitStack(pointer);

@@ -72,7 +72,7 @@ export async function listGuiDefinitions(
     } catch {
         return [];
     }
-    const result: { id: string; name: string; uri: vscode.Uri }[] = [];
+    const result: { id: string; name: string; uri: vscode.Uri; stackZ: number }[] = [];
     for (const [name, type] of entries) {
         if (type !== vscode.FileType.Directory) {
             continue;
@@ -84,21 +84,26 @@ export async function listGuiDefinitions(
             continue;
         }
         const meta = await readGuiMeta(uri, name);
-        result.push({ id: name, name: meta.name, uri });
+        result.push({ id: name, name: meta.name, uri, stackZ: meta.zIndex });
     }
-    result.sort((a, b) => a.id.localeCompare(b.id));
-    return result;
+    result.sort((a, b) => a.stackZ - b.stackZ || a.id.localeCompare(b.id));
+    return result.map(({ id, name, uri }) => ({ id, name, uri }));
 }
 
-async function readGuiMeta(uri: vscode.Uri, fallbackId: string): Promise<{ name: string }> {
+async function readGuiMeta(
+    uri: vscode.Uri,
+    fallbackId: string
+): Promise<{ name: string; zIndex: number }> {
     try {
         const raw = await vscode.workspace.fs.readFile(uri);
         const text = new TextDecoder('utf-8').decode(raw);
-        const data = JSON.parse(text) as { name?: string };
+        const data = JSON.parse(text) as { name?: string; zIndex?: number };
         const name = typeof data.name === 'string' && data.name.length > 0 ? data.name : fallbackId;
-        return { name };
+        const zIndex =
+            typeof data.zIndex === 'number' && Number.isFinite(data.zIndex) ? data.zIndex : 0;
+        return { name, zIndex };
     } catch {
-        return { name: fallbackId };
+        return { name: fallbackId, zIndex: 0 };
     }
 }
 

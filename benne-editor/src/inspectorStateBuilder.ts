@@ -461,6 +461,8 @@ export type InspectorGuiState = {
     description: string;
     /** Root `visible` (required in schema); absent JSON treated as visible until saved. */
     rootVisibleAtLoad: boolean;
+    modal: boolean;
+    zIndex: number;
     usesAseprite: boolean;
     guiSheetTags: string[];
     fontIds: string[];
@@ -1583,6 +1585,8 @@ async function buildGuiInspectorState(
         name,
         description,
         rootVisibleAtLoad: typeof data.visible === 'boolean' ? data.visible : true,
+        modal: data.modal === true,
+        zIndex: typeof data.zIndex === 'number' && Number.isFinite(data.zIndex) ? data.zIndex : 0,
         usesAseprite,
         guiSheetTags,
         fontIds,

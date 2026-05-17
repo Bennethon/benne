@@ -4,7 +4,7 @@
  */
 import * as Phaser from 'phaser';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
-import { getInternalWidth } from '../../game/constants';
+import { getInternalHeight, getInternalWidth } from '../../game/constants';
 import { isBenneGameCursorAsepriteEnabled } from '../../game/cursorAseprite';
 import { guiPhaserAnimationKey } from '../../game/asepritePhaserAnimationKeys';
 import { getGameSettings } from '../ConfigManager';
@@ -102,6 +102,12 @@ import {
   wireBenneGuiAsepriteTrimmedPlacementAfterFrameChanges,
 } from '../aseprite/asepriteFramePlacement';
 import { ensureAsepriteAtlasAnimationsRegisteredOnce } from '../aseprite/ensureAsepriteAtlasAnimationsOnce.js';
+export {
+  getTopVisibleModalDepth,
+  hasAnyVisibleModal,
+  isGuiDepthBehindVisibleModal,
+  type ModalGuiDepthEntry,
+} from './guiModalInput.js';
 
 /** Slot stroke for `game-config.json` `debug.showGuiOutlines` (distinct from walkable / prop debug colors). */
 const DEBUG_GUI_INVENTORY_SLOT_STROKE = 0x66ccff;
@@ -658,7 +664,7 @@ function installGuiControlPointerHoverObserver(
   gui: GuiData,
   controlId: string,
   target: GuiHoverObservableGameObject,
-  options?: { active?: boolean },
+  options?: { active?: boolean; isBehindVisibleModal?: () => boolean },
 ): () => void {
   const id = controlId.trim();
   if (!id) {
@@ -690,6 +696,10 @@ function installGuiControlPointerHoverObserver(
 
   const ptrWorldScratch = new Phaser.Math.Vector2();
   const onPointerMove = (pointer: Phaser.Input.Pointer): void => {
+    if (options?.isBehindVisibleModal?.()) {
+      emitLeaveIfInside();
+      return;
+    }
     if (!isEffectivelyVisible()) {
       emitLeaveIfInside();
       return;
@@ -1574,6 +1584,7 @@ function fillInventoryPanelContent(
    * so the backdrop can offset to canvas `(0,0)`. When omitted, uses the control’s authored `x`/`y`.
    */
   panelAnchorInRoot?: { x: number; y: number },
+  isBehindVisibleModal?: () => boolean,
 ): void {
   panel.removeAll(true);
 
@@ -1801,6 +1812,9 @@ function fillInventoryPanelContent(
           if (invPointerCtx.isInputSuppressed()) {
             return;
           }
+          if (isBehindVisibleModal?.()) {
+            return;
+          }
           const profile = getEffectiveInputProfile(getGameSettings());
           const manager = resolveGameStateManager(scene.game);
           const invDef = getInventoryDefinition(itemId) as InventoryItemData | undefined;
@@ -1901,6 +1915,11 @@ export interface BuildGuiOverlayOptions {
    * preview inject this when `import.meta.glob` cannot supply {@link getBundledGuiAsepriteRawJson}.
    */
   previewGuiAsepriteSheetJson?: Record<string, unknown>;
+  /**
+   * When provided and returns **`true`**, this overlay is below a visible modal GUI and must not
+   * receive pointer hover / button clicks (room blocking uses the modal fullscreen catcher).
+   */
+  isBehindVisibleModal?: () => boolean;
 }
 
 /**
@@ -1982,6 +2001,9 @@ export function buildGuiOverlay(
   const placeholder = options?.emptyTextPlaceholder;
   const invPointerCtx = options?.inventoryPanelPointerContext;
   const isButtonClickSuppressed = options?.isButtonClickSuppressed;
+  const isBehindVisibleModal = options?.isBehindVisibleModal;
+  const suppressGuiButtonClick = (): boolean =>
+    (isButtonClickSuppressed?.() ?? false) || (isBehindVisibleModal?.() ?? false);
   const previewGuiAsepriteSheetJson = options?.previewGuiAsepriteSheetJson;
   const allLines: Phaser.GameObjects.BitmapText[] = [];
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
@@ -2136,6 +2158,7 @@ export function buildGuiOverlay(
           startVisible,
           invPointerCtx,
           panelAnchorInRoot,
+          isBehindVisibleModal,
         );
       };
       if (scrollSt) {
@@ -2284,7 +2307,7 @@ export function buildGuiOverlay(
         startVisible,
         preEmit,
         btnPlace ? btnPlace.rootTopLeft : undefined,
-        isButtonClickSuppressed,
+        suppressGuiButtonClick,
       );
       if (built) {
         if (btnPlace) {
@@ -2325,6 +2348,7 @@ export function buildGuiOverlay(
         overlayDisposers.push(
           installGuiControlPointerHoverObserver(scene, gui, c.id, zone, {
             active: c.active !== false,
+            isBehindVisibleModal,
           }),
         );
         if (!trPlace) {
@@ -2380,15 +2404,33 @@ export function buildGuiOverlay(
     }
   }
 
-  if (
-    allLines.length === 0 &&
-    inventoryPanels.length === 0 &&
-    extraSprites.length === 0 &&
-    guiButtons.length === 0 &&
-    triggerZones.length === 0 &&
-    gridContainers.length === 0
-  ) {
+  const hasPackedControls =
+    allLines.length > 0 ||
+    inventoryPanels.length > 0 ||
+    extraSprites.length > 0 ||
+    guiButtons.length > 0 ||
+    triggerZones.length > 0 ||
+    gridContainers.length > 0;
+  if (!hasPackedControls && gui.modal !== true) {
     return null;
+  }
+
+  let modalBlocker: Phaser.GameObjects.Rectangle | null = null;
+  if (gui.modal === true) {
+    const iw = getInternalWidth();
+    const ih = getInternalHeight();
+    modalBlocker = scene.add.rectangle(iw / 2, ih / 2, iw, ih, 0x000000, 0);
+    modalBlocker.setScrollFactor(0, 0);
+    modalBlocker.setDepth(depth - 0.001);
+    modalBlocker.setData('benneGuiModalBlocker', true);
+    modalBlocker.setVisible(startVisible);
+    if (startVisible) {
+      modalBlocker.setInteractive();
+    }
+    if (modalBlocker.input) {
+      modalBlocker.input.cursor = false;
+    }
+    fixedPackedGameObjects.push(modalBlocker as DepthGameObject);
   }
 
   const rootX = Math.round(gui.x ?? 0);
@@ -2435,7 +2477,9 @@ export function buildGuiOverlay(
       continue;
     }
     overlayDisposers.push(
-      installGuiControlPointerHoverObserver(scene, gui, id, target as GuiHoverObservableGameObject),
+      installGuiControlPointerHoverObserver(scene, gui, id, target as GuiHoverObservableGameObject, {
+        isBehindVisibleModal,
+      }),
     );
   }
 
@@ -2483,6 +2527,14 @@ export function buildGuiOverlay(
       runDisplayTextLayout(text);
     },
     setVisible(visible: boolean) {
+      if (modalBlocker) {
+        modalBlocker.setVisible(visible);
+        if (visible) {
+          modalBlocker.setInteractive();
+        } else {
+          modalBlocker.disableInteractive();
+        }
+      }
       for (const line of allLines) {
         line.setVisible(visible);
       }

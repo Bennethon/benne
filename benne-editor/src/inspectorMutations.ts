@@ -759,7 +759,13 @@ export function updateCharacterAnimationFields(
 
 export function updateGuiFields(
     data: Record<string, unknown>,
-    fields: { name?: string; description?: string; rootVisibleAtLoad?: boolean }
+    fields: {
+        name?: string;
+        description?: string;
+        rootVisibleAtLoad?: boolean;
+        modal?: boolean;
+        zIndex?: number;
+    }
 ): { ok: true } {
     if (fields.name !== undefined) {
         data.name = fields.name;
@@ -769,6 +775,20 @@ export function updateGuiFields(
     }
     if (fields.rootVisibleAtLoad !== undefined) {
         data.visible = fields.rootVisibleAtLoad;
+    }
+    if (fields.modal !== undefined) {
+        if (fields.modal) {
+            data.modal = true;
+        } else {
+            delete data.modal;
+        }
+    }
+    if (fields.zIndex !== undefined) {
+        if (fields.zIndex !== 0) {
+            data.zIndex = fields.zIndex;
+        } else {
+            delete data.zIndex;
+        }
     }
     return { ok: true };
 }
