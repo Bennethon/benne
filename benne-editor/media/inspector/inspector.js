@@ -1065,6 +1065,17 @@ function renderGuiControlCardBody(state, c) {
                 ? `<p class="muted small">No frame tags on sheet JSON.</p>`
                 : `<p class="muted small">Set <code>display.aseprite: true</code> to pick sheet tags.</p>`;
         const sheetBlock = (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(c.key, 'sheet', 'Sheet', sheetFieldsBody);
+        const colorsFieldsBody = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">backgroundColor</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="backgroundColor" value="${esc(c.backgroundColor)}" placeholder="#888888" />
+        <span class="benne-pg-lbl">color hover</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="backgroundColorStatesHover" value="${esc(c.backgroundColorStatesHover)}" placeholder="#ffffff" />
+        <span class="benne-pg-lbl">color pressed</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="backgroundColorStatesPressed" value="${esc(c.backgroundColorStatesPressed)}" placeholder="#ffffff" />
+        <span class="benne-pg-lbl">color disabled</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="backgroundColorStatesDisabled" value="${esc(c.backgroundColorStatesDisabled)}" placeholder="#ffffff" />
+      </div>`;
+        const colorsBlock = (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(c.key, 'colors', 'Colors', colorsFieldsBody);
         return `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">id</span>
         <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
@@ -1100,6 +1111,7 @@ function renderGuiControlCardBody(state, c) {
       <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
       ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
       ${sheetBlock}
+      ${colorsBlock}
       ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
       ${c.controlId
             ? `<div style="margin:8px 0 0;">
@@ -2097,6 +2109,21 @@ function buildGuiControlFieldPatch(field, el) {
         const raw = el.value.trim();
         return { textColorStates: { [sub]: raw.length === 0 ? null : el.value } };
     }
+    if (field === 'backgroundColorStatesHover' ||
+        field === 'backgroundColorStatesPressed' ||
+        field === 'backgroundColorStatesDisabled') {
+        const sub = field === 'backgroundColorStatesHover'
+            ? 'hover'
+            : field === 'backgroundColorStatesPressed'
+                ? 'pressed'
+                : 'disabled';
+        const raw = el.value.trim();
+        return { backgroundColorStates: { [sub]: raw.length === 0 ? null : el.value } };
+    }
+    if (field === 'backgroundColor') {
+        const raw = el.value.trim();
+        return { backgroundColor: raw.length === 0 ? null : el.value };
+    }
     if (field === 'enabled') {
         return { enabled: el.checked ? null : false };
     }
@@ -2209,6 +2236,10 @@ function buildGuiControlFieldPatch(field, el) {
         'textColorStatesHover',
         'textColorStatesPressed',
         'textColorStatesDisabled',
+        'backgroundColor',
+        'backgroundColorStatesHover',
+        'backgroundColorStatesPressed',
+        'backgroundColorStatesDisabled',
         'backgroundTag',
         'slotBackgroundTag',
         'highlightTag'

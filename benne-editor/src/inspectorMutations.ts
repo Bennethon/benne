@@ -35,12 +35,36 @@ function nextId(prefix: string, existing: Set<string>): string {
     return `${prefix}${n}`;
 }
 
+/**
+ * When the JSON file is open in an editor tab, `readRoomJsonText` reads the buffer (not disk).
+ * Inspector saves go through `workspace.fs.writeFile`, which does not update that buffer — so the
+ * next `pushState` would rebuild from stale text and newly patched fields (e.g. `backgroundColor`)
+ * vanish in the UI. Keep the open document in sync with what we just wrote.
+ */
+async function syncOpenJsonDocumentIfPresent(uri: vscode.Uri, data: Record<string, unknown>): Promise<void> {
+    const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
+    if (!open) {
+        return;
+    }
+    const nextText = new TextDecoder().decode(formatJson(data));
+    const current = open.getText();
+    if (current === nextText) {
+        return;
+    }
+    const edit = new vscode.WorkspaceEdit();
+    const fullRange = new vscode.Range(open.positionAt(0), open.positionAt(current.length));
+    edit.replace(uri, fullRange, nextText);
+    await vscode.workspace.applyEdit(edit);
+}
+
 export async function writeRoomJson(uri: vscode.Uri, data: Record<string, unknown>): Promise<void> {
     await vscode.workspace.fs.writeFile(uri, formatJson(data));
+    await syncOpenJsonDocumentIfPresent(uri, data);
 }
 
 export async function writeDataJson(uri: vscode.Uri, data: Record<string, unknown>): Promise<void> {
     await vscode.workspace.fs.writeFile(uri, formatJson(data));
+    await syncOpenJsonDocumentIfPresent(uri, data);
 }
 
 export async function loadRoomData(uri: vscode.Uri): Promise<Record<string, unknown> | null> {
@@ -948,6 +972,29 @@ export function updateGuiControlPatch(
             }
             continue;
         }
+        if (k === 'backgroundColorStates' && v && typeof v === 'object' && !Array.isArray(v)) {
+            const prev =
+                row.backgroundColorStates &&
+                typeof row.backgroundColorStates === 'object' &&
+                !Array.isArray(row.backgroundColorStates)
+                    ? { ...(row.backgroundColorStates as Record<string, unknown>) }
+                    : {};
+            const incoming = v as Record<string, unknown>;
+            for (const [sk, sv] of Object.entries(incoming)) {
+                if (sv === null || sv === '') {
+                    delete prev[sk];
+                } else {
+                    prev[sk] = sv;
+                }
+            }
+            pruneEmptyButtonStates(prev);
+            if (Object.keys(prev).length === 0) {
+                delete row.backgroundColorStates;
+            } else {
+                row.backgroundColorStates = prev;
+            }
+            continue;
+        }
         if (k === 'textOutline' && v && typeof v === 'object' && !Array.isArray(v)) {
             mergeGuiTextOutlinePatch(row, v as Record<string, unknown>);
             continue;
@@ -1052,6 +1099,19 @@ export function updateGuiControlPatch(
             pruneEmptyButtonStates(row.textColorStates as Record<string, unknown>);
             if (Object.keys(row.textColorStates as Record<string, unknown>).length === 0) {
                 delete row.textColorStates;
+            }
+        }
+        if (typeof row.backgroundColor === 'string' && row.backgroundColor.trim().length === 0) {
+            delete row.backgroundColor;
+        }
+        if (
+            row.backgroundColorStates &&
+            typeof row.backgroundColorStates === 'object' &&
+            !Array.isArray(row.backgroundColorStates)
+        ) {
+            pruneEmptyButtonStates(row.backgroundColorStates as Record<string, unknown>);
+            if (Object.keys(row.backgroundColorStates as Record<string, unknown>).length === 0) {
+                delete row.backgroundColorStates;
             }
         }
     }

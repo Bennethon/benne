@@ -397,6 +397,10 @@ export type InspectorGuiControlCard =
           textOffsetX: number | null;
           textOffsetY: number | null;
           backgroundTag: string;
+          backgroundColor: string;
+          backgroundColorStatesHover: string;
+          backgroundColorStatesPressed: string;
+          backgroundColorStatesDisabled: string;
           statesHover: string;
           statesPressed: string;
           statesDisabled: string;
@@ -1446,6 +1450,12 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             o.textColorStates && typeof o.textColorStates === 'object' && !Array.isArray(o.textColorStates)
                 ? (o.textColorStates as Record<string, unknown>)
                 : {};
+        const backgroundColorStatesRaw =
+            o.backgroundColorStates &&
+            typeof o.backgroundColorStates === 'object' &&
+            !Array.isArray(o.backgroundColorStates)
+                ? (o.backgroundColorStates as Record<string, unknown>)
+                : {};
         const alignRaw = o.textAlign;
         const textAlign: 'left' | 'center' | 'right' | '' =
             alignRaw === 'center' || alignRaw === 'right' || alignRaw === 'left' ? alignRaw : '';
@@ -1472,6 +1482,13 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             textOffsetX: guiReadNumOrNull(o, 'textOffsetX'),
             textOffsetY: guiReadNumOrNull(o, 'textOffsetY'),
             backgroundTag: typeof o.backgroundTag === 'string' ? o.backgroundTag : '',
+            backgroundColor: typeof o.backgroundColor === 'string' ? o.backgroundColor : '',
+            backgroundColorStatesHover:
+                typeof backgroundColorStatesRaw.hover === 'string' ? backgroundColorStatesRaw.hover : '',
+            backgroundColorStatesPressed:
+                typeof backgroundColorStatesRaw.pressed === 'string' ? backgroundColorStatesRaw.pressed : '',
+            backgroundColorStatesDisabled:
+                typeof backgroundColorStatesRaw.disabled === 'string' ? backgroundColorStatesRaw.disabled : '',
             statesHover: typeof statesRaw.hover === 'string' ? statesRaw.hover : '',
             statesPressed: typeof statesRaw.pressed === 'string' ? statesRaw.pressed : '',
             statesDisabled: typeof statesRaw.disabled === 'string' ? statesRaw.disabled : '',

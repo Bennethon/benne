@@ -504,10 +504,40 @@ function placeGuiButtonBackgroundSpriteLocal(
   }
 }
 
+/**
+ * Positions a solid-colour button background within the hit container (local space).
+ * Fills the hit box for `top-left` / `center`; `screen` pins the rect’s top-left to canvas (0,0).
+ */
+function placeGuiButtonBackgroundRectLocal(
+  rect: Phaser.GameObjects.Rectangle,
+  anchor: GuiSpriteAnchor,
+  w: number,
+  h: number,
+  worldTopLeft: { x: number; y: number },
+  offX = 0,
+  offY = 0,
+): void {
+  rect.setSize(w, h);
+  switch (anchor) {
+    case 'center':
+      rect.setOrigin(0.5, 0.5);
+      rect.setPosition(Math.round(w / 2 + offX), Math.round(h / 2 + offY));
+      break;
+    case 'screen':
+      rect.setOrigin(0, 0);
+      rect.setPosition(Math.round(-worldTopLeft.x + offX), Math.round(-worldTopLeft.y + offY));
+      break;
+    default:
+      rect.setOrigin(0, 0);
+      rect.setPosition(Math.round(offX), Math.round(offY));
+      break;
+  }
+}
+
 export interface BuiltGuiButton {
   /** Invisible hit box (`width` × `height`); carries pointer handlers. */
   readonly hitTarget: Phaser.GameObjects.Container;
-  readonly background: Phaser.GameObjects.Sprite | null;
+  readonly background: Phaser.GameObjects.Sprite | Phaser.GameObjects.Rectangle | null;
   readonly label: Phaser.GameObjects.BitmapText | null;
   /** Outline copies behind {@link BuiltGuiButton.label}; empty when no outline. */
   readonly labelOutlines: readonly Phaser.GameObjects.BitmapText[];
@@ -788,9 +818,19 @@ export function buildGuiButton(
 
   const guiTextureKey = getAsepriteTextureKey(gui.id);
   const defaultBgTag = c.backgroundTag.trim();
-  let bg: Phaser.GameObjects.Sprite | null = null;
+  const defaultBgColor = c.backgroundColor?.trim() ?? '';
+  const usesColorBackground = defaultBgColor.length > 0;
+  let bg: Phaser.GameObjects.Sprite | Phaser.GameObjects.Rectangle | null = null;
 
-  if (usesAsepriteDisplay(gui) && defaultBgTag && scene.textures.exists(guiTextureKey)) {
+  if (usesColorBackground) {
+    const rect = scene.add.rectangle(w / 2, h / 2, w, h, hexStringToTint(defaultBgColor));
+    rect.setDepth(GUI_BUTTON_BG_DEPTH);
+    rect.setScrollFactor(0, 0);
+    rect.setVisible(overlayVisible);
+    placeGuiButtonBackgroundRectLocal(rect, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
+    hitTarget.add(rect);
+    bg = rect;
+  } else if (usesAsepriteDisplay(gui) && defaultBgTag && scene.textures.exists(guiTextureKey)) {
     const sprite = scene.add.sprite(0, 0, guiTextureKey);
     sprite.setDepth(GUI_BUTTON_BG_DEPTH);
     sprite.setVisible(false);
@@ -872,7 +912,14 @@ export function buildGuiButton(
       lo.setAlpha(0.45);
     }
     const dTag = c.states?.disabled?.trim();
-    if (bg && dTag) {
+    const dColor = c.backgroundColorStates?.disabled?.trim();
+    if (bg instanceof Phaser.GameObjects.Rectangle) {
+      const fill = dColor ?? defaultBgColor;
+      if (fill) {
+        bg.setFillStyle(hexStringToTint(fill), 1);
+        placeGuiButtonBackgroundRectLocal(bg, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
+      }
+    } else if (bg && dTag) {
       reapplyGuiSheetTag(scene, bg, guiTextureKey, dTag, gui.id);
       placeGuiButtonBackgroundSpriteLocal(bg, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
     }
@@ -885,6 +932,9 @@ export function buildGuiButton(
   const hoverTag = c.states?.hover?.trim();
   const pressedTag = c.states?.pressed?.trim();
   const disabledTag = c.states?.disabled?.trim();
+  const hoverBgColor = c.backgroundColorStates?.hover?.trim();
+  const pressedBgColor = c.backgroundColorStates?.pressed?.trim();
+  const disabledBgColor = c.backgroundColorStates?.disabled?.trim();
   const hoverTextColor = c.textColorStates?.hover?.trim();
   const pressedTextColor = c.textColorStates?.pressed?.trim();
   const disabledTextColor = c.textColorStates?.disabled?.trim();
@@ -902,9 +952,26 @@ export function buildGuiButton(
   };
 
   const repositionButtonBg = (): void => {
-    if (bg) {
+    if (!bg) {
+      return;
+    }
+    if (bg instanceof Phaser.GameObjects.Rectangle) {
+      placeGuiButtonBackgroundRectLocal(bg, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
+    } else {
       placeGuiButtonBackgroundSpriteLocal(bg, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
     }
+  };
+
+  const setButtonBgFill = (hex: string | undefined): void => {
+    if (!(bg instanceof Phaser.GameObjects.Rectangle)) {
+      return;
+    }
+    const fillHex = hex?.trim() || defaultBgColor;
+    if (!fillHex) {
+      return;
+    }
+    bg.setFillStyle(hexStringToTint(fillHex), 1);
+    repositionButtonBg();
   };
 
   const syncButtonChromeAlpha = (a: number): void => {
@@ -921,7 +988,7 @@ export function buildGuiButton(
       return;
     }
     const applyBgForState = (tag: string | undefined): void => {
-      if (!bg) {
+      if (!bg || bg instanceof Phaser.GameObjects.Rectangle) {
         return;
       }
       const t = tag?.trim();
@@ -935,7 +1002,9 @@ export function buildGuiButton(
 
     switch (visual) {
       case 'normal':
-        if (bg) {
+        if (bg instanceof Phaser.GameObjects.Rectangle) {
+          setButtonBgFill(defaultBgColor);
+        } else if (bg) {
           reapplyGuiSheetTag(scene, bg, guiTextureKey, defaultBgTag, gui.id);
           repositionButtonBg();
         }
@@ -943,17 +1012,29 @@ export function buildGuiButton(
         syncButtonChromeAlpha(1);
         break;
       case 'hover':
-        applyBgForState(hoverTag);
+        if (bg instanceof Phaser.GameObjects.Rectangle) {
+          setButtonBgFill(hoverBgColor ?? defaultBgColor);
+        } else {
+          applyBgForState(hoverTag);
+        }
         setLabelTint(hoverTextColor ? hoverTextTint : defaultTextTint);
         syncButtonChromeAlpha(1);
         break;
       case 'pressed':
-        applyBgForState(pressedTag);
+        if (bg instanceof Phaser.GameObjects.Rectangle) {
+          setButtonBgFill(pressedBgColor ?? defaultBgColor);
+        } else {
+          applyBgForState(pressedTag);
+        }
         setLabelTint(pressedTextColor ? pressedTextTint : defaultTextTint);
         syncButtonChromeAlpha(1);
         break;
       case 'disabled':
-        applyBgForState(disabledTag);
+        if (bg instanceof Phaser.GameObjects.Rectangle) {
+          setButtonBgFill(disabledBgColor ?? defaultBgColor);
+        } else {
+          applyBgForState(disabledTag);
+        }
         setLabelTint(disabledTextColor ? disabledTextTint : defaultTextTint);
         syncButtonChromeAlpha(0.45);
         break;
@@ -968,7 +1049,11 @@ export function buildGuiButton(
 
   const pointerDrivesChrome =
     enabled &&
-    ((bg !== null && (Boolean(hoverTag) || Boolean(pressedTag) || Boolean(disabledTag))) ||
+    ((bg instanceof Phaser.GameObjects.Rectangle &&
+      (Boolean(hoverBgColor) || Boolean(pressedBgColor) || Boolean(disabledBgColor))) ||
+      (bg !== null &&
+        !(bg instanceof Phaser.GameObjects.Rectangle) &&
+        (Boolean(hoverTag) || Boolean(pressedTag) || Boolean(disabledTag))) ||
       (label !== null && (Boolean(hoverTextColor) || Boolean(pressedTextColor) || Boolean(disabledTextColor))));
 
   if (pointerDrivesChrome) {
