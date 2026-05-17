@@ -682,7 +682,14 @@ type WebviewPatch =
           activeCursorOverride?: string;
       }
     | { type: 'characterAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
-    | { type: 'guiMeta'; name?: string; description?: string; rootVisibleAtLoad?: boolean }
+    | {
+          type: 'guiMeta';
+          name?: string;
+          description?: string;
+          rootVisibleAtLoad?: boolean;
+          modal?: boolean;
+          zIndex?: number;
+      }
     | { type: 'guiControlPayload'; index?: number; payload?: string }
     | { type: 'guiControlUpdate'; index?: number; patch?: Record<string, unknown> }
     | {
@@ -1459,10 +1466,14 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             }
             const visPatch =
                 typeof p.rootVisibleAtLoad === 'boolean' ? { rootVisibleAtLoad: p.rootVisibleAtLoad } : {};
+            const modalPatch = typeof p.modal === 'boolean' ? { modal: p.modal } : {};
+            const zPatch = typeof p.zIndex === 'number' ? { zIndex: p.zIndex } : {};
             updateGuiFields(data, {
                 name: p.name,
                 description: p.description,
-                ...visPatch
+                ...visPatch,
+                ...modalPatch,
+                ...zPatch
             });
             return;
         }

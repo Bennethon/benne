@@ -234,5 +234,7 @@
         "disabled": "#636363"
       }
     }
-  ]
+  ],
+  "modal": true,
+  "zIndex": 100
 }

@@ -1332,6 +1332,10 @@ function renderGui(state) {
           <input type="text" id="gui-name" value="${esc(state.name)}" />
           <span class="benne-pg-lbl">visible</span>
           <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="gui-visible" ${state.rootVisibleAtLoad ? 'checked' : ''} /></label>
+          <span class="benne-pg-lbl">modal</span>
+          <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="gui-modal" ${state.modal ? 'checked' : ''} title="Blocks room and lower GUI input while this overlay is visible." /></label>
+          <span class="benne-pg-lbl">zIndex</span>
+          <input type="number" id="gui-zindex" value="${state.zIndex}" title="Overlay stack order (lower = behind). Distinct from per-control zIndex." />
         </div>
         <label class="benne-field-label muted small">Description</label>
         <textarea id="gui-description" rows="3">${esc(state.description)}</textarea>
@@ -2069,7 +2073,9 @@ function collectGuiMeta() {
         type: 'guiMeta',
         name: document.getElementById('gui-name')?.value ?? '',
         description: document.getElementById('gui-description')?.value ?? '',
-        rootVisibleAtLoad: document.getElementById('gui-visible')?.checked ?? true
+        rootVisibleAtLoad: document.getElementById('gui-visible')?.checked ?? true,
+        modal: document.getElementById('gui-modal')?.checked ?? false,
+        zIndex: Number(document.getElementById('gui-zindex')?.value ?? 0)
     };
 }
 function buildGuiControlFieldPatch(field, el) {
@@ -2312,6 +2318,9 @@ function mountGuiHandlers(state) {
     document.getElementById('gui-name')?.addEventListener('blur', flushMeta);
     document.getElementById('gui-description')?.addEventListener('blur', flushMeta);
     document.getElementById('gui-visible')?.addEventListener('change', flushMeta);
+    document.getElementById('gui-modal')?.addEventListener('change', flushMeta);
+    document.getElementById('gui-zindex')?.addEventListener('change', flushMeta);
+    document.getElementById('gui-zindex')?.addEventListener('blur', flushMeta);
     document.querySelectorAll('.gui-control-payload').forEach((el) => {
         el.addEventListener('blur', () => {
             const ta = el;
