@@ -1,13 +1,79 @@
 /******/ (() => { // webpackBootstrap
 /******/ 	"use strict";
+/******/ 	var __webpack_modules__ = ([
+/* 0 */,
+/* 1 */
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.escInspectorHtml = escInspectorHtml;
+exports.renderInspectorCardSubsection = renderInspectorCardSubsection;
+exports.renderGuiControlSubAccordion = renderGuiControlSubAccordion;
+/** HTML escape for attribute values and text nodes in Inspector markup. */
+function escInspectorHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+}
+/**
+ * Nested `<details>` inside an inspector card (prop, GUI control, etc.).
+ * Open state is preserved via `data-sub-pe` / `data-sub-pid` / `data-sub-k`
+ * (see `captureInspectorOpenState` in `inspectorMain.ts`).
+ */
+function renderInspectorCardSubsection(parentEntity, parentId, subsectionKey, summaryTitle, bodyHtml, options) {
+    const wrapper = options?.bodyWrapper ?? 'section-body';
+    const inner = wrapper === 'none'
+        ? bodyHtml
+        : `<div class="${wrapper}">${bodyHtml}</div>`;
+    return `<details class="benne-card-subsection" data-sub-pe="${escInspectorHtml(parentEntity)}" data-sub-pid="${escInspectorHtml(parentId)}" data-sub-k="${escInspectorHtml(subsectionKey)}">
+  <summary>${summaryTitle}</summary>
+  ${inner}
+</details>`;
+}
+/** GUI control card nested subsection (`data-sub-pe="guiControl"`). */
+function renderGuiControlSubAccordion(controlKey, subKey, title, bodyHtml) {
+    return renderInspectorCardSubsection('guiControl', controlKey, subKey, title, bodyHtml, {
+        bodyWrapper: 'section-body'
+    });
+}
+
+
+/***/ })
+/******/ 	]);
+/************************************************************************/
+/******/ 	// The module cache
+/******/ 	var __webpack_module_cache__ = {};
+/******/ 	
+/******/ 	// The require function
+/******/ 	function __webpack_require__(moduleId) {
+/******/ 		// Check if module is in cache
+/******/ 		var cachedModule = __webpack_module_cache__[moduleId];
+/******/ 		if (cachedModule !== undefined) {
+/******/ 			return cachedModule.exports;
+/******/ 		}
+/******/ 		// Create a new module (and put it into the cache)
+/******/ 		var module = __webpack_module_cache__[moduleId] = {
+/******/ 			// no module.id needed
+/******/ 			// no module.loaded needed
+/******/ 			exports: {}
+/******/ 		};
+/******/ 	
+/******/ 		// Execute the module function
+/******/ 		__webpack_modules__[moduleId](module, module.exports, __webpack_require__);
+/******/ 	
+/******/ 		// Return the exports of the module
+/******/ 		return module.exports;
+/******/ 	}
+/******/ 	
+/************************************************************************/
 var __webpack_exports__ = {};
-// This entry needs to be wrapped in an IIFE because it uses a non-standard name for the exports (exports).
+// This entry needs to be wrapped in an IIFE because it needs to be isolated against other modules in the chunk.
 (() => {
 var exports = __webpack_exports__;
 
 /** BENNE Inspector webview (bundled for `media/inspector/inspector.js`). */
 /// <reference lib="dom" />
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+const inspectorCardSubsection_1 = __webpack_require__(1);
 let vscodeApi = null;
 try {
     vscodeApi = acquireVsCodeApi();
@@ -374,14 +440,9 @@ function renderRoom(state) {
         })
             .join('');
         const animSubbody = p.animations.length > 0
-            ? `<div class="benne-card-subsection-body"><div class="benne-card-list">${animRows}</div></div>`
-            : `<div class="benne-card-subsection-body">
-        <p class="muted small">No animation clips listed — add <code>animations</code> in JSON or ensure the room sheet has matching frame tags.</p>
-      </div>`;
-        const animSection = `<details class="benne-card-subsection" data-sub-pe="prop" data-sub-pid="${esc(p.id)}" data-sub-k="animations">
-      <summary>Animations (${p.animations.length})</summary>
-      ${animSubbody}
-    </details>`;
+            ? `<div class="benne-card-list">${animRows}</div>`
+            : `<p class="muted small">No animation clips listed — add <code>animations</code> in JSON or ensure the room sheet has matching frame tags.</p>`;
+        const animSection = (0, inspectorCardSubsection_1.renderInspectorCardSubsection)('prop', p.id, 'animations', `Animations (${p.animations.length})`, animSubbody, { bodyWrapper: 'benne-card-subsection-body' });
         const propClickableCls = p.clickable ? ' benne-card--prop-clickable' : '';
         const propActions = p.clickable
             ? `<div class="benne-card-actions">
@@ -752,10 +813,10 @@ function guiGridCellAlignSelectOptions(val) {
         .map(([v, lab]) => `<option value="${esc(v)}"${val === v ? ' selected' : ''}>${esc(lab)}</option>`)
         .join('');
 }
-function guiGridPlacementEditorHtml(state, idx, gp) {
+function guiGridPlacementFieldsHtml(state, idx, gp) {
     const grids = guiGridControlIds(state);
     if (grids.length === 0) {
-        return `<p class="muted small" style="margin-top:10px;">Add a <strong>grid</strong> control to place this widget in a cell (<code>gridPlacement</code>).</p>`;
+        return `<p class="muted small">Add a <strong>grid</strong> control to place this widget in a cell (<code>gridPlacement</code>).</p>`;
     }
     const curGrid = gp?.gridControlId?.trim() ?? '';
     let gridOpts = '<option value="">— none —</option>';
@@ -766,8 +827,7 @@ function guiGridPlacementEditorHtml(state, idx, gp) {
     for (const g of grids) {
         gridOpts += `<option value="${esc(g)}"${g === curGrid ? ' selected' : ''}>${esc(g)}</option>`;
     }
-    return `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Grid placement</div>
-<div class="benne-prop-grid benne-prop-grid--tight" data-gp-wrap="${idx}">
+    return `<div class="benne-prop-grid benne-prop-grid--tight" data-gp-wrap="${idx}">
   <span class="benne-pg-lbl">grid id</span>
   <select class="gui-gp-field" data-gp="gridId">${gridOpts}</select>
   <span class="benne-pg-lbl">row</span>
@@ -781,6 +841,9 @@ function guiGridPlacementEditorHtml(state, idx, gp) {
   <span class="benne-pg-lbl">align</span>
   <select class="gui-gp-field" data-gp="align">${guiGridCellAlignSelectOptions(gp?.align ?? '')}</select>
 </div>`;
+}
+function renderGuiGridPlacementAccordion(state, controlKey, idx, gp) {
+    return (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(controlKey, 'gridPlacement', 'Grid placement', guiGridPlacementFieldsHtml(state, idx, gp));
 }
 function guiButtonIdSelectHtml(buttonIds, current, dataIndex, dataField) {
     const cur = current.trim();
@@ -814,10 +877,7 @@ function guiTextOutlineSidesSelectOptions(val) {
 function renderGuiTextOutlineAccordion(controlKey, idx, o) {
     const th = o.thickness;
     const al = o.alpha;
-    return `<details class="benne-card-subsection" style="margin-top:10px;" data-sub-pe="guiControl" data-sub-pid="${esc(controlKey)}" data-sub-k="textOutline">
-  <summary>Text Outline</summary>
-  <div class="section-body">
-    <div class="benne-prop-grid benne-prop-grid--tight" data-outline-wrap="${idx}">
+    const body = `<div class="benne-prop-grid benne-prop-grid--tight" data-outline-wrap="${idx}">
       <span class="benne-pg-lbl">enabled</span>
       <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-outline-field" data-o-field="enabled" ${o.enabled ? 'checked' : ''} /></label>
       <span class="benne-pg-lbl">color</span>
@@ -828,9 +888,8 @@ function renderGuiTextOutlineAccordion(controlKey, idx, o) {
       <input type="number" class="gui-outline-field" data-o-field="thickness" value="${th}" min="1" step="1" />
       <span class="benne-pg-lbl">sides</span>
       <select class="gui-outline-field" data-o-field="sides">${guiTextOutlineSidesSelectOptions(o.sides)}</select>
-    </div>
-  </div>
-</details>`;
+    </div>`;
+    return (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(controlKey, 'textOutline', 'Text Outline', body);
 }
 function collectGuiTextOutlinePatchFromDom(idx) {
     const wrap = document.querySelector(`[data-outline-wrap="${String(idx)}"]`);
@@ -903,7 +962,7 @@ function renderGuiControlCardBody(state, c) {
       ${renderGuiTextOutlineAccordion(c.key, idx, c.textOutline)}
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
-      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
+      ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
       <p class="muted small" style="margin:8px 0 0;">Sheet animations are not used for <code>text</code> controls.</p>`;
     }
     if (c.controlKind === 'inventoryPanel') {
@@ -915,9 +974,8 @@ function renderGuiControlCardBody(state, c) {
         <option value="horizontal"${c.scrollDirection === 'horizontal' ? ' selected' : ''}>horizontal</option>
         <option value="vertical"${c.scrollDirection === 'vertical' ? ' selected' : ''}>vertical</option>
       </select>`;
-        const animBlock = state.usesAseprite && tags.length > 0
-            ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>
-        <div class="benne-prop-grid benne-prop-grid--tight">
+        const animFieldsBody = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-prop-grid benne-prop-grid--tight">
           <span class="benne-pg-lbl">Backdrop tag</span>
           ${guiSheetTagSelectHtml(tags, c.backgroundTag, idx, 'backgroundTag')}
           <span class="benne-pg-lbl">Backdrop anchor</span>
@@ -945,7 +1003,8 @@ function renderGuiControlCardBody(state, c) {
         </div>`
             : state.usesAseprite
                 ? `<p class="muted small" style="margin-top:8px;">No frame tags found on this GUI’s Aseprite JSON — add tags in Aseprite and re-export.</p>`
-                : `<p class="muted small" style="margin-top:8px;">Enable <code>display.aseprite</code> to bind sheet tags here.</p>`;
+                : `<p class="muted small">Enable <code>display.aseprite</code> to bind sheet tags here.</p>`;
+        const animBlock = (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(c.key, 'animations', 'Animations', animFieldsBody);
         return `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">id</span>
         <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
@@ -976,7 +1035,7 @@ function renderGuiControlCardBody(state, c) {
       </div>
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
-      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
+      ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
       ${animBlock}`;
     }
     if (c.controlKind === 'button') {
@@ -985,9 +1044,8 @@ function renderGuiControlCardBody(state, c) {
         <option value="center"${c.textAlign === '' || c.textAlign === 'center' ? ' selected' : ''}>center</option>
         <option value="right"${c.textAlign === 'right' ? ' selected' : ''}>right</option>
       </select>`;
-        const sheetBlock = state.usesAseprite && tags.length > 0
-            ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Sheet</div>
-        <div class="benne-prop-grid benne-prop-grid--tight">
+        const sheetFieldsBody = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-prop-grid benne-prop-grid--tight">
           <span class="benne-pg-lbl">background anchor</span>
           <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
           <span class="benne-pg-lbl">background offset X</span>
@@ -1004,8 +1062,9 @@ function renderGuiControlCardBody(state, c) {
           ${guiSheetTagSelectHtml(tags, c.statesDisabled, idx, 'statesDisabled')}
         </div>`
             : state.usesAseprite
-                ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
-                : `<p class="muted small" style="margin-top:8px;">Set <code>display.aseprite: true</code> to pick sheet tags.</p>`;
+                ? `<p class="muted small">No frame tags on sheet JSON.</p>`
+                : `<p class="muted small">Set <code>display.aseprite: true</code> to pick sheet tags.</p>`;
+        const sheetBlock = (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(c.key, 'sheet', 'Sheet', sheetFieldsBody);
         return `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">id</span>
         <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
@@ -1041,7 +1100,7 @@ function renderGuiControlCardBody(state, c) {
       <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
       ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
       ${sheetBlock}
-      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
+      ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
       ${c.controlId
             ? `<div style="margin:8px 0 0;">
         <button type="button" class="btn-secondary gui-on-click-btn" data-button-id="${esc(c.controlId)}">On Click</button>
@@ -1049,9 +1108,8 @@ function renderGuiControlCardBody(state, c) {
             : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> in raw JSON for <code>B.whenButtonClick</code>.</p>`}`;
     }
     if (c.controlKind === 'nineSliceImage') {
-        const animImg = state.usesAseprite && tags.length > 0
-            ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Sheet clip &amp; 9 slices</div>
-      <div class="benne-prop-grid benne-prop-grid--tight">
+        const sheetClipFieldsBody = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">tag</span>
         ${guiSheetTagSelectHtml(tags, c.tag, idx, 'tag')}
         <span class="benne-pg-lbl">background anchor</span>
@@ -1081,7 +1139,8 @@ function renderGuiControlCardBody(state, c) {
       </div>`
             : state.usesAseprite
                 ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
-                : `<p class="muted small" style="margin-top:8px;">Set <code>display.aseprite: true</code> to use sheet tags.</p>`;
+                : `<p class="muted small">Set <code>display.aseprite: true</code> to use sheet tags.</p>`;
+        const sheetClipBlock = (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(c.key, 'sheetClipNineSlices', 'Sheet clip &amp; 9 slices', sheetClipFieldsBody);
         return `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">id</span>
         <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
@@ -1090,13 +1149,12 @@ function renderGuiControlCardBody(state, c) {
       </div>
       <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
       ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
-      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
-      ${animImg}`;
+      ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
+      ${sheetClipBlock}`;
     }
     if (c.controlKind === 'image') {
-        const animImg = state.usesAseprite && tags.length > 0
-            ? `<div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Animations</div>
-      <div class="benne-prop-grid benne-prop-grid--tight">
+        const animFieldsBody = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">tag</span>
         ${guiSheetTagSelectHtml(tags, c.tag, idx, 'tag')}
         <span class="benne-pg-lbl">background anchor</span>
@@ -1107,8 +1165,9 @@ function renderGuiControlCardBody(state, c) {
         <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetY" value="${c.backgroundOffsetY ?? ''}" placeholder="0" />
       </div>`
             : state.usesAseprite
-                ? `<p class="muted small" style="margin-top:8px;">No frame tags on sheet JSON.</p>`
-                : `<p class="muted small" style="margin-top:8px;">Set <code>display.aseprite: true</code> to use sheet tags.</p>`;
+                ? `<p class="muted small">No frame tags on sheet JSON.</p>`
+                : `<p class="muted small">Set <code>display.aseprite: true</code> to use sheet tags.</p>`;
+        const animBlock = (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(c.key, 'animations', 'Animations', animFieldsBody);
         return `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">id</span>
         <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
@@ -1117,8 +1176,8 @@ function renderGuiControlCardBody(state, c) {
       </div>
       <div class="benne-scroll-bounds-label muted small">Position</div>
       ${guiDimInputsForControl(idx, c.x, c.y)}
-      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
-      ${animImg}`;
+      ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
+      ${animBlock}`;
     }
     if (c.controlKind === 'trigger') {
         return `<div class="benne-prop-grid benne-prop-grid--tight">
@@ -1132,7 +1191,7 @@ function renderGuiControlCardBody(state, c) {
       </div>
       <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
       ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
-      ${guiGridPlacementEditorHtml(state, idx, c.gridPlacement)}
+      ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
       <p class="muted small" style="margin:8px 0 0;">Invisible hit zone. Wire <code>B.whenMouseEnter('${esc(c.controlId || 'id')}', …)</code> and <code>B.whenMouseLeave</code> in <code>*.gui.ts</code>.</p>`;
     }
     if (c.controlKind === 'grid') {
