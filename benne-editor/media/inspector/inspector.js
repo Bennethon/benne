@@ -1119,6 +1119,103 @@ function renderGuiControlCardBody(state, c) {
       </div>`
             : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> in raw JSON for <code>B.whenButtonClick</code>.</p>`}`;
     }
+    if (c.controlKind === 'checkbox') {
+        const sheetFieldsBody = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">background anchor</span>
+          <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
+          <span class="benne-pg-lbl">background offset X</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetX" value="${c.backgroundOffsetX ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">background offset Y</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetY" value="${c.backgroundOffsetY ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">tag (unchecked)</span>
+          ${guiSheetTagSelectHtml(tags, c.tag, idx, 'tag')}
+          <span class="benne-pg-lbl">unchecked hover</span>
+          ${guiSheetTagSelectHtml(tags, c.statesUncheckedHover, idx, 'statesUncheckedHover')}
+          <span class="benne-pg-lbl">checked</span>
+          ${guiSheetTagSelectHtml(tags, c.statesChecked, idx, 'statesChecked')}
+          <span class="benne-pg-lbl">checked hover</span>
+          ${guiSheetTagSelectHtml(tags, c.statesCheckedHover, idx, 'statesCheckedHover')}
+          <span class="benne-pg-lbl">disabled</span>
+          ${guiSheetTagSelectHtml(tags, c.statesDisabled, idx, 'statesDisabled')}
+          <span class="benne-pg-lbl">disabled checked</span>
+          ${guiSheetTagSelectHtml(tags, c.statesDisabledChecked, idx, 'statesDisabledChecked')}
+        </div>`
+            : state.usesAseprite
+                ? `<p class="muted small">No frame tags on sheet JSON.</p>`
+                : `<p class="muted small">Set <code>display.aseprite: true</code> to pick sheet tags.</p>`;
+        const sheetBlock = (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(c.key, 'sheet', 'Sheet', sheetFieldsBody);
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">checked (initial)</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="checked" ${c.checked ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl">enabled</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="enabled" ${c.enabled ? 'checked' : ''} /></label>
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
+      ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
+      ${sheetBlock}
+      ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
+      ${c.controlId
+            ? `<div style="margin:8px 0 0;display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn-secondary gui-on-check-btn" data-checkbox-id="${esc(c.controlId)}">On Check</button>
+        <button type="button" class="btn-secondary gui-on-uncheck-btn" data-checkbox-id="${esc(c.controlId)}">On Uncheck</button>
+      </div>`
+            : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> in raw JSON for <code>B.whenCheckboxCheck</code> / <code>whenCheckboxUncheck</code>.</p>`}`;
+    }
+    if (c.controlKind === 'slider') {
+        const sheetFieldsBody = state.usesAseprite && tags.length > 0
+            ? `<div class="benne-prop-grid benne-prop-grid--tight">
+          <span class="benne-pg-lbl">background anchor</span>
+          <select class="gui-field" data-index="${idx}" data-field="backgroundAnchor">${guiAnchorSelectOptions(c.backgroundAnchor)}</select>
+          <span class="benne-pg-lbl">background offset X</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetX" value="${c.backgroundOffsetX ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">background offset Y</span>
+          <input type="number" class="gui-field" data-index="${idx}" data-field="backgroundOffsetY" value="${c.backgroundOffsetY ?? ''}" placeholder="0" />
+          <span class="benne-pg-lbl">track tag</span>
+          ${guiSheetTagSelectHtml(tags, c.trackTag, idx, 'trackTag')}
+          <span class="benne-pg-lbl">handle tag</span>
+          ${guiSheetTagSelectHtml(tags, c.handleTag, idx, 'handleTag')}
+          <span class="benne-pg-lbl">handle hover</span>
+          ${guiSheetTagSelectHtml(tags, c.statesHoverHandle, idx, 'statesHoverHandle')}
+          <span class="benne-pg-lbl">track disabled</span>
+          ${guiSheetTagSelectHtml(tags, c.statesDisabledTrack, idx, 'statesDisabledTrack')}
+          <span class="benne-pg-lbl">handle disabled</span>
+          ${guiSheetTagSelectHtml(tags, c.statesDisabledHandle, idx, 'statesDisabledHandle')}
+        </div>`
+            : state.usesAseprite
+                ? `<p class="muted small">No frame tags on sheet JSON.</p>`
+                : `<p class="muted small">Set <code>display.aseprite: true</code> to pick sheet tags.</p>`;
+        const sheetBlock = (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(c.key, 'sheet', 'Sheet', sheetFieldsBody);
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">min</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="min" value="${c.min}" step="any" />
+        <span class="benne-pg-lbl">max</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="max" value="${c.max}" step="any" />
+        <span class="benne-pg-lbl">default value</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="defaultValue" value="${c.defaultValue}" step="any" />
+        <span class="benne-pg-lbl">step</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="step" value="${c.step}" step="any" min="0.0001" />
+        <span class="benne-pg-lbl">enabled</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="enabled" ${c.enabled ? 'checked' : ''} /></label>
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
+      ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
+      ${sheetBlock}
+      ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
+      ${c.controlId
+            ? `<div style="margin:8px 0 0;">
+        <button type="button" class="btn-secondary gui-on-value-changed-btn" data-slider-id="${esc(c.controlId)}">When Value Changed</button>
+      </div>`
+            : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> for <code>control(…).whenValueChanged</code>.</p>`}`;
+    }
     if (c.controlKind === 'nineSliceImage') {
         const sheetClipFieldsBody = state.usesAseprite && tags.length > 0
             ? `<div class="benne-prop-grid benne-prop-grid--tight">
@@ -2099,8 +2196,49 @@ function buildGuiControlFieldPatch(field, el) {
         const raw = el.value.trim();
         return { tag: raw.length === 0 ? null : el.value };
     }
+    if (field === 'trackTag' || field === 'handleTag') {
+        const raw = el.value.trim();
+        return { [field]: raw.length === 0 ? null : el.value };
+    }
+    if (field === 'statesHoverHandle') {
+        const raw = el.value.trim();
+        return { states: { hover: { handle: raw.length === 0 ? null : el.value } } };
+    }
+    if (field === 'statesDisabledTrack') {
+        const raw = el.value.trim();
+        return { states: { disabled: { track: raw.length === 0 ? null : el.value } } };
+    }
+    if (field === 'statesDisabledHandle') {
+        const raw = el.value.trim();
+        return { states: { disabled: { handle: raw.length === 0 ? null : el.value } } };
+    }
+    if (field === 'min' || field === 'max' || field === 'defaultValue' || field === 'step') {
+        const raw = el.value.trim();
+        if (raw.length === 0) {
+            return { [field]: null };
+        }
+        const n = Number(raw);
+        return Number.isFinite(n) ? { [field]: n } : null;
+    }
     if (field === 'statesHover' || field === 'statesPressed' || field === 'statesDisabled') {
         const sub = field === 'statesHover' ? 'hover' : field === 'statesPressed' ? 'pressed' : 'disabled';
+        const raw = el.value.trim();
+        return { states: { [sub]: raw.length === 0 ? null : el.value } };
+    }
+    if (field === 'statesUncheckedHover' ||
+        field === 'statesChecked' ||
+        field === 'statesCheckedHover' ||
+        field === 'statesDisabled' ||
+        field === 'statesDisabledChecked') {
+        const sub = field === 'statesUncheckedHover'
+            ? 'uncheckedHover'
+            : field === 'statesChecked'
+                ? 'checked'
+                : field === 'statesCheckedHover'
+                    ? 'checkedHover'
+                    : field === 'statesDisabled'
+                        ? 'disabled'
+                        : 'disabledChecked';
         const raw = el.value.trim();
         return { states: { [sub]: raw.length === 0 ? null : el.value } };
     }
@@ -2132,6 +2270,9 @@ function buildGuiControlFieldPatch(field, el) {
     }
     if (field === 'enabled') {
         return { enabled: el.checked ? null : false };
+    }
+    if (field === 'checked') {
+        return { checked: el.checked ? true : null };
     }
     if (field === 'active') {
         return { active: el.checked ? null : false };
@@ -2434,6 +2575,36 @@ function mountGuiHandlers(state) {
                 return;
             }
             post('guiEnsureButtonClickHandler', { guiJsonUri: state.guiJsonUri, buttonId });
+        });
+    });
+    document.querySelectorAll('.gui-on-check-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn;
+            const checkboxId = b.dataset.checkboxId ?? '';
+            if (!checkboxId) {
+                return;
+            }
+            post('guiEnsureCheckboxCheckHandler', { guiJsonUri: state.guiJsonUri, checkboxId });
+        });
+    });
+    document.querySelectorAll('.gui-on-uncheck-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn;
+            const checkboxId = b.dataset.checkboxId ?? '';
+            if (!checkboxId) {
+                return;
+            }
+            post('guiEnsureCheckboxUncheckHandler', { guiJsonUri: state.guiJsonUri, checkboxId });
+        });
+    });
+    document.querySelectorAll('.gui-on-value-changed-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn;
+            const sliderId = b.dataset.sliderId ?? '';
+            if (!sliderId) {
+                return;
+            }
+            post('guiEnsureSliderValueChangedHandler', { guiJsonUri: state.guiJsonUri, sliderId });
         });
     });
 }

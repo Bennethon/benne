@@ -52,6 +52,10 @@ export function guiHasButtonControls(gui: GuiData): boolean {
   return (gui.controls ?? []).some((c) => c.type === 'button');
 }
 
+export function guiHasCheckboxControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'checkbox');
+}
+
 export function guiHasTriggerControls(gui: GuiData): boolean {
   return (gui.controls ?? []).some((c) => c.type === 'trigger');
 }

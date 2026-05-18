@@ -413,6 +413,58 @@ export type InspectorGuiControlCard =
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
+          controlKind: 'checkbox';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          width: number;
+          height: number;
+          backgroundAnchor: InspectorGuiSpriteAnchor;
+          backgroundOffsetX: number | null;
+          backgroundOffsetY: number | null;
+          tag: string;
+          statesUncheckedHover: string;
+          statesChecked: string;
+          statesCheckedHover: string;
+          statesDisabled: string;
+          statesDisabledChecked: string;
+          checked: boolean;
+          enabled: boolean;
+          gridPlacement: InspectorGuiGridPlacement | null;
+      }
+    | {
+          controlKind: 'slider';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          width: number;
+          height: number;
+          backgroundAnchor: InspectorGuiSpriteAnchor;
+          backgroundOffsetX: number | null;
+          backgroundOffsetY: number | null;
+          trackTag: string;
+          handleTag: string;
+          statesHoverHandle: string;
+          statesDisabledTrack: string;
+          statesDisabledHandle: string;
+          min: number;
+          max: number;
+          defaultValue: number;
+          step: number;
+          enabled: boolean;
+          gridPlacement: InspectorGuiGridPlacement | null;
+      }
+    | {
           controlKind: 'trigger';
           key: string;
           index: number;
@@ -1492,6 +1544,84 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
                 typeof textColorStatesRaw.disabled === 'string' ? textColorStatesRaw.disabled : '',
             enabled: o.enabled !== false,
             textOutline: parseInspectorGuiTextOutline(o),
+            gridPlacement: parseOptionalGridPlacement(o)
+        };
+    }
+
+    if (type === 'checkbox') {
+        const statesRaw =
+            o.states && typeof o.states === 'object' && !Array.isArray(o.states)
+                ? (o.states as Record<string, unknown>)
+                : {};
+        return {
+            controlKind: 'checkbox',
+            key,
+            index,
+            summary,
+            controlId,
+            x: guiReadNum(o, 'x', 0),
+            y: guiReadNum(o, 'y', 0),
+            zIndex: guiReadNumOrNull(o, 'zIndex'),
+            visibleMode: guiReadVisibleMode(o),
+            width: guiReadNum(o, 'width', 30),
+            height: guiReadNum(o, 'height', 20),
+            backgroundAnchor: guiReadAnchorField(o, 'backgroundAnchor'),
+            backgroundOffsetX: guiReadNumOrNull(o, 'backgroundOffsetX'),
+            backgroundOffsetY: guiReadNumOrNull(o, 'backgroundOffsetY'),
+            tag: typeof o.tag === 'string' ? o.tag : '',
+            statesUncheckedHover:
+                typeof statesRaw.uncheckedHover === 'string' ? statesRaw.uncheckedHover : '',
+            statesChecked: typeof statesRaw.checked === 'string' ? statesRaw.checked : '',
+            statesCheckedHover: typeof statesRaw.checkedHover === 'string' ? statesRaw.checkedHover : '',
+            statesDisabled: typeof statesRaw.disabled === 'string' ? statesRaw.disabled : '',
+            statesDisabledChecked:
+                typeof statesRaw.disabledChecked === 'string' ? statesRaw.disabledChecked : '',
+            checked: o.checked === true,
+            enabled: o.enabled !== false,
+            gridPlacement: parseOptionalGridPlacement(o)
+        };
+    }
+
+    if (type === 'slider') {
+        const statesRaw =
+            o.states && typeof o.states === 'object' && !Array.isArray(o.states)
+                ? (o.states as Record<string, unknown>)
+                : {};
+        const hoverRaw =
+            statesRaw.hover && typeof statesRaw.hover === 'object' && !Array.isArray(statesRaw.hover)
+                ? (statesRaw.hover as Record<string, unknown>)
+                : {};
+        const disabledRaw =
+            statesRaw.disabled &&
+            typeof statesRaw.disabled === 'object' &&
+            !Array.isArray(statesRaw.disabled)
+                ? (statesRaw.disabled as Record<string, unknown>)
+                : {};
+        return {
+            controlKind: 'slider',
+            key,
+            index,
+            summary,
+            controlId,
+            x: guiReadNum(o, 'x', 0),
+            y: guiReadNum(o, 'y', 0),
+            zIndex: guiReadNumOrNull(o, 'zIndex'),
+            visibleMode: guiReadVisibleMode(o),
+            width: guiReadNum(o, 'width', 80),
+            height: guiReadNum(o, 'height', 20),
+            backgroundAnchor: guiReadAnchorField(o, 'backgroundAnchor'),
+            backgroundOffsetX: guiReadNumOrNull(o, 'backgroundOffsetX'),
+            backgroundOffsetY: guiReadNumOrNull(o, 'backgroundOffsetY'),
+            trackTag: typeof o.trackTag === 'string' ? o.trackTag : '',
+            handleTag: typeof o.handleTag === 'string' ? o.handleTag : '',
+            statesHoverHandle: typeof hoverRaw.handle === 'string' ? hoverRaw.handle : '',
+            statesDisabledTrack: typeof disabledRaw.track === 'string' ? disabledRaw.track : '',
+            statesDisabledHandle: typeof disabledRaw.handle === 'string' ? disabledRaw.handle : '',
+            min: guiReadNum(o, 'min', 0),
+            max: guiReadNum(o, 'max', 100),
+            defaultValue: guiReadNum(o, 'defaultValue', guiReadNum(o, 'min', 0)),
+            step: guiReadNum(o, 'step', 1),
+            enabled: o.enabled !== false,
             gridPlacement: parseOptionalGridPlacement(o)
         };
     }

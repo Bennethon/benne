@@ -358,6 +358,89 @@ export interface GuiButtonControl {
   gridPlacement?: GuiGridPlacement;
 }
 
+/** Per-interaction sheet tags for {@link GuiCheckboxControl}; `tag` is the unchecked frame. */
+export interface GuiCheckboxStates {
+  uncheckedHover?: string;
+  checked?: string;
+  checkedHover?: string;
+  disabled?: string;
+  disabledChecked?: string;
+}
+
+/**
+ * Sheet-backed toggle control: six visual states (unchecked / hover / checked / …) from the GUI Aseprite export.
+ * Hit box is `width` × `height`; sprite placement uses the same anchor / trim rules as {@link GuiButtonControl}
+ * backgrounds and {@link GuiImageControl}.
+ */
+export interface GuiCheckboxControl {
+  type: 'checkbox';
+  /** Unique within this GUI (Inspector, Bennescript `whenCheckboxCheck` / `whenCheckboxUncheck`). */
+  id: string;
+  x: number;
+  y: number;
+  zIndex?: number;
+  visible?: boolean;
+  width: number;
+  height: number;
+  backgroundAnchor?: GuiSpriteAnchor;
+  backgroundOffsetX?: number;
+  backgroundOffsetY?: number;
+  /** Unchecked frame (Aseprite tag on this GUI’s sheet). */
+  tag: string;
+  states?: GuiCheckboxStates;
+  /** Initial checked state when the overlay is built; default false. */
+  checked?: boolean;
+  /**
+   * When false, the checkbox ignores input and shows disabled sheet tags; default true when omitted.
+   * Bennescript exposes this as **`control(…).disabled`** (inverse).
+   */
+  enabled?: boolean;
+  gridPlacement?: GuiGridPlacement;
+}
+
+/** Per-interaction sheet tags for {@link GuiSliderControl}. */
+export interface GuiSliderStates {
+  hover?: { handle?: string };
+  disabled?: { handle?: string; track?: string };
+}
+
+/**
+ * Sheet-backed range control: track + handle sprites from the GUI Aseprite export.
+ * Hit box is `width` × `height`; placement uses the same anchor / trim rules as {@link GuiButtonControl}.
+ */
+export interface GuiSliderControl {
+  type: 'slider';
+  /** Unique within this GUI (Inspector, Bennescript `control(…).whenValueChanged`). */
+  id: string;
+  x: number;
+  y: number;
+  zIndex?: number;
+  visible?: boolean;
+  width: number;
+  height: number;
+  backgroundAnchor?: GuiSpriteAnchor;
+  backgroundOffsetX?: number;
+  backgroundOffsetY?: number;
+  /** Default track frame (Aseprite tag on this GUI’s sheet). */
+  trackTag: string;
+  /** Default handle frame (Aseprite tag on this GUI’s sheet). */
+  handleTag: string;
+  states?: GuiSliderStates;
+  /** Minimum value; default **0**. */
+  min?: number;
+  /** Maximum value; default **100**. */
+  max?: number;
+  /** Initial value when the overlay is built; clamped to `[min, max]`; default **min**. */
+  defaultValue?: number;
+  /** Step size for snapping; default **1**. */
+  step?: number;
+  /**
+   * When false, the slider ignores input and shows disabled sheet tags; default true when omitted.
+   */
+  enabled?: boolean;
+  gridPlacement?: GuiGridPlacement;
+}
+
 /**
  * Invisible, rectangular hit zone with a stable **`id`**: pure behavior surface for
  * **`B.whenMouseEnter` / `B.whenMouseLeave`** in `*.gui.ts`. Never drawn (no art, no text).
@@ -390,6 +473,8 @@ export type GuiControl =
   | GuiImageControl
   | GuiNineSliceImageControl
   | GuiButtonControl
+  | GuiCheckboxControl
+  | GuiSliderControl
   | GuiTriggerControl
   | GuiGridControl;
 

@@ -15,6 +15,8 @@ export type GuiControlKind =
     | 'image'
     | 'nineSliceImage'
     | 'button'
+    | 'checkbox'
+    | 'slider'
     | 'trigger'
     | 'grid';
 
@@ -124,6 +126,10 @@ function guiControlKindLabel(kind: GuiControlKind): string {
             return '9-slice image';
         case 'button':
             return 'button';
+        case 'checkbox':
+            return 'checkbox';
+        case 'slider':
+            return 'slider';
         case 'trigger':
             return 'trigger';
         case 'grid':
@@ -226,6 +232,50 @@ function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, un
                 textOffsetY: 0,
                 backgroundTag: ''
             };
+        case 'checkbox':
+            return {
+                type: 'checkbox',
+                id,
+                x: 0,
+                y: 0,
+                width: 30,
+                height: 20,
+                backgroundAnchor: 'top-left',
+                tag: 'checkbox',
+                checked: false,
+                enabled: true,
+                states: {
+                    uncheckedHover: 'checkbox-hover',
+                    checked: 'checkbox-checked',
+                    checkedHover: 'checkbox-checked-hover',
+                    disabled: 'checkbox-disabled',
+                    disabledChecked: 'checkbox-checked-disabled'
+                }
+            };
+        case 'slider':
+            return {
+                type: 'slider',
+                id,
+                x: 0,
+                y: 0,
+                width: 80,
+                height: 20,
+                backgroundAnchor: 'top-left',
+                trackTag: 'slider-track',
+                handleTag: 'slider-handle',
+                min: 0,
+                max: 100,
+                defaultValue: 100,
+                step: 1,
+                enabled: true,
+                states: {
+                    hover: { handle: 'slider-handle-hover' },
+                    disabled: {
+                        track: 'slider-track-disabled',
+                        handle: 'slider-handle-disabled'
+                    }
+                }
+            };
         case 'trigger':
             return {
                 type: 'trigger',
@@ -289,6 +339,12 @@ export async function runAddGuiControlWizard(
             const s = (v ?? '').trim();
             if (kind === 'button' && s.length === 0) {
                 return 'Button controls require an id (B.whenButtonClick, Inspector tree).';
+            }
+            if (kind === 'checkbox' && s.length === 0) {
+                return 'Checkbox controls require an id (B.whenCheckboxCheck, Inspector tree).';
+            }
+            if (kind === 'slider' && s.length === 0) {
+                return 'Slider controls require an id (control().whenValueChanged, Inspector tree).';
             }
             if (kind === 'trigger' && s.length === 0) {
                 return 'Trigger controls require an id (B.whenMouseEnter / whenMouseLeave).';
@@ -414,6 +470,16 @@ export async function runAddGuiControlInteractiveWizard(
             label: 'Button',
             description: 'Sheet-backed label + click target (B.whenButtonClick)',
             controlKind: 'button'
+        },
+        {
+            label: 'Checkbox',
+            description: 'Sheet-backed toggle (B.whenCheckboxCheck / whenCheckboxUncheck)',
+            controlKind: 'checkbox'
+        },
+        {
+            label: 'Slider',
+            description: 'Sheet-backed range (control().whenValueChanged)',
+            controlKind: 'slider'
         },
         {
             label: 'Trigger',

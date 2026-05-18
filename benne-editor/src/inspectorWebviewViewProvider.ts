@@ -57,6 +57,11 @@ import {
 } from './roomScaffolding';
 import { runAddGuiControlWizard, type GuiControlKind } from './guiScaffolding';
 import { ensureGuiButtonClickHandlerAndReveal } from './guiButtonClickScaffolding';
+import {
+    ensureGuiCheckboxCheckHandlerAndReveal,
+    ensureGuiCheckboxUncheckHandlerAndReveal
+} from './guiCheckboxScaffolding';
+import { ensureGuiSliderValueChangedHandlerAndReveal } from './guiSliderValueChangedScaffolding';
 import { ensureRoomLifecycleHookInRoomScript } from './roomLifecycleScriptScaffolding';
 import type { RoomLifecycleHookKind } from './verbHandlerPresence';
 import {
@@ -832,6 +837,48 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             return;
         }
 
+        if (msg.action === 'guiEnsureCheckboxCheckHandler') {
+            if (focusKind !== 'gui') {
+                return;
+            }
+            const guiJsonUriStr = typeof msg.guiJsonUri === 'string' ? msg.guiJsonUri : '';
+            const checkboxId = typeof msg.checkboxId === 'string' ? msg.checkboxId.trim() : '';
+            if (!checkboxId || uri.toString() !== guiJsonUriStr) {
+                return;
+            }
+            const guiId = getGuiIdFromGuiJsonUri(uri);
+            await ensureGuiCheckboxCheckHandlerAndReveal(uri, guiId, checkboxId);
+            return;
+        }
+
+        if (msg.action === 'guiEnsureCheckboxUncheckHandler') {
+            if (focusKind !== 'gui') {
+                return;
+            }
+            const guiJsonUriStr = typeof msg.guiJsonUri === 'string' ? msg.guiJsonUri : '';
+            const checkboxId = typeof msg.checkboxId === 'string' ? msg.checkboxId.trim() : '';
+            if (!checkboxId || uri.toString() !== guiJsonUriStr) {
+                return;
+            }
+            const guiId = getGuiIdFromGuiJsonUri(uri);
+            await ensureGuiCheckboxUncheckHandlerAndReveal(uri, guiId, checkboxId);
+            return;
+        }
+
+        if (msg.action === 'guiEnsureSliderValueChangedHandler') {
+            if (focusKind !== 'gui') {
+                return;
+            }
+            const guiJsonUriStr = typeof msg.guiJsonUri === 'string' ? msg.guiJsonUri : '';
+            const sliderId = typeof msg.sliderId === 'string' ? msg.sliderId.trim() : '';
+            if (!sliderId || uri.toString() !== guiJsonUriStr) {
+                return;
+            }
+            const guiId = getGuiIdFromGuiJsonUri(uri);
+            await ensureGuiSliderValueChangedHandlerAndReveal(uri, guiId, sliderId);
+            return;
+        }
+
         if (msg.action === 'dialogEnsureWhenChoice') {
             if (focusKind !== 'dialog') {
                 return;
@@ -911,6 +958,11 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                     label: 'Button',
                     description: 'Sheet-backed label + click target (B.whenButtonClick)',
                     controlKind: 'button'
+                },
+                {
+                    label: 'Checkbox',
+                    description: 'Sheet-backed toggle (B.whenCheckboxCheck / whenCheckboxUncheck)',
+                    controlKind: 'checkbox'
                 },
                 {
                     label: 'Trigger',

@@ -153,8 +153,12 @@ function regexesForDeleteTarget(target: DeleteTarget): RegExp[] {
             const g = escapeRe(target.guiId);
             const c = escapeRe(target.controlId);
             return [
-                new RegExp(`B\\.whenButtonClick\\(\\s*['\`]${g}['\`]\\s*,\\s*['\`]${c}['\`]`),
-                new RegExp(`whenButtonClick\\(\\s*['\`]${g}['\`]\\s*,\\s*['\`]${c}['\`]`)
+                new RegExp(`B\\.whenButtonClick\\(\\s*['\`]${c}['\`]`),
+                new RegExp(`whenButtonClick\\(\\s*['\`]${c}['\`]`),
+                new RegExp(`B\\.whenCheckboxCheck\\(\\s*['\`]${c}['\`]`),
+                new RegExp(`whenCheckboxCheck\\(\\s*['\`]${c}['\`]`),
+                new RegExp(`B\\.whenCheckboxUncheck\\(\\s*['\`]${c}['\`]`),
+                new RegExp(`whenCheckboxUncheck\\(\\s*['\`]${c}['\`]`)
             ];
         }
         default:
@@ -474,7 +478,7 @@ export async function buildDeleteImpactSummary(target: DeleteTarget): Promise<De
             );
             if (target.controlId) {
                 detailLines.push(
-                    `• Script scan below covers *.room.ts / *.character.ts / *.inventory.ts / globalScript.ts for B.whenButtonClick('${target.guiId}', '${target.controlId}') — review any matches before confirming.`
+                    `• Script scan below covers *.gui.ts for B.whenButtonClick / whenCheckboxCheck / whenCheckboxUncheck('${target.controlId}') — review any matches before confirming.`
                 );
             } else {
                 detailLines.push(
