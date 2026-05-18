@@ -825,6 +825,64 @@ function pruneEmptyButtonStates(states: Record<string, unknown>): void {
     }
 }
 
+function mergeSliderStatesPatch(prev: Record<string, unknown>, incoming: Record<string, unknown>): void {
+    for (const [sk, sv] of Object.entries(incoming)) {
+        if (sv === null) {
+            delete prev[sk];
+            continue;
+        }
+        if (typeof sv === 'object' && !Array.isArray(sv)) {
+            const sub =
+                prev[sk] && typeof prev[sk] === 'object' && !Array.isArray(prev[sk])
+                    ? { ...(prev[sk] as Record<string, unknown>) }
+                    : {};
+            for (const [hk, hv] of Object.entries(sv as Record<string, unknown>)) {
+                if (hv === null || hv === '') {
+                    delete sub[hk];
+                } else {
+                    sub[hk] = hv;
+                }
+            }
+            if (Object.keys(sub).length === 0) {
+                delete prev[sk];
+            } else {
+                prev[sk] = sub;
+            }
+        }
+    }
+}
+
+function pruneEmptySliderStates(states: Record<string, unknown>): void {
+    for (const group of ['hover', 'disabled'] as const) {
+        const g = states[group];
+        if (g && typeof g === 'object' && !Array.isArray(g)) {
+            const sub = g as Record<string, unknown>;
+            for (const k of Object.keys(sub)) {
+                if (sub[k] === '' || sub[k] === undefined) {
+                    delete sub[k];
+                }
+            }
+            if (Object.keys(sub).length === 0) {
+                delete states[group];
+            }
+        }
+    }
+}
+
+function pruneEmptyCheckboxStates(states: Record<string, unknown>): void {
+    for (const k of [
+        'uncheckedHover',
+        'checked',
+        'checkedHover',
+        'disabled',
+        'disabledChecked'
+    ] as const) {
+        if (states[k] === '' || states[k] === undefined) {
+            delete states[k];
+        }
+    }
+}
+
 const GUI_OUTLINE_SIDES = new Set([
     'allSides',
     'topLeft',
@@ -941,7 +999,14 @@ export function updateGuiControlPatch(
                     prev[sk] = sv;
                 }
             }
-            pruneEmptyButtonStates(prev);
+            if (row.type === 'slider') {
+                mergeSliderStatesPatch(prev, incoming);
+                pruneEmptySliderStates(prev);
+            } else if (row.type === 'checkbox') {
+                pruneEmptyCheckboxStates(prev);
+            } else {
+                pruneEmptyButtonStates(prev);
+            }
             if (Object.keys(prev).length === 0) {
                 delete row.states;
             } else {
@@ -1111,6 +1176,66 @@ export function updateGuiControlPatch(
             if (Object.keys(row.backgroundColorStates as Record<string, unknown>).length === 0) {
                 delete row.backgroundColorStates;
             }
+        }
+    }
+
+    if (row.type === 'checkbox') {
+        const a = row.backgroundAnchor;
+        if (a !== 'center' && a !== 'screen') {
+            row.backgroundAnchor = 'top-left';
+        }
+        if (row.checked === false || row.checked === undefined) {
+            delete row.checked;
+        }
+        if (row.enabled === true || row.enabled === undefined) {
+            delete row.enabled;
+        }
+        if (typeof row.tag === 'string' && row.tag.trim().length === 0) {
+            delete row.tag;
+        }
+        if (row.states && typeof row.states === 'object' && !Array.isArray(row.states)) {
+            pruneEmptyCheckboxStates(row.states as Record<string, unknown>);
+            if (Object.keys(row.states as Record<string, unknown>).length === 0) {
+                delete row.states;
+            }
+        }
+        const w = row.width as number;
+        const h = row.height as number;
+        if (!Number.isFinite(w) || w < 1) {
+            row.width = 1;
+        }
+        if (!Number.isFinite(h) || h < 1) {
+            row.height = 1;
+        }
+    }
+
+    if (row.type === 'slider') {
+        const a = row.backgroundAnchor;
+        if (a !== 'center' && a !== 'screen') {
+            row.backgroundAnchor = 'top-left';
+        }
+        if (row.enabled === true || row.enabled === undefined) {
+            delete row.enabled;
+        }
+        if (typeof row.trackTag === 'string' && row.trackTag.trim().length === 0) {
+            delete row.trackTag;
+        }
+        if (typeof row.handleTag === 'string' && row.handleTag.trim().length === 0) {
+            delete row.handleTag;
+        }
+        if (row.states && typeof row.states === 'object' && !Array.isArray(row.states)) {
+            pruneEmptySliderStates(row.states as Record<string, unknown>);
+            if (Object.keys(row.states as Record<string, unknown>).length === 0) {
+                delete row.states;
+            }
+        }
+        const w = row.width as number;
+        const h = row.height as number;
+        if (!Number.isFinite(w) || w < 1) {
+            row.width = 1;
+        }
+        if (!Number.isFinite(h) || h < 1) {
+            row.height = 1;
         }
     }
 

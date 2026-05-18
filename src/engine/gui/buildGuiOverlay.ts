@@ -26,6 +26,8 @@ import {
 import type {
   BenneGuiScriptButtonVisualState,
   GuiButtonControl,
+  GuiCheckboxControl,
+  GuiSliderControl,
   GuiControl,
   GuiData,
   GuiGridControl,
@@ -80,6 +82,8 @@ import {
 } from '../inventory/inventoryScriptingAnimations.js';
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
+import { buildGuiCheckbox, type BuiltGuiCheckbox } from './buildGuiCheckbox.js';
+import { buildGuiSlider } from './buildGuiSlider.js';
 import { GuiRuntime } from '../scripting/GuiRuntime.js';
 import {
   BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY,
@@ -392,7 +396,7 @@ function effectiveBitmapFontRenderSize(scene: Phaser.Scene, fontKey: string, fon
   return dataSize < 0 ? -Math.abs(fontSize) : Math.abs(fontSize);
 }
 
-function guiSpriteAnchorOrDefault(a: GuiSpriteAnchor | undefined): GuiSpriteAnchor {
+export function guiSpriteAnchorOrDefault(a: GuiSpriteAnchor | undefined): GuiSpriteAnchor {
   return a ?? 'top-left';
 }
 
@@ -408,7 +412,7 @@ function stopSpriteAnimationIfPlaying(sprite: Phaser.GameObjects.Sprite): void {
 }
 
 /** Stops any playing clip before applying a tag so static frames and clips can switch cleanly. */
-function reapplyGuiSheetTag(
+export function reapplyGuiSheetTag(
   scene: Phaser.Scene,
   sprite: Phaser.GameObjects.Sprite,
   textureKey: string,
@@ -419,7 +423,7 @@ function reapplyGuiSheetTag(
   return tryApplyGuiSheetTag(scene, sprite, textureKey, tag, guiId);
 }
 
-function tryApplyGuiSheetTag(
+export function tryApplyGuiSheetTag(
   scene: Phaser.Scene,
   sprite: Phaser.GameObjects.Sprite,
   textureKey: string,
@@ -482,7 +486,7 @@ function applyGuiSpriteAnchor(
  * Places the button’s sheet sprite using `anchor` **within the button’s logical bounds** (coordinates are
  * **local** to the button {@link Phaser.GameObjects.Container}, whose top-left is the hit rect origin).
  */
-function placeGuiButtonBackgroundSpriteLocal(
+export function placeGuiButtonBackgroundSpriteLocal(
   sprite: Phaser.GameObjects.Sprite,
   anchor: GuiSpriteAnchor,
   w: number,
@@ -770,7 +774,7 @@ export function wireGuiControlHoverEvents(
   };
 }
 
-function applyGuiButtonInteractivity(
+export function applyGuiButtonInteractivity(
   container: Phaser.GameObjects.Container,
   width: number,
   height: number,
@@ -2008,6 +2012,7 @@ export function buildGuiOverlay(
   const allLines: Phaser.GameObjects.BitmapText[] = [];
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
   const guiButtons: BuiltGuiButton[] = [];
+  const guiCheckboxes: BuiltGuiCheckbox[] = [];
   const triggerZones: Phaser.GameObjects.Rectangle[] = [];
   const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
   const controlsById = new Map<string, Phaser.GameObjects.GameObject>();
@@ -2324,6 +2329,75 @@ export function buildGuiOverlay(
       continue;
     }
 
+    if (c.type === 'checkbox') {
+      const cbPlace = tryResolveGridPlacement(
+        gui,
+        c.gridPlacement,
+        gridsById,
+        gridLayoutById,
+        c.width,
+        c.height,
+        isGuiFixedControlId(c.id),
+      );
+      const cbModel: GuiCheckboxControl = cbPlace ? { ...c, x: cbPlace.localX, y: cbPlace.localY } : c;
+      const built = buildGuiCheckbox(
+        scene,
+        gui,
+        cbModel,
+        depth,
+        startVisible,
+        cbPlace ? cbPlace.rootTopLeft : undefined,
+        suppressGuiButtonClick,
+      );
+      if (built) {
+        if (cbPlace) {
+          cbPlace.parent.add(built.hitTarget);
+        }
+        guiImageInputDeferBelow.push(built.hitTarget);
+        guiCheckboxes.push(built);
+        controlsById.set(c.id.trim(), built.hitTarget);
+        if (!cbPlace) {
+          const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
+          bucket.push(built.hitTarget as DepthGameObject);
+        }
+      }
+      continue;
+    }
+
+    if (c.type === 'slider') {
+      const slPlace = tryResolveGridPlacement(
+        gui,
+        c.gridPlacement,
+        gridsById,
+        gridLayoutById,
+        c.width,
+        c.height,
+        isGuiFixedControlId(c.id),
+      );
+      const slModel: GuiSliderControl = slPlace ? { ...c, x: slPlace.localX, y: slPlace.localY } : c;
+      const builtSlider = buildGuiSlider(
+        scene,
+        gui,
+        slModel,
+        depth,
+        startVisible,
+        slPlace ? slPlace.rootTopLeft : undefined,
+        suppressGuiButtonClick,
+      );
+      if (builtSlider) {
+        if (slPlace) {
+          slPlace.parent.add(builtSlider.hitTarget);
+        }
+        guiImageInputDeferBelow.push(builtSlider.hitTarget);
+        controlsById.set(c.id.trim(), builtSlider.hitTarget);
+        if (!slPlace) {
+          const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
+          bucket.push(builtSlider.hitTarget as DepthGameObject);
+        }
+      }
+      continue;
+    }
+
     if (c.type === 'trigger') {
       const trPlace = tryResolveGridPlacement(
         gui,
@@ -2450,9 +2524,10 @@ export function buildGuiOverlay(
   }
 
   const triggerZoneSet = new Set<Phaser.GameObjects.GameObject>(triggerZones);
-  const guiButtonHitTargets = new Set<Phaser.GameObjects.GameObject>(
-    guiButtons.map((b) => b.hitTarget as Phaser.GameObjects.GameObject),
-  );
+  const guiInteractiveHitTargets = new Set<Phaser.GameObjects.GameObject>([
+    ...guiButtons.map((b) => b.hitTarget as Phaser.GameObjects.GameObject),
+    ...guiCheckboxes.map((cb) => cb.hitTarget as Phaser.GameObjects.GameObject),
+  ]);
 
   /**
    * Pointer hover fan-out for every control with an **`id`**.
@@ -2472,7 +2547,7 @@ export function buildGuiOverlay(
       /** Already wired in the trigger branch above. */
       continue;
     }
-    if (guiButtonHitTargets.has(target)) {
+    if (guiInteractiveHitTargets.has(target)) {
       overlayDisposers.push(wireGuiControlHoverEvents(gui, id, target));
       continue;
     }
@@ -2555,6 +2630,15 @@ export function buildGuiOverlay(
           applyGuiButtonInteractivity(b.hitTarget, b.width, b.height, b.enabled);
         } else {
           b.hitTarget.disableInteractive();
+        }
+      }
+      for (const cb of guiCheckboxes) {
+        cb.hitTarget.setVisible(visible);
+        cb.sprite?.setVisible(visible);
+        if (visible && cb.enabled) {
+          applyGuiButtonInteractivity(cb.hitTarget, cb.width, cb.height, true);
+        } else {
+          cb.hitTarget.disableInteractive();
         }
       }
       for (const z of triggerZones) {

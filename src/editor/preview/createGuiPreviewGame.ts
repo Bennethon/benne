@@ -10,6 +10,7 @@ import {
 import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKey';
 import {
   guiHasButtonControls,
+  guiHasCheckboxControls,
   guiHasGridControls,
   guiHasImageControls,
   guiHasTextControls,
@@ -179,7 +180,7 @@ function collectButtonControlWorldRects(gui: GuiData): Array<{
   const rootY = Math.round(gui.y ?? 0);
   const caches = buildGuiGridLayoutRuntimeMap(gui.controls ?? []);
   for (const c of gui.controls ?? []) {
-    if (c.type === 'button') {
+    if (c.type === 'button' || c.type === 'checkbox') {
       const tl = resolveGuiControlRootTopLeft(
         caches,
         rootX,
@@ -401,6 +402,7 @@ class GuiPreviewScene extends Phaser.Scene {
         guiHasTextControls(guiData) ||
         guiHasImageControls(guiData) ||
         guiHasButtonControls(guiData) ||
+        guiHasCheckboxControls(guiData) ||
         guiHasTriggerControls(guiData) ||
         guiHasGridControls(guiData))
     ) {
@@ -444,9 +446,10 @@ class GuiPreviewScene extends Phaser.Scene {
     const textRects = guiHasTextControls(this.payload.guiData)
       ? collectBitmapTextControlWorldRects(this)
       : [];
-    const buttonRects = guiHasButtonControls(this.payload.guiData)
-      ? collectButtonControlWorldRects(this.payload.guiData)
-      : [];
+    const buttonRects =
+      guiHasButtonControls(this.payload.guiData) || guiHasCheckboxControls(this.payload.guiData)
+        ? collectButtonControlWorldRects(this.payload.guiData)
+        : [];
     const gridRects = guiHasGridControls(this.payload.guiData) ? collectGridCellOutlineRects(this.payload.guiData) : [];
     const outlineRects = inventoryRects.concat(textRects).concat(buttonRects).concat(gridRects);
     const triggerEntries = collectTriggerPreviewOverlayEntries(this.payload.guiData);

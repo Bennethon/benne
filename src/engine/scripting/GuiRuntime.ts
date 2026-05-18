@@ -6,10 +6,36 @@ import {
   type BenneGuiButtonApplyVisualStateFn,
   parseBenneGuiScriptButtonVisualState,
 } from '../gui/guiButtonVisualStateScript.js';
+import {
+  guiSliderValueChangedEventId,
+  type GuiSliderValueChangedPayload,
+} from '../events/guiSliderEvents.js';
+import {
+  BENNE_GUI_CHECKBOX_DATA_KEY,
+  BENNE_GUI_CHECKBOX_SET_CHECKED_DATA_KEY,
+  BENNE_GUI_CHECKBOX_SET_DISABLED_DATA_KEY,
+  benneGuiCheckboxReadChecked,
+  benneGuiCheckboxReadDisabled,
+  type BenneGuiCheckboxSetCheckedFn,
+  type BenneGuiCheckboxSetDisabledFn,
+} from '../gui/guiCheckboxRuntime.js';
+import {
+  BENNE_GUI_SLIDER_DATA_KEY,
+  BENNE_GUI_SLIDER_SET_VALUE_DATA_KEY,
+  benneGuiSliderReadValue,
+  type BenneGuiSliderSetValueFn,
+} from '../gui/guiSliderRuntime.js';
 import { syncOutlinedGuiBitmapTextAll, syncOutlinedGuiBitmapTextPositions } from '../gui/guiTextOutline';
 import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
 
 export type ControlTweenProps = Partial<Phaser.Types.Tweens.TweenBuilderConfig>;
+
+/** Bennescript registration context for {@link ControlFacade.whenValueChanged}. */
+export interface BenneScriptControlBinding {
+  guiId: string;
+  controlId: string;
+  subscribeImmediate: (event: string, handler: (...args: unknown[]) => void) => void;
+}
 
 /**
  * Authoring handle for one control’s live Phaser object; tweens can queue on the owning GUI script’s interaction tail.
@@ -20,6 +46,8 @@ export class ControlFacade {
   readonly tweenTo: BlockingWithNow<[props: ControlTweenProps, duration?: number, easing?: string]>;
 
   private readonly scene: Phaser.Scene;
+
+  private scriptBinding: BenneScriptControlBinding | null = null;
 
   constructor(
     gameObject: Phaser.GameObjects.GameObject,
@@ -174,6 +202,141 @@ export class ControlFacade {
       go.setData(BENNE_GUI_BUTTON_VISUAL_SCRIPT_LOCK_DATA_KEY, normalized !== 'normal');
     }
   }
+
+  private tryGetCheckboxContainer(): Phaser.GameObjects.Container | null {
+    const go = this.gameObject;
+    if (!(go instanceof Phaser.GameObjects.Container)) {
+      return null;
+    }
+    if (go.getData(BENNE_GUI_CHECKBOX_DATA_KEY) !== true) {
+      return null;
+    }
+    return go;
+  }
+
+  /**
+   * Checked state for **`checkbox`** controls. Programmatic updates do not emit
+   * {@link import('../events/guiCheckboxEvents.js').guiCheckboxCheckEventId} / uncheck events.
+   * @throws When this control is not a composable **`checkbox`** hit target.
+   */
+  get checked(): boolean {
+    const box = this.tryGetCheckboxContainer();
+    if (!box) {
+      throw new Error('[Benne] GUI control `.checked` is only supported on `checkbox` controls.');
+    }
+    return benneGuiCheckboxReadChecked(box) ?? false;
+  }
+
+  set checked(value: boolean) {
+    const box = this.tryGetCheckboxContainer();
+    if (!box) {
+      throw new Error('[Benne] GUI control `.checked` is only supported on `checkbox` controls.');
+    }
+    const setRaw = box.getData(BENNE_GUI_CHECKBOX_SET_CHECKED_DATA_KEY);
+    if (typeof setRaw !== 'function') {
+      throw new Error('[Benne] GUI checkbox `.checked` setter is unavailable.');
+    }
+    (setRaw as BenneGuiCheckboxSetCheckedFn)(value);
+  }
+
+  /**
+   * Disabled state for **`checkbox`** controls (inverse of JSON **`enabled`**).
+   * @throws When this control is not a composable **`checkbox`** hit target.
+   */
+  get disabled(): boolean {
+    const box = this.tryGetCheckboxContainer();
+    if (!box) {
+      throw new Error('[Benne] GUI control `.disabled` is only supported on `checkbox` controls.');
+    }
+    return benneGuiCheckboxReadDisabled(box) ?? false;
+  }
+
+  set disabled(value: boolean) {
+    const box = this.tryGetCheckboxContainer();
+    if (!box) {
+      throw new Error('[Benne] GUI control `.disabled` is only supported on `checkbox` controls.');
+    }
+    const setRaw = box.getData(BENNE_GUI_CHECKBOX_SET_DISABLED_DATA_KEY);
+    if (typeof setRaw !== 'function') {
+      throw new Error('[Benne] GUI checkbox `.disabled` setter is unavailable.');
+    }
+    (setRaw as BenneGuiCheckboxSetDisabledFn)(value);
+  }
+
+  /**
+   * Attaches GUI-script event registration (used by {@link GuiBenneScript.gui}().control()).
+   */
+  attachScriptBinding(binding: BenneScriptControlBinding): void {
+    this.scriptBinding = binding;
+  }
+
+  private tryGetSliderContainer(): Phaser.GameObjects.Container | null {
+    const go = this.gameObject;
+    if (!(go instanceof Phaser.GameObjects.Container)) {
+      return null;
+    }
+    if (go.getData(BENNE_GUI_SLIDER_DATA_KEY) !== true) {
+      return null;
+    }
+    return go;
+  }
+
+  /**
+   * Numeric value for **`slider`** controls. Programmatic updates do not emit
+   * {@link guiSliderValueChangedEventId}.
+   * @throws When this control is not a composable **`slider`** hit target.
+   */
+  get value(): number {
+    const slider = this.tryGetSliderContainer();
+    if (!slider) {
+      throw new Error('[Benne] GUI control `.value` is only supported on `slider` controls.');
+    }
+    return benneGuiSliderReadValue(slider) ?? 0;
+  }
+
+  set value(next: number) {
+    this.setValue(next);
+  }
+
+  /**
+   * Sets a **`slider`** value immediately without emitting {@link guiSliderValueChangedEventId}.
+   * @throws When this control is not a composable **`slider`** hit target.
+   */
+  setValue(next: number): void {
+    const slider = this.tryGetSliderContainer();
+    if (!slider) {
+      throw new Error('[Benne] GUI control `.setValue` is only supported on `slider` controls.');
+    }
+    const setRaw = slider.getData(BENNE_GUI_SLIDER_SET_VALUE_DATA_KEY);
+    if (typeof setRaw !== 'function') {
+      throw new Error('[Benne] GUI slider `.setValue` is unavailable.');
+    }
+    (setRaw as BenneGuiSliderSetValueFn)(next);
+  }
+
+  /**
+   * Subscribes to pointer-driven value changes for **`slider`** controls (runs via
+   * **`subscribeImmediate`** so drag updates are not queued behind **`say`** / tweens).
+   * Call from **`registerGuiScript`** via **`B.gui(…).control(…).whenValueChanged(…)`**.
+   */
+  whenValueChanged(handler: (value: number) => void): void {
+    const binding = this.scriptBinding;
+    if (!binding) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[Benne] control().whenValueChanged() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
+        );
+      }
+      return;
+    }
+    binding.subscribeImmediate(
+      guiSliderValueChangedEventId(binding.guiId, binding.controlId),
+      (payload: unknown) => {
+        const p = payload as GuiSliderValueChangedPayload;
+        handler(p.value);
+      },
+    );
+  }
 }
 
 /**
@@ -197,6 +360,38 @@ export class NoopGuiControlFacade extends ControlFacade {
 
   override setVisualState(_state: string): void {
     /* forgiving missing control / non-button */
+  }
+
+  override get checked(): boolean {
+    return false;
+  }
+
+  override set checked(_value: boolean) {
+    /* forgiving */
+  }
+
+  override get disabled(): boolean {
+    return false;
+  }
+
+  override set disabled(_value: boolean) {
+    /* forgiving */
+  }
+
+  override get value(): number {
+    return 0;
+  }
+
+  override set value(_next: number) {
+    /* forgiving */
+  }
+
+  override setValue(_next: number): void {
+    /* forgiving */
+  }
+
+  override whenValueChanged(_handler: (value: number) => void): void {
+    /* forgiving */
   }
 }
 
@@ -246,6 +441,28 @@ class DetachedNoopGuiControlFacade {
   set text(_value: string) {}
 
   setVisualState(_state: string): void {}
+
+  get checked(): boolean {
+    return false;
+  }
+
+  set checked(_value: boolean) {}
+
+  get disabled(): boolean {
+    return false;
+  }
+
+  set disabled(_value: boolean) {}
+
+  get value(): number {
+    return 0;
+  }
+
+  set value(_next: number) {}
+
+  setValue(_next: number): void {}
+
+  whenValueChanged(_handler: (value: number) => void): void {}
 }
 
 export interface GuiRuntimeOptions {

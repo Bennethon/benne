@@ -50,7 +50,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 | Global verb fallbacks (**`whenGlobalFallback`**, etc.) | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **`whenLeaveRoom`**, **`whenEnterRoom`**, **`whenEnterRoomAfterFade`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **`whenLeaveAnyRoom`**, **`whenEnterAnyRoom`**, **`whenEnterAnyRoomAfterFade`** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **`whenButtonClick`**, **`onGuiBuilt`**, **`scene`**, hover, **`B.gui('…').show` / `hide`** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **`whenButtonClick`**, **`whenCheckboxCheck`**, **`whenCheckboxUncheck`**, **`onGuiBuilt`**, **`scene`**, hover, **`B.gui('…').show` / `hide`** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | **`whenChoice`** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | **`cutscene`** / **`cutscene.now`** — see [Cutscene mode](#cutscene-mode) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
@@ -656,6 +656,8 @@ gui(overlayGuiId: string): BenneScriptGuiOverlayRef;
 
 whenButtonClick(buttonId: string, handler: () => void): void;
 whenAnyButtonClick(handler: (buttonId: string) => void): void;
+whenCheckboxCheck(checkboxId: string, handler: () => void): void;
+whenCheckboxUncheck(checkboxId: string, handler: () => void): void;
 
 whenMouseEnter(controlId: string, handler: () => void): void;
 whenMouseLeave(controlId: string, handler: () => void): void;
@@ -677,8 +679,15 @@ interface BenneScriptGuiOverlayRef {
 - **Verb HUD** — combine **`B.activeVerb`**, **`B.activeInventory`**, **`B.currentHoverDescription`** (or **`composeVerbLineText`** in code); in **`onGuiBuilt`**, call **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, refresh)`** (see **[`verbs.gui.ts`](../src/game/guis/verbs/verbs.gui.ts)**). Subscriptions reset when the room scene shuts down.
 - Hover handlers use **`subscribeImmediate`** (**no interaction-tail wait**).
 - Button clicks use **`subscribe`** (queued with other **`B`** work on **this GUI’s** script instance).
+- Checkbox check / uncheck use **`subscribe`** the same way; only **player pointer toggles** emit — programmatic **`control(…).checked = …`** updates art only.
 
 [`GuiRuntime` / **`ControlFacade`**](architecture.md) — **`tweenTo`** / **`tweenTo.now`** participate in **`queueInteraction`**.
+
+**`ControlFacade.checked`** / **`ControlFacade.disabled`** — **`checkbox`** controls only ( **`disabled`** mirrors JSON **`enabled: false`** ). Read/write the live toggle; does not fire **`whenCheckboxCheck`** / **`whenCheckboxUncheck`**.
+
+**`ControlFacade.value`** / **`ControlFacade.setValue(n)`** — **`slider`** controls only. Read/write the snapped numeric value (**`min`** / **`max`** / **`step`** from **`*.gui.json`**). Programmatic updates reposition the handle and refresh sheet tags; they **do not** emit value-changed events.
+
+**`ControlFacade.whenValueChanged(handler)`** — register from **`registerGuiScript`** via **`B.gui('<guiId>').control('<sliderId>').whenValueChanged((newVal) => { … })`**. Subscribes with **`subscribeImmediate`** so stepped pointer drag updates run without waiting on the interaction tail. Only **pointer-driven** changes emit (not programmatic **`.value`** / **`.setValue`**).
 
 **`ControlFacade.setVisualState(state)`** — **`button`** controls only. **`state`** is **`'normal'`** \| **`'hover'`** \| **`'pressed'`** \| **`'disabled'`** (case-insensitive strings accepted). Applies the same Aseprite frame tags (**`states.*`** in **`*.gui.json`**) and label **`textColorStates`** tints the pointer pipeline would (**`'disabled'`** also dims chrome to **`0.45`** alpha like authoring **`enabled: false`**). **`'normal'`** restores full alpha and **releases** manual control so hover / pressed tracking works again; the other modes **suppress** pointer-driven chrome until the next **`'normal'`** call.
 

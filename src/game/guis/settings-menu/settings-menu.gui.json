@@ -1,0 +1,106 @@
+{
+  "id": "settings-menu",
+  "name": "Settings Menu",
+  "description": "",
+  "visible": true,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "nineSliceImage",
+      "id": "settings-BG",
+      "x": 102,
+      "y": 33,
+      "width": 116,
+      "height": 114,
+      "tag": "9-slice-BG",
+      "sliceNames": {
+        "topLeft": "TopLeft",
+        "topCenter": "TopMid",
+        "topRight": "TopRight",
+        "middleLeft": "MidLeft",
+        "center": "Mid",
+        "middleRight": "MidRight",
+        "bottomLeft": "BottomLeft",
+        "bottomCenter": "BottomMid",
+        "bottomRight": "BottomRight"
+      }
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "x": 130,
+      "y": 50,
+      "text": "Settings",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#1a466b"
+    },
+    {
+      "type": "checkbox",
+      "id": "musicEnabled",
+      "x": 118,
+      "y": 72,
+      "width": 30,
+      "height": 20,
+      "backgroundAnchor": "top-left",
+      "tag": "checkbox",
+      "states": {
+        "uncheckedHover": "checkbox-hover",
+        "checked": "checkbox-checked",
+        "checkedHover": "checkbox-checked-hover",
+        "disabled": "checkbox-disabled",
+        "disabledChecked": "checkbox-checked-disabled"
+      },
+      "checked": false,
+      "enabled": true
+    },
+    {
+      "type": "slider",
+      "id": "sfxVolume",
+      "x": 118,
+      "y": 88,
+      "width": 80,
+      "height": 20,
+      "backgroundAnchor": "top-left",
+      "trackTag": "slider-track",
+      "handleTag": "slider-handle",
+      "states": {
+        "hover": { "handle": "slider-handle-hover" },
+        "disabled": {
+          "track": "slider-track-disabled",
+          "handle": "slider-handle-disabled"
+        }
+      },
+      "min": 0,
+      "max": 100,
+      "defaultValue": 100,
+      "step": 1,
+      "enabled": true
+    },
+    {
+      "type": "slider",
+      "id": "musicVolume",
+      "x": 118,
+      "y": 104,
+      "width": 80,
+      "height": 20,
+      "backgroundAnchor": "top-left",
+      "trackTag": "slider-track",
+      "handleTag": "slider-handle",
+      "states": {
+        "hover": { "handle": "slider-handle-hover" },
+        "disabled": {
+          "track": "slider-track-disabled",
+          "handle": "slider-handle-disabled"
+        }
+      },
+      "min": 0,
+      "max": 100,
+      "defaultValue": 100,
+      "step": 1,
+      "enabled": true
+    }
+  ]
+}

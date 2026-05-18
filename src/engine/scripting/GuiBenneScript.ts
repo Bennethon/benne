@@ -5,6 +5,10 @@ import {
   type GuiAllButtonsClickPayload,
 } from '../events/guiButtonEvents.js';
 import {
+  guiCheckboxCheckEventId,
+  guiCheckboxUncheckEventId,
+} from '../events/guiCheckboxEvents.js';
+import {
   guiControlMouseEnterEventId,
   guiControlMouseLeaveEventId,
 } from '../events/guiControlHoverEvents.js';
@@ -75,11 +79,15 @@ export class GuiBenneScript extends BenneScriptCore {
         if (!id) {
           return createBenneNoopGuiControlFacade(scene, queue);
         }
-        const resolved = rt?.getControl(id);
-        if (resolved) {
-          return resolved;
-        }
-        return createBenneNoopGuiControlFacade(scene, queue);
+        const resolved = rt?.getControl(id) ?? createBenneNoopGuiControlFacade(scene, queue);
+        resolved.attachScriptBinding({
+          guiId: gid,
+          controlId: id,
+          subscribeImmediate: (event, handler) => {
+            self.subscribeImmediate(event, handler);
+          },
+        });
+        return resolved;
       },
       show(): void {
         setOverlayVisible(true);
@@ -215,8 +223,28 @@ export class GuiBenneScript extends BenneScriptCore {
   }
 
   /**
+   * When the player toggles a `checkbox` control to **checked**, run `handler`.
+   * Programmatic **`control(…).checked = true`** does not invoke this.
+   */
+  whenCheckboxCheck(checkboxId: string, handler: () => void): void {
+    this.subscribe(guiCheckboxCheckEventId(this.guiId, checkboxId), () => {
+      handler();
+    });
+  }
+
+  /**
+   * When the player toggles a `checkbox` control to **unchecked**, run `handler`.
+   * Programmatic **`control(…).checked = false`** does not invoke this.
+   */
+  whenCheckboxUncheck(checkboxId: string, handler: () => void): void {
+    this.subscribe(guiCheckboxUncheckEventId(this.guiId, checkboxId), () => {
+      handler();
+    });
+  }
+
+  /**
    * Runs when the pointer enters the hit area of a GUI control with this **`id`**. Works for any authored
-   * control that exposes a hit area: **`trigger`**, **`button`** (while enabled), **`image`**, **`inventoryPanel`**,
+   * control that exposes a hit area: **`trigger`**, **`button`** (while enabled), **`checkbox`**, **`image`**, **`inventoryPanel`**,
    * and **`text`** (bounded by its rendered size).
    */
   whenMouseEnter(controlId: string, handler: () => void): void {
