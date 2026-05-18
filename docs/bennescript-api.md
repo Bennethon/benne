@@ -17,7 +17,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 - **`registerGuiScript('guiId', ({ B, events, guiId }) => …)`** — at content registration; overlay built per room.
 - **`registerDialogScript('dialogId', ({ B, events, dialogId, game }) => …)`** — runs when **`openDialogSessionForId`** opens that dialog (after **`B.dialog(id).start()`** / **`.start.now()`**).
 
-**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`display`**, **`wait`**, **`B.sound.play`**, **`B.sound.playAndWait`**, **`B.sound.playMusic`**, **`B.sound.stop`**, **`B.sound.stopMusic`**, queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
+**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`display`**, **`wait`**, **`B.sound.play`**, **`B.sound.playAndWait`**, **`B.sound.playMusic`**, **`B.sound.stop`**, **`B.sound.stopMusic`**, queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. **`B.gui('id').show()` / `hide()`** are immediate overlay toggles (not queued on the interaction tail). See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
 
 **`BlockingWithNow` pattern** — Many APIs are **`(…args) => void`** plus **`.now(…args)`** with the same parameters. The blocking form **queues** on **`interactionTail`**; **`.now`** performs the same work **without** extending the tail, so later lines in your handler still run in source order but do not wait for that action.
 
@@ -50,7 +50,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 | Global verb fallbacks (**`whenGlobalFallback`**, etc.) | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **`whenLeaveRoom`**, **`whenEnterRoom`**, **`whenEnterRoomAfterFade`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **`whenLeaveAnyRoom`**, **`whenEnterAnyRoom`**, **`whenEnterAnyRoomAfterFade`** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **`whenButtonClick`**, **`onGuiBuilt`**, **`scene`**, hover | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **`whenButtonClick`**, **`onGuiBuilt`**, **`scene`**, hover, **`B.gui('…').show` / `hide`** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | **`whenChoice`** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | **`cutscene`** / **`cutscene.now`** — see [Cutscene mode](#cutscene-mode) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
@@ -667,11 +667,13 @@ notifyGuiBuilt(gui: GuiRuntime): void; // engine-use; runs onGuiBuilt registrati
 // Re-exported from @engine/scripting (see benneScriptFacades.ts / GuiRuntime.ts)
 interface BenneScriptGuiOverlayRef {
   control(controlId: string): ControlFacade;
+  show(): void;
+  hide(): void;
 }
 ```
 
 - **`get scene`** — throws unless called synchronously inside an **`onGuiBuilt`** invocation (during **`notifyGuiBuilt`**); prefer **`gui.scene`** argument.
-- **`B.gui('otherOverlayId')`** — resolves controls on **any** overlay that has a **`*.gui.ts`** (the engine registers **`GuiRuntime`** on **`RoomScene`** before **`onGuiBuilt`** runs). **`control`** always returns a facade: the real control, or a safe inert one when the **`id`** is missing/blank, the overlay/runtime is absent, or the control is unknown ( **`text`** assigns are no-ops on the inert facade). On real **`text`** controls, **`ControlFacade.text`** maps to **`BitmapText`** / **`Text`**.
+- **`B.gui('otherOverlayId')`** — resolves controls on **any** built overlay (`*.gui.json`) in the active room. **`control`** always returns a facade: the real control, or a safe inert one when the **`id`** is missing/blank, the overlay/runtime is absent, or the control is unknown ( **`text`** assigns are no-ops on the inert facade). On real **`text`** controls, **`ControlFacade.text`** maps to **`BitmapText`** / **`Text`**. **`show()` / `hide()`** toggle the whole overlay visibility (same path as engine overlay visibility, including modal blocker behavior when **`modal: true`**); unknown / unavailable overlays are no-op (DEV warns).
 - **Verb HUD** — combine **`B.activeVerb`**, **`B.activeInventory`**, **`B.currentHoverDescription`** (or **`composeVerbLineText`** in code); in **`onGuiBuilt`**, call **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, refresh)`** (see **[`verbs.gui.ts`](../src/game/guis/verbs/verbs.gui.ts)**). Subscriptions reset when the room scene shuts down.
 - Hover handlers use **`subscribeImmediate`** (**no interaction-tail wait**).
 - Button clicks use **`subscribe`** (queued with other **`B`** work on **this GUI’s** script instance).
@@ -791,7 +793,7 @@ Strict typing when bypassing **`(p: any)`**:
 | [`CharacterBenneScript.ts`](../src/engine/scripting/CharacterBenneScript.ts) | Character facade |
 | [`InventoryBenneScript.ts`](../src/engine/scripting/InventoryBenneScript.ts) | Inventory row façade |
 | [`GlobalBenneScript.ts`](../src/engine/scripting/GlobalBenneScript.ts) | Global fallbacks + any-room hooks |
-| [`GuiBenneScript.ts`](../src/engine/scripting/GuiBenneScript.ts) | GUI buttons, **`onGuiBuilt`**, hover (**`subscribeImmediate`**), null clock |
+| [`GuiBenneScript.ts`](../src/engine/scripting/GuiBenneScript.ts) | GUI buttons, **`onGuiBuilt`**, cross-overlay control access (**`B.gui`**), overlay **`show`/`hide`**, hover (**`subscribeImmediate`**), null clock |
 | [`DialogBenneScript.ts`](../src/engine/scripting/DialogBenneScript.ts) | Dialog session **`B`**, **`whenChoice`**, **`openDialogSessionForId`** |
 | [`benneScriptFacades.ts`](../src/engine/scripting/benneScriptFacades.ts) | **`BenneScript*Facade`** interfaces |
 | [`benneScriptGameStateApi.ts`](../src/engine/scripting/benneScriptGameStateApi.ts) | **`B.state`**, **`B.inventory`** factories |

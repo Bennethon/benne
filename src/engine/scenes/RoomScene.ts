@@ -455,6 +455,9 @@ export class RoomScene extends Phaser.Scene {
   /** Every other registered GUI overlay (authoring under `src/game/guis/<id>/`), built automatically in `create`. */
   private genericGuiOverlays: GuiOverlayHandle[] = [];
 
+  /** Latest live overlay handle per `guiId` for whole-overlay visibility control (`B.gui('id').show()` / `.hide()`). */
+  private guiOverlayHandleByGuiId = new Map<string, GuiOverlayHandle>();
+
   /** Latest {@link GuiRuntime} per overlay id for **`B.gui(…)`** on GUI scripts (generic + speaking-text + choice GUIs). */
   private guiRuntimeByGuiId = new Map<string, GuiRuntime>();
 
@@ -637,6 +640,7 @@ export class RoomScene extends Phaser.Scene {
     const hasGenericGuiVisibilityOverride = typeof genericGuiVisibilityOverride === 'boolean';
 
     this.genericGuiOverlays = [];
+    this.guiOverlayHandleByGuiId.clear();
     this.guiRuntimeByGuiId.clear();
     this.dialogTextOverlay = null;
     this.displayTextOverlay = null;
@@ -683,6 +687,7 @@ export class RoomScene extends Phaser.Scene {
       }
 
       this.registerModalGuiOverlay(gui, guiDepth, built.handle, guiStartVisible);
+      this.guiOverlayHandleByGuiId.set(gui.id, built.handle);
 
       if (isSpeakingText) {
         this.dialogTextOverlay = built.handle;
@@ -866,6 +871,7 @@ export class RoomScene extends Phaser.Scene {
       this.dialogTextOverlay = null;
       this.displayTextOverlay?.destroy();
       this.displayTextOverlay = null;
+      this.guiOverlayHandleByGuiId.clear();
       this.guiRuntimeByGuiId.clear();
       this.dialogChoiceInputSuppressionActive = false;
       this.scriptedDialogInputSuppressionDepth = 0;
@@ -932,6 +938,15 @@ export class RoomScene extends Phaser.Scene {
       return null;
     }
     return this.guiRuntimeByGuiId.get(id) ?? null;
+  }
+
+  /** Resolves the live {@link GuiOverlayHandle} for an overlay **`guiId`** while this room is active. */
+  tryGetGuiOverlayHandle(guiId: string): GuiOverlayHandle | null {
+    const id = guiId.trim();
+    if (id.length === 0) {
+      return null;
+    }
+    return this.guiOverlayHandleByGuiId.get(id) ?? null;
   }
 
   registerBenneScriptCoreForReset(core: BenneScriptCore): void {

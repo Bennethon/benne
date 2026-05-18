@@ -44,6 +44,19 @@ export class GuiBenneScript extends BenneScriptCore {
   gui(overlayGuiId: string): BenneScriptGuiOverlayRef {
     const gid = overlayGuiId.trim();
     const self = this;
+    const setOverlayVisible = (visible: boolean): void => {
+      const rm = GuiBenneScript.tryResolveRoomSceneForGuiOverlay();
+      const handle = rm?.tryGetGuiOverlayHandle(gid);
+      if (!handle) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            `[Benne] B.gui("${gid}").${visible ? 'show' : 'hide'}(): overlay not found in active room — no-op.`,
+          );
+        }
+        return;
+      }
+      handle.setVisible(visible);
+    };
     return {
       control(controlId: string): ControlFacade {
         const id = controlId.trim();
@@ -67,6 +80,12 @@ export class GuiBenneScript extends BenneScriptCore {
           return resolved;
         }
         return createBenneNoopGuiControlFacade(scene, queue);
+      },
+      show(): void {
+        setOverlayVisible(true);
+      },
+      hide(): void {
+        setOverlayVisible(false);
       },
     };
   }
