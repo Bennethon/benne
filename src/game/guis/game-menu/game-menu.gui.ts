@@ -6,4 +6,8 @@ import { registerGuiScript } from '@engine/scripting';
 registerGuiScript('game-menu', ({ B }) => {
   // Delete this line when you add your first handler.
   void B;
+
+  B.whenButtonClick("resume", () => {
+    B.gui('game-menu').hide();
+  });
 });

@@ -47,6 +47,8 @@ export interface BenneScriptRoomFacade {
  */
 export interface BenneScriptGuiOverlayRef {
   control(controlId: string): ControlFacade;
+  show(): void;
+  hide(): void;
 }
 
 /**

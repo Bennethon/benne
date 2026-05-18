@@ -2,7 +2,7 @@
   "id": "game-menu",
   "name": "Game Menu",
   "description": "",
-  "visible": true,
+  "visible": false,
   "display": {
     "aseprite": true
   },
