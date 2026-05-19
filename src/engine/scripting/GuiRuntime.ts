@@ -37,6 +37,33 @@ export interface BenneScriptControlBinding {
   subscribeImmediate: (event: string, handler: (...args: unknown[]) => void) => void;
 }
 
+/** Shared by {@link ControlFacade} and registration-time detached facades (before {@link Phaser.Scene} exists). */
+export function wireControlWhenValueChanged(
+  binding: BenneScriptControlBinding | null | undefined,
+  handler: (value: number) => void,
+): void {
+  if (!binding) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        '[Benne] control().whenValueChanged() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
+      );
+    }
+    return;
+  }
+  binding.subscribeImmediate(
+    guiSliderValueChangedEventId(binding.guiId, binding.controlId),
+    (payload: unknown) => {
+      const p = payload as GuiSliderValueChangedPayload;
+      handler(p.value);
+    },
+  );
+}
+
+/** Facades returned from {@link GuiBenneScript.gui}().control() that accept script event wiring. */
+export interface BenneScriptControlBindingTarget {
+  attachScriptBinding(binding: BenneScriptControlBinding): void;
+}
+
 /**
  * Authoring handle for one control’s live Phaser object; tweens can queue on the owning GUI script’s interaction tail.
  */
@@ -320,22 +347,7 @@ export class ControlFacade {
    * Call from **`registerGuiScript`** via **`B.gui(…).control(…).whenValueChanged(…)`**.
    */
   whenValueChanged(handler: (value: number) => void): void {
-    const binding = this.scriptBinding;
-    if (!binding) {
-      if (import.meta.env.DEV) {
-        console.warn(
-          '[Benne] control().whenValueChanged() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
-        );
-      }
-      return;
-    }
-    binding.subscribeImmediate(
-      guiSliderValueChangedEventId(binding.guiId, binding.controlId),
-      (payload: unknown) => {
-        const p = payload as GuiSliderValueChangedPayload;
-        handler(p.value);
-      },
-    );
+    wireControlWhenValueChanged(this.scriptBinding, handler);
   }
 }
 
@@ -412,10 +424,12 @@ export function createDetachedBenneNoopGuiControlFacade(
   return new DetachedNoopGuiControlFacade(queueInteraction) as unknown as ControlFacade;
 }
 
-class DetachedNoopGuiControlFacade {
+class DetachedNoopGuiControlFacade implements BenneScriptControlBindingTarget {
   readonly gameObject: Phaser.GameObjects.GameObject;
 
   readonly tweenTo: BlockingWithNow<[props: ControlTweenProps, duration?: number, easing?: string]>;
+
+  private scriptBinding: BenneScriptControlBinding | null = null;
 
   constructor(queueInteraction: (factory: () => Promise<unknown>) => void) {
     this.gameObject = undefined as unknown as Phaser.GameObjects.GameObject;
@@ -462,7 +476,13 @@ class DetachedNoopGuiControlFacade {
 
   setValue(_next: number): void {}
 
-  whenValueChanged(_handler: (value: number) => void): void {}
+  attachScriptBinding(binding: BenneScriptControlBinding): void {
+    this.scriptBinding = binding;
+  }
+
+  whenValueChanged(handler: (value: number) => void): void {
+    wireControlWhenValueChanged(this.scriptBinding, handler);
+  }
 }
 
 export interface GuiRuntimeOptions {

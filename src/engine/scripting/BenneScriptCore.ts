@@ -928,6 +928,22 @@ export abstract class BenneScriptCore {
   }
 
   /**
+   * Like {@link subscribeImmediate}, but forwards the event payload to `run`.
+   * Use for high-frequency handlers that need event data (e.g. slider value changes).
+   */
+  protected subscribeImmediateWithPayload(eventId: string, run: (payload: unknown) => void): void {
+    const fn = (payload: unknown): void => {
+      try {
+        run(payload);
+      } catch (err) {
+        console.error(`[Benne] Error in ${eventId} handler:`, err);
+      }
+    };
+    this.events.on(eventId, fn);
+    this.disposers.push(() => this.events.off(eventId, fn));
+  }
+
+  /**
    * Maps a Bennescript alias to the first matching `verbs[].id` from `game-config.json`.
    */
   protected resolveVerbId(alias: VerbAlias): string {
