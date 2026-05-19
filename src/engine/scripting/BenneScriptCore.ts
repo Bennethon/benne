@@ -25,20 +25,28 @@ import { getEffectiveVerbDefinitions, WALK_TO_VERB_ID } from '../verbs/verbConfi
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import type { InventoryItemDefinition, VerbDefinition, VerbHoverTarget } from '../../types/verbContext.js';
 import {
+  getBenneDialogSettingsChangedEmitter,
+} from './benneDialogSettingsScriptSurface.js';
+import {
   getBenneVerbContextChangedEmitter,
   getBenneVerbContextHoverDescription,
   getBenneVerbContextHoverTarget,
 } from './benneVerbContextScriptSurface.js';
-import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import {
+  resolveGameStateManager,
+  tryGetActiveGameStateManager,
+} from '../gameState/resolveGameStateManager.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import { INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT } from '../events/inventoryOnVerbEvents.js';
 import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerbTarget.js';
 import type {
   BenneScriptCharacterFacade,
+  BenneScriptDialogSettingsFacade,
   BenneScriptPlayerFacade,
   BenneScriptRoomFacade,
   BenneScriptSoundFacade,
 } from './benneScriptFacades.js';
+import { createBenneScriptDialogSettingsFacade } from './benneScriptDialogSettingsApi.js';
 import { createBenneScriptSoundFacade } from './benneScriptSoundApi.js';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
 import { getCharacterWorldFeet } from '../characterFeet.js';
@@ -343,6 +351,9 @@ export abstract class BenneScriptCore {
   /** SFX + music (`B.sound.play('creak')`, `B.sound.playMusic('song')`, …). */
   readonly sound: BenneScriptSoundFacade;
 
+  /** Runtime dialog prefs (`B.dialogSettings.clickToSkip`, timing, talk offset, …). */
+  readonly dialogSettings: BenneScriptDialogSettingsFacade;
+
   /**
    * PowerQuest-style **`B.say`**…``: lines **`Speaker: text`** (blank lines and **`//`** line / trailing comments ignored). **`Player`** (any case) → starting player character. Queues each line on the interaction tail; **`B.say.now`**… does not wait behind prior queued steps (each line still uses the dialog overlay lock).
    */
@@ -472,6 +483,7 @@ export abstract class BenneScriptCore {
 
     this.room = bindRoomFacadeForBenneScriptCore((f) => this.chain(f));
     this.sound = createBenneScriptSoundFacade((f) => this.chain(f));
+    this.dialogSettings = createBenneScriptDialogSettingsFacade();
   }
 
   /**
@@ -756,6 +768,14 @@ export abstract class BenneScriptCore {
     return getBenneVerbContextChangedEmitter();
   }
 
+  /**
+   * Subscribe with **`B.onDialogSettingsChanged.on(BENNE_DIALOG_SETTINGS_CHANGED_EVENT, handler)`**
+   * (import from **`@engine/scripting`**). Emits when any **`B.dialogSettings`** property is written.
+   */
+  get onDialogSettingsChanged(): Phaser.Events.EventEmitter {
+    return getBenneDialogSettingsChangedEmitter();
+  }
+
   /** Verb-line hover description from {@link RoomScene} hit-testing (`null` when none / suppressed). */
   get currentHoverDescription(): string | null {
     return getBenneVerbContextHoverDescription();
@@ -996,10 +1016,12 @@ export abstract class BenneScriptCore {
     talkCharacterDefinitionId: string,
     options?: BenneScriptSayLineOptions,
   ): Promise<void> {
-    const ms = computeDialogLineDurationMs(line);
+    const manager = resolveGameStateManager(scene.game);
+    const dialog = getDialogSettings(manager);
+    const ms = computeDialogLineDurationMs(line, manager);
     const lineOpt = options?.clickToSkip;
     const allowClickToSkip =
-      lineOpt === true || (lineOpt !== false && getDialogSettings().clickToSkip);
+      lineOpt === true || (lineOpt !== false && dialog.clickToSkip);
 
     return new Promise<void>((resolve) => {
       let completed = false;

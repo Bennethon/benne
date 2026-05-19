@@ -28,6 +28,29 @@ export interface BenneScriptSoundFacade {
   isMusicPlaying(): boolean;
 }
 
+/**
+ * {@link import('./BenneScriptCore.js').BenneScriptCore.dialogSettings} — runtime dialog prefs
+ * (`dialog:*` variables); getters/setters only, sync (not queued on interaction tail).
+ */
+export interface BenneScriptDialogSettingsFacade {
+  get clickToSkip(): boolean;
+  set clickToSkip(v: boolean);
+  get showText(): boolean;
+  set showText(v: boolean);
+  get msPerCharacter(): number;
+  set msPerCharacter(v: number);
+  get durationMultiplier(): number;
+  set durationMultiplier(v: number);
+  get minDurationMs(): number;
+  set minDurationMs(v: number);
+  get maxDurationMs(): number;
+  set maxDurationMs(v: number);
+  get defaultTalkOffset(): { x: number; y: number };
+  set defaultTalkOffset(v: { x: number; y: number });
+  get choiceOptionsViewportHeightPx(): number | undefined;
+  set choiceOptionsViewportHeightPx(v: number | undefined);
+}
+
 export interface BenneScriptRoomFacade {
   readonly current: string;
   readonly last: string | null;
@@ -67,10 +90,12 @@ export type BenneScriptSharedSelectionApi = Pick<
   | 'activeVerb'
   | 'activeInventory'
   | 'onVerbContextChanged'
+  | 'onDialogSettingsChanged'
   | 'currentHoverDescription'
   | 'currentHoverTarget'
   | 'room'
   | 'sound'
+  | 'dialogSettings'
 > & {
   readonly fadeOut: BenneScriptCore['fadeOut'];
   readonly fadeIn: BenneScriptCore['fadeIn'];

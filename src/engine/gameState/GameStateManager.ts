@@ -26,6 +26,7 @@ import {
   GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT,
   GAME_STATE_VARIABLE_CHANGED_EVENT,
 } from '../../types/gameState.js';
+import { mergePreserveDialogSettingsVariables } from '../dialog/dialogGameState.js';
 import { mergePreserveAudioVolumeVariables } from '../sound/audioGameState.js';
 import { runSnapshotFlushHooks } from './snapshotFlushHooks.js';
 
@@ -166,8 +167,8 @@ export class GameStateManager {
     }
     const previousCurrentRoom = this.state.currentRoom;
     const previousLastRoom = this.state.lastRoom;
-    const mergedVariables = mergePreserveAudioVolumeVariables(
-      { ...snapshot.variables },
+    const mergedVariables = mergePreserveDialogSettingsVariables(
+      mergePreserveAudioVolumeVariables({ ...snapshot.variables }, this.state.variables),
       this.state.variables,
     );
     this.state = {

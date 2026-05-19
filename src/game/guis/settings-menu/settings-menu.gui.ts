@@ -14,4 +14,12 @@ registerGuiScript('settings-menu', ({ B }) => {
   B.gui('settings-menu').control('musicVolume').whenValueChanged((newVal) => {
     B.sound.setMusicVolume(newVal / 100);
   });
+
+  B.whenCheckboxCheck("musicEnabled", () => {
+    B.dialogSettings.clickToSkip = true;
+  });
+
+  B.whenCheckboxUncheck("musicEnabled", () => {
+    B.dialogSettings.clickToSkip = false;
+  });
 });
