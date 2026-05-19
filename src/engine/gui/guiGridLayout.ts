@@ -231,8 +231,10 @@ export function resolveGuiControlRootTopLeft(
   const bh = Math.max(1, contentH);
   const { hx, vy } = parseGuiGridCellAlign(placement.align);
   const { dx, dy } = alignBoxTopLeftInCell(hx, vy, cell.w, cell.h, bw, bh);
-  const localX = Math.round(cell.x + dx);
-  const localY = Math.round(cell.y + dy);
+  const offX = typeof placement.offsetX === 'number' && Number.isFinite(placement.offsetX) ? Math.round(placement.offsetX) : 0;
+  const offY = typeof placement.offsetY === 'number' && Number.isFinite(placement.offsetY) ? Math.round(placement.offsetY) : 0;
+  const localX = Math.round(cell.x + dx + offX);
+  const localY = Math.round(cell.y + dy + offY);
   const gx = Math.round(lay.def.x);
   const gy = Math.round(lay.def.y);
   return { x: rx + gx + localX, y: ry + gy + localY };
