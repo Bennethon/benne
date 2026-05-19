@@ -1,5 +1,4 @@
 import * as Phaser from 'phaser';
-import { getAsepriteVisibleFrameSize } from '../aseprite/asepriteFramePlacement';
 import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/guiAseprite';
 import type { GuiData, GuiSliderControl } from '../../types/gui';
 import { gameEvents } from '../events/EventBus';
@@ -7,7 +6,11 @@ import {
   guiSliderValueChangedEventId,
   type GuiSliderValueChangedPayload,
 } from '../events/guiSliderEvents';
-import { warnDevIfAsepriteJsonMissingSpriteSourceSize } from '../aseprite/asepriteFramePlacement';
+import {
+  getAsepriteSpriteSourceInset,
+  getAsepriteVisibleFrameSize,
+  warnDevIfAsepriteJsonMissingSpriteSourceSize,
+} from '../aseprite/asepriteFramePlacement';
 import {
   applyGuiButtonInteractivity,
   guiSpriteAnchorOrDefault,
@@ -59,6 +62,9 @@ export function snapGuiSliderValue(raw: number, range: GuiSliderRange): number {
   if (span <= 0) {
     return min;
   }
+  if (!Number.isFinite(raw)) {
+    return min;
+  }
   const steps = Math.round((raw - min) / step);
   const snapped = min + steps * step;
   return Math.min(max, Math.max(min, snapped));
@@ -86,16 +92,61 @@ function resolveSliderTags(
   return { track: trackDefault, handle: handleDefault };
 }
 
-function getHandleTravelBounds(
+function getHandleTravelBounds(hitWidth: number): { minX: number; maxX: number } {
+  const minX = 0;
+  const maxX = Math.max(minX, hitWidth);
+  return { minX, maxX };
+}
+
+function getVisibleSpriteLocalBounds(sprite: Phaser.GameObjects.Sprite): {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+} {
+  const inset = getAsepriteSpriteSourceInset(sprite.frame);
+  const visible = getAsepriteVisibleFrameSize(sprite.frame);
+  const left = sprite.x - sprite.displayOriginX + inset.x;
+  const top = sprite.y - sprite.displayOriginY + inset.y;
+  return {
+    left,
+    top,
+    right: left + visible.w,
+    bottom: top + visible.h,
+  };
+}
+
+function resolveSliderTravelBounds(
+  hitWidth: number,
+  hitHeight: number,
+  trackSprite: Phaser.GameObjects.Sprite | null,
+): { minX: number; maxX: number; centerY: number } {
+  const fallback = getHandleTravelBounds(hitWidth);
+  const fallbackY = hitHeight / 2;
+  const b = trackSprite != null ? getVisibleSpriteLocalBounds(trackSprite) : null;
+  const rawMinX = b && Number.isFinite(b.left) ? b.left : fallback.minX;
+  const rawMaxX = b && Number.isFinite(b.right) ? b.right : fallback.maxX;
+  const centerY =
+    b && Number.isFinite(b.top) && Number.isFinite(b.bottom) ? (b.top + b.bottom) / 2 : fallbackY;
+  return {
+    minX: Math.min(rawMinX, rawMaxX),
+    maxX: Math.max(rawMinX, rawMaxX),
+    centerY,
+  };
+}
+
+function resolveHandlePlacementOffsetX(
   hitWidth: number,
   handleSprite: Phaser.GameObjects.Sprite | null,
-): { minX: number; maxX: number } {
-  const handleW =
-    handleSprite != null ? getAsepriteVisibleFrameSize(handleSprite.frame).w : Math.max(1, hitWidth * 0.1);
-  const half = handleW / 2;
-  const minX = half;
-  const maxX = Math.max(minX, hitWidth - half);
-  return { minX, maxX };
+): number {
+  if (!handleSprite) {
+    return 0;
+  }
+  const frameData = (handleSprite.frame as unknown as { data?: { trim?: boolean } }).data;
+  const isTrimmed = frameData?.trim === true;
+  const handleVisibleW = getAsepriteVisibleFrameSize(handleSprite.frame).w;
+  const isFullWidthCanvasHandle = !isTrimmed && handleVisibleW >= Math.max(1, hitWidth) * 0.9;
+  return isFullWidthCanvasHandle ? handleVisibleW / 2 : 0;
 }
 
 function valueToHandleLocalX(
@@ -109,6 +160,9 @@ function valueToHandleLocalX(
     return minX;
   }
   const t = (value - range.min) / span;
+  if (!Number.isFinite(t)) {
+    return minX;
+  }
   return minX + t * (maxX - minX);
 }
 
@@ -225,11 +279,12 @@ export function buildGuiSlider(
     if (!handleSprite) {
       return;
     }
-    const { minX, maxX } = getHandleTravelBounds(w, handleSprite);
+    const { minX, maxX, centerY } = resolveSliderTravelBounds(w, h, trackSprite);
+    const handleOffsetX = resolveHandlePlacementOffsetX(w, handleSprite);
     const hx = valueToHandleLocalX(value, range, minX, maxX);
-    const hy = h / 2;
+    const hy = centerY;
     handleSprite.setOrigin(0.5, 0.5);
-    handleSprite.setPosition(Math.round(hx), Math.round(hy));
+    handleSprite.setPosition(Math.round(hx + handleOffsetX), Math.round(hy));
   };
 
   const repositionTrack = (): void => {
@@ -330,7 +385,7 @@ export function buildGuiSlider(
     }
     const matrix = hitTarget.getWorldTransformMatrix();
     const local = matrix.applyInverse(pointer.worldX, pointer.worldY);
-    const { minX, maxX } = getHandleTravelBounds(w, handleSprite);
+    const { minX, maxX } = resolveSliderTravelBounds(w, h, trackSprite);
     const next = localXToValue(local.x, range, minX, maxX);
     setValueInternal(next, true);
   };
