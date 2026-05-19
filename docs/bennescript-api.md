@@ -205,7 +205,7 @@ Available on every **`BenneScriptCore`** facade (**room / character / inventory 
 
 **Assets** — Put files under **`src/game/assets/audio/sfx/<name>.<ext>`** (sound effects) and **`src/game/assets/audio/music/<name>.<ext>`** (music). Supported extensions include **`.wav`**, **`.mp3`**, **`.ogg`**, **`.m4a`**. Reference them by **basename only** (e.g. **`B.sound.play('creak')`** for **`…/audio/sfx/creak.wav`**). Ids must match **`^[a-zA-Z0-9_-]+$`**.
 
-**Volumes** — Playback uses **`getEffectiveSfxVolume`** / **`getEffectiveMusicVolume`** from **`game-config.json`** **`audio`** (master × category). Optional **`volume`** on **`play` / `playAndWait` / `playMusic`** (0–1) is an extra multiplier. **`setSfxVolume` / `setMusicVolume`** apply **session** multipliers on top of config (see [architecture.md §3 → Audio system](architecture.md#audio-system)).
+**Volumes** — Playback uses **`getEffectiveSfxVolume`** / **`getEffectiveMusicVolume`** from **`game-config.json`** **`audio`** (master × category). Optional **`volume`** on **`play` / `playAndWait` / `playMusic`** (0–1) is an extra multiplier. **`setSfxVolume` / `setMusicVolume`** apply **session** multipliers on top of config and **persist** to **`GameStateManager`** variables **`settings:sfxVolume`** / **`settings:musicVolume`** (included in save snapshots). **`getSfxVolume` / `getMusicVolume`** read the live session multiplier (for GUI sliders, use `× 100` when driving **`slider`** controls). When a variable is unset, defaults come from **`game-config.json`** **`audio.sfxVolume`** / **`audio.musicVolume`**. Loading a snapshot re-applies persisted values to **`SoundManager`**; applying a snapshot that **omits** those keys keeps the previous in-memory values unless **`initialGameState.variables`** seeds them (see [architecture.md §3 → Audio system](architecture.md#audio-system)).
 
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
@@ -214,8 +214,10 @@ Available on every **`BenneScriptCore`** facade (**room / character / inventory 
 | **`playMusic`** | `BlockingWithNow<[key: string, options?: MusicPlayOptions]>` | One **music** slot; a new **`playMusic`** replaces the current track (instant by default). With **`fadeSeconds` > 0**, volumes crossfade and the **blocking** form waits for that duration. **`sync: true`** (with a fade) seeks the new clip to the outgoing playback position when supported. Default **`loop: true`** for music; SFX default **`loop: false`**. | Queued vs **`.now`** |
 | **`stop`** | `BlockingWithNow<[key?: string]>` | **`stop()`** / **`stop.now()`** with **no** argument stops **all** SFX; with a **key**, stops instances of that stem only. | Queued vs **`.now`** |
 | **`stopMusic`** | `BlockingWithNow<[]>` | Stops the current music instance. | Queued vs **`.now`** |
-| **`setSfxVolume`** | `(volume: number) => void` | Session SFX multiplier (0–1). | Sync |
-| **`setMusicVolume`** | `(volume: number) => void` | Session music multiplier (0–1). | Sync |
+| **`setSfxVolume`** | `(volume: number) => void` | Session SFX multiplier (0–1); persisted to **`settings:sfxVolume`**. | Sync |
+| **`setMusicVolume`** | `(volume: number) => void` | Session music multiplier (0–1); persisted to **`settings:musicVolume`**. | Sync |
+| **`getSfxVolume`** | `() => number` | Current session SFX multiplier (0–1). | Sync |
+| **`getMusicVolume`** | `() => number` | Current session music multiplier (0–1). | Sync |
 | **`isPlaying`** | `(key: string) => boolean` | Whether an SFX with that stem is playing. | Sync |
 | **`isMusicPlaying`** | `() => boolean` | Whether music is playing. | Sync |
 

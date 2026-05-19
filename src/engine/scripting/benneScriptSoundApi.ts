@@ -1,8 +1,20 @@
+import { getGameSettings } from '../ConfigManager.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
+import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import {
+  readPersistedMusicSessionVolume,
+  readPersistedSfxSessionVolume,
+  writePersistedMusicSessionVolume,
+  writePersistedSfxSessionVolume,
+} from '../sound/audioGameState.js';
 import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
 import type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
 import { withNow } from './BenneScriptCore.js';
 import type { BenneScriptSoundFacade } from './benneScriptFacades.js';
+
+function clamp01(n: number): number {
+  return Math.min(1, Math.max(0, n));
+}
 
 function resolveSoundManager() {
   const g = tryGetActiveBenneGame();
@@ -67,10 +79,36 @@ export function createBenneScriptSoundFacade(
       },
     ),
     setSfxVolume(volume: number): void {
-      resolveSoundManager()?.setSfxSessionVolume(volume);
+      const v = clamp01(volume);
+      resolveSoundManager()?.setSfxSessionVolume(v);
+      const mgr = tryGetActiveGameStateManager();
+      if (mgr) {
+        writePersistedSfxSessionVolume(mgr, v);
+      }
     },
     setMusicVolume(volume: number): void {
-      resolveSoundManager()?.setMusicSessionVolume(volume);
+      const v = clamp01(volume);
+      resolveSoundManager()?.setMusicSessionVolume(v);
+      const mgr = tryGetActiveGameStateManager();
+      if (mgr) {
+        writePersistedMusicSessionVolume(mgr, v);
+      }
+    },
+    getSfxVolume(): number {
+      const sm = resolveSoundManager();
+      if (sm) {
+        return sm.getSfxSessionVolume();
+      }
+      const mgr = tryGetActiveGameStateManager();
+      return mgr ? readPersistedSfxSessionVolume(mgr) : clamp01(getGameSettings().audio.sfxVolume);
+    },
+    getMusicVolume(): number {
+      const sm = resolveSoundManager();
+      if (sm) {
+        return sm.getMusicSessionVolume();
+      }
+      const mgr = tryGetActiveGameStateManager();
+      return mgr ? readPersistedMusicSessionVolume(mgr) : clamp01(getGameSettings().audio.musicVolume);
     },
     isPlaying(key: string): boolean {
       return resolveSoundManager()?.isSfxPlaying(key) ?? false;

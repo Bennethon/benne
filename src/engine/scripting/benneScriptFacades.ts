@@ -22,6 +22,8 @@ export interface BenneScriptSoundFacade {
   readonly stopMusic: BlockingWithNow<[]>;
   setSfxVolume(volume: number): void;
   setMusicVolume(volume: number): void;
+  getSfxVolume(): number;
+  getMusicVolume(): number;
   isPlaying(key: string): boolean;
   isMusicPlaying(): boolean;
 }
