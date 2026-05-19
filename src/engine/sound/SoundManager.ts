@@ -518,6 +518,14 @@ export class SoundManager {
     this.hardStopAllMusicTracks();
   }
 
+  getSfxSessionVolume(): number {
+    return this.sfxSessionMultiplier;
+  }
+
+  getMusicSessionVolume(): number {
+    return this.musicSessionMultiplier;
+  }
+
   setSfxSessionVolume(volume: number): void {
     this.sfxSessionMultiplier = clamp01(volume);
     this.refreshActiveVolumes();

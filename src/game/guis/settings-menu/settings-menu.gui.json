@@ -10,9 +10,9 @@
     {
       "type": "nineSliceImage",
       "id": "settings-BG",
-      "x": 102,
+      "x": 54,
       "y": 33,
-      "width": 116,
+      "width": 202,
       "height": 114,
       "tag": "9-slice-BG",
       "sliceNames": {
@@ -57,8 +57,11 @@
       "gridPlacement": {
         "gridControlId": "settings-layout",
         "row": 0,
-        "col": 1
-      }
+        "col": 1,
+        "align": "top-left",
+        "offsetY": 1
+      },
+      "checked": true
     },
     {
       "type": "slider",
@@ -88,7 +91,8 @@
         "gridControlId": "settings-layout",
         "row": 1,
         "col": 1,
-        "align": "center-left"
+        "align": "center-left",
+        "offsetY": -2
       }
     },
     {
@@ -118,7 +122,8 @@
         "gridControlId": "settings-layout",
         "row": 2,
         "col": 1,
-        "align": "center-left"
+        "align": "center-left",
+        "offsetY": -2
       }
     },
     {
@@ -135,18 +140,21 @@
         "row": 0,
         "col": 0,
         "align": "top-right",
-        "offsetX": -2
+        "offsetX": -3
       }
     },
     {
       "type": "grid",
       "id": "settings-layout",
-      "x": 13,
+      "x": 56,
       "y": 62,
-      "width": 230,
       "height": 52,
       "rows": 3,
       "columns": 2,
+      "colWidths": [
+        120,
+        80
+      ],
       "zIndex": 1
     },
     {
@@ -163,7 +171,7 @@
         "row": 1,
         "col": 0,
         "align": "top-right",
-        "offsetX": -2
+        "offsetX": -3
       }
     },
     {
@@ -180,7 +188,7 @@
         "row": 2,
         "col": 0,
         "align": "top-right",
-        "offsetX": -2
+        "offsetX": -3
       }
     }
   ]
