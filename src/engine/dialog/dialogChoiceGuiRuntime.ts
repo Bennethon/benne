@@ -632,6 +632,8 @@ export class DialogChoiceDynamicRowState {
       contentW: number,
       contentH: number,
       align: GuiGridCellAlign | undefined,
+      offsetX?: number,
+      offsetY?: number,
     ): { localX: number; localY: number; rootTopLeft: { x: number; y: number } } => {
       const cw = Math.max(1, Math.round(cellW));
       const ch = Math.max(1, Math.round(cellH));
@@ -639,8 +641,10 @@ export class DialogChoiceDynamicRowState {
       const bh = Math.max(1, contentH);
       const { hx, vy } = parseGuiGridCellAlign(align);
       const { dx, dy } = alignBoxTopLeftInCell(hx, vy, cw, ch, bw, bh);
-      const localX = Math.round(cellX + dx);
-      const localY = Math.round(cellY + dy);
+      const offX = typeof offsetX === 'number' && Number.isFinite(offsetX) ? Math.round(offsetX) : 0;
+      const offY = typeof offsetY === 'number' && Number.isFinite(offsetY) ? Math.round(offsetY) : 0;
+      const localX = Math.round(cellX + dx + offX);
+      const localY = Math.round(cellY + dy + offY);
       return { localX, localY, rootTopLeft: { x: gx + localX, y: gy + localY } };
     };
 
@@ -685,6 +689,8 @@ export class DialogChoiceDynamicRowState {
           colLayout.optionButtonWidthPx,
           visibleHeightPx,
           buttonDef.gridPlacement?.align,
+          buttonDef.gridPlacement?.offsetX,
+          buttonDef.gridPlacement?.offsetY,
         );
         btnLocalX = btnPlace.localX;
         btnLocalY = btnPlace.localY + contentShiftY;
@@ -710,6 +716,8 @@ export class DialogChoiceDynamicRowState {
             imgEstW,
             fullRowHeightPx,
             bulletDef.gridPlacement?.align,
+            bulletDef.gridPlacement?.offsetX,
+            bulletDef.gridPlacement?.offsetY,
           );
           bulletLocalX = bulletPlace.localX;
           bulletLocalY = bulletPlace.localY;

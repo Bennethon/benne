@@ -1282,6 +1282,12 @@ export function updateGuiControlPatch(
             if (g.align === '' || g.align === undefined) {
                 delete g.align;
             }
+            if (g.offsetX === 0 || g.offsetX === undefined || g.offsetX === null) {
+                delete g.offsetX;
+            }
+            if (g.offsetY === 0 || g.offsetY === undefined || g.offsetY === null) {
+                delete g.offsetY;
+            }
         }
     }
 

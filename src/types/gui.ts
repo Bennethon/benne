@@ -68,6 +68,10 @@ export interface GuiGridPlacement {
   rowspan?: number;
   colspan?: number;
   align?: GuiGridCellAlign;
+  /** Pixel nudge on X after grid-cell alignment (negative = left, positive = right). */
+  offsetX?: number;
+  /** Pixel nudge on Y after grid-cell alignment (negative = up, positive = down). */
+  offsetY?: number;
 }
 
 /** How a GUI-sheet sprite is aligned to its control (or to the screen for full-frame art). */

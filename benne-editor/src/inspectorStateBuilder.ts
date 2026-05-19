@@ -215,6 +215,8 @@ export type InspectorGuiGridPlacement = {
     rowspan: number | null;
     colspan: number | null;
     align: InspectorGuiGridCellAlign;
+    offsetX: number | null;
+    offsetY: number | null;
 };
 
 export type InspectorGuiTextOutlineSides =
@@ -1292,7 +1294,9 @@ function parseOptionalGridPlacement(o: Record<string, unknown>): InspectorGuiGri
         col: guiReadNum(g, 'col', 0),
         rowspan: guiReadNumOrNull(g, 'rowspan'),
         colspan: guiReadNumOrNull(g, 'colspan'),
-        align: guiReadGridCellAlignField(g, 'align')
+        align: guiReadGridCellAlignField(g, 'align'),
+        offsetX: guiReadNumOrNull(g, 'offsetX'),
+        offsetY: guiReadNumOrNull(g, 'offsetY')
     };
 }
 

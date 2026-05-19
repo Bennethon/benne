@@ -170,6 +170,8 @@ type InspectorGuiGridPlacement = {
     rowspan: number | null;
     colspan: number | null;
     align: InspectorGuiGridCellAlign;
+    offsetX: number | null;
+    offsetY: number | null;
 };
 
 type InspectorGuiTextOutlineSides =
@@ -1367,6 +1369,10 @@ function guiGridPlacementFieldsHtml(state: InspectorGuiState, idx: number, gp: I
   <input type="number" class="gui-gp-field" data-gp="colspan" value="${gp?.colspan ?? ''}" placeholder="1" />
   <span class="benne-pg-lbl">align</span>
   <select class="gui-gp-field" data-gp="align">${guiGridCellAlignSelectOptions(gp?.align ?? '')}</select>
+  <span class="benne-pg-lbl">offset X</span>
+  <input type="number" class="gui-gp-field" data-gp="offsetX" value="${gp?.offsetX ?? ''}" placeholder="0" />
+  <span class="benne-pg-lbl">offset Y</span>
+  <input type="number" class="gui-gp-field" data-gp="offsetY" value="${gp?.offsetY ?? ''}" placeholder="0" />
 </div>`;
 }
 
@@ -3066,6 +3072,20 @@ function collectGridPlacementPatchFromDom(idx: number): Record<string, unknown> 
     const al = (wrap.querySelector('[data-gp="align"]') as HTMLSelectElement | null)?.value ?? '';
     if (al.length > 0) {
         placement.align = al;
+    }
+    const offsetXRaw = (wrap.querySelector('[data-gp="offsetX"]') as HTMLInputElement | null)?.value.trim() ?? '';
+    if (offsetXRaw !== '') {
+        const n = Number(offsetXRaw);
+        if (Number.isFinite(n)) {
+            placement.offsetX = n;
+        }
+    }
+    const offsetYRaw = (wrap.querySelector('[data-gp="offsetY"]') as HTMLInputElement | null)?.value.trim() ?? '';
+    if (offsetYRaw !== '') {
+        const n = Number(offsetYRaw);
+        if (Number.isFinite(n)) {
+            placement.offsetY = n;
+        }
     }
     return { gridPlacement: placement };
 }
