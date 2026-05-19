@@ -81,6 +81,10 @@ export {
   wireBenneVerbContextGameStateRelay,
   unwireBenneVerbContextGameStateRelay,
 } from './benneVerbContextScriptSurface.js';
+export {
+  BENNE_DIALOG_SETTINGS_CHANGED_EVENT,
+  getBenneDialogSettingsChangedEmitter,
+} from './benneDialogSettingsScriptSurface.js';
 export type {
   VerbDefinition,
   VerbHoverTarget,
@@ -89,5 +93,5 @@ export type {
 } from '../../types/verbContext.js';
 export type { BenneGuiScriptButtonVisualState } from '../../types/gui.js';
 export type { CharacterFollowOptions } from '../../types/characterFollow.js';
-export type { BenneScriptSoundFacade } from './benneScriptFacades.js';
+export type { BenneScriptDialogSettingsFacade, BenneScriptSoundFacade } from './benneScriptFacades.js';
 export type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';

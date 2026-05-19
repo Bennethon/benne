@@ -56,18 +56,21 @@ export interface GameSettingsPerspective {
   walkScalePower: number;
 }
 
-/** Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults. */
+/**
+ * Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults.
+ * At runtime, `B.dialogSettings` / `dialog:*` game-state variables override these fields (see architecture.md).
+ */
 export interface GameSettingsDialog {
   /**
    * Default for timed Bennescript `.say` / `.say.now` lines when the call omits **`clickToSkip`** in the options object.
    * When true, a **left**-click ends the line early (same cleanup as the timer). Per-line overrides:
    * `say('…', { clickToSkip: false })` always disables skip; `say('…', { clickToSkip: true })` always enables skip even
-   * when this global flag is false.
+   * when this global flag is false. Overridable at runtime via **`B.dialogSettings.clickToSkip`**.
    */
   clickToSkip: boolean;
-  /** When false, `.say()` timing still runs but no Speaking Text (`speaking-text`) GUI (reserved for future spoken-only lines). */
+  /** When false, `.say()` timing still runs but no Speaking Text (`speaking-text`) GUI. Overridable via **`B.dialogSettings.showText`**. */
   showText: boolean;
-  /** Extra offset in **game canvas pixels** (same space as GUI `controls[].x` / `y`) applied after projecting the character `talkPoint`. */
+  /** Extra offset in **game canvas pixels** applied after projecting the character `talkPoint`. Overridable via **`B.dialogSettings.defaultTalkOffset`**. */
   defaultTalkOffset: { x: number; y: number };
   minDurationMs: number;
   msPerCharacter: number;
@@ -76,6 +79,7 @@ export interface GameSettingsDialog {
   /**
    * When set, caps how many pixels of choice option rows may stack below **`Option-Grid`** (see
    * {@link getDialogChoiceAvailableHeightPx}). Omitted = extend to the bottom of the internal canvas.
+   * Overridable via **`B.dialogSettings.choiceOptionsViewportHeightPx`** (set **`undefined`** to clear override).
    */
   choiceOptionsViewportHeightPx?: number;
 }

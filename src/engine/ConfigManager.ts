@@ -1,5 +1,7 @@
 import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
 import type { GameSettings, GameSettingsDialog, GameSettingsPerspective } from '../types/game';
+import { readEffectiveDialogSettings } from './dialog/dialogGameState.js';
+import type { GameStateManager } from './gameState/GameStateManager.js';
 import { DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbs/verbConfig';
 import rawSettings from '../game/game-config.json';
 
@@ -393,8 +395,19 @@ export function getGameSettings(): GameSettings {
   return settings;
 }
 
-/** Merged `dialog` values from `game-config.json` (defaults apply when the block or fields are omitted). */
-export function getDialogSettings(): GameSettingsDialog {
+/** Merged `dialog` values from `game-config.json` only (no runtime variable overrides). */
+export function getDialogSettingsFromConfig(): GameSettingsDialog {
+  return mergeDialogSettings(settings);
+}
+
+/**
+ * Merged `dialog` values: when `manager` is set, overlays runtime `dialog:*` variables
+ * (see `B.dialogSettings`); otherwise returns config defaults only.
+ */
+export function getDialogSettings(manager?: GameStateManager | null): GameSettingsDialog {
+  if (manager) {
+    return readEffectiveDialogSettings(manager);
+  }
   return mergeDialogSettings(settings);
 }
 
@@ -404,8 +417,11 @@ export function getPerspectiveSettings(): GameSettingsPerspective {
 }
 
 /** How long a `.say()` line should stay on screen from {@link getDialogSettings} timing rules. */
-export function computeDialogLineDurationMs(line: string): number {
-  const dialog = mergeDialogSettings(settings);
+export function computeDialogLineDurationMs(
+  line: string,
+  manager?: GameStateManager | null,
+): number {
+  const dialog = getDialogSettings(manager);
   const n = Array.from(line).length;
   const scaled = n * dialog.msPerCharacter * dialog.durationMultiplier;
   const clamped = Math.min(dialog.maxDurationMs, Math.max(dialog.minDurationMs, scaled));

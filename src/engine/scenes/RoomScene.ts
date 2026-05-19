@@ -186,11 +186,16 @@ import {
 import { guiAllButtonsClickEventId, guiButtonClickEventId, type GuiAllButtonsClickPayload } from '../events/guiButtonEvents';
 import { endDialogSessionIfMatches, getActiveDialogBenneScript } from '../scripting/dialogSession.js';
 import {
+  BENNE_DIALOG_SETTINGS_CHANGED_EVENT,
+  getBenneDialogSettingsChangedEmitter,
+} from '../scripting/benneDialogSettingsScriptSurface.js';
+import {
   BENNE_VERB_CONTEXT_CHANGED_EVENT,
   clearBenneVerbHoverContext,
   getBenneVerbContextChangedEmitter,
   publishBenneVerbHoverContext,
 } from '../scripting/benneVerbContextScriptSurface.js';
+import { DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE } from '../dialog/dialogGameState.js';
 import type { GuiRuntime } from '../scripting/GuiRuntime.js';
 import {
   BENNE_SCREEN_FADE_DEFAULT_COLOR,
@@ -860,6 +865,7 @@ export class RoomScene extends Phaser.Scene {
       // Detach verb HUD listeners and clear hover *before* destroying overlays — otherwise
       // `clearBenneVerbHoverContext` emits and `verbs.gui` refresh runs against destroyed BitmapText.
       getBenneVerbContextChangedEmitter().removeAllListeners(BENNE_VERB_CONTEXT_CHANGED_EVENT);
+      getBenneDialogSettingsChangedEmitter().removeAllListeners(BENNE_DIALOG_SETTINGS_CHANGED_EVENT);
       clearBenneVerbHoverContext();
       for (const h of this.genericGuiOverlays) {
         h.destroy();
@@ -1054,11 +1060,17 @@ export class RoomScene extends Phaser.Scene {
     const onVar = (payload: unknown): void => {
       this.onGameStateVariableMaybeRefreshDialogChoice(payload);
     };
+    const onDialogSettingsChanged = (): void => {
+      if (this.activeDialogChoiceSession) {
+        this.refreshDialogChoiceOverlay();
+      }
+    };
 
     gameEvents.on(DIALOG_STARTED_EVENT, onStarted);
     gameEvents.on(DIALOG_STOPPED_EVENT, onStopped);
     gameEvents.on(DIALOG_OPTION_ENABLED_CHANGED_EVENT, onOptionEnabledChanged);
     gameEvents.on(GAME_STATE_VARIABLE_CHANGED_EVENT, onVar);
+    getBenneDialogSettingsChangedEmitter().on(BENNE_DIALOG_SETTINGS_CHANGED_EVENT, onDialogSettingsChanged);
 
     const scrollHandlers: Array<{ guiId: string; off: () => void }> = [];
     const pickHandlers: Array<{ guiId: string; off: () => void }> = [];
@@ -1088,6 +1100,10 @@ export class RoomScene extends Phaser.Scene {
       gameEvents.off(DIALOG_STOPPED_EVENT, onStopped);
       gameEvents.off(DIALOG_OPTION_ENABLED_CHANGED_EVENT, onOptionEnabledChanged);
       gameEvents.off(GAME_STATE_VARIABLE_CHANGED_EVENT, onVar);
+      getBenneDialogSettingsChangedEmitter().off(
+        BENNE_DIALOG_SETTINGS_CHANGED_EVENT,
+        onDialogSettingsChanged,
+      );
       for (const { off } of scrollHandlers) {
         off();
       }
@@ -1191,10 +1207,12 @@ export class RoomScene extends Phaser.Scene {
     const p = payload as GameStateVariableChangedPayload;
     const key = typeof p.key === 'string' ? p.key : '';
     const id = this.activeDialogChoiceSession.dialogId;
-    if (!key.startsWith(`dialog:${id}:option:`)) {
-      return;
+    if (
+      key === DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE ||
+      key.startsWith(`dialog:${id}:option:`)
+    ) {
+      this.refreshDialogChoiceOverlay();
     }
-    this.refreshDialogChoiceOverlay();
   }
 
   private onDialogChoiceScroll(guiId: string, delta: number): void {
@@ -1217,7 +1235,10 @@ export class RoomScene extends Phaser.Scene {
     }
     const manager = resolveGameStateManager(this.game);
     const visibleOpts = def.options.filter((o) => readEffectiveDialogOptionEnabled(manager, def, o.id));
-    const maxViewportHeightPx = resolveDialogChoiceViewportHeightPx(entry.guiData, getDialogSettings());
+    const maxViewportHeightPx = resolveDialogChoiceViewportHeightPx(
+      entry.guiData,
+      getDialogSettings(manager),
+    );
     const viewportH = getDialogChoiceAvailableHeightPx(
       gridDef,
       entry.guiData.y ?? 0,
@@ -1265,7 +1286,7 @@ export class RoomScene extends Phaser.Scene {
     );
     const maxViewportHeightPx = resolveDialogChoiceViewportHeightPx(
       entry.guiData,
-      getDialogSettings(),
+      getDialogSettings(manager),
     );
     const viewportAvailableHeightPx = getDialogChoiceAvailableHeightPx(
       gridDef,
@@ -1309,7 +1330,10 @@ export class RoomScene extends Phaser.Scene {
     const visibleOpts = def.options.filter((o) => readEffectiveDialogOptionEnabled(manager, def, o.id));
     const session = this.activeDialogChoiceSession;
     const scrollTopPx = session?.scrollTopPx ?? 0;
-    const maxViewportHeightPx = resolveDialogChoiceViewportHeightPx(guiData, getDialogSettings());
+    const maxViewportHeightPx = resolveDialogChoiceViewportHeightPx(
+      guiData,
+      getDialogSettings(manager),
+    );
 
     const { needScroll, showUp, showDown } = getDialogChoiceScrollButtonState({
       scene: this,
@@ -1481,7 +1505,7 @@ export class RoomScene extends Phaser.Scene {
       }
       return;
     }
-    const dialog = getDialogSettings();
+    const dialog = getDialogSettings(resolveGameStateManager(this.game));
     if (!state.visible) {
       h.resetPrimaryScreenPosition();
       h.setVisible(false);
