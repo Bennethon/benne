@@ -20,6 +20,8 @@ import type { BenneScriptDialogCommandSurface, BenneScriptGuiOverlayRef } from '
 import {
   createBenneNoopGuiControlFacade,
   createDetachedBenneNoopGuiControlFacade,
+  type BenneScriptControlBinding,
+  type BenneScriptControlBindingTarget,
   type ControlFacade,
   type GuiRuntime,
 } from './GuiRuntime.js';
@@ -68,25 +70,22 @@ export class GuiBenneScript extends BenneScriptCore {
         const rm = GuiBenneScript.tryResolveRoomSceneForGuiOverlay();
         const rt = rm?.tryGetGuiRuntime(gid);
         const scene = self.resolveSceneForGuiControlNoop(rt, rm);
-        if (!scene) {
-          if (import.meta.env.DEV) {
-            console.warn(
-              `[Benne] B.gui("${gid}").control(${JSON.stringify(controlId)}): no Phaser scene — text/tween calls are no-ops.`,
-            );
+        const binding = id ? self.createControlScriptBinding(gid, id) : null;
+        const attachBinding = (facade: BenneScriptControlBindingTarget): void => {
+          if (binding) {
+            facade.attachScriptBinding(binding);
           }
-          return createDetachedBenneNoopGuiControlFacade(queue);
+        };
+        if (!scene) {
+          const detached = createDetachedBenneNoopGuiControlFacade(queue);
+          attachBinding(detached);
+          return detached;
         }
         if (!id) {
           return createBenneNoopGuiControlFacade(scene, queue);
         }
         const resolved = rt?.getControl(id) ?? createBenneNoopGuiControlFacade(scene, queue);
-        resolved.attachScriptBinding({
-          guiId: gid,
-          controlId: id,
-          subscribeImmediate: (event, handler) => {
-            self.subscribeImmediate(event, handler);
-          },
-        });
+        attachBinding(resolved);
         return resolved;
       },
       show(): void {
@@ -124,6 +123,18 @@ export class GuiBenneScript extends BenneScriptCore {
   private static tryResolveRoomSceneForGuiOverlay(): RoomScene | null {
     const g = tryGetActiveBenneGame();
     return (g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined) ?? null;
+  }
+
+  private createControlScriptBinding(guiId: string, controlId: string): BenneScriptControlBinding {
+    return {
+      guiId,
+      controlId,
+      subscribeImmediate: (event, handler) => {
+        this.subscribeImmediateWithPayload(event, (payload) => {
+          handler(payload);
+        });
+      },
+    };
   }
 
   constructor(events: Phaser.Events.EventEmitter, guiId: string) {
