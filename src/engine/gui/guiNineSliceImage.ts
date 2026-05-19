@@ -180,7 +180,13 @@ function resolveAsepriteTimelineFrame(
   return start + inClip;
 }
 
-type NineSliceParams = { leftW: number; rightW: number; topH: number; bottomH: number };
+type NineSliceParams = {
+  leftW: number;
+  rightW: number;
+  topH: number;
+  bottomH: number;
+  sourceRect: Rect | null;
+};
 
 /**
  * Reads the four border measurements from Aseprite `meta.slices` data for the given animation frame.
@@ -223,13 +229,51 @@ function readNineSliceParams(
   const bl = getRect('bottomLeft');
   if (!tl || !tr || !bl) return null;
 
+  const tc = getRect('topCenter');
+  const ml = getRect('middleLeft');
+  const cRect = getRect('center');
+  const mr = getRect('middleRight');
+  const bc = getRect('bottomCenter');
+  const br = getRect('bottomRight');
+
+  const sourceRects: Rect[] = [tl, tr, bl];
+  if (tc) sourceRects.push(tc);
+  if (ml) sourceRects.push(ml);
+  if (cRect) sourceRects.push(cRect);
+  if (mr) sourceRects.push(mr);
+  if (bc) sourceRects.push(bc);
+  if (br) sourceRects.push(br);
+
+  let sourceRect: Rect | null = null;
+  if (sourceRects.length > 0) {
+    const minX = Math.min(...sourceRects.map((r) => r.x));
+    const minY = Math.min(...sourceRects.map((r) => r.y));
+    const maxX = Math.max(...sourceRects.map((r) => r.x + r.w));
+    const maxY = Math.max(...sourceRects.map((r) => r.y + r.h));
+    const w = maxX - minX;
+    const h = maxY - minY;
+
+    if (
+      Number.isFinite(minX + minY + w + h) &&
+      w > 0 &&
+      h > 0 &&
+      minX >= 0 &&
+      minY >= 0 &&
+      maxX <= probe.frame.realWidth &&
+      maxY <= probe.frame.realHeight
+    ) {
+      sourceRect = { x: minX, y: minY, w, h };
+    } else if (import.meta.env.DEV) {
+      console.warn(
+        `[Benne] nineSliceImage: slice bounds are invalid/outside the tagged frame ` +
+          `(rect=${JSON.stringify({ x: minX, y: minY, w, h })}, ` +
+          `frame=${probe.frame.realWidth}x${probe.frame.realHeight}) — ` +
+          `using full tagged frame as nine-slice source.`,
+      );
+    }
+  }
+
   if (import.meta.env.DEV) {
-    // Read remaining slices only for consistency warnings.
-    const tc = getRect('topCenter');
-    const ml = getRect('middleLeft');
-    const mr = getRect('middleRight');
-    const bc = getRect('bottomCenter');
-    const br = getRect('bottomRight');
     const warn = (label: string, v1: number, v2: number) => {
       if (Math.abs(v1 - v2) > 0.5) {
         console.warn(
@@ -247,7 +291,7 @@ function readNineSliceParams(
     if (br) warn('bottom row height', bl.h, br.h);
   }
 
-  return { leftW: tl.w, rightW: tr.w, topH: tl.h, bottomH: bl.h };
+  return { leftW: tl.w, rightW: tr.w, topH: tl.h, bottomH: bl.h, sourceRect };
 }
 
 /**
@@ -260,29 +304,51 @@ function readNineSliceParams(
  * `frame.u1 = 1` still maps the *full* 32px, and UV fractions like `7/30` sample at pixel 7.47 instead
  * of 7 — causing severe vertical misalignment for the row boundaries.
  *
- * Fix: add a one-time sub-frame covering only the content area (`realWidth × realHeight` at the same
- * atlas origin). That sub-frame gets `u1 = realW/atlasW < 1`, so `updateQuadUVs` correctly scales
- * each UV fraction through the frame's range and maps 7/30 → 7/32. The vertex positions (determined by
- * `this.width/height`, not the frame) are unaffected.
+ * Fix: add a one-time sub-frame covering either the full content area (`realWidth × realHeight`) or
+ * a caller-provided crop rectangle (used for nine-slice slice-union bounds). The sub-frame gets
+ * `u1 = realW/atlasW < 1` when needed, so `updateQuadUVs` correctly scales each UV fraction through
+ * the frame's range and maps 7/30 → 7/32. The vertex positions (determined by `this.width/height`,
+ * not the frame) are unaffected.
  */
 function ensureNineSliceUVCorrectedFrame(
   tex: Phaser.Textures.Texture,
   origFrame: Phaser.Textures.Frame,
+  sourceRect: Rect | null,
 ): string | number {
-  const contentW = origFrame.realWidth;
-  const contentH = origFrame.realHeight;
+  const fullContentW = origFrame.realWidth;
+  const fullContentH = origFrame.realHeight;
   const atlasW = origFrame.cutWidth;
   const atlasH = origFrame.cutHeight;
 
-  if (atlasW <= contentW && atlasH <= contentH) {
+  const cropX = sourceRect?.x ?? 0;
+  const cropY = sourceRect?.y ?? 0;
+  const cropW = sourceRect?.w ?? fullContentW;
+  const cropH = sourceRect?.h ?? fullContentH;
+
+  const wantsSubFrame =
+    atlasW > fullContentW ||
+    atlasH > fullContentH ||
+    cropX !== 0 ||
+    cropY !== 0 ||
+    cropW !== fullContentW ||
+    cropH !== fullContentH;
+
+  if (!wantsSubFrame) {
     return origFrame.name; // No atlas padding — original frame UV is correct.
   }
 
-  const correctedName = `${String(origFrame.name)}__benne_ns_uv`;
+  const correctedName = `${String(origFrame.name)}__benne_ns_uv_${cropX}_${cropY}_${cropW}_${cropH}`;
   if (!tex.has(correctedName)) {
-    // Create a frame covering only the content area (realWidth × realHeight) at the same atlas origin.
-    // Its u1 = (cutX + contentW) / sourceImageWidth < 1, so UV fractions map correctly.
-    tex.add(correctedName, origFrame.sourceIndex, origFrame.cutX, origFrame.cutY, contentW, contentH);
+    // Create a frame covering the requested crop at the same atlas origin.
+    // Its u1/v1 reflect crop extents, so UV fractions map to authored slice boundaries.
+    tex.add(
+      correctedName,
+      origFrame.sourceIndex,
+      origFrame.cutX + cropX,
+      origFrame.cutY + cropY,
+      cropW,
+      cropH,
+    );
   }
   return correctedName;
 }
@@ -500,9 +566,9 @@ export function addGuiNineSliceImage(
     probe.destroy();
     return null;
   }
-  const { leftW, rightW, topH, bottomH } = sliceParams;
+  const { leftW, rightW, topH, bottomH, sourceRect } = sliceParams;
 
-  const nsFrameName = ensureNineSliceUVCorrectedFrame(scene.textures.get(guiTextureKey), probe.frame);
+  const nsFrameName = ensureNineSliceUVCorrectedFrame(scene.textures.get(guiTextureKey), probe.frame, sourceRect);
 
   const ns = scene.add.nineslice(
     0, 0,
@@ -567,7 +633,9 @@ export function addGuiNineSliceImage(
   /** Update NineSlice frame when the probe's animation advances. */
   const syncFrame = (): void => {
     positionPanel();
-    ns.setFrame(ensureNineSliceUVCorrectedFrame(scene.textures.get(guiTextureKey), probe.frame));
+    const latest = readNineSliceParams(probe, raw, sliceMap, c.sliceNames, authorTag, gui.id);
+    const nextSourceRect = latest?.sourceRect ?? null;
+    ns.setFrame(ensureNineSliceUVCorrectedFrame(scene.textures.get(guiTextureKey), probe.frame, nextSourceRect));
   };
   probe.on(Phaser.Animations.Events.ANIMATION_UPDATE, syncFrame);
   probe.on(Phaser.Animations.Events.ANIMATION_COMPLETE, syncFrame);
