@@ -62,6 +62,10 @@ import {
     ensureGuiCheckboxUncheckHandlerAndReveal
 } from './guiCheckboxScaffolding';
 import { ensureGuiSliderValueChangedHandlerAndReveal } from './guiSliderValueChangedScaffolding';
+import {
+    ensureGuiTextInputSubmitHandlerAndReveal,
+    ensureGuiTextInputValueChangedHandlerAndReveal
+} from './guiTextInputScaffolding';
 import { ensureRoomLifecycleHookInRoomScript } from './roomLifecycleScriptScaffolding';
 import type { RoomLifecycleHookKind } from './verbHandlerPresence';
 import {
@@ -876,6 +880,34 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             }
             const guiId = getGuiIdFromGuiJsonUri(uri);
             await ensureGuiSliderValueChangedHandlerAndReveal(uri, guiId, sliderId);
+            return;
+        }
+
+        if (msg.action === 'guiEnsureTextInputValueChangedHandler') {
+            if (focusKind !== 'gui') {
+                return;
+            }
+            const guiJsonUriStr = typeof msg.guiJsonUri === 'string' ? msg.guiJsonUri : '';
+            const textInputId = typeof msg.textInputId === 'string' ? msg.textInputId.trim() : '';
+            if (!textInputId || uri.toString() !== guiJsonUriStr) {
+                return;
+            }
+            const guiId = getGuiIdFromGuiJsonUri(uri);
+            await ensureGuiTextInputValueChangedHandlerAndReveal(uri, guiId, textInputId);
+            return;
+        }
+
+        if (msg.action === 'guiEnsureTextInputSubmitHandler') {
+            if (focusKind !== 'gui') {
+                return;
+            }
+            const guiJsonUriStr = typeof msg.guiJsonUri === 'string' ? msg.guiJsonUri : '';
+            const textInputId = typeof msg.textInputId === 'string' ? msg.textInputId.trim() : '';
+            if (!textInputId || uri.toString() !== guiJsonUriStr) {
+                return;
+            }
+            const guiId = getGuiIdFromGuiJsonUri(uri);
+            await ensureGuiTextInputSubmitHandlerAndReveal(uri, guiId, textInputId);
             return;
         }
 

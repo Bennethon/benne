@@ -915,7 +915,7 @@ function mergeGuiTextOutlinePatch(row: Record<string, unknown>, incoming: Record
 }
 
 function normalizeGuiTextOutlineOnControlRow(row: Record<string, unknown>): void {
-    if (row.type !== 'text' && row.type !== 'button') {
+    if (row.type !== 'text' && row.type !== 'button' && row.type !== 'textInput') {
         return;
     }
     const raw = row.textOutline;
@@ -1239,6 +1239,42 @@ export function updateGuiControlPatch(
         }
     }
 
+    if (row.type === 'textInput') {
+        if (row.enabled === true || row.enabled === undefined) {
+            delete row.enabled;
+        }
+        if (typeof row.placeholder === 'string' && row.placeholder.trim().length === 0) {
+            delete row.placeholder;
+        }
+        for (const colorKey of [
+            'backgroundColor',
+            'outlineColor',
+            'caretColor',
+            'hoverBackgroundColor',
+            'focusedOutlineColor'
+        ] as const) {
+            const v = row[colorKey];
+            if (typeof v === 'string' && v.trim().length === 0) {
+                delete row[colorKey];
+            }
+        }
+        const ml = row.maxLength;
+        if (ml === null || ml === undefined) {
+            delete row.maxLength;
+        } else if (typeof ml === 'number' && Number.isFinite(ml)) {
+            const mli = Math.max(1, Math.trunc(ml));
+            row.maxLength = mli;
+        }
+        const w = row.width as number;
+        const h = row.height as number;
+        if (!Number.isFinite(w) || w < 1) {
+            row.width = 1;
+        }
+        if (!Number.isFinite(h) || h < 1) {
+            row.height = 1;
+        }
+    }
+
     if (row.type === 'trigger') {
         /** `active` defaults to true at runtime; omit when true to keep JSON clean (matches `enabled` on buttons). */
         if (row.active === true || row.active === undefined) {
@@ -1291,7 +1327,7 @@ export function updateGuiControlPatch(
         }
     }
 
-    if (row.type === 'text' || row.type === 'button') {
+    if (row.type === 'text' || row.type === 'button' || row.type === 'textInput') {
         normalizeGuiTextOutlineOnControlRow(row);
     }
 

@@ -446,6 +446,46 @@ export interface GuiSliderControl {
 }
 
 /**
+ * Color-driven text entry control with keyboard focus, caret, and submit behavior.
+ * Rendering uses bitmap fonts only (same manifest as {@link GuiTextControl} / {@link GuiButtonControl}).
+ */
+export interface GuiTextInputControl {
+  type: 'textInput';
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zIndex?: number;
+  visible?: boolean;
+  enabled?: boolean;
+  /** Key in `src/game/assets/fonts/fonts.json` (bitmap font). */
+  font: string;
+  fontSize: number;
+  /** Initial value; defaults to empty string when omitted. */
+  text?: string;
+  /** Input cap in code points; omitted means unlimited. */
+  maxLength?: number;
+  placeholder?: string;
+  /** Editable value tint (hex string, e.g. `#ffffff`). */
+  color: string;
+  /** Solid background fill. */
+  backgroundColor: string;
+  /** Base border color. */
+  outlineColor: string;
+  /** Caret color while focused. */
+  caretColor: string;
+  /** Background while hovered (or focused). */
+  hoverBackgroundColor?: string;
+  /** Border color while focused. */
+  focusedOutlineColor?: string;
+  textAlign?: GuiTextAlign;
+  wordWrapWidth?: number;
+  textOutline?: GuiTextOutline;
+  gridPlacement?: GuiGridPlacement;
+}
+
+/**
  * Invisible, rectangular hit zone with a stable **`id`**: pure behavior surface for
  * **`B.whenMouseEnter` / `B.whenMouseLeave`** in `*.gui.ts`. Never drawn (no art, no text).
  * Layout-only properties; no **`zIndex`** — triggers sit above all other controls in this GUI’s overlay
@@ -479,6 +519,7 @@ export type GuiControl =
   | GuiButtonControl
   | GuiCheckboxControl
   | GuiSliderControl
+  | GuiTextInputControl
   | GuiTriggerControl
   | GuiGridControl;
 

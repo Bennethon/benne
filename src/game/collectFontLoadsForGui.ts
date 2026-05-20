@@ -15,7 +15,7 @@ export function collectFontLoadsForGui(
   const out: GuiFontLoadRequest[] = [];
   const seen = new Set<string>();
   for (const c of gui.controls ?? []) {
-    if (c.type !== 'text' && c.type !== 'button') {
+    if (c.type !== 'text' && c.type !== 'button' && c.type !== 'textInput') {
       continue;
     }
     if (seen.has(c.font)) {
@@ -62,4 +62,8 @@ export function guiHasTriggerControls(gui: GuiData): boolean {
 
 export function guiHasGridControls(gui: GuiData): boolean {
   return (gui.controls ?? []).some((c) => c.type === 'grid');
+}
+
+export function guiHasTextInputControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'textInput');
 }

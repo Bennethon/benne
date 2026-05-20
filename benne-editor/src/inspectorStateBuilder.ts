@@ -467,6 +467,35 @@ export type InspectorGuiControlCard =
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
+          controlKind: 'textInput';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          width: number;
+          height: number;
+          text: string;
+          font: string;
+          fontSize: number;
+          color: string;
+          textAlign: 'left' | 'center' | 'right' | '';
+          wordWrapWidth: number | null;
+          placeholder: string;
+          maxLength: number | null;
+          backgroundColor: string;
+          outlineColor: string;
+          caretColor: string;
+          hoverBackgroundColor: string;
+          focusedOutlineColor: string;
+          enabled: boolean;
+          textOutline: InspectorGuiTextOutline;
+          gridPlacement: InspectorGuiGridPlacement | null;
+      }
+    | {
           controlKind: 'trigger';
           key: string;
           index: number;
@@ -1626,6 +1655,41 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             defaultValue: guiReadNum(o, 'defaultValue', guiReadNum(o, 'min', 0)),
             step: guiReadNum(o, 'step', 1),
             enabled: o.enabled !== false,
+            gridPlacement: parseOptionalGridPlacement(o)
+        };
+    }
+
+    if (type === 'textInput') {
+        const alignRaw = o.textAlign;
+        const textAlign: 'left' | 'center' | 'right' | '' =
+            alignRaw === 'center' || alignRaw === 'right' || alignRaw === 'left' ? alignRaw : '';
+        return {
+            controlKind: 'textInput',
+            key,
+            index,
+            summary,
+            controlId,
+            x: guiReadNum(o, 'x', 0),
+            y: guiReadNum(o, 'y', 0),
+            zIndex: guiReadNumOrNull(o, 'zIndex'),
+            visibleMode: guiReadVisibleMode(o),
+            width: guiReadNum(o, 'width', 120),
+            height: guiReadNum(o, 'height', 20),
+            text: typeof o.text === 'string' ? o.text : '',
+            font: typeof o.font === 'string' ? o.font : '',
+            fontSize: guiReadNum(o, 'fontSize', 12),
+            color: typeof o.color === 'string' ? o.color : '#ffffff',
+            textAlign,
+            wordWrapWidth: guiReadNumOrNull(o, 'wordWrapWidth'),
+            placeholder: typeof o.placeholder === 'string' ? o.placeholder : '',
+            maxLength: guiReadNumOrNull(o, 'maxLength'),
+            backgroundColor: typeof o.backgroundColor === 'string' ? o.backgroundColor : '',
+            outlineColor: typeof o.outlineColor === 'string' ? o.outlineColor : '',
+            caretColor: typeof o.caretColor === 'string' ? o.caretColor : '',
+            hoverBackgroundColor: typeof o.hoverBackgroundColor === 'string' ? o.hoverBackgroundColor : '',
+            focusedOutlineColor: typeof o.focusedOutlineColor === 'string' ? o.focusedOutlineColor : '',
+            enabled: o.enabled !== false,
+            textOutline: parseInspectorGuiTextOutline(o),
             gridPlacement: parseOptionalGridPlacement(o)
         };
     }

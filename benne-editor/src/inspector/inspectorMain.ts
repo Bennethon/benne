@@ -381,6 +381,35 @@ type InspectorGuiControlCard =
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
+          controlKind: 'textInput';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          width: number;
+          height: number;
+          text: string;
+          font: string;
+          fontSize: number;
+          color: string;
+          textAlign: 'left' | 'center' | 'right' | '';
+          wordWrapWidth: number | null;
+          placeholder: string;
+          maxLength: number | null;
+          backgroundColor: string;
+          outlineColor: string;
+          caretColor: string;
+          hoverBackgroundColor: string;
+          focusedOutlineColor: string;
+          enabled: boolean;
+          textOutline: InspectorGuiTextOutline;
+          gridPlacement: InspectorGuiGridPlacement | null;
+      }
+    | {
           controlKind: 'trigger';
           key: string;
           index: number;
@@ -1789,6 +1818,67 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       }`;
     }
 
+    if (c.controlKind === 'textInput') {
+        const textAlignSel = `<select class="gui-field" data-index="${idx}" data-field="textAlign">
+        <option value="left"${c.textAlign === 'left' ? ' selected' : ''}>left</option>
+        <option value="center"${c.textAlign === '' || c.textAlign === 'center' ? ' selected' : ''}>center</option>
+        <option value="right"${c.textAlign === 'right' ? ' selected' : ''}>right</option>
+      </select>`;
+        const colorsFieldsBody = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">backgroundColor</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="backgroundColor" value="${esc(c.backgroundColor)}" placeholder="#222222" />
+        <span class="benne-pg-lbl">hover background</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="hoverBackgroundColor" value="${esc(c.hoverBackgroundColor)}" placeholder="#2f2f2f" />
+        <span class="benne-pg-lbl">outlineColor</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="outlineColor" value="${esc(c.outlineColor)}" placeholder="#666666" />
+        <span class="benne-pg-lbl">focused outline</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="focusedOutlineColor" value="${esc(c.focusedOutlineColor)}" placeholder="#a0a0a0" />
+        <span class="benne-pg-lbl">caretColor</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="caretColor" value="${esc(c.caretColor)}" placeholder="#ffffff" />
+      </div>`;
+        const colorsBlock = renderGuiControlSubAccordion(c.key, 'colors', 'Colors', colorsFieldsBody);
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">enabled</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="enabled" ${c.enabled ? 'checked' : ''} /></label>
+      </div>
+      <div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Text</div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">text</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="text" value="${esc(c.text)}" />
+        <span class="benne-pg-lbl">placeholder</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="placeholder" value="${esc(c.placeholder)}" />
+        <span class="benne-pg-lbl">maxLength</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="maxLength" value="${c.maxLength ?? ''}" placeholder="—" min="1" />
+        <span class="benne-pg-lbl">font</span>
+        ${guiFontSelectHtml(fontIds, c.font, idx)}
+        <span class="benne-pg-lbl">fontSize</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="fontSize" value="${c.fontSize}" />
+        <span class="benne-pg-lbl">color</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="color" value="${esc(c.color)}" />
+        <span class="benne-pg-lbl">textAlign</span>
+        ${textAlignSel}
+        <span class="benne-pg-lbl">wordWrapWidth</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="wordWrapWidth" value="${c.wordWrapWidth ?? ''}" placeholder="—" />
+      </div>
+      ${renderGuiTextOutlineAccordion(c.key, idx, c.textOutline)}
+      <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
+      ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
+      ${colorsBlock}
+      ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
+      ${
+          c.controlId
+              ? `<div style="margin:8px 0 0; display:flex; flex-wrap:wrap; gap:8px;">
+        <button type="button" class="btn-secondary gui-text-input-value-changed-btn" data-text-input-id="${esc(c.controlId)}">When Value Changed</button>
+        <button type="button" class="btn-secondary gui-text-input-submit-btn" data-text-input-id="${esc(c.controlId)}">On Submit</button>
+      </div>`
+              : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> for <code>control(…).whenValueChanged</code> / <code>whenSubmit</code>.</p>`
+      }`;
+    }
+
     if (c.controlKind === 'nineSliceImage') {
         const sheetClipFieldsBody =
             state.usesAseprite && tags.length > 0
@@ -2998,7 +3088,8 @@ function buildGuiControlFieldPatch(
         'highlightOffsetX',
         'highlightOffsetY',
         'width',
-        'height'
+        'height',
+        'maxLength'
     ]);
     if (optNum.has(field)) {
         const raw = (el as HTMLInputElement).value.trim();
@@ -3028,7 +3119,12 @@ function buildGuiControlFieldPatch(
         'backgroundColorStatesDisabled',
         'backgroundTag',
         'slotBackgroundTag',
-        'highlightTag'
+        'highlightTag',
+        'placeholder',
+        'outlineColor',
+        'caretColor',
+        'hoverBackgroundColor',
+        'focusedOutlineColor'
     ]);
     if (tagStr.has(field)) {
         return { [field]: el.value };
@@ -3258,6 +3354,29 @@ function mountGuiHandlers(state: InspectorGuiState): void {
                 return;
             }
             post('guiEnsureSliderValueChangedHandler', { guiJsonUri: state.guiJsonUri, sliderId });
+        });
+    });
+    document.querySelectorAll('.gui-text-input-value-changed-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn as HTMLButtonElement;
+            const textInputId = b.dataset.textInputId ?? '';
+            if (!textInputId) {
+                return;
+            }
+            post('guiEnsureTextInputValueChangedHandler', {
+                guiJsonUri: state.guiJsonUri,
+                textInputId
+            });
+        });
+    });
+    document.querySelectorAll('.gui-text-input-submit-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const b = btn as HTMLButtonElement;
+            const textInputId = b.dataset.textInputId ?? '';
+            if (!textInputId) {
+                return;
+            }
+            post('guiEnsureTextInputSubmitHandler', { guiJsonUri: state.guiJsonUri, textInputId });
         });
     });
 }
