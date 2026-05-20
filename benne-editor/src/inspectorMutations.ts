@@ -1275,6 +1275,40 @@ export function updateGuiControlPatch(
         }
     }
 
+    if (row.type === 'listBox') {
+        if (row.enabled === true || row.enabled === undefined) {
+            delete row.enabled;
+        }
+        const w = row.width as number;
+        const h = row.height as number;
+        if (!Number.isFinite(w) || w < 1) {
+            row.width = 1;
+        }
+        if (!Number.isFinite(h) || h < 1) {
+            row.height = 1;
+        }
+        const rc = row.rowCount as number;
+        if (!Number.isFinite(rc) || rc < 1) {
+            row.rowCount = 1;
+        } else {
+            row.rowCount = Math.trunc(rc);
+        }
+        if (row.rowHeight === null || row.rowHeight === undefined) {
+            delete row.rowHeight;
+        } else if (typeof row.rowHeight === 'number' && Number.isFinite(row.rowHeight)) {
+            row.rowHeight = Math.max(1, Math.trunc(row.rowHeight));
+        } else {
+            delete row.rowHeight;
+        }
+        if (row.rowPadding === null || row.rowPadding === undefined) {
+            delete row.rowPadding;
+        } else if (typeof row.rowPadding === 'number' && Number.isFinite(row.rowPadding)) {
+            row.rowPadding = Math.max(0, Math.trunc(row.rowPadding));
+        } else {
+            delete row.rowPadding;
+        }
+    }
+
     if (row.type === 'trigger') {
         /** `active` defaults to true at runtime; omit when true to keep JSON clean (matches `enabled` on buttons). */
         if (row.active === true || row.active === undefined) {

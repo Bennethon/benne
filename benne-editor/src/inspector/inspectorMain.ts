@@ -410,6 +410,30 @@ type InspectorGuiControlCard =
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
+          controlKind: 'listBox';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          enabled: boolean;
+          width: number;
+          height: number;
+          rowCount: number;
+          rowHeight: number | null;
+          rowPadding: number | null;
+          normalBackgroundColor: string;
+          hoverBackgroundColor: string;
+          selectedBackgroundColor: string;
+          textColor: string;
+          selectedTextColor: string;
+          placeholderTextColor: string;
+          gridPlacement: InspectorGuiGridPlacement | null;
+      }
+    | {
           controlKind: 'trigger';
           key: string;
           index: number;
@@ -1879,6 +1903,46 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       }`;
     }
 
+    if (c.controlKind === 'listBox') {
+        const colorsFieldsBody = `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">normal bg</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="normalBackgroundColor" value="${esc(c.normalBackgroundColor)}" placeholder="#222222" />
+        <span class="benne-pg-lbl">hover bg</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="hoverBackgroundColor" value="${esc(c.hoverBackgroundColor)}" placeholder="#2f2f2f" />
+        <span class="benne-pg-lbl">selected bg</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="selectedBackgroundColor" value="${esc(c.selectedBackgroundColor)}" placeholder="#4a4a4a" />
+        <span class="benne-pg-lbl">text color</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="textColor" value="${esc(c.textColor)}" placeholder="#ffffff" />
+        <span class="benne-pg-lbl">selected text</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="selectedTextColor" value="${esc(c.selectedTextColor)}" placeholder="#ffffff" />
+        <span class="benne-pg-lbl">placeholder text</span>
+        <input type="text" class="gui-field" data-index="${idx}" data-field="placeholderTextColor" value="${esc(c.placeholderTextColor)}" placeholder="#999999" />
+      </div>`;
+        const colorsBlock = renderGuiControlSubAccordion(c.key, 'colors', 'Colors', colorsFieldsBody);
+        return `<div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">id</span>
+        <div class="benne-pg-val"><code class="badge">${esc(c.controlId || '—')}</code></div>
+        ${zRow}
+        ${visibleSelect}
+        <span class="benne-pg-lbl">enabled</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="enabled" ${c.enabled ? 'checked' : ''} /></label>
+      </div>
+      <div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Rows</div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">rowCount</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="rowCount" value="${c.rowCount}" min="1" />
+        <span class="benne-pg-lbl">rowHeight</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="rowHeight" value="${c.rowHeight ?? ''}" placeholder="auto" min="1" />
+        <span class="benne-pg-lbl">rowPadding</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="rowPadding" value="${c.rowPadding ?? ''}" placeholder="0" min="0" />
+      </div>
+      <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
+      ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
+      ${colorsBlock}
+      ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
+      <p class="muted small" style="margin:8px 0 0;">Runtime scripting: <code>control(…).selectedIndex</code>, <code>setRowText</code>, <code>whenSelectionChanged</code>, <code>whenItemActivated</code>.</p>`;
+    }
+
     if (c.controlKind === 'nineSliceImage') {
         const sheetClipFieldsBody =
             state.usesAseprite && tags.length > 0
@@ -3059,6 +3123,7 @@ function buildGuiControlFieldPatch(
     const intRequired = new Set([
         'x',
         'y',
+        'rowCount',
         'rows',
         'cols',
         'columns',
@@ -3089,7 +3154,9 @@ function buildGuiControlFieldPatch(
         'highlightOffsetY',
         'width',
         'height',
-        'maxLength'
+        'maxLength',
+        'rowHeight',
+        'rowPadding'
     ]);
     if (optNum.has(field)) {
         const raw = (el as HTMLInputElement).value.trim();
@@ -3124,7 +3191,11 @@ function buildGuiControlFieldPatch(
         'outlineColor',
         'caretColor',
         'hoverBackgroundColor',
-        'focusedOutlineColor'
+        'focusedOutlineColor',
+        'normalBackgroundColor',
+        'selectedBackgroundColor',
+        'selectedTextColor',
+        'placeholderTextColor'
     ]);
     if (tagStr.has(field)) {
         return { [field]: el.value };

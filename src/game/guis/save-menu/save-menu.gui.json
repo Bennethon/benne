@@ -56,6 +56,22 @@
       "hoverBackgroundColor": "#2f2f2f",
       "focusedOutlineColor": "#a0a0a0",
       "textAlign": "left"
+    },
+    {
+      "type": "listBox",
+      "id": "saved-list",
+      "x": 66,
+      "y": 54,
+      "width": 120,
+      "height": 40,
+      "rowCount": 2,
+      "rowPadding": 1,
+      "normalBackgroundColor": "#222222",
+      "hoverBackgroundColor": "#2f2f2f",
+      "selectedBackgroundColor": "#4a4a4a",
+      "textColor": "#ffffff",
+      "selectedTextColor": "#ffffff",
+      "placeholderTextColor": "#999999"
     }
   ]
 }
