@@ -129,6 +129,11 @@ export class GuiBenneScript extends BenneScriptCore {
     return {
       guiId,
       controlId,
+      subscribe: (event, handler) => {
+        this.subscribe(event, (payload) => {
+          handler(payload);
+        });
+      },
       subscribeImmediate: (event, handler) => {
         this.subscribeImmediateWithPayload(event, (payload) => {
           handler(payload);

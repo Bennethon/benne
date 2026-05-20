@@ -173,6 +173,10 @@ function guiHasSliderControls(gui: GuiData): boolean {
   return (gui.controls ?? []).some((c) => c.type === 'slider');
 }
 
+function guiHasTextInputControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'textInput');
+}
+
 function collectButtonControlWorldRects(gui: GuiData): Array<{
   left: number;
   top: number;
@@ -184,7 +188,7 @@ function collectButtonControlWorldRects(gui: GuiData): Array<{
   const rootY = Math.round(gui.y ?? 0);
   const caches = buildGuiGridLayoutRuntimeMap(gui.controls ?? []);
   for (const c of gui.controls ?? []) {
-    if (c.type === 'button' || c.type === 'checkbox' || c.type === 'slider') {
+    if (c.type === 'button' || c.type === 'checkbox' || c.type === 'slider' || c.type === 'textInput') {
       const tl = resolveGuiControlRootTopLeft(
         caches,
         rootX,
@@ -408,6 +412,7 @@ class GuiPreviewScene extends Phaser.Scene {
         guiHasButtonControls(guiData) ||
         guiHasCheckboxControls(guiData) ||
         guiHasSliderControls(guiData) ||
+        guiHasTextInputControls(guiData) ||
         guiHasTriggerControls(guiData) ||
         guiHasGridControls(guiData))
     ) {
@@ -454,7 +459,8 @@ class GuiPreviewScene extends Phaser.Scene {
     const buttonRects =
       guiHasButtonControls(this.payload.guiData) ||
       guiHasCheckboxControls(this.payload.guiData) ||
-      guiHasSliderControls(this.payload.guiData)
+      guiHasSliderControls(this.payload.guiData) ||
+      guiHasTextInputControls(this.payload.guiData)
         ? collectButtonControlWorldRects(this.payload.guiData)
         : [];
     const gridRects = guiHasGridControls(this.payload.guiData) ? collectGridCellOutlineRects(this.payload.guiData) : [];

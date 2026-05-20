@@ -37,6 +37,7 @@ import type {
   GuiNineSliceImageControl,
   GuiSpriteAnchor,
   GuiTextAlign,
+  GuiTextInputControl,
   GuiTextControl,
   GuiTextOutline,
   GuiTriggerControl,
@@ -84,6 +85,8 @@ import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { buildGuiCheckbox, type BuiltGuiCheckbox } from './buildGuiCheckbox.js';
 import { buildGuiSlider, type BuiltGuiSlider } from './buildGuiSlider.js';
+import { buildGuiTextInput, type BuiltGuiTextInput } from './buildGuiTextInput.js';
+import { BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY } from './guiTextInputRuntime.js';
 import { GuiRuntime } from '../scripting/GuiRuntime.js';
 import {
   BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY,
@@ -2016,6 +2019,7 @@ export function buildGuiOverlay(
   const guiButtons: BuiltGuiButton[] = [];
   const guiCheckboxes: BuiltGuiCheckbox[] = [];
   const guiSliders: BuiltGuiSlider[] = [];
+  const guiTextInputs: BuiltGuiTextInput[] = [];
   const triggerZones: Phaser.GameObjects.Rectangle[] = [];
   const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
   const controlsById = new Map<string, Phaser.GameObjects.GameObject>();
@@ -2402,6 +2406,40 @@ export function buildGuiOverlay(
       continue;
     }
 
+    if (c.type === 'textInput') {
+      const tiPlace = tryResolveGridPlacement(
+        gui,
+        c.gridPlacement,
+        gridsById,
+        gridLayoutById,
+        c.width,
+        c.height,
+        isGuiFixedControlId(c.id),
+      );
+      const tiModel: GuiTextInputControl = tiPlace ? { ...c, x: tiPlace.localX, y: tiPlace.localY } : c;
+      const builtInput = buildGuiTextInput(
+        scene,
+        gui,
+        tiModel,
+        depth,
+        startVisible,
+        suppressGuiButtonClick,
+      );
+      if (builtInput) {
+        if (tiPlace) {
+          tiPlace.parent.add(builtInput.hitTarget);
+        }
+        guiTextInputs.push(builtInput);
+        guiImageInputDeferBelow.push(builtInput.hitTarget);
+        controlsById.set(c.id.trim(), builtInput.hitTarget);
+        if (!tiPlace) {
+          const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
+          bucket.push(builtInput.hitTarget as DepthGameObject);
+        }
+      }
+      continue;
+    }
+
     if (c.type === 'trigger') {
       const trPlace = tryResolveGridPlacement(
         gui,
@@ -2489,6 +2527,7 @@ export function buildGuiOverlay(
     guiButtons.length > 0 ||
     guiCheckboxes.length > 0 ||
     guiSliders.length > 0 ||
+    guiTextInputs.length > 0 ||
     triggerZones.length > 0 ||
     gridContainers.length > 0;
   if (!hasPackedControls && gui.modal !== true) {
@@ -2533,6 +2572,7 @@ export function buildGuiOverlay(
   const guiInteractiveHitTargets = new Set<Phaser.GameObjects.GameObject>([
     ...guiButtons.map((b) => b.hitTarget as Phaser.GameObjects.GameObject),
     ...guiCheckboxes.map((cb) => cb.hitTarget as Phaser.GameObjects.GameObject),
+    ...guiTextInputs.map((ti) => ti.hitTarget as Phaser.GameObjects.GameObject),
   ]);
 
   /**
@@ -2657,6 +2697,27 @@ export function buildGuiOverlay(
           sl.hitTarget.disableInteractive();
         }
       }
+      for (const ti of guiTextInputs) {
+        ti.hitTarget.setVisible(visible);
+        ti.background.setVisible(visible);
+        ti.border.setVisible(visible);
+        ti.textSurface.setVisible(visible);
+        for (const to of ti.textOutlines) {
+          to.setVisible(visible);
+        }
+        ti.caret.setVisible(false);
+        if (!visible) {
+          const blurRaw = ti.hitTarget.getData(BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY);
+          if (typeof blurRaw === 'function') {
+            (blurRaw as (wantFocus: boolean) => void)(false);
+          }
+        }
+        if (visible && ti.enabled) {
+          applyGuiButtonInteractivity(ti.hitTarget, ti.width, ti.height, true);
+        } else {
+          ti.hitTarget.disableInteractive();
+        }
+      }
       for (const z of triggerZones) {
         z.setVisible(visible);
       }
@@ -2691,6 +2752,7 @@ export function buildGuiOverlay(
       guiButtons.length = 0;
       guiCheckboxes.length = 0;
       guiSliders.length = 0;
+      guiTextInputs.length = 0;
       triggerZones.length = 0;
       linesById.clear();
     },

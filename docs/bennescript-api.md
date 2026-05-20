@@ -712,7 +712,7 @@ interface BenneScriptGuiOverlayRef {
 ```
 
 - **`get scene`** — throws unless called synchronously inside an **`onGuiBuilt`** invocation (during **`notifyGuiBuilt`**); prefer **`gui.scene`** argument.
-- **`B.gui('otherOverlayId')`** — resolves controls on **any** built overlay (`*.gui.json`) in the active room. **`control`** always returns a facade: the real control, or a safe inert one when the **`id`** is missing/blank, the overlay/runtime is absent, or the control is unknown ( **`text`** assigns are no-ops on the inert facade). On real **`text`** controls, **`ControlFacade.text`** maps to **`BitmapText`** / **`Text`**. **`show()` / `hide()`** toggle the whole overlay visibility (same path as engine overlay visibility, including modal blocker behavior when **`modal: true`**); unknown / unavailable overlays are no-op (DEV warns).
+- **`B.gui('otherOverlayId')`** — resolves controls on **any** built overlay (`*.gui.json`) in the active room. **`control`** always returns a facade: the real control, or a safe inert one when the **`id`** is missing/blank, the overlay/runtime is absent, or the control is unknown ( **`text`** assigns are no-ops on the inert facade). On real **`text`** controls, **`ControlFacade.text`** maps to **`BitmapText`**; on real **`textInput`** controls, **`text`** is queued and **`textNow`** applies immediately. **`show()` / `hide()`** toggle the whole overlay visibility (same path as engine overlay visibility, including modal blocker behavior when **`modal: true`**); unknown / unavailable overlays are no-op (DEV warns).
 - **Verb HUD** — combine **`B.activeVerb`**, **`B.activeInventory`**, **`B.currentHoverDescription`** (or **`composeVerbLineText`** in code); in **`onGuiBuilt`**, call **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, refresh)`** (see **[`verbs.gui.ts`](../src/game/guis/verbs/verbs.gui.ts)**). Subscriptions reset when the room scene shuts down.
 - Hover handlers use **`subscribeImmediate`** (**no interaction-tail wait**).
 - Button clicks use **`subscribe`** (queued with other **`B`** work on **this GUI’s** script instance).
@@ -725,6 +725,16 @@ interface BenneScriptGuiOverlayRef {
 **`ControlFacade.value`** / **`ControlFacade.setValue(n)`** — **`slider`** controls only. Read/write the snapped numeric value (**`min`** / **`max`** / **`step`** from **`*.gui.json`**). Programmatic updates reposition the handle and refresh sheet tags; they **do not** emit value-changed events.
 
 **`ControlFacade.whenValueChanged(handler)`** — register at the top level of **`registerGuiScript`** via **`B.gui('<guiId>').control('<sliderId>').whenValueChanged((newVal) => { … })`** (same registration-time pattern as **`whenButtonClick`** — wires through this GUI script’s **`events`** bus before **`RoomScene`** / **`GuiRuntime`** exist). Subscribes with **`subscribeImmediate`** so stepped pointer drag updates run without waiting on the interaction tail. Only **pointer-driven** changes emit (not programmatic **`.value`** / **`.setValue`**). Use **`onGuiBuilt`** for initial **`.value`** from config when sliders must sync on overlay build.
+
+**`textInput` control facade members** — on **`type: "textInput"`** controls:
+
+- **`text`** getter returns current value.
+- **`text = "..."`** queues the assignment on the GUI interaction tail.
+- **`textNow("...")`** applies immediately (no tail wait).
+- **`focused`** getter/setter uses the same queued/immediate split as `text` (queued setter).
+- **`focusedNow(true|false)`** applies focus immediately.
+- **`whenValueChanged((newValue, oldValue) => { ... })`** subscribes to pointer/keyboard edits.
+- **`whenSubmit((finalValue) => { ... })`** subscribes to Enter submit (queued through `subscribe` like button/checkbox click handlers).
 
 **`ControlFacade.setVisualState(state)`** — **`button`** controls only. **`state`** is **`'normal'`** \| **`'hover'`** \| **`'pressed'`** \| **`'disabled'`** (case-insensitive strings accepted). Applies the same Aseprite frame tags (**`states.*`** in **`*.gui.json`**) and label **`textColorStates`** tints the pointer pipeline would (**`'disabled'`** also dims chrome to **`0.45`** alpha like authoring **`enabled: false`**). **`'normal'`** restores full alpha and **releases** manual control so hover / pressed tracking works again; the other modes **suppress** pointer-driven chrome until the next **`'normal'`** call.
 

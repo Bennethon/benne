@@ -36,6 +36,26 @@
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
       "color": "#1a466b"
+    },
+    {
+      "type": "textInput",
+      "id": "save-name",
+      "x": 70,
+      "y": 124,
+      "width": 120,
+      "height": 14,
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "text": "",
+      "maxLength": 64,
+      "placeholder": "Enter text...",
+      "color": "#ffffff",
+      "backgroundColor": "#222222",
+      "outlineColor": "#666666",
+      "caretColor": "#ffffff",
+      "hoverBackgroundColor": "#2f2f2f",
+      "focusedOutlineColor": "#a0a0a0",
+      "textAlign": "left"
     }
   ]
 }

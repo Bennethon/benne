@@ -11,6 +11,12 @@ import {
   type GuiSliderValueChangedPayload,
 } from '../events/guiSliderEvents.js';
 import {
+  guiTextInputSubmitEventId,
+  guiTextInputValueChangedEventId,
+  type GuiTextInputSubmitPayload,
+  type GuiTextInputValueChangedPayload,
+} from '../events/guiTextInputEvents.js';
+import {
   BENNE_GUI_CHECKBOX_DATA_KEY,
   BENNE_GUI_CHECKBOX_SET_CHECKED_DATA_KEY,
   BENNE_GUI_CHECKBOX_SET_DISABLED_DATA_KEY,
@@ -25,6 +31,15 @@ import {
   benneGuiSliderReadValue,
   type BenneGuiSliderSetValueFn,
 } from '../gui/guiSliderRuntime.js';
+import {
+  BENNE_GUI_TEXT_INPUT_DATA_KEY,
+  BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY,
+  BENNE_GUI_TEXT_INPUT_SET_TEXT_DATA_KEY,
+  benneGuiTextInputReadFocused,
+  benneGuiTextInputReadText,
+  type BenneGuiTextInputSetFocusedFn,
+  type BenneGuiTextInputSetTextFn,
+} from '../gui/guiTextInputRuntime.js';
 import { syncOutlinedGuiBitmapTextAll, syncOutlinedGuiBitmapTextPositions } from '../gui/guiTextOutline';
 import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
 
@@ -34,6 +49,7 @@ export type ControlTweenProps = Partial<Phaser.Types.Tweens.TweenBuilderConfig>;
 export interface BenneScriptControlBinding {
   guiId: string;
   controlId: string;
+  subscribe: (event: string, handler: (...args: unknown[]) => void) => void;
   subscribeImmediate: (event: string, handler: (...args: unknown[]) => void) => void;
 }
 
@@ -59,6 +75,48 @@ export function wireControlWhenValueChanged(
   );
 }
 
+function wireControlWhenTextInputValueChanged(
+  binding: BenneScriptControlBinding | null | undefined,
+  handler: (newValue: string, oldValue: string) => void,
+): void {
+  if (!binding) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        '[Benne] control().whenValueChanged() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
+      );
+    }
+    return;
+  }
+  binding.subscribeImmediate(
+    guiTextInputValueChangedEventId(binding.guiId, binding.controlId),
+    (payload: unknown) => {
+      const p = payload as GuiTextInputValueChangedPayload;
+      handler(p.newValue, p.oldValue);
+    },
+  );
+}
+
+function wireControlWhenTextInputSubmit(
+  binding: BenneScriptControlBinding | null | undefined,
+  handler: (finalValue: string) => void,
+): void {
+  if (!binding) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        '[Benne] control().whenSubmit() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
+      );
+    }
+    return;
+  }
+  binding.subscribe(
+    guiTextInputSubmitEventId(binding.guiId, binding.controlId),
+    (payload: unknown) => {
+      const p = payload as GuiTextInputSubmitPayload;
+      handler(p.finalValue);
+    },
+  );
+}
+
 /** Facades returned from {@link GuiBenneScript.gui}().control() that accept script event wiring. */
 export interface BenneScriptControlBindingTarget {
   attachScriptBinding(binding: BenneScriptControlBinding): void;
@@ -73,6 +131,7 @@ export class ControlFacade {
   readonly tweenTo: BlockingWithNow<[props: ControlTweenProps, duration?: number, easing?: string]>;
 
   private readonly scene: Phaser.Scene;
+  private readonly queueInteraction: (factory: () => Promise<unknown>) => void;
 
   private scriptBinding: BenneScriptControlBinding | null = null;
 
@@ -83,6 +142,7 @@ export class ControlFacade {
   ) {
     this.gameObject = gameObject;
     this.scene = scene;
+    this.queueInteraction = queueInteraction;
 
     const runTween = (
       props: ControlTweenProps,
@@ -188,6 +248,10 @@ export class ControlFacade {
 
   /** **`text`** controls (`BitmapText` / `Text`). Throws if this control is not text-backed. */
   get text(): string {
+    const textInput = this.tryGetTextInputContainer();
+    if (textInput) {
+      return benneGuiTextInputReadText(textInput) ?? '';
+    }
     const t = this.tryGetGuiTextSurface();
     if (!t) {
       throw new Error('[Benne] GUI control `.text` requires a BitmapText or Text game object.');
@@ -196,6 +260,27 @@ export class ControlFacade {
   }
 
   set text(value: string) {
+    const textInput = this.tryGetTextInputContainer();
+    if (textInput) {
+      this.queueInteraction(() => {
+        this.textNow(value);
+        return Promise.resolve();
+      });
+      return;
+    }
+    this.textNow(value);
+  }
+
+  textNow(value: string): void {
+    const textInput = this.tryGetTextInputContainer();
+    if (textInput) {
+      const setRaw = textInput.getData(BENNE_GUI_TEXT_INPUT_SET_TEXT_DATA_KEY);
+      if (typeof setRaw !== 'function') {
+        throw new Error('[Benne] GUI text input `.textNow` setter is unavailable.');
+      }
+      (setRaw as BenneGuiTextInputSetTextFn)(value);
+      return;
+    }
     const t = this.tryGetGuiTextSurface();
     if (!t) {
       throw new Error('[Benne] GUI control `.text` requires a BitmapText or Text game object.');
@@ -205,6 +290,49 @@ export class ControlFacade {
     } else {
       t.setText(value);
     }
+  }
+
+  private tryGetTextInputContainer(): Phaser.GameObjects.Container | null {
+    const go = this.gameObject;
+    if (!(go instanceof Phaser.GameObjects.Container)) {
+      return null;
+    }
+    if (go.getData(BENNE_GUI_TEXT_INPUT_DATA_KEY) !== true) {
+      return null;
+    }
+    return go;
+  }
+
+  get focused(): boolean {
+    const input = this.tryGetTextInputContainer();
+    if (!input) {
+      throw new Error('[Benne] GUI control `.focused` is only supported on `textInput` controls.');
+    }
+    const focused = benneGuiTextInputReadFocused(input);
+    return focused === true;
+  }
+
+  set focused(wantFocus: boolean) {
+    const input = this.tryGetTextInputContainer();
+    if (!input) {
+      throw new Error('[Benne] GUI control `.focused` is only supported on `textInput` controls.');
+    }
+    this.queueInteraction(() => {
+      this.focusedNow(wantFocus);
+      return Promise.resolve();
+    });
+  }
+
+  focusedNow(wantFocus: boolean): void {
+    const input = this.tryGetTextInputContainer();
+    if (!input) {
+      throw new Error('[Benne] GUI control `.focusedNow` is only supported on `textInput` controls.');
+    }
+    const setRaw = input.getData(BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY);
+    if (typeof setRaw !== 'function') {
+      throw new Error('[Benne] GUI text input `.focusedNow` setter is unavailable.');
+    }
+    (setRaw as BenneGuiTextInputSetFocusedFn)(wantFocus);
   }
 
   /**
@@ -346,8 +474,21 @@ export class ControlFacade {
    * **`subscribeImmediate`** so drag updates are not queued behind **`say`** / tweens).
    * Call from **`registerGuiScript`** via **`B.gui(…).control(…).whenValueChanged(…)`**.
    */
-  whenValueChanged(handler: (value: number) => void): void {
-    wireControlWhenValueChanged(this.scriptBinding, handler);
+  whenValueChanged(handler: (value: number) => void): void;
+  whenValueChanged(handler: (newValue: string, oldValue: string) => void): void;
+  whenValueChanged(handler: ((value: number) => void) | ((newValue: string, oldValue: string) => void)): void {
+    if (this.tryGetTextInputContainer()) {
+      wireControlWhenTextInputValueChanged(
+        this.scriptBinding,
+        handler as (newValue: string, oldValue: string) => void,
+      );
+      return;
+    }
+    wireControlWhenValueChanged(this.scriptBinding, handler as (value: number) => void);
+  }
+
+  whenSubmit(handler: (finalValue: string) => void): void {
+    wireControlWhenTextInputSubmit(this.scriptBinding, handler);
   }
 }
 
@@ -367,6 +508,10 @@ export class NoopGuiControlFacade extends ControlFacade {
   }
 
   override set text(_value: string) {
+    /* forgiving missing / non-text control */
+  }
+
+  override textNow(_value: string): void {
     /* forgiving missing / non-text control */
   }
 
@@ -390,6 +535,18 @@ export class NoopGuiControlFacade extends ControlFacade {
     /* forgiving */
   }
 
+  override get focused(): boolean {
+    return false;
+  }
+
+  override set focused(_wantFocus: boolean) {
+    /* forgiving */
+  }
+
+  override focusedNow(_wantFocus: boolean): void {
+    /* forgiving */
+  }
+
   override get value(): number {
     return 0;
   }
@@ -402,7 +559,15 @@ export class NoopGuiControlFacade extends ControlFacade {
     /* forgiving */
   }
 
-  override whenValueChanged(_handler: (value: number) => void): void {
+  override whenValueChanged(_handler: (value: number) => void): void;
+  override whenValueChanged(_handler: (newValue: string, oldValue: string) => void): void;
+  override whenValueChanged(
+    _handler: ((value: number) => void) | ((newValue: string, oldValue: string) => void),
+  ): void {
+    /* forgiving */
+  }
+
+  override whenSubmit(_handler: (finalValue: string) => void): void {
     /* forgiving */
   }
 }
@@ -454,6 +619,8 @@ class DetachedNoopGuiControlFacade implements BenneScriptControlBindingTarget {
 
   set text(_value: string) {}
 
+  textNow(_value: string): void {}
+
   setVisualState(_state: string): void {}
 
   get checked(): boolean {
@@ -468,6 +635,14 @@ class DetachedNoopGuiControlFacade implements BenneScriptControlBindingTarget {
 
   set disabled(_value: boolean) {}
 
+  get focused(): boolean {
+    return false;
+  }
+
+  set focused(_wantFocus: boolean) {}
+
+  focusedNow(_wantFocus: boolean): void {}
+
   get value(): number {
     return 0;
   }
@@ -480,8 +655,21 @@ class DetachedNoopGuiControlFacade implements BenneScriptControlBindingTarget {
     this.scriptBinding = binding;
   }
 
-  whenValueChanged(handler: (value: number) => void): void {
-    wireControlWhenValueChanged(this.scriptBinding, handler);
+  whenValueChanged(handler: (value: number) => void): void;
+  whenValueChanged(handler: (newValue: string, oldValue: string) => void): void;
+  whenValueChanged(handler: ((value: number) => void) | ((newValue: string, oldValue: string) => void)): void {
+    if (handler.length >= 2) {
+      wireControlWhenTextInputValueChanged(
+        this.scriptBinding,
+        handler as (newValue: string, oldValue: string) => void,
+      );
+      return;
+    }
+    wireControlWhenValueChanged(this.scriptBinding, handler as (value: number) => void);
+  }
+
+  whenSubmit(handler: (finalValue: string) => void): void {
+    wireControlWhenTextInputSubmit(this.scriptBinding, handler);
   }
 }
 

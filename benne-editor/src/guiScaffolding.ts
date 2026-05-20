@@ -11,6 +11,7 @@ import {
 
 export type GuiControlKind =
     | 'text'
+    | 'textInput'
     | 'inventoryPanel'
     | 'image'
     | 'nineSliceImage'
@@ -120,6 +121,8 @@ function guiControlKindLabel(kind: GuiControlKind): string {
             return 'text';
         case 'inventoryPanel':
             return 'inventory panel';
+        case 'textInput':
+            return 'text input';
         case 'image':
             return 'image';
         case 'nineSliceImage':
@@ -185,6 +188,28 @@ function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, un
                 slotWidth: 32,
                 slotHeight: 32,
                 showEmptySlots: true
+            };
+        case 'textInput':
+            return {
+                type: 'textInput',
+                id,
+                x: 0,
+                y: 0,
+                width: 120,
+                height: 20,
+                font: '',
+                fontSize: 12,
+                text: '',
+                maxLength: 64,
+                placeholder: 'Enter text...',
+                color: '#ffffff',
+                backgroundColor: '#222222',
+                outlineColor: '#666666',
+                caretColor: '#ffffff',
+                hoverBackgroundColor: '#2f2f2f',
+                focusedOutlineColor: '#a0a0a0',
+                enabled: true,
+                textAlign: 'left'
             };
         case 'image':
             return {
@@ -340,6 +365,9 @@ export async function runAddGuiControlWizard(
             if (kind === 'button' && s.length === 0) {
                 return 'Button controls require an id (B.whenButtonClick, Inspector tree).';
             }
+            if (kind === 'textInput' && s.length === 0) {
+                return 'Text input controls require an id (B.gui(...).control(...)).';
+            }
             if (kind === 'checkbox' && s.length === 0) {
                 return 'Checkbox controls require an id (B.whenCheckboxCheck, Inspector tree).';
             }
@@ -436,6 +464,11 @@ export function getAddGuiControlQuickPickItems(): GuiControlQuickPickItem[] {
             label: 'Text',
             description: 'BitmapText overlay',
             controlKind: 'text'
+        },
+        {
+            label: 'Text Input',
+            description: 'BitmapText text field (B.gui(...).control(...).text)',
+            controlKind: 'textInput'
         },
         {
             label: 'Inventory Panel',
