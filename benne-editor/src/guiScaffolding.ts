@@ -12,6 +12,7 @@ import {
 export type GuiControlKind =
     | 'text'
     | 'textInput'
+    | 'listBox'
     | 'inventoryPanel'
     | 'image'
     | 'nineSliceImage'
@@ -123,6 +124,8 @@ function guiControlKindLabel(kind: GuiControlKind): string {
             return 'inventory panel';
         case 'textInput':
             return 'text input';
+        case 'listBox':
+            return 'list box';
         case 'image':
             return 'image';
         case 'nineSliceImage':
@@ -210,6 +213,24 @@ function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, un
                 focusedOutlineColor: '#a0a0a0',
                 enabled: true,
                 textAlign: 'left'
+            };
+        case 'listBox':
+            return {
+                type: 'listBox',
+                id,
+                x: 0,
+                y: 0,
+                width: 120,
+                height: 72,
+                rowCount: 3,
+                rowPadding: 2,
+                normalBackgroundColor: '#222222',
+                hoverBackgroundColor: '#2f2f2f',
+                selectedBackgroundColor: '#4a4a4a',
+                textColor: '#ffffff',
+                selectedTextColor: '#ffffff',
+                placeholderTextColor: '#999999',
+                enabled: true
             };
         case 'image':
             return {
@@ -368,6 +389,9 @@ export async function runAddGuiControlWizard(
             if (kind === 'textInput' && s.length === 0) {
                 return 'Text input controls require an id (B.gui(...).control(...)).';
             }
+            if (kind === 'listBox' && s.length === 0) {
+                return 'List box controls require an id (B.gui(...).control(...)).';
+            }
             if (kind === 'checkbox' && s.length === 0) {
                 return 'Checkbox controls require an id (B.whenCheckboxCheck, Inspector tree).';
             }
@@ -469,6 +493,11 @@ export function getAddGuiControlQuickPickItems(): GuiControlQuickPickItem[] {
             label: 'Text Input',
             description: 'BitmapText text field (B.gui(...).control(...).text)',
             controlKind: 'textInput'
+        },
+        {
+            label: 'List Box',
+            description: 'Color-driven selectable list (B.gui(...).control(...).selectedIndex)',
+            controlKind: 'listBox'
         },
         {
             label: 'Inventory Panel',

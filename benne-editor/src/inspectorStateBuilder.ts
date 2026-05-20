@@ -496,6 +496,30 @@ export type InspectorGuiControlCard =
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
+          controlKind: 'listBox';
+          key: string;
+          index: number;
+          summary: string;
+          controlId: string;
+          x: number;
+          y: number;
+          zIndex: number | null;
+          visibleMode: '' | 'true' | 'false';
+          enabled: boolean;
+          width: number;
+          height: number;
+          rowCount: number;
+          rowHeight: number | null;
+          rowPadding: number | null;
+          normalBackgroundColor: string;
+          hoverBackgroundColor: string;
+          selectedBackgroundColor: string;
+          textColor: string;
+          selectedTextColor: string;
+          placeholderTextColor: string;
+          gridPlacement: InspectorGuiGridPlacement | null;
+      }
+    | {
           controlKind: 'trigger';
           key: string;
           index: number;
@@ -1690,6 +1714,37 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             focusedOutlineColor: typeof o.focusedOutlineColor === 'string' ? o.focusedOutlineColor : '',
             enabled: o.enabled !== false,
             textOutline: parseInspectorGuiTextOutline(o),
+            gridPlacement: parseOptionalGridPlacement(o)
+        };
+    }
+
+    if (type === 'listBox') {
+        return {
+            controlKind: 'listBox',
+            key,
+            index,
+            summary,
+            controlId,
+            x: guiReadNum(o, 'x', 0),
+            y: guiReadNum(o, 'y', 0),
+            zIndex: guiReadNumOrNull(o, 'zIndex'),
+            visibleMode: guiReadVisibleMode(o),
+            enabled: o.enabled !== false,
+            width: guiReadNum(o, 'width', 120),
+            height: guiReadNum(o, 'height', 72),
+            rowCount: guiReadNum(o, 'rowCount', 3),
+            rowHeight: guiReadNumOrNull(o, 'rowHeight'),
+            rowPadding: guiReadNumOrNull(o, 'rowPadding'),
+            normalBackgroundColor:
+                typeof o.normalBackgroundColor === 'string' ? o.normalBackgroundColor : '#222222',
+            hoverBackgroundColor:
+                typeof o.hoverBackgroundColor === 'string' ? o.hoverBackgroundColor : '#2f2f2f',
+            selectedBackgroundColor:
+                typeof o.selectedBackgroundColor === 'string' ? o.selectedBackgroundColor : '#4a4a4a',
+            textColor: typeof o.textColor === 'string' ? o.textColor : '#ffffff',
+            selectedTextColor: typeof o.selectedTextColor === 'string' ? o.selectedTextColor : '#ffffff',
+            placeholderTextColor:
+                typeof o.placeholderTextColor === 'string' ? o.placeholderTextColor : '#999999',
             gridPlacement: parseOptionalGridPlacement(o)
         };
     }

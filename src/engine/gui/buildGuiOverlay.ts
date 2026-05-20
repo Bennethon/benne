@@ -34,6 +34,7 @@ import type {
   GuiGridPlacement,
   GuiImageControl,
   GuiInventoryPanelControl,
+  GuiListBoxControl,
   GuiNineSliceImageControl,
   GuiSpriteAnchor,
   GuiTextAlign,
@@ -86,6 +87,7 @@ import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { buildGuiCheckbox, type BuiltGuiCheckbox } from './buildGuiCheckbox.js';
 import { buildGuiSlider, type BuiltGuiSlider } from './buildGuiSlider.js';
 import { buildGuiTextInput, type BuiltGuiTextInput } from './buildGuiTextInput.js';
+import { buildGuiListBox, type BuiltGuiListBox } from './buildGuiListBox.js';
 import { BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY } from './guiTextInputRuntime.js';
 import { GuiRuntime } from '../scripting/GuiRuntime.js';
 import {
@@ -1932,7 +1934,7 @@ export interface BuildGuiOverlayOptions {
 }
 
 /**
- * Builds screen-space GUI controls from `gui.controls` (`text`, `inventoryPanel`, `image`, `nineSliceImage`, `button`, `trigger`, `grid`).
+ * Builds screen-space GUI controls from `gui.controls` (`text`, `inventoryPanel`, `image`, `nineSliceImage`, `button`, `textInput`, `listBox`, `trigger`, `grid`).
  * Starts hidden unless `startVisible`. Font ids resolve via `fonts/fonts.json` (`load.bitmapFont` keys).
  */
 /**
@@ -2020,6 +2022,7 @@ export function buildGuiOverlay(
   const guiCheckboxes: BuiltGuiCheckbox[] = [];
   const guiSliders: BuiltGuiSlider[] = [];
   const guiTextInputs: BuiltGuiTextInput[] = [];
+  const guiListBoxes: BuiltGuiListBox[] = [];
   const triggerZones: Phaser.GameObjects.Rectangle[] = [];
   const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
   const controlsById = new Map<string, Phaser.GameObjects.GameObject>();
@@ -2440,6 +2443,40 @@ export function buildGuiOverlay(
       continue;
     }
 
+    if (c.type === 'listBox') {
+      const lbPlace = tryResolveGridPlacement(
+        gui,
+        c.gridPlacement,
+        gridsById,
+        gridLayoutById,
+        c.width,
+        c.height,
+        isGuiFixedControlId(c.id),
+      );
+      const lbModel: GuiListBoxControl = lbPlace ? { ...c, x: lbPlace.localX, y: lbPlace.localY } : c;
+      const builtListBox = buildGuiListBox(
+        scene,
+        gui,
+        lbModel,
+        depth,
+        startVisible,
+        suppressGuiButtonClick,
+      );
+      if (builtListBox) {
+        if (lbPlace) {
+          lbPlace.parent.add(builtListBox.hitTarget);
+        }
+        guiListBoxes.push(builtListBox);
+        guiImageInputDeferBelow.push(builtListBox.hitTarget);
+        controlsById.set(c.id.trim(), builtListBox.hitTarget);
+        if (!lbPlace) {
+          const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
+          bucket.push(builtListBox.hitTarget as DepthGameObject);
+        }
+      }
+      continue;
+    }
+
     if (c.type === 'trigger') {
       const trPlace = tryResolveGridPlacement(
         gui,
@@ -2528,6 +2565,7 @@ export function buildGuiOverlay(
     guiCheckboxes.length > 0 ||
     guiSliders.length > 0 ||
     guiTextInputs.length > 0 ||
+    guiListBoxes.length > 0 ||
     triggerZones.length > 0 ||
     gridContainers.length > 0;
   if (!hasPackedControls && gui.modal !== true) {
@@ -2573,6 +2611,7 @@ export function buildGuiOverlay(
     ...guiButtons.map((b) => b.hitTarget as Phaser.GameObjects.GameObject),
     ...guiCheckboxes.map((cb) => cb.hitTarget as Phaser.GameObjects.GameObject),
     ...guiTextInputs.map((ti) => ti.hitTarget as Phaser.GameObjects.GameObject),
+    ...guiListBoxes.map((lb) => lb.hitTarget as Phaser.GameObjects.GameObject),
   ]);
 
   /**
@@ -2718,6 +2757,25 @@ export function buildGuiOverlay(
           ti.hitTarget.disableInteractive();
         }
       }
+      for (const lb of guiListBoxes) {
+        lb.hitTarget.setVisible(visible);
+        for (const bg of lb.rowBackgrounds) {
+          bg.setVisible(visible);
+        }
+        for (const text of lb.rowTexts) {
+          text.setVisible(visible);
+        }
+        for (const outlines of lb.rowTextOutlines) {
+          for (const o of outlines) {
+            o.setVisible(visible);
+          }
+        }
+        if (visible && lb.enabled) {
+          applyGuiButtonInteractivity(lb.hitTarget, lb.width, lb.height, true);
+        } else {
+          lb.hitTarget.disableInteractive();
+        }
+      }
       for (const z of triggerZones) {
         z.setVisible(visible);
       }
@@ -2753,6 +2811,7 @@ export function buildGuiOverlay(
       guiCheckboxes.length = 0;
       guiSliders.length = 0;
       guiTextInputs.length = 0;
+      guiListBoxes.length = 0;
       triggerZones.length = 0;
       linesById.clear();
     },

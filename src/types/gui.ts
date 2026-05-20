@@ -486,6 +486,35 @@ export interface GuiTextInputControl {
 }
 
 /**
+ * Color-driven selectable list with fixed visible rows.
+ * Row content is script-populated via `B.gui(...).control(...).setRowText(...)`.
+ */
+export interface GuiListBoxControl {
+  type: 'listBox';
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zIndex?: number;
+  visible?: boolean;
+  enabled?: boolean;
+  /** Fixed number of visible rows (must be >= 1). */
+  rowCount: number;
+  /** Pixel height per row; when omitted, runtime derives from `height` and `rowPadding`. */
+  rowHeight?: number;
+  /** Pixel gap between rows; default 0. */
+  rowPadding?: number;
+  normalBackgroundColor: string;
+  hoverBackgroundColor: string;
+  selectedBackgroundColor: string;
+  textColor: string;
+  selectedTextColor: string;
+  placeholderTextColor: string;
+  gridPlacement?: GuiGridPlacement;
+}
+
+/**
  * Invisible, rectangular hit zone with a stable **`id`**: pure behavior surface for
  * **`B.whenMouseEnter` / `B.whenMouseLeave`** in `*.gui.ts`. Never drawn (no art, no text).
  * Layout-only properties; no **`zIndex`** — triggers sit above all other controls in this GUI’s overlay
@@ -520,6 +549,7 @@ export type GuiControl =
   | GuiCheckboxControl
   | GuiSliderControl
   | GuiTextInputControl
+  | GuiListBoxControl
   | GuiTriggerControl
   | GuiGridControl;
 

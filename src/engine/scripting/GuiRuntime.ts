@@ -17,6 +17,12 @@ import {
   type GuiTextInputValueChangedPayload,
 } from '../events/guiTextInputEvents.js';
 import {
+  guiListBoxItemActivatedEventId,
+  guiListBoxSelectionChangedEventId,
+  type GuiListBoxItemActivatedPayload,
+  type GuiListBoxSelectionChangedPayload,
+} from '../events/guiListBoxEvents.js';
+import {
   BENNE_GUI_CHECKBOX_DATA_KEY,
   BENNE_GUI_CHECKBOX_SET_CHECKED_DATA_KEY,
   BENNE_GUI_CHECKBOX_SET_DISABLED_DATA_KEY,
@@ -40,6 +46,15 @@ import {
   type BenneGuiTextInputSetFocusedFn,
   type BenneGuiTextInputSetTextFn,
 } from '../gui/guiTextInputRuntime.js';
+import {
+  BENNE_GUI_LIST_BOX_DATA_KEY,
+  BENNE_GUI_LIST_BOX_SET_ROW_TEXT_DATA_KEY,
+  BENNE_GUI_LIST_BOX_SET_SELECTED_INDEX_DATA_KEY,
+  benneGuiListBoxReadRowCount,
+  benneGuiListBoxReadSelectedIndex,
+  type BenneGuiListBoxSetRowTextFn,
+  type BenneGuiListBoxSetSelectedIndexFn,
+} from '../gui/guiListBoxRuntime.js';
 import { syncOutlinedGuiBitmapTextAll, syncOutlinedGuiBitmapTextPositions } from '../gui/guiTextOutline';
 import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
 
@@ -113,6 +128,48 @@ function wireControlWhenTextInputSubmit(
     (payload: unknown) => {
       const p = payload as GuiTextInputSubmitPayload;
       handler(p.finalValue);
+    },
+  );
+}
+
+function wireControlWhenListBoxSelectionChanged(
+  binding: BenneScriptControlBinding | null | undefined,
+  handler: (newIndex: number, oldIndex: number) => void,
+): void {
+  if (!binding) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        '[Benne] control().whenSelectionChanged() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
+      );
+    }
+    return;
+  }
+  binding.subscribeImmediate(
+    guiListBoxSelectionChangedEventId(binding.guiId, binding.controlId),
+    (payload: unknown) => {
+      const p = payload as GuiListBoxSelectionChangedPayload;
+      handler(p.newIndex, p.oldIndex);
+    },
+  );
+}
+
+function wireControlWhenListBoxItemActivated(
+  binding: BenneScriptControlBinding | null | undefined,
+  handler: (index: number) => void,
+): void {
+  if (!binding) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        '[Benne] control().whenItemActivated() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
+      );
+    }
+    return;
+  }
+  binding.subscribe(
+    guiListBoxItemActivatedEventId(binding.guiId, binding.controlId),
+    (payload: unknown) => {
+      const p = payload as GuiListBoxItemActivatedPayload;
+      handler(p.index);
     },
   );
 }
@@ -335,6 +392,79 @@ export class ControlFacade {
     (setRaw as BenneGuiTextInputSetFocusedFn)(wantFocus);
   }
 
+  private tryGetListBoxContainer(): Phaser.GameObjects.Container | null {
+    const go = this.gameObject;
+    if (!(go instanceof Phaser.GameObjects.Container)) {
+      return null;
+    }
+    if (go.getData(BENNE_GUI_LIST_BOX_DATA_KEY) !== true) {
+      return null;
+    }
+    return go;
+  }
+
+  get selectedIndex(): number {
+    const listBox = this.tryGetListBoxContainer();
+    if (!listBox) {
+      throw new Error('[Benne] GUI control `.selectedIndex` is only supported on `listBox` controls.');
+    }
+    return benneGuiListBoxReadSelectedIndex(listBox) ?? -1;
+  }
+
+  set selectedIndex(index: number) {
+    const listBox = this.tryGetListBoxContainer();
+    if (!listBox) {
+      throw new Error('[Benne] GUI control `.selectedIndex` is only supported on `listBox` controls.');
+    }
+    this.queueInteraction(() => {
+      this.selectedIndexNow(index);
+      return Promise.resolve();
+    });
+  }
+
+  selectedIndexNow(index: number): void {
+    const listBox = this.tryGetListBoxContainer();
+    if (!listBox) {
+      throw new Error('[Benne] GUI control `.selectedIndexNow` is only supported on `listBox` controls.');
+    }
+    const setRaw = listBox.getData(BENNE_GUI_LIST_BOX_SET_SELECTED_INDEX_DATA_KEY);
+    if (typeof setRaw !== 'function') {
+      throw new Error('[Benne] GUI listBox `.selectedIndexNow` setter is unavailable.');
+    }
+    (setRaw as BenneGuiListBoxSetSelectedIndexFn)(index);
+  }
+
+  get rowCount(): number {
+    const listBox = this.tryGetListBoxContainer();
+    if (!listBox) {
+      throw new Error('[Benne] GUI control `.rowCount` is only supported on `listBox` controls.');
+    }
+    return benneGuiListBoxReadRowCount(listBox) ?? 0;
+  }
+
+  setRowText(index: number, text: string): void {
+    const listBox = this.tryGetListBoxContainer();
+    if (!listBox) {
+      throw new Error('[Benne] GUI control `.setRowText` is only supported on `listBox` controls.');
+    }
+    this.queueInteraction(() => {
+      this.setRowTextNow(index, text);
+      return Promise.resolve();
+    });
+  }
+
+  setRowTextNow(index: number, text: string): void {
+    const listBox = this.tryGetListBoxContainer();
+    if (!listBox) {
+      throw new Error('[Benne] GUI control `.setRowTextNow` is only supported on `listBox` controls.');
+    }
+    const setRaw = listBox.getData(BENNE_GUI_LIST_BOX_SET_ROW_TEXT_DATA_KEY);
+    if (typeof setRaw !== 'function') {
+      throw new Error('[Benne] GUI listBox `.setRowTextNow` setter is unavailable.');
+    }
+    (setRaw as BenneGuiListBoxSetRowTextFn)(index, text);
+  }
+
   /**
    * Forces the **button** sheet label + background chrome to a named state (same frames / tints pointer
    * interaction would use). **`'normal'`** also releases a script override so pointer hover / press works again.
@@ -490,6 +620,14 @@ export class ControlFacade {
   whenSubmit(handler: (finalValue: string) => void): void {
     wireControlWhenTextInputSubmit(this.scriptBinding, handler);
   }
+
+  whenSelectionChanged(handler: (newIndex: number, oldIndex: number) => void): void {
+    wireControlWhenListBoxSelectionChanged(this.scriptBinding, handler);
+  }
+
+  whenItemActivated(handler: (index: number) => void): void {
+    wireControlWhenListBoxItemActivated(this.scriptBinding, handler);
+  }
 }
 
 /**
@@ -559,6 +697,30 @@ export class NoopGuiControlFacade extends ControlFacade {
     /* forgiving */
   }
 
+  override get selectedIndex(): number {
+    return -1;
+  }
+
+  override set selectedIndex(_index: number) {
+    /* forgiving */
+  }
+
+  override selectedIndexNow(_index: number): void {
+    /* forgiving */
+  }
+
+  override get rowCount(): number {
+    return 0;
+  }
+
+  override setRowText(_index: number, _text: string): void {
+    /* forgiving */
+  }
+
+  override setRowTextNow(_index: number, _text: string): void {
+    /* forgiving */
+  }
+
   override whenValueChanged(_handler: (value: number) => void): void;
   override whenValueChanged(_handler: (newValue: string, oldValue: string) => void): void;
   override whenValueChanged(
@@ -568,6 +730,14 @@ export class NoopGuiControlFacade extends ControlFacade {
   }
 
   override whenSubmit(_handler: (finalValue: string) => void): void {
+    /* forgiving */
+  }
+
+  override whenSelectionChanged(_handler: (newIndex: number, oldIndex: number) => void): void {
+    /* forgiving */
+  }
+
+  override whenItemActivated(_handler: (index: number) => void): void {
     /* forgiving */
   }
 }
@@ -651,6 +821,22 @@ class DetachedNoopGuiControlFacade implements BenneScriptControlBindingTarget {
 
   setValue(_next: number): void {}
 
+  get selectedIndex(): number {
+    return -1;
+  }
+
+  set selectedIndex(_index: number) {}
+
+  selectedIndexNow(_index: number): void {}
+
+  get rowCount(): number {
+    return 0;
+  }
+
+  setRowText(_index: number, _text: string): void {}
+
+  setRowTextNow(_index: number, _text: string): void {}
+
   attachScriptBinding(binding: BenneScriptControlBinding): void {
     this.scriptBinding = binding;
   }
@@ -670,6 +856,14 @@ class DetachedNoopGuiControlFacade implements BenneScriptControlBindingTarget {
 
   whenSubmit(handler: (finalValue: string) => void): void {
     wireControlWhenTextInputSubmit(this.scriptBinding, handler);
+  }
+
+  whenSelectionChanged(handler: (newIndex: number, oldIndex: number) => void): void {
+    wireControlWhenListBoxSelectionChanged(this.scriptBinding, handler);
+  }
+
+  whenItemActivated(handler: (index: number) => void): void {
+    wireControlWhenListBoxItemActivated(this.scriptBinding, handler);
   }
 }
 

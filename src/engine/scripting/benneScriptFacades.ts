@@ -67,7 +67,7 @@ export interface BenneScriptRoomFacade {
 
 /**
  * Address a GUI overlay by **`*.gui.json` `id`** (**`B.gui('verbs').control('foo')`**).
- * **`control`** returns the live {@link import('./GuiRuntime.js').ControlFacade} (`button` **`.setVisualState`**, **`checkbox`** **`.checked`** / **`.disabled`**, **`textInput`** **`.text`** / **`.textNow`** / **`.focused`**), or an inert noop facade when the overlay
+ * **`control`** returns the live {@link import('./GuiRuntime.js').ControlFacade} (`button` **`.setVisualState`**, **`checkbox`** **`.checked`** / **`.disabled`**, **`textInput`** **`.text`** / **`.textNow`** / **`.focused`**, **`listBox`** **`.selectedIndex`** / **`.setRowText`**), or an inert noop facade when the overlay
  * is missing, **`id`** is blank, or the control is unknown (matching forgiving overlay behavior elsewhere).
  */
 export interface BenneScriptGuiOverlayRef {
