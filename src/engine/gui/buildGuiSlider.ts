@@ -345,7 +345,7 @@ export function buildGuiSlider(
 
   const refreshInteractivity = (): void => {
     hitTarget.disableInteractive();
-    if (overlayVisible && !disabled) {
+    if (hitTarget.visible && !disabled) {
       applyGuiButtonInteractivity(hitTarget, w, h, true);
     }
   };

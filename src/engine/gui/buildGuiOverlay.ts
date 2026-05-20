@@ -83,7 +83,7 @@ import {
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { buildGuiCheckbox, type BuiltGuiCheckbox } from './buildGuiCheckbox.js';
-import { buildGuiSlider } from './buildGuiSlider.js';
+import { buildGuiSlider, type BuiltGuiSlider } from './buildGuiSlider.js';
 import { GuiRuntime } from '../scripting/GuiRuntime.js';
 import {
   BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY,
@@ -2015,6 +2015,7 @@ export function buildGuiOverlay(
   const inventoryPanels: Phaser.GameObjects.Container[] = [];
   const guiButtons: BuiltGuiButton[] = [];
   const guiCheckboxes: BuiltGuiCheckbox[] = [];
+  const guiSliders: BuiltGuiSlider[] = [];
   const triggerZones: Phaser.GameObjects.Rectangle[] = [];
   const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
   const controlsById = new Map<string, Phaser.GameObjects.GameObject>();
@@ -2390,6 +2391,7 @@ export function buildGuiOverlay(
         if (slPlace) {
           slPlace.parent.add(builtSlider.hitTarget);
         }
+        guiSliders.push(builtSlider);
         guiImageInputDeferBelow.push(builtSlider.hitTarget);
         controlsById.set(c.id.trim(), builtSlider.hitTarget);
         if (!slPlace) {
@@ -2485,6 +2487,8 @@ export function buildGuiOverlay(
     inventoryPanels.length > 0 ||
     extraSprites.length > 0 ||
     guiButtons.length > 0 ||
+    guiCheckboxes.length > 0 ||
+    guiSliders.length > 0 ||
     triggerZones.length > 0 ||
     gridContainers.length > 0;
   if (!hasPackedControls && gui.modal !== true) {
@@ -2643,6 +2647,16 @@ export function buildGuiOverlay(
           cb.hitTarget.disableInteractive();
         }
       }
+      for (const sl of guiSliders) {
+        sl.hitTarget.setVisible(visible);
+        sl.trackSprite?.setVisible(visible);
+        sl.handleSprite?.setVisible(visible);
+        if (visible && sl.enabled) {
+          applyGuiButtonInteractivity(sl.hitTarget, sl.width, sl.height, true);
+        } else {
+          sl.hitTarget.disableInteractive();
+        }
+      }
       for (const z of triggerZones) {
         z.setVisible(visible);
       }
@@ -2675,6 +2689,8 @@ export function buildGuiOverlay(
       inventoryPanels.length = 0;
       extraSprites.length = 0;
       guiButtons.length = 0;
+      guiCheckboxes.length = 0;
+      guiSliders.length = 0;
       triggerZones.length = 0;
       linesById.clear();
     },
