@@ -1,0 +1,41 @@
+{
+  "id": "save-menu",
+  "name": "Save Menu",
+  "description": "",
+  "visible": true,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "nineSliceImage",
+      "id": "save-bg",
+      "x": 60,
+      "y": 30,
+      "width": 200,
+      "height": 120,
+      "tag": "9-slice-BG",
+      "sliceNames": {
+        "topLeft": "TopLeft",
+        "topCenter": "TopMid",
+        "topRight": "TopRight",
+        "middleLeft": "MidLeft",
+        "center": "Mid",
+        "middleRight": "MidRight",
+        "bottomLeft": "BottomLeft",
+        "bottomCenter": "BottomMid",
+        "bottomRight": "BottomRight"
+      }
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "x": 142,
+      "y": 38,
+      "text": "Save",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#1a466b"
+    }
+  ]
+}

@@ -55,7 +55,7 @@ import {
     runAddRoomRegionWizard,
     runAddRoomSpawnedCharacterWizard
 } from './roomScaffolding';
-import { runAddGuiControlWizard, type GuiControlKind } from './guiScaffolding';
+import { pickGuiControlKindToAdd, runAddGuiControlWizard } from './guiScaffolding';
 import { ensureGuiButtonClickHandlerAndReveal } from './guiButtonClickScaffolding';
 import {
     ensureGuiCheckboxCheckHandlerAndReveal,
@@ -932,56 +932,11 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             if (focusKind !== 'gui') {
                 return;
             }
-            type GuiControlPickItem = vscode.QuickPickItem & { controlKind: GuiControlKind };
-            const items: GuiControlPickItem[] = [
-                {
-                    label: 'Text',
-                    description: 'BitmapText overlay',
-                    controlKind: 'text'
-                },
-                {
-                    label: 'Inventory Panel',
-                    description: 'Player inventory grid',
-                    controlKind: 'inventoryPanel'
-                },
-                {
-                    label: 'Image',
-                    description: 'Aseprite tag / animation from this GUI sheet',
-                    controlKind: 'image'
-                },
-                {
-                    label: '9-slice image',
-                    description: 'Scalable panel from Aseprite slices + meta.slices',
-                    controlKind: 'nineSliceImage'
-                },
-                {
-                    label: 'Button',
-                    description: 'Sheet-backed label + click target (B.whenButtonClick)',
-                    controlKind: 'button'
-                },
-                {
-                    label: 'Checkbox',
-                    description: 'Sheet-backed toggle (B.whenCheckboxCheck / whenCheckboxUncheck)',
-                    controlKind: 'checkbox'
-                },
-                {
-                    label: 'Trigger',
-                    description: 'Invisible hit zone for B.whenMouseEnter / whenMouseLeave',
-                    controlKind: 'trigger'
-                },
-                {
-                    label: 'Grid',
-                    description: 'Layout container; place other controls with gridPlacement',
-                    controlKind: 'grid'
-                }
-            ];
-            const picked = await vscode.window.showQuickPick(items, {
-                placeHolder: 'Select control type to add'
-            });
-            if (!picked) {
+            const controlKind = await pickGuiControlKindToAdd();
+            if (!controlKind) {
                 return;
             }
-            await runAddGuiControlWizard(uri, picked.controlKind);
+            await runAddGuiControlWizard(uri, controlKind);
             this.refreshMainAndActions();
             await this.pushState();
             return;

@@ -10,4 +10,9 @@ registerGuiScript('game-menu', ({ B }) => {
   B.whenButtonClick("resume", () => {
     B.gui('game-menu').hide();
   });
+
+  B.whenButtonClick("settings", () => {
+    B.gui('settings-menu').show();
+    B.gui('game-menu').hide();
+  });
 });

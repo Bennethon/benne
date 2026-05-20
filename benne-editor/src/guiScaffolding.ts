@@ -427,25 +427,11 @@ async function resolveGuiJsonUri(
     return picked.gui.uri;
 }
 
-/**
- * Top-level entry for the **Add GUI Control** command (Actions panel + tree right-click + Command Palette).
- * Resolves the GUI JSON URI from the right-click `node`, then the current selection focus, then a Quick Pick
- * over discovered GUIs. Always prompts for the control kind, then defers to {@link runAddGuiControlWizard}.
- *
- * Mirrors the message handler in `inspectorWebviewViewProvider.ts`'s `addGuiControl` action so the entry-points
- * stay in sync.
- */
-export async function runAddGuiControlInteractiveWizard(
-    selection: EditorSelection,
-    node?: MainTreeNode
-): Promise<void> {
-    const guiJsonUri = await resolveGuiJsonUri(selection, node);
-    if (!guiJsonUri) {
-        return;
-    }
+export type GuiControlQuickPickItem = vscode.QuickPickItem & { controlKind: GuiControlKind };
 
-    type GuiControlPickItem = vscode.QuickPickItem & { controlKind: GuiControlKind };
-    const items: GuiControlPickItem[] = [
+/** Single source of truth for the Add Control type picker (tree, Inspector, Command Palette). */
+export function getAddGuiControlQuickPickItems(): GuiControlQuickPickItem[] {
+    return [
         {
             label: 'Text',
             description: 'BitmapText overlay',
@@ -492,11 +478,33 @@ export async function runAddGuiControlInteractiveWizard(
             controlKind: 'grid'
         }
     ];
-    const picked = await vscode.window.showQuickPick(items, {
+}
+
+/** Prompts for a GUI control kind; used by every Add Control entry point. */
+export async function pickGuiControlKindToAdd(): Promise<GuiControlKind | undefined> {
+    const picked = await vscode.window.showQuickPick(getAddGuiControlQuickPickItems(), {
         placeHolder: 'Select control type to add'
     });
-    if (!picked) {
+    return picked?.controlKind;
+}
+
+/**
+ * Top-level entry for the **Add GUI Control** command (Actions panel + tree right-click + Command Palette).
+ * Resolves the GUI JSON URI from the right-click `node`, then the current selection focus, then a Quick Pick
+ * over discovered GUIs. Always prompts for the control kind, then defers to {@link runAddGuiControlWizard}.
+ */
+export async function runAddGuiControlInteractiveWizard(
+    selection: EditorSelection,
+    node?: MainTreeNode
+): Promise<void> {
+    const guiJsonUri = await resolveGuiJsonUri(selection, node);
+    if (!guiJsonUri) {
         return;
     }
-    await runAddGuiControlWizard(guiJsonUri, picked.controlKind);
+
+    const controlKind = await pickGuiControlKindToAdd();
+    if (!controlKind) {
+        return;
+    }
+    await runAddGuiControlWizard(guiJsonUri, controlKind);
 }
