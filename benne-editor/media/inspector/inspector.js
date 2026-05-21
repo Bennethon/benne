@@ -1120,7 +1120,8 @@ function renderGuiControlCardBody(state, c) {
       ${c.controlId
             ? `<div style="margin:8px 0 0;">
         <button type="button" class="btn-secondary gui-on-click-btn" data-button-id="${esc(c.controlId)}">On Click</button>
-      </div>`
+      </div>
+      <p class="muted small" style="margin:8px 0 0;">Runtime: <code>control(…).enabled</code>, <code>setVisualState</code>.</p>`
             : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> in raw JSON for <code>B.whenButtonClick</code>.</p>`}`;
     }
     if (c.controlKind === 'checkbox') {

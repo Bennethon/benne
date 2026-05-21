@@ -88,12 +88,23 @@ import { buildGuiCheckbox, type BuiltGuiCheckbox } from './buildGuiCheckbox.js';
 import { buildGuiSlider, type BuiltGuiSlider } from './buildGuiSlider.js';
 import { buildGuiTextInput, type BuiltGuiTextInput } from './buildGuiTextInput.js';
 import { buildGuiListBox, type BuiltGuiListBox } from './buildGuiListBox.js';
-import { BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY } from './guiTextInputRuntime.js';
+import {
+  BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY,
+  benneGuiTextInputReadEnabled,
+} from './guiTextInputRuntime.js';
 import { GuiRuntime } from '../scripting/GuiRuntime.js';
 import {
   BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY,
+  BENNE_GUI_BUTTON_VISUAL_SCRIPT_LOCK_DATA_KEY,
   benneGuiButtonReadVisualScriptLock,
 } from './guiButtonVisualStateScript.js';
+import {
+  BENNE_GUI_BUTTON_DATA_KEY,
+  BENNE_GUI_BUTTON_READ_ENABLED_DATA_KEY,
+  BENNE_GUI_BUTTON_SET_ENABLED_DATA_KEY,
+  benneGuiButtonReadEnabled,
+  type BenneGuiButtonSetEnabledFn,
+} from './guiButtonRuntime.js';
 import {
   dispatchInventoryOnInventoryItemInteraction,
   dispatchInventoryVerbInteraction,
@@ -833,7 +844,7 @@ export function buildGuiButton(
   hitTarget.setScrollFactor(0, 0);
   hitTarget.setDepth(d);
   hitTarget.setVisible(overlayVisible);
-  hitTarget.setData('benneGuiButton', true);
+  hitTarget.setData(BENNE_GUI_BUTTON_DATA_KEY, true);
 
   const guiTextureKey = getAsepriteTextureKey(gui.id);
   const defaultBgTag = c.backgroundTag.trim();
@@ -922,31 +933,7 @@ export function buildGuiButton(
     return null;
   }
 
-  const enabled = c.enabled !== false;
-  if (!enabled) {
-    hitTarget.setAlpha(0.45);
-    bg?.setAlpha(0.45);
-    label?.setAlpha(0.45);
-    for (const lo of labelOutlines) {
-      lo.setAlpha(0.45);
-    }
-    const dTag = c.states?.disabled?.trim();
-    const dColor = c.backgroundColorStates?.disabled?.trim();
-    if (bg instanceof Phaser.GameObjects.Rectangle) {
-      const fill = dColor ?? defaultBgColor;
-      if (fill) {
-        bg.setFillStyle(hexStringToTint(fill), 1);
-        placeGuiButtonBackgroundRectLocal(bg, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
-      }
-    } else if (bg && dTag) {
-      reapplyGuiSheetTag(scene, bg, guiTextureKey, dTag, gui.id);
-      placeGuiButtonBackgroundSpriteLocal(bg, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
-    }
-  }
-
-  if (overlayVisible && enabled) {
-    applyGuiButtonInteractivity(hitTarget, w, h, enabled);
-  }
+  let enabled = c.enabled !== false;
 
   const hoverTag = c.states?.hover?.trim();
   const pressedTag = c.states?.pressed?.trim();
@@ -1003,7 +990,7 @@ export function buildGuiButton(
   };
 
   const applyChromeVisual = (visual: BenneGuiScriptButtonVisualState): void => {
-    if (!enabled) {
+    if (!enabled && visual !== 'disabled') {
       return;
     }
     const applyBgForState = (tag: string | undefined): void => {
@@ -1062,9 +1049,30 @@ export function buildGuiButton(
     }
   };
 
-  if (enabled) {
-    hitTarget.setData(BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY, applyChromeVisual);
+  hitTarget.setData(BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY, applyChromeVisual);
+
+  const refreshInteractivity = (): void => {
+    hitTarget.disableInteractive();
+    if (hitTarget.visible && enabled) {
+      applyGuiButtonInteractivity(hitTarget, w, h, true);
+    }
+  };
+
+  const setEnabledFromScript: BenneGuiButtonSetEnabledFn = (next: boolean) => {
+    enabled = next;
+    hitTarget.setData(BENNE_GUI_BUTTON_VISUAL_SCRIPT_LOCK_DATA_KEY, false);
+    applyChromeVisual(next ? 'normal' : 'disabled');
+    refreshInteractivity();
+  };
+
+  hitTarget.setData(BENNE_GUI_BUTTON_SET_ENABLED_DATA_KEY, setEnabledFromScript);
+  hitTarget.setData(BENNE_GUI_BUTTON_READ_ENABLED_DATA_KEY, () => enabled);
+
+  if (!enabled) {
+    applyChromeVisual('disabled');
   }
+
+  refreshInteractivity();
 
   const pointerDrivesChrome =
     enabled &&
@@ -1077,33 +1085,29 @@ export function buildGuiButton(
 
   if (pointerDrivesChrome) {
     hitTarget.on('pointerover', () => {
-      if (benneGuiButtonReadVisualScriptLock(hitTarget)) {
+      if (!enabled || benneGuiButtonReadVisualScriptLock(hitTarget)) {
         return;
       }
       applyChromeVisual('hover');
     });
     hitTarget.on('pointerout', () => {
-      if (benneGuiButtonReadVisualScriptLock(hitTarget)) {
+      if (!enabled || benneGuiButtonReadVisualScriptLock(hitTarget)) {
         return;
       }
       applyChromeVisual('normal');
     });
     hitTarget.on('pointerdown', () => {
-      if (benneGuiButtonReadVisualScriptLock(hitTarget)) {
+      if (!enabled || benneGuiButtonReadVisualScriptLock(hitTarget)) {
         return;
       }
       applyChromeVisual('pressed');
     });
     hitTarget.on('pointerup', () => {
-      if (benneGuiButtonReadVisualScriptLock(hitTarget)) {
+      if (!enabled || benneGuiButtonReadVisualScriptLock(hitTarget)) {
         return;
       }
       applyChromeVisual('normal');
     });
-  }
-
-  if (!enabled && label && disabledTextColor) {
-    setLabelTint(disabledTextTint);
   }
 
   hitTarget.on('pointerup', (pointer: Phaser.Input.Pointer) => {
@@ -2711,8 +2715,9 @@ export function buildGuiOverlay(
         for (const lo of b.labelOutlines) {
           lo.setVisible(visible);
         }
-        if (visible && b.enabled) {
-          applyGuiButtonInteractivity(b.hitTarget, b.width, b.height, b.enabled);
+        const buttonLiveEnabled = benneGuiButtonReadEnabled(b.hitTarget) ?? b.enabled;
+        if (visible && buttonLiveEnabled) {
+          applyGuiButtonInteractivity(b.hitTarget, b.width, b.height, true);
         } else {
           b.hitTarget.disableInteractive();
         }
@@ -2751,7 +2756,8 @@ export function buildGuiOverlay(
             (blurRaw as (wantFocus: boolean) => void)(false);
           }
         }
-        if (visible && ti.enabled) {
+        const textInputLiveEnabled = benneGuiTextInputReadEnabled(ti.hitTarget) ?? ti.enabled;
+        if (visible && textInputLiveEnabled) {
           applyGuiButtonInteractivity(ti.hitTarget, ti.width, ti.height, true);
         } else {
           ti.hitTarget.disableInteractive();

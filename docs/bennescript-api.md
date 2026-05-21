@@ -731,6 +731,8 @@ interface BenneScriptGuiOverlayRef {
 
 [`GuiRuntime` / **`ControlFacade`**](architecture.md) — **`tweenTo`** / **`tweenTo.now`** participate in **`queueInteraction`**.
 
+**`ControlFacade.enabled`** — **`button`** and **`textInput`** controls only. Read/write whether the control accepts pointer input and shows enabled chrome (buttons use disabled sheet/colours at **0.45** alpha when **`false`**). Matches JSON **`enabled`** at build time; runtime updates are immediate (not queued). Does **not** emit **`whenButtonClick`** or text-input change/submit events. On buttons, prefer **`.enabled`** over **`setVisualState('disabled')`** when clicks must be blocked — **`setVisualState`** is visual-only while **`enabled === true`**.
+
 **`ControlFacade.checked`** / **`ControlFacade.disabled`** — **`checkbox`** controls only ( **`disabled`** mirrors JSON **`enabled: false`** ). Read/write the live toggle; does not fire **`whenCheckboxCheck`** / **`whenCheckboxUncheck`**.
 
 **`ControlFacade.value`** / **`ControlFacade.setValue(n)`** — **`slider`** controls only. Read/write the snapped numeric value (**`min`** / **`max`** / **`step`** from **`*.gui.json`**). Programmatic updates reposition the handle and refresh sheet tags; they **do not** emit value-changed events.
@@ -747,7 +749,7 @@ interface BenneScriptGuiOverlayRef {
 - **`whenValueChanged((newValue, oldValue) => { ... })`** subscribes to pointer/keyboard edits.
 - **`whenSubmit((finalValue) => { ... })`** subscribes to Enter submit (queued through `subscribe` like button/checkbox click handlers).
 
-**`ControlFacade.setVisualState(state)`** — **`button`** controls only. **`state`** is **`'normal'`** \| **`'hover'`** \| **`'pressed'`** \| **`'disabled'`** (case-insensitive strings accepted). Applies the same Aseprite frame tags (**`states.*`** in **`*.gui.json`**) and label **`textColorStates`** tints the pointer pipeline would (**`'disabled'`** also dims chrome to **`0.45`** alpha like authoring **`enabled: false`**). **`'normal'`** restores full alpha and **releases** manual control so hover / pressed tracking works again; the other modes **suppress** pointer-driven chrome until the next **`'normal'`** call.
+**`ControlFacade.setVisualState(state)`** — **`button`** controls only. **`state`** is **`'normal'`** \| **`'hover'`** \| **`'pressed'`** \| **`'disabled'`** (case-insensitive strings accepted). Applies the same Aseprite frame tags (**`states.*`** in **`*.gui.json`**) and label **`textColorStates`** tints the pointer pipeline would (**`'disabled'`** also dims chrome to **`0.45`** alpha like authoring **`enabled: false`**). **`'normal'`** restores full alpha and **releases** manual control so hover / pressed tracking works again; the other modes **suppress** pointer-driven chrome until the next **`'normal'`** call. Does **not** block **`whenButtonClick`** while **`enabled === true`** — use **`.enabled = false`** for functional disable.
 
 ---
 
