@@ -1,6 +1,7 @@
 import type { BenneGameStateFlagValue } from '../../types/gameState.js';
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
+import { tryGetRoomTransitionOrchestrator } from '../scenes/roomTransitionGlobals.js';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import {
   inventoryCursorAnimationVariableKey,
@@ -59,9 +60,6 @@ export interface BenneScriptGameStateNamespace {
   getVariable(id: string): unknown;
   hasVariable(id: string): boolean;
   clearVariable(id: string): void;
-  saveToBrowser(slot?: number): void;
-  loadFromBrowser(slot?: number): boolean;
-  clearBrowserSave(slot?: number): void;
   getSaveList(): SaveMetadata[];
   save: SyncWithNow<[name: string, slot?: number], void>;
   load: SyncWithNow<[nameOrSlot: string | number], boolean>;
@@ -104,7 +102,7 @@ export interface BenneScriptGameStateNamespace {
    * `flush` exists for **lazily-saved** fields that aren't worth writing per-tick.
    *
    * Also runs automatically inside {@link GameStateManager.getSnapshot} (so
-   * `B.state.saveToBrowser` / `exportJson` already pick everything up) and on room-transition
+   * `B.state.save` / `exportJson` already pick everything up) and on room-transition
    * leave (see `RoomTransitionOrchestrator.prepareForLeave`). Call it directly only at custom
    * save points.
    */
@@ -160,18 +158,27 @@ function createBenneScriptGameStateNamespaceFromResolver(
     getVariable: (id) => withManagerResult('getVariable', undefined, (m) => m.getVariable(id)),
     hasVariable: (id) => withManagerResult('hasVariable', false, (m) => m.hasVariable(id)),
     clearVariable: (id) => withManagerVoid('clearVariable', (m) => m.clearVariable(id)),
-    saveToBrowser: (slot) => withManagerVoid('saveToBrowser', (m) => m.saveToLocalStorage(slot)),
-    loadFromBrowser: (slot) =>
-      withManagerResult('loadFromBrowser', false, (m) => m.loadFromLocalStorage(slot)),
-    clearBrowserSave: (slot) =>
-      withManagerVoid('clearBrowserSave', (m) => m.clearLocalStorageSave(slot)),
     getSaveList: () => withManagerResult('getSaveList', [], (m) => m.getSaveList()),
     save: withNowResult((name: string, slot?: number): void => {
       withManagerVoid('save', (m) => m.save(name, slot));
     }),
-    load: withNowResult((nameOrSlot: string | number): boolean =>
-      withManagerResult('load', false, (m) => m.load(nameOrSlot)),
-    ),
+    load: withNowResult((nameOrSlot: string | number): boolean => {
+      return withManagerResult('load', false, (m) => {
+        const loaded = m.load(nameOrSlot);
+        if (!loaded) {
+          return false;
+        }
+        const orch = tryGetRoomTransitionOrchestrator();
+        if (!orch) {
+          if (import.meta.env.DEV) {
+            console.warn('[Benne] B.state.load: no room transition orchestrator — snapshot loaded only.');
+          }
+          return true;
+        }
+        void orch.transitionToLoadedRoom(false);
+        return true;
+      });
+    }),
     deleteSave: withNowResult((nameOrSlot: string | number): void => {
       withManagerVoid('deleteSave', (m) => m.deleteSave(nameOrSlot));
     }),

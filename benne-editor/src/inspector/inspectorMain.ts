@@ -114,6 +114,7 @@ type InspectorRoomState = {
     points: InspectorPointCard[];
     regions: InspectorRegionCard[];
     expanded: { entity: string; id: string } | null;
+    whenLoadedRoomDefined: boolean;
     whenEnterRoomDefined: boolean;
     whenEnterRoomAfterFadeDefined: boolean;
     onUpdateDefined: boolean;
@@ -776,7 +777,7 @@ function inspectorItemExpanded(
 
 function renderRoomLifecycleHookRow(state: InspectorRoomState): string {
     const mk = (
-        hook: 'whenEnterRoom' | 'whenEnterRoomAfterFade' | 'onUpdate',
+        hook: 'whenLoadedRoom' | 'whenEnterRoom' | 'whenEnterRoomAfterFade' | 'onUpdate',
         defined: boolean,
         label: string
     ): string => {
@@ -788,6 +789,7 @@ function renderRoomLifecycleHookRow(state: InspectorRoomState): string {
         return `<button type="button" class="${cls}" data-room-lifecycle="${esc(hook)}" title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(label)}</span></button>`;
     };
     return `<div class="benne-room-lifecycle row wrap" role="group" aria-label="Room script lifecycle hooks" style="margin-bottom:10px;">
+${mk('whenLoadedRoom', state.whenLoadedRoomDefined, 'whenLoadedRoom')}
 ${mk('whenEnterRoom', state.whenEnterRoomDefined, 'whenEnterRoom')}
 ${mk('whenEnterRoomAfterFade', state.whenEnterRoomAfterFadeDefined, 'whenEnterRoomAfterFade')}
 ${mk('onUpdate', state.onUpdateDefined, 'onUpdate')}
@@ -2745,7 +2747,12 @@ function mountHandlers(state: InspectorRoomState): void {
         btn.addEventListener('click', () => {
             const b = btn as HTMLButtonElement;
             const hook = b.dataset.roomLifecycle ?? '';
-            if (hook === 'whenEnterRoom' || hook === 'whenEnterRoomAfterFade' || hook === 'onUpdate') {
+            if (
+                hook === 'whenLoadedRoom' ||
+                hook === 'whenEnterRoom' ||
+                hook === 'whenEnterRoomAfterFade' ||
+                hook === 'onUpdate'
+            ) {
                 post('roomLifecycleHook', {
                     roomJsonUri: state.roomJsonUri,
                     roomId: state.roomId,

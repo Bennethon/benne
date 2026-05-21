@@ -26,7 +26,7 @@ export interface SerializableBenneGameState {
 export interface SaveMetadata {
   /** Player-facing save name. */
   name: string;
-  /** Legacy slot id when the entry originates from `saveToBrowser(slot)` data. */
+  /** Slot id when the entry maps to fixed-slot storage (`benne-save-<slot>`). */
   slot?: number;
   /** Last write/load touch time in epoch milliseconds. */
   timestamp: number;

@@ -20,4 +20,9 @@ registerGuiScript('game-menu', ({ B }) => {
     B.gui('save-menu').show();
     B.gui('game-menu').hide();
   });
+
+  B.whenButtonClick("load", () => {
+    B.gui('load-menu').show();
+    B.gui('game-menu').hide();
+  });
 });

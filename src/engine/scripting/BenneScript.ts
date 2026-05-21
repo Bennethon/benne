@@ -661,6 +661,19 @@ export class BenneScript extends BenneScriptCore {
     r.registerRoomEnterRoom(this.roomId, handler);
   }
 
+  whenLoadedRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenLoadedRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.registerRoomLoadedRoom(this.roomId, handler);
+  }
+
   whenEnterRoomAfterFade(
     handler: (ctx: RoomTransitionContext) => void | Promise<void>,
   ): void {

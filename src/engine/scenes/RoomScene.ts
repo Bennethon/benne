@@ -743,7 +743,7 @@ export class RoomScene extends Phaser.Scene {
     this.createScreenFadeOverlay();
     const startKind: BenneRoomStartKind =
       (this.game.registry.get(BENNE_ROOM_START_KIND_KEY) as BenneRoomStartKind | undefined) ?? 'boot';
-    if (startKind === 'transition') {
+    if (startKind === 'transition' || startKind === 'load') {
       this.screenFadeRect?.setAlpha(1);
     }
 

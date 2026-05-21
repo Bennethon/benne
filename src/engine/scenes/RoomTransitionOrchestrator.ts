@@ -64,7 +64,7 @@ export class RoomTransitionOrchestrator {
   async changeTo(targetRoomId: string, immediate: boolean): Promise<void> {
     const id = String(targetRoomId);
     this.transitionChain = this.transitionChain
-      .then(() => this.runChangeToImpl(id, immediate))
+      .then(() => this.runChangeToImpl(id, immediate, { startKind: 'transition', forceRestart: false }))
       .catch((err) => {
         console.error('[Benne] Room transition failed:', err);
         setRoomTransitionInProgress(this.game, false);
@@ -72,14 +72,50 @@ export class RoomTransitionOrchestrator {
     return this.transitionChain;
   }
 
-  private async runChangeToImpl(targetRoomId: string, immediate: boolean): Promise<void> {
+  /**
+   * Restart/transition into the room restored by `B.state.load(...)`.
+   * Uses a dedicated `'load'` start kind so room scripts can run `B.whenLoadedRoom(...)`.
+   */
+  async transitionToLoadedRoom(immediate: boolean): Promise<void> {
+    const manager = resolveGameStateManager(this.game);
+    const targetRoomId = String(manager.getCurrentRoom() ?? '');
+    if (targetRoomId.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] load transition: snapshot has no currentRoom; transition skipped.');
+      }
+      return;
+    }
+    this.transitionChain = this.transitionChain
+      .then(() =>
+        this.runChangeToImpl(targetRoomId, immediate, {
+          startKind: 'load',
+          forceRestart: true,
+          preserveRoomContextFromSnapshot: true,
+        }),
+      )
+      .catch((err) => {
+        console.error('[Benne] Room load transition failed:', err);
+        setRoomTransitionInProgress(this.game, false);
+      });
+    return this.transitionChain;
+  }
+
+  private async runChangeToImpl(
+    targetRoomId: string,
+    immediate: boolean,
+    options: {
+      startKind: BenneRoomStartKind;
+      forceRestart: boolean;
+      preserveRoomContextFromSnapshot?: boolean;
+    },
+  ): Promise<void> {
     const fromScene = this.game.scene.getScene(SCENE_ROOM) as RoomScene | null;
     if (!fromScene) {
       console.error('[Benne] Room transition: no active RoomScene.');
       return;
     }
     const fromId = fromScene.getCurrentRoomId();
-    if (fromId === targetRoomId) {
+    if (!options.forceRestart && fromId === targetRoomId) {
       return;
     }
 
@@ -87,7 +123,9 @@ export class RoomTransitionOrchestrator {
     setRoomTransitionInProgress(this.game, true);
     const manager = resolveGameStateManager(this.game);
     try {
-      this.prepareForLeave(fromScene, manager);
+      this.prepareForLeave(fromScene, manager, {
+        preserveSnapshotState: options.preserveRoomContextFromSnapshot === true,
+      });
       const lastSnap = manager.getLastRoom();
       const leaveVisit = getRoomVisitCount(manager, fromId);
       const leaveCtx: RoomTransitionContext = {
@@ -120,10 +158,12 @@ export class RoomTransitionOrchestrator {
         ensureRoomScriptLoaded(targetRoomId),
       ]);
 
-      manager.setLastRoom(fromId);
-      manager.setCurrentRoom(targetRoomId);
+      if (options.preserveRoomContextFromSnapshot !== true) {
+        manager.setLastRoom(fromId);
+        manager.setCurrentRoom(targetRoomId);
+      }
 
-      this.game.registry.set(BENNE_ROOM_START_KIND_KEY, 'transition');
+      this.game.registry.set(BENNE_ROOM_START_KIND_KEY, options.startKind);
       const runDone = new Promise<void>((r) => {
         this.deferredRunComplete = r;
       });
@@ -192,6 +232,13 @@ export class RoomTransitionOrchestrator {
         isFirstEnter: isFirst,
         visitCount,
       };
+      if (kind === 'load') {
+        await runRoomHandlersEachSafe(
+          this.hooks.getLoadedHandlersForRoom(roomId),
+          enterCtx,
+          'onRoomSceneCreateComplete: loaded',
+        );
+      }
       // Enter handlers and the enter-phase queue drain run inside a cutscene block so the room
       // is protected from player input during invisible setup (moveTo, music, etc.).
       roomScene.pushCutscene();
@@ -284,13 +331,20 @@ export class RoomTransitionOrchestrator {
     }
   }
 
-  private prepareForLeave(roomScene: RoomScene, mgr: ReturnType<typeof resolveGameStateManager>): void {
+  private prepareForLeave(
+    roomScene: RoomScene,
+    mgr: ReturnType<typeof resolveGameStateManager>,
+    options?: { preserveSnapshotState?: boolean },
+  ): void {
+    const preserveSnapshotState = options?.preserveSnapshotState === true;
     // Pull live character feet positions and prop authoring positions into game state BEFORE
     // tearing down the scene so the next room (re)load can restore them. See
     // `RoomScene.flushRuntimeStateToGameState` and `gameState/snapshotFlushHooks.ts`.
-    roomScene.flushRuntimeStateToGameState();
-    mgr.clearActiveVerb();
-    mgr.clearActiveInventoryItem();
+    if (!preserveSnapshotState) {
+      roomScene.flushRuntimeStateToGameState();
+      mgr.clearActiveVerb();
+      mgr.clearActiveInventoryItem();
+    }
     tryGetBenneSoundManager(this.game)?.stopAllSfx();
     roomScene.clearStateForRoomTransition();
     for (const s of roomScene.getBenneScriptCoresForTransitionReset()) {
