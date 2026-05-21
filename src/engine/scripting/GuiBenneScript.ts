@@ -18,6 +18,12 @@ import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManag
 import { BenneScriptCore } from './BenneScriptCore.js';
 import type { BenneScriptDialogCommandSurface, BenneScriptGuiOverlayRef } from './benneScriptFacades.js';
 import {
+  createLazyBenneScriptGameStateNamespace,
+  createLazyBenneScriptInventoryNamespace,
+  type BenneScriptGameStateNamespace,
+  type BenneScriptInventoryNamespace,
+} from './benneScriptGameStateApi.js';
+import {
   createBenneNoopGuiControlFacade,
   createDetachedBenneNoopGuiControlFacade,
   type BenneScriptControlBinding,
@@ -39,6 +45,8 @@ export class GuiBenneScript extends BenneScriptCore {
   private readonly guiId: string;
   /** Resolves the game lazily — `registerGuiScript` runs before `createBenneGame`. */
   readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+  readonly state: BenneScriptGameStateNamespace;
+  readonly inventory: BenneScriptInventoryNamespace;
   private readonly onGuiBuiltHandlers: Array<(gui: GuiRuntime) => void> = [];
   /** While `onGuiBuilt` handlers run, supports {@link GuiBenneScript.scene}. */
   private activeGuiRuntime: GuiRuntime | null = null;
@@ -152,6 +160,15 @@ export class GuiBenneScript extends BenneScriptCore {
       },
     );
     this.guiId = guiId;
+    this.state = createLazyBenneScriptGameStateNamespace(() => tryGetActiveGameStateManager());
+    this.inventory = createLazyBenneScriptInventoryNamespace(
+      () => tryGetActiveGameStateManager(),
+      () => {
+        const g = tryGetActiveBenneGame();
+        return (g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined) ?? undefined;
+      },
+      (factory) => this.chain(factory),
+    );
     this.dialog = (dialogId: string) => {
       const manager = tryGetActiveGameStateManager();
       const game = tryGetActiveBenneGame();
