@@ -38,11 +38,20 @@ import {
   type BenneGuiSliderSetValueFn,
 } from '../gui/guiSliderRuntime.js';
 import {
+  BENNE_GUI_BUTTON_DATA_KEY,
+  BENNE_GUI_BUTTON_SET_ENABLED_DATA_KEY,
+  benneGuiButtonReadEnabled,
+  type BenneGuiButtonSetEnabledFn,
+} from '../gui/guiButtonRuntime.js';
+import {
   BENNE_GUI_TEXT_INPUT_DATA_KEY,
   BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY,
+  BENNE_GUI_TEXT_INPUT_SET_ENABLED_DATA_KEY,
   BENNE_GUI_TEXT_INPUT_SET_TEXT_DATA_KEY,
+  benneGuiTextInputReadEnabled,
   benneGuiTextInputReadFocused,
   benneGuiTextInputReadText,
+  type BenneGuiTextInputSetEnabledFn,
   type BenneGuiTextInputSetFocusedFn,
   type BenneGuiTextInputSetTextFn,
 } from '../gui/guiTextInputRuntime.js';
@@ -392,6 +401,56 @@ export class ControlFacade {
     (setRaw as BenneGuiTextInputSetFocusedFn)(wantFocus);
   }
 
+  private tryGetButtonContainer(): Phaser.GameObjects.Container | null {
+    const go = this.gameObject;
+    if (!(go instanceof Phaser.GameObjects.Container)) {
+      return null;
+    }
+    if (go.getData(BENNE_GUI_BUTTON_DATA_KEY) !== true) {
+      return null;
+    }
+    return go;
+  }
+
+  /**
+   * Enabled state for **`button`** and **`textInput`** controls (matches JSON **`enabled`**; toggles
+   * hit-testing and disabled visuals at runtime). Does not emit button click or text-input events.
+   * @throws When this control is not a composable **`button`** or **`textInput`** hit target.
+   */
+  get enabled(): boolean {
+    const button = this.tryGetButtonContainer();
+    if (button) {
+      return benneGuiButtonReadEnabled(button) ?? true;
+    }
+    const input = this.tryGetTextInputContainer();
+    if (input) {
+      return benneGuiTextInputReadEnabled(input) ?? true;
+    }
+    throw new Error('[Benne] GUI control `.enabled` is only supported on `button` and `textInput` controls.');
+  }
+
+  set enabled(value: boolean) {
+    const button = this.tryGetButtonContainer();
+    if (button) {
+      const setRaw = button.getData(BENNE_GUI_BUTTON_SET_ENABLED_DATA_KEY);
+      if (typeof setRaw !== 'function') {
+        throw new Error('[Benne] GUI button `.enabled` setter is unavailable.');
+      }
+      (setRaw as BenneGuiButtonSetEnabledFn)(value);
+      return;
+    }
+    const input = this.tryGetTextInputContainer();
+    if (input) {
+      const setRaw = input.getData(BENNE_GUI_TEXT_INPUT_SET_ENABLED_DATA_KEY);
+      if (typeof setRaw !== 'function') {
+        throw new Error('[Benne] GUI text input `.enabled` setter is unavailable.');
+      }
+      (setRaw as BenneGuiTextInputSetEnabledFn)(value);
+      return;
+    }
+    throw new Error('[Benne] GUI control `.enabled` is only supported on `button` and `textInput` controls.');
+  }
+
   private tryGetListBoxContainer(): Phaser.GameObjects.Container | null {
     const go = this.gameObject;
     if (!(go instanceof Phaser.GameObjects.Container)) {
@@ -685,6 +744,14 @@ export class NoopGuiControlFacade extends ControlFacade {
     /* forgiving */
   }
 
+  override get enabled(): boolean {
+    return true;
+  }
+
+  override set enabled(_value: boolean) {
+    /* forgiving */
+  }
+
   override get value(): number {
     return 0;
   }
@@ -812,6 +879,12 @@ class DetachedNoopGuiControlFacade implements BenneScriptControlBindingTarget {
   set focused(_wantFocus: boolean) {}
 
   focusedNow(_wantFocus: boolean): void {}
+
+  get enabled(): boolean {
+    return true;
+  }
+
+  set enabled(_value: boolean) {}
 
   get value(): number {
     return 0;
