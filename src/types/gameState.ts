@@ -22,6 +22,31 @@ export interface SerializableBenneGameState {
   lastRoom?: string | null;
 }
 
+/** Public metadata returned by `B.state.getSaveList()`. */
+export interface SaveMetadata {
+  /** Player-facing save name. */
+  name: string;
+  /** Legacy slot id when the entry originates from `saveToBrowser(slot)` data. */
+  slot?: number;
+  /** Last write/load touch time in epoch milliseconds. */
+  timestamp: number;
+}
+
+/** Internal manifest row persisted in localStorage for named saves. */
+export interface SaveManifestEntry extends SaveMetadata {
+  /**
+   * Storage key for the snapshot payload. For legacy slots this is `benne-save-<slot>`,
+   * for named saves this is `benne-save-v1-<sanitized-name>`.
+   */
+  storageKey: string;
+}
+
+/** Internal manifest payload persisted under `benne-saves-manifest-v1`. */
+export interface SaveManifest {
+  version: 1;
+  saves: SaveManifestEntry[];
+}
+
 export const GAME_STATE_FLAG_CHANGED_EVENT = 'gameState:flagChanged' as const;
 export const GAME_STATE_VARIABLE_CHANGED_EVENT = 'gameState:variableChanged' as const;
 export const GAME_STATE_INVENTORY_CHANGED_EVENT = 'gameState:inventoryChanged' as const;

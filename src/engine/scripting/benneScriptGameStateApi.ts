@@ -13,6 +13,7 @@ import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { runSnapshotFlushHooks } from '../gameState/snapshotFlushHooks.js';
 import { SCENE_ROOM } from '../../game/constants.js';
+import type { SaveMetadata } from '../../types/gameState.js';
 
 /**
  * When provided to {@link createBenneScriptInventoryNamespace}, **`B.inventory.add` / `remove`**
@@ -20,6 +21,33 @@ import { SCENE_ROOM } from '../../game/constants.js';
  * script’s interaction tail (same ordering as **`B.player.animation`**).
  */
 export type BenneScriptInventoryInteractionQueue = (factory: () => Promise<unknown>) => void;
+export type BenneScriptGameStateManagerResolver = () => GameStateManager | null | undefined;
+
+type SyncWithNow<TArgs extends readonly unknown[], TResult> = ((
+  ...args: TArgs
+) => TResult) & { now: (...args: TArgs) => TResult };
+
+function withNowResult<TArgs extends readonly unknown[], TResult>(
+  impl: (...args: TArgs) => TResult,
+): SyncWithNow<TArgs, TResult> {
+  const fn = impl as SyncWithNow<TArgs, TResult>;
+  fn.now = impl;
+  return fn;
+}
+
+function resolveManagerOrWarn(
+  resolveManager: BenneScriptGameStateManagerResolver,
+  actionLabel: string,
+): GameStateManager | null {
+  const manager = resolveManager();
+  if (manager) {
+    return manager;
+  }
+  if (import.meta.env.DEV) {
+    console.warn(`[Benne] B.state.${actionLabel}: game state manager is not active yet — ignored.`);
+  }
+  return null;
+}
 
 /** `B.state` — flags, variables, and snapshot persistence (see `GameStateManager`). */
 export interface BenneScriptGameStateNamespace {
@@ -34,6 +62,11 @@ export interface BenneScriptGameStateNamespace {
   saveToBrowser(slot?: number): void;
   loadFromBrowser(slot?: number): boolean;
   clearBrowserSave(slot?: number): void;
+  getSaveList(): SaveMetadata[];
+  save: SyncWithNow<[name: string, slot?: number], void>;
+  load: SyncWithNow<[nameOrSlot: string | number], boolean>;
+  deleteSave: SyncWithNow<[nameOrSlot: string | number], void>;
+  renameSave: SyncWithNow<[oldName: string, newName: string], void>;
   exportJson(): string;
   importJson(json: string): void;
   /**
@@ -94,31 +127,72 @@ export interface BenneScriptInventoryNamespace {
   clearInventory(): void;
 }
 
-export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneScriptGameStateNamespace {
+function createBenneScriptGameStateNamespaceFromResolver(
+  resolveManager: BenneScriptGameStateManagerResolver,
+): BenneScriptGameStateNamespace {
+  const withManagerVoid = (
+    actionLabel: string,
+    run: (manager: GameStateManager) => void,
+  ): void => {
+    const manager = resolveManagerOrWarn(resolveManager, actionLabel);
+    if (!manager) {
+      return;
+    }
+    run(manager);
+  };
+  const withManagerResult = <T>(
+    actionLabel: string,
+    fallback: T,
+    run: (manager: GameStateManager) => T,
+  ): T => {
+    const manager = resolveManagerOrWarn(resolveManager, actionLabel);
+    if (!manager) {
+      return fallback;
+    }
+    return run(manager);
+  };
   return {
-    setFlag: (id, value) => m.setFlag(id, value),
-    getFlag: (id) => m.getFlag(id),
-    hasFlag: (id) => m.hasFlag(id),
-    clearFlag: (id) => m.clearFlag(id),
-    setVariable: (id, value) => m.setVariable(id, value),
-    getVariable: (id) => m.getVariable(id),
-    hasVariable: (id) => m.hasVariable(id),
-    clearVariable: (id) => m.clearVariable(id),
-    saveToBrowser: (slot) => m.saveToLocalStorage(slot),
-    loadFromBrowser: (slot) => m.loadFromLocalStorage(slot),
-    clearBrowserSave: (slot) => m.clearLocalStorageSave(slot),
-    exportJson: () => m.exportSnapshotJson(),
-    importJson: (json) => m.importSnapshotJson(json),
-    setActiveVerb: (verbId) => m.setActiveVerb(verbId),
-    getActiveVerb: () => m.getActiveVerb(),
-    clearActiveVerb: () => m.clearActiveVerb(),
-    setActiveInventory: (id) => m.setActiveInventoryItem(id),
-    getActiveInventoryItemId: () => m.getActiveInventoryItemId(),
-    clearActiveInventory: () => m.clearActiveInventoryItem(),
-    getCurrentRoom: () => m.getCurrentRoom(),
-    getLastRoom: () => m.getLastRoom(),
-    setCurrentRoom: (roomId) => m.setCurrentRoom(roomId),
-    setLastRoom: (roomId) => m.setLastRoom(roomId),
+    setFlag: (id, value) => withManagerVoid('setFlag', (m) => m.setFlag(id, value)),
+    getFlag: (id) => withManagerResult('getFlag', undefined, (m) => m.getFlag(id)),
+    hasFlag: (id) => withManagerResult('hasFlag', false, (m) => m.hasFlag(id)),
+    clearFlag: (id) => withManagerVoid('clearFlag', (m) => m.clearFlag(id)),
+    setVariable: (id, value) => withManagerVoid('setVariable', (m) => m.setVariable(id, value)),
+    getVariable: (id) => withManagerResult('getVariable', undefined, (m) => m.getVariable(id)),
+    hasVariable: (id) => withManagerResult('hasVariable', false, (m) => m.hasVariable(id)),
+    clearVariable: (id) => withManagerVoid('clearVariable', (m) => m.clearVariable(id)),
+    saveToBrowser: (slot) => withManagerVoid('saveToBrowser', (m) => m.saveToLocalStorage(slot)),
+    loadFromBrowser: (slot) =>
+      withManagerResult('loadFromBrowser', false, (m) => m.loadFromLocalStorage(slot)),
+    clearBrowserSave: (slot) =>
+      withManagerVoid('clearBrowserSave', (m) => m.clearLocalStorageSave(slot)),
+    getSaveList: () => withManagerResult('getSaveList', [], (m) => m.getSaveList()),
+    save: withNowResult((name: string, slot?: number): void => {
+      withManagerVoid('save', (m) => m.save(name, slot));
+    }),
+    load: withNowResult((nameOrSlot: string | number): boolean =>
+      withManagerResult('load', false, (m) => m.load(nameOrSlot)),
+    ),
+    deleteSave: withNowResult((nameOrSlot: string | number): void => {
+      withManagerVoid('deleteSave', (m) => m.deleteSave(nameOrSlot));
+    }),
+    renameSave: withNowResult((oldName: string, newName: string): void => {
+      withManagerVoid('renameSave', (m) => m.renameSave(oldName, newName));
+    }),
+    exportJson: () => withManagerResult('exportJson', '{}', (m) => m.exportSnapshotJson()),
+    importJson: (json) => withManagerVoid('importJson', (m) => m.importSnapshotJson(json)),
+    setActiveVerb: (verbId) => withManagerVoid('setActiveVerb', (m) => m.setActiveVerb(verbId)),
+    getActiveVerb: () => withManagerResult('getActiveVerb', null, (m) => m.getActiveVerb()),
+    clearActiveVerb: () => withManagerVoid('clearActiveVerb', (m) => m.clearActiveVerb()),
+    setActiveInventory: (id) =>
+      withManagerVoid('setActiveInventory', (m) => m.setActiveInventoryItem(id)),
+    getActiveInventoryItemId: () =>
+      withManagerResult('getActiveInventoryItemId', null, (m) => m.getActiveInventoryItemId()),
+    clearActiveInventory: () =>
+      withManagerVoid('clearActiveInventory', (m) => m.clearActiveInventoryItem()),
+    getCurrentRoom: () => withManagerResult('getCurrentRoom', '', (m) => m.getCurrentRoom()),
+    getLastRoom: () => withManagerResult('getLastRoom', null, (m) => m.getLastRoom()),
+    setCurrentRoom: (roomId) => withManagerVoid('setCurrentRoom', (m) => m.setCurrentRoom(roomId)),
+    setLastRoom: (roomId) => withManagerVoid('setLastRoom', (m) => m.setLastRoom(roomId)),
     get isCutsceneActive(): boolean {
       const game = tryGetActiveBenneGame();
       if (!game) {
@@ -131,12 +205,34 @@ export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneS
   };
 }
 
+export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneScriptGameStateNamespace {
+  return createBenneScriptGameStateNamespaceFromResolver(() => m);
+}
+
+export function createLazyBenneScriptGameStateNamespace(
+  resolveManager: BenneScriptGameStateManagerResolver,
+): BenneScriptGameStateNamespace {
+  return createBenneScriptGameStateNamespaceFromResolver(resolveManager);
+}
+
 function createBenneScriptInventoryItemFacade(
   itemId: string,
-  manager: GameStateManager,
+  resolveManager: BenneScriptGameStateManagerResolver,
   getRoomScene?: () => RoomScene | undefined,
   queueInteraction?: BenneScriptInventoryInteractionQueue,
 ): BenneScriptInventoryItemFacade {
+  const resolveInventoryManager = (): GameStateManager | null => {
+    const manager = resolveManager();
+    if (manager) {
+      return manager;
+    }
+    if (import.meta.env.DEV) {
+      console.warn(
+        `[Benne] B.inventory("${itemId}"): game state manager is not active yet — ignored.`,
+      );
+    }
+    return null;
+  };
   const applyDefault = (tag: string): void => {
     const scene = getRoomScene?.();
     if (scene) {
@@ -148,6 +244,10 @@ function createBenneScriptInventoryItemFacade(
       if (import.meta.env.DEV) {
         console.warn(`[Benne] B.inventory("${itemId}"): unknown item id.`);
       }
+      return;
+    }
+    const manager = resolveInventoryManager();
+    if (!manager) {
       return;
     }
     const t = tag.trim();
@@ -171,6 +271,10 @@ function createBenneScriptInventoryItemFacade(
       }
       return;
     }
+    const manager = resolveInventoryManager();
+    if (!manager) {
+      return;
+    }
     const t = tag.trim();
     if (t.length === 0) {
       manager.clearVariable(inventoryCursorAnimationVariableKey(itemId));
@@ -192,6 +296,10 @@ function createBenneScriptInventoryItemFacade(
 
   return {
     get animation() {
+      const manager = resolveManager();
+      if (!manager) {
+        return getInventoryDefinition(itemId)?.defaultAnimation ?? '';
+      }
       const def = getInventoryDefinition(itemId);
       return def ? readEffectiveInventoryDefaultAnimationTag(manager, def) : '';
     },
@@ -205,6 +313,10 @@ function createBenneScriptInventoryItemFacade(
       const def = getInventoryDefinition(itemId);
       if (!def) {
         return '';
+      }
+      const manager = resolveManager();
+      if (!manager) {
+        return def.cursorAnimation?.trim() ?? '';
       }
       return readEffectiveInventoryCursorAnimationTag(manager, def) ?? '';
     },
@@ -222,6 +334,28 @@ export function createBenneScriptInventoryNamespace(
   getRoomScene?: () => RoomScene | undefined,
   queueInteraction?: BenneScriptInventoryInteractionQueue,
 ): BenneScriptInventoryNamespace {
+  return createBenneScriptInventoryNamespaceFromResolver(
+    () => m,
+    getRoomScene,
+    queueInteraction,
+  );
+}
+
+function createBenneScriptInventoryNamespaceFromResolver(
+  resolveManager: BenneScriptGameStateManagerResolver,
+  getRoomScene?: () => RoomScene | undefined,
+  queueInteraction?: BenneScriptInventoryInteractionQueue,
+): BenneScriptInventoryNamespace {
+  const resolveInventoryManager = (actionLabel: string): GameStateManager | null => {
+    const manager = resolveManager();
+    if (manager) {
+      return manager;
+    }
+    if (import.meta.env.DEV) {
+      console.warn(`[Benne] B.inventory.${actionLabel}: game state manager is not active yet — ignored.`);
+    }
+    return null;
+  };
   const queueOrRunSync = (run: () => void): void => {
     if (queueInteraction) {
       queueInteraction(() => {
@@ -237,31 +371,68 @@ export function createBenneScriptInventoryNamespace(
     add: withNow(
       (id: string, quantity?: number) => {
         queueOrRunSync(() => {
-          void m.addInventory(id, quantity);
+          const manager = resolveInventoryManager('add');
+          if (!manager) {
+            return;
+          }
+          void manager.addInventory(id, quantity);
         });
       },
       (id: string, quantity?: number) => {
-        void m.addInventory(id, quantity);
+        const manager = resolveInventoryManager('add.now');
+        if (!manager) {
+          return;
+        }
+        void manager.addInventory(id, quantity);
       },
     ),
     remove: withNow(
       (id: string, quantity?: number) => {
         queueOrRunSync(() => {
-          void m.removeFromInventory(id, quantity);
+          const manager = resolveInventoryManager('remove');
+          if (!manager) {
+            return;
+          }
+          void manager.removeFromInventory(id, quantity);
         });
       },
       (id: string, quantity?: number) => {
-        void m.removeFromInventory(id, quantity);
+        const manager = resolveInventoryManager('remove.now');
+        if (!manager) {
+          return;
+        }
+        void manager.removeFromInventory(id, quantity);
       },
     ),
-    has: (id: string) => m.hasInInventory(id),
-    quantityOf: (id: string) => m.quantityOf(id),
-    get items() {
-      return m.getInventoryItems();
+    has: (id: string) => {
+      const manager = resolveInventoryManager('has');
+      return manager ? manager.hasInInventory(id) : false;
     },
-    clearInventory: () => m.clearInventory(),
+    quantityOf: (id: string) => {
+      const manager = resolveInventoryManager('quantityOf');
+      return manager ? manager.quantityOf(id) : 0;
+    },
+    get items() {
+      const manager = resolveInventoryManager('items');
+      return manager ? manager.getInventoryItems() : [];
+    },
+    clearInventory: () => {
+      const manager = resolveInventoryManager('clearInventory');
+      if (!manager) {
+        return;
+      }
+      manager.clearInventory();
+    },
   };
   const callable = (itemId: string) =>
-    createBenneScriptInventoryItemFacade(itemId, m, getRoomScene, queueInteraction);
+    createBenneScriptInventoryItemFacade(itemId, resolveManager, getRoomScene, queueInteraction);
   return Object.assign(callable, methods) as BenneScriptInventoryNamespace;
+}
+
+export function createLazyBenneScriptInventoryNamespace(
+  resolveManager: BenneScriptGameStateManagerResolver,
+  getRoomScene?: () => RoomScene | undefined,
+  queueInteraction?: BenneScriptInventoryInteractionQueue,
+): BenneScriptInventoryNamespace {
+  return createBenneScriptInventoryNamespaceFromResolver(resolveManager, getRoomScene, queueInteraction);
 }

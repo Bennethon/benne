@@ -36,7 +36,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 | Surface | Room | Character | Inventory | Global | GUI | Dialog (session) |
 |--------|:----:|:---------:|:---------:|:------:|:---:|:----------------:|
 | Core queue, **`raw`**, **`wait`**, **`say`**, **`display`**, **`sound`** (**`B.sound`** — same object on **`B.player.sound`**, **`B.character('…').sound`**, **`B.prop('…').sound`** where applicable), **`dialogSettings`**, **`onDialogSettingsChanged`**, **`walkToClicked`**, **`faceClicked`**, fades, **`room`**, active verb/inventory helpers | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **`B.state`** / **`B.inventory`** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| **`B.state`** / **`B.inventory`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.dialog(id)`** | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ |
 | **`B.player`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.character(id)`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -386,7 +386,7 @@ B.prop('Rock').moveTo.now({ x: 80, y: 90 }); // teleport authoring origin; persi
 
 ## `B.inventory` (**`BenneScriptInventoryNamespace`**)
 
-**Not on `GuiBenneScript`.** Callable **`B.inventory(itemId)`** returns **`BenneScriptInventoryItemFacade`** (see **[`benneScriptGameStateApi.ts`](../src/engine/scripting/benneScriptGameStateApi.ts)**).
+Callable **`B.inventory(itemId)`** returns **`BenneScriptInventoryItemFacade`** (see **[`benneScriptGameStateApi.ts`](../src/engine/scripting/benneScriptGameStateApi.ts)**). GUI scripts now share the same inventory namespace as room/global/dialog surfaces (pre-game calls no-op with a DEV warning until the manager is active).
 
 **Quantity API** — **`add`** and **`remove`** are **`BlockingWithNow<[string, number?]>`** (queue on **`interactionTail`** when the namespace is wired with **`chain`**; **`.now`** mutates **`GameStateManager`** immediately). **`has`**, **`quantityOf`**, **`items`**, and **`clearInventory`** stay synchronous. After **`remove`**, if that id was the armed use-on-target item (**`activeInventory`**) and the id is no longer carried (quantity 0), the engine clears **active verb** and **active inventory** — even when **`dropWhenInventoryUsed`** is **`false`** in **`game-config.json`** (that flag applies to post–use-on-target clicks, not script removal).
 
@@ -455,6 +455,15 @@ clearVariable(id): void;
 saveToBrowser(slot?: number): void;
 loadFromBrowser(slot?: number): boolean;
 clearBrowserSave(slot?: number): void;
+getSaveList(): SaveMetadata[];
+save(name: string, slot?: number): void;
+save.now(name: string, slot?: number): void;
+load(nameOrSlot: string | number): boolean;
+load.now(nameOrSlot: string | number): boolean;
+deleteSave(nameOrSlot: string | number): void;
+deleteSave.now(nameOrSlot: string | number): void;
+renameSave(oldName: string, newName: string): void;
+renameSave.now(oldName: string, newName: string): void;
 exportJson(): string;
 importJson(json: string): void;
 flush(): void; // pull lazily-saved runtime state (today: positions) into GameStateManager.variables
@@ -473,6 +482,8 @@ setLastRoom(roomId: string | null): void;
 ```
 
 **`flush()`** runs every registered **snapshot flush hook** (see [architecture.md §3 → Game state](architecture.md#game-state-v1) and [§7 → Sprite animation & persistence → Snapshot flush hooks](architecture.md#7-scripting--interaction-system-bennescript)). It pulls **lazily-saved** runtime state on the active **`RoomScene`** — today, character feet world positions and prop authoring positions — into **`GameStateManager.variables`** so the next room load (or save snapshot) restores them. **Most state is already eagerly persisted** on every change (visibility, alpha, animation overrides, flags, variables, inventory) — `flush` exists for fields that are too noisy to write per-tick during walks. It also runs **automatically** inside **`getSnapshot`** (so **`saveToBrowser`** / **`exportJson`** already pick everything up) and on room-transition leave (**`RoomTransitionOrchestrator.prepareForLeave`**). Call it directly only at custom save points.
+
+**Named saves** — `save/load/deleteSave/renameSave/getSaveList` are manifest-backed (`benne-saves-manifest-v1`) and operate on names (or slot numbers for `load/deleteSave`). Named snapshots use `benne-save-v1-<sanitized-name>` keys; legacy slot keys (`benne-save-<slot>`) remain fully supported and are surfaced in `getSaveList()` with `slot` metadata.
 
 State change events are observable via **`B.raw.on`** (see **`src/types/gameState.ts`** and [architecture.md — EventBus](architecture.md#game-state-v1)).
 

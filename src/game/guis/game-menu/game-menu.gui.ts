@@ -15,4 +15,9 @@ registerGuiScript('game-menu', ({ B }) => {
     B.gui('settings-menu').show();
     B.gui('game-menu').hide();
   });
+
+  B.whenButtonClick("save", () => {
+    B.gui('save-menu').show();
+    B.gui('game-menu').hide();
+  });
 });

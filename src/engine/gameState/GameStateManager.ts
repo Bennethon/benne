@@ -9,6 +9,9 @@ import type {
   GameStateReplacedPayload,
   GameStateRoomContextChangedPayload,
   GameStateVariableChangedPayload,
+  SaveManifest,
+  SaveManifestEntry,
+  SaveMetadata,
   SerializableBenneGameState,
 } from '../../types/gameState.js';
 
@@ -119,6 +122,42 @@ function formatActiveInventoryItemState(itemId: string | null): string {
 
 function localStorageKey(slot: number): string {
   return `benne-save-${slot}`;
+}
+
+const SAVE_MANIFEST_STORAGE_KEY = 'benne-saves-manifest-v1';
+const NAMED_SAVE_STORAGE_KEY_PREFIX = 'benne-save-v1-';
+
+function normalizeSaveName(raw: string): string {
+  return raw.trim();
+}
+
+function canonicalizeSaveName(raw: string): string {
+  return normalizeSaveName(raw).toLowerCase();
+}
+
+function sanitizeSaveNameForStorage(raw: string): string {
+  return encodeURIComponent(canonicalizeSaveName(raw));
+}
+
+function namedSaveStorageKey(name: string): string {
+  return `${NAMED_SAVE_STORAGE_KEY_PREFIX}${sanitizeSaveNameForStorage(name)}`;
+}
+
+function parseLegacySlotFromStorageKey(storageKey: string): number | null {
+  const m = /^benne-save-(\d+)$/.exec(storageKey);
+  if (!m) {
+    return null;
+  }
+  const parsed = Number.parseInt(m[1] ?? '', 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function normalizeSaveMetadataTimestamp(raw: unknown, fallback: number): number {
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    return fallback;
+  }
+  return Math.floor(n);
 }
 
 /**
@@ -474,6 +513,357 @@ export class GameStateManager {
     } catch (err) {
       console.error('[Benne] GameStateManager.clearLocalStorageSave failed:', err);
     }
+  }
+
+  private readSaveManifest(): SaveManifest {
+    try {
+      const raw = localStorage.getItem(SAVE_MANIFEST_STORAGE_KEY);
+      if (!raw || raw.length === 0) {
+        return { version: 1, saves: [] };
+      }
+      const parsed = JSON.parse(raw) as Partial<SaveManifest> | null;
+      if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.saves)) {
+        return { version: 1, saves: [] };
+      }
+      const now = Date.now();
+      const saves: SaveManifestEntry[] = [];
+      for (const row of parsed.saves) {
+        if (!row || typeof row !== 'object') {
+          continue;
+        }
+        const name =
+          typeof row.name === 'string' ? normalizeSaveName(row.name) : '';
+        const storageKey = typeof row.storageKey === 'string' ? row.storageKey : '';
+        if (!name || !storageKey) {
+          continue;
+        }
+        const timestamp = normalizeSaveMetadataTimestamp(
+          (row as Partial<SaveManifestEntry>).timestamp,
+          now,
+        );
+        const rawSlot = (row as Partial<SaveManifestEntry>).slot;
+        const slot =
+          typeof rawSlot === 'number' && Number.isInteger(rawSlot) && rawSlot >= 0
+            ? rawSlot
+            : undefined;
+        saves.push(slot == null ? { name, storageKey, timestamp } : { name, storageKey, timestamp, slot });
+      }
+      return { version: 1, saves };
+    } catch (err) {
+      console.error('[Benne] GameStateManager.readSaveManifest failed:', err);
+      return { version: 1, saves: [] };
+    }
+  }
+
+  private writeSaveManifest(manifest: SaveManifest): void {
+    try {
+      localStorage.setItem(SAVE_MANIFEST_STORAGE_KEY, JSON.stringify(manifest));
+    } catch (err) {
+      console.error('[Benne] GameStateManager.writeSaveManifest failed:', err);
+    }
+  }
+
+  private sortManifestEntries(entries: readonly SaveManifestEntry[]): SaveManifestEntry[] {
+    return [...entries].sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  private migrateLegacySlotsIntoManifest(manifest: SaveManifest): SaveManifest {
+    const next = [...manifest.saves];
+    const hasStorageKey = new Set(next.map((entry) => entry.storageKey));
+    const hasSlot = new Set(
+      next
+        .map((entry) => entry.slot)
+        .filter((slot): slot is number => typeof slot === 'number' && slot >= 0),
+    );
+    const now = Date.now();
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) {
+          continue;
+        }
+        const slot = parseLegacySlotFromStorageKey(key);
+        if (slot == null) {
+          continue;
+        }
+        const payload = localStorage.getItem(key);
+        if (!payload || payload.length === 0) {
+          continue;
+        }
+        if (hasStorageKey.has(key) || hasSlot.has(slot)) {
+          continue;
+        }
+        next.push({
+          name: `Slot ${slot}`,
+          slot,
+          storageKey: key,
+          timestamp: now,
+        });
+        hasStorageKey.add(key);
+        hasSlot.add(slot);
+      }
+    } catch (err) {
+      console.error('[Benne] GameStateManager.migrateLegacySlotsIntoManifest failed:', err);
+      return manifest;
+    }
+    return { version: 1, saves: this.sortManifestEntries(next) };
+  }
+
+  private getManifestWithLegacyMigration(): SaveManifest {
+    const manifest = this.readSaveManifest();
+    const migrated = this.migrateLegacySlotsIntoManifest(manifest);
+    if (migrated.saves.length !== manifest.saves.length) {
+      this.writeSaveManifest(migrated);
+    }
+    return migrated;
+  }
+
+  private removeDanglingNamedStorageKeys(
+    removed: readonly SaveManifestEntry[],
+    remaining: readonly SaveManifestEntry[],
+  ): void {
+    const keptKeys = new Set(remaining.map((entry) => entry.storageKey));
+    for (const entry of removed) {
+      if (entry.slot != null) {
+        continue;
+      }
+      if (!entry.storageKey.startsWith(NAMED_SAVE_STORAGE_KEY_PREFIX)) {
+        continue;
+      }
+      if (keptKeys.has(entry.storageKey)) {
+        continue;
+      }
+      try {
+        localStorage.removeItem(entry.storageKey);
+      } catch (err) {
+        console.error('[Benne] GameStateManager.removeDanglingNamedStorageKeys failed:', err);
+      }
+    }
+  }
+
+  private resolveSaveEntry(nameOrSlot: string | number, manifest: SaveManifest): SaveManifestEntry | null {
+    if (typeof nameOrSlot === 'number') {
+      if (!Number.isInteger(nameOrSlot) || nameOrSlot < 0) {
+        return null;
+      }
+      const slot = nameOrSlot;
+      const storageKey = localStorageKey(slot);
+      const fromManifest = manifest.saves.find((entry) => entry.slot === slot || entry.storageKey === storageKey);
+      if (fromManifest) {
+        return fromManifest;
+      }
+      return { name: `Slot ${slot}`, slot, storageKey, timestamp: Date.now() };
+    }
+    const normalized = normalizeSaveName(nameOrSlot);
+    if (normalized.length === 0) {
+      return null;
+    }
+    const canonical = canonicalizeSaveName(normalized);
+    const fromManifest = manifest.saves.find((entry) => canonicalizeSaveName(entry.name) === canonical);
+    if (fromManifest) {
+      return fromManifest;
+    }
+    if (/^\d+$/.test(normalized)) {
+      const asSlot = Number.parseInt(normalized, 10);
+      if (Number.isInteger(asSlot) && asSlot >= 0) {
+        return this.resolveSaveEntry(asSlot, manifest);
+      }
+    }
+    return {
+      name: normalized,
+      storageKey: namedSaveStorageKey(normalized),
+      timestamp: Date.now(),
+    };
+  }
+
+  getSaveList(): SaveMetadata[] {
+    const manifest = this.getManifestWithLegacyMigration();
+    return this.sortManifestEntries(manifest.saves).map((entry) =>
+      entry.slot == null
+        ? { name: entry.name, timestamp: entry.timestamp }
+        : { name: entry.name, slot: entry.slot, timestamp: entry.timestamp },
+    );
+  }
+
+  save(name: string, slot?: number): void {
+    const normalized = normalizeSaveName(name);
+    if (normalized.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.state.save(name): empty save name — ignored.');
+      }
+      return;
+    }
+    const saveSlot = typeof slot === 'number' && Number.isInteger(slot) && slot >= 0 ? slot : undefined;
+    const storageKey = saveSlot == null ? namedSaveStorageKey(normalized) : localStorageKey(saveSlot);
+    try {
+      localStorage.setItem(storageKey, this.exportSnapshotJson());
+    } catch (err) {
+      console.error('[Benne] GameStateManager.save failed:', err);
+      return;
+    }
+    const now = Date.now();
+    const manifest = this.getManifestWithLegacyMigration();
+    const canonical = canonicalizeSaveName(normalized);
+    const kept: SaveManifestEntry[] = [];
+    const removed: SaveManifestEntry[] = [];
+    for (const entry of manifest.saves) {
+      const sameName = canonicalizeSaveName(entry.name) === canonical;
+      const sameStorageKey = entry.storageKey === storageKey;
+      const sameSlot =
+        saveSlot != null &&
+        (entry.slot === saveSlot || parseLegacySlotFromStorageKey(entry.storageKey) === saveSlot);
+      if (sameName || sameStorageKey || sameSlot) {
+        removed.push(entry);
+        continue;
+      }
+      kept.push(entry);
+    }
+    kept.push(
+      saveSlot == null
+        ? { name: normalized, storageKey, timestamp: now }
+        : { name: normalized, slot: saveSlot, storageKey, timestamp: now },
+    );
+    const nextManifest: SaveManifest = { version: 1, saves: this.sortManifestEntries(kept) };
+    this.removeDanglingNamedStorageKeys(removed, nextManifest.saves);
+    this.writeSaveManifest(nextManifest);
+  }
+
+  load(nameOrSlot: string | number): boolean {
+    if (typeof nameOrSlot === 'number') {
+      const loaded = this.loadFromLocalStorage(nameOrSlot);
+      if (loaded) {
+        const manifest = this.getManifestWithLegacyMigration();
+        const now = Date.now();
+        const storageKey = localStorageKey(nameOrSlot);
+        const updated = manifest.saves.map((entry) => {
+          if (entry.slot === nameOrSlot || entry.storageKey === storageKey) {
+            return { ...entry, timestamp: now };
+          }
+          return entry;
+        });
+        if (!updated.some((entry) => entry.slot === nameOrSlot || entry.storageKey === storageKey)) {
+          updated.push({ name: `Slot ${nameOrSlot}`, slot: nameOrSlot, storageKey, timestamp: now });
+        }
+        this.writeSaveManifest({ version: 1, saves: this.sortManifestEntries(updated) });
+      }
+      return loaded;
+    }
+
+    const normalized = normalizeSaveName(nameOrSlot);
+    if (normalized.length === 0) {
+      return false;
+    }
+    const manifest = this.getManifestWithLegacyMigration();
+    const resolved = this.resolveSaveEntry(normalized, manifest);
+    if (!resolved) {
+      return false;
+    }
+    try {
+      const raw = localStorage.getItem(resolved.storageKey);
+      if (!raw || raw.length === 0) {
+        return false;
+      }
+      this.importSnapshotJson(raw);
+      const now = Date.now();
+      const updated = manifest.saves.map((entry) =>
+        entry.storageKey === resolved.storageKey || canonicalizeSaveName(entry.name) === canonicalizeSaveName(normalized)
+          ? { ...entry, name: normalized, timestamp: now }
+          : entry,
+      );
+      if (!updated.some((entry) => entry.storageKey === resolved.storageKey)) {
+        const slot = parseLegacySlotFromStorageKey(resolved.storageKey);
+        updated.push(
+          slot == null
+            ? { name: normalized, storageKey: resolved.storageKey, timestamp: now }
+            : { name: normalized, slot, storageKey: resolved.storageKey, timestamp: now },
+        );
+      }
+      this.writeSaveManifest({ version: 1, saves: this.sortManifestEntries(updated) });
+      return true;
+    } catch (err) {
+      console.error('[Benne] GameStateManager.load failed:', err);
+      return false;
+    }
+  }
+
+  deleteSave(nameOrSlot: string | number): void {
+    const manifest = this.getManifestWithLegacyMigration();
+    const resolved = this.resolveSaveEntry(nameOrSlot, manifest);
+    if (!resolved) {
+      return;
+    }
+    const canonical = canonicalizeSaveName(resolved.name);
+    const kept = manifest.saves.filter(
+      (entry) =>
+        entry.storageKey !== resolved.storageKey &&
+        canonicalizeSaveName(entry.name) !== canonical &&
+        !(
+          resolved.slot != null &&
+          (entry.slot === resolved.slot || parseLegacySlotFromStorageKey(entry.storageKey) === resolved.slot)
+        ),
+    );
+    try {
+      localStorage.removeItem(resolved.storageKey);
+    } catch (err) {
+      console.error('[Benne] GameStateManager.deleteSave failed:', err);
+    }
+    this.writeSaveManifest({ version: 1, saves: this.sortManifestEntries(kept) });
+  }
+
+  renameSave(oldName: string, newName: string): void {
+    const normalizedOld = normalizeSaveName(oldName);
+    const normalizedNew = normalizeSaveName(newName);
+    if (normalizedOld.length === 0 || normalizedNew.length === 0) {
+      return;
+    }
+    const manifest = this.getManifestWithLegacyMigration();
+    const oldEntry = manifest.saves.find(
+      (entry) => canonicalizeSaveName(entry.name) === canonicalizeSaveName(normalizedOld),
+    );
+    if (!oldEntry) {
+      return;
+    }
+    const now = Date.now();
+    const targetStorageKey =
+      oldEntry.slot == null ? namedSaveStorageKey(normalizedNew) : oldEntry.storageKey;
+    const canonicalNew = canonicalizeSaveName(normalizedNew);
+    const canonicalOld = canonicalizeSaveName(oldEntry.name);
+    const kept: SaveManifestEntry[] = [];
+    const removed: SaveManifestEntry[] = [];
+    for (const entry of manifest.saves) {
+      const isOld = entry.storageKey === oldEntry.storageKey && canonicalizeSaveName(entry.name) === canonicalOld;
+      const conflictsWithNew =
+        canonicalizeSaveName(entry.name) === canonicalNew || entry.storageKey === targetStorageKey;
+      if (isOld || conflictsWithNew) {
+        removed.push(entry);
+        continue;
+      }
+      kept.push(entry);
+    }
+
+    if (oldEntry.slot == null && targetStorageKey !== oldEntry.storageKey) {
+      try {
+        const raw = localStorage.getItem(oldEntry.storageKey);
+        if (!raw || raw.length === 0) {
+          return;
+        }
+        localStorage.setItem(targetStorageKey, raw);
+      } catch (err) {
+        console.error('[Benne] GameStateManager.renameSave failed:', err);
+        return;
+      }
+    }
+
+    const renamedEntry: SaveManifestEntry =
+      oldEntry.slot == null
+        ? { name: normalizedNew, storageKey: targetStorageKey, timestamp: now }
+        : { name: normalizedNew, slot: oldEntry.slot, storageKey: targetStorageKey, timestamp: now };
+    const nextManifest: SaveManifest = {
+      version: 1,
+      saves: this.sortManifestEntries([...kept, renamedEntry]),
+    };
+    this.removeDanglingNamedStorageKeys(removed, nextManifest.saves);
+    this.writeSaveManifest(nextManifest);
   }
 
   /**
