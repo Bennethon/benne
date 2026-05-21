@@ -1,60 +1,62 @@
-// import { registerGuiScript } from '@engine/scripting';
-
-// /**
-//  * GUI script for `save-menu` — Bennescript entry (`B.raw`, future onShow/onHide/control hooks on `B`).
-//  */
-// registerGuiScript('save-menu', ({ B }) => {
-
-//   B.whenButtonClick("back-btn", () => {
-//     B.gui('save-menu').hide();
-//     B.gui('game-menu').show();
-//   });
-
-
-//   B.whenButtonClick("save-btn", () => {
-//     B.state.save(B.gui('save-menu').control('save-name').text);
-//   });
-// });
-
 import { registerGuiScript } from '@engine/scripting';
+
+const MAX_SLOTS = 5;
 
 /**
  * GUI script for `save-menu`.
- * Uses the named-save surface on B.state + full ControlFacade support on GuiBenneScript.
+ * Five fixed slots (0–4); `B.state.save(name, slot)` writes the selected slot.
  */
 registerGuiScript('save-menu', ({ B }) => {
-
-  // Back button – return to the main game menu
   B.whenButtonClick('back-btn', () => {
     B.gui('save-menu').hide();
     B.gui('game-menu').show();
   });
 
-  /**
-   * Refreshes the saved-list listBox (exactly 5 slots) using setRowText.
-   * Auto-selects the first empty slot (or slot 0 if all are full).
-   */
-  function refreshSaveList() {
-    const saves = B.state.getSaveList();
+  let selectedSlotIndex = 0;
+
+  /** Map manifest entries onto fixed slot indices (ignores unnamed / out-of-range saves). */
+  function getSavesBySlot() {
+    const bySlot: Array<{ name: string; slot?: number; timestamp: number } | undefined> =
+      Array(MAX_SLOTS);
+    for (const save of B.state.getSaveList()) {
+      const slot = save.slot;
+      if (typeof slot === 'number' && slot >= 0 && slot < MAX_SLOTS) {
+        bySlot[slot] = save;
+      }
+    }
+    return bySlot;
+  }
+
+  function firstEmptyOrLastSlot(savesBySlot: ReturnType<typeof getSavesBySlot>): number {
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      if (!savesBySlot[i]) return i;
+    }
+    return MAX_SLOTS - 1;
+  }
+
+  function syncNameAndSaveButton(slotIndex: number) {
+    const gui = B.gui('save-menu');
+    const save = getSavesBySlot()[slotIndex];
+    const name = save ? save.name : '';
+    gui.control('save-name').textNow(name);
+    gui.control('save-btn').enabled = name.trim().length > 0;
+  }
+
+  /** Repaint list rows. When `autoSelect` is true, pick the first empty slot or the last slot if full. */
+  function refreshSaveList(autoSelect: boolean) {
+    const savesBySlot = getSavesBySlot();
     const listBox = B.gui('save-menu').control('saved-list');
-    const maxSlots = 5;
 
-    console.log(saves);
-
-    // Temporary storage so the selection handler can look up the save by index
-    (B.gui('save-menu') as any)._currentSaves = saves;
-
-    for (let i = 0; i < maxSlots; i++) {
-      const existing = saves.find((s) => s.slot === i);
-      const label = existing ? existing.name : `(Empty Slot ${i + 1})`;
-      listBox.setRowText(i, label);
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const existing = savesBySlot[i];
+      listBox.setRowText(i, existing ? existing.name : `(Empty Slot ${i + 1})`);
     }
 
-    // Auto-select the first empty slot (or slot 0 if none are empty)
-    const firstEmpty = Array.from({ length: maxSlots }, (_, i) => i)
-      .findIndex((i) => !saves.some((s) => s.slot === i));
+    if (autoSelect) {
+      selectedSlotIndex = firstEmptyOrLastSlot(savesBySlot);
+    }
 
-    listBox.selectedIndex = firstEmpty !== -1 ? firstEmpty : 0;
+    listBox.selectedIndex = selectedSlotIndex;
   }
 
   B.onGuiBuilt(() => {
@@ -63,45 +65,33 @@ registerGuiScript('save-menu', ({ B }) => {
     const nameInput = gui.control('save-name');
     const saveButton = gui.control('save-btn');
 
-    // Initial population + auto-select
-    refreshSaveList();
+    refreshSaveList(true);
+    syncNameAndSaveButton(selectedSlotIndex);
 
-    // When user clicks a save slot → pre-fill the name for easy overwrite
     listBox.whenSelectionChanged((index: number) => {
-      const currentSaves = (gui as any)._currentSaves || [];
-      const selectedSave = currentSaves.find((s: any) => s.slot === index);
-
-      if (selectedSave) {
-        nameInput.textNow(selectedSave.name);
-      } else {
-        nameInput.textNow('');
-      }
+      selectedSlotIndex = index;
+      syncNameAndSaveButton(index);
     });
 
-    // Dynamic Save button: enabled only when save-name has meaningful text
     nameInput.whenValueChanged((newValue) => {
       const trimmed = String(newValue || '').trim();
       saveButton.enabled = trimmed.length > 0;
     });
-
-    // Initial button state
-    saveButton.enabled = false;
   });
 
-  // Save button handler
   B.whenButtonClick('save-btn', () => {
-    const nameInput = B.gui('save-menu').control('save-name');
+    const gui = B.gui('save-menu');
+    const nameInput = gui.control('save-name');
     const name = String(nameInput.text || '').trim();
-
     if (name.length === 0) return;
 
-    // Direct GUI action
-    B.state.save.now(name);
-
-    // Force the manifest to update immediately
+    B.state.save.now(name, selectedSlotIndex);
     B.state.flush();
 
-    // Refresh the listBox so the new/overwritten save appears right away
-    refreshSaveList();
+    refreshSaveList(false);
+    syncNameAndSaveButton(selectedSlotIndex);
+
+    B.gui('save-menu').hide();
+    B.gui('game-menu').show();
   });
 });
