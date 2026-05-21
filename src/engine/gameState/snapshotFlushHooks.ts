@@ -11,8 +11,10 @@
  * - **Room transition leave** — {@link import('../scenes/RoomTransitionOrchestrator.js').RoomTransitionOrchestrator}
  *   calls {@link runSnapshotFlushHooks} before tearing the active room scene down.
  * - **Snapshot creation** — {@link import('./GameStateManager.js').GameStateManager.getSnapshot}
- *   runs hooks before cloning state, so {@link import('./GameStateManager.js').GameStateManager.saveToLocalStorage}
- *   and {@link import('./GameStateManager.js').GameStateManager.exportSnapshotJson} both pick them up.
+ *   runs hooks before cloning state (unless `runFlushHooks: false`), so
+ *   {@link import('./GameStateManager.js').GameStateManager.exportSnapshotJson} and saves pick them up.
+ *   {@link import('./GameStateManager.js').GameStateManager.applySnapshot} must **not** flush — the loaded
+ *   JSON is authoritative while the old {@link import('../scenes/RoomScene.js').RoomScene} may still be active.
  * - **`B.state.flush()`** — explicit script-level save point.
  *
  * Hooks register on scene `create` and unregister on scene `shutdown` (or equivalent).

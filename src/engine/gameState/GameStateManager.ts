@@ -37,6 +37,16 @@ export type GameStateInitialSlice = Partial<
   Pick<SerializableBenneGameState, 'flags' | 'variables' | 'inventory' | 'currentRoom' | 'lastRoom'>
 >;
 
+/** Options for {@link GameStateManager.getSnapshot}. */
+export type GetSnapshotOptions = {
+  /**
+   * When `false`, skip pulling live {@link import('../scenes/RoomScene.js').RoomScene} positions
+   * into `variables` before cloning. Use after {@link applySnapshot} so a load does not
+   * overwrite restored feet/prop coords with the pre-transition scene. Default `true`.
+   */
+  runFlushHooks?: boolean;
+};
+
 /** Accepts v1 map, legacy string[], or empty. */
 export function normalizeSerializedInventory(raw: unknown): Record<string, number> {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
@@ -188,8 +198,10 @@ export class GameStateManager {
     };
   }
 
-  getSnapshot(): SerializableBenneGameState {
-    runSnapshotFlushHooks();
+  getSnapshot(options?: GetSnapshotOptions): SerializableBenneGameState {
+    if (options?.runFlushHooks !== false) {
+      runSnapshotFlushHooks();
+    }
     return {
       ...cloneSnapshot(this.state),
       activeInventoryItemId: this.activeInventoryItemId,
@@ -198,6 +210,8 @@ export class GameStateManager {
 
   /**
    * Replaces in-memory state. Emits only {@link GAME_STATE_REPLACED_EVENT}.
+   * Does not run snapshot flush hooks when emitting the replaced payload — the incoming
+   * snapshot is already authoritative (avoids clobbering saved positions from the live scene).
    */
   applySnapshot(snapshot: SerializableBenneGameState): void {
     if (snapshot.version !== 1) {
@@ -260,7 +274,9 @@ export class GameStateManager {
         );
       }
     }
-    const payload: GameStateReplacedPayload = { snapshot: this.getSnapshot() };
+    const payload: GameStateReplacedPayload = {
+      snapshot: this.getSnapshot({ runFlushHooks: false }),
+    };
     this.events.emit(GAME_STATE_REPLACED_EVENT, payload);
   }
 
