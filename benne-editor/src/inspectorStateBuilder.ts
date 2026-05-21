@@ -156,6 +156,7 @@ export type InspectorRoomState = {
     points: InspectorPointCard[];
     regions: InspectorRegionCard[];
     expanded: { entity: string; id: string } | null;
+    whenLoadedRoomDefined: boolean;
     whenEnterRoomDefined: boolean;
     whenEnterRoomAfterFadeDefined: boolean;
     onUpdateDefined: boolean;
@@ -1185,6 +1186,7 @@ async function buildRoomInspectorState(
         points,
         regions,
         expanded: expandedFromRoomPanel(roomPanel),
+        whenLoadedRoomDefined: roomScriptRegistersRoomLifecycleHook(roomScriptText, 'whenLoadedRoom'),
         whenEnterRoomDefined: roomScriptRegistersRoomLifecycleHook(roomScriptText, 'whenEnterRoom'),
         whenEnterRoomAfterFadeDefined: roomScriptRegistersRoomLifecycleHook(
             roomScriptText,

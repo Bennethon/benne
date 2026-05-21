@@ -48,7 +48,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 | Character self-only **`when*(() => …)`** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Inventory row verbs + **`whenUse` / `whenGive`** registrars | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Global verb fallbacks (**`whenGlobalFallback`**, etc.) | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **`whenLeaveRoom`**, **`whenEnterRoom`**, **`whenEnterRoomAfterFade`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **`whenLeaveRoom`**, **`whenLoadedRoom`**, **`whenEnterRoom`**, **`whenEnterRoomAfterFade`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **`whenLeaveAnyRoom`**, **`whenEnterAnyRoom`**, **`whenEnterAnyRoomAfterFade`** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **`whenButtonClick`**, **`whenCheckboxCheck`**, **`whenCheckboxUncheck`**, **`onGuiBuilt`**, **`scene`**, hover, **`B.gui('…').show` / `hide`** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | **`whenChoice`** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
@@ -253,7 +253,7 @@ Available on every **`BenneScriptCore`** facade (**room / character / inventory 
 
 **Effective values** — getters return the runtime value: saved **`GameStateManager`** variable when present and typed correctly, else the merged default from **`game-config.json`** **`dialog`**. Engine code uses **`getDialogSettings(manager)`** with the same resolution.
 
-**Persistence** — setters write immediately to **`variables`** (included in **`B.state.saveToBrowser`**, **`exportJson`**, etc.). **`applySnapshot`** keeps prior in-memory **`dialog:*`** values when the incoming snapshot omits a key (unless **`initialGameState.variables`** seeds it). See [architecture.md — `B.dialogSettings`](architecture.md#benne--architecture).
+**Persistence** — setters write immediately to **`variables`** (included in **`B.state.save`**, **`exportJson`**, etc.). **`applySnapshot`** keeps prior in-memory **`dialog:*`** values when the incoming snapshot omits a key (unless **`initialGameState.variables`** seeds it). See [architecture.md — `B.dialogSettings`](architecture.md#benne--architecture).
 
 **Reactivity** — import **`BENNE_DIALOG_SETTINGS_CHANGED_EVENT`** from **`@engine/scripting`** and subscribe in GUI scripts:
 
@@ -380,7 +380,7 @@ B.prop('Knife').hide(); // persisted; the prop stays hidden after B.room.changeT
 B.prop('Rock').moveTo.now({ x: 80, y: 90 }); // teleport authoring origin; persisted on next flush
 ```
 
-**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, **movable**, **follow** (**`followingTarget`** + **`followOptions`**), alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`saveToBrowser` / `loadFromBrowser`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`saveToBrowser`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
+**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, **movable**, **follow** (**`followingTarget`** + **`followOptions`**), alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`save` / `load`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`save`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
 
 ---
 
@@ -452,9 +452,6 @@ hasVariable(id): boolean;
 clearVariable(id): void;
 
 // Persistence
-saveToBrowser(slot?: number): void;
-loadFromBrowser(slot?: number): boolean;
-clearBrowserSave(slot?: number): void;
 getSaveList(): SaveMetadata[];
 save(name: string, slot?: number): void;
 save.now(name: string, slot?: number): void;
@@ -481,7 +478,7 @@ setCurrentRoom(roomId: string): void;
 setLastRoom(roomId: string | null): void;
 ```
 
-**`flush()`** runs every registered **snapshot flush hook** (see [architecture.md §3 → Game state](architecture.md#game-state-v1) and [§7 → Sprite animation & persistence → Snapshot flush hooks](architecture.md#7-scripting--interaction-system-bennescript)). It pulls **lazily-saved** runtime state on the active **`RoomScene`** — today, character feet world positions and prop authoring positions — into **`GameStateManager.variables`** so the next room load (or save snapshot) restores them. **Most state is already eagerly persisted** on every change (visibility, alpha, animation overrides, flags, variables, inventory) — `flush` exists for fields that are too noisy to write per-tick during walks. It also runs **automatically** inside **`getSnapshot`** (so **`saveToBrowser`** / **`exportJson`** already pick everything up) and on room-transition leave (**`RoomTransitionOrchestrator.prepareForLeave`**). Call it directly only at custom save points.
+**`flush()`** runs every registered **snapshot flush hook** (see [architecture.md §3 → Game state](architecture.md#game-state-v1) and [§7 → Sprite animation & persistence → Snapshot flush hooks](architecture.md#7-scripting--interaction-system-bennescript)). It pulls **lazily-saved** runtime state on the active **`RoomScene`** — today, character feet world positions and prop authoring positions — into **`GameStateManager.variables`** so the next room load (or save snapshot) restores them. **Most state is already eagerly persisted** on every change (visibility, alpha, animation overrides, flags, variables, inventory) — `flush` exists for fields that are too noisy to write per-tick during walks. It also runs **automatically** inside **`getSnapshot`** (so **`save`** / **`exportJson`** already pick everything up) and on room-transition leave (**`RoomTransitionOrchestrator.prepareForLeave`**). Call it directly only at custom save points.
 
 **Named saves** — `save/load/deleteSave/renameSave/getSaveList` are manifest-backed (`benne-saves-manifest-v1`) and operate on names (or slot numbers for `load/deleteSave`). Named snapshots use `benne-save-v1-<sanitized-name>` keys; legacy slot keys (`benne-save-<slot>`) remain fully supported and are surfaced in `getSaveList()` with `slot` metadata.
 
@@ -532,6 +529,7 @@ Alias resolution (**`VERB_ALIAS_CANDIDATES`** in **`BenneScriptCore`**): **`look
 
 ```ts
 whenLeaveRoom(handler: (ctx: RoomTransitionContext) => void | Promise<void>): void;
+whenLoadedRoom(handler: (ctx: RoomTransitionContext) => void | Promise<void>): void;
 whenEnterRoom(handler: (ctx: RoomTransitionContext) => void | Promise<void>): void;
 whenEnterRoomAfterFade(handler: (ctx: RoomTransitionContext) => void | Promise<void>): void;
 ```
@@ -552,6 +550,9 @@ interface RoomTransitionContext {
 **`isFirstEnter`** vs **`visitCount` / `B.room.isFirstVisit`** — session-scoped **first enter** vs save-backed **visit counter** (see [architecture.md — Room transitions](architecture.md) callout).
 
 Registry from **`tryGetGlobalRoomHookRegistry()`** — if missing, DEV warns and handlers are **not** wired.
+
+**Load order** — on `B.state.load(...)` room restarts, the room-local hook order is:
+`whenLoadedRoom` → `whenEnterRoom` → fade-in → `whenEnterRoomAfterFade`.
 
 ### Room regions — enter / exit
 

@@ -335,7 +335,11 @@ export function findRoomScriptRegionHandlerRangeRobust(
 }
 
 /** Room-level `registerRoomScript` hooks (see `BenneScript` / `registerRoomScript` docs). */
-export type RoomLifecycleHookKind = 'whenEnterRoom' | 'whenEnterRoomAfterFade' | 'onUpdate';
+export type RoomLifecycleHookKind =
+    | 'whenLoadedRoom'
+    | 'whenEnterRoom'
+    | 'whenEnterRoomAfterFade'
+    | 'onUpdate';
 
 function roomLifecycleHookPatterns(hook: RoomLifecycleHookKind): Array<{ rx: RegExp }> {
     return [{ rx: new RegExp(`\\b\\w+\\.${hook}\\s*\\(`, 'm') }];

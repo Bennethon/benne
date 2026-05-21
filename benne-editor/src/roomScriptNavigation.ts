@@ -111,7 +111,7 @@ export async function openDocumentUri(uri: vscode.Uri, preview: boolean, viewCol
     });
 }
 
-/** Scroll to `B.whenEnterRoom` / `B.whenEnterRoomAfterFade` / `B.onUpdate` (or `ctx.` / other qualifier) in `*.room.ts`. */
+/** Scroll to `B.whenLoadedRoom` / `whenEnterRoom` / `whenEnterRoomAfterFade` / `onUpdate` (or `ctx.` / other qualifier) in `*.room.ts`. */
 export async function revealRoomLifecycleHookInDocument(
     scriptUri: vscode.Uri,
     hook: RoomLifecycleHookKind,

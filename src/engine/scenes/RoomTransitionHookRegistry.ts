@@ -8,6 +8,7 @@ type AnyHandler = (ctx: RoomTransitionContext) => void | Promise<void>;
  */
 export class RoomTransitionHookRegistry {
   private readonly byRoomLeave = new Map<string, RoomHandler[]>();
+  private readonly byRoomLoaded = new Map<string, RoomHandler[]>();
   private readonly byRoomEnter = new Map<string, RoomHandler[]>();
   private readonly byRoomAfterFade = new Map<string, RoomHandler[]>();
   private anyLeave: AnyHandler[] = [];
@@ -20,6 +21,10 @@ export class RoomTransitionHookRegistry {
 
   registerRoomEnterRoom(roomId: string, handler: RoomHandler): void {
     this.pushByRoom(this.byRoomEnter, roomId, handler);
+  }
+
+  registerRoomLoadedRoom(roomId: string, handler: RoomHandler): void {
+    this.pushByRoom(this.byRoomLoaded, roomId, handler);
   }
 
   registerRoomEnterRoomAfterFade(roomId: string, handler: RoomHandler): void {
@@ -53,6 +58,10 @@ export class RoomTransitionHookRegistry {
     return this.byRoomEnter.get(String(roomId)) ?? [];
   }
 
+  getLoadedHandlersForRoom(roomId: string): readonly RoomHandler[] {
+    return this.byRoomLoaded.get(String(roomId)) ?? [];
+  }
+
   getAfterFadeHandlersForRoom(roomId: string): readonly RoomHandler[] {
     return this.byRoomAfterFade.get(String(roomId)) ?? [];
   }
@@ -76,6 +85,7 @@ export class RoomTransitionHookRegistry {
   clearPerRoomScriptHooksForRoomId(roomId: string): void {
     const k = String(roomId);
     this.byRoomLeave.delete(k);
+    this.byRoomLoaded.delete(k);
     this.byRoomEnter.delete(k);
     this.byRoomAfterFade.delete(k);
   }

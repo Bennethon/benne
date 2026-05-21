@@ -1094,7 +1094,10 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             }
             const hookRaw = typeof msg.hook === 'string' ? msg.hook : '';
             const hook: RoomLifecycleHookKind | null =
-                hookRaw === 'whenEnterRoom' || hookRaw === 'whenEnterRoomAfterFade' || hookRaw === 'onUpdate'
+                hookRaw === 'whenLoadedRoom' ||
+                hookRaw === 'whenEnterRoom' ||
+                hookRaw === 'whenEnterRoomAfterFade' ||
+                hookRaw === 'onUpdate'
                     ? hookRaw
                     : null;
             if (!hook) {
