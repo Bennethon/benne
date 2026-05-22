@@ -49,7 +49,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 | Inventory row verbs + **`whenUse` / `whenGive`** registrars | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Global verb fallbacks (**`whenGlobalFallback`**, etc.) | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **`whenLeaveRoom`**, **`whenLoadedRoom`**, **`whenEnterRoom`**, **`whenEnterRoomAfterFade`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **`whenLeaveAnyRoom`**, **`whenEnterAnyRoom`**, **`whenEnterAnyRoomAfterFade`** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **`whenLeaveAnyRoom`**, **`whenLoadedAnyRoom`**, **`whenEnterAnyRoom`**, **`whenEnterAnyRoomAfterFade`** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **`whenButtonClick`**, **`whenCheckboxCheck`**, **`whenCheckboxUncheck`**, **`onGuiBuilt`**, **`scene`**, hover, **`B.gui('…').show` / `hide`** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | **`whenChoice`** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | **`cutscene`** / **`cutscene.now`** — see [Cutscene mode](#cutscene-mode) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -551,8 +551,14 @@ interface RoomTransitionContext {
 
 Registry from **`tryGetGlobalRoomHookRegistry()`** — if missing, DEV warns and handlers are **not** wired.
 
-**Load order** — on `B.state.load(...)` room restarts, the room-local hook order is:
-`whenLoadedRoom` → `whenEnterRoom` → fade-in → `whenEnterRoomAfterFade`.
+**Load order** — on `B.state.load(...)` room restarts, the loaded-hook order is:
+`whenLoadedAnyRoom` → `whenLoadedRoom`.
+
+On load, the orchestrator skips both room-local and global enter-phase hooks:
+`whenEnterRoom`, `whenEnterAnyRoom`, `whenEnterRoomAfterFade`, and `whenEnterAnyRoomAfterFade`.
+
+**Non-load order** (`boot`, `preview`, `transition`) — global enter hooks run before room-local hooks in each phase:
+`whenEnterAnyRoom` → `whenEnterRoom`, then after fade `whenEnterAnyRoomAfterFade` → `whenEnterRoomAfterFade`.
 
 ### Room regions — enter / exit
 
@@ -682,6 +688,7 @@ whenInventoryOnVerbTargetUnhandled(
 ): void;
 
 whenLeaveAnyRoom(handler: (ctx: RoomTransitionContext) => void | Promise<void>): void;
+whenLoadedAnyRoom(handler: (ctx: RoomTransitionContext) => void | Promise<void>): void;
 whenEnterAnyRoom(handler: (ctx: RoomTransitionContext) => void | Promise<void>): void;
 whenEnterAnyRoomAfterFade(handler: (ctx: RoomTransitionContext) => void | Promise<void>): void;
 ```
