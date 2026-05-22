@@ -5,12 +5,14 @@ import { readRoomProps } from './gameDiscovery';
 import { ensureRoomVerbHandlerStubForReveal } from './propVerbScaffolding';
 import {
     findCharacterScriptVerbRangeForEventId,
+    findGuiScriptGuiLifecycleHookRangeRobust,
     findInventoryScriptVerbRangeForEventId,
     findRoomScriptRegionHandlerRangeRobust,
     findRoomScriptRoomLifecycleHookRangeRobust,
     findRoomScriptVerbRangeForEventIdRobust,
     findWhenInventoryUsedOnHandlerRangeRobust,
     readConfiguredVerbIdSet,
+    type GuiLifecycleHookKind,
     type RoomLifecycleHookKind
 } from './verbHandlerPresence';
 
@@ -109,6 +111,31 @@ export async function openDocumentUri(uri: vscode.Uri, preview: boolean, viewCol
         preview,
         viewColumn: viewColumn ?? vscode.ViewColumn.Active
     });
+}
+
+/** Scroll to `B.onGuiBuilt` / `onGuiShow` / `onGuiHide` (or `ctx.` / other qualifier) in `*.gui.ts`. */
+export async function revealGuiLifecycleHookInDocument(
+    scriptUri: vscode.Uri,
+    hook: GuiLifecycleHookKind,
+    viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active
+): Promise<boolean> {
+    try {
+        await vscode.workspace.fs.stat(scriptUri);
+    } catch {
+        void vscode.window.showWarningMessage(`Script not found: ${scriptUri.fsPath}`);
+        return false;
+    }
+    const doc = await vscode.workspace.openTextDocument(scriptUri);
+    const text = doc.getText();
+    const br = findGuiScriptGuiLifecycleHookRangeRobust(text, hook);
+    if (br) {
+        return revealSourceRangeInDocument(scriptUri, br.start, br.end, viewColumn);
+    }
+    void vscode.window.showInformationMessage(
+        `Could not find ${hook} in ${path.basename(scriptUri.fsPath)}.`
+    );
+    await revealSourceRangeInDocument(scriptUri, 0, 0, viewColumn);
+    return false;
 }
 
 /** Scroll to `B.whenLoadedRoom` / `whenEnterRoom` / `whenEnterRoomAfterFade` / `onUpdate` (or `ctx.` / other qualifier) in `*.room.ts`. */

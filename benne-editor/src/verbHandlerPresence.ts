@@ -353,6 +353,63 @@ export function roomScriptRegistersRoomLifecycleHook(
     return roomLifecycleHookPatterns(hook).some(({ rx }) => firstMatchIndex(stripped, rx) >= 0);
 }
 
+/** GUI overlay lifecycle hooks on `registerGuiScript` facades (`B.onGuiBuilt`, …). */
+export type GuiLifecycleHookKind = 'onGuiBuilt' | 'onGuiShow' | 'onGuiHide';
+
+function guiLifecycleHookPatterns(hook: GuiLifecycleHookKind): Array<{ rx: RegExp }> {
+    return [{ rx: new RegExp(`\\b\\w+\\.${hook}\\s*\\(`, 'm') }];
+}
+
+export function guiScriptRegistersGuiLifecycleHook(
+    source: string,
+    hook: GuiLifecycleHookKind
+): boolean {
+    const stripped = stripLineAndBlockComments(source);
+    return guiLifecycleHookPatterns(hook).some(({ rx }) => firstMatchIndex(stripped, rx) >= 0);
+}
+
+export function findGuiScriptGuiLifecycleHookRangeRobust(
+    source: string,
+    hook: GuiLifecycleHookKind
+): { start: number; end: number } | null {
+    const patterns = guiLifecycleHookPatterns(hook);
+    const primary = earliestRange(source, patterns);
+    if (primary) {
+        return primary;
+    }
+    const stripped = stripLineAndBlockComments(source);
+    const sec = earliestRange(stripped, patterns);
+    if (!sec) {
+        return null;
+    }
+    const snippet = stripped.slice(sec.start, sec.end);
+    let i = source.indexOf(snippet);
+    if (i >= 0) {
+        return { start: i, end: i + snippet.length };
+    }
+    const firstLine = snippet.trim().split('\n')[0] ?? '';
+    if (firstLine.length < 4) {
+        return null;
+    }
+    i = source.indexOf(firstLine);
+    if (i < 0) {
+        return null;
+    }
+    return { start: i, end: Math.min(source.length, i + snippet.length) };
+}
+
+/** Prefix for Bennescript calls inside `registerGuiScript` (`B.` or `ctx.`). */
+export function benneGuiScriptQualifier(source: string): string {
+    if (/registerGuiScript\s*\(\s*[^,]+,\s*\(\s*\{\s*[^}]*\bB\b[^}]*\}\s*\)\s*=>/.test(source)) {
+        return 'B.';
+    }
+    const m = source.match(/registerGuiScript\s*\(\s*[^,]+,\s*\(\s*(\w+)\s*\)\s*=>/);
+    if (m) {
+        return `${m[1]}.`;
+    }
+    return 'B.';
+}
+
 export function findRoomScriptRoomLifecycleHookRangeRobust(
     source: string,
     hook: RoomLifecycleHookKind

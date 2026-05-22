@@ -174,7 +174,7 @@ function findFirstRegisterGuiScriptCallIndex(source: string): number {
  * Locates `registerGuiScript` for this GUI file: tries each preferred first-arg string (JSON `id`, folder name),
  * then the first non-import call (handles legacy drift, e.g. `inventoryBar.gui.ts` registering `'inventory'`).
  */
-function resolveRegisterGuiScriptCallIndex(source: string, preferredFirstArgs: readonly string[]): number {
+export function resolveRegisterGuiScriptCallIndex(source: string, preferredFirstArgs: readonly string[]): number {
     const seen = new Set<string>();
     for (const raw of preferredFirstArgs) {
         const id = raw?.trim();
@@ -258,6 +258,19 @@ function insertIntoBenneRegisterGuiScriptAtCall(
         }
     }
     return null;
+}
+
+/** Inserts lines before the closing `}` of the `registerGuiScript` callback (first matching registration). */
+export function insertIntoBenneRegisterGuiScript(
+    source: string,
+    preferredFirstArgs: readonly string[],
+    indentedSnippet: string
+): { text: string; start: number; end: number } | null {
+    const callIdx = resolveRegisterGuiScriptCallIndex(source, preferredFirstArgs);
+    if (callIdx < 0) {
+        return null;
+    }
+    return insertIntoBenneRegisterGuiScriptAtCall(source, callIdx, indentedSnippet);
 }
 
 function extractBindingFromRegisterGuiScriptCall(source: string, callIdx: number): string | null {

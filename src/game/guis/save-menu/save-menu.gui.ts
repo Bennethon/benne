@@ -79,6 +79,11 @@ registerGuiScript('save-menu', ({ B }) => {
     });
   });
 
+  B.onGuiShow(() => {
+    refreshSaveList(false);
+    syncNameAndSaveButton(selectedSlotIndex);
+  });
+
   B.whenButtonClick('save-btn', () => {
     const gui = B.gui('save-menu');
     const nameInput = gui.control('save-name');

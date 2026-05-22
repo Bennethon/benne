@@ -35,6 +35,7 @@ import {
     readConfiguredVerbIdSet,
     roomScriptRegistersRegionWhenEnter,
     roomScriptRegistersRegionWhenExit,
+    guiScriptRegistersGuiLifecycleHook,
     roomScriptRegistersRoomLifecycleHook,
     scriptRegistersWhenInventoryUsedOn
 } from './verbHandlerPresence';
@@ -577,6 +578,9 @@ export type InspectorGuiState = {
     controls: InspectorGuiControlCard[];
     /** When set, the matching control card opens and scrolls into view (BENNE tree control selection). */
     expanded: { entity: string; id: string } | null;
+    onGuiBuiltDefined: boolean;
+    onGuiShowDefined: boolean;
+    onGuiHideDefined: boolean;
 };
 
 export type InspectorInventoryAnimationCard = {
@@ -1832,6 +1836,14 @@ async function buildGuiInspectorState(
         }
     }
 
+    const guiScriptUri = vscode.Uri.joinPath(guiJsonUri, '..', `${guiId}.gui.ts`);
+    let guiScriptText = '';
+    try {
+        guiScriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(guiScriptUri));
+    } catch {
+        guiScriptText = '';
+    }
+
     return {
         kind: 'gui',
         rev,
@@ -1846,7 +1858,10 @@ async function buildGuiInspectorState(
         guiSheetTags,
         fontIds,
         controls,
-        expanded: expandedFromGuiPanel(guiJsonUri, guiPanel)
+        expanded: expandedFromGuiPanel(guiJsonUri, guiPanel),
+        onGuiBuiltDefined: guiScriptRegistersGuiLifecycleHook(guiScriptText, 'onGuiBuilt'),
+        onGuiShowDefined: guiScriptRegistersGuiLifecycleHook(guiScriptText, 'onGuiShow'),
+        onGuiHideDefined: guiScriptRegistersGuiLifecycleHook(guiScriptText, 'onGuiHide')
     };
 }
 

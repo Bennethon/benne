@@ -69,6 +69,12 @@ registerGuiScript('load-menu', ({ B }) => {
     });
   });
 
+  /** `onGuiBuilt` runs once per room load; re-read the manifest whenever the menu is opened. */
+  B.onGuiShow(() => {
+    refreshLoadList(false);
+    syncLoadButton(selectedSlotIndex);
+  });
+
   B.whenButtonClick('load-btn', () => {
     if (!getSavesBySlot()[selectedSlotIndex]) return;
 

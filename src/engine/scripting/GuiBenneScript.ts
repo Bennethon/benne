@@ -36,6 +36,7 @@ import {
   createNoopDialogCommandSurface,
 } from './DialogBenneScript.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
+import { getGuiBenneScript } from './registerGuiScript.js';
 
 /**
  * Bennescript facade for `*.gui.ts`: GUI-scoped channels (button clicks, pointer hover per control), `raw`, and `wait`.
@@ -48,6 +49,8 @@ export class GuiBenneScript extends BenneScriptCore {
   readonly state: BenneScriptGameStateNamespace;
   readonly inventory: BenneScriptInventoryNamespace;
   private readonly onGuiBuiltHandlers: Array<(gui: GuiRuntime) => void> = [];
+  private readonly onGuiShowHandlers: Array<(gui: GuiRuntime) => void> = [];
+  private readonly onGuiHideHandlers: Array<(gui: GuiRuntime) => void> = [];
   /** While `onGuiBuilt` handlers run, supports {@link GuiBenneScript.scene}. */
   private activeGuiRuntime: GuiRuntime | null = null;
 
@@ -70,6 +73,15 @@ export class GuiBenneScript extends BenneScriptCore {
         return;
       }
       handle.setVisible(visible);
+      const targetScript = getGuiBenneScript(gid);
+      const rt = rm?.tryGetGuiRuntime(gid);
+      if (targetScript && rt) {
+        if (visible) {
+          targetScript.notifyGuiShown(rt);
+        } else {
+          targetScript.notifyGuiHidden(rt);
+        }
+      }
     };
     return {
       control(controlId: string): ControlFacade {
@@ -207,6 +219,21 @@ export class GuiBenneScript extends BenneScriptCore {
   }
 
   /**
+   * Registers a callback invoked when this GUI overlay becomes visible via {@link BenneScriptGuiOverlayRef.show}
+   * (including `B.gui(this.guiId).show()` from another GUI script). Use to refresh lists that read persisted state.
+   */
+  onGuiShow(callback: (gui: GuiRuntime) => void): void {
+    this.onGuiShowHandlers.push(callback);
+  }
+
+  /**
+   * Registers a callback invoked when this GUI overlay is hidden via {@link BenneScriptGuiOverlayRef.hide}.
+   */
+  onGuiHide(callback: (gui: GuiRuntime) => void): void {
+    this.onGuiHideHandlers.push(callback);
+  }
+
+  /**
    * Queues async work on this GUI script’s interaction tail (same lazy factory semantics as {@link BenneScriptCore}).
    * Used by {@link GuiRuntime} / {@link ControlFacade} tweens.
    */
@@ -229,6 +256,28 @@ export class GuiBenneScript extends BenneScriptCore {
       }
     } finally {
       this.activeGuiRuntime = null;
+    }
+  }
+
+  /** Called from {@link BenneScriptGuiOverlayRef.show} after the overlay is shown. */
+  notifyGuiShown(gui: GuiRuntime): void {
+    for (const handler of this.onGuiShowHandlers) {
+      try {
+        handler(gui);
+      } catch (err) {
+        console.error(`[Benne] Error in onGuiShow handler for GUI "${this.guiId}":`, err);
+      }
+    }
+  }
+
+  /** Called from {@link BenneScriptGuiOverlayRef.hide} after the overlay is hidden. */
+  notifyGuiHidden(gui: GuiRuntime): void {
+    for (const handler of this.onGuiHideHandlers) {
+      try {
+        handler(gui);
+      } catch (err) {
+        console.error(`[Benne] Error in onGuiHide handler for GUI "${this.guiId}":`, err);
+      }
     }
   }
 

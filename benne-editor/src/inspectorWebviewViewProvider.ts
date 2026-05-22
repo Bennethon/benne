@@ -66,10 +66,12 @@ import {
     ensureGuiTextInputSubmitHandlerAndReveal,
     ensureGuiTextInputValueChangedHandlerAndReveal
 } from './guiTextInputScaffolding';
+import { ensureGuiLifecycleHookInGuiScript } from './guiLifecycleScriptScaffolding';
 import { ensureRoomLifecycleHookInRoomScript } from './roomLifecycleScriptScaffolding';
-import type { RoomLifecycleHookKind } from './verbHandlerPresence';
+import type { GuiLifecycleHookKind, RoomLifecycleHookKind } from './verbHandlerPresence';
 import {
     BENNE_SCRIPT_VIEW_COLUMN,
+    revealGuiLifecycleHookInDocument,
     revealRoomLifecycleHookInDocument,
     revealSourceRangeInDocument
 } from './roomScriptNavigation';
@@ -1120,6 +1122,43 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 return;
             }
             await revealRoomLifecycleHookInDocument(scriptUri, hook, BENNE_SCRIPT_VIEW_COLUMN);
+            return;
+        }
+
+        if (msg.action === 'guiLifecycleHook') {
+            if (focusKind !== 'gui') {
+                return;
+            }
+            const guiJsonUriStr = typeof msg.guiJsonUri === 'string' ? msg.guiJsonUri : '';
+            const hookRaw = typeof msg.hook === 'string' ? msg.hook : '';
+            const hook: GuiLifecycleHookKind | null =
+                hookRaw === 'onGuiBuilt' || hookRaw === 'onGuiShow' || hookRaw === 'onGuiHide'
+                    ? hookRaw
+                    : null;
+            if (!hook || uri.toString() !== guiJsonUriStr) {
+                return;
+            }
+            const guiId =
+                typeof msg.guiId === 'string' && msg.guiId.trim().length > 0
+                    ? msg.guiId.trim()
+                    : getGuiIdFromGuiJsonUri(uri);
+            const scriptUri = vscode.Uri.joinPath(uri, '..', `${guiId}.gui.ts`);
+            const r = await ensureGuiLifecycleHookInGuiScript(uri, guiId, hook);
+            if (r.outcome === 'error') {
+                return;
+            }
+            if (r.outcome === 'inserted') {
+                await revealSourceRangeInDocument(
+                    scriptUri,
+                    r.insertedStubRange.start,
+                    r.insertedStubRange.end,
+                    BENNE_SCRIPT_VIEW_COLUMN
+                );
+                this.refreshMainAndActions();
+                await this.pushState();
+                return;
+            }
+            await revealGuiLifecycleHookInDocument(scriptUri, hook, BENNE_SCRIPT_VIEW_COLUMN);
             return;
         }
 

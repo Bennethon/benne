@@ -490,6 +490,9 @@ type InspectorGuiState = {
     fontIds: string[];
     controls: InspectorGuiControlCard[];
     expanded: { entity: string; id: string } | null;
+    onGuiBuiltDefined: boolean;
+    onGuiShowDefined: boolean;
+    onGuiHideDefined: boolean;
 };
 
 type InspectorInventoryAnimationCard = {
@@ -773,6 +776,22 @@ function inspectorItemExpanded(
 ): boolean {
     const ex = state.expanded;
     return !!(ex && ex.entity === entity && ex.id === id);
+}
+
+function renderGuiLifecycleHookRow(state: InspectorGuiState): string {
+    const mk = (hook: 'onGuiBuilt' | 'onGuiShow' | 'onGuiHide', defined: boolean, label: string): string => {
+        const cls = defined ? 'verb-chip verb-defined' : 'verb-chip verb-add';
+        const icon = defined ? '⚡' : '+';
+        const title = defined
+            ? `Reveal ${label} in GUI script`
+            : `Insert ${label} stub in GUI script and focus it`;
+        return `<button type="button" class="${cls}" data-gui-lifecycle="${esc(hook)}" title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(label)}</span></button>`;
+    };
+    return `<div class="benne-gui-lifecycle row wrap" role="group" aria-label="GUI script lifecycle hooks" style="margin-bottom:10px;">
+${mk('onGuiBuilt', state.onGuiBuiltDefined, 'onGuiBuilt')}
+${mk('onGuiShow', state.onGuiShowDefined, 'onGuiShow')}
+${mk('onGuiHide', state.onGuiHideDefined, 'onGuiHide')}
+</div>`;
 }
 
 function renderRoomLifecycleHookRow(state: InspectorRoomState): string {
@@ -2171,6 +2190,7 @@ function renderGui(state: InspectorGuiState): string {
 
     return `<div class="inspector-root">
   <div class="scroll">
+    ${renderGuiLifecycleHookRow(state)}
     <details class="section" open>
       <summary>GUI metadata</summary>
       <div class="section-body">
@@ -3266,6 +3286,19 @@ function collectGridPlacementPatchFromDom(idx: number): Record<string, unknown> 
 }
 
 function mountGuiHandlers(state: InspectorGuiState): void {
+    document.querySelectorAll('.verb-chip[data-gui-lifecycle]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const hook = (btn as HTMLButtonElement).dataset.guiLifecycle ?? '';
+            if (hook === 'onGuiBuilt' || hook === 'onGuiShow' || hook === 'onGuiHide') {
+                post('guiLifecycleHook', {
+                    guiJsonUri: state.guiJsonUri,
+                    guiId: state.guiId,
+                    hook
+                });
+            }
+        });
+    });
+
     const flushMeta = (): void => {
         post('applyPatches', { patches: [collectGuiMeta()] });
     };
