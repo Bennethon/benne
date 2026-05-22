@@ -274,6 +274,21 @@ function inspectorItemExpanded(state, entity, id) {
     const ex = state.expanded;
     return !!(ex && ex.entity === entity && ex.id === id);
 }
+function renderGuiLifecycleHookRow(state) {
+    const mk = (hook, defined, label) => {
+        const cls = defined ? 'verb-chip verb-defined' : 'verb-chip verb-add';
+        const icon = defined ? '⚡' : '+';
+        const title = defined
+            ? `Reveal ${label} in GUI script`
+            : `Insert ${label} stub in GUI script and focus it`;
+        return `<button type="button" class="${cls}" data-gui-lifecycle="${esc(hook)}" title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(label)}</span></button>`;
+    };
+    return `<div class="benne-gui-lifecycle row wrap" role="group" aria-label="GUI script lifecycle hooks" style="margin-bottom:10px;">
+${mk('onGuiBuilt', state.onGuiBuiltDefined, 'onGuiBuilt')}
+${mk('onGuiShow', state.onGuiShowDefined, 'onGuiShow')}
+${mk('onGuiHide', state.onGuiHideDefined, 'onGuiHide')}
+</div>`;
+}
 function renderRoomLifecycleHookRow(state) {
     const mk = (hook, defined, label) => {
         const cls = defined ? 'verb-chip verb-defined' : 'verb-chip verb-add';
@@ -1522,6 +1537,7 @@ function renderGui(state) {
         .join('');
     return `<div class="inspector-root">
   <div class="scroll">
+    ${renderGuiLifecycleHookRow(state)}
     <details class="section" open>
       <summary>GUI metadata</summary>
       <div class="section-body">
@@ -2569,6 +2585,18 @@ function collectGridPlacementPatchFromDom(idx) {
     return { gridPlacement: placement };
 }
 function mountGuiHandlers(state) {
+    document.querySelectorAll('.verb-chip[data-gui-lifecycle]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const hook = btn.dataset.guiLifecycle ?? '';
+            if (hook === 'onGuiBuilt' || hook === 'onGuiShow' || hook === 'onGuiHide') {
+                post('guiLifecycleHook', {
+                    guiJsonUri: state.guiJsonUri,
+                    guiId: state.guiId,
+                    hook
+                });
+            }
+        });
+    });
     const flushMeta = () => {
         post('applyPatches', { patches: [collectGuiMeta()] });
     };
