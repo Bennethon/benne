@@ -101,6 +101,7 @@ src/engine/gui/buildGuiListBox.ts
 src/engine/gui/buildGuiOverlay.ts
 src/engine/gui/buildGuiSlider.ts
 src/engine/gui/buildGuiTextInput.ts
+src/engine/gui/guiButtonRuntime.ts
 src/engine/gui/guiButtonVisualStateScript.ts
 src/engine/gui/guiCheckboxRuntime.ts
 src/engine/gui/guiGridLayout.ts
@@ -186,6 +187,7 @@ src/game/assets/images/guis/dialog/dialog.json
 src/game/assets/images/guis/display-text/display-text.json
 src/game/assets/images/guis/game-menu/game-menu.json
 src/game/assets/images/guis/inventoryBar/inventoryBar.json
+src/game/assets/images/guis/load-menu/load-menu.json
 src/game/assets/images/guis/menu-bar/menu-bar.json
 src/game/assets/images/guis/save-menu/save-menu.json
 src/game/assets/images/guis/settings-menu/settings-menu.json
@@ -218,6 +220,8 @@ src/game/guis/hover-text/hover-text.gui.json
 src/game/guis/hover-text/hover-text.gui.ts
 src/game/guis/inventoryBar/inventoryBar.gui.json
 src/game/guis/inventoryBar/inventoryBar.gui.ts
+src/game/guis/load-menu/load-menu.gui.json
+src/game/guis/load-menu/load-menu.gui.ts
 src/game/guis/menu-bar/menu-bar.gui.json
 src/game/guis/menu-bar/menu-bar.gui.ts
 src/game/guis/save-menu/save-menu.gui.json
@@ -1403,6 +1407,90 @@ export function wireBenneRoomPropTightPlacementAfterFrameChanges(sprite: Phaser.
   };
   sprite.on(Phaser.Animations.Events.ANIMATION_UPDATE, sync);
   sprite.on(Phaser.Animations.Events.ANIMATION_COMPLETE, sync);
+}
+</file>
+
+<file path="src/engine/aseprite/ensureAsepriteAtlasAnimationsOnce.ts">
+import * as Phaser from 'phaser';
+import { applyCharacterAnimationClips } from '../characterAnimationPlayback.js';
+import type { CharacterAnimationsConfig } from '../../types/character.js';
+import type { InventoryItemData } from '../../types/inventory.js';
+import {
+  inventoryPhaserAnimationKeyForTag,
+  usesPerItemInventoryAseprite,
+  usesSharedInventoryAseprite,
+} from '../../game/inventoryAseprite.js';
+import {
+  getInventoryDefinition,
+  getRegisteredInventoryDefinitionIds,
+} from '../inventory/inventoryDefinitionRegistry.js';
+
+const INVENTORY_ATLAS_TEXTURE_PREFIX = 'aseprite:inventory:';
+
+/** Matches {@link buildGuiOverlay} / legacy {@link RoomScene} guard keys. */
+export const BENNE_ASEPRITE_ATLAS_ANIM_REGISTRY_PREFIX = '__benneAsepriteAnims:';
+
+export function buildInventoryAnimationsPhaserKeyed(def: InventoryItemData): CharacterAnimationsConfig | undefined {
+  const raw = def.animations;
+  if (!raw) {
+    return undefined;
+  }
+  const out: CharacterAnimationsConfig = {};
+  for (const [authorTag, clip] of Object.entries(raw)) {
+    const key = inventoryPhaserAnimationKeyForTag(def, authorTag);
+    out[key] = { loop: clip.loop, frameDuration: clip.frameDuration };
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * When `textureKey` is an inventory atlas (`aseprite:inventory:…`), returns merged JSON clip overrides
+ * (`loop`, `frameDuration`) keyed by the Phaser animation keys {@link createFromAseprite} registers.
+ */
+export function resolveInventoryClipOverridesForTexture(textureKey: string): CharacterAnimationsConfig | undefined {
+  if (!textureKey.startsWith(INVENTORY_ATLAS_TEXTURE_PREFIX)) {
+    return undefined;
+  }
+  const rest = textureKey.slice(INVENTORY_ATLAS_TEXTURE_PREFIX.length);
+  if (rest === 'shared') {
+    const out: CharacterAnimationsConfig = {};
+    for (const id of getRegisteredInventoryDefinitionIds()) {
+      const def = getInventoryDefinition(id);
+      if (!def || !usesSharedInventoryAseprite(def)) {
+        continue;
+      }
+      const m = buildInventoryAnimationsPhaserKeyed(def);
+      if (m) {
+        Object.assign(out, m);
+      }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+  const def = getInventoryDefinition(rest);
+  if (!def || !usesPerItemInventoryAseprite(def)) {
+    return undefined;
+  }
+  return buildInventoryAnimationsPhaserKeyed(def);
+}
+
+/**
+ * Runs {@link Phaser.Animations.AnimationManager#createFromAseprite} at most once per `textureKey` per game,
+ * then applies inventory JSON `animations` clip policy when the atlas is an inventory sheet.
+ */
+export function ensureAsepriteAtlasAnimationsRegisteredOnce(scene: Phaser.Scene, textureKey: string): void {
+  if (!scene.textures.exists(textureKey)) {
+    return;
+  }
+  const flagKey = `${BENNE_ASEPRITE_ATLAS_ANIM_REGISTRY_PREFIX}${textureKey}`;
+  if (scene.game.registry.get(flagKey)) {
+    return;
+  }
+  const created = scene.anims.createFromAseprite(textureKey) ?? [];
+  const invClips = resolveInventoryClipOverridesForTexture(textureKey);
+  if (invClips) {
+    applyCharacterAnimationClips(created, invClips);
+  }
+  scene.game.registry.set(flagKey, true);
 }
 </file>
 
@@ -3096,15 +3184,6 @@ export const BENNE_SCREEN_FADE_DEFAULT_COLOR = 0x000000;
 export const BENNE_SCREEN_FADE_OVERLAY_DEPTH = 450_000;
 </file>
 
-<file path="src/engine/scenes/roomStartKindConstants.ts">
-export const BENNE_ROOM_START_KIND_KEY = 'benneRoomStartKind';
-
-/**
- * How the active `RoomScene` was started: shipped boot, runtime `changeTo`, or editor preview.
- */
-export type BenneRoomStartKind = 'boot' | 'transition' | 'preview';
-</file>
-
 <file path="src/engine/scenes/roomTransitionGlobals.ts">
 import * as Phaser from 'phaser';
 import type { GlobalBenneScript } from '../scripting/GlobalBenneScript.js';
@@ -3804,6 +3883,188 @@ export function resolveVerbIdFromPointer(
     return profile.secondaryButtonVerb;
   }
   return null;
+}
+</file>
+
+<file path="src/engine/verbs/verbConfig.ts">
+import type { GameSettings, GameVerbDefinition, VerbInputProfile } from '../../types/game';
+
+/**
+ * Built-in universal walk verb id. Not authored in `game-config.json` `verbs[]` and never shown
+ * as a verb chip in the Inspector. Valid as an `inputProfile` slot value: the pointer resolution
+ * walks the player to the target's stand point instead of dispatching a verb.
+ */
+export const WALK_TO_VERB_ID = 'walkTo';
+
+/**
+ * Default copy for the built-in walk pointer mode when no custom verb is armed
+ * (HUD status lines authored with **`text`** + **`*.gui.ts`**, cursors, etc.).
+ */
+export const WALK_TO_VERB_DISPLAY_LABEL = 'Walk to';
+
+function titleCaseVerbId(id: string): string {
+  if (id.length === 0) {
+    return id;
+  }
+  return id[0]!.toUpperCase() + id.slice(1);
+}
+
+/**
+ * Resolves the short label shown on a GUI verb line: {@link WALK_TO_VERB_DISPLAY_LABEL} when no verb
+ * is active (or the active id is {@link WALK_TO_VERB_ID}); otherwise the configured `verbs[].label`,
+ * or a fallback from id / `preposition`.
+ */
+export function resolveVerbLineDisplayLabel(settings: GameSettings, activeVerbId: string | null): string {
+  const trimmed = activeVerbId?.trim() ?? '';
+  if (trimmed.length === 0 || trimmed === WALK_TO_VERB_ID) {
+    return WALK_TO_VERB_DISPLAY_LABEL;
+  }
+  const defs = getEffectiveVerbDefinitions(settings);
+  const def = defs.find((v) => v.id === trimmed);
+  if (!def) {
+    return titleCaseVerbId(trimmed);
+  }
+  const label = def.label?.trim();
+  if (label && label.length > 0) {
+    return label;
+  }
+  const prep = def.preposition?.trim();
+  if (prep && prep.length > 0) {
+    return `${titleCaseVerbId(def.id)} ${prep}`;
+  }
+  return titleCaseVerbId(def.id);
+}
+
+/**
+ * Leading verb word for triplet lines like “Use **broom** with …”: configured `label`, or else
+ * title-cased `id` — **not** the `preposition` suffix from {@link resolveVerbLineDisplayLabel}.
+ */
+export function resolveVerbLineLeadingVerbWord(settings: GameSettings, activeVerbId: string): string {
+  const trimmed = activeVerbId.trim();
+  if (trimmed.length === 0 || trimmed === WALK_TO_VERB_ID) {
+    return WALK_TO_VERB_DISPLAY_LABEL;
+  }
+  const defs = getEffectiveVerbDefinitions(settings);
+  const def = defs.find((v) => v.id === trimmed);
+  if (!def) {
+    return titleCaseVerbId(trimmed);
+  }
+  const label = def.label?.trim();
+  if (label && label.length > 0) {
+    return label;
+  }
+  return titleCaseVerbId(def.id);
+}
+
+/**
+ * Full verb-line copy: {@link resolveVerbLineDisplayLabel} when idle (no hover), except that an
+ * armed inventory item plus a verb with **`preposition`** keeps **`"<verb word> <item> <preposition>"`**
+ * visible over empty space (e.g. “Use broom with”), then appends the hovered target when present
+ * (“Use broom with pillar”). Otherwise hover appends **`"<verb label> <description>"`** (LucasArts-style).
+ */
+export function composeVerbLineText(
+  settings: GameSettings,
+  activeVerbId: string | null,
+  hoveredObjectDescription: string | null,
+  activeInventoryItemDisplayName?: string | null,
+): string {
+  const desc = hoveredObjectDescription?.trim() ?? '';
+  const trimmedVerb = activeVerbId?.trim() ?? '';
+  const walkMode = trimmedVerb.length === 0 || trimmedVerb === WALK_TO_VERB_ID;
+  const inv = activeInventoryItemDisplayName?.trim() ?? '';
+  const defs = getEffectiveVerbDefinitions(settings);
+  const def = walkMode ? undefined : defs.find((v) => v.id === trimmedVerb);
+  const prep = def?.preposition?.trim() ?? '';
+  const useInventoryPrepLine = !walkMode && prep.length > 0 && inv.length > 0;
+
+  if (desc.length === 0) {
+    if (useInventoryPrepLine) {
+      const verbWord = resolveVerbLineLeadingVerbWord(settings, trimmedVerb);
+      return `${verbWord} ${inv} ${prep}`;
+    }
+    return resolveVerbLineDisplayLabel(settings, activeVerbId);
+  }
+
+  if (walkMode) {
+    return `${WALK_TO_VERB_DISPLAY_LABEL} ${desc}`;
+  }
+  if (useInventoryPrepLine) {
+    const verbWord = resolveVerbLineLeadingVerbWord(settings, trimmedVerb);
+    return `${verbWord} ${inv} ${prep} ${desc}`;
+  }
+  const prefix = resolveVerbLineDisplayLabel(settings, activeVerbId);
+  return `${prefix} ${desc}`;
+}
+
+/**
+ * Reserved literal for `inputProfile` slots: substitute with the clicked target's authored
+ * `defaultVerb` (prop / hotspot / character / inventory item), falling back to `"look"`.
+ */
+export const DEFAULT_VERB_TOKEN = 'defaultVerb';
+
+/** Per-clickable default-verb fallback when the target omits `defaultVerb` in its JSON. */
+export const DEFAULT_VERB_FALLBACK = 'look';
+
+const DEFAULT_VERBS: GameVerbDefinition[] = [
+  { id: 'look', label: 'Look at' },
+  { id: 'use', label: 'Use', preposition: 'with' },
+];
+
+/** Effective verb list: explicit `settings.verbs` or implicit `look` + `use`. */
+export function getEffectiveVerbDefinitions(settings: GameSettings): GameVerbDefinition[] {
+  if (settings.verbs && settings.verbs.length > 0) {
+    return settings.verbs;
+  }
+  return DEFAULT_VERBS;
+}
+
+/**
+ * Two-button input profile. When `inputProfile` is omitted, defaults to
+ * left (primary) → `look`, right (secondary) → `use`.
+ */
+export function getEffectiveInputProfile(settings: GameSettings): VerbInputProfile {
+  const ip = settings.inputProfile;
+  if (ip) {
+    return ip;
+  }
+  return {
+    primaryButtonVerb: 'look',
+    secondaryButtonVerb: 'use',
+  };
+}
+
+/** Verb ids tried for the default **use** verb (aligned with Bennescript `resolveVerbId('use')` candidates). */
+const USE_VERB_ALIAS_CANDIDATES: readonly string[] = ['use', 'interact'];
+
+/**
+ * First configured verb id matching the **use** aliases, or **`"use"`** if none match (same resolution idea as
+ * Bennescript `resolveVerbId('use')`).
+ */
+export function resolveEffectiveUseVerbId(settings: GameSettings): string {
+  const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
+  for (const id of USE_VERB_ALIAS_CANDIDATES) {
+    if (configured.has(id)) {
+      return id;
+    }
+  }
+  return 'use';
+}
+
+/** Verb ids tried for the default **give** verb (aligned with Bennescript `resolveVerbId('give')`). */
+const GIVE_VERB_ALIAS_CANDIDATES: readonly string[] = ['give'];
+
+/**
+ * First configured verb id matching the **give** aliases, or **`"give"`** if none match (same resolution idea as
+ * Bennescript `resolveVerbId('give')`).
+ */
+export function resolveEffectiveGiveVerbId(settings: GameSettings): string {
+  const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
+  for (const id of GIVE_VERB_ALIAS_CANDIDATES) {
+    if (configured.has(id)) {
+      return id;
+    }
+  }
+  return 'give';
 }
 </file>
 
@@ -4695,110 +4956,6 @@ export type GameFontDefinition = GameBitmapFontDefinition;
 export type GameFontsManifest = Record<string, GameFontDefinition>;
 </file>
 
-<file path="src/types/gameState.ts">
-/** Values stored in {@link SerializableBenneGameState.flags}. */
-export type BenneGameStateFlagValue = boolean | number | string;
-
-/** Serializable cross-room game state (v1). */
-export interface SerializableBenneGameState {
-  version: 1;
-  flags: Record<string, BenneGameStateFlagValue>;
-  variables: Record<string, unknown>;
-  /** Item id → quantity (omitted or zero means not carried). */
-  inventory: Record<string, number>;
-  /**
-   * Runtime "use on target" selection (item id). Persisted in save snapshots; omitted or invalid in JSON is treated as null.
-   */
-  activeInventoryItemId?: string | null;
-  /**
-   * Id of the room the player is considered to be in (for saves and room-transition orchestration). Empty string when unknown / not yet set. Omitted in legacy snapshots (treated as `""` / `null` when loaded).
-   */
-  currentRoom?: string;
-  /**
-   * Previous room id when transitioning, or `null` when not applicable. Omitted in legacy saves.
-   */
-  lastRoom?: string | null;
-}
-
-/** Public metadata returned by `B.state.getSaveList()`. */
-export interface SaveMetadata {
-  /** Player-facing save name. */
-  name: string;
-  /** Legacy slot id when the entry originates from `saveToBrowser(slot)` data. */
-  slot?: number;
-  /** Last write/load touch time in epoch milliseconds. */
-  timestamp: number;
-}
-
-/** Internal manifest row persisted in localStorage for named saves. */
-export interface SaveManifestEntry extends SaveMetadata {
-  /**
-   * Storage key for the snapshot payload. For legacy slots this is `benne-save-<slot>`,
-   * for named saves this is `benne-save-v1-<sanitized-name>`.
-   */
-  storageKey: string;
-}
-
-/** Internal manifest payload persisted under `benne-saves-manifest-v1`. */
-export interface SaveManifest {
-  version: 1;
-  saves: SaveManifestEntry[];
-}
-
-export const GAME_STATE_FLAG_CHANGED_EVENT = 'gameState:flagChanged' as const;
-export const GAME_STATE_VARIABLE_CHANGED_EVENT = 'gameState:variableChanged' as const;
-export const GAME_STATE_INVENTORY_CHANGED_EVENT = 'gameState:inventoryChanged' as const;
-export const GAME_STATE_REPLACED_EVENT = 'gameState:replaced' as const;
-export const GAME_STATE_ACTIVE_VERB_CHANGED_EVENT = 'gameState:activeVerbChanged' as const;
-export const GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT =
-  'gameState:activeInventoryItemChanged' as const;
-export const GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT = 'gameState:roomContextChanged' as const;
-
-export interface GameStateFlagChangedPayload {
-  key: string;
-  previousValue?: BenneGameStateFlagValue;
-  value?: BenneGameStateFlagValue;
-}
-
-export interface GameStateVariableChangedPayload {
-  key: string;
-  previousValue?: unknown;
-  value?: unknown;
-}
-
-export interface GameStateInventoryChangedPayload {
-  reason: 'add' | 'remove' | 'clear';
-  itemId?: string;
-  inventory: Record<string, number>;
-}
-
-export interface GameStateReplacedPayload {
-  snapshot: SerializableBenneGameState;
-}
-
-/**
- * Emitted when the runtime "active verb" changes (runtime UI state; not part of the snapshot).
- * `value` is `null` when cleared.
- */
-export interface GameStateActiveVerbChangedPayload {
-  previousValue: string | null;
-  value: string | null;
-}
-
-/** Emitted when the runtime active inventory item (use-on-target) changes. */
-export interface GameStateActiveInventoryItemChangedPayload {
-  itemId: string | null;
-}
-
-/** Emitted when persisted room context (`currentRoom` / `lastRoom`) changes. */
-export interface GameStateRoomContextChangedPayload {
-  currentRoom: string;
-  lastRoom: string | null;
-  previousCurrentRoom: string;
-  previousLastRoom: string | null;
-}
-</file>
-
 <file path="src/types/inventory.ts">
 export interface InventoryItemData {
   id: string;
@@ -5347,6 +5504,252 @@ async function queueCharacterLoads(
         zIndex: inst.zIndex,
     });
 }
+</file>
+
+<file path="src/editor/preview/guiEditorMain.ts">
+import type { Game } from 'phaser';
+import {
+  collectFontLoadsForGui,
+  guiHasGridControls,
+  guiHasImageControls,
+  guiHasTextControls,
+} from '../../game/collectFontLoadsForGui';
+import gameFontsManifest from '../../game/assets/fonts/fonts.json';
+import {
+  getAsepriteAssetPaths,
+  getAsepriteTextureKey,
+  usesAsepriteDisplay,
+} from '../../game/guiAseprite';
+import {
+  sharedInventoryAssetPaths,
+  sharedInventoryTextureKey,
+} from '../../game/inventoryAseprite';
+import { prefixGuiAsepriteFrameTags } from '../../game/loadAsepriteAtlasData';
+import { normalizeAsepriteJsonForPhaser } from '../../game/normalizeAsepriteJson';
+import type { GameFontsManifest } from '../../types/fonts';
+import type { GameSettingsInitialGameState } from '../../types/game';
+import type { GuiData, GuiInventoryPanelControl } from '../../types/gui';
+import { createGuiPreviewPhaserGame, type GuiPreviewGamePayload } from './createGuiPreviewGame';
+import { registerInventoryDefinitionsFromGame } from '../../game/registerInventoryDefinitions';
+import { joinGameWebviewUri } from './previewUrls';
+
+registerInventoryDefinitionsFromGame();
+
+declare function acquireVsCodeApi(): { postMessage(data: unknown): void };
+
+let vscodeApi: ReturnType<typeof acquireVsCodeApi> | null = null;
+let game: Game | null = null;
+
+try {
+  vscodeApi = acquireVsCodeApi();
+} catch {
+  /* not inside a VS Code webview */
+}
+
+function destroyPreviewGame(): void {
+  if (game) {
+    game.destroy(true);
+    game = null;
+  }
+}
+
+async function fetchJson(url: string): Promise<Record<string, unknown>> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`GET ${url} → ${res.status}`);
+  }
+  return res.json() as Promise<Record<string, unknown>>;
+}
+
+function guiHasInventoryPanel(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c): c is GuiInventoryPanelControl => c.type === 'inventoryPanel');
+}
+
+function ensureSharedInventoryTagPrefixes(normalized: Record<string, unknown>): void {
+  const meta = normalized.meta;
+  if (!meta || typeof meta !== 'object') {
+    return;
+  }
+  const frameTags = (meta as { frameTags?: { name: string }[] }).frameTags;
+  if (!Array.isArray(frameTags)) {
+    return;
+  }
+  for (const tag of frameTags) {
+    if (tag && typeof tag.name === 'string' && tag.name.length > 0 && !tag.name.startsWith('inventory:')) {
+      tag.name = `inventory:${tag.name}`;
+    }
+  }
+}
+
+function initialInventoryHasStartingItems(
+  inventory: GameSettingsInitialGameState['inventory'] | undefined,
+): boolean {
+  if (inventory == null) {
+    return false;
+  }
+  if (Array.isArray(inventory)) {
+    return inventory.length > 0;
+  }
+  return Object.keys(inventory).length > 0;
+}
+
+async function runLoadGui(msg: {
+  gui: GuiData;
+  guiId: string;
+  gameSrcWebviewUri: string;
+  guiJsonUri: string;
+}): Promise<void> {
+  const root = document.getElementById('benne-gui-preview-root');
+  if (!root) {
+    return;
+  }
+  root.innerHTML = '';
+  destroyPreviewGame();
+
+  let internalWidth = 352;
+  let internalHeight = 198;
+  let previewInitialGameState: GameSettingsInitialGameState | undefined;
+  try {
+    const configUrl = joinGameWebviewUri(msg.gameSrcWebviewUri, 'game-config.json');
+    const cfg = await fetchJson(configUrl);
+    const res = cfg.resolution as { width?: unknown; height?: unknown } | undefined;
+    if (res && typeof res.width === 'number' && typeof res.height === 'number') {
+      internalWidth = res.width;
+      internalHeight = res.height;
+    }
+    const init = cfg.initialGameState;
+    if (init && typeof init === 'object' && !Array.isArray(init)) {
+      previewInitialGameState = init as GameSettingsInitialGameState;
+    }
+  } catch {
+    /* defaults */
+  }
+
+  const hasText = guiHasTextControls(msg.gui);
+  const hasInventoryPanel = guiHasInventoryPanel(msg.gui);
+  const hasImage = guiHasImageControls(msg.gui);
+  const wantsAseprite = usesAsepriteDisplay(msg.gui);
+
+  const hasGrid = guiHasGridControls(msg.gui);
+  if (!hasText && !hasInventoryPanel && !wantsAseprite && !hasImage && !hasGrid) {
+    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code>, at least one <code>text</code>, <code>image</code>, <code>nineSliceImage</code>, <code>inventoryPanel</code>, or <code>grid</code> control in <code>controls</code>.</div>`;
+    return;
+  }
+
+  const assetsBase = joinGameWebviewUri(msg.gameSrcWebviewUri, 'assets');
+  const manifest = gameFontsManifest as GameFontsManifest;
+  const fontLoads = collectFontLoadsForGui(msg.gui, manifest, (rel) =>
+    joinGameWebviewUri(assetsBase, rel),
+  );
+
+  let aseprite: GuiPreviewGamePayload['aseprite'] = null;
+  /** Same JSON as on disk — nine-slice reads meta.slices (preview bundles often lack the globbed module map). */
+  let previewGuiAsepriteSheetJson: Record<string, unknown> | undefined;
+  const revokeObjectUrls: string[] = [];
+  let asepriteError: string | null = null;
+
+  if (wantsAseprite) {
+    const paths = getAsepriteAssetPaths(msg.guiId);
+    const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
+    const jsonUrl = joinGameWebviewUri(assetsBase, paths.json);
+
+    try {
+      const raw = await fetchJson(jsonUrl);
+      previewGuiAsepriteSheetJson = raw;
+      const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+      prefixGuiAsepriteFrameTags(norm, msg.guiId);
+      const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
+      const atlasURL = URL.createObjectURL(blob);
+      revokeObjectUrls.push(atlasURL);
+      aseprite = {
+        textureKey: getAsepriteTextureKey(msg.guiId),
+        textureURL: pngUrl,
+        atlasURL,
+      };
+    } catch (e) {
+      asepriteError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  if (!aseprite && !hasText && !hasInventoryPanel) {
+    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">Could not load sheet: ${asepriteError ?? 'unknown error'}</div>`;
+    return;
+  }
+
+  if (wantsAseprite && !aseprite && (hasText || hasInventoryPanel)) {
+    console.warn('[BENNE GUI preview] Aseprite sheet unavailable; showing available controls only.', asepriteError);
+  }
+
+  let sharedInventoryAseprite: GuiPreviewGamePayload['sharedInventoryAseprite'] = null;
+  if (
+    hasInventoryPanel &&
+    initialInventoryHasStartingItems(previewInitialGameState?.inventory)
+  ) {
+    try {
+      const paths = sharedInventoryAssetPaths();
+      const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
+      const jsonUrl = joinGameWebviewUri(assetsBase, paths.json);
+      const raw = await fetchJson(jsonUrl);
+      const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
+      ensureSharedInventoryTagPrefixes(norm);
+      const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
+      const atlasURL = URL.createObjectURL(blob);
+      revokeObjectUrls.push(atlasURL);
+      sharedInventoryAseprite = {
+        textureKey: sharedInventoryTextureKey,
+        textureURL: pngUrl,
+        atlasURL,
+      };
+    } catch (e) {
+      console.warn(
+        '[BENNE GUI preview] Could not load shared inventory sheet; inventory HUD icons may use placeholders.',
+        e,
+      );
+    }
+  }
+
+  const inner = document.createElement('div');
+  inner.style.cssText = 'position:relative;width:100%;height:100%;min-height:180px;';
+  root.appendChild(inner);
+
+  const payload: GuiPreviewGamePayload = {
+    guiData: msg.gui,
+    fontLoads,
+    internalWidth,
+    internalHeight,
+    revokeObjectUrls,
+    previewGuiAsepriteSheetJson,
+    aseprite,
+    previewInitialGameState,
+    sharedInventoryAseprite,
+  };
+
+  game = createGuiPreviewPhaserGame(inner, payload);
+}
+
+window.addEventListener('message', (event: MessageEvent) => {
+  const msg = event.data as { type?: string };
+  if (msg?.type === 'benne/guiPreview/loadGui') {
+    const m = event.data as {
+      type: string;
+      gui: GuiData;
+      guiId: string;
+      gameSrcWebviewUri: string;
+      guiJsonUri: string;
+    };
+    void runLoadGui(m);
+    return;
+  }
+  if (msg?.type === 'benne/guiPreview/clear') {
+    destroyPreviewGame();
+    const root = document.getElementById('benne-gui-preview-root');
+    if (root) {
+      root.innerHTML = '';
+    }
+  }
+});
+
+vscodeApi?.postMessage({ type: 'benne/guiPreview/ready' });
 </file>
 
 <file path="src/editor/preview/guiVisibilityBridge.ts">
@@ -6878,90 +7281,6 @@ export class RoomPolygonEditScene extends Phaser.Scene {
 }
 </file>
 
-<file path="src/engine/aseprite/ensureAsepriteAtlasAnimationsOnce.ts">
-import * as Phaser from 'phaser';
-import { applyCharacterAnimationClips } from '../characterAnimationPlayback.js';
-import type { CharacterAnimationsConfig } from '../../types/character.js';
-import type { InventoryItemData } from '../../types/inventory.js';
-import {
-  inventoryPhaserAnimationKeyForTag,
-  usesPerItemInventoryAseprite,
-  usesSharedInventoryAseprite,
-} from '../../game/inventoryAseprite.js';
-import {
-  getInventoryDefinition,
-  getRegisteredInventoryDefinitionIds,
-} from '../inventory/inventoryDefinitionRegistry.js';
-
-const INVENTORY_ATLAS_TEXTURE_PREFIX = 'aseprite:inventory:';
-
-/** Matches {@link buildGuiOverlay} / legacy {@link RoomScene} guard keys. */
-export const BENNE_ASEPRITE_ATLAS_ANIM_REGISTRY_PREFIX = '__benneAsepriteAnims:';
-
-export function buildInventoryAnimationsPhaserKeyed(def: InventoryItemData): CharacterAnimationsConfig | undefined {
-  const raw = def.animations;
-  if (!raw) {
-    return undefined;
-  }
-  const out: CharacterAnimationsConfig = {};
-  for (const [authorTag, clip] of Object.entries(raw)) {
-    const key = inventoryPhaserAnimationKeyForTag(def, authorTag);
-    out[key] = { loop: clip.loop, frameDuration: clip.frameDuration };
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
-/**
- * When `textureKey` is an inventory atlas (`aseprite:inventory:…`), returns merged JSON clip overrides
- * (`loop`, `frameDuration`) keyed by the Phaser animation keys {@link createFromAseprite} registers.
- */
-export function resolveInventoryClipOverridesForTexture(textureKey: string): CharacterAnimationsConfig | undefined {
-  if (!textureKey.startsWith(INVENTORY_ATLAS_TEXTURE_PREFIX)) {
-    return undefined;
-  }
-  const rest = textureKey.slice(INVENTORY_ATLAS_TEXTURE_PREFIX.length);
-  if (rest === 'shared') {
-    const out: CharacterAnimationsConfig = {};
-    for (const id of getRegisteredInventoryDefinitionIds()) {
-      const def = getInventoryDefinition(id);
-      if (!def || !usesSharedInventoryAseprite(def)) {
-        continue;
-      }
-      const m = buildInventoryAnimationsPhaserKeyed(def);
-      if (m) {
-        Object.assign(out, m);
-      }
-    }
-    return Object.keys(out).length > 0 ? out : undefined;
-  }
-  const def = getInventoryDefinition(rest);
-  if (!def || !usesPerItemInventoryAseprite(def)) {
-    return undefined;
-  }
-  return buildInventoryAnimationsPhaserKeyed(def);
-}
-
-/**
- * Runs {@link Phaser.Animations.AnimationManager#createFromAseprite} at most once per `textureKey` per game,
- * then applies inventory JSON `animations` clip policy when the atlas is an inventory sheet.
- */
-export function ensureAsepriteAtlasAnimationsRegisteredOnce(scene: Phaser.Scene, textureKey: string): void {
-  if (!scene.textures.exists(textureKey)) {
-    return;
-  }
-  const flagKey = `${BENNE_ASEPRITE_ATLAS_ANIM_REGISTRY_PREFIX}${textureKey}`;
-  if (scene.game.registry.get(flagKey)) {
-    return;
-  }
-  const created = scene.anims.createFromAseprite(textureKey) ?? [];
-  const invClips = resolveInventoryClipOverridesForTexture(textureKey);
-  if (invClips) {
-    applyCharacterAnimationClips(created, invClips);
-  }
-  scene.game.registry.set(flagKey, true);
-}
-</file>
-
 <file path="src/engine/characterFeet.ts">
 import type { CharacterData } from '../types/character';
 
@@ -7865,48 +8184,6 @@ export function incrementRoomVisitCount(manager: GameStateManager, roomId: strin
   const next = getRoomVisitCount(manager, roomId) + 1;
   manager.setVariable(key, next);
   return next;
-}
-</file>
-
-<file path="src/engine/gameState/snapshotFlushHooks.ts">
-/**
- * Pull-up registry for **lazy** runtime → game-state writes.
- *
- * Most engine state (visibility, alpha, animation overrides, flags, variables) is written
- * **eagerly** into {@link import('./GameStateManager.js').GameStateManager} on every change,
- * so its snapshot is always in sync. A few fields (notably **character / prop positions**)
- * are too noisy to write per-tick during walks, so they live on the live Phaser sprites and
- * only get pulled into game state when something asks for an authoritative snapshot.
- *
- * Hooks fire on:
- * - **Room transition leave** — {@link import('../scenes/RoomTransitionOrchestrator.js').RoomTransitionOrchestrator}
- *   calls {@link runSnapshotFlushHooks} before tearing the active room scene down.
- * - **Snapshot creation** — {@link import('./GameStateManager.js').GameStateManager.getSnapshot}
- *   runs hooks before cloning state, so {@link import('./GameStateManager.js').GameStateManager.saveToLocalStorage}
- *   and {@link import('./GameStateManager.js').GameStateManager.exportSnapshotJson} both pick them up.
- * - **`B.state.flush()`** — explicit script-level save point.
- *
- * Hooks register on scene `create` and unregister on scene `shutdown` (or equivalent).
- * Failures in a single hook are logged but do not break other hooks or `getSnapshot` itself —
- * saves are sacred.
- */
-const flushHooks: Set<() => void> = new Set();
-
-export function registerSnapshotFlushHook(hook: () => void): () => void {
-  flushHooks.add(hook);
-  return () => {
-    flushHooks.delete(hook);
-  };
-}
-
-export function runSnapshotFlushHooks(): void {
-  for (const hook of flushHooks) {
-    try {
-      hook();
-    } catch (err) {
-      console.error('[Benne] snapshot flush hook threw:', err);
-    }
-  }
 }
 </file>
 
@@ -9039,6 +9316,25 @@ export function buildGuiTextInput(
 }
 </file>
 
+<file path="src/engine/gui/guiButtonRuntime.ts">
+import type * as Phaser from 'phaser';
+
+/** Stored on GUI button hit containers (`buildGuiButton`). */
+export const BENNE_GUI_BUTTON_DATA_KEY = 'benneGuiButton';
+
+export const BENNE_GUI_BUTTON_SET_ENABLED_DATA_KEY = 'benneGuiButtonSetEnabled';
+export const BENNE_GUI_BUTTON_READ_ENABLED_DATA_KEY = 'benneGuiButtonReadEnabled';
+
+export type BenneGuiButtonSetEnabledFn = (enabled: boolean) => void;
+
+export function benneGuiButtonReadEnabled(
+  hitTarget: Phaser.GameObjects.Container,
+): boolean | undefined {
+  const raw = hitTarget.getData(BENNE_GUI_BUTTON_READ_ENABLED_DATA_KEY);
+  return typeof raw === 'function' ? (raw as () => boolean)() : undefined;
+}
+</file>
+
 <file path="src/engine/gui/guiButtonVisualStateScript.ts">
 import type { BenneGuiScriptButtonVisualState } from '../../types/gui';
 
@@ -9900,115 +10196,14 @@ export function benneMakeApplyLighting(disable?: boolean): BenneShaderAddition {
 }
 </file>
 
-<file path="src/engine/scenes/RoomTransitionHookRegistry.ts">
-import type { RoomTransitionContext } from '../../types/roomTransition.js';
-
-type RoomHandler = (ctx: RoomTransitionContext) => void | Promise<void>;
-type AnyHandler = (ctx: RoomTransitionContext) => void | Promise<void>;
+<file path="src/engine/scenes/roomStartKindConstants.ts">
+export const BENNE_ROOM_START_KIND_KEY = 'benneRoomStartKind';
 
 /**
- * All room-transition hooks (per-room and global) live here so {@link import('./RoomTransitionOrchestrator.js').RoomTransitionOrchestrator} can run them in order.
+ * How the active `RoomScene` was started: shipped boot, runtime `changeTo`, save-game load,
+ * or editor preview.
  */
-export class RoomTransitionHookRegistry {
-  private readonly byRoomLeave = new Map<string, RoomHandler[]>();
-  private readonly byRoomEnter = new Map<string, RoomHandler[]>();
-  private readonly byRoomAfterFade = new Map<string, RoomHandler[]>();
-  private anyLeave: AnyHandler[] = [];
-  private anyEnter: AnyHandler[] = [];
-  private anyAfterFade: AnyHandler[] = [];
-
-  registerRoomLeaveRoom(roomId: string, handler: RoomHandler): void {
-    this.pushByRoom(this.byRoomLeave, roomId, handler);
-  }
-
-  registerRoomEnterRoom(roomId: string, handler: RoomHandler): void {
-    this.pushByRoom(this.byRoomEnter, roomId, handler);
-  }
-
-  registerRoomEnterRoomAfterFade(roomId: string, handler: RoomHandler): void {
-    this.pushByRoom(this.byRoomAfterFade, roomId, handler);
-  }
-
-  whenLeaveAnyRoom(handler: AnyHandler): void {
-    this.anyLeave.push(handler);
-  }
-
-  whenEnterAnyRoom(handler: AnyHandler): void {
-    this.anyEnter.push(handler);
-  }
-
-  whenEnterAnyRoomAfterFade(handler: AnyHandler): void {
-    this.anyAfterFade.push(handler);
-  }
-
-  private pushByRoom(m: Map<string, RoomHandler[]>, roomId: string, h: RoomHandler): void {
-    const k = String(roomId);
-    const a = m.get(k) ?? [];
-    a.push(h);
-    m.set(k, a);
-  }
-
-  getLeaveHandlersForRoom(roomId: string): readonly RoomHandler[] {
-    return this.byRoomLeave.get(String(roomId)) ?? [];
-  }
-
-  getEnterHandlersForRoom(roomId: string): readonly RoomHandler[] {
-    return this.byRoomEnter.get(String(roomId)) ?? [];
-  }
-
-  getAfterFadeHandlersForRoom(roomId: string): readonly RoomHandler[] {
-    return this.byRoomAfterFade.get(String(roomId)) ?? [];
-  }
-
-  getAnyLeave(): readonly AnyHandler[] {
-    return this.anyLeave;
-  }
-
-  getAnyEnter(): readonly AnyHandler[] {
-    return this.anyEnter;
-  }
-
-  getAnyAfterFade(): readonly AnyHandler[] {
-    return this.anyAfterFade;
-  }
-
-  /**
-   * Clears per-room hooks so `registerRoomScript` can re-register (each `RoomScene` `create` runs
-   * the same `*.room.ts` again).
-   */
-  clearPerRoomScriptHooksForRoomId(roomId: string): void {
-    const k = String(roomId);
-    this.byRoomLeave.delete(k);
-    this.byRoomEnter.delete(k);
-    this.byRoomAfterFade.delete(k);
-  }
-}
-
-export async function runRoomHandlersSeq(
-  handlers: readonly ((ctx: RoomTransitionContext) => void | Promise<void>)[],
-  ctx: RoomTransitionContext,
-): Promise<void> {
-  for (const h of handlers) {
-    await Promise.resolve(h(ctx));
-  }
-}
-
-/**
- * Invokes each handler in order; an error in one does not skip the rest (used for enter / after-fade hooks).
- */
-export async function runRoomHandlersEachSafe(
-  handlers: readonly ((ctx: RoomTransitionContext) => void | Promise<void>)[],
-  ctx: RoomTransitionContext,
-  logLabel: string,
-): Promise<void> {
-  for (let i = 0; i < handlers.length; i += 1) {
-    try {
-      await Promise.resolve(handlers[i]!(ctx));
-    } catch (e) {
-      console.error(`[Benne] ${logLabel} handler #${i} failed:`, e);
-    }
-  }
-}
+export type BenneRoomStartKind = 'boot' | 'transition' | 'load' | 'preview';
 </file>
 
 <file path="src/engine/scripting/benneDialogSettingsScriptSurface.ts">
@@ -10264,6 +10459,95 @@ export function defaultRoomChangeToNow(this: void, roomId: string): void {
  */
 export function bindRoomFacadeForBenneScriptCore(chain: ChainFn): BenneScriptRoomFacade {
   return createBenneScriptRoomFacade(chain, defaultRoomChangeToNow);
+}
+</file>
+
+<file path="src/engine/scripting/benneVerbContextScriptSurface.ts">
+import * as Phaser from 'phaser';
+import {
+  GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
+  GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
+} from '../../types/gameState.js';
+import type { VerbHoverTarget } from '../../types/verbContext.js';
+
+/** Event id for **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, …)`**. */
+export const BENNE_VERB_CONTEXT_CHANGED_EVENT = 'benne:verbContextChanged' as const;
+
+/** Listeners subscribe with **`BENNE_VERB_CONTEXT_CHANGED_EVENT`**. The room scene clears them on shutdown so GUI **`onGuiBuilt`** can **`on`** each load without stacking. */
+const emitter = new Phaser.Events.EventEmitter();
+
+let hoverDescriptionScript: string | null = null;
+let hoverTargetScript: VerbHoverTarget | null = null;
+
+function targetsEqual(a: VerbHoverTarget | null, b: VerbHoverTarget | null): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (a == null || b == null) {
+    return false;
+  }
+  return (
+    a.description === b.description &&
+    a.targetType === b.targetType &&
+    a.targetId === b.targetId &&
+    a.itemId === b.itemId &&
+    a.defaultVerb === b.defaultVerb
+  );
+}
+
+export function emitBenneVerbContextChanged(): void {
+  emitter.emit(BENNE_VERB_CONTEXT_CHANGED_EVENT);
+}
+
+export function publishBenneVerbHoverContext(
+  description: string | null,
+  target: VerbHoverTarget | null,
+): void {
+  if (hoverDescriptionScript === description && targetsEqual(hoverTargetScript, target)) {
+    return;
+  }
+  hoverDescriptionScript = description;
+  hoverTargetScript = target;
+  emitter.emit(BENNE_VERB_CONTEXT_CHANGED_EVENT);
+}
+
+export function clearBenneVerbHoverContext(): void {
+  publishBenneVerbHoverContext(null, null);
+}
+
+export function getBenneVerbContextHoverDescription(): string | null {
+  return hoverDescriptionScript;
+}
+
+export function getBenneVerbContextHoverTarget(): VerbHoverTarget | null {
+  return hoverTargetScript;
+}
+
+export function getBenneVerbContextChangedEmitter(): Phaser.Events.EventEmitter {
+  return emitter;
+}
+
+const relayCleanups = new Map<Phaser.Events.EventEmitter, () => void>();
+
+/** Subscribe on the same `EventEmitter` passed into `GameStateManager` (global `gameEvents` in-game, `game.events` in GUI preview). */
+export function wireBenneVerbContextGameStateRelay(events: Phaser.Events.EventEmitter): void {
+  if (relayCleanups.has(events)) {
+    return;
+  }
+  const fn = (): void => {
+    emitBenneVerbContextChanged();
+  };
+  events.on(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, fn);
+  events.on(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, fn);
+  relayCleanups.set(events, () => {
+    events.off(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, fn);
+    events.off(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, fn);
+    relayCleanups.delete(events);
+  });
+}
+
+export function unwireBenneVerbContextGameStateRelay(events: Phaser.Events.EventEmitter): void {
+  relayCleanups.get(events)?.();
 }
 </file>
 
@@ -10776,188 +11060,6 @@ export function shouldDropActiveInventoryOnUse(itemId: string): boolean {
 }
 </file>
 
-<file path="src/engine/verbs/verbConfig.ts">
-import type { GameSettings, GameVerbDefinition, VerbInputProfile } from '../../types/game';
-
-/**
- * Built-in universal walk verb id. Not authored in `game-config.json` `verbs[]` and never shown
- * as a verb chip in the Inspector. Valid as an `inputProfile` slot value: the pointer resolution
- * walks the player to the target's stand point instead of dispatching a verb.
- */
-export const WALK_TO_VERB_ID = 'walkTo';
-
-/**
- * Default copy for the built-in walk pointer mode when no custom verb is armed
- * (HUD status lines authored with **`text`** + **`*.gui.ts`**, cursors, etc.).
- */
-export const WALK_TO_VERB_DISPLAY_LABEL = 'Walk to';
-
-function titleCaseVerbId(id: string): string {
-  if (id.length === 0) {
-    return id;
-  }
-  return id[0]!.toUpperCase() + id.slice(1);
-}
-
-/**
- * Resolves the short label shown on a GUI verb line: {@link WALK_TO_VERB_DISPLAY_LABEL} when no verb
- * is active (or the active id is {@link WALK_TO_VERB_ID}); otherwise the configured `verbs[].label`,
- * or a fallback from id / `preposition`.
- */
-export function resolveVerbLineDisplayLabel(settings: GameSettings, activeVerbId: string | null): string {
-  const trimmed = activeVerbId?.trim() ?? '';
-  if (trimmed.length === 0 || trimmed === WALK_TO_VERB_ID) {
-    return WALK_TO_VERB_DISPLAY_LABEL;
-  }
-  const defs = getEffectiveVerbDefinitions(settings);
-  const def = defs.find((v) => v.id === trimmed);
-  if (!def) {
-    return titleCaseVerbId(trimmed);
-  }
-  const label = def.label?.trim();
-  if (label && label.length > 0) {
-    return label;
-  }
-  const prep = def.preposition?.trim();
-  if (prep && prep.length > 0) {
-    return `${titleCaseVerbId(def.id)} ${prep}`;
-  }
-  return titleCaseVerbId(def.id);
-}
-
-/**
- * Leading verb word for triplet lines like “Use **broom** with …”: configured `label`, or else
- * title-cased `id` — **not** the `preposition` suffix from {@link resolveVerbLineDisplayLabel}.
- */
-export function resolveVerbLineLeadingVerbWord(settings: GameSettings, activeVerbId: string): string {
-  const trimmed = activeVerbId.trim();
-  if (trimmed.length === 0 || trimmed === WALK_TO_VERB_ID) {
-    return WALK_TO_VERB_DISPLAY_LABEL;
-  }
-  const defs = getEffectiveVerbDefinitions(settings);
-  const def = defs.find((v) => v.id === trimmed);
-  if (!def) {
-    return titleCaseVerbId(trimmed);
-  }
-  const label = def.label?.trim();
-  if (label && label.length > 0) {
-    return label;
-  }
-  return titleCaseVerbId(def.id);
-}
-
-/**
- * Full verb-line copy: {@link resolveVerbLineDisplayLabel} when idle (no hover), except that an
- * armed inventory item plus a verb with **`preposition`** keeps **`"<verb word> <item> <preposition>"`**
- * visible over empty space (e.g. “Use broom with”), then appends the hovered target when present
- * (“Use broom with pillar”). Otherwise hover appends **`"<verb label> <description>"`** (LucasArts-style).
- */
-export function composeVerbLineText(
-  settings: GameSettings,
-  activeVerbId: string | null,
-  hoveredObjectDescription: string | null,
-  activeInventoryItemDisplayName?: string | null,
-): string {
-  const desc = hoveredObjectDescription?.trim() ?? '';
-  const trimmedVerb = activeVerbId?.trim() ?? '';
-  const walkMode = trimmedVerb.length === 0 || trimmedVerb === WALK_TO_VERB_ID;
-  const inv = activeInventoryItemDisplayName?.trim() ?? '';
-  const defs = getEffectiveVerbDefinitions(settings);
-  const def = walkMode ? undefined : defs.find((v) => v.id === trimmedVerb);
-  const prep = def?.preposition?.trim() ?? '';
-  const useInventoryPrepLine = !walkMode && prep.length > 0 && inv.length > 0;
-
-  if (desc.length === 0) {
-    if (useInventoryPrepLine) {
-      const verbWord = resolveVerbLineLeadingVerbWord(settings, trimmedVerb);
-      return `${verbWord} ${inv} ${prep}`;
-    }
-    return resolveVerbLineDisplayLabel(settings, activeVerbId);
-  }
-
-  if (walkMode) {
-    return `${WALK_TO_VERB_DISPLAY_LABEL} ${desc}`;
-  }
-  if (useInventoryPrepLine) {
-    const verbWord = resolveVerbLineLeadingVerbWord(settings, trimmedVerb);
-    return `${verbWord} ${inv} ${prep} ${desc}`;
-  }
-  const prefix = resolveVerbLineDisplayLabel(settings, activeVerbId);
-  return `${prefix} ${desc}`;
-}
-
-/**
- * Reserved literal for `inputProfile` slots: substitute with the clicked target's authored
- * `defaultVerb` (prop / hotspot / character / inventory item), falling back to `"look"`.
- */
-export const DEFAULT_VERB_TOKEN = 'defaultVerb';
-
-/** Per-clickable default-verb fallback when the target omits `defaultVerb` in its JSON. */
-export const DEFAULT_VERB_FALLBACK = 'look';
-
-const DEFAULT_VERBS: GameVerbDefinition[] = [
-  { id: 'look', label: 'Look at' },
-  { id: 'use', label: 'Use', preposition: 'with' },
-];
-
-/** Effective verb list: explicit `settings.verbs` or implicit `look` + `use`. */
-export function getEffectiveVerbDefinitions(settings: GameSettings): GameVerbDefinition[] {
-  if (settings.verbs && settings.verbs.length > 0) {
-    return settings.verbs;
-  }
-  return DEFAULT_VERBS;
-}
-
-/**
- * Two-button input profile. When `inputProfile` is omitted, defaults to
- * left (primary) → `look`, right (secondary) → `use`.
- */
-export function getEffectiveInputProfile(settings: GameSettings): VerbInputProfile {
-  const ip = settings.inputProfile;
-  if (ip) {
-    return ip;
-  }
-  return {
-    primaryButtonVerb: 'look',
-    secondaryButtonVerb: 'use',
-  };
-}
-
-/** Verb ids tried for the default **use** verb (aligned with Bennescript `resolveVerbId('use')` candidates). */
-const USE_VERB_ALIAS_CANDIDATES: readonly string[] = ['use', 'interact'];
-
-/**
- * First configured verb id matching the **use** aliases, or **`"use"`** if none match (same resolution idea as
- * Bennescript `resolveVerbId('use')`).
- */
-export function resolveEffectiveUseVerbId(settings: GameSettings): string {
-  const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
-  for (const id of USE_VERB_ALIAS_CANDIDATES) {
-    if (configured.has(id)) {
-      return id;
-    }
-  }
-  return 'use';
-}
-
-/** Verb ids tried for the default **give** verb (aligned with Bennescript `resolveVerbId('give')`). */
-const GIVE_VERB_ALIAS_CANDIDATES: readonly string[] = ['give'];
-
-/**
- * First configured verb id matching the **give** aliases, or **`"give"`** if none match (same resolution idea as
- * Bennescript `resolveVerbId('give')`).
- */
-export function resolveEffectiveGiveVerbId(settings: GameSettings): string {
-  const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
-  for (const id of GIVE_VERB_ALIAS_CANDIDATES) {
-    if (configured.has(id)) {
-      return id;
-    }
-  }
-  return 'give';
-}
-</file>
-
 <file path="src/engine/walkable.ts">
 import type { RoomRegionData, WalkablePolygon } from '../types/room';
 
@@ -11360,6 +11462,45 @@ export function clampWalkDestinationTowardClick(
 }
 </file>
 
+<file path="src/game/assets/images/guis/load-menu/load-menu.json">
+{ "frames": {
+   "display-text.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 30, "h": 20 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta2-x64",
+  "image": "display-text.png",
+  "format": "RGBA8888",
+  "size": { "w": 32, "h": 32 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "9-slice-BG", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Layer 1", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+   { "name": "Mid", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 7, "y": 7, "w": 16, "h": 6 } }] },
+   { "name": "MidRight", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 23, "y": 7, "w": 7, "h": 6 } }] },
+   { "name": "BottomMid", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 7, "y": 13, "w": 16, "h": 7 } }] },
+   { "name": "MidLeft", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 0, "y": 7, "w": 7, "h": 6 } }] },
+   { "name": "TopMid", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 7, "y": 0, "w": 16, "h": 7 } }] },
+   { "name": "TopRight", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 23, "y": 0, "w": 7, "h": 7 } }] },
+   { "name": "BottomRight", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 23, "y": 13, "w": 7, "h": 7 } }] },
+   { "name": "BottomLeft", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 0, "y": 13, "w": 7, "h": 7 } }] },
+   { "name": "TopLeft", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 0, "y": 0, "w": 7, "h": 7 } }] }
+  ]
+ }
+}
+</file>
+
 <file path="src/game/assets/images/guis/menu-bar/menu-bar.json">
 { "frames": {
    "menu-bar 0.aseprite": {
@@ -11591,6 +11732,209 @@ export function clampWalkDestinationTowardClick(
 }
 </file>
 
+<file path="src/game/guis/load-menu/load-menu.gui.json">
+{
+  "id": "load-menu",
+  "name": "Load Menu",
+  "description": "",
+  "visible": false,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "nineSliceImage",
+      "id": "load-bg",
+      "x": 30,
+      "y": 24,
+      "width": 260,
+      "height": 132,
+      "tag": "9-slice-BG",
+      "sliceNames": {
+        "topLeft": "TopLeft",
+        "topCenter": "TopMid",
+        "topRight": "TopRight",
+        "middleLeft": "MidLeft",
+        "center": "Mid",
+        "middleRight": "MidRight",
+        "bottomLeft": "BottomLeft",
+        "bottomCenter": "BottomMid",
+        "bottomRight": "BottomRight"
+      }
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "x": 142,
+      "y": 32,
+      "text": "Load",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#1a466b"
+    },
+    {
+      "type": "listBox",
+      "id": "load-list",
+      "x": 42,
+      "y": 60,
+      "width": 158,
+      "height": 80,
+      "rowCount": 5,
+      "rowPadding": 2,
+      "normalBackgroundColor": "#222222",
+      "hoverBackgroundColor": "#2f2f2f",
+      "selectedBackgroundColor": "#4a4a4a",
+      "textColor": "#ffffff",
+      "selectedTextColor": "#ffffff",
+      "placeholderTextColor": "#999999"
+    },
+    {
+      "type": "text",
+      "id": "instructions",
+      "x": 42,
+      "y": 44,
+      "text": "Select a game to load.",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "color": "#1a466b",
+      "wordWrapWidth": 224
+    },
+    {
+      "type": "button",
+      "id": "load-btn",
+      "x": 210,
+      "y": 81,
+      "width": 62,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Load",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    },
+    {
+      "type": "button",
+      "id": "back-btn",
+      "x": 210,
+      "y": 98,
+      "width": 62,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Back",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    }
+  ],
+  "modal": true,
+  "zIndex": 101
+}
+</file>
+
+<file path="src/game/guis/load-menu/load-menu.gui.ts">
+import { registerGuiScript } from '@engine/scripting';
+
+const MAX_SLOTS = 5;
+
+/**
+ * GUI script for `load-menu`.
+ * Five fixed slots (0–4); `B.state.load(slot)` restores the selected slot.
+ */
+registerGuiScript('load-menu', ({ B }) => {
+  B.whenButtonClick('back-btn', () => {
+    B.gui('load-menu').hide();
+    B.gui('game-menu').show();
+  });
+
+  let selectedSlotIndex = 0;
+
+  /** Map manifest entries onto fixed slot indices (ignores unnamed / out-of-range saves). */
+  function getSavesBySlot() {
+    const bySlot: Array<{ name: string; slot?: number; timestamp: number } | undefined> =
+      Array(MAX_SLOTS);
+    for (const save of B.state.getSaveList()) {
+      const slot = save.slot;
+      if (typeof slot === 'number' && slot >= 0 && slot < MAX_SLOTS) {
+        bySlot[slot] = save;
+      }
+    }
+    return bySlot;
+  }
+
+  function firstOccupiedOrZero(savesBySlot: ReturnType<typeof getSavesBySlot>): number {
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      if (savesBySlot[i]) return i;
+    }
+    return 0;
+  }
+
+  function syncLoadButton(slotIndex: number) {
+    const save = getSavesBySlot()[slotIndex];
+    B.gui('load-menu').control('load-btn').enabled = !!save;
+  }
+
+  /** Repaint list rows. When `autoSelect` is true, pick the first occupied slot (or 0 if none). */
+  function refreshLoadList(autoSelect: boolean) {
+    const savesBySlot = getSavesBySlot();
+    const listBox = B.gui('load-menu').control('load-list');
+
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const existing = savesBySlot[i];
+      listBox.setRowText(i, existing ? existing.name : `(Empty Slot ${i + 1})`);
+    }
+
+    if (autoSelect) {
+      selectedSlotIndex = firstOccupiedOrZero(savesBySlot);
+    }
+
+    listBox.selectedIndex = selectedSlotIndex;
+  }
+
+  B.onGuiBuilt(() => {
+    const gui = B.gui('load-menu');
+    const listBox = gui.control('load-list');
+
+    refreshLoadList(true);
+    syncLoadButton(selectedSlotIndex);
+
+    listBox.whenSelectionChanged((index: number) => {
+      selectedSlotIndex = index;
+      syncLoadButton(index);
+    });
+  });
+
+  B.whenButtonClick('load-btn', () => {
+    if (!getSavesBySlot()[selectedSlotIndex]) return;
+
+    const loaded = B.state.load.now(selectedSlotIndex);
+    if (!loaded) return;
+
+    B.gui('load-menu').hide();
+    B.gui('game-menu').hide();
+  });
+});
+</file>
+
 <file path="src/game/guis/menu-bar/menu-bar.gui.json">
 {
   "id": "menu-bar",
@@ -11672,26 +12016,6 @@ registerGuiScript('menu-bar', ({ B }) => {
 
   B.whenButtonClick("MenuBtn", () => {
     B.gui('game-menu').show();
-  });
-});
-</file>
-
-<file path="src/game/guis/save-menu/save-menu.gui.ts">
-import { registerGuiScript } from '@engine/scripting';
-
-/**
- * GUI script for `save-menu` — Bennescript entry (`B.raw`, future onShow/onHide/control hooks on `B`).
- */
-registerGuiScript('save-menu', ({ B }) => {
-
-  B.whenButtonClick("back-btn", () => {
-    B.gui('save-menu').hide();
-    B.gui('game-menu').show();
-  });
-
-
-  B.whenButtonClick("save-btn", () => {
-    B.state.save(B.gui('save-menu').control('save-name').text);
   });
 });
 </file>
@@ -12066,6 +12390,36 @@ export function getCursorAsepriteFrameTagNames(): readonly string[] {
 }
 </file>
 
+<file path="src/game/loadGuiData.ts">
+import type { GuiData } from '../types/gui';
+
+const guiJsonModules = import.meta.glob('./guis/**/*.gui.json', { eager: true }) as Record<
+  string,
+  { default: GuiData }
+>;
+
+export function getAllGuiData(): GuiData[] {
+  return Object.values(guiJsonModules).map((m) => m.default);
+}
+
+export function getGuiDataById(id: string): GuiData | undefined {
+  return getAllGuiData().find((g) => g.id === id);
+}
+
+/** Font manifest keys referenced by any GUI `controls` entry of type `text`, `button`, or `textInput`. */
+export function collectFontIdsReferencedByGuiControls(): string[] {
+  const ids = new Set<string>();
+  for (const gui of getAllGuiData()) {
+    for (const c of gui.controls ?? []) {
+      if (c.type === 'text' || c.type === 'button' || c.type === 'textInput') {
+        ids.add(c.font);
+      }
+    }
+  }
+  return [...ids];
+}
+</file>
+
 <file path="src/game/loadStartRoom.ts">
 import { getGameSettings } from '../engine/ConfigManager';
 import type { RoomsManifestData } from '../types/game';
@@ -12433,6 +12787,38 @@ export interface RoomTransitionContext {
   lastRoom: string | null;
   isFirstEnter: boolean;
   visitCount: number;
+}
+</file>
+
+<file path="src/types/verbContext.ts">
+import type { GameVerbDefinition } from './game.js';
+import type { InventoryItemData } from './inventory.js';
+
+/** One configured verb from `game-config.json` (`verbs[]`). */
+export type VerbDefinition = GameVerbDefinition;
+
+/** Full inventory row definition (same shape as registry entries). */
+export type InventoryItemDefinition = InventoryItemData;
+
+/** Entity kind under the pointer used for HUD / custom verb line text. */
+export type VerbHoverTargetType = 'prop' | 'hotspot' | 'character' | 'inventoryRow';
+
+/**
+ * Scripted hover snapshot (LucasArts-style target label). Omitted wholly when nothing is hovered
+ * or while scripted-dialog input hides room targets (`RoomScene`).
+ */
+export interface VerbHoverTarget {
+  description: string | null;
+  targetType: VerbHoverTargetType | null;
+  /** Room prop id, hotspot id, or character definition id (`CharacterData.id`). */
+  targetId?: string;
+  /** Set when {@link targetType} is `inventoryRow`. */
+  itemId?: string;
+  /**
+   * Non-empty authored `defaultVerb` from prop / hotspot / character / inventory JSON — the same field
+   * `resolvePointerVerbForTarget` reads (`src/engine/verbs/resolvePointerVerb.ts`).
+   */
+  defaultVerb?: string;
 }
 </file>
 
@@ -13386,250 +13772,134 @@ export function createCharacterPreviewPhaserGame(
 }
 </file>
 
-<file path="src/editor/preview/guiEditorMain.ts">
-import type { Game } from 'phaser';
+<file path="src/editor/preview/createInventoryPreviewGame.ts">
+import * as Phaser from 'phaser';
+import { resolveAuthoredPositionForAsepriteTrim } from '../../engine/aseprite/asepriteFramePlacement';
+import { getBenneRendererConfigFields } from '../../engine/gameConfig';
 import {
-  collectFontLoadsForGui,
-  guiHasGridControls,
-  guiHasImageControls,
-  guiHasTextControls,
-} from '../../game/collectFontLoadsForGui';
-import gameFontsManifest from '../../game/assets/fonts/fonts.json';
-import {
-  getAsepriteAssetPaths,
-  getAsepriteTextureKey,
-  usesAsepriteDisplay,
-} from '../../game/guiAseprite';
-import {
-  sharedInventoryAssetPaths,
-  sharedInventoryTextureKey,
-} from '../../game/inventoryAseprite';
-import { prefixGuiAsepriteFrameTags } from '../../game/loadAsepriteAtlasData';
-import { normalizeAsepriteJsonForPhaser } from '../../game/normalizeAsepriteJson';
-import type { GameFontsManifest } from '../../types/fonts';
-import type { GameSettingsInitialGameState } from '../../types/game';
-import type { GuiData, GuiInventoryPanelControl } from '../../types/gui';
-import { createGuiPreviewPhaserGame, type GuiPreviewGamePayload } from './createGuiPreviewGame';
-import { registerInventoryDefinitionsFromGame } from '../../game/registerInventoryDefinitions';
-import { joinGameWebviewUri } from './previewUrls';
+  buildInventoryAnimationsPhaserKeyed,
+} from '../../engine/aseprite/ensureAsepriteAtlasAnimationsOnce.js';
+import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
+import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from '../../engine/sound/benneSoundRegistry';
+import { applyCharacterAnimationClips } from '../../engine/characterAnimationPlayback';
+import type { InventoryItemData } from '../../types/inventory';
 
-registerInventoryDefinitionsFromGame();
+const BOOT = 'BenneInventoryPreviewBoot';
+const PREVIEW = 'BenneInventoryPreview';
 
-declare function acquireVsCodeApi(): { postMessage(data: unknown): void };
+export type InventoryPreviewGamePayload = {
+  textureKey: string;
+  textureURL: string;
+  atlasURL: string;
+  inventory: InventoryItemData;
+  animationKey: string;
+  animationTagLabel: string;
+  revokeObjectUrls: string[];
+};
 
-let vscodeApi: ReturnType<typeof acquireVsCodeApi> | null = null;
-let game: Game | null = null;
-
-try {
-  vscodeApi = acquireVsCodeApi();
-} catch {
-  /* not inside a VS Code webview */
-}
-
-function destroyPreviewGame(): void {
-  if (game) {
-    game.destroy(true);
-    game = null;
-  }
-}
-
-async function fetchJson(url: string): Promise<Record<string, unknown>> {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`GET ${url} → ${res.status}`);
-  }
-  return res.json() as Promise<Record<string, unknown>>;
-}
-
-function guiHasInventoryPanel(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c): c is GuiInventoryPanelControl => c.type === 'inventoryPanel');
-}
-
-function ensureSharedInventoryTagPrefixes(normalized: Record<string, unknown>): void {
-  const meta = normalized.meta;
-  if (!meta || typeof meta !== 'object') {
-    return;
-  }
-  const frameTags = (meta as { frameTags?: { name: string }[] }).frameTags;
-  if (!Array.isArray(frameTags)) {
-    return;
-  }
-  for (const tag of frameTags) {
-    if (tag && typeof tag.name === 'string' && tag.name.length > 0 && !tag.name.startsWith('inventory:')) {
-      tag.name = `inventory:${tag.name}`;
-    }
-  }
-}
-
-function initialInventoryHasStartingItems(
-  inventory: GameSettingsInitialGameState['inventory'] | undefined,
-): boolean {
-  if (inventory == null) {
-    return false;
-  }
-  if (Array.isArray(inventory)) {
-    return inventory.length > 0;
-  }
-  return Object.keys(inventory).length > 0;
-}
-
-async function runLoadGui(msg: {
-  gui: GuiData;
-  guiId: string;
-  gameSrcWebviewUri: string;
-  guiJsonUri: string;
-}): Promise<void> {
-  const root = document.getElementById('benne-gui-preview-root');
-  if (!root) {
-    return;
-  }
-  root.innerHTML = '';
-  destroyPreviewGame();
-
-  let internalWidth = 352;
-  let internalHeight = 198;
-  let previewInitialGameState: GameSettingsInitialGameState | undefined;
-  try {
-    const configUrl = joinGameWebviewUri(msg.gameSrcWebviewUri, 'game-config.json');
-    const cfg = await fetchJson(configUrl);
-    const res = cfg.resolution as { width?: unknown; height?: unknown } | undefined;
-    if (res && typeof res.width === 'number' && typeof res.height === 'number') {
-      internalWidth = res.width;
-      internalHeight = res.height;
-    }
-    const init = cfg.initialGameState;
-    if (init && typeof init === 'object' && !Array.isArray(init)) {
-      previewInitialGameState = init as GameSettingsInitialGameState;
-    }
-  } catch {
-    /* defaults */
-  }
-
-  const hasText = guiHasTextControls(msg.gui);
-  const hasInventoryPanel = guiHasInventoryPanel(msg.gui);
-  const hasImage = guiHasImageControls(msg.gui);
-  const wantsAseprite = usesAsepriteDisplay(msg.gui);
-
-  const hasGrid = guiHasGridControls(msg.gui);
-  if (!hasText && !hasInventoryPanel && !wantsAseprite && !hasImage && !hasGrid) {
-    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">GUI preview needs <code>display.aseprite: true</code>, at least one <code>text</code>, <code>image</code>, <code>nineSliceImage</code>, <code>inventoryPanel</code>, or <code>grid</code> control in <code>controls</code>.</div>`;
-    return;
-  }
-
-  const assetsBase = joinGameWebviewUri(msg.gameSrcWebviewUri, 'assets');
-  const manifest = gameFontsManifest as GameFontsManifest;
-  const fontLoads = collectFontLoadsForGui(msg.gui, manifest, (rel) =>
-    joinGameWebviewUri(assetsBase, rel),
-  );
-
-  let aseprite: GuiPreviewGamePayload['aseprite'] = null;
-  /** Same JSON as on disk — nine-slice reads meta.slices (preview bundles often lack the globbed module map). */
-  let previewGuiAsepriteSheetJson: Record<string, unknown> | undefined;
-  const revokeObjectUrls: string[] = [];
-  let asepriteError: string | null = null;
-
-  if (wantsAseprite) {
-    const paths = getAsepriteAssetPaths(msg.guiId);
-    const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
-    const jsonUrl = joinGameWebviewUri(assetsBase, paths.json);
-
-    try {
-      const raw = await fetchJson(jsonUrl);
-      previewGuiAsepriteSheetJson = raw;
-      const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
-      prefixGuiAsepriteFrameTags(norm, msg.guiId);
-      const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
-      const atlasURL = URL.createObjectURL(blob);
-      revokeObjectUrls.push(atlasURL);
-      aseprite = {
-        textureKey: getAsepriteTextureKey(msg.guiId),
-        textureURL: pngUrl,
-        atlasURL,
-      };
-    } catch (e) {
-      asepriteError = e instanceof Error ? e.message : String(e);
-    }
-  }
-
-  if (!aseprite && !hasText && !hasInventoryPanel) {
-    root.innerHTML = `<div style="padding:10px;font:13px system-ui,sans-serif;color:#e8a090;">Could not load sheet: ${asepriteError ?? 'unknown error'}</div>`;
-    return;
-  }
-
-  if (wantsAseprite && !aseprite && (hasText || hasInventoryPanel)) {
-    console.warn('[BENNE GUI preview] Aseprite sheet unavailable; showing available controls only.', asepriteError);
-  }
-
-  let sharedInventoryAseprite: GuiPreviewGamePayload['sharedInventoryAseprite'] = null;
-  if (
-    hasInventoryPanel &&
-    initialInventoryHasStartingItems(previewInitialGameState?.inventory)
-  ) {
-    try {
-      const paths = sharedInventoryAssetPaths();
-      const pngUrl = joinGameWebviewUri(assetsBase, paths.png);
-      const jsonUrl = joinGameWebviewUri(assetsBase, paths.json);
-      const raw = await fetchJson(jsonUrl);
-      const norm = normalizeAsepriteJsonForPhaser(raw) as Record<string, unknown>;
-      ensureSharedInventoryTagPrefixes(norm);
-      const blob = new Blob([JSON.stringify(norm)], { type: 'application/json' });
-      const atlasURL = URL.createObjectURL(blob);
-      revokeObjectUrls.push(atlasURL);
-      sharedInventoryAseprite = {
-        textureKey: sharedInventoryTextureKey,
-        textureURL: pngUrl,
-        atlasURL,
-      };
-    } catch (e) {
-      console.warn(
-        '[BENNE GUI preview] Could not load shared inventory sheet; inventory HUD icons may use placeholders.',
-        e,
-      );
-    }
-  }
-
-  const inner = document.createElement('div');
-  inner.style.cssText = 'position:relative;width:100%;height:100%;min-height:180px;';
-  root.appendChild(inner);
-
-  const payload: GuiPreviewGamePayload = {
-    guiData: msg.gui,
-    fontLoads,
-    internalWidth,
-    internalHeight,
-    revokeObjectUrls,
-    previewGuiAsepriteSheetJson,
-    aseprite,
-    previewInitialGameState,
-    sharedInventoryAseprite,
+function editorGameConfig(
+  parent: HTMLElement,
+  width: number,
+  height: number,
+): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
+  return {
+    ...getBenneRendererConfigFields(),
+    parent,
+    width,
+    height,
+    scale: {
+      parent,
+      mode: Phaser.Scale.FIT,
+      width,
+      height,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      zoom: Phaser.Scale.MAX_ZOOM,
+      autoRound: true,
+    },
   };
-
-  game = createGuiPreviewPhaserGame(inner, payload);
 }
 
-window.addEventListener('message', (event: MessageEvent) => {
-  const msg = event.data as { type?: string };
-  if (msg?.type === 'benne/guiPreview/loadGui') {
-    const m = event.data as {
-      type: string;
-      gui: GuiData;
-      guiId: string;
-      gameSrcWebviewUri: string;
-      guiJsonUri: string;
-    };
-    void runLoadGui(m);
-    return;
+class BenneInventoryPreviewBoot extends Phaser.Scene {
+  private readonly payload: InventoryPreviewGamePayload;
+
+  constructor(payload: InventoryPreviewGamePayload) {
+    super(BOOT);
+    this.payload = payload;
   }
-  if (msg?.type === 'benne/guiPreview/clear') {
-    destroyPreviewGame();
-    const root = document.getElementById('benne-gui-preview-root');
-    if (root) {
-      root.innerHTML = '';
+
+  preload(): void {
+    this.load.aseprite({
+      key: this.payload.textureKey,
+      textureURL: this.payload.textureURL,
+      atlasURL: this.payload.atlasURL,
+    });
+  }
+
+  create(): void {
+    applyBootAudioSettings(this);
+    this.scene.start(PREVIEW, this.payload);
+    for (const u of this.payload.revokeObjectUrls) {
+      URL.revokeObjectURL(u);
     }
   }
-});
+}
 
-vscodeApi?.postMessage({ type: 'benne/guiPreview/ready' });
+class InventoryPreviewScene extends Phaser.Scene {
+  private payload!: InventoryPreviewGamePayload;
+
+  constructor() {
+    super(PREVIEW);
+  }
+
+  init(data: InventoryPreviewGamePayload): void {
+    this.payload = data;
+  }
+
+  create(): void {
+    const cam = this.cameras.main;
+    cam.setBackgroundColor(0x1a1a2e);
+
+    const sprite = this.add
+      .sprite(cam.width / 2, cam.height / 2, this.payload.textureKey)
+      .setOrigin(0.5, 0.5);
+
+    if (!this.anims.exists(this.payload.animationKey)) {
+      const created = this.anims.createFromAseprite(this.payload.textureKey) ?? [];
+      const clips = buildInventoryAnimationsPhaserKeyed(this.payload.inventory);
+      if (clips) {
+        applyCharacterAnimationClips(created, clips);
+      }
+    }
+    if (this.anims.exists(this.payload.animationKey)) {
+      sprite.play(this.payload.animationKey);
+    }
+    const p = resolveAuthoredPositionForAsepriteTrim('center', cam.width / 2, cam.height / 2, sprite.frame);
+    sprite.setPosition(p.x, p.y);
+
+    this.add
+      .text(8, 6, `${this.payload.inventory.id} · ${this.payload.animationTagLabel}`, {
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '11px',
+        color: '#8892a8',
+      })
+      .setScrollFactor(0);
+  }
+}
+
+export function createInventoryPreviewPhaserGame(
+  parent: HTMLElement,
+  payload: InventoryPreviewGamePayload,
+): Phaser.Game {
+  return new Phaser.Game({
+    ...editorGameConfig(parent, 352, 198),
+    callbacks: {
+      preBoot: (game: Phaser.Game) => {
+        game.registry.set(BENNE_AUDIO_SCRIPT_DISABLED_KEY, true);
+      },
+    },
+    scene: [new BenneInventoryPreviewBoot(payload), InventoryPreviewScene],
+  });
+}
 </file>
 
 <file path="src/engine/gameConfig.ts">
@@ -13755,6 +14025,50 @@ export function getBennePhaserGameConfigBase(
       autoRound: true,
     },
   };
+}
+</file>
+
+<file path="src/engine/gameState/snapshotFlushHooks.ts">
+/**
+ * Pull-up registry for **lazy** runtime → game-state writes.
+ *
+ * Most engine state (visibility, alpha, animation overrides, flags, variables) is written
+ * **eagerly** into {@link import('./GameStateManager.js').GameStateManager} on every change,
+ * so its snapshot is always in sync. A few fields (notably **character / prop positions**)
+ * are too noisy to write per-tick during walks, so they live on the live Phaser sprites and
+ * only get pulled into game state when something asks for an authoritative snapshot.
+ *
+ * Hooks fire on:
+ * - **Room transition leave** — {@link import('../scenes/RoomTransitionOrchestrator.js').RoomTransitionOrchestrator}
+ *   calls {@link runSnapshotFlushHooks} before tearing the active room scene down.
+ * - **Snapshot creation** — {@link import('./GameStateManager.js').GameStateManager.getSnapshot}
+ *   runs hooks before cloning state (unless `runFlushHooks: false`), so
+ *   {@link import('./GameStateManager.js').GameStateManager.exportSnapshotJson} and saves pick them up.
+ *   {@link import('./GameStateManager.js').GameStateManager.applySnapshot} must **not** flush — the loaded
+ *   JSON is authoritative while the old {@link import('../scenes/RoomScene.js').RoomScene} may still be active.
+ * - **`B.state.flush()`** — explicit script-level save point.
+ *
+ * Hooks register on scene `create` and unregister on scene `shutdown` (or equivalent).
+ * Failures in a single hook are logged but do not break other hooks or `getSnapshot` itself —
+ * saves are sacred.
+ */
+const flushHooks: Set<() => void> = new Set();
+
+export function registerSnapshotFlushHook(hook: () => void): () => void {
+  flushHooks.add(hook);
+  return () => {
+    flushHooks.delete(hook);
+  };
+}
+
+export function runSnapshotFlushHooks(): void {
+  for (const hook of flushHooks) {
+    try {
+      hook();
+    } catch (err) {
+      console.error('[Benne] snapshot flush hook threw:', err);
+    }
+  }
 }
 </file>
 
@@ -14246,533 +14560,124 @@ export function attachBenneCharacterPerspectiveRenderNodes(
 }
 </file>
 
-<file path="src/engine/scripting/benneScriptGameStateApi.ts">
-import type { BenneGameStateFlagValue } from '../../types/gameState.js';
-import type { GameStateManager } from '../gameState/GameStateManager.js';
-import type { RoomScene } from '../scenes/RoomScene.js';
-import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
-import {
-  inventoryCursorAnimationVariableKey,
-  inventoryDefaultAnimationVariableKey,
-  readEffectiveInventoryCursorAnimationTag,
-  readEffectiveInventoryDefaultAnimationTag,
-} from '../inventory/inventoryScriptingAnimations.js';
-import type { BenneScriptInventoryItemFacade } from './benneScriptFacades.js';
-import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
-import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
-import { runSnapshotFlushHooks } from '../gameState/snapshotFlushHooks.js';
-import { SCENE_ROOM } from '../../game/constants.js';
-import type { SaveMetadata } from '../../types/gameState.js';
+<file path="src/engine/scenes/RoomTransitionHookRegistry.ts">
+import type { RoomTransitionContext } from '../../types/roomTransition.js';
+
+type RoomHandler = (ctx: RoomTransitionContext) => void | Promise<void>;
+type AnyHandler = (ctx: RoomTransitionContext) => void | Promise<void>;
 
 /**
- * When provided to {@link createBenneScriptInventoryNamespace}, **`B.inventory.add` / `remove`**
- * (blocking form) and per-item **`animation`** / **`cursorAnimation`** setters enqueue on the owning
- * script’s interaction tail (same ordering as **`B.player.animation`**).
+ * All room-transition hooks (per-room and global) live here so {@link import('./RoomTransitionOrchestrator.js').RoomTransitionOrchestrator} can run them in order.
  */
-export type BenneScriptInventoryInteractionQueue = (factory: () => Promise<unknown>) => void;
-export type BenneScriptGameStateManagerResolver = () => GameStateManager | null | undefined;
+export class RoomTransitionHookRegistry {
+  private readonly byRoomLeave = new Map<string, RoomHandler[]>();
+  private readonly byRoomLoaded = new Map<string, RoomHandler[]>();
+  private readonly byRoomEnter = new Map<string, RoomHandler[]>();
+  private readonly byRoomAfterFade = new Map<string, RoomHandler[]>();
+  private anyLeave: AnyHandler[] = [];
+  private anyEnter: AnyHandler[] = [];
+  private anyAfterFade: AnyHandler[] = [];
 
-type SyncWithNow<TArgs extends readonly unknown[], TResult> = ((
-  ...args: TArgs
-) => TResult) & { now: (...args: TArgs) => TResult };
+  registerRoomLeaveRoom(roomId: string, handler: RoomHandler): void {
+    this.pushByRoom(this.byRoomLeave, roomId, handler);
+  }
 
-function withNowResult<TArgs extends readonly unknown[], TResult>(
-  impl: (...args: TArgs) => TResult,
-): SyncWithNow<TArgs, TResult> {
-  const fn = impl as SyncWithNow<TArgs, TResult>;
-  fn.now = impl;
-  return fn;
+  registerRoomEnterRoom(roomId: string, handler: RoomHandler): void {
+    this.pushByRoom(this.byRoomEnter, roomId, handler);
+  }
+
+  registerRoomLoadedRoom(roomId: string, handler: RoomHandler): void {
+    this.pushByRoom(this.byRoomLoaded, roomId, handler);
+  }
+
+  registerRoomEnterRoomAfterFade(roomId: string, handler: RoomHandler): void {
+    this.pushByRoom(this.byRoomAfterFade, roomId, handler);
+  }
+
+  whenLeaveAnyRoom(handler: AnyHandler): void {
+    this.anyLeave.push(handler);
+  }
+
+  whenEnterAnyRoom(handler: AnyHandler): void {
+    this.anyEnter.push(handler);
+  }
+
+  whenEnterAnyRoomAfterFade(handler: AnyHandler): void {
+    this.anyAfterFade.push(handler);
+  }
+
+  private pushByRoom(m: Map<string, RoomHandler[]>, roomId: string, h: RoomHandler): void {
+    const k = String(roomId);
+    const a = m.get(k) ?? [];
+    a.push(h);
+    m.set(k, a);
+  }
+
+  getLeaveHandlersForRoom(roomId: string): readonly RoomHandler[] {
+    return this.byRoomLeave.get(String(roomId)) ?? [];
+  }
+
+  getEnterHandlersForRoom(roomId: string): readonly RoomHandler[] {
+    return this.byRoomEnter.get(String(roomId)) ?? [];
+  }
+
+  getLoadedHandlersForRoom(roomId: string): readonly RoomHandler[] {
+    return this.byRoomLoaded.get(String(roomId)) ?? [];
+  }
+
+  getAfterFadeHandlersForRoom(roomId: string): readonly RoomHandler[] {
+    return this.byRoomAfterFade.get(String(roomId)) ?? [];
+  }
+
+  getAnyLeave(): readonly AnyHandler[] {
+    return this.anyLeave;
+  }
+
+  getAnyEnter(): readonly AnyHandler[] {
+    return this.anyEnter;
+  }
+
+  getAnyAfterFade(): readonly AnyHandler[] {
+    return this.anyAfterFade;
+  }
+
+  /**
+   * Clears per-room hooks so `registerRoomScript` can re-register (each `RoomScene` `create` runs
+   * the same `*.room.ts` again).
+   */
+  clearPerRoomScriptHooksForRoomId(roomId: string): void {
+    const k = String(roomId);
+    this.byRoomLeave.delete(k);
+    this.byRoomLoaded.delete(k);
+    this.byRoomEnter.delete(k);
+    this.byRoomAfterFade.delete(k);
+  }
 }
 
-function resolveManagerOrWarn(
-  resolveManager: BenneScriptGameStateManagerResolver,
-  actionLabel: string,
-): GameStateManager | null {
-  const manager = resolveManager();
-  if (manager) {
-    return manager;
+export async function runRoomHandlersSeq(
+  handlers: readonly ((ctx: RoomTransitionContext) => void | Promise<void>)[],
+  ctx: RoomTransitionContext,
+): Promise<void> {
+  for (const h of handlers) {
+    await Promise.resolve(h(ctx));
   }
-  if (import.meta.env.DEV) {
-    console.warn(`[Benne] B.state.${actionLabel}: game state manager is not active yet — ignored.`);
-  }
-  return null;
-}
-
-/** `B.state` — flags, variables, and snapshot persistence (see `GameStateManager`). */
-export interface BenneScriptGameStateNamespace {
-  setFlag(id: string, value: BenneGameStateFlagValue): void;
-  getFlag(id: string): BenneGameStateFlagValue | undefined;
-  hasFlag(id: string): boolean;
-  clearFlag(id: string): void;
-  setVariable(id: string, value: unknown): void;
-  getVariable(id: string): unknown;
-  hasVariable(id: string): boolean;
-  clearVariable(id: string): void;
-  saveToBrowser(slot?: number): void;
-  loadFromBrowser(slot?: number): boolean;
-  clearBrowserSave(slot?: number): void;
-  getSaveList(): SaveMetadata[];
-  save: SyncWithNow<[name: string, slot?: number], void>;
-  load: SyncWithNow<[nameOrSlot: string | number], boolean>;
-  deleteSave: SyncWithNow<[nameOrSlot: string | number], void>;
-  renameSave: SyncWithNow<[oldName: string, newName: string], void>;
-  exportJson(): string;
-  importJson(json: string): void;
-  /**
-   * Runtime-only "active verb" (see {@link GameStateManager.setActiveVerb}). When non-null, the
-   * pointer resolver uses it for left-clicks on clickable targets (consuming it on dispatch) and
-   * right-clicks clear it. Pass `null` to clear; empty strings are treated as `null`.
-   */
-  setActiveVerb(verbId: string | null): void;
-  getActiveVerb(): string | null;
-  clearActiveVerb(): void;
-  /**
-   * Active inventory item for use-on-target (see {@link GameStateManager.setActiveInventory}). Persisted in
-   * save snapshots. Pass `null` to clear; empty strings are treated as `null`. (Maps to {@link GameStateManager.setActiveInventoryItem}.)
-   */
-  setActiveInventory(id: string | null): void;
-  getActiveInventoryItemId(): string | null;
-  clearActiveInventory(): void;
-  /** See {@link import('../gameState/GameStateManager.js').GameStateManager.getCurrentRoom}. */
-  getCurrentRoom(): string;
-  getLastRoom(): string | null;
-  setCurrentRoom(roomId: string): void;
-  setLastRoom(roomId: string | null): void;
-  /**
-   * Read-only: `true` while a cutscene block is active on the current {@link RoomScene}
-   * (any of: `B.cutscene(…)`, `whenEnterRoom`, `whenEnterAnyRoom`, `whenEnterRoomAfterFade`,
-   * `whenEnterAnyRoomAfterFade`, or `whenChoice` handler). `false` outside a room or when
-   * no cutscene is in progress.
-   */
-  readonly isCutsceneActive: boolean;
-  /**
-   * Pull live runtime state on the active room scene (currently: character feet world
-   * positions and prop authoring positions) into the {@link GameStateManager} so the next
-   * room load — or save snapshot — restores it. Most state (visibility, alpha, animation
-   * overrides, flags, variables, inventory) is already eagerly persisted on every change;
-   * `flush` exists for **lazily-saved** fields that aren't worth writing per-tick.
-   *
-   * Also runs automatically inside {@link GameStateManager.getSnapshot} (so
-   * `B.state.saveToBrowser` / `exportJson` already pick everything up) and on room-transition
-   * leave (see `RoomTransitionOrchestrator.prepareForLeave`). Call it directly only at custom
-   * save points.
-   */
-  flush(): void;
 }
 
 /**
- * `B.inventory` — quantities per item id (see `GameStateManager`), plus **`B.inventory(itemId)`** for per-item
- * animation fields (see {@link BenneScriptInventoryItemFacade}).
+ * Invokes each handler in order; an error in one does not skip the rest (used for enter / after-fade hooks).
  */
-export interface BenneScriptInventoryNamespace {
-  (itemId: string): BenneScriptInventoryItemFacade;
-  /** Queues on the owning script interaction tail when wired with chain; `.now` applies immediately. */
-  add: BlockingWithNow<[string, number?]>;
-  remove: BlockingWithNow<[string, number?]>;
-  has(id: string): boolean;
-  quantityOf(id: string): number;
-  /** Legacy accessor for inventory entries; prefer `add`/`remove`/`has`/`quantityOf` for gameplay logic. */
-  readonly items: ReadonlyArray<{ id: string; quantity: number }>;
-  clearInventory(): void;
-}
-
-function createBenneScriptGameStateNamespaceFromResolver(
-  resolveManager: BenneScriptGameStateManagerResolver,
-): BenneScriptGameStateNamespace {
-  const withManagerVoid = (
-    actionLabel: string,
-    run: (manager: GameStateManager) => void,
-  ): void => {
-    const manager = resolveManagerOrWarn(resolveManager, actionLabel);
-    if (!manager) {
-      return;
+export async function runRoomHandlersEachSafe(
+  handlers: readonly ((ctx: RoomTransitionContext) => void | Promise<void>)[],
+  ctx: RoomTransitionContext,
+  logLabel: string,
+): Promise<void> {
+  for (let i = 0; i < handlers.length; i += 1) {
+    try {
+      await Promise.resolve(handlers[i]!(ctx));
+    } catch (e) {
+      console.error(`[Benne] ${logLabel} handler #${i} failed:`, e);
     }
-    run(manager);
-  };
-  const withManagerResult = <T>(
-    actionLabel: string,
-    fallback: T,
-    run: (manager: GameStateManager) => T,
-  ): T => {
-    const manager = resolveManagerOrWarn(resolveManager, actionLabel);
-    if (!manager) {
-      return fallback;
-    }
-    return run(manager);
-  };
-  return {
-    setFlag: (id, value) => withManagerVoid('setFlag', (m) => m.setFlag(id, value)),
-    getFlag: (id) => withManagerResult('getFlag', undefined, (m) => m.getFlag(id)),
-    hasFlag: (id) => withManagerResult('hasFlag', false, (m) => m.hasFlag(id)),
-    clearFlag: (id) => withManagerVoid('clearFlag', (m) => m.clearFlag(id)),
-    setVariable: (id, value) => withManagerVoid('setVariable', (m) => m.setVariable(id, value)),
-    getVariable: (id) => withManagerResult('getVariable', undefined, (m) => m.getVariable(id)),
-    hasVariable: (id) => withManagerResult('hasVariable', false, (m) => m.hasVariable(id)),
-    clearVariable: (id) => withManagerVoid('clearVariable', (m) => m.clearVariable(id)),
-    saveToBrowser: (slot) => withManagerVoid('saveToBrowser', (m) => m.saveToLocalStorage(slot)),
-    loadFromBrowser: (slot) =>
-      withManagerResult('loadFromBrowser', false, (m) => m.loadFromLocalStorage(slot)),
-    clearBrowserSave: (slot) =>
-      withManagerVoid('clearBrowserSave', (m) => m.clearLocalStorageSave(slot)),
-    getSaveList: () => withManagerResult('getSaveList', [], (m) => m.getSaveList()),
-    save: withNowResult((name: string, slot?: number): void => {
-      withManagerVoid('save', (m) => m.save(name, slot));
-    }),
-    load: withNowResult((nameOrSlot: string | number): boolean =>
-      withManagerResult('load', false, (m) => m.load(nameOrSlot)),
-    ),
-    deleteSave: withNowResult((nameOrSlot: string | number): void => {
-      withManagerVoid('deleteSave', (m) => m.deleteSave(nameOrSlot));
-    }),
-    renameSave: withNowResult((oldName: string, newName: string): void => {
-      withManagerVoid('renameSave', (m) => m.renameSave(oldName, newName));
-    }),
-    exportJson: () => withManagerResult('exportJson', '{}', (m) => m.exportSnapshotJson()),
-    importJson: (json) => withManagerVoid('importJson', (m) => m.importSnapshotJson(json)),
-    setActiveVerb: (verbId) => withManagerVoid('setActiveVerb', (m) => m.setActiveVerb(verbId)),
-    getActiveVerb: () => withManagerResult('getActiveVerb', null, (m) => m.getActiveVerb()),
-    clearActiveVerb: () => withManagerVoid('clearActiveVerb', (m) => m.clearActiveVerb()),
-    setActiveInventory: (id) =>
-      withManagerVoid('setActiveInventory', (m) => m.setActiveInventoryItem(id)),
-    getActiveInventoryItemId: () =>
-      withManagerResult('getActiveInventoryItemId', null, (m) => m.getActiveInventoryItemId()),
-    clearActiveInventory: () =>
-      withManagerVoid('clearActiveInventory', (m) => m.clearActiveInventoryItem()),
-    getCurrentRoom: () => withManagerResult('getCurrentRoom', '', (m) => m.getCurrentRoom()),
-    getLastRoom: () => withManagerResult('getLastRoom', null, (m) => m.getLastRoom()),
-    setCurrentRoom: (roomId) => withManagerVoid('setCurrentRoom', (m) => m.setCurrentRoom(roomId)),
-    setLastRoom: (roomId) => withManagerVoid('setLastRoom', (m) => m.setLastRoom(roomId)),
-    get isCutsceneActive(): boolean {
-      const game = tryGetActiveBenneGame();
-      if (!game) {
-        return false;
-      }
-      const scene = game.scene.getScene(SCENE_ROOM) as RoomScene | null;
-      return scene?.isCutsceneActive() ?? false;
-    },
-    flush: () => runSnapshotFlushHooks(),
-  };
-}
-
-export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneScriptGameStateNamespace {
-  return createBenneScriptGameStateNamespaceFromResolver(() => m);
-}
-
-export function createLazyBenneScriptGameStateNamespace(
-  resolveManager: BenneScriptGameStateManagerResolver,
-): BenneScriptGameStateNamespace {
-  return createBenneScriptGameStateNamespaceFromResolver(resolveManager);
-}
-
-function createBenneScriptInventoryItemFacade(
-  itemId: string,
-  resolveManager: BenneScriptGameStateManagerResolver,
-  getRoomScene?: () => RoomScene | undefined,
-  queueInteraction?: BenneScriptInventoryInteractionQueue,
-): BenneScriptInventoryItemFacade {
-  const resolveInventoryManager = (): GameStateManager | null => {
-    const manager = resolveManager();
-    if (manager) {
-      return manager;
-    }
-    if (import.meta.env.DEV) {
-      console.warn(
-        `[Benne] B.inventory("${itemId}"): game state manager is not active yet — ignored.`,
-      );
-    }
-    return null;
-  };
-  const applyDefault = (tag: string): void => {
-    const scene = getRoomScene?.();
-    if (scene) {
-      scene.setInventoryScriptDefaultAnimationTag(itemId, tag);
-      return;
-    }
-    const def = getInventoryDefinition(itemId);
-    if (!def) {
-      if (import.meta.env.DEV) {
-        console.warn(`[Benne] B.inventory("${itemId}"): unknown item id.`);
-      }
-      return;
-    }
-    const manager = resolveInventoryManager();
-    if (!manager) {
-      return;
-    }
-    const t = tag.trim();
-    if (t.length === 0) {
-      manager.clearVariable(inventoryDefaultAnimationVariableKey(itemId));
-      return;
-    }
-    manager.setVariable(inventoryDefaultAnimationVariableKey(itemId), t);
-  };
-
-  const applyCursor = (tag: string): void => {
-    const scene = getRoomScene?.();
-    if (scene) {
-      scene.setInventoryScriptCursorAnimationTag(itemId, tag);
-      return;
-    }
-    const def = getInventoryDefinition(itemId);
-    if (!def) {
-      if (import.meta.env.DEV) {
-        console.warn(`[Benne] B.inventory("${itemId}"): unknown item id.`);
-      }
-      return;
-    }
-    const manager = resolveInventoryManager();
-    if (!manager) {
-      return;
-    }
-    const t = tag.trim();
-    if (t.length === 0) {
-      manager.clearVariable(inventoryCursorAnimationVariableKey(itemId));
-      return;
-    }
-    manager.setVariable(inventoryCursorAnimationVariableKey(itemId), t);
-  };
-
-  const queueOrRun = (run: () => void): void => {
-    if (queueInteraction) {
-      queueInteraction(() => {
-        run();
-        return Promise.resolve();
-      });
-    } else {
-      run();
-    }
-  };
-
-  return {
-    get animation() {
-      const manager = resolveManager();
-      if (!manager) {
-        return getInventoryDefinition(itemId)?.defaultAnimation ?? '';
-      }
-      const def = getInventoryDefinition(itemId);
-      return def ? readEffectiveInventoryDefaultAnimationTag(manager, def) : '';
-    },
-    set animation(tag: string) {
-      queueOrRun(() => applyDefault(tag));
-    },
-    animationNow(tag: string): void {
-      applyDefault(tag);
-    },
-    get cursorAnimation() {
-      const def = getInventoryDefinition(itemId);
-      if (!def) {
-        return '';
-      }
-      const manager = resolveManager();
-      if (!manager) {
-        return def.cursorAnimation?.trim() ?? '';
-      }
-      return readEffectiveInventoryCursorAnimationTag(manager, def) ?? '';
-    },
-    set cursorAnimation(tag: string) {
-      queueOrRun(() => applyCursor(tag));
-    },
-    cursorAnimationNow(tag: string): void {
-      applyCursor(tag);
-    },
-  };
-}
-
-export function createBenneScriptInventoryNamespace(
-  m: GameStateManager,
-  getRoomScene?: () => RoomScene | undefined,
-  queueInteraction?: BenneScriptInventoryInteractionQueue,
-): BenneScriptInventoryNamespace {
-  return createBenneScriptInventoryNamespaceFromResolver(
-    () => m,
-    getRoomScene,
-    queueInteraction,
-  );
-}
-
-function createBenneScriptInventoryNamespaceFromResolver(
-  resolveManager: BenneScriptGameStateManagerResolver,
-  getRoomScene?: () => RoomScene | undefined,
-  queueInteraction?: BenneScriptInventoryInteractionQueue,
-): BenneScriptInventoryNamespace {
-  const resolveInventoryManager = (actionLabel: string): GameStateManager | null => {
-    const manager = resolveManager();
-    if (manager) {
-      return manager;
-    }
-    if (import.meta.env.DEV) {
-      console.warn(`[Benne] B.inventory.${actionLabel}: game state manager is not active yet — ignored.`);
-    }
-    return null;
-  };
-  const queueOrRunSync = (run: () => void): void => {
-    if (queueInteraction) {
-      queueInteraction(() => {
-        run();
-        return Promise.resolve();
-      });
-    } else {
-      run();
-    }
-  };
-
-  const methods = {
-    add: withNow(
-      (id: string, quantity?: number) => {
-        queueOrRunSync(() => {
-          const manager = resolveInventoryManager('add');
-          if (!manager) {
-            return;
-          }
-          void manager.addInventory(id, quantity);
-        });
-      },
-      (id: string, quantity?: number) => {
-        const manager = resolveInventoryManager('add.now');
-        if (!manager) {
-          return;
-        }
-        void manager.addInventory(id, quantity);
-      },
-    ),
-    remove: withNow(
-      (id: string, quantity?: number) => {
-        queueOrRunSync(() => {
-          const manager = resolveInventoryManager('remove');
-          if (!manager) {
-            return;
-          }
-          void manager.removeFromInventory(id, quantity);
-        });
-      },
-      (id: string, quantity?: number) => {
-        const manager = resolveInventoryManager('remove.now');
-        if (!manager) {
-          return;
-        }
-        void manager.removeFromInventory(id, quantity);
-      },
-    ),
-    has: (id: string) => {
-      const manager = resolveInventoryManager('has');
-      return manager ? manager.hasInInventory(id) : false;
-    },
-    quantityOf: (id: string) => {
-      const manager = resolveInventoryManager('quantityOf');
-      return manager ? manager.quantityOf(id) : 0;
-    },
-    get items() {
-      const manager = resolveInventoryManager('items');
-      return manager ? manager.getInventoryItems() : [];
-    },
-    clearInventory: () => {
-      const manager = resolveInventoryManager('clearInventory');
-      if (!manager) {
-        return;
-      }
-      manager.clearInventory();
-    },
-  };
-  const callable = (itemId: string) =>
-    createBenneScriptInventoryItemFacade(itemId, resolveManager, getRoomScene, queueInteraction);
-  return Object.assign(callable, methods) as BenneScriptInventoryNamespace;
-}
-
-export function createLazyBenneScriptInventoryNamespace(
-  resolveManager: BenneScriptGameStateManagerResolver,
-  getRoomScene?: () => RoomScene | undefined,
-  queueInteraction?: BenneScriptInventoryInteractionQueue,
-): BenneScriptInventoryNamespace {
-  return createBenneScriptInventoryNamespaceFromResolver(resolveManager, getRoomScene, queueInteraction);
-}
-</file>
-
-<file path="src/engine/scripting/benneVerbContextScriptSurface.ts">
-import * as Phaser from 'phaser';
-import {
-  GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
-  GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
-} from '../../types/gameState.js';
-import type { VerbHoverTarget } from '../../types/verbContext.js';
-
-/** Event id for **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, …)`**. */
-export const BENNE_VERB_CONTEXT_CHANGED_EVENT = 'benne:verbContextChanged' as const;
-
-/** Listeners subscribe with **`BENNE_VERB_CONTEXT_CHANGED_EVENT`**. The room scene clears them on shutdown so GUI **`onGuiBuilt`** can **`on`** each load without stacking. */
-const emitter = new Phaser.Events.EventEmitter();
-
-let hoverDescriptionScript: string | null = null;
-let hoverTargetScript: VerbHoverTarget | null = null;
-
-function targetsEqual(a: VerbHoverTarget | null, b: VerbHoverTarget | null): boolean {
-  if (a === b) {
-    return true;
   }
-  if (a == null || b == null) {
-    return false;
-  }
-  return (
-    a.description === b.description &&
-    a.targetType === b.targetType &&
-    a.targetId === b.targetId &&
-    a.itemId === b.itemId &&
-    a.defaultVerb === b.defaultVerb
-  );
-}
-
-export function emitBenneVerbContextChanged(): void {
-  emitter.emit(BENNE_VERB_CONTEXT_CHANGED_EVENT);
-}
-
-export function publishBenneVerbHoverContext(
-  description: string | null,
-  target: VerbHoverTarget | null,
-): void {
-  if (hoverDescriptionScript === description && targetsEqual(hoverTargetScript, target)) {
-    return;
-  }
-  hoverDescriptionScript = description;
-  hoverTargetScript = target;
-  emitter.emit(BENNE_VERB_CONTEXT_CHANGED_EVENT);
-}
-
-export function clearBenneVerbHoverContext(): void {
-  publishBenneVerbHoverContext(null, null);
-}
-
-export function getBenneVerbContextHoverDescription(): string | null {
-  return hoverDescriptionScript;
-}
-
-export function getBenneVerbContextHoverTarget(): VerbHoverTarget | null {
-  return hoverTargetScript;
-}
-
-export function getBenneVerbContextChangedEmitter(): Phaser.Events.EventEmitter {
-  return emitter;
-}
-
-const relayCleanups = new Map<Phaser.Events.EventEmitter, () => void>();
-
-/** Subscribe on the same `EventEmitter` passed into `GameStateManager` (global `gameEvents` in-game, `game.events` in GUI preview). */
-export function wireBenneVerbContextGameStateRelay(events: Phaser.Events.EventEmitter): void {
-  if (relayCleanups.has(events)) {
-    return;
-  }
-  const fn = (): void => {
-    emitBenneVerbContextChanged();
-  };
-  events.on(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, fn);
-  events.on(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, fn);
-  relayCleanups.set(events, () => {
-    events.off(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, fn);
-    events.off(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, fn);
-    relayCleanups.delete(events);
-  });
-}
-
-export function unwireBenneVerbContextGameStateRelay(events: Phaser.Events.EventEmitter): void {
-  relayCleanups.get(events)?.();
 }
 </file>
 
@@ -15674,36 +15579,6 @@ registerGuiScript('hover-text', ({ B }) => {
 });
 </file>
 
-<file path="src/game/loadGuiData.ts">
-import type { GuiData } from '../types/gui';
-
-const guiJsonModules = import.meta.glob('./guis/**/*.gui.json', { eager: true }) as Record<
-  string,
-  { default: GuiData }
->;
-
-export function getAllGuiData(): GuiData[] {
-  return Object.values(guiJsonModules).map((m) => m.default);
-}
-
-export function getGuiDataById(id: string): GuiData | undefined {
-  return getAllGuiData().find((g) => g.id === id);
-}
-
-/** Font manifest keys referenced by any GUI `controls` entry of type `text`, `button`, or `textInput`. */
-export function collectFontIdsReferencedByGuiControls(): string[] {
-  const ids = new Set<string>();
-  for (const gui of getAllGuiData()) {
-    for (const c of gui.controls ?? []) {
-      if (c.type === 'text' || c.type === 'button' || c.type === 'textInput') {
-        ids.add(c.font);
-      }
-    }
-  }
-  return [...ids];
-}
-</file>
-
 <file path="src/game/resolveGameAssetUrl.ts">
 import { benneMusicCacheKey, benneSfxCacheKey } from '../engine/sound/benneAudioCacheKeys.js';
 
@@ -16017,165 +15892,107 @@ export interface CharacterFollowOptions {
 }
 </file>
 
-<file path="src/types/verbContext.ts">
-import type { GameVerbDefinition } from './game.js';
-import type { InventoryItemData } from './inventory.js';
+<file path="src/types/gameState.ts">
+/** Values stored in {@link SerializableBenneGameState.flags}. */
+export type BenneGameStateFlagValue = boolean | number | string;
 
-/** One configured verb from `game-config.json` (`verbs[]`). */
-export type VerbDefinition = GameVerbDefinition;
+/** Serializable cross-room game state (v1). */
+export interface SerializableBenneGameState {
+  version: 1;
+  flags: Record<string, BenneGameStateFlagValue>;
+  variables: Record<string, unknown>;
+  /** Item id → quantity (omitted or zero means not carried). */
+  inventory: Record<string, number>;
+  /**
+   * Runtime "use on target" selection (item id). Persisted in save snapshots; omitted or invalid in JSON is treated as null.
+   */
+  activeInventoryItemId?: string | null;
+  /**
+   * Id of the room the player is considered to be in (for saves and room-transition orchestration). Empty string when unknown / not yet set. Omitted in legacy snapshots (treated as `""` / `null` when loaded).
+   */
+  currentRoom?: string;
+  /**
+   * Previous room id when transitioning, or `null` when not applicable. Omitted in legacy saves.
+   */
+  lastRoom?: string | null;
+}
 
-/** Full inventory row definition (same shape as registry entries). */
-export type InventoryItemDefinition = InventoryItemData;
+/** Public metadata returned by `B.state.getSaveList()`. */
+export interface SaveMetadata {
+  /** Player-facing save name. */
+  name: string;
+  /** Slot id when the entry maps to fixed-slot storage (`benne-save-<slot>`). */
+  slot?: number;
+  /** Last write/load touch time in epoch milliseconds. */
+  timestamp: number;
+}
 
-/** Entity kind under the pointer used for HUD / custom verb line text. */
-export type VerbHoverTargetType = 'prop' | 'hotspot' | 'character' | 'inventoryRow';
+/** Internal manifest row persisted in localStorage for named saves. */
+export interface SaveManifestEntry extends SaveMetadata {
+  /**
+   * Storage key for the snapshot payload. For legacy slots this is `benne-save-<slot>`,
+   * for named saves this is `benne-save-v1-<sanitized-name>`.
+   */
+  storageKey: string;
+}
+
+/** Internal manifest payload persisted under `benne-saves-manifest-v1`. */
+export interface SaveManifest {
+  version: 1;
+  saves: SaveManifestEntry[];
+}
+
+export const GAME_STATE_FLAG_CHANGED_EVENT = 'gameState:flagChanged' as const;
+export const GAME_STATE_VARIABLE_CHANGED_EVENT = 'gameState:variableChanged' as const;
+export const GAME_STATE_INVENTORY_CHANGED_EVENT = 'gameState:inventoryChanged' as const;
+export const GAME_STATE_REPLACED_EVENT = 'gameState:replaced' as const;
+export const GAME_STATE_ACTIVE_VERB_CHANGED_EVENT = 'gameState:activeVerbChanged' as const;
+export const GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT =
+  'gameState:activeInventoryItemChanged' as const;
+export const GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT = 'gameState:roomContextChanged' as const;
+
+export interface GameStateFlagChangedPayload {
+  key: string;
+  previousValue?: BenneGameStateFlagValue;
+  value?: BenneGameStateFlagValue;
+}
+
+export interface GameStateVariableChangedPayload {
+  key: string;
+  previousValue?: unknown;
+  value?: unknown;
+}
+
+export interface GameStateInventoryChangedPayload {
+  reason: 'add' | 'remove' | 'clear';
+  itemId?: string;
+  inventory: Record<string, number>;
+}
+
+export interface GameStateReplacedPayload {
+  snapshot: SerializableBenneGameState;
+}
 
 /**
- * Scripted hover snapshot (LucasArts-style target label). Omitted wholly when nothing is hovered
- * or while scripted-dialog input hides room targets (`RoomScene`).
+ * Emitted when the runtime "active verb" changes (runtime UI state; not part of the snapshot).
+ * `value` is `null` when cleared.
  */
-export interface VerbHoverTarget {
-  description: string | null;
-  targetType: VerbHoverTargetType | null;
-  /** Room prop id, hotspot id, or character definition id (`CharacterData.id`). */
-  targetId?: string;
-  /** Set when {@link targetType} is `inventoryRow`. */
-  itemId?: string;
-  /**
-   * Non-empty authored `defaultVerb` from prop / hotspot / character / inventory JSON — the same field
-   * `resolvePointerVerbForTarget` reads (`src/engine/verbs/resolvePointerVerb.ts`).
-   */
-  defaultVerb?: string;
-}
-</file>
-
-<file path="src/editor/preview/createInventoryPreviewGame.ts">
-import * as Phaser from 'phaser';
-import { resolveAuthoredPositionForAsepriteTrim } from '../../engine/aseprite/asepriteFramePlacement';
-import { getBenneRendererConfigFields } from '../../engine/gameConfig';
-import {
-  buildInventoryAnimationsPhaserKeyed,
-} from '../../engine/aseprite/ensureAsepriteAtlasAnimationsOnce.js';
-import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
-import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from '../../engine/sound/benneSoundRegistry';
-import { applyCharacterAnimationClips } from '../../engine/characterAnimationPlayback';
-import type { InventoryItemData } from '../../types/inventory';
-
-const BOOT = 'BenneInventoryPreviewBoot';
-const PREVIEW = 'BenneInventoryPreview';
-
-export type InventoryPreviewGamePayload = {
-  textureKey: string;
-  textureURL: string;
-  atlasURL: string;
-  inventory: InventoryItemData;
-  animationKey: string;
-  animationTagLabel: string;
-  revokeObjectUrls: string[];
-};
-
-function editorGameConfig(
-  parent: HTMLElement,
-  width: number,
-  height: number,
-): Omit<Phaser.Types.Core.GameConfig, 'scene'> {
-  return {
-    ...getBenneRendererConfigFields(),
-    parent,
-    width,
-    height,
-    scale: {
-      parent,
-      mode: Phaser.Scale.FIT,
-      width,
-      height,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
-      zoom: Phaser.Scale.MAX_ZOOM,
-      autoRound: true,
-    },
-  };
+export interface GameStateActiveVerbChangedPayload {
+  previousValue: string | null;
+  value: string | null;
 }
 
-class BenneInventoryPreviewBoot extends Phaser.Scene {
-  private readonly payload: InventoryPreviewGamePayload;
-
-  constructor(payload: InventoryPreviewGamePayload) {
-    super(BOOT);
-    this.payload = payload;
-  }
-
-  preload(): void {
-    this.load.aseprite({
-      key: this.payload.textureKey,
-      textureURL: this.payload.textureURL,
-      atlasURL: this.payload.atlasURL,
-    });
-  }
-
-  create(): void {
-    applyBootAudioSettings(this);
-    this.scene.start(PREVIEW, this.payload);
-    for (const u of this.payload.revokeObjectUrls) {
-      URL.revokeObjectURL(u);
-    }
-  }
+/** Emitted when the runtime active inventory item (use-on-target) changes. */
+export interface GameStateActiveInventoryItemChangedPayload {
+  itemId: string | null;
 }
 
-class InventoryPreviewScene extends Phaser.Scene {
-  private payload!: InventoryPreviewGamePayload;
-
-  constructor() {
-    super(PREVIEW);
-  }
-
-  init(data: InventoryPreviewGamePayload): void {
-    this.payload = data;
-  }
-
-  create(): void {
-    const cam = this.cameras.main;
-    cam.setBackgroundColor(0x1a1a2e);
-
-    const sprite = this.add
-      .sprite(cam.width / 2, cam.height / 2, this.payload.textureKey)
-      .setOrigin(0.5, 0.5);
-
-    if (!this.anims.exists(this.payload.animationKey)) {
-      const created = this.anims.createFromAseprite(this.payload.textureKey) ?? [];
-      const clips = buildInventoryAnimationsPhaserKeyed(this.payload.inventory);
-      if (clips) {
-        applyCharacterAnimationClips(created, clips);
-      }
-    }
-    if (this.anims.exists(this.payload.animationKey)) {
-      sprite.play(this.payload.animationKey);
-    }
-    const p = resolveAuthoredPositionForAsepriteTrim('center', cam.width / 2, cam.height / 2, sprite.frame);
-    sprite.setPosition(p.x, p.y);
-
-    this.add
-      .text(8, 6, `${this.payload.inventory.id} · ${this.payload.animationTagLabel}`, {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '11px',
-        color: '#8892a8',
-      })
-      .setScrollFactor(0);
-  }
-}
-
-export function createInventoryPreviewPhaserGame(
-  parent: HTMLElement,
-  payload: InventoryPreviewGamePayload,
-): Phaser.Game {
-  return new Phaser.Game({
-    ...editorGameConfig(parent, 352, 198),
-    callbacks: {
-      preBoot: (game: Phaser.Game) => {
-        game.registry.set(BENNE_AUDIO_SCRIPT_DISABLED_KEY, true);
-      },
-    },
-    scene: [new BenneInventoryPreviewBoot(payload), InventoryPreviewScene],
-  });
+/** Emitted when persisted room context (`currentRoom` / `lastRoom`) changes. */
+export interface GameStateRoomContextChangedPayload {
+  currentRoom: string;
+  lastRoom: string | null;
+  previousCurrentRoom: string;
+  previousLastRoom: string | null;
 }
 </file>
 
@@ -18355,6 +18172,81 @@ export class DialogChoiceDynamicRowState {
 }
 </file>
 
+<file path="src/engine/Game.ts">
+import * as Phaser from 'phaser';
+import { getGameSettings } from './ConfigManager.js';
+import { gameEvents } from './events/EventBus.js';
+import {
+  wireBenneVerbContextGameStateRelay,
+  unwireBenneVerbContextGameStateRelay,
+} from './scripting/benneVerbContextScriptSurface.js';
+import { setActiveBenneGame } from './gameState/activeBenneGame.js';
+import { GameStateManager, normalizeSerializedInventory } from './gameState/GameStateManager.js';
+import { BENNE_GAME_STATE_REGISTRY_KEY } from './gameState/registryKey.js';
+import { setActiveGameStateManager } from './gameState/resolveGameStateManager.js';
+import { wireBenneRuntimeHiDpiCanvasScale } from './benneRuntimeHiDpiScale.js';
+import { getBennePhaserGameConfigBase } from './gameConfig.js';
+import {
+  BENNE_SOUND_MANAGER_KEY,
+  setBenneSoundManager,
+} from './sound/benneSoundRegistry.js';
+import { applyPersistedAudioSessionVolumes } from './sound/audioGameState.js';
+import { SoundManager } from './sound/SoundManager.js';
+import { wireBenneAudioGameState } from './sound/wireBenneAudioGameState.js';
+import { BootScene } from './scenes/BootScene.js';
+import { RoomScene } from './scenes/RoomScene.js';
+
+/**
+ * Full `Phaser.Types.Core.GameConfig` for the shipped runtime (scenes + shared renderer / scale
+ * settings). Kept here — not in `gameConfig.ts` — so the scene imports stay out of the editor
+ * preview bundles (see the `gameConfig.ts` module comment).
+ */
+function createGameConfig(parent: HTMLElement | string): Phaser.Types.Core.GameConfig {
+  return {
+    ...getBennePhaserGameConfigBase(parent),
+    scene: [BootScene, RoomScene],
+  };
+}
+
+/**
+ * Creates the root {@link Phaser.Game} instance (Benne engine entry).
+ * Logical resolution comes from `src/game/game-config.json` via {@link createGameConfig}; hi-DPI
+ * canvas sizing and integer letterboxing are applied by {@link wireBenneRuntimeHiDpiCanvasScale}.
+ * Registers {@link GameStateManager} on `game.registry` for cross-room state.
+ */
+export function createBenneGame(parent: HTMLElement | string): Phaser.Game {
+  const game = new Phaser.Game(createGameConfig(parent));
+  wireBenneRuntimeHiDpiCanvasScale(game);
+  const rawInit = getGameSettings().initialGameState;
+  const initial =
+    rawInit != null
+      ? {
+          flags: rawInit.flags,
+          variables: rawInit.variables,
+          inventory:
+            rawInit.inventory !== undefined ? normalizeSerializedInventory(rawInit.inventory) : undefined,
+        }
+      : undefined;
+  const gameState = new GameStateManager(gameEvents, initial);
+  game.registry.set(BENNE_GAME_STATE_REGISTRY_KEY, gameState);
+  setActiveGameStateManager(gameState);
+  wireBenneVerbContextGameStateRelay(gameEvents);
+  setActiveBenneGame(game);
+  const soundManager = new SoundManager(game);
+  setBenneSoundManager(game, soundManager);
+  applyPersistedAudioSessionVolumes(game);
+  wireBenneAudioGameState(game, gameEvents);
+  game.events.once(Phaser.Core.Events.DESTROY, () => {
+    soundManager.destroy();
+    game.registry.remove(BENNE_SOUND_MANAGER_KEY);
+    unwireBenneVerbContextGameStateRelay(gameEvents);
+    setActiveGameStateManager(null);
+    setActiveBenneGame(null);
+  });
+  return game;
+}
+</file>
+
 <file path="src/engine/gui/buildGuiSlider.ts">
 import * as Phaser from 'phaser';
 import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/guiAseprite';
@@ -20530,6 +20422,78 @@ registerCharacterScript('henry', ({ B }) => {
 });
 </file>
 
+<file path="src/game/collectFontLoadsForGui.ts">
+import type { GameFontsManifest } from '../types/fonts';
+import type { GuiData } from '../types/gui';
+
+export type GuiFontLoadRequest = { fontId: string; textureUrl: string; dataUrl: string };
+
+/**
+ * Bitmap font files to load for one GUI's `text` controls (deduped by font id).
+ * `resolveAssetUrl` maps paths under `src/game/assets/` to a fetchable URL.
+ */
+export function collectFontLoadsForGui(
+  gui: GuiData,
+  manifest: GameFontsManifest,
+  resolveAssetUrl: (pathUnderAssets: string) => string,
+): GuiFontLoadRequest[] {
+  const out: GuiFontLoadRequest[] = [];
+  const seen = new Set<string>();
+  for (const c of gui.controls ?? []) {
+    if (c.type !== 'text' && c.type !== 'button' && c.type !== 'textInput') {
+      continue;
+    }
+    if (seen.has(c.font)) {
+      continue;
+    }
+    seen.add(c.font);
+    const def = manifest[c.font];
+    if (!def) {
+      console.warn(`[BENNE GUI preview] Unknown font id "${c.font}" — add it to assets/fonts/fonts.json.`);
+      continue;
+    }
+    try {
+      out.push({
+        fontId: c.font,
+        textureUrl: resolveAssetUrl(`fonts/${def.textureFile}`),
+        dataUrl: resolveAssetUrl(`fonts/${def.dataFile}`),
+      });
+    } catch (e) {
+      console.warn(`[BENNE GUI preview] Could not resolve font files for "${c.font}":`, e);
+    }
+  }
+  return out;
+}
+
+export function guiHasTextControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'text');
+}
+
+export function guiHasImageControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'image' || c.type === 'nineSliceImage');
+}
+
+export function guiHasButtonControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'button');
+}
+
+export function guiHasCheckboxControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'checkbox');
+}
+
+export function guiHasTriggerControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'trigger');
+}
+
+export function guiHasGridControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'grid');
+}
+
+export function guiHasTextInputControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'textInput');
+}
+</file>
+
 <file path="src/game/dialogs/chatwithpenny/chatwithpenny.dialog.json">
 {
   "id": "chatwithpenny",
@@ -20549,32 +20513,6 @@ registerCharacterScript('henry', ({ B }) => {
     }
   ]
 }
-</file>
-
-<file path="src/game/guis/game-menu/game-menu.gui.ts">
-import { registerGuiScript } from '@engine/scripting';
-
-/**
- * GUI script for `game-menu` — Bennescript entry (`B.raw`, future onShow/onHide/control hooks on `B`).
- */
-registerGuiScript('game-menu', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-
-  B.whenButtonClick("resume", () => {
-    B.gui('game-menu').hide();
-  });
-
-  B.whenButtonClick("settings", () => {
-    B.gui('settings-menu').show();
-    B.gui('game-menu').hide();
-  });
-
-  B.whenButtonClick("save", () => {
-    B.gui('save-menu').show();
-    B.gui('game-menu').hide();
-  });
-});
 </file>
 
 <file path="src/game/guis/inventoryBar/inventoryBar.gui.ts">
@@ -20603,142 +20541,21 @@ registerGuiScript('inventoryBar', ({ B }) => {
 });
 </file>
 
-<file path="src/game/guis/save-menu/save-menu.gui.json">
+<file path="src/game/inventory/Broom/Broom.inventory.json">
 {
-  "id": "save-menu",
-  "name": "Save Menu",
+  "id": "Broom",
+  "name": "Broom",
   "description": "",
-  "visible": false,
-  "display": {
-    "aseprite": true
+  "onVerb": {
+    "look": true,
+    "use": true
   },
-  "controls": [
-    {
-      "type": "nineSliceImage",
-      "id": "save-bg",
-      "x": 30,
-      "y": 16,
-      "width": 260,
-      "height": 148,
-      "tag": "9-slice-BG",
-      "sliceNames": {
-        "topLeft": "TopLeft",
-        "topCenter": "TopMid",
-        "topRight": "TopRight",
-        "middleLeft": "MidLeft",
-        "center": "Mid",
-        "middleRight": "MidRight",
-        "bottomLeft": "BottomLeft",
-        "bottomCenter": "BottomMid",
-        "bottomRight": "BottomRight"
-      }
-    },
-    {
-      "type": "text",
-      "id": "title",
-      "x": 142,
-      "y": 24,
-      "text": "Save",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "color": "#1a466b"
-    },
-    {
-      "type": "textInput",
-      "id": "save-name",
-      "x": 42,
-      "y": 138,
-      "width": 158,
-      "height": 14,
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "text": "",
-      "maxLength": 25,
-      "placeholder": "Enter text...",
-      "color": "#ffffff",
-      "backgroundColor": "#222222",
-      "outlineColor": "#666666",
-      "caretColor": "#ffffff",
-      "hoverBackgroundColor": "#2f2f2f",
-      "focusedOutlineColor": "#a0a0a0",
-      "textAlign": "left"
-    },
-    {
-      "type": "listBox",
-      "id": "saved-list",
-      "x": 42,
-      "y": 52,
-      "width": 158,
-      "height": 80,
-      "rowCount": 5,
-      "rowPadding": 2,
-      "normalBackgroundColor": "#222222",
-      "hoverBackgroundColor": "#2f2f2f",
-      "selectedBackgroundColor": "#4a4a4a",
-      "textColor": "#ffffff",
-      "selectedTextColor": "#ffffff",
-      "placeholderTextColor": "#999999"
-    },
-    {
-      "type": "text",
-      "id": "instructions",
-      "x": 42,
-      "y": 36,
-      "text": "Select a slot and enter a name to save.",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "color": "#1a466b",
-      "wordWrapWidth": 224
-    },
-    {
-      "type": "button",
-      "id": "save-btn",
-      "x": 210,
-      "y": 81,
-      "width": 62,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Save",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "backgroundColor": "#132243",
-      "backgroundColorStates": {
-        "hover": "#1a466b",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      }
-    },
-    {
-      "type": "button",
-      "id": "back-btn",
-      "x": 210,
-      "y": 98,
-      "width": 62,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Back",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "backgroundColor": "#132243",
-      "backgroundColorStates": {
-        "hover": "#1a466b",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      }
-    }
-  ],
-  "modal": true,
-  "zIndex": 101
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "cursorAnimation": "Broom"
 }
 </file>
 
@@ -21206,81 +21023,6 @@ export function computeDialogLineDurationMs(
 }
 </file>
 
-<file path="src/engine/Game.ts">
-import * as Phaser from 'phaser';
-import { getGameSettings } from './ConfigManager.js';
-import { gameEvents } from './events/EventBus.js';
-import {
-  wireBenneVerbContextGameStateRelay,
-  unwireBenneVerbContextGameStateRelay,
-} from './scripting/benneVerbContextScriptSurface.js';
-import { setActiveBenneGame } from './gameState/activeBenneGame.js';
-import { GameStateManager, normalizeSerializedInventory } from './gameState/GameStateManager.js';
-import { BENNE_GAME_STATE_REGISTRY_KEY } from './gameState/registryKey.js';
-import { setActiveGameStateManager } from './gameState/resolveGameStateManager.js';
-import { wireBenneRuntimeHiDpiCanvasScale } from './benneRuntimeHiDpiScale.js';
-import { getBennePhaserGameConfigBase } from './gameConfig.js';
-import {
-  BENNE_SOUND_MANAGER_KEY,
-  setBenneSoundManager,
-} from './sound/benneSoundRegistry.js';
-import { applyPersistedAudioSessionVolumes } from './sound/audioGameState.js';
-import { SoundManager } from './sound/SoundManager.js';
-import { wireBenneAudioGameState } from './sound/wireBenneAudioGameState.js';
-import { BootScene } from './scenes/BootScene.js';
-import { RoomScene } from './scenes/RoomScene.js';
-
-/**
- * Full `Phaser.Types.Core.GameConfig` for the shipped runtime (scenes + shared renderer / scale
- * settings). Kept here — not in `gameConfig.ts` — so the scene imports stay out of the editor
- * preview bundles (see the `gameConfig.ts` module comment).
- */
-function createGameConfig(parent: HTMLElement | string): Phaser.Types.Core.GameConfig {
-  return {
-    ...getBennePhaserGameConfigBase(parent),
-    scene: [BootScene, RoomScene],
-  };
-}
-
-/**
- * Creates the root {@link Phaser.Game} instance (Benne engine entry).
- * Logical resolution comes from `src/game/game-config.json` via {@link createGameConfig}; hi-DPI
- * canvas sizing and integer letterboxing are applied by {@link wireBenneRuntimeHiDpiCanvasScale}.
- * Registers {@link GameStateManager} on `game.registry` for cross-room state.
- */
-export function createBenneGame(parent: HTMLElement | string): Phaser.Game {
-  const game = new Phaser.Game(createGameConfig(parent));
-  wireBenneRuntimeHiDpiCanvasScale(game);
-  const rawInit = getGameSettings().initialGameState;
-  const initial =
-    rawInit != null
-      ? {
-          flags: rawInit.flags,
-          variables: rawInit.variables,
-          inventory:
-            rawInit.inventory !== undefined ? normalizeSerializedInventory(rawInit.inventory) : undefined,
-        }
-      : undefined;
-  const gameState = new GameStateManager(gameEvents, initial);
-  game.registry.set(BENNE_GAME_STATE_REGISTRY_KEY, gameState);
-  setActiveGameStateManager(gameState);
-  wireBenneVerbContextGameStateRelay(gameEvents);
-  setActiveBenneGame(game);
-  const soundManager = new SoundManager(game);
-  setBenneSoundManager(game, soundManager);
-  applyPersistedAudioSessionVolumes(game);
-  wireBenneAudioGameState(game, gameEvents);
-  game.events.once(Phaser.Core.Events.DESTROY, () => {
-    soundManager.destroy();
-    game.registry.remove(BENNE_SOUND_MANAGER_KEY);
-    unwireBenneVerbContextGameStateRelay(gameEvents);
-    setActiveGameStateManager(null);
-    setActiveBenneGame(null);
-  });
-  return game;
-}
-</file>
-
 <file path="src/engine/room/regionCharacterScale.ts">
 import * as Phaser from 'phaser';
 import type { RoomRegionData } from '../../types/room';
@@ -21734,6 +21476,454 @@ export class BootScene extends Phaser.Scene {
     });
     this.load.start();
   }
+}
+</file>
+
+<file path="src/engine/scripting/benneScriptGameStateApi.ts">
+import type { BenneGameStateFlagValue } from '../../types/gameState.js';
+import type { GameStateManager } from '../gameState/GameStateManager.js';
+import type { RoomScene } from '../scenes/RoomScene.js';
+import { tryGetRoomTransitionOrchestrator } from '../scenes/roomTransitionGlobals.js';
+import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
+import {
+  inventoryCursorAnimationVariableKey,
+  inventoryDefaultAnimationVariableKey,
+  readEffectiveInventoryCursorAnimationTag,
+  readEffectiveInventoryDefaultAnimationTag,
+} from '../inventory/inventoryScriptingAnimations.js';
+import type { BenneScriptInventoryItemFacade } from './benneScriptFacades.js';
+import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
+import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
+import { runSnapshotFlushHooks } from '../gameState/snapshotFlushHooks.js';
+import { SCENE_ROOM } from '../../game/constants.js';
+import type { SaveMetadata } from '../../types/gameState.js';
+
+/**
+ * When provided to {@link createBenneScriptInventoryNamespace}, **`B.inventory.add` / `remove`**
+ * (blocking form) and per-item **`animation`** / **`cursorAnimation`** setters enqueue on the owning
+ * script’s interaction tail (same ordering as **`B.player.animation`**).
+ */
+export type BenneScriptInventoryInteractionQueue = (factory: () => Promise<unknown>) => void;
+export type BenneScriptGameStateManagerResolver = () => GameStateManager | null | undefined;
+
+type SyncWithNow<TArgs extends readonly unknown[], TResult> = ((
+  ...args: TArgs
+) => TResult) & { now: (...args: TArgs) => TResult };
+
+function withNowResult<TArgs extends readonly unknown[], TResult>(
+  impl: (...args: TArgs) => TResult,
+): SyncWithNow<TArgs, TResult> {
+  const fn = impl as SyncWithNow<TArgs, TResult>;
+  fn.now = impl;
+  return fn;
+}
+
+function resolveManagerOrWarn(
+  resolveManager: BenneScriptGameStateManagerResolver,
+  actionLabel: string,
+): GameStateManager | null {
+  const manager = resolveManager();
+  if (manager) {
+    return manager;
+  }
+  if (import.meta.env.DEV) {
+    console.warn(`[Benne] B.state.${actionLabel}: game state manager is not active yet — ignored.`);
+  }
+  return null;
+}
+
+/** `B.state` — flags, variables, and snapshot persistence (see `GameStateManager`). */
+export interface BenneScriptGameStateNamespace {
+  setFlag(id: string, value: BenneGameStateFlagValue): void;
+  getFlag(id: string): BenneGameStateFlagValue | undefined;
+  hasFlag(id: string): boolean;
+  clearFlag(id: string): void;
+  setVariable(id: string, value: unknown): void;
+  getVariable(id: string): unknown;
+  hasVariable(id: string): boolean;
+  clearVariable(id: string): void;
+  getSaveList(): SaveMetadata[];
+  save: SyncWithNow<[name: string, slot?: number], void>;
+  load: SyncWithNow<[nameOrSlot: string | number], boolean>;
+  deleteSave: SyncWithNow<[nameOrSlot: string | number], void>;
+  renameSave: SyncWithNow<[oldName: string, newName: string], void>;
+  exportJson(): string;
+  importJson(json: string): void;
+  /**
+   * Runtime-only "active verb" (see {@link GameStateManager.setActiveVerb}). When non-null, the
+   * pointer resolver uses it for left-clicks on clickable targets (consuming it on dispatch) and
+   * right-clicks clear it. Pass `null` to clear; empty strings are treated as `null`.
+   */
+  setActiveVerb(verbId: string | null): void;
+  getActiveVerb(): string | null;
+  clearActiveVerb(): void;
+  /**
+   * Active inventory item for use-on-target (see {@link GameStateManager.setActiveInventory}). Persisted in
+   * save snapshots. Pass `null` to clear; empty strings are treated as `null`. (Maps to {@link GameStateManager.setActiveInventoryItem}.)
+   */
+  setActiveInventory(id: string | null): void;
+  getActiveInventoryItemId(): string | null;
+  clearActiveInventory(): void;
+  /** See {@link import('../gameState/GameStateManager.js').GameStateManager.getCurrentRoom}. */
+  getCurrentRoom(): string;
+  getLastRoom(): string | null;
+  setCurrentRoom(roomId: string): void;
+  setLastRoom(roomId: string | null): void;
+  /**
+   * Read-only: `true` while a cutscene block is active on the current {@link RoomScene}
+   * (any of: `B.cutscene(…)`, `whenEnterRoom`, `whenEnterAnyRoom`, `whenEnterRoomAfterFade`,
+   * `whenEnterAnyRoomAfterFade`, or `whenChoice` handler). `false` outside a room or when
+   * no cutscene is in progress.
+   */
+  readonly isCutsceneActive: boolean;
+  /**
+   * Pull live runtime state on the active room scene (currently: character feet world
+   * positions and prop authoring positions) into the {@link GameStateManager} so the next
+   * room load — or save snapshot — restores it. Most state (visibility, alpha, animation
+   * overrides, flags, variables, inventory) is already eagerly persisted on every change;
+   * `flush` exists for **lazily-saved** fields that aren't worth writing per-tick.
+   *
+   * Also runs automatically inside {@link GameStateManager.getSnapshot} (so
+   * `B.state.save` / `exportJson` already pick everything up) and on room-transition
+   * leave (see `RoomTransitionOrchestrator.prepareForLeave`). Call it directly only at custom
+   * save points.
+   */
+  flush(): void;
+}
+
+/**
+ * `B.inventory` — quantities per item id (see `GameStateManager`), plus **`B.inventory(itemId)`** for per-item
+ * animation fields (see {@link BenneScriptInventoryItemFacade}).
+ */
+export interface BenneScriptInventoryNamespace {
+  (itemId: string): BenneScriptInventoryItemFacade;
+  /** Queues on the owning script interaction tail when wired with chain; `.now` applies immediately. */
+  add: BlockingWithNow<[string, number?]>;
+  remove: BlockingWithNow<[string, number?]>;
+  has(id: string): boolean;
+  quantityOf(id: string): number;
+  /** Legacy accessor for inventory entries; prefer `add`/`remove`/`has`/`quantityOf` for gameplay logic. */
+  readonly items: ReadonlyArray<{ id: string; quantity: number }>;
+  clearInventory(): void;
+}
+
+function createBenneScriptGameStateNamespaceFromResolver(
+  resolveManager: BenneScriptGameStateManagerResolver,
+): BenneScriptGameStateNamespace {
+  const withManagerVoid = (
+    actionLabel: string,
+    run: (manager: GameStateManager) => void,
+  ): void => {
+    const manager = resolveManagerOrWarn(resolveManager, actionLabel);
+    if (!manager) {
+      return;
+    }
+    run(manager);
+  };
+  const withManagerResult = <T>(
+    actionLabel: string,
+    fallback: T,
+    run: (manager: GameStateManager) => T,
+  ): T => {
+    const manager = resolveManagerOrWarn(resolveManager, actionLabel);
+    if (!manager) {
+      return fallback;
+    }
+    return run(manager);
+  };
+  return {
+    setFlag: (id, value) => withManagerVoid('setFlag', (m) => m.setFlag(id, value)),
+    getFlag: (id) => withManagerResult('getFlag', undefined, (m) => m.getFlag(id)),
+    hasFlag: (id) => withManagerResult('hasFlag', false, (m) => m.hasFlag(id)),
+    clearFlag: (id) => withManagerVoid('clearFlag', (m) => m.clearFlag(id)),
+    setVariable: (id, value) => withManagerVoid('setVariable', (m) => m.setVariable(id, value)),
+    getVariable: (id) => withManagerResult('getVariable', undefined, (m) => m.getVariable(id)),
+    hasVariable: (id) => withManagerResult('hasVariable', false, (m) => m.hasVariable(id)),
+    clearVariable: (id) => withManagerVoid('clearVariable', (m) => m.clearVariable(id)),
+    getSaveList: () => withManagerResult('getSaveList', [], (m) => m.getSaveList()),
+    save: withNowResult((name: string, slot?: number): void => {
+      withManagerVoid('save', (m) => m.save(name, slot));
+    }),
+    load: withNowResult((nameOrSlot: string | number): boolean => {
+      return withManagerResult('load', false, (m) => {
+        const loaded = m.load(nameOrSlot);
+        if (!loaded) {
+          return false;
+        }
+        const orch = tryGetRoomTransitionOrchestrator();
+        if (!orch) {
+          if (import.meta.env.DEV) {
+            console.warn('[Benne] B.state.load: no room transition orchestrator — snapshot loaded only.');
+          }
+          return true;
+        }
+        void orch.transitionToLoadedRoom(false);
+        return true;
+      });
+    }),
+    deleteSave: withNowResult((nameOrSlot: string | number): void => {
+      withManagerVoid('deleteSave', (m) => m.deleteSave(nameOrSlot));
+    }),
+    renameSave: withNowResult((oldName: string, newName: string): void => {
+      withManagerVoid('renameSave', (m) => m.renameSave(oldName, newName));
+    }),
+    exportJson: () => withManagerResult('exportJson', '{}', (m) => m.exportSnapshotJson()),
+    importJson: (json) => withManagerVoid('importJson', (m) => m.importSnapshotJson(json)),
+    setActiveVerb: (verbId) => withManagerVoid('setActiveVerb', (m) => m.setActiveVerb(verbId)),
+    getActiveVerb: () => withManagerResult('getActiveVerb', null, (m) => m.getActiveVerb()),
+    clearActiveVerb: () => withManagerVoid('clearActiveVerb', (m) => m.clearActiveVerb()),
+    setActiveInventory: (id) =>
+      withManagerVoid('setActiveInventory', (m) => m.setActiveInventoryItem(id)),
+    getActiveInventoryItemId: () =>
+      withManagerResult('getActiveInventoryItemId', null, (m) => m.getActiveInventoryItemId()),
+    clearActiveInventory: () =>
+      withManagerVoid('clearActiveInventory', (m) => m.clearActiveInventoryItem()),
+    getCurrentRoom: () => withManagerResult('getCurrentRoom', '', (m) => m.getCurrentRoom()),
+    getLastRoom: () => withManagerResult('getLastRoom', null, (m) => m.getLastRoom()),
+    setCurrentRoom: (roomId) => withManagerVoid('setCurrentRoom', (m) => m.setCurrentRoom(roomId)),
+    setLastRoom: (roomId) => withManagerVoid('setLastRoom', (m) => m.setLastRoom(roomId)),
+    get isCutsceneActive(): boolean {
+      const game = tryGetActiveBenneGame();
+      if (!game) {
+        return false;
+      }
+      const scene = game.scene.getScene(SCENE_ROOM) as RoomScene | null;
+      return scene?.isCutsceneActive() ?? false;
+    },
+    flush: () => runSnapshotFlushHooks(),
+  };
+}
+
+export function createBenneScriptGameStateNamespace(m: GameStateManager): BenneScriptGameStateNamespace {
+  return createBenneScriptGameStateNamespaceFromResolver(() => m);
+}
+
+export function createLazyBenneScriptGameStateNamespace(
+  resolveManager: BenneScriptGameStateManagerResolver,
+): BenneScriptGameStateNamespace {
+  return createBenneScriptGameStateNamespaceFromResolver(resolveManager);
+}
+
+function createBenneScriptInventoryItemFacade(
+  itemId: string,
+  resolveManager: BenneScriptGameStateManagerResolver,
+  getRoomScene?: () => RoomScene | undefined,
+  queueInteraction?: BenneScriptInventoryInteractionQueue,
+): BenneScriptInventoryItemFacade {
+  const resolveInventoryManager = (): GameStateManager | null => {
+    const manager = resolveManager();
+    if (manager) {
+      return manager;
+    }
+    if (import.meta.env.DEV) {
+      console.warn(
+        `[Benne] B.inventory("${itemId}"): game state manager is not active yet — ignored.`,
+      );
+    }
+    return null;
+  };
+  const applyDefault = (tag: string): void => {
+    const scene = getRoomScene?.();
+    if (scene) {
+      scene.setInventoryScriptDefaultAnimationTag(itemId, tag);
+      return;
+    }
+    const def = getInventoryDefinition(itemId);
+    if (!def) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] B.inventory("${itemId}"): unknown item id.`);
+      }
+      return;
+    }
+    const manager = resolveInventoryManager();
+    if (!manager) {
+      return;
+    }
+    const t = tag.trim();
+    if (t.length === 0) {
+      manager.clearVariable(inventoryDefaultAnimationVariableKey(itemId));
+      return;
+    }
+    manager.setVariable(inventoryDefaultAnimationVariableKey(itemId), t);
+  };
+
+  const applyCursor = (tag: string): void => {
+    const scene = getRoomScene?.();
+    if (scene) {
+      scene.setInventoryScriptCursorAnimationTag(itemId, tag);
+      return;
+    }
+    const def = getInventoryDefinition(itemId);
+    if (!def) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] B.inventory("${itemId}"): unknown item id.`);
+      }
+      return;
+    }
+    const manager = resolveInventoryManager();
+    if (!manager) {
+      return;
+    }
+    const t = tag.trim();
+    if (t.length === 0) {
+      manager.clearVariable(inventoryCursorAnimationVariableKey(itemId));
+      return;
+    }
+    manager.setVariable(inventoryCursorAnimationVariableKey(itemId), t);
+  };
+
+  const queueOrRun = (run: () => void): void => {
+    if (queueInteraction) {
+      queueInteraction(() => {
+        run();
+        return Promise.resolve();
+      });
+    } else {
+      run();
+    }
+  };
+
+  return {
+    get animation() {
+      const manager = resolveManager();
+      if (!manager) {
+        return getInventoryDefinition(itemId)?.defaultAnimation ?? '';
+      }
+      const def = getInventoryDefinition(itemId);
+      return def ? readEffectiveInventoryDefaultAnimationTag(manager, def) : '';
+    },
+    set animation(tag: string) {
+      queueOrRun(() => applyDefault(tag));
+    },
+    animationNow(tag: string): void {
+      applyDefault(tag);
+    },
+    get cursorAnimation() {
+      const def = getInventoryDefinition(itemId);
+      if (!def) {
+        return '';
+      }
+      const manager = resolveManager();
+      if (!manager) {
+        return def.cursorAnimation?.trim() ?? '';
+      }
+      return readEffectiveInventoryCursorAnimationTag(manager, def) ?? '';
+    },
+    set cursorAnimation(tag: string) {
+      queueOrRun(() => applyCursor(tag));
+    },
+    cursorAnimationNow(tag: string): void {
+      applyCursor(tag);
+    },
+  };
+}
+
+export function createBenneScriptInventoryNamespace(
+  m: GameStateManager,
+  getRoomScene?: () => RoomScene | undefined,
+  queueInteraction?: BenneScriptInventoryInteractionQueue,
+): BenneScriptInventoryNamespace {
+  return createBenneScriptInventoryNamespaceFromResolver(
+    () => m,
+    getRoomScene,
+    queueInteraction,
+  );
+}
+
+function createBenneScriptInventoryNamespaceFromResolver(
+  resolveManager: BenneScriptGameStateManagerResolver,
+  getRoomScene?: () => RoomScene | undefined,
+  queueInteraction?: BenneScriptInventoryInteractionQueue,
+): BenneScriptInventoryNamespace {
+  const resolveInventoryManager = (actionLabel: string): GameStateManager | null => {
+    const manager = resolveManager();
+    if (manager) {
+      return manager;
+    }
+    if (import.meta.env.DEV) {
+      console.warn(`[Benne] B.inventory.${actionLabel}: game state manager is not active yet — ignored.`);
+    }
+    return null;
+  };
+  const queueOrRunSync = (run: () => void): void => {
+    if (queueInteraction) {
+      queueInteraction(() => {
+        run();
+        return Promise.resolve();
+      });
+    } else {
+      run();
+    }
+  };
+
+  const methods = {
+    add: withNow(
+      (id: string, quantity?: number) => {
+        queueOrRunSync(() => {
+          const manager = resolveInventoryManager('add');
+          if (!manager) {
+            return;
+          }
+          void manager.addInventory(id, quantity);
+        });
+      },
+      (id: string, quantity?: number) => {
+        const manager = resolveInventoryManager('add.now');
+        if (!manager) {
+          return;
+        }
+        void manager.addInventory(id, quantity);
+      },
+    ),
+    remove: withNow(
+      (id: string, quantity?: number) => {
+        queueOrRunSync(() => {
+          const manager = resolveInventoryManager('remove');
+          if (!manager) {
+            return;
+          }
+          void manager.removeFromInventory(id, quantity);
+        });
+      },
+      (id: string, quantity?: number) => {
+        const manager = resolveInventoryManager('remove.now');
+        if (!manager) {
+          return;
+        }
+        void manager.removeFromInventory(id, quantity);
+      },
+    ),
+    has: (id: string) => {
+      const manager = resolveInventoryManager('has');
+      return manager ? manager.hasInInventory(id) : false;
+    },
+    quantityOf: (id: string) => {
+      const manager = resolveInventoryManager('quantityOf');
+      return manager ? manager.quantityOf(id) : 0;
+    },
+    get items() {
+      const manager = resolveInventoryManager('items');
+      return manager ? manager.getInventoryItems() : [];
+    },
+    clearInventory: () => {
+      const manager = resolveInventoryManager('clearInventory');
+      if (!manager) {
+        return;
+      }
+      manager.clearInventory();
+    },
+  };
+  const callable = (itemId: string) =>
+    createBenneScriptInventoryItemFacade(itemId, resolveManager, getRoomScene, queueInteraction);
+  return Object.assign(callable, methods) as BenneScriptInventoryNamespace;
+}
+
+export function createLazyBenneScriptInventoryNamespace(
+  resolveManager: BenneScriptGameStateManagerResolver,
+  getRoomScene?: () => RoomScene | undefined,
+  queueInteraction?: BenneScriptInventoryInteractionQueue,
+): BenneScriptInventoryNamespace {
+  return createBenneScriptInventoryNamespaceFromResolver(resolveManager, getRoomScene, queueInteraction);
 }
 </file>
 
@@ -22399,78 +22589,6 @@ registerCharacterScript('penny', ({ B }) => {
 });
 </file>
 
-<file path="src/game/collectFontLoadsForGui.ts">
-import type { GameFontsManifest } from '../types/fonts';
-import type { GuiData } from '../types/gui';
-
-export type GuiFontLoadRequest = { fontId: string; textureUrl: string; dataUrl: string };
-
-/**
- * Bitmap font files to load for one GUI's `text` controls (deduped by font id).
- * `resolveAssetUrl` maps paths under `src/game/assets/` to a fetchable URL.
- */
-export function collectFontLoadsForGui(
-  gui: GuiData,
-  manifest: GameFontsManifest,
-  resolveAssetUrl: (pathUnderAssets: string) => string,
-): GuiFontLoadRequest[] {
-  const out: GuiFontLoadRequest[] = [];
-  const seen = new Set<string>();
-  for (const c of gui.controls ?? []) {
-    if (c.type !== 'text' && c.type !== 'button' && c.type !== 'textInput') {
-      continue;
-    }
-    if (seen.has(c.font)) {
-      continue;
-    }
-    seen.add(c.font);
-    const def = manifest[c.font];
-    if (!def) {
-      console.warn(`[BENNE GUI preview] Unknown font id "${c.font}" — add it to assets/fonts/fonts.json.`);
-      continue;
-    }
-    try {
-      out.push({
-        fontId: c.font,
-        textureUrl: resolveAssetUrl(`fonts/${def.textureFile}`),
-        dataUrl: resolveAssetUrl(`fonts/${def.dataFile}`),
-      });
-    } catch (e) {
-      console.warn(`[BENNE GUI preview] Could not resolve font files for "${c.font}":`, e);
-    }
-  }
-  return out;
-}
-
-export function guiHasTextControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'text');
-}
-
-export function guiHasImageControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'image' || c.type === 'nineSliceImage');
-}
-
-export function guiHasButtonControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'button');
-}
-
-export function guiHasCheckboxControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'checkbox');
-}
-
-export function guiHasTriggerControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'trigger');
-}
-
-export function guiHasGridControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'grid');
-}
-
-export function guiHasTextInputControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'textInput');
-}
-</file>
-
 <file path="src/game/dialogs/chatwithpenny/chatwithpenny.dialog.ts">
 import { registerDialogScript } from '@engine/scripting';
 
@@ -22737,10 +22855,249 @@ registerGuiScript('display-text', ({ B }) => {
 }
 </file>
 
-<file path="src/game/inventory/Broom/Broom.inventory.json">
+<file path="src/game/guis/save-menu/save-menu.gui.json">
 {
-  "id": "Broom",
-  "name": "Broom",
+  "id": "save-menu",
+  "name": "Save Menu",
+  "description": "",
+  "visible": false,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "nineSliceImage",
+      "id": "save-bg",
+      "x": 30,
+      "y": 16,
+      "width": 260,
+      "height": 148,
+      "tag": "9-slice-BG",
+      "sliceNames": {
+        "topLeft": "TopLeft",
+        "topCenter": "TopMid",
+        "topRight": "TopRight",
+        "middleLeft": "MidLeft",
+        "center": "Mid",
+        "middleRight": "MidRight",
+        "bottomLeft": "BottomLeft",
+        "bottomCenter": "BottomMid",
+        "bottomRight": "BottomRight"
+      }
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "x": 142,
+      "y": 24,
+      "text": "Save",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#1a466b"
+    },
+    {
+      "type": "textInput",
+      "id": "save-name",
+      "x": 42,
+      "y": 138,
+      "width": 158,
+      "height": 14,
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "text": "",
+      "maxLength": 25,
+      "placeholder": "Enter text...",
+      "color": "#ffffff",
+      "backgroundColor": "#222222",
+      "outlineColor": "#666666",
+      "caretColor": "#ffffff",
+      "hoverBackgroundColor": "#2f2f2f",
+      "focusedOutlineColor": "#a0a0a0",
+      "textAlign": "left"
+    },
+    {
+      "type": "listBox",
+      "id": "saved-list",
+      "x": 42,
+      "y": 52,
+      "width": 158,
+      "height": 80,
+      "rowCount": 5,
+      "rowPadding": 2,
+      "normalBackgroundColor": "#222222",
+      "hoverBackgroundColor": "#2f2f2f",
+      "selectedBackgroundColor": "#4a4a4a",
+      "textColor": "#ffffff",
+      "selectedTextColor": "#ffffff",
+      "placeholderTextColor": "#999999"
+    },
+    {
+      "type": "text",
+      "id": "instructions",
+      "x": 42,
+      "y": 36,
+      "text": "Select a slot and enter a name to save.",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "color": "#1a466b",
+      "wordWrapWidth": 224
+    },
+    {
+      "type": "button",
+      "id": "save-btn",
+      "x": 210,
+      "y": 81,
+      "width": 62,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Save",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    },
+    {
+      "type": "button",
+      "id": "back-btn",
+      "x": 210,
+      "y": 98,
+      "width": 62,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Back",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    }
+  ],
+  "modal": true,
+  "zIndex": 101
+}
+</file>
+
+<file path="src/game/guis/save-menu/save-menu.gui.ts">
+import { registerGuiScript } from '@engine/scripting';
+
+const MAX_SLOTS = 5;
+
+/**
+ * GUI script for `save-menu`.
+ * Five fixed slots (0–4); `B.state.save(name, slot)` writes the selected slot.
+ */
+registerGuiScript('save-menu', ({ B }) => {
+  B.whenButtonClick('back-btn', () => {
+    B.gui('save-menu').hide();
+    B.gui('game-menu').show();
+  });
+
+  let selectedSlotIndex = 0;
+
+  /** Map manifest entries onto fixed slot indices (ignores unnamed / out-of-range saves). */
+  function getSavesBySlot() {
+    const bySlot: Array<{ name: string; slot?: number; timestamp: number } | undefined> =
+      Array(MAX_SLOTS);
+    for (const save of B.state.getSaveList()) {
+      const slot = save.slot;
+      if (typeof slot === 'number' && slot >= 0 && slot < MAX_SLOTS) {
+        bySlot[slot] = save;
+      }
+    }
+    return bySlot;
+  }
+
+  function firstEmptyOrLastSlot(savesBySlot: ReturnType<typeof getSavesBySlot>): number {
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      if (!savesBySlot[i]) return i;
+    }
+    return MAX_SLOTS - 1;
+  }
+
+  function syncNameAndSaveButton(slotIndex: number) {
+    const gui = B.gui('save-menu');
+    const save = getSavesBySlot()[slotIndex];
+    const name = save ? save.name : '';
+    gui.control('save-name').textNow(name);
+    gui.control('save-btn').enabled = name.trim().length > 0;
+  }
+
+  /** Repaint list rows. When `autoSelect` is true, pick the first empty slot or the last slot if full. */
+  function refreshSaveList(autoSelect: boolean) {
+    const savesBySlot = getSavesBySlot();
+    const listBox = B.gui('save-menu').control('saved-list');
+
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const existing = savesBySlot[i];
+      listBox.setRowText(i, existing ? existing.name : `(Empty Slot ${i + 1})`);
+    }
+
+    if (autoSelect) {
+      selectedSlotIndex = firstEmptyOrLastSlot(savesBySlot);
+    }
+
+    listBox.selectedIndex = selectedSlotIndex;
+  }
+
+  B.onGuiBuilt(() => {
+    const gui = B.gui('save-menu');
+    const listBox = gui.control('saved-list');
+    const nameInput = gui.control('save-name');
+    const saveButton = gui.control('save-btn');
+
+    refreshSaveList(true);
+    syncNameAndSaveButton(selectedSlotIndex);
+
+    listBox.whenSelectionChanged((index: number) => {
+      selectedSlotIndex = index;
+      syncNameAndSaveButton(index);
+    });
+
+    nameInput.whenValueChanged((newValue) => {
+      const trimmed = String(newValue || '').trim();
+      saveButton.enabled = trimmed.length > 0;
+    });
+  });
+
+  B.whenButtonClick('save-btn', () => {
+    const gui = B.gui('save-menu');
+    const nameInput = gui.control('save-name');
+    const name = String(nameInput.text || '').trim();
+    if (name.length === 0) return;
+
+    B.state.save.now(name, selectedSlotIndex);
+    B.state.flush();
+
+    refreshSaveList(false);
+    syncNameAndSaveButton(selectedSlotIndex);
+
+    B.gui('save-menu').hide();
+    B.gui('game-menu').show();
+  });
+});
+</file>
+
+<file path="src/game/inventory/Bread/Bread.inventory.json">
+{
+  "id": "Bread",
+  "name": "Bread",
   "description": "",
   "onVerb": {
     "look": true,
@@ -22751,7 +23108,7 @@ registerGuiScript('display-text', ({ B }) => {
   "display": {
     "aseprite": "shared"
   },
-  "cursorAnimation": "Broom"
+  "cursorAnimation": "Bread"
 }
 </file>
 
@@ -22770,6 +23127,24 @@ registerInventoryScript('Broom', ({ B }) => {
 });
 </file>
 
+<file path="src/game/inventory/Key/Key.inventory.json">
+{
+  "id": "Key",
+  "name": "Key",
+  "description": "",
+  "onVerb": {
+    "look": true,
+    "use": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "cursorAnimation": "Key"
+}
+</file>
+
 <file path="src/game/inventory/Key/Key.inventory.ts">
 import { registerInventoryScript } from '@engine/scripting';
 
@@ -22783,6 +23158,24 @@ registerInventoryScript('Key', ({ B }) => {
     // TODO
   });
 });
+</file>
+
+<file path="src/game/inventory/Knife/Knife.inventory.json">
+{
+  "id": "Knife",
+  "name": "Knife",
+  "description": "",
+  "onVerb": {
+    "use": true,
+    "look": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "cursorAnimation": "Knife"
+}
 </file>
 
 <file path="src/game/inventory/Knife/Knife.inventory.ts">
@@ -22800,946 +23193,58 @@ registerInventoryScript('Knife', ({ B }) => {
 });
 </file>
 
-<file path="src/engine/gameState/GameStateManager.ts">
-import * as Phaser from 'phaser';
-import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
-import type {
-  BenneGameStateFlagValue,
-  GameStateActiveInventoryItemChangedPayload,
-  GameStateActiveVerbChangedPayload,
-  GameStateFlagChangedPayload,
-  GameStateInventoryChangedPayload,
-  GameStateReplacedPayload,
-  GameStateRoomContextChangedPayload,
-  GameStateVariableChangedPayload,
-  SaveManifest,
-  SaveManifestEntry,
-  SaveMetadata,
-  SerializableBenneGameState,
-} from '../../types/gameState.js';
-
-/** In-memory state always has normalized room context (unlike optional fields on snapshot JSON). */
-type PersistedGameStateSlice = SerializableBenneGameState & {
-  currentRoom: string;
-  lastRoom: string | null;
-};
-import {
-  GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
-  GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
-  GAME_STATE_FLAG_CHANGED_EVENT,
-  GAME_STATE_INVENTORY_CHANGED_EVENT,
-  GAME_STATE_REPLACED_EVENT,
-  GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT,
-  GAME_STATE_VARIABLE_CHANGED_EVENT,
-} from '../../types/gameState.js';
-import { mergePreserveDialogSettingsVariables } from '../dialog/dialogGameState.js';
-import { mergePreserveAudioVolumeVariables } from '../sound/audioGameState.js';
-import { runSnapshotFlushHooks } from './snapshotFlushHooks.js';
-
-export type GameStateInitialSlice = Partial<
-  Pick<SerializableBenneGameState, 'flags' | 'variables' | 'inventory' | 'currentRoom' | 'lastRoom'>
->;
-
-/** Accepts v1 map, legacy string[], or empty. */
-export function normalizeSerializedInventory(raw: unknown): Record<string, number> {
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    const out: Record<string, number> = {};
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-      if (k.length === 0) {
-        continue;
-      }
-      const n = typeof v === 'number' ? v : Number(v);
-      if (!Number.isFinite(n)) {
-        continue;
-      }
-      const q = Math.floor(n);
-      if (q > 0) {
-        out[k] = q;
-      }
-    }
-    return out;
-  }
-  if (Array.isArray(raw)) {
-    const out: Record<string, number> = {};
-    for (const id of raw) {
-      if (typeof id === 'string' && id.length > 0) {
-        out[id] = (out[id] ?? 0) + 1;
-      }
-    }
-    return out;
-  }
-  return {};
+<file path="src/game/inventory/Lantern/Lantern.inventory.json">
+{
+  "id": "Lantern",
+  "name": "Lantern",
+  "description": "",
+  "onVerb": {
+    "look": true,
+    "use": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "defaultAnimation": "Lantern",
+  "cursorAnimation": "Lantern"
 }
+</file>
 
-function cloneInventory(inv: Record<string, number>): Record<string, number> {
-  return { ...inv };
+<file path="src/game/inventory/PB/PB.inventory.json">
+{
+  "id": "PB",
+  "name": "PB",
+  "description": "",
+  "onVerb": {
+    "look": true,
+    "use": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "cursorAnimation": "PB"
 }
-
-function normalizeActiveInventoryItemId(raw: unknown): string | null {
-  if (raw == null) {
-    return null;
-  }
-  if (typeof raw === 'string' && raw.length > 0) {
-    return raw;
-  }
-  return null;
-}
-
-function cloneSnapshot(state: PersistedGameStateSlice): SerializableBenneGameState {
-  return {
-    version: 1,
-    flags: { ...state.flags },
-    variables: { ...state.variables },
-    inventory: cloneInventory(state.inventory),
-    currentRoom: state.currentRoom,
-    lastRoom: state.lastRoom,
-  };
-}
-
-function normalizeCurrentRoomFromSnapshot(raw: unknown): string {
-  return typeof raw === 'string' ? raw : '';
-}
-
-function normalizeLastRoomFromSnapshot(raw: unknown): string | null {
-  if (raw === null) {
-    return null;
-  }
-  if (typeof raw === 'string') {
-    return raw;
-  }
-  return null;
-}
-
-function formatVerbState(verbId: string | null): string {
-  return verbId == null || verbId.length === 0 ? 'none' : `"${verbId}"`;
-}
-
-function formatActiveInventoryItemState(itemId: string | null): string {
-  if (itemId == null || itemId.length === 0) {
-    return 'none';
-  }
-  const def = getInventoryDefinition(itemId);
-  const name = def?.name?.trim();
-  return name ? `"${itemId}" (${name})` : `"${itemId}"`;
-}
-
-function localStorageKey(slot: number): string {
-  return `benne-save-${slot}`;
-}
-
-const SAVE_MANIFEST_STORAGE_KEY = 'benne-saves-manifest-v1';
-const NAMED_SAVE_STORAGE_KEY_PREFIX = 'benne-save-v1-';
-
-function normalizeSaveName(raw: string): string {
-  return raw.trim();
-}
-
-function canonicalizeSaveName(raw: string): string {
-  return normalizeSaveName(raw).toLowerCase();
-}
-
-function sanitizeSaveNameForStorage(raw: string): string {
-  return encodeURIComponent(canonicalizeSaveName(raw));
-}
-
-function namedSaveStorageKey(name: string): string {
-  return `${NAMED_SAVE_STORAGE_KEY_PREFIX}${sanitizeSaveNameForStorage(name)}`;
-}
-
-function parseLegacySlotFromStorageKey(storageKey: string): number | null {
-  const m = /^benne-save-(\d+)$/.exec(storageKey);
-  if (!m) {
-    return null;
-  }
-  const parsed = Number.parseInt(m[1] ?? '', 10);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function normalizeSaveMetadataTimestamp(raw: unknown, fallback: number): number {
-  const n = typeof raw === 'number' ? raw : Number(raw);
-  if (!Number.isFinite(n) || n <= 0) {
-    return fallback;
-  }
-  return Math.floor(n);
-}
-
-/**
- * Cross-room persistent state (flags, variables, inventory). Emits on the bus passed at construct time.
- */
-export class GameStateManager {
-  private readonly events: Phaser.Events.EventEmitter;
-  private state: PersistedGameStateSlice;
-  /**
-   * Runtime-only "active verb" state. Not part of the snapshot — resets on `applySnapshot`
-   * (so loading a save returns the player to the default pointer profile, not mid-verb).
-   */
-  private activeVerbId: string | null = null;
-  /**
-   * Runtime "active inventory item" for use-on-target flows. Included in save snapshots (see {@link getSnapshot}).
-   */
-  private activeInventoryItemId: string | null = null;
-
-  constructor(events: Phaser.Events.EventEmitter, initial?: GameStateInitialSlice) {
-    this.events = events;
-    this.state = {
-      version: 1,
-      flags: initial?.flags != null ? { ...initial.flags } : {},
-      variables: initial?.variables != null ? { ...initial.variables } : {},
-      inventory: normalizeSerializedInventory(initial?.inventory),
-      currentRoom: initial?.currentRoom != null ? String(initial.currentRoom) : '',
-      lastRoom: initial?.lastRoom === undefined ? null : normalizeLastRoomFromSnapshot(initial.lastRoom),
-    };
-  }
-
-  getSnapshot(): SerializableBenneGameState {
-    runSnapshotFlushHooks();
-    return {
-      ...cloneSnapshot(this.state),
-      activeInventoryItemId: this.activeInventoryItemId,
-    };
-  }
-
-  /**
-   * Replaces in-memory state. Emits only {@link GAME_STATE_REPLACED_EVENT}.
-   */
-  applySnapshot(snapshot: SerializableBenneGameState): void {
-    if (snapshot.version !== 1) {
-      console.error(`[Benne] GameStateManager.applySnapshot: unsupported version ${snapshot.version}`);
-      return;
-    }
-    const previousCurrentRoom = this.state.currentRoom;
-    const previousLastRoom = this.state.lastRoom;
-    const mergedVariables = mergePreserveDialogSettingsVariables(
-      mergePreserveAudioVolumeVariables({ ...snapshot.variables }, this.state.variables),
-      this.state.variables,
-    );
-    this.state = {
-      version: 1,
-      flags: { ...snapshot.flags },
-      variables: mergedVariables,
-      inventory: normalizeSerializedInventory(snapshot.inventory),
-      currentRoom: normalizeCurrentRoomFromSnapshot(snapshot.currentRoom),
-      lastRoom: normalizeLastRoomFromSnapshot(snapshot.lastRoom),
-    };
-    const nextCurrent = this.state.currentRoom;
-    const nextLast = this.state.lastRoom;
-    if (previousCurrentRoom !== nextCurrent || previousLastRoom !== nextLast) {
-      const roomPayload: GameStateRoomContextChangedPayload = {
-        currentRoom: nextCurrent,
-        lastRoom: nextLast,
-        previousCurrentRoom,
-        previousLastRoom,
-      };
-      this.events.emit(GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT, roomPayload);
-    }
-    if (this.activeVerbId !== null) {
-      const previousValue = this.activeVerbId;
-      this.activeVerbId = null;
-      const activePayload: GameStateActiveVerbChangedPayload = { previousValue, value: null };
-      this.events.emit(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, activePayload);
-      console.log(
-        `[Benne] Active verb became inactive (applying game state snapshot / load). Was: ${formatVerbState(previousValue)}.`,
-      );
-    }
-    const nextActiveInventoryItemId = normalizeActiveInventoryItemId(snapshot.activeInventoryItemId);
-    if (this.activeInventoryItemId !== nextActiveInventoryItemId) {
-      const previousItemId = this.activeInventoryItemId;
-      this.activeInventoryItemId = nextActiveInventoryItemId;
-      const activeItemPayload: GameStateActiveInventoryItemChangedPayload = {
-        itemId: nextActiveInventoryItemId,
-      };
-      this.events.emit(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, activeItemPayload);
-      if (nextActiveInventoryItemId == null) {
-        console.log(
-          `[Benne] Active inventory item became inactive (snapshot). Was: ${formatActiveInventoryItemState(previousItemId)}.`,
-        );
-      } else if (previousItemId == null) {
-        console.log(
-          `[Benne] Active inventory item became active (snapshot): ${formatActiveInventoryItemState(nextActiveInventoryItemId)}.`,
-        );
-      } else {
-        console.log(
-          `[Benne] Active inventory item changed (snapshot): ${formatActiveInventoryItemState(previousItemId)} → ${formatActiveInventoryItemState(nextActiveInventoryItemId)}.`,
-        );
-      }
-    }
-    const payload: GameStateReplacedPayload = { snapshot: this.getSnapshot() };
-    this.events.emit(GAME_STATE_REPLACED_EVENT, payload);
-  }
-
-  exportSnapshotJson(): string {
-    return JSON.stringify(this.getSnapshot());
-  }
-
-  importSnapshotJson(json: string): void {
-    try {
-      const parsed = JSON.parse(json) as SerializableBenneGameState & {
-        inventory?: unknown;
-        activeInventoryItemId?: unknown;
-      };
-      if (parsed && typeof parsed === 'object') {
-        parsed.inventory = normalizeSerializedInventory(parsed.inventory);
-      }
-      this.applySnapshot(parsed as SerializableBenneGameState);
-    } catch (err) {
-      console.error('[Benne] GameStateManager.importSnapshotJson failed:', err);
-    }
-  }
-
-  setFlag(key: string, value: BenneGameStateFlagValue): void {
-    const previousValue = this.state.flags[key];
-    this.state.flags[key] = value;
-    const payload: GameStateFlagChangedPayload = { key, previousValue, value };
-    this.events.emit(GAME_STATE_FLAG_CHANGED_EVENT, payload);
-  }
-
-  getFlag(key: string): BenneGameStateFlagValue | undefined {
-    return this.state.flags[key];
-  }
-
-  hasFlag(key: string): boolean {
-    return Object.prototype.hasOwnProperty.call(this.state.flags, key);
-  }
-
-  clearFlag(key: string): void {
-    if (!this.hasFlag(key)) {
-      return;
-    }
-    const previousValue = this.state.flags[key];
-    delete this.state.flags[key];
-    const payload: GameStateFlagChangedPayload = { key, previousValue, value: undefined };
-    this.events.emit(GAME_STATE_FLAG_CHANGED_EVENT, payload);
-  }
-
-  setVariable(key: string, value: unknown): void {
-    const previousValue = this.state.variables[key];
-    this.state.variables[key] = value;
-    const payload: GameStateVariableChangedPayload = { key, previousValue, value };
-    this.events.emit(GAME_STATE_VARIABLE_CHANGED_EVENT, payload);
-  }
-
-  getVariable(key: string): unknown {
-    return this.state.variables[key];
-  }
-
-  hasVariable(key: string): boolean {
-    return Object.prototype.hasOwnProperty.call(this.state.variables, key);
-  }
-
-  clearVariable(key: string): void {
-    if (!this.hasVariable(key)) {
-      return;
-    }
-    const previousValue = this.state.variables[key];
-    delete this.state.variables[key];
-    const payload: GameStateVariableChangedPayload = { key, previousValue, value: undefined };
-    this.events.emit(GAME_STATE_VARIABLE_CHANGED_EVENT, payload);
-  }
-
-  getCurrentRoom(): string {
-    return this.state.currentRoom;
-  }
-
-  getLastRoom(): string | null {
-    return this.state.lastRoom;
-  }
-
-  setCurrentRoom(roomId: string): void {
-    const next = String(roomId);
-    if (this.state.currentRoom === next) {
-      return;
-    }
-    const previousCurrentRoom = this.state.currentRoom;
-    const previousLastRoom = this.state.lastRoom;
-    this.state.currentRoom = next;
-    const roomPayload: GameStateRoomContextChangedPayload = {
-      currentRoom: this.state.currentRoom,
-      lastRoom: this.state.lastRoom,
-      previousCurrentRoom,
-      previousLastRoom,
-    };
-    this.events.emit(GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT, roomPayload);
-  }
-
-  setLastRoom(roomId: string | null): void {
-    const next = roomId != null && roomId.length > 0 ? String(roomId) : null;
-    if (this.state.lastRoom === next) {
-      return;
-    }
-    const previousCurrentRoom = this.state.currentRoom;
-    const previousLastRoom = this.state.lastRoom;
-    this.state.lastRoom = next;
-    const roomPayload: GameStateRoomContextChangedPayload = {
-      currentRoom: this.state.currentRoom,
-      lastRoom: this.state.lastRoom,
-      previousCurrentRoom,
-      previousLastRoom,
-    };
-    this.events.emit(GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT, roomPayload);
-  }
-
-  private emitInventory(reason: 'add' | 'remove' | 'clear', itemId?: string): void {
-    const payload: GameStateInventoryChangedPayload = {
-      reason,
-      itemId,
-      inventory: cloneInventory(this.state.inventory),
-    };
-    this.events.emit(GAME_STATE_INVENTORY_CHANGED_EVENT, payload);
-  }
-
-  /**
-   * Adds inventory entries. Non-stackable definitions cap at quantity 1. Unknown ids default to non-stackable.
-   */
-  addInventory(itemId: string, quantity = 1): boolean {
-    if (itemId.length === 0) {
-      return false;
-    }
-    const q = Math.max(1, Math.floor(quantity));
-    const def = getInventoryDefinition(itemId);
-    const stackable = def?.stackable ?? false;
-    const current = this.state.inventory[itemId] ?? 0;
-
-    if (!stackable) {
-      if (current >= 1) {
-        return false;
-      }
-      this.state.inventory[itemId] = 1;
-      this.emitInventory('add', itemId);
-      return true;
-    }
-
-    this.state.inventory[itemId] = current + q;
-    this.emitInventory('add', itemId);
-    return true;
-  }
-
-  hasInInventory(itemId: string): boolean {
-    return (this.state.inventory[itemId] ?? 0) > 0;
-  }
-
-  quantityOf(itemId: string): number {
-    return this.state.inventory[itemId] ?? 0;
-  }
-
-  /**
-   * Removes quantity (default 1). Non-stackable inventory entries are fully removed when present.
-   */
-  removeFromInventory(itemId: string, quantity = 1): boolean {
-    if (itemId.length === 0) {
-      return false;
-    }
-    const current = this.state.inventory[itemId] ?? 0;
-    if (current <= 0) {
-      return false;
-    }
-    const def = getInventoryDefinition(itemId);
-    const stackable = def?.stackable ?? false;
-    if (!stackable) {
-      delete this.state.inventory[itemId];
-      this.emitInventory('remove', itemId);
-      this.disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(itemId);
-      return true;
-    }
-    const q = Math.max(1, Math.floor(quantity));
-    const next = current - q;
-    if (next <= 0) {
-      delete this.state.inventory[itemId];
-    } else {
-      this.state.inventory[itemId] = next;
-    }
-    this.emitInventory('remove', itemId);
-    this.disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(itemId);
-    return true;
-  }
-
-  /**
-   * Script / engine inventory removal: if the player had this item armed for use-on-target and
-   * it is no longer carried, clear active verb + active inventory regardless of
-   * `dropWhenInventoryUsed` (that flag only affects post–use-on-target click policy).
-   */
-  private disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(removedItemId: string): void {
-    if (this.activeInventoryItemId !== removedItemId) {
-      return;
-    }
-    if (this.hasInInventory(removedItemId)) {
-      return;
-    }
-    this.clearActiveVerb();
-    this.clearActiveInventoryItem();
-  }
-
-  clearInventory(): void {
-    if (Object.keys(this.state.inventory).length === 0) {
-      return;
-    }
-    this.state.inventory = {};
-    this.emitInventory('clear');
-  }
-
-  /**
-   * Returns inventory entries in **insertion order** (the order in which ids were first
-   * added to state). `game-config.json`'s `initialGameState.inventory` array seeds the map
-   * in that order, and subsequent `addInventory` calls append new ids to the end, so the
-   * `inventoryPanel` GUI control renders items in the order the game author specified.
-   */
-  getInventoryItems(): ReadonlyArray<{ id: string; quantity: number }> {
-    return Object.entries(this.state.inventory)
-      .filter(([, q]) => q > 0)
-      .map(([id, quantity]) => ({ id, quantity }));
-  }
-
-  saveToLocalStorage(slot = 0): void {
-    try {
-      localStorage.setItem(localStorageKey(slot), this.exportSnapshotJson());
-    } catch (err) {
-      console.error('[Benne] GameStateManager.saveToLocalStorage failed:', err);
-    }
-  }
-
-  loadFromLocalStorage(slot = 0): boolean {
-    try {
-      const raw = localStorage.getItem(localStorageKey(slot));
-      if (raw == null || raw.length === 0) {
-        return false;
-      }
-      this.importSnapshotJson(raw);
-      return true;
-    } catch (err) {
-      console.error('[Benne] GameStateManager.loadFromLocalStorage failed:', err);
-      return false;
-    }
-  }
-
-  clearLocalStorageSave(slot = 0): void {
-    try {
-      localStorage.removeItem(localStorageKey(slot));
-    } catch (err) {
-      console.error('[Benne] GameStateManager.clearLocalStorageSave failed:', err);
-    }
-  }
-
-  private readSaveManifest(): SaveManifest {
-    try {
-      const raw = localStorage.getItem(SAVE_MANIFEST_STORAGE_KEY);
-      if (!raw || raw.length === 0) {
-        return { version: 1, saves: [] };
-      }
-      const parsed = JSON.parse(raw) as Partial<SaveManifest> | null;
-      if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.saves)) {
-        return { version: 1, saves: [] };
-      }
-      const now = Date.now();
-      const saves: SaveManifestEntry[] = [];
-      for (const row of parsed.saves) {
-        if (!row || typeof row !== 'object') {
-          continue;
-        }
-        const name =
-          typeof row.name === 'string' ? normalizeSaveName(row.name) : '';
-        const storageKey = typeof row.storageKey === 'string' ? row.storageKey : '';
-        if (!name || !storageKey) {
-          continue;
-        }
-        const timestamp = normalizeSaveMetadataTimestamp(
-          (row as Partial<SaveManifestEntry>).timestamp,
-          now,
-        );
-        const rawSlot = (row as Partial<SaveManifestEntry>).slot;
-        const slot =
-          typeof rawSlot === 'number' && Number.isInteger(rawSlot) && rawSlot >= 0
-            ? rawSlot
-            : undefined;
-        saves.push(slot == null ? { name, storageKey, timestamp } : { name, storageKey, timestamp, slot });
-      }
-      return { version: 1, saves };
-    } catch (err) {
-      console.error('[Benne] GameStateManager.readSaveManifest failed:', err);
-      return { version: 1, saves: [] };
-    }
-  }
-
-  private writeSaveManifest(manifest: SaveManifest): void {
-    try {
-      localStorage.setItem(SAVE_MANIFEST_STORAGE_KEY, JSON.stringify(manifest));
-    } catch (err) {
-      console.error('[Benne] GameStateManager.writeSaveManifest failed:', err);
-    }
-  }
-
-  private sortManifestEntries(entries: readonly SaveManifestEntry[]): SaveManifestEntry[] {
-    return [...entries].sort((a, b) => b.timestamp - a.timestamp);
-  }
-
-  private migrateLegacySlotsIntoManifest(manifest: SaveManifest): SaveManifest {
-    const next = [...manifest.saves];
-    const hasStorageKey = new Set(next.map((entry) => entry.storageKey));
-    const hasSlot = new Set(
-      next
-        .map((entry) => entry.slot)
-        .filter((slot): slot is number => typeof slot === 'number' && slot >= 0),
-    );
-    const now = Date.now();
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (!key) {
-          continue;
-        }
-        const slot = parseLegacySlotFromStorageKey(key);
-        if (slot == null) {
-          continue;
-        }
-        const payload = localStorage.getItem(key);
-        if (!payload || payload.length === 0) {
-          continue;
-        }
-        if (hasStorageKey.has(key) || hasSlot.has(slot)) {
-          continue;
-        }
-        next.push({
-          name: `Slot ${slot}`,
-          slot,
-          storageKey: key,
-          timestamp: now,
-        });
-        hasStorageKey.add(key);
-        hasSlot.add(slot);
-      }
-    } catch (err) {
-      console.error('[Benne] GameStateManager.migrateLegacySlotsIntoManifest failed:', err);
-      return manifest;
-    }
-    return { version: 1, saves: this.sortManifestEntries(next) };
-  }
-
-  private getManifestWithLegacyMigration(): SaveManifest {
-    const manifest = this.readSaveManifest();
-    const migrated = this.migrateLegacySlotsIntoManifest(manifest);
-    if (migrated.saves.length !== manifest.saves.length) {
-      this.writeSaveManifest(migrated);
-    }
-    return migrated;
-  }
-
-  private removeDanglingNamedStorageKeys(
-    removed: readonly SaveManifestEntry[],
-    remaining: readonly SaveManifestEntry[],
-  ): void {
-    const keptKeys = new Set(remaining.map((entry) => entry.storageKey));
-    for (const entry of removed) {
-      if (entry.slot != null) {
-        continue;
-      }
-      if (!entry.storageKey.startsWith(NAMED_SAVE_STORAGE_KEY_PREFIX)) {
-        continue;
-      }
-      if (keptKeys.has(entry.storageKey)) {
-        continue;
-      }
-      try {
-        localStorage.removeItem(entry.storageKey);
-      } catch (err) {
-        console.error('[Benne] GameStateManager.removeDanglingNamedStorageKeys failed:', err);
-      }
-    }
-  }
-
-  private resolveSaveEntry(nameOrSlot: string | number, manifest: SaveManifest): SaveManifestEntry | null {
-    if (typeof nameOrSlot === 'number') {
-      if (!Number.isInteger(nameOrSlot) || nameOrSlot < 0) {
-        return null;
-      }
-      const slot = nameOrSlot;
-      const storageKey = localStorageKey(slot);
-      const fromManifest = manifest.saves.find((entry) => entry.slot === slot || entry.storageKey === storageKey);
-      if (fromManifest) {
-        return fromManifest;
-      }
-      return { name: `Slot ${slot}`, slot, storageKey, timestamp: Date.now() };
-    }
-    const normalized = normalizeSaveName(nameOrSlot);
-    if (normalized.length === 0) {
-      return null;
-    }
-    const canonical = canonicalizeSaveName(normalized);
-    const fromManifest = manifest.saves.find((entry) => canonicalizeSaveName(entry.name) === canonical);
-    if (fromManifest) {
-      return fromManifest;
-    }
-    if (/^\d+$/.test(normalized)) {
-      const asSlot = Number.parseInt(normalized, 10);
-      if (Number.isInteger(asSlot) && asSlot >= 0) {
-        return this.resolveSaveEntry(asSlot, manifest);
-      }
-    }
-    return {
-      name: normalized,
-      storageKey: namedSaveStorageKey(normalized),
-      timestamp: Date.now(),
-    };
-  }
-
-  getSaveList(): SaveMetadata[] {
-    const manifest = this.getManifestWithLegacyMigration();
-    return this.sortManifestEntries(manifest.saves).map((entry) =>
-      entry.slot == null
-        ? { name: entry.name, timestamp: entry.timestamp }
-        : { name: entry.name, slot: entry.slot, timestamp: entry.timestamp },
-    );
-  }
-
-  save(name: string, slot?: number): void {
-    const normalized = normalizeSaveName(name);
-    if (normalized.length === 0) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.state.save(name): empty save name — ignored.');
-      }
-      return;
-    }
-    const saveSlot = typeof slot === 'number' && Number.isInteger(slot) && slot >= 0 ? slot : undefined;
-    const storageKey = saveSlot == null ? namedSaveStorageKey(normalized) : localStorageKey(saveSlot);
-    try {
-      localStorage.setItem(storageKey, this.exportSnapshotJson());
-    } catch (err) {
-      console.error('[Benne] GameStateManager.save failed:', err);
-      return;
-    }
-    const now = Date.now();
-    const manifest = this.getManifestWithLegacyMigration();
-    const canonical = canonicalizeSaveName(normalized);
-    const kept: SaveManifestEntry[] = [];
-    const removed: SaveManifestEntry[] = [];
-    for (const entry of manifest.saves) {
-      const sameName = canonicalizeSaveName(entry.name) === canonical;
-      const sameStorageKey = entry.storageKey === storageKey;
-      const sameSlot =
-        saveSlot != null &&
-        (entry.slot === saveSlot || parseLegacySlotFromStorageKey(entry.storageKey) === saveSlot);
-      if (sameName || sameStorageKey || sameSlot) {
-        removed.push(entry);
-        continue;
-      }
-      kept.push(entry);
-    }
-    kept.push(
-      saveSlot == null
-        ? { name: normalized, storageKey, timestamp: now }
-        : { name: normalized, slot: saveSlot, storageKey, timestamp: now },
-    );
-    const nextManifest: SaveManifest = { version: 1, saves: this.sortManifestEntries(kept) };
-    this.removeDanglingNamedStorageKeys(removed, nextManifest.saves);
-    this.writeSaveManifest(nextManifest);
-  }
-
-  load(nameOrSlot: string | number): boolean {
-    if (typeof nameOrSlot === 'number') {
-      const loaded = this.loadFromLocalStorage(nameOrSlot);
-      if (loaded) {
-        const manifest = this.getManifestWithLegacyMigration();
-        const now = Date.now();
-        const storageKey = localStorageKey(nameOrSlot);
-        const updated = manifest.saves.map((entry) => {
-          if (entry.slot === nameOrSlot || entry.storageKey === storageKey) {
-            return { ...entry, timestamp: now };
-          }
-          return entry;
-        });
-        if (!updated.some((entry) => entry.slot === nameOrSlot || entry.storageKey === storageKey)) {
-          updated.push({ name: `Slot ${nameOrSlot}`, slot: nameOrSlot, storageKey, timestamp: now });
-        }
-        this.writeSaveManifest({ version: 1, saves: this.sortManifestEntries(updated) });
-      }
-      return loaded;
-    }
-
-    const normalized = normalizeSaveName(nameOrSlot);
-    if (normalized.length === 0) {
-      return false;
-    }
-    const manifest = this.getManifestWithLegacyMigration();
-    const resolved = this.resolveSaveEntry(normalized, manifest);
-    if (!resolved) {
-      return false;
-    }
-    try {
-      const raw = localStorage.getItem(resolved.storageKey);
-      if (!raw || raw.length === 0) {
-        return false;
-      }
-      this.importSnapshotJson(raw);
-      const now = Date.now();
-      const updated = manifest.saves.map((entry) =>
-        entry.storageKey === resolved.storageKey || canonicalizeSaveName(entry.name) === canonicalizeSaveName(normalized)
-          ? { ...entry, name: normalized, timestamp: now }
-          : entry,
-      );
-      if (!updated.some((entry) => entry.storageKey === resolved.storageKey)) {
-        const slot = parseLegacySlotFromStorageKey(resolved.storageKey);
-        updated.push(
-          slot == null
-            ? { name: normalized, storageKey: resolved.storageKey, timestamp: now }
-            : { name: normalized, slot, storageKey: resolved.storageKey, timestamp: now },
-        );
-      }
-      this.writeSaveManifest({ version: 1, saves: this.sortManifestEntries(updated) });
-      return true;
-    } catch (err) {
-      console.error('[Benne] GameStateManager.load failed:', err);
-      return false;
-    }
-  }
-
-  deleteSave(nameOrSlot: string | number): void {
-    const manifest = this.getManifestWithLegacyMigration();
-    const resolved = this.resolveSaveEntry(nameOrSlot, manifest);
-    if (!resolved) {
-      return;
-    }
-    const canonical = canonicalizeSaveName(resolved.name);
-    const kept = manifest.saves.filter(
-      (entry) =>
-        entry.storageKey !== resolved.storageKey &&
-        canonicalizeSaveName(entry.name) !== canonical &&
-        !(
-          resolved.slot != null &&
-          (entry.slot === resolved.slot || parseLegacySlotFromStorageKey(entry.storageKey) === resolved.slot)
-        ),
-    );
-    try {
-      localStorage.removeItem(resolved.storageKey);
-    } catch (err) {
-      console.error('[Benne] GameStateManager.deleteSave failed:', err);
-    }
-    this.writeSaveManifest({ version: 1, saves: this.sortManifestEntries(kept) });
-  }
-
-  renameSave(oldName: string, newName: string): void {
-    const normalizedOld = normalizeSaveName(oldName);
-    const normalizedNew = normalizeSaveName(newName);
-    if (normalizedOld.length === 0 || normalizedNew.length === 0) {
-      return;
-    }
-    const manifest = this.getManifestWithLegacyMigration();
-    const oldEntry = manifest.saves.find(
-      (entry) => canonicalizeSaveName(entry.name) === canonicalizeSaveName(normalizedOld),
-    );
-    if (!oldEntry) {
-      return;
-    }
-    const now = Date.now();
-    const targetStorageKey =
-      oldEntry.slot == null ? namedSaveStorageKey(normalizedNew) : oldEntry.storageKey;
-    const canonicalNew = canonicalizeSaveName(normalizedNew);
-    const canonicalOld = canonicalizeSaveName(oldEntry.name);
-    const kept: SaveManifestEntry[] = [];
-    const removed: SaveManifestEntry[] = [];
-    for (const entry of manifest.saves) {
-      const isOld = entry.storageKey === oldEntry.storageKey && canonicalizeSaveName(entry.name) === canonicalOld;
-      const conflictsWithNew =
-        canonicalizeSaveName(entry.name) === canonicalNew || entry.storageKey === targetStorageKey;
-      if (isOld || conflictsWithNew) {
-        removed.push(entry);
-        continue;
-      }
-      kept.push(entry);
-    }
-
-    if (oldEntry.slot == null && targetStorageKey !== oldEntry.storageKey) {
-      try {
-        const raw = localStorage.getItem(oldEntry.storageKey);
-        if (!raw || raw.length === 0) {
-          return;
-        }
-        localStorage.setItem(targetStorageKey, raw);
-      } catch (err) {
-        console.error('[Benne] GameStateManager.renameSave failed:', err);
-        return;
-      }
-    }
-
-    const renamedEntry: SaveManifestEntry =
-      oldEntry.slot == null
-        ? { name: normalizedNew, storageKey: targetStorageKey, timestamp: now }
-        : { name: normalizedNew, slot: oldEntry.slot, storageKey: targetStorageKey, timestamp: now };
-    const nextManifest: SaveManifest = {
-      version: 1,
-      saves: this.sortManifestEntries([...kept, renamedEntry]),
-    };
-    this.removeDanglingNamedStorageKeys(removed, nextManifest.saves);
-    this.writeSaveManifest(nextManifest);
-  }
-
-  /**
-   * Runtime-only "active verb" (e.g. set from a verb-button click). When non-null, the pointer
-   * resolver uses it on left-click against a clickable (and clears it once consumed) and clears
-   * it on right-click. See {@link resolvePointerVerb} and the verb system section of the docs.
-   */
-  getActiveVerb(): string | null {
-    return this.activeVerbId;
-  }
-
-  setActiveVerb(verbId: string | null): void {
-    const next = verbId != null && verbId.length > 0 ? verbId : null;
-    if (this.activeVerbId === next) {
-      return;
-    }
-    const previousValue = this.activeVerbId;
-
-    if (next != null && this.activeInventoryItemId != null) {
-      this.clearActiveInventoryItem();
-    }
-
-    this.activeVerbId = next;
-    const payload: GameStateActiveVerbChangedPayload = { previousValue, value: next };
-    this.events.emit(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, payload);
-    if (next == null) {
-      console.log(
-        `[Benne] Active verb became inactive. Was: ${formatVerbState(previousValue)}. (Cleared by script, UI, or input.)`,
-      );
-    } else if (previousValue == null) {
-      console.log(`[Benne] Active verb became active: ${formatVerbState(next)}.`);
-    } else {
-      console.log(
-        `[Benne] Active verb changed: ${formatVerbState(previousValue)} → ${formatVerbState(next)}.`,
-      );
-    }
-  }
-
-  clearActiveVerb(): void {
-    this.setActiveVerb(null);
-  }
-
-  getActiveInventoryItemId(): string | null {
-    return this.activeInventoryItemId;
-  }
-
-  setActiveInventoryItem(id: string | null): void {
-    const next = id != null && id.length > 0 ? id : null;
-    if (this.activeInventoryItemId === next) {
-      return;
-    }
-    const previousItemId = this.activeInventoryItemId;
-    this.activeInventoryItemId = next;
-    const payload: GameStateActiveInventoryItemChangedPayload = { itemId: next };
-    this.events.emit(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, payload);
-    if (next == null) {
-      console.log(
-        `[Benne] Active inventory item became inactive (use-on-target selection cleared). Was: ${formatActiveInventoryItemState(previousItemId)}.`,
-      );
-    } else if (previousItemId == null) {
-      console.log(
-        `[Benne] Active inventory item became active (use-on-target): ${formatActiveInventoryItemState(next)}.`,
-      );
-    } else {
-      console.log(
-        `[Benne] Active inventory item changed (use-on-target): ${formatActiveInventoryItemState(previousItemId)} → ${formatActiveInventoryItemState(next)}.`,
-      );
-    }
-  }
-
-  clearActiveInventoryItem(): void {
-    this.setActiveInventoryItem(null);
-  }
+</file>
+
+<file path="src/game/inventory/Sammich/Sammich.inventory.json">
+{
+  "id": "Sammich",
+  "name": "Sammich",
+  "description": "",
+  "onVerb": {
+    "look": true,
+    "use": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "cursorAnimation": "Sammich"
 }
 </file>
 
@@ -24984,6 +24489,37 @@ export class GuiBenneScript extends BenneScriptCore {
 }
 </file>
 
+<file path="src/game/guis/game-menu/game-menu.gui.ts">
+import { registerGuiScript } from '@engine/scripting';
+
+/**
+ * GUI script for `game-menu` — Bennescript entry (`B.raw`, future onShow/onHide/control hooks on `B`).
+ */
+registerGuiScript('game-menu', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
+
+  B.whenButtonClick("resume", () => {
+    B.gui('game-menu').hide();
+  });
+
+  B.whenButtonClick("settings", () => {
+    B.gui('settings-menu').show();
+    B.gui('game-menu').hide();
+  });
+
+  B.whenButtonClick("save", () => {
+    B.gui('save-menu').show();
+    B.gui('game-menu').hide();
+  });
+
+  B.whenButtonClick("load", () => {
+    B.gui('load-menu').show();
+    B.gui('game-menu').hide();
+  });
+});
+</file>
+
 <file path="src/game/guis/settings-menu/settings-menu.gui.json">
 {
   "id": "settings-menu",
@@ -25319,79 +24855,6 @@ registerGuiScript('settings-menu', ({ B }) => {
 });
 </file>
 
-<file path="src/game/inventory/Bread/Bread.inventory.json">
-{
-  "id": "Bread",
-  "name": "Bread",
-  "description": "",
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  },
-  "cursorAnimation": "Bread"
-}
-</file>
-
-<file path="src/game/inventory/Key/Key.inventory.json">
-{
-  "id": "Key",
-  "name": "Key",
-  "description": "",
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  },
-  "cursorAnimation": "Key"
-}
-</file>
-
-<file path="src/game/inventory/Knife/Knife.inventory.json">
-{
-  "id": "Knife",
-  "name": "Knife",
-  "description": "",
-  "onVerb": {
-    "use": true,
-    "look": true
-  },
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  },
-  "cursorAnimation": "Knife"
-}
-</file>
-
-<file path="src/game/inventory/Lantern/Lantern.inventory.json">
-{
-  "id": "Lantern",
-  "name": "Lantern",
-  "description": "",
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  },
-  "defaultAnimation": "Lantern",
-  "cursorAnimation": "Lantern"
-}
-</file>
-
 <file path="src/game/inventory/Lantern/Lantern.inventory.ts">
 import { registerInventoryScript } from '@engine/scripting';
 
@@ -25419,22 +24882,19 @@ registerInventoryScript('Lantern', ({ B }) => {
 });
 </file>
 
-<file path="src/game/inventory/PB/PB.inventory.json">
-{
-  "id": "PB",
-  "name": "PB",
-  "description": "",
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  },
-  "cursorAnimation": "PB"
-}
+<file path="src/game/inventory/Sammich/Sammich.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('Sammich', ({ B }) => {
+
+  B.whenLookAt(() => {
+    B.say`Hank: It looks delicious!`;
+  });
+
+  B.whenUse(() => {
+    // TODO
+  });
+});
 </file>
 
 <file path="src/types/room.ts">
@@ -25682,271 +25142,6 @@ export interface RoomData {
   /** NPCs / props that use a character definition. */
   characters?: RoomCharacterInstance[];
 }
-</file>
-
-<file path="src/game/characters/penny/penny.character.json">
-{
-  "id": "penny",
-  "name": "Penny",
-  "description": "",
-  "walkSpeed": 88,
-  "walkToPoint": {
-    "x": 41,
-    "y": 50
-  },
-  "talkPoint": {
-    "x": 18,
-    "y": 3
-  },
-  "clickable": true,
-  "display": {
-    "aseprite": true
-  },
-  "animations": {
-    "IdleD": {
-      "loop": true
-    },
-    "TalkD": {
-      "loop": true
-    },
-    "IdleL": {
-      "loop": true
-    },
-    "TalkL": {
-      "loop": true
-    },
-    "IdleU": {
-      "loop": true
-    },
-    "TalkU": {
-      "loop": true
-    }
-  },
-  "feet": {
-    "x": 20,
-    "y": 50
-  },
-  "collider": {
-    "points": [
-      {
-        "x": 8,
-        "y": 5
-      },
-      {
-        "x": 26,
-        "y": 4
-      },
-      {
-        "x": 28,
-        "y": 50
-      },
-      {
-        "x": 8,
-        "y": 50
-      }
-    ]
-  },
-  "activeCursorOverride": "Talk"
-}
-</file>
-
-<file path="src/game/globalScript.ts">
-import { registerGlobalScript } from '@engine/scripting';
-import type {
-  VerbGlobalFallbackPayload,
-  VerbUnhandledPayload,
-} from '@engine/events/verbInteractionEvents';
-import { getGameSettings } from '@engine/ConfigManager';
-
-registerGlobalScript(({ B }) => {
-
-  /**
-  * Game state flags.
-  *
-  * These are used to store game state across room loads.
-  */
-  B.state.setFlag('unlockedDoor', false);
-  B.state.setFlag('turnedOnFountain', false);
-  
-  /**
-  * Global update handler. Runs every frame while the game is running. Can also be used in room scripts.
-  * @param ctx - The update context.
-  * @returns void
-  */
-  B.onUpdate((_ctx) => { })
-
-  // ─────────────────────────────────────────────────────────────
-  // Room transitions (global hooks — optional)
-  // Runs for every room load, including the first from BootScene. See architecture.md
-  // (Room transitions) for hook order and RoomTransitionContext.
-  // ─────────────────────────────────────────────────────────────
-  B.whenLeaveAnyRoom(() => {
-    // Optional: extra leave effects (sound, music crossfade, etc.)
-  });
-
-  B.whenEnterAnyRoom((_ctx) => {
-    // Invisible setup — player placement, prop state, music, etc.
-    // Example using last room:
-    // if (_ctx.lastRoom === 'apartment') {
-    //   B.player.moveToNow('streetDoor');
-    // }
-  });
-
-  B.whenEnterAnyRoomAfterFade(() => {
-    // Visible entrance behavior (walk in, cutscene start, etc.)
-  });
-
-  /**
-  * Global fallbacks.
-  *
-  * These run when a verb is used on something that has no specific handler
-  * in the room script, character script, or inventory script.
-  *
-  * Feel free to put ANY code here — play animations, change game state,
-  * start cutscenes, etc. These are real global handlers.
-  */
-
-  // ─────────────────────────────────────────────────────────────
-  // Global per-verb fallbacks
-  // ─────────────────────────────────────────────────────────────
-
-  B.whenGlobalVerb('look', () => {
-    B.player.say("Nothing special about that.");
-  });
-
-  B.whenGlobalVerb('use', () => {
-    B.player.say("That doesn't work.");
-  });
-
-  // ─────────────────────────────────────────────────────────────
-  // Ultimate safety net (for verbs added in game-config.json
-  // but not handled above)
-  // ─────────────────────────────────────────────────────────────
-  B.whenGlobalFallback((_payload: VerbGlobalFallbackPayload) => {
-    B.player.say(
-      getGameSettings().defaultFallbackLine ?? "That doesn't work."
-    );
-  });
-
-  // ─────────────────────────────────────────────────────────────
-  // Inventory "use X on Y" when nothing handled it
-  // ─────────────────────────────────────────────────────────────
-  B.whenInventoryOnVerbTargetUnhandled(() => {
-    B.player.say("That doesn't work.");
-  });
-
-  // DEV diagnostic
-  B.whenVerbUnhandled((p: VerbUnhandledPayload) => {
-    if (import.meta.env.DEV) {
-      console.info(`[Benne 9-verb] verb:unhandled → "${p.fallbackLine}"`, p.target);
-    }
-  });
-});
-</file>
-
-<file path="src/game/inventory/Sammich/Sammich.inventory.json">
-{
-  "id": "Sammich",
-  "name": "Sammich",
-  "description": "",
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  },
-  "cursorAnimation": "Sammich"
-}
-</file>
-
-<file path="src/game/inventory/Sammich/Sammich.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Sammich', ({ B }) => {
-
-  B.whenLookAt(() => {
-    B.say`Hank: It looks delicious!`;
-  });
-
-  B.whenUse(() => {
-    // TODO
-  });
-});
-</file>
-
-<file path="src/game/inventory/Bread/Bread.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Bread', ({ B }) => {
-
-  B.whenLookAt(() => {
-    B.say`Hank: It's some bread.`;
-  });
-
-  B.whenUse(() => {
-    // TODO
-  });
-
-  B.whenInventoryUsedOn('Bread', (payload) => {
-    if (payload.itemId === 'Knife') {
-      
-      if (B.inventory('Knife').animation === 'Knife') {
-        B.say`Hank: It won't do any good without something to spread!`;
-      } else {
-        B.inventory.add('Sammich');
-        B.inventory.remove('Bread');
-        B.clearActiveInventory();
-        B.say`Hank: This looks delicious!`;
-      }
-      
-      return;
-    }
-    
-    return false;
-  });
-
-});
-</file>
-
-<file path="src/game/inventory/PB/PB.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('PB', ({ B }) => {
-
-  B.whenLookAt(() => {
-    B.say`Hank: It's some peanut butter.`;
-  });
-
-  B.whenUse.doNotActivate(() => {
-    if (B.inventory('PB').animation === 'PB') {
-      B.inventory('PB').animation = 'PB-open';
-      B.say`Hank: I opened the jar.`;
-    } else {
-      B.say`Hank: It's already open.`;
-    }
-  });
-
-  B.whenInventoryUsedOn('PB', (payload) => {
-    if (payload.itemId === 'Knife') {
-      
-      if (B.inventory('PB').animation === 'PB') {
-        B.say`Hank: I need to open the jar first.`;
-      } else {
-        B.inventory('Knife').animation = 'Knife-PB';
-        B.inventory('Knife').cursorAnimation = 'Knife-PB';
-        B.say`Hank: Mmmm... gooey peanut butter.`;
-      }
-      
-      return;
-    }
-    
-    return false;
-  });
-
-});
 </file>
 
 <file path="src/editor/preview/createGuiPreviewGame.ts">
@@ -26454,6 +25649,2239 @@ export function createGuiPreviewPhaserGame(
     },
     scene: [new BenneGuiPreviewBoot(payload), GuiPreviewScene],
   });
+}
+</file>
+
+<file path="src/game/characters/penny/penny.character.json">
+{
+  "id": "penny",
+  "name": "Penny",
+  "description": "",
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 41,
+    "y": 50
+  },
+  "talkPoint": {
+    "x": 18,
+    "y": 3
+  },
+  "clickable": true,
+  "display": {
+    "aseprite": true
+  },
+  "animations": {
+    "IdleD": {
+      "loop": true
+    },
+    "TalkD": {
+      "loop": true
+    },
+    "IdleL": {
+      "loop": true
+    },
+    "TalkL": {
+      "loop": true
+    },
+    "IdleU": {
+      "loop": true
+    },
+    "TalkU": {
+      "loop": true
+    }
+  },
+  "feet": {
+    "x": 20,
+    "y": 50
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 8,
+        "y": 5
+      },
+      {
+        "x": 26,
+        "y": 4
+      },
+      {
+        "x": 28,
+        "y": 50
+      },
+      {
+        "x": 8,
+        "y": 50
+      }
+    ]
+  },
+  "activeCursorOverride": "Talk"
+}
+</file>
+
+<file path="src/game/globalScript.ts">
+import { registerGlobalScript } from '@engine/scripting';
+import type {
+  VerbGlobalFallbackPayload,
+  VerbUnhandledPayload,
+} from '@engine/events/verbInteractionEvents';
+import { getGameSettings } from '@engine/ConfigManager';
+
+registerGlobalScript(({ B }) => {
+
+  /**
+  * Game state flags.
+  *
+  * These are used to store game state across room loads.
+  */
+  B.state.setFlag('unlockedDoor', false);
+  B.state.setFlag('turnedOnFountain', false);
+  
+  /**
+  * Global update handler. Runs every frame while the game is running. Can also be used in room scripts.
+  * @param ctx - The update context.
+  * @returns void
+  */
+  B.onUpdate((_ctx) => { })
+
+  // ─────────────────────────────────────────────────────────────
+  // Room transitions (global hooks — optional)
+  // Runs for every room load, including the first from BootScene. See architecture.md
+  // (Room transitions) for hook order and RoomTransitionContext.
+  // ─────────────────────────────────────────────────────────────
+  B.whenLeaveAnyRoom(() => {
+    // Optional: extra leave effects (sound, music crossfade, etc.)
+  });
+
+  B.whenEnterAnyRoom((_ctx) => {
+    // Invisible setup — player placement, prop state, music, etc.
+    // Example using last room:
+    // if (_ctx.lastRoom === 'apartment') {
+    //   B.player.moveToNow('streetDoor');
+    // }
+  });
+
+  B.whenEnterAnyRoomAfterFade(() => {
+    // Visible entrance behavior (walk in, cutscene start, etc.)
+  });
+
+  /**
+  * Global fallbacks.
+  *
+  * These run when a verb is used on something that has no specific handler
+  * in the room script, character script, or inventory script.
+  *
+  * Feel free to put ANY code here — play animations, change game state,
+  * start cutscenes, etc. These are real global handlers.
+  */
+
+  // ─────────────────────────────────────────────────────────────
+  // Global per-verb fallbacks
+  // ─────────────────────────────────────────────────────────────
+
+  B.whenGlobalVerb('look', () => {
+    B.player.say("Nothing special about that.");
+  });
+
+  B.whenGlobalVerb('use', () => {
+    B.player.say("That doesn't work.");
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Ultimate safety net (for verbs added in game-config.json
+  // but not handled above)
+  // ─────────────────────────────────────────────────────────────
+  B.whenGlobalFallback((_payload: VerbGlobalFallbackPayload) => {
+    B.player.say(
+      getGameSettings().defaultFallbackLine ?? "That doesn't work."
+    );
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Inventory "use X on Y" when nothing handled it
+  // ─────────────────────────────────────────────────────────────
+  B.whenInventoryOnVerbTargetUnhandled(() => {
+    B.player.say("That doesn't work.");
+  });
+
+  // DEV diagnostic
+  B.whenVerbUnhandled((p: VerbUnhandledPayload) => {
+    if (import.meta.env.DEV) {
+      console.info(`[Benne 9-verb] verb:unhandled → "${p.fallbackLine}"`, p.target);
+    }
+  });
+});
+</file>
+
+<file path="src/game/inventory/Bread/Bread.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('Bread', ({ B }) => {
+
+  B.whenLookAt(() => {
+    B.say`Hank: It's some bread.`;
+  });
+
+  B.whenUse(() => {
+    // TODO
+  });
+
+  B.whenInventoryUsedOn('Bread', (payload) => {
+    if (payload.itemId === 'Knife') {
+      
+      if (B.inventory('Knife').animation === 'Knife') {
+        B.say`Hank: It won't do any good without something to spread!`;
+      } else {
+        B.inventory.add('Sammich');
+        B.inventory.remove('Bread');
+        B.clearActiveInventory();
+        B.say`Hank: This looks delicious!`;
+      }
+      
+      return;
+    }
+    
+    return false;
+  });
+
+});
+</file>
+
+<file path="src/game/inventory/PB/PB.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('PB', ({ B }) => {
+
+  B.whenLookAt(() => {
+    B.say`Hank: It's some peanut butter.`;
+  });
+
+  B.whenUse.doNotActivate(() => {
+    if (B.inventory('PB').animation === 'PB') {
+      B.inventory('PB').animation = 'PB-open';
+      B.say`Hank: I opened the jar.`;
+    } else {
+      B.say`Hank: It's already open.`;
+    }
+  });
+
+  B.whenInventoryUsedOn('PB', (payload) => {
+    if (payload.itemId === 'Knife') {
+      
+      if (B.inventory('PB').animation === 'PB') {
+        B.say`Hank: I need to open the jar first.`;
+      } else {
+        B.inventory('Knife').animation = 'Knife-PB';
+        B.inventory('Knife').cursorAnimation = 'Knife-PB';
+        B.say`Hank: Mmmm... gooey peanut butter.`;
+      }
+      
+      return;
+    }
+    
+    return false;
+  });
+
+});
+</file>
+
+<file path="src/engine/gameState/GameStateManager.ts">
+import * as Phaser from 'phaser';
+import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
+import type {
+  BenneGameStateFlagValue,
+  GameStateActiveInventoryItemChangedPayload,
+  GameStateActiveVerbChangedPayload,
+  GameStateFlagChangedPayload,
+  GameStateInventoryChangedPayload,
+  GameStateReplacedPayload,
+  GameStateRoomContextChangedPayload,
+  GameStateVariableChangedPayload,
+  SaveManifest,
+  SaveManifestEntry,
+  SaveMetadata,
+  SerializableBenneGameState,
+} from '../../types/gameState.js';
+
+/** In-memory state always has normalized room context (unlike optional fields on snapshot JSON). */
+type PersistedGameStateSlice = SerializableBenneGameState & {
+  currentRoom: string;
+  lastRoom: string | null;
+};
+import {
+  GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
+  GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
+  GAME_STATE_FLAG_CHANGED_EVENT,
+  GAME_STATE_INVENTORY_CHANGED_EVENT,
+  GAME_STATE_REPLACED_EVENT,
+  GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT,
+  GAME_STATE_VARIABLE_CHANGED_EVENT,
+} from '../../types/gameState.js';
+import { mergePreserveDialogSettingsVariables } from '../dialog/dialogGameState.js';
+import { mergePreserveAudioVolumeVariables } from '../sound/audioGameState.js';
+import { runSnapshotFlushHooks } from './snapshotFlushHooks.js';
+
+export type GameStateInitialSlice = Partial<
+  Pick<SerializableBenneGameState, 'flags' | 'variables' | 'inventory' | 'currentRoom' | 'lastRoom'>
+>;
+
+/** Options for {@link GameStateManager.getSnapshot}. */
+export type GetSnapshotOptions = {
+  /**
+   * When `false`, skip pulling live {@link import('../scenes/RoomScene.js').RoomScene} positions
+   * into `variables` before cloning. Use after {@link applySnapshot} so a load does not
+   * overwrite restored feet/prop coords with the pre-transition scene. Default `true`.
+   */
+  runFlushHooks?: boolean;
+};
+
+/** Accepts v1 map, legacy string[], or empty. */
+export function normalizeSerializedInventory(raw: unknown): Record<string, number> {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (k.length === 0) {
+        continue;
+      }
+      const n = typeof v === 'number' ? v : Number(v);
+      if (!Number.isFinite(n)) {
+        continue;
+      }
+      const q = Math.floor(n);
+      if (q > 0) {
+        out[k] = q;
+      }
+    }
+    return out;
+  }
+  if (Array.isArray(raw)) {
+    const out: Record<string, number> = {};
+    for (const id of raw) {
+      if (typeof id === 'string' && id.length > 0) {
+        out[id] = (out[id] ?? 0) + 1;
+      }
+    }
+    return out;
+  }
+  return {};
+}
+
+function cloneInventory(inv: Record<string, number>): Record<string, number> {
+  return { ...inv };
+}
+
+function normalizeActiveInventoryItemId(raw: unknown): string | null {
+  if (raw == null) {
+    return null;
+  }
+  if (typeof raw === 'string' && raw.length > 0) {
+    return raw;
+  }
+  return null;
+}
+
+function cloneSnapshot(state: PersistedGameStateSlice): SerializableBenneGameState {
+  return {
+    version: 1,
+    flags: { ...state.flags },
+    variables: { ...state.variables },
+    inventory: cloneInventory(state.inventory),
+    currentRoom: state.currentRoom,
+    lastRoom: state.lastRoom,
+  };
+}
+
+function normalizeCurrentRoomFromSnapshot(raw: unknown): string {
+  return typeof raw === 'string' ? raw : '';
+}
+
+function normalizeLastRoomFromSnapshot(raw: unknown): string | null {
+  if (raw === null) {
+    return null;
+  }
+  if (typeof raw === 'string') {
+    return raw;
+  }
+  return null;
+}
+
+function formatVerbState(verbId: string | null): string {
+  return verbId == null || verbId.length === 0 ? 'none' : `"${verbId}"`;
+}
+
+function formatActiveInventoryItemState(itemId: string | null): string {
+  if (itemId == null || itemId.length === 0) {
+    return 'none';
+  }
+  const def = getInventoryDefinition(itemId);
+  const name = def?.name?.trim();
+  return name ? `"${itemId}" (${name})` : `"${itemId}"`;
+}
+
+function localStorageKey(slot: number): string {
+  return `benne-save-${slot}`;
+}
+
+const SAVE_MANIFEST_STORAGE_KEY = 'benne-saves-manifest-v1';
+const NAMED_SAVE_STORAGE_KEY_PREFIX = 'benne-save-v1-';
+
+function normalizeSaveName(raw: string): string {
+  return raw.trim();
+}
+
+function canonicalizeSaveName(raw: string): string {
+  return normalizeSaveName(raw).toLowerCase();
+}
+
+function sanitizeSaveNameForStorage(raw: string): string {
+  return encodeURIComponent(canonicalizeSaveName(raw));
+}
+
+function namedSaveStorageKey(name: string): string {
+  return `${NAMED_SAVE_STORAGE_KEY_PREFIX}${sanitizeSaveNameForStorage(name)}`;
+}
+
+function parseLegacySlotFromStorageKey(storageKey: string): number | null {
+  const m = /^benne-save-(\d+)$/.exec(storageKey);
+  if (!m) {
+    return null;
+  }
+  const parsed = Number.parseInt(m[1] ?? '', 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function normalizeSaveMetadataTimestamp(raw: unknown, fallback: number): number {
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    return fallback;
+  }
+  return Math.floor(n);
+}
+
+/**
+ * Cross-room persistent state (flags, variables, inventory). Emits on the bus passed at construct time.
+ */
+export class GameStateManager {
+  private readonly events: Phaser.Events.EventEmitter;
+  private state: PersistedGameStateSlice;
+  /**
+   * Runtime-only "active verb" state. Not part of the snapshot — resets on `applySnapshot`
+   * (so loading a save returns the player to the default pointer profile, not mid-verb).
+   */
+  private activeVerbId: string | null = null;
+  /**
+   * Runtime "active inventory item" for use-on-target flows. Included in save snapshots (see {@link getSnapshot}).
+   */
+  private activeInventoryItemId: string | null = null;
+
+  constructor(events: Phaser.Events.EventEmitter, initial?: GameStateInitialSlice) {
+    this.events = events;
+    this.state = {
+      version: 1,
+      flags: initial?.flags != null ? { ...initial.flags } : {},
+      variables: initial?.variables != null ? { ...initial.variables } : {},
+      inventory: normalizeSerializedInventory(initial?.inventory),
+      currentRoom: initial?.currentRoom != null ? String(initial.currentRoom) : '',
+      lastRoom: initial?.lastRoom === undefined ? null : normalizeLastRoomFromSnapshot(initial.lastRoom),
+    };
+  }
+
+  getSnapshot(options?: GetSnapshotOptions): SerializableBenneGameState {
+    if (options?.runFlushHooks !== false) {
+      runSnapshotFlushHooks();
+    }
+    return {
+      ...cloneSnapshot(this.state),
+      activeInventoryItemId: this.activeInventoryItemId,
+    };
+  }
+
+  /**
+   * Replaces in-memory state. Emits only {@link GAME_STATE_REPLACED_EVENT}.
+   * Does not run snapshot flush hooks when emitting the replaced payload — the incoming
+   * snapshot is already authoritative (avoids clobbering saved positions from the live scene).
+   */
+  applySnapshot(snapshot: SerializableBenneGameState): void {
+    if (snapshot.version !== 1) {
+      console.error(`[Benne] GameStateManager.applySnapshot: unsupported version ${snapshot.version}`);
+      return;
+    }
+    const previousCurrentRoom = this.state.currentRoom;
+    const previousLastRoom = this.state.lastRoom;
+    const mergedVariables = mergePreserveDialogSettingsVariables(
+      mergePreserveAudioVolumeVariables({ ...snapshot.variables }, this.state.variables),
+      this.state.variables,
+    );
+    this.state = {
+      version: 1,
+      flags: { ...snapshot.flags },
+      variables: mergedVariables,
+      inventory: normalizeSerializedInventory(snapshot.inventory),
+      currentRoom: normalizeCurrentRoomFromSnapshot(snapshot.currentRoom),
+      lastRoom: normalizeLastRoomFromSnapshot(snapshot.lastRoom),
+    };
+    const nextCurrent = this.state.currentRoom;
+    const nextLast = this.state.lastRoom;
+    if (previousCurrentRoom !== nextCurrent || previousLastRoom !== nextLast) {
+      const roomPayload: GameStateRoomContextChangedPayload = {
+        currentRoom: nextCurrent,
+        lastRoom: nextLast,
+        previousCurrentRoom,
+        previousLastRoom,
+      };
+      this.events.emit(GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT, roomPayload);
+    }
+    if (this.activeVerbId !== null) {
+      const previousValue = this.activeVerbId;
+      this.activeVerbId = null;
+      const activePayload: GameStateActiveVerbChangedPayload = { previousValue, value: null };
+      this.events.emit(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, activePayload);
+      console.log(
+        `[Benne] Active verb became inactive (applying game state snapshot / load). Was: ${formatVerbState(previousValue)}.`,
+      );
+    }
+    const nextActiveInventoryItemId = normalizeActiveInventoryItemId(snapshot.activeInventoryItemId);
+    if (this.activeInventoryItemId !== nextActiveInventoryItemId) {
+      const previousItemId = this.activeInventoryItemId;
+      this.activeInventoryItemId = nextActiveInventoryItemId;
+      const activeItemPayload: GameStateActiveInventoryItemChangedPayload = {
+        itemId: nextActiveInventoryItemId,
+      };
+      this.events.emit(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, activeItemPayload);
+      if (nextActiveInventoryItemId == null) {
+        console.log(
+          `[Benne] Active inventory item became inactive (snapshot). Was: ${formatActiveInventoryItemState(previousItemId)}.`,
+        );
+      } else if (previousItemId == null) {
+        console.log(
+          `[Benne] Active inventory item became active (snapshot): ${formatActiveInventoryItemState(nextActiveInventoryItemId)}.`,
+        );
+      } else {
+        console.log(
+          `[Benne] Active inventory item changed (snapshot): ${formatActiveInventoryItemState(previousItemId)} → ${formatActiveInventoryItemState(nextActiveInventoryItemId)}.`,
+        );
+      }
+    }
+    const payload: GameStateReplacedPayload = {
+      snapshot: this.getSnapshot({ runFlushHooks: false }),
+    };
+    this.events.emit(GAME_STATE_REPLACED_EVENT, payload);
+  }
+
+  exportSnapshotJson(): string {
+    return JSON.stringify(this.getSnapshot());
+  }
+
+  importSnapshotJson(json: string): void {
+    try {
+      const parsed = JSON.parse(json) as SerializableBenneGameState & {
+        inventory?: unknown;
+        activeInventoryItemId?: unknown;
+      };
+      if (parsed && typeof parsed === 'object') {
+        parsed.inventory = normalizeSerializedInventory(parsed.inventory);
+      }
+      this.applySnapshot(parsed as SerializableBenneGameState);
+    } catch (err) {
+      console.error('[Benne] GameStateManager.importSnapshotJson failed:', err);
+    }
+  }
+
+  setFlag(key: string, value: BenneGameStateFlagValue): void {
+    const previousValue = this.state.flags[key];
+    this.state.flags[key] = value;
+    const payload: GameStateFlagChangedPayload = { key, previousValue, value };
+    this.events.emit(GAME_STATE_FLAG_CHANGED_EVENT, payload);
+  }
+
+  getFlag(key: string): BenneGameStateFlagValue | undefined {
+    return this.state.flags[key];
+  }
+
+  hasFlag(key: string): boolean {
+    return Object.prototype.hasOwnProperty.call(this.state.flags, key);
+  }
+
+  clearFlag(key: string): void {
+    if (!this.hasFlag(key)) {
+      return;
+    }
+    const previousValue = this.state.flags[key];
+    delete this.state.flags[key];
+    const payload: GameStateFlagChangedPayload = { key, previousValue, value: undefined };
+    this.events.emit(GAME_STATE_FLAG_CHANGED_EVENT, payload);
+  }
+
+  setVariable(key: string, value: unknown): void {
+    const previousValue = this.state.variables[key];
+    this.state.variables[key] = value;
+    const payload: GameStateVariableChangedPayload = { key, previousValue, value };
+    this.events.emit(GAME_STATE_VARIABLE_CHANGED_EVENT, payload);
+  }
+
+  getVariable(key: string): unknown {
+    return this.state.variables[key];
+  }
+
+  hasVariable(key: string): boolean {
+    return Object.prototype.hasOwnProperty.call(this.state.variables, key);
+  }
+
+  clearVariable(key: string): void {
+    if (!this.hasVariable(key)) {
+      return;
+    }
+    const previousValue = this.state.variables[key];
+    delete this.state.variables[key];
+    const payload: GameStateVariableChangedPayload = { key, previousValue, value: undefined };
+    this.events.emit(GAME_STATE_VARIABLE_CHANGED_EVENT, payload);
+  }
+
+  getCurrentRoom(): string {
+    return this.state.currentRoom;
+  }
+
+  getLastRoom(): string | null {
+    return this.state.lastRoom;
+  }
+
+  setCurrentRoom(roomId: string): void {
+    const next = String(roomId);
+    if (this.state.currentRoom === next) {
+      return;
+    }
+    const previousCurrentRoom = this.state.currentRoom;
+    const previousLastRoom = this.state.lastRoom;
+    this.state.currentRoom = next;
+    const roomPayload: GameStateRoomContextChangedPayload = {
+      currentRoom: this.state.currentRoom,
+      lastRoom: this.state.lastRoom,
+      previousCurrentRoom,
+      previousLastRoom,
+    };
+    this.events.emit(GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT, roomPayload);
+  }
+
+  setLastRoom(roomId: string | null): void {
+    const next = roomId != null && roomId.length > 0 ? String(roomId) : null;
+    if (this.state.lastRoom === next) {
+      return;
+    }
+    const previousCurrentRoom = this.state.currentRoom;
+    const previousLastRoom = this.state.lastRoom;
+    this.state.lastRoom = next;
+    const roomPayload: GameStateRoomContextChangedPayload = {
+      currentRoom: this.state.currentRoom,
+      lastRoom: this.state.lastRoom,
+      previousCurrentRoom,
+      previousLastRoom,
+    };
+    this.events.emit(GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT, roomPayload);
+  }
+
+  private emitInventory(reason: 'add' | 'remove' | 'clear', itemId?: string): void {
+    const payload: GameStateInventoryChangedPayload = {
+      reason,
+      itemId,
+      inventory: cloneInventory(this.state.inventory),
+    };
+    this.events.emit(GAME_STATE_INVENTORY_CHANGED_EVENT, payload);
+  }
+
+  /**
+   * Adds inventory entries. Non-stackable definitions cap at quantity 1. Unknown ids default to non-stackable.
+   */
+  addInventory(itemId: string, quantity = 1): boolean {
+    if (itemId.length === 0) {
+      return false;
+    }
+    const q = Math.max(1, Math.floor(quantity));
+    const def = getInventoryDefinition(itemId);
+    const stackable = def?.stackable ?? false;
+    const current = this.state.inventory[itemId] ?? 0;
+
+    if (!stackable) {
+      if (current >= 1) {
+        return false;
+      }
+      this.state.inventory[itemId] = 1;
+      this.emitInventory('add', itemId);
+      return true;
+    }
+
+    this.state.inventory[itemId] = current + q;
+    this.emitInventory('add', itemId);
+    return true;
+  }
+
+  hasInInventory(itemId: string): boolean {
+    return (this.state.inventory[itemId] ?? 0) > 0;
+  }
+
+  quantityOf(itemId: string): number {
+    return this.state.inventory[itemId] ?? 0;
+  }
+
+  /**
+   * Removes quantity (default 1). Non-stackable inventory entries are fully removed when present.
+   */
+  removeFromInventory(itemId: string, quantity = 1): boolean {
+    if (itemId.length === 0) {
+      return false;
+    }
+    const current = this.state.inventory[itemId] ?? 0;
+    if (current <= 0) {
+      return false;
+    }
+    const def = getInventoryDefinition(itemId);
+    const stackable = def?.stackable ?? false;
+    if (!stackable) {
+      delete this.state.inventory[itemId];
+      this.emitInventory('remove', itemId);
+      this.disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(itemId);
+      return true;
+    }
+    const q = Math.max(1, Math.floor(quantity));
+    const next = current - q;
+    if (next <= 0) {
+      delete this.state.inventory[itemId];
+    } else {
+      this.state.inventory[itemId] = next;
+    }
+    this.emitInventory('remove', itemId);
+    this.disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(itemId);
+    return true;
+  }
+
+  /**
+   * Script / engine inventory removal: if the player had this item armed for use-on-target and
+   * it is no longer carried, clear active verb + active inventory regardless of
+   * `dropWhenInventoryUsed` (that flag only affects post–use-on-target click policy).
+   */
+  private disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(removedItemId: string): void {
+    if (this.activeInventoryItemId !== removedItemId) {
+      return;
+    }
+    if (this.hasInInventory(removedItemId)) {
+      return;
+    }
+    this.clearActiveVerb();
+    this.clearActiveInventoryItem();
+  }
+
+  clearInventory(): void {
+    if (Object.keys(this.state.inventory).length === 0) {
+      return;
+    }
+    this.state.inventory = {};
+    this.emitInventory('clear');
+  }
+
+  /**
+   * Returns inventory entries in **insertion order** (the order in which ids were first
+   * added to state). `game-config.json`'s `initialGameState.inventory` array seeds the map
+   * in that order, and subsequent `addInventory` calls append new ids to the end, so the
+   * `inventoryPanel` GUI control renders items in the order the game author specified.
+   */
+  getInventoryItems(): ReadonlyArray<{ id: string; quantity: number }> {
+    return Object.entries(this.state.inventory)
+      .filter(([, q]) => q > 0)
+      .map(([id, quantity]) => ({ id, quantity }));
+  }
+
+  saveToLocalStorage(slot = 0): void {
+    try {
+      localStorage.setItem(localStorageKey(slot), this.exportSnapshotJson());
+    } catch (err) {
+      console.error('[Benne] GameStateManager.saveToLocalStorage failed:', err);
+    }
+  }
+
+  loadFromLocalStorage(slot = 0): boolean {
+    try {
+      const raw = localStorage.getItem(localStorageKey(slot));
+      if (raw == null || raw.length === 0) {
+        return false;
+      }
+      this.importSnapshotJson(raw);
+      return true;
+    } catch (err) {
+      console.error('[Benne] GameStateManager.loadFromLocalStorage failed:', err);
+      return false;
+    }
+  }
+
+  clearLocalStorageSave(slot = 0): void {
+    try {
+      localStorage.removeItem(localStorageKey(slot));
+    } catch (err) {
+      console.error('[Benne] GameStateManager.clearLocalStorageSave failed:', err);
+    }
+  }
+
+  private readSaveManifest(): SaveManifest {
+    try {
+      const raw = localStorage.getItem(SAVE_MANIFEST_STORAGE_KEY);
+      if (!raw || raw.length === 0) {
+        return { version: 1, saves: [] };
+      }
+      const parsed = JSON.parse(raw) as Partial<SaveManifest> | null;
+      if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.saves)) {
+        return { version: 1, saves: [] };
+      }
+      const now = Date.now();
+      const saves: SaveManifestEntry[] = [];
+      for (const row of parsed.saves) {
+        if (!row || typeof row !== 'object') {
+          continue;
+        }
+        const name =
+          typeof row.name === 'string' ? normalizeSaveName(row.name) : '';
+        const storageKey = typeof row.storageKey === 'string' ? row.storageKey : '';
+        if (!name || !storageKey) {
+          continue;
+        }
+        const timestamp = normalizeSaveMetadataTimestamp(
+          (row as Partial<SaveManifestEntry>).timestamp,
+          now,
+        );
+        const rawSlot = (row as Partial<SaveManifestEntry>).slot;
+        const slot =
+          typeof rawSlot === 'number' && Number.isInteger(rawSlot) && rawSlot >= 0
+            ? rawSlot
+            : undefined;
+        saves.push(slot == null ? { name, storageKey, timestamp } : { name, storageKey, timestamp, slot });
+      }
+      return { version: 1, saves };
+    } catch (err) {
+      console.error('[Benne] GameStateManager.readSaveManifest failed:', err);
+      return { version: 1, saves: [] };
+    }
+  }
+
+  private writeSaveManifest(manifest: SaveManifest): void {
+    try {
+      localStorage.setItem(SAVE_MANIFEST_STORAGE_KEY, JSON.stringify(manifest));
+    } catch (err) {
+      console.error('[Benne] GameStateManager.writeSaveManifest failed:', err);
+    }
+  }
+
+  private sortManifestEntries(entries: readonly SaveManifestEntry[]): SaveManifestEntry[] {
+    return [...entries].sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  private migrateLegacySlotsIntoManifest(manifest: SaveManifest): SaveManifest {
+    const next = [...manifest.saves];
+    const hasStorageKey = new Set(next.map((entry) => entry.storageKey));
+    const hasSlot = new Set(
+      next
+        .map((entry) => entry.slot)
+        .filter((slot): slot is number => typeof slot === 'number' && slot >= 0),
+    );
+    const now = Date.now();
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) {
+          continue;
+        }
+        const slot = parseLegacySlotFromStorageKey(key);
+        if (slot == null) {
+          continue;
+        }
+        const payload = localStorage.getItem(key);
+        if (!payload || payload.length === 0) {
+          continue;
+        }
+        if (hasStorageKey.has(key) || hasSlot.has(slot)) {
+          continue;
+        }
+        next.push({
+          name: `Slot ${slot}`,
+          slot,
+          storageKey: key,
+          timestamp: now,
+        });
+        hasStorageKey.add(key);
+        hasSlot.add(slot);
+      }
+    } catch (err) {
+      console.error('[Benne] GameStateManager.migrateLegacySlotsIntoManifest failed:', err);
+      return manifest;
+    }
+    return { version: 1, saves: this.sortManifestEntries(next) };
+  }
+
+  private getManifestWithLegacyMigration(): SaveManifest {
+    const manifest = this.readSaveManifest();
+    const migrated = this.migrateLegacySlotsIntoManifest(manifest);
+    if (migrated.saves.length !== manifest.saves.length) {
+      this.writeSaveManifest(migrated);
+    }
+    return migrated;
+  }
+
+  private removeDanglingNamedStorageKeys(
+    removed: readonly SaveManifestEntry[],
+    remaining: readonly SaveManifestEntry[],
+  ): void {
+    const keptKeys = new Set(remaining.map((entry) => entry.storageKey));
+    for (const entry of removed) {
+      if (entry.slot != null) {
+        continue;
+      }
+      if (!entry.storageKey.startsWith(NAMED_SAVE_STORAGE_KEY_PREFIX)) {
+        continue;
+      }
+      if (keptKeys.has(entry.storageKey)) {
+        continue;
+      }
+      try {
+        localStorage.removeItem(entry.storageKey);
+      } catch (err) {
+        console.error('[Benne] GameStateManager.removeDanglingNamedStorageKeys failed:', err);
+      }
+    }
+  }
+
+  private resolveSaveEntry(nameOrSlot: string | number, manifest: SaveManifest): SaveManifestEntry | null {
+    if (typeof nameOrSlot === 'number') {
+      if (!Number.isInteger(nameOrSlot) || nameOrSlot < 0) {
+        return null;
+      }
+      const slot = nameOrSlot;
+      const storageKey = localStorageKey(slot);
+      const fromManifest = manifest.saves.find((entry) => entry.slot === slot || entry.storageKey === storageKey);
+      if (fromManifest) {
+        return fromManifest;
+      }
+      return { name: `Slot ${slot}`, slot, storageKey, timestamp: Date.now() };
+    }
+    const normalized = normalizeSaveName(nameOrSlot);
+    if (normalized.length === 0) {
+      return null;
+    }
+    const canonical = canonicalizeSaveName(normalized);
+    const fromManifest = manifest.saves.find((entry) => canonicalizeSaveName(entry.name) === canonical);
+    if (fromManifest) {
+      return fromManifest;
+    }
+    if (/^\d+$/.test(normalized)) {
+      const asSlot = Number.parseInt(normalized, 10);
+      if (Number.isInteger(asSlot) && asSlot >= 0) {
+        return this.resolveSaveEntry(asSlot, manifest);
+      }
+    }
+    return {
+      name: normalized,
+      storageKey: namedSaveStorageKey(normalized),
+      timestamp: Date.now(),
+    };
+  }
+
+  getSaveList(): SaveMetadata[] {
+    const manifest = this.getManifestWithLegacyMigration();
+    return this.sortManifestEntries(manifest.saves).map((entry) =>
+      entry.slot == null
+        ? { name: entry.name, timestamp: entry.timestamp }
+        : { name: entry.name, slot: entry.slot, timestamp: entry.timestamp },
+    );
+  }
+
+  save(name: string, slot?: number): void {
+    const normalized = normalizeSaveName(name);
+    if (normalized.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.state.save(name): empty save name — ignored.');
+      }
+      return;
+    }
+    const saveSlot = typeof slot === 'number' && Number.isInteger(slot) && slot >= 0 ? slot : undefined;
+    const storageKey = saveSlot == null ? namedSaveStorageKey(normalized) : localStorageKey(saveSlot);
+    try {
+      localStorage.setItem(storageKey, this.exportSnapshotJson());
+    } catch (err) {
+      console.error('[Benne] GameStateManager.save failed:', err);
+      return;
+    }
+    const now = Date.now();
+    const manifest = this.getManifestWithLegacyMigration();
+    const canonical = canonicalizeSaveName(normalized);
+    const kept: SaveManifestEntry[] = [];
+    const removed: SaveManifestEntry[] = [];
+    for (const entry of manifest.saves) {
+      const sameName = canonicalizeSaveName(entry.name) === canonical;
+      const sameStorageKey = entry.storageKey === storageKey;
+      const sameSlot =
+        saveSlot != null &&
+        (entry.slot === saveSlot || parseLegacySlotFromStorageKey(entry.storageKey) === saveSlot);
+      if (sameName || sameStorageKey || sameSlot) {
+        removed.push(entry);
+        continue;
+      }
+      kept.push(entry);
+    }
+    kept.push(
+      saveSlot == null
+        ? { name: normalized, storageKey, timestamp: now }
+        : { name: normalized, slot: saveSlot, storageKey, timestamp: now },
+    );
+    const nextManifest: SaveManifest = { version: 1, saves: this.sortManifestEntries(kept) };
+    this.removeDanglingNamedStorageKeys(removed, nextManifest.saves);
+    this.writeSaveManifest(nextManifest);
+  }
+
+  load(nameOrSlot: string | number): boolean {
+    if (typeof nameOrSlot === 'number') {
+      const loaded = this.loadFromLocalStorage(nameOrSlot);
+      if (loaded) {
+        const manifest = this.getManifestWithLegacyMigration();
+        const now = Date.now();
+        const storageKey = localStorageKey(nameOrSlot);
+        const updated = manifest.saves.map((entry) => {
+          if (entry.slot === nameOrSlot || entry.storageKey === storageKey) {
+            return { ...entry, timestamp: now };
+          }
+          return entry;
+        });
+        if (!updated.some((entry) => entry.slot === nameOrSlot || entry.storageKey === storageKey)) {
+          updated.push({ name: `Slot ${nameOrSlot}`, slot: nameOrSlot, storageKey, timestamp: now });
+        }
+        this.writeSaveManifest({ version: 1, saves: this.sortManifestEntries(updated) });
+      }
+      return loaded;
+    }
+
+    const normalized = normalizeSaveName(nameOrSlot);
+    if (normalized.length === 0) {
+      return false;
+    }
+    const manifest = this.getManifestWithLegacyMigration();
+    const resolved = this.resolveSaveEntry(normalized, manifest);
+    if (!resolved) {
+      return false;
+    }
+    try {
+      const raw = localStorage.getItem(resolved.storageKey);
+      if (!raw || raw.length === 0) {
+        return false;
+      }
+      this.importSnapshotJson(raw);
+      const now = Date.now();
+      const updated = manifest.saves.map((entry) =>
+        entry.storageKey === resolved.storageKey || canonicalizeSaveName(entry.name) === canonicalizeSaveName(normalized)
+          ? { ...entry, name: normalized, timestamp: now }
+          : entry,
+      );
+      if (!updated.some((entry) => entry.storageKey === resolved.storageKey)) {
+        const slot = parseLegacySlotFromStorageKey(resolved.storageKey);
+        updated.push(
+          slot == null
+            ? { name: normalized, storageKey: resolved.storageKey, timestamp: now }
+            : { name: normalized, slot, storageKey: resolved.storageKey, timestamp: now },
+        );
+      }
+      this.writeSaveManifest({ version: 1, saves: this.sortManifestEntries(updated) });
+      return true;
+    } catch (err) {
+      console.error('[Benne] GameStateManager.load failed:', err);
+      return false;
+    }
+  }
+
+  deleteSave(nameOrSlot: string | number): void {
+    const manifest = this.getManifestWithLegacyMigration();
+    const resolved = this.resolveSaveEntry(nameOrSlot, manifest);
+    if (!resolved) {
+      return;
+    }
+    const canonical = canonicalizeSaveName(resolved.name);
+    const kept = manifest.saves.filter(
+      (entry) =>
+        entry.storageKey !== resolved.storageKey &&
+        canonicalizeSaveName(entry.name) !== canonical &&
+        !(
+          resolved.slot != null &&
+          (entry.slot === resolved.slot || parseLegacySlotFromStorageKey(entry.storageKey) === resolved.slot)
+        ),
+    );
+    try {
+      localStorage.removeItem(resolved.storageKey);
+    } catch (err) {
+      console.error('[Benne] GameStateManager.deleteSave failed:', err);
+    }
+    this.writeSaveManifest({ version: 1, saves: this.sortManifestEntries(kept) });
+  }
+
+  renameSave(oldName: string, newName: string): void {
+    const normalizedOld = normalizeSaveName(oldName);
+    const normalizedNew = normalizeSaveName(newName);
+    if (normalizedOld.length === 0 || normalizedNew.length === 0) {
+      return;
+    }
+    const manifest = this.getManifestWithLegacyMigration();
+    const oldEntry = manifest.saves.find(
+      (entry) => canonicalizeSaveName(entry.name) === canonicalizeSaveName(normalizedOld),
+    );
+    if (!oldEntry) {
+      return;
+    }
+    const now = Date.now();
+    const targetStorageKey =
+      oldEntry.slot == null ? namedSaveStorageKey(normalizedNew) : oldEntry.storageKey;
+    const canonicalNew = canonicalizeSaveName(normalizedNew);
+    const canonicalOld = canonicalizeSaveName(oldEntry.name);
+    const kept: SaveManifestEntry[] = [];
+    const removed: SaveManifestEntry[] = [];
+    for (const entry of manifest.saves) {
+      const isOld = entry.storageKey === oldEntry.storageKey && canonicalizeSaveName(entry.name) === canonicalOld;
+      const conflictsWithNew =
+        canonicalizeSaveName(entry.name) === canonicalNew || entry.storageKey === targetStorageKey;
+      if (isOld || conflictsWithNew) {
+        removed.push(entry);
+        continue;
+      }
+      kept.push(entry);
+    }
+
+    if (oldEntry.slot == null && targetStorageKey !== oldEntry.storageKey) {
+      try {
+        const raw = localStorage.getItem(oldEntry.storageKey);
+        if (!raw || raw.length === 0) {
+          return;
+        }
+        localStorage.setItem(targetStorageKey, raw);
+      } catch (err) {
+        console.error('[Benne] GameStateManager.renameSave failed:', err);
+        return;
+      }
+    }
+
+    const renamedEntry: SaveManifestEntry =
+      oldEntry.slot == null
+        ? { name: normalizedNew, storageKey: targetStorageKey, timestamp: now }
+        : { name: normalizedNew, slot: oldEntry.slot, storageKey: targetStorageKey, timestamp: now };
+    const nextManifest: SaveManifest = {
+      version: 1,
+      saves: this.sortManifestEntries([...kept, renamedEntry]),
+    };
+    this.removeDanglingNamedStorageKeys(removed, nextManifest.saves);
+    this.writeSaveManifest(nextManifest);
+  }
+
+  /**
+   * Runtime-only "active verb" (e.g. set from a verb-button click). When non-null, the pointer
+   * resolver uses it on left-click against a clickable (and clears it once consumed) and clears
+   * it on right-click. See {@link resolvePointerVerb} and the verb system section of the docs.
+   */
+  getActiveVerb(): string | null {
+    return this.activeVerbId;
+  }
+
+  setActiveVerb(verbId: string | null): void {
+    const next = verbId != null && verbId.length > 0 ? verbId : null;
+    if (this.activeVerbId === next) {
+      return;
+    }
+    const previousValue = this.activeVerbId;
+
+    if (next != null && this.activeInventoryItemId != null) {
+      this.clearActiveInventoryItem();
+    }
+
+    this.activeVerbId = next;
+    const payload: GameStateActiveVerbChangedPayload = { previousValue, value: next };
+    this.events.emit(GAME_STATE_ACTIVE_VERB_CHANGED_EVENT, payload);
+    if (next == null) {
+      console.log(
+        `[Benne] Active verb became inactive. Was: ${formatVerbState(previousValue)}. (Cleared by script, UI, or input.)`,
+      );
+    } else if (previousValue == null) {
+      console.log(`[Benne] Active verb became active: ${formatVerbState(next)}.`);
+    } else {
+      console.log(
+        `[Benne] Active verb changed: ${formatVerbState(previousValue)} → ${formatVerbState(next)}.`,
+      );
+    }
+  }
+
+  clearActiveVerb(): void {
+    this.setActiveVerb(null);
+  }
+
+  getActiveInventoryItemId(): string | null {
+    return this.activeInventoryItemId;
+  }
+
+  setActiveInventoryItem(id: string | null): void {
+    const next = id != null && id.length > 0 ? id : null;
+    if (this.activeInventoryItemId === next) {
+      return;
+    }
+    const previousItemId = this.activeInventoryItemId;
+    this.activeInventoryItemId = next;
+    const payload: GameStateActiveInventoryItemChangedPayload = { itemId: next };
+    this.events.emit(GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT, payload);
+    if (next == null) {
+      console.log(
+        `[Benne] Active inventory item became inactive (use-on-target selection cleared). Was: ${formatActiveInventoryItemState(previousItemId)}.`,
+      );
+    } else if (previousItemId == null) {
+      console.log(
+        `[Benne] Active inventory item became active (use-on-target): ${formatActiveInventoryItemState(next)}.`,
+      );
+    } else {
+      console.log(
+        `[Benne] Active inventory item changed (use-on-target): ${formatActiveInventoryItemState(previousItemId)} → ${formatActiveInventoryItemState(next)}.`,
+      );
+    }
+  }
+
+  clearActiveInventoryItem(): void {
+    this.setActiveInventoryItem(null);
+  }
+}
+</file>
+
+<file path="src/engine/scripting/GuiRuntime.ts">
+import * as Phaser from 'phaser';
+import { syncBenneGuiAsepriteAuthoredWorldPosition } from '../aseprite/asepriteFramePlacement';
+import {
+  BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY,
+  BENNE_GUI_BUTTON_VISUAL_SCRIPT_LOCK_DATA_KEY,
+  type BenneGuiButtonApplyVisualStateFn,
+  parseBenneGuiScriptButtonVisualState,
+} from '../gui/guiButtonVisualStateScript.js';
+import {
+  guiSliderValueChangedEventId,
+  type GuiSliderValueChangedPayload,
+} from '../events/guiSliderEvents.js';
+import {
+  guiTextInputSubmitEventId,
+  guiTextInputValueChangedEventId,
+  type GuiTextInputSubmitPayload,
+  type GuiTextInputValueChangedPayload,
+} from '../events/guiTextInputEvents.js';
+import {
+  guiListBoxItemActivatedEventId,
+  guiListBoxSelectionChangedEventId,
+  type GuiListBoxItemActivatedPayload,
+  type GuiListBoxSelectionChangedPayload,
+} from '../events/guiListBoxEvents.js';
+import {
+  BENNE_GUI_CHECKBOX_DATA_KEY,
+  BENNE_GUI_CHECKBOX_SET_CHECKED_DATA_KEY,
+  BENNE_GUI_CHECKBOX_SET_DISABLED_DATA_KEY,
+  benneGuiCheckboxReadChecked,
+  benneGuiCheckboxReadDisabled,
+  type BenneGuiCheckboxSetCheckedFn,
+  type BenneGuiCheckboxSetDisabledFn,
+} from '../gui/guiCheckboxRuntime.js';
+import {
+  BENNE_GUI_SLIDER_DATA_KEY,
+  BENNE_GUI_SLIDER_SET_VALUE_DATA_KEY,
+  benneGuiSliderReadValue,
+  type BenneGuiSliderSetValueFn,
+} from '../gui/guiSliderRuntime.js';
+import {
+  BENNE_GUI_BUTTON_DATA_KEY,
+  BENNE_GUI_BUTTON_SET_ENABLED_DATA_KEY,
+  benneGuiButtonReadEnabled,
+  type BenneGuiButtonSetEnabledFn,
+} from '../gui/guiButtonRuntime.js';
+import {
+  BENNE_GUI_TEXT_INPUT_DATA_KEY,
+  BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY,
+  BENNE_GUI_TEXT_INPUT_SET_ENABLED_DATA_KEY,
+  BENNE_GUI_TEXT_INPUT_SET_TEXT_DATA_KEY,
+  benneGuiTextInputReadEnabled,
+  benneGuiTextInputReadFocused,
+  benneGuiTextInputReadText,
+  type BenneGuiTextInputSetEnabledFn,
+  type BenneGuiTextInputSetFocusedFn,
+  type BenneGuiTextInputSetTextFn,
+} from '../gui/guiTextInputRuntime.js';
+import {
+  BENNE_GUI_LIST_BOX_DATA_KEY,
+  BENNE_GUI_LIST_BOX_SET_ROW_TEXT_DATA_KEY,
+  BENNE_GUI_LIST_BOX_SET_SELECTED_INDEX_DATA_KEY,
+  benneGuiListBoxReadRowCount,
+  benneGuiListBoxReadSelectedIndex,
+  type BenneGuiListBoxSetRowTextFn,
+  type BenneGuiListBoxSetSelectedIndexFn,
+} from '../gui/guiListBoxRuntime.js';
+import { syncOutlinedGuiBitmapTextAll, syncOutlinedGuiBitmapTextPositions } from '../gui/guiTextOutline';
+import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
+
+export type ControlTweenProps = Partial<Phaser.Types.Tweens.TweenBuilderConfig>;
+
+/** Bennescript registration context for {@link ControlFacade.whenValueChanged}. */
+export interface BenneScriptControlBinding {
+  guiId: string;
+  controlId: string;
+  subscribe: (event: string, handler: (...args: unknown[]) => void) => void;
+  subscribeImmediate: (event: string, handler: (...args: unknown[]) => void) => void;
+}
+
+/** Shared by {@link ControlFacade} and registration-time detached facades (before {@link Phaser.Scene} exists). */
+export function wireControlWhenValueChanged(
+  binding: BenneScriptControlBinding | null | undefined,
+  handler: (value: number) => void,
+): void {
+  if (!binding) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        '[Benne] control().whenValueChanged() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
+      );
+    }
+    return;
+  }
+  binding.subscribeImmediate(
+    guiSliderValueChangedEventId(binding.guiId, binding.controlId),
+    (payload: unknown) => {
+      const p = payload as GuiSliderValueChangedPayload;
+      handler(p.value);
+    },
+  );
+}
+
+function wireControlWhenTextInputValueChanged(
+  binding: BenneScriptControlBinding | null | undefined,
+  handler: (newValue: string, oldValue: string) => void,
+): void {
+  if (!binding) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        '[Benne] control().whenValueChanged() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
+      );
+    }
+    return;
+  }
+  binding.subscribeImmediate(
+    guiTextInputValueChangedEventId(binding.guiId, binding.controlId),
+    (payload: unknown) => {
+      const p = payload as GuiTextInputValueChangedPayload;
+      handler(p.newValue, p.oldValue);
+    },
+  );
+}
+
+function wireControlWhenTextInputSubmit(
+  binding: BenneScriptControlBinding | null | undefined,
+  handler: (finalValue: string) => void,
+): void {
+  if (!binding) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        '[Benne] control().whenSubmit() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
+      );
+    }
+    return;
+  }
+  binding.subscribe(
+    guiTextInputSubmitEventId(binding.guiId, binding.controlId),
+    (payload: unknown) => {
+      const p = payload as GuiTextInputSubmitPayload;
+      handler(p.finalValue);
+    },
+  );
+}
+
+function wireControlWhenListBoxSelectionChanged(
+  binding: BenneScriptControlBinding | null | undefined,
+  handler: (newIndex: number, oldIndex: number) => void,
+): void {
+  if (!binding) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        '[Benne] control().whenSelectionChanged() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
+      );
+    }
+    return;
+  }
+  binding.subscribeImmediate(
+    guiListBoxSelectionChangedEventId(binding.guiId, binding.controlId),
+    (payload: unknown) => {
+      const p = payload as GuiListBoxSelectionChangedPayload;
+      handler(p.newIndex, p.oldIndex);
+    },
+  );
+}
+
+function wireControlWhenListBoxItemActivated(
+  binding: BenneScriptControlBinding | null | undefined,
+  handler: (index: number) => void,
+): void {
+  if (!binding) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        '[Benne] control().whenItemActivated() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
+      );
+    }
+    return;
+  }
+  binding.subscribe(
+    guiListBoxItemActivatedEventId(binding.guiId, binding.controlId),
+    (payload: unknown) => {
+      const p = payload as GuiListBoxItemActivatedPayload;
+      handler(p.index);
+    },
+  );
+}
+
+/** Facades returned from {@link GuiBenneScript.gui}().control() that accept script event wiring. */
+export interface BenneScriptControlBindingTarget {
+  attachScriptBinding(binding: BenneScriptControlBinding): void;
+}
+
+/**
+ * Authoring handle for one control’s live Phaser object; tweens can queue on the owning GUI script’s interaction tail.
+ */
+export class ControlFacade {
+  readonly gameObject: Phaser.GameObjects.GameObject;
+
+  readonly tweenTo: BlockingWithNow<[props: ControlTweenProps, duration?: number, easing?: string]>;
+
+  private readonly scene: Phaser.Scene;
+  private readonly queueInteraction: (factory: () => Promise<unknown>) => void;
+
+  private scriptBinding: BenneScriptControlBinding | null = null;
+
+  constructor(
+    gameObject: Phaser.GameObjects.GameObject,
+    scene: Phaser.Scene,
+    queueInteraction: (factory: () => Promise<unknown>) => void,
+  ) {
+    this.gameObject = gameObject;
+    this.scene = scene;
+    this.queueInteraction = queueInteraction;
+
+    const runTween = (
+      props: ControlTweenProps,
+      duration: number | undefined,
+      easing: string | undefined,
+      resolve?: () => void,
+    ): Phaser.Tweens.Tween => {
+      const { onComplete: userOnComplete, targets: _ignoreTargets, duration: dProp, ease: easeProp, ...rest } = props;
+      const dur = duration ?? dProp ?? 0;
+      const ease = easing ?? easeProp ?? 'Linear';
+      return this.scene.tweens.add({
+        targets: this.gameObject,
+        ...rest,
+        duration: dur,
+        ease,
+        onComplete: (tw: Phaser.Tweens.Tween, targets: unknown[]) => {
+          userOnComplete?.(tw, targets);
+          resolve?.();
+        },
+      });
+    };
+
+    this.tweenTo = withNow(
+      (props: ControlTweenProps, duration?: number, easing?: string) => {
+        queueInteraction(
+          () =>
+            new Promise<void>((resolve) => {
+              runTween(props, duration, easing, resolve);
+            }),
+        );
+      },
+      (props: ControlTweenProps, duration?: number, easing?: string) => {
+        runTween(props, duration, easing);
+      },
+    );
+  }
+
+  setX(x: number): void {
+    const go = this.gameObject as Phaser.GameObjects.Sprite & {
+      getData?: (key: string) => unknown;
+      setData?: (key: string, value: unknown) => void;
+    };
+    if (typeof go.getData === 'function' && go.getData('benneGuiUsesAuthoredAsepritePlacement') === true) {
+      go.setData?.('benneGuiAuthoredX', x);
+      syncBenneGuiAsepriteAuthoredWorldPosition(go);
+      return;
+    }
+    if (typeof go.setX === 'function') {
+      go.setX(x);
+    } else if (typeof go.x === 'number') {
+      go.x = x;
+    }
+    if (go instanceof Phaser.GameObjects.BitmapText) {
+      syncOutlinedGuiBitmapTextPositions(go);
+    }
+  }
+
+  setY(y: number): void {
+    const go = this.gameObject as Phaser.GameObjects.Sprite & {
+      getData?: (key: string) => unknown;
+      setData?: (key: string, value: unknown) => void;
+    };
+    if (typeof go.getData === 'function' && go.getData('benneGuiUsesAuthoredAsepritePlacement') === true) {
+      go.setData?.('benneGuiAuthoredY', y);
+      syncBenneGuiAsepriteAuthoredWorldPosition(go);
+      return;
+    }
+    if (typeof go.setY === 'function') {
+      go.setY(y);
+    } else if (typeof go.y === 'number') {
+      go.y = y;
+    }
+    if (go instanceof Phaser.GameObjects.BitmapText) {
+      syncOutlinedGuiBitmapTextPositions(go);
+    }
+  }
+
+  setVisible(visible: boolean): void {
+    const go = this.gameObject as { setVisible?: (v: boolean) => void; visible?: boolean };
+    if (typeof go.setVisible === 'function') {
+      go.setVisible(visible);
+    } else {
+      go.visible = visible;
+    }
+  }
+
+  setAlpha(alpha: number): void {
+    const go = this.gameObject as { setAlpha?: (v: number) => void; alpha?: number };
+    if (typeof go.setAlpha === 'function') {
+      go.setAlpha(alpha);
+    } else {
+      go.alpha = alpha;
+    }
+  }
+
+  private tryGetGuiTextSurface(): Phaser.GameObjects.BitmapText | Phaser.GameObjects.Text | null {
+    const go = this.gameObject;
+    if (go instanceof Phaser.GameObjects.BitmapText || go instanceof Phaser.GameObjects.Text) {
+      return go;
+    }
+    return null;
+  }
+
+  /** **`text`** controls (`BitmapText` / `Text`). Throws if this control is not text-backed. */
+  get text(): string {
+    const textInput = this.tryGetTextInputContainer();
+    if (textInput) {
+      return benneGuiTextInputReadText(textInput) ?? '';
+    }
+    const t = this.tryGetGuiTextSurface();
+    if (!t) {
+      throw new Error('[Benne] GUI control `.text` requires a BitmapText or Text game object.');
+    }
+    return t.text;
+  }
+
+  set text(value: string) {
+    const textInput = this.tryGetTextInputContainer();
+    if (textInput) {
+      this.queueInteraction(() => {
+        this.textNow(value);
+        return Promise.resolve();
+      });
+      return;
+    }
+    this.textNow(value);
+  }
+
+  textNow(value: string): void {
+    const textInput = this.tryGetTextInputContainer();
+    if (textInput) {
+      const setRaw = textInput.getData(BENNE_GUI_TEXT_INPUT_SET_TEXT_DATA_KEY);
+      if (typeof setRaw !== 'function') {
+        throw new Error('[Benne] GUI text input `.textNow` setter is unavailable.');
+      }
+      (setRaw as BenneGuiTextInputSetTextFn)(value);
+      return;
+    }
+    const t = this.tryGetGuiTextSurface();
+    if (!t) {
+      throw new Error('[Benne] GUI control `.text` requires a BitmapText or Text game object.');
+    }
+    if (t instanceof Phaser.GameObjects.BitmapText) {
+      syncOutlinedGuiBitmapTextAll(t, value);
+    } else {
+      t.setText(value);
+    }
+  }
+
+  private tryGetTextInputContainer(): Phaser.GameObjects.Container | null {
+    const go = this.gameObject;
+    if (!(go instanceof Phaser.GameObjects.Container)) {
+      return null;
+    }
+    if (go.getData(BENNE_GUI_TEXT_INPUT_DATA_KEY) !== true) {
+      return null;
+    }
+    return go;
+  }
+
+  get focused(): boolean {
+    const input = this.tryGetTextInputContainer();
+    if (!input) {
+      throw new Error('[Benne] GUI control `.focused` is only supported on `textInput` controls.');
+    }
+    const focused = benneGuiTextInputReadFocused(input);
+    return focused === true;
+  }
+
+  set focused(wantFocus: boolean) {
+    const input = this.tryGetTextInputContainer();
+    if (!input) {
+      throw new Error('[Benne] GUI control `.focused` is only supported on `textInput` controls.');
+    }
+    this.queueInteraction(() => {
+      this.focusedNow(wantFocus);
+      return Promise.resolve();
+    });
+  }
+
+  focusedNow(wantFocus: boolean): void {
+    const input = this.tryGetTextInputContainer();
+    if (!input) {
+      throw new Error('[Benne] GUI control `.focusedNow` is only supported on `textInput` controls.');
+    }
+    const setRaw = input.getData(BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY);
+    if (typeof setRaw !== 'function') {
+      throw new Error('[Benne] GUI text input `.focusedNow` setter is unavailable.');
+    }
+    (setRaw as BenneGuiTextInputSetFocusedFn)(wantFocus);
+  }
+
+  private tryGetButtonContainer(): Phaser.GameObjects.Container | null {
+    const go = this.gameObject;
+    if (!(go instanceof Phaser.GameObjects.Container)) {
+      return null;
+    }
+    if (go.getData(BENNE_GUI_BUTTON_DATA_KEY) !== true) {
+      return null;
+    }
+    return go;
+  }
+
+  /**
+   * Enabled state for **`button`** and **`textInput`** controls (matches JSON **`enabled`**; toggles
+   * hit-testing and disabled visuals at runtime). Does not emit button click or text-input events.
+   * @throws When this control is not a composable **`button`** or **`textInput`** hit target.
+   */
+  get enabled(): boolean {
+    const button = this.tryGetButtonContainer();
+    if (button) {
+      return benneGuiButtonReadEnabled(button) ?? true;
+    }
+    const input = this.tryGetTextInputContainer();
+    if (input) {
+      return benneGuiTextInputReadEnabled(input) ?? true;
+    }
+    throw new Error('[Benne] GUI control `.enabled` is only supported on `button` and `textInput` controls.');
+  }
+
+  set enabled(value: boolean) {
+    const button = this.tryGetButtonContainer();
+    if (button) {
+      const setRaw = button.getData(BENNE_GUI_BUTTON_SET_ENABLED_DATA_KEY);
+      if (typeof setRaw !== 'function') {
+        throw new Error('[Benne] GUI button `.enabled` setter is unavailable.');
+      }
+      (setRaw as BenneGuiButtonSetEnabledFn)(value);
+      return;
+    }
+    const input = this.tryGetTextInputContainer();
+    if (input) {
+      const setRaw = input.getData(BENNE_GUI_TEXT_INPUT_SET_ENABLED_DATA_KEY);
+      if (typeof setRaw !== 'function') {
+        throw new Error('[Benne] GUI text input `.enabled` setter is unavailable.');
+      }
+      (setRaw as BenneGuiTextInputSetEnabledFn)(value);
+      return;
+    }
+    throw new Error('[Benne] GUI control `.enabled` is only supported on `button` and `textInput` controls.');
+  }
+
+  private tryGetListBoxContainer(): Phaser.GameObjects.Container | null {
+    const go = this.gameObject;
+    if (!(go instanceof Phaser.GameObjects.Container)) {
+      return null;
+    }
+    if (go.getData(BENNE_GUI_LIST_BOX_DATA_KEY) !== true) {
+      return null;
+    }
+    return go;
+  }
+
+  get selectedIndex(): number {
+    const listBox = this.tryGetListBoxContainer();
+    if (!listBox) {
+      throw new Error('[Benne] GUI control `.selectedIndex` is only supported on `listBox` controls.');
+    }
+    return benneGuiListBoxReadSelectedIndex(listBox) ?? -1;
+  }
+
+  set selectedIndex(index: number) {
+    const listBox = this.tryGetListBoxContainer();
+    if (!listBox) {
+      throw new Error('[Benne] GUI control `.selectedIndex` is only supported on `listBox` controls.');
+    }
+    this.queueInteraction(() => {
+      this.selectedIndexNow(index);
+      return Promise.resolve();
+    });
+  }
+
+  selectedIndexNow(index: number): void {
+    const listBox = this.tryGetListBoxContainer();
+    if (!listBox) {
+      throw new Error('[Benne] GUI control `.selectedIndexNow` is only supported on `listBox` controls.');
+    }
+    const setRaw = listBox.getData(BENNE_GUI_LIST_BOX_SET_SELECTED_INDEX_DATA_KEY);
+    if (typeof setRaw !== 'function') {
+      throw new Error('[Benne] GUI listBox `.selectedIndexNow` setter is unavailable.');
+    }
+    (setRaw as BenneGuiListBoxSetSelectedIndexFn)(index);
+  }
+
+  get rowCount(): number {
+    const listBox = this.tryGetListBoxContainer();
+    if (!listBox) {
+      throw new Error('[Benne] GUI control `.rowCount` is only supported on `listBox` controls.');
+    }
+    return benneGuiListBoxReadRowCount(listBox) ?? 0;
+  }
+
+  setRowText(index: number, text: string): void {
+    const listBox = this.tryGetListBoxContainer();
+    if (!listBox) {
+      throw new Error('[Benne] GUI control `.setRowText` is only supported on `listBox` controls.');
+    }
+    this.queueInteraction(() => {
+      this.setRowTextNow(index, text);
+      return Promise.resolve();
+    });
+  }
+
+  setRowTextNow(index: number, text: string): void {
+    const listBox = this.tryGetListBoxContainer();
+    if (!listBox) {
+      throw new Error('[Benne] GUI control `.setRowTextNow` is only supported on `listBox` controls.');
+    }
+    const setRaw = listBox.getData(BENNE_GUI_LIST_BOX_SET_ROW_TEXT_DATA_KEY);
+    if (typeof setRaw !== 'function') {
+      throw new Error('[Benne] GUI listBox `.setRowTextNow` setter is unavailable.');
+    }
+    (setRaw as BenneGuiListBoxSetRowTextFn)(index, text);
+  }
+
+  /**
+   * Forces the **button** sheet label + background chrome to a named state (same frames / tints pointer
+   * interaction would use). **`'normal'`** also releases a script override so pointer hover / press works again.
+   * @throws When this control is not a composable **`button`** hit target.
+   */
+  setVisualState(state: string): void {
+    const go = this.gameObject as Phaser.GameObjects.GameObject & {
+      getData?: (key: string) => unknown;
+      setData?: (key: string, value: unknown) => void;
+    };
+    const applyRaw =
+      typeof go.getData === 'function' ? go.getData(BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY) : undefined;
+    if (typeof applyRaw !== 'function') {
+      throw new Error('[Benne] GUI control `.setVisualState` is only supported on `button` controls.');
+    }
+    const apply = applyRaw as BenneGuiButtonApplyVisualStateFn;
+    const normalized = parseBenneGuiScriptButtonVisualState(state);
+    apply(normalized);
+    if (typeof go.setData === 'function') {
+      go.setData(BENNE_GUI_BUTTON_VISUAL_SCRIPT_LOCK_DATA_KEY, normalized !== 'normal');
+    }
+  }
+
+  private tryGetCheckboxContainer(): Phaser.GameObjects.Container | null {
+    const go = this.gameObject;
+    if (!(go instanceof Phaser.GameObjects.Container)) {
+      return null;
+    }
+    if (go.getData(BENNE_GUI_CHECKBOX_DATA_KEY) !== true) {
+      return null;
+    }
+    return go;
+  }
+
+  /**
+   * Checked state for **`checkbox`** controls. Programmatic updates do not emit
+   * {@link import('../events/guiCheckboxEvents.js').guiCheckboxCheckEventId} / uncheck events.
+   * @throws When this control is not a composable **`checkbox`** hit target.
+   */
+  get checked(): boolean {
+    const box = this.tryGetCheckboxContainer();
+    if (!box) {
+      throw new Error('[Benne] GUI control `.checked` is only supported on `checkbox` controls.');
+    }
+    return benneGuiCheckboxReadChecked(box) ?? false;
+  }
+
+  set checked(value: boolean) {
+    const box = this.tryGetCheckboxContainer();
+    if (!box) {
+      throw new Error('[Benne] GUI control `.checked` is only supported on `checkbox` controls.');
+    }
+    const setRaw = box.getData(BENNE_GUI_CHECKBOX_SET_CHECKED_DATA_KEY);
+    if (typeof setRaw !== 'function') {
+      throw new Error('[Benne] GUI checkbox `.checked` setter is unavailable.');
+    }
+    (setRaw as BenneGuiCheckboxSetCheckedFn)(value);
+  }
+
+  /**
+   * Disabled state for **`checkbox`** controls (inverse of JSON **`enabled`**).
+   * @throws When this control is not a composable **`checkbox`** hit target.
+   */
+  get disabled(): boolean {
+    const box = this.tryGetCheckboxContainer();
+    if (!box) {
+      throw new Error('[Benne] GUI control `.disabled` is only supported on `checkbox` controls.');
+    }
+    return benneGuiCheckboxReadDisabled(box) ?? false;
+  }
+
+  set disabled(value: boolean) {
+    const box = this.tryGetCheckboxContainer();
+    if (!box) {
+      throw new Error('[Benne] GUI control `.disabled` is only supported on `checkbox` controls.');
+    }
+    const setRaw = box.getData(BENNE_GUI_CHECKBOX_SET_DISABLED_DATA_KEY);
+    if (typeof setRaw !== 'function') {
+      throw new Error('[Benne] GUI checkbox `.disabled` setter is unavailable.');
+    }
+    (setRaw as BenneGuiCheckboxSetDisabledFn)(value);
+  }
+
+  /**
+   * Attaches GUI-script event registration (used by {@link GuiBenneScript.gui}().control()).
+   */
+  attachScriptBinding(binding: BenneScriptControlBinding): void {
+    this.scriptBinding = binding;
+  }
+
+  private tryGetSliderContainer(): Phaser.GameObjects.Container | null {
+    const go = this.gameObject;
+    if (!(go instanceof Phaser.GameObjects.Container)) {
+      return null;
+    }
+    if (go.getData(BENNE_GUI_SLIDER_DATA_KEY) !== true) {
+      return null;
+    }
+    return go;
+  }
+
+  /**
+   * Numeric value for **`slider`** controls. Programmatic updates do not emit
+   * {@link guiSliderValueChangedEventId}.
+   * @throws When this control is not a composable **`slider`** hit target.
+   */
+  get value(): number {
+    const slider = this.tryGetSliderContainer();
+    if (!slider) {
+      throw new Error('[Benne] GUI control `.value` is only supported on `slider` controls.');
+    }
+    return benneGuiSliderReadValue(slider) ?? 0;
+  }
+
+  set value(next: number) {
+    this.setValue(next);
+  }
+
+  /**
+   * Sets a **`slider`** value immediately without emitting {@link guiSliderValueChangedEventId}.
+   * @throws When this control is not a composable **`slider`** hit target.
+   */
+  setValue(next: number): void {
+    const slider = this.tryGetSliderContainer();
+    if (!slider) {
+      throw new Error('[Benne] GUI control `.setValue` is only supported on `slider` controls.');
+    }
+    const setRaw = slider.getData(BENNE_GUI_SLIDER_SET_VALUE_DATA_KEY);
+    if (typeof setRaw !== 'function') {
+      throw new Error('[Benne] GUI slider `.setValue` is unavailable.');
+    }
+    (setRaw as BenneGuiSliderSetValueFn)(next);
+  }
+
+  /**
+   * Subscribes to pointer-driven value changes for **`slider`** controls (runs via
+   * **`subscribeImmediate`** so drag updates are not queued behind **`say`** / tweens).
+   * Call from **`registerGuiScript`** via **`B.gui(…).control(…).whenValueChanged(…)`**.
+   */
+  whenValueChanged(handler: (value: number) => void): void;
+  whenValueChanged(handler: (newValue: string, oldValue: string) => void): void;
+  whenValueChanged(handler: ((value: number) => void) | ((newValue: string, oldValue: string) => void)): void {
+    if (this.tryGetTextInputContainer()) {
+      wireControlWhenTextInputValueChanged(
+        this.scriptBinding,
+        handler as (newValue: string, oldValue: string) => void,
+      );
+      return;
+    }
+    wireControlWhenValueChanged(this.scriptBinding, handler as (value: number) => void);
+  }
+
+  whenSubmit(handler: (finalValue: string) => void): void {
+    wireControlWhenTextInputSubmit(this.scriptBinding, handler);
+  }
+
+  whenSelectionChanged(handler: (newIndex: number, oldIndex: number) => void): void {
+    wireControlWhenListBoxSelectionChanged(this.scriptBinding, handler);
+  }
+
+  whenItemActivated(handler: (index: number) => void): void {
+    wireControlWhenListBoxItemActivated(this.scriptBinding, handler);
+  }
+}
+
+/**
+ * Forgiving **`B.gui(…).control('missing')`** path: invisible container + **`.text`** no-ops (**`BitmapText`** on real
+ * controls still uses the base {@link ControlFacade} **`.text`** implementation).
+ */
+export class NoopGuiControlFacade extends ControlFacade {
+  constructor(scene: Phaser.Scene, queueInteraction: (factory: () => Promise<unknown>) => void) {
+    const holder = scene.add.container(0, 0);
+    holder.setVisible(false);
+    super(holder, scene, queueInteraction);
+  }
+
+  override get text(): string {
+    return '';
+  }
+
+  override set text(_value: string) {
+    /* forgiving missing / non-text control */
+  }
+
+  override textNow(_value: string): void {
+    /* forgiving missing / non-text control */
+  }
+
+  override setVisualState(_state: string): void {
+    /* forgiving missing control / non-button */
+  }
+
+  override get checked(): boolean {
+    return false;
+  }
+
+  override set checked(_value: boolean) {
+    /* forgiving */
+  }
+
+  override get disabled(): boolean {
+    return false;
+  }
+
+  override set disabled(_value: boolean) {
+    /* forgiving */
+  }
+
+  override get focused(): boolean {
+    return false;
+  }
+
+  override set focused(_wantFocus: boolean) {
+    /* forgiving */
+  }
+
+  override focusedNow(_wantFocus: boolean): void {
+    /* forgiving */
+  }
+
+  override get enabled(): boolean {
+    return true;
+  }
+
+  override set enabled(_value: boolean) {
+    /* forgiving */
+  }
+
+  override get value(): number {
+    return 0;
+  }
+
+  override set value(_next: number) {
+    /* forgiving */
+  }
+
+  override setValue(_next: number): void {
+    /* forgiving */
+  }
+
+  override get selectedIndex(): number {
+    return -1;
+  }
+
+  override set selectedIndex(_index: number) {
+    /* forgiving */
+  }
+
+  override selectedIndexNow(_index: number): void {
+    /* forgiving */
+  }
+
+  override get rowCount(): number {
+    return 0;
+  }
+
+  override setRowText(_index: number, _text: string): void {
+    /* forgiving */
+  }
+
+  override setRowTextNow(_index: number, _text: string): void {
+    /* forgiving */
+  }
+
+  override whenValueChanged(_handler: (value: number) => void): void;
+  override whenValueChanged(_handler: (newValue: string, oldValue: string) => void): void;
+  override whenValueChanged(
+    _handler: ((value: number) => void) | ((newValue: string, oldValue: string) => void),
+  ): void {
+    /* forgiving */
+  }
+
+  override whenSubmit(_handler: (finalValue: string) => void): void {
+    /* forgiving */
+  }
+
+  override whenSelectionChanged(_handler: (newIndex: number, oldIndex: number) => void): void {
+    /* forgiving */
+  }
+
+  override whenItemActivated(_handler: (index: number) => void): void {
+    /* forgiving */
+  }
+}
+
+export function createBenneNoopGuiControlFacade(
+  scene: Phaser.Scene,
+  queueInteraction: (factory: () => Promise<unknown>) => void,
+): ControlFacade {
+  return new NoopGuiControlFacade(scene, queueInteraction);
+}
+
+/**
+ * When no {@link Phaser.Scene} exists yet (**`GuiBenneScript`** before the game boots). Same authoring surface as
+ * {@link ControlFacade}; skips real tween targets.
+ */
+export function createDetachedBenneNoopGuiControlFacade(
+  queueInteraction: (factory: () => Promise<unknown>) => void,
+): ControlFacade {
+  return new DetachedNoopGuiControlFacade(queueInteraction) as unknown as ControlFacade;
+}
+
+class DetachedNoopGuiControlFacade implements BenneScriptControlBindingTarget {
+  readonly gameObject: Phaser.GameObjects.GameObject;
+
+  readonly tweenTo: BlockingWithNow<[props: ControlTweenProps, duration?: number, easing?: string]>;
+
+  private scriptBinding: BenneScriptControlBinding | null = null;
+
+  constructor(queueInteraction: (factory: () => Promise<unknown>) => void) {
+    this.gameObject = undefined as unknown as Phaser.GameObjects.GameObject;
+    this.tweenTo = withNow(
+      (_props?: ControlTweenProps, _dur?: number, _ease?: string) => {
+        queueInteraction(() => Promise.resolve());
+      },
+      (_props?: ControlTweenProps, _dur?: number, _ease?: string) => {
+        /* immediate */
+      },
+    );
+  }
+
+  setX(_x: number): void {}
+  setY(_y: number): void {}
+  setVisible(_visible: boolean): void {}
+  setAlpha(_alpha: number): void {}
+
+  get text(): string {
+    return '';
+  }
+
+  set text(_value: string) {}
+
+  textNow(_value: string): void {}
+
+  setVisualState(_state: string): void {}
+
+  get checked(): boolean {
+    return false;
+  }
+
+  set checked(_value: boolean) {}
+
+  get disabled(): boolean {
+    return false;
+  }
+
+  set disabled(_value: boolean) {}
+
+  get focused(): boolean {
+    return false;
+  }
+
+  set focused(_wantFocus: boolean) {}
+
+  focusedNow(_wantFocus: boolean): void {}
+
+  get enabled(): boolean {
+    return true;
+  }
+
+  set enabled(_value: boolean) {}
+
+  get value(): number {
+    return 0;
+  }
+
+  set value(_next: number) {}
+
+  setValue(_next: number): void {}
+
+  get selectedIndex(): number {
+    return -1;
+  }
+
+  set selectedIndex(_index: number) {}
+
+  selectedIndexNow(_index: number): void {}
+
+  get rowCount(): number {
+    return 0;
+  }
+
+  setRowText(_index: number, _text: string): void {}
+
+  setRowTextNow(_index: number, _text: string): void {}
+
+  attachScriptBinding(binding: BenneScriptControlBinding): void {
+    this.scriptBinding = binding;
+  }
+
+  whenValueChanged(handler: (value: number) => void): void;
+  whenValueChanged(handler: (newValue: string, oldValue: string) => void): void;
+  whenValueChanged(handler: ((value: number) => void) | ((newValue: string, oldValue: string) => void)): void {
+    if (handler.length >= 2) {
+      wireControlWhenTextInputValueChanged(
+        this.scriptBinding,
+        handler as (newValue: string, oldValue: string) => void,
+      );
+      return;
+    }
+    wireControlWhenValueChanged(this.scriptBinding, handler as (value: number) => void);
+  }
+
+  whenSubmit(handler: (finalValue: string) => void): void {
+    wireControlWhenTextInputSubmit(this.scriptBinding, handler);
+  }
+
+  whenSelectionChanged(handler: (newIndex: number, oldIndex: number) => void): void {
+    wireControlWhenListBoxSelectionChanged(this.scriptBinding, handler);
+  }
+
+  whenItemActivated(handler: (index: number) => void): void {
+    wireControlWhenListBoxItemActivated(this.scriptBinding, handler);
+  }
+}
+
+export interface GuiRuntimeOptions {
+  scene: Phaser.Scene;
+  guiId: string;
+  /** Overlay base depth from {@link buildGuiOverlay} (same as the packed content root). */
+  baseDepth: number;
+  /**
+   * Parent for every **non-fixed** authored control (see **`GuiData.fixedControls`**). Tween {@link GuiRuntime.root}
+   * to move that packed subtree; listed fixed controls stay scene-rooted siblings and are not parented here.
+   */
+  contentRoot: Phaser.GameObjects.Container;
+  controlGameObjectsById: ReadonlyMap<string, Phaser.GameObjects.GameObject>;
+  queueInteraction: (factory: () => Promise<unknown>) => void;
+}
+
+/**
+ * Per-overlay GUI behavior surface: whole-GUI {@link GuiRuntime.root} facade and per-control lookup.
+ * Constructed after {@link buildGuiOverlay}; call {@link dispose} (or destroy the overlay handle) on room teardown.
+ *
+ * **Hover events** (pointer enter / leave) for any control with an **`id`** — including the dedicated **`trigger`**
+ * control type — are routed through Bennescript (**`B.whenMouseEnter`** / **`B.whenMouseLeave`**), not this class.
+ */
+export class GuiRuntime {
+  readonly guiId: string;
+  /** The scene hosting this overlay (scale, tweens, input). */
+  readonly scene: Phaser.Scene;
+  /**
+   * The root container for the **packed** authored GUI: every control **except** those listed in **`fixedControls`**
+   * on the GUI JSON (those stay outside this container so they do not move with root-level tweens).
+   * Tweening or moving this (via **`tweenTo`**, **`setY`**, …) affects only that subtree — same interaction queue as
+   * {@link getControl} facades.
+   */
+  readonly root: ControlFacade;
+
+  private readonly queueInteraction: (factory: () => Promise<unknown>) => void;
+  private readonly controlObjects: ReadonlyMap<string, Phaser.GameObjects.GameObject>;
+  private readonly facadeCache = new Map<string, ControlFacade>();
+  private disposed = false;
+
+  constructor(options: GuiRuntimeOptions) {
+    this.scene = options.scene;
+    this.guiId = options.guiId;
+    this.controlObjects = options.controlGameObjectsById;
+    this.queueInteraction = options.queueInteraction;
+
+    this.root = new ControlFacade(options.contentRoot, options.scene, options.queueInteraction);
+  }
+
+  /**
+   * Resolves a control by **`id`** from **`*.gui.json`**, or **`null`** if missing / blank / unknown.
+   * Use this when a control may legitimately be absent and you will branch (optional UI, feature flags).
+   * When the control must exist for the behavior to make sense, prefer {@link getControlOrThrow} so callers get a **`ControlFacade`** without null checks.
+   */
+  getControl(controlId: string): ControlFacade | null {
+    const id = controlId.trim();
+    if (!id) {
+      return null;
+    }
+    const existing = this.facadeCache.get(id);
+    if (existing) {
+      return existing;
+    }
+    const go = this.controlObjects.get(id);
+    if (!go) {
+      return null;
+    }
+    const facade = new ControlFacade(go, this.scene, this.queueInteraction);
+    this.facadeCache.set(id, facade);
+    return facade;
+  }
+
+  /**
+   * Same as {@link getControl}, but throws if the control is missing (unknown id, blank string, or not in the overlay).
+   * Recommended default for `onGuiBuilt` wiring when a missing control indicates an authoring bug.
+   */
+  getControlOrThrow(controlId: string): ControlFacade {
+    const facade = this.getControl(controlId);
+    if (!facade) {
+      const id = controlId.trim();
+      throw new Error(
+        `[Benne] GUI "${this.guiId}" has no control with id "${id.length > 0 ? id : controlId}" (check *.gui.json and buildGuiOverlay control ids).`,
+      );
+    }
+    return facade;
+  }
+
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    for (const fac of this.facadeCache.values()) {
+      this.scene.tweens.killTweensOf(fac.gameObject);
+    }
+    this.facadeCache.clear();
+    this.scene.tweens.killTweensOf(this.root.gameObject);
+  }
 }
 </file>
 
@@ -27058,1285 +28486,6 @@ export function promiseWhenSpriteAnimationFinishes(
 }
 </file>
 
-<file path="src/engine/scenes/RoomTransitionOrchestrator.ts">
-import * as Phaser from 'phaser';
-import { loadRoomDataById } from '../../game/loadRoomData.js';
-import { SCENE_ROOM } from '../../game/constants.js';
-import type { EventBus } from '../events/EventBus.js';
-import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import { getAllGuiBenneScriptInstances } from '../scripting/registerGuiScript.js';
-import { tryGetGlobalBenneScriptForRoomTransitions, setRoomTransitionInProgress } from './roomTransitionGlobals.js';
-import { BENNE_SCREEN_FADE_DEFAULT_COLOR, BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC } from './roomScreenFadeConstants.js';
-import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from './roomSceneBootstrap.js';
-import type { RoomSceneStartData } from './BootScene';
-import type { RoomScene } from './RoomScene.js';
-import {
-  RoomTransitionHookRegistry,
-  runRoomHandlersEachSafe,
-  runRoomHandlersSeq,
-} from './RoomTransitionHookRegistry.js';
-import { getPlayFromSetupForRoom } from '../scripting/devPlayFromRegistry.js';
-import { ensureRoomScriptLoaded } from '../scripting/registerRoomScript.js';
-import type { RoomTransitionContext } from '../../types/roomTransition.js';
-import type { BenneScriptCore } from '../scripting/BenneScriptCore.js';
-import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
-import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
-import { getRoomVisitCount, incrementRoomVisitCount } from '../gameState/roomVisitState.js';
-import { syncBenneRuntimeHiDpiSceneMainCameras } from '../benneRuntimeHiDpiScale.js';
-
-/**
- * **Runtime** service for `B.room.changeTo` — leave → fade → load → create → enter → fade → after-fade.
- */
-export class RoomTransitionOrchestrator {
-  private readonly game: Phaser.Game;
-  private transitionChain: Promise<void> = Promise.resolve();
-  private readonly sessionEnteredRoomIds = new Set<string>();
-  private deferredRunComplete: (() => void) | null = null;
-  /** From the last `changeTo` call; the new `RoomScene` should fade in (unless this is `true`). */
-  private lastChangeImmediate = false;
-  private readonly hooks: RoomTransitionHookRegistry;
-
-  constructor(game: Phaser.Game, _events: EventBus, hooks: RoomTransitionHookRegistry) {
-    void _events;
-    this.game = game;
-    this.hooks = hooks;
-  }
-
-  getHookRegistry(): RoomTransitionHookRegistry {
-    return this.hooks;
-  }
-
-  /**
-   * Call from the shipped {@link import('./BootScene.js').BootScene} when the start room’s assets have finished loading.
-   * Sets `GameStateManager` **lastRoom** to **`null`**, **{@link BENNE_ROOM_START_KIND_KEY}** to **`'boot'`**,
-   * and starts **`RoomScene`** so **{@link onRoomSceneCreateComplete}** runs the same **enter → fade in → after-fade**
-   * path as in-game transitions (no **leave** hooks — there is no previous room).
-   */
-  startInitialRoomFromBoot(startData: RoomSceneStartData): void {
-    const manager = resolveGameStateManager(this.game);
-    manager.setLastRoom(null);
-    this.game.registry.set(BENNE_ROOM_START_KIND_KEY, 'boot');
-    this.game.scene.start(SCENE_ROOM, startData);
-  }
-
-  /**
-   * Main transition; awaited on the Bennescript interaction chain when not immediate.
-   */
-  async changeTo(targetRoomId: string, immediate: boolean): Promise<void> {
-    const id = String(targetRoomId);
-    this.transitionChain = this.transitionChain
-      .then(() => this.runChangeToImpl(id, immediate))
-      .catch((err) => {
-        console.error('[Benne] Room transition failed:', err);
-        setRoomTransitionInProgress(this.game, false);
-      });
-    return this.transitionChain;
-  }
-
-  private async runChangeToImpl(targetRoomId: string, immediate: boolean): Promise<void> {
-    const fromScene = this.game.scene.getScene(SCENE_ROOM) as RoomScene | null;
-    if (!fromScene) {
-      console.error('[Benne] Room transition: no active RoomScene.');
-      return;
-    }
-    const fromId = fromScene.getCurrentRoomId();
-    if (fromId === targetRoomId) {
-      return;
-    }
-
-    this.lastChangeImmediate = immediate;
-    setRoomTransitionInProgress(this.game, true);
-    const manager = resolveGameStateManager(this.game);
-    try {
-      this.prepareForLeave(fromScene, manager);
-      const lastSnap = manager.getLastRoom();
-      const leaveVisit = getRoomVisitCount(manager, fromId);
-      const leaveCtx: RoomTransitionContext = {
-        roomId: fromId,
-        lastRoom: lastSnap,
-        isFirstEnter: false,
-        visitCount: leaveVisit,
-      };
-      await runRoomHandlersSeq(
-        [...this.hooks.getLeaveHandlersForRoom(fromId), ...this.hooks.getAnyLeave()],
-        leaveCtx,
-      );
-
-      if (!immediate) {
-        await fromScene.queueScreenFadeToAlpha(
-          1,
-          BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
-          BENNE_SCREEN_FADE_DEFAULT_COLOR,
-        );
-      } else {
-        fromScene.screenFadeLayer?.setAlpha(1);
-      }
-
-      const room = loadRoomDataById(targetRoomId);
-      const startData = buildRoomSceneStartDataFromRoomData(room);
-      queueRoomSceneAssetLoads(fromScene, startData);
-
-      await Promise.all([
-        this.awaitLoaderComplete(fromScene),
-        ensureRoomScriptLoaded(targetRoomId),
-      ]);
-
-      manager.setLastRoom(fromId);
-      manager.setCurrentRoom(targetRoomId);
-
-      this.game.registry.set(BENNE_ROOM_START_KIND_KEY, 'transition');
-      const runDone = new Promise<void>((r) => {
-        this.deferredRunComplete = r;
-      });
-      this.game.scene.start(SCENE_ROOM, startData);
-      await runDone;
-    } catch (e) {
-      setRoomTransitionInProgress(this.game, false);
-      throw e;
-    }
-  }
-
-  private awaitLoaderComplete(fromScene: RoomScene): Promise<void> {
-    return new Promise<void>((resolve) => {
-      const l = fromScene.load;
-      let done = false;
-      const finish = (): void => {
-        if (done) {
-          return;
-        }
-        done = true;
-        l.off(Phaser.Loader.Events.COMPLETE, onComplete);
-        resolve();
-      };
-      const onComplete = (): void => {
-        finish();
-      };
-      l.once(Phaser.Loader.Events.COMPLETE, onComplete);
-      l.start();
-      fromScene.time.delayedCall(0, () => {
-        if (!l.isLoading()) {
-          finish();
-        }
-      });
-    });
-  }
-
-  /**
-   * Finishes a transition: enter hooks, fade in, after-fade hooks. Also handles **boot** / **preview** (no `changeTo`).
-   */
-  async onRoomSceneCreateComplete(roomScene: RoomScene, kind: BenneRoomStartKind): Promise<void> {
-    const roomId = roomScene.getCurrentRoomId();
-    const manager = resolveGameStateManager(this.game);
-    const finishDeferred = ((): void => {
-      this.deferredRunComplete?.();
-      this.deferredRunComplete = null;
-    });
-    const skipEnterFadeIn = this.lastChangeImmediate && kind === 'transition';
-    this.lastChangeImmediate = false;
-    try {
-      if (kind === 'boot' || kind === 'preview') {
-        const c = manager.getCurrentRoom();
-        if (c == null || c.length === 0) {
-          manager.setCurrentRoom(roomId);
-        }
-      }
-
-      const visitCount = incrementRoomVisitCount(manager, roomId);
-      const isFirst = !this.sessionEnteredRoomIds.has(roomId);
-      if (isFirst) {
-        this.sessionEnteredRoomIds.add(roomId);
-      }
-      const lastForEnter = manager.getLastRoom();
-      const enterCtx: RoomTransitionContext = {
-        roomId,
-        lastRoom: lastForEnter,
-        isFirstEnter: isFirst,
-        visitCount,
-      };
-      // Enter handlers and the enter-phase queue drain run inside a cutscene block so the room
-      // is protected from player input during invisible setup (moveTo, music, etc.).
-      roomScene.pushCutscene();
-      try {
-        await runRoomHandlersEachSafe(
-          [...this.hooks.getEnterHandlersForRoom(roomId), ...this.hooks.getAnyEnter()],
-          enterCtx,
-          'onRoomSceneCreateComplete: room enter',
-        );
-
-        if (kind === 'boot' || kind === 'preview') {
-          const g = globalThis as { __BENNE_PLAY_FROM_NAME?: unknown };
-          const raw = g.__BENNE_PLAY_FROM_NAME;
-          const playFromName = typeof raw === 'string' ? raw.trim() : '';
-          g.__BENNE_PLAY_FROM_NAME = '';
-          if (playFromName.length > 0) {
-            const playFromHandler = getPlayFromSetupForRoom(roomId, playFromName);
-            if (playFromHandler) {
-              try {
-                await Promise.resolve(playFromHandler());
-              } catch (playFromErr) {
-                if (import.meta.env.DEV) {
-                  console.warn(
-                    `[Benne] Play From: setup '${playFromName}' threw an error`,
-                    playFromErr,
-                  );
-                }
-              }
-            } else if (import.meta.env.DEV) {
-              console.warn(
-                `[Benne] Play From: no handler named '${playFromName}' for room '${roomId}'`,
-              );
-            }
-          }
-        }
-
-        await roomScene.waitForEnterPhaseBenneScriptQueues();
-      } finally {
-        roomScene.popCutscene();
-      }
-
-      roomScene.setCharacterFollowBehaviorEnabled(true);
-
-      if (skipEnterFadeIn) {
-        roomScene.screenFadeLayer?.setAlpha(0);
-      } else {
-        syncBenneRuntimeHiDpiSceneMainCameras(this.game);
-        roomScene.syncRuntimeHiDpiUiCameraToMain();
-        await new Promise<void>((resolve, reject) => {
-          roomScene.time.delayedCall(0, () => {
-            void roomScene
-              .queueScreenFadeToAlpha(
-                0,
-                BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
-                BENNE_SCREEN_FADE_DEFAULT_COLOR,
-              )
-              .then(resolve)
-              .catch(reject);
-          });
-        });
-      }
-
-      const afterCtx: RoomTransitionContext = {
-        roomId,
-        lastRoom: lastForEnter,
-        isFirstEnter: isFirst,
-        visitCount,
-      };
-      // After-fade handlers (walk-in animations, visible cutscenes) also run inside a cutscene
-      // block so input remains suppressed for their full duration.
-      // Handlers are typically synchronous (they queue B.* steps on the interaction tail without
-      // awaiting), so we must drain the tail with waitForEnterPhaseBenneScriptQueues() inside the
-      // cutscene block — otherwise popCutscene() fires before say/walk/wait steps execute.
-      roomScene.pushCutscene();
-      try {
-        await runRoomHandlersEachSafe(
-          [...this.hooks.getAfterFadeHandlersForRoom(roomId), ...this.hooks.getAnyAfterFade()],
-          afterCtx,
-          'onRoomSceneCreateComplete: after-fade',
-        );
-        await roomScene.waitForEnterPhaseBenneScriptQueues();
-      } finally {
-        roomScene.popCutscene();
-      }
-    } catch (e) {
-      console.error('[Benne] onRoomSceneCreateComplete:', e);
-    } finally {
-      finishDeferred();
-      setRoomTransitionInProgress(this.game, false);
-    }
-  }
-
-  private prepareForLeave(roomScene: RoomScene, mgr: ReturnType<typeof resolveGameStateManager>): void {
-    // Pull live character feet positions and prop authoring positions into game state BEFORE
-    // tearing down the scene so the next room (re)load can restore them. See
-    // `RoomScene.flushRuntimeStateToGameState` and `gameState/snapshotFlushHooks.ts`.
-    roomScene.flushRuntimeStateToGameState();
-    mgr.clearActiveVerb();
-    mgr.clearActiveInventoryItem();
-    tryGetBenneSoundManager(this.game)?.stopAllSfx();
-    roomScene.clearStateForRoomTransition();
-    for (const s of roomScene.getBenneScriptCoresForTransitionReset()) {
-      s.resetInteractionTailForEngine();
-    }
-    const g = tryGetGlobalBenneScriptForRoomTransitions() as
-      | (BenneScriptCore & { resetInteractionTailForEngine: () => void })
-      | null;
-    g?.resetInteractionTailForEngine();
-    for (const script of getAllGuiBenneScriptInstances().values()) {
-      script.resetInteractionTailForEngine();
-    }
-  }
-}
-</file>
-
-<file path="src/engine/scripting/GuiRuntime.ts">
-import * as Phaser from 'phaser';
-import { syncBenneGuiAsepriteAuthoredWorldPosition } from '../aseprite/asepriteFramePlacement';
-import {
-  BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY,
-  BENNE_GUI_BUTTON_VISUAL_SCRIPT_LOCK_DATA_KEY,
-  type BenneGuiButtonApplyVisualStateFn,
-  parseBenneGuiScriptButtonVisualState,
-} from '../gui/guiButtonVisualStateScript.js';
-import {
-  guiSliderValueChangedEventId,
-  type GuiSliderValueChangedPayload,
-} from '../events/guiSliderEvents.js';
-import {
-  guiTextInputSubmitEventId,
-  guiTextInputValueChangedEventId,
-  type GuiTextInputSubmitPayload,
-  type GuiTextInputValueChangedPayload,
-} from '../events/guiTextInputEvents.js';
-import {
-  guiListBoxItemActivatedEventId,
-  guiListBoxSelectionChangedEventId,
-  type GuiListBoxItemActivatedPayload,
-  type GuiListBoxSelectionChangedPayload,
-} from '../events/guiListBoxEvents.js';
-import {
-  BENNE_GUI_CHECKBOX_DATA_KEY,
-  BENNE_GUI_CHECKBOX_SET_CHECKED_DATA_KEY,
-  BENNE_GUI_CHECKBOX_SET_DISABLED_DATA_KEY,
-  benneGuiCheckboxReadChecked,
-  benneGuiCheckboxReadDisabled,
-  type BenneGuiCheckboxSetCheckedFn,
-  type BenneGuiCheckboxSetDisabledFn,
-} from '../gui/guiCheckboxRuntime.js';
-import {
-  BENNE_GUI_SLIDER_DATA_KEY,
-  BENNE_GUI_SLIDER_SET_VALUE_DATA_KEY,
-  benneGuiSliderReadValue,
-  type BenneGuiSliderSetValueFn,
-} from '../gui/guiSliderRuntime.js';
-import {
-  BENNE_GUI_TEXT_INPUT_DATA_KEY,
-  BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY,
-  BENNE_GUI_TEXT_INPUT_SET_TEXT_DATA_KEY,
-  benneGuiTextInputReadFocused,
-  benneGuiTextInputReadText,
-  type BenneGuiTextInputSetFocusedFn,
-  type BenneGuiTextInputSetTextFn,
-} from '../gui/guiTextInputRuntime.js';
-import {
-  BENNE_GUI_LIST_BOX_DATA_KEY,
-  BENNE_GUI_LIST_BOX_SET_ROW_TEXT_DATA_KEY,
-  BENNE_GUI_LIST_BOX_SET_SELECTED_INDEX_DATA_KEY,
-  benneGuiListBoxReadRowCount,
-  benneGuiListBoxReadSelectedIndex,
-  type BenneGuiListBoxSetRowTextFn,
-  type BenneGuiListBoxSetSelectedIndexFn,
-} from '../gui/guiListBoxRuntime.js';
-import { syncOutlinedGuiBitmapTextAll, syncOutlinedGuiBitmapTextPositions } from '../gui/guiTextOutline';
-import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
-
-export type ControlTweenProps = Partial<Phaser.Types.Tweens.TweenBuilderConfig>;
-
-/** Bennescript registration context for {@link ControlFacade.whenValueChanged}. */
-export interface BenneScriptControlBinding {
-  guiId: string;
-  controlId: string;
-  subscribe: (event: string, handler: (...args: unknown[]) => void) => void;
-  subscribeImmediate: (event: string, handler: (...args: unknown[]) => void) => void;
-}
-
-/** Shared by {@link ControlFacade} and registration-time detached facades (before {@link Phaser.Scene} exists). */
-export function wireControlWhenValueChanged(
-  binding: BenneScriptControlBinding | null | undefined,
-  handler: (value: number) => void,
-): void {
-  if (!binding) {
-    if (import.meta.env.DEV) {
-      console.warn(
-        '[Benne] control().whenValueChanged() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
-      );
-    }
-    return;
-  }
-  binding.subscribeImmediate(
-    guiSliderValueChangedEventId(binding.guiId, binding.controlId),
-    (payload: unknown) => {
-      const p = payload as GuiSliderValueChangedPayload;
-      handler(p.value);
-    },
-  );
-}
-
-function wireControlWhenTextInputValueChanged(
-  binding: BenneScriptControlBinding | null | undefined,
-  handler: (newValue: string, oldValue: string) => void,
-): void {
-  if (!binding) {
-    if (import.meta.env.DEV) {
-      console.warn(
-        '[Benne] control().whenValueChanged() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
-      );
-    }
-    return;
-  }
-  binding.subscribeImmediate(
-    guiTextInputValueChangedEventId(binding.guiId, binding.controlId),
-    (payload: unknown) => {
-      const p = payload as GuiTextInputValueChangedPayload;
-      handler(p.newValue, p.oldValue);
-    },
-  );
-}
-
-function wireControlWhenTextInputSubmit(
-  binding: BenneScriptControlBinding | null | undefined,
-  handler: (finalValue: string) => void,
-): void {
-  if (!binding) {
-    if (import.meta.env.DEV) {
-      console.warn(
-        '[Benne] control().whenSubmit() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
-      );
-    }
-    return;
-  }
-  binding.subscribe(
-    guiTextInputSubmitEventId(binding.guiId, binding.controlId),
-    (payload: unknown) => {
-      const p = payload as GuiTextInputSubmitPayload;
-      handler(p.finalValue);
-    },
-  );
-}
-
-function wireControlWhenListBoxSelectionChanged(
-  binding: BenneScriptControlBinding | null | undefined,
-  handler: (newIndex: number, oldIndex: number) => void,
-): void {
-  if (!binding) {
-    if (import.meta.env.DEV) {
-      console.warn(
-        '[Benne] control().whenSelectionChanged() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
-      );
-    }
-    return;
-  }
-  binding.subscribeImmediate(
-    guiListBoxSelectionChangedEventId(binding.guiId, binding.controlId),
-    (payload: unknown) => {
-      const p = payload as GuiListBoxSelectionChangedPayload;
-      handler(p.newIndex, p.oldIndex);
-    },
-  );
-}
-
-function wireControlWhenListBoxItemActivated(
-  binding: BenneScriptControlBinding | null | undefined,
-  handler: (index: number) => void,
-): void {
-  if (!binding) {
-    if (import.meta.env.DEV) {
-      console.warn(
-        '[Benne] control().whenItemActivated() must be called on B.gui("<guiId>").control("<id>") inside registerGuiScript.',
-      );
-    }
-    return;
-  }
-  binding.subscribe(
-    guiListBoxItemActivatedEventId(binding.guiId, binding.controlId),
-    (payload: unknown) => {
-      const p = payload as GuiListBoxItemActivatedPayload;
-      handler(p.index);
-    },
-  );
-}
-
-/** Facades returned from {@link GuiBenneScript.gui}().control() that accept script event wiring. */
-export interface BenneScriptControlBindingTarget {
-  attachScriptBinding(binding: BenneScriptControlBinding): void;
-}
-
-/**
- * Authoring handle for one control’s live Phaser object; tweens can queue on the owning GUI script’s interaction tail.
- */
-export class ControlFacade {
-  readonly gameObject: Phaser.GameObjects.GameObject;
-
-  readonly tweenTo: BlockingWithNow<[props: ControlTweenProps, duration?: number, easing?: string]>;
-
-  private readonly scene: Phaser.Scene;
-  private readonly queueInteraction: (factory: () => Promise<unknown>) => void;
-
-  private scriptBinding: BenneScriptControlBinding | null = null;
-
-  constructor(
-    gameObject: Phaser.GameObjects.GameObject,
-    scene: Phaser.Scene,
-    queueInteraction: (factory: () => Promise<unknown>) => void,
-  ) {
-    this.gameObject = gameObject;
-    this.scene = scene;
-    this.queueInteraction = queueInteraction;
-
-    const runTween = (
-      props: ControlTweenProps,
-      duration: number | undefined,
-      easing: string | undefined,
-      resolve?: () => void,
-    ): Phaser.Tweens.Tween => {
-      const { onComplete: userOnComplete, targets: _ignoreTargets, duration: dProp, ease: easeProp, ...rest } = props;
-      const dur = duration ?? dProp ?? 0;
-      const ease = easing ?? easeProp ?? 'Linear';
-      return this.scene.tweens.add({
-        targets: this.gameObject,
-        ...rest,
-        duration: dur,
-        ease,
-        onComplete: (tw: Phaser.Tweens.Tween, targets: unknown[]) => {
-          userOnComplete?.(tw, targets);
-          resolve?.();
-        },
-      });
-    };
-
-    this.tweenTo = withNow(
-      (props: ControlTweenProps, duration?: number, easing?: string) => {
-        queueInteraction(
-          () =>
-            new Promise<void>((resolve) => {
-              runTween(props, duration, easing, resolve);
-            }),
-        );
-      },
-      (props: ControlTweenProps, duration?: number, easing?: string) => {
-        runTween(props, duration, easing);
-      },
-    );
-  }
-
-  setX(x: number): void {
-    const go = this.gameObject as Phaser.GameObjects.Sprite & {
-      getData?: (key: string) => unknown;
-      setData?: (key: string, value: unknown) => void;
-    };
-    if (typeof go.getData === 'function' && go.getData('benneGuiUsesAuthoredAsepritePlacement') === true) {
-      go.setData?.('benneGuiAuthoredX', x);
-      syncBenneGuiAsepriteAuthoredWorldPosition(go);
-      return;
-    }
-    if (typeof go.setX === 'function') {
-      go.setX(x);
-    } else if (typeof go.x === 'number') {
-      go.x = x;
-    }
-    if (go instanceof Phaser.GameObjects.BitmapText) {
-      syncOutlinedGuiBitmapTextPositions(go);
-    }
-  }
-
-  setY(y: number): void {
-    const go = this.gameObject as Phaser.GameObjects.Sprite & {
-      getData?: (key: string) => unknown;
-      setData?: (key: string, value: unknown) => void;
-    };
-    if (typeof go.getData === 'function' && go.getData('benneGuiUsesAuthoredAsepritePlacement') === true) {
-      go.setData?.('benneGuiAuthoredY', y);
-      syncBenneGuiAsepriteAuthoredWorldPosition(go);
-      return;
-    }
-    if (typeof go.setY === 'function') {
-      go.setY(y);
-    } else if (typeof go.y === 'number') {
-      go.y = y;
-    }
-    if (go instanceof Phaser.GameObjects.BitmapText) {
-      syncOutlinedGuiBitmapTextPositions(go);
-    }
-  }
-
-  setVisible(visible: boolean): void {
-    const go = this.gameObject as { setVisible?: (v: boolean) => void; visible?: boolean };
-    if (typeof go.setVisible === 'function') {
-      go.setVisible(visible);
-    } else {
-      go.visible = visible;
-    }
-  }
-
-  setAlpha(alpha: number): void {
-    const go = this.gameObject as { setAlpha?: (v: number) => void; alpha?: number };
-    if (typeof go.setAlpha === 'function') {
-      go.setAlpha(alpha);
-    } else {
-      go.alpha = alpha;
-    }
-  }
-
-  private tryGetGuiTextSurface(): Phaser.GameObjects.BitmapText | Phaser.GameObjects.Text | null {
-    const go = this.gameObject;
-    if (go instanceof Phaser.GameObjects.BitmapText || go instanceof Phaser.GameObjects.Text) {
-      return go;
-    }
-    return null;
-  }
-
-  /** **`text`** controls (`BitmapText` / `Text`). Throws if this control is not text-backed. */
-  get text(): string {
-    const textInput = this.tryGetTextInputContainer();
-    if (textInput) {
-      return benneGuiTextInputReadText(textInput) ?? '';
-    }
-    const t = this.tryGetGuiTextSurface();
-    if (!t) {
-      throw new Error('[Benne] GUI control `.text` requires a BitmapText or Text game object.');
-    }
-    return t.text;
-  }
-
-  set text(value: string) {
-    const textInput = this.tryGetTextInputContainer();
-    if (textInput) {
-      this.queueInteraction(() => {
-        this.textNow(value);
-        return Promise.resolve();
-      });
-      return;
-    }
-    this.textNow(value);
-  }
-
-  textNow(value: string): void {
-    const textInput = this.tryGetTextInputContainer();
-    if (textInput) {
-      const setRaw = textInput.getData(BENNE_GUI_TEXT_INPUT_SET_TEXT_DATA_KEY);
-      if (typeof setRaw !== 'function') {
-        throw new Error('[Benne] GUI text input `.textNow` setter is unavailable.');
-      }
-      (setRaw as BenneGuiTextInputSetTextFn)(value);
-      return;
-    }
-    const t = this.tryGetGuiTextSurface();
-    if (!t) {
-      throw new Error('[Benne] GUI control `.text` requires a BitmapText or Text game object.');
-    }
-    if (t instanceof Phaser.GameObjects.BitmapText) {
-      syncOutlinedGuiBitmapTextAll(t, value);
-    } else {
-      t.setText(value);
-    }
-  }
-
-  private tryGetTextInputContainer(): Phaser.GameObjects.Container | null {
-    const go = this.gameObject;
-    if (!(go instanceof Phaser.GameObjects.Container)) {
-      return null;
-    }
-    if (go.getData(BENNE_GUI_TEXT_INPUT_DATA_KEY) !== true) {
-      return null;
-    }
-    return go;
-  }
-
-  get focused(): boolean {
-    const input = this.tryGetTextInputContainer();
-    if (!input) {
-      throw new Error('[Benne] GUI control `.focused` is only supported on `textInput` controls.');
-    }
-    const focused = benneGuiTextInputReadFocused(input);
-    return focused === true;
-  }
-
-  set focused(wantFocus: boolean) {
-    const input = this.tryGetTextInputContainer();
-    if (!input) {
-      throw new Error('[Benne] GUI control `.focused` is only supported on `textInput` controls.');
-    }
-    this.queueInteraction(() => {
-      this.focusedNow(wantFocus);
-      return Promise.resolve();
-    });
-  }
-
-  focusedNow(wantFocus: boolean): void {
-    const input = this.tryGetTextInputContainer();
-    if (!input) {
-      throw new Error('[Benne] GUI control `.focusedNow` is only supported on `textInput` controls.');
-    }
-    const setRaw = input.getData(BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY);
-    if (typeof setRaw !== 'function') {
-      throw new Error('[Benne] GUI text input `.focusedNow` setter is unavailable.');
-    }
-    (setRaw as BenneGuiTextInputSetFocusedFn)(wantFocus);
-  }
-
-  private tryGetListBoxContainer(): Phaser.GameObjects.Container | null {
-    const go = this.gameObject;
-    if (!(go instanceof Phaser.GameObjects.Container)) {
-      return null;
-    }
-    if (go.getData(BENNE_GUI_LIST_BOX_DATA_KEY) !== true) {
-      return null;
-    }
-    return go;
-  }
-
-  get selectedIndex(): number {
-    const listBox = this.tryGetListBoxContainer();
-    if (!listBox) {
-      throw new Error('[Benne] GUI control `.selectedIndex` is only supported on `listBox` controls.');
-    }
-    return benneGuiListBoxReadSelectedIndex(listBox) ?? -1;
-  }
-
-  set selectedIndex(index: number) {
-    const listBox = this.tryGetListBoxContainer();
-    if (!listBox) {
-      throw new Error('[Benne] GUI control `.selectedIndex` is only supported on `listBox` controls.');
-    }
-    this.queueInteraction(() => {
-      this.selectedIndexNow(index);
-      return Promise.resolve();
-    });
-  }
-
-  selectedIndexNow(index: number): void {
-    const listBox = this.tryGetListBoxContainer();
-    if (!listBox) {
-      throw new Error('[Benne] GUI control `.selectedIndexNow` is only supported on `listBox` controls.');
-    }
-    const setRaw = listBox.getData(BENNE_GUI_LIST_BOX_SET_SELECTED_INDEX_DATA_KEY);
-    if (typeof setRaw !== 'function') {
-      throw new Error('[Benne] GUI listBox `.selectedIndexNow` setter is unavailable.');
-    }
-    (setRaw as BenneGuiListBoxSetSelectedIndexFn)(index);
-  }
-
-  get rowCount(): number {
-    const listBox = this.tryGetListBoxContainer();
-    if (!listBox) {
-      throw new Error('[Benne] GUI control `.rowCount` is only supported on `listBox` controls.');
-    }
-    return benneGuiListBoxReadRowCount(listBox) ?? 0;
-  }
-
-  setRowText(index: number, text: string): void {
-    const listBox = this.tryGetListBoxContainer();
-    if (!listBox) {
-      throw new Error('[Benne] GUI control `.setRowText` is only supported on `listBox` controls.');
-    }
-    this.queueInteraction(() => {
-      this.setRowTextNow(index, text);
-      return Promise.resolve();
-    });
-  }
-
-  setRowTextNow(index: number, text: string): void {
-    const listBox = this.tryGetListBoxContainer();
-    if (!listBox) {
-      throw new Error('[Benne] GUI control `.setRowTextNow` is only supported on `listBox` controls.');
-    }
-    const setRaw = listBox.getData(BENNE_GUI_LIST_BOX_SET_ROW_TEXT_DATA_KEY);
-    if (typeof setRaw !== 'function') {
-      throw new Error('[Benne] GUI listBox `.setRowTextNow` setter is unavailable.');
-    }
-    (setRaw as BenneGuiListBoxSetRowTextFn)(index, text);
-  }
-
-  /**
-   * Forces the **button** sheet label + background chrome to a named state (same frames / tints pointer
-   * interaction would use). **`'normal'`** also releases a script override so pointer hover / press works again.
-   * @throws When this control is not a composable **`button`** hit target.
-   */
-  setVisualState(state: string): void {
-    const go = this.gameObject as Phaser.GameObjects.GameObject & {
-      getData?: (key: string) => unknown;
-      setData?: (key: string, value: unknown) => void;
-    };
-    const applyRaw =
-      typeof go.getData === 'function' ? go.getData(BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY) : undefined;
-    if (typeof applyRaw !== 'function') {
-      throw new Error('[Benne] GUI control `.setVisualState` is only supported on `button` controls.');
-    }
-    const apply = applyRaw as BenneGuiButtonApplyVisualStateFn;
-    const normalized = parseBenneGuiScriptButtonVisualState(state);
-    apply(normalized);
-    if (typeof go.setData === 'function') {
-      go.setData(BENNE_GUI_BUTTON_VISUAL_SCRIPT_LOCK_DATA_KEY, normalized !== 'normal');
-    }
-  }
-
-  private tryGetCheckboxContainer(): Phaser.GameObjects.Container | null {
-    const go = this.gameObject;
-    if (!(go instanceof Phaser.GameObjects.Container)) {
-      return null;
-    }
-    if (go.getData(BENNE_GUI_CHECKBOX_DATA_KEY) !== true) {
-      return null;
-    }
-    return go;
-  }
-
-  /**
-   * Checked state for **`checkbox`** controls. Programmatic updates do not emit
-   * {@link import('../events/guiCheckboxEvents.js').guiCheckboxCheckEventId} / uncheck events.
-   * @throws When this control is not a composable **`checkbox`** hit target.
-   */
-  get checked(): boolean {
-    const box = this.tryGetCheckboxContainer();
-    if (!box) {
-      throw new Error('[Benne] GUI control `.checked` is only supported on `checkbox` controls.');
-    }
-    return benneGuiCheckboxReadChecked(box) ?? false;
-  }
-
-  set checked(value: boolean) {
-    const box = this.tryGetCheckboxContainer();
-    if (!box) {
-      throw new Error('[Benne] GUI control `.checked` is only supported on `checkbox` controls.');
-    }
-    const setRaw = box.getData(BENNE_GUI_CHECKBOX_SET_CHECKED_DATA_KEY);
-    if (typeof setRaw !== 'function') {
-      throw new Error('[Benne] GUI checkbox `.checked` setter is unavailable.');
-    }
-    (setRaw as BenneGuiCheckboxSetCheckedFn)(value);
-  }
-
-  /**
-   * Disabled state for **`checkbox`** controls (inverse of JSON **`enabled`**).
-   * @throws When this control is not a composable **`checkbox`** hit target.
-   */
-  get disabled(): boolean {
-    const box = this.tryGetCheckboxContainer();
-    if (!box) {
-      throw new Error('[Benne] GUI control `.disabled` is only supported on `checkbox` controls.');
-    }
-    return benneGuiCheckboxReadDisabled(box) ?? false;
-  }
-
-  set disabled(value: boolean) {
-    const box = this.tryGetCheckboxContainer();
-    if (!box) {
-      throw new Error('[Benne] GUI control `.disabled` is only supported on `checkbox` controls.');
-    }
-    const setRaw = box.getData(BENNE_GUI_CHECKBOX_SET_DISABLED_DATA_KEY);
-    if (typeof setRaw !== 'function') {
-      throw new Error('[Benne] GUI checkbox `.disabled` setter is unavailable.');
-    }
-    (setRaw as BenneGuiCheckboxSetDisabledFn)(value);
-  }
-
-  /**
-   * Attaches GUI-script event registration (used by {@link GuiBenneScript.gui}().control()).
-   */
-  attachScriptBinding(binding: BenneScriptControlBinding): void {
-    this.scriptBinding = binding;
-  }
-
-  private tryGetSliderContainer(): Phaser.GameObjects.Container | null {
-    const go = this.gameObject;
-    if (!(go instanceof Phaser.GameObjects.Container)) {
-      return null;
-    }
-    if (go.getData(BENNE_GUI_SLIDER_DATA_KEY) !== true) {
-      return null;
-    }
-    return go;
-  }
-
-  /**
-   * Numeric value for **`slider`** controls. Programmatic updates do not emit
-   * {@link guiSliderValueChangedEventId}.
-   * @throws When this control is not a composable **`slider`** hit target.
-   */
-  get value(): number {
-    const slider = this.tryGetSliderContainer();
-    if (!slider) {
-      throw new Error('[Benne] GUI control `.value` is only supported on `slider` controls.');
-    }
-    return benneGuiSliderReadValue(slider) ?? 0;
-  }
-
-  set value(next: number) {
-    this.setValue(next);
-  }
-
-  /**
-   * Sets a **`slider`** value immediately without emitting {@link guiSliderValueChangedEventId}.
-   * @throws When this control is not a composable **`slider`** hit target.
-   */
-  setValue(next: number): void {
-    const slider = this.tryGetSliderContainer();
-    if (!slider) {
-      throw new Error('[Benne] GUI control `.setValue` is only supported on `slider` controls.');
-    }
-    const setRaw = slider.getData(BENNE_GUI_SLIDER_SET_VALUE_DATA_KEY);
-    if (typeof setRaw !== 'function') {
-      throw new Error('[Benne] GUI slider `.setValue` is unavailable.');
-    }
-    (setRaw as BenneGuiSliderSetValueFn)(next);
-  }
-
-  /**
-   * Subscribes to pointer-driven value changes for **`slider`** controls (runs via
-   * **`subscribeImmediate`** so drag updates are not queued behind **`say`** / tweens).
-   * Call from **`registerGuiScript`** via **`B.gui(…).control(…).whenValueChanged(…)`**.
-   */
-  whenValueChanged(handler: (value: number) => void): void;
-  whenValueChanged(handler: (newValue: string, oldValue: string) => void): void;
-  whenValueChanged(handler: ((value: number) => void) | ((newValue: string, oldValue: string) => void)): void {
-    if (this.tryGetTextInputContainer()) {
-      wireControlWhenTextInputValueChanged(
-        this.scriptBinding,
-        handler as (newValue: string, oldValue: string) => void,
-      );
-      return;
-    }
-    wireControlWhenValueChanged(this.scriptBinding, handler as (value: number) => void);
-  }
-
-  whenSubmit(handler: (finalValue: string) => void): void {
-    wireControlWhenTextInputSubmit(this.scriptBinding, handler);
-  }
-
-  whenSelectionChanged(handler: (newIndex: number, oldIndex: number) => void): void {
-    wireControlWhenListBoxSelectionChanged(this.scriptBinding, handler);
-  }
-
-  whenItemActivated(handler: (index: number) => void): void {
-    wireControlWhenListBoxItemActivated(this.scriptBinding, handler);
-  }
-}
-
-/**
- * Forgiving **`B.gui(…).control('missing')`** path: invisible container + **`.text`** no-ops (**`BitmapText`** on real
- * controls still uses the base {@link ControlFacade} **`.text`** implementation).
- */
-export class NoopGuiControlFacade extends ControlFacade {
-  constructor(scene: Phaser.Scene, queueInteraction: (factory: () => Promise<unknown>) => void) {
-    const holder = scene.add.container(0, 0);
-    holder.setVisible(false);
-    super(holder, scene, queueInteraction);
-  }
-
-  override get text(): string {
-    return '';
-  }
-
-  override set text(_value: string) {
-    /* forgiving missing / non-text control */
-  }
-
-  override textNow(_value: string): void {
-    /* forgiving missing / non-text control */
-  }
-
-  override setVisualState(_state: string): void {
-    /* forgiving missing control / non-button */
-  }
-
-  override get checked(): boolean {
-    return false;
-  }
-
-  override set checked(_value: boolean) {
-    /* forgiving */
-  }
-
-  override get disabled(): boolean {
-    return false;
-  }
-
-  override set disabled(_value: boolean) {
-    /* forgiving */
-  }
-
-  override get focused(): boolean {
-    return false;
-  }
-
-  override set focused(_wantFocus: boolean) {
-    /* forgiving */
-  }
-
-  override focusedNow(_wantFocus: boolean): void {
-    /* forgiving */
-  }
-
-  override get value(): number {
-    return 0;
-  }
-
-  override set value(_next: number) {
-    /* forgiving */
-  }
-
-  override setValue(_next: number): void {
-    /* forgiving */
-  }
-
-  override get selectedIndex(): number {
-    return -1;
-  }
-
-  override set selectedIndex(_index: number) {
-    /* forgiving */
-  }
-
-  override selectedIndexNow(_index: number): void {
-    /* forgiving */
-  }
-
-  override get rowCount(): number {
-    return 0;
-  }
-
-  override setRowText(_index: number, _text: string): void {
-    /* forgiving */
-  }
-
-  override setRowTextNow(_index: number, _text: string): void {
-    /* forgiving */
-  }
-
-  override whenValueChanged(_handler: (value: number) => void): void;
-  override whenValueChanged(_handler: (newValue: string, oldValue: string) => void): void;
-  override whenValueChanged(
-    _handler: ((value: number) => void) | ((newValue: string, oldValue: string) => void),
-  ): void {
-    /* forgiving */
-  }
-
-  override whenSubmit(_handler: (finalValue: string) => void): void {
-    /* forgiving */
-  }
-
-  override whenSelectionChanged(_handler: (newIndex: number, oldIndex: number) => void): void {
-    /* forgiving */
-  }
-
-  override whenItemActivated(_handler: (index: number) => void): void {
-    /* forgiving */
-  }
-}
-
-export function createBenneNoopGuiControlFacade(
-  scene: Phaser.Scene,
-  queueInteraction: (factory: () => Promise<unknown>) => void,
-): ControlFacade {
-  return new NoopGuiControlFacade(scene, queueInteraction);
-}
-
-/**
- * When no {@link Phaser.Scene} exists yet (**`GuiBenneScript`** before the game boots). Same authoring surface as
- * {@link ControlFacade}; skips real tween targets.
- */
-export function createDetachedBenneNoopGuiControlFacade(
-  queueInteraction: (factory: () => Promise<unknown>) => void,
-): ControlFacade {
-  return new DetachedNoopGuiControlFacade(queueInteraction) as unknown as ControlFacade;
-}
-
-class DetachedNoopGuiControlFacade implements BenneScriptControlBindingTarget {
-  readonly gameObject: Phaser.GameObjects.GameObject;
-
-  readonly tweenTo: BlockingWithNow<[props: ControlTweenProps, duration?: number, easing?: string]>;
-
-  private scriptBinding: BenneScriptControlBinding | null = null;
-
-  constructor(queueInteraction: (factory: () => Promise<unknown>) => void) {
-    this.gameObject = undefined as unknown as Phaser.GameObjects.GameObject;
-    this.tweenTo = withNow(
-      (_props?: ControlTweenProps, _dur?: number, _ease?: string) => {
-        queueInteraction(() => Promise.resolve());
-      },
-      (_props?: ControlTweenProps, _dur?: number, _ease?: string) => {
-        /* immediate */
-      },
-    );
-  }
-
-  setX(_x: number): void {}
-  setY(_y: number): void {}
-  setVisible(_visible: boolean): void {}
-  setAlpha(_alpha: number): void {}
-
-  get text(): string {
-    return '';
-  }
-
-  set text(_value: string) {}
-
-  textNow(_value: string): void {}
-
-  setVisualState(_state: string): void {}
-
-  get checked(): boolean {
-    return false;
-  }
-
-  set checked(_value: boolean) {}
-
-  get disabled(): boolean {
-    return false;
-  }
-
-  set disabled(_value: boolean) {}
-
-  get focused(): boolean {
-    return false;
-  }
-
-  set focused(_wantFocus: boolean) {}
-
-  focusedNow(_wantFocus: boolean): void {}
-
-  get value(): number {
-    return 0;
-  }
-
-  set value(_next: number) {}
-
-  setValue(_next: number): void {}
-
-  get selectedIndex(): number {
-    return -1;
-  }
-
-  set selectedIndex(_index: number) {}
-
-  selectedIndexNow(_index: number): void {}
-
-  get rowCount(): number {
-    return 0;
-  }
-
-  setRowText(_index: number, _text: string): void {}
-
-  setRowTextNow(_index: number, _text: string): void {}
-
-  attachScriptBinding(binding: BenneScriptControlBinding): void {
-    this.scriptBinding = binding;
-  }
-
-  whenValueChanged(handler: (value: number) => void): void;
-  whenValueChanged(handler: (newValue: string, oldValue: string) => void): void;
-  whenValueChanged(handler: ((value: number) => void) | ((newValue: string, oldValue: string) => void)): void {
-    if (handler.length >= 2) {
-      wireControlWhenTextInputValueChanged(
-        this.scriptBinding,
-        handler as (newValue: string, oldValue: string) => void,
-      );
-      return;
-    }
-    wireControlWhenValueChanged(this.scriptBinding, handler as (value: number) => void);
-  }
-
-  whenSubmit(handler: (finalValue: string) => void): void {
-    wireControlWhenTextInputSubmit(this.scriptBinding, handler);
-  }
-
-  whenSelectionChanged(handler: (newIndex: number, oldIndex: number) => void): void {
-    wireControlWhenListBoxSelectionChanged(this.scriptBinding, handler);
-  }
-
-  whenItemActivated(handler: (index: number) => void): void {
-    wireControlWhenListBoxItemActivated(this.scriptBinding, handler);
-  }
-}
-
-export interface GuiRuntimeOptions {
-  scene: Phaser.Scene;
-  guiId: string;
-  /** Overlay base depth from {@link buildGuiOverlay} (same as the packed content root). */
-  baseDepth: number;
-  /**
-   * Parent for every **non-fixed** authored control (see **`GuiData.fixedControls`**). Tween {@link GuiRuntime.root}
-   * to move that packed subtree; listed fixed controls stay scene-rooted siblings and are not parented here.
-   */
-  contentRoot: Phaser.GameObjects.Container;
-  controlGameObjectsById: ReadonlyMap<string, Phaser.GameObjects.GameObject>;
-  queueInteraction: (factory: () => Promise<unknown>) => void;
-}
-
-/**
- * Per-overlay GUI behavior surface: whole-GUI {@link GuiRuntime.root} facade and per-control lookup.
- * Constructed after {@link buildGuiOverlay}; call {@link dispose} (or destroy the overlay handle) on room teardown.
- *
- * **Hover events** (pointer enter / leave) for any control with an **`id`** — including the dedicated **`trigger`**
- * control type — are routed through Bennescript (**`B.whenMouseEnter`** / **`B.whenMouseLeave`**), not this class.
- */
-export class GuiRuntime {
-  readonly guiId: string;
-  /** The scene hosting this overlay (scale, tweens, input). */
-  readonly scene: Phaser.Scene;
-  /**
-   * The root container for the **packed** authored GUI: every control **except** those listed in **`fixedControls`**
-   * on the GUI JSON (those stay outside this container so they do not move with root-level tweens).
-   * Tweening or moving this (via **`tweenTo`**, **`setY`**, …) affects only that subtree — same interaction queue as
-   * {@link getControl} facades.
-   */
-  readonly root: ControlFacade;
-
-  private readonly queueInteraction: (factory: () => Promise<unknown>) => void;
-  private readonly controlObjects: ReadonlyMap<string, Phaser.GameObjects.GameObject>;
-  private readonly facadeCache = new Map<string, ControlFacade>();
-  private disposed = false;
-
-  constructor(options: GuiRuntimeOptions) {
-    this.scene = options.scene;
-    this.guiId = options.guiId;
-    this.controlObjects = options.controlGameObjectsById;
-    this.queueInteraction = options.queueInteraction;
-
-    this.root = new ControlFacade(options.contentRoot, options.scene, options.queueInteraction);
-  }
-
-  /**
-   * Resolves a control by **`id`** from **`*.gui.json`**, or **`null`** if missing / blank / unknown.
-   * Use this when a control may legitimately be absent and you will branch (optional UI, feature flags).
-   * When the control must exist for the behavior to make sense, prefer {@link getControlOrThrow} so callers get a **`ControlFacade`** without null checks.
-   */
-  getControl(controlId: string): ControlFacade | null {
-    const id = controlId.trim();
-    if (!id) {
-      return null;
-    }
-    const existing = this.facadeCache.get(id);
-    if (existing) {
-      return existing;
-    }
-    const go = this.controlObjects.get(id);
-    if (!go) {
-      return null;
-    }
-    const facade = new ControlFacade(go, this.scene, this.queueInteraction);
-    this.facadeCache.set(id, facade);
-    return facade;
-  }
-
-  /**
-   * Same as {@link getControl}, but throws if the control is missing (unknown id, blank string, or not in the overlay).
-   * Recommended default for `onGuiBuilt` wiring when a missing control indicates an authoring bug.
-   */
-  getControlOrThrow(controlId: string): ControlFacade {
-    const facade = this.getControl(controlId);
-    if (!facade) {
-      const id = controlId.trim();
-      throw new Error(
-        `[Benne] GUI "${this.guiId}" has no control with id "${id.length > 0 ? id : controlId}" (check *.gui.json and buildGuiOverlay control ids).`,
-      );
-    }
-    return facade;
-  }
-
-  dispose(): void {
-    if (this.disposed) {
-      return;
-    }
-    this.disposed = true;
-    for (const fac of this.facadeCache.values()) {
-      this.scene.tweens.killTweensOf(fac.gameObject);
-    }
-    this.facadeCache.clear();
-    this.scene.tweens.killTweensOf(this.root.gameObject);
-  }
-}
-</file>
-
 <file path="src/game/guis/display-text/display-text.gui.json">
 {
   "id": "display-text",
@@ -28652,6 +28801,370 @@ export interface GameSettingsCursor {
    */
   hotspotPixel?: { x: number; y: number };
   display?: GameSettingsCursorDisplay;
+}
+</file>
+
+<file path="src/engine/scenes/RoomTransitionOrchestrator.ts">
+import * as Phaser from 'phaser';
+import { loadRoomDataById } from '../../game/loadRoomData.js';
+import { SCENE_ROOM } from '../../game/constants.js';
+import type { EventBus } from '../events/EventBus.js';
+import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import { getAllGuiBenneScriptInstances } from '../scripting/registerGuiScript.js';
+import { tryGetGlobalBenneScriptForRoomTransitions, setRoomTransitionInProgress } from './roomTransitionGlobals.js';
+import { BENNE_SCREEN_FADE_DEFAULT_COLOR, BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC } from './roomScreenFadeConstants.js';
+import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from './roomSceneBootstrap.js';
+import type { RoomSceneStartData } from './BootScene';
+import type { RoomScene } from './RoomScene.js';
+import {
+  RoomTransitionHookRegistry,
+  runRoomHandlersEachSafe,
+  runRoomHandlersSeq,
+} from './RoomTransitionHookRegistry.js';
+import { getPlayFromSetupForRoom } from '../scripting/devPlayFromRegistry.js';
+import { ensureRoomScriptLoaded } from '../scripting/registerRoomScript.js';
+import type { RoomTransitionContext } from '../../types/roomTransition.js';
+import type { BenneScriptCore } from '../scripting/BenneScriptCore.js';
+import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
+import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
+import { getRoomVisitCount, incrementRoomVisitCount } from '../gameState/roomVisitState.js';
+import { syncBenneRuntimeHiDpiSceneMainCameras } from '../benneRuntimeHiDpiScale.js';
+
+/**
+ * **Runtime** service for `B.room.changeTo` — leave → fade → load → create → enter → fade → after-fade.
+ */
+export class RoomTransitionOrchestrator {
+  private readonly game: Phaser.Game;
+  private transitionChain: Promise<void> = Promise.resolve();
+  private readonly sessionEnteredRoomIds = new Set<string>();
+  private deferredRunComplete: (() => void) | null = null;
+  /** From the last `changeTo` call; the new `RoomScene` should fade in (unless this is `true`). */
+  private lastChangeImmediate = false;
+  private readonly hooks: RoomTransitionHookRegistry;
+
+  constructor(game: Phaser.Game, _events: EventBus, hooks: RoomTransitionHookRegistry) {
+    void _events;
+    this.game = game;
+    this.hooks = hooks;
+  }
+
+  getHookRegistry(): RoomTransitionHookRegistry {
+    return this.hooks;
+  }
+
+  /**
+   * Call from the shipped {@link import('./BootScene.js').BootScene} when the start room’s assets have finished loading.
+   * Sets `GameStateManager` **lastRoom** to **`null`**, **{@link BENNE_ROOM_START_KIND_KEY}** to **`'boot'`**,
+   * and starts **`RoomScene`** so **{@link onRoomSceneCreateComplete}** runs the same **enter → fade in → after-fade**
+   * path as in-game transitions (no **leave** hooks — there is no previous room).
+   */
+  startInitialRoomFromBoot(startData: RoomSceneStartData): void {
+    const manager = resolveGameStateManager(this.game);
+    manager.setLastRoom(null);
+    this.game.registry.set(BENNE_ROOM_START_KIND_KEY, 'boot');
+    this.game.scene.start(SCENE_ROOM, startData);
+  }
+
+  /**
+   * Main transition; awaited on the Bennescript interaction chain when not immediate.
+   */
+  async changeTo(targetRoomId: string, immediate: boolean): Promise<void> {
+    const id = String(targetRoomId);
+    this.transitionChain = this.transitionChain
+      .then(() => this.runChangeToImpl(id, immediate, { startKind: 'transition', forceRestart: false }))
+      .catch((err) => {
+        console.error('[Benne] Room transition failed:', err);
+        setRoomTransitionInProgress(this.game, false);
+      });
+    return this.transitionChain;
+  }
+
+  /**
+   * Restart/transition into the room restored by `B.state.load(...)`.
+   * Uses a dedicated `'load'` start kind so room scripts can run `B.whenLoadedRoom(...)`.
+   */
+  async transitionToLoadedRoom(immediate: boolean): Promise<void> {
+    const manager = resolveGameStateManager(this.game);
+    const targetRoomId = String(manager.getCurrentRoom() ?? '');
+    if (targetRoomId.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] load transition: snapshot has no currentRoom; transition skipped.');
+      }
+      return;
+    }
+    this.transitionChain = this.transitionChain
+      .then(() =>
+        this.runChangeToImpl(targetRoomId, immediate, {
+          startKind: 'load',
+          forceRestart: true,
+          preserveRoomContextFromSnapshot: true,
+        }),
+      )
+      .catch((err) => {
+        console.error('[Benne] Room load transition failed:', err);
+        setRoomTransitionInProgress(this.game, false);
+      });
+    return this.transitionChain;
+  }
+
+  private async runChangeToImpl(
+    targetRoomId: string,
+    immediate: boolean,
+    options: {
+      startKind: BenneRoomStartKind;
+      forceRestart: boolean;
+      preserveRoomContextFromSnapshot?: boolean;
+    },
+  ): Promise<void> {
+    const fromScene = this.game.scene.getScene(SCENE_ROOM) as RoomScene | null;
+    if (!fromScene) {
+      console.error('[Benne] Room transition: no active RoomScene.');
+      return;
+    }
+    const fromId = fromScene.getCurrentRoomId();
+    if (!options.forceRestart && fromId === targetRoomId) {
+      return;
+    }
+
+    this.lastChangeImmediate = immediate;
+    setRoomTransitionInProgress(this.game, true);
+    const manager = resolveGameStateManager(this.game);
+    try {
+      this.prepareForLeave(fromScene, manager, {
+        preserveSnapshotState: options.preserveRoomContextFromSnapshot === true,
+      });
+      const lastSnap = manager.getLastRoom();
+      const leaveVisit = getRoomVisitCount(manager, fromId);
+      const leaveCtx: RoomTransitionContext = {
+        roomId: fromId,
+        lastRoom: lastSnap,
+        isFirstEnter: false,
+        visitCount: leaveVisit,
+      };
+      await runRoomHandlersSeq(
+        [...this.hooks.getLeaveHandlersForRoom(fromId), ...this.hooks.getAnyLeave()],
+        leaveCtx,
+      );
+
+      if (!immediate) {
+        await fromScene.queueScreenFadeToAlpha(
+          1,
+          BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
+          BENNE_SCREEN_FADE_DEFAULT_COLOR,
+        );
+      } else {
+        fromScene.screenFadeLayer?.setAlpha(1);
+      }
+
+      const room = loadRoomDataById(targetRoomId);
+      const startData = buildRoomSceneStartDataFromRoomData(room);
+      queueRoomSceneAssetLoads(fromScene, startData);
+
+      await Promise.all([
+        this.awaitLoaderComplete(fromScene),
+        ensureRoomScriptLoaded(targetRoomId),
+      ]);
+
+      if (options.preserveRoomContextFromSnapshot !== true) {
+        manager.setLastRoom(fromId);
+        manager.setCurrentRoom(targetRoomId);
+      }
+
+      this.game.registry.set(BENNE_ROOM_START_KIND_KEY, options.startKind);
+      const runDone = new Promise<void>((r) => {
+        this.deferredRunComplete = r;
+      });
+      this.game.scene.start(SCENE_ROOM, startData);
+      await runDone;
+    } catch (e) {
+      setRoomTransitionInProgress(this.game, false);
+      throw e;
+    }
+  }
+
+  private awaitLoaderComplete(fromScene: RoomScene): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const l = fromScene.load;
+      let done = false;
+      const finish = (): void => {
+        if (done) {
+          return;
+        }
+        done = true;
+        l.off(Phaser.Loader.Events.COMPLETE, onComplete);
+        resolve();
+      };
+      const onComplete = (): void => {
+        finish();
+      };
+      l.once(Phaser.Loader.Events.COMPLETE, onComplete);
+      l.start();
+      fromScene.time.delayedCall(0, () => {
+        if (!l.isLoading()) {
+          finish();
+        }
+      });
+    });
+  }
+
+  /**
+   * Finishes a transition: enter hooks, fade in, after-fade hooks. Also handles **boot** / **preview** (no `changeTo`).
+   */
+  async onRoomSceneCreateComplete(roomScene: RoomScene, kind: BenneRoomStartKind): Promise<void> {
+    const roomId = roomScene.getCurrentRoomId();
+    const manager = resolveGameStateManager(this.game);
+    const finishDeferred = ((): void => {
+      this.deferredRunComplete?.();
+      this.deferredRunComplete = null;
+    });
+    const skipEnterFadeIn = this.lastChangeImmediate && kind === 'transition';
+    this.lastChangeImmediate = false;
+    try {
+      if (kind === 'boot' || kind === 'preview') {
+        const c = manager.getCurrentRoom();
+        if (c == null || c.length === 0) {
+          manager.setCurrentRoom(roomId);
+        }
+      }
+
+      const visitCount = incrementRoomVisitCount(manager, roomId);
+      const isFirst = !this.sessionEnteredRoomIds.has(roomId);
+      if (isFirst) {
+        this.sessionEnteredRoomIds.add(roomId);
+      }
+      const lastForEnter = manager.getLastRoom();
+      const enterCtx: RoomTransitionContext = {
+        roomId,
+        lastRoom: lastForEnter,
+        isFirstEnter: isFirst,
+        visitCount,
+      };
+      if (kind === 'load') {
+        await runRoomHandlersEachSafe(
+          this.hooks.getLoadedHandlersForRoom(roomId),
+          enterCtx,
+          'onRoomSceneCreateComplete: loaded',
+        );
+      }
+      // Enter handlers and the enter-phase queue drain run inside a cutscene block so the room
+      // is protected from player input during invisible setup (moveTo, music, etc.).
+      roomScene.pushCutscene();
+      try {
+        await runRoomHandlersEachSafe(
+          [...this.hooks.getEnterHandlersForRoom(roomId), ...this.hooks.getAnyEnter()],
+          enterCtx,
+          'onRoomSceneCreateComplete: room enter',
+        );
+
+        if (kind === 'boot' || kind === 'preview') {
+          const g = globalThis as { __BENNE_PLAY_FROM_NAME?: unknown };
+          const raw = g.__BENNE_PLAY_FROM_NAME;
+          const playFromName = typeof raw === 'string' ? raw.trim() : '';
+          g.__BENNE_PLAY_FROM_NAME = '';
+          if (playFromName.length > 0) {
+            const playFromHandler = getPlayFromSetupForRoom(roomId, playFromName);
+            if (playFromHandler) {
+              try {
+                await Promise.resolve(playFromHandler());
+              } catch (playFromErr) {
+                if (import.meta.env.DEV) {
+                  console.warn(
+                    `[Benne] Play From: setup '${playFromName}' threw an error`,
+                    playFromErr,
+                  );
+                }
+              }
+            } else if (import.meta.env.DEV) {
+              console.warn(
+                `[Benne] Play From: no handler named '${playFromName}' for room '${roomId}'`,
+              );
+            }
+          }
+        }
+
+        await roomScene.waitForEnterPhaseBenneScriptQueues();
+      } finally {
+        roomScene.popCutscene();
+      }
+
+      roomScene.setCharacterFollowBehaviorEnabled(true);
+
+      if (skipEnterFadeIn) {
+        roomScene.screenFadeLayer?.setAlpha(0);
+      } else {
+        syncBenneRuntimeHiDpiSceneMainCameras(this.game);
+        roomScene.syncRuntimeHiDpiUiCameraToMain();
+        await new Promise<void>((resolve, reject) => {
+          roomScene.time.delayedCall(0, () => {
+            void roomScene
+              .queueScreenFadeToAlpha(
+                0,
+                BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
+                BENNE_SCREEN_FADE_DEFAULT_COLOR,
+              )
+              .then(resolve)
+              .catch(reject);
+          });
+        });
+      }
+
+      const afterCtx: RoomTransitionContext = {
+        roomId,
+        lastRoom: lastForEnter,
+        isFirstEnter: isFirst,
+        visitCount,
+      };
+      // After-fade handlers (walk-in animations, visible cutscenes) also run inside a cutscene
+      // block so input remains suppressed for their full duration.
+      // Handlers are typically synchronous (they queue B.* steps on the interaction tail without
+      // awaiting), so we must drain the tail with waitForEnterPhaseBenneScriptQueues() inside the
+      // cutscene block — otherwise popCutscene() fires before say/walk/wait steps execute.
+      roomScene.pushCutscene();
+      try {
+        await runRoomHandlersEachSafe(
+          [...this.hooks.getAfterFadeHandlersForRoom(roomId), ...this.hooks.getAnyAfterFade()],
+          afterCtx,
+          'onRoomSceneCreateComplete: after-fade',
+        );
+        await roomScene.waitForEnterPhaseBenneScriptQueues();
+      } finally {
+        roomScene.popCutscene();
+      }
+    } catch (e) {
+      console.error('[Benne] onRoomSceneCreateComplete:', e);
+    } finally {
+      finishDeferred();
+      setRoomTransitionInProgress(this.game, false);
+    }
+  }
+
+  private prepareForLeave(
+    roomScene: RoomScene,
+    mgr: ReturnType<typeof resolveGameStateManager>,
+    options?: { preserveSnapshotState?: boolean },
+  ): void {
+    const preserveSnapshotState = options?.preserveSnapshotState === true;
+    // Pull live character feet positions and prop authoring positions into game state BEFORE
+    // tearing down the scene so the next room (re)load can restore them. See
+    // `RoomScene.flushRuntimeStateToGameState` and `gameState/snapshotFlushHooks.ts`.
+    if (!preserveSnapshotState) {
+      roomScene.flushRuntimeStateToGameState();
+      mgr.clearActiveVerb();
+      mgr.clearActiveInventoryItem();
+    }
+    tryGetBenneSoundManager(this.game)?.stopAllSfx();
+    roomScene.clearStateForRoomTransition();
+    for (const s of roomScene.getBenneScriptCoresForTransitionReset()) {
+      s.resetInteractionTailForEngine();
+    }
+    const g = tryGetGlobalBenneScriptForRoomTransitions() as
+      | (BenneScriptCore & { resetInteractionTailForEngine: () => void })
+      | null;
+    g?.resetInteractionTailForEngine();
+    for (const script of getAllGuiBenneScriptInstances().values()) {
+      script.resetInteractionTailForEngine();
+    }
+  }
 }
 </file>
 
@@ -31879,7 +32392,7 @@ export interface BenneScriptRoomFacade {
 
 /**
  * Address a GUI overlay by **`*.gui.json` `id`** (**`B.gui('verbs').control('foo')`**).
- * **`control`** returns the live {@link import('./GuiRuntime.js').ControlFacade} (`button` **`.setVisualState`**, **`checkbox`** **`.checked`** / **`.disabled`**, **`textInput`** **`.text`** / **`.textNow`** / **`.focused`**, **`listBox`** **`.selectedIndex`** / **`.setRowText`**), or an inert noop facade when the overlay
+ * **`control`** returns the live {@link import('./GuiRuntime.js').ControlFacade} (`button` **`.enabled`** / **`.setVisualState`**, **`checkbox`** **`.checked`** / **`.disabled`**, **`textInput`** **`.enabled`** / **`.text`** / **`.textNow`** / **`.focused`**, **`listBox`** **`.selectedIndex`** / **`.setRowText`**), or an inert noop facade when the overlay
  * is missing, **`id`** is blank, or the control is unknown (matching forgiving overlay behavior elsewhere).
  */
 export interface BenneScriptGuiOverlayRef {
@@ -32278,703 +32791,6 @@ registerRoomScript(({ B }) => {
     B.display('You won!');
   });
 });
-</file>
-
-<file path="src/engine/scripting/BenneScript.ts">
-import * as Phaser from 'phaser';
-import type {
-  CharacterVerbInteractPayload,
-  RoomHotspotInteractPayload,
-  RoomPropInteractPayload,
-} from '../events/propInteractionEvents.js';
-import type { GivePropInteractPayload } from './benneScriptPayloads.js';
-import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import { registerPlayFromForRoom } from './devPlayFromRegistry.js';
-import type { RoomScene } from '../scenes/RoomScene.js';
-import {
-  globalInventoryOnCharacterAnySourceEventId,
-  globalInventoryOnHotspotAnySourceEventId,
-  globalInventoryOnPropAnySourceEventId,
-  roomInventoryOnCharacterAnySourceEventId,
-  roomInventoryOnHotspotAnySourceEventId,
-  roomInventoryOnPropAnySourceEventId,
-} from '../events/inventoryOnVerbEvents.js';
-import {
-  characterVerbEventId,
-  roomCharacterVerbEventId,
-  roomHotspotVerbEventId,
-  roomPropVerbEventId,
-} from '../events/verbInteractionEvents.js';
-import type {
-  BenneScriptDialogCommandSurface,
-  BenneScriptHotspotFacade,
-  BenneScriptPlayerFacade,
-  BenneScriptPropFacade,
-  BenneScriptRegionFacade,
-  InventoryWhenUsedOnPayloadHandler,
-  RoomInventoryUsedOnRegistrar,
-} from './benneScriptFacades.js';
-import { BenneScriptCore, withNow } from './BenneScriptCore.js';
-import {
-  createBenneScriptGameStateNamespace,
-  createBenneScriptInventoryNamespace,
-  type BenneScriptGameStateNamespace,
-  type BenneScriptInventoryNamespace,
-} from './benneScriptGameStateApi.js';
-import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
-import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
-import type { RoomTransitionContext } from '../../types/roomTransition.js';
-import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
-import type { UpdateContext } from './types.js';
-import { roomRegionEnterEventId, roomRegionExitEventId } from '../events/regionEnterExitEvents.js';
-
-export type {
-  AnyInventoryUsedOnPayload,
-  BenneScriptCharacterFacade,
-  BenneScriptDialogCommandSurface,
-  BenneScriptHotspotFacade,
-  BenneScriptInventoryItemFacade,
-  BenneScriptPlayerFacade,
-  BenneScriptPropFacade,
-  BenneScriptRegionFacade,
-  BenneScriptRoomFacade,
-  BenneScriptSoundFacade,
-  BenneScriptSharedSelectionApi,
-  InventoryWhenGiveHandler,
-  InventoryWhenGiveRegistrar,
-  InventoryWhenUsedOnPayloadHandler,
-  InventoryWhenUseHandler,
-  InventoryWhenUseRegistrar,
-  RoomInventoryUsedOnRegistrar,
-} from './benneScriptFacades.js';
-export type { CharacterFollowOptions } from '../../types/characterFollow.js';
-export type {
-  BenneScriptSayArgs,
-  BenneScriptSayLineOptions,
-  BenneScriptSayDialogueTagged,
-  BenneScriptSayDialogueHybrid,
-  BenneSayDialogueScope,
-  BlockingWithNow,
-} from './BenneScriptCore.js';
-export type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
-export { withNow } from './BenneScriptCore.js';
-
-/**
- * # Bennescript — valid string ids for this room
- *
- * Use ids that match **this room’s** `*.room.json` and placed characters, so handlers and movement resolve correctly.
- *
- * | Kind | Where it comes from |
- * |------|---------------------|
- * | **`whenLookAt`**, **`whenUse`**, **`whenTalkTo`**, **`whenPickUp`**, **`whenPush`**, **`whenPull`**, **`whenOpen`**, **`whenClose`**, **`whenVerb`** | One **`targetId`** per room: **prop** (`props[].id`) → **hotspot** (`hotspots[].id`) → **character** (`CharacterData.id` spawned here, including the player). Optional **`(p: any)`** payload — shape depends on which kind matched; see **`registerVerbForTarget`**. Character verb payloads may include **world** **`walkToPoint`** / **`talkPoint`** when authored in **`*.character.json`**. |
- * | **`whenGive`** | **`targetId`** is the receiving **prop** only (`props[].id`; inventory **`itemId`** is separate). |
- * | **`onProp`**, **`B.prop(id)`** | **`props[].id`** only (explicit prop wiring). |
- * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | Pathfind **Walk**; **Unified target string** (first match): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** → **`points[].id`**, or **`{ x, y }`** in **room pixels**. **`walkTo.now`** does not block the queue. No-op when **`movable`** is **`false`** (see **`*.character.json`** **`movable`** and **`B.player` / `B.character(id).movable`**). |
- * | **`moveTo` / `moveTo.now`** / **`moveToNow`** | Instantly place **feet** at the resolved point (clamped to walkable) and update **Idle** facing — not a walk. **`moveTo`** queues on the interaction tail; **`moveTo.now`** and **`moveToNow`** run immediately. |
- * | **`walkToClicked` / `walkToClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Inside a verb handler, walks the player to the **clicked** prop / hotspot / character (same resolution as **`walkTo`** for that id), then faces like **`faceClicked`** after the walk completes. No room target for pure inventory-row verbs (one-time dev warn). |
- * | **`faceClicked` / `faceClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Uses payload **`lookAtPoint`** for props/hotspots when present; for **characters**, faces that character’s **feet**; otherwise falls back to the walk stand point (see {@link RoomScene.facePlayerTowardClicked}). Same dev warnings as **`walkToClicked`** when there is no target or no room. |
- * | **`B.fadeOut` / `B.fadeIn`**, **`.now`** | Full-screen fade over the room and all GUI overlays; optional duration (default **0.35** s) and **`0xRRGGBB` color** (default black). Queues on the interaction tail except **`.now`**. |
- * | **`playAnimation(tag)`** / **`playAnimation.now`** | One-shot Aseprite tag (not saved); then **directional idle** or **persisted** `animation` override. Same idea for **`B.prop(id).playAnimation`**, which restores that prop’s saved **base** `animation`. |
- * | **`animation` / `animation =`**, **`animationNow(...)`** | Setters queue on the **interaction tail** (order with **`walkTo`** / **`say`** / **`playAnimation`**); **`animationNow`** applies persist + sprite **immediately**. Props: persisted base tag. Characters / player: effective get; set / **`animationNow`** accept **`string \| null`** (`null` clears). **`stopAnimation()`** (characters / player) clears override + save, always immediate. |
- * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
- * | **`startFacingCharacter` / `stopFacingCharacter`** on **`B.character('…')`** | **`startFacingCharacter(targetCharacterId, minWaitTime?, maxWaitTime?)`** keeps the NPC’s **Idle** facing toward the other character’s **feet**; when either’s feet move, a new random delay in **[`minWaitTime`, `maxWaitTime`]** seconds (defaults **0.2** / **0.4**) runs before turning again. **`stopFacingCharacter()`** clears it. Both queue on the interaction tail; routed through **`RoomScene.startCharacterFacingCharacter` / `stopCharacterFacingCharacter`**. |
- * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
- * | **`B.region(id).whenEnter` / `whenExit`**, **`B.whenEnterRegion` / `whenExitRegion`** | **`regions[].id`** in this room’s JSON. Feet crossing uses the same **last-wins** active polygon test as perspective scale (**`resolveWinningRoomRegionIdAtFeet`**). Handlers wire through **`subscribe`** (interaction queue + verb click context rules, like **`whenLookAt`**). Payload: **`RegionEnterExitContext`**. |
- * | **`B.onUpdate`** | Non-blocking per-frame hook (**`UpdateContext`**: **`deltaSeconds`**, **`roomId`**). Runs after engine **`RoomScene.update`** work; **not** on the interaction tail; **no** **`.now`**. Cleaned up when the room script’s **`B`** is disposed (room unload). Global **`B.onUpdate`** runs after room handlers. |
- * | **`B.hotspot(id).active`** | **`hotspots[].id`** (case-sensitive, exact JSON match) — get/set persisted **active** (immediate, not queued). Mounts or removes the polygon input zone; **`resolveMovementTarget`** still resolves inactive hotspot ids. Unknown id: getter **`false`**, setter no-op, DEV warn once per room load. |
- * | **`B.say` / `B.say.now`** | Tagged **`B.say`**…``: PowerQuest-style block — lines **`Speaker: text`** (`Player` any case → protagonist id; other names match spawned character ids **case-insensitively**). Blank lines and **`//`** comments ignored; unknown speakers throw. Queues each line; **`B.say.now`**… skips the interaction tail (see implementation notes in **`BenneScriptCore`**). |
- * | **`B.display` / `B.display.now`** | Narration via **`display-text`** GUI — **`B.display('…')`** blocks until the player clicks to dismiss (no timer). Same interaction-tail rules as **`B.wait`** / **`say`**; **`.now`** skips the tail. |
- * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Same dialog overlay as **`B.say`**, plus string form **`B.player.say('…')`**. Scoped tagged blocks: each line is that character (optional **`Player:`** prefix); mismatched **`Name:`** throws (compared **case-insensitively** to the scoped character). Optional second argument **`{ clickToSkip: false \| true }`** on string calls. |
- * | **`B.playFrom('…', () => { … })`** | **Dev / tooling** — named starting-state for this room; runs once after **`whenEnterRoom`** / **`whenEnterAnyRoom`** on **`boot`** or editor **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`** matches (BENNE Play). Skipped on in-game **`changeTo`** (`transition`). |
- * | **`B.inventory.add` / `remove`**, **`.now`** | **`GameStateManager`** quantity mutations. Blocking form **queues** on the interaction tail; **`.now`** applies immediately. **`has`**, **`quantityOf`**, **`items`**, **`clearInventory`** stay synchronous. |
- * | **`B.inventory('id').animation`**, **`cursorAnimation`** (getter / setter) | **Getters**: effective tags (JSON **`defaultAnimation`** / **`cursorAnimation`** ± save overrides — **`''`** when no armed cursor clip). **Setters**: persisted in **`GameStateManager`** variables; **queue** on the interaction tail (same as **`B.player.animation`**); **`animationNow`** / **`cursorAnimationNow`** apply immediately. Setter **empty string** clears that field’s override (JSON applies). |
- * | **`B.prop(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Script visibility overrides. **`hide` / `show` / `visible =`** queue on the interaction tail; **`.now`** / **`visibleNow`** apply immediately. |
- * | **`B.character(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Same as props: persisted script visibility (global per character definition id); **`hide` / `show` / `visible =`** queue; **`.now`** / **`visibleNow`** immediate. |
- * | **`movable` / `movable =`** on **`B.player`** or **`B.character('…')`** | When **`false`**, pathfind walks are ignored (including **`walkToClicked`** and click-to-walk); **`moveTo`** still teleports. Setter queues on the interaction tail; persists **`character:<id>:movable`** over the JSON default from **`*.character.json`**. |
- * | **`B.prop(id).fade(from, to, durationSeconds)`** / **`.now`**, **`B.character(id).fade(...)`** / **`.now`** | Sprite alpha tween (linear ease) from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`**; alphas clamp to **`[0, 1]`**. Blocking form queues on the interaction tail and waits for completion; **`fade.now`** starts immediately. **`toAlpha`** is persisted (**`room:…:prop:…:alpha`** / **`character:…:alpha`**). |
- *
- * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in `BenneScriptCore`. **`whenVerb`** uses an exact verb id.
- */
-
-const noopBenneScriptRegionFacade: BenneScriptRegionFacade = {
-  get active() { return true; },
-  set active(_v: boolean) {},
-  whenEnter(): void {},
-  whenExit(): void {},
-};
-
-const noopBenneScriptHotspotFacade: BenneScriptHotspotFacade = {
-  get active() { return true; },
-  set active(_v: boolean) {},
-};
-
-/**
- * High-level API passed as **`B`** in the `registerRoomScript` callback. Chains async steps (walk, delays) in order; use **`await`** only if you expose promises yourself.
- *
- * @see The module comment above for which string ids to use with each method.
- */
-export class BenneScript extends BenneScriptCore {
-  private static unresolvedTargetVerbWarnings = new Set<string>();
-  private static unresolvedInventoryOnTargetWarnings = new Set<string>();
-
-  private roomId: string;
-  private roomScene: RoomScene;
-
-  /** Cross-room flags and variables (see `GameStateManager`). */
-  readonly state: BenneScriptGameStateNamespace;
-  /** Item quantities; survives room loads (see `GameStateManager`). */
-  readonly inventory: BenneScriptInventoryNamespace;
-
-  /** SCUMM-style dialog session control (`*.dialog.json` + `registerDialogScript`). */
-  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
-
-  /**
-   * Register a handler for "inventory used on target" clicks for this room. Whether the active
-   * inventory selection is dropped (active inventory + active verb both cleared) after the handler
-   * runs follows {@link import('../verbs/dispatchInventoryOnVerbTarget.js').shouldDropActiveInventoryOnUse}
-   * (per-item **`dropWhenUsed`** → global **`dropWhenInventoryUsed`** → default **`false`**), unless you
-   * **`return false`** from the payload handler — that re-emits the global **`whenInventoryOnVerbTargetUnhandled`**
-   * path and skips this subscription’s drop-after-tail so the global script owns clearing.
-   * **`doNotClear`** is a per-handler hard opt-out: the active inventory always stays armed after
-   * this handler's queued steps regardless of policy.
-   */
-  readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
-
-  constructor(events: Phaser.Events.EventEmitter, roomId: string, roomScene: RoomScene) {
-    super(events, () => roomScene.time, () => roomScene);
-    this.roomId = roomId;
-    this.roomScene = roomScene;
-    const manager = resolveGameStateManager(roomScene.game);
-    this.state = createBenneScriptGameStateNamespace(manager);
-    this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene, (factory) =>
-      this.chain(factory),
-    );
-    this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
-    this.whenInventoryUsedOn = Object.assign(
-      (
-        targetId: string,
-        handler: InventoryWhenUsedOnPayloadHandler,
-        options?: { doNotClear?: boolean },
-      ) => {
-        this.registerInventoryUsedOnForTarget(targetId, handler, options?.doNotClear === true);
-      },
-      {
-        doNotClear: (targetId: string, handler: InventoryWhenUsedOnPayloadHandler) => {
-          this.registerInventoryUsedOnForTarget(targetId, handler, true);
-        },
-      },
-    ) as RoomInventoryUsedOnRegistrar;
-  }
-
-  protected acquireOnUpdateSubscription(handler: (ctx: UpdateContext) => void): () => void {
-    return this.roomScene.registerBenneScriptOnUpdateHandler(handler);
-  }
-
-  /**
-   * Subscribe to a **prop** verb event for this room (**prop id only**). Prefer **`when*`** / **`whenVerb`** for prop → hotspot → character resolution.
-   *
-   * @param propId - **`props[].id`** in this room’s `.room.json`.
-   * @param verbId - Verb id from **`game-config.json`** `verbs[]` (dispatch is listener-first).
-   * @param handler - Receives {@link RoomPropInteractPayload} when the handler accepts a parameter.
-   *
-   * @example
-   * B.onProp('desk', 'look', () => console.log('looked'));
-   * B.onProp('desk', 'use', (p) => console.log(p.propId));
-   */
-  onProp(
-    propId: string,
-    verbId: string,
-    handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
-  ): void {
-    const eventId = roomPropVerbEventId(this.roomId, propId, verbId);
-    this.subscribe(eventId, (payload) => {
-      const p = payload as RoomPropInteractPayload;
-      if (handler.length === 0) {
-        (handler as () => void)();
-      } else {
-        (handler as (x: RoomPropInteractPayload) => void)(p);
-      }
-    });
-  }
-
-  /**
-   * Subscribe to a **hotspot** verb event for this room (hotspot id only). Prefer **`when*`** / **`whenVerb`** for automatic resolution.
-   */
-  private onHotspot(
-    hotspotId: string,
-    verbId: string,
-    handler: ((payload: RoomHotspotInteractPayload) => void) | (() => void),
-  ): void {
-    const eventId = roomHotspotVerbEventId(this.roomId, hotspotId, verbId);
-    this.subscribe(eventId, (payload) => {
-      const p = payload as RoomHotspotInteractPayload;
-      if (handler.length === 0) {
-        (handler as () => void)();
-      } else {
-        (handler as (x: RoomHotspotInteractPayload) => void)(p);
-      }
-    });
-  }
-
-  /**
-   * Subscribes to **both** room-scoped and character-global verb events for a **character** target.
-   * Used only when {@link registerVerbForTarget} resolves **`targetId`** to a spawned character — not for props or hotspots.
-   *
-   * Handlers use **`(p: any)`** for the same reason as {@link registerVerbForTarget}.
-   */
-  private subscribeCharacterVerb(
-    characterId: string,
-    verbId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    const inner = (payload: unknown) => {
-      const p = payload as CharacterVerbInteractPayload;
-      if (handler.length === 0) {
-        (handler as () => void)();
-      } else {
-        (handler as (x: any) => void)(p);
-      }
-    };
-    this.subscribe(roomCharacterVerbEventId(this.roomId, characterId, verbId), inner);
-    this.subscribe(characterVerbEventId(characterId, verbId), inner);
-  }
-
-  /**
-   * Registers **`handler`** for **`verbId`** on **`targetId`** by resolving the target in order:
-   *
-   * 1. **Prop** — if `props[]` has this id: single room event via {@link onProp}.
-   * 2. **Hotspot** — else if `hotspots[]` has this id: single room event via {@link onHotspot}.
-   * 3. **Character** — else if a character with this **definition id** is spawned in the room: {@link subscribeCharacterVerb}
-   *    (room + character-global events, matching **`dispatchVerbInteraction`** for characters).
-   *
-   * If nothing matches, calls {@link warnNoVerbTarget} once per (`roomId`, `targetId`, `verbId`).
-   *
-   * Handlers use **`(p: any)`** so one API can cover prop, hotspot, and character payloads without a public exported union;
-   * use **`onProp`** or types from **`propInteractionEvents`** when you want strict typing.
-   */
-  private registerVerbForTarget(
-    verbId: string,
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    if (this.roomScene.getRoomPropInstance(targetId)) {
-      this.onProp(
-        targetId,
-        verbId,
-        handler as ((payload: RoomPropInteractPayload) => void) | (() => void),
-      );
-      return;
-    }
-    if (this.roomScene.getRoomHotspotInstance(targetId)) {
-      this.onHotspot(
-        targetId,
-        verbId,
-        handler as ((payload: RoomHotspotInteractPayload) => void) | (() => void),
-      );
-      return;
-    }
-    if (this.roomScene.getCharacterSprite(targetId)) {
-      this.subscribeCharacterVerb(targetId, verbId, handler);
-      return;
-    }
-    this.warnNoVerbTarget(targetId, verbId);
-  }
-
-  private warnNoVerbTarget(targetId: string, verbId: string): void {
-    const key = `${this.roomId}:${targetId}:${verbId}`;
-    if (BenneScript.unresolvedTargetVerbWarnings.has(key)) {
-      return;
-    }
-    BenneScript.unresolvedTargetVerbWarnings.add(key);
-    console.warn(
-      `[Benne] No prop, hotspot, or character found with id '${targetId}' for verb '${verbId}' in room '${this.roomId}'. Handler was not registered.`,
-    );
-  }
-
-  private warnNoInventoryOnTarget(targetId: string): void {
-    const key = `${this.roomId}:${targetId}:inventoryOn`;
-    if (BenneScript.unresolvedInventoryOnTargetWarnings.has(key)) {
-      return;
-    }
-    BenneScript.unresolvedInventoryOnTargetWarnings.add(key);
-    console.warn(
-      `[Benne] No prop, hotspot, or character found with id '${targetId}' for whenInventoryUsedOn in room '${this.roomId}'. Handler was not registered.`,
-    );
-  }
-
-  private registerInventoryUsedOnForTarget(
-    targetId: string,
-    handler: InventoryWhenUsedOnPayloadHandler,
-    doNotClear: boolean,
-  ): void {
-    if (this.roomScene.getRoomPropInstance(targetId)) {
-      this.subscribeInventoryUsedOnTargetEvents(
-        roomInventoryOnPropAnySourceEventId(this.roomId, targetId),
-        globalInventoryOnPropAnySourceEventId(targetId),
-        handler,
-        doNotClear,
-      );
-      return;
-    }
-    if (this.roomScene.getRoomHotspotInstance(targetId)) {
-      this.subscribeInventoryUsedOnTargetEvents(
-        roomInventoryOnHotspotAnySourceEventId(this.roomId, targetId),
-        globalInventoryOnHotspotAnySourceEventId(targetId),
-        handler,
-        doNotClear,
-      );
-      return;
-    }
-    if (this.roomScene.getCharacterSprite(targetId)) {
-      this.subscribeInventoryUsedOnTargetEvents(
-        roomInventoryOnCharacterAnySourceEventId(this.roomId, targetId),
-        globalInventoryOnCharacterAnySourceEventId(targetId),
-        handler,
-        doNotClear,
-      );
-      return;
-    }
-    this.warnNoInventoryOnTarget(targetId);
-  }
-
-  /** Like {@link onProp} but passes a transformed payload (e.g. {@link whenGive}). */
-  private onPropMapped<P>(
-    propId: string,
-    verbId: string,
-    handler: ((payload: P) => void) | (() => void),
-    map: (base: RoomPropInteractPayload) => P,
-  ): void {
-    const eventId = roomPropVerbEventId(this.roomId, propId, verbId);
-    this.subscribe(eventId, (payload) => {
-      const base = payload as RoomPropInteractPayload;
-      const p = map(base);
-      if (handler.length === 0) {
-        (handler as () => void)();
-      } else {
-        (handler as (x: P) => void)(p);
-      }
-    });
-  }
-
-  whenLookAt(targetId: string, handler: () => void): void;
-  whenLookAt(targetId: string, handler: (p: any) => void): void;
-  whenLookAt(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('look'), targetId, handler);
-  }
-
-  whenUse(targetId: string, handler: () => void): void;
-  whenUse(targetId: string, handler: (p: any) => void): void;
-  whenUse(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('use'), targetId, handler);
-  }
-
-  whenPickUp(targetId: string, handler: () => void): void;
-  whenPickUp(targetId: string, handler: (p: any) => void): void;
-  whenPickUp(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('pickUp'), targetId, handler);
-  }
-
-  whenGive(itemId: string, targetId: string, handler: () => void): void;
-  whenGive(itemId: string, targetId: string, handler: (payload: GivePropInteractPayload) => void): void;
-  whenGive(
-    itemId: string,
-    targetId: string,
-    handler: ((payload: GivePropInteractPayload) => void) | (() => void),
-  ): void {
-    const verbId = this.resolveVerbId('give');
-    this.onPropMapped(targetId, verbId, handler, (base) => ({ ...base, itemId }));
-  }
-
-  whenPush(targetId: string, handler: () => void): void;
-  whenPush(targetId: string, handler: (p: any) => void): void;
-  whenPush(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('push'), targetId, handler);
-  }
-
-  whenPull(targetId: string, handler: () => void): void;
-  whenPull(targetId: string, handler: (p: any) => void): void;
-  whenPull(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('pull'), targetId, handler);
-  }
-
-  whenOpen(targetId: string, handler: () => void): void;
-  whenOpen(targetId: string, handler: (p: any) => void): void;
-  whenOpen(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('open'), targetId, handler);
-  }
-
-  whenClose(targetId: string, handler: () => void): void;
-  whenClose(targetId: string, handler: (p: any) => void): void;
-  whenClose(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('close'), targetId, handler);
-  }
-
-  whenVerb(verbId: string, targetId: string, handler: () => void): void;
-  whenVerb(verbId: string, targetId: string, handler: (p: any) => void): void;
-  whenVerb(
-    verbId: string,
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(verbId, targetId, handler);
-  }
-
-  whenTalkTo(targetId: string, handler: () => void): void;
-  whenTalkTo(targetId: string, handler: (p: any) => void): void;
-  whenTalkTo(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('talkTo'), targetId, handler);
-  }
-
-  prop(propId: string): BenneScriptPropFacade {
-    const scene = this.roomScene;
-    const B = this;
-    return {
-      sound: this.sound,
-      hide: withNow(
-        () => {
-          B.chain(() => {
-            scene.setPropScriptVisible(propId, false);
-            return Promise.resolve();
-          });
-        },
-        () => {
-          scene.setPropScriptVisible(propId, false);
-        },
-      ),
-      show: withNow(
-        () => {
-          B.chain(() => {
-            scene.setPropScriptVisible(propId, true);
-            return Promise.resolve();
-          });
-        },
-        () => {
-          scene.setPropScriptVisible(propId, true);
-        },
-      ),
-      get visible() {
-        return scene.getPropScriptVisible(propId);
-      },
-      set visible(v: boolean) {
-        B.chain(() => {
-          scene.setPropScriptVisible(propId, v);
-          return Promise.resolve();
-        });
-      },
-      visibleNow(v: boolean): void {
-        scene.setPropScriptVisible(propId, v);
-      },
-      get description() {
-        return scene.getPropScriptDescription(propId);
-      },
-      set description(v: string) {
-        scene.setPropScriptDescription(propId, v);
-      },
-      get animation() {
-        return scene.getPropScriptBaseAnimationTag(propId);
-      },
-      set animation(tag: string) {
-        B.chain(() => {
-          scene.setPropScriptBaseAnimationTag(propId, tag);
-          return Promise.resolve();
-        });
-      },
-      animationNow(tag: string): void {
-        scene.setPropScriptBaseAnimationTag(propId, tag);
-      },
-      playAnimation: withNow(
-        (tag: string) => {
-          B.chain(() => scene.playPropScriptAnimationOneShot(propId, tag));
-        },
-        (tag: string) => {
-          void scene.playPropScriptAnimationOneShot(propId, tag);
-        },
-      ),
-      fade: withNow(
-        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
-          B.chain(() => scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds));
-        },
-        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
-          void scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds);
-        },
-      ),
-      moveTo: withNow(
-        (point) => {
-          B.chain(() => {
-            scene.movePropToNow(propId, point);
-            return Promise.resolve();
-          });
-        },
-        (point) => {
-          scene.movePropToNow(propId, point);
-        },
-      ),
-      moveToNow(point): void {
-        scene.movePropToNow(propId, point);
-      },
-    } as BenneScriptPropFacade;
-  }
-
-  get player(): BenneScriptPlayerFacade {
-    return this.makePlayerFacadeFromScene(() => this.roomScene);
-  }
-
-  region(regionId: string): BenneScriptRegionFacade {
-    const rid = String(regionId).trim();
-    if (rid.length === 0) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.region: region id must be a non-empty string.');
-      }
-      return noopBenneScriptRegionFacade;
-    }
-    const B = this;
-    const scene = this.roomScene;
-    return {
-      get active() {
-        return scene.getRegionScriptActive(rid);
-      },
-      set active(v: boolean) {
-        scene.setRegionScriptActive(rid, v);
-      },
-      whenEnter(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void {
-        const eventId = roomRegionEnterEventId(B.roomId, rid);
-        B.subscribe(eventId, (payload) => {
-          const p = payload as RegionEnterExitContext;
-          if (handler.length === 0) {
-            (handler as () => void)();
-          } else {
-            (handler as (x: RegionEnterExitContext) => void)(p);
-          }
-        });
-      },
-      whenExit(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void {
-        const eventId = roomRegionExitEventId(B.roomId, rid);
-        B.subscribe(eventId, (payload) => {
-          const p = payload as RegionEnterExitContext;
-          if (handler.length === 0) {
-            (handler as () => void)();
-          } else {
-            (handler as (x: RegionEnterExitContext) => void)(p);
-          }
-        });
-      },
-    };
-  }
-
-  hotspot(hotspotId: string): BenneScriptHotspotFacade {
-    const hid = String(hotspotId).trim();
-    if (hid.length === 0) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.hotspot: hotspot id must be a non-empty string.');
-      }
-      return noopBenneScriptHotspotFacade;
-    }
-    const scene = this.roomScene;
-    return {
-      get active() {
-        return scene.getHotspotScriptActive(hid);
-      },
-      set active(v: boolean) {
-        scene.setHotspotScriptActive(hid, v);
-      },
-    };
-  }
-
-  whenEnterRegion(
-    regionId: string,
-    handler: (() => void) | ((ctx: RegionEnterExitContext) => void),
-  ): void {
-    this.region(regionId).whenEnter(handler);
-  }
-
-  whenExitRegion(
-    regionId: string,
-    handler: (() => void) | ((ctx: RegionEnterExitContext) => void),
-  ): void {
-    this.region(regionId).whenExit(handler);
-  }
-
-  whenLeaveRoom(
-    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
-  ): void {
-    const r = tryGetGlobalRoomHookRegistry();
-    if (!r) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.whenLeaveRoom: room hook registry missing — not wired.');
-      }
-      return;
-    }
-    r.registerRoomLeaveRoom(this.roomId, handler);
-  }
-
-  whenEnterRoom(
-    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
-  ): void {
-    const r = tryGetGlobalRoomHookRegistry();
-    if (!r) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.whenEnterRoom: room hook registry missing — not wired.');
-      }
-      return;
-    }
-    r.registerRoomEnterRoom(this.roomId, handler);
-  }
-
-  whenEnterRoomAfterFade(
-    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
-  ): void {
-    const r = tryGetGlobalRoomHookRegistry();
-    if (!r) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.whenEnterRoomAfterFade: room hook registry missing — not wired.');
-      }
-      return;
-    }
-    r.registerRoomEnterRoomAfterFade(this.roomId, handler);
-  }
-
-  /**
-   * Registers a named **Play From** block for this room (BENNE Play). Runs once after
-   * **`whenEnterRoom`** / **`whenEnterAnyRoom`** on **`boot`** or **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`**
-   * matches and the current room matches **`this.roomId`**. Skipped on in-game **`changeTo`** (`transition`).
-   * Queued **`B.*`** without **`.now`** from enter / play-from are flushed before fade-in (see **`RoomScene.waitForEnterPhaseBenneScriptQueues`**).
-   */
-  playFrom(name: string, handler: () => void | Promise<void>): void {
-    const id = String(name).trim();
-    if (id.length === 0) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.playFrom: name must be a non-empty string.');
-      }
-      return;
-    }
-    registerPlayFromForRoom(this.roomId, id, handler);
-  }
-
-}
 </file>
 
 <file path="src/game/rooms/outside/outside.room.json">
@@ -33562,12 +33378,23 @@ import { buildGuiCheckbox, type BuiltGuiCheckbox } from './buildGuiCheckbox.js';
 import { buildGuiSlider, type BuiltGuiSlider } from './buildGuiSlider.js';
 import { buildGuiTextInput, type BuiltGuiTextInput } from './buildGuiTextInput.js';
 import { buildGuiListBox, type BuiltGuiListBox } from './buildGuiListBox.js';
-import { BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY } from './guiTextInputRuntime.js';
+import {
+  BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY,
+  benneGuiTextInputReadEnabled,
+} from './guiTextInputRuntime.js';
 import { GuiRuntime } from '../scripting/GuiRuntime.js';
 import {
   BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY,
+  BENNE_GUI_BUTTON_VISUAL_SCRIPT_LOCK_DATA_KEY,
   benneGuiButtonReadVisualScriptLock,
 } from './guiButtonVisualStateScript.js';
+import {
+  BENNE_GUI_BUTTON_DATA_KEY,
+  BENNE_GUI_BUTTON_READ_ENABLED_DATA_KEY,
+  BENNE_GUI_BUTTON_SET_ENABLED_DATA_KEY,
+  benneGuiButtonReadEnabled,
+  type BenneGuiButtonSetEnabledFn,
+} from './guiButtonRuntime.js';
 import {
   dispatchInventoryOnInventoryItemInteraction,
   dispatchInventoryVerbInteraction,
@@ -34307,7 +34134,7 @@ export function buildGuiButton(
   hitTarget.setScrollFactor(0, 0);
   hitTarget.setDepth(d);
   hitTarget.setVisible(overlayVisible);
-  hitTarget.setData('benneGuiButton', true);
+  hitTarget.setData(BENNE_GUI_BUTTON_DATA_KEY, true);
 
   const guiTextureKey = getAsepriteTextureKey(gui.id);
   const defaultBgTag = c.backgroundTag.trim();
@@ -34396,31 +34223,7 @@ export function buildGuiButton(
     return null;
   }
 
-  const enabled = c.enabled !== false;
-  if (!enabled) {
-    hitTarget.setAlpha(0.45);
-    bg?.setAlpha(0.45);
-    label?.setAlpha(0.45);
-    for (const lo of labelOutlines) {
-      lo.setAlpha(0.45);
-    }
-    const dTag = c.states?.disabled?.trim();
-    const dColor = c.backgroundColorStates?.disabled?.trim();
-    if (bg instanceof Phaser.GameObjects.Rectangle) {
-      const fill = dColor ?? defaultBgColor;
-      if (fill) {
-        bg.setFillStyle(hexStringToTint(fill), 1);
-        placeGuiButtonBackgroundRectLocal(bg, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
-      }
-    } else if (bg && dTag) {
-      reapplyGuiSheetTag(scene, bg, guiTextureKey, dTag, gui.id);
-      placeGuiButtonBackgroundSpriteLocal(bg, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
-    }
-  }
-
-  if (overlayVisible && enabled) {
-    applyGuiButtonInteractivity(hitTarget, w, h, enabled);
-  }
+  let enabled = c.enabled !== false;
 
   const hoverTag = c.states?.hover?.trim();
   const pressedTag = c.states?.pressed?.trim();
@@ -34477,7 +34280,7 @@ export function buildGuiButton(
   };
 
   const applyChromeVisual = (visual: BenneGuiScriptButtonVisualState): void => {
-    if (!enabled) {
+    if (!enabled && visual !== 'disabled') {
       return;
     }
     const applyBgForState = (tag: string | undefined): void => {
@@ -34536,9 +34339,30 @@ export function buildGuiButton(
     }
   };
 
-  if (enabled) {
-    hitTarget.setData(BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY, applyChromeVisual);
+  hitTarget.setData(BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY, applyChromeVisual);
+
+  const refreshInteractivity = (): void => {
+    hitTarget.disableInteractive();
+    if (hitTarget.visible && enabled) {
+      applyGuiButtonInteractivity(hitTarget, w, h, true);
+    }
+  };
+
+  const setEnabledFromScript: BenneGuiButtonSetEnabledFn = (next: boolean) => {
+    enabled = next;
+    hitTarget.setData(BENNE_GUI_BUTTON_VISUAL_SCRIPT_LOCK_DATA_KEY, false);
+    applyChromeVisual(next ? 'normal' : 'disabled');
+    refreshInteractivity();
+  };
+
+  hitTarget.setData(BENNE_GUI_BUTTON_SET_ENABLED_DATA_KEY, setEnabledFromScript);
+  hitTarget.setData(BENNE_GUI_BUTTON_READ_ENABLED_DATA_KEY, () => enabled);
+
+  if (!enabled) {
+    applyChromeVisual('disabled');
   }
+
+  refreshInteractivity();
 
   const pointerDrivesChrome =
     enabled &&
@@ -34551,33 +34375,29 @@ export function buildGuiButton(
 
   if (pointerDrivesChrome) {
     hitTarget.on('pointerover', () => {
-      if (benneGuiButtonReadVisualScriptLock(hitTarget)) {
+      if (!enabled || benneGuiButtonReadVisualScriptLock(hitTarget)) {
         return;
       }
       applyChromeVisual('hover');
     });
     hitTarget.on('pointerout', () => {
-      if (benneGuiButtonReadVisualScriptLock(hitTarget)) {
+      if (!enabled || benneGuiButtonReadVisualScriptLock(hitTarget)) {
         return;
       }
       applyChromeVisual('normal');
     });
     hitTarget.on('pointerdown', () => {
-      if (benneGuiButtonReadVisualScriptLock(hitTarget)) {
+      if (!enabled || benneGuiButtonReadVisualScriptLock(hitTarget)) {
         return;
       }
       applyChromeVisual('pressed');
     });
     hitTarget.on('pointerup', () => {
-      if (benneGuiButtonReadVisualScriptLock(hitTarget)) {
+      if (!enabled || benneGuiButtonReadVisualScriptLock(hitTarget)) {
         return;
       }
       applyChromeVisual('normal');
     });
-  }
-
-  if (!enabled && label && disabledTextColor) {
-    setLabelTint(disabledTextTint);
   }
 
   hitTarget.on('pointerup', (pointer: Phaser.Input.Pointer) => {
@@ -36185,8 +36005,9 @@ export function buildGuiOverlay(
         for (const lo of b.labelOutlines) {
           lo.setVisible(visible);
         }
-        if (visible && b.enabled) {
-          applyGuiButtonInteractivity(b.hitTarget, b.width, b.height, b.enabled);
+        const buttonLiveEnabled = benneGuiButtonReadEnabled(b.hitTarget) ?? b.enabled;
+        if (visible && buttonLiveEnabled) {
+          applyGuiButtonInteractivity(b.hitTarget, b.width, b.height, true);
         } else {
           b.hitTarget.disableInteractive();
         }
@@ -36225,7 +36046,8 @@ export function buildGuiOverlay(
             (blurRaw as (wantFocus: boolean) => void)(false);
           }
         }
-        if (visible && ti.enabled) {
+        const textInputLiveEnabled = benneGuiTextInputReadEnabled(ti.hitTarget) ?? ti.enabled;
+        if (visible && textInputLiveEnabled) {
           applyGuiButtonInteractivity(ti.hitTarget, ti.width, ti.height, true);
         } else {
           ti.hitTarget.disableInteractive();
@@ -36314,6 +36136,716 @@ export function buildGuiOverlay(
       return runtime;
     },
   };
+}
+</file>
+
+<file path="src/engine/scripting/BenneScript.ts">
+import * as Phaser from 'phaser';
+import type {
+  CharacterVerbInteractPayload,
+  RoomHotspotInteractPayload,
+  RoomPropInteractPayload,
+} from '../events/propInteractionEvents.js';
+import type { GivePropInteractPayload } from './benneScriptPayloads.js';
+import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import { registerPlayFromForRoom } from './devPlayFromRegistry.js';
+import type { RoomScene } from '../scenes/RoomScene.js';
+import {
+  globalInventoryOnCharacterAnySourceEventId,
+  globalInventoryOnHotspotAnySourceEventId,
+  globalInventoryOnPropAnySourceEventId,
+  roomInventoryOnCharacterAnySourceEventId,
+  roomInventoryOnHotspotAnySourceEventId,
+  roomInventoryOnPropAnySourceEventId,
+} from '../events/inventoryOnVerbEvents.js';
+import {
+  characterVerbEventId,
+  roomCharacterVerbEventId,
+  roomHotspotVerbEventId,
+  roomPropVerbEventId,
+} from '../events/verbInteractionEvents.js';
+import type {
+  BenneScriptDialogCommandSurface,
+  BenneScriptHotspotFacade,
+  BenneScriptPlayerFacade,
+  BenneScriptPropFacade,
+  BenneScriptRegionFacade,
+  InventoryWhenUsedOnPayloadHandler,
+  RoomInventoryUsedOnRegistrar,
+} from './benneScriptFacades.js';
+import { BenneScriptCore, withNow } from './BenneScriptCore.js';
+import {
+  createBenneScriptGameStateNamespace,
+  createBenneScriptInventoryNamespace,
+  type BenneScriptGameStateNamespace,
+  type BenneScriptInventoryNamespace,
+} from './benneScriptGameStateApi.js';
+import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
+import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
+import type { RoomTransitionContext } from '../../types/roomTransition.js';
+import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
+import type { UpdateContext } from './types.js';
+import { roomRegionEnterEventId, roomRegionExitEventId } from '../events/regionEnterExitEvents.js';
+
+export type {
+  AnyInventoryUsedOnPayload,
+  BenneScriptCharacterFacade,
+  BenneScriptDialogCommandSurface,
+  BenneScriptHotspotFacade,
+  BenneScriptInventoryItemFacade,
+  BenneScriptPlayerFacade,
+  BenneScriptPropFacade,
+  BenneScriptRegionFacade,
+  BenneScriptRoomFacade,
+  BenneScriptSoundFacade,
+  BenneScriptSharedSelectionApi,
+  InventoryWhenGiveHandler,
+  InventoryWhenGiveRegistrar,
+  InventoryWhenUsedOnPayloadHandler,
+  InventoryWhenUseHandler,
+  InventoryWhenUseRegistrar,
+  RoomInventoryUsedOnRegistrar,
+} from './benneScriptFacades.js';
+export type { CharacterFollowOptions } from '../../types/characterFollow.js';
+export type {
+  BenneScriptSayArgs,
+  BenneScriptSayLineOptions,
+  BenneScriptSayDialogueTagged,
+  BenneScriptSayDialogueHybrid,
+  BenneSayDialogueScope,
+  BlockingWithNow,
+} from './BenneScriptCore.js';
+export type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
+export { withNow } from './BenneScriptCore.js';
+
+/**
+ * # Bennescript — valid string ids for this room
+ *
+ * Use ids that match **this room’s** `*.room.json` and placed characters, so handlers and movement resolve correctly.
+ *
+ * | Kind | Where it comes from |
+ * |------|---------------------|
+ * | **`whenLookAt`**, **`whenUse`**, **`whenTalkTo`**, **`whenPickUp`**, **`whenPush`**, **`whenPull`**, **`whenOpen`**, **`whenClose`**, **`whenVerb`** | One **`targetId`** per room: **prop** (`props[].id`) → **hotspot** (`hotspots[].id`) → **character** (`CharacterData.id` spawned here, including the player). Optional **`(p: any)`** payload — shape depends on which kind matched; see **`registerVerbForTarget`**. Character verb payloads may include **world** **`walkToPoint`** / **`talkPoint`** when authored in **`*.character.json`**. |
+ * | **`whenGive`** | **`targetId`** is the receiving **prop** only (`props[].id`; inventory **`itemId`** is separate). |
+ * | **`onProp`**, **`B.prop(id)`** | **`props[].id`** only (explicit prop wiring). |
+ * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | Pathfind **Walk**; **Unified target string** (first match): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** → **`points[].id`**, or **`{ x, y }`** in **room pixels**. **`walkTo.now`** does not block the queue. No-op when **`movable`** is **`false`** (see **`*.character.json`** **`movable`** and **`B.player` / `B.character(id).movable`**). |
+ * | **`moveTo` / `moveTo.now`** / **`moveToNow`** | Instantly place **feet** at the resolved point (clamped to walkable) and update **Idle** facing — not a walk. **`moveTo`** queues on the interaction tail; **`moveTo.now`** and **`moveToNow`** run immediately. |
+ * | **`walkToClicked` / `walkToClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Inside a verb handler, walks the player to the **clicked** prop / hotspot / character (same resolution as **`walkTo`** for that id), then faces like **`faceClicked`** after the walk completes. No room target for pure inventory-row verbs (one-time dev warn). |
+ * | **`faceClicked` / `faceClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Uses payload **`lookAtPoint`** for props/hotspots when present; for **characters**, faces that character’s **feet**; otherwise falls back to the walk stand point (see {@link RoomScene.facePlayerTowardClicked}). Same dev warnings as **`walkToClicked`** when there is no target or no room. |
+ * | **`B.fadeOut` / `B.fadeIn`**, **`.now`** | Full-screen fade over the room and all GUI overlays; optional duration (default **0.35** s) and **`0xRRGGBB` color** (default black). Queues on the interaction tail except **`.now`**. |
+ * | **`playAnimation(tag)`** / **`playAnimation.now`** | One-shot Aseprite tag (not saved); then **directional idle** or **persisted** `animation` override. Same idea for **`B.prop(id).playAnimation`**, which restores that prop’s saved **base** `animation`. |
+ * | **`animation` / `animation =`**, **`animationNow(...)`** | Setters queue on the **interaction tail** (order with **`walkTo`** / **`say`** / **`playAnimation`**); **`animationNow`** applies persist + sprite **immediately**. Props: persisted base tag. Characters / player: effective get; set / **`animationNow`** accept **`string \| null`** (`null` clears). **`stopAnimation()`** (characters / player) clears override + save, always immediate. |
+ * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
+ * | **`startFacingCharacter` / `stopFacingCharacter`** on **`B.character('…')`** | **`startFacingCharacter(targetCharacterId, minWaitTime?, maxWaitTime?)`** keeps the NPC’s **Idle** facing toward the other character’s **feet**; when either’s feet move, a new random delay in **[`minWaitTime`, `maxWaitTime`]** seconds (defaults **0.2** / **0.4**) runs before turning again. **`stopFacingCharacter()`** clears it. Both queue on the interaction tail; routed through **`RoomScene.startCharacterFacingCharacter` / `stopCharacterFacingCharacter`**. |
+ * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
+ * | **`B.region(id).whenEnter` / `whenExit`**, **`B.whenEnterRegion` / `whenExitRegion`** | **`regions[].id`** in this room’s JSON. Feet crossing uses the same **last-wins** active polygon test as perspective scale (**`resolveWinningRoomRegionIdAtFeet`**). Handlers wire through **`subscribe`** (interaction queue + verb click context rules, like **`whenLookAt`**). Payload: **`RegionEnterExitContext`**. |
+ * | **`B.onUpdate`** | Non-blocking per-frame hook (**`UpdateContext`**: **`deltaSeconds`**, **`roomId`**). Runs after engine **`RoomScene.update`** work; **not** on the interaction tail; **no** **`.now`**. Cleaned up when the room script’s **`B`** is disposed (room unload). Global **`B.onUpdate`** runs after room handlers. |
+ * | **`B.hotspot(id).active`** | **`hotspots[].id`** (case-sensitive, exact JSON match) — get/set persisted **active** (immediate, not queued). Mounts or removes the polygon input zone; **`resolveMovementTarget`** still resolves inactive hotspot ids. Unknown id: getter **`false`**, setter no-op, DEV warn once per room load. |
+ * | **`B.say` / `B.say.now`** | Tagged **`B.say`**…``: PowerQuest-style block — lines **`Speaker: text`** (`Player` any case → protagonist id; other names match spawned character ids **case-insensitively**). Blank lines and **`//`** comments ignored; unknown speakers throw. Queues each line; **`B.say.now`**… skips the interaction tail (see implementation notes in **`BenneScriptCore`**). |
+ * | **`B.display` / `B.display.now`** | Narration via **`display-text`** GUI — **`B.display('…')`** blocks until the player clicks to dismiss (no timer). Same interaction-tail rules as **`B.wait`** / **`say`**; **`.now`** skips the tail. |
+ * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Same dialog overlay as **`B.say`**, plus string form **`B.player.say('…')`**. Scoped tagged blocks: each line is that character (optional **`Player:`** prefix); mismatched **`Name:`** throws (compared **case-insensitively** to the scoped character). Optional second argument **`{ clickToSkip: false \| true }`** on string calls. |
+ * | **`B.playFrom('…', () => { … })`** | **Dev / tooling** — named starting-state for this room; runs once after **`whenEnterRoom`** / **`whenEnterAnyRoom`** on **`boot`** or editor **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`** matches (BENNE Play). Skipped on in-game **`changeTo`** (`transition`). |
+ * | **`B.inventory.add` / `remove`**, **`.now`** | **`GameStateManager`** quantity mutations. Blocking form **queues** on the interaction tail; **`.now`** applies immediately. **`has`**, **`quantityOf`**, **`items`**, **`clearInventory`** stay synchronous. |
+ * | **`B.inventory('id').animation`**, **`cursorAnimation`** (getter / setter) | **Getters**: effective tags (JSON **`defaultAnimation`** / **`cursorAnimation`** ± save overrides — **`''`** when no armed cursor clip). **Setters**: persisted in **`GameStateManager`** variables; **queue** on the interaction tail (same as **`B.player.animation`**); **`animationNow`** / **`cursorAnimationNow`** apply immediately. Setter **empty string** clears that field’s override (JSON applies). |
+ * | **`B.prop(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Script visibility overrides. **`hide` / `show` / `visible =`** queue on the interaction tail; **`.now`** / **`visibleNow`** apply immediately. |
+ * | **`B.character(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Same as props: persisted script visibility (global per character definition id); **`hide` / `show` / `visible =`** queue; **`.now`** / **`visibleNow`** immediate. |
+ * | **`movable` / `movable =`** on **`B.player`** or **`B.character('…')`** | When **`false`**, pathfind walks are ignored (including **`walkToClicked`** and click-to-walk); **`moveTo`** still teleports. Setter queues on the interaction tail; persists **`character:<id>:movable`** over the JSON default from **`*.character.json`**. |
+ * | **`B.prop(id).fade(from, to, durationSeconds)`** / **`.now`**, **`B.character(id).fade(...)`** / **`.now`** | Sprite alpha tween (linear ease) from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`**; alphas clamp to **`[0, 1]`**. Blocking form queues on the interaction tail and waits for completion; **`fade.now`** starts immediately. **`toAlpha`** is persisted (**`room:…:prop:…:alpha`** / **`character:…:alpha`**). |
+ *
+ * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in `BenneScriptCore`. **`whenVerb`** uses an exact verb id.
+ */
+
+const noopBenneScriptRegionFacade: BenneScriptRegionFacade = {
+  get active() { return true; },
+  set active(_v: boolean) {},
+  whenEnter(): void {},
+  whenExit(): void {},
+};
+
+const noopBenneScriptHotspotFacade: BenneScriptHotspotFacade = {
+  get active() { return true; },
+  set active(_v: boolean) {},
+};
+
+/**
+ * High-level API passed as **`B`** in the `registerRoomScript` callback. Chains async steps (walk, delays) in order; use **`await`** only if you expose promises yourself.
+ *
+ * @see The module comment above for which string ids to use with each method.
+ */
+export class BenneScript extends BenneScriptCore {
+  private static unresolvedTargetVerbWarnings = new Set<string>();
+  private static unresolvedInventoryOnTargetWarnings = new Set<string>();
+
+  private roomId: string;
+  private roomScene: RoomScene;
+
+  /** Cross-room flags and variables (see `GameStateManager`). */
+  readonly state: BenneScriptGameStateNamespace;
+  /** Item quantities; survives room loads (see `GameStateManager`). */
+  readonly inventory: BenneScriptInventoryNamespace;
+
+  /** SCUMM-style dialog session control (`*.dialog.json` + `registerDialogScript`). */
+  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+
+  /**
+   * Register a handler for "inventory used on target" clicks for this room. Whether the active
+   * inventory selection is dropped (active inventory + active verb both cleared) after the handler
+   * runs follows {@link import('../verbs/dispatchInventoryOnVerbTarget.js').shouldDropActiveInventoryOnUse}
+   * (per-item **`dropWhenUsed`** → global **`dropWhenInventoryUsed`** → default **`false`**), unless you
+   * **`return false`** from the payload handler — that re-emits the global **`whenInventoryOnVerbTargetUnhandled`**
+   * path and skips this subscription’s drop-after-tail so the global script owns clearing.
+   * **`doNotClear`** is a per-handler hard opt-out: the active inventory always stays armed after
+   * this handler's queued steps regardless of policy.
+   */
+  readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
+
+  constructor(events: Phaser.Events.EventEmitter, roomId: string, roomScene: RoomScene) {
+    super(events, () => roomScene.time, () => roomScene);
+    this.roomId = roomId;
+    this.roomScene = roomScene;
+    const manager = resolveGameStateManager(roomScene.game);
+    this.state = createBenneScriptGameStateNamespace(manager);
+    this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene, (factory) =>
+      this.chain(factory),
+    );
+    this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
+    this.whenInventoryUsedOn = Object.assign(
+      (
+        targetId: string,
+        handler: InventoryWhenUsedOnPayloadHandler,
+        options?: { doNotClear?: boolean },
+      ) => {
+        this.registerInventoryUsedOnForTarget(targetId, handler, options?.doNotClear === true);
+      },
+      {
+        doNotClear: (targetId: string, handler: InventoryWhenUsedOnPayloadHandler) => {
+          this.registerInventoryUsedOnForTarget(targetId, handler, true);
+        },
+      },
+    ) as RoomInventoryUsedOnRegistrar;
+  }
+
+  protected acquireOnUpdateSubscription(handler: (ctx: UpdateContext) => void): () => void {
+    return this.roomScene.registerBenneScriptOnUpdateHandler(handler);
+  }
+
+  /**
+   * Subscribe to a **prop** verb event for this room (**prop id only**). Prefer **`when*`** / **`whenVerb`** for prop → hotspot → character resolution.
+   *
+   * @param propId - **`props[].id`** in this room’s `.room.json`.
+   * @param verbId - Verb id from **`game-config.json`** `verbs[]` (dispatch is listener-first).
+   * @param handler - Receives {@link RoomPropInteractPayload} when the handler accepts a parameter.
+   *
+   * @example
+   * B.onProp('desk', 'look', () => console.log('looked'));
+   * B.onProp('desk', 'use', (p) => console.log(p.propId));
+   */
+  onProp(
+    propId: string,
+    verbId: string,
+    handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
+  ): void {
+    const eventId = roomPropVerbEventId(this.roomId, propId, verbId);
+    this.subscribe(eventId, (payload) => {
+      const p = payload as RoomPropInteractPayload;
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: RoomPropInteractPayload) => void)(p);
+      }
+    });
+  }
+
+  /**
+   * Subscribe to a **hotspot** verb event for this room (hotspot id only). Prefer **`when*`** / **`whenVerb`** for automatic resolution.
+   */
+  private onHotspot(
+    hotspotId: string,
+    verbId: string,
+    handler: ((payload: RoomHotspotInteractPayload) => void) | (() => void),
+  ): void {
+    const eventId = roomHotspotVerbEventId(this.roomId, hotspotId, verbId);
+    this.subscribe(eventId, (payload) => {
+      const p = payload as RoomHotspotInteractPayload;
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: RoomHotspotInteractPayload) => void)(p);
+      }
+    });
+  }
+
+  /**
+   * Subscribes to **both** room-scoped and character-global verb events for a **character** target.
+   * Used only when {@link registerVerbForTarget} resolves **`targetId`** to a spawned character — not for props or hotspots.
+   *
+   * Handlers use **`(p: any)`** for the same reason as {@link registerVerbForTarget}.
+   */
+  private subscribeCharacterVerb(
+    characterId: string,
+    verbId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    const inner = (payload: unknown) => {
+      const p = payload as CharacterVerbInteractPayload;
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: any) => void)(p);
+      }
+    };
+    this.subscribe(roomCharacterVerbEventId(this.roomId, characterId, verbId), inner);
+    this.subscribe(characterVerbEventId(characterId, verbId), inner);
+  }
+
+  /**
+   * Registers **`handler`** for **`verbId`** on **`targetId`** by resolving the target in order:
+   *
+   * 1. **Prop** — if `props[]` has this id: single room event via {@link onProp}.
+   * 2. **Hotspot** — else if `hotspots[]` has this id: single room event via {@link onHotspot}.
+   * 3. **Character** — else if a character with this **definition id** is spawned in the room: {@link subscribeCharacterVerb}
+   *    (room + character-global events, matching **`dispatchVerbInteraction`** for characters).
+   *
+   * If nothing matches, calls {@link warnNoVerbTarget} once per (`roomId`, `targetId`, `verbId`).
+   *
+   * Handlers use **`(p: any)`** so one API can cover prop, hotspot, and character payloads without a public exported union;
+   * use **`onProp`** or types from **`propInteractionEvents`** when you want strict typing.
+   */
+  private registerVerbForTarget(
+    verbId: string,
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    if (this.roomScene.getRoomPropInstance(targetId)) {
+      this.onProp(
+        targetId,
+        verbId,
+        handler as ((payload: RoomPropInteractPayload) => void) | (() => void),
+      );
+      return;
+    }
+    if (this.roomScene.getRoomHotspotInstance(targetId)) {
+      this.onHotspot(
+        targetId,
+        verbId,
+        handler as ((payload: RoomHotspotInteractPayload) => void) | (() => void),
+      );
+      return;
+    }
+    if (this.roomScene.getCharacterSprite(targetId)) {
+      this.subscribeCharacterVerb(targetId, verbId, handler);
+      return;
+    }
+    this.warnNoVerbTarget(targetId, verbId);
+  }
+
+  private warnNoVerbTarget(targetId: string, verbId: string): void {
+    const key = `${this.roomId}:${targetId}:${verbId}`;
+    if (BenneScript.unresolvedTargetVerbWarnings.has(key)) {
+      return;
+    }
+    BenneScript.unresolvedTargetVerbWarnings.add(key);
+    console.warn(
+      `[Benne] No prop, hotspot, or character found with id '${targetId}' for verb '${verbId}' in room '${this.roomId}'. Handler was not registered.`,
+    );
+  }
+
+  private warnNoInventoryOnTarget(targetId: string): void {
+    const key = `${this.roomId}:${targetId}:inventoryOn`;
+    if (BenneScript.unresolvedInventoryOnTargetWarnings.has(key)) {
+      return;
+    }
+    BenneScript.unresolvedInventoryOnTargetWarnings.add(key);
+    console.warn(
+      `[Benne] No prop, hotspot, or character found with id '${targetId}' for whenInventoryUsedOn in room '${this.roomId}'. Handler was not registered.`,
+    );
+  }
+
+  private registerInventoryUsedOnForTarget(
+    targetId: string,
+    handler: InventoryWhenUsedOnPayloadHandler,
+    doNotClear: boolean,
+  ): void {
+    if (this.roomScene.getRoomPropInstance(targetId)) {
+      this.subscribeInventoryUsedOnTargetEvents(
+        roomInventoryOnPropAnySourceEventId(this.roomId, targetId),
+        globalInventoryOnPropAnySourceEventId(targetId),
+        handler,
+        doNotClear,
+      );
+      return;
+    }
+    if (this.roomScene.getRoomHotspotInstance(targetId)) {
+      this.subscribeInventoryUsedOnTargetEvents(
+        roomInventoryOnHotspotAnySourceEventId(this.roomId, targetId),
+        globalInventoryOnHotspotAnySourceEventId(targetId),
+        handler,
+        doNotClear,
+      );
+      return;
+    }
+    if (this.roomScene.getCharacterSprite(targetId)) {
+      this.subscribeInventoryUsedOnTargetEvents(
+        roomInventoryOnCharacterAnySourceEventId(this.roomId, targetId),
+        globalInventoryOnCharacterAnySourceEventId(targetId),
+        handler,
+        doNotClear,
+      );
+      return;
+    }
+    this.warnNoInventoryOnTarget(targetId);
+  }
+
+  /** Like {@link onProp} but passes a transformed payload (e.g. {@link whenGive}). */
+  private onPropMapped<P>(
+    propId: string,
+    verbId: string,
+    handler: ((payload: P) => void) | (() => void),
+    map: (base: RoomPropInteractPayload) => P,
+  ): void {
+    const eventId = roomPropVerbEventId(this.roomId, propId, verbId);
+    this.subscribe(eventId, (payload) => {
+      const base = payload as RoomPropInteractPayload;
+      const p = map(base);
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: P) => void)(p);
+      }
+    });
+  }
+
+  whenLookAt(targetId: string, handler: () => void): void;
+  whenLookAt(targetId: string, handler: (p: any) => void): void;
+  whenLookAt(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('look'), targetId, handler);
+  }
+
+  whenUse(targetId: string, handler: () => void): void;
+  whenUse(targetId: string, handler: (p: any) => void): void;
+  whenUse(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('use'), targetId, handler);
+  }
+
+  whenPickUp(targetId: string, handler: () => void): void;
+  whenPickUp(targetId: string, handler: (p: any) => void): void;
+  whenPickUp(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('pickUp'), targetId, handler);
+  }
+
+  whenGive(itemId: string, targetId: string, handler: () => void): void;
+  whenGive(itemId: string, targetId: string, handler: (payload: GivePropInteractPayload) => void): void;
+  whenGive(
+    itemId: string,
+    targetId: string,
+    handler: ((payload: GivePropInteractPayload) => void) | (() => void),
+  ): void {
+    const verbId = this.resolveVerbId('give');
+    this.onPropMapped(targetId, verbId, handler, (base) => ({ ...base, itemId }));
+  }
+
+  whenPush(targetId: string, handler: () => void): void;
+  whenPush(targetId: string, handler: (p: any) => void): void;
+  whenPush(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('push'), targetId, handler);
+  }
+
+  whenPull(targetId: string, handler: () => void): void;
+  whenPull(targetId: string, handler: (p: any) => void): void;
+  whenPull(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('pull'), targetId, handler);
+  }
+
+  whenOpen(targetId: string, handler: () => void): void;
+  whenOpen(targetId: string, handler: (p: any) => void): void;
+  whenOpen(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('open'), targetId, handler);
+  }
+
+  whenClose(targetId: string, handler: () => void): void;
+  whenClose(targetId: string, handler: (p: any) => void): void;
+  whenClose(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('close'), targetId, handler);
+  }
+
+  whenVerb(verbId: string, targetId: string, handler: () => void): void;
+  whenVerb(verbId: string, targetId: string, handler: (p: any) => void): void;
+  whenVerb(
+    verbId: string,
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(verbId, targetId, handler);
+  }
+
+  whenTalkTo(targetId: string, handler: () => void): void;
+  whenTalkTo(targetId: string, handler: (p: any) => void): void;
+  whenTalkTo(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('talkTo'), targetId, handler);
+  }
+
+  prop(propId: string): BenneScriptPropFacade {
+    const scene = this.roomScene;
+    const B = this;
+    return {
+      sound: this.sound,
+      hide: withNow(
+        () => {
+          B.chain(() => {
+            scene.setPropScriptVisible(propId, false);
+            return Promise.resolve();
+          });
+        },
+        () => {
+          scene.setPropScriptVisible(propId, false);
+        },
+      ),
+      show: withNow(
+        () => {
+          B.chain(() => {
+            scene.setPropScriptVisible(propId, true);
+            return Promise.resolve();
+          });
+        },
+        () => {
+          scene.setPropScriptVisible(propId, true);
+        },
+      ),
+      get visible() {
+        return scene.getPropScriptVisible(propId);
+      },
+      set visible(v: boolean) {
+        B.chain(() => {
+          scene.setPropScriptVisible(propId, v);
+          return Promise.resolve();
+        });
+      },
+      visibleNow(v: boolean): void {
+        scene.setPropScriptVisible(propId, v);
+      },
+      get description() {
+        return scene.getPropScriptDescription(propId);
+      },
+      set description(v: string) {
+        scene.setPropScriptDescription(propId, v);
+      },
+      get animation() {
+        return scene.getPropScriptBaseAnimationTag(propId);
+      },
+      set animation(tag: string) {
+        B.chain(() => {
+          scene.setPropScriptBaseAnimationTag(propId, tag);
+          return Promise.resolve();
+        });
+      },
+      animationNow(tag: string): void {
+        scene.setPropScriptBaseAnimationTag(propId, tag);
+      },
+      playAnimation: withNow(
+        (tag: string) => {
+          B.chain(() => scene.playPropScriptAnimationOneShot(propId, tag));
+        },
+        (tag: string) => {
+          void scene.playPropScriptAnimationOneShot(propId, tag);
+        },
+      ),
+      fade: withNow(
+        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
+          B.chain(() => scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds));
+        },
+        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
+          void scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds);
+        },
+      ),
+      moveTo: withNow(
+        (point) => {
+          B.chain(() => {
+            scene.movePropToNow(propId, point);
+            return Promise.resolve();
+          });
+        },
+        (point) => {
+          scene.movePropToNow(propId, point);
+        },
+      ),
+      moveToNow(point): void {
+        scene.movePropToNow(propId, point);
+      },
+    } as BenneScriptPropFacade;
+  }
+
+  get player(): BenneScriptPlayerFacade {
+    return this.makePlayerFacadeFromScene(() => this.roomScene);
+  }
+
+  region(regionId: string): BenneScriptRegionFacade {
+    const rid = String(regionId).trim();
+    if (rid.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.region: region id must be a non-empty string.');
+      }
+      return noopBenneScriptRegionFacade;
+    }
+    const B = this;
+    const scene = this.roomScene;
+    return {
+      get active() {
+        return scene.getRegionScriptActive(rid);
+      },
+      set active(v: boolean) {
+        scene.setRegionScriptActive(rid, v);
+      },
+      whenEnter(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void {
+        const eventId = roomRegionEnterEventId(B.roomId, rid);
+        B.subscribe(eventId, (payload) => {
+          const p = payload as RegionEnterExitContext;
+          if (handler.length === 0) {
+            (handler as () => void)();
+          } else {
+            (handler as (x: RegionEnterExitContext) => void)(p);
+          }
+        });
+      },
+      whenExit(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void {
+        const eventId = roomRegionExitEventId(B.roomId, rid);
+        B.subscribe(eventId, (payload) => {
+          const p = payload as RegionEnterExitContext;
+          if (handler.length === 0) {
+            (handler as () => void)();
+          } else {
+            (handler as (x: RegionEnterExitContext) => void)(p);
+          }
+        });
+      },
+    };
+  }
+
+  hotspot(hotspotId: string): BenneScriptHotspotFacade {
+    const hid = String(hotspotId).trim();
+    if (hid.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.hotspot: hotspot id must be a non-empty string.');
+      }
+      return noopBenneScriptHotspotFacade;
+    }
+    const scene = this.roomScene;
+    return {
+      get active() {
+        return scene.getHotspotScriptActive(hid);
+      },
+      set active(v: boolean) {
+        scene.setHotspotScriptActive(hid, v);
+      },
+    };
+  }
+
+  whenEnterRegion(
+    regionId: string,
+    handler: (() => void) | ((ctx: RegionEnterExitContext) => void),
+  ): void {
+    this.region(regionId).whenEnter(handler);
+  }
+
+  whenExitRegion(
+    regionId: string,
+    handler: (() => void) | ((ctx: RegionEnterExitContext) => void),
+  ): void {
+    this.region(regionId).whenExit(handler);
+  }
+
+  whenLeaveRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenLeaveRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.registerRoomLeaveRoom(this.roomId, handler);
+  }
+
+  whenEnterRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenEnterRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.registerRoomEnterRoom(this.roomId, handler);
+  }
+
+  whenLoadedRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenLoadedRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.registerRoomLoadedRoom(this.roomId, handler);
+  }
+
+  whenEnterRoomAfterFade(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenEnterRoomAfterFade: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.registerRoomEnterRoomAfterFade(this.roomId, handler);
+  }
+
+  /**
+   * Registers a named **Play From** block for this room (BENNE Play). Runs once after
+   * **`whenEnterRoom`** / **`whenEnterAnyRoom`** on **`boot`** or **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`**
+   * matches and the current room matches **`this.roomId`**. Skipped on in-game **`changeTo`** (`transition`).
+   * Queued **`B.*`** without **`.now`** from enter / play-from are flushed before fade-in (see **`RoomScene.waitForEnterPhaseBenneScriptQueues`**).
+   */
+  playFrom(name: string, handler: () => void | Promise<void>): void {
+    const id = String(name).trim();
+    if (id.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.playFrom: name must be a non-empty string.');
+      }
+      return;
+    }
+    registerPlayFromForRoom(this.roomId, id, handler);
+  }
+
 }
 </file>
 
@@ -37218,7 +37750,7 @@ export class RoomScene extends Phaser.Scene {
     this.createScreenFadeOverlay();
     const startKind: BenneRoomStartKind =
       (this.game.registry.get(BENNE_ROOM_START_KIND_KEY) as BenneRoomStartKind | undefined) ?? 'boot';
-    if (startKind === 'transition') {
+    if (startKind === 'transition' || startKind === 'load') {
       this.screenFadeRect?.setAlpha(1);
     }
 

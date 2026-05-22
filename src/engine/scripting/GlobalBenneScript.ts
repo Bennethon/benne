@@ -139,6 +139,19 @@ export class GlobalBenneScript extends BenneScriptCore {
     r.whenLeaveAnyRoom(handler);
   }
 
+  whenLoadedAnyRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenLoadedAnyRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.whenLoadedAnyRoom(handler);
+  }
+
   whenEnterAnyRoom(
     handler: (ctx: RoomTransitionContext) => void | Promise<void>,
   ): void {

@@ -12,6 +12,7 @@ export class RoomTransitionHookRegistry {
   private readonly byRoomEnter = new Map<string, RoomHandler[]>();
   private readonly byRoomAfterFade = new Map<string, RoomHandler[]>();
   private anyLeave: AnyHandler[] = [];
+  private anyLoaded: AnyHandler[] = [];
   private anyEnter: AnyHandler[] = [];
   private anyAfterFade: AnyHandler[] = [];
 
@@ -33,6 +34,10 @@ export class RoomTransitionHookRegistry {
 
   whenLeaveAnyRoom(handler: AnyHandler): void {
     this.anyLeave.push(handler);
+  }
+
+  whenLoadedAnyRoom(handler: AnyHandler): void {
+    this.anyLoaded.push(handler);
   }
 
   whenEnterAnyRoom(handler: AnyHandler): void {
@@ -68,6 +73,10 @@ export class RoomTransitionHookRegistry {
 
   getAnyLeave(): readonly AnyHandler[] {
     return this.anyLeave;
+  }
+
+  getAnyLoaded(): readonly AnyHandler[] {
+    return this.anyLoaded;
   }
 
   getAnyEnter(): readonly AnyHandler[] {

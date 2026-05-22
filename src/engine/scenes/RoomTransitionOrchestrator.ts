@@ -234,6 +234,11 @@ export class RoomTransitionOrchestrator {
       };
       if (kind === 'load') {
         await runRoomHandlersEachSafe(
+          this.hooks.getAnyLoaded(),
+          enterCtx,
+          'onRoomSceneCreateComplete: any loaded',
+        );
+        await runRoomHandlersEachSafe(
           this.hooks.getLoadedHandlersForRoom(roomId),
           enterCtx,
           'onRoomSceneCreateComplete: loaded',
@@ -243,11 +248,13 @@ export class RoomTransitionOrchestrator {
       // is protected from player input during invisible setup (moveTo, music, etc.).
       roomScene.pushCutscene();
       try {
-        await runRoomHandlersEachSafe(
-          [...this.hooks.getEnterHandlersForRoom(roomId), ...this.hooks.getAnyEnter()],
-          enterCtx,
-          'onRoomSceneCreateComplete: room enter',
-        );
+        if (kind !== 'load') {
+          await runRoomHandlersEachSafe(
+            [...this.hooks.getAnyEnter(), ...this.hooks.getEnterHandlersForRoom(roomId)],
+            enterCtx,
+            'onRoomSceneCreateComplete: room enter',
+          );
+        }
 
         if (kind === 'boot' || kind === 'preview') {
           const g = globalThis as { __BENNE_PLAY_FROM_NAME?: unknown };
@@ -314,12 +321,14 @@ export class RoomTransitionOrchestrator {
       // cutscene block — otherwise popCutscene() fires before say/walk/wait steps execute.
       roomScene.pushCutscene();
       try {
-        await runRoomHandlersEachSafe(
-          [...this.hooks.getAfterFadeHandlersForRoom(roomId), ...this.hooks.getAnyAfterFade()],
-          afterCtx,
-          'onRoomSceneCreateComplete: after-fade',
-        );
-        await roomScene.waitForEnterPhaseBenneScriptQueues();
+        if (kind !== 'load') {
+          await runRoomHandlersEachSafe(
+            [...this.hooks.getAnyAfterFade(), ...this.hooks.getAfterFadeHandlersForRoom(roomId)],
+            afterCtx,
+            'onRoomSceneCreateComplete: after-fade',
+          );
+          await roomScene.waitForEnterPhaseBenneScriptQueues();
+        }
       } finally {
         roomScene.popCutscene();
       }
