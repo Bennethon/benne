@@ -2609,6 +2609,7 @@ export function buildGuiOverlay(
     guiContentRoot.add(row.go);
     row.go.setDepth(row.depth - minDepth);
   }
+  guiContentRoot.setVisible(startVisible);
 
   const triggerZoneSet = new Set<Phaser.GameObjects.GameObject>(triggerZones);
   const guiInteractiveHitTargets = new Set<Phaser.GameObjects.GameObject>([
@@ -2691,6 +2692,7 @@ export function buildGuiOverlay(
       runDisplayTextLayout(text);
     },
     setVisible(visible: boolean) {
+      guiContentRoot.setVisible(visible);
       if (modalBlocker) {
         modalBlocker.setVisible(visible);
         if (visible) {

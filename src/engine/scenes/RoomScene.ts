@@ -1138,16 +1138,14 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * True if any top-level object in the overlay is currently visible (author / script may have turned the HUD off).
+   * Overlay-level visibility for dialog snapshot/restore ({@link GuiOverlayHandle.gameObjects}[0] is `guiContentRoot`).
    */
   private readGenericGuiOverlayVisibleHint(handle: GuiOverlayHandle): boolean {
-    for (const go of handle.gameObjects) {
-      const v = go as unknown as Phaser.GameObjects.Components.Visible | Phaser.GameObjects.GameObject;
-      if ('visible' in v && (v as Phaser.GameObjects.Components.Visible).visible) {
-        return true;
-      }
+    const root = handle.gameObjects[0];
+    if (!root || !('visible' in root)) {
+      return false;
     }
-    return false;
+    return Boolean((root as unknown as Phaser.GameObjects.Components.Visible).visible);
   }
 
   /** Called when a choice dialog session successfully opens (after {@link DIALOG_STARTED_EVENT}). */
