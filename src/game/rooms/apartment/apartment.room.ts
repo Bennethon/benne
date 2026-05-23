@@ -135,6 +135,8 @@ registerRoomScript(({ B }) => {
   B.whenEnterRoom(() => {
     if (!B.sound.isMusicPlaying()) {
       B.sound.playMusic('my-cat-is-crazy');
+    } else {
+      B.sound.playMusic.now('my-cat-is-crazy', { fadeSeconds: 5.0 });
     }
   });
 

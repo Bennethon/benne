@@ -3,6 +3,8 @@ import {
   getEffectiveMusicVolume,
   getEffectiveSfxVolume,
 } from '../applyAudioFromSettings.js';
+import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import { writePersistedCurrentMusicId } from './audioGameState.js';
 import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from './benneSoundRegistry.js';
 import type { MusicPlayOptions, SoundPlayOptions } from './benneSoundTypes.js';
 import { benneMusicCacheKey, benneSfxCacheKey } from './benneAudioCacheKeys.js';
@@ -61,6 +63,8 @@ export class SoundManager {
   private musicFadeInteractionResolve: (() => void) | null = null;
   /** Non-zero while a volume ramp uses {@link requestAnimationFrame}. */
   private musicFadeRafId = 0;
+  /** Author basename for the primary music slot (persisted to game state on change). */
+  private musicAuthorId: string | null = null;
 
   constructor(game: Phaser.Game) {
     this.game = game;
@@ -211,6 +215,14 @@ export class SoundManager {
     s.volume = v;
   }
 
+  private persistCurrentMusicId(id: string | null): void {
+    this.musicAuthorId = id;
+    const mgr = tryGetActiveGameStateManager();
+    if (mgr) {
+      writePersistedCurrentMusicId(mgr, id);
+    }
+  }
+
   playSfx(id: string, options?: SoundPlayOptions): void {
     if (this.isScriptAudioDisabled() || !validateAudioId(id)) {
       return;
@@ -328,10 +340,11 @@ export class SoundManager {
       const sound = this.game.sound.add(key, { volume, loop });
       this.musicSound = sound;
       sound.play();
+      this.persistCurrentMusicId(id);
       return Promise.resolve();
     }
 
-    return this.playMusicCrossfade(key, options, fadeSeconds);
+    return this.playMusicCrossfade(id, key, options, fadeSeconds);
   }
 
   /**
@@ -410,6 +423,7 @@ export class SoundManager {
   }
 
   private playMusicCrossfade(
+    authorId: string,
     key: string,
     options: MusicPlayOptions | undefined,
     fadeSeconds: number,
@@ -468,6 +482,8 @@ export class SoundManager {
       return Promise.resolve();
     }
 
+    this.persistCurrentMusicId(authorId);
+
     return new Promise((resolve) => {
       this.musicFadeInteractionResolve = resolve;
       this.runMusicCrossfadeWithRaf(incoming, outgoing, targetVolume, durationMs);
@@ -516,6 +532,11 @@ export class SoundManager {
       return;
     }
     this.hardStopAllMusicTracks();
+    this.persistCurrentMusicId(null);
+  }
+
+  getCurrentMusicId(): string | null {
+    return this.musicAuthorId;
   }
 
   getSfxSessionVolume(): number {
