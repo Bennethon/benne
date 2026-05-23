@@ -519,6 +519,8 @@ export type InspectorGuiControlCard =
           textColor: string;
           selectedTextColor: string;
           placeholderTextColor: string;
+          font: string;
+          fontSize: number;
           gridPlacement: InspectorGuiGridPlacement | null;
       }
     | {
@@ -1751,6 +1753,8 @@ function parseGuiControlCard(o: Record<string, unknown>, index: number): Inspect
             selectedTextColor: typeof o.selectedTextColor === 'string' ? o.selectedTextColor : '#ffffff',
             placeholderTextColor:
                 typeof o.placeholderTextColor === 'string' ? o.placeholderTextColor : '#999999',
+            font: typeof o.font === 'string' ? o.font : '',
+            fontSize: guiReadNum(o, 'fontSize', 12),
             gridPlacement: parseOptionalGridPlacement(o)
         };
     }

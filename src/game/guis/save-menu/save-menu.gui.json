@@ -47,8 +47,8 @@
       "font": "lucasfont-alternate",
       "fontSize": 8,
       "text": "",
-      "maxLength": 25,
-      "placeholder": "Enter text...",
+      "maxLength": 26,
+      "placeholder": "Enter save name...",
       "color": "#ffffff",
       "backgroundColor": "#222222",
       "outlineColor": "#666666",
@@ -71,7 +71,9 @@
       "selectedBackgroundColor": "#4a4a4a",
       "textColor": "#ffffff",
       "selectedTextColor": "#ffffff",
-      "placeholderTextColor": "#999999"
+      "placeholderTextColor": "#999999",
+      "font": "lucasfont-alternate",
+      "fontSize": 8
     },
     {
       "type": "text",

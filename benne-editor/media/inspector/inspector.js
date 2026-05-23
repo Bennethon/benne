@@ -1319,6 +1319,13 @@ function renderGuiControlCardBody(state, c) {
         <span class="benne-pg-lbl">enabled</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-field-cb" data-index="${idx}" data-field="enabled" ${c.enabled ? 'checked' : ''} /></label>
       </div>
+      <div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Text</div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
+        <span class="benne-pg-lbl">font</span>
+        ${guiFontSelectHtml(fontIds, c.font, idx)}
+        <span class="benne-pg-lbl">fontSize</span>
+        <input type="number" class="gui-field" data-index="${idx}" data-field="fontSize" value="${c.fontSize}" />
+      </div>
       <div class="benne-scroll-bounds-label muted small" style="margin-top:10px;">Rows</div>
       <div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">rowCount</span>
