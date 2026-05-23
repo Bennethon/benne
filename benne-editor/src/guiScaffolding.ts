@@ -230,6 +230,8 @@ function makeDefaultControl(kind: GuiControlKind, id: string): Record<string, un
                 textColor: '#ffffff',
                 selectedTextColor: '#ffffff',
                 placeholderTextColor: '#999999',
+                font: '',
+                fontSize: 8,
                 enabled: true
             };
         case 'image':

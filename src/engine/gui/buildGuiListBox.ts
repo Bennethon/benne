@@ -154,17 +154,6 @@ export function buildGuiListBox(
   if (!id || c.width <= 0 || c.height <= 0 || rowCount <= 0) {
     return null;
   }
-  const fontKey = pickAnyLoadedBitmapFont(scene);
-  if (!fontKey) {
-    if (import.meta.env.DEV) {
-      console.warn(`[Benne] GUI "${gui.id}" listBox "${id}" needs a loaded bitmap font.`);
-    }
-    return null;
-  }
-  const fontEntry = manifest[fontKey] as GameBitmapFontDefinition | undefined;
-  if (!fontEntry) {
-    return null;
-  }
 
   const px = Math.round(c.x);
   const py = Math.round(c.y);
@@ -173,13 +162,44 @@ export function buildGuiListBox(
   const rowPadding = Math.max(0, Math.floor(c.rowPadding ?? 0));
   const derivedRowHeight = Math.floor((h - rowPadding * (rowCount - 1)) / rowCount);
   const rowHeight = Math.max(1, Math.floor(c.rowHeight ?? derivedRowHeight));
+
+  const authoredFont = (c.font ?? '').trim();
+  let fontKey: string | null = null;
+  if (authoredFont.length > 0) {
+    if (!scene.cache.bitmapFont.exists(authoredFont)) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[Benne] GUI "${gui.id}" listBox "${id}" uses unknown bitmap font "${authoredFont}".`,
+        );
+      }
+      return null;
+    }
+    fontKey = authoredFont;
+  } else {
+    fontKey = pickAnyLoadedBitmapFont(scene);
+    if (!fontKey) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] GUI "${gui.id}" listBox "${id}" needs a loaded bitmap font.`);
+      }
+      return null;
+    }
+  }
+  const fontEntry = manifest[fontKey] as GameBitmapFontDefinition | undefined;
+  if (!fontEntry) {
+    return null;
+  }
+
   const rowTextColor = hexStringToTint(c.textColor);
   const rowSelectedTextColor = hexStringToTint(c.selectedTextColor);
   const rowPlaceholderTextColor = hexStringToTint(c.placeholderTextColor);
   const rowNormalBg = hexStringToTint(c.normalBackgroundColor);
   const rowHoverBg = hexStringToTint(c.hoverBackgroundColor);
   const rowSelectedBg = hexStringToTint(c.selectedBackgroundColor);
-  const rowFontSize = Math.max(1, Math.min(rowHeight - 2, 12));
+  const derivedRowFontSize = Math.max(1, Math.min(rowHeight - 2, 12));
+  const rowFontSize =
+    Number.isFinite(c.fontSize) && c.fontSize >= 1
+      ? Math.floor(c.fontSize)
+      : derivedRowFontSize;
   const renderSize = effectiveBitmapFontRenderSize(scene, fontKey, rowFontSize);
 
   let enabled = c.enabled !== false;

@@ -511,6 +511,9 @@ export interface GuiListBoxControl {
   textColor: string;
   selectedTextColor: string;
   placeholderTextColor: string;
+  /** Key in `src/game/assets/fonts/fonts.json` (bitmap font). */
+  font: string;
+  fontSize: number;
   gridPlacement?: GuiGridPlacement;
 }
 
