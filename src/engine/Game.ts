@@ -15,7 +15,7 @@ import {
   BENNE_SOUND_MANAGER_KEY,
   setBenneSoundManager,
 } from './sound/benneSoundRegistry.js';
-import { applyPersistedAudioSessionVolumes } from './sound/audioGameState.js';
+import { applyPersistedAudioSessionVolumes, applyPersistedMusicTrack } from './sound/audioGameState.js';
 import { SoundManager } from './sound/SoundManager.js';
 import { wireBenneAudioGameState } from './sound/wireBenneAudioGameState.js';
 import { BootScene } from './scenes/BootScene.js';
@@ -60,6 +60,7 @@ export function createBenneGame(parent: HTMLElement | string): Phaser.Game {
   const soundManager = new SoundManager(game);
   setBenneSoundManager(game, soundManager);
   applyPersistedAudioSessionVolumes(game);
+  applyPersistedMusicTrack(game);
   wireBenneAudioGameState(game, gameEvents);
   game.events.once(Phaser.Core.Events.DESTROY, () => {
     soundManager.destroy();
