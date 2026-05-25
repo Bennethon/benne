@@ -75,7 +75,8 @@
     "durationMultiplier": 1
   },
   "dialog": {
-    "choiceOptionsViewportHeightPx": 47
+    "choiceOptionsViewportHeightPx": 47,
+    "usedColor": "#888888"
   },
   "perspective": {
     "minWalkScale": 0.3,

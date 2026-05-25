@@ -1,7 +1,9 @@
 import {
   clearPersistedDialogChoiceOptionsViewportHeightPx,
+  clearPersistedDialogUsedColor,
   readEffectiveDialogSettings,
   writePersistedDialogChoiceOptionsViewportHeightPx,
+  writePersistedDialogUsedColor,
 } from '../dialog/dialogGameState.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { getDialogSettingsFromConfig } from '../ConfigManager.js';
@@ -31,6 +33,21 @@ export function createBenneScriptDialogSettingsFacade(): BenneScriptDialogSettin
         clearPersistedDialogChoiceOptionsViewportHeightPx(mgr);
       } else {
         writePersistedDialogChoiceOptionsViewportHeightPx(mgr, v);
+      }
+      emitBenneSpeechSettingsChanged();
+    },
+    get usedColor() {
+      return readEffectiveOrConfig().usedColor;
+    },
+    set usedColor(v: string | undefined) {
+      const mgr = resolveManager();
+      if (!mgr) {
+        return;
+      }
+      if (v === undefined) {
+        clearPersistedDialogUsedColor(mgr);
+      } else {
+        writePersistedDialogUsedColor(mgr, v);
       }
       emitBenneSpeechSettingsChanged();
     },

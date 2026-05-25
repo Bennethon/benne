@@ -290,6 +290,7 @@ Available on every **`BenneScriptCore`** facade. Controls settings for the SCUMM
 | Property | Variable key | Description |
 |----------|--------------|-------------|
 | **`choiceOptionsViewportHeightPx`** | `dialog:choiceOptionsViewportHeightPx` | Game-level cap for choice option stacking; **`undefined`** setter clears override. Per-GUI **`choiceOptionsViewportHeightPx`** on **`*.gui.json`** still wins when set. |
+| **`usedColor`** | `dialog:usedColor` | Hex color (e.g. **`"#888888"`**) applied to dialog option rows the player has already picked. When set, tints bullet, label, outlines, and background instead of alpha-dimming. Omitted / **`undefined`** = legacy **`setAlpha(0.45)`** behavior. **`undefined`** setter clears override. |
 
 ---
 

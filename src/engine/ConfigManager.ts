@@ -91,6 +91,10 @@ function mergeDialogSettings(data: GameSettings): GameSettingsDialog {
       Number.isFinite(d.choiceOptionsViewportHeightPx)
         ? d.choiceOptionsViewportHeightPx
         : undefined,
+    usedColor:
+      typeof d.usedColor === 'string' && d.usedColor.trim().length > 0
+        ? d.usedColor.trim()
+        : undefined,
   };
 }
 

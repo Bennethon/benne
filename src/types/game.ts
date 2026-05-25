@@ -89,6 +89,13 @@ export interface GameSettingsDialog {
    * Overridable via **`B.dialogSettings.choiceOptionsViewportHeightPx`** (set **`undefined`** to clear override).
    */
   choiceOptionsViewportHeightPx?: number;
+  /**
+   * Hex color (e.g. `"#888888"`) applied to dialog option rows the player has already picked.
+   * When set, tints the bullet, label, label outlines, and background instead of alpha-dimming.
+   * Omitted = legacy `setAlpha(0.45)` behavior.
+   * Overridable via **`B.dialogSettings.usedColor`** (`undefined` clears override).
+   */
+  usedColor?: string;
 }
 
 /** One verb the game exposes (ids power inventory `onVerb`, `inputProfile`, and global handler events). */

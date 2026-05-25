@@ -28,6 +28,15 @@ import {
   readEffectiveDialogOptionUsed,
 } from './dialogOptionVariables.js';
 import { dialogChoiceSyntheticButtonId } from '../events/dialogEvents.js';
+import { applyGuiBitmapTextFillTint } from '../gui/guiTextOutline.js';
+
+function hexStringToTint(hex: string): number {
+  try {
+    return Phaser.Display.Color.HexStringToColor(hex).color;
+  } catch {
+    return 0xffffff;
+  }
+}
 
 export const DIALOG_CHOICE_GRID_ID = 'Option-Grid';
 const TEMPLATE_BULLET_ID = 'Bullet';
@@ -568,6 +577,7 @@ export class DialogChoiceDynamicRowState {
     manager: GameStateManager;
     scrollTopPx: number;
     viewportAvailableHeightPx: number;
+    dialogSettings: GameSettingsDialog;
   }): number {
     this.clear();
     const {
@@ -580,6 +590,7 @@ export class DialogChoiceDynamicRowState {
       manager,
       scrollTopPx,
       viewportAvailableHeightPx,
+      dialogSettings,
     } = params;
 
     const gridDef = gui.controls?.find((c): c is GuiGridControl => c.type === 'grid' && c.id === DIALOG_CHOICE_GRID_ID);
@@ -664,6 +675,9 @@ export class DialogChoiceDynamicRowState {
     viewportClip.setMask(viewportMask.createGeometryMask());
     gridContainer.add(viewportClip);
     this.viewportClipContainer = viewportClip;
+
+    const usedColorHex = dialogSettings.usedColor?.trim();
+    const usedTint = usedColorHex ? hexStringToTint(usedColorHex) : undefined;
 
     for (let i = 0; i < page.length; i += 1) {
       const { option: opt, fullRowHeightPx, rowTopInViewportPx, clipTopPx, visibleHeightPx } = page[i]!;
@@ -751,7 +765,16 @@ export class DialogChoiceDynamicRowState {
         );
         if (spr) {
           spr.disableInteractive();
-          spr.setAlpha(used ? 0.45 : 1);
+          spr.setAlpha(1);
+          spr.clearTint();
+          if (used) {
+            if (usedTint !== undefined) {
+              spr.setTint(usedTint);
+              spr.setTintMode(Phaser.TintModes.FILL);
+            } else {
+              spr.setAlpha(0.45);
+            }
+          }
         }
       }
 
@@ -785,15 +808,46 @@ export class DialogChoiceDynamicRowState {
           );
         }
       }
-      built.hitTarget.setAlpha(used ? 0.45 : 1);
-      if (built.label) {
-        built.label.setAlpha(used ? 0.45 : 1);
-      }
-      for (const lo of built.labelOutlines) {
-        lo.setAlpha(used ? 0.45 : 1);
-      }
-      if (built.background) {
-        built.background.setAlpha(used ? 0.45 : 1);
+      const restoreUsedVisual = (): void => {
+        if (!used) {
+          return;
+        }
+        if (usedTint !== undefined) {
+          built.hitTarget.setAlpha(1);
+          if (built.label) {
+            applyGuiBitmapTextFillTint(built.label, usedTint);
+          }
+          for (const lo of built.labelOutlines) {
+            applyGuiBitmapTextFillTint(lo, usedTint);
+          }
+          if (built.background) {
+            built.background.setAlpha(1);
+            if (built.background instanceof Phaser.GameObjects.Rectangle) {
+              built.background.setFillStyle(usedTint, 1);
+            } else {
+              built.background.setTint(usedTint);
+              built.background.setTintMode(Phaser.TintModes.FILL);
+            }
+          }
+        } else {
+          built.hitTarget.setAlpha(0.45);
+          if (built.label) {
+            built.label.setAlpha(0.45);
+          }
+          for (const lo of built.labelOutlines) {
+            lo.setAlpha(0.45);
+          }
+          if (built.background) {
+            built.background.setAlpha(0.45);
+          }
+        }
+      };
+      restoreUsedVisual();
+      if (used) {
+        // buildGuiButton pointerout restores "normal" visuals; re-apply used visuals after that.
+        built.hitTarget.on('pointerout', () => {
+          restoreUsedVisual();
+        });
       }
       this.builtButtons.push(built);
       this.hoverDisposers.push(wireGuiControlHoverEvents(gui, synId, built.hitTarget));

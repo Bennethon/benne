@@ -56,6 +56,8 @@ export interface BenneScriptSpeechSettingsFacade {
 export interface BenneScriptDialogSettingsFacade {
   get choiceOptionsViewportHeightPx(): number | undefined;
   set choiceOptionsViewportHeightPx(v: number | undefined);
+  get usedColor(): string | undefined;
+  set usedColor(v: string | undefined);
 }
 
 export interface BenneScriptRoomFacade {
