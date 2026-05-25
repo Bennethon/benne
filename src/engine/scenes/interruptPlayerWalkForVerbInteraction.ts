@@ -1,4 +1,4 @@
-import { SCENE_ROOM } from '../../game/constants.js';
+import { SCENE_ROOM } from '../../game/boot/constants.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import type { RoomScene } from './RoomScene.js';
 

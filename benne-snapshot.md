@@ -72,6 +72,7 @@ src/engine/dialog/dialogChoiceGuiRuntime.ts
 src/engine/dialog/dialogDefinitionRegistry.ts
 src/engine/dialog/dialogGameState.ts
 src/engine/dialog/dialogOptionVariables.ts
+src/engine/dialog/speechGameState.ts
 src/engine/directionalCharacterAnimation.ts
 src/engine/events/characterAnimationEvents.ts
 src/engine/events/dialogEvents.ts
@@ -132,7 +133,6 @@ src/engine/scenes/roomStartKindConstants.ts
 src/engine/scenes/roomTransitionGlobals.ts
 src/engine/scenes/RoomTransitionHookRegistry.ts
 src/engine/scenes/RoomTransitionOrchestrator.ts
-src/engine/scripting/benneDialogSettingsScriptSurface.ts
 src/engine/scripting/BenneScript.ts
 src/engine/scripting/BenneScriptCore.ts
 src/engine/scripting/benneScriptDialogSettingsApi.ts
@@ -142,6 +142,8 @@ src/engine/scripting/benneScriptOnUpdateRegistry.ts
 src/engine/scripting/benneScriptPayloads.ts
 src/engine/scripting/benneScriptRoomApi.ts
 src/engine/scripting/benneScriptSoundApi.ts
+src/engine/scripting/benneScriptSpeechSettingsApi.ts
+src/engine/scripting/benneSpeechSettingsScriptSurface.ts
 src/engine/scripting/benneVerbContextScriptSurface.ts
 src/engine/scripting/CharacterBenneScript.ts
 src/engine/scripting/CharacterScriptContext.ts
@@ -186,11 +188,10 @@ src/game/assets/images/cursor/cursor.json
 src/game/assets/images/guis/dialog/dialog.json
 src/game/assets/images/guis/display-text/display-text.json
 src/game/assets/images/guis/game-menu/game-menu.json
-src/game/assets/images/guis/inventoryBar/inventoryBar.json
 src/game/assets/images/guis/load-menu/load-menu.json
-src/game/assets/images/guis/menu-bar/menu-bar.json
 src/game/assets/images/guis/save-menu/save-menu.json
 src/game/assets/images/guis/settings-menu/settings-menu.json
+src/game/assets/images/guis/verbs/verbs.json
 src/game/assets/images/inventory/inventory.json
 src/game/assets/images/rooms/apartment/apartment.json
 src/game/assets/images/rooms/outside/outside.json
@@ -216,20 +217,16 @@ src/game/guis/display-text/display-text.gui.json
 src/game/guis/display-text/display-text.gui.ts
 src/game/guis/game-menu/game-menu.gui.json
 src/game/guis/game-menu/game-menu.gui.ts
-src/game/guis/hover-text/hover-text.gui.json
-src/game/guis/hover-text/hover-text.gui.ts
-src/game/guis/inventoryBar/inventoryBar.gui.json
-src/game/guis/inventoryBar/inventoryBar.gui.ts
 src/game/guis/load-menu/load-menu.gui.json
 src/game/guis/load-menu/load-menu.gui.ts
-src/game/guis/menu-bar/menu-bar.gui.json
-src/game/guis/menu-bar/menu-bar.gui.ts
 src/game/guis/save-menu/save-menu.gui.json
 src/game/guis/save-menu/save-menu.gui.ts
 src/game/guis/settings-menu/settings-menu.gui.json
 src/game/guis/settings-menu/settings-menu.gui.ts
 src/game/guis/speaking-text/speaking-text.gui.json
 src/game/guis/speaking-text/speaking-text.gui.ts
+src/game/guis/verbs/verbs.gui.json
+src/game/guis/verbs/verbs.gui.ts
 src/game/inventory/Bread/Bread.inventory.json
 src/game/inventory/Bread/Bread.inventory.ts
 src/game/inventory/Broom/Broom.inventory.json
@@ -281,6 +278,16 @@ vite.config.ts
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="src/editor/play/configureBennePlayWebviewAssets.ts">
+import { setBenneWebviewPlayAssetBase } from '../../game/resolveGameAssetUrl';
+
+const g = globalThis as { __BENNE_PLAY_MEDIA_BASE__?: string };
+const raw = typeof g.__BENNE_PLAY_MEDIA_BASE__ === 'string' ? g.__BENNE_PLAY_MEDIA_BASE__ : undefined;
+if (typeof raw === 'string' && raw.trim().length > 0) {
+  setBenneWebviewPlayAssetBase(raw);
+}
+</file>
 
 <file path="src/editor/preview/characterEditorMain.ts">
 import type { Game } from 'phaser';
@@ -1655,6 +1662,53 @@ export function setupCharacterAsepritePlayback(
 }
 </file>
 
+<file path="src/engine/dialog/dialogDefinitionRegistry.ts">
+import type { Dialog, DialogOption } from '../../types/dialogue.js';
+
+const definitions = new Map<string, Dialog>();
+
+function normalizeOption(raw: DialogOption): DialogOption {
+  return {
+    id: raw.id,
+    text: raw.text,
+    enabled: raw.enabled !== false,
+    used: raw.used === true,
+    say: raw.say !== false,
+  };
+}
+
+/** Register a validated dialog definition (from eager-loaded `*.dialog.json`). */
+export function registerDialogDefinition(data: Dialog): void {
+  const guiId = data.guiId?.trim() || 'dialog';
+  definitions.set(data.id, {
+    ...data,
+    guiId,
+    options: data.options.map(normalizeOption),
+  });
+}
+
+export function getDialogDefinition(dialogId: string): Dialog | undefined {
+  return definitions.get(dialogId);
+}
+
+export function getRegisteredDialogDefinitionIds(): string[] {
+  return [...definitions.keys()].sort((a, b) => a.localeCompare(b));
+}
+
+/** GUI overlay ids reserved for the choice-dialog system (`dialog` plus any per-definition `guiId`). */
+export function getRegisteredDialogChoiceGuiIds(): string[] {
+  const ids = new Set<string>(['dialog']);
+  for (const id of getRegisteredDialogDefinitionIds()) {
+    const d = definitions.get(id);
+    const g = d?.guiId?.trim();
+    if (g && g.length > 0) {
+      ids.add(g);
+    }
+  }
+  return [...ids].sort((a, b) => a.localeCompare(b));
+}
+</file>
+
 <file path="src/engine/dialog/dialogOptionVariables.ts">
 import type { Dialog } from '../../types/dialogue.js';
 import type { GameStateManager } from '../gameState/GameStateManager.js';
@@ -1808,6 +1862,214 @@ export function guiControlMouseEnterEventId(guiId: string, controlId: string): s
 /** `gui:<guiId>:control:<controlId>:mouseleave` — pointer left a GUI control’s hit area. */
 export function guiControlMouseLeaveEventId(guiId: string, controlId: string): string {
   return `${GUI_PREFIX}${guiId}:control:${controlId}:mouseleave`;
+}
+</file>
+
+<file path="src/engine/events/inventoryOnVerbEvents.ts">
+import type { Point2 } from '../../types/room';
+import type { VerbInteractTarget } from './verbInteractionEvents';
+
+const VERB_ROOM_PREFIX = 'verb:room:';
+
+/**
+ * When inventory use-on-target (room object or another inventory row) has no room- or
+ * per-target global handler, the engine emits this if a listener exists; otherwise
+ * the interaction is a no-op from the bus’s point of view.
+ */
+export const INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT = 'verb:global:inventoryOnVerbTarget:unhandled';
+
+/** `verb:room:<roomId>:inventoryOnProp:<propId>:<sourceItemId>` — one listener per armed item. */
+export function roomInventoryOnPropEventId(roomId: string, propId: string, itemId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnProp:${propId}:${itemId}`;
+}
+
+/** `verb:inventoryOnProp:<propId>:<sourceItemId>` — global fallback after no room-scoped listener. */
+export function globalInventoryOnPropEventId(propId: string, itemId: string): string {
+  return `verb:inventoryOnProp:${propId}:${itemId}`;
+}
+
+/** Room: armed item id is arbitrary — filter inside the handler via {@link AnyInventoryUsedOnPayload}'s `itemId`. */
+export function roomInventoryOnPropAnySourceEventId(roomId: string, propId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnPropAny:${propId}`;
+}
+
+export function globalInventoryOnPropAnySourceEventId(propId: string): string {
+  return `verb:inventoryOnPropAny:${propId}`;
+}
+
+/** `verb:room:<roomId>:inventoryOnHotspot:<hotspotId>:<sourceItemId>` */
+export function roomInventoryOnHotspotEventId(roomId: string, hotspotId: string, itemId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnHotspot:${hotspotId}:${itemId}`;
+}
+
+/** `verb:inventoryOnHotspot:<hotspotId>:<sourceItemId>` */
+export function globalInventoryOnHotspotEventId(hotspotId: string, itemId: string): string {
+  return `verb:inventoryOnHotspot:${hotspotId}:${itemId}`;
+}
+
+export function roomInventoryOnHotspotAnySourceEventId(roomId: string, hotspotId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnHotspotAny:${hotspotId}`;
+}
+
+export function globalInventoryOnHotspotAnySourceEventId(hotspotId: string): string {
+  return `verb:inventoryOnHotspotAny:${hotspotId}`;
+}
+
+/** `verb:room:<roomId>:inventoryOnCharacter:<characterId>:<sourceItemId>` */
+export function roomInventoryOnCharacterEventId(roomId: string, characterId: string, itemId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnCharacter:${characterId}:${itemId}`;
+}
+
+/** `verb:inventoryOnCharacter:<characterId>:<sourceItemId>` */
+export function globalInventoryOnCharacterEventId(characterId: string, itemId: string): string {
+  return `verb:inventoryOnCharacter:${characterId}:${itemId}`;
+}
+
+export function roomInventoryOnCharacterAnySourceEventId(roomId: string, characterId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnCharacterAny:${characterId}`;
+}
+
+export function globalInventoryOnCharacterAnySourceEventId(characterId: string): string {
+  return `verb:inventoryOnCharacterAny:${characterId}`;
+}
+
+/** `verb:room:<roomId>:inventoryOnInventoryItem:<targetItemId>:<sourceItemId>` */
+export function roomInventoryOnInventoryItemEventId(
+  roomId: string,
+  targetItemId: string,
+  sourceItemId: string,
+): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnInventoryItem:${targetItemId}:${sourceItemId}`;
+}
+
+/** `verb:inventoryOnInventoryItem:<targetItemId>:<sourceItemId>` */
+export function globalInventoryOnInventoryItemEventId(targetItemId: string, sourceItemId: string): string {
+  return `verb:inventoryOnInventoryItem:${targetItemId}:${sourceItemId}`;
+}
+
+/** Row target only — armed source item id is in {@link InventoryUsedOnInventoryItemPayload} as **`itemId`**. */
+export function roomInventoryOnInventoryRowEventId(roomId: string, targetItemId: string): string {
+  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnInventoryRow:${targetItemId}`;
+}
+
+export function globalInventoryOnInventoryRowEventId(targetItemId: string): string {
+  return `verb:inventoryOnInventoryRow:${targetItemId}`;
+}
+
+export interface InventoryUsedOnPropPayload {
+  targetType: 'prop';
+  itemId: string;
+  verbId: string;
+  roomId: string;
+  propId: string;
+  tag: string;
+  description?: string;
+  walkToPoint?: Point2;
+  lookAtPoint?: Point2;
+}
+
+export interface InventoryUsedOnHotspotPayload {
+  targetType: 'hotspot';
+  itemId: string;
+  verbId: string;
+  roomId: string;
+  hotspotId: string;
+  description?: string;
+  walkToPoint?: Point2;
+  lookAtPoint?: Point2;
+}
+
+export interface InventoryUsedOnCharacterPayload {
+  targetType: 'character';
+  itemId: string;
+  verbId: string;
+  roomId: string;
+  characterId: string;
+  instanceId: string;
+  description?: string;
+  walkToPoint?: Point2;
+  talkPoint?: Point2;
+}
+
+/** `itemId` is the **source** (armed) item; the row clicked is `targetItemId`. */
+export interface InventoryUsedOnInventoryItemPayload {
+  targetType: 'inventoryItem';
+  itemId: string;
+  verbId: string;
+  roomId: string;
+  targetItemId: string;
+  description?: string;
+}
+
+export type AnyInventoryUsedOnPayload =
+  | InventoryUsedOnPropPayload
+  | InventoryUsedOnHotspotPayload
+  | InventoryUsedOnCharacterPayload
+  | InventoryUsedOnInventoryItemPayload;
+
+export function buildInventoryUsedOnPayload(
+  target: VerbInteractTarget,
+  itemId: string,
+  verbId: string,
+): AnyInventoryUsedOnPayload {
+  switch (target.type) {
+    case 'prop':
+      return {
+        targetType: 'prop',
+        itemId,
+        verbId,
+        roomId: target.roomId,
+        propId: target.propId,
+        tag: target.tag,
+        description: target.description,
+        ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
+        ...(target.lookAtPoint !== undefined ? { lookAtPoint: target.lookAtPoint } : {}),
+      };
+    case 'hotspot':
+      return {
+        targetType: 'hotspot',
+        itemId,
+        verbId,
+        roomId: target.roomId,
+        hotspotId: target.hotspotId,
+        description: target.description,
+        ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
+        ...(target.lookAtPoint !== undefined ? { lookAtPoint: target.lookAtPoint } : {}),
+      };
+    case 'character':
+      return {
+        targetType: 'character',
+        itemId,
+        verbId,
+        roomId: target.roomId,
+        characterId: target.characterId,
+        instanceId: target.instanceId,
+        description: target.description,
+        ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
+        ...(target.talkPoint !== undefined ? { talkPoint: target.talkPoint } : {}),
+      };
+    case 'inventoryItem':
+      throw new Error(
+        'buildInventoryUsedOnPayload: inventory GUI rows are not valid targets for inventory-on-world-object dispatch',
+      );
+  }
+}
+
+export function buildInventoryUsedOnInventoryItemPayload(
+  roomId: string,
+  sourceItemId: string,
+  targetItemId: string,
+  verbId: string,
+  description: string | undefined,
+): InventoryUsedOnInventoryItemPayload {
+  return {
+    targetType: 'inventoryItem',
+    itemId: sourceItemId,
+    verbId,
+    roomId,
+    targetItemId,
+    ...(description !== undefined && description.length > 0 ? { description } : {}),
+  };
 }
 </file>
 
@@ -3445,6 +3707,195 @@ export function createRoomScriptContext(
 }
 </file>
 
+<file path="src/engine/verbs/dispatchInventoryOnVerbTarget.ts">
+import { getGameSettings } from '../ConfigManager';
+import type { EventBus } from '../events/EventBus';
+import { interruptPlayerWalkForVerbInteraction } from '../scenes/interruptPlayerWalkForVerbInteraction.js';
+import {
+  INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT,
+  buildInventoryUsedOnInventoryItemPayload,
+  buildInventoryUsedOnPayload,
+  globalInventoryOnCharacterAnySourceEventId,
+  globalInventoryOnCharacterEventId,
+  globalInventoryOnHotspotAnySourceEventId,
+  globalInventoryOnHotspotEventId,
+  globalInventoryOnInventoryItemEventId,
+  globalInventoryOnInventoryRowEventId,
+  globalInventoryOnPropAnySourceEventId,
+  globalInventoryOnPropEventId,
+  roomInventoryOnCharacterAnySourceEventId,
+  roomInventoryOnCharacterEventId,
+  roomInventoryOnHotspotAnySourceEventId,
+  roomInventoryOnHotspotEventId,
+  roomInventoryOnInventoryItemEventId,
+  roomInventoryOnInventoryRowEventId,
+  roomInventoryOnPropAnySourceEventId,
+  roomInventoryOnPropEventId,
+  type AnyInventoryUsedOnPayload,
+} from '../events/inventoryOnVerbEvents';
+import type { VerbInteractTarget } from '../events/verbInteractionEvents';
+import type { GameStateManager } from '../gameState/GameStateManager';
+import type { GameSettings } from '../../types/game';
+import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
+import type { PointerVerbResolution } from './resolvePointerVerb';
+import { resolveEffectiveUseVerbId } from './verbConfig';
+
+function listenerCount(bus: EventBus, event: string): number {
+  return bus.listeners(event).length;
+}
+
+/** Per-source handlers first (`…:inventoryOnProp:id:knife`), then target-wide scripts (`inventoryOnPropAny`). */
+function tryEmitInventoryUsedOnFiveTier(
+  bus: EventBus,
+  roomSourceSpecific: string,
+  roomAnySource: string,
+  globalSourceSpecific: string,
+  globalAnySource: string,
+  payload: AnyInventoryUsedOnPayload,
+): boolean {
+  if (listenerCount(bus, roomSourceSpecific) > 0) {
+    bus.emit(roomSourceSpecific, payload);
+    return true;
+  }
+  if (listenerCount(bus, roomAnySource) > 0) {
+    bus.emit(roomAnySource, payload);
+    return true;
+  }
+  if (listenerCount(bus, globalSourceSpecific) > 0) {
+    bus.emit(globalSourceSpecific, payload);
+    return true;
+  }
+  if (listenerCount(bus, globalAnySource) > 0) {
+    bus.emit(globalAnySource, payload);
+    return true;
+  }
+  if (listenerCount(bus, INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT) > 0) {
+    bus.emit(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, payload);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * When an active inventory item is set and the pointer resolves to the effective **use** verb or the current
+ * **active verb**, dispatch uses inventory-on-target channels instead of {@link dispatchVerbInteraction}.
+ */
+export function shouldDispatchInventoryUsedOnVerb(
+  manager: GameStateManager,
+  settings: GameSettings,
+  verbId: string,
+  resolution: PointerVerbResolution,
+): boolean {
+  if (resolution.kind !== 'verb') {
+    return false;
+  }
+  const itemId = manager.getActiveInventoryItemId();
+  if (itemId == null) {
+    return false;
+  }
+  const useVerbId = resolveEffectiveUseVerbId(settings);
+  if (verbId === useVerbId) {
+    return true;
+  }
+  const active = manager.getActiveVerb();
+  return active !== null && verbId === active;
+}
+
+/**
+ * Room-scoped inventory-on-target event first, then global fallback (same precedence idea as
+ * {@link import('./dispatchInventoryVerb.js').dispatchInventoryVerbInteraction} / character verbs).
+ */
+export function dispatchInventoryOnVerbTargetInteraction(
+  bus: EventBus,
+  itemId: string,
+  verbId: string,
+  target: VerbInteractTarget,
+): boolean {
+  interruptPlayerWalkForVerbInteraction();
+  if (target.type === 'inventoryItem') {
+    return false;
+  }
+  const payload = buildInventoryUsedOnPayload(target, itemId, verbId);
+
+  switch (target.type) {
+    case 'prop': {
+      const roomScoped = roomInventoryOnPropEventId(target.roomId, target.propId, itemId);
+      const roomAny = roomInventoryOnPropAnySourceEventId(target.roomId, target.propId);
+      const globalScoped = globalInventoryOnPropEventId(target.propId, itemId);
+      const globalAny = globalInventoryOnPropAnySourceEventId(target.propId);
+      return tryEmitInventoryUsedOnFiveTier(bus, roomScoped, roomAny, globalScoped, globalAny, payload);
+    }
+    case 'hotspot': {
+      const roomScoped = roomInventoryOnHotspotEventId(target.roomId, target.hotspotId, itemId);
+      const roomAny = roomInventoryOnHotspotAnySourceEventId(target.roomId, target.hotspotId);
+      const globalScoped = globalInventoryOnHotspotEventId(target.hotspotId, itemId);
+      const globalAny = globalInventoryOnHotspotAnySourceEventId(target.hotspotId);
+      return tryEmitInventoryUsedOnFiveTier(bus, roomScoped, roomAny, globalScoped, globalAny, payload);
+    }
+    case 'character': {
+      const roomScoped = roomInventoryOnCharacterEventId(target.roomId, target.characterId, itemId);
+      const roomAny = roomInventoryOnCharacterAnySourceEventId(target.roomId, target.characterId);
+      const globalScoped = globalInventoryOnCharacterEventId(target.characterId, itemId);
+      const globalAny = globalInventoryOnCharacterAnySourceEventId(target.characterId);
+      return tryEmitInventoryUsedOnFiveTier(bus, roomScoped, roomAny, globalScoped, globalAny, payload);
+    }
+  }
+}
+
+/**
+ * Inventory panel: **source** item (armed) used on **target** item row. Same room/global precedence as
+ * {@link dispatchInventoryOnVerbTargetInteraction}.
+ */
+export function dispatchInventoryOnInventoryItemInteraction(
+  bus: EventBus,
+  sourceItemId: string,
+  verbId: string,
+  targetItemId: string,
+  roomId: string,
+  description: string | undefined,
+): boolean {
+  interruptPlayerWalkForVerbInteraction();
+  const payload = buildInventoryUsedOnInventoryItemPayload(
+    roomId,
+    sourceItemId,
+    targetItemId,
+    verbId,
+    description,
+  );
+  const roomScoped = roomInventoryOnInventoryItemEventId(roomId, targetItemId, sourceItemId);
+  const roomRow = roomInventoryOnInventoryRowEventId(roomId, targetItemId);
+  const globalScoped = globalInventoryOnInventoryItemEventId(targetItemId, sourceItemId);
+  const globalRow = globalInventoryOnInventoryRowEventId(targetItemId);
+  return tryEmitInventoryUsedOnFiveTier(bus, roomScoped, roomRow, globalScoped, globalRow, payload);
+}
+
+/** Convenience for call sites that already read {@link getGameSettings}. */
+export function shouldDispatchInventoryUsedOnVerbForGame(
+  manager: GameStateManager,
+  verbId: string,
+  resolution: PointerVerbResolution,
+): boolean {
+  return shouldDispatchInventoryUsedOnVerb(manager, getGameSettings(), verbId, resolution);
+}
+
+/**
+ * Resolves whether the **active inventory selection** should be "dropped" (active inventory +
+ * active verb both cleared) after `itemId` is used on a clickable target.
+ *
+ * Precedence:
+ * 1. Item's **`dropWhenUsed`** (from `*.inventory.json`) — when defined, wins.
+ * 2. Global **`dropWhenInventoryUsed`** from `game-config.json`.
+ * 3. Default **`false`** (stay armed so the player can use the same item on several targets).
+ */
+export function shouldDropActiveInventoryOnUse(itemId: string): boolean {
+  const def = getInventoryDefinition(itemId);
+  if (def?.dropWhenUsed !== undefined) {
+    return def.dropWhenUsed;
+  }
+  return getGameSettings().dropWhenInventoryUsed ?? false;
+}
+</file>
+
 <file path="src/engine/verbs/dispatchInventoryVerb.ts">
 import type { GameSettings } from '../../types/game.js';
 import type { EventBus } from '../events/EventBus';
@@ -4705,6 +5156,58 @@ export function loadRoomDataById(roomId: string): RoomData {
 }
 </file>
 
+<file path="src/game/loadStartRoom.ts">
+import { getGameSettings } from '../engine/ConfigManager';
+import type { RoomsManifestData } from '../types/game';
+import type { RoomData } from '../types/room';
+import manifestJson from './rooms/rooms.manifest.json';
+
+const roomJsonModules = import.meta.glob('./rooms/**/*.room.json', { eager: true }) as Record<
+  string,
+  { default: RoomData }
+>;
+
+function runtimeStartRoomOverride(): string | undefined {
+  const injected = (globalThis as { __BENNE_START_ROOM_ID?: unknown }).__BENNE_START_ROOM_ID;
+  if (typeof injected === 'string' && injected.trim().length > 0) {
+    return injected.trim();
+  }
+
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const queryRoomId = params.get('startRoomId') ?? params.get('roomId');
+  return queryRoomId && queryRoomId.trim().length > 0 ? queryRoomId.trim() : undefined;
+}
+
+/**
+ * Resolves the start room from `game-config.json` (`startingRoomId`) when set, otherwise
+ * `startRoomId` in `rooms.manifest.json`.
+ */
+export function loadStartRoomData(): RoomData {
+  const manifest = manifestJson as RoomsManifestData;
+  const startRoomId = runtimeStartRoomOverride() ?? getGameSettings().startingRoomId ?? manifest.startRoomId;
+  const entry = manifest.rooms.find((r) => r.id === startRoomId);
+
+  if (!entry) {
+    throw new Error(`Start room '${startRoomId}' missing from rooms manifest.`);
+  }
+
+  const key = `./rooms/${entry.definition}`;
+  const mod = roomJsonModules[key];
+
+  if (!mod) {
+    throw new Error(
+      `Room JSON not found for manifest entry '${entry.definition}' (expected glob key '${key}'). Keys: ${Object.keys(roomJsonModules).join(', ')}`,
+    );
+  }
+
+  return mod.default;
+}
+</file>
+
 <file path="src/game/normalizeAsepriteJson.ts">
 /**
  * Phaser's AnimationManager#createFromAseprite expects `frames` keys to be "0", "1", "2", …
@@ -4770,6 +5273,89 @@ export function queueGuiFontsForBootLoader(loader: Phaser.Loader.LoaderPlugin): 
     } catch (e) {
       console.error(`[Benne] Failed to resolve bitmap font files for id "${fontId}":`, e);
     }
+  }
+}
+</file>
+
+<file path="src/game/registerDialogDefinitions.ts">
+import type { Dialog, DialogOption } from '../types/dialogue.js';
+import { registerDialogDefinition } from '../engine/dialog/dialogDefinitionRegistry.js';
+
+function rawJsonFromModule(mod: { default?: unknown } | Record<string, unknown>): unknown {
+  if (mod && typeof mod === 'object' && 'default' in mod) {
+    return (mod as { default?: unknown }).default;
+  }
+  return mod;
+}
+
+function isDialogOption(value: unknown): value is DialogOption {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const o = value as Record<string, unknown>;
+  if (typeof o.id !== 'string' || o.id.length === 0) {
+    return false;
+  }
+  if (typeof o.text !== 'string') {
+    return false;
+  }
+  if (o.enabled !== undefined && typeof o.enabled !== 'boolean') {
+    return false;
+  }
+  if (o.used !== undefined && typeof o.used !== 'boolean') {
+    return false;
+  }
+  if (o.say !== undefined && typeof o.say !== 'boolean') {
+    return false;
+  }
+  return true;
+}
+
+function isDialog(value: unknown): value is Dialog {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const o = value as Record<string, unknown>;
+  if (typeof o.id !== 'string' || o.id.length === 0) {
+    return false;
+  }
+  if (o.displayName !== undefined && typeof o.displayName !== 'string') {
+    return false;
+  }
+  if (o.guiId !== undefined && typeof o.guiId !== 'string') {
+    return false;
+  }
+  if (!Array.isArray(o.options)) {
+    return false;
+  }
+  for (const opt of o.options) {
+    if (!isDialogOption(opt)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Eager-loads dialog JSON modules under `./dialogs/` into the engine registry (before gameplay). */
+export function registerDialogDefinitionsFromGame(): void {
+  const modules = import.meta.glob('./dialogs/**/*.dialog.json', {
+    eager: true,
+  }) as Record<string, { default?: unknown } | Record<string, unknown>>;
+
+  for (const [path, mod] of Object.entries(modules)) {
+    const raw = rawJsonFromModule(mod);
+    if (!isDialog(raw)) {
+      console.error(`[Benne] Invalid dialog JSON shape at ${path}`);
+      continue;
+    }
+    const m = path.match(/\.\/dialogs\/([^/]+)\//);
+    const folderId = m?.[1];
+    if (folderId && folderId !== raw.id) {
+      console.warn(
+        `[Benne] Dialog folder "${folderId}" does not match JSON id "${raw.id}" (${path}) - definition still registered.`,
+      );
+    }
+    registerDialogDefinition(raw);
   }
 }
 </file>
@@ -4930,6 +5516,52 @@ const game = createBenneGame(parent);
 wireBenneGlobalScripts(game, gameEvents);
 </file>
 
+<file path="src/types/dialogue.ts">
+export interface DialogueLine {
+  speaker?: string;
+  text: string;
+}
+
+export interface DialogueNode {
+  id: string;
+  lines: DialogueLine[];
+  choices?: { text: string; nextNodeId: string }[];
+}
+
+export interface DialogueTree {
+  id: string;
+  startNodeId: string;
+  nodes: Record<string, DialogueNode>;
+}
+
+/** One line in a SCUMM-style topic / reply list (see `*.dialog.json`). */
+export interface DialogOption {
+  id: string;
+  text: string;
+  /** When omitted in JSON, treated as `true`. */
+  enabled?: boolean;
+  /** When omitted in JSON, treated as `false` (runtime may persist via game state variables). */
+  used?: boolean;
+  /**
+   * When `true` (default), the player speaks {@link text} before the option’s `whenChoice` handler runs.
+   * Set to `false` to run the handler without an automatic player line.
+   */
+  say?: boolean;
+}
+
+/**
+ * First-class dialog definition (classic SCUMM / AGS-style topic UI).
+ * Options may be toggled at runtime via {@link import('../engine/scripting/DialogBenneScript.js').DialogBenneScript}.
+ */
+export interface Dialog {
+  id: string;
+  displayName?: string;
+  options: DialogOption[];
+  /** GUI overlay id; defaults to `"dialog"` when omitted. */
+  guiId?: string;
+}
+</file>
+
 <file path="src/types/fonts.ts">
 /**
  * Bitmap font registry in `src/game/assets/fonts/fonts.json`.
@@ -5028,13 +5660,96 @@ export default defineConfig({
 });
 </file>
 
-<file path="src/editor/play/configureBennePlayWebviewAssets.ts">
-import { setBenneWebviewPlayAssetBase } from '../../game/resolveGameAssetUrl';
+<file path="package.json">
+{
+  "name": "benne",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:room-preview": "tsc && vite build --config vite.room-preview.config.ts",
+    "build:character-preview": "tsc && vite build --config vite.character-preview.config.ts",
+    "build:gui-preview": "tsc && vite build --config vite.gui-preview.config.ts",
+    "build:inventory-preview": "tsc && vite build --config vite.inventory-preview.config.ts",
+    "build:benne-play": "tsc && vite build --config vite.benne-play.config.ts",
+    "watch:benne-play": "vite build --watch --config vite.benne-play.config.ts",
+    "preview": "vite preview",
+    "sync-bootstrap-down": "node scripts/switch-game-template.mjs sync-bootstrap-down",
+    "sync-template-down": "node scripts/switch-game-template.mjs sync-template-down",
+    "set-template": "node scripts/switch-game-template.mjs set-template",
+    "set-template:2-click": "node scripts/switch-game-template.mjs set-template 2-click",
+    "set-template:9-verb": "node scripts/switch-game-template.mjs set-template 9-verb"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1"
+  },
+  "dependencies": {
+    "phaser": "4.0.0-rc.7"
+  }
+}
+</file>
 
-const g = globalThis as { __BENNE_PLAY_MEDIA_BASE__?: string };
-const raw = typeof g.__BENNE_PLAY_MEDIA_BASE__ === 'string' ? g.__BENNE_PLAY_MEDIA_BASE__ : undefined;
-if (typeof raw === 'string' && raw.trim().length > 0) {
-  setBenneWebviewPlayAssetBase(raw);
+<file path="src/editor/play/bennePlayMain.ts">
+import './configureBennePlayWebviewAssets';
+import { createBenneGame } from '../../engine/Game';
+import { gameEvents } from '../../engine/events/EventBus';
+import { tryGetActiveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
+import { getRegisteredInventoryDefinitionIds } from '../../engine/inventory/inventoryDefinitionRegistry';
+import { wireBenneGlobalScripts } from '../../engine/scripting/wireBenneGlobalScripts';
+import { registerGameContent } from '../../game/registerGameContent';
+
+const parent = document.querySelector<HTMLElement>('#game-container');
+if (!parent) {
+  throw new Error('Missing #game-container');
+}
+
+registerGameContent();
+const game = createBenneGame(parent);
+wireBenneGlobalScripts(game, gameEvents);
+setupBennePlayInventoryToolbar();
+
+function setupBennePlayInventoryToolbar(): void {
+  const select = document.querySelector<HTMLSelectElement>('#benne-play-inventory-select');
+  const giveBtn = document.querySelector<HTMLButtonElement>('#benne-play-give-inventory');
+  if (!select || !giveBtn) {
+    return;
+  }
+
+  const ids = getRegisteredInventoryDefinitionIds();
+  select.replaceChildren();
+  if (ids.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '(no inventory items)';
+    opt.disabled = true;
+    opt.selected = true;
+    select.append(opt);
+    select.disabled = true;
+    giveBtn.disabled = true;
+    return;
+  }
+
+  for (const id of ids) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = id;
+    select.append(opt);
+  }
+
+  giveBtn.addEventListener('click', () => {
+    const itemId = select.value;
+    if (itemId.length === 0) {
+      return;
+    }
+    const mgr = tryGetActiveGameStateManager();
+    if (!mgr) {
+      return;
+    }
+    void mgr.addInventory(itemId, 1);
+  });
 }
 </file>
 
@@ -5788,6 +6503,996 @@ class GuiVisibilityBridgeImpl {
 }
 
 export const guiVisibilityBridge = new GuiVisibilityBridgeImpl();
+</file>
+
+<file path="src/editor/preview/roomEditorMain.ts">
+import type { Game } from 'phaser';
+import type { RoomScene } from '../../engine/scenes/RoomScene';
+import type { RoomData } from '../../types/room';
+import { SCENE_ROOM } from '../../game/constants';
+import { buildPreviewManifest } from './buildPreviewManifest';
+import { createRoomPreviewPhaserGame } from './createRoomPreviewGame';
+import { guiVisibilityBridge } from './guiVisibilityBridge';
+import { polygonEditBridge } from './polygonEditBridge';
+import type { RoomPolygonPatch } from './polygonPatchTypes';
+import { registerInventoryDefinitionsFromGame } from '../../game/registerInventoryDefinitions';
+
+// Mirror the GUI preview bundle: populate the engine's inventory registry so the room preview can
+// queue `inventoryPanel` Aseprite sheets and honour `stackable` semantics for any Bennescript code
+// that happens to run during preview.
+registerInventoryDefinitionsFromGame();
+
+declare function acquireVsCodeApi(): {
+    postMessage(data: unknown): void;
+    getState<T = unknown>(): T | undefined;
+    setState<T = unknown>(state: T): void;
+};
+
+type PreviewWebviewState = {
+    showGuis?: boolean;
+};
+
+const MIN_POLY_POINTS = 3;
+
+let game: Game | null = null;
+let vscodeApi: ReturnType<typeof acquireVsCodeApi> | null = null;
+let currentRoomJsonUri = '';
+/** Latest room from the host; used for `toolbarUi` updates without reloading Phaser. */
+let lastLoadedRoom: RoomData | null = null;
+
+type PreviewToolbarPayload =
+    | { previewFocus: 'room' }
+    | { previewFocus: 'walkable'; walkablePolygonId: string; walkableHoleId: string }
+    | { previewFocus: 'roomSize' }
+    | { previewFocus: 'scrollBounds' }
+    | { previewFocus: 'prop'; propColliderId: string }
+    | { previewFocus: 'hotspot'; hotspotId: string }
+    | { previewFocus: 'region'; regionId: string }
+    | { previewFocus: 'roomPoint'; roomPointId: string };
+
+function parsePreviewToolbarPayload(msg: {
+    previewFocus?: string;
+    propColliderId?: string;
+    hotspotId?: string;
+    regionId?: string;
+    roomPointId?: string;
+    walkablePolygonId?: string;
+    walkableHoleId?: string;
+}): PreviewToolbarPayload {
+    if (
+        msg.previewFocus === 'prop' &&
+        typeof msg.propColliderId === 'string' &&
+        msg.propColliderId.length > 0
+    ) {
+        return { previewFocus: 'prop', propColliderId: msg.propColliderId };
+    }
+    if (
+        msg.previewFocus === 'hotspot' &&
+        typeof msg.hotspotId === 'string' &&
+        msg.hotspotId.length > 0
+    ) {
+        return { previewFocus: 'hotspot', hotspotId: msg.hotspotId };
+    }
+    if (
+        msg.previewFocus === 'region' &&
+        typeof msg.regionId === 'string' &&
+        msg.regionId.length > 0
+    ) {
+        return { previewFocus: 'region', regionId: msg.regionId };
+    }
+    if (
+        msg.previewFocus === 'roomPoint' &&
+        typeof msg.roomPointId === 'string' &&
+        msg.roomPointId.length > 0
+    ) {
+        return { previewFocus: 'roomPoint', roomPointId: msg.roomPointId };
+    }
+    if (
+        msg.previewFocus === 'walkable' &&
+        typeof msg.walkablePolygonId === 'string' &&
+        msg.walkablePolygonId.length > 0
+    ) {
+        const hid = typeof msg.walkableHoleId === 'string' ? msg.walkableHoleId : '';
+        return { previewFocus: 'walkable', walkablePolygonId: msg.walkablePolygonId, walkableHoleId: hid };
+    }
+    if (msg.previewFocus === 'roomSize') {
+        return { previewFocus: 'roomSize' };
+    }
+    if (msg.previewFocus === 'scrollBounds') {
+        return { previewFocus: 'scrollBounds' };
+    }
+    return { previewFocus: 'room' };
+}
+
+function propColliderLabel(room: RoomData, propId: string): string {
+    const p = room.props?.find((x) => x.id === propId);
+    if (!p) {
+        return propId;
+    }
+    return p.tag ? `${p.tag} (${propId})` : propId;
+}
+
+function hotspotToolbarLabel(room: RoomData, hotspotId: string): string {
+    const h = room.hotspots?.find((x) => x.id === hotspotId);
+    if (!h) {
+        return hotspotId;
+    }
+    if (h.description && h.description.trim()) {
+        return `${h.description.trim()} (${hotspotId})`;
+    }
+    return hotspotId;
+}
+
+
+/** Collider authoring is only for interactive props (matches runtime expectations). */
+function isPropColliderEditable(room: RoomData, propId: string): boolean {
+    const p = room.props?.find((x) => x.id === propId);
+    return p?.clickable === true;
+}
+
+/** Bumps on each `loadRoom` so stale `buildPreviewManifest` completions (e.g. double save) cannot create a game after a newer load cleared the DOM. */
+let loadRoomGeneration = 0;
+
+try {
+    vscodeApi = acquireVsCodeApi();
+} catch {
+    /* not inside a VS Code webview */
+}
+
+/**
+ * Rehydrate the "Show GUIs" toggle from webview state (`vscode.getState()`) on first load. Default
+ * off: polygon / walkable authoring usually wants a clean view, and authors opt in per the confirmed
+ * UX (`docs/architecture.md` room preview spec).
+ */
+(function loadPersistedGuiVisibility(): void {
+    try {
+        const s = vscodeApi?.getState<PreviewWebviewState>();
+        if (s && typeof s.showGuis === 'boolean') {
+            guiVisibilityBridge.setVisible(s.showGuis);
+        }
+    } catch {
+        /* ignore — first ever load or unavailable state */
+    }
+})();
+
+function persistWebviewState(): void {
+    try {
+        vscodeApi?.setState<PreviewWebviewState>({ showGuis: guiVisibilityBridge.visible });
+    } catch {
+        /* ignore */
+    }
+}
+
+function wireShowGuisToggle(): void {
+    const input = document.getElementById('benne-show-guis-toggle') as HTMLInputElement | null;
+    if (!input || input.dataset.benneShowGuisWired === '1') {
+        return;
+    }
+    input.dataset.benneShowGuisWired = '1';
+    input.checked = guiVisibilityBridge.visible;
+    input.addEventListener('change', () => {
+        const next = !!input.checked;
+        guiVisibilityBridge.setVisible(next);
+        persistWebviewState();
+        applyGuiVisibilityToRunningScene(next);
+    });
+    // Keep the checkbox in sync when other code flips the bridge (e.g. future programmatic toggles).
+    guiVisibilityBridge.subscribe((visible) => {
+        if (input.checked !== visible) {
+            input.checked = visible;
+        }
+    });
+}
+
+function applyGuiVisibilityToRunningScene(visible: boolean): void {
+    if (!game) {
+        return;
+    }
+    const scene = game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
+    if (!scene || !scene.scene.isActive()) {
+        return;
+    }
+    scene.setGenericGuisVisible(visible);
+}
+
+function setStatus(text: string): void {
+    const el = document.getElementById('benne-polygon-status');
+    if (el) {
+        el.textContent = text;
+    }
+}
+
+/**
+ * Phaser queues `destroy` for a later step. We must not mount a new `Phaser.Game` on the same parent
+ * until teardown has had time to run. Listening for `game.events` "destroy" is unreliable in VS Code
+ * webviews when `requestAnimationFrame` is throttled, so we use a short timer instead.
+ */
+async function destroyPreviewGameAsync(): Promise<void> {
+    if (!game) {
+        return;
+    }
+    const g = game;
+    game = null;
+    try {
+        g.destroy(true);
+    } catch {
+        /* canvas may already be detached */
+    }
+    await new Promise<void>((resolve) => {
+        setTimeout(resolve, 150);
+    });
+}
+
+function clearPlayFromSelect(): void {
+    const sel = document.getElementById('benne-preview-play-from') as HTMLSelectElement | null;
+    if (!sel) {
+        return;
+    }
+    sel.innerHTML = '';
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = '(none)';
+    sel.appendChild(none);
+    sel.value = '';
+}
+
+function populatePlayFromFromHost(msg: HostPreviewMessage): void {
+    const sel = document.getElementById('benne-preview-play-from') as HTMLSelectElement | null;
+    if (!sel) {
+        return;
+    }
+    sel.innerHTML = '';
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = '(none)';
+    sel.appendChild(none);
+    const raw = msg.playFromNames;
+    const names = Array.isArray(raw)
+        ? raw.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+        : [];
+    for (const n of names) {
+        const opt = document.createElement('option');
+        opt.value = n.trim();
+        opt.textContent = n.trim();
+        sel.appendChild(opt);
+    }
+    sel.value = '';
+}
+
+function clearToolbar(): void {
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (bar) {
+        bar.innerHTML = '';
+    }
+    polygonEditBridge.setMode('navigate');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setWalkableEditTarget('', '');
+    clearPlayFromSelect();
+    setPlayFromHereButtonVisible(false);
+}
+
+/** Shown only in browse/navigate authoring mode (see {@link wireRoomNavigateToolbar}). */
+function setPlayFromHereButtonVisible(visible: boolean): void {
+    const wrap = document.getElementById('benne-preview-play-toolbar') as HTMLElement | null;
+    if (!wrap) {
+        return;
+    }
+    wrap.style.display = visible ? 'flex' : 'none';
+}
+
+function buildRoomNavigateToolbarHtml(): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.55;margin-top:4px;"></div>
+  `;
+}
+
+function walkableToolbarTitle(polygonId: string, holeId: string): string {
+    if (holeId.length > 0) {
+        return `Hole — ${polygonId} › ${holeId}`;
+    }
+    return `Walkable — ${polygonId}`;
+}
+
+function buildWalkableEditToolbarHtml(polygonId: string, holeId: string): string {
+    const title = walkableToolbarTitle(polygonId, holeId);
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">${escapeHtml(title)}</span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">New polygon: click ${MIN_POLY_POINTS} times to place vertices. Then double-click an edge to add more. Delete removes the selected vertex (min ${MIN_POLY_POINTS} points).</div>
+  `;
+}
+
+function buildRoomSizeToolbarHtml(): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;"><strong style="color:#e8ecff;">Room size</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the cyan handles to resize the room art canvas. The origin (top-left) is always 0,0. Press F to fit view. Save writes to room JSON.</div>
+  `;
+}
+
+function buildScrollBoundsToolbarHtml(): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;"><strong style="color:#e8ecff;">Scroll bounds</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the orange handles to set the camera scroll bounds — the area within which the camera pans. Press F to fit view. Save writes to room JSON.</div>
+  `;
+}
+
+function buildPropTreeToolbarHtml(propLabel: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Prop — <strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong> (collider, walk, look)</span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Collider (magenta), cyan <strong>Walk to</strong>, amber <strong>Look at</strong>. New collider: click ${MIN_POLY_POINTS} times, then double-click edges. Delete removes a selected collider vertex only.</div>
+  `;
+}
+
+function buildHotspotToolbarHtml(label: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Hotspot — <strong style="color:#e8ecff;">${escapeHtml(label)}</strong> (polygon, walk, look)</span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Orange polygon, cyan <strong>Walk to</strong>, amber <strong>Look at</strong>. Place ${MIN_POLY_POINTS}+ vertices like prop colliders; double-click an edge to add a vertex.</div>
+  `;
+}
+
+function buildRegionToolbarHtml(regionId: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Region — <strong style="color:#e8ecff;">${escapeHtml(regionId)}</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Green polygon. New shape: click ${MIN_POLY_POINTS} times, then double-click edges to add vertices. Delete removes a selected vertex (min ${MIN_POLY_POINTS}).</div>
+  `;
+}
+
+function buildRoomPointToolbarHtml(pointId: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Point — <strong style="color:#e8ecff;">${escapeHtml(pointId)}</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the handle to move this point. Save writes integer <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">x</code> / <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">y</code> to JSON.</div>
+  `;
+}
+
+function buildPropTreeNonClickableToolbarHtml(propLabel: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;"><strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong> — not clickable</span>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Collider editing is only available when <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">"clickable": true</code> is set on this prop in the room JSON.</div>
+  `;
+}
+
+/**
+ * Ensure `walkable.polygons` and arrays exist so toolbar wiring and Phaser never throw on partial JSON
+ * (e.g. unsaved edits) or odd structured-clone payloads from the host.
+ */
+function normalizeRoomForPreview(raw: unknown): RoomData {
+    const r =
+        raw && typeof raw === 'object' ? ({ ...(raw as Record<string, unknown>) } as Record<string, unknown>) : {};
+    const id = typeof r.id === 'string' && r.id.length > 0 ? r.id : 'room';
+    const name = typeof r.name === 'string' && r.name.length > 0 ? r.name : id;
+    let polygons: RoomData['walkable']['polygons'] = [];
+    const w = r.walkable;
+    if (w && typeof w === 'object') {
+        const polys = (w as { polygons?: unknown }).polygons;
+        if (Array.isArray(polys)) {
+            polygons = polys as RoomData['walkable']['polygons'];
+        }
+    }
+    r.id = id;
+    r.name = name;
+    r.walkable = { polygons };
+    r.hotspots = Array.isArray(r.hotspots) ? r.hotspots : [];
+    r.points = Array.isArray(r.points) ? r.points : [];
+    r.regions = Array.isArray(r.regions) ? r.regions : [];
+    r.props = Array.isArray(r.props) ? r.props : [];
+    r.characters = Array.isArray(r.characters) ? r.characters : [];
+    return r as unknown as RoomData;
+}
+
+function wireRoomNavigateToolbar(_room: RoomData): void {
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildRoomNavigateToolbarHtml();
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setMode('navigate');
+    setPlayFromHereButtonVisible(true);
+}
+
+function wireWalkableEditToolbar(room: RoomData, polygonId: string, holeId: string): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildWalkableEditToolbarHtml(polygonId, holeId);
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    const poly = room.walkable?.polygons?.find((p) => p.id === polygonId);
+    if (!poly) {
+        polygonEditBridge.setWalkableEditTarget('', '');
+        polygonEditBridge.setMode('navigate');
+        setStatus(`Walkable polygon "${polygonId}" not found in room JSON.`);
+        return;
+    }
+    if (holeId.length > 0) {
+        const hole = poly.holes?.find((h) => h.id === holeId);
+        if (!hole) {
+            polygonEditBridge.setWalkableEditTarget('', '');
+            polygonEditBridge.setMode('navigate');
+            setStatus(`Hole "${holeId}" not found under polygon "${polygonId}".`);
+            return;
+        }
+    }
+    polygonEditBridge.setWalkableEditTarget(polygonId, holeId);
+    polygonEditBridge.setMode('walkable');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireRoomSizeToolbar(_room: RoomData): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildRoomSizeToolbarHtml();
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setMode('roomSize');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireScrollBoundsToolbar(_room: RoomData): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildScrollBoundsToolbarHtml();
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setMode('scrollBounds');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wirePropTreeToolbarNonClickable(room: RoomData, propColliderId: string): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildPropTreeNonClickableToolbarHtml(propColliderLabel(room, propColliderId));
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setMode('navigate');
+}
+
+function wireHotspotToolbar(room: RoomData, hotspotId: string): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildHotspotToolbarHtml(hotspotToolbarLabel(room, hotspotId));
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setHotspotId(hotspotId);
+    polygonEditBridge.setMode('hotspotPolygon');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireRegionToolbar(_room: RoomData, regionId: string): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildRegionToolbarHtml(regionId);
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setRegionId(regionId);
+    polygonEditBridge.setMode('regionPolygon');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireRoomPointToolbar(_room: RoomData, roomPointId: string): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildRoomPointToolbarHtml(roomPointId);
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId(roomPointId);
+    polygonEditBridge.setMode('roomPoint');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wirePropTreeToolbar(room: RoomData, propColliderId: string): void {
+    if (!isPropColliderEditable(room, propColliderId)) {
+        wirePropTreeToolbarNonClickable(room, propColliderId);
+        return;
+    }
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildPropTreeToolbarHtml(propColliderLabel(room, propColliderId));
+
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setPropId(propColliderId);
+    polygonEditBridge.setMode('propCollider');
+
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireToolbarFromPreviewState(room: RoomData, preview: PreviewToolbarPayload): void {
+    if (preview.previewFocus === 'prop') {
+        wirePropTreeToolbar(room, preview.propColliderId);
+    } else if (preview.previewFocus === 'hotspot') {
+        wireHotspotToolbar(room, preview.hotspotId);
+    } else if (preview.previewFocus === 'region') {
+        wireRegionToolbar(room, preview.regionId);
+    } else if (preview.previewFocus === 'roomPoint') {
+        wireRoomPointToolbar(room, preview.roomPointId);
+    } else if (preview.previewFocus === 'walkable') {
+        wireWalkableEditToolbar(room, preview.walkablePolygonId, preview.walkableHoleId);
+    } else if (preview.previewFocus === 'roomSize') {
+        wireRoomSizeToolbar(room);
+    } else if (preview.previewFocus === 'scrollBounds') {
+        wireScrollBoundsToolbar(room);
+    } else {
+        wireRoomNavigateToolbar(room);
+    }
+}
+
+/** Sync Phaser registry room after disk save (integer-rounded points); avoids full game rebuild. */
+function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
+    if (!game) {
+        return;
+    }
+    const room = game.registry.get('bennePreviewRoom') as RoomData | undefined;
+    if (!room) {
+        return;
+    }
+    if (patch.kind === 'roomPoint') {
+        const p = room.points?.find((x) => x.id === patch.pointId);
+        if (p) {
+            p.x = patch.x;
+            p.y = patch.y;
+        }
+        return;
+    }
+    if (patch.kind === 'roomSize') {
+        room.size = { width: patch.width, height: patch.height };
+        // Re-sync camera so the edit-mode zoom adjusts to the new room dimensions.
+        polygonEditBridge.setMode(polygonEditBridge.mode);
+        return;
+    }
+    if (patch.kind === 'scrollBounds') {
+        room.scrollBounds = { x: patch.x, y: patch.y, width: patch.width, height: patch.height };
+        // Re-sync camera so the scroll bounds update takes effect.
+        polygonEditBridge.setMode(polygonEditBridge.mode);
+        return;
+    }
+    if (patch.kind === 'walkable') {
+        const src = patch.points;
+        const poly = room.walkable.polygons.find((p) => p.id === patch.polygonId);
+        if (!poly) {
+            return;
+        }
+        if (patch.holeId) {
+            let hole = poly.holes?.find((h) => h.id === patch.holeId);
+            if (!hole) {
+                if (!poly.holes) {
+                    poly.holes = [];
+                }
+                hole = { id: patch.holeId, active: true, points: [] };
+                poly.holes.push(hole);
+            }
+            if (!hole.points) {
+                hole.points = [];
+            }
+            const dest = hole.points;
+            if (dest.length === src.length) {
+                for (let i = 0; i < src.length; i++) {
+                    dest[i].x = src[i].x;
+                    dest[i].y = src[i].y;
+                }
+            } else {
+                hole.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
+            }
+            return;
+        }
+        if (poly.points.length === src.length) {
+            for (let i = 0; i < src.length; i++) {
+                poly.points[i].x = src[i].x;
+                poly.points[i].y = src[i].y;
+            }
+        } else {
+            poly.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
+        }
+        return;
+    }
+    if (patch.kind === 'regionPolygon') {
+        const src = patch.points;
+        const reg = room.regions?.find((r) => r.id === patch.regionId);
+        if (!reg) {
+            return;
+        }
+        if (reg.points.length === src.length) {
+            for (let i = 0; i < src.length; i++) {
+                reg.points[i].x = src[i].x;
+                reg.points[i].y = src[i].y;
+            }
+        } else {
+            reg.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
+        }
+        return;
+    }
+    if (patch.kind === 'hotspotPolygon') {
+        const src = patch.points;
+        const hs = room.hotspots?.find((h) => h.id === patch.hotspotId);
+        if (!hs) {
+            return;
+        }
+        if (!hs.points) {
+            hs.points = [];
+        }
+        const dest = hs.points;
+        if (dest.length === src.length) {
+            for (let i = 0; i < src.length; i++) {
+                dest[i].x = src[i].x;
+                dest[i].y = src[i].y;
+            }
+        } else {
+            hs.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
+        }
+        hs.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
+        hs.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
+        if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
+            (hs as { baseline?: number }).baseline = patch.baseline;
+        }
+        return;
+    }
+    const src = patch.points;
+    const prop = room.props?.find((p) => p.id === patch.propId);
+    if (!prop) {
+        return;
+    }
+    if (!prop.collider) {
+        prop.collider = { points: [] };
+    }
+    const dest = prop.collider.points;
+    if (dest.length === src.length) {
+        for (let i = 0; i < src.length; i++) {
+            dest[i].x = src[i].x;
+            dest[i].y = src[i].y;
+        }
+    } else {
+        prop.collider.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
+    }
+    prop.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
+    prop.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
+    if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
+        (prop as { baseline?: number }).baseline = patch.baseline;
+    }
+}
+
+function showError(text: string): void {
+    const root = document.getElementById('benne-preview-root');
+    if (root) {
+        root.innerHTML = `<p style="color:#f88;padding:12px;font-family:system-ui,sans-serif;font-size:13px;">${escapeHtml(
+            text,
+        )}</p>`;
+    }
+}
+
+function escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function resetToPlaceholder(): Promise<void> {
+    lastLoadedRoom = null;
+    clearToolbar();
+    await destroyPreviewGameAsync();
+    const root = document.getElementById('benne-preview-root');
+    if (root) {
+        root.innerHTML =
+            '<p style="color:#8892a6;padding:12px;font-family:system-ui,sans-serif;font-size:12px;">Select a room or prop to preview</p>';
+    }
+    currentRoomJsonUri = '';
+}
+
+/**
+ * Serialize `clear` / `error` / `loadRoom` so they never overlap. A fire-and-forget `clear` could
+ * otherwise finish after a concurrent `loadRoom` and wipe the canvas (e.g. after Refresh).
+ */
+let previewLifecycleChain: Promise<void> = Promise.resolve();
+
+function enqueuePreviewLifecycle(work: () => Promise<void>): void {
+    previewLifecycleChain = previewLifecycleChain
+        .then(() => work())
+        .catch((e) => {
+            console.error('[Benne preview] lifecycle', e);
+        });
+}
+
+type HostPreviewMessage = {
+    type?: string;
+    room?: RoomData;
+    gameSrcWebviewUri?: string;
+    roomJsonUri?: string;
+    playFromNames?: string[];
+    message?: string;
+    ok?: boolean;
+    appliedPatch?: RoomPolygonPatch;
+    previewFocus?: string;
+    propColliderId?: string;
+    hotspotId?: string;
+    regionId?: string;
+    roomPointId?: string;
+    walkablePolygonId?: string;
+    walkableHoleId?: string;
+};
+
+async function runPreviewError(msg: HostPreviewMessage): Promise<void> {
+    lastLoadedRoom = null;
+    await destroyPreviewGameAsync();
+    const root = document.getElementById('benne-preview-root');
+    if (root) {
+        root.innerHTML = '';
+    }
+    clearToolbar();
+    showError(msg.message ?? 'Preview error');
+}
+
+async function runLoadRoom(msg: HostPreviewMessage): Promise<void> {
+    if (!document.getElementById('benne-preview-root')?.parentElement) {
+        return;
+    }
+
+    if (!msg.room || !msg.gameSrcWebviewUri) {
+        showError('Missing room data or game root URI.');
+        return;
+    }
+
+    if (typeof msg.roomJsonUri !== 'string' || msg.roomJsonUri.length === 0) {
+        showError('Missing roomJsonUri (save to disk requires it).');
+        return;
+    }
+
+    const gen = ++loadRoomGeneration;
+    await destroyPreviewGameAsync();
+    if (gen !== loadRoomGeneration) {
+        return;
+    }
+
+    const root = document.getElementById('benne-preview-root');
+    if (!root) {
+        showError('Preview container missing.');
+        return;
+    }
+    root.innerHTML = '';
+    const stack = document.createElement('div');
+    stack.style.cssText = 'position:relative;width:100%;height:100%;min-height:0';
+    const phaserMount = document.createElement('div');
+    phaserMount.style.cssText = 'width:100%;height:100%';
+    stack.appendChild(phaserMount);
+    root.appendChild(stack);
+
+    let room: RoomData;
+    try {
+        room = normalizeRoomForPreview(msg.room);
+    } catch (e) {
+        showError(e instanceof Error ? e.message : String(e));
+        return;
+    }
+    currentRoomJsonUri = msg.roomJsonUri;
+    lastLoadedRoom = room;
+    populatePlayFromFromHost(msg);
+
+    try {
+        wireToolbarFromPreviewState(room, parsePreviewToolbarPayload(msg));
+    } catch (e) {
+        showError(
+            `Preview toolbar: ${e instanceof Error ? e.message : String(e)}`,
+        );
+        return;
+    }
+
+    try {
+        const manifest = await buildPreviewManifest(room, msg.gameSrcWebviewUri);
+        const onPolygonPatch = (patch: RoomPolygonPatch): void => {
+            vscodeApi?.postMessage({
+                type: 'benne/preview/polygonPatch',
+                roomJsonUri: currentRoomJsonUri,
+                patch,
+            });
+        };
+        game = createRoomPreviewPhaserGame(phaserMount, manifest, {
+            roomJsonUri: currentRoomJsonUri,
+            onPolygonPatch,
+            initialShowGuis: guiVisibilityBridge.visible,
+        });
+        vscodeApi?.postMessage({ type: 'benne/preview/roomLoadComplete', roomJsonUri: currentRoomJsonUri });
+    } catch (e) {
+        showError(e instanceof Error ? e.message : String(e));
+    }
+}
+
+window.addEventListener('message', (event: MessageEvent) => {
+    const msg = event.data as HostPreviewMessage;
+
+    if (msg?.type === 'benne/preview/polygonPatchResult') {
+        if (msg.ok && msg.appliedPatch) {
+            applyAppliedPatchToPreviewRoom(msg.appliedPatch);
+        }
+        setStatus(msg.ok ? 'Saved.' : `Error: ${msg.message ?? ''}`);
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/toolbarUi') {
+        if (!lastLoadedRoom) {
+            return;
+        }
+        wireToolbarFromPreviewState(lastLoadedRoom, parsePreviewToolbarPayload(msg));
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/inspectorFocus') {
+        if (!lastLoadedRoom) {
+            return;
+        }
+        wireToolbarFromPreviewState(lastLoadedRoom, parsePreviewToolbarPayload(msg));
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/clear') {
+        enqueuePreviewLifecycle(async () => {
+            await resetToPlaceholder();
+        });
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/error') {
+        enqueuePreviewLifecycle(async () => {
+            await runPreviewError(msg);
+        });
+        return;
+    }
+
+    if (msg?.type === 'benne/preview/loadRoom') {
+        enqueuePreviewLifecycle(async () => {
+            await runLoadRoom(msg);
+        });
+        return;
+    }
+});
+
+function wireRefreshPreviewButton(): void {
+    const btn = document.getElementById('benne-refresh-preview');
+    if (!btn || btn.dataset.benneRefreshWired === '1') {
+        return;
+    }
+    btn.dataset.benneRefreshWired = '1';
+    btn.addEventListener('click', () => {
+        vscodeApi?.postMessage({
+            type: 'benne/preview/requestRefresh',
+            roomJsonUri: currentRoomJsonUri,
+        });
+    });
+}
+
+function wirePlayFromHereButton(): void {
+    const btn = document.getElementById('benne-preview-play');
+    if (!btn || btn.dataset.bennePlayWired === '1') {
+        return;
+    }
+    btn.dataset.bennePlayWired = '1';
+    btn.addEventListener('click', () => {
+        const room = lastLoadedRoom;
+        if (!room || !currentRoomJsonUri) {
+            return;
+        }
+        const sel = document.getElementById('benne-preview-play-from') as HTMLSelectElement | null;
+        const raw = sel?.value?.trim() ?? '';
+        const playFromName = raw.length > 0 ? raw : undefined;
+        vscodeApi?.postMessage({
+            type: 'benne/preview/playFromHere',
+            roomJsonUri: currentRoomJsonUri,
+            roomId: room.id,
+            roomName: room.name,
+            ...(playFromName ? { playFromName } : {}),
+        });
+    });
+}
+
+wireRefreshPreviewButton();
+wirePlayFromHereButton();
+wireShowGuisToggle();
+vscodeApi?.postMessage({ type: 'benne/preview/ready' });
 </file>
 
 <file path="src/editor/preview/RoomPolygonEditScene.ts">
@@ -7331,94 +9036,43 @@ export function cameraFollowOffsetForFeet(feet: CharacterFeetLocal): { x: number
 }
 </file>
 
-<file path="src/engine/dialog/dialogDefinitionRegistry.ts">
-import type { Dialog, DialogOption } from '../../types/dialogue.js';
-
-const definitions = new Map<string, Dialog>();
-
-function normalizeOption(raw: DialogOption): DialogOption {
-  return {
-    id: raw.id,
-    text: raw.text,
-    enabled: raw.enabled !== false,
-    used: raw.used === true,
-    say: raw.say !== false,
-  };
-}
-
-/** Register a validated dialog definition (from eager-loaded `*.dialog.json`). */
-export function registerDialogDefinition(data: Dialog): void {
-  const guiId = data.guiId?.trim() || 'dialog';
-  definitions.set(data.id, {
-    ...data,
-    guiId,
-    options: data.options.map(normalizeOption),
-  });
-}
-
-export function getDialogDefinition(dialogId: string): Dialog | undefined {
-  return definitions.get(dialogId);
-}
-
-export function getRegisteredDialogDefinitionIds(): string[] {
-  return [...definitions.keys()].sort((a, b) => a.localeCompare(b));
-}
-
-/** GUI overlay ids reserved for the choice-dialog system (`dialog` plus any per-definition `guiId`). */
-export function getRegisteredDialogChoiceGuiIds(): string[] {
-  const ids = new Set<string>(['dialog']);
-  for (const id of getRegisteredDialogDefinitionIds()) {
-    const d = definitions.get(id);
-    const g = d?.guiId?.trim();
-    if (g && g.length > 0) {
-      ids.add(g);
-    }
-  }
-  return [...ids].sort((a, b) => a.localeCompare(b));
-}
-</file>
-
-<file path="src/engine/dialog/dialogGameState.ts">
-import type { GameSettingsDialog } from '../../types/game.js';
+<file path="src/engine/dialog/speechGameState.ts">
+import type { GameSettingsSpeech } from '../../types/game.js';
 import type { GameStateManager } from '../gameState/GameStateManager.js';
-import { getDialogSettingsFromConfig } from '../ConfigManager.js';
+import { getSpeechSettingsFromConfig } from '../ConfigManager.js';
 
-/** Persisted user dialog click-to-skip preference; included in save snapshots. */
-export const DIALOG_CLICK_TO_SKIP_VARIABLE = 'dialog:clickToSkip';
+/** Persisted user speech click-to-skip preference; included in save snapshots. */
+export const SPEECH_CLICK_TO_SKIP_VARIABLE = 'speech:clickToSkip';
 
-/** Persisted user dialog show-text preference; included in save snapshots. */
-export const DIALOG_SHOW_TEXT_VARIABLE = 'dialog:showText';
+/** Persisted user speech show-text preference; included in save snapshots. */
+export const SPEECH_SHOW_TEXT_VARIABLE = 'speech:showText';
 
 /** Persisted `.say` line timing: milliseconds per character. */
-export const DIALOG_MS_PER_CHARACTER_VARIABLE = 'dialog:msPerCharacter';
+export const SPEECH_MS_PER_CHARACTER_VARIABLE = 'speech:msPerCharacter';
 
 /** Persisted `.say` line timing duration multiplier. */
-export const DIALOG_DURATION_MULTIPLIER_VARIABLE = 'dialog:durationMultiplier';
+export const SPEECH_DURATION_MULTIPLIER_VARIABLE = 'speech:durationMultiplier';
 
 /** Persisted `.say` line minimum duration (ms). */
-export const DIALOG_MIN_DURATION_MS_VARIABLE = 'dialog:minDurationMs';
+export const SPEECH_MIN_DURATION_MS_VARIABLE = 'speech:minDurationMs';
 
 /** Persisted `.say` line maximum duration (ms). */
-export const DIALOG_MAX_DURATION_MS_VARIABLE = 'dialog:maxDurationMs';
+export const SPEECH_MAX_DURATION_MS_VARIABLE = 'speech:maxDurationMs';
 
 /** Persisted speaking-text offset `{ x, y }` in canvas pixels. */
-export const DIALOG_DEFAULT_TALK_OFFSET_VARIABLE = 'dialog:defaultTalkOffset';
+export const SPEECH_DEFAULT_TALK_OFFSET_VARIABLE = 'speech:defaultTalkOffset';
 
-/** Persisted choice-dialog viewport height cap (px); omitted = use config default. */
-export const DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE = 'dialog:choiceOptionsViewportHeightPx';
-
-export const PERSISTED_DIALOG_SETTINGS_VARIABLE_KEYS = [
-  DIALOG_CLICK_TO_SKIP_VARIABLE,
-  DIALOG_SHOW_TEXT_VARIABLE,
-  DIALOG_MS_PER_CHARACTER_VARIABLE,
-  DIALOG_DURATION_MULTIPLIER_VARIABLE,
-  DIALOG_MIN_DURATION_MS_VARIABLE,
-  DIALOG_MAX_DURATION_MS_VARIABLE,
-  DIALOG_DEFAULT_TALK_OFFSET_VARIABLE,
-  DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE,
+export const PERSISTED_SPEECH_SETTINGS_VARIABLE_KEYS = [
+  SPEECH_CLICK_TO_SKIP_VARIABLE,
+  SPEECH_SHOW_TEXT_VARIABLE,
+  SPEECH_MS_PER_CHARACTER_VARIABLE,
+  SPEECH_DURATION_MULTIPLIER_VARIABLE,
+  SPEECH_MIN_DURATION_MS_VARIABLE,
+  SPEECH_MAX_DURATION_MS_VARIABLE,
+  SPEECH_DEFAULT_TALK_OFFSET_VARIABLE,
 ] as const;
 
-export type RuntimeDialogSettings = GameSettingsDialog;
+export type RuntimeSpeechSettings = GameSettingsSpeech;
 
 function readBooleanVariable(manager: GameStateManager, key: string, fallback: boolean): boolean {
   if (!manager.hasVariable(key)) {
@@ -7438,21 +9092,6 @@ function readPositiveNumberVariable(
   }
   const v = manager.getVariable(key);
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
-}
-
-function readOptionalPositiveViewportHeight(
-  manager: GameStateManager,
-  key: string,
-  fallback: number | undefined,
-): number | undefined {
-  if (!manager.hasVariable(key)) {
-    return fallback;
-  }
-  const v = manager.getVariable(key);
-  if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
-    return v;
-  }
-  return fallback;
 }
 
 function readTalkOffsetVariable(
@@ -7482,117 +9121,112 @@ function validateTimingWrites(
     durationMultiplier?: number;
   },
 ): void {
-  const config = getDialogSettingsFromConfig();
+  const config = getSpeechSettingsFromConfig();
   const minDurationMs = patch.minDurationMs ?? readPositiveNumberVariable(
     manager,
-    DIALOG_MIN_DURATION_MS_VARIABLE,
+    SPEECH_MIN_DURATION_MS_VARIABLE,
     config.minDurationMs,
   );
   const maxDurationMs = patch.maxDurationMs ?? readPositiveNumberVariable(
     manager,
-    DIALOG_MAX_DURATION_MS_VARIABLE,
+    SPEECH_MAX_DURATION_MS_VARIABLE,
     config.maxDurationMs,
   );
   const msPerCharacter = patch.msPerCharacter ?? readPositiveNumberVariable(
     manager,
-    DIALOG_MS_PER_CHARACTER_VARIABLE,
+    SPEECH_MS_PER_CHARACTER_VARIABLE,
     config.msPerCharacter,
   );
   const durationMultiplier = patch.durationMultiplier ?? readPositiveNumberVariable(
     manager,
-    DIALOG_DURATION_MULTIPLIER_VARIABLE,
+    SPEECH_DURATION_MULTIPLIER_VARIABLE,
     config.durationMultiplier,
   );
   if (minDurationMs < 0 || maxDurationMs < 0 || msPerCharacter < 0 || durationMultiplier <= 0) {
     throw new Error(
-      '[Benne] dialog settings: minDurationMs, maxDurationMs, and msPerCharacter must be >= 0; durationMultiplier must be > 0',
+      '[Benne] speech settings: minDurationMs, maxDurationMs, and msPerCharacter must be >= 0; durationMultiplier must be > 0',
     );
   }
   if (minDurationMs > maxDurationMs) {
-    throw new Error('[Benne] dialog settings: minDurationMs must be <= maxDurationMs');
+    throw new Error('[Benne] speech settings: minDurationMs must be <= maxDurationMs');
   }
 }
 
-/** Effective dialog settings: saved variable overrides when typed correctly, else `game-config.json` defaults. */
-export function readEffectiveDialogSettings(manager: GameStateManager): RuntimeDialogSettings {
-  const config = getDialogSettingsFromConfig();
+/** Effective speech settings: saved variable overrides when typed correctly, else `game-config.json` defaults. */
+export function readEffectiveSpeechSettings(manager: GameStateManager): RuntimeSpeechSettings {
+  const config = getSpeechSettingsFromConfig();
   return {
-    clickToSkip: readBooleanVariable(manager, DIALOG_CLICK_TO_SKIP_VARIABLE, config.clickToSkip),
-    showText: readBooleanVariable(manager, DIALOG_SHOW_TEXT_VARIABLE, config.showText),
+    clickToSkip: readBooleanVariable(manager, SPEECH_CLICK_TO_SKIP_VARIABLE, config.clickToSkip),
+    showText: readBooleanVariable(manager, SPEECH_SHOW_TEXT_VARIABLE, config.showText),
     defaultTalkOffset: readTalkOffsetVariable(
       manager,
-      DIALOG_DEFAULT_TALK_OFFSET_VARIABLE,
+      SPEECH_DEFAULT_TALK_OFFSET_VARIABLE,
       config.defaultTalkOffset,
     ),
     minDurationMs: readPositiveNumberVariable(
       manager,
-      DIALOG_MIN_DURATION_MS_VARIABLE,
+      SPEECH_MIN_DURATION_MS_VARIABLE,
       config.minDurationMs,
     ),
     msPerCharacter: readPositiveNumberVariable(
       manager,
-      DIALOG_MS_PER_CHARACTER_VARIABLE,
+      SPEECH_MS_PER_CHARACTER_VARIABLE,
       config.msPerCharacter,
     ),
     maxDurationMs: readPositiveNumberVariable(
       manager,
-      DIALOG_MAX_DURATION_MS_VARIABLE,
+      SPEECH_MAX_DURATION_MS_VARIABLE,
       config.maxDurationMs,
     ),
     durationMultiplier: readPositiveNumberVariable(
       manager,
-      DIALOG_DURATION_MULTIPLIER_VARIABLE,
+      SPEECH_DURATION_MULTIPLIER_VARIABLE,
       config.durationMultiplier,
-    ),
-    choiceOptionsViewportHeightPx: readOptionalPositiveViewportHeight(
-      manager,
-      DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE,
-      config.choiceOptionsViewportHeightPx,
     ),
   };
 }
 
-export function writePersistedDialogClickToSkip(manager: GameStateManager, value: boolean): void {
-  manager.setVariable(DIALOG_CLICK_TO_SKIP_VARIABLE, value);
+export function writePersistedSpeechClickToSkip(manager: GameStateManager, value: boolean): void {
+  manager.setVariable(SPEECH_CLICK_TO_SKIP_VARIABLE, value);
 }
 
-export function writePersistedDialogShowText(manager: GameStateManager, value: boolean): void {
-  manager.setVariable(DIALOG_SHOW_TEXT_VARIABLE, value);
+export function writePersistedSpeechShowText(manager: GameStateManager, value: boolean): void {
+  manager.setVariable(SPEECH_SHOW_TEXT_VARIABLE, value);
 }
 
-export function writePersistedDialogMsPerCharacter(manager: GameStateManager, value: number): void {
+export function writePersistedSpeechMsPerCharacter(manager: GameStateManager, value: number): void {
   if (!Number.isFinite(value) || value < 0) {
-    throw new Error('[Benne] dialog settings: msPerCharacter must be a finite number >= 0');
+    throw new Error('[Benne] speech settings: msPerCharacter must be a finite number >= 0');
   }
   validateTimingWrites(manager, { msPerCharacter: value });
-  manager.setVariable(DIALOG_MS_PER_CHARACTER_VARIABLE, value);
+  manager.setVariable(SPEECH_MS_PER_CHARACTER_VARIABLE, value);
 }
 
-export function writePersistedDialogDurationMultiplier(manager: GameStateManager, value: number): void {
+export function writePersistedSpeechDurationMultiplier(manager: GameStateManager, value: number): void {
   if (!Number.isFinite(value) || value <= 0) {
-    throw new Error('[Benne] dialog settings: durationMultiplier must be a finite number > 0');
+    throw new Error('[Benne] speech settings: durationMultiplier must be a finite number > 0');
   }
   validateTimingWrites(manager, { durationMultiplier: value });
-  manager.setVariable(DIALOG_DURATION_MULTIPLIER_VARIABLE, value);
+  manager.setVariable(SPEECH_DURATION_MULTIPLIER_VARIABLE, value);
 }
 
-export function writePersistedDialogMinDurationMs(manager: GameStateManager, value: number): void {
+export function writePersistedSpeechMinDurationMs(manager: GameStateManager, value: number): void {
   if (!Number.isFinite(value) || value < 0) {
-    throw new Error('[Benne] dialog settings: minDurationMs must be a finite number >= 0');
+    throw new Error('[Benne] speech settings: minDurationMs must be a finite number >= 0');
   }
   validateTimingWrites(manager, { minDurationMs: value });
-  manager.setVariable(DIALOG_MIN_DURATION_MS_VARIABLE, value);
+  manager.setVariable(SPEECH_MIN_DURATION_MS_VARIABLE, value);
 }
 
-export function writePersistedDialogMaxDurationMs(manager: GameStateManager, value: number): void {
+export function writePersistedSpeechMaxDurationMs(manager: GameStateManager, value: number): void {
   if (!Number.isFinite(value) || value < 0) {
-    throw new Error('[Benne] dialog settings: maxDurationMs must be a finite number >= 0');
+    throw new Error('[Benne] speech settings: maxDurationMs must be a finite number >= 0');
   }
   validateTimingWrites(manager, { maxDurationMs: value });
-  manager.setVariable(DIALOG_MAX_DURATION_MS_VARIABLE, value);
+  manager.setVariable(SPEECH_MAX_DURATION_MS_VARIABLE, value);
 }
 
-export function writePersistedDialogDefaultTalkOffset(
+export function writePersistedSpeechDefaultTalkOffset(
   manager: GameStateManager,
   value: { x: number; y: number },
 ): void {
@@ -7602,35 +9236,21 @@ export function writePersistedDialogDefaultTalkOffset(
     !Number.isFinite(value.x) ||
     !Number.isFinite(value.y)
   ) {
-    throw new Error('[Benne] dialog settings: defaultTalkOffset requires finite x and y');
+    throw new Error('[Benne] speech settings: defaultTalkOffset requires finite x and y');
   }
-  manager.setVariable(DIALOG_DEFAULT_TALK_OFFSET_VARIABLE, { x: value.x, y: value.y });
-}
-
-export function writePersistedDialogChoiceOptionsViewportHeightPx(
-  manager: GameStateManager,
-  value: number,
-): void {
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error('[Benne] dialog settings: choiceOptionsViewportHeightPx must be a finite number > 0');
-  }
-  manager.setVariable(DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE, value);
-}
-
-export function clearPersistedDialogChoiceOptionsViewportHeightPx(manager: GameStateManager): void {
-  manager.clearVariable(DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE);
+  manager.setVariable(SPEECH_DEFAULT_TALK_OFFSET_VARIABLE, { x: value.x, y: value.y });
 }
 
 /**
- * When applying a snapshot, keep prior `dialog:*` variables if the incoming snapshot omits them
+ * When applying a snapshot, keep prior `speech:*` variables if the incoming snapshot omits them
  * (new game keeps last values unless `initialGameState.variables` seeds them).
  */
-export function mergePreserveDialogSettingsVariables(
+export function mergePreserveSpeechSettingsVariables(
   incoming: Record<string, unknown>,
   previous: Record<string, unknown>,
 ): Record<string, unknown> {
   const merged = { ...incoming };
-  for (const key of PERSISTED_DIALOG_SETTINGS_VARIABLE_KEYS) {
+  for (const key of PERSISTED_SPEECH_SETTINGS_VARIABLE_KEYS) {
     if (
       !Object.prototype.hasOwnProperty.call(incoming, key) &&
       Object.prototype.hasOwnProperty.call(previous, key)
@@ -7926,214 +9546,6 @@ export function guiTextInputSubmitEventId(guiId: string, controlId: string): str
 }
 </file>
 
-<file path="src/engine/events/inventoryOnVerbEvents.ts">
-import type { Point2 } from '../../types/room';
-import type { VerbInteractTarget } from './verbInteractionEvents';
-
-const VERB_ROOM_PREFIX = 'verb:room:';
-
-/**
- * When inventory use-on-target (room object or another inventory row) has no room- or
- * per-target global handler, the engine emits this if a listener exists; otherwise
- * the interaction is a no-op from the bus’s point of view.
- */
-export const INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT = 'verb:global:inventoryOnVerbTarget:unhandled';
-
-/** `verb:room:<roomId>:inventoryOnProp:<propId>:<sourceItemId>` — one listener per armed item. */
-export function roomInventoryOnPropEventId(roomId: string, propId: string, itemId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnProp:${propId}:${itemId}`;
-}
-
-/** `verb:inventoryOnProp:<propId>:<sourceItemId>` — global fallback after no room-scoped listener. */
-export function globalInventoryOnPropEventId(propId: string, itemId: string): string {
-  return `verb:inventoryOnProp:${propId}:${itemId}`;
-}
-
-/** Room: armed item id is arbitrary — filter inside the handler via {@link AnyInventoryUsedOnPayload}'s `itemId`. */
-export function roomInventoryOnPropAnySourceEventId(roomId: string, propId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnPropAny:${propId}`;
-}
-
-export function globalInventoryOnPropAnySourceEventId(propId: string): string {
-  return `verb:inventoryOnPropAny:${propId}`;
-}
-
-/** `verb:room:<roomId>:inventoryOnHotspot:<hotspotId>:<sourceItemId>` */
-export function roomInventoryOnHotspotEventId(roomId: string, hotspotId: string, itemId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnHotspot:${hotspotId}:${itemId}`;
-}
-
-/** `verb:inventoryOnHotspot:<hotspotId>:<sourceItemId>` */
-export function globalInventoryOnHotspotEventId(hotspotId: string, itemId: string): string {
-  return `verb:inventoryOnHotspot:${hotspotId}:${itemId}`;
-}
-
-export function roomInventoryOnHotspotAnySourceEventId(roomId: string, hotspotId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnHotspotAny:${hotspotId}`;
-}
-
-export function globalInventoryOnHotspotAnySourceEventId(hotspotId: string): string {
-  return `verb:inventoryOnHotspotAny:${hotspotId}`;
-}
-
-/** `verb:room:<roomId>:inventoryOnCharacter:<characterId>:<sourceItemId>` */
-export function roomInventoryOnCharacterEventId(roomId: string, characterId: string, itemId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnCharacter:${characterId}:${itemId}`;
-}
-
-/** `verb:inventoryOnCharacter:<characterId>:<sourceItemId>` */
-export function globalInventoryOnCharacterEventId(characterId: string, itemId: string): string {
-  return `verb:inventoryOnCharacter:${characterId}:${itemId}`;
-}
-
-export function roomInventoryOnCharacterAnySourceEventId(roomId: string, characterId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnCharacterAny:${characterId}`;
-}
-
-export function globalInventoryOnCharacterAnySourceEventId(characterId: string): string {
-  return `verb:inventoryOnCharacterAny:${characterId}`;
-}
-
-/** `verb:room:<roomId>:inventoryOnInventoryItem:<targetItemId>:<sourceItemId>` */
-export function roomInventoryOnInventoryItemEventId(
-  roomId: string,
-  targetItemId: string,
-  sourceItemId: string,
-): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnInventoryItem:${targetItemId}:${sourceItemId}`;
-}
-
-/** `verb:inventoryOnInventoryItem:<targetItemId>:<sourceItemId>` */
-export function globalInventoryOnInventoryItemEventId(targetItemId: string, sourceItemId: string): string {
-  return `verb:inventoryOnInventoryItem:${targetItemId}:${sourceItemId}`;
-}
-
-/** Row target only — armed source item id is in {@link InventoryUsedOnInventoryItemPayload} as **`itemId`**. */
-export function roomInventoryOnInventoryRowEventId(roomId: string, targetItemId: string): string {
-  return `${VERB_ROOM_PREFIX}${roomId}:inventoryOnInventoryRow:${targetItemId}`;
-}
-
-export function globalInventoryOnInventoryRowEventId(targetItemId: string): string {
-  return `verb:inventoryOnInventoryRow:${targetItemId}`;
-}
-
-export interface InventoryUsedOnPropPayload {
-  targetType: 'prop';
-  itemId: string;
-  verbId: string;
-  roomId: string;
-  propId: string;
-  tag: string;
-  description?: string;
-  walkToPoint?: Point2;
-  lookAtPoint?: Point2;
-}
-
-export interface InventoryUsedOnHotspotPayload {
-  targetType: 'hotspot';
-  itemId: string;
-  verbId: string;
-  roomId: string;
-  hotspotId: string;
-  description?: string;
-  walkToPoint?: Point2;
-  lookAtPoint?: Point2;
-}
-
-export interface InventoryUsedOnCharacterPayload {
-  targetType: 'character';
-  itemId: string;
-  verbId: string;
-  roomId: string;
-  characterId: string;
-  instanceId: string;
-  description?: string;
-  walkToPoint?: Point2;
-  talkPoint?: Point2;
-}
-
-/** `itemId` is the **source** (armed) item; the row clicked is `targetItemId`. */
-export interface InventoryUsedOnInventoryItemPayload {
-  targetType: 'inventoryItem';
-  itemId: string;
-  verbId: string;
-  roomId: string;
-  targetItemId: string;
-  description?: string;
-}
-
-export type AnyInventoryUsedOnPayload =
-  | InventoryUsedOnPropPayload
-  | InventoryUsedOnHotspotPayload
-  | InventoryUsedOnCharacterPayload
-  | InventoryUsedOnInventoryItemPayload;
-
-export function buildInventoryUsedOnPayload(
-  target: VerbInteractTarget,
-  itemId: string,
-  verbId: string,
-): AnyInventoryUsedOnPayload {
-  switch (target.type) {
-    case 'prop':
-      return {
-        targetType: 'prop',
-        itemId,
-        verbId,
-        roomId: target.roomId,
-        propId: target.propId,
-        tag: target.tag,
-        description: target.description,
-        ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
-        ...(target.lookAtPoint !== undefined ? { lookAtPoint: target.lookAtPoint } : {}),
-      };
-    case 'hotspot':
-      return {
-        targetType: 'hotspot',
-        itemId,
-        verbId,
-        roomId: target.roomId,
-        hotspotId: target.hotspotId,
-        description: target.description,
-        ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
-        ...(target.lookAtPoint !== undefined ? { lookAtPoint: target.lookAtPoint } : {}),
-      };
-    case 'character':
-      return {
-        targetType: 'character',
-        itemId,
-        verbId,
-        roomId: target.roomId,
-        characterId: target.characterId,
-        instanceId: target.instanceId,
-        description: target.description,
-        ...(target.walkToPoint !== undefined ? { walkToPoint: target.walkToPoint } : {}),
-        ...(target.talkPoint !== undefined ? { talkPoint: target.talkPoint } : {}),
-      };
-    case 'inventoryItem':
-      throw new Error(
-        'buildInventoryUsedOnPayload: inventory GUI rows are not valid targets for inventory-on-world-object dispatch',
-      );
-  }
-}
-
-export function buildInventoryUsedOnInventoryItemPayload(
-  roomId: string,
-  sourceItemId: string,
-  targetItemId: string,
-  verbId: string,
-  description: string | undefined,
-): InventoryUsedOnInventoryItemPayload {
-  return {
-    targetType: 'inventoryItem',
-    itemId: sourceItemId,
-    verbId,
-    roomId,
-    targetItemId,
-    ...(description !== undefined && description.length > 0 ? { description } : {}),
-  };
-}
-</file>
-
 <file path="src/engine/events/regionEnterExitEvents.ts">
 /** @internal — stable id for {@link import('../events/EventBus.js').gameEvents} region-enter subscriptions. */
 export function roomRegionEnterEventId(roomId: string, regionId: string): string {
@@ -8414,420 +9826,6 @@ export function buildGuiCheckbox(
   });
 
   return { hitTarget, sprite, enabled: !disabled, checked, width: w, height: h };
-}
-</file>
-
-<file path="src/engine/gui/buildGuiListBox.ts">
-import * as Phaser from 'phaser';
-import gameFontsManifest from '../../game/assets/fonts/fonts.json';
-import type { GameBitmapFontDefinition, GameFontsManifest } from '../../types/fonts';
-import type { GuiData, GuiListBoxControl, GuiTextOutline } from '../../types/gui';
-import { gameEvents } from '../events/EventBus';
-import {
-  guiListBoxItemActivatedEventId,
-  guiListBoxSelectionChangedEventId,
-  type GuiListBoxItemActivatedPayload,
-  type GuiListBoxSelectionChangedPayload,
-} from '../events/guiListBoxEvents';
-import { applyGuiButtonInteractivity } from './buildGuiOverlay';
-import {
-  applyGuiBitmapTextFillTint,
-  attachGuiBitmapTextOutlineList,
-  BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY,
-  BENNE_GUI_OUTLINE_DX_KEY,
-  BENNE_GUI_OUTLINE_DY_KEY,
-  BENNE_GUI_OUTLINE_FILL_ALPHA_KEY,
-  BENNE_GUI_OUTLINE_FILL_TINT_KEY,
-  resolveEffectiveGuiTextOutline,
-  syncOutlinedGuiBitmapTextAll,
-  syncOutlinedGuiBitmapTextPositions,
-} from './guiTextOutline';
-import {
-  BENNE_GUI_LIST_BOX_DATA_KEY,
-  BENNE_GUI_LIST_BOX_READ_ROW_COUNT_DATA_KEY,
-  BENNE_GUI_LIST_BOX_READ_SELECTED_INDEX_DATA_KEY,
-  BENNE_GUI_LIST_BOX_SET_ROW_TEXT_DATA_KEY,
-  BENNE_GUI_LIST_BOX_SET_SELECTED_INDEX_DATA_KEY,
-  type BenneGuiListBoxSetRowTextFn,
-  type BenneGuiListBoxSetSelectedIndexFn,
-} from './guiListBoxRuntime';
-
-const manifest = gameFontsManifest as GameFontsManifest;
-
-const GUI_LIST_BOX_BG_DEPTH = 0;
-const GUI_LIST_BOX_TEXT_DEPTH = 2;
-const GUI_LIST_BOX_OUTLINE_DEPTH = 1;
-const GUI_LIST_BOX_TEXT_PADDING_X = 4;
-const GUI_LIST_BOX_DOUBLE_CLICK_MS = 300;
-
-export interface BuiltGuiListBox {
-  readonly hitTarget: Phaser.GameObjects.Container;
-  readonly rowBackgrounds: readonly Phaser.GameObjects.Rectangle[];
-  readonly rowTexts: readonly Phaser.GameObjects.BitmapText[];
-  readonly rowTextOutlines: ReadonlyArray<readonly Phaser.GameObjects.BitmapText[]>;
-  readonly enabled: boolean;
-  readonly width: number;
-  readonly height: number;
-  dispose(): void;
-}
-
-function hexStringToTint(hex: string): number {
-  try {
-    return Phaser.Display.Color.HexStringToColor(hex).color;
-  } catch {
-    return 0xffffff;
-  }
-}
-
-function effectiveBitmapFontRenderSize(scene: Phaser.Scene, fontKey: string, fontSize: number): number {
-  const entry = scene.cache.bitmapFont.get(fontKey) as { data?: { size?: number } } | null;
-  const dataSize = entry?.data?.size;
-  if (dataSize == null || dataSize === 0) {
-    return fontSize;
-  }
-  return dataSize < 0 ? -Math.abs(fontSize) : Math.abs(fontSize);
-}
-
-function pickAnyLoadedBitmapFont(scene: Phaser.Scene): string | null {
-  for (const key of Object.keys(manifest)) {
-    if (scene.cache.bitmapFont.exists(key)) {
-      return key;
-    }
-  }
-  return null;
-}
-
-function createGuiBitmapTextOutlines(
-  scene: Phaser.Scene,
-  main: Phaser.GameObjects.BitmapText,
-  outline: GuiTextOutline | undefined,
-  visible: boolean,
-): Phaser.GameObjects.BitmapText[] {
-  const spec = resolveEffectiveGuiTextOutline(outline);
-  if (!spec) {
-    return [];
-  }
-  const outs: Phaser.GameObjects.BitmapText[] = [];
-  const maxW = (main as { maxWidth?: number }).maxWidth;
-  const letterSpacing = (main as { letterSpacing?: number }).letterSpacing ?? 0;
-  for (const { dx, dy } of spec.offsets) {
-    const o = scene.add.bitmapText(main.x + dx, main.y + dy, main.font, main.text, main.fontSize, main.align);
-    o.setOrigin(main.originX, main.originY);
-    if (letterSpacing !== 0) {
-      o.setLetterSpacing(letterSpacing);
-    }
-    if (typeof maxW === 'number' && maxW > 0) {
-      o.setMaxWidth(maxW);
-    }
-    o.setVisible(visible);
-    o.setScrollFactor(0, 0);
-    o.setDepth(GUI_LIST_BOX_OUTLINE_DEPTH);
-    o.setData(BENNE_GUI_OUTLINE_DX_KEY, dx);
-    o.setData(BENNE_GUI_OUTLINE_DY_KEY, dy);
-    applyGuiBitmapTextFillTint(o, spec.tint);
-    o.setAlpha(spec.alpha);
-    o.setData(BENNE_GUI_OUTLINE_FILL_TINT_KEY, spec.tint);
-    o.setData(BENNE_GUI_OUTLINE_FILL_ALPHA_KEY, spec.alpha);
-    outs.push(o);
-  }
-  attachGuiBitmapTextOutlineList(main, outs);
-  return outs;
-}
-
-function pointerRowIndex(
-  pointer: Phaser.Input.Pointer,
-  hitTarget: Phaser.GameObjects.Container,
-  rowCount: number,
-  rowHeight: number,
-  rowPadding: number,
-): number {
-  const matrix = hitTarget.getWorldTransformMatrix();
-  const local = matrix.applyInverse(pointer.worldX, pointer.worldY);
-  if (local.x < 0 || local.y < 0) {
-    return -1;
-  }
-  const stride = rowHeight + rowPadding;
-  if (stride <= 0) {
-    return -1;
-  }
-  const idx = Math.floor(local.y / stride);
-  if (idx < 0 || idx >= rowCount) {
-    return -1;
-  }
-  const inRowTop = idx * stride;
-  if (local.y >= inRowTop + rowHeight) {
-    return -1;
-  }
-  return idx;
-}
-
-export function buildGuiListBox(
-  scene: Phaser.Scene,
-  gui: GuiData,
-  c: GuiListBoxControl,
-  baseDepth: number,
-  startVisible: boolean,
-  isInputSuppressed?: () => boolean,
-): BuiltGuiListBox | null {
-  const id = c.id.trim();
-  const rowCount = Math.max(1, Math.floor(c.rowCount));
-  if (!id || c.width <= 0 || c.height <= 0 || rowCount <= 0) {
-    return null;
-  }
-  const fontKey = pickAnyLoadedBitmapFont(scene);
-  if (!fontKey) {
-    if (import.meta.env.DEV) {
-      console.warn(`[Benne] GUI "${gui.id}" listBox "${id}" needs a loaded bitmap font.`);
-    }
-    return null;
-  }
-  const fontEntry = manifest[fontKey] as GameBitmapFontDefinition | undefined;
-  if (!fontEntry) {
-    return null;
-  }
-
-  const px = Math.round(c.x);
-  const py = Math.round(c.y);
-  const w = Math.round(c.width);
-  const h = Math.round(c.height);
-  const rowPadding = Math.max(0, Math.floor(c.rowPadding ?? 0));
-  const derivedRowHeight = Math.floor((h - rowPadding * (rowCount - 1)) / rowCount);
-  const rowHeight = Math.max(1, Math.floor(c.rowHeight ?? derivedRowHeight));
-  const rowTextColor = hexStringToTint(c.textColor);
-  const rowSelectedTextColor = hexStringToTint(c.selectedTextColor);
-  const rowPlaceholderTextColor = hexStringToTint(c.placeholderTextColor);
-  const rowNormalBg = hexStringToTint(c.normalBackgroundColor);
-  const rowHoverBg = hexStringToTint(c.hoverBackgroundColor);
-  const rowSelectedBg = hexStringToTint(c.selectedBackgroundColor);
-  const rowFontSize = Math.max(1, Math.min(rowHeight - 2, 12));
-  const renderSize = effectiveBitmapFontRenderSize(scene, fontKey, rowFontSize);
-
-  let enabled = c.enabled !== false;
-  let selectedIndex = -1;
-  let hoverIndex = -1;
-  let focused = false;
-  let lastClickAt = 0;
-  let lastClickIndex = -1;
-  const rowTextsData = Array.from({ length: rowCount }, () => '');
-
-  const overlayVisible = startVisible && c.visible !== false;
-  const z = c.zIndex ?? 0;
-  const d = baseDepth + z;
-
-  const hitTarget = scene.add.container(px, py);
-  hitTarget.setScrollFactor(0, 0);
-  hitTarget.setDepth(d);
-  hitTarget.setVisible(overlayVisible);
-  hitTarget.setData(BENNE_GUI_LIST_BOX_DATA_KEY, true);
-
-  const rowBackgrounds: Phaser.GameObjects.Rectangle[] = [];
-  const rowTexts: Phaser.GameObjects.BitmapText[] = [];
-  const rowTextOutlines: Phaser.GameObjects.BitmapText[][] = [];
-  const textOutline = (c as GuiListBoxControl & { textOutline?: GuiTextOutline }).textOutline;
-
-  for (let row = 0; row < rowCount; row += 1) {
-    const y = row * (rowHeight + rowPadding);
-    const bg = scene.add.rectangle(0, y, w, rowHeight, rowNormalBg, 1);
-    bg.setOrigin(0, 0);
-    bg.setDepth(GUI_LIST_BOX_BG_DEPTH);
-    hitTarget.add(bg);
-    rowBackgrounds.push(bg);
-
-    const text = scene.add.bitmapText(
-      GUI_LIST_BOX_TEXT_PADDING_X,
-      y + Math.round(rowHeight / 2),
-      fontKey,
-      '',
-      renderSize,
-      0,
-    );
-    text.setOrigin(0, 0.5);
-    text.setScrollFactor(0, 0);
-    text.setDepth(GUI_LIST_BOX_TEXT_DEPTH);
-    const maxWidth = Math.max(0, w - GUI_LIST_BOX_TEXT_PADDING_X * 2);
-    if (maxWidth > 0) {
-      text.setMaxWidth(maxWidth);
-    }
-    const letterSpacing = fontEntry.defaultLetterSpacing ?? 0;
-    if (letterSpacing !== 0) {
-      text.setLetterSpacing(letterSpacing);
-    }
-    const outlines = createGuiBitmapTextOutlines(scene, text, textOutline, overlayVisible);
-    for (const o of outlines) {
-      hitTarget.add(o);
-    }
-    hitTarget.add(text);
-    rowTexts.push(text);
-    rowTextOutlines.push(outlines);
-  }
-
-  const emitSelectionChanged = (newIndex: number, oldIndex: number): void => {
-    gameEvents.emit(guiListBoxSelectionChangedEventId(gui.id, id), {
-      newIndex,
-      oldIndex,
-    } satisfies GuiListBoxSelectionChangedPayload);
-  };
-  const emitItemActivated = (index: number): void => {
-    gameEvents.emit(guiListBoxItemActivatedEventId(gui.id, id), {
-      index,
-    } satisfies GuiListBoxItemActivatedPayload);
-  };
-
-  const refreshInteractivity = (): void => {
-    hitTarget.disableInteractive();
-    if (hitTarget.visible && enabled) {
-      applyGuiButtonInteractivity(hitTarget, w, h, true);
-    }
-  };
-
-  const setSelectedIndexInternal = (next: number, emitEvent: boolean): void => {
-    const clamped = next >= 0 && next < rowCount ? Math.floor(next) : -1;
-    if (clamped === selectedIndex) {
-      return;
-    }
-    const oldIndex = selectedIndex;
-    selectedIndex = clamped;
-    refreshVisualState();
-    if (emitEvent) {
-      emitSelectionChanged(selectedIndex, oldIndex);
-    }
-  };
-
-  const setRowTextInternal = (index: number, text: string): void => {
-    if (index < 0 || index >= rowCount) {
-      return;
-    }
-    rowTextsData[index] = String(text ?? '');
-    syncOutlinedGuiBitmapTextAll(rowTexts[index]!, rowTextsData[index]!);
-    refreshVisualState();
-  };
-
-  function refreshVisualState(): void {
-    for (let i = 0; i < rowCount; i += 1) {
-      const isSelected = i === selectedIndex;
-      const isHover = !isSelected && enabled && i === hoverIndex;
-      const bg = rowBackgrounds[i]!;
-      const text = rowTexts[i]!;
-      const rowValue = rowTextsData[i] ?? '';
-      const isPlaceholder = rowValue.length === 0;
-      const bgTint = isSelected ? rowSelectedBg : isHover ? rowHoverBg : rowNormalBg;
-      const textTint = isSelected
-        ? rowSelectedTextColor
-        : isPlaceholder
-          ? rowPlaceholderTextColor
-          : rowTextColor;
-      bg.setFillStyle(bgTint, 1);
-      applyGuiBitmapTextFillTint(text, textTint);
-      text.setData(BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY, textTint);
-      syncOutlinedGuiBitmapTextPositions(text);
-      const alpha = enabled ? 1 : 0.45;
-      bg.setAlpha(alpha);
-      text.setAlpha(alpha);
-      for (const o of rowTextOutlines[i] ?? []) {
-        o.setAlpha(alpha);
-      }
-    }
-  }
-
-  hitTarget.setData(BENNE_GUI_LIST_BOX_SET_SELECTED_INDEX_DATA_KEY, ((index: number) => {
-    setSelectedIndexInternal(index, false);
-  }) satisfies BenneGuiListBoxSetSelectedIndexFn);
-  hitTarget.setData(BENNE_GUI_LIST_BOX_READ_SELECTED_INDEX_DATA_KEY, () => selectedIndex);
-  hitTarget.setData(BENNE_GUI_LIST_BOX_SET_ROW_TEXT_DATA_KEY, ((index: number, text: string) => {
-    setRowTextInternal(index, text);
-  }) satisfies BenneGuiListBoxSetRowTextFn);
-  hitTarget.setData(BENNE_GUI_LIST_BOX_READ_ROW_COUNT_DATA_KEY, () => rowCount);
-
-  hitTarget.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-    if (!enabled) {
-      return;
-    }
-    hoverIndex = pointerRowIndex(pointer, hitTarget, rowCount, rowHeight, rowPadding);
-    refreshVisualState();
-  });
-  hitTarget.on('pointerover', () => {
-    refreshVisualState();
-  });
-  hitTarget.on('pointerout', () => {
-    hoverIndex = -1;
-    refreshVisualState();
-  });
-  hitTarget.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-    if (!enabled || !pointer.leftButtonDown()) {
-      return;
-    }
-    if (isInputSuppressed?.()) {
-      return;
-    }
-    focused = true;
-  });
-  hitTarget.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-    if (!enabled || !hitTarget.visible || !pointer.leftButtonReleased()) {
-      return;
-    }
-    if (isInputSuppressed?.()) {
-      return;
-    }
-    const index = pointerRowIndex(pointer, hitTarget, rowCount, rowHeight, rowPadding);
-    if (index < 0) {
-      return;
-    }
-    setSelectedIndexInternal(index, true);
-    const now = scene.time.now;
-    if (lastClickIndex === index && now - lastClickAt <= GUI_LIST_BOX_DOUBLE_CLICK_MS) {
-      emitItemActivated(index);
-    }
-    lastClickIndex = index;
-    lastClickAt = now;
-  });
-
-  const onScenePointerDown = (pointer: Phaser.Input.Pointer): void => {
-    if (!focused) {
-      return;
-    }
-    const matrix = hitTarget.getWorldTransformMatrix();
-    const local = matrix.applyInverse(pointer.worldX, pointer.worldY);
-    if (local.x >= 0 && local.x <= w && local.y >= 0 && local.y <= h) {
-      return;
-    }
-    focused = false;
-  };
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if (!focused || !enabled || !hitTarget.visible) {
-      return;
-    }
-    if (isInputSuppressed?.()) {
-      return;
-    }
-    if (event.key !== 'Enter') {
-      return;
-    }
-    if (selectedIndex >= 0 && selectedIndex < rowCount) {
-      emitItemActivated(selectedIndex);
-    }
-  };
-  scene.input.on('pointerdown', onScenePointerDown);
-  scene.input.keyboard?.on('keydown', onKeyDown);
-
-  const dispose = (): void => {
-    scene.input.off('pointerdown', onScenePointerDown);
-    scene.input.keyboard?.off('keydown', onKeyDown);
-  };
-
-  hitTarget.once(Phaser.GameObjects.Events.DESTROY, dispose);
-  refreshInteractivity();
-  refreshVisualState();
-
-  return {
-    hitTarget,
-    rowBackgrounds,
-    rowTexts,
-    rowTextOutlines,
-    enabled,
-    width: w,
-    height: h,
-    dispose,
-  };
 }
 </file>
 
@@ -10206,143 +11204,6 @@ export const BENNE_ROOM_START_KIND_KEY = 'benneRoomStartKind';
 export type BenneRoomStartKind = 'boot' | 'transition' | 'load' | 'preview';
 </file>
 
-<file path="src/engine/scripting/benneDialogSettingsScriptSurface.ts">
-import * as Phaser from 'phaser';
-
-/** Event id for **`B.onDialogSettingsChanged.on(BENNE_DIALOG_SETTINGS_CHANGED_EVENT, …)`**. */
-export const BENNE_DIALOG_SETTINGS_CHANGED_EVENT = 'benne:dialogSettingsChanged' as const;
-
-/** Listeners subscribe with **`BENNE_DIALOG_SETTINGS_CHANGED_EVENT`**. Cleared on room shutdown like verb context. */
-const emitter = new Phaser.Events.EventEmitter();
-
-export function emitBenneDialogSettingsChanged(): void {
-  emitter.emit(BENNE_DIALOG_SETTINGS_CHANGED_EVENT);
-}
-
-export function getBenneDialogSettingsChangedEmitter(): Phaser.Events.EventEmitter {
-  return emitter;
-}
-</file>
-
-<file path="src/engine/scripting/benneScriptDialogSettingsApi.ts">
-import {
-  clearPersistedDialogChoiceOptionsViewportHeightPx,
-  readEffectiveDialogSettings,
-  writePersistedDialogChoiceOptionsViewportHeightPx,
-  writePersistedDialogClickToSkip,
-  writePersistedDialogDefaultTalkOffset,
-  writePersistedDialogDurationMultiplier,
-  writePersistedDialogMaxDurationMs,
-  writePersistedDialogMinDurationMs,
-  writePersistedDialogMsPerCharacter,
-  writePersistedDialogShowText,
-} from '../dialog/dialogGameState.js';
-import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import { getDialogSettingsFromConfig } from '../ConfigManager.js';
-import { emitBenneDialogSettingsChanged } from './benneDialogSettingsScriptSurface.js';
-import type { BenneScriptDialogSettingsFacade } from './benneScriptFacades.js';
-
-function resolveManager() {
-  return tryGetActiveGameStateManager();
-}
-
-function readEffectiveOrConfig(): ReturnType<typeof readEffectiveDialogSettings> {
-  const mgr = resolveManager();
-  return mgr ? readEffectiveDialogSettings(mgr) : getDialogSettingsFromConfig();
-}
-
-export function createBenneScriptDialogSettingsFacade(): BenneScriptDialogSettingsFacade {
-  return {
-    get clickToSkip() {
-      return readEffectiveOrConfig().clickToSkip;
-    },
-    set clickToSkip(v: boolean) {
-      const mgr = resolveManager();
-      if (mgr) {
-        writePersistedDialogClickToSkip(mgr, v);
-        emitBenneDialogSettingsChanged();
-      }
-    },
-    get showText() {
-      return readEffectiveOrConfig().showText;
-    },
-    set showText(v: boolean) {
-      const mgr = resolveManager();
-      if (mgr) {
-        writePersistedDialogShowText(mgr, v);
-        emitBenneDialogSettingsChanged();
-      }
-    },
-    get msPerCharacter() {
-      return readEffectiveOrConfig().msPerCharacter;
-    },
-    set msPerCharacter(v: number) {
-      const mgr = resolveManager();
-      if (mgr) {
-        writePersistedDialogMsPerCharacter(mgr, v);
-        emitBenneDialogSettingsChanged();
-      }
-    },
-    get durationMultiplier() {
-      return readEffectiveOrConfig().durationMultiplier;
-    },
-    set durationMultiplier(v: number) {
-      const mgr = resolveManager();
-      if (mgr) {
-        writePersistedDialogDurationMultiplier(mgr, v);
-        emitBenneDialogSettingsChanged();
-      }
-    },
-    get minDurationMs() {
-      return readEffectiveOrConfig().minDurationMs;
-    },
-    set minDurationMs(v: number) {
-      const mgr = resolveManager();
-      if (mgr) {
-        writePersistedDialogMinDurationMs(mgr, v);
-        emitBenneDialogSettingsChanged();
-      }
-    },
-    get maxDurationMs() {
-      return readEffectiveOrConfig().maxDurationMs;
-    },
-    set maxDurationMs(v: number) {
-      const mgr = resolveManager();
-      if (mgr) {
-        writePersistedDialogMaxDurationMs(mgr, v);
-        emitBenneDialogSettingsChanged();
-      }
-    },
-    get defaultTalkOffset() {
-      const off = readEffectiveOrConfig().defaultTalkOffset;
-      return { x: off.x, y: off.y };
-    },
-    set defaultTalkOffset(v: { x: number; y: number }) {
-      const mgr = resolveManager();
-      if (mgr) {
-        writePersistedDialogDefaultTalkOffset(mgr, v);
-        emitBenneDialogSettingsChanged();
-      }
-    },
-    get choiceOptionsViewportHeightPx() {
-      return readEffectiveOrConfig().choiceOptionsViewportHeightPx;
-    },
-    set choiceOptionsViewportHeightPx(v: number | undefined) {
-      const mgr = resolveManager();
-      if (!mgr) {
-        return;
-      }
-      if (v === undefined) {
-        clearPersistedDialogChoiceOptionsViewportHeightPx(mgr);
-      } else {
-        writePersistedDialogChoiceOptionsViewportHeightPx(mgr, v);
-      }
-      emitBenneDialogSettingsChanged();
-    },
-  };
-}
-</file>
-
 <file path="src/engine/scripting/benneScriptOnUpdateRegistry.ts">
 import type { UpdateContext } from './types.js';
 
@@ -10462,6 +11323,126 @@ export function bindRoomFacadeForBenneScriptCore(chain: ChainFn): BenneScriptRoo
 }
 </file>
 
+<file path="src/engine/scripting/benneScriptSpeechSettingsApi.ts">
+import {
+  readEffectiveSpeechSettings,
+  writePersistedSpeechClickToSkip,
+  writePersistedSpeechDefaultTalkOffset,
+  writePersistedSpeechDurationMultiplier,
+  writePersistedSpeechMaxDurationMs,
+  writePersistedSpeechMinDurationMs,
+  writePersistedSpeechMsPerCharacter,
+  writePersistedSpeechShowText,
+} from '../dialog/speechGameState.js';
+import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import { getSpeechSettingsFromConfig } from '../ConfigManager.js';
+import { emitBenneSpeechSettingsChanged } from './benneSpeechSettingsScriptSurface.js';
+import type { BenneScriptSpeechSettingsFacade } from './benneScriptFacades.js';
+
+function resolveManager() {
+  return tryGetActiveGameStateManager();
+}
+
+function readEffectiveOrConfig(): ReturnType<typeof readEffectiveSpeechSettings> {
+  const mgr = resolveManager();
+  return mgr ? readEffectiveSpeechSettings(mgr) : getSpeechSettingsFromConfig();
+}
+
+export function createBenneScriptSpeechSettingsFacade(): BenneScriptSpeechSettingsFacade {
+  return {
+    get clickToSkip() {
+      return readEffectiveOrConfig().clickToSkip;
+    },
+    set clickToSkip(v: boolean) {
+      const mgr = resolveManager();
+      if (mgr) {
+        writePersistedSpeechClickToSkip(mgr, v);
+        emitBenneSpeechSettingsChanged();
+      }
+    },
+    get showText() {
+      return readEffectiveOrConfig().showText;
+    },
+    set showText(v: boolean) {
+      const mgr = resolveManager();
+      if (mgr) {
+        writePersistedSpeechShowText(mgr, v);
+        emitBenneSpeechSettingsChanged();
+      }
+    },
+    get msPerCharacter() {
+      return readEffectiveOrConfig().msPerCharacter;
+    },
+    set msPerCharacter(v: number) {
+      const mgr = resolveManager();
+      if (mgr) {
+        writePersistedSpeechMsPerCharacter(mgr, v);
+        emitBenneSpeechSettingsChanged();
+      }
+    },
+    get durationMultiplier() {
+      return readEffectiveOrConfig().durationMultiplier;
+    },
+    set durationMultiplier(v: number) {
+      const mgr = resolveManager();
+      if (mgr) {
+        writePersistedSpeechDurationMultiplier(mgr, v);
+        emitBenneSpeechSettingsChanged();
+      }
+    },
+    get minDurationMs() {
+      return readEffectiveOrConfig().minDurationMs;
+    },
+    set minDurationMs(v: number) {
+      const mgr = resolveManager();
+      if (mgr) {
+        writePersistedSpeechMinDurationMs(mgr, v);
+        emitBenneSpeechSettingsChanged();
+      }
+    },
+    get maxDurationMs() {
+      return readEffectiveOrConfig().maxDurationMs;
+    },
+    set maxDurationMs(v: number) {
+      const mgr = resolveManager();
+      if (mgr) {
+        writePersistedSpeechMaxDurationMs(mgr, v);
+        emitBenneSpeechSettingsChanged();
+      }
+    },
+    get defaultTalkOffset() {
+      const off = readEffectiveOrConfig().defaultTalkOffset;
+      return { x: off.x, y: off.y };
+    },
+    set defaultTalkOffset(v: { x: number; y: number }) {
+      const mgr = resolveManager();
+      if (mgr) {
+        writePersistedSpeechDefaultTalkOffset(mgr, v);
+        emitBenneSpeechSettingsChanged();
+      }
+    },
+  };
+}
+</file>
+
+<file path="src/engine/scripting/benneSpeechSettingsScriptSurface.ts">
+import * as Phaser from 'phaser';
+
+/** Event id for **`B.onSpeechSettingsChanged.on(BENNE_SPEECH_SETTINGS_CHANGED_EVENT, …)`**. */
+export const BENNE_SPEECH_SETTINGS_CHANGED_EVENT = 'benne:speechSettingsChanged' as const;
+
+/** Listeners subscribe with **`BENNE_SPEECH_SETTINGS_CHANGED_EVENT`**. Cleared on room shutdown like verb context. */
+const emitter = new Phaser.Events.EventEmitter();
+
+export function emitBenneSpeechSettingsChanged(): void {
+  emitter.emit(BENNE_SPEECH_SETTINGS_CHANGED_EVENT);
+}
+
+export function getBenneSpeechSettingsChangedEmitter(): Phaser.Events.EventEmitter {
+  return emitter;
+}
+</file>
+
 <file path="src/engine/scripting/benneVerbContextScriptSurface.ts">
 import * as Phaser from 'phaser';
 import {
@@ -10551,6 +11532,186 @@ export function unwireBenneVerbContextGameStateRelay(events: Phaser.Events.Event
 }
 </file>
 
+<file path="src/engine/scripting/CharacterBenneScript.ts">
+import * as Phaser from 'phaser';
+import type { CharacterVerbInteractPayload } from '../events/propInteractionEvents.js';
+import { characterVerbEventId } from '../events/verbInteractionEvents.js';
+import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import type { RoomScene } from '../scenes/RoomScene.js';
+import { BenneScriptCore } from './BenneScriptCore.js';
+import {
+  createBenneScriptGameStateNamespace,
+  createBenneScriptInventoryNamespace,
+  type BenneScriptGameStateNamespace,
+  type BenneScriptInventoryNamespace,
+} from './benneScriptGameStateApi.js';
+import {
+  globalInventoryOnCharacterAnySourceEventId,
+  roomInventoryOnCharacterAnySourceEventId,
+} from '../events/inventoryOnVerbEvents.js';
+import type {
+  BenneScriptDialogCommandSurface,
+  BenneScriptPlayerFacade,
+  InventoryWhenUsedOnPayloadHandler,
+  RoomInventoryUsedOnRegistrar,
+} from './benneScriptFacades.js';
+import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
+
+/**
+ * Bennescript facade for `*.character.ts`: self-only verb channels (`characterVerbEventId`) so
+ * {@link import('../verbs/dispatchVerb.js').dispatchVerbInteraction} still prefers room-scoped handlers first.
+ */
+export class CharacterBenneScript extends BenneScriptCore {
+  private static unresolvedInventoryOnCharacterWarnings = new Set<string>();
+
+  private readonly characterId: string;
+  private readonly roomId: string;
+  private readonly roomScene: RoomScene;
+
+  readonly state: BenneScriptGameStateNamespace;
+  readonly inventory: BenneScriptInventoryNamespace;
+  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+
+  readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
+
+  constructor(events: Phaser.Events.EventEmitter, characterId: string, roomId: string, roomScene: RoomScene) {
+    super(events, () => roomScene.time, () => roomScene);
+    this.characterId = characterId;
+    this.roomId = roomId;
+    this.roomScene = roomScene;
+    const manager = resolveGameStateManager(roomScene.game);
+    this.state = createBenneScriptGameStateNamespace(manager);
+    this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene, (factory) =>
+      this.chain(factory),
+    );
+    this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
+    this.whenInventoryUsedOn = Object.assign(
+      (
+        targetId: string,
+        handler: InventoryWhenUsedOnPayloadHandler,
+        options?: { doNotClear?: boolean },
+      ) => {
+        this.registerInventoryUsedOnForCharacterTarget(targetId, handler, options?.doNotClear === true);
+      },
+      {
+        doNotClear: (targetId: string, handler: InventoryWhenUsedOnPayloadHandler) => {
+          this.registerInventoryUsedOnForCharacterTarget(targetId, handler, true);
+        },
+      },
+    ) as RoomInventoryUsedOnRegistrar;
+  }
+
+  private warnInventoryOnWrongCharacter(targetId: string): void {
+    const key = `${this.roomId}:${this.characterId}:${targetId}`;
+    if (CharacterBenneScript.unresolvedInventoryOnCharacterWarnings.has(key)) {
+      return;
+    }
+    CharacterBenneScript.unresolvedInventoryOnCharacterWarnings.add(key);
+    console.warn(
+      `[Benne] whenInventoryUsedOn("${targetId}") in character script "${this.characterId}" expects targetId === character id — handler was not registered.`,
+    );
+  }
+
+  private registerInventoryUsedOnForCharacterTarget(
+    targetId: string,
+    handler: InventoryWhenUsedOnPayloadHandler,
+    doNotClear: boolean,
+  ): void {
+    if (targetId !== this.characterId) {
+      this.warnInventoryOnWrongCharacter(targetId);
+      return;
+    }
+    this.subscribeInventoryUsedOnTargetEvents(
+      roomInventoryOnCharacterAnySourceEventId(this.roomId, this.characterId),
+      globalInventoryOnCharacterAnySourceEventId(this.characterId),
+      handler,
+      doNotClear,
+    );
+  }
+
+  private subscribeSelfVerb(
+    verbId: string,
+    handler: ((p: CharacterVerbInteractPayload) => void) | (() => void),
+  ): void {
+    const eventId = characterVerbEventId(this.characterId, verbId);
+    this.subscribe(eventId, (payload) => {
+      const p = payload as CharacterVerbInteractPayload;
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: CharacterVerbInteractPayload) => void)(p);
+      }
+    });
+  }
+
+  whenLookAt(handler: () => void): void;
+  whenLookAt(handler: (p: CharacterVerbInteractPayload) => void): void;
+  whenLookAt(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeSelfVerb(this.resolveVerbId('look'), handler);
+  }
+
+  whenUse(handler: () => void): void;
+  whenUse(handler: (p: CharacterVerbInteractPayload) => void): void;
+  whenUse(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeSelfVerb(this.resolveVerbId('use'), handler);
+  }
+
+  whenPickUp(handler: () => void): void;
+  whenPickUp(handler: (p: CharacterVerbInteractPayload) => void): void;
+  whenPickUp(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeSelfVerb(this.resolveVerbId('pickUp'), handler);
+  }
+
+  whenPush(handler: () => void): void;
+  whenPush(handler: (p: CharacterVerbInteractPayload) => void): void;
+  whenPush(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeSelfVerb(this.resolveVerbId('push'), handler);
+  }
+
+  whenPull(handler: () => void): void;
+  whenPull(handler: (p: CharacterVerbInteractPayload) => void): void;
+  whenPull(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeSelfVerb(this.resolveVerbId('pull'), handler);
+  }
+
+  whenOpen(handler: () => void): void;
+  whenOpen(handler: (p: CharacterVerbInteractPayload) => void): void;
+  whenOpen(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeSelfVerb(this.resolveVerbId('open'), handler);
+  }
+
+  whenClose(handler: () => void): void;
+  whenClose(handler: (p: CharacterVerbInteractPayload) => void): void;
+  whenClose(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeSelfVerb(this.resolveVerbId('close'), handler);
+  }
+
+  whenTalkTo(handler: () => void): void;
+  whenTalkTo(handler: (p: CharacterVerbInteractPayload) => void): void;
+  whenTalkTo(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeSelfVerb(this.resolveVerbId('talkTo'), handler);
+  }
+
+  whenVerb(verbId: string, handler: () => void): void;
+  whenVerb(verbId: string, handler: (p: CharacterVerbInteractPayload) => void): void;
+  whenVerb(
+    verbId: string,
+    handler: ((p: CharacterVerbInteractPayload) => void) | (() => void),
+  ): void {
+    this.subscribeSelfVerb(verbId, handler);
+  }
+
+  get player(): BenneScriptPlayerFacade {
+    return this.makePlayerFacade();
+  }
+
+  private makePlayerFacade(): BenneScriptPlayerFacade {
+    return this.makePlayerFacadeFromScene(() => this.roomScene);
+  }
+
+}
+</file>
+
 <file path="src/engine/scripting/devPlayFromRegistry.ts">
 /**
  * Named **Play From** setups keyed by **`roomId` → `name` → handler** (BENNE Play / editor).
@@ -10592,6 +11753,388 @@ export function getPlayFromSetupForRoom(roomId: string, name: string): PlayFromS
     return undefined;
   }
   return playFromRegistry.get(String(roomId))?.get(id);
+}
+</file>
+
+<file path="src/engine/scripting/DialogBenneScript.ts">
+import * as Phaser from 'phaser';
+import { SCENE_ROOM } from '../../game/constants.js';
+import { gameEvents } from '../events/EventBus.js';
+import {
+  DIALOG_OPTION_ENABLED_CHANGED_EVENT,
+  DIALOG_STARTED_EVENT,
+  dialogChoiceSyntheticButtonId,
+  type DialogOptionEnabledChangedPayload,
+  type DialogStartedPayload,
+} from '../events/dialogEvents.js';
+import { guiButtonClickEventId } from '../events/guiButtonEvents.js';
+import { getDialogDefinition } from '../dialog/dialogDefinitionRegistry.js';
+import {
+  BENNE_ACTIVE_DIALOG_ID_VARIABLE,
+  dialogOptionEnabledVariableKey,
+} from '../dialog/dialogOptionVariables.js';
+import type { GameStateManager } from '../gameState/GameStateManager.js';
+import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import type { RoomScene } from '../scenes/RoomScene.js';
+import { BenneScriptCore, withNow, type BlockingWithNow } from './BenneScriptCore.js';
+import type { BenneScriptDialogCommandSurface, BenneScriptPlayerFacade } from './benneScriptFacades.js';
+import {
+  createBenneScriptGameStateNamespace,
+  createBenneScriptInventoryNamespace,
+  type BenneScriptGameStateNamespace,
+  type BenneScriptInventoryNamespace,
+} from './benneScriptGameStateApi.js';
+import {
+  endDialogSessionIfMatches,
+  getActiveDialogBenneScript,
+  setActiveDialogBenneScript,
+} from './dialogSession.js';
+import { getBenneDialogScriptRegistrations } from './registerDialogScript.js';
+import type { DialogScriptContext } from './types.js';
+
+const warnedSelfStart = new Set<string>();
+const warnedUnknownOption = new Set<string>();
+
+export type BenneScriptDialogInteractionQueue = (factory: () => Promise<unknown>) => void;
+
+function warnSelfStartOnce(dialogId: string): void {
+  if (!import.meta.env.DEV || warnedSelfStart.has(dialogId)) {
+    return;
+  }
+  warnedSelfStart.add(dialogId);
+  console.warn(
+    `[Benne] B.start() inside registerDialogScript("${dialogId}") is a no-op — open the dialog from another script with B.dialog("${dialogId}").start().`,
+  );
+}
+
+function warnUnknownDialogOptionOnce(key: string, message: string): void {
+  if (!import.meta.env.DEV || warnedUnknownOption.has(key)) {
+    return;
+  }
+  warnedUnknownOption.add(key);
+  console.warn(`[Benne] ${message}`);
+}
+
+/** No-op surface when `B.dialog` is used before the game or dialog id is invalid. */
+export function createNoopDialogCommandSurface(): BenneScriptDialogCommandSurface {
+  const noop = withNow(
+    () => {},
+    () => {},
+  );
+  const noopOpt = withNow(
+    (_optionId: string) => {},
+    (_optionId: string) => {},
+  );
+  return {
+    start: noop,
+    stop: noop,
+    optionOn: noopOpt,
+    optionOff: noopOpt,
+  };
+}
+
+function createDialogCommandSurface(params: {
+  targetDialogId: string;
+  game: Phaser.Game;
+  manager: GameStateManager;
+  queue: BenneScriptDialogInteractionQueue;
+  mode: 'external' | 'self';
+}): BenneScriptDialogCommandSurface {
+  const { targetDialogId, game, manager, queue, mode } = params;
+
+  const applyOptionEnabled = (optionId: string, enabled: boolean): void => {
+    const id = optionId.trim();
+    if (!id) {
+      return;
+    }
+    const def = getDialogDefinition(targetDialogId);
+    if (!def) {
+      warnUnknownDialogOptionOnce(
+        `dialog:${targetDialogId}`,
+        `B.dialog("${targetDialogId}").option*: unknown dialog id — ignored.`,
+      );
+      return;
+    }
+    if (!def.options.some((o) => o.id === id)) {
+      warnUnknownDialogOptionOnce(
+        `dialog:${targetDialogId}:opt:${id}`,
+        `B.dialog("${targetDialogId}").option*("${id}"): unknown option id for this dialog — variable still written.`,
+      );
+    }
+    manager.setVariable(dialogOptionEnabledVariableKey(targetDialogId, id), enabled);
+    const payload: DialogOptionEnabledChangedPayload = {
+      dialogId: targetDialogId,
+      optionId: id,
+      enabled,
+    };
+    gameEvents.emit(DIALOG_OPTION_ENABLED_CHANGED_EVENT, payload);
+  };
+
+  const start =
+    mode === 'self'
+      ? withNow(
+          () =>
+            queue(() => {
+              warnSelfStartOnce(targetDialogId);
+              return Promise.resolve();
+            }),
+          () => warnSelfStartOnce(targetDialogId),
+        )
+      : withNow(
+          () => {
+            queue(() => {
+              openDialogSessionForId(game, targetDialogId);
+              return Promise.resolve();
+            });
+          },
+          () => {
+            openDialogSessionForId(game, targetDialogId);
+          },
+        );
+
+  const stop = withNow(
+    () => {
+      queue(() => {
+        const active = getActiveDialogBenneScript();
+        if (active && active.dialogId === targetDialogId) {
+          endDialogSessionIfMatches(active);
+        }
+        return Promise.resolve();
+      });
+    },
+    () => {
+      const active = getActiveDialogBenneScript();
+      if (active && active.dialogId === targetDialogId) {
+        endDialogSessionIfMatches(active);
+      }
+    },
+  );
+
+  const optionOn = withNow(
+    (optionId: string) => {
+      queue(() => {
+        applyOptionEnabled(optionId, true);
+        return Promise.resolve();
+      });
+    },
+    (optionId: string) => {
+      applyOptionEnabled(optionId, true);
+    },
+  );
+
+  const optionOff = withNow(
+    (optionId: string) => {
+      queue(() => {
+        applyOptionEnabled(optionId, false);
+        return Promise.resolve();
+      });
+    },
+    (optionId: string) => {
+      applyOptionEnabled(optionId, false);
+    },
+  );
+
+  return { start, stop, optionOn, optionOff };
+}
+
+/**
+ * `B.dialog(id)` — queues session open/close and option visibility on the owning script’s interaction tail.
+ */
+export function createBenneScriptDialogAccessor(
+  manager: GameStateManager,
+  game: Phaser.Game,
+  queue: BenneScriptDialogInteractionQueue,
+): (dialogId: string) => BenneScriptDialogCommandSurface {
+  return (dialogId: string) => {
+    const id = dialogId.trim();
+    if (!id) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.dialog: empty id — returning no-op surface.');
+      }
+      return createNoopDialogCommandSurface();
+    }
+    return createDialogCommandSurface({
+      targetDialogId: id,
+      game,
+      manager,
+      queue,
+      mode: 'external',
+    });
+  };
+}
+
+/**
+ * Opens a dialog session (used by **`B.dialog(id).start()`** and **`.start.now()`**).
+ */
+export function openDialogSessionForId(game: Phaser.Game, dialogId: string): void {
+  const trimmed = dialogId.trim();
+  if (!trimmed) {
+    if (import.meta.env.DEV) {
+      console.warn('[Benne] openDialogSessionForId: empty dialog id — ignored.');
+    }
+    return;
+  }
+
+  const def = getDialogDefinition(trimmed);
+  if (!def) {
+    if (import.meta.env.DEV) {
+      console.warn(`[Benne] openDialogSessionForId: unknown dialog id "${trimmed}" — ignored.`);
+    }
+    return;
+  }
+
+  const prev = getActiveDialogBenneScript();
+  if (prev) {
+    endDialogSessionIfMatches(prev);
+  }
+
+  const manager = resolveGameStateManager(game);
+  const choiceGuiId = def.guiId ?? 'dialog';
+  const script = new DialogBenneScript(gameEvents, trimmed, game, choiceGuiId);
+  setActiveDialogBenneScript(script);
+  manager.setVariable(BENNE_ACTIVE_DIALOG_ID_VARIABLE, trimmed);
+
+  const started: DialogStartedPayload = { dialogId: trimmed, guiId: choiceGuiId };
+  gameEvents.emit(DIALOG_STARTED_EVENT, started);
+
+  const ctx: DialogScriptContext = {
+    B: script,
+    events: gameEvents,
+    dialogId: trimmed,
+    game,
+  };
+
+  for (const { dialogId: rid, registerFn } of getBenneDialogScriptRegistrations()) {
+    if (rid !== trimmed) {
+      continue;
+    }
+    if (getActiveDialogBenneScript() !== script) {
+      break;
+    }
+    try {
+      registerFn(ctx);
+    } catch (err) {
+      console.error(`[Benne] Error in registerDialogScript("${trimmed}") callback:`, err);
+    }
+  }
+}
+
+/**
+ * Bennescript facade for `*.dialog.ts`: constructed when a dialog session opens.
+ */
+export class DialogBenneScript extends BenneScriptCore implements BenneScriptDialogCommandSurface {
+  readonly dialogId: string;
+  /** GUI overlay that receives synthetic `dc__*` choice button ids (from `*.dialog.json` `guiId`). */
+  readonly dialogGuiId: string;
+  readonly game: Phaser.Game;
+
+  readonly state: BenneScriptGameStateNamespace;
+  readonly inventory: BenneScriptInventoryNamespace;
+
+  readonly dialog: (id: string) => BenneScriptDialogCommandSurface;
+
+  readonly start: BlockingWithNow<[]>;
+  readonly stop: BlockingWithNow<[]>;
+  readonly optionOn: BlockingWithNow<[string]>;
+  readonly optionOff: BlockingWithNow<[string]>;
+
+  constructor(events: Phaser.Events.EventEmitter, dialogId: string, game: Phaser.Game, dialogGuiId: string) {
+    super(
+      events,
+      () => {
+        const room = game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
+        return room?.time ?? null;
+      },
+      () => game.scene.getScene(SCENE_ROOM) as RoomScene | undefined,
+    );
+    this.dialogId = dialogId;
+    this.dialogGuiId = dialogGuiId.trim() || 'dialog';
+    this.game = game;
+    const manager = resolveGameStateManager(game);
+    this.state = createBenneScriptGameStateNamespace(manager);
+    this.inventory = createBenneScriptInventoryNamespace(
+      manager,
+      () => game.scene.getScene(SCENE_ROOM) as RoomScene | undefined,
+      (factory) => this.chain(factory),
+    );
+
+    const selfCommands = createDialogCommandSurface({
+      targetDialogId: dialogId,
+      game,
+      manager,
+      queue: (factory) => this.chain(factory),
+      mode: 'self',
+    });
+    this.start = selfCommands.start;
+    this.stop = selfCommands.stop;
+    this.optionOn = selfCommands.optionOn;
+    this.optionOff = selfCommands.optionOff;
+
+    this.dialog = createBenneScriptDialogAccessor(manager, game, (factory) => this.chain(factory));
+  }
+
+  get player(): BenneScriptPlayerFacade {
+    return this.makePlayerFacadeFromScene(() => this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined);
+  }
+
+  /**
+   * Runs when the player activates a dialog line whose `optionId` matches (see {@link dialogChoiceSyntheticButtonId}).
+   *
+   * If the option’s JSON sets `say` to `true` (the default), `B.player.say` is invoked with the option’s `text`
+   * **before** this handler runs (skipped when `say` is `false` or `text` is empty/whitespace).
+   *
+   * While the handler’s synchronous work plus any interaction-tail steps (`say`, `walk`, etc.) run, the
+   * dialog choice GUI is hidden so additional options cannot be activated.
+   */
+  whenChoice(optionId: string, handler: (() => void) | ((payload: { optionId: string }) => void)): void {
+    const id = optionId.trim();
+    if (!id) {
+      return;
+    }
+    const syn = dialogChoiceSyntheticButtonId(id);
+    const eventId = guiButtonClickEventId(this.dialogGuiId, syn);
+    const guiId = this.dialogGuiId;
+    const dialogScriptId = this.dialogId;
+
+    const wrapped = async (payload: unknown) => {
+      const room = this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
+      room?.suppressDialogChoiceGuiForWhenChoice(guiId);
+      // Wrap the entire handler + interaction-tail drain in a cutscene block so additional
+      // dialog options and other input are suppressed while the choice plays out.
+      room?.pushCutscene();
+
+      this.beginInteraction();
+      try {
+        this.pushVerbWalkContext(payload);
+        try {
+          const def = getDialogDefinition(dialogScriptId);
+          const opt = def?.options.find((o) => o.id === id);
+          const shouldAutoSay = opt == null || opt.say !== false;
+          const line = (opt?.text ?? '').trim();
+          if (shouldAutoSay && line.length > 0) {
+            this.player.say(line);
+          }
+          if (handler.length === 0) {
+            (handler as () => void)();
+          } else {
+            (handler as (p: { optionId: string }) => void)({ optionId: id });
+          }
+        } finally {
+          this.popVerbWalkContext();
+        }
+        await this.endInteraction();
+      } catch (err) {
+        console.error(`[Benne] Error in ${eventId} dialog whenChoice handler:`, err);
+      } finally {
+        room?.popCutscene();
+        const rm = this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
+        rm?.restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId, dialogScriptId);
+      }
+    };
+
+    this.events.on(eventId, wrapped);
+    this.registerDisposable(() => this.events.off(eventId, wrapped));
+  }
 }
 </file>
 
@@ -10640,6 +12183,310 @@ export function endDialogSessionIfMatches(script: DialogSessionScript): void {
 }
 </file>
 
+<file path="src/engine/scripting/InventoryBenneScript.ts">
+import * as Phaser from 'phaser';
+import type { InventoryVerbInteractPayload } from '../events/inventoryVerbEvents.js';
+import { inventoryVerbEventId, roomInventoryVerbEventId } from '../events/inventoryVerbEvents.js';
+import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import type { RoomScene } from '../scenes/RoomScene.js';
+import { BenneScriptCore } from './BenneScriptCore.js';
+import {
+  createBenneScriptGameStateNamespace,
+  createBenneScriptInventoryNamespace,
+  type BenneScriptGameStateNamespace,
+  type BenneScriptInventoryNamespace,
+} from './benneScriptGameStateApi.js';
+import {
+  globalInventoryOnInventoryRowEventId,
+  roomInventoryOnInventoryRowEventId,
+} from '../events/inventoryOnVerbEvents.js';
+import type {
+  BenneScriptDialogCommandSurface,
+  BenneScriptPlayerFacade,
+  InventoryWhenGiveRegistrar,
+  InventoryWhenUsedOnPayloadHandler,
+  InventoryWhenUseHandler,
+  InventoryWhenUseRegistrar,
+  RoomInventoryUsedOnRegistrar,
+} from './benneScriptFacades.js';
+import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
+
+/**
+ * Bennescript facade for `*.inventory.ts`: subscribes to room-scoped and global inventory verb ids so
+ * {@link import('../verbs/dispatchInventoryVerb.js').dispatchInventoryVerbInteraction} precedence matches characters.
+ *
+ * The resolved **use** and **give** verbs on this row always arm this item for use-on-target after the interaction
+ * queue drains, even with no {@link InventoryBenneScript.whenUse} / {@link InventoryBenneScript.whenGive} handlers.
+ * Those helpers add behavior on top; **`doNotActivate`** opts out of arming for that verb (consumables, etc.).
+ */
+export class InventoryBenneScript extends BenneScriptCore {
+  private static readonly unresolvedInventoryOnItemWarnings = new Set<string>();
+
+  private readonly itemId: string;
+  private readonly roomId: string;
+  private readonly roomScene: RoomScene;
+
+  private readonly inventoryUseHandlers: Array<{
+    skipActivate: boolean;
+    handler: InventoryWhenUseHandler;
+  }> = [];
+  private inventoryUseVerbSubscriptionInstalled = false;
+
+  private readonly inventoryGiveHandlers: Array<{
+    skipActivate: boolean;
+    handler: InventoryWhenUseHandler;
+  }> = [];
+  private inventoryGiveVerbSubscriptionInstalled = false;
+
+  readonly state: BenneScriptGameStateNamespace;
+  readonly inventory: BenneScriptInventoryNamespace;
+  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+
+  /**
+   * Extra handlers for the resolved **use** verb; arming still happens unless every registered handler
+   * used **`doNotActivate`** (see **`doNotActivate`**).
+   */
+  readonly whenUse: InventoryWhenUseRegistrar;
+
+  /**
+   * Extra handlers for the resolved **give** verb; same arming rules as {@link InventoryBenneScript.whenUse}.
+   */
+  readonly whenGive: InventoryWhenGiveRegistrar;
+
+  /**
+   * When this **item row** is the use-on-target (another inventory item is armed and the use verb
+   * path applies), handle {@link import('../events/inventoryOnVerbEvents.js').InventoryUsedOnInventoryItemPayload} — same
+   * `itemId` / `doNotClear` semantics as {@link import('./CharacterBenneScript.js').CharacterBenneScript.whenInventoryUsedOn}.
+   */
+  readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
+
+  constructor(events: Phaser.Events.EventEmitter, itemId: string, roomId: string, roomScene: RoomScene) {
+    super(events, () => roomScene.time, () => roomScene);
+    this.itemId = itemId;
+    this.roomId = roomId;
+    this.roomScene = roomScene;
+    const manager = resolveGameStateManager(roomScene.game);
+    this.state = createBenneScriptGameStateNamespace(manager);
+    this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene, (factory) =>
+      this.chain(factory),
+    );
+    this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
+    const registerWhenUse = (skipActivate: boolean) => {
+      return (handler: InventoryWhenUseHandler): void => {
+        this.inventoryUseHandlers.push({ skipActivate, handler });
+        this.ensureInventoryUseVerbSubscription();
+      };
+    };
+    this.whenUse = Object.assign(registerWhenUse(false), {
+      doNotActivate: registerWhenUse(true),
+    });
+    const registerWhenGive = (skipActivate: boolean) => {
+      return (handler: InventoryWhenUseHandler): void => {
+        this.inventoryGiveHandlers.push({ skipActivate, handler });
+        this.ensureInventoryGiveVerbSubscription();
+      };
+    };
+    this.whenGive = Object.assign(registerWhenGive(false), {
+      doNotActivate: registerWhenGive(true),
+    });
+    this.whenInventoryUsedOn = Object.assign(
+      (
+        targetId: string,
+        handler: InventoryWhenUsedOnPayloadHandler,
+        options?: { doNotClear?: boolean },
+      ) => {
+        this.registerInventoryUsedOnForInventoryItemTarget(
+          targetId,
+          handler,
+          options?.doNotClear === true,
+        );
+      },
+      {
+        doNotClear: (targetId: string, handler: InventoryWhenUsedOnPayloadHandler) => {
+          this.registerInventoryUsedOnForInventoryItemTarget(targetId, handler, true);
+        },
+      },
+    ) as RoomInventoryUsedOnRegistrar;
+  }
+
+  /**
+   * Wires default **use** and **give**→{@link setActiveInventory} when the author’s `registerInventoryScript` body
+   * did not register handlers (no-op inventory scripts). Safe to call after **`whenUse`** / **`whenGive`** —
+   * installs at most one subscription per verb.
+   */
+  ensureDefaultInventoryUseAndGiveActivationAfterRegister(): void {
+    this.ensureInventoryUseVerbSubscription();
+    this.ensureInventoryGiveVerbSubscription();
+  }
+
+  private ensureInventoryUseVerbSubscription(): void {
+    if (this.inventoryUseVerbSubscriptionInstalled) {
+      return;
+    }
+    this.inventoryUseVerbSubscriptionInstalled = true;
+    const verbId = this.resolveVerbId('use');
+    const run = (payload: unknown): void => {
+      const p = payload as InventoryVerbInteractPayload;
+      for (const { handler } of this.inventoryUseHandlers) {
+        if (handler.length === 0) {
+          (handler as () => void)();
+        } else {
+          (handler as (x: InventoryVerbInteractPayload) => void)(p);
+        }
+      }
+    };
+    const afterTail = (): void => {
+      const handlers = this.inventoryUseHandlers;
+      const shouldActivate = handlers.length === 0 || handlers.some((h) => !h.skipActivate);
+      if (shouldActivate) {
+        this.setActiveInventory(this.itemId);
+      }
+    };
+    this.subscribeAfterInteractionTail(
+      roomInventoryVerbEventId(this.roomId, this.itemId, verbId),
+      run,
+      afterTail,
+    );
+    this.subscribeAfterInteractionTail(inventoryVerbEventId(this.itemId, verbId), run, afterTail);
+  }
+
+  private ensureInventoryGiveVerbSubscription(): void {
+    if (this.inventoryGiveVerbSubscriptionInstalled) {
+      return;
+    }
+    this.inventoryGiveVerbSubscriptionInstalled = true;
+    const verbId = this.resolveVerbId('give');
+    const run = (payload: unknown): void => {
+      const p = payload as InventoryVerbInteractPayload;
+      for (const { handler } of this.inventoryGiveHandlers) {
+        if (handler.length === 0) {
+          (handler as () => void)();
+        } else {
+          (handler as (x: InventoryVerbInteractPayload) => void)(p);
+        }
+      }
+    };
+    const afterTail = (): void => {
+      const handlers = this.inventoryGiveHandlers;
+      const shouldActivate = handlers.length === 0 || handlers.some((h) => !h.skipActivate);
+      if (shouldActivate) {
+        this.setActiveInventory(this.itemId);
+      }
+    };
+    this.subscribeAfterInteractionTail(
+      roomInventoryVerbEventId(this.roomId, this.itemId, verbId),
+      run,
+      afterTail,
+    );
+    this.subscribeAfterInteractionTail(inventoryVerbEventId(this.itemId, verbId), run, afterTail);
+  }
+
+  private warnInventoryOnWrongItem(targetId: string): void {
+    const key = `${this.roomId}:${this.itemId}:${targetId}`;
+    if (InventoryBenneScript.unresolvedInventoryOnItemWarnings.has(key)) {
+      return;
+    }
+    InventoryBenneScript.unresolvedInventoryOnItemWarnings.add(key);
+    console.warn(
+      `[Benne] whenInventoryUsedOn("${targetId}") in inventory script "${this.itemId}" expects targetId === item id — handler was not registered.`,
+    );
+  }
+
+  private registerInventoryUsedOnForInventoryItemTarget(
+    targetId: string,
+    handler: InventoryWhenUsedOnPayloadHandler,
+    doNotClear: boolean,
+  ): void {
+    if (targetId !== this.itemId) {
+      this.warnInventoryOnWrongItem(targetId);
+      return;
+    }
+    this.subscribeInventoryUsedOnTargetEvents(
+      roomInventoryOnInventoryRowEventId(this.roomId, this.itemId),
+      globalInventoryOnInventoryRowEventId(this.itemId),
+      handler,
+      doNotClear,
+    );
+  }
+
+  private subscribeInventoryVerb(
+    verbId: string,
+    handler: ((p: InventoryVerbInteractPayload) => void) | (() => void),
+  ): void {
+    const inner = (payload: unknown) => {
+      const p = payload as InventoryVerbInteractPayload;
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: InventoryVerbInteractPayload) => void)(p);
+      }
+    };
+    this.subscribe(roomInventoryVerbEventId(this.roomId, this.itemId, verbId), inner);
+    this.subscribe(inventoryVerbEventId(this.itemId, verbId), inner);
+  }
+
+  whenLookAt(handler: () => void): void;
+  whenLookAt(handler: (p: InventoryVerbInteractPayload) => void): void;
+  whenLookAt(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeInventoryVerb(this.resolveVerbId('look'), handler);
+  }
+
+  whenPickUp(handler: () => void): void;
+  whenPickUp(handler: (p: InventoryVerbInteractPayload) => void): void;
+  whenPickUp(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeInventoryVerb(this.resolveVerbId('pickUp'), handler);
+  }
+
+  whenPush(handler: () => void): void;
+  whenPush(handler: (p: InventoryVerbInteractPayload) => void): void;
+  whenPush(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeInventoryVerb(this.resolveVerbId('push'), handler);
+  }
+
+  whenPull(handler: () => void): void;
+  whenPull(handler: (p: InventoryVerbInteractPayload) => void): void;
+  whenPull(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeInventoryVerb(this.resolveVerbId('pull'), handler);
+  }
+
+  whenOpen(handler: () => void): void;
+  whenOpen(handler: (p: InventoryVerbInteractPayload) => void): void;
+  whenOpen(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeInventoryVerb(this.resolveVerbId('open'), handler);
+  }
+
+  whenClose(handler: () => void): void;
+  whenClose(handler: (p: InventoryVerbInteractPayload) => void): void;
+  whenClose(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeInventoryVerb(this.resolveVerbId('close'), handler);
+  }
+
+  whenTalkTo(handler: () => void): void;
+  whenTalkTo(handler: (p: InventoryVerbInteractPayload) => void): void;
+  whenTalkTo(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
+    this.subscribeInventoryVerb(this.resolveVerbId('talkTo'), handler);
+  }
+
+  whenVerb(verbId: string, handler: () => void): void;
+  whenVerb(verbId: string, handler: (p: InventoryVerbInteractPayload) => void): void;
+  whenVerb(
+    verbId: string,
+    handler: ((p: InventoryVerbInteractPayload) => void) | (() => void),
+  ): void {
+    this.subscribeInventoryVerb(verbId, handler);
+  }
+
+  get player(): BenneScriptPlayerFacade {
+    return this.makePlayerFacade();
+  }
+
+  private makePlayerFacade(): BenneScriptPlayerFacade {
+    return this.makePlayerFacadeFromScene(() => this.roomScene);
+  }
+
+}
+</file>
+
 <file path="src/engine/scripting/registerGlobalScript.ts">
 import type { GlobalScriptContext } from './types.js';
 
@@ -10656,6 +12503,116 @@ export function getBenneGlobalScriptRegistrations(): ReadonlyArray<(context: Glo
  */
 export function registerGlobalScript(registerFn: (context: GlobalScriptContext) => void): void {
   benneGlobalScriptRegistrations.push(registerFn);
+}
+</file>
+
+<file path="src/engine/scripting/types.ts">
+import type * as Phaser from 'phaser';
+import type { RoomScene } from '../scenes/RoomScene.js';
+import type { BenneScript } from './BenneScript.js';
+import type { CharacterBenneScript } from './CharacterBenneScript.js';
+import type { InventoryBenneScript } from './InventoryBenneScript.js';
+import type { GlobalBenneScript } from './GlobalBenneScript.js';
+import type { GuiBenneScript } from './GuiBenneScript.js';
+import type { DialogBenneScript } from './DialogBenneScript.js';
+import type { BenneScriptSharedSelectionApi } from './benneScriptFacades.js';
+
+/** Context for {@link import('./BenneScriptCore.js').BenneScriptCore.prototype.onUpdate} (room + global scripts). */
+export interface UpdateContext {
+  /** Time elapsed since the previous frame, in seconds (from Phaser update) */
+  deltaSeconds: number;
+  /** ID of the currently active room */
+  roomId: string;
+}
+
+export type {
+  AnyInventoryUsedOnPayload,
+  BenneScriptSharedSelectionApi,
+  InventoryWhenGiveHandler,
+  InventoryWhenGiveRegistrar,
+  InventoryWhenUseHandler,
+  InventoryWhenUseRegistrar,
+  RoomInventoryUsedOnRegistrar,
+} from './benneScriptFacades.js';
+
+export interface RoomScriptContext {
+  /**
+   * Main authoring facade (`whenLookAt`, `B.player.walkTo`, …).
+   * String ids for verb sugar (prop → hotspot → character), `walkTo`, and prop-only helpers are documented in the **module comment** at the top of `BenneScript.ts`.
+   * Includes {@link BenneScriptSharedSelectionApi} (`setActiveVerb`, `setActiveInventory`, …) from {@link import('./BenneScriptCore.js').BenneScriptCore} and tagged **`B.say`**…`` / **`B.say.now`**…`` (PowerQuest-style dialogue blocks).
+   */
+  readonly B: BenneScript & BenneScriptSharedSelectionApi;
+
+  /** Raw access (advanced use only) */
+  readonly events: Phaser.Events.EventEmitter;
+  readonly roomId: string;
+  readonly roomScene: RoomScene;
+
+  // Convenience re-exports so you can write `onProp` directly inside the callback
+  onProp: BenneScript['onProp'];
+  whenLookAt: BenneScript['whenLookAt'];
+  whenUse: BenneScript['whenUse'];
+  whenPickUp: BenneScript['whenPickUp'];
+  whenGive: BenneScript['whenGive'];
+  whenPush: BenneScript['whenPush'];
+  whenPull: BenneScript['whenPull'];
+  whenOpen: BenneScript['whenOpen'];
+  whenClose: BenneScript['whenClose'];
+  whenVerb: BenneScript['whenVerb'];
+  whenTalkTo: BenneScript['whenTalkTo'];
+  readonly whenInventoryUsedOn: BenneScript['whenInventoryUsedOn'];
+}
+
+/** Context passed to each `registerCharacterScript` callback when that character is spawned in the active room. */
+export interface CharacterScriptContext {
+  /** Self-only verb sugar (`whenLookAt(() => …)`); uses `characterVerbEventId` only. */
+  readonly B: CharacterBenneScript & BenneScriptSharedSelectionApi;
+  readonly events: Phaser.Events.EventEmitter;
+  readonly characterId: string;
+  readonly roomId: string;
+  readonly roomScene: RoomScene;
+  readonly whenInventoryUsedOn: CharacterBenneScript['whenInventoryUsedOn'];
+}
+
+/** Context passed to each `registerInventoryScript` callback when a room is active. */
+export interface InventoryScriptContext {
+  /**
+   * Item-scoped verb sugar (`whenLookAt`, …); subscribes to room + global inventory verb ids.
+   * **`B.whenUse`** / **`B.whenGive`** add optional behavior; both verbs still arm this item for use-on-target after
+   * queued steps unless **`doNotActivate`** was used for every handler on that verb.
+   */
+  readonly B: InventoryBenneScript & BenneScriptSharedSelectionApi;
+  readonly events: Phaser.Events.EventEmitter;
+  readonly itemId: string;
+  readonly roomId: string;
+  readonly roomScene: RoomScene;
+  readonly whenInventoryUsedOn: InventoryBenneScript['whenInventoryUsedOn'];
+}
+
+/** Passed to each `registerGlobalScript` callback from {@link import('./wireBenneGlobalScripts.js').wireBenneGlobalScripts}. */
+export interface GlobalScriptContext {
+  readonly B: GlobalBenneScript & BenneScriptSharedSelectionApi;
+  readonly events: Phaser.Events.EventEmitter;
+  readonly game: Phaser.Game;
+}
+
+/** Passed to each `registerGuiScript` callback when content is registered. */
+export interface GuiScriptContext {
+  readonly B: GuiBenneScript & BenneScriptSharedSelectionApi;
+  readonly events: Phaser.Events.EventEmitter;
+  readonly guiId: string;
+}
+
+/** Passed to each `registerDialogScript` callback when a dialog session opens for that id. */
+export interface DialogScriptContext {
+  /**
+   * Includes {@link DialogBenneScript.whenChoice} for line picks (wired to the choice GUI’s synthetic `dc__*` button ids)
+   * and {@link import('./BenneScriptCore.js').BenneScriptCore.character} for NPC lines/movement (same active-room resolution as **`B.player`**).
+   */
+  readonly B: DialogBenneScript & BenneScriptSharedSelectionApi;
+  readonly events: Phaser.Events.EventEmitter;
+  readonly dialogId: string;
+  readonly game: Phaser.Game;
 }
 </file>
 
@@ -10702,94 +12659,6 @@ export function wireBenneGlobalScripts(game: Phaser.Game, events: EventBus): voi
       console.error('[Benne] Error in global script:', err);
     }
   }
-}
-</file>
-
-<file path="src/engine/sound/audioGameState.ts">
-import * as Phaser from 'phaser';
-import { getGameSettings } from '../ConfigManager.js';
-import type { GameStateManager } from '../gameState/GameStateManager.js';
-import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import { tryGetBenneSoundManager } from './benneSoundRegistry.js';
-
-/** Persisted user SFX session multiplier (0–1); included in save snapshots. */
-export const SETTINGS_SFX_VOLUME_VARIABLE = 'settings:sfxVolume';
-
-/** Persisted user music session multiplier (0–1); included in save snapshots. */
-export const SETTINGS_MUSIC_VOLUME_VARIABLE = 'settings:musicVolume';
-
-export const PERSISTED_AUDIO_VOLUME_VARIABLE_KEYS = [
-  SETTINGS_SFX_VOLUME_VARIABLE,
-  SETTINGS_MUSIC_VOLUME_VARIABLE,
-] as const;
-
-function clamp01(n: number): number {
-  return Math.min(1, Math.max(0, n));
-}
-
-function readNumericVariable(manager: GameStateManager, key: string): number | null {
-  if (!manager.hasVariable(key)) {
-    return null;
-  }
-  const v = manager.getVariable(key);
-  if (typeof v === 'number' && Number.isFinite(v)) {
-    return clamp01(v);
-  }
-  return null;
-}
-
-/** Effective SFX session multiplier: saved variable, else `game-config.json` `audio.sfxVolume`. */
-export function readPersistedSfxSessionVolume(manager: GameStateManager): number {
-  return readNumericVariable(manager, SETTINGS_SFX_VOLUME_VARIABLE) ?? clamp01(getGameSettings().audio.sfxVolume);
-}
-
-/** Effective music session multiplier: saved variable, else `game-config.json` `audio.musicVolume`. */
-export function readPersistedMusicSessionVolume(manager: GameStateManager): number {
-  return (
-    readNumericVariable(manager, SETTINGS_MUSIC_VOLUME_VARIABLE) ??
-    clamp01(getGameSettings().audio.musicVolume)
-  );
-}
-
-export function writePersistedSfxSessionVolume(manager: GameStateManager, volume: number): void {
-  manager.setVariable(SETTINGS_SFX_VOLUME_VARIABLE, clamp01(volume));
-}
-
-export function writePersistedMusicSessionVolume(manager: GameStateManager, volume: number): void {
-  manager.setVariable(SETTINGS_MUSIC_VOLUME_VARIABLE, clamp01(volume));
-}
-
-/**
- * When applying a snapshot, keep prior `settings:*` volume variables if the incoming snapshot omits them
- * (new game keeps last slider values unless `initialGameState.variables` seeds them).
- */
-export function mergePreserveAudioVolumeVariables(
-  incoming: Record<string, unknown>,
-  previous: Record<string, unknown>,
-): Record<string, unknown> {
-  const merged = { ...incoming };
-  for (const key of PERSISTED_AUDIO_VOLUME_VARIABLE_KEYS) {
-    if (
-      !Object.prototype.hasOwnProperty.call(incoming, key) &&
-      Object.prototype.hasOwnProperty.call(previous, key)
-    ) {
-      merged[key] = previous[key];
-    }
-  }
-  return merged;
-}
-
-/** Sync {@link SoundManager} session multipliers from game state (or config defaults when no manager). */
-export function applyPersistedAudioSessionVolumes(game: Phaser.Game): void {
-  const sm = tryGetBenneSoundManager(game);
-  if (!sm) {
-    return;
-  }
-  const mgr = tryGetActiveGameStateManager();
-  const sfx = mgr ? readPersistedSfxSessionVolume(mgr) : clamp01(getGameSettings().audio.sfxVolume);
-  const music = mgr ? readPersistedMusicSessionVolume(mgr) : clamp01(getGameSettings().audio.musicVolume);
-  sm.setSfxSessionVolume(sfx);
-  sm.setMusicSessionVolume(music);
 }
 </file>
 
@@ -10847,216 +12716,6 @@ export function queueBenneAudioForBootLoader(load: Phaser.Loader.LoaderPlugin): 
     const u = e.urls;
     load.audio(e.cacheKey, u.length === 1 ? u[0]! : [...u]);
   }
-}
-</file>
-
-<file path="src/engine/sound/wireBenneAudioGameState.ts">
-import * as Phaser from 'phaser';
-import { GAME_STATE_REPLACED_EVENT } from '../../types/gameState.js';
-import type { EventBus } from '../events/EventBus.js';
-import { applyPersistedAudioSessionVolumes } from './audioGameState.js';
-
-/**
- * Re-applies persisted SFX/music session volumes when save snapshots load.
- * Call once from {@link import('../Game.js').createBenneGame} after {@link SoundManager} is registered.
- */
-export function wireBenneAudioGameState(game: Phaser.Game, events: EventBus): void {
-  const onReplaced = (): void => {
-    applyPersistedAudioSessionVolumes(game);
-  };
-  events.on(GAME_STATE_REPLACED_EVENT, onReplaced);
-  game.events.once(Phaser.Core.Events.DESTROY, () => {
-    events.off(GAME_STATE_REPLACED_EVENT, onReplaced);
-  });
-}
-</file>
-
-<file path="src/engine/verbs/dispatchInventoryOnVerbTarget.ts">
-import { getGameSettings } from '../ConfigManager';
-import type { EventBus } from '../events/EventBus';
-import { interruptPlayerWalkForVerbInteraction } from '../scenes/interruptPlayerWalkForVerbInteraction.js';
-import {
-  INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT,
-  buildInventoryUsedOnInventoryItemPayload,
-  buildInventoryUsedOnPayload,
-  globalInventoryOnCharacterAnySourceEventId,
-  globalInventoryOnCharacterEventId,
-  globalInventoryOnHotspotAnySourceEventId,
-  globalInventoryOnHotspotEventId,
-  globalInventoryOnInventoryItemEventId,
-  globalInventoryOnInventoryRowEventId,
-  globalInventoryOnPropAnySourceEventId,
-  globalInventoryOnPropEventId,
-  roomInventoryOnCharacterAnySourceEventId,
-  roomInventoryOnCharacterEventId,
-  roomInventoryOnHotspotAnySourceEventId,
-  roomInventoryOnHotspotEventId,
-  roomInventoryOnInventoryItemEventId,
-  roomInventoryOnInventoryRowEventId,
-  roomInventoryOnPropAnySourceEventId,
-  roomInventoryOnPropEventId,
-  type AnyInventoryUsedOnPayload,
-} from '../events/inventoryOnVerbEvents';
-import type { VerbInteractTarget } from '../events/verbInteractionEvents';
-import type { GameStateManager } from '../gameState/GameStateManager';
-import type { GameSettings } from '../../types/game';
-import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
-import type { PointerVerbResolution } from './resolvePointerVerb';
-import { resolveEffectiveUseVerbId } from './verbConfig';
-
-function listenerCount(bus: EventBus, event: string): number {
-  return bus.listeners(event).length;
-}
-
-/** Per-source handlers first (`…:inventoryOnProp:id:knife`), then target-wide scripts (`inventoryOnPropAny`). */
-function tryEmitInventoryUsedOnFiveTier(
-  bus: EventBus,
-  roomSourceSpecific: string,
-  roomAnySource: string,
-  globalSourceSpecific: string,
-  globalAnySource: string,
-  payload: AnyInventoryUsedOnPayload,
-): boolean {
-  if (listenerCount(bus, roomSourceSpecific) > 0) {
-    bus.emit(roomSourceSpecific, payload);
-    return true;
-  }
-  if (listenerCount(bus, roomAnySource) > 0) {
-    bus.emit(roomAnySource, payload);
-    return true;
-  }
-  if (listenerCount(bus, globalSourceSpecific) > 0) {
-    bus.emit(globalSourceSpecific, payload);
-    return true;
-  }
-  if (listenerCount(bus, globalAnySource) > 0) {
-    bus.emit(globalAnySource, payload);
-    return true;
-  }
-  if (listenerCount(bus, INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT) > 0) {
-    bus.emit(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, payload);
-    return true;
-  }
-  return false;
-}
-
-/**
- * When an active inventory item is set and the pointer resolves to the effective **use** verb or the current
- * **active verb**, dispatch uses inventory-on-target channels instead of {@link dispatchVerbInteraction}.
- */
-export function shouldDispatchInventoryUsedOnVerb(
-  manager: GameStateManager,
-  settings: GameSettings,
-  verbId: string,
-  resolution: PointerVerbResolution,
-): boolean {
-  if (resolution.kind !== 'verb') {
-    return false;
-  }
-  const itemId = manager.getActiveInventoryItemId();
-  if (itemId == null) {
-    return false;
-  }
-  const useVerbId = resolveEffectiveUseVerbId(settings);
-  if (verbId === useVerbId) {
-    return true;
-  }
-  const active = manager.getActiveVerb();
-  return active !== null && verbId === active;
-}
-
-/**
- * Room-scoped inventory-on-target event first, then global fallback (same precedence idea as
- * {@link import('./dispatchInventoryVerb.js').dispatchInventoryVerbInteraction} / character verbs).
- */
-export function dispatchInventoryOnVerbTargetInteraction(
-  bus: EventBus,
-  itemId: string,
-  verbId: string,
-  target: VerbInteractTarget,
-): boolean {
-  interruptPlayerWalkForVerbInteraction();
-  if (target.type === 'inventoryItem') {
-    return false;
-  }
-  const payload = buildInventoryUsedOnPayload(target, itemId, verbId);
-
-  switch (target.type) {
-    case 'prop': {
-      const roomScoped = roomInventoryOnPropEventId(target.roomId, target.propId, itemId);
-      const roomAny = roomInventoryOnPropAnySourceEventId(target.roomId, target.propId);
-      const globalScoped = globalInventoryOnPropEventId(target.propId, itemId);
-      const globalAny = globalInventoryOnPropAnySourceEventId(target.propId);
-      return tryEmitInventoryUsedOnFiveTier(bus, roomScoped, roomAny, globalScoped, globalAny, payload);
-    }
-    case 'hotspot': {
-      const roomScoped = roomInventoryOnHotspotEventId(target.roomId, target.hotspotId, itemId);
-      const roomAny = roomInventoryOnHotspotAnySourceEventId(target.roomId, target.hotspotId);
-      const globalScoped = globalInventoryOnHotspotEventId(target.hotspotId, itemId);
-      const globalAny = globalInventoryOnHotspotAnySourceEventId(target.hotspotId);
-      return tryEmitInventoryUsedOnFiveTier(bus, roomScoped, roomAny, globalScoped, globalAny, payload);
-    }
-    case 'character': {
-      const roomScoped = roomInventoryOnCharacterEventId(target.roomId, target.characterId, itemId);
-      const roomAny = roomInventoryOnCharacterAnySourceEventId(target.roomId, target.characterId);
-      const globalScoped = globalInventoryOnCharacterEventId(target.characterId, itemId);
-      const globalAny = globalInventoryOnCharacterAnySourceEventId(target.characterId);
-      return tryEmitInventoryUsedOnFiveTier(bus, roomScoped, roomAny, globalScoped, globalAny, payload);
-    }
-  }
-}
-
-/**
- * Inventory panel: **source** item (armed) used on **target** item row. Same room/global precedence as
- * {@link dispatchInventoryOnVerbTargetInteraction}.
- */
-export function dispatchInventoryOnInventoryItemInteraction(
-  bus: EventBus,
-  sourceItemId: string,
-  verbId: string,
-  targetItemId: string,
-  roomId: string,
-  description: string | undefined,
-): boolean {
-  interruptPlayerWalkForVerbInteraction();
-  const payload = buildInventoryUsedOnInventoryItemPayload(
-    roomId,
-    sourceItemId,
-    targetItemId,
-    verbId,
-    description,
-  );
-  const roomScoped = roomInventoryOnInventoryItemEventId(roomId, targetItemId, sourceItemId);
-  const roomRow = roomInventoryOnInventoryRowEventId(roomId, targetItemId);
-  const globalScoped = globalInventoryOnInventoryItemEventId(targetItemId, sourceItemId);
-  const globalRow = globalInventoryOnInventoryRowEventId(targetItemId);
-  return tryEmitInventoryUsedOnFiveTier(bus, roomScoped, roomRow, globalScoped, globalRow, payload);
-}
-
-/** Convenience for call sites that already read {@link getGameSettings}. */
-export function shouldDispatchInventoryUsedOnVerbForGame(
-  manager: GameStateManager,
-  verbId: string,
-  resolution: PointerVerbResolution,
-): boolean {
-  return shouldDispatchInventoryUsedOnVerb(manager, getGameSettings(), verbId, resolution);
-}
-
-/**
- * Resolves whether the **active inventory selection** should be "dropped" (active inventory +
- * active verb both cleared) after `itemId` is used on a clickable target.
- *
- * Precedence:
- * 1. Item's **`dropWhenUsed`** (from `*.inventory.json`) — when defined, wins.
- * 2. Global **`dropWhenInventoryUsed`** from `game-config.json`.
- * 3. Default **`false`** (stay armed so the player can use the same item on several targets).
- */
-export function shouldDropActiveInventoryOnUse(itemId: string): boolean {
-  const def = getInventoryDefinition(itemId);
-  if (def?.dropWhenUsed !== undefined) {
-    return def.dropWhenUsed;
-  }
-  return getGameSettings().dropWhenInventoryUsed ?? false;
 }
 </file>
 
@@ -11501,59 +13160,6 @@ export function clampWalkDestinationTowardClick(
 }
 </file>
 
-<file path="src/game/assets/images/guis/menu-bar/menu-bar.json">
-{ "frames": {
-   "menu-bar 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "menu-bar 1.aseprite": {
-    "frame": { "x": 320, "y": 0, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "menu-bar 2.aseprite": {
-    "frame": { "x": 0, "y": 180, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta3-x64",
-  "image": "menu-bar.png",
-  "format": "I8",
-  "size": { "w": 640, "h": 360 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "MenuBG", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "MenuBtn", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "BG", "opacity": 255, "blendMode": "normal" },
-   { "name": "InvBG", "opacity": 255, "blendMode": "normal" },
-   { "name": "Slots", "opacity": 255, "blendMode": "normal" },
-   { "name": "Back Button", "opacity": 255, "blendMode": "normal" },
-   { "name": "Forward Button", "opacity": 255, "blendMode": "normal" },
-   { "name": "MenuBG", "opacity": 255, "blendMode": "normal" },
-   { "name": "MenuBtn", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
-}
-</file>
-
 <file path="src/game/assets/images/guis/save-menu/save-menu.json">
 { "frames": {
    "display-text.aseprite": {
@@ -11730,294 +13336,6 @@ export function clampWalkDestinationTowardClick(
   ]
  }
 }
-</file>
-
-<file path="src/game/guis/load-menu/load-menu.gui.json">
-{
-  "id": "load-menu",
-  "name": "Load Menu",
-  "description": "",
-  "visible": false,
-  "display": {
-    "aseprite": true
-  },
-  "controls": [
-    {
-      "type": "nineSliceImage",
-      "id": "load-bg",
-      "x": 30,
-      "y": 24,
-      "width": 260,
-      "height": 132,
-      "tag": "9-slice-BG",
-      "sliceNames": {
-        "topLeft": "TopLeft",
-        "topCenter": "TopMid",
-        "topRight": "TopRight",
-        "middleLeft": "MidLeft",
-        "center": "Mid",
-        "middleRight": "MidRight",
-        "bottomLeft": "BottomLeft",
-        "bottomCenter": "BottomMid",
-        "bottomRight": "BottomRight"
-      }
-    },
-    {
-      "type": "text",
-      "id": "title",
-      "x": 142,
-      "y": 32,
-      "text": "Load",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "color": "#1a466b"
-    },
-    {
-      "type": "listBox",
-      "id": "load-list",
-      "x": 42,
-      "y": 60,
-      "width": 158,
-      "height": 80,
-      "rowCount": 5,
-      "rowPadding": 2,
-      "normalBackgroundColor": "#222222",
-      "hoverBackgroundColor": "#2f2f2f",
-      "selectedBackgroundColor": "#4a4a4a",
-      "textColor": "#ffffff",
-      "selectedTextColor": "#ffffff",
-      "placeholderTextColor": "#999999"
-    },
-    {
-      "type": "text",
-      "id": "instructions",
-      "x": 42,
-      "y": 44,
-      "text": "Select a game to load.",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "color": "#1a466b",
-      "wordWrapWidth": 224
-    },
-    {
-      "type": "button",
-      "id": "load-btn",
-      "x": 210,
-      "y": 81,
-      "width": 62,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Load",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "backgroundColor": "#132243",
-      "backgroundColorStates": {
-        "hover": "#1a466b",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      }
-    },
-    {
-      "type": "button",
-      "id": "back-btn",
-      "x": 210,
-      "y": 98,
-      "width": 62,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Back",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "backgroundColor": "#132243",
-      "backgroundColorStates": {
-        "hover": "#1a466b",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      }
-    }
-  ],
-  "modal": true,
-  "zIndex": 101
-}
-</file>
-
-<file path="src/game/guis/load-menu/load-menu.gui.ts">
-import { registerGuiScript } from '@engine/scripting';
-
-const MAX_SLOTS = 5;
-
-/**
- * GUI script for `load-menu`.
- * Five fixed slots (0–4); `B.state.load(slot)` restores the selected slot.
- */
-registerGuiScript('load-menu', ({ B }) => {
-  B.whenButtonClick('back-btn', () => {
-    B.gui('load-menu').hide();
-    B.gui('game-menu').show();
-  });
-
-  let selectedSlotIndex = 0;
-
-  /** Map manifest entries onto fixed slot indices (ignores unnamed / out-of-range saves). */
-  function getSavesBySlot() {
-    const bySlot: Array<{ name: string; slot?: number; timestamp: number } | undefined> =
-      Array(MAX_SLOTS);
-    for (const save of B.state.getSaveList()) {
-      const slot = save.slot;
-      if (typeof slot === 'number' && slot >= 0 && slot < MAX_SLOTS) {
-        bySlot[slot] = save;
-      }
-    }
-    return bySlot;
-  }
-
-  function firstOccupiedOrZero(savesBySlot: ReturnType<typeof getSavesBySlot>): number {
-    for (let i = 0; i < MAX_SLOTS; i++) {
-      if (savesBySlot[i]) return i;
-    }
-    return 0;
-  }
-
-  function syncLoadButton(slotIndex: number) {
-    const save = getSavesBySlot()[slotIndex];
-    B.gui('load-menu').control('load-btn').enabled = !!save;
-  }
-
-  /** Repaint list rows. When `autoSelect` is true, pick the first occupied slot (or 0 if none). */
-  function refreshLoadList(autoSelect: boolean) {
-    const savesBySlot = getSavesBySlot();
-    const listBox = B.gui('load-menu').control('load-list');
-
-    for (let i = 0; i < MAX_SLOTS; i++) {
-      const existing = savesBySlot[i];
-      listBox.setRowText(i, existing ? existing.name : `(Empty Slot ${i + 1})`);
-    }
-
-    if (autoSelect) {
-      selectedSlotIndex = firstOccupiedOrZero(savesBySlot);
-    }
-
-    listBox.selectedIndex = selectedSlotIndex;
-  }
-
-  B.onGuiBuilt(() => {
-    const gui = B.gui('load-menu');
-    const listBox = gui.control('load-list');
-
-    refreshLoadList(true);
-    syncLoadButton(selectedSlotIndex);
-
-    listBox.whenSelectionChanged((index: number) => {
-      selectedSlotIndex = index;
-      syncLoadButton(index);
-    });
-  });
-
-  B.whenButtonClick('load-btn', () => {
-    if (!getSavesBySlot()[selectedSlotIndex]) return;
-
-    const loaded = B.state.load.now(selectedSlotIndex);
-    if (!loaded) return;
-
-    B.gui('load-menu').hide();
-    B.gui('game-menu').hide();
-  });
-});
-</file>
-
-<file path="src/game/guis/menu-bar/menu-bar.gui.json">
-{
-  "id": "menu-bar",
-  "name": "Menu Bar",
-  "description": "",
-  "visible": true,
-  "y": -17,
-  "display": {
-    "aseprite": true
-  },
-  "fixedControls": [
-    "hoverZone",
-    "hideZone"
-  ],
-  "controls": [
-    {
-      "type": "image",
-      "id": "MenuBG",
-      "x": 0,
-      "y": 0,
-      "tag": "MenuBG"
-    },
-    {
-      "type": "button",
-      "id": "MenuBtn",
-      "x": 302,
-      "y": 0,
-      "width": 18,
-      "height": 18,
-      "backgroundAnchor": "screen",
-      "text": "Button",
-      "font": "",
-      "fontSize": 16,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": 0,
-      "backgroundTag": "MenuBtn"
-    },
-    {
-      "type": "trigger",
-      "id": "hoverZone",
-      "x": 278,
-      "y": 0,
-      "width": 42,
-      "height": 10
-    },
-    {
-      "type": "trigger",
-      "id": "hideZone",
-      "x": 294,
-      "y": 0,
-      "width": 26,
-      "height": 26
-    }
-  ]
-}
-</file>
-
-<file path="src/game/guis/menu-bar/menu-bar.gui.ts">
-import { registerGuiScript } from '@engine/scripting';
-
-/**
- * GUI script for `menu-bar` — Bennescript entry (`B.raw`, future onShow/onHide/control hooks on `B`).
- */
-registerGuiScript('menu-bar', ({ B }) => {
-
-  B.onGuiBuilt((gui) => {
-    const root = gui.root;
-
-    B.whenMouseEnter('hoverZone', () => {
-      root.tweenTo({ y: 0 }, 300, 'Sine.easeOut');
-    });
-
-    B.whenMouseLeave('hideZone', () => {
-      root.tweenTo({ y: -17 }, 250, 'Sine.easeIn');
-    });
-  });
-
-  B.whenButtonClick("MenuBtn", () => {
-    B.gui('game-menu').show();
-  });
-});
 </file>
 
 <file path="src/game/guis/speaking-text/speaking-text.gui.ts">
@@ -12420,58 +13738,6 @@ export function collectFontIdsReferencedByGuiControls(): string[] {
 }
 </file>
 
-<file path="src/game/loadStartRoom.ts">
-import { getGameSettings } from '../engine/ConfigManager';
-import type { RoomsManifestData } from '../types/game';
-import type { RoomData } from '../types/room';
-import manifestJson from './rooms/rooms.manifest.json';
-
-const roomJsonModules = import.meta.glob('./rooms/**/*.room.json', { eager: true }) as Record<
-  string,
-  { default: RoomData }
->;
-
-function runtimeStartRoomOverride(): string | undefined {
-  const injected = (globalThis as { __BENNE_START_ROOM_ID?: unknown }).__BENNE_START_ROOM_ID;
-  if (typeof injected === 'string' && injected.trim().length > 0) {
-    return injected.trim();
-  }
-
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  const queryRoomId = params.get('startRoomId') ?? params.get('roomId');
-  return queryRoomId && queryRoomId.trim().length > 0 ? queryRoomId.trim() : undefined;
-}
-
-/**
- * Resolves the start room from `game-config.json` (`startingRoomId`) when set, otherwise
- * `startRoomId` in `rooms.manifest.json`.
- */
-export function loadStartRoomData(): RoomData {
-  const manifest = manifestJson as RoomsManifestData;
-  const startRoomId = runtimeStartRoomOverride() ?? getGameSettings().startingRoomId ?? manifest.startRoomId;
-  const entry = manifest.rooms.find((r) => r.id === startRoomId);
-
-  if (!entry) {
-    throw new Error(`Start room '${startRoomId}' missing from rooms manifest.`);
-  }
-
-  const key = `./rooms/${entry.definition}`;
-  const mod = roomJsonModules[key];
-
-  if (!mod) {
-    throw new Error(
-      `Room JSON not found for manifest entry '${entry.definition}' (expected glob key '${key}'). Keys: ${Object.keys(roomJsonModules).join(', ')}`,
-    );
-  }
-
-  return mod.default;
-}
-</file>
-
 <file path="src/game/pdcs/demo/demo.pdc.json">
 {
   "id": "demo",
@@ -12505,89 +13771,6 @@ export function loadStartRoomData(): RoomData {
       }
     }
   ]
-}
-</file>
-
-<file path="src/game/registerDialogDefinitions.ts">
-import type { Dialog, DialogOption } from '../types/dialogue.js';
-import { registerDialogDefinition } from '../engine/dialog/dialogDefinitionRegistry.js';
-
-function rawJsonFromModule(mod: { default?: unknown } | Record<string, unknown>): unknown {
-  if (mod && typeof mod === 'object' && 'default' in mod) {
-    return (mod as { default?: unknown }).default;
-  }
-  return mod;
-}
-
-function isDialogOption(value: unknown): value is DialogOption {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return false;
-  }
-  const o = value as Record<string, unknown>;
-  if (typeof o.id !== 'string' || o.id.length === 0) {
-    return false;
-  }
-  if (typeof o.text !== 'string') {
-    return false;
-  }
-  if (o.enabled !== undefined && typeof o.enabled !== 'boolean') {
-    return false;
-  }
-  if (o.used !== undefined && typeof o.used !== 'boolean') {
-    return false;
-  }
-  if (o.say !== undefined && typeof o.say !== 'boolean') {
-    return false;
-  }
-  return true;
-}
-
-function isDialog(value: unknown): value is Dialog {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return false;
-  }
-  const o = value as Record<string, unknown>;
-  if (typeof o.id !== 'string' || o.id.length === 0) {
-    return false;
-  }
-  if (o.displayName !== undefined && typeof o.displayName !== 'string') {
-    return false;
-  }
-  if (o.guiId !== undefined && typeof o.guiId !== 'string') {
-    return false;
-  }
-  if (!Array.isArray(o.options)) {
-    return false;
-  }
-  for (const opt of o.options) {
-    if (!isDialogOption(opt)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/** Eager-loads dialog JSON modules under `./dialogs/` into the engine registry (before gameplay). */
-export function registerDialogDefinitionsFromGame(): void {
-  const modules = import.meta.glob('./dialogs/**/*.dialog.json', {
-    eager: true,
-  }) as Record<string, { default?: unknown } | Record<string, unknown>>;
-
-  for (const [path, mod] of Object.entries(modules)) {
-    const raw = rawJsonFromModule(mod);
-    if (!isDialog(raw)) {
-      console.error(`[Benne] Invalid dialog JSON shape at ${path}`);
-      continue;
-    }
-    const m = path.match(/\.\/dialogs\/([^/]+)\//);
-    const folderId = m?.[1];
-    if (folderId && folderId !== raw.id) {
-      console.warn(
-        `[Benne] Dialog folder "${folderId}" does not match JSON id "${raw.id}" (${path}) - definition still registered.`,
-      );
-    }
-    registerDialogDefinition(raw);
-  }
 }
 </file>
 
@@ -12707,49 +13890,174 @@ export function registerGameContent(): void {
 }
 </file>
 
-<file path="src/types/dialogue.ts">
-export interface DialogueLine {
-  speaker?: string;
-  text: string;
+<file path="src/game/resolveGameAssetUrl.ts">
+import { benneMusicCacheKey, benneSfxCacheKey } from '../engine/sound/benneAudioCacheKeys.js';
+
+/**
+ * Resolves paths from room JSON (`images/...` under `src/game/assets/`) to Vite-built URLs.
+ */
+const imageUrls = import.meta.glob('./assets/**/*.{png,jpg,jpeg,webp,gif}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+const jsonUrls = import.meta.glob('./assets/**/*.json', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+const xmlUrls = import.meta.glob('./assets/**/*.xml', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+const sfxAudioUrls = import.meta.glob('./assets/audio/sfx/**/*.{mp3,ogg,wav,m4a}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+const musicAudioUrls = import.meta.glob('./assets/audio/music/**/*.{mp3,ogg,wav,m4a}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+/** When set (BENNE Play webview), rewrites relative Vite `?url` paths to absolute extension media URLs. */
+let benneWebviewPlayAssetBase: string | undefined;
+
+/**
+ * Called from the BENNE Play webview bootstrap before the game loads. Vite emits `./assets/…`
+ * URLs that do not resolve correctly against a `vscode-webview://` document; joining them to
+ * this base (from `webview.asWebviewUri(…/media/benne-play/)`) fixes Phaser texture loads.
+ */
+export function setBenneWebviewPlayAssetBase(base: string): void {
+  const b = base.trim();
+  benneWebviewPlayAssetBase = b.length === 0 ? undefined : b.endsWith('/') ? b : `${b}/`;
 }
 
-export interface DialogueNode {
-  id: string;
-  lines: DialogueLine[];
-  choices?: { text: string; nextNodeId: string }[];
+function absolutizeBundledAssetUrl(url: string): string {
+  if (!benneWebviewPlayAssetBase) {
+    return url;
+  }
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)) {
+    return url;
+  }
+  // Vite commonly emits root-relative `/assets/foo.png` for built files. In a VS Code webview,
+  // that root is not the extension media folder, so make emitted asset URLs bundle-relative.
+  const bundleRelative = url.replace(/^\/+/, '');
+  return new URL(bundleRelative, benneWebviewPlayAssetBase).href;
 }
 
-export interface DialogueTree {
-  id: string;
-  startNodeId: string;
-  nodes: Record<string, DialogueNode>;
+function normalizeAssetPath(relativePath: string): string {
+  return relativePath.replace(/^\.?\/+/, '').replaceAll('\\', '/');
 }
 
-/** One line in a SCUMM-style topic / reply list (see `*.dialog.json`). */
-export interface DialogOption {
-  id: string;
-  text: string;
-  /** When omitted in JSON, treated as `true`. */
-  enabled?: boolean;
-  /** When omitted in JSON, treated as `false` (runtime may persist via game state variables). */
-  used?: boolean;
-  /**
-   * When `true` (default), the player speaks {@link text} before the option’s `whenChoice` handler runs.
-   * Set to `false` to run the handler without an automatic player line.
-   */
-  say?: boolean;
+export function resolveGameAssetUrl(relativePath: string): string {
+  const normalized = normalizeAssetPath(relativePath);
+  const key = `./assets/${normalized}`;
+  const url = imageUrls[key];
+
+  if (!url) {
+    throw new Error(
+      `Missing game asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(imageUrls).sort().join(', ')}`,
+    );
+  }
+
+  return absolutizeBundledAssetUrl(url);
+}
+
+/** Aseprite JSON exports and other data JSON under `src/game/assets/`. */
+export function resolveGameAssetJsonUrl(relativePath: string): string {
+  const normalized = normalizeAssetPath(relativePath);
+  const key = `./assets/${normalized}`;
+  const url = jsonUrls[key];
+
+  if (!url) {
+    throw new Error(
+      `Missing JSON asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(jsonUrls).sort().join(', ')}`,
+    );
+  }
+
+  return absolutizeBundledAssetUrl(url);
+}
+
+/** BMFont XML and other `.xml` under `src/game/assets/` (paths like `fonts/MyFont.xml`). */
+export function resolveGameAssetXmlUrl(relativePath: string): string {
+  const normalized = normalizeAssetPath(relativePath);
+  const key = `./assets/${normalized}`;
+  const url = xmlUrls[key];
+
+  if (!url) {
+    throw new Error(
+      `Missing XML asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(xmlUrls).sort().join(', ')}`,
+    );
+  }
+
+  return absolutizeBundledAssetUrl(url);
+}
+
+export interface BenneAudioBootEntry {
+  readonly cacheKey: string;
+  /** Resolved URLs (often one); multiple formats for the same stem → Phaser tries fallbacks. */
+  readonly urls: readonly string[];
+}
+
+function stemFromAudioGlobKey(globKey: string): string | null {
+  const seg = globKey.replace(/^\.?\//, '').split('/');
+  const file = seg[seg.length - 1];
+  if (!file || !file.includes('.')) {
+    return null;
+  }
+  return file.slice(0, file.lastIndexOf('.'));
+}
+
+function groupAudioByStem(urlMap: Record<string, string>): Map<string, string[]> {
+  const byStem = new Map<string, Set<string>>();
+  for (const [globKey, rawUrl] of Object.entries(urlMap)) {
+    const stem = stemFromAudioGlobKey(globKey);
+    if (stem == null || stem.length === 0) {
+      continue;
+    }
+    let set = byStem.get(stem);
+    if (!set) {
+      set = new Set<string>();
+      byStem.set(stem, set);
+    }
+    set.add(absolutizeBundledAssetUrl(rawUrl));
+  }
+  const out = new Map<string, string[]>();
+  for (const [stem, urlSet] of byStem) {
+    out.set(stem, [...urlSet].sort());
+  }
+  return out;
 }
 
 /**
- * First-class dialog definition (classic SCUMM / AGS-style topic UI).
- * Options may be toggled at runtime via {@link import('../engine/scripting/DialogBenneScript.js').DialogBenneScript}.
+ * Entries for {@link import('../engine/sound/queueBenneAudioBoot.js').queueBenneAudioForBootLoader}.
+ * Keys match {@link import('../engine/sound/benneAudioCacheKeys.js').benneSfxCacheKey} /
+ * {@link import('../engine/sound/benneAudioCacheKeys.js').benneMusicCacheKey}.
  */
-export interface Dialog {
-  id: string;
-  displayName?: string;
-  options: DialogOption[];
-  /** GUI overlay id; defaults to `"dialog"` when omitted. */
-  guiId?: string;
+export function getBenneAudioBootEntries(): { sfx: BenneAudioBootEntry[]; music: BenneAudioBootEntry[] } {
+  const sfxGrouped = groupAudioByStem(sfxAudioUrls);
+  const musicGrouped = groupAudioByStem(musicAudioUrls);
+
+  const sfx: BenneAudioBootEntry[] = [];
+  for (const [stem, urls] of sfxGrouped) {
+    sfx.push({ cacheKey: benneSfxCacheKey(stem), urls });
+  }
+  sfx.sort((a, b) => a.cacheKey.localeCompare(b.cacheKey));
+
+  const music: BenneAudioBootEntry[] = [];
+  for (const [stem, urls] of musicGrouped) {
+    music.push({ cacheKey: benneMusicCacheKey(stem), urls });
+  }
+  music.sort((a, b) => a.cacheKey.localeCompare(b.cacheKey));
+
+  return { sfx, music };
 }
 </file>
 
@@ -12819,99 +14127,6 @@ export interface VerbHoverTarget {
    * `resolvePointerVerbForTarget` reads (`src/engine/verbs/resolvePointerVerb.ts`).
    */
   defaultVerb?: string;
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "benne",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "build:room-preview": "tsc && vite build --config vite.room-preview.config.ts",
-    "build:character-preview": "tsc && vite build --config vite.character-preview.config.ts",
-    "build:gui-preview": "tsc && vite build --config vite.gui-preview.config.ts",
-    "build:inventory-preview": "tsc && vite build --config vite.inventory-preview.config.ts",
-    "build:benne-play": "tsc && vite build --config vite.benne-play.config.ts",
-    "watch:benne-play": "vite build --watch --config vite.benne-play.config.ts",
-    "preview": "vite preview",
-    "sync-bootstrap-down": "node scripts/switch-game-template.mjs sync-bootstrap-down",
-    "sync-template-down": "node scripts/switch-game-template.mjs sync-template-down",
-    "set-template": "node scripts/switch-game-template.mjs set-template",
-    "set-template:2-click": "node scripts/switch-game-template.mjs set-template 2-click",
-    "set-template:9-verb": "node scripts/switch-game-template.mjs set-template 9-verb"
-  },
-  "devDependencies": {
-    "typescript": "~5.9.3",
-    "vite": "^8.0.1"
-  },
-  "dependencies": {
-    "phaser": "4.0.0-rc.7"
-  }
-}
-</file>
-
-<file path="src/editor/play/bennePlayMain.ts">
-import './configureBennePlayWebviewAssets';
-import { createBenneGame } from '../../engine/Game';
-import { gameEvents } from '../../engine/events/EventBus';
-import { tryGetActiveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
-import { getRegisteredInventoryDefinitionIds } from '../../engine/inventory/inventoryDefinitionRegistry';
-import { wireBenneGlobalScripts } from '../../engine/scripting/wireBenneGlobalScripts';
-import { registerGameContent } from '../../game/registerGameContent';
-
-const parent = document.querySelector<HTMLElement>('#game-container');
-if (!parent) {
-  throw new Error('Missing #game-container');
-}
-
-registerGameContent();
-const game = createBenneGame(parent);
-wireBenneGlobalScripts(game, gameEvents);
-setupBennePlayInventoryToolbar();
-
-function setupBennePlayInventoryToolbar(): void {
-  const select = document.querySelector<HTMLSelectElement>('#benne-play-inventory-select');
-  const giveBtn = document.querySelector<HTMLButtonElement>('#benne-play-give-inventory');
-  if (!select || !giveBtn) {
-    return;
-  }
-
-  const ids = getRegisteredInventoryDefinitionIds();
-  select.replaceChildren();
-  if (ids.length === 0) {
-    const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = '(no inventory items)';
-    opt.disabled = true;
-    opt.selected = true;
-    select.append(opt);
-    select.disabled = true;
-    giveBtn.disabled = true;
-    return;
-  }
-
-  for (const id of ids) {
-    const opt = document.createElement('option');
-    opt.value = id;
-    opt.textContent = id;
-    select.append(opt);
-  }
-
-  giveBtn.addEventListener('click', () => {
-    const itemId = select.value;
-    if (itemId.length === 0) {
-      return;
-    }
-    const mgr = tryGetActiveGameStateManager();
-    if (!mgr) {
-      return;
-    }
-    void mgr.addInventory(itemId, 1);
-  });
 }
 </file>
 
@@ -14072,6 +15287,440 @@ export function runSnapshotFlushHooks(): void {
 }
 </file>
 
+<file path="src/engine/gui/buildGuiListBox.ts">
+import * as Phaser from 'phaser';
+import gameFontsManifest from '../../game/assets/fonts/fonts.json';
+import type { GameBitmapFontDefinition, GameFontsManifest } from '../../types/fonts';
+import type { GuiData, GuiListBoxControl, GuiTextOutline } from '../../types/gui';
+import { gameEvents } from '../events/EventBus';
+import {
+  guiListBoxItemActivatedEventId,
+  guiListBoxSelectionChangedEventId,
+  type GuiListBoxItemActivatedPayload,
+  type GuiListBoxSelectionChangedPayload,
+} from '../events/guiListBoxEvents';
+import { applyGuiButtonInteractivity } from './buildGuiOverlay';
+import {
+  applyGuiBitmapTextFillTint,
+  attachGuiBitmapTextOutlineList,
+  BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY,
+  BENNE_GUI_OUTLINE_DX_KEY,
+  BENNE_GUI_OUTLINE_DY_KEY,
+  BENNE_GUI_OUTLINE_FILL_ALPHA_KEY,
+  BENNE_GUI_OUTLINE_FILL_TINT_KEY,
+  resolveEffectiveGuiTextOutline,
+  syncOutlinedGuiBitmapTextAll,
+  syncOutlinedGuiBitmapTextPositions,
+} from './guiTextOutline';
+import {
+  BENNE_GUI_LIST_BOX_DATA_KEY,
+  BENNE_GUI_LIST_BOX_READ_ROW_COUNT_DATA_KEY,
+  BENNE_GUI_LIST_BOX_READ_SELECTED_INDEX_DATA_KEY,
+  BENNE_GUI_LIST_BOX_SET_ROW_TEXT_DATA_KEY,
+  BENNE_GUI_LIST_BOX_SET_SELECTED_INDEX_DATA_KEY,
+  type BenneGuiListBoxSetRowTextFn,
+  type BenneGuiListBoxSetSelectedIndexFn,
+} from './guiListBoxRuntime';
+
+const manifest = gameFontsManifest as GameFontsManifest;
+
+const GUI_LIST_BOX_BG_DEPTH = 0;
+const GUI_LIST_BOX_TEXT_DEPTH = 2;
+const GUI_LIST_BOX_OUTLINE_DEPTH = 1;
+const GUI_LIST_BOX_TEXT_PADDING_X = 4;
+const GUI_LIST_BOX_DOUBLE_CLICK_MS = 300;
+
+export interface BuiltGuiListBox {
+  readonly hitTarget: Phaser.GameObjects.Container;
+  readonly rowBackgrounds: readonly Phaser.GameObjects.Rectangle[];
+  readonly rowTexts: readonly Phaser.GameObjects.BitmapText[];
+  readonly rowTextOutlines: ReadonlyArray<readonly Phaser.GameObjects.BitmapText[]>;
+  readonly enabled: boolean;
+  readonly width: number;
+  readonly height: number;
+  dispose(): void;
+}
+
+function hexStringToTint(hex: string): number {
+  try {
+    return Phaser.Display.Color.HexStringToColor(hex).color;
+  } catch {
+    return 0xffffff;
+  }
+}
+
+function effectiveBitmapFontRenderSize(scene: Phaser.Scene, fontKey: string, fontSize: number): number {
+  const entry = scene.cache.bitmapFont.get(fontKey) as { data?: { size?: number } } | null;
+  const dataSize = entry?.data?.size;
+  if (dataSize == null || dataSize === 0) {
+    return fontSize;
+  }
+  return dataSize < 0 ? -Math.abs(fontSize) : Math.abs(fontSize);
+}
+
+function pickAnyLoadedBitmapFont(scene: Phaser.Scene): string | null {
+  for (const key of Object.keys(manifest)) {
+    if (scene.cache.bitmapFont.exists(key)) {
+      return key;
+    }
+  }
+  return null;
+}
+
+function createGuiBitmapTextOutlines(
+  scene: Phaser.Scene,
+  main: Phaser.GameObjects.BitmapText,
+  outline: GuiTextOutline | undefined,
+  visible: boolean,
+): Phaser.GameObjects.BitmapText[] {
+  const spec = resolveEffectiveGuiTextOutline(outline);
+  if (!spec) {
+    return [];
+  }
+  const outs: Phaser.GameObjects.BitmapText[] = [];
+  const maxW = (main as { maxWidth?: number }).maxWidth;
+  const letterSpacing = (main as { letterSpacing?: number }).letterSpacing ?? 0;
+  for (const { dx, dy } of spec.offsets) {
+    const o = scene.add.bitmapText(main.x + dx, main.y + dy, main.font, main.text, main.fontSize, main.align);
+    o.setOrigin(main.originX, main.originY);
+    if (letterSpacing !== 0) {
+      o.setLetterSpacing(letterSpacing);
+    }
+    if (typeof maxW === 'number' && maxW > 0) {
+      o.setMaxWidth(maxW);
+    }
+    o.setVisible(visible);
+    o.setScrollFactor(0, 0);
+    o.setDepth(GUI_LIST_BOX_OUTLINE_DEPTH);
+    o.setData(BENNE_GUI_OUTLINE_DX_KEY, dx);
+    o.setData(BENNE_GUI_OUTLINE_DY_KEY, dy);
+    applyGuiBitmapTextFillTint(o, spec.tint);
+    o.setAlpha(spec.alpha);
+    o.setData(BENNE_GUI_OUTLINE_FILL_TINT_KEY, spec.tint);
+    o.setData(BENNE_GUI_OUTLINE_FILL_ALPHA_KEY, spec.alpha);
+    outs.push(o);
+  }
+  attachGuiBitmapTextOutlineList(main, outs);
+  return outs;
+}
+
+function pointerRowIndex(
+  pointer: Phaser.Input.Pointer,
+  hitTarget: Phaser.GameObjects.Container,
+  rowCount: number,
+  rowHeight: number,
+  rowPadding: number,
+): number {
+  const matrix = hitTarget.getWorldTransformMatrix();
+  const local = matrix.applyInverse(pointer.worldX, pointer.worldY);
+  if (local.x < 0 || local.y < 0) {
+    return -1;
+  }
+  const stride = rowHeight + rowPadding;
+  if (stride <= 0) {
+    return -1;
+  }
+  const idx = Math.floor(local.y / stride);
+  if (idx < 0 || idx >= rowCount) {
+    return -1;
+  }
+  const inRowTop = idx * stride;
+  if (local.y >= inRowTop + rowHeight) {
+    return -1;
+  }
+  return idx;
+}
+
+export function buildGuiListBox(
+  scene: Phaser.Scene,
+  gui: GuiData,
+  c: GuiListBoxControl,
+  baseDepth: number,
+  startVisible: boolean,
+  isInputSuppressed?: () => boolean,
+): BuiltGuiListBox | null {
+  const id = c.id.trim();
+  const rowCount = Math.max(1, Math.floor(c.rowCount));
+  if (!id || c.width <= 0 || c.height <= 0 || rowCount <= 0) {
+    return null;
+  }
+
+  const px = Math.round(c.x);
+  const py = Math.round(c.y);
+  const w = Math.round(c.width);
+  const h = Math.round(c.height);
+  const rowPadding = Math.max(0, Math.floor(c.rowPadding ?? 0));
+  const derivedRowHeight = Math.floor((h - rowPadding * (rowCount - 1)) / rowCount);
+  const rowHeight = Math.max(1, Math.floor(c.rowHeight ?? derivedRowHeight));
+
+  const authoredFont = (c.font ?? '').trim();
+  let fontKey: string | null = null;
+  if (authoredFont.length > 0) {
+    if (!scene.cache.bitmapFont.exists(authoredFont)) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[Benne] GUI "${gui.id}" listBox "${id}" uses unknown bitmap font "${authoredFont}".`,
+        );
+      }
+      return null;
+    }
+    fontKey = authoredFont;
+  } else {
+    fontKey = pickAnyLoadedBitmapFont(scene);
+    if (!fontKey) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] GUI "${gui.id}" listBox "${id}" needs a loaded bitmap font.`);
+      }
+      return null;
+    }
+  }
+  const fontEntry = manifest[fontKey] as GameBitmapFontDefinition | undefined;
+  if (!fontEntry) {
+    return null;
+  }
+
+  const rowTextColor = hexStringToTint(c.textColor);
+  const rowSelectedTextColor = hexStringToTint(c.selectedTextColor);
+  const rowPlaceholderTextColor = hexStringToTint(c.placeholderTextColor);
+  const rowNormalBg = hexStringToTint(c.normalBackgroundColor);
+  const rowHoverBg = hexStringToTint(c.hoverBackgroundColor);
+  const rowSelectedBg = hexStringToTint(c.selectedBackgroundColor);
+  const derivedRowFontSize = Math.max(1, Math.min(rowHeight - 2, 12));
+  const rowFontSize =
+    Number.isFinite(c.fontSize) && c.fontSize >= 1
+      ? Math.floor(c.fontSize)
+      : derivedRowFontSize;
+  const renderSize = effectiveBitmapFontRenderSize(scene, fontKey, rowFontSize);
+
+  let enabled = c.enabled !== false;
+  let selectedIndex = -1;
+  let hoverIndex = -1;
+  let focused = false;
+  let lastClickAt = 0;
+  let lastClickIndex = -1;
+  const rowTextsData = Array.from({ length: rowCount }, () => '');
+
+  const overlayVisible = startVisible && c.visible !== false;
+  const z = c.zIndex ?? 0;
+  const d = baseDepth + z;
+
+  const hitTarget = scene.add.container(px, py);
+  hitTarget.setScrollFactor(0, 0);
+  hitTarget.setDepth(d);
+  hitTarget.setVisible(overlayVisible);
+  hitTarget.setData(BENNE_GUI_LIST_BOX_DATA_KEY, true);
+
+  const rowBackgrounds: Phaser.GameObjects.Rectangle[] = [];
+  const rowTexts: Phaser.GameObjects.BitmapText[] = [];
+  const rowTextOutlines: Phaser.GameObjects.BitmapText[][] = [];
+  const textOutline = (c as GuiListBoxControl & { textOutline?: GuiTextOutline }).textOutline;
+
+  for (let row = 0; row < rowCount; row += 1) {
+    const y = row * (rowHeight + rowPadding);
+    const bg = scene.add.rectangle(0, y, w, rowHeight, rowNormalBg, 1);
+    bg.setOrigin(0, 0);
+    bg.setDepth(GUI_LIST_BOX_BG_DEPTH);
+    hitTarget.add(bg);
+    rowBackgrounds.push(bg);
+
+    const text = scene.add.bitmapText(
+      GUI_LIST_BOX_TEXT_PADDING_X,
+      y + Math.round(rowHeight / 2),
+      fontKey,
+      '',
+      renderSize,
+      0,
+    );
+    text.setOrigin(0, 0.5);
+    text.setScrollFactor(0, 0);
+    text.setDepth(GUI_LIST_BOX_TEXT_DEPTH);
+    const maxWidth = Math.max(0, w - GUI_LIST_BOX_TEXT_PADDING_X * 2);
+    if (maxWidth > 0) {
+      text.setMaxWidth(maxWidth);
+    }
+    const letterSpacing = fontEntry.defaultLetterSpacing ?? 0;
+    if (letterSpacing !== 0) {
+      text.setLetterSpacing(letterSpacing);
+    }
+    const outlines = createGuiBitmapTextOutlines(scene, text, textOutline, overlayVisible);
+    for (const o of outlines) {
+      hitTarget.add(o);
+    }
+    hitTarget.add(text);
+    rowTexts.push(text);
+    rowTextOutlines.push(outlines);
+  }
+
+  const emitSelectionChanged = (newIndex: number, oldIndex: number): void => {
+    gameEvents.emit(guiListBoxSelectionChangedEventId(gui.id, id), {
+      newIndex,
+      oldIndex,
+    } satisfies GuiListBoxSelectionChangedPayload);
+  };
+  const emitItemActivated = (index: number): void => {
+    gameEvents.emit(guiListBoxItemActivatedEventId(gui.id, id), {
+      index,
+    } satisfies GuiListBoxItemActivatedPayload);
+  };
+
+  const refreshInteractivity = (): void => {
+    hitTarget.disableInteractive();
+    if (hitTarget.visible && enabled) {
+      applyGuiButtonInteractivity(hitTarget, w, h, true);
+    }
+  };
+
+  const setSelectedIndexInternal = (next: number, emitEvent: boolean): void => {
+    const clamped = next >= 0 && next < rowCount ? Math.floor(next) : -1;
+    if (clamped === selectedIndex) {
+      return;
+    }
+    const oldIndex = selectedIndex;
+    selectedIndex = clamped;
+    refreshVisualState();
+    if (emitEvent) {
+      emitSelectionChanged(selectedIndex, oldIndex);
+    }
+  };
+
+  const setRowTextInternal = (index: number, text: string): void => {
+    if (index < 0 || index >= rowCount) {
+      return;
+    }
+    rowTextsData[index] = String(text ?? '');
+    syncOutlinedGuiBitmapTextAll(rowTexts[index]!, rowTextsData[index]!);
+    refreshVisualState();
+  };
+
+  function refreshVisualState(): void {
+    for (let i = 0; i < rowCount; i += 1) {
+      const isSelected = i === selectedIndex;
+      const isHover = !isSelected && enabled && i === hoverIndex;
+      const bg = rowBackgrounds[i]!;
+      const text = rowTexts[i]!;
+      const rowValue = rowTextsData[i] ?? '';
+      const isPlaceholder = rowValue.length === 0;
+      const bgTint = isSelected ? rowSelectedBg : isHover ? rowHoverBg : rowNormalBg;
+      const textTint = isSelected
+        ? rowSelectedTextColor
+        : isPlaceholder
+          ? rowPlaceholderTextColor
+          : rowTextColor;
+      bg.setFillStyle(bgTint, 1);
+      applyGuiBitmapTextFillTint(text, textTint);
+      text.setData(BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY, textTint);
+      syncOutlinedGuiBitmapTextPositions(text);
+      const alpha = enabled ? 1 : 0.45;
+      bg.setAlpha(alpha);
+      text.setAlpha(alpha);
+      for (const o of rowTextOutlines[i] ?? []) {
+        o.setAlpha(alpha);
+      }
+    }
+  }
+
+  hitTarget.setData(BENNE_GUI_LIST_BOX_SET_SELECTED_INDEX_DATA_KEY, ((index: number) => {
+    setSelectedIndexInternal(index, false);
+  }) satisfies BenneGuiListBoxSetSelectedIndexFn);
+  hitTarget.setData(BENNE_GUI_LIST_BOX_READ_SELECTED_INDEX_DATA_KEY, () => selectedIndex);
+  hitTarget.setData(BENNE_GUI_LIST_BOX_SET_ROW_TEXT_DATA_KEY, ((index: number, text: string) => {
+    setRowTextInternal(index, text);
+  }) satisfies BenneGuiListBoxSetRowTextFn);
+  hitTarget.setData(BENNE_GUI_LIST_BOX_READ_ROW_COUNT_DATA_KEY, () => rowCount);
+
+  hitTarget.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+    if (!enabled) {
+      return;
+    }
+    hoverIndex = pointerRowIndex(pointer, hitTarget, rowCount, rowHeight, rowPadding);
+    refreshVisualState();
+  });
+  hitTarget.on('pointerover', () => {
+    refreshVisualState();
+  });
+  hitTarget.on('pointerout', () => {
+    hoverIndex = -1;
+    refreshVisualState();
+  });
+  hitTarget.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    if (!enabled || !pointer.leftButtonDown()) {
+      return;
+    }
+    if (isInputSuppressed?.()) {
+      return;
+    }
+    focused = true;
+  });
+  hitTarget.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+    if (!enabled || !hitTarget.visible || !pointer.leftButtonReleased()) {
+      return;
+    }
+    if (isInputSuppressed?.()) {
+      return;
+    }
+    const index = pointerRowIndex(pointer, hitTarget, rowCount, rowHeight, rowPadding);
+    if (index < 0) {
+      return;
+    }
+    setSelectedIndexInternal(index, true);
+    const now = scene.time.now;
+    if (lastClickIndex === index && now - lastClickAt <= GUI_LIST_BOX_DOUBLE_CLICK_MS) {
+      emitItemActivated(index);
+    }
+    lastClickIndex = index;
+    lastClickAt = now;
+  });
+
+  const onScenePointerDown = (pointer: Phaser.Input.Pointer): void => {
+    if (!focused) {
+      return;
+    }
+    const matrix = hitTarget.getWorldTransformMatrix();
+    const local = matrix.applyInverse(pointer.worldX, pointer.worldY);
+    if (local.x >= 0 && local.x <= w && local.y >= 0 && local.y <= h) {
+      return;
+    }
+    focused = false;
+  };
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (!focused || !enabled || !hitTarget.visible) {
+      return;
+    }
+    if (isInputSuppressed?.()) {
+      return;
+    }
+    if (event.key !== 'Enter') {
+      return;
+    }
+    if (selectedIndex >= 0 && selectedIndex < rowCount) {
+      emitItemActivated(selectedIndex);
+    }
+  };
+  scene.input.on('pointerdown', onScenePointerDown);
+  scene.input.keyboard?.on('keydown', onKeyDown);
+
+  const dispose = (): void => {
+    scene.input.off('pointerdown', onScenePointerDown);
+    scene.input.keyboard?.off('keydown', onKeyDown);
+  };
+
+  hitTarget.once(Phaser.GameObjects.Events.DESTROY, dispose);
+  refreshInteractivity();
+  refreshVisualState();
+
+  return {
+    hitTarget,
+    rowBackgrounds,
+    rowTexts,
+    rowTextOutlines,
+    enabled,
+    width: w,
+    height: h,
+    dispose,
+  };
+}
+</file>
+
 <file path="src/engine/gui/guiTextOutline.ts">
 import * as Phaser from 'phaser';
 import type { GuiTextOutline, GuiTextOutlineSides } from '../../types/gui';
@@ -14560,509 +16209,6 @@ export function attachBenneCharacterPerspectiveRenderNodes(
 }
 </file>
 
-<file path="src/engine/scenes/RoomTransitionHookRegistry.ts">
-import type { RoomTransitionContext } from '../../types/roomTransition.js';
-
-type RoomHandler = (ctx: RoomTransitionContext) => void | Promise<void>;
-type AnyHandler = (ctx: RoomTransitionContext) => void | Promise<void>;
-
-/**
- * All room-transition hooks (per-room and global) live here so {@link import('./RoomTransitionOrchestrator.js').RoomTransitionOrchestrator} can run them in order.
- */
-export class RoomTransitionHookRegistry {
-  private readonly byRoomLeave = new Map<string, RoomHandler[]>();
-  private readonly byRoomLoaded = new Map<string, RoomHandler[]>();
-  private readonly byRoomEnter = new Map<string, RoomHandler[]>();
-  private readonly byRoomAfterFade = new Map<string, RoomHandler[]>();
-  private anyLeave: AnyHandler[] = [];
-  private anyEnter: AnyHandler[] = [];
-  private anyAfterFade: AnyHandler[] = [];
-
-  registerRoomLeaveRoom(roomId: string, handler: RoomHandler): void {
-    this.pushByRoom(this.byRoomLeave, roomId, handler);
-  }
-
-  registerRoomEnterRoom(roomId: string, handler: RoomHandler): void {
-    this.pushByRoom(this.byRoomEnter, roomId, handler);
-  }
-
-  registerRoomLoadedRoom(roomId: string, handler: RoomHandler): void {
-    this.pushByRoom(this.byRoomLoaded, roomId, handler);
-  }
-
-  registerRoomEnterRoomAfterFade(roomId: string, handler: RoomHandler): void {
-    this.pushByRoom(this.byRoomAfterFade, roomId, handler);
-  }
-
-  whenLeaveAnyRoom(handler: AnyHandler): void {
-    this.anyLeave.push(handler);
-  }
-
-  whenEnterAnyRoom(handler: AnyHandler): void {
-    this.anyEnter.push(handler);
-  }
-
-  whenEnterAnyRoomAfterFade(handler: AnyHandler): void {
-    this.anyAfterFade.push(handler);
-  }
-
-  private pushByRoom(m: Map<string, RoomHandler[]>, roomId: string, h: RoomHandler): void {
-    const k = String(roomId);
-    const a = m.get(k) ?? [];
-    a.push(h);
-    m.set(k, a);
-  }
-
-  getLeaveHandlersForRoom(roomId: string): readonly RoomHandler[] {
-    return this.byRoomLeave.get(String(roomId)) ?? [];
-  }
-
-  getEnterHandlersForRoom(roomId: string): readonly RoomHandler[] {
-    return this.byRoomEnter.get(String(roomId)) ?? [];
-  }
-
-  getLoadedHandlersForRoom(roomId: string): readonly RoomHandler[] {
-    return this.byRoomLoaded.get(String(roomId)) ?? [];
-  }
-
-  getAfterFadeHandlersForRoom(roomId: string): readonly RoomHandler[] {
-    return this.byRoomAfterFade.get(String(roomId)) ?? [];
-  }
-
-  getAnyLeave(): readonly AnyHandler[] {
-    return this.anyLeave;
-  }
-
-  getAnyEnter(): readonly AnyHandler[] {
-    return this.anyEnter;
-  }
-
-  getAnyAfterFade(): readonly AnyHandler[] {
-    return this.anyAfterFade;
-  }
-
-  /**
-   * Clears per-room hooks so `registerRoomScript` can re-register (each `RoomScene` `create` runs
-   * the same `*.room.ts` again).
-   */
-  clearPerRoomScriptHooksForRoomId(roomId: string): void {
-    const k = String(roomId);
-    this.byRoomLeave.delete(k);
-    this.byRoomLoaded.delete(k);
-    this.byRoomEnter.delete(k);
-    this.byRoomAfterFade.delete(k);
-  }
-}
-
-export async function runRoomHandlersSeq(
-  handlers: readonly ((ctx: RoomTransitionContext) => void | Promise<void>)[],
-  ctx: RoomTransitionContext,
-): Promise<void> {
-  for (const h of handlers) {
-    await Promise.resolve(h(ctx));
-  }
-}
-
-/**
- * Invokes each handler in order; an error in one does not skip the rest (used for enter / after-fade hooks).
- */
-export async function runRoomHandlersEachSafe(
-  handlers: readonly ((ctx: RoomTransitionContext) => void | Promise<void>)[],
-  ctx: RoomTransitionContext,
-  logLabel: string,
-): Promise<void> {
-  for (let i = 0; i < handlers.length; i += 1) {
-    try {
-      await Promise.resolve(handlers[i]!(ctx));
-    } catch (e) {
-      console.error(`[Benne] ${logLabel} handler #${i} failed:`, e);
-    }
-  }
-}
-</file>
-
-<file path="src/engine/scripting/DialogBenneScript.ts">
-import * as Phaser from 'phaser';
-import { SCENE_ROOM } from '../../game/constants.js';
-import { gameEvents } from '../events/EventBus.js';
-import {
-  DIALOG_OPTION_ENABLED_CHANGED_EVENT,
-  DIALOG_STARTED_EVENT,
-  dialogChoiceSyntheticButtonId,
-  type DialogOptionEnabledChangedPayload,
-  type DialogStartedPayload,
-} from '../events/dialogEvents.js';
-import { guiButtonClickEventId } from '../events/guiButtonEvents.js';
-import { getDialogDefinition } from '../dialog/dialogDefinitionRegistry.js';
-import {
-  BENNE_ACTIVE_DIALOG_ID_VARIABLE,
-  dialogOptionEnabledVariableKey,
-} from '../dialog/dialogOptionVariables.js';
-import type { GameStateManager } from '../gameState/GameStateManager.js';
-import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import type { RoomScene } from '../scenes/RoomScene.js';
-import { BenneScriptCore, withNow, type BlockingWithNow } from './BenneScriptCore.js';
-import type { BenneScriptDialogCommandSurface, BenneScriptPlayerFacade } from './benneScriptFacades.js';
-import {
-  createBenneScriptGameStateNamespace,
-  createBenneScriptInventoryNamespace,
-  type BenneScriptGameStateNamespace,
-  type BenneScriptInventoryNamespace,
-} from './benneScriptGameStateApi.js';
-import {
-  endDialogSessionIfMatches,
-  getActiveDialogBenneScript,
-  setActiveDialogBenneScript,
-} from './dialogSession.js';
-import { getBenneDialogScriptRegistrations } from './registerDialogScript.js';
-import type { DialogScriptContext } from './types.js';
-
-const warnedSelfStart = new Set<string>();
-const warnedUnknownOption = new Set<string>();
-
-export type BenneScriptDialogInteractionQueue = (factory: () => Promise<unknown>) => void;
-
-function warnSelfStartOnce(dialogId: string): void {
-  if (!import.meta.env.DEV || warnedSelfStart.has(dialogId)) {
-    return;
-  }
-  warnedSelfStart.add(dialogId);
-  console.warn(
-    `[Benne] B.start() inside registerDialogScript("${dialogId}") is a no-op — open the dialog from another script with B.dialog("${dialogId}").start().`,
-  );
-}
-
-function warnUnknownDialogOptionOnce(key: string, message: string): void {
-  if (!import.meta.env.DEV || warnedUnknownOption.has(key)) {
-    return;
-  }
-  warnedUnknownOption.add(key);
-  console.warn(`[Benne] ${message}`);
-}
-
-/** No-op surface when `B.dialog` is used before the game or dialog id is invalid. */
-export function createNoopDialogCommandSurface(): BenneScriptDialogCommandSurface {
-  const noop = withNow(
-    () => {},
-    () => {},
-  );
-  const noopOpt = withNow(
-    (_optionId: string) => {},
-    (_optionId: string) => {},
-  );
-  return {
-    start: noop,
-    stop: noop,
-    optionOn: noopOpt,
-    optionOff: noopOpt,
-  };
-}
-
-function createDialogCommandSurface(params: {
-  targetDialogId: string;
-  game: Phaser.Game;
-  manager: GameStateManager;
-  queue: BenneScriptDialogInteractionQueue;
-  mode: 'external' | 'self';
-}): BenneScriptDialogCommandSurface {
-  const { targetDialogId, game, manager, queue, mode } = params;
-
-  const applyOptionEnabled = (optionId: string, enabled: boolean): void => {
-    const id = optionId.trim();
-    if (!id) {
-      return;
-    }
-    const def = getDialogDefinition(targetDialogId);
-    if (!def) {
-      warnUnknownDialogOptionOnce(
-        `dialog:${targetDialogId}`,
-        `B.dialog("${targetDialogId}").option*: unknown dialog id — ignored.`,
-      );
-      return;
-    }
-    if (!def.options.some((o) => o.id === id)) {
-      warnUnknownDialogOptionOnce(
-        `dialog:${targetDialogId}:opt:${id}`,
-        `B.dialog("${targetDialogId}").option*("${id}"): unknown option id for this dialog — variable still written.`,
-      );
-    }
-    manager.setVariable(dialogOptionEnabledVariableKey(targetDialogId, id), enabled);
-    const payload: DialogOptionEnabledChangedPayload = {
-      dialogId: targetDialogId,
-      optionId: id,
-      enabled,
-    };
-    gameEvents.emit(DIALOG_OPTION_ENABLED_CHANGED_EVENT, payload);
-  };
-
-  const start =
-    mode === 'self'
-      ? withNow(
-          () =>
-            queue(() => {
-              warnSelfStartOnce(targetDialogId);
-              return Promise.resolve();
-            }),
-          () => warnSelfStartOnce(targetDialogId),
-        )
-      : withNow(
-          () => {
-            queue(() => {
-              openDialogSessionForId(game, targetDialogId);
-              return Promise.resolve();
-            });
-          },
-          () => {
-            openDialogSessionForId(game, targetDialogId);
-          },
-        );
-
-  const stop = withNow(
-    () => {
-      queue(() => {
-        const active = getActiveDialogBenneScript();
-        if (active && active.dialogId === targetDialogId) {
-          endDialogSessionIfMatches(active);
-        }
-        return Promise.resolve();
-      });
-    },
-    () => {
-      const active = getActiveDialogBenneScript();
-      if (active && active.dialogId === targetDialogId) {
-        endDialogSessionIfMatches(active);
-      }
-    },
-  );
-
-  const optionOn = withNow(
-    (optionId: string) => {
-      queue(() => {
-        applyOptionEnabled(optionId, true);
-        return Promise.resolve();
-      });
-    },
-    (optionId: string) => {
-      applyOptionEnabled(optionId, true);
-    },
-  );
-
-  const optionOff = withNow(
-    (optionId: string) => {
-      queue(() => {
-        applyOptionEnabled(optionId, false);
-        return Promise.resolve();
-      });
-    },
-    (optionId: string) => {
-      applyOptionEnabled(optionId, false);
-    },
-  );
-
-  return { start, stop, optionOn, optionOff };
-}
-
-/**
- * `B.dialog(id)` — queues session open/close and option visibility on the owning script’s interaction tail.
- */
-export function createBenneScriptDialogAccessor(
-  manager: GameStateManager,
-  game: Phaser.Game,
-  queue: BenneScriptDialogInteractionQueue,
-): (dialogId: string) => BenneScriptDialogCommandSurface {
-  return (dialogId: string) => {
-    const id = dialogId.trim();
-    if (!id) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.dialog: empty id — returning no-op surface.');
-      }
-      return createNoopDialogCommandSurface();
-    }
-    return createDialogCommandSurface({
-      targetDialogId: id,
-      game,
-      manager,
-      queue,
-      mode: 'external',
-    });
-  };
-}
-
-/**
- * Opens a dialog session (used by **`B.dialog(id).start()`** and **`.start.now()`**).
- */
-export function openDialogSessionForId(game: Phaser.Game, dialogId: string): void {
-  const trimmed = dialogId.trim();
-  if (!trimmed) {
-    if (import.meta.env.DEV) {
-      console.warn('[Benne] openDialogSessionForId: empty dialog id — ignored.');
-    }
-    return;
-  }
-
-  const def = getDialogDefinition(trimmed);
-  if (!def) {
-    if (import.meta.env.DEV) {
-      console.warn(`[Benne] openDialogSessionForId: unknown dialog id "${trimmed}" — ignored.`);
-    }
-    return;
-  }
-
-  const prev = getActiveDialogBenneScript();
-  if (prev) {
-    endDialogSessionIfMatches(prev);
-  }
-
-  const manager = resolveGameStateManager(game);
-  const choiceGuiId = def.guiId ?? 'dialog';
-  const script = new DialogBenneScript(gameEvents, trimmed, game, choiceGuiId);
-  setActiveDialogBenneScript(script);
-  manager.setVariable(BENNE_ACTIVE_DIALOG_ID_VARIABLE, trimmed);
-
-  const started: DialogStartedPayload = { dialogId: trimmed, guiId: choiceGuiId };
-  gameEvents.emit(DIALOG_STARTED_EVENT, started);
-
-  const ctx: DialogScriptContext = {
-    B: script,
-    events: gameEvents,
-    dialogId: trimmed,
-    game,
-  };
-
-  for (const { dialogId: rid, registerFn } of getBenneDialogScriptRegistrations()) {
-    if (rid !== trimmed) {
-      continue;
-    }
-    if (getActiveDialogBenneScript() !== script) {
-      break;
-    }
-    try {
-      registerFn(ctx);
-    } catch (err) {
-      console.error(`[Benne] Error in registerDialogScript("${trimmed}") callback:`, err);
-    }
-  }
-}
-
-/**
- * Bennescript facade for `*.dialog.ts`: constructed when a dialog session opens.
- */
-export class DialogBenneScript extends BenneScriptCore implements BenneScriptDialogCommandSurface {
-  readonly dialogId: string;
-  /** GUI overlay that receives synthetic `dc__*` choice button ids (from `*.dialog.json` `guiId`). */
-  readonly dialogGuiId: string;
-  readonly game: Phaser.Game;
-
-  readonly state: BenneScriptGameStateNamespace;
-  readonly inventory: BenneScriptInventoryNamespace;
-
-  readonly dialog: (id: string) => BenneScriptDialogCommandSurface;
-
-  readonly start: BlockingWithNow<[]>;
-  readonly stop: BlockingWithNow<[]>;
-  readonly optionOn: BlockingWithNow<[string]>;
-  readonly optionOff: BlockingWithNow<[string]>;
-
-  constructor(events: Phaser.Events.EventEmitter, dialogId: string, game: Phaser.Game, dialogGuiId: string) {
-    super(
-      events,
-      () => {
-        const room = game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
-        return room?.time ?? null;
-      },
-      () => game.scene.getScene(SCENE_ROOM) as RoomScene | undefined,
-    );
-    this.dialogId = dialogId;
-    this.dialogGuiId = dialogGuiId.trim() || 'dialog';
-    this.game = game;
-    const manager = resolveGameStateManager(game);
-    this.state = createBenneScriptGameStateNamespace(manager);
-    this.inventory = createBenneScriptInventoryNamespace(
-      manager,
-      () => game.scene.getScene(SCENE_ROOM) as RoomScene | undefined,
-      (factory) => this.chain(factory),
-    );
-
-    const selfCommands = createDialogCommandSurface({
-      targetDialogId: dialogId,
-      game,
-      manager,
-      queue: (factory) => this.chain(factory),
-      mode: 'self',
-    });
-    this.start = selfCommands.start;
-    this.stop = selfCommands.stop;
-    this.optionOn = selfCommands.optionOn;
-    this.optionOff = selfCommands.optionOff;
-
-    this.dialog = createBenneScriptDialogAccessor(manager, game, (factory) => this.chain(factory));
-  }
-
-  get player(): BenneScriptPlayerFacade {
-    return this.makePlayerFacadeFromScene(() => this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined);
-  }
-
-  /**
-   * Runs when the player activates a dialog line whose `optionId` matches (see {@link dialogChoiceSyntheticButtonId}).
-   *
-   * If the option’s JSON sets `say` to `true` (the default), `B.player.say` is invoked with the option’s `text`
-   * **before** this handler runs (skipped when `say` is `false` or `text` is empty/whitespace).
-   *
-   * While the handler’s synchronous work plus any interaction-tail steps (`say`, `walk`, etc.) run, the
-   * dialog choice GUI is hidden so additional options cannot be activated.
-   */
-  whenChoice(optionId: string, handler: (() => void) | ((payload: { optionId: string }) => void)): void {
-    const id = optionId.trim();
-    if (!id) {
-      return;
-    }
-    const syn = dialogChoiceSyntheticButtonId(id);
-    const eventId = guiButtonClickEventId(this.dialogGuiId, syn);
-    const guiId = this.dialogGuiId;
-    const dialogScriptId = this.dialogId;
-
-    const wrapped = async (payload: unknown) => {
-      const room = this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
-      room?.suppressDialogChoiceGuiForWhenChoice(guiId);
-      // Wrap the entire handler + interaction-tail drain in a cutscene block so additional
-      // dialog options and other input are suppressed while the choice plays out.
-      room?.pushCutscene();
-
-      this.beginInteraction();
-      try {
-        this.pushVerbWalkContext(payload);
-        try {
-          const def = getDialogDefinition(dialogScriptId);
-          const opt = def?.options.find((o) => o.id === id);
-          const shouldAutoSay = opt == null || opt.say !== false;
-          const line = (opt?.text ?? '').trim();
-          if (shouldAutoSay && line.length > 0) {
-            this.player.say(line);
-          }
-          if (handler.length === 0) {
-            (handler as () => void)();
-          } else {
-            (handler as (p: { optionId: string }) => void)({ optionId: id });
-          }
-        } finally {
-          this.popVerbWalkContext();
-        }
-        await this.endInteraction();
-      } catch (err) {
-        console.error(`[Benne] Error in ${eventId} dialog whenChoice handler:`, err);
-      } finally {
-        room?.popCutscene();
-        const rm = this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
-        rm?.restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId, dialogScriptId);
-      }
-    };
-
-    this.events.on(eventId, wrapped);
-    this.registerDisposable(() => this.events.off(eventId, wrapped));
-  }
-}
-</file>
-
 <file path="src/engine/scripting/GlobalBenneScript.ts">
 import * as Phaser from 'phaser';
 import {
@@ -15205,6 +16351,19 @@ export class GlobalBenneScript extends BenneScriptCore {
     r.whenLeaveAnyRoom(handler);
   }
 
+  whenLoadedAnyRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenLoadedAnyRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.whenLoadedAnyRoom(handler);
+  }
+
   whenEnterAnyRoom(
     handler: (ctx: RoomTransitionContext) => void | Promise<void>,
   ): void {
@@ -15233,113 +16392,164 @@ export class GlobalBenneScript extends BenneScriptCore {
 }
 </file>
 
-<file path="src/engine/scripting/types.ts">
-import type * as Phaser from 'phaser';
-import type { RoomScene } from '../scenes/RoomScene.js';
-import type { BenneScript } from './BenneScript.js';
-import type { CharacterBenneScript } from './CharacterBenneScript.js';
-import type { InventoryBenneScript } from './InventoryBenneScript.js';
-import type { GlobalBenneScript } from './GlobalBenneScript.js';
-import type { GuiBenneScript } from './GuiBenneScript.js';
-import type { DialogBenneScript } from './DialogBenneScript.js';
-import type { BenneScriptSharedSelectionApi } from './benneScriptFacades.js';
+<file path="src/engine/sound/audioGameState.ts">
+import * as Phaser from 'phaser';
+import { getGameSettings } from '../ConfigManager.js';
+import type { GameStateManager } from '../gameState/GameStateManager.js';
+import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import { tryGetBenneSoundManager } from './benneSoundRegistry.js';
 
-/** Context for {@link import('./BenneScriptCore.js').BenneScriptCore.prototype.onUpdate} (room + global scripts). */
-export interface UpdateContext {
-  /** Time elapsed since the previous frame, in seconds (from Phaser update) */
-  deltaSeconds: number;
-  /** ID of the currently active room */
-  roomId: string;
+/** Persisted user SFX session multiplier (0–1); included in save snapshots. */
+export const SETTINGS_SFX_VOLUME_VARIABLE = 'settings:sfxVolume';
+
+/** Persisted user music session multiplier (0–1); included in save snapshots. */
+export const SETTINGS_MUSIC_VOLUME_VARIABLE = 'settings:musicVolume';
+
+/** Persisted current music stem (basename); included in save snapshots. Cleared when music stops. */
+export const SETTINGS_CURRENT_MUSIC_VARIABLE = 'settings:currentMusicId';
+
+export const PERSISTED_AUDIO_VOLUME_VARIABLE_KEYS = [
+  SETTINGS_SFX_VOLUME_VARIABLE,
+  SETTINGS_MUSIC_VOLUME_VARIABLE,
+] as const;
+
+/** Volume + current music track keys preserved when an incoming snapshot omits them. */
+export const PERSISTED_AUDIO_STATE_VARIABLE_KEYS = [
+  ...PERSISTED_AUDIO_VOLUME_VARIABLE_KEYS,
+  SETTINGS_CURRENT_MUSIC_VARIABLE,
+] as const;
+
+/** Author basename — must stay under `audio/music`. */
+const MUSIC_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
+function clamp01(n: number): number {
+  return Math.min(1, Math.max(0, n));
 }
 
-export type {
-  AnyInventoryUsedOnPayload,
-  BenneScriptSharedSelectionApi,
-  InventoryWhenGiveHandler,
-  InventoryWhenGiveRegistrar,
-  InventoryWhenUseHandler,
-  InventoryWhenUseRegistrar,
-  RoomInventoryUsedOnRegistrar,
-} from './benneScriptFacades.js';
-
-export interface RoomScriptContext {
-  /**
-   * Main authoring facade (`whenLookAt`, `B.player.walkTo`, …).
-   * String ids for verb sugar (prop → hotspot → character), `walkTo`, and prop-only helpers are documented in the **module comment** at the top of `BenneScript.ts`.
-   * Includes {@link BenneScriptSharedSelectionApi} (`setActiveVerb`, `setActiveInventory`, …) from {@link import('./BenneScriptCore.js').BenneScriptCore} and tagged **`B.say`**…`` / **`B.say.now`**…`` (PowerQuest-style dialogue blocks).
-   */
-  readonly B: BenneScript & BenneScriptSharedSelectionApi;
-
-  /** Raw access (advanced use only) */
-  readonly events: Phaser.Events.EventEmitter;
-  readonly roomId: string;
-  readonly roomScene: RoomScene;
-
-  // Convenience re-exports so you can write `onProp` directly inside the callback
-  onProp: BenneScript['onProp'];
-  whenLookAt: BenneScript['whenLookAt'];
-  whenUse: BenneScript['whenUse'];
-  whenPickUp: BenneScript['whenPickUp'];
-  whenGive: BenneScript['whenGive'];
-  whenPush: BenneScript['whenPush'];
-  whenPull: BenneScript['whenPull'];
-  whenOpen: BenneScript['whenOpen'];
-  whenClose: BenneScript['whenClose'];
-  whenVerb: BenneScript['whenVerb'];
-  whenTalkTo: BenneScript['whenTalkTo'];
-  readonly whenInventoryUsedOn: BenneScript['whenInventoryUsedOn'];
+function isValidMusicId(id: string): boolean {
+  return id.length > 0 && MUSIC_ID_RE.test(id);
 }
 
-/** Context passed to each `registerCharacterScript` callback when that character is spawned in the active room. */
-export interface CharacterScriptContext {
-  /** Self-only verb sugar (`whenLookAt(() => …)`); uses `characterVerbEventId` only. */
-  readonly B: CharacterBenneScript & BenneScriptSharedSelectionApi;
-  readonly events: Phaser.Events.EventEmitter;
-  readonly characterId: string;
-  readonly roomId: string;
-  readonly roomScene: RoomScene;
-  readonly whenInventoryUsedOn: CharacterBenneScript['whenInventoryUsedOn'];
+function readNumericVariable(manager: GameStateManager, key: string): number | null {
+  if (!manager.hasVariable(key)) {
+    return null;
+  }
+  const v = manager.getVariable(key);
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    return clamp01(v);
+  }
+  return null;
 }
 
-/** Context passed to each `registerInventoryScript` callback when a room is active. */
-export interface InventoryScriptContext {
-  /**
-   * Item-scoped verb sugar (`whenLookAt`, …); subscribes to room + global inventory verb ids.
-   * **`B.whenUse`** / **`B.whenGive`** add optional behavior; both verbs still arm this item for use-on-target after
-   * queued steps unless **`doNotActivate`** was used for every handler on that verb.
-   */
-  readonly B: InventoryBenneScript & BenneScriptSharedSelectionApi;
-  readonly events: Phaser.Events.EventEmitter;
-  readonly itemId: string;
-  readonly roomId: string;
-  readonly roomScene: RoomScene;
-  readonly whenInventoryUsedOn: InventoryBenneScript['whenInventoryUsedOn'];
+/** Effective SFX session multiplier: saved variable, else `game-config.json` `audio.sfxVolume`. */
+export function readPersistedSfxSessionVolume(manager: GameStateManager): number {
+  return readNumericVariable(manager, SETTINGS_SFX_VOLUME_VARIABLE) ?? clamp01(getGameSettings().audio.sfxVolume);
 }
 
-/** Passed to each `registerGlobalScript` callback from {@link import('./wireBenneGlobalScripts.js').wireBenneGlobalScripts}. */
-export interface GlobalScriptContext {
-  readonly B: GlobalBenneScript & BenneScriptSharedSelectionApi;
-  readonly events: Phaser.Events.EventEmitter;
-  readonly game: Phaser.Game;
+/** Effective music session multiplier: saved variable, else `game-config.json` `audio.musicVolume`. */
+export function readPersistedMusicSessionVolume(manager: GameStateManager): number {
+  return (
+    readNumericVariable(manager, SETTINGS_MUSIC_VOLUME_VARIABLE) ??
+    clamp01(getGameSettings().audio.musicVolume)
+  );
 }
 
-/** Passed to each `registerGuiScript` callback when content is registered. */
-export interface GuiScriptContext {
-  readonly B: GuiBenneScript & BenneScriptSharedSelectionApi;
-  readonly events: Phaser.Events.EventEmitter;
-  readonly guiId: string;
+/**
+ * Saved music stem when the variable is present.
+ * - `undefined` — key absent (legacy snapshot / never set)
+ * - `null` — explicitly stopped
+ * - `string` — valid music stem
+ */
+export function readPersistedCurrentMusicId(manager: GameStateManager): string | null | undefined {
+  if (!manager.hasVariable(SETTINGS_CURRENT_MUSIC_VARIABLE)) {
+    return undefined;
+  }
+  const v = manager.getVariable(SETTINGS_CURRENT_MUSIC_VARIABLE);
+  if (v === null || v === '') {
+    return null;
+  }
+  if (typeof v === 'string' && isValidMusicId(v)) {
+    return v;
+  }
+  return null;
 }
 
-/** Passed to each `registerDialogScript` callback when a dialog session opens for that id. */
-export interface DialogScriptContext {
-  /**
-   * Includes {@link DialogBenneScript.whenChoice} for line picks (wired to the choice GUI’s synthetic `dc__*` button ids)
-   * and {@link import('./BenneScriptCore.js').BenneScriptCore.character} for NPC lines/movement (same active-room resolution as **`B.player`**).
-   */
-  readonly B: DialogBenneScript & BenneScriptSharedSelectionApi;
-  readonly events: Phaser.Events.EventEmitter;
-  readonly dialogId: string;
-  readonly game: Phaser.Game;
+export function writePersistedSfxSessionVolume(manager: GameStateManager, volume: number): void {
+  manager.setVariable(SETTINGS_SFX_VOLUME_VARIABLE, clamp01(volume));
+}
+
+export function writePersistedMusicSessionVolume(manager: GameStateManager, volume: number): void {
+  manager.setVariable(SETTINGS_MUSIC_VOLUME_VARIABLE, clamp01(volume));
+}
+
+export function writePersistedCurrentMusicId(manager: GameStateManager, id: string | null): void {
+  if (id === null) {
+    manager.clearVariable(SETTINGS_CURRENT_MUSIC_VARIABLE);
+    return;
+  }
+  if (isValidMusicId(id)) {
+    manager.setVariable(SETTINGS_CURRENT_MUSIC_VARIABLE, id);
+  }
+}
+
+/**
+ * When applying a snapshot, keep prior `settings:*` audio variables if the incoming snapshot omits them
+ * (new game keeps last slider values unless `initialGameState.variables` seeds them).
+ */
+export function mergePreserveAudioVolumeVariables(
+  incoming: Record<string, unknown>,
+  previous: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = { ...incoming };
+  for (const key of PERSISTED_AUDIO_STATE_VARIABLE_KEYS) {
+    if (
+      !Object.prototype.hasOwnProperty.call(incoming, key) &&
+      Object.prototype.hasOwnProperty.call(previous, key)
+    ) {
+      merged[key] = previous[key];
+    }
+  }
+  return merged;
+}
+
+/** Sync {@link SoundManager} session multipliers from game state (or config defaults when no manager). */
+export function applyPersistedAudioSessionVolumes(game: Phaser.Game): void {
+  const sm = tryGetBenneSoundManager(game);
+  if (!sm) {
+    return;
+  }
+  const mgr = tryGetActiveGameStateManager();
+  const sfx = mgr ? readPersistedSfxSessionVolume(mgr) : clamp01(getGameSettings().audio.sfxVolume);
+  const music = mgr ? readPersistedMusicSessionVolume(mgr) : clamp01(getGameSettings().audio.musicVolume);
+  sm.setSfxSessionVolume(sfx);
+  sm.setMusicSessionVolume(music);
+}
+
+/**
+ * Restores the saved music track after snapshot apply / boot.
+ * Legacy snapshots without `settings:currentMusicId` are left unchanged.
+ */
+export function applyPersistedMusicTrack(game: Phaser.Game): void {
+  const sm = tryGetBenneSoundManager(game);
+  const mgr = tryGetActiveGameStateManager();
+  if (!sm || !mgr) {
+    return;
+  }
+  const savedId = readPersistedCurrentMusicId(mgr);
+  if (savedId === undefined) {
+    return;
+  }
+  const liveId = sm.getCurrentMusicId();
+  if (savedId === null) {
+    if (liveId !== null) {
+      sm.stopMusic();
+    }
+    return;
+  }
+  if (savedId === liveId) {
+    return;
+  }
+  void sm.playMusic(savedId);
 }
 </file>
 
@@ -15365,6 +16575,28 @@ export interface MusicPlayOptions {
    * crossfade when alignment is not possible.
    */
   sync?: boolean;
+}
+</file>
+
+<file path="src/engine/sound/wireBenneAudioGameState.ts">
+import * as Phaser from 'phaser';
+import { GAME_STATE_REPLACED_EVENT } from '../../types/gameState.js';
+import type { EventBus } from '../events/EventBus.js';
+import { applyPersistedAudioSessionVolumes, applyPersistedMusicTrack } from './audioGameState.js';
+
+/**
+ * Re-applies persisted SFX/music session volumes and music track when save snapshots load.
+ * Call once from {@link import('../Game.js').createBenneGame} after {@link SoundManager} is registered.
+ */
+export function wireBenneAudioGameState(game: Phaser.Game, events: EventBus): void {
+  const onReplaced = (): void => {
+    applyPersistedAudioSessionVolumes(game);
+    applyPersistedMusicTrack(game);
+  };
+  events.on(GAME_STATE_REPLACED_EVENT, onReplaced);
+  game.events.once(Phaser.Core.Events.DESTROY, () => {
+    events.off(GAME_STATE_REPLACED_EVENT, onReplaced);
+  });
 }
 </file>
 
@@ -15506,348 +16738,149 @@ export interface MusicPlayOptions {
 }
 </file>
 
-<file path="src/game/guis/hover-text/hover-text.gui.json">
+<file path="src/game/dialogs/chatwithpenny/chatwithpenny.dialog.json">
 {
-  "id": "hover-text",
-  "name": "Hover Text",
-  "description": "",
-  "visible": true,
-  "display": {
-    "aseprite": true
-  },
-  "controls": [
+  "id": "chatwithpenny",
+  "displayName": "ChatWithPenny",
+  "options": [
     {
-      "type": "text",
-      "id": "text",
-      "x": 160,
-      "y": 160,
-      "text": "rubber chicken",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "color": "#28c074",
-      "align": "center",
-      "textOutline": {
-        "enabled": true,
-        "color": "#132243"
-      }
+      "id": "greeting",
+      "text": "How's it goin?"
+    },
+    {
+      "id": "door",
+      "text": "The door is locked. How do I get out?"
+    },
+    {
+      "id": "bye",
+      "text": "Ok, bye!"
     }
   ]
 }
 </file>
 
-<file path="src/game/guis/hover-text/hover-text.gui.ts">
-import { BENNE_VERB_CONTEXT_CHANGED_EVENT, registerGuiScript } from '@engine/scripting';
+<file path="src/game/dialogs/chatwithpenny/chatwithpenny.dialog.ts">
+import { registerDialogScript } from '@engine/scripting';
 
-const ROOM_HOVER_TARGET_TYPES = new Set(['prop', 'hotspot', 'character']);
+registerDialogScript('chatwithpenny', ({ B }) => {
+  // Player picks are handled with B.whenChoice('optionId', () => { … }) — use the Inspector "Script" button per option.
+  void B;
 
-/**
- * GUI script for `hover-text` — shows a label for the room entity under the pointer (props, hotspots,
- * NPCs). Uses the same verb-context hover snapshot as the verb line (`B.currentHoverTarget`).
- */
-registerGuiScript('hover-text', ({ B }) => {
-  B.onGuiBuilt((gui) => {
-    const line = B.gui('hover-text').control('text');
 
-    function refresh(): void {
-      const h = B.currentHoverTarget;
-      const isRoomEntity =
-        h != null &&
-        h.targetType != null &&
-        ROOM_HOVER_TARGET_TYPES.has(h.targetType);
+  B.whenChoice("door", () => {
+    B.say`
+      Player: I want to go outside.
+      Penny: I want a sandwich.
+      `;
+      B.wait(0.5);
+      B.player.say`Uhh...`;
+      B.wait(0.5);
+      B.character('penny').say`Make me a sandwich and I'll give you the key.`;
+  });
 
-      if (!isRoomEntity) {
-        gui.root.setVisible(false);
-        return;
-      }
+  B.whenChoice("bye", () => {
+    B.say`
+      Penny: Bye!
+    `;
+    B.dialog("chatwithpenny").stop();
+  });
 
-      const fromDesc = h.description?.trim();
-      const fromId = h.targetId?.trim();
-      const label = (fromDesc && fromDesc.length > 0 ? fromDesc : fromId ?? '').trim();
-
-      if (label.length === 0) {
-        gui.root.setVisible(false);
-        return;
-      }
-
-      line.text = label;
-      gui.root.setVisible(true);
-    }
-
-    refresh();
-    B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, refresh);
+  B.whenChoice("greeting", () => {
+    B.say`
+      Penny: Fine.
+    `;
   });
 });
 </file>
 
-<file path="src/game/resolveGameAssetUrl.ts">
-import { benneMusicCacheKey, benneSfxCacheKey } from '../engine/sound/benneAudioCacheKeys.js';
+<file path="src/game/guis/load-menu/load-menu.gui.ts">
+import { registerGuiScript } from '@engine/scripting';
+
+const MAX_SLOTS = 5;
 
 /**
- * Resolves paths from room JSON (`images/...` under `src/game/assets/`) to Vite-built URLs.
+ * GUI script for `load-menu`.
+ * Five fixed slots (0–4); `B.state.load(slot)` restores the selected slot.
  */
-const imageUrls = import.meta.glob('./assets/**/*.{png,jpg,jpeg,webp,gif}', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-}) as Record<string, string>;
+registerGuiScript('load-menu', ({ B }) => {
+  B.whenButtonClick('back-btn', () => {
+    B.gui('load-menu').hide();
+    B.gui('game-menu').show();
+  });
 
-const jsonUrls = import.meta.glob('./assets/**/*.json', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-}) as Record<string, string>;
+  let selectedSlotIndex = 0;
 
-const xmlUrls = import.meta.glob('./assets/**/*.xml', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-}) as Record<string, string>;
-
-const sfxAudioUrls = import.meta.glob('./assets/audio/sfx/**/*.{mp3,ogg,wav,m4a}', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-}) as Record<string, string>;
-
-const musicAudioUrls = import.meta.glob('./assets/audio/music/**/*.{mp3,ogg,wav,m4a}', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-}) as Record<string, string>;
-
-/** When set (BENNE Play webview), rewrites relative Vite `?url` paths to absolute extension media URLs. */
-let benneWebviewPlayAssetBase: string | undefined;
-
-/**
- * Called from the BENNE Play webview bootstrap before the game loads. Vite emits `./assets/…`
- * URLs that do not resolve correctly against a `vscode-webview://` document; joining them to
- * this base (from `webview.asWebviewUri(…/media/benne-play/)`) fixes Phaser texture loads.
- */
-export function setBenneWebviewPlayAssetBase(base: string): void {
-  const b = base.trim();
-  benneWebviewPlayAssetBase = b.length === 0 ? undefined : b.endsWith('/') ? b : `${b}/`;
-}
-
-function absolutizeBundledAssetUrl(url: string): string {
-  if (!benneWebviewPlayAssetBase) {
-    return url;
-  }
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)) {
-    return url;
-  }
-  // Vite commonly emits root-relative `/assets/foo.png` for built files. In a VS Code webview,
-  // that root is not the extension media folder, so make emitted asset URLs bundle-relative.
-  const bundleRelative = url.replace(/^\/+/, '');
-  return new URL(bundleRelative, benneWebviewPlayAssetBase).href;
-}
-
-function normalizeAssetPath(relativePath: string): string {
-  return relativePath.replace(/^\.?\/+/, '').replaceAll('\\', '/');
-}
-
-export function resolveGameAssetUrl(relativePath: string): string {
-  const normalized = normalizeAssetPath(relativePath);
-  const key = `./assets/${normalized}`;
-  const url = imageUrls[key];
-
-  if (!url) {
-    throw new Error(
-      `Missing game asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(imageUrls).sort().join(', ')}`,
-    );
-  }
-
-  return absolutizeBundledAssetUrl(url);
-}
-
-/** Aseprite JSON exports and other data JSON under `src/game/assets/`. */
-export function resolveGameAssetJsonUrl(relativePath: string): string {
-  const normalized = normalizeAssetPath(relativePath);
-  const key = `./assets/${normalized}`;
-  const url = jsonUrls[key];
-
-  if (!url) {
-    throw new Error(
-      `Missing JSON asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(jsonUrls).sort().join(', ')}`,
-    );
-  }
-
-  return absolutizeBundledAssetUrl(url);
-}
-
-/** BMFont XML and other `.xml` under `src/game/assets/` (paths like `fonts/MyFont.xml`). */
-export function resolveGameAssetXmlUrl(relativePath: string): string {
-  const normalized = normalizeAssetPath(relativePath);
-  const key = `./assets/${normalized}`;
-  const url = xmlUrls[key];
-
-  if (!url) {
-    throw new Error(
-      `Missing XML asset '${relativePath}' (expected src/game/assets/${normalized}). Available: ${Object.keys(xmlUrls).sort().join(', ')}`,
-    );
-  }
-
-  return absolutizeBundledAssetUrl(url);
-}
-
-export interface BenneAudioBootEntry {
-  readonly cacheKey: string;
-  /** Resolved URLs (often one); multiple formats for the same stem → Phaser tries fallbacks. */
-  readonly urls: readonly string[];
-}
-
-function stemFromAudioGlobKey(globKey: string): string | null {
-  const seg = globKey.replace(/^\.?\//, '').split('/');
-  const file = seg[seg.length - 1];
-  if (!file || !file.includes('.')) {
-    return null;
-  }
-  return file.slice(0, file.lastIndexOf('.'));
-}
-
-function groupAudioByStem(urlMap: Record<string, string>): Map<string, string[]> {
-  const byStem = new Map<string, Set<string>>();
-  for (const [globKey, rawUrl] of Object.entries(urlMap)) {
-    const stem = stemFromAudioGlobKey(globKey);
-    if (stem == null || stem.length === 0) {
-      continue;
+  /** Map manifest entries onto fixed slot indices (ignores unnamed / out-of-range saves). */
+  function getSavesBySlot() {
+    const bySlot: Array<{ name: string; slot?: number; timestamp: number } | undefined> =
+      Array(MAX_SLOTS);
+    for (const save of B.state.getSaveList()) {
+      const slot = save.slot;
+      if (typeof slot === 'number' && slot >= 0 && slot < MAX_SLOTS) {
+        bySlot[slot] = save;
+      }
     }
-    let set = byStem.get(stem);
-    if (!set) {
-      set = new Set<string>();
-      byStem.set(stem, set);
+    return bySlot;
+  }
+
+  function firstOccupiedOrZero(savesBySlot: ReturnType<typeof getSavesBySlot>): number {
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      if (savesBySlot[i]) return i;
     }
-    set.add(absolutizeBundledAssetUrl(rawUrl));
+    return 0;
   }
-  const out = new Map<string, string[]>();
-  for (const [stem, urlSet] of byStem) {
-    out.set(stem, [...urlSet].sort());
+
+  function syncLoadButton(slotIndex: number) {
+    const save = getSavesBySlot()[slotIndex];
+    B.gui('load-menu').control('load-btn').enabled = !!save;
   }
-  return out;
-}
 
-/**
- * Entries for {@link import('../engine/sound/queueBenneAudioBoot.js').queueBenneAudioForBootLoader}.
- * Keys match {@link import('../engine/sound/benneAudioCacheKeys.js').benneSfxCacheKey} /
- * {@link import('../engine/sound/benneAudioCacheKeys.js').benneMusicCacheKey}.
- */
-export function getBenneAudioBootEntries(): { sfx: BenneAudioBootEntry[]; music: BenneAudioBootEntry[] } {
-  const sfxGrouped = groupAudioByStem(sfxAudioUrls);
-  const musicGrouped = groupAudioByStem(musicAudioUrls);
+  /** Repaint list rows. When `autoSelect` is true, pick the first occupied slot (or 0 if none). */
+  function refreshLoadList(autoSelect: boolean) {
+    const savesBySlot = getSavesBySlot();
+    const listBox = B.gui('load-menu').control('load-list');
 
-  const sfx: BenneAudioBootEntry[] = [];
-  for (const [stem, urls] of sfxGrouped) {
-    sfx.push({ cacheKey: benneSfxCacheKey(stem), urls });
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const existing = savesBySlot[i];
+      listBox.setRowText(i, existing ? existing.name : `(Empty Slot ${i + 1})`);
+    }
+
+    if (autoSelect) {
+      selectedSlotIndex = firstOccupiedOrZero(savesBySlot);
+    }
+
+    listBox.selectedIndex = selectedSlotIndex;
   }
-  sfx.sort((a, b) => a.cacheKey.localeCompare(b.cacheKey));
 
-  const music: BenneAudioBootEntry[] = [];
-  for (const [stem, urls] of musicGrouped) {
-    music.push({ cacheKey: benneMusicCacheKey(stem), urls });
-  }
-  music.sort((a, b) => a.cacheKey.localeCompare(b.cacheKey));
+  B.onGuiBuilt(() => {
+    const gui = B.gui('load-menu');
+    const listBox = gui.control('load-list');
 
-  return { sfx, music };
-}
-</file>
+    refreshLoadList(true);
+    syncLoadButton(selectedSlotIndex);
 
-<file path="src/types/character.ts">
-import type { Point2 } from './room';
+    listBox.whenSelectionChanged((index: number) => {
+      selectedSlotIndex = index;
+      syncLoadButton(index);
+    });
+  });
 
-/**
- * Frame-synced marker from character JSON (footsteps, SFX hooks, dialogue beats, etc.).
- */
-export interface CharacterAnimationFrameEvent {
-  /** 0-based index within the Aseprite tag / Phaser animation sequence. */
-  frame: number;
-  type: string;
-  data?: unknown;
-}
+  /** `onGuiBuilt` runs once per room load; re-read the manifest whenever the menu is opened. */
+  B.onGuiShow(() => {
+    refreshLoadList(false);
+    syncLoadButton(selectedSlotIndex);
+  });
 
-/**
- * Per-tag animation policy (keys match Aseprite frame tag names, e.g. `WalkL`, `IdleD`).
- */
-export interface CharacterAnimationClipConfig {
-  /** When true, repeat forever (`repeat: -1` in Phaser). When false or omitted, play once. */
-  loop?: boolean;
-  /**
-   * Milliseconds each frame is shown (uniform for this tag). Applied to every frame in the clip.
-   * When omitted, keeps per-frame durations from the Aseprite export.
-   */
-  frameDuration?: number;
-  events?: CharacterAnimationFrameEvent[];
-  // Future: pingPong?: boolean; reverse?: boolean;
-}
+  B.whenButtonClick('load-btn', () => {
+    if (!getSavesBySlot()[selectedSlotIndex]) return;
 
-export type CharacterAnimationsConfig = Record<string, CharacterAnimationClipConfig>;
+    const loaded = B.state.load.now(selectedSlotIndex);
+    if (!loaded) return;
 
-/** Facing suffix on directional clips (`IdleL`, `WalkDR`, …). */
-export type CharacterFacingLetter = 'L' | 'R' | 'U' | 'D' | 'UL' | 'UR' | 'DL' | 'DR';
-
-/**
- * Character template loaded from `src/game/characters/` as `*.character.json` files.
- */
-export interface CharacterDisplayData {
-  /**
-   * Static portrait / NPC image under `src/game/assets/`.
-   * Required when `aseprite` is not true.
-   */
-  defaultImage?: string;
-  /**
-   * When true, loads `images/characters/<characterId>/<characterId>.png` and `.json` (Aseprite sheet export).
-   */
-  aseprite?: boolean;
-}
-
-export interface CharacterData {
-  id: string;
-  name: string;
-  description: string;
-  /**
-   * Ground contact in **texture / frame pixel space**: from the top-left of each cel to the feet
-   * (Y increases downward). When omitted, the engine uses the bottom-centre of the current frame.
-   */
-  feet?: { x: number; y: number };
-  /**
-   * Click hit area in **texture / frame pixel space** (same origin as `feet`). When omitted and the
-   * character is clickable, the full sprite rectangle is used. Requires at least three vertices.
-   */
-  collider?: { points: { x: number; y: number }[] };
-  /**
-   * Optional stand position in **texture / frame pixel space** (same origin as `feet`).
-   * World stand = sprite position + this offset. Used when scripts call `walkTo('<this id>')` targeting
-   * this character, or when resolving another walker’s target to this character — same idea as prop `walkToPoint`.
-   */
-  walkToPoint?: Point2;
-  /**
-   * Optional “face / dialogue” point in **texture / frame pixel space** (same origin as `feet`).
-   * World position = sprite position + offset. Verb payloads expose this as **world** `talkPoint`
-   * for scripts (similar role to prop `lookAtPoint` in room space).
-   */
-  talkPoint?: Point2;
-  /** Game pixels per second when walking (used when movement is implemented). */
-  walkSpeed: number;
-  /**
-   * When false, pathfind walking is disabled for this character (`walkTo`, click-to-walk, verb walks).
-   * Teleports (`moveTo` / `moveToNow`) still apply. Default true when omitted.
-   */
-  movable?: boolean;
-  clickable: boolean;
-  display: CharacterDisplayData;
-  /** Optional per Aseprite-tag playback (keys must match `meta.frameTags` on `images/characters/<id>/<id>.json`). */
-  animations?: CharacterAnimationsConfig;
-  /**
-   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this character.
-   * Falls back to `"look"` when omitted.
-   */
-  defaultVerb?: string;
-  /** Enables character fallback dispatch when no supported verb matches. */
-  onVerbFallback?: boolean;
-  /**
-   * Optional Aseprite tag on the **game** cursor sheet. When set and the pointer hovers this clickable
-   * character, the cursor uses this tag instead of `cursor.activeAnimation`. Inventory cursor clips take precedence.
-   */
-  activeCursorOverride?: string;
-}
+    B.gui('load-menu').hide();
+    B.gui('game-menu').hide();
+  });
+});
 </file>
 
 <file path="src/types/characterFollow.ts">
@@ -16087,996 +17120,6 @@ export function createRoomPreviewPhaserGame(
         scene: [BennePreviewLoader, RoomScene, RoomPolygonEditScene],
     });
 }
-</file>
-
-<file path="src/editor/preview/roomEditorMain.ts">
-import type { Game } from 'phaser';
-import type { RoomScene } from '../../engine/scenes/RoomScene';
-import type { RoomData } from '../../types/room';
-import { SCENE_ROOM } from '../../game/constants';
-import { buildPreviewManifest } from './buildPreviewManifest';
-import { createRoomPreviewPhaserGame } from './createRoomPreviewGame';
-import { guiVisibilityBridge } from './guiVisibilityBridge';
-import { polygonEditBridge } from './polygonEditBridge';
-import type { RoomPolygonPatch } from './polygonPatchTypes';
-import { registerInventoryDefinitionsFromGame } from '../../game/registerInventoryDefinitions';
-
-// Mirror the GUI preview bundle: populate the engine's inventory registry so the room preview can
-// queue `inventoryPanel` Aseprite sheets and honour `stackable` semantics for any Bennescript code
-// that happens to run during preview.
-registerInventoryDefinitionsFromGame();
-
-declare function acquireVsCodeApi(): {
-    postMessage(data: unknown): void;
-    getState<T = unknown>(): T | undefined;
-    setState<T = unknown>(state: T): void;
-};
-
-type PreviewWebviewState = {
-    showGuis?: boolean;
-};
-
-const MIN_POLY_POINTS = 3;
-
-let game: Game | null = null;
-let vscodeApi: ReturnType<typeof acquireVsCodeApi> | null = null;
-let currentRoomJsonUri = '';
-/** Latest room from the host; used for `toolbarUi` updates without reloading Phaser. */
-let lastLoadedRoom: RoomData | null = null;
-
-type PreviewToolbarPayload =
-    | { previewFocus: 'room' }
-    | { previewFocus: 'walkable'; walkablePolygonId: string; walkableHoleId: string }
-    | { previewFocus: 'roomSize' }
-    | { previewFocus: 'scrollBounds' }
-    | { previewFocus: 'prop'; propColliderId: string }
-    | { previewFocus: 'hotspot'; hotspotId: string }
-    | { previewFocus: 'region'; regionId: string }
-    | { previewFocus: 'roomPoint'; roomPointId: string };
-
-function parsePreviewToolbarPayload(msg: {
-    previewFocus?: string;
-    propColliderId?: string;
-    hotspotId?: string;
-    regionId?: string;
-    roomPointId?: string;
-    walkablePolygonId?: string;
-    walkableHoleId?: string;
-}): PreviewToolbarPayload {
-    if (
-        msg.previewFocus === 'prop' &&
-        typeof msg.propColliderId === 'string' &&
-        msg.propColliderId.length > 0
-    ) {
-        return { previewFocus: 'prop', propColliderId: msg.propColliderId };
-    }
-    if (
-        msg.previewFocus === 'hotspot' &&
-        typeof msg.hotspotId === 'string' &&
-        msg.hotspotId.length > 0
-    ) {
-        return { previewFocus: 'hotspot', hotspotId: msg.hotspotId };
-    }
-    if (
-        msg.previewFocus === 'region' &&
-        typeof msg.regionId === 'string' &&
-        msg.regionId.length > 0
-    ) {
-        return { previewFocus: 'region', regionId: msg.regionId };
-    }
-    if (
-        msg.previewFocus === 'roomPoint' &&
-        typeof msg.roomPointId === 'string' &&
-        msg.roomPointId.length > 0
-    ) {
-        return { previewFocus: 'roomPoint', roomPointId: msg.roomPointId };
-    }
-    if (
-        msg.previewFocus === 'walkable' &&
-        typeof msg.walkablePolygonId === 'string' &&
-        msg.walkablePolygonId.length > 0
-    ) {
-        const hid = typeof msg.walkableHoleId === 'string' ? msg.walkableHoleId : '';
-        return { previewFocus: 'walkable', walkablePolygonId: msg.walkablePolygonId, walkableHoleId: hid };
-    }
-    if (msg.previewFocus === 'roomSize') {
-        return { previewFocus: 'roomSize' };
-    }
-    if (msg.previewFocus === 'scrollBounds') {
-        return { previewFocus: 'scrollBounds' };
-    }
-    return { previewFocus: 'room' };
-}
-
-function propColliderLabel(room: RoomData, propId: string): string {
-    const p = room.props?.find((x) => x.id === propId);
-    if (!p) {
-        return propId;
-    }
-    return p.tag ? `${p.tag} (${propId})` : propId;
-}
-
-function hotspotToolbarLabel(room: RoomData, hotspotId: string): string {
-    const h = room.hotspots?.find((x) => x.id === hotspotId);
-    if (!h) {
-        return hotspotId;
-    }
-    if (h.description && h.description.trim()) {
-        return `${h.description.trim()} (${hotspotId})`;
-    }
-    return hotspotId;
-}
-
-
-/** Collider authoring is only for interactive props (matches runtime expectations). */
-function isPropColliderEditable(room: RoomData, propId: string): boolean {
-    const p = room.props?.find((x) => x.id === propId);
-    return p?.clickable === true;
-}
-
-/** Bumps on each `loadRoom` so stale `buildPreviewManifest` completions (e.g. double save) cannot create a game after a newer load cleared the DOM. */
-let loadRoomGeneration = 0;
-
-try {
-    vscodeApi = acquireVsCodeApi();
-} catch {
-    /* not inside a VS Code webview */
-}
-
-/**
- * Rehydrate the "Show GUIs" toggle from webview state (`vscode.getState()`) on first load. Default
- * off: polygon / walkable authoring usually wants a clean view, and authors opt in per the confirmed
- * UX (`docs/architecture.md` room preview spec).
- */
-(function loadPersistedGuiVisibility(): void {
-    try {
-        const s = vscodeApi?.getState<PreviewWebviewState>();
-        if (s && typeof s.showGuis === 'boolean') {
-            guiVisibilityBridge.setVisible(s.showGuis);
-        }
-    } catch {
-        /* ignore — first ever load or unavailable state */
-    }
-})();
-
-function persistWebviewState(): void {
-    try {
-        vscodeApi?.setState<PreviewWebviewState>({ showGuis: guiVisibilityBridge.visible });
-    } catch {
-        /* ignore */
-    }
-}
-
-function wireShowGuisToggle(): void {
-    const input = document.getElementById('benne-show-guis-toggle') as HTMLInputElement | null;
-    if (!input || input.dataset.benneShowGuisWired === '1') {
-        return;
-    }
-    input.dataset.benneShowGuisWired = '1';
-    input.checked = guiVisibilityBridge.visible;
-    input.addEventListener('change', () => {
-        const next = !!input.checked;
-        guiVisibilityBridge.setVisible(next);
-        persistWebviewState();
-        applyGuiVisibilityToRunningScene(next);
-    });
-    // Keep the checkbox in sync when other code flips the bridge (e.g. future programmatic toggles).
-    guiVisibilityBridge.subscribe((visible) => {
-        if (input.checked !== visible) {
-            input.checked = visible;
-        }
-    });
-}
-
-function applyGuiVisibilityToRunningScene(visible: boolean): void {
-    if (!game) {
-        return;
-    }
-    const scene = game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
-    if (!scene || !scene.scene.isActive()) {
-        return;
-    }
-    scene.setGenericGuisVisible(visible);
-}
-
-function setStatus(text: string): void {
-    const el = document.getElementById('benne-polygon-status');
-    if (el) {
-        el.textContent = text;
-    }
-}
-
-/**
- * Phaser queues `destroy` for a later step. We must not mount a new `Phaser.Game` on the same parent
- * until teardown has had time to run. Listening for `game.events` "destroy" is unreliable in VS Code
- * webviews when `requestAnimationFrame` is throttled, so we use a short timer instead.
- */
-async function destroyPreviewGameAsync(): Promise<void> {
-    if (!game) {
-        return;
-    }
-    const g = game;
-    game = null;
-    try {
-        g.destroy(true);
-    } catch {
-        /* canvas may already be detached */
-    }
-    await new Promise<void>((resolve) => {
-        setTimeout(resolve, 150);
-    });
-}
-
-function clearPlayFromSelect(): void {
-    const sel = document.getElementById('benne-preview-play-from') as HTMLSelectElement | null;
-    if (!sel) {
-        return;
-    }
-    sel.innerHTML = '';
-    const none = document.createElement('option');
-    none.value = '';
-    none.textContent = '(none)';
-    sel.appendChild(none);
-    sel.value = '';
-}
-
-function populatePlayFromFromHost(msg: HostPreviewMessage): void {
-    const sel = document.getElementById('benne-preview-play-from') as HTMLSelectElement | null;
-    if (!sel) {
-        return;
-    }
-    sel.innerHTML = '';
-    const none = document.createElement('option');
-    none.value = '';
-    none.textContent = '(none)';
-    sel.appendChild(none);
-    const raw = msg.playFromNames;
-    const names = Array.isArray(raw)
-        ? raw.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
-        : [];
-    for (const n of names) {
-        const opt = document.createElement('option');
-        opt.value = n.trim();
-        opt.textContent = n.trim();
-        sel.appendChild(opt);
-    }
-    sel.value = '';
-}
-
-function clearToolbar(): void {
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (bar) {
-        bar.innerHTML = '';
-    }
-    polygonEditBridge.setMode('navigate');
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setWalkableEditTarget('', '');
-    clearPlayFromSelect();
-    setPlayFromHereButtonVisible(false);
-}
-
-/** Shown only in browse/navigate authoring mode (see {@link wireRoomNavigateToolbar}). */
-function setPlayFromHereButtonVisible(visible: boolean): void {
-    const wrap = document.getElementById('benne-preview-play-toolbar') as HTMLElement | null;
-    if (!wrap) {
-        return;
-    }
-    wrap.style.display = visible ? 'flex' : 'none';
-}
-
-function buildRoomNavigateToolbarHtml(): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.55;margin-top:4px;"></div>
-  `;
-}
-
-function walkableToolbarTitle(polygonId: string, holeId: string): string {
-    if (holeId.length > 0) {
-        return `Hole — ${polygonId} › ${holeId}`;
-    }
-    return `Walkable — ${polygonId}`;
-}
-
-function buildWalkableEditToolbarHtml(polygonId: string, holeId: string): string {
-    const title = walkableToolbarTitle(polygonId, holeId);
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;">${escapeHtml(title)}</span>
-      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">New polygon: click ${MIN_POLY_POINTS} times to place vertices. Then double-click an edge to add more. Delete removes the selected vertex (min ${MIN_POLY_POINTS} points).</div>
-  `;
-}
-
-function buildRoomSizeToolbarHtml(): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;"><strong style="color:#e8ecff;">Room size</strong></span>
-      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the cyan handles to resize the room art canvas. The origin (top-left) is always 0,0. Press F to fit view. Save writes to room JSON.</div>
-  `;
-}
-
-function buildScrollBoundsToolbarHtml(): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;"><strong style="color:#e8ecff;">Scroll bounds</strong></span>
-      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the orange handles to set the camera scroll bounds — the area within which the camera pans. Press F to fit view. Save writes to room JSON.</div>
-  `;
-}
-
-function buildPropTreeToolbarHtml(propLabel: string): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;">Prop — <strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong> (collider, walk, look)</span>
-      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Collider (magenta), cyan <strong>Walk to</strong>, amber <strong>Look at</strong>. New collider: click ${MIN_POLY_POINTS} times, then double-click edges. Delete removes a selected collider vertex only.</div>
-  `;
-}
-
-function buildHotspotToolbarHtml(label: string): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;">Hotspot — <strong style="color:#e8ecff;">${escapeHtml(label)}</strong> (polygon, walk, look)</span>
-      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Orange polygon, cyan <strong>Walk to</strong>, amber <strong>Look at</strong>. Place ${MIN_POLY_POINTS}+ vertices like prop colliders; double-click an edge to add a vertex.</div>
-  `;
-}
-
-function buildRegionToolbarHtml(regionId: string): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;">Region — <strong style="color:#e8ecff;">${escapeHtml(regionId)}</strong></span>
-      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Green polygon. New shape: click ${MIN_POLY_POINTS} times, then double-click edges to add vertices. Delete removes a selected vertex (min ${MIN_POLY_POINTS}).</div>
-  `;
-}
-
-function buildRoomPointToolbarHtml(pointId: string): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;">Point — <strong style="color:#e8ecff;">${escapeHtml(pointId)}</strong></span>
-      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the handle to move this point. Save writes integer <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">x</code> / <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">y</code> to JSON.</div>
-  `;
-}
-
-function buildPropTreeNonClickableToolbarHtml(propLabel: string): string {
-    return `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;"><strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong> — not clickable</span>
-      <span id="benne-polygon-status" style="opacity:0.85;"></span>
-    </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Collider editing is only available when <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">"clickable": true</code> is set on this prop in the room JSON.</div>
-  `;
-}
-
-/**
- * Ensure `walkable.polygons` and arrays exist so toolbar wiring and Phaser never throw on partial JSON
- * (e.g. unsaved edits) or odd structured-clone payloads from the host.
- */
-function normalizeRoomForPreview(raw: unknown): RoomData {
-    const r =
-        raw && typeof raw === 'object' ? ({ ...(raw as Record<string, unknown>) } as Record<string, unknown>) : {};
-    const id = typeof r.id === 'string' && r.id.length > 0 ? r.id : 'room';
-    const name = typeof r.name === 'string' && r.name.length > 0 ? r.name : id;
-    let polygons: RoomData['walkable']['polygons'] = [];
-    const w = r.walkable;
-    if (w && typeof w === 'object') {
-        const polys = (w as { polygons?: unknown }).polygons;
-        if (Array.isArray(polys)) {
-            polygons = polys as RoomData['walkable']['polygons'];
-        }
-    }
-    r.id = id;
-    r.name = name;
-    r.walkable = { polygons };
-    r.hotspots = Array.isArray(r.hotspots) ? r.hotspots : [];
-    r.points = Array.isArray(r.points) ? r.points : [];
-    r.regions = Array.isArray(r.regions) ? r.regions : [];
-    r.props = Array.isArray(r.props) ? r.props : [];
-    r.characters = Array.isArray(r.characters) ? r.characters : [];
-    return r as unknown as RoomData;
-}
-
-function wireRoomNavigateToolbar(_room: RoomData): void {
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildRoomNavigateToolbarHtml();
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setMode('navigate');
-    setPlayFromHereButtonVisible(true);
-}
-
-function wireWalkableEditToolbar(room: RoomData, polygonId: string, holeId: string): void {
-    setPlayFromHereButtonVisible(false);
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildWalkableEditToolbarHtml(polygonId, holeId);
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    const poly = room.walkable?.polygons?.find((p) => p.id === polygonId);
-    if (!poly) {
-        polygonEditBridge.setWalkableEditTarget('', '');
-        polygonEditBridge.setMode('navigate');
-        setStatus(`Walkable polygon "${polygonId}" not found in room JSON.`);
-        return;
-    }
-    if (holeId.length > 0) {
-        const hole = poly.holes?.find((h) => h.id === holeId);
-        if (!hole) {
-            polygonEditBridge.setWalkableEditTarget('', '');
-            polygonEditBridge.setMode('navigate');
-            setStatus(`Hole "${holeId}" not found under polygon "${polygonId}".`);
-            return;
-        }
-    }
-    polygonEditBridge.setWalkableEditTarget(polygonId, holeId);
-    polygonEditBridge.setMode('walkable');
-    saveBtn.addEventListener('click', () => {
-        setStatus('Saving…');
-        window.dispatchEvent(new Event('benne-save-polygon'));
-    });
-}
-
-function wireRoomSizeToolbar(_room: RoomData): void {
-    setPlayFromHereButtonVisible(false);
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildRoomSizeToolbarHtml();
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setMode('roomSize');
-    saveBtn.addEventListener('click', () => {
-        setStatus('Saving…');
-        window.dispatchEvent(new Event('benne-save-polygon'));
-    });
-}
-
-function wireScrollBoundsToolbar(_room: RoomData): void {
-    setPlayFromHereButtonVisible(false);
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildScrollBoundsToolbarHtml();
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setMode('scrollBounds');
-    saveBtn.addEventListener('click', () => {
-        setStatus('Saving…');
-        window.dispatchEvent(new Event('benne-save-polygon'));
-    });
-}
-
-function wirePropTreeToolbarNonClickable(room: RoomData, propColliderId: string): void {
-    setPlayFromHereButtonVisible(false);
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildPropTreeNonClickableToolbarHtml(propColliderLabel(room, propColliderId));
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setMode('navigate');
-}
-
-function wireHotspotToolbar(room: RoomData, hotspotId: string): void {
-    setPlayFromHereButtonVisible(false);
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildHotspotToolbarHtml(hotspotToolbarLabel(room, hotspotId));
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setHotspotId(hotspotId);
-    polygonEditBridge.setMode('hotspotPolygon');
-    saveBtn.addEventListener('click', () => {
-        setStatus('Saving…');
-        window.dispatchEvent(new Event('benne-save-polygon'));
-    });
-}
-
-function wireRegionToolbar(_room: RoomData, regionId: string): void {
-    setPlayFromHereButtonVisible(false);
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildRegionToolbarHtml(regionId);
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setRegionId(regionId);
-    polygonEditBridge.setMode('regionPolygon');
-    saveBtn.addEventListener('click', () => {
-        setStatus('Saving…');
-        window.dispatchEvent(new Event('benne-save-polygon'));
-    });
-}
-
-function wireRoomPointToolbar(_room: RoomData, roomPointId: string): void {
-    setPlayFromHereButtonVisible(false);
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildRoomPointToolbarHtml(roomPointId);
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setPropId('');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId(roomPointId);
-    polygonEditBridge.setMode('roomPoint');
-    saveBtn.addEventListener('click', () => {
-        setStatus('Saving…');
-        window.dispatchEvent(new Event('benne-save-polygon'));
-    });
-}
-
-function wirePropTreeToolbar(room: RoomData, propColliderId: string): void {
-    if (!isPropColliderEditable(room, propColliderId)) {
-        wirePropTreeToolbarNonClickable(room, propColliderId);
-        return;
-    }
-    setPlayFromHereButtonVisible(false);
-    const bar = document.getElementById('benne-polygon-toolbar');
-    if (!bar) {
-        return;
-    }
-    bar.innerHTML = buildPropTreeToolbarHtml(propColliderLabel(room, propColliderId));
-
-    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
-    polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setHotspotId('');
-    polygonEditBridge.setRegionId('');
-    polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setPropId(propColliderId);
-    polygonEditBridge.setMode('propCollider');
-
-    saveBtn.addEventListener('click', () => {
-        setStatus('Saving…');
-        window.dispatchEvent(new Event('benne-save-polygon'));
-    });
-}
-
-function wireToolbarFromPreviewState(room: RoomData, preview: PreviewToolbarPayload): void {
-    if (preview.previewFocus === 'prop') {
-        wirePropTreeToolbar(room, preview.propColliderId);
-    } else if (preview.previewFocus === 'hotspot') {
-        wireHotspotToolbar(room, preview.hotspotId);
-    } else if (preview.previewFocus === 'region') {
-        wireRegionToolbar(room, preview.regionId);
-    } else if (preview.previewFocus === 'roomPoint') {
-        wireRoomPointToolbar(room, preview.roomPointId);
-    } else if (preview.previewFocus === 'walkable') {
-        wireWalkableEditToolbar(room, preview.walkablePolygonId, preview.walkableHoleId);
-    } else if (preview.previewFocus === 'roomSize') {
-        wireRoomSizeToolbar(room);
-    } else if (preview.previewFocus === 'scrollBounds') {
-        wireScrollBoundsToolbar(room);
-    } else {
-        wireRoomNavigateToolbar(room);
-    }
-}
-
-/** Sync Phaser registry room after disk save (integer-rounded points); avoids full game rebuild. */
-function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
-    if (!game) {
-        return;
-    }
-    const room = game.registry.get('bennePreviewRoom') as RoomData | undefined;
-    if (!room) {
-        return;
-    }
-    if (patch.kind === 'roomPoint') {
-        const p = room.points?.find((x) => x.id === patch.pointId);
-        if (p) {
-            p.x = patch.x;
-            p.y = patch.y;
-        }
-        return;
-    }
-    if (patch.kind === 'roomSize') {
-        room.size = { width: patch.width, height: patch.height };
-        // Re-sync camera so the edit-mode zoom adjusts to the new room dimensions.
-        polygonEditBridge.setMode(polygonEditBridge.mode);
-        return;
-    }
-    if (patch.kind === 'scrollBounds') {
-        room.scrollBounds = { x: patch.x, y: patch.y, width: patch.width, height: patch.height };
-        // Re-sync camera so the scroll bounds update takes effect.
-        polygonEditBridge.setMode(polygonEditBridge.mode);
-        return;
-    }
-    if (patch.kind === 'walkable') {
-        const src = patch.points;
-        const poly = room.walkable.polygons.find((p) => p.id === patch.polygonId);
-        if (!poly) {
-            return;
-        }
-        if (patch.holeId) {
-            let hole = poly.holes?.find((h) => h.id === patch.holeId);
-            if (!hole) {
-                if (!poly.holes) {
-                    poly.holes = [];
-                }
-                hole = { id: patch.holeId, active: true, points: [] };
-                poly.holes.push(hole);
-            }
-            if (!hole.points) {
-                hole.points = [];
-            }
-            const dest = hole.points;
-            if (dest.length === src.length) {
-                for (let i = 0; i < src.length; i++) {
-                    dest[i].x = src[i].x;
-                    dest[i].y = src[i].y;
-                }
-            } else {
-                hole.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
-            }
-            return;
-        }
-        if (poly.points.length === src.length) {
-            for (let i = 0; i < src.length; i++) {
-                poly.points[i].x = src[i].x;
-                poly.points[i].y = src[i].y;
-            }
-        } else {
-            poly.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
-        }
-        return;
-    }
-    if (patch.kind === 'regionPolygon') {
-        const src = patch.points;
-        const reg = room.regions?.find((r) => r.id === patch.regionId);
-        if (!reg) {
-            return;
-        }
-        if (reg.points.length === src.length) {
-            for (let i = 0; i < src.length; i++) {
-                reg.points[i].x = src[i].x;
-                reg.points[i].y = src[i].y;
-            }
-        } else {
-            reg.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
-        }
-        return;
-    }
-    if (patch.kind === 'hotspotPolygon') {
-        const src = patch.points;
-        const hs = room.hotspots?.find((h) => h.id === patch.hotspotId);
-        if (!hs) {
-            return;
-        }
-        if (!hs.points) {
-            hs.points = [];
-        }
-        const dest = hs.points;
-        if (dest.length === src.length) {
-            for (let i = 0; i < src.length; i++) {
-                dest[i].x = src[i].x;
-                dest[i].y = src[i].y;
-            }
-        } else {
-            hs.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
-        }
-        hs.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
-        hs.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
-        if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
-            (hs as { baseline?: number }).baseline = patch.baseline;
-        }
-        return;
-    }
-    const src = patch.points;
-    const prop = room.props?.find((p) => p.id === patch.propId);
-    if (!prop) {
-        return;
-    }
-    if (!prop.collider) {
-        prop.collider = { points: [] };
-    }
-    const dest = prop.collider.points;
-    if (dest.length === src.length) {
-        for (let i = 0; i < src.length; i++) {
-            dest[i].x = src[i].x;
-            dest[i].y = src[i].y;
-        }
-    } else {
-        prop.collider.points = src.map((pt) => ({ x: pt.x, y: pt.y }));
-    }
-    prop.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
-    prop.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
-    if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
-        (prop as { baseline?: number }).baseline = patch.baseline;
-    }
-}
-
-function showError(text: string): void {
-    const root = document.getElementById('benne-preview-root');
-    if (root) {
-        root.innerHTML = `<p style="color:#f88;padding:12px;font-family:system-ui,sans-serif;font-size:13px;">${escapeHtml(
-            text,
-        )}</p>`;
-    }
-}
-
-function escapeHtml(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-async function resetToPlaceholder(): Promise<void> {
-    lastLoadedRoom = null;
-    clearToolbar();
-    await destroyPreviewGameAsync();
-    const root = document.getElementById('benne-preview-root');
-    if (root) {
-        root.innerHTML =
-            '<p style="color:#8892a6;padding:12px;font-family:system-ui,sans-serif;font-size:12px;">Select a room or prop to preview</p>';
-    }
-    currentRoomJsonUri = '';
-}
-
-/**
- * Serialize `clear` / `error` / `loadRoom` so they never overlap. A fire-and-forget `clear` could
- * otherwise finish after a concurrent `loadRoom` and wipe the canvas (e.g. after Refresh).
- */
-let previewLifecycleChain: Promise<void> = Promise.resolve();
-
-function enqueuePreviewLifecycle(work: () => Promise<void>): void {
-    previewLifecycleChain = previewLifecycleChain
-        .then(() => work())
-        .catch((e) => {
-            console.error('[Benne preview] lifecycle', e);
-        });
-}
-
-type HostPreviewMessage = {
-    type?: string;
-    room?: RoomData;
-    gameSrcWebviewUri?: string;
-    roomJsonUri?: string;
-    playFromNames?: string[];
-    message?: string;
-    ok?: boolean;
-    appliedPatch?: RoomPolygonPatch;
-    previewFocus?: string;
-    propColliderId?: string;
-    hotspotId?: string;
-    regionId?: string;
-    roomPointId?: string;
-    walkablePolygonId?: string;
-    walkableHoleId?: string;
-};
-
-async function runPreviewError(msg: HostPreviewMessage): Promise<void> {
-    lastLoadedRoom = null;
-    await destroyPreviewGameAsync();
-    const root = document.getElementById('benne-preview-root');
-    if (root) {
-        root.innerHTML = '';
-    }
-    clearToolbar();
-    showError(msg.message ?? 'Preview error');
-}
-
-async function runLoadRoom(msg: HostPreviewMessage): Promise<void> {
-    if (!document.getElementById('benne-preview-root')?.parentElement) {
-        return;
-    }
-
-    if (!msg.room || !msg.gameSrcWebviewUri) {
-        showError('Missing room data or game root URI.');
-        return;
-    }
-
-    if (typeof msg.roomJsonUri !== 'string' || msg.roomJsonUri.length === 0) {
-        showError('Missing roomJsonUri (save to disk requires it).');
-        return;
-    }
-
-    const gen = ++loadRoomGeneration;
-    await destroyPreviewGameAsync();
-    if (gen !== loadRoomGeneration) {
-        return;
-    }
-
-    const root = document.getElementById('benne-preview-root');
-    if (!root) {
-        showError('Preview container missing.');
-        return;
-    }
-    root.innerHTML = '';
-    const stack = document.createElement('div');
-    stack.style.cssText = 'position:relative;width:100%;height:100%;min-height:0';
-    const phaserMount = document.createElement('div');
-    phaserMount.style.cssText = 'width:100%;height:100%';
-    stack.appendChild(phaserMount);
-    root.appendChild(stack);
-
-    let room: RoomData;
-    try {
-        room = normalizeRoomForPreview(msg.room);
-    } catch (e) {
-        showError(e instanceof Error ? e.message : String(e));
-        return;
-    }
-    currentRoomJsonUri = msg.roomJsonUri;
-    lastLoadedRoom = room;
-    populatePlayFromFromHost(msg);
-
-    try {
-        wireToolbarFromPreviewState(room, parsePreviewToolbarPayload(msg));
-    } catch (e) {
-        showError(
-            `Preview toolbar: ${e instanceof Error ? e.message : String(e)}`,
-        );
-        return;
-    }
-
-    try {
-        const manifest = await buildPreviewManifest(room, msg.gameSrcWebviewUri);
-        const onPolygonPatch = (patch: RoomPolygonPatch): void => {
-            vscodeApi?.postMessage({
-                type: 'benne/preview/polygonPatch',
-                roomJsonUri: currentRoomJsonUri,
-                patch,
-            });
-        };
-        game = createRoomPreviewPhaserGame(phaserMount, manifest, {
-            roomJsonUri: currentRoomJsonUri,
-            onPolygonPatch,
-            initialShowGuis: guiVisibilityBridge.visible,
-        });
-        vscodeApi?.postMessage({ type: 'benne/preview/roomLoadComplete', roomJsonUri: currentRoomJsonUri });
-    } catch (e) {
-        showError(e instanceof Error ? e.message : String(e));
-    }
-}
-
-window.addEventListener('message', (event: MessageEvent) => {
-    const msg = event.data as HostPreviewMessage;
-
-    if (msg?.type === 'benne/preview/polygonPatchResult') {
-        if (msg.ok && msg.appliedPatch) {
-            applyAppliedPatchToPreviewRoom(msg.appliedPatch);
-        }
-        setStatus(msg.ok ? 'Saved.' : `Error: ${msg.message ?? ''}`);
-        return;
-    }
-
-    if (msg?.type === 'benne/preview/toolbarUi') {
-        if (!lastLoadedRoom) {
-            return;
-        }
-        wireToolbarFromPreviewState(lastLoadedRoom, parsePreviewToolbarPayload(msg));
-        return;
-    }
-
-    if (msg?.type === 'benne/preview/inspectorFocus') {
-        if (!lastLoadedRoom) {
-            return;
-        }
-        wireToolbarFromPreviewState(lastLoadedRoom, parsePreviewToolbarPayload(msg));
-        return;
-    }
-
-    if (msg?.type === 'benne/preview/clear') {
-        enqueuePreviewLifecycle(async () => {
-            await resetToPlaceholder();
-        });
-        return;
-    }
-
-    if (msg?.type === 'benne/preview/error') {
-        enqueuePreviewLifecycle(async () => {
-            await runPreviewError(msg);
-        });
-        return;
-    }
-
-    if (msg?.type === 'benne/preview/loadRoom') {
-        enqueuePreviewLifecycle(async () => {
-            await runLoadRoom(msg);
-        });
-        return;
-    }
-});
-
-function wireRefreshPreviewButton(): void {
-    const btn = document.getElementById('benne-refresh-preview');
-    if (!btn || btn.dataset.benneRefreshWired === '1') {
-        return;
-    }
-    btn.dataset.benneRefreshWired = '1';
-    btn.addEventListener('click', () => {
-        vscodeApi?.postMessage({
-            type: 'benne/preview/requestRefresh',
-            roomJsonUri: currentRoomJsonUri,
-        });
-    });
-}
-
-function wirePlayFromHereButton(): void {
-    const btn = document.getElementById('benne-preview-play');
-    if (!btn || btn.dataset.bennePlayWired === '1') {
-        return;
-    }
-    btn.dataset.bennePlayWired = '1';
-    btn.addEventListener('click', () => {
-        const room = lastLoadedRoom;
-        if (!room || !currentRoomJsonUri) {
-            return;
-        }
-        const sel = document.getElementById('benne-preview-play-from') as HTMLSelectElement | null;
-        const raw = sel?.value?.trim() ?? '';
-        const playFromName = raw.length > 0 ? raw : undefined;
-        vscodeApi?.postMessage({
-            type: 'benne/preview/playFromHere',
-            roomJsonUri: currentRoomJsonUri,
-            roomId: room.id,
-            roomName: room.name,
-            ...(playFromName ? { playFromName } : {}),
-        });
-    });
-}
-
-wireRefreshPreviewButton();
-wirePlayFromHereButton();
-wireShowGuisToggle();
-vscodeApi?.postMessage({ type: 'benne/preview/ready' });
 </file>
 
 <file path="src/engine/benneRuntimeHiDpiScale.ts">
@@ -17365,6 +17408,1565 @@ export function syncBenneRuntimeHiDpiSceneMainCameras(game: Phaser.Game): void {
 }
 </file>
 
+<file path="src/engine/dialog/dialogGameState.ts">
+import type { GameSettingsDialog } from '../../types/game.js';
+import type { GameStateManager } from '../gameState/GameStateManager.js';
+import { getDialogSettingsFromConfig } from '../ConfigManager.js';
+
+/** Persisted choice-dialog viewport height cap (px); omitted = use config default. */
+export const DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE = 'dialog:choiceOptionsViewportHeightPx';
+
+/** Persisted hex color for used dialog option rows; omitted = use config default. */
+export const DIALOG_USED_COLOR_VARIABLE = 'dialog:usedColor';
+
+export const PERSISTED_DIALOG_SETTINGS_VARIABLE_KEYS = [
+  DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE,
+  DIALOG_USED_COLOR_VARIABLE,
+] as const;
+
+export type RuntimeDialogSettings = GameSettingsDialog;
+
+function readOptionalPositiveViewportHeight(
+  manager: GameStateManager,
+  key: string,
+  fallback: number | undefined,
+): number | undefined {
+  if (!manager.hasVariable(key)) {
+    return fallback;
+  }
+  const v = manager.getVariable(key);
+  if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
+    return v;
+  }
+  return fallback;
+}
+
+function readOptionalNonEmptyString(
+  manager: GameStateManager,
+  key: string,
+  fallback: string | undefined,
+): string | undefined {
+  if (!manager.hasVariable(key)) {
+    return fallback;
+  }
+  const v = manager.getVariable(key);
+  if (typeof v === 'string' && v.trim().length > 0) {
+    return v.trim();
+  }
+  return fallback;
+}
+
+/** Effective dialog settings: saved variable overrides when typed correctly, else `game-config.json` defaults. */
+export function readEffectiveDialogSettings(manager: GameStateManager): RuntimeDialogSettings {
+  const config = getDialogSettingsFromConfig();
+  return {
+    choiceOptionsViewportHeightPx: readOptionalPositiveViewportHeight(
+      manager,
+      DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE,
+      config.choiceOptionsViewportHeightPx,
+    ),
+    usedColor: readOptionalNonEmptyString(
+      manager,
+      DIALOG_USED_COLOR_VARIABLE,
+      config.usedColor,
+    ),
+  };
+}
+
+export function writePersistedDialogChoiceOptionsViewportHeightPx(
+  manager: GameStateManager,
+  value: number,
+): void {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error('[Benne] dialog settings: choiceOptionsViewportHeightPx must be a finite number > 0');
+  }
+  manager.setVariable(DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE, value);
+}
+
+export function clearPersistedDialogChoiceOptionsViewportHeightPx(manager: GameStateManager): void {
+  manager.clearVariable(DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE);
+}
+
+export function writePersistedDialogUsedColor(manager: GameStateManager, value: string): void {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw new Error('[Benne] dialog settings: usedColor must be a non-empty hex color string');
+  }
+  manager.setVariable(DIALOG_USED_COLOR_VARIABLE, trimmed);
+}
+
+export function clearPersistedDialogUsedColor(manager: GameStateManager): void {
+  manager.clearVariable(DIALOG_USED_COLOR_VARIABLE);
+}
+
+/**
+ * When applying a snapshot, keep prior `dialog:*` variables if the incoming snapshot omits them
+ * (new game keeps last values unless `initialGameState.variables` seeds them).
+ */
+export function mergePreserveDialogSettingsVariables(
+  incoming: Record<string, unknown>,
+  previous: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = { ...incoming };
+  for (const key of PERSISTED_DIALOG_SETTINGS_VARIABLE_KEYS) {
+    if (
+      !Object.prototype.hasOwnProperty.call(incoming, key) &&
+      Object.prototype.hasOwnProperty.call(previous, key)
+    ) {
+      merged[key] = previous[key];
+    }
+  }
+  return merged;
+}
+</file>
+
+<file path="src/engine/gui/buildGuiSlider.ts">
+import * as Phaser from 'phaser';
+import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/guiAseprite';
+import type { GuiData, GuiSliderControl } from '../../types/gui';
+import { gameEvents } from '../events/EventBus';
+import {
+  guiSliderValueChangedEventId,
+  type GuiSliderValueChangedPayload,
+} from '../events/guiSliderEvents';
+import {
+  getAsepriteSpriteSourceInset,
+  getAsepriteVisibleFrameSize,
+  warnDevIfAsepriteJsonMissingSpriteSourceSize,
+} from '../aseprite/asepriteFramePlacement';
+import {
+  applyGuiButtonInteractivity,
+  guiSpriteAnchorOrDefault,
+  placeGuiButtonBackgroundSpriteLocal,
+  reapplyGuiSheetTag,
+  tryApplyGuiSheetTag,
+} from './buildGuiOverlay';
+import {
+  BENNE_GUI_SLIDER_APPLY_VISUAL_DATA_KEY,
+  BENNE_GUI_SLIDER_DATA_KEY,
+  BENNE_GUI_SLIDER_READ_DISABLED_DATA_KEY,
+  BENNE_GUI_SLIDER_READ_VALUE_DATA_KEY,
+  BENNE_GUI_SLIDER_SET_DISABLED_DATA_KEY,
+  BENNE_GUI_SLIDER_SET_VALUE_DATA_KEY,
+  type BenneGuiSliderApplyVisualFn,
+  type BenneGuiSliderSetDisabledFn,
+  type BenneGuiSliderSetValueFn,
+} from './guiSliderRuntime';
+
+const GUI_SLIDER_TRACK_DEPTH = 0;
+const GUI_SLIDER_HANDLE_DEPTH = 1;
+
+export interface BuiltGuiSlider {
+  readonly hitTarget: Phaser.GameObjects.Container;
+  readonly trackSprite: Phaser.GameObjects.Sprite | null;
+  readonly handleSprite: Phaser.GameObjects.Sprite | null;
+  readonly enabled: boolean;
+  readonly value: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface GuiSliderRange {
+  readonly min: number;
+  readonly max: number;
+  readonly step: number;
+}
+
+export function resolveGuiSliderRange(c: GuiSliderControl): GuiSliderRange {
+  const min = c.min ?? 0;
+  const max = c.max ?? 100;
+  const step = c.step != null && c.step > 0 ? c.step : 1;
+  return { min, max, step };
+}
+
+export function snapGuiSliderValue(raw: number, range: GuiSliderRange): number {
+  const { min, max, step } = range;
+  const span = max - min;
+  if (span <= 0) {
+    return min;
+  }
+  if (!Number.isFinite(raw)) {
+    return min;
+  }
+  const steps = Math.round((raw - min) / step);
+  const snapped = min + steps * step;
+  return Math.min(max, Math.max(min, snapped));
+}
+
+function resolveSliderTags(
+  c: GuiSliderControl,
+  hover: boolean,
+  disabled: boolean,
+): { track: string; handle: string } {
+  const trackDefault = c.trackTag.trim();
+  const handleDefault = c.handleTag.trim();
+  if (disabled) {
+    return {
+      track: c.states?.disabled?.track?.trim() || trackDefault,
+      handle: c.states?.disabled?.handle?.trim() || handleDefault,
+    };
+  }
+  if (hover) {
+    return {
+      track: trackDefault,
+      handle: c.states?.hover?.handle?.trim() || handleDefault,
+    };
+  }
+  return { track: trackDefault, handle: handleDefault };
+}
+
+function getHandleTravelBounds(hitWidth: number): { minX: number; maxX: number } {
+  const minX = 0;
+  const maxX = Math.max(minX, hitWidth);
+  return { minX, maxX };
+}
+
+function getVisibleSpriteLocalBounds(sprite: Phaser.GameObjects.Sprite): {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+} {
+  const inset = getAsepriteSpriteSourceInset(sprite.frame);
+  const visible = getAsepriteVisibleFrameSize(sprite.frame);
+  const left = sprite.x - sprite.displayOriginX + inset.x;
+  const top = sprite.y - sprite.displayOriginY + inset.y;
+  return {
+    left,
+    top,
+    right: left + visible.w,
+    bottom: top + visible.h,
+  };
+}
+
+function resolveSliderTravelBounds(
+  hitWidth: number,
+  hitHeight: number,
+  trackSprite: Phaser.GameObjects.Sprite | null,
+): { minX: number; maxX: number; centerY: number } {
+  const fallback = getHandleTravelBounds(hitWidth);
+  const fallbackY = hitHeight / 2;
+  const b = trackSprite != null ? getVisibleSpriteLocalBounds(trackSprite) : null;
+  const rawMinX = b && Number.isFinite(b.left) ? b.left : fallback.minX;
+  const rawMaxX = b && Number.isFinite(b.right) ? b.right : fallback.maxX;
+  const centerY =
+    b && Number.isFinite(b.top) && Number.isFinite(b.bottom) ? (b.top + b.bottom) / 2 : fallbackY;
+  return {
+    minX: Math.min(rawMinX, rawMaxX),
+    maxX: Math.max(rawMinX, rawMaxX),
+    centerY,
+  };
+}
+
+function resolveHandlePlacementOffsetX(
+  hitWidth: number,
+  handleSprite: Phaser.GameObjects.Sprite | null,
+): number {
+  if (!handleSprite) {
+    return 0;
+  }
+  const frameData = (handleSprite.frame as unknown as { data?: { trim?: boolean } }).data;
+  const isTrimmed = frameData?.trim === true;
+  const handleVisibleW = getAsepriteVisibleFrameSize(handleSprite.frame).w;
+  const isFullWidthCanvasHandle = !isTrimmed && handleVisibleW >= Math.max(1, hitWidth) * 0.9;
+  return isFullWidthCanvasHandle ? handleVisibleW / 2 : 0;
+}
+
+function valueToHandleLocalX(
+  value: number,
+  range: GuiSliderRange,
+  minX: number,
+  maxX: number,
+): number {
+  const span = range.max - range.min;
+  if (span <= 0) {
+    return minX;
+  }
+  const t = (value - range.min) / span;
+  if (!Number.isFinite(t)) {
+    return minX;
+  }
+  return minX + t * (maxX - minX);
+}
+
+function localXToValue(localX: number, range: GuiSliderRange, minX: number, maxX: number): number {
+  const travel = maxX - minX;
+  if (travel <= 0) {
+    return range.min;
+  }
+  const t = (localX - minX) / travel;
+  return snapGuiSliderValue(range.min + t * (range.max - range.min), range);
+}
+
+export function buildGuiSlider(
+  scene: Phaser.Scene,
+  gui: GuiData,
+  c: GuiSliderControl,
+  baseDepth: number,
+  startVisible: boolean,
+  screenBgWorldTopLeft?: { x: number; y: number },
+  isClickSuppressed?: () => boolean,
+): BuiltGuiSlider | null {
+  const w = c.width;
+  const h = c.height;
+  if (w <= 0 || h <= 0) {
+    return null;
+  }
+  const id = c.id.trim();
+  if (!id) {
+    return null;
+  }
+
+  const range = resolveGuiSliderRange(c);
+  const initialValue = snapGuiSliderValue(c.defaultValue ?? range.min, range);
+
+  const z = c.zIndex ?? 0;
+  const d = baseDepth + z;
+  const overlayVisible = startVisible && c.visible !== false;
+  const bgAnchor = guiSpriteAnchorOrDefault(c.backgroundAnchor);
+  const bgOffX = c.backgroundOffsetX ?? 0;
+  const bgOffY = c.backgroundOffsetY ?? 0;
+  const px = Math.round(c.x);
+  const py = Math.round(c.y);
+  const worldTL = screenBgWorldTopLeft ?? { x: px, y: py };
+
+  const enabled = c.enabled !== false;
+  let value = initialValue;
+  let disabled = !enabled;
+  let pointerHover = false;
+  let dragging = false;
+
+  const hitTarget = scene.add.container(px, py);
+  hitTarget.setScrollFactor(0, 0);
+  hitTarget.setDepth(d);
+  hitTarget.setVisible(overlayVisible);
+  hitTarget.setData(BENNE_GUI_SLIDER_DATA_KEY, true);
+
+  const guiTextureKey = getAsepriteTextureKey(gui.id);
+  const trackTagDefault = c.trackTag.trim();
+  const handleTagDefault = c.handleTag.trim();
+
+  let trackSprite: Phaser.GameObjects.Sprite | null = null;
+  let handleSprite: Phaser.GameObjects.Sprite | null = null;
+
+  if (
+    usesAsepriteDisplay(gui) &&
+    trackTagDefault &&
+    handleTagDefault &&
+    scene.textures.exists(guiTextureKey)
+  ) {
+    const track = scene.add.sprite(0, 0, guiTextureKey);
+    track.setDepth(GUI_SLIDER_TRACK_DEPTH);
+    track.setVisible(false);
+    track.setScrollFactor(0, 0);
+    if (!tryApplyGuiSheetTag(scene, track, guiTextureKey, trackTagDefault, gui.id)) {
+      track.destroy();
+    } else {
+      track.setVisible(overlayVisible);
+      if (import.meta.env.DEV) {
+        warnDevIfAsepriteJsonMissingSpriteSourceSize(
+          track.frame,
+          `GUI "${gui.id}" slider "${c.id}" track`,
+        );
+      }
+      placeGuiButtonBackgroundSpriteLocal(track, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
+      hitTarget.add(track);
+      trackSprite = track;
+    }
+
+    const handle = scene.add.sprite(0, 0, guiTextureKey);
+    handle.setDepth(GUI_SLIDER_HANDLE_DEPTH);
+    handle.setVisible(false);
+    handle.setScrollFactor(0, 0);
+    if (!tryApplyGuiSheetTag(scene, handle, guiTextureKey, handleTagDefault, gui.id)) {
+      handle.destroy();
+    } else {
+      handle.setVisible(overlayVisible);
+      if (import.meta.env.DEV) {
+        warnDevIfAsepriteJsonMissingSpriteSourceSize(
+          handle.frame,
+          `GUI "${gui.id}" slider "${c.id}" handle`,
+        );
+      }
+      hitTarget.add(handle);
+      handleSprite = handle;
+    }
+  }
+
+  if (!trackSprite && !handleSprite) {
+    hitTarget.destroy();
+    return null;
+  }
+
+  const repositionHandle = (): void => {
+    if (!handleSprite) {
+      return;
+    }
+    const { minX, maxX, centerY } = resolveSliderTravelBounds(w, h, trackSprite);
+    const handleOffsetX = resolveHandlePlacementOffsetX(w, handleSprite);
+    const hx = valueToHandleLocalX(value, range, minX, maxX);
+    const hy = centerY;
+    handleSprite.setOrigin(0.5, 0.5);
+    handleSprite.setPosition(Math.round(hx + handleOffsetX), Math.round(hy));
+  };
+
+  const repositionTrack = (): void => {
+    if (trackSprite) {
+      placeGuiButtonBackgroundSpriteLocal(trackSprite, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
+    }
+  };
+
+  const applyTagsForVisual = (hover: boolean): void => {
+    const tags = resolveSliderTags(c, hover, disabled);
+    if (trackSprite && tags.track) {
+      if (reapplyGuiSheetTag(scene, trackSprite, guiTextureKey, tags.track, gui.id)) {
+        repositionTrack();
+      }
+    }
+    if (handleSprite && tags.handle) {
+      if (reapplyGuiSheetTag(scene, handleSprite, guiTextureKey, tags.handle, gui.id)) {
+        repositionHandle();
+      }
+    }
+  };
+
+  const syncDisabledAlpha = (): void => {
+    const a = disabled ? 0.45 : 1;
+    hitTarget.setAlpha(a);
+    trackSprite?.setAlpha(a);
+    handleSprite?.setAlpha(a);
+  };
+
+  const applySliderVisual: BenneGuiSliderApplyVisualFn = (hover: boolean) => {
+    pointerHover = hover;
+    applyTagsForVisual(hover);
+    syncDisabledAlpha();
+  };
+
+  const emitValueChangedIfPointer = (newValue: number): void => {
+    gameEvents.emit(guiSliderValueChangedEventId(gui.id, id), {
+      value: newValue,
+    } satisfies GuiSliderValueChangedPayload);
+  };
+
+  const setValueInternal = (next: number, fromPointer: boolean): void => {
+    const snapped = snapGuiSliderValue(next, range);
+    if (snapped === value) {
+      return;
+    }
+    value = snapped;
+    applySliderVisual(pointerHover);
+    repositionHandle();
+    if (fromPointer) {
+      emitValueChangedIfPointer(value);
+    }
+  };
+
+  const setValueFromScript: BenneGuiSliderSetValueFn = (next: number) => {
+    setValueInternal(next, false);
+  };
+
+  const refreshInteractivity = (): void => {
+    hitTarget.disableInteractive();
+    if (hitTarget.visible && !disabled) {
+      applyGuiButtonInteractivity(hitTarget, w, h, true);
+    }
+  };
+
+  let onPointerMove: ((pointer: Phaser.Input.Pointer) => void) | null = null;
+  let onPointerUp: ((pointer: Phaser.Input.Pointer) => void) | null = null;
+
+  function endDrag(): void {
+    if (!dragging) {
+      return;
+    }
+    dragging = false;
+    if (onPointerMove) {
+      scene.input.off('pointermove', onPointerMove);
+      onPointerMove = null;
+    }
+    if (onPointerUp) {
+      scene.input.off('pointerup', onPointerUp);
+      onPointerUp = null;
+    }
+  }
+
+  const setDisabledFromScript: BenneGuiSliderSetDisabledFn = (next: boolean) => {
+    disabled = next;
+    if (disabled) {
+      pointerHover = false;
+      dragging = false;
+      endDrag();
+    }
+    applySliderVisual(false);
+    refreshInteractivity();
+  };
+
+  const updateFromPointer = (pointer: Phaser.Input.Pointer): void => {
+    if (disabled || !hitTarget.visible) {
+      return;
+    }
+    const matrix = hitTarget.getWorldTransformMatrix();
+    const local = matrix.applyInverse(pointer.worldX, pointer.worldY);
+    const { minX, maxX } = resolveSliderTravelBounds(w, h, trackSprite);
+    const next = localXToValue(local.x, range, minX, maxX);
+    setValueInternal(next, true);
+  };
+
+  const startDrag = (pointer: Phaser.Input.Pointer): void => {
+    if (disabled || dragging) {
+      return;
+    }
+    if (isClickSuppressed?.()) {
+      return;
+    }
+    dragging = true;
+    updateFromPointer(pointer);
+    onPointerMove = (p: Phaser.Input.Pointer) => {
+      if (!dragging) {
+        return;
+      }
+      updateFromPointer(p);
+    };
+    onPointerUp = (p: Phaser.Input.Pointer) => {
+      if (!p.leftButtonReleased()) {
+        return;
+      }
+      updateFromPointer(p);
+      endDrag();
+      applySliderVisual(false);
+    };
+    scene.input.on('pointermove', onPointerMove);
+    scene.input.on('pointerup', onPointerUp);
+  };
+
+  hitTarget.setData(BENNE_GUI_SLIDER_APPLY_VISUAL_DATA_KEY, applySliderVisual);
+  hitTarget.setData(BENNE_GUI_SLIDER_SET_VALUE_DATA_KEY, setValueFromScript);
+  hitTarget.setData(BENNE_GUI_SLIDER_SET_DISABLED_DATA_KEY, setDisabledFromScript);
+  hitTarget.setData(BENNE_GUI_SLIDER_READ_VALUE_DATA_KEY, () => value);
+  hitTarget.setData(BENNE_GUI_SLIDER_READ_DISABLED_DATA_KEY, () => disabled);
+
+  applySliderVisual(false);
+  repositionHandle();
+  syncDisabledAlpha();
+  refreshInteractivity();
+
+  hitTarget.on('pointerover', () => {
+    if (disabled) {
+      return;
+    }
+    applySliderVisual(true);
+  });
+  hitTarget.on('pointerout', () => {
+    if (disabled || dragging) {
+      return;
+    }
+    applySliderVisual(false);
+  });
+
+  hitTarget.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    if (!pointer.leftButtonDown() || disabled || !hitTarget.visible) {
+      return;
+    }
+    startDrag(pointer);
+  });
+
+  hitTarget.once(Phaser.GameObjects.Events.DESTROY, () => {
+    endDrag();
+  });
+
+  return {
+    hitTarget,
+    trackSprite,
+    handleSprite,
+    enabled: !disabled,
+    value,
+    width: w,
+    height: h,
+  };
+}
+</file>
+
+<file path="src/engine/scenes/RoomTransitionHookRegistry.ts">
+import type { RoomTransitionContext } from '../../types/roomTransition.js';
+
+type RoomHandler = (ctx: RoomTransitionContext) => void | Promise<void>;
+type AnyHandler = (ctx: RoomTransitionContext) => void | Promise<void>;
+
+/**
+ * All room-transition hooks (per-room and global) live here so {@link import('./RoomTransitionOrchestrator.js').RoomTransitionOrchestrator} can run them in order.
+ */
+export class RoomTransitionHookRegistry {
+  private readonly byRoomLeave = new Map<string, RoomHandler[]>();
+  private readonly byRoomLoaded = new Map<string, RoomHandler[]>();
+  private readonly byRoomEnter = new Map<string, RoomHandler[]>();
+  private readonly byRoomAfterFade = new Map<string, RoomHandler[]>();
+  private anyLeave: AnyHandler[] = [];
+  private anyLoaded: AnyHandler[] = [];
+  private anyEnter: AnyHandler[] = [];
+  private anyAfterFade: AnyHandler[] = [];
+
+  registerRoomLeaveRoom(roomId: string, handler: RoomHandler): void {
+    this.pushByRoom(this.byRoomLeave, roomId, handler);
+  }
+
+  registerRoomEnterRoom(roomId: string, handler: RoomHandler): void {
+    this.pushByRoom(this.byRoomEnter, roomId, handler);
+  }
+
+  registerRoomLoadedRoom(roomId: string, handler: RoomHandler): void {
+    this.pushByRoom(this.byRoomLoaded, roomId, handler);
+  }
+
+  registerRoomEnterRoomAfterFade(roomId: string, handler: RoomHandler): void {
+    this.pushByRoom(this.byRoomAfterFade, roomId, handler);
+  }
+
+  whenLeaveAnyRoom(handler: AnyHandler): void {
+    this.anyLeave.push(handler);
+  }
+
+  whenLoadedAnyRoom(handler: AnyHandler): void {
+    this.anyLoaded.push(handler);
+  }
+
+  whenEnterAnyRoom(handler: AnyHandler): void {
+    this.anyEnter.push(handler);
+  }
+
+  whenEnterAnyRoomAfterFade(handler: AnyHandler): void {
+    this.anyAfterFade.push(handler);
+  }
+
+  private pushByRoom(m: Map<string, RoomHandler[]>, roomId: string, h: RoomHandler): void {
+    const k = String(roomId);
+    const a = m.get(k) ?? [];
+    a.push(h);
+    m.set(k, a);
+  }
+
+  getLeaveHandlersForRoom(roomId: string): readonly RoomHandler[] {
+    return this.byRoomLeave.get(String(roomId)) ?? [];
+  }
+
+  getEnterHandlersForRoom(roomId: string): readonly RoomHandler[] {
+    return this.byRoomEnter.get(String(roomId)) ?? [];
+  }
+
+  getLoadedHandlersForRoom(roomId: string): readonly RoomHandler[] {
+    return this.byRoomLoaded.get(String(roomId)) ?? [];
+  }
+
+  getAfterFadeHandlersForRoom(roomId: string): readonly RoomHandler[] {
+    return this.byRoomAfterFade.get(String(roomId)) ?? [];
+  }
+
+  getAnyLeave(): readonly AnyHandler[] {
+    return this.anyLeave;
+  }
+
+  getAnyLoaded(): readonly AnyHandler[] {
+    return this.anyLoaded;
+  }
+
+  getAnyEnter(): readonly AnyHandler[] {
+    return this.anyEnter;
+  }
+
+  getAnyAfterFade(): readonly AnyHandler[] {
+    return this.anyAfterFade;
+  }
+
+  /**
+   * Clears per-room hooks so `registerRoomScript` can re-register (each `RoomScene` `create` runs
+   * the same `*.room.ts` again).
+   */
+  clearPerRoomScriptHooksForRoomId(roomId: string): void {
+    const k = String(roomId);
+    this.byRoomLeave.delete(k);
+    this.byRoomLoaded.delete(k);
+    this.byRoomEnter.delete(k);
+    this.byRoomAfterFade.delete(k);
+  }
+}
+
+export async function runRoomHandlersSeq(
+  handlers: readonly ((ctx: RoomTransitionContext) => void | Promise<void>)[],
+  ctx: RoomTransitionContext,
+): Promise<void> {
+  for (const h of handlers) {
+    await Promise.resolve(h(ctx));
+  }
+}
+
+/**
+ * Invokes each handler in order; an error in one does not skip the rest (used for enter / after-fade hooks).
+ */
+export async function runRoomHandlersEachSafe(
+  handlers: readonly ((ctx: RoomTransitionContext) => void | Promise<void>)[],
+  ctx: RoomTransitionContext,
+  logLabel: string,
+): Promise<void> {
+  for (let i = 0; i < handlers.length; i += 1) {
+    try {
+      await Promise.resolve(handlers[i]!(ctx));
+    } catch (e) {
+      console.error(`[Benne] ${logLabel} handler #${i} failed:`, e);
+    }
+  }
+}
+</file>
+
+<file path="src/engine/scripting/benneScriptDialogSettingsApi.ts">
+import {
+  clearPersistedDialogChoiceOptionsViewportHeightPx,
+  clearPersistedDialogUsedColor,
+  readEffectiveDialogSettings,
+  writePersistedDialogChoiceOptionsViewportHeightPx,
+  writePersistedDialogUsedColor,
+} from '../dialog/dialogGameState.js';
+import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import { getDialogSettingsFromConfig } from '../ConfigManager.js';
+import { emitBenneSpeechSettingsChanged } from './benneSpeechSettingsScriptSurface.js';
+import type { BenneScriptDialogSettingsFacade } from './benneScriptFacades.js';
+
+function resolveManager() {
+  return tryGetActiveGameStateManager();
+}
+
+function readEffectiveOrConfig(): ReturnType<typeof readEffectiveDialogSettings> {
+  const mgr = resolveManager();
+  return mgr ? readEffectiveDialogSettings(mgr) : getDialogSettingsFromConfig();
+}
+
+export function createBenneScriptDialogSettingsFacade(): BenneScriptDialogSettingsFacade {
+  return {
+    get choiceOptionsViewportHeightPx() {
+      return readEffectiveOrConfig().choiceOptionsViewportHeightPx;
+    },
+    set choiceOptionsViewportHeightPx(v: number | undefined) {
+      const mgr = resolveManager();
+      if (!mgr) {
+        return;
+      }
+      if (v === undefined) {
+        clearPersistedDialogChoiceOptionsViewportHeightPx(mgr);
+      } else {
+        writePersistedDialogChoiceOptionsViewportHeightPx(mgr, v);
+      }
+      emitBenneSpeechSettingsChanged();
+    },
+    get usedColor() {
+      return readEffectiveOrConfig().usedColor;
+    },
+    set usedColor(v: string | undefined) {
+      const mgr = resolveManager();
+      if (!mgr) {
+        return;
+      }
+      if (v === undefined) {
+        clearPersistedDialogUsedColor(mgr);
+      } else {
+        writePersistedDialogUsedColor(mgr, v);
+      }
+      emitBenneSpeechSettingsChanged();
+    },
+  };
+}
+</file>
+
+<file path="src/engine/scripting/benneScriptSoundApi.ts">
+import { getGameSettings } from '../ConfigManager.js';
+import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
+import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import {
+  readPersistedMusicSessionVolume,
+  readPersistedSfxSessionVolume,
+  writePersistedMusicSessionVolume,
+  writePersistedSfxSessionVolume,
+} from '../sound/audioGameState.js';
+import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
+import type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
+import { withNow } from './BenneScriptCore.js';
+import type { BenneScriptSoundFacade } from './benneScriptFacades.js';
+
+function clamp01(n: number): number {
+  return Math.min(1, Math.max(0, n));
+}
+
+function resolveSoundManager() {
+  const g = tryGetActiveBenneGame();
+  return g ? tryGetBenneSoundManager(g) : null;
+}
+
+export function createBenneScriptSoundFacade(
+  chain: (factory: () => Promise<unknown>) => void,
+): BenneScriptSoundFacade {
+  return {
+    play: withNow(
+      (key: string, options?: SoundPlayOptions) => {
+        chain(() => {
+          resolveSoundManager()?.playSfx(key, options);
+          return Promise.resolve();
+        });
+      },
+      (key: string, options?: SoundPlayOptions) => {
+        resolveSoundManager()?.playSfx(key, options);
+      },
+    ),
+    playAndWait: withNow(
+      (key: string, options?: SoundPlayOptions) => {
+        const sm = resolveSoundManager();
+        if (!sm) {
+          return;
+        }
+        chain(() => sm.playSfxAndWait(key, options));
+      },
+      (key: string, options?: SoundPlayOptions) => {
+        void resolveSoundManager()?.playSfxAndWait(key, options);
+      },
+    ),
+    playMusic: withNow(
+      (key: string, options?: MusicPlayOptions) => {
+        chain(() => resolveSoundManager()?.playMusic(key, options) ?? Promise.resolve());
+      },
+      (key: string, options?: MusicPlayOptions) => {
+        resolveSoundManager()?.playMusic(key, options);
+      },
+    ),
+    stop: withNow(
+      (key?: string) => {
+        chain(() => {
+          resolveSoundManager()?.stopSfx(key);
+          return Promise.resolve();
+        });
+      },
+      (key?: string) => {
+        resolveSoundManager()?.stopSfx(key);
+      },
+    ),
+    stopMusic: withNow(
+      () => {
+        chain(() => {
+          resolveSoundManager()?.stopMusic();
+          return Promise.resolve();
+        });
+      },
+      () => {
+        resolveSoundManager()?.stopMusic();
+      },
+    ),
+    setSfxVolume(volume: number): void {
+      const v = clamp01(volume);
+      resolveSoundManager()?.setSfxSessionVolume(v);
+      const mgr = tryGetActiveGameStateManager();
+      if (mgr) {
+        writePersistedSfxSessionVolume(mgr, v);
+      }
+    },
+    setMusicVolume(volume: number): void {
+      const v = clamp01(volume);
+      resolveSoundManager()?.setMusicSessionVolume(v);
+      const mgr = tryGetActiveGameStateManager();
+      if (mgr) {
+        writePersistedMusicSessionVolume(mgr, v);
+      }
+    },
+    getSfxVolume(): number {
+      const sm = resolveSoundManager();
+      if (sm) {
+        return sm.getSfxSessionVolume();
+      }
+      const mgr = tryGetActiveGameStateManager();
+      return mgr ? readPersistedSfxSessionVolume(mgr) : clamp01(getGameSettings().audio.sfxVolume);
+    },
+    getMusicVolume(): number {
+      const sm = resolveSoundManager();
+      if (sm) {
+        return sm.getMusicSessionVolume();
+      }
+      const mgr = tryGetActiveGameStateManager();
+      return mgr ? readPersistedMusicSessionVolume(mgr) : clamp01(getGameSettings().audio.musicVolume);
+    },
+    isPlaying(key: string): boolean {
+      return resolveSoundManager()?.isSfxPlaying(key) ?? false;
+    },
+    isMusicPlaying(): boolean {
+      return resolveSoundManager()?.isMusicPlaying() ?? false;
+    },
+  };
+}
+</file>
+
+<file path="src/engine/scripting/registerRoomScript.ts">
+import type { RoomScriptContext } from './types.js';
+
+type RoomCallback = (context: RoomScriptContext) => void;
+
+/**
+ * Per-room callback registry. Populated lazily when a room's module is first imported.
+ * Key = roomId; value = callbacks registered by that room's `registerRoomScript` call(s).
+ * Callbacks are stored permanently after first import and re-invoked on every room enter
+ * (each call receives a fresh {@link RoomScriptContext} from {@link import('../scenes/RoomScene.js').RoomScene}).
+ */
+const perRoomCallbacks = new Map<string, RoomCallback[]>();
+
+/**
+ * Lazy module factories registered by {@link registerRoomScriptModuleLoaders}.
+ * Key = roomId; value = dynamic-import factory for that room's `*.room.ts` module.
+ */
+const roomModuleLoaders = new Map<string, () => Promise<unknown>>();
+
+/**
+ * The roomId whose module is currently being imported.
+ * Set by {@link ensureRoomScriptLoaded} around the dynamic `import()` call so
+ * {@link registerRoomScript} can key each callback to the correct room.
+ */
+let _currentLoadingRoomId: string | null = null;
+
+// ─── Registration helpers (called from registerGameContent) ──────────────────
+
+/**
+ * Stores the lazy module factory for each room. Called once from
+ * {@link import('../../game/registerGameContent.js').registerGameContent} with the full
+ * roomId → factory map derived from `import.meta.glob`.
+ */
+export function registerRoomScriptModuleLoaders(
+  loaders: ReadonlyMap<string, () => Promise<unknown>>,
+): void {
+  for (const [roomId, loader] of loaders) {
+    roomModuleLoaders.set(roomId, loader);
+  }
+}
+
+// ─── Public API ──────────────────────────────────────────────────────────────
+
+/**
+ * Call at the top level of each `*.room.ts` to register Bennescript handlers.
+ *
+ * @param registerFn - Receives `{ B, events, roomId, roomScene, … }`. Use **`B`** for authoring;
+ *   see the **module-level table** in `BenneScript.ts` for which string ids to pass to
+ *   `whenLookAt`, `walkTo`, etc. **`B.onUpdate`** registers a non-blocking per-frame hook (see
+ *   `UpdateContext` in `types.ts`).
+ */
+export function registerRoomScript(registerFn: RoomCallback): void {
+  const rid = _currentLoadingRoomId;
+  if (rid == null) {
+    if (import.meta.env.DEV) {
+      console.error(
+        '[Benne] registerRoomScript called outside a lazy room module load context — registration ignored. ' +
+          'Ensure this file is under src/game/rooms/**/*.room.ts and is discovered by registerGameContent.',
+      );
+    }
+    return;
+  }
+  let arr = perRoomCallbacks.get(rid);
+  if (!arr) {
+    arr = [];
+    perRoomCallbacks.set(rid, arr);
+  }
+  arr.push(registerFn);
+}
+
+/**
+ * Returns the registered callbacks for a room.
+ * Will be empty until {@link ensureRoomScriptLoaded} has been awaited for that room.
+ */
+export function getCallbacksForRoom(roomId: string): ReadonlyArray<RoomCallback> {
+  return perRoomCallbacks.get(roomId) ?? [];
+}
+
+/**
+ * Ensures the `*.room.ts` module for `roomId` has been imported (once) and its
+ * {@link registerRoomScript} side-effect has run.  Safe to call multiple times —
+ * subsequent calls for an already-loaded room return immediately without re-importing.
+ *
+ * Must be awaited **before** `RoomScene.create` needs the callbacks (i.e. during the
+ * asset-loading phase of a transition or boot).
+ */
+export async function ensureRoomScriptLoaded(roomId: string): Promise<void> {
+  if (perRoomCallbacks.has(roomId)) {
+    return;
+  }
+  const loader = roomModuleLoaders.get(roomId);
+  if (!loader) {
+    return;
+  }
+  _currentLoadingRoomId = roomId;
+  try {
+    await loader();
+  } finally {
+    _currentLoadingRoomId = null;
+  }
+}
+</file>
+
+<file path="src/game/assets/fonts/fonts.json">
+{
+  "lucasarts-scumm-solid": {
+    "textureFile": "lucasarts-scumm-solid_0.png",
+    "dataFile": "lucasarts-scumm-solid.xml"
+  },
+  "lucasfont-alternate": {
+    "textureFile": "lucasfont-alternate_0.png",
+    "dataFile": "lucasfont-alternate.xml"
+  },
+  "PressStart2P-Regular": {
+    "textureFile": "PressStart2P-Regular_0.png",
+    "dataFile": "PressStart2P-Regular.xml"
+  },
+  "sierra-sci-menu-font": {
+    "textureFile": "sierra-sci-menu-font_0.png",
+    "dataFile": "sierra-sci-menu-font.xml"
+  }
+}
+</file>
+
+<file path="src/game/assets/images/characters/hank/hank.json">
+{ "frames": {
+   "hank 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 130
+   },
+   "hank 1.aseprite": {
+    "frame": { "x": 36, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 130
+   },
+   "hank 2.aseprite": {
+    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 130
+   },
+   "hank 3.aseprite": {
+    "frame": { "x": 108, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 4.aseprite": {
+    "frame": { "x": 144, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 5.aseprite": {
+    "frame": { "x": 180, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 6.aseprite": {
+    "frame": { "x": 0, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 7.aseprite": {
+    "frame": { "x": 36, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 8.aseprite": {
+    "frame": { "x": 72, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 9.aseprite": {
+    "frame": { "x": 108, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 10.aseprite": {
+    "frame": { "x": 144, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 11.aseprite": {
+    "frame": { "x": 180, "y": 64, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 12.aseprite": {
+    "frame": { "x": 0, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 13.aseprite": {
+    "frame": { "x": 36, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 14.aseprite": {
+    "frame": { "x": 72, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 15.aseprite": {
+    "frame": { "x": 108, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 16.aseprite": {
+    "frame": { "x": 144, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 17.aseprite": {
+    "frame": { "x": 180, "y": 128, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 18.aseprite": {
+    "frame": { "x": 0, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 19.aseprite": {
+    "frame": { "x": 36, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 20.aseprite": {
+    "frame": { "x": 72, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 21.aseprite": {
+    "frame": { "x": 108, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 22.aseprite": {
+    "frame": { "x": 144, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 23.aseprite": {
+    "frame": { "x": 180, "y": 192, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 24.aseprite": {
+    "frame": { "x": 0, "y": 256, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 25.aseprite": {
+    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   },
+   "hank 26.aseprite": {
+    "frame": { "x": 36, "y": 256, "w": 36, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
+    "sourceSize": { "w": 36, "h": 64 },
+    "duration": 180
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta2-x64",
+  "image": "hank.png",
+  "format": "RGBA8888",
+  "size": { "w": 216, "h": 320 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "IdleL", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
+   { "name": "IdleD", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "IdleU", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "WalkL", "from": 3, "to": 8, "direction": "forward", "color": "#000000ff" },
+   { "name": "WalkD", "from": 9, "to": 14, "direction": "forward", "color": "#000000ff" },
+   { "name": "WalkU", "from": 15, "to": 20, "direction": "forward", "color": "#000000ff" },
+   { "name": "TalkL", "from": 21, "to": 22, "direction": "forward", "color": "#000000ff" },
+   { "name": "TalkD", "from": 23, "to": 24, "direction": "forward", "color": "#000000ff" },
+   { "name": "TalkU", "from": 25, "to": 26, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Layer 2", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
+</file>
+
+<file path="src/game/collectFontLoadsForGui.ts">
+import type { GameFontsManifest } from '../types/fonts';
+import type { GuiData } from '../types/gui';
+
+export type GuiFontLoadRequest = { fontId: string; textureUrl: string; dataUrl: string };
+
+/**
+ * Bitmap font files to load for one GUI's `text` controls (deduped by font id).
+ * `resolveAssetUrl` maps paths under `src/game/assets/` to a fetchable URL.
+ */
+export function collectFontLoadsForGui(
+  gui: GuiData,
+  manifest: GameFontsManifest,
+  resolveAssetUrl: (pathUnderAssets: string) => string,
+): GuiFontLoadRequest[] {
+  const out: GuiFontLoadRequest[] = [];
+  const seen = new Set<string>();
+  for (const c of gui.controls ?? []) {
+    if (c.type !== 'text' && c.type !== 'button' && c.type !== 'textInput') {
+      continue;
+    }
+    if (seen.has(c.font)) {
+      continue;
+    }
+    seen.add(c.font);
+    const def = manifest[c.font];
+    if (!def) {
+      console.warn(`[BENNE GUI preview] Unknown font id "${c.font}" — add it to assets/fonts/fonts.json.`);
+      continue;
+    }
+    try {
+      out.push({
+        fontId: c.font,
+        textureUrl: resolveAssetUrl(`fonts/${def.textureFile}`),
+        dataUrl: resolveAssetUrl(`fonts/${def.dataFile}`),
+      });
+    } catch (e) {
+      console.warn(`[BENNE GUI preview] Could not resolve font files for "${c.font}":`, e);
+    }
+  }
+  return out;
+}
+
+export function guiHasTextControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'text');
+}
+
+export function guiHasImageControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'image' || c.type === 'nineSliceImage');
+}
+
+export function guiHasButtonControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'button');
+}
+
+export function guiHasCheckboxControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'checkbox');
+}
+
+export function guiHasTriggerControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'trigger');
+}
+
+export function guiHasGridControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'grid');
+}
+
+export function guiHasTextInputControls(gui: GuiData): boolean {
+  return (gui.controls ?? []).some((c) => c.type === 'textInput');
+}
+</file>
+
+<file path="src/game/guis/load-menu/load-menu.gui.json">
+{
+  "id": "load-menu",
+  "name": "Load Menu",
+  "description": "",
+  "visible": false,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "nineSliceImage",
+      "id": "load-bg",
+      "x": 46,
+      "y": 33,
+      "width": 260,
+      "height": 132,
+      "tag": "9-slice-BG",
+      "sliceNames": {
+        "topLeft": "TopLeft",
+        "topCenter": "TopMid",
+        "topRight": "TopRight",
+        "middleLeft": "MidLeft",
+        "center": "Mid",
+        "middleRight": "MidRight",
+        "bottomLeft": "BottomLeft",
+        "bottomCenter": "BottomMid",
+        "bottomRight": "BottomRight"
+      }
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "x": 176,
+      "y": 42,
+      "text": "Load",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#1a466b",
+      "align": "center"
+    },
+    {
+      "type": "listBox",
+      "id": "load-list",
+      "x": 60,
+      "y": 70,
+      "width": 158,
+      "height": 80,
+      "rowCount": 5,
+      "rowPadding": 2,
+      "normalBackgroundColor": "#222222",
+      "hoverBackgroundColor": "#2f2f2f",
+      "selectedBackgroundColor": "#4a4a4a",
+      "textColor": "#ffffff",
+      "selectedTextColor": "#ffffff",
+      "placeholderTextColor": "#999999",
+      "font": "lucasfont-alternate",
+      "fontSize": 8
+    },
+    {
+      "type": "text",
+      "id": "instructions",
+      "x": 60,
+      "y": 54,
+      "text": "Select a game to load.",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "color": "#1a466b",
+      "wordWrapWidth": 224
+    },
+    {
+      "type": "button",
+      "id": "load-btn",
+      "x": 228,
+      "y": 89,
+      "width": 62,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Load",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    },
+    {
+      "type": "button",
+      "id": "back-btn",
+      "x": 228,
+      "y": 106,
+      "width": 62,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Back",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    }
+  ],
+  "modal": true,
+  "zIndex": 101
+}
+</file>
+
+<file path="src/types/character.ts">
+import type { Point2 } from './room';
+
+/**
+ * Frame-synced marker from character JSON (footsteps, SFX hooks, dialogue beats, etc.).
+ */
+export interface CharacterAnimationFrameEvent {
+  /** 0-based index within the Aseprite tag / Phaser animation sequence. */
+  frame: number;
+  type: string;
+  data?: unknown;
+}
+
+/**
+ * Per-tag animation policy (keys match Aseprite frame tag names, e.g. `WalkL`, `IdleD`).
+ */
+export interface CharacterAnimationClipConfig {
+  /** When true, repeat forever (`repeat: -1` in Phaser). When false or omitted, play once. */
+  loop?: boolean;
+  /**
+   * Milliseconds each frame is shown (uniform for this tag). Applied to every frame in the clip.
+   * When omitted, keeps per-frame durations from the Aseprite export.
+   */
+  frameDuration?: number;
+  events?: CharacterAnimationFrameEvent[];
+  // Future: pingPong?: boolean; reverse?: boolean;
+}
+
+export type CharacterAnimationsConfig = Record<string, CharacterAnimationClipConfig>;
+
+/** Facing suffix on directional clips (`IdleL`, `WalkDR`, …). */
+export type CharacterFacingLetter = 'L' | 'R' | 'U' | 'D' | 'UL' | 'UR' | 'DL' | 'DR';
+
+/**
+ * Character template loaded from `src/game/characters/` as `*.character.json` files.
+ */
+export interface CharacterDisplayData {
+  /**
+   * Static portrait / NPC image under `src/game/assets/`.
+   * Required when `aseprite` is not true.
+   */
+  defaultImage?: string;
+  /**
+   * When true, loads `images/characters/<characterId>/<characterId>.png` and `.json` (Aseprite sheet export).
+   */
+  aseprite?: boolean;
+}
+
+export interface CharacterData {
+  id: string;
+  name: string;
+  description: string;
+  /**
+   * Ground contact in **texture / frame pixel space**: from the top-left of each cel to the feet
+   * (Y increases downward). When omitted, the engine uses the bottom-centre of the current frame.
+   */
+  feet?: { x: number; y: number };
+  /**
+   * Click hit area in **texture / frame pixel space** (same origin as `feet`). When omitted and the
+   * character is clickable, the full sprite rectangle is used. Requires at least three vertices.
+   */
+  collider?: { points: { x: number; y: number }[] };
+  /**
+   * Optional stand position in **texture / frame pixel space** (same origin as `feet`).
+   * World stand = sprite position + this offset. Used when scripts call `walkTo('<this id>')` targeting
+   * this character, or when resolving another walker’s target to this character — same idea as prop `walkToPoint`.
+   */
+  walkToPoint?: Point2;
+  /**
+   * Optional “face / dialogue” point in **texture / frame pixel space** (same origin as `feet`).
+   * World position = sprite position + offset. Verb payloads expose this as **world** `talkPoint`
+   * for scripts (similar role to prop `lookAtPoint` in room space).
+   */
+  talkPoint?: Point2;
+  /** Game pixels per second when walking (used when movement is implemented). */
+  walkSpeed: number;
+  /**
+   * When false, pathfind walking is disabled for this character (`walkTo`, click-to-walk, verb walks).
+   * Teleports (`moveTo` / `moveToNow`) still apply. Default true when omitted.
+   */
+  movable?: boolean;
+  clickable: boolean;
+  display: CharacterDisplayData;
+  /** Optional per Aseprite-tag playback (keys must match `meta.frameTags` on `images/characters/<id>/<id>.json`). */
+  animations?: CharacterAnimationsConfig;
+  /**
+   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this character.
+   * Falls back to `"look"` when omitted.
+   */
+  defaultVerb?: string;
+  /** Enables character fallback dispatch when no supported verb matches. */
+  onVerbFallback?: boolean;
+  /**
+   * Optional Aseprite tag on the **game** cursor sheet. When set and the pointer hovers this clickable
+   * character, the cursor uses this tag instead of `cursor.activeAnimation`. Inventory cursor clips take precedence.
+   */
+  activeCursorOverride?: string;
+  /**
+   * Hex color for this character's speech text in the `speaking-text` GUI (e.g. `"#ff0000"`).
+   * When omitted, the overlay keeps its authored default color (`#ffffff`).
+   */
+  speechColor?: string;
+}
+</file>
+
 <file path="src/engine/dialog/dialogChoiceGuiRuntime.ts">
 import * as Phaser from 'phaser';
 import type { GameSettingsDialog } from '../../types/game.js';
@@ -17396,6 +18998,15 @@ import {
   readEffectiveDialogOptionUsed,
 } from './dialogOptionVariables.js';
 import { dialogChoiceSyntheticButtonId } from '../events/dialogEvents.js';
+import { applyGuiBitmapTextFillTint } from '../gui/guiTextOutline.js';
+
+function hexStringToTint(hex: string): number {
+  try {
+    return Phaser.Display.Color.HexStringToColor(hex).color;
+  } catch {
+    return 0xffffff;
+  }
+}
 
 export const DIALOG_CHOICE_GRID_ID = 'Option-Grid';
 const TEMPLATE_BULLET_ID = 'Bullet';
@@ -17936,6 +19547,7 @@ export class DialogChoiceDynamicRowState {
     manager: GameStateManager;
     scrollTopPx: number;
     viewportAvailableHeightPx: number;
+    dialogSettings: GameSettingsDialog;
   }): number {
     this.clear();
     const {
@@ -17948,6 +19560,7 @@ export class DialogChoiceDynamicRowState {
       manager,
       scrollTopPx,
       viewportAvailableHeightPx,
+      dialogSettings,
     } = params;
 
     const gridDef = gui.controls?.find((c): c is GuiGridControl => c.type === 'grid' && c.id === DIALOG_CHOICE_GRID_ID);
@@ -18032,6 +19645,9 @@ export class DialogChoiceDynamicRowState {
     viewportClip.setMask(viewportMask.createGeometryMask());
     gridContainer.add(viewportClip);
     this.viewportClipContainer = viewportClip;
+
+    const usedColorHex = dialogSettings.usedColor?.trim();
+    const usedTint = usedColorHex ? hexStringToTint(usedColorHex) : undefined;
 
     for (let i = 0; i < page.length; i += 1) {
       const { option: opt, fullRowHeightPx, rowTopInViewportPx, clipTopPx, visibleHeightPx } = page[i]!;
@@ -18119,7 +19735,16 @@ export class DialogChoiceDynamicRowState {
         );
         if (spr) {
           spr.disableInteractive();
-          spr.setAlpha(used ? 0.45 : 1);
+          spr.setAlpha(1);
+          spr.clearTint();
+          if (used) {
+            if (usedTint !== undefined) {
+              spr.setTint(usedTint);
+              spr.setTintMode(Phaser.TintModes.FILL);
+            } else {
+              spr.setAlpha(0.45);
+            }
+          }
         }
       }
 
@@ -18153,15 +19778,46 @@ export class DialogChoiceDynamicRowState {
           );
         }
       }
-      built.hitTarget.setAlpha(used ? 0.45 : 1);
-      if (built.label) {
-        built.label.setAlpha(used ? 0.45 : 1);
-      }
-      for (const lo of built.labelOutlines) {
-        lo.setAlpha(used ? 0.45 : 1);
-      }
-      if (built.background) {
-        built.background.setAlpha(used ? 0.45 : 1);
+      const restoreUsedVisual = (): void => {
+        if (!used) {
+          return;
+        }
+        if (usedTint !== undefined) {
+          built.hitTarget.setAlpha(1);
+          if (built.label) {
+            applyGuiBitmapTextFillTint(built.label, usedTint);
+          }
+          for (const lo of built.labelOutlines) {
+            applyGuiBitmapTextFillTint(lo, usedTint);
+          }
+          if (built.background) {
+            built.background.setAlpha(1);
+            if (built.background instanceof Phaser.GameObjects.Rectangle) {
+              built.background.setFillStyle(usedTint, 1);
+            } else {
+              built.background.setTint(usedTint);
+              built.background.setTintMode(Phaser.TintModes.FILL);
+            }
+          }
+        } else {
+          built.hitTarget.setAlpha(0.45);
+          if (built.label) {
+            built.label.setAlpha(0.45);
+          }
+          for (const lo of built.labelOutlines) {
+            lo.setAlpha(0.45);
+          }
+          if (built.background) {
+            built.background.setAlpha(0.45);
+          }
+        }
+      };
+      restoreUsedVisual();
+      if (used) {
+        // buildGuiButton pointerout restores "normal" visuals; re-apply used visuals after that.
+        built.hitTarget.on('pointerout', () => {
+          restoreUsedVisual();
+        });
       }
       this.builtButtons.push(built);
       this.hoverDisposers.push(wireGuiControlHoverEvents(gui, synId, built.hitTarget));
@@ -18190,7 +19846,7 @@ import {
   BENNE_SOUND_MANAGER_KEY,
   setBenneSoundManager,
 } from './sound/benneSoundRegistry.js';
-import { applyPersistedAudioSessionVolumes } from './sound/audioGameState.js';
+import { applyPersistedAudioSessionVolumes, applyPersistedMusicTrack } from './sound/audioGameState.js';
 import { SoundManager } from './sound/SoundManager.js';
 import { wireBenneAudioGameState } from './sound/wireBenneAudioGameState.js';
 import { BootScene } from './scenes/BootScene.js';
@@ -18235,6 +19891,7 @@ export function createBenneGame(parent: HTMLElement | string): Phaser.Game {
   const soundManager = new SoundManager(game);
   setBenneSoundManager(game, soundManager);
   applyPersistedAudioSessionVolumes(game);
+  applyPersistedMusicTrack(game);
   wireBenneAudioGameState(game, gameEvents);
   game.events.once(Phaser.Core.Events.DESTROY, () => {
     soundManager.destroy();
@@ -18244,2782 +19901,6 @@ export function createBenneGame(parent: HTMLElement | string): Phaser.Game {
     setActiveBenneGame(null);
   });
   return game;
-}
-</file>
-
-<file path="src/engine/gui/buildGuiSlider.ts">
-import * as Phaser from 'phaser';
-import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/guiAseprite';
-import type { GuiData, GuiSliderControl } from '../../types/gui';
-import { gameEvents } from '../events/EventBus';
-import {
-  guiSliderValueChangedEventId,
-  type GuiSliderValueChangedPayload,
-} from '../events/guiSliderEvents';
-import {
-  getAsepriteSpriteSourceInset,
-  getAsepriteVisibleFrameSize,
-  warnDevIfAsepriteJsonMissingSpriteSourceSize,
-} from '../aseprite/asepriteFramePlacement';
-import {
-  applyGuiButtonInteractivity,
-  guiSpriteAnchorOrDefault,
-  placeGuiButtonBackgroundSpriteLocal,
-  reapplyGuiSheetTag,
-  tryApplyGuiSheetTag,
-} from './buildGuiOverlay';
-import {
-  BENNE_GUI_SLIDER_APPLY_VISUAL_DATA_KEY,
-  BENNE_GUI_SLIDER_DATA_KEY,
-  BENNE_GUI_SLIDER_READ_DISABLED_DATA_KEY,
-  BENNE_GUI_SLIDER_READ_VALUE_DATA_KEY,
-  BENNE_GUI_SLIDER_SET_DISABLED_DATA_KEY,
-  BENNE_GUI_SLIDER_SET_VALUE_DATA_KEY,
-  type BenneGuiSliderApplyVisualFn,
-  type BenneGuiSliderSetDisabledFn,
-  type BenneGuiSliderSetValueFn,
-} from './guiSliderRuntime';
-
-const GUI_SLIDER_TRACK_DEPTH = 0;
-const GUI_SLIDER_HANDLE_DEPTH = 1;
-
-export interface BuiltGuiSlider {
-  readonly hitTarget: Phaser.GameObjects.Container;
-  readonly trackSprite: Phaser.GameObjects.Sprite | null;
-  readonly handleSprite: Phaser.GameObjects.Sprite | null;
-  readonly enabled: boolean;
-  readonly value: number;
-  readonly width: number;
-  readonly height: number;
-}
-
-export interface GuiSliderRange {
-  readonly min: number;
-  readonly max: number;
-  readonly step: number;
-}
-
-export function resolveGuiSliderRange(c: GuiSliderControl): GuiSliderRange {
-  const min = c.min ?? 0;
-  const max = c.max ?? 100;
-  const step = c.step != null && c.step > 0 ? c.step : 1;
-  return { min, max, step };
-}
-
-export function snapGuiSliderValue(raw: number, range: GuiSliderRange): number {
-  const { min, max, step } = range;
-  const span = max - min;
-  if (span <= 0) {
-    return min;
-  }
-  if (!Number.isFinite(raw)) {
-    return min;
-  }
-  const steps = Math.round((raw - min) / step);
-  const snapped = min + steps * step;
-  return Math.min(max, Math.max(min, snapped));
-}
-
-function resolveSliderTags(
-  c: GuiSliderControl,
-  hover: boolean,
-  disabled: boolean,
-): { track: string; handle: string } {
-  const trackDefault = c.trackTag.trim();
-  const handleDefault = c.handleTag.trim();
-  if (disabled) {
-    return {
-      track: c.states?.disabled?.track?.trim() || trackDefault,
-      handle: c.states?.disabled?.handle?.trim() || handleDefault,
-    };
-  }
-  if (hover) {
-    return {
-      track: trackDefault,
-      handle: c.states?.hover?.handle?.trim() || handleDefault,
-    };
-  }
-  return { track: trackDefault, handle: handleDefault };
-}
-
-function getHandleTravelBounds(hitWidth: number): { minX: number; maxX: number } {
-  const minX = 0;
-  const maxX = Math.max(minX, hitWidth);
-  return { minX, maxX };
-}
-
-function getVisibleSpriteLocalBounds(sprite: Phaser.GameObjects.Sprite): {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-} {
-  const inset = getAsepriteSpriteSourceInset(sprite.frame);
-  const visible = getAsepriteVisibleFrameSize(sprite.frame);
-  const left = sprite.x - sprite.displayOriginX + inset.x;
-  const top = sprite.y - sprite.displayOriginY + inset.y;
-  return {
-    left,
-    top,
-    right: left + visible.w,
-    bottom: top + visible.h,
-  };
-}
-
-function resolveSliderTravelBounds(
-  hitWidth: number,
-  hitHeight: number,
-  trackSprite: Phaser.GameObjects.Sprite | null,
-): { minX: number; maxX: number; centerY: number } {
-  const fallback = getHandleTravelBounds(hitWidth);
-  const fallbackY = hitHeight / 2;
-  const b = trackSprite != null ? getVisibleSpriteLocalBounds(trackSprite) : null;
-  const rawMinX = b && Number.isFinite(b.left) ? b.left : fallback.minX;
-  const rawMaxX = b && Number.isFinite(b.right) ? b.right : fallback.maxX;
-  const centerY =
-    b && Number.isFinite(b.top) && Number.isFinite(b.bottom) ? (b.top + b.bottom) / 2 : fallbackY;
-  return {
-    minX: Math.min(rawMinX, rawMaxX),
-    maxX: Math.max(rawMinX, rawMaxX),
-    centerY,
-  };
-}
-
-function resolveHandlePlacementOffsetX(
-  hitWidth: number,
-  handleSprite: Phaser.GameObjects.Sprite | null,
-): number {
-  if (!handleSprite) {
-    return 0;
-  }
-  const frameData = (handleSprite.frame as unknown as { data?: { trim?: boolean } }).data;
-  const isTrimmed = frameData?.trim === true;
-  const handleVisibleW = getAsepriteVisibleFrameSize(handleSprite.frame).w;
-  const isFullWidthCanvasHandle = !isTrimmed && handleVisibleW >= Math.max(1, hitWidth) * 0.9;
-  return isFullWidthCanvasHandle ? handleVisibleW / 2 : 0;
-}
-
-function valueToHandleLocalX(
-  value: number,
-  range: GuiSliderRange,
-  minX: number,
-  maxX: number,
-): number {
-  const span = range.max - range.min;
-  if (span <= 0) {
-    return minX;
-  }
-  const t = (value - range.min) / span;
-  if (!Number.isFinite(t)) {
-    return minX;
-  }
-  return minX + t * (maxX - minX);
-}
-
-function localXToValue(localX: number, range: GuiSliderRange, minX: number, maxX: number): number {
-  const travel = maxX - minX;
-  if (travel <= 0) {
-    return range.min;
-  }
-  const t = (localX - minX) / travel;
-  return snapGuiSliderValue(range.min + t * (range.max - range.min), range);
-}
-
-export function buildGuiSlider(
-  scene: Phaser.Scene,
-  gui: GuiData,
-  c: GuiSliderControl,
-  baseDepth: number,
-  startVisible: boolean,
-  screenBgWorldTopLeft?: { x: number; y: number },
-  isClickSuppressed?: () => boolean,
-): BuiltGuiSlider | null {
-  const w = c.width;
-  const h = c.height;
-  if (w <= 0 || h <= 0) {
-    return null;
-  }
-  const id = c.id.trim();
-  if (!id) {
-    return null;
-  }
-
-  const range = resolveGuiSliderRange(c);
-  const initialValue = snapGuiSliderValue(c.defaultValue ?? range.min, range);
-
-  const z = c.zIndex ?? 0;
-  const d = baseDepth + z;
-  const overlayVisible = startVisible && c.visible !== false;
-  const bgAnchor = guiSpriteAnchorOrDefault(c.backgroundAnchor);
-  const bgOffX = c.backgroundOffsetX ?? 0;
-  const bgOffY = c.backgroundOffsetY ?? 0;
-  const px = Math.round(c.x);
-  const py = Math.round(c.y);
-  const worldTL = screenBgWorldTopLeft ?? { x: px, y: py };
-
-  const enabled = c.enabled !== false;
-  let value = initialValue;
-  let disabled = !enabled;
-  let pointerHover = false;
-  let dragging = false;
-
-  const hitTarget = scene.add.container(px, py);
-  hitTarget.setScrollFactor(0, 0);
-  hitTarget.setDepth(d);
-  hitTarget.setVisible(overlayVisible);
-  hitTarget.setData(BENNE_GUI_SLIDER_DATA_KEY, true);
-
-  const guiTextureKey = getAsepriteTextureKey(gui.id);
-  const trackTagDefault = c.trackTag.trim();
-  const handleTagDefault = c.handleTag.trim();
-
-  let trackSprite: Phaser.GameObjects.Sprite | null = null;
-  let handleSprite: Phaser.GameObjects.Sprite | null = null;
-
-  if (
-    usesAsepriteDisplay(gui) &&
-    trackTagDefault &&
-    handleTagDefault &&
-    scene.textures.exists(guiTextureKey)
-  ) {
-    const track = scene.add.sprite(0, 0, guiTextureKey);
-    track.setDepth(GUI_SLIDER_TRACK_DEPTH);
-    track.setVisible(false);
-    track.setScrollFactor(0, 0);
-    if (!tryApplyGuiSheetTag(scene, track, guiTextureKey, trackTagDefault, gui.id)) {
-      track.destroy();
-    } else {
-      track.setVisible(overlayVisible);
-      if (import.meta.env.DEV) {
-        warnDevIfAsepriteJsonMissingSpriteSourceSize(
-          track.frame,
-          `GUI "${gui.id}" slider "${c.id}" track`,
-        );
-      }
-      placeGuiButtonBackgroundSpriteLocal(track, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
-      hitTarget.add(track);
-      trackSprite = track;
-    }
-
-    const handle = scene.add.sprite(0, 0, guiTextureKey);
-    handle.setDepth(GUI_SLIDER_HANDLE_DEPTH);
-    handle.setVisible(false);
-    handle.setScrollFactor(0, 0);
-    if (!tryApplyGuiSheetTag(scene, handle, guiTextureKey, handleTagDefault, gui.id)) {
-      handle.destroy();
-    } else {
-      handle.setVisible(overlayVisible);
-      if (import.meta.env.DEV) {
-        warnDevIfAsepriteJsonMissingSpriteSourceSize(
-          handle.frame,
-          `GUI "${gui.id}" slider "${c.id}" handle`,
-        );
-      }
-      hitTarget.add(handle);
-      handleSprite = handle;
-    }
-  }
-
-  if (!trackSprite && !handleSprite) {
-    hitTarget.destroy();
-    return null;
-  }
-
-  const repositionHandle = (): void => {
-    if (!handleSprite) {
-      return;
-    }
-    const { minX, maxX, centerY } = resolveSliderTravelBounds(w, h, trackSprite);
-    const handleOffsetX = resolveHandlePlacementOffsetX(w, handleSprite);
-    const hx = valueToHandleLocalX(value, range, minX, maxX);
-    const hy = centerY;
-    handleSprite.setOrigin(0.5, 0.5);
-    handleSprite.setPosition(Math.round(hx + handleOffsetX), Math.round(hy));
-  };
-
-  const repositionTrack = (): void => {
-    if (trackSprite) {
-      placeGuiButtonBackgroundSpriteLocal(trackSprite, bgAnchor, w, h, worldTL, bgOffX, bgOffY);
-    }
-  };
-
-  const applyTagsForVisual = (hover: boolean): void => {
-    const tags = resolveSliderTags(c, hover, disabled);
-    if (trackSprite && tags.track) {
-      if (reapplyGuiSheetTag(scene, trackSprite, guiTextureKey, tags.track, gui.id)) {
-        repositionTrack();
-      }
-    }
-    if (handleSprite && tags.handle) {
-      if (reapplyGuiSheetTag(scene, handleSprite, guiTextureKey, tags.handle, gui.id)) {
-        repositionHandle();
-      }
-    }
-  };
-
-  const syncDisabledAlpha = (): void => {
-    const a = disabled ? 0.45 : 1;
-    hitTarget.setAlpha(a);
-    trackSprite?.setAlpha(a);
-    handleSprite?.setAlpha(a);
-  };
-
-  const applySliderVisual: BenneGuiSliderApplyVisualFn = (hover: boolean) => {
-    pointerHover = hover;
-    applyTagsForVisual(hover);
-    syncDisabledAlpha();
-  };
-
-  const emitValueChangedIfPointer = (newValue: number): void => {
-    gameEvents.emit(guiSliderValueChangedEventId(gui.id, id), {
-      value: newValue,
-    } satisfies GuiSliderValueChangedPayload);
-  };
-
-  const setValueInternal = (next: number, fromPointer: boolean): void => {
-    const snapped = snapGuiSliderValue(next, range);
-    if (snapped === value) {
-      return;
-    }
-    value = snapped;
-    applySliderVisual(pointerHover);
-    repositionHandle();
-    if (fromPointer) {
-      emitValueChangedIfPointer(value);
-    }
-  };
-
-  const setValueFromScript: BenneGuiSliderSetValueFn = (next: number) => {
-    setValueInternal(next, false);
-  };
-
-  const refreshInteractivity = (): void => {
-    hitTarget.disableInteractive();
-    if (hitTarget.visible && !disabled) {
-      applyGuiButtonInteractivity(hitTarget, w, h, true);
-    }
-  };
-
-  let onPointerMove: ((pointer: Phaser.Input.Pointer) => void) | null = null;
-  let onPointerUp: ((pointer: Phaser.Input.Pointer) => void) | null = null;
-
-  function endDrag(): void {
-    if (!dragging) {
-      return;
-    }
-    dragging = false;
-    if (onPointerMove) {
-      scene.input.off('pointermove', onPointerMove);
-      onPointerMove = null;
-    }
-    if (onPointerUp) {
-      scene.input.off('pointerup', onPointerUp);
-      onPointerUp = null;
-    }
-  }
-
-  const setDisabledFromScript: BenneGuiSliderSetDisabledFn = (next: boolean) => {
-    disabled = next;
-    if (disabled) {
-      pointerHover = false;
-      dragging = false;
-      endDrag();
-    }
-    applySliderVisual(false);
-    refreshInteractivity();
-  };
-
-  const updateFromPointer = (pointer: Phaser.Input.Pointer): void => {
-    if (disabled || !hitTarget.visible) {
-      return;
-    }
-    const matrix = hitTarget.getWorldTransformMatrix();
-    const local = matrix.applyInverse(pointer.worldX, pointer.worldY);
-    const { minX, maxX } = resolveSliderTravelBounds(w, h, trackSprite);
-    const next = localXToValue(local.x, range, minX, maxX);
-    setValueInternal(next, true);
-  };
-
-  const startDrag = (pointer: Phaser.Input.Pointer): void => {
-    if (disabled || dragging) {
-      return;
-    }
-    if (isClickSuppressed?.()) {
-      return;
-    }
-    dragging = true;
-    updateFromPointer(pointer);
-    onPointerMove = (p: Phaser.Input.Pointer) => {
-      if (!dragging) {
-        return;
-      }
-      updateFromPointer(p);
-    };
-    onPointerUp = (p: Phaser.Input.Pointer) => {
-      if (!p.leftButtonReleased()) {
-        return;
-      }
-      updateFromPointer(p);
-      endDrag();
-      applySliderVisual(false);
-    };
-    scene.input.on('pointermove', onPointerMove);
-    scene.input.on('pointerup', onPointerUp);
-  };
-
-  hitTarget.setData(BENNE_GUI_SLIDER_APPLY_VISUAL_DATA_KEY, applySliderVisual);
-  hitTarget.setData(BENNE_GUI_SLIDER_SET_VALUE_DATA_KEY, setValueFromScript);
-  hitTarget.setData(BENNE_GUI_SLIDER_SET_DISABLED_DATA_KEY, setDisabledFromScript);
-  hitTarget.setData(BENNE_GUI_SLIDER_READ_VALUE_DATA_KEY, () => value);
-  hitTarget.setData(BENNE_GUI_SLIDER_READ_DISABLED_DATA_KEY, () => disabled);
-
-  applySliderVisual(false);
-  repositionHandle();
-  syncDisabledAlpha();
-  refreshInteractivity();
-
-  hitTarget.on('pointerover', () => {
-    if (disabled) {
-      return;
-    }
-    applySliderVisual(true);
-  });
-  hitTarget.on('pointerout', () => {
-    if (disabled || dragging) {
-      return;
-    }
-    applySliderVisual(false);
-  });
-
-  hitTarget.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-    if (!pointer.leftButtonDown() || disabled || !hitTarget.visible) {
-      return;
-    }
-    startDrag(pointer);
-  });
-
-  hitTarget.once(Phaser.GameObjects.Events.DESTROY, () => {
-    endDrag();
-  });
-
-  return {
-    hitTarget,
-    trackSprite,
-    handleSprite,
-    enabled: !disabled,
-    value,
-    width: w,
-    height: h,
-  };
-}
-</file>
-
-<file path="src/engine/scripting/benneScriptSoundApi.ts">
-import { getGameSettings } from '../ConfigManager.js';
-import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
-import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import {
-  readPersistedMusicSessionVolume,
-  readPersistedSfxSessionVolume,
-  writePersistedMusicSessionVolume,
-  writePersistedSfxSessionVolume,
-} from '../sound/audioGameState.js';
-import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
-import type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
-import { withNow } from './BenneScriptCore.js';
-import type { BenneScriptSoundFacade } from './benneScriptFacades.js';
-
-function clamp01(n: number): number {
-  return Math.min(1, Math.max(0, n));
-}
-
-function resolveSoundManager() {
-  const g = tryGetActiveBenneGame();
-  return g ? tryGetBenneSoundManager(g) : null;
-}
-
-export function createBenneScriptSoundFacade(
-  chain: (factory: () => Promise<unknown>) => void,
-): BenneScriptSoundFacade {
-  return {
-    play: withNow(
-      (key: string, options?: SoundPlayOptions) => {
-        chain(() => {
-          resolveSoundManager()?.playSfx(key, options);
-          return Promise.resolve();
-        });
-      },
-      (key: string, options?: SoundPlayOptions) => {
-        resolveSoundManager()?.playSfx(key, options);
-      },
-    ),
-    playAndWait: withNow(
-      (key: string, options?: SoundPlayOptions) => {
-        const sm = resolveSoundManager();
-        if (!sm) {
-          return;
-        }
-        chain(() => sm.playSfxAndWait(key, options));
-      },
-      (key: string, options?: SoundPlayOptions) => {
-        void resolveSoundManager()?.playSfxAndWait(key, options);
-      },
-    ),
-    playMusic: withNow(
-      (key: string, options?: MusicPlayOptions) => {
-        chain(() => resolveSoundManager()?.playMusic(key, options) ?? Promise.resolve());
-      },
-      (key: string, options?: MusicPlayOptions) => {
-        resolveSoundManager()?.playMusic(key, options);
-      },
-    ),
-    stop: withNow(
-      (key?: string) => {
-        chain(() => {
-          resolveSoundManager()?.stopSfx(key);
-          return Promise.resolve();
-        });
-      },
-      (key?: string) => {
-        resolveSoundManager()?.stopSfx(key);
-      },
-    ),
-    stopMusic: withNow(
-      () => {
-        chain(() => {
-          resolveSoundManager()?.stopMusic();
-          return Promise.resolve();
-        });
-      },
-      () => {
-        resolveSoundManager()?.stopMusic();
-      },
-    ),
-    setSfxVolume(volume: number): void {
-      const v = clamp01(volume);
-      resolveSoundManager()?.setSfxSessionVolume(v);
-      const mgr = tryGetActiveGameStateManager();
-      if (mgr) {
-        writePersistedSfxSessionVolume(mgr, v);
-      }
-    },
-    setMusicVolume(volume: number): void {
-      const v = clamp01(volume);
-      resolveSoundManager()?.setMusicSessionVolume(v);
-      const mgr = tryGetActiveGameStateManager();
-      if (mgr) {
-        writePersistedMusicSessionVolume(mgr, v);
-      }
-    },
-    getSfxVolume(): number {
-      const sm = resolveSoundManager();
-      if (sm) {
-        return sm.getSfxSessionVolume();
-      }
-      const mgr = tryGetActiveGameStateManager();
-      return mgr ? readPersistedSfxSessionVolume(mgr) : clamp01(getGameSettings().audio.sfxVolume);
-    },
-    getMusicVolume(): number {
-      const sm = resolveSoundManager();
-      if (sm) {
-        return sm.getMusicSessionVolume();
-      }
-      const mgr = tryGetActiveGameStateManager();
-      return mgr ? readPersistedMusicSessionVolume(mgr) : clamp01(getGameSettings().audio.musicVolume);
-    },
-    isPlaying(key: string): boolean {
-      return resolveSoundManager()?.isSfxPlaying(key) ?? false;
-    },
-    isMusicPlaying(): boolean {
-      return resolveSoundManager()?.isMusicPlaying() ?? false;
-    },
-  };
-}
-</file>
-
-<file path="src/engine/scripting/registerRoomScript.ts">
-import type { RoomScriptContext } from './types.js';
-
-type RoomCallback = (context: RoomScriptContext) => void;
-
-/**
- * Per-room callback registry. Populated lazily when a room's module is first imported.
- * Key = roomId; value = callbacks registered by that room's `registerRoomScript` call(s).
- * Callbacks are stored permanently after first import and re-invoked on every room enter
- * (each call receives a fresh {@link RoomScriptContext} from {@link import('../scenes/RoomScene.js').RoomScene}).
- */
-const perRoomCallbacks = new Map<string, RoomCallback[]>();
-
-/**
- * Lazy module factories registered by {@link registerRoomScriptModuleLoaders}.
- * Key = roomId; value = dynamic-import factory for that room's `*.room.ts` module.
- */
-const roomModuleLoaders = new Map<string, () => Promise<unknown>>();
-
-/**
- * The roomId whose module is currently being imported.
- * Set by {@link ensureRoomScriptLoaded} around the dynamic `import()` call so
- * {@link registerRoomScript} can key each callback to the correct room.
- */
-let _currentLoadingRoomId: string | null = null;
-
-// ─── Registration helpers (called from registerGameContent) ──────────────────
-
-/**
- * Stores the lazy module factory for each room. Called once from
- * {@link import('../../game/registerGameContent.js').registerGameContent} with the full
- * roomId → factory map derived from `import.meta.glob`.
- */
-export function registerRoomScriptModuleLoaders(
-  loaders: ReadonlyMap<string, () => Promise<unknown>>,
-): void {
-  for (const [roomId, loader] of loaders) {
-    roomModuleLoaders.set(roomId, loader);
-  }
-}
-
-// ─── Public API ──────────────────────────────────────────────────────────────
-
-/**
- * Call at the top level of each `*.room.ts` to register Bennescript handlers.
- *
- * @param registerFn - Receives `{ B, events, roomId, roomScene, … }`. Use **`B`** for authoring;
- *   see the **module-level table** in `BenneScript.ts` for which string ids to pass to
- *   `whenLookAt`, `walkTo`, etc. **`B.onUpdate`** registers a non-blocking per-frame hook (see
- *   `UpdateContext` in `types.ts`).
- */
-export function registerRoomScript(registerFn: RoomCallback): void {
-  const rid = _currentLoadingRoomId;
-  if (rid == null) {
-    if (import.meta.env.DEV) {
-      console.error(
-        '[Benne] registerRoomScript called outside a lazy room module load context — registration ignored. ' +
-          'Ensure this file is under src/game/rooms/**/*.room.ts and is discovered by registerGameContent.',
-      );
-    }
-    return;
-  }
-  let arr = perRoomCallbacks.get(rid);
-  if (!arr) {
-    arr = [];
-    perRoomCallbacks.set(rid, arr);
-  }
-  arr.push(registerFn);
-}
-
-/**
- * Returns the registered callbacks for a room.
- * Will be empty until {@link ensureRoomScriptLoaded} has been awaited for that room.
- */
-export function getCallbacksForRoom(roomId: string): ReadonlyArray<RoomCallback> {
-  return perRoomCallbacks.get(roomId) ?? [];
-}
-
-/**
- * Ensures the `*.room.ts` module for `roomId` has been imported (once) and its
- * {@link registerRoomScript} side-effect has run.  Safe to call multiple times —
- * subsequent calls for an already-loaded room return immediately without re-importing.
- *
- * Must be awaited **before** `RoomScene.create` needs the callbacks (i.e. during the
- * asset-loading phase of a transition or boot).
- */
-export async function ensureRoomScriptLoaded(roomId: string): Promise<void> {
-  if (perRoomCallbacks.has(roomId)) {
-    return;
-  }
-  const loader = roomModuleLoaders.get(roomId);
-  if (!loader) {
-    return;
-  }
-  _currentLoadingRoomId = roomId;
-  try {
-    await loader();
-  } finally {
-    _currentLoadingRoomId = null;
-  }
-}
-</file>
-
-<file path="src/engine/sound/SoundManager.ts">
-import * as Phaser from 'phaser';
-import {
-  getEffectiveMusicVolume,
-  getEffectiveSfxVolume,
-} from '../applyAudioFromSettings.js';
-import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from './benneSoundRegistry.js';
-import type { MusicPlayOptions, SoundPlayOptions } from './benneSoundTypes.js';
-import { benneMusicCacheKey, benneSfxCacheKey } from './benneAudioCacheKeys.js';
-
-/** Author basename — must stay under `audio/sfx` / `audio/music`. */
-const AUDIO_ID_RE = /^[a-zA-Z0-9_-]+$/;
-
-function clamp01(n: number): number {
-  return Math.min(1, Math.max(0, n));
-}
-
-function validateAudioId(id: string): boolean {
-  return id.length > 0 && AUDIO_ID_RE.test(id);
-}
-
-/**
- * Best-effort playback head in seconds for crossfade sync (Phaser `Sound` implementations).
- */
-function tryGetMusicPlaybackSeconds(sound: Phaser.Sound.BaseSound): number | null {
-  if (!sound.isPlaying) {
-    return null;
-  }
-  try {
-    const s = sound as Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
-    const t = s.seek;
-    if (typeof t === 'number' && Number.isFinite(t) && t >= 0) {
-      return t;
-    }
-  } catch {
-    /* HTML5 / WebAudio seek can throw on some states — treat as unknown. */
-  }
-  return null;
-}
-
-function readSoundVolume(sound: Phaser.Sound.BaseSound): number {
-  const s = sound as Phaser.Sound.HTML5AudioSound | Phaser.Sound.WebAudioSound;
-  return typeof s.volume === 'number' && Number.isFinite(s.volume) ? s.volume : 0;
-}
-
-/**
- * Game-scoped audio: uses {@link Phaser.Game#sound} only so playback survives `RoomScene` shutdown.
- */
-export class SoundManager {
-  private readonly game: Phaser.Game;
-  private sfxSessionMultiplier = 1;
-  private musicSessionMultiplier = 1;
-
-  private readonly activeSfx = new Set<Phaser.Sound.BaseSound>();
-  private readonly sfxAuthorBySound = new WeakMap<Phaser.Sound.BaseSound, string>();
-
-  /** Primary music slot (incoming / sole instance). */
-  private musicSound: Phaser.Sound.BaseSound | null = null;
-  /** Outgoing music instance during an active crossfade only. */
-  private musicFadeOutSound: Phaser.Sound.BaseSound | null = null;
-  /** Completes the queued Bennescript step for the active crossfade (single slot). */
-  private musicFadeInteractionResolve: (() => void) | null = null;
-  /** Non-zero while a volume ramp uses {@link requestAnimationFrame}. */
-  private musicFadeRafId = 0;
-
-  constructor(game: Phaser.Game) {
-    this.game = game;
-  }
-
-  /** True when editor preview muted scripted audio via registry. */
-  private isScriptAudioDisabled(): boolean {
-    return this.game.registry.get(BENNE_AUDIO_SCRIPT_DISABLED_KEY) === true;
-  }
-
-  private effectiveSfxVolume(options?: SoundPlayOptions): number {
-    const base = getEffectiveSfxVolume();
-    const opt = options?.volume;
-    const mul = opt === undefined ? 1 : clamp01(opt);
-    return clamp01(base * this.sfxSessionMultiplier * mul);
-  }
-
-  private effectiveMusicVolume(options?: MusicPlayOptions): number {
-    const base = getEffectiveMusicVolume();
-    const opt = options?.volume;
-    const mul = opt === undefined ? 1 : clamp01(opt);
-    return clamp01(base * this.musicSessionMultiplier * mul);
-  }
-
-  private cancelMusicFadeRaf(): void {
-    if (this.musicFadeRafId !== 0) {
-      cancelAnimationFrame(this.musicFadeRafId);
-      this.musicFadeRafId = 0;
-    }
-  }
-
-  private resolveMusicFadeInteractionIfPending(): void {
-    const done = this.musicFadeInteractionResolve;
-    if (!done) {
-      return;
-    }
-    this.musicFadeInteractionResolve = null;
-    done();
-  }
-
-  private killMusicVolumeTweens(): void {
-    const scenes = this.game.scene.getScenes(false);
-    for (let i = 0; i < scenes.length; i++) {
-      const tweens = scenes[i].tweens;
-      if (this.musicSound) {
-        tweens.killTweensOf(this.musicSound);
-      }
-      if (this.musicFadeOutSound) {
-        tweens.killTweensOf(this.musicFadeOutSound);
-      }
-    }
-  }
-
-  /**
-   * Stops and removes every music instance and cancels crossfade tweens.
-   * Used for instant replace, `stopMusic`, and `destroy`.
-   */
-  private hardStopAllMusicTracks(): void {
-    this.cancelMusicFadeRaf();
-    this.killMusicVolumeTweens();
-    this.resolveMusicFadeInteractionIfPending();
-    if (this.musicFadeOutSound) {
-      try {
-        this.musicFadeOutSound.stop();
-      } catch {
-        /* ignore */
-      }
-      if (this.game.sound.getAll(this.musicFadeOutSound.key).includes(this.musicFadeOutSound)) {
-        this.game.sound.remove(this.musicFadeOutSound);
-      }
-      this.musicFadeOutSound = null;
-    }
-    if (this.musicSound) {
-      try {
-        this.musicSound.stop();
-      } catch {
-        /* ignore */
-      }
-      if (this.game.sound.getAll(this.musicSound.key).includes(this.musicSound)) {
-        this.game.sound.remove(this.musicSound);
-      }
-      this.musicSound = null;
-    }
-  }
-
-  /**
-   * Clears any fade-out slot and detaches the current primary slot when it is usable as an
-   * outgoing crossfade source. Non-playing primaries are removed.
-   */
-  private consumePrimaryMusicForCrossfade(): Phaser.Sound.BaseSound | null {
-    this.cancelMusicFadeRaf();
-    this.killMusicVolumeTweens();
-    this.resolveMusicFadeInteractionIfPending();
-    if (this.musicFadeOutSound) {
-      try {
-        this.musicFadeOutSound.stop();
-      } catch {
-        /* ignore */
-      }
-      if (this.game.sound.getAll(this.musicFadeOutSound.key).includes(this.musicFadeOutSound)) {
-        this.game.sound.remove(this.musicFadeOutSound);
-      }
-      this.musicFadeOutSound = null;
-    }
-
-    const current = this.musicSound;
-    this.musicSound = null;
-    if (!current) {
-      return null;
-    }
-    if (!current.isPlaying) {
-      try {
-        current.stop();
-      } catch {
-        /* ignore */
-      }
-      if (this.game.sound.getAll(current.key).includes(current)) {
-        this.game.sound.remove(current);
-      }
-      return null;
-    }
-    return current;
-  }
-
-  private refreshActiveVolumes(): void {
-    if (this.isScriptAudioDisabled()) {
-      return;
-    }
-    const sfxVol = clamp01(getEffectiveSfxVolume() * this.sfxSessionMultiplier);
-    for (const sound of this.activeSfx) {
-      if (!sound.isPlaying) {
-        continue;
-      }
-      this.setInstanceVolume(sound, sfxVol);
-    }
-    // Crossfade tweens own music volumes until the fade completes.
-    if (this.musicFadeOutSound != null) {
-      return;
-    }
-    if (this.musicSound && this.musicSound.isPlaying) {
-      this.setInstanceVolume(this.musicSound, this.effectiveMusicVolume(undefined));
-    }
-  }
-
-  private setInstanceVolume(sound: Phaser.Sound.BaseSound, volume: number): void {
-    const v = clamp01(volume);
-    const s = sound as Phaser.Sound.HTML5AudioSound | Phaser.Sound.WebAudioSound;
-    s.volume = v;
-  }
-
-  playSfx(id: string, options?: SoundPlayOptions): void {
-    if (this.isScriptAudioDisabled() || !validateAudioId(id)) {
-      return;
-    }
-    const key = benneSfxCacheKey(id);
-    if (!this.game.cache.audio.has(key)) {
-      if (import.meta.env.DEV) {
-        console.warn(`[Benne] B.sound.play: missing audio "${id}" (expected assets/audio/sfx/${id}.*).`);
-      }
-      return;
-    }
-    const volume = this.effectiveSfxVolume(options);
-    const loop = options?.loop === true;
-    const sound = this.game.sound.add(key, { volume, loop });
-    this.sfxAuthorBySound.set(sound, id);
-    this.activeSfx.add(sound);
-    let cleanedFireAndForget = false;
-    const cleanup = (): void => {
-      if (cleanedFireAndForget) {
-        return;
-      }
-      cleanedFireAndForget = true;
-      this.activeSfx.delete(sound);
-      this.sfxAuthorBySound.delete(sound);
-      if (this.game.sound.getAll(key).includes(sound)) {
-        this.game.sound.remove(sound);
-      }
-    };
-    sound.once(Phaser.Sound.Events.COMPLETE, cleanup);
-    sound.once(Phaser.Sound.Events.DESTROY, cleanup);
-    sound.play();
-  }
-
-  /**
-   * Returns a promise that resolves when the sound finishes or is stopped/destroyed.
-   */
-  playSfxAndWait(id: string, options?: SoundPlayOptions): Promise<void> {
-    if (this.isScriptAudioDisabled() || !validateAudioId(id)) {
-      return Promise.resolve();
-    }
-    const key = benneSfxCacheKey(id);
-    if (!this.game.cache.audio.has(key)) {
-      if (import.meta.env.DEV) {
-        console.warn(`[Benne] B.sound.playAndWait: missing audio "${id}" (expected assets/audio/sfx/${id}.*).`);
-      }
-      return Promise.resolve();
-    }
-    const volume = this.effectiveSfxVolume(options);
-    const loop = options?.loop === true;
-    const sound = this.game.sound.add(key, { volume, loop });
-    this.sfxAuthorBySound.set(sound, id);
-    this.activeSfx.add(sound);
-
-    let cleaned = false;
-    const cleanup = (): void => {
-      if (cleaned) {
-        return;
-      }
-      cleaned = true;
-      this.activeSfx.delete(sound);
-      this.sfxAuthorBySound.delete(sound);
-      if (this.game.sound.getAll(key).includes(sound)) {
-        this.game.sound.remove(sound);
-      }
-    };
-    sound.once(Phaser.Sound.Events.COMPLETE, cleanup);
-    sound.once(Phaser.Sound.Events.DESTROY, cleanup);
-
-    sound.play();
-    return this.awaitSoundFinish(sound);
-  }
-
-  private awaitSoundFinish(sound: Phaser.Sound.BaseSound): Promise<void> {
-    return new Promise((resolve) => {
-      const finish = (): void => {
-        sound.off(Phaser.Sound.Events.COMPLETE, finish);
-        sound.off(Phaser.Sound.Events.STOP, finish);
-        sound.off(Phaser.Sound.Events.DESTROY, finish);
-        resolve();
-      };
-      if (!sound.isPlaying) {
-        finish();
-        return;
-      }
-      sound.once(Phaser.Sound.Events.COMPLETE, finish);
-      sound.once(Phaser.Sound.Events.STOP, finish);
-      sound.once(Phaser.Sound.Events.DESTROY, finish);
-    });
-  }
-
-  /**
-   * Plays music. Resolves immediately for instant playback; when **`fadeSeconds`** > 0, resolves
-   * after the crossfade duration so Bennescript **`interactionTail`** steps stay ordered.
-   */
-  playMusic(id: string, options?: MusicPlayOptions): Promise<void> {
-    if (this.isScriptAudioDisabled() || !validateAudioId(id)) {
-      return Promise.resolve();
-    }
-    const key = benneMusicCacheKey(id);
-    if (!this.game.cache.audio.has(key)) {
-      if (import.meta.env.DEV) {
-        console.warn(`[Benne] B.sound.playMusic: missing audio "${id}" (expected assets/audio/music/${id}.*).`);
-      }
-      return Promise.resolve();
-    }
-
-    const fadeRaw = options?.fadeSeconds;
-    const fadeSeconds =
-      typeof fadeRaw === 'number' && Number.isFinite(fadeRaw) && fadeRaw > 0 ? fadeRaw : 0;
-
-    if (fadeSeconds <= 0) {
-      this.hardStopAllMusicTracks();
-      const volume = this.effectiveMusicVolume(options);
-      const loop = options?.loop !== false;
-      const sound = this.game.sound.add(key, { volume, loop });
-      this.musicSound = sound;
-      sound.play();
-      return Promise.resolve();
-    }
-
-    return this.playMusicCrossfade(key, options, fadeSeconds);
-  }
-
-  /**
-   * Linear volume crossfade using real time ({@link requestAnimationFrame}), not scene tweens or
-   * {@link Phaser.Time.Clock} — enter-room-after-fade hooks run while {@link RoomScene} cutscene
-   * depth suppresses input until the interaction tail drains; scene clocks / tween updates must
-   * not gate that tail.
-   */
-  private runMusicCrossfadeWithRaf(
-    incoming: Phaser.Sound.BaseSound,
-    outgoing: Phaser.Sound.BaseSound | null,
-    targetVolume: number,
-    durationMs: number,
-  ): void {
-    const start = performance.now();
-    const startOut = outgoing ? clamp01(readSoundVolume(outgoing)) : 0;
-
-    const finalize = (): void => {
-      this.musicFadeRafId = 0;
-      try {
-        if (incoming === this.musicSound) {
-          this.setInstanceVolume(incoming, targetVolume);
-        }
-        if (outgoing) {
-          try {
-            outgoing.stop();
-          } catch {
-            /* ignore */
-          }
-          if (this.game.sound.getAll(outgoing.key).includes(outgoing)) {
-            this.game.sound.remove(outgoing);
-          }
-        }
-        if (this.musicFadeOutSound === outgoing) {
-          this.musicFadeOutSound = null;
-        }
-      } finally {
-        this.resolveMusicFadeInteractionIfPending();
-      }
-    };
-
-    const tick = (): void => {
-      if (!this.game.sound.getAll(incoming.key).includes(incoming)) {
-        this.musicFadeRafId = 0;
-        try {
-          if (outgoing && this.game.sound.getAll(outgoing.key).includes(outgoing)) {
-            try {
-              outgoing.stop();
-            } catch {
-              /* ignore */
-            }
-            this.game.sound.remove(outgoing);
-          }
-          if (this.musicFadeOutSound === outgoing) {
-            this.musicFadeOutSound = null;
-          }
-        } finally {
-          this.resolveMusicFadeInteractionIfPending();
-        }
-        return;
-      }
-      const elapsed = performance.now() - start;
-      const u = Math.min(1, durationMs > 0 ? elapsed / durationMs : 1);
-      this.setInstanceVolume(incoming, targetVolume * u);
-      if (outgoing && this.game.sound.getAll(outgoing.key).includes(outgoing)) {
-        this.setInstanceVolume(outgoing, startOut * (1 - u));
-      }
-      if (u >= 1) {
-        finalize();
-        return;
-      }
-      this.musicFadeRafId = requestAnimationFrame(tick);
-    };
-
-    this.musicFadeRafId = requestAnimationFrame(tick);
-  }
-
-  private playMusicCrossfade(
-    key: string,
-    options: MusicPlayOptions | undefined,
-    fadeSeconds: number,
-  ): Promise<void> {
-    const outgoing = this.consumePrimaryMusicForCrossfade();
-    const loop = options?.loop !== false;
-    const targetVolume = this.effectiveMusicVolume(options);
-    const durationMs = fadeSeconds * 1000;
-
-    const incoming = this.game.sound.add(key, { volume: 0, loop });
-    this.musicFadeOutSound = outgoing;
-    this.musicSound = incoming;
-
-    const playConfig: Phaser.Types.Sound.SoundConfig = {};
-    if (options?.sync === true && outgoing) {
-      const head = tryGetMusicPlaybackSeconds(outgoing);
-      const dur =
-        typeof incoming.duration === 'number' && Number.isFinite(incoming.duration)
-          ? incoming.duration
-          : null;
-      if (head != null && dur != null && dur > 0.05) {
-        const clamped = Math.min(Math.max(0, head), Math.max(0, dur - 0.05));
-        playConfig.seek = clamped;
-      }
-    }
-
-    let started = false;
-    try {
-      started = Object.keys(playConfig).length > 0 ? incoming.play(playConfig) : incoming.play();
-    } catch {
-      started = false;
-    }
-
-    if (!started) {
-      this.killMusicVolumeTweens();
-      if (this.game.sound.getAll(key).includes(incoming)) {
-        this.game.sound.remove(incoming);
-      }
-      this.musicSound = null;
-      if (outgoing && outgoing.isPlaying) {
-        this.musicSound = outgoing;
-      } else if (outgoing) {
-        try {
-          outgoing.stop();
-        } catch {
-          /* ignore */
-        }
-        if (this.game.sound.getAll(outgoing.key).includes(outgoing)) {
-          this.game.sound.remove(outgoing);
-        }
-      }
-      this.musicFadeOutSound = null;
-      if (import.meta.env.DEV) {
-        console.warn(`[Benne] B.sound.playMusic: failed to start crossfade for "${key}".`);
-      }
-      return Promise.resolve();
-    }
-
-    return new Promise((resolve) => {
-      this.musicFadeInteractionResolve = resolve;
-      this.runMusicCrossfadeWithRaf(incoming, outgoing, targetVolume, durationMs);
-    });
-  }
-
-  stopSfx(authorId?: string): void {
-    if (this.isScriptAudioDisabled()) {
-      return;
-    }
-    if (authorId === undefined) {
-      this.stopAllSfx();
-      return;
-    }
-    if (!validateAudioId(authorId)) {
-      return;
-    }
-    const toStop: Phaser.Sound.BaseSound[] = [];
-    for (const sound of this.activeSfx) {
-      if (this.sfxAuthorBySound.get(sound) === authorId) {
-        toStop.push(sound);
-      }
-    }
-    for (const s of toStop) {
-      s.stop();
-      this.game.sound.remove(s);
-      this.activeSfx.delete(s);
-      this.sfxAuthorBySound.delete(s);
-    }
-  }
-
-  stopAllSfx(): void {
-    if (this.isScriptAudioDisabled()) {
-      return;
-    }
-    for (const sound of [...this.activeSfx]) {
-      sound.stop();
-      this.game.sound.remove(sound);
-      this.activeSfx.delete(sound);
-      this.sfxAuthorBySound.delete(sound);
-    }
-  }
-
-  stopMusic(): void {
-    if (this.isScriptAudioDisabled()) {
-      return;
-    }
-    this.hardStopAllMusicTracks();
-  }
-
-  getSfxSessionVolume(): number {
-    return this.sfxSessionMultiplier;
-  }
-
-  getMusicSessionVolume(): number {
-    return this.musicSessionMultiplier;
-  }
-
-  setSfxSessionVolume(volume: number): void {
-    this.sfxSessionMultiplier = clamp01(volume);
-    this.refreshActiveVolumes();
-  }
-
-  setMusicSessionVolume(volume: number): void {
-    this.musicSessionMultiplier = clamp01(volume);
-    this.refreshActiveVolumes();
-  }
-
-  isSfxPlaying(authorId: string): boolean {
-    if (!validateAudioId(authorId)) {
-      return false;
-    }
-    for (const sound of this.activeSfx) {
-      if (this.sfxAuthorBySound.get(sound) === authorId && sound.isPlaying) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  isMusicPlaying(): boolean {
-    return (
-      (this.musicSound != null && this.musicSound.isPlaying) ||
-      (this.musicFadeOutSound != null && this.musicFadeOutSound.isPlaying)
-    );
-  }
-
-  destroy(): void {
-    this.stopAllSfx();
-    this.stopMusic();
-  }
-}
-</file>
-
-<file path="src/game/assets/fonts/fonts.json">
-{
-  "lucasarts-scumm-solid": {
-    "textureFile": "lucasarts-scumm-solid_0.png",
-    "dataFile": "lucasarts-scumm-solid.xml"
-  },
-  "lucasfont-alternate": {
-    "textureFile": "lucasfont-alternate_0.png",
-    "dataFile": "lucasfont-alternate.xml"
-  },
-  "PressStart2P-Regular": {
-    "textureFile": "PressStart2P-Regular_0.png",
-    "dataFile": "PressStart2P-Regular.xml"
-  },
-  "sierra-sci-menu-font": {
-    "textureFile": "sierra-sci-menu-font_0.png",
-    "dataFile": "sierra-sci-menu-font.xml"
-  }
-}
-</file>
-
-<file path="src/game/assets/images/characters/hank/hank.json">
-{ "frames": {
-   "hank 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 130
-   },
-   "hank 1.aseprite": {
-    "frame": { "x": 36, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 130
-   },
-   "hank 2.aseprite": {
-    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 130
-   },
-   "hank 3.aseprite": {
-    "frame": { "x": 108, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 4.aseprite": {
-    "frame": { "x": 144, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 5.aseprite": {
-    "frame": { "x": 180, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 6.aseprite": {
-    "frame": { "x": 0, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 7.aseprite": {
-    "frame": { "x": 36, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 8.aseprite": {
-    "frame": { "x": 72, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 9.aseprite": {
-    "frame": { "x": 108, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 10.aseprite": {
-    "frame": { "x": 144, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 11.aseprite": {
-    "frame": { "x": 180, "y": 64, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 12.aseprite": {
-    "frame": { "x": 0, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 13.aseprite": {
-    "frame": { "x": 36, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 14.aseprite": {
-    "frame": { "x": 72, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 15.aseprite": {
-    "frame": { "x": 108, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 16.aseprite": {
-    "frame": { "x": 144, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 17.aseprite": {
-    "frame": { "x": 180, "y": 128, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 18.aseprite": {
-    "frame": { "x": 0, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 19.aseprite": {
-    "frame": { "x": 36, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 20.aseprite": {
-    "frame": { "x": 72, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 21.aseprite": {
-    "frame": { "x": 108, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 22.aseprite": {
-    "frame": { "x": 144, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 23.aseprite": {
-    "frame": { "x": 180, "y": 192, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 24.aseprite": {
-    "frame": { "x": 0, "y": 256, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 25.aseprite": {
-    "frame": { "x": 72, "y": 0, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   },
-   "hank 26.aseprite": {
-    "frame": { "x": 36, "y": 256, "w": 36, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 64 },
-    "sourceSize": { "w": 36, "h": 64 },
-    "duration": 180
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta2-x64",
-  "image": "hank.png",
-  "format": "RGBA8888",
-  "size": { "w": 216, "h": 320 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "IdleL", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
-   { "name": "IdleD", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "IdleU", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "WalkL", "from": 3, "to": 8, "direction": "forward", "color": "#000000ff" },
-   { "name": "WalkD", "from": 9, "to": 14, "direction": "forward", "color": "#000000ff" },
-   { "name": "WalkU", "from": 15, "to": 20, "direction": "forward", "color": "#000000ff" },
-   { "name": "TalkL", "from": 21, "to": 22, "direction": "forward", "color": "#000000ff" },
-   { "name": "TalkD", "from": 23, "to": 24, "direction": "forward", "color": "#000000ff" },
-   { "name": "TalkU", "from": 25, "to": 26, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Layer 2", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
-}
-</file>
-
-<file path="src/game/assets/images/cursor/cursor.json">
-{ "frames": {
-   "cursor 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 32, "h": 32 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
-    "sourceSize": { "w": 32, "h": 32 },
-    "duration": 100
-   },
-   "cursor 1.aseprite": {
-    "frame": { "x": 32, "y": 0, "w": 32, "h": 32 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
-    "sourceSize": { "w": 32, "h": 32 },
-    "duration": 100
-   },
-   "cursor 2.aseprite": {
-    "frame": { "x": 0, "y": 32, "w": 32, "h": 32 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
-    "sourceSize": { "w": 32, "h": 32 },
-    "duration": 100
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta3-x64",
-  "image": "cursor.png",
-  "format": "RGBA8888",
-  "size": { "w": 64, "h": 64 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "Idle", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
-   { "name": "Active", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "Talk", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Idle", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
-}
-</file>
-
-<file path="src/game/assets/images/guis/dialog/dialog.json">
-{ "frames": {
-   "dialog 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 320, "h": 80 },
-    "rotated": false,
-    "trimmed": true,
-    "spriteSourceSize": { "x": 0, "y": 112, "w": 320, "h": 80 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "dialog 1.aseprite": {
-    "frame": { "x": 320, "y": 0, "w": 16, "h": 32 },
-    "rotated": false,
-    "trimmed": true,
-    "spriteSourceSize": { "x": 0, "y": 128, "w": 16, "h": 32 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "dialog 2.aseprite": {
-    "frame": { "x": 336, "y": 0, "w": 16, "h": 32 },
-    "rotated": false,
-    "trimmed": true,
-    "spriteSourceSize": { "x": 0, "y": 144, "w": 16, "h": 32 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "dialog 3.aseprite": {
-    "frame": { "x": 352, "y": 0, "w": 32, "h": 16 },
-    "rotated": false,
-    "trimmed": true,
-    "spriteSourceSize": { "x": 0, "y": 128, "w": 32, "h": 16 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta3-x64",
-  "image": "dialog.png",
-  "format": "RGBA8888",
-  "size": { "w": 384, "h": 80 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "VerbsBG", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
-   { "name": "UpBtn", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "DownBtn", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "Bullet", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "BG", "opacity": 255, "blendMode": "normal" },
-   { "name": "GUI BG", "opacity": 255, "blendMode": "normal" },
-   { "name": "Arrow Down", "opacity": 255, "blendMode": "normal" },
-   { "name": "Arrow Up", "opacity": 255, "blendMode": "normal" },
-   { "name": "Text line" },
-   { "name": "Text", "group": "Text line", "opacity": 255, "blendMode": "normal" },
-   { "name": "Bullet", "group": "Text line", "opacity": 255, "blendMode": "normal" },
-   { "name": "Text Lines" },
-   { "name": "Group 1", "group": "Text Lines" },
-   { "name": "Bullet Copy", "group": "Group 1", "opacity": 255, "blendMode": "normal" },
-   { "name": "Text Copy", "group": "Group 1", "opacity": 255, "blendMode": "normal" },
-   { "name": "Group 1 Copy", "group": "Text Lines" },
-   { "name": "Bullet Copy", "group": "Group 1 Copy", "opacity": 255, "blendMode": "normal" },
-   { "name": "Text Copy", "group": "Group 1 Copy", "opacity": 255, "blendMode": "normal" },
-   { "name": "Group 1 Copy Copy", "group": "Text Lines" },
-   { "name": "Bullet Copy", "group": "Group 1 Copy Copy", "opacity": 255, "blendMode": "normal" },
-   { "name": "Text Copy", "group": "Group 1 Copy Copy", "opacity": 255, "blendMode": "normal" },
-   { "name": "Group 1 Copy Copy Copy", "group": "Text Lines" },
-   { "name": "Bullet Copy", "group": "Group 1 Copy Copy Copy", "opacity": 255, "blendMode": "normal" },
-   { "name": "Text Copy", "group": "Group 1 Copy Copy Copy", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
-}
-</file>
-
-<file path="src/game/assets/images/inventory/inventory.json">
-{ "frames": {
-   "inventory 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 1.aseprite": {
-    "frame": { "x": 38, "y": 0, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 2.aseprite": {
-    "frame": { "x": 76, "y": 0, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 3.aseprite": {
-    "frame": { "x": 114, "y": 0, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 4.aseprite": {
-    "frame": { "x": 0, "y": 30, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 5.aseprite": {
-    "frame": { "x": 38, "y": 30, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 6.aseprite": {
-    "frame": { "x": 76, "y": 30, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 7.aseprite": {
-    "frame": { "x": 114, "y": 30, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 8.aseprite": {
-    "frame": { "x": 0, "y": 60, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 9.aseprite": {
-    "frame": { "x": 38, "y": 60, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 10.aseprite": {
-    "frame": { "x": 76, "y": 60, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   },
-   "inventory 11.aseprite": {
-    "frame": { "x": 114, "y": 60, "w": 38, "h": 30 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 30 },
-    "sourceSize": { "w": 38, "h": 30 },
-    "duration": 100
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta3-x64",
-  "image": "inventory.png",
-  "format": "RGBA8888",
-  "size": { "w": 152, "h": 90 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "Broom", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
-   { "name": "Lantern", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "Lantern-glowing", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "Key", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
-   { "name": "Knife", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
-   { "name": "Knife-PB", "from": 5, "to": 7, "direction": "forward", "color": "#000000ff" },
-   { "name": "PB", "from": 8, "to": 8, "direction": "forward", "color": "#000000ff" },
-   { "name": "PB-open", "from": 9, "to": 9, "direction": "forward", "color": "#000000ff" },
-   { "name": "Bread", "from": 10, "to": 10, "direction": "forward", "color": "#000000ff" },
-   { "name": "Sammich", "from": 11, "to": 11, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Layer 4", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
-}
-</file>
-
-<file path="src/game/assets/images/rooms/apartment/apartment.json">
-{ "frames": {
-   "apartment 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 1.aseprite": {
-    "frame": { "x": 320, "y": 0, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 2.aseprite": {
-    "frame": { "x": 640, "y": 0, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 3.aseprite": {
-    "frame": { "x": 960, "y": 0, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 4.aseprite": {
-    "frame": { "x": 0, "y": 180, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 5.aseprite": {
-    "frame": { "x": 320, "y": 180, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 6.aseprite": {
-    "frame": { "x": 640, "y": 180, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 7.aseprite": {
-    "frame": { "x": 960, "y": 180, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 8.aseprite": {
-    "frame": { "x": 0, "y": 360, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 9.aseprite": {
-    "frame": { "x": 320, "y": 360, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 10.aseprite": {
-    "frame": { "x": 640, "y": 360, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 11.aseprite": {
-    "frame": { "x": 960, "y": 360, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 12.aseprite": {
-    "frame": { "x": 0, "y": 540, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   },
-   "apartment 13.aseprite": {
-    "frame": { "x": 320, "y": 540, "w": 320, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
-    "duration": 100
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta3-x64",
-  "image": "apartment.png",
-  "format": "RGBA8888",
-  "size": { "w": 1280, "h": 720 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "BG", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "Couch", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "Door", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
-   { "name": "Door-open", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
-   { "name": "Fan", "from": 5, "to": 9, "direction": "forward", "color": "#000000ff" },
-   { "name": "Table", "from": 10, "to": 10, "direction": "forward", "color": "#000000ff" },
-   { "name": "Bread", "from": 11, "to": 11, "direction": "forward", "color": "#000000ff" },
-   { "name": "PeanutButter", "from": 12, "to": 12, "direction": "forward", "color": "#000000ff" },
-   { "name": "Knife", "from": 13, "to": 13, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Walls and Floor", "opacity": 255, "blendMode": "normal" },
-   { "name": "Ceiling", "opacity": 255, "blendMode": "normal" },
-   { "name": "Window", "opacity": 255, "blendMode": "normal" },
-   { "name": "Couch", "opacity": 255, "blendMode": "normal" },
-   { "name": "Door", "opacity": 255, "blendMode": "normal" },
-   { "name": "Door Open", "opacity": 255, "blendMode": "normal" },
-   { "name": "Fan", "opacity": 255, "blendMode": "normal" },
-   { "name": "Hank", "opacity": 255, "blendMode": "normal" },
-   { "name": "Table", "opacity": 255, "blendMode": "normal" },
-   { "name": "Bread", "opacity": 255, "blendMode": "normal" },
-   { "name": "Peanut butter", "opacity": 255, "blendMode": "normal" },
-   { "name": "Knife", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
-}
-</file>
-
-<file path="src/game/assets/images/rooms/outside/outside.json">
-{ "frames": {
-   "outside 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 600, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
-    "sourceSize": { "w": 600, "h": 180 },
-    "duration": 100
-   },
-   "outside 1.aseprite": {
-    "frame": { "x": 600, "y": 0, "w": 600, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
-    "sourceSize": { "w": 600, "h": 180 },
-    "duration": 100
-   },
-   "outside 2.aseprite": {
-    "frame": { "x": 1200, "y": 0, "w": 600, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
-    "sourceSize": { "w": 600, "h": 180 },
-    "duration": 100
-   },
-   "outside 3.aseprite": {
-    "frame": { "x": 1800, "y": 0, "w": 600, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
-    "sourceSize": { "w": 600, "h": 180 },
-    "duration": 100
-   },
-   "outside 4.aseprite": {
-    "frame": { "x": 0, "y": 180, "w": 600, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
-    "sourceSize": { "w": 600, "h": 180 },
-    "duration": 100
-   },
-   "outside 5.aseprite": {
-    "frame": { "x": 600, "y": 180, "w": 600, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
-    "sourceSize": { "w": 600, "h": 180 },
-    "duration": 100
-   },
-   "outside 6.aseprite": {
-    "frame": { "x": 1200, "y": 180, "w": 600, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
-    "sourceSize": { "w": 600, "h": 180 },
-    "duration": 100
-   },
-   "outside 7.aseprite": {
-    "frame": { "x": 1800, "y": 180, "w": 600, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
-    "sourceSize": { "w": 600, "h": 180 },
-    "duration": 100
-   },
-   "outside 8.aseprite": {
-    "frame": { "x": 0, "y": 360, "w": 600, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
-    "sourceSize": { "w": 600, "h": 180 },
-    "duration": 100
-   },
-   "outside 9.aseprite": {
-    "frame": { "x": 600, "y": 360, "w": 600, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
-    "sourceSize": { "w": 600, "h": 180 },
-    "duration": 100
-   },
-   "outside 10.aseprite": {
-    "frame": { "x": 1200, "y": 360, "w": 600, "h": 180 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 180 },
-    "sourceSize": { "w": 600, "h": 180 },
-    "duration": 100
-   }
- },
- "meta": {
-  "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta3-x64",
-  "image": "outside.png",
-  "format": "RGBA8888",
-  "size": { "w": 2400, "h": 540 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "Sky", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "Trees", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "BG", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
-   { "name": "Rock", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
-   { "name": "RockMoved", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
-   { "name": "LeverPulled", "from": 6, "to": 6, "direction": "forward", "color": "#000000ff" },
-   { "name": "FountainOff", "from": 7, "to": 7, "direction": "forward", "color": "#000000ff" },
-   { "name": "FountainOn", "from": 8, "to": 10, "direction": "forward", "color": "#000000ff" }
-  ],
-  "layers": [
-   { "name": "Sky", "opacity": 255, "blendMode": "normal" },
-   { "name": "Clouds", "opacity": 255, "blendMode": "normal" },
-   { "name": "Trees", "opacity": 255, "blendMode": "normal" },
-   { "name": "Ground", "opacity": 255, "blendMode": "normal" },
-   { "name": "Sidewalk", "opacity": 255, "blendMode": "normal" },
-   { "name": "House", "opacity": 255, "blendMode": "normal" },
-   { "name": "Door", "opacity": 255, "blendMode": "normal" },
-   { "name": "Fountain", "opacity": 255, "blendMode": "normal" },
-   { "name": "Lever", "opacity": 255, "blendMode": "normal" },
-   { "name": "Weird Rock", "opacity": 255, "blendMode": "normal" },
-   { "name": "Hank", "opacity": 255, "blendMode": "normal" }
-  ],
-  "slices": [
-  ]
- }
-}
-</file>
-
-<file path="src/game/characters/hank/hank.character.json">
-{
-  "id": "hank",
-  "name": "Hank",
-  "description": "",
-  "walkSpeed": 88,
-  "walkToPoint": {
-    "x": -10,
-    "y": 64
-  },
-  "talkPoint": {
-    "x": 18,
-    "y": 1
-  },
-  "clickable": false,
-  "display": {
-    "aseprite": true
-  },
-  "animations": {
-    "IdleL": {
-      "loop": true
-    },
-    "IdleD": {
-      "loop": true
-    },
-    "IdleU": {
-      "loop": true
-    },
-    "WalkL": {
-      "loop": true,
-      "frameDuration": 80
-    },
-    "WalkD": {
-      "loop": true,
-      "frameDuration": 60
-    },
-    "WalkU": {
-      "loop": true,
-      "frameDuration": 60
-    },
-    "TalkL": {
-      "loop": true
-    },
-    "TalkD": {
-      "loop": true
-    },
-    "TalkU": {
-      "loop": true
-    }
-  },
-  "feet": {
-    "x": 18,
-    "y": 61
-  },
-  "collider": {
-    "points": [
-      {
-        "x": 8,
-        "y": 64
-      },
-      {
-        "x": 5,
-        "y": 21
-      },
-      {
-        "x": 10,
-        "y": 3
-      },
-      {
-        "x": 18,
-        "y": 1
-      },
-      {
-        "x": 26,
-        "y": 3
-      },
-      {
-        "x": 30,
-        "y": 21
-      },
-      {
-        "x": 29,
-        "y": 64
-      }
-    ]
-  }
-}
-</file>
-
-<file path="src/game/characters/hank/hank.character.ts">
-import { registerCharacterScript } from '@engine/scripting';
-
-/**
- * Character script for `hank` — Bennescript on this character’s global verb channel (room-scoped handlers win first).
- */
-registerCharacterScript('hank', ({ B }) => {
-  B.whenLookAt(() => {
-    // TODO
-  });
-
-  B.whenUse(() => {
-    // TODO
-  });
-});
-</file>
-
-<file path="src/game/characters/henry/henry.character.ts">
-import { registerCharacterScript } from '@engine/scripting';
-
-/**
- * Character script for `henry` — Bennescript on this character’s global verb channel (room-scoped handlers win first).
- */
-registerCharacterScript('henry', ({ B }) => {
-  B.whenLookAt(() => {
-    // TODO
-  });
-});
-</file>
-
-<file path="src/game/collectFontLoadsForGui.ts">
-import type { GameFontsManifest } from '../types/fonts';
-import type { GuiData } from '../types/gui';
-
-export type GuiFontLoadRequest = { fontId: string; textureUrl: string; dataUrl: string };
-
-/**
- * Bitmap font files to load for one GUI's `text` controls (deduped by font id).
- * `resolveAssetUrl` maps paths under `src/game/assets/` to a fetchable URL.
- */
-export function collectFontLoadsForGui(
-  gui: GuiData,
-  manifest: GameFontsManifest,
-  resolveAssetUrl: (pathUnderAssets: string) => string,
-): GuiFontLoadRequest[] {
-  const out: GuiFontLoadRequest[] = [];
-  const seen = new Set<string>();
-  for (const c of gui.controls ?? []) {
-    if (c.type !== 'text' && c.type !== 'button' && c.type !== 'textInput') {
-      continue;
-    }
-    if (seen.has(c.font)) {
-      continue;
-    }
-    seen.add(c.font);
-    const def = manifest[c.font];
-    if (!def) {
-      console.warn(`[BENNE GUI preview] Unknown font id "${c.font}" — add it to assets/fonts/fonts.json.`);
-      continue;
-    }
-    try {
-      out.push({
-        fontId: c.font,
-        textureUrl: resolveAssetUrl(`fonts/${def.textureFile}`),
-        dataUrl: resolveAssetUrl(`fonts/${def.dataFile}`),
-      });
-    } catch (e) {
-      console.warn(`[BENNE GUI preview] Could not resolve font files for "${c.font}":`, e);
-    }
-  }
-  return out;
-}
-
-export function guiHasTextControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'text');
-}
-
-export function guiHasImageControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'image' || c.type === 'nineSliceImage');
-}
-
-export function guiHasButtonControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'button');
-}
-
-export function guiHasCheckboxControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'checkbox');
-}
-
-export function guiHasTriggerControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'trigger');
-}
-
-export function guiHasGridControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'grid');
-}
-
-export function guiHasTextInputControls(gui: GuiData): boolean {
-  return (gui.controls ?? []).some((c) => c.type === 'textInput');
-}
-</file>
-
-<file path="src/game/dialogs/chatwithpenny/chatwithpenny.dialog.json">
-{
-  "id": "chatwithpenny",
-  "displayName": "ChatWithPenny",
-  "options": [
-    {
-      "id": "greeting",
-      "text": "How's it goin?"
-    },
-    {
-      "id": "door",
-      "text": "The door is locked. How do I get out?"
-    },
-    {
-      "id": "bye",
-      "text": "Ok, bye!"
-    }
-  ]
-}
-</file>
-
-<file path="src/game/guis/inventoryBar/inventoryBar.gui.ts">
-import { registerGuiScript } from '@engine/scripting';
-
-registerGuiScript('inventoryBar', ({ B }) => {
-  B.onGuiBuilt((gui) => {
-    const root = gui.root;
-
-    B.whenMouseEnter('hoverZone', () => {
-      root.tweenTo({ y: 0 }, 300, 'Sine.easeOut');
-    });
-
-    B.whenMouseLeave('hideZone', () => {
-      root.tweenTo({ y: -33 }, 250, 'Sine.easeIn');
-    });
-  });
-
-  B.whenButtonClick('back', () => {
-    console.log('Back button clicked');
-  });
-
-  B.whenButtonClick('Fwd', () => {
-    console.log('Forward button clicked');
-  });
-});
-</file>
-
-<file path="src/game/inventory/Broom/Broom.inventory.json">
-{
-  "id": "Broom",
-  "name": "Broom",
-  "description": "",
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  },
-  "cursorAnimation": "Broom"
-}
-</file>
-
-<file path="src/game/rooms/rooms.manifest.json">
-{
-  "startRoomId": "apartment",
-  "rooms": [
-    {
-      "id": "apartment",
-      "definition": "apartment/apartment.room.json"
-    },
-    {
-      "id": "bathroom",
-      "definition": "bathroom/bathroom.room.json"
-    },
-    {
-      "id": "diningRoom",
-      "definition": "diningRoom/diningRoom.room.json"
-    },
-    {
-      "id": "garage",
-      "definition": "garage/garage.room.json"
-    },
-    {
-      "id": "outside",
-      "definition": "outside/outside.room.json"
-    },
-    {
-      "id": "outsideOffice",
-      "definition": "outsideOffice/outsideOffice.room.json"
-    }
-  ]
-}
-</file>
-
-<file path="src/engine/ConfigManager.ts">
-import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
-import type { GameSettings, GameSettingsDialog, GameSettingsPerspective } from '../types/game';
-import { readEffectiveDialogSettings } from './dialog/dialogGameState.js';
-import type { GameStateManager } from './gameState/GameStateManager.js';
-import { DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbs/verbConfig';
-import rawSettings from '../game/game-config.json';
-
-const DIALOG_DEFAULTS: GameSettingsDialog = {
-  clickToSkip: false,
-  showText: true,
-  defaultTalkOffset: { x: 0, y: 0 },
-  minDurationMs: 800,
-  msPerCharacter: 35,
-  maxDurationMs: 4500,
-  durationMultiplier: 1.0,
-};
-
-const PERSPECTIVE_DEFAULTS: GameSettingsPerspective = {
-  minWalkScale: 0.3,
-  walkScalePower: 0.8,
-};
-
-function mergePerspectiveSettings(data: GameSettings): GameSettingsPerspective {
-  const p = data.perspective;
-  if (!p || typeof p !== 'object') {
-    return { ...PERSPECTIVE_DEFAULTS };
-  }
-  return {
-    minWalkScale:
-      typeof p.minWalkScale === 'number' && Number.isFinite(p.minWalkScale)
-        ? p.minWalkScale
-        : PERSPECTIVE_DEFAULTS.minWalkScale,
-    walkScalePower:
-      typeof p.walkScalePower === 'number' && Number.isFinite(p.walkScalePower)
-        ? p.walkScalePower
-        : PERSPECTIVE_DEFAULTS.walkScalePower,
-  };
-}
-
-function assertPerspectiveSettings(data: GameSettings): void {
-  const p = data.perspective;
-  if (p === undefined) {
-    return;
-  }
-  if (typeof p !== 'object' || p === null || Array.isArray(p)) {
-    throw new Error('game-config perspective must be an object when present');
-  }
-  for (const key of ['minWalkScale', 'walkScalePower'] as const) {
-    const v = p[key];
-    if (v !== undefined && !Number.isFinite(v)) {
-      throw new Error(`game-config perspective.${key} must be a finite number when present`);
-    }
-  }
-  const merged = mergePerspectiveSettings(data);
-  if (merged.minWalkScale <= 0) {
-    throw new Error('game-config perspective.minWalkScale must be > 0');
-  }
-}
-
-function mergeDialogSettings(data: GameSettings): GameSettingsDialog {
-  const d = data.dialog;
-  if (!d) {
-    return { ...DIALOG_DEFAULTS };
-  }
-  const off = d.defaultTalkOffset;
-  return {
-    clickToSkip: d.clickToSkip ?? DIALOG_DEFAULTS.clickToSkip,
-    showText: d.showText ?? DIALOG_DEFAULTS.showText,
-    defaultTalkOffset:
-      off != null && typeof off === 'object' && Number.isFinite(off.x) && Number.isFinite(off.y)
-        ? { x: off.x, y: off.y }
-        : { ...DIALOG_DEFAULTS.defaultTalkOffset },
-    minDurationMs: d.minDurationMs ?? DIALOG_DEFAULTS.minDurationMs,
-    msPerCharacter: d.msPerCharacter ?? DIALOG_DEFAULTS.msPerCharacter,
-    maxDurationMs: d.maxDurationMs ?? DIALOG_DEFAULTS.maxDurationMs,
-    durationMultiplier: d.durationMultiplier ?? DIALOG_DEFAULTS.durationMultiplier,
-    choiceOptionsViewportHeightPx:
-      typeof d.choiceOptionsViewportHeightPx === 'number' &&
-      Number.isFinite(d.choiceOptionsViewportHeightPx)
-        ? d.choiceOptionsViewportHeightPx
-        : undefined,
-  };
-}
-
-function assertDialogSettings(data: GameSettings): void {
-  const d = data.dialog;
-  if (d === undefined) {
-    return;
-  }
-  if (typeof d !== 'object' || d === null) {
-    throw new Error('game-config dialog must be an object when present');
-  }
-  if (d.clickToSkip !== undefined && typeof d.clickToSkip !== 'boolean') {
-    throw new Error('game-config dialog.clickToSkip must be a boolean when present');
-  }
-  if (d.showText !== undefined && typeof d.showText !== 'boolean') {
-    throw new Error('game-config dialog.showText must be a boolean when present');
-  }
-  const off = d.defaultTalkOffset;
-  if (off !== undefined) {
-    if (typeof off !== 'object' || off === null) {
-      throw new Error('game-config dialog.defaultTalkOffset must be an object when present');
-    }
-    if (!Number.isFinite(off.x) || !Number.isFinite(off.y)) {
-      throw new Error('game-config dialog.defaultTalkOffset.x and .y must be finite numbers when present');
-    }
-  }
-  for (const key of ['minDurationMs', 'msPerCharacter', 'maxDurationMs', 'durationMultiplier'] as const) {
-    const v = d[key];
-    if (v !== undefined && !Number.isFinite(v)) {
-      throw new Error(`game-config dialog.${key} must be a finite number when present`);
-    }
-  }
-  if (d.choiceOptionsViewportHeightPx !== undefined) {
-    if (!Number.isFinite(d.choiceOptionsViewportHeightPx)) {
-      throw new Error('game-config dialog.choiceOptionsViewportHeightPx must be a finite number when present');
-    }
-    if (d.choiceOptionsViewportHeightPx <= 0) {
-      throw new Error('game-config dialog.choiceOptionsViewportHeightPx must be > 0 when present');
-    }
-  }
-  const merged = mergeDialogSettings(data);
-  if (merged.minDurationMs < 0 || merged.maxDurationMs < 0 || merged.msPerCharacter < 0 || merged.durationMultiplier <= 0) {
-    throw new Error(
-      'game-config dialog: minDurationMs, maxDurationMs, and msPerCharacter must be >= 0; durationMultiplier must be > 0',
-    );
-  }
-  if (merged.minDurationMs > merged.maxDurationMs) {
-    throw new Error('game-config dialog.minDurationMs must be <= maxDurationMs');
-  }
-}
-
-function collectEffectiveVerbIds(data: GameSettings): Set<string> {
-  const ids = new Set<string>();
-  if (data.verbs !== undefined && data.verbs.length > 0) {
-    for (const v of data.verbs) {
-      ids.add(v.id);
-    }
-    return ids;
-  }
-  ids.add('look');
-  ids.add('use');
-  return ids;
-}
-
-function assertVerbSettings(data: GameSettings): void {
-  if (data.verbs !== undefined) {
-    if (!Array.isArray(data.verbs)) {
-      throw new Error('game-config verbs must be an array when present');
-    }
-    const seen = new Set<string>();
-    for (const v of data.verbs) {
-      if (typeof v !== 'object' || v === null) {
-        throw new Error('game-config each verbs entry must be an object');
-      }
-      if (typeof v.id !== 'string' || v.id.length === 0) {
-        throw new Error('game-config each verbs[].id must be a non-empty string');
-      }
-      if (v.id === WALK_TO_VERB_ID) {
-        throw new Error(
-          `game-config verbs[] may not declare "${WALK_TO_VERB_ID}" — it is a reserved built-in verb id`,
-        );
-      }
-      if (v.id === DEFAULT_VERB_TOKEN) {
-        throw new Error(
-          `game-config verbs[] may not declare "${DEFAULT_VERB_TOKEN}" — it is a reserved inputProfile token`,
-        );
-      }
-      if (seen.has(v.id)) {
-        throw new Error(`game-config duplicate verb id: ${v.id}`);
-      }
-      seen.add(v.id);
-      if (v.label !== undefined && typeof v.label !== 'string') {
-        throw new Error(`game-config verbs["${v.id}"].label must be a string when present`);
-      }
-      if (v.preposition !== undefined && typeof v.preposition !== 'string') {
-        throw new Error(`game-config verbs["${v.id}"].preposition must be a string when present`);
-      }
-    }
-  }
-
-  const effectiveIds = collectEffectiveVerbIds(data);
-  const isValidSlotValue = (value: string): boolean =>
-    value === WALK_TO_VERB_ID || value === DEFAULT_VERB_TOKEN || effectiveIds.has(value);
-
-  const ip = data.inputProfile;
-  if (ip !== undefined) {
-    if (typeof ip !== 'object' || ip === null) {
-      throw new Error('game-config inputProfile must be an object when present');
-    }
-    if ('kind' in ip) {
-      throw new Error(
-        'game-config inputProfile.kind is no longer supported — remove the field (the profile is flat `primaryButtonVerb` / `secondaryButtonVerb`)',
-      );
-    }
-    if (typeof ip.primaryButtonVerb !== 'string' || ip.primaryButtonVerb.length === 0) {
-      throw new Error('game-config inputProfile.primaryButtonVerb must be a non-empty string');
-    }
-    if (typeof ip.secondaryButtonVerb !== 'string' || ip.secondaryButtonVerb.length === 0) {
-      throw new Error('game-config inputProfile.secondaryButtonVerb must be a non-empty string');
-    }
-    if (!isValidSlotValue(ip.primaryButtonVerb)) {
-      throw new Error(
-        `game-config inputProfile.primaryButtonVerb "${ip.primaryButtonVerb}" must be listed in verbs, or one of "${WALK_TO_VERB_ID}" / "${DEFAULT_VERB_TOKEN}"`,
-      );
-    }
-    if (!isValidSlotValue(ip.secondaryButtonVerb)) {
-      throw new Error(
-        `game-config inputProfile.secondaryButtonVerb "${ip.secondaryButtonVerb}" must be listed in verbs, or one of "${WALK_TO_VERB_ID}" / "${DEFAULT_VERB_TOKEN}"`,
-      );
-    }
-  }
-
-  if (data.defaultFallbackLine !== undefined && typeof data.defaultFallbackLine !== 'string') {
-    throw new Error('game-config defaultFallbackLine must be a string when present');
-  }
-}
-
-function assertInitialGameState(data: GameSettings): void {
-  const init = data.initialGameState;
-  if (init === undefined) {
-    return;
-  }
-  if (typeof init !== 'object' || init === null || Array.isArray(init)) {
-    throw new Error('game-config initialGameState must be an object when present');
-  }
-  if (init.flags !== undefined) {
-    if (typeof init.flags !== 'object' || init.flags === null || Array.isArray(init.flags)) {
-      throw new Error('game-config initialGameState.flags must be a plain object when present');
-    }
-    for (const [k, v] of Object.entries(init.flags)) {
-      if (k.length === 0) {
-        throw new Error('game-config initialGameState.flags keys must be non-empty strings');
-      }
-      const ok = typeof v === 'boolean' || typeof v === 'number' || typeof v === 'string';
-      if (!ok) {
-        throw new Error(
-          `game-config initialGameState.flags["${k}"] must be a boolean, number, or string when present`,
-        );
-      }
-    }
-  }
-  if (init.variables !== undefined) {
-    if (typeof init.variables !== 'object' || init.variables === null || Array.isArray(init.variables)) {
-      throw new Error('game-config initialGameState.variables must be a plain object when present');
-    }
-  }
-  if (init.inventory !== undefined) {
-    if (Array.isArray(init.inventory)) {
-      const seen = new Set<string>();
-      for (const item of init.inventory) {
-        if (typeof item !== 'string' || item.length === 0) {
-          throw new Error('game-config initialGameState.inventory entries must be non-empty strings');
-        }
-        if (seen.has(item)) {
-          console.warn(
-            `[Benne] game-config initialGameState.inventory: duplicate "${item}" — quantities merge at runtime`,
-          );
-        }
-        seen.add(item);
-      }
-    } else if (typeof init.inventory === 'object' && init.inventory !== null && !Array.isArray(init.inventory)) {
-      for (const [k, v] of Object.entries(init.inventory as Record<string, unknown>)) {
-        if (k.length === 0) {
-          throw new Error('game-config initialGameState.inventory keys must be non-empty strings');
-        }
-        const n = typeof v === 'number' ? v : Number(v);
-        if (!Number.isFinite(n) || n < 0) {
-          throw new Error(
-            `game-config initialGameState.inventory["${k}"] must be a non-negative finite number when present`,
-          );
-        }
-      }
-    } else {
-      throw new Error(
-        'game-config initialGameState.inventory must be a string[] id list or Record<string, number> when present',
-      );
-    }
-  }
-}
-
-function assertGameSettings(data: GameSettings): void {
-  const { width, height } = data.resolution;
-  if (!Number.isFinite(width) || width < 1 || !Number.isFinite(height) || height < 1) {
-    throw new Error(`Invalid game-config resolution: ${width} x ${height}`);
-  }
-  const { masterVolume, sfxVolume, musicVolume, dialogueVolume } = data.audio;
-  for (const [key, v] of Object.entries({
-    masterVolume,
-    sfxVolume,
-    musicVolume,
-    dialogueVolume,
-  })) {
-    if (!Number.isFinite(v) || v < 0 || v > 1) {
-      throw new Error(`Invalid game-config audio.${key}: ${v} (expected 0.0–1.0)`);
-    }
-  }
-  if (typeof data.startingPlayerCharacter !== 'string' || data.startingPlayerCharacter.length === 0) {
-    throw new Error('game-config startingPlayerCharacter must be a non-empty string');
-  }
-  if (data.dropWhenInventoryUsed !== undefined && typeof data.dropWhenInventoryUsed !== 'boolean') {
-    throw new Error('game-config dropWhenInventoryUsed must be a boolean when present');
-  }
-  if (data.debug !== undefined) {
-    const d = data.debug;
-    if (typeof d !== 'object' || d === null) {
-      throw new Error('game-config debug must be an object when present');
-    }
-    for (const key of ['showWalkable', 'showPropOutlines', 'showGuiOutlines', 'showRegionOutlines'] as const) {
-      const v = d[key];
-      if (v !== undefined && typeof v !== 'boolean') {
-        throw new Error(`game-config debug.${key} must be a boolean when present`);
-      }
-    }
-  }
-  assertInitialGameState(data);
-  assertVerbSettings(data);
-  assertDialogSettings(data);
-  assertPerspectiveSettings(data);
-  assertCursorSettings(data);
-}
-
-function assertCursorSettings(data: GameSettings): void {
-  const c = data.cursor;
-  if (c === undefined) {
-    return;
-  }
-  if (typeof c !== 'object' || c === null || Array.isArray(c)) {
-    throw new Error('game-config cursor must be an object when present');
-  }
-  if (typeof c.idleAnimation !== 'string' || c.idleAnimation.trim().length === 0) {
-    throw new Error('game-config cursor.idleAnimation must be a non-empty string when cursor is set');
-  }
-  if (typeof c.activeAnimation !== 'string' || c.activeAnimation.trim().length === 0) {
-    throw new Error('game-config cursor.activeAnimation must be a non-empty string when cursor is set');
-  }
-  const anims = c.animations;
-  if (anims !== undefined) {
-    if (typeof anims !== 'object' || anims === null || Array.isArray(anims)) {
-      throw new Error('game-config cursor.animations must be a plain object when present');
-    }
-    for (const [tag, clip] of Object.entries(anims)) {
-      if (typeof tag !== 'string' || tag.length === 0) {
-        throw new Error('game-config cursor.animations keys must be non-empty strings');
-      }
-      if (typeof clip !== 'object' || clip === null || Array.isArray(clip)) {
-        throw new Error(`game-config cursor.animations["${tag}"] must be an object when present`);
-      }
-      const rec = clip as Record<string, unknown>;
-      if (rec.loop !== undefined && typeof rec.loop !== 'boolean') {
-        throw new Error(`game-config cursor.animations["${tag}"].loop must be a boolean when present`);
-      }
-      if (rec.frameDuration !== undefined && !Number.isFinite(rec.frameDuration)) {
-        throw new Error(`game-config cursor.animations["${tag}"].frameDuration must be a finite number when present`);
-      }
-    }
-  }
-  const hs = c.hotspot;
-  if (hs !== undefined) {
-    if (typeof hs !== 'string' || !isValidGameSettingsCursorHotspot(hs)) {
-      throw new Error(
-        `game-config cursor.hotspot must be one of: ${CURSOR_HOTSPOT_PRESETS.join(', ')}`,
-      );
-    }
-    if (hs === 'custom') {
-      const p = c.hotspotPixel;
-      if (p === undefined || typeof p !== 'object' || p === null || Array.isArray(p)) {
-        throw new Error('game-config cursor.hotspotPixel { x, y } is required when cursor.hotspot is "custom"');
-      }
-      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
-        throw new Error('game-config cursor.hotspotPixel.x and .y must be finite numbers when hotspot is "custom"');
-      }
-    }
-  } else if (c.hotspotPixel !== undefined) {
-    console.warn('[Benne] game-config cursor.hotspotPixel is ignored unless cursor.hotspot is "custom"');
-  }
-  const disp = c.display;
-  if (disp !== undefined) {
-    if (typeof disp !== 'object' || disp === null || Array.isArray(disp)) {
-      throw new Error('game-config cursor.display must be an object when present');
-    }
-    if (disp.aseprite !== undefined && typeof disp.aseprite !== 'boolean') {
-      throw new Error('game-config cursor.display.aseprite must be a boolean when present');
-    }
-  }
-}
-
-const settings = rawSettings as GameSettings;
-assertGameSettings(settings);
-
-/**
- * Synchronous access to `src/game/game-config.json` (bundled by Vite at build time).
- */
-export function getGameSettings(): GameSettings {
-  return settings;
-}
-
-/** Merged `dialog` values from `game-config.json` only (no runtime variable overrides). */
-export function getDialogSettingsFromConfig(): GameSettingsDialog {
-  return mergeDialogSettings(settings);
-}
-
-/**
- * Merged `dialog` values: when `manager` is set, overlays runtime `dialog:*` variables
- * (see `B.dialogSettings`); otherwise returns config defaults only.
- */
-export function getDialogSettings(manager?: GameStateManager | null): GameSettingsDialog {
-  if (manager) {
-    return readEffectiveDialogSettings(manager);
-  }
-  return mergeDialogSettings(settings);
-}
-
-/** Merged `perspective` values for room-region walk-speed scaling (defaults when block or fields are omitted). */
-export function getPerspectiveSettings(): GameSettingsPerspective {
-  return mergePerspectiveSettings(settings);
-}
-
-/** How long a `.say()` line should stay on screen from {@link getDialogSettings} timing rules. */
-export function computeDialogLineDurationMs(
-  line: string,
-  manager?: GameStateManager | null,
-): number {
-  const dialog = getDialogSettings(manager);
-  const n = Array.from(line).length;
-  const scaled = n * dialog.msPerCharacter * dialog.durationMultiplier;
-  const clamped = Math.min(dialog.maxDurationMs, Math.max(dialog.minDurationMs, scaled));
-  return Math.round(clamped);
 }
 </file>
 
@@ -21927,545 +20808,648 @@ export function createLazyBenneScriptInventoryNamespace(
 }
 </file>
 
-<file path="src/engine/scripting/CharacterBenneScript.ts">
+<file path="src/engine/sound/SoundManager.ts">
 import * as Phaser from 'phaser';
-import type { CharacterVerbInteractPayload } from '../events/propInteractionEvents.js';
-import { characterVerbEventId } from '../events/verbInteractionEvents.js';
-import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import type { RoomScene } from '../scenes/RoomScene.js';
-import { BenneScriptCore } from './BenneScriptCore.js';
 import {
-  createBenneScriptGameStateNamespace,
-  createBenneScriptInventoryNamespace,
-  type BenneScriptGameStateNamespace,
-  type BenneScriptInventoryNamespace,
-} from './benneScriptGameStateApi.js';
-import {
-  globalInventoryOnCharacterAnySourceEventId,
-  roomInventoryOnCharacterAnySourceEventId,
-} from '../events/inventoryOnVerbEvents.js';
-import type {
-  BenneScriptDialogCommandSurface,
-  BenneScriptPlayerFacade,
-  InventoryWhenUsedOnPayloadHandler,
-  RoomInventoryUsedOnRegistrar,
-} from './benneScriptFacades.js';
-import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
+  getEffectiveMusicVolume,
+  getEffectiveSfxVolume,
+} from '../applyAudioFromSettings.js';
+import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import { writePersistedCurrentMusicId } from './audioGameState.js';
+import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from './benneSoundRegistry.js';
+import type { MusicPlayOptions, SoundPlayOptions } from './benneSoundTypes.js';
+import { benneMusicCacheKey, benneSfxCacheKey } from './benneAudioCacheKeys.js';
+
+/** Author basename — must stay under `audio/sfx` / `audio/music`. */
+const AUDIO_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
+function clamp01(n: number): number {
+  return Math.min(1, Math.max(0, n));
+}
+
+function validateAudioId(id: string): boolean {
+  return id.length > 0 && AUDIO_ID_RE.test(id);
+}
 
 /**
- * Bennescript facade for `*.character.ts`: self-only verb channels (`characterVerbEventId`) so
- * {@link import('../verbs/dispatchVerb.js').dispatchVerbInteraction} still prefers room-scoped handlers first.
+ * Best-effort playback head in seconds for crossfade sync (Phaser `Sound` implementations).
  */
-export class CharacterBenneScript extends BenneScriptCore {
-  private static unresolvedInventoryOnCharacterWarnings = new Set<string>();
+function tryGetMusicPlaybackSeconds(sound: Phaser.Sound.BaseSound): number | null {
+  if (!sound.isPlaying) {
+    return null;
+  }
+  try {
+    const s = sound as Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
+    const t = s.seek;
+    if (typeof t === 'number' && Number.isFinite(t) && t >= 0) {
+      return t;
+    }
+  } catch {
+    /* HTML5 / WebAudio seek can throw on some states — treat as unknown. */
+  }
+  return null;
+}
 
-  private readonly characterId: string;
-  private readonly roomId: string;
-  private readonly roomScene: RoomScene;
+function readSoundVolume(sound: Phaser.Sound.BaseSound): number {
+  const s = sound as Phaser.Sound.HTML5AudioSound | Phaser.Sound.WebAudioSound;
+  return typeof s.volume === 'number' && Number.isFinite(s.volume) ? s.volume : 0;
+}
 
-  readonly state: BenneScriptGameStateNamespace;
-  readonly inventory: BenneScriptInventoryNamespace;
-  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+/**
+ * Game-scoped audio: uses {@link Phaser.Game#sound} only so playback survives `RoomScene` shutdown.
+ */
+export class SoundManager {
+  private readonly game: Phaser.Game;
+  private sfxSessionMultiplier = 1;
+  private musicSessionMultiplier = 1;
 
-  readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
+  private readonly activeSfx = new Set<Phaser.Sound.BaseSound>();
+  private readonly sfxAuthorBySound = new WeakMap<Phaser.Sound.BaseSound, string>();
 
-  constructor(events: Phaser.Events.EventEmitter, characterId: string, roomId: string, roomScene: RoomScene) {
-    super(events, () => roomScene.time, () => roomScene);
-    this.characterId = characterId;
-    this.roomId = roomId;
-    this.roomScene = roomScene;
-    const manager = resolveGameStateManager(roomScene.game);
-    this.state = createBenneScriptGameStateNamespace(manager);
-    this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene, (factory) =>
-      this.chain(factory),
-    );
-    this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
-    this.whenInventoryUsedOn = Object.assign(
-      (
-        targetId: string,
-        handler: InventoryWhenUsedOnPayloadHandler,
-        options?: { doNotClear?: boolean },
-      ) => {
-        this.registerInventoryUsedOnForCharacterTarget(targetId, handler, options?.doNotClear === true);
-      },
-      {
-        doNotClear: (targetId: string, handler: InventoryWhenUsedOnPayloadHandler) => {
-          this.registerInventoryUsedOnForCharacterTarget(targetId, handler, true);
-        },
-      },
-    ) as RoomInventoryUsedOnRegistrar;
+  /** Primary music slot (incoming / sole instance). */
+  private musicSound: Phaser.Sound.BaseSound | null = null;
+  /** Outgoing music instance during an active crossfade only. */
+  private musicFadeOutSound: Phaser.Sound.BaseSound | null = null;
+  /** Completes the queued Bennescript step for the active crossfade (single slot). */
+  private musicFadeInteractionResolve: (() => void) | null = null;
+  /** Non-zero while a volume ramp uses {@link requestAnimationFrame}. */
+  private musicFadeRafId = 0;
+  /** Author basename for the primary music slot (persisted to game state on change). */
+  private musicAuthorId: string | null = null;
+
+  constructor(game: Phaser.Game) {
+    this.game = game;
   }
 
-  private warnInventoryOnWrongCharacter(targetId: string): void {
-    const key = `${this.roomId}:${this.characterId}:${targetId}`;
-    if (CharacterBenneScript.unresolvedInventoryOnCharacterWarnings.has(key)) {
+  /** True when editor preview muted scripted audio via registry. */
+  private isScriptAudioDisabled(): boolean {
+    return this.game.registry.get(BENNE_AUDIO_SCRIPT_DISABLED_KEY) === true;
+  }
+
+  private effectiveSfxVolume(options?: SoundPlayOptions): number {
+    const base = getEffectiveSfxVolume();
+    const opt = options?.volume;
+    const mul = opt === undefined ? 1 : clamp01(opt);
+    return clamp01(base * this.sfxSessionMultiplier * mul);
+  }
+
+  private effectiveMusicVolume(options?: MusicPlayOptions): number {
+    const base = getEffectiveMusicVolume();
+    const opt = options?.volume;
+    const mul = opt === undefined ? 1 : clamp01(opt);
+    return clamp01(base * this.musicSessionMultiplier * mul);
+  }
+
+  private cancelMusicFadeRaf(): void {
+    if (this.musicFadeRafId !== 0) {
+      cancelAnimationFrame(this.musicFadeRafId);
+      this.musicFadeRafId = 0;
+    }
+  }
+
+  private resolveMusicFadeInteractionIfPending(): void {
+    const done = this.musicFadeInteractionResolve;
+    if (!done) {
       return;
     }
-    CharacterBenneScript.unresolvedInventoryOnCharacterWarnings.add(key);
-    console.warn(
-      `[Benne] whenInventoryUsedOn("${targetId}") in character script "${this.characterId}" expects targetId === character id — handler was not registered.`,
-    );
+    this.musicFadeInteractionResolve = null;
+    done();
   }
 
-  private registerInventoryUsedOnForCharacterTarget(
-    targetId: string,
-    handler: InventoryWhenUsedOnPayloadHandler,
-    doNotClear: boolean,
-  ): void {
-    if (targetId !== this.characterId) {
-      this.warnInventoryOnWrongCharacter(targetId);
-      return;
-    }
-    this.subscribeInventoryUsedOnTargetEvents(
-      roomInventoryOnCharacterAnySourceEventId(this.roomId, this.characterId),
-      globalInventoryOnCharacterAnySourceEventId(this.characterId),
-      handler,
-      doNotClear,
-    );
-  }
-
-  private subscribeSelfVerb(
-    verbId: string,
-    handler: ((p: CharacterVerbInteractPayload) => void) | (() => void),
-  ): void {
-    const eventId = characterVerbEventId(this.characterId, verbId);
-    this.subscribe(eventId, (payload) => {
-      const p = payload as CharacterVerbInteractPayload;
-      if (handler.length === 0) {
-        (handler as () => void)();
-      } else {
-        (handler as (x: CharacterVerbInteractPayload) => void)(p);
+  private killMusicVolumeTweens(): void {
+    const scenes = this.game.scene.getScenes(false);
+    for (let i = 0; i < scenes.length; i++) {
+      const tweens = scenes[i].tweens;
+      if (this.musicSound) {
+        tweens.killTweensOf(this.musicSound);
       }
+      if (this.musicFadeOutSound) {
+        tweens.killTweensOf(this.musicFadeOutSound);
+      }
+    }
+  }
+
+  /**
+   * Stops and removes every music instance and cancels crossfade tweens.
+   * Used for instant replace, `stopMusic`, and `destroy`.
+   */
+  private hardStopAllMusicTracks(): void {
+    this.cancelMusicFadeRaf();
+    this.killMusicVolumeTweens();
+    this.resolveMusicFadeInteractionIfPending();
+    if (this.musicFadeOutSound) {
+      try {
+        this.musicFadeOutSound.stop();
+      } catch {
+        /* ignore */
+      }
+      if (this.game.sound.getAll(this.musicFadeOutSound.key).includes(this.musicFadeOutSound)) {
+        this.game.sound.remove(this.musicFadeOutSound);
+      }
+      this.musicFadeOutSound = null;
+    }
+    if (this.musicSound) {
+      try {
+        this.musicSound.stop();
+      } catch {
+        /* ignore */
+      }
+      if (this.game.sound.getAll(this.musicSound.key).includes(this.musicSound)) {
+        this.game.sound.remove(this.musicSound);
+      }
+      this.musicSound = null;
+    }
+  }
+
+  /**
+   * Clears any fade-out slot and detaches the current primary slot when it is usable as an
+   * outgoing crossfade source. Non-playing primaries are removed.
+   */
+  private consumePrimaryMusicForCrossfade(): Phaser.Sound.BaseSound | null {
+    this.cancelMusicFadeRaf();
+    this.killMusicVolumeTweens();
+    this.resolveMusicFadeInteractionIfPending();
+    if (this.musicFadeOutSound) {
+      try {
+        this.musicFadeOutSound.stop();
+      } catch {
+        /* ignore */
+      }
+      if (this.game.sound.getAll(this.musicFadeOutSound.key).includes(this.musicFadeOutSound)) {
+        this.game.sound.remove(this.musicFadeOutSound);
+      }
+      this.musicFadeOutSound = null;
+    }
+
+    const current = this.musicSound;
+    this.musicSound = null;
+    if (!current) {
+      return null;
+    }
+    if (!current.isPlaying) {
+      try {
+        current.stop();
+      } catch {
+        /* ignore */
+      }
+      if (this.game.sound.getAll(current.key).includes(current)) {
+        this.game.sound.remove(current);
+      }
+      return null;
+    }
+    return current;
+  }
+
+  private refreshActiveVolumes(): void {
+    if (this.isScriptAudioDisabled()) {
+      return;
+    }
+    const sfxVol = clamp01(getEffectiveSfxVolume() * this.sfxSessionMultiplier);
+    for (const sound of this.activeSfx) {
+      if (!sound.isPlaying) {
+        continue;
+      }
+      this.setInstanceVolume(sound, sfxVol);
+    }
+    // Crossfade tweens own music volumes until the fade completes.
+    if (this.musicFadeOutSound != null) {
+      return;
+    }
+    if (this.musicSound && this.musicSound.isPlaying) {
+      this.setInstanceVolume(this.musicSound, this.effectiveMusicVolume(undefined));
+    }
+  }
+
+  private setInstanceVolume(sound: Phaser.Sound.BaseSound, volume: number): void {
+    const v = clamp01(volume);
+    const s = sound as Phaser.Sound.HTML5AudioSound | Phaser.Sound.WebAudioSound;
+    s.volume = v;
+  }
+
+  private persistCurrentMusicId(id: string | null): void {
+    this.musicAuthorId = id;
+    const mgr = tryGetActiveGameStateManager();
+    if (mgr) {
+      writePersistedCurrentMusicId(mgr, id);
+    }
+  }
+
+  playSfx(id: string, options?: SoundPlayOptions): void {
+    if (this.isScriptAudioDisabled() || !validateAudioId(id)) {
+      return;
+    }
+    const key = benneSfxCacheKey(id);
+    if (!this.game.cache.audio.has(key)) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] B.sound.play: missing audio "${id}" (expected assets/audio/sfx/${id}.*).`);
+      }
+      return;
+    }
+    const volume = this.effectiveSfxVolume(options);
+    const loop = options?.loop === true;
+    const sound = this.game.sound.add(key, { volume, loop });
+    this.sfxAuthorBySound.set(sound, id);
+    this.activeSfx.add(sound);
+    let cleanedFireAndForget = false;
+    const cleanup = (): void => {
+      if (cleanedFireAndForget) {
+        return;
+      }
+      cleanedFireAndForget = true;
+      this.activeSfx.delete(sound);
+      this.sfxAuthorBySound.delete(sound);
+      if (this.game.sound.getAll(key).includes(sound)) {
+        this.game.sound.remove(sound);
+      }
+    };
+    sound.once(Phaser.Sound.Events.COMPLETE, cleanup);
+    sound.once(Phaser.Sound.Events.DESTROY, cleanup);
+    sound.play();
+  }
+
+  /**
+   * Returns a promise that resolves when the sound finishes or is stopped/destroyed.
+   */
+  playSfxAndWait(id: string, options?: SoundPlayOptions): Promise<void> {
+    if (this.isScriptAudioDisabled() || !validateAudioId(id)) {
+      return Promise.resolve();
+    }
+    const key = benneSfxCacheKey(id);
+    if (!this.game.cache.audio.has(key)) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] B.sound.playAndWait: missing audio "${id}" (expected assets/audio/sfx/${id}.*).`);
+      }
+      return Promise.resolve();
+    }
+    const volume = this.effectiveSfxVolume(options);
+    const loop = options?.loop === true;
+    const sound = this.game.sound.add(key, { volume, loop });
+    this.sfxAuthorBySound.set(sound, id);
+    this.activeSfx.add(sound);
+
+    let cleaned = false;
+    const cleanup = (): void => {
+      if (cleaned) {
+        return;
+      }
+      cleaned = true;
+      this.activeSfx.delete(sound);
+      this.sfxAuthorBySound.delete(sound);
+      if (this.game.sound.getAll(key).includes(sound)) {
+        this.game.sound.remove(sound);
+      }
+    };
+    sound.once(Phaser.Sound.Events.COMPLETE, cleanup);
+    sound.once(Phaser.Sound.Events.DESTROY, cleanup);
+
+    sound.play();
+    return this.awaitSoundFinish(sound);
+  }
+
+  private awaitSoundFinish(sound: Phaser.Sound.BaseSound): Promise<void> {
+    return new Promise((resolve) => {
+      const finish = (): void => {
+        sound.off(Phaser.Sound.Events.COMPLETE, finish);
+        sound.off(Phaser.Sound.Events.STOP, finish);
+        sound.off(Phaser.Sound.Events.DESTROY, finish);
+        resolve();
+      };
+      if (!sound.isPlaying) {
+        finish();
+        return;
+      }
+      sound.once(Phaser.Sound.Events.COMPLETE, finish);
+      sound.once(Phaser.Sound.Events.STOP, finish);
+      sound.once(Phaser.Sound.Events.DESTROY, finish);
     });
   }
 
-  whenLookAt(handler: () => void): void;
-  whenLookAt(handler: (p: CharacterVerbInteractPayload) => void): void;
-  whenLookAt(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeSelfVerb(this.resolveVerbId('look'), handler);
+  /**
+   * Plays music. Resolves immediately for instant playback; when **`fadeSeconds`** > 0, resolves
+   * after the crossfade duration so Bennescript **`interactionTail`** steps stay ordered.
+   */
+  playMusic(id: string, options?: MusicPlayOptions): Promise<void> {
+    if (this.isScriptAudioDisabled() || !validateAudioId(id)) {
+      return Promise.resolve();
+    }
+    const key = benneMusicCacheKey(id);
+    if (!this.game.cache.audio.has(key)) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] B.sound.playMusic: missing audio "${id}" (expected assets/audio/music/${id}.*).`);
+      }
+      return Promise.resolve();
+    }
+
+    const fadeRaw = options?.fadeSeconds;
+    const fadeSeconds =
+      typeof fadeRaw === 'number' && Number.isFinite(fadeRaw) && fadeRaw > 0 ? fadeRaw : 0;
+
+    if (fadeSeconds <= 0) {
+      this.hardStopAllMusicTracks();
+      const volume = this.effectiveMusicVolume(options);
+      const loop = options?.loop !== false;
+      const sound = this.game.sound.add(key, { volume, loop });
+      this.musicSound = sound;
+      sound.play();
+      this.persistCurrentMusicId(id);
+      return Promise.resolve();
+    }
+
+    return this.playMusicCrossfade(id, key, options, fadeSeconds);
   }
 
-  whenUse(handler: () => void): void;
-  whenUse(handler: (p: CharacterVerbInteractPayload) => void): void;
-  whenUse(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeSelfVerb(this.resolveVerbId('use'), handler);
-  }
-
-  whenPickUp(handler: () => void): void;
-  whenPickUp(handler: (p: CharacterVerbInteractPayload) => void): void;
-  whenPickUp(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeSelfVerb(this.resolveVerbId('pickUp'), handler);
-  }
-
-  whenPush(handler: () => void): void;
-  whenPush(handler: (p: CharacterVerbInteractPayload) => void): void;
-  whenPush(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeSelfVerb(this.resolveVerbId('push'), handler);
-  }
-
-  whenPull(handler: () => void): void;
-  whenPull(handler: (p: CharacterVerbInteractPayload) => void): void;
-  whenPull(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeSelfVerb(this.resolveVerbId('pull'), handler);
-  }
-
-  whenOpen(handler: () => void): void;
-  whenOpen(handler: (p: CharacterVerbInteractPayload) => void): void;
-  whenOpen(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeSelfVerb(this.resolveVerbId('open'), handler);
-  }
-
-  whenClose(handler: () => void): void;
-  whenClose(handler: (p: CharacterVerbInteractPayload) => void): void;
-  whenClose(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeSelfVerb(this.resolveVerbId('close'), handler);
-  }
-
-  whenTalkTo(handler: () => void): void;
-  whenTalkTo(handler: (p: CharacterVerbInteractPayload) => void): void;
-  whenTalkTo(handler: ((p: CharacterVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeSelfVerb(this.resolveVerbId('talkTo'), handler);
-  }
-
-  whenVerb(verbId: string, handler: () => void): void;
-  whenVerb(verbId: string, handler: (p: CharacterVerbInteractPayload) => void): void;
-  whenVerb(
-    verbId: string,
-    handler: ((p: CharacterVerbInteractPayload) => void) | (() => void),
+  /**
+   * Linear volume crossfade using real time ({@link requestAnimationFrame}), not scene tweens or
+   * {@link Phaser.Time.Clock} — enter-room-after-fade hooks run while {@link RoomScene} cutscene
+   * depth suppresses input until the interaction tail drains; scene clocks / tween updates must
+   * not gate that tail.
+   */
+  private runMusicCrossfadeWithRaf(
+    incoming: Phaser.Sound.BaseSound,
+    outgoing: Phaser.Sound.BaseSound | null,
+    targetVolume: number,
+    durationMs: number,
   ): void {
-    this.subscribeSelfVerb(verbId, handler);
+    const start = performance.now();
+    const startOut = outgoing ? clamp01(readSoundVolume(outgoing)) : 0;
+
+    const finalize = (): void => {
+      this.musicFadeRafId = 0;
+      try {
+        if (incoming === this.musicSound) {
+          this.setInstanceVolume(incoming, targetVolume);
+        }
+        if (outgoing) {
+          try {
+            outgoing.stop();
+          } catch {
+            /* ignore */
+          }
+          if (this.game.sound.getAll(outgoing.key).includes(outgoing)) {
+            this.game.sound.remove(outgoing);
+          }
+        }
+        if (this.musicFadeOutSound === outgoing) {
+          this.musicFadeOutSound = null;
+        }
+      } finally {
+        this.resolveMusicFadeInteractionIfPending();
+      }
+    };
+
+    const tick = (): void => {
+      if (!this.game.sound.getAll(incoming.key).includes(incoming)) {
+        this.musicFadeRafId = 0;
+        try {
+          if (outgoing && this.game.sound.getAll(outgoing.key).includes(outgoing)) {
+            try {
+              outgoing.stop();
+            } catch {
+              /* ignore */
+            }
+            this.game.sound.remove(outgoing);
+          }
+          if (this.musicFadeOutSound === outgoing) {
+            this.musicFadeOutSound = null;
+          }
+        } finally {
+          this.resolveMusicFadeInteractionIfPending();
+        }
+        return;
+      }
+      const elapsed = performance.now() - start;
+      const u = Math.min(1, durationMs > 0 ? elapsed / durationMs : 1);
+      this.setInstanceVolume(incoming, targetVolume * u);
+      if (outgoing && this.game.sound.getAll(outgoing.key).includes(outgoing)) {
+        this.setInstanceVolume(outgoing, startOut * (1 - u));
+      }
+      if (u >= 1) {
+        finalize();
+        return;
+      }
+      this.musicFadeRafId = requestAnimationFrame(tick);
+    };
+
+    this.musicFadeRafId = requestAnimationFrame(tick);
   }
 
-  get player(): BenneScriptPlayerFacade {
-    return this.makePlayerFacade();
+  private playMusicCrossfade(
+    authorId: string,
+    key: string,
+    options: MusicPlayOptions | undefined,
+    fadeSeconds: number,
+  ): Promise<void> {
+    const outgoing = this.consumePrimaryMusicForCrossfade();
+    const loop = options?.loop !== false;
+    const targetVolume = this.effectiveMusicVolume(options);
+    const durationMs = fadeSeconds * 1000;
+
+    const incoming = this.game.sound.add(key, { volume: 0, loop });
+    this.musicFadeOutSound = outgoing;
+    this.musicSound = incoming;
+
+    const playConfig: Phaser.Types.Sound.SoundConfig = {};
+    if (options?.sync === true && outgoing) {
+      const head = tryGetMusicPlaybackSeconds(outgoing);
+      const dur =
+        typeof incoming.duration === 'number' && Number.isFinite(incoming.duration)
+          ? incoming.duration
+          : null;
+      if (head != null && dur != null && dur > 0.05) {
+        const clamped = Math.min(Math.max(0, head), Math.max(0, dur - 0.05));
+        playConfig.seek = clamped;
+      }
+    }
+
+    let started = false;
+    try {
+      started = Object.keys(playConfig).length > 0 ? incoming.play(playConfig) : incoming.play();
+    } catch {
+      started = false;
+    }
+
+    if (!started) {
+      this.killMusicVolumeTweens();
+      if (this.game.sound.getAll(key).includes(incoming)) {
+        this.game.sound.remove(incoming);
+      }
+      this.musicSound = null;
+      if (outgoing && outgoing.isPlaying) {
+        this.musicSound = outgoing;
+      } else if (outgoing) {
+        try {
+          outgoing.stop();
+        } catch {
+          /* ignore */
+        }
+        if (this.game.sound.getAll(outgoing.key).includes(outgoing)) {
+          this.game.sound.remove(outgoing);
+        }
+      }
+      this.musicFadeOutSound = null;
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] B.sound.playMusic: failed to start crossfade for "${key}".`);
+      }
+      return Promise.resolve();
+    }
+
+    this.persistCurrentMusicId(authorId);
+
+    return new Promise((resolve) => {
+      this.musicFadeInteractionResolve = resolve;
+      this.runMusicCrossfadeWithRaf(incoming, outgoing, targetVolume, durationMs);
+    });
   }
 
-  private makePlayerFacade(): BenneScriptPlayerFacade {
-    return this.makePlayerFacadeFromScene(() => this.roomScene);
+  stopSfx(authorId?: string): void {
+    if (this.isScriptAudioDisabled()) {
+      return;
+    }
+    if (authorId === undefined) {
+      this.stopAllSfx();
+      return;
+    }
+    if (!validateAudioId(authorId)) {
+      return;
+    }
+    const toStop: Phaser.Sound.BaseSound[] = [];
+    for (const sound of this.activeSfx) {
+      if (this.sfxAuthorBySound.get(sound) === authorId) {
+        toStop.push(sound);
+      }
+    }
+    for (const s of toStop) {
+      s.stop();
+      this.game.sound.remove(s);
+      this.activeSfx.delete(s);
+      this.sfxAuthorBySound.delete(s);
+    }
   }
 
+  stopAllSfx(): void {
+    if (this.isScriptAudioDisabled()) {
+      return;
+    }
+    for (const sound of [...this.activeSfx]) {
+      sound.stop();
+      this.game.sound.remove(sound);
+      this.activeSfx.delete(sound);
+      this.sfxAuthorBySound.delete(sound);
+    }
+  }
+
+  stopMusic(): void {
+    if (this.isScriptAudioDisabled()) {
+      return;
+    }
+    this.hardStopAllMusicTracks();
+    this.persistCurrentMusicId(null);
+  }
+
+  getCurrentMusicId(): string | null {
+    return this.musicAuthorId;
+  }
+
+  getSfxSessionVolume(): number {
+    return this.sfxSessionMultiplier;
+  }
+
+  getMusicSessionVolume(): number {
+    return this.musicSessionMultiplier;
+  }
+
+  setSfxSessionVolume(volume: number): void {
+    this.sfxSessionMultiplier = clamp01(volume);
+    this.refreshActiveVolumes();
+  }
+
+  setMusicSessionVolume(volume: number): void {
+    this.musicSessionMultiplier = clamp01(volume);
+    this.refreshActiveVolumes();
+  }
+
+  isSfxPlaying(authorId: string): boolean {
+    if (!validateAudioId(authorId)) {
+      return false;
+    }
+    for (const sound of this.activeSfx) {
+      if (this.sfxAuthorBySound.get(sound) === authorId && sound.isPlaying) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  isMusicPlaying(): boolean {
+    return (
+      (this.musicSound != null && this.musicSound.isPlaying) ||
+      (this.musicFadeOutSound != null && this.musicFadeOutSound.isPlaying)
+    );
+  }
+
+  destroy(): void {
+    this.stopAllSfx();
+    this.stopMusic();
+  }
 }
 </file>
 
-<file path="src/engine/scripting/InventoryBenneScript.ts">
-import * as Phaser from 'phaser';
-import type { InventoryVerbInteractPayload } from '../events/inventoryVerbEvents.js';
-import { inventoryVerbEventId, roomInventoryVerbEventId } from '../events/inventoryVerbEvents.js';
-import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import type { RoomScene } from '../scenes/RoomScene.js';
-import { BenneScriptCore } from './BenneScriptCore.js';
-import {
-  createBenneScriptGameStateNamespace,
-  createBenneScriptInventoryNamespace,
-  type BenneScriptGameStateNamespace,
-  type BenneScriptInventoryNamespace,
-} from './benneScriptGameStateApi.js';
-import {
-  globalInventoryOnInventoryRowEventId,
-  roomInventoryOnInventoryRowEventId,
-} from '../events/inventoryOnVerbEvents.js';
-import type {
-  BenneScriptDialogCommandSurface,
-  BenneScriptPlayerFacade,
-  InventoryWhenGiveRegistrar,
-  InventoryWhenUsedOnPayloadHandler,
-  InventoryWhenUseHandler,
-  InventoryWhenUseRegistrar,
-  RoomInventoryUsedOnRegistrar,
-} from './benneScriptFacades.js';
-import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
-
-/**
- * Bennescript facade for `*.inventory.ts`: subscribes to room-scoped and global inventory verb ids so
- * {@link import('../verbs/dispatchInventoryVerb.js').dispatchInventoryVerbInteraction} precedence matches characters.
- *
- * The resolved **use** and **give** verbs on this row always arm this item for use-on-target after the interaction
- * queue drains, even with no {@link InventoryBenneScript.whenUse} / {@link InventoryBenneScript.whenGive} handlers.
- * Those helpers add behavior on top; **`doNotActivate`** opts out of arming for that verb (consumables, etc.).
- */
-export class InventoryBenneScript extends BenneScriptCore {
-  private static readonly unresolvedInventoryOnItemWarnings = new Set<string>();
-
-  private readonly itemId: string;
-  private readonly roomId: string;
-  private readonly roomScene: RoomScene;
-
-  private readonly inventoryUseHandlers: Array<{
-    skipActivate: boolean;
-    handler: InventoryWhenUseHandler;
-  }> = [];
-  private inventoryUseVerbSubscriptionInstalled = false;
-
-  private readonly inventoryGiveHandlers: Array<{
-    skipActivate: boolean;
-    handler: InventoryWhenUseHandler;
-  }> = [];
-  private inventoryGiveVerbSubscriptionInstalled = false;
-
-  readonly state: BenneScriptGameStateNamespace;
-  readonly inventory: BenneScriptInventoryNamespace;
-  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
-
-  /**
-   * Extra handlers for the resolved **use** verb; arming still happens unless every registered handler
-   * used **`doNotActivate`** (see **`doNotActivate`**).
-   */
-  readonly whenUse: InventoryWhenUseRegistrar;
-
-  /**
-   * Extra handlers for the resolved **give** verb; same arming rules as {@link InventoryBenneScript.whenUse}.
-   */
-  readonly whenGive: InventoryWhenGiveRegistrar;
-
-  /**
-   * When this **item row** is the use-on-target (another inventory item is armed and the use verb
-   * path applies), handle {@link import('../events/inventoryOnVerbEvents.js').InventoryUsedOnInventoryItemPayload} — same
-   * `itemId` / `doNotClear` semantics as {@link import('./CharacterBenneScript.js').CharacterBenneScript.whenInventoryUsedOn}.
-   */
-  readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
-
-  constructor(events: Phaser.Events.EventEmitter, itemId: string, roomId: string, roomScene: RoomScene) {
-    super(events, () => roomScene.time, () => roomScene);
-    this.itemId = itemId;
-    this.roomId = roomId;
-    this.roomScene = roomScene;
-    const manager = resolveGameStateManager(roomScene.game);
-    this.state = createBenneScriptGameStateNamespace(manager);
-    this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene, (factory) =>
-      this.chain(factory),
-    );
-    this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
-    const registerWhenUse = (skipActivate: boolean) => {
-      return (handler: InventoryWhenUseHandler): void => {
-        this.inventoryUseHandlers.push({ skipActivate, handler });
-        this.ensureInventoryUseVerbSubscription();
-      };
-    };
-    this.whenUse = Object.assign(registerWhenUse(false), {
-      doNotActivate: registerWhenUse(true),
-    });
-    const registerWhenGive = (skipActivate: boolean) => {
-      return (handler: InventoryWhenUseHandler): void => {
-        this.inventoryGiveHandlers.push({ skipActivate, handler });
-        this.ensureInventoryGiveVerbSubscription();
-      };
-    };
-    this.whenGive = Object.assign(registerWhenGive(false), {
-      doNotActivate: registerWhenGive(true),
-    });
-    this.whenInventoryUsedOn = Object.assign(
-      (
-        targetId: string,
-        handler: InventoryWhenUsedOnPayloadHandler,
-        options?: { doNotClear?: boolean },
-      ) => {
-        this.registerInventoryUsedOnForInventoryItemTarget(
-          targetId,
-          handler,
-          options?.doNotClear === true,
-        );
-      },
-      {
-        doNotClear: (targetId: string, handler: InventoryWhenUsedOnPayloadHandler) => {
-          this.registerInventoryUsedOnForInventoryItemTarget(targetId, handler, true);
-        },
-      },
-    ) as RoomInventoryUsedOnRegistrar;
-  }
-
-  /**
-   * Wires default **use** and **give**→{@link setActiveInventory} when the author’s `registerInventoryScript` body
-   * did not register handlers (no-op inventory scripts). Safe to call after **`whenUse`** / **`whenGive`** —
-   * installs at most one subscription per verb.
-   */
-  ensureDefaultInventoryUseAndGiveActivationAfterRegister(): void {
-    this.ensureInventoryUseVerbSubscription();
-    this.ensureInventoryGiveVerbSubscription();
-  }
-
-  private ensureInventoryUseVerbSubscription(): void {
-    if (this.inventoryUseVerbSubscriptionInstalled) {
-      return;
-    }
-    this.inventoryUseVerbSubscriptionInstalled = true;
-    const verbId = this.resolveVerbId('use');
-    const run = (payload: unknown): void => {
-      const p = payload as InventoryVerbInteractPayload;
-      for (const { handler } of this.inventoryUseHandlers) {
-        if (handler.length === 0) {
-          (handler as () => void)();
-        } else {
-          (handler as (x: InventoryVerbInteractPayload) => void)(p);
-        }
-      }
-    };
-    const afterTail = (): void => {
-      const handlers = this.inventoryUseHandlers;
-      const shouldActivate = handlers.length === 0 || handlers.some((h) => !h.skipActivate);
-      if (shouldActivate) {
-        this.setActiveInventory(this.itemId);
-      }
-    };
-    this.subscribeAfterInteractionTail(
-      roomInventoryVerbEventId(this.roomId, this.itemId, verbId),
-      run,
-      afterTail,
-    );
-    this.subscribeAfterInteractionTail(inventoryVerbEventId(this.itemId, verbId), run, afterTail);
-  }
-
-  private ensureInventoryGiveVerbSubscription(): void {
-    if (this.inventoryGiveVerbSubscriptionInstalled) {
-      return;
-    }
-    this.inventoryGiveVerbSubscriptionInstalled = true;
-    const verbId = this.resolveVerbId('give');
-    const run = (payload: unknown): void => {
-      const p = payload as InventoryVerbInteractPayload;
-      for (const { handler } of this.inventoryGiveHandlers) {
-        if (handler.length === 0) {
-          (handler as () => void)();
-        } else {
-          (handler as (x: InventoryVerbInteractPayload) => void)(p);
-        }
-      }
-    };
-    const afterTail = (): void => {
-      const handlers = this.inventoryGiveHandlers;
-      const shouldActivate = handlers.length === 0 || handlers.some((h) => !h.skipActivate);
-      if (shouldActivate) {
-        this.setActiveInventory(this.itemId);
-      }
-    };
-    this.subscribeAfterInteractionTail(
-      roomInventoryVerbEventId(this.roomId, this.itemId, verbId),
-      run,
-      afterTail,
-    );
-    this.subscribeAfterInteractionTail(inventoryVerbEventId(this.itemId, verbId), run, afterTail);
-  }
-
-  private warnInventoryOnWrongItem(targetId: string): void {
-    const key = `${this.roomId}:${this.itemId}:${targetId}`;
-    if (InventoryBenneScript.unresolvedInventoryOnItemWarnings.has(key)) {
-      return;
-    }
-    InventoryBenneScript.unresolvedInventoryOnItemWarnings.add(key);
-    console.warn(
-      `[Benne] whenInventoryUsedOn("${targetId}") in inventory script "${this.itemId}" expects targetId === item id — handler was not registered.`,
-    );
-  }
-
-  private registerInventoryUsedOnForInventoryItemTarget(
-    targetId: string,
-    handler: InventoryWhenUsedOnPayloadHandler,
-    doNotClear: boolean,
-  ): void {
-    if (targetId !== this.itemId) {
-      this.warnInventoryOnWrongItem(targetId);
-      return;
-    }
-    this.subscribeInventoryUsedOnTargetEvents(
-      roomInventoryOnInventoryRowEventId(this.roomId, this.itemId),
-      globalInventoryOnInventoryRowEventId(this.itemId),
-      handler,
-      doNotClear,
-    );
-  }
-
-  private subscribeInventoryVerb(
-    verbId: string,
-    handler: ((p: InventoryVerbInteractPayload) => void) | (() => void),
-  ): void {
-    const inner = (payload: unknown) => {
-      const p = payload as InventoryVerbInteractPayload;
-      if (handler.length === 0) {
-        (handler as () => void)();
-      } else {
-        (handler as (x: InventoryVerbInteractPayload) => void)(p);
-      }
-    };
-    this.subscribe(roomInventoryVerbEventId(this.roomId, this.itemId, verbId), inner);
-    this.subscribe(inventoryVerbEventId(this.itemId, verbId), inner);
-  }
-
-  whenLookAt(handler: () => void): void;
-  whenLookAt(handler: (p: InventoryVerbInteractPayload) => void): void;
-  whenLookAt(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeInventoryVerb(this.resolveVerbId('look'), handler);
-  }
-
-  whenPickUp(handler: () => void): void;
-  whenPickUp(handler: (p: InventoryVerbInteractPayload) => void): void;
-  whenPickUp(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeInventoryVerb(this.resolveVerbId('pickUp'), handler);
-  }
-
-  whenPush(handler: () => void): void;
-  whenPush(handler: (p: InventoryVerbInteractPayload) => void): void;
-  whenPush(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeInventoryVerb(this.resolveVerbId('push'), handler);
-  }
-
-  whenPull(handler: () => void): void;
-  whenPull(handler: (p: InventoryVerbInteractPayload) => void): void;
-  whenPull(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeInventoryVerb(this.resolveVerbId('pull'), handler);
-  }
-
-  whenOpen(handler: () => void): void;
-  whenOpen(handler: (p: InventoryVerbInteractPayload) => void): void;
-  whenOpen(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeInventoryVerb(this.resolveVerbId('open'), handler);
-  }
-
-  whenClose(handler: () => void): void;
-  whenClose(handler: (p: InventoryVerbInteractPayload) => void): void;
-  whenClose(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeInventoryVerb(this.resolveVerbId('close'), handler);
-  }
-
-  whenTalkTo(handler: () => void): void;
-  whenTalkTo(handler: (p: InventoryVerbInteractPayload) => void): void;
-  whenTalkTo(handler: ((p: InventoryVerbInteractPayload) => void) | (() => void)): void {
-    this.subscribeInventoryVerb(this.resolveVerbId('talkTo'), handler);
-  }
-
-  whenVerb(verbId: string, handler: () => void): void;
-  whenVerb(verbId: string, handler: (p: InventoryVerbInteractPayload) => void): void;
-  whenVerb(
-    verbId: string,
-    handler: ((p: InventoryVerbInteractPayload) => void) | (() => void),
-  ): void {
-    this.subscribeInventoryVerb(verbId, handler);
-  }
-
-  get player(): BenneScriptPlayerFacade {
-    return this.makePlayerFacade();
-  }
-
-  private makePlayerFacade(): BenneScriptPlayerFacade {
-    return this.makePlayerFacadeFromScene(() => this.roomScene);
-  }
-
-}
-</file>
-
-<file path="src/game/assets/images/guis/inventoryBar/inventoryBar.json">
+<file path="src/game/assets/images/cursor/cursor.json">
 { "frames": {
-   "inventoryBar 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 320, "h": 180 },
+   "cursor 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 32, "h": 32 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
     "duration": 100
    },
-   "inventoryBar 1.aseprite": {
-    "frame": { "x": 320, "y": 0, "w": 320, "h": 180 },
+   "cursor 1.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 32, "h": 32 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
     "duration": 100
    },
-   "inventoryBar 2.aseprite": {
-    "frame": { "x": 0, "y": 180, "w": 320, "h": 180 },
+   "cursor 2.aseprite": {
+    "frame": { "x": 32, "y": 0, "w": 32, "h": 32 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
     "duration": 100
    },
-   "inventoryBar 3.aseprite": {
-    "frame": { "x": 320, "y": 180, "w": 320, "h": 180 },
+   "cursor 3.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 32, "h": 32 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 180 },
-    "sourceSize": { "w": 320, "h": 180 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
+   },
+   "cursor 4.aseprite": {
+    "frame": { "x": 0, "y": 32, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
     "duration": 100
    }
  },
  "meta": {
   "app": "https://www.aseprite.org/",
-  "version": "1.3.18-beta3-x64",
-  "image": "inventoryBar.png",
-  "format": "I8",
-  "size": { "w": 640, "h": 360 },
+  "version": "1.3.18-beta1-x64",
+  "image": "cursor.png",
+  "format": "RGBA8888",
+  "size": { "w": 64, "h": 64 },
   "scale": "1",
   "frameTags": [
-   { "name": "InvBG", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "BackBtn", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
-   { "name": "FwBtn", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" }
+   { "name": "Idle", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
+   { "name": "Active", "from": 1, "to": 4, "direction": "forward", "color": "#000000ff" }
   ],
   "layers": [
-   { "name": "BG", "opacity": 255, "blendMode": "normal" },
-   { "name": "InvBG", "opacity": 255, "blendMode": "normal" },
-   { "name": "Slots", "opacity": 255, "blendMode": "normal" },
-   { "name": "Back Button", "opacity": 255, "blendMode": "normal" },
-   { "name": "Forward Button", "opacity": 255, "blendMode": "normal" },
-   { "name": "SettingsBG", "opacity": 255, "blendMode": "normal" },
-   { "name": "SettingsBtn", "opacity": 255, "blendMode": "normal" }
+   { "name": "Idle", "opacity": 255, "blendMode": "normal" }
   ],
   "slices": [
   ]
@@ -22473,778 +21457,832 @@ export class InventoryBenneScript extends BenneScriptCore {
 }
 </file>
 
-<file path="src/game/characters/henry/henry.character.json">
-{
-  "id": "henry",
-  "name": "Henry",
-  "description": "",
-  "walkSpeed": 88,
-  "clickable": true,
-  "display": {
-    "aseprite": true
-  },
-  "animations": {
-    "IdleDR": {
-      "loop": true
-    },
-    "IdleDL": {
-      "loop": true
-    },
-    "IdleL": {
-      "loop": true
-    },
-    "IdleU": {
-      "loop": true
-    },
-    "WalkDR": {
-      "loop": true
-    },
-    "WalkDL": {
-      "loop": true
-    },
-    "WalkL": {
-      "loop": true
-    },
-    "WalkU": {
-      "loop": true
-    },
-    "GrabL": {
-      "loop": true
-    },
-    "GrabU": {
-      "loop": true
-    },
-    "TalkDR": {
-      "loop": true
-    },
-    "TalkDL": {
-      "loop": true
-    },
-    "TalkL": {
-      "loop": true
-    },
-    "TalkU": {
-      "loop": true
-    },
-    "IdleD": {
-      "loop": true
-    },
-    "WalkD": {
-      "loop": true
-    },
-    "TalkD": {
-      "loop": true
-    }
-  },
-  "feet": {
-    "x": 18,
-    "y": 64
-  },
-  "walkToPoint": {
-    "x": -11,
-    "y": 61
-  },
-  "talkPoint": {
-    "x": 17,
-    "y": 0
-  },
-  "collider": {
-    "points": [
-      {
-        "x": 6,
-        "y": 2
-      },
-      {
-        "x": 17,
-        "y": 0
-      },
-      {
-        "x": 30,
-        "y": 2
-      },
-      {
-        "x": 31,
-        "y": 63
-      },
-      {
-        "x": 5,
-        "y": 63
-      }
-    ]
-  }
+<file path="src/game/assets/images/guis/dialog/dialog.json">
+{ "frames": {
+   "dialog 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 352, "h": 208 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 208 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "dialog 1.aseprite": {
+    "frame": { "x": 352, "y": 0, "w": 352, "h": 80 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 0, "y": 128, "w": 352, "h": 80 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "dialog 2.aseprite": {
+    "frame": { "x": 352, "y": 80, "w": 16, "h": 32 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 0, "y": 144, "w": 16, "h": 32 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "dialog 3.aseprite": {
+    "frame": { "x": 368, "y": 80, "w": 16, "h": 32 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 0, "y": 160, "w": 16, "h": 32 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "dialog 4.aseprite": {
+    "frame": { "x": 384, "y": 80, "w": 32, "h": 16 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 0, "y": 144, "w": 32, "h": 16 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta2-x64",
+  "image": "dialog.png",
+  "format": "RGBA8888",
+  "size": { "w": 704, "h": 208 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "VerbsBG", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "UpBtn", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "DownBtn", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "Bullet", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "BG", "opacity": 255, "blendMode": "normal" },
+   { "name": "GUI BG", "opacity": 255, "blendMode": "normal" },
+   { "name": "Arrow Down", "opacity": 255, "blendMode": "normal" },
+   { "name": "Arrow Up", "opacity": 255, "blendMode": "normal" },
+   { "name": "Text line" },
+   { "name": "Text", "group": "Text line", "opacity": 255, "blendMode": "normal" },
+   { "name": "Bullet", "group": "Text line", "opacity": 255, "blendMode": "normal" },
+   { "name": "Text Lines" },
+   { "name": "Group 1", "group": "Text Lines" },
+   { "name": "Bullet Copy", "group": "Group 1", "opacity": 255, "blendMode": "normal" },
+   { "name": "Text Copy", "group": "Group 1", "opacity": 255, "blendMode": "normal" },
+   { "name": "Group 1 Copy", "group": "Text Lines" },
+   { "name": "Bullet Copy", "group": "Group 1 Copy", "opacity": 255, "blendMode": "normal" },
+   { "name": "Text Copy", "group": "Group 1 Copy", "opacity": 255, "blendMode": "normal" },
+   { "name": "Group 1 Copy Copy", "group": "Text Lines" },
+   { "name": "Bullet Copy", "group": "Group 1 Copy Copy", "opacity": 255, "blendMode": "normal" },
+   { "name": "Text Copy", "group": "Group 1 Copy Copy", "opacity": 255, "blendMode": "normal" },
+   { "name": "Group 1 Copy Copy Copy", "group": "Text Lines" },
+   { "name": "Bullet Copy", "group": "Group 1 Copy Copy Copy", "opacity": 255, "blendMode": "normal" },
+   { "name": "Text Copy", "group": "Group 1 Copy Copy Copy", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
 }
 </file>
 
-<file path="src/game/characters/penny/penny.character.ts">
+<file path="src/game/assets/images/inventory/inventory.json">
+{ "frames": {
+   "inventory 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 1.aseprite": {
+    "frame": { "x": 36, "y": 0, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 2.aseprite": {
+    "frame": { "x": 72, "y": 0, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 3.aseprite": {
+    "frame": { "x": 108, "y": 0, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 4.aseprite": {
+    "frame": { "x": 0, "y": 20, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 5.aseprite": {
+    "frame": { "x": 36, "y": 20, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 6.aseprite": {
+    "frame": { "x": 72, "y": 20, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 7.aseprite": {
+    "frame": { "x": 108, "y": 20, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 8.aseprite": {
+    "frame": { "x": 0, "y": 40, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 9.aseprite": {
+    "frame": { "x": 36, "y": 40, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 10.aseprite": {
+    "frame": { "x": 72, "y": 40, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   },
+   "inventory 11.aseprite": {
+    "frame": { "x": 108, "y": 40, "w": 36, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 36, "h": 20 },
+    "sourceSize": { "w": 36, "h": 20 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta2-x64",
+  "image": "inventory.png",
+  "format": "RGBA8888",
+  "size": { "w": 144, "h": 60 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "Broom", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
+   { "name": "Lantern", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "Lantern-glowing", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "Key", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "Knife", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
+   { "name": "Knife-PB", "from": 5, "to": 7, "direction": "forward", "color": "#000000ff" },
+   { "name": "PB", "from": 8, "to": 8, "direction": "forward", "color": "#000000ff" },
+   { "name": "PB-open", "from": 9, "to": 9, "direction": "forward", "color": "#000000ff" },
+   { "name": "Bread", "from": 10, "to": 10, "direction": "forward", "color": "#000000ff" },
+   { "name": "Sammich", "from": 11, "to": 11, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Layer 4", "opacity": 255, "blendMode": "normal" },
+   { "name": "Layer 6", "opacity": 255, "blendMode": "normal" },
+   { "name": "Layer 5", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
+</file>
+
+<file path="src/game/assets/images/rooms/apartment/apartment.json">
+{ "frames": {
+   "apartment 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 1.aseprite": {
+    "frame": { "x": 352, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 2.aseprite": {
+    "frame": { "x": 704, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 3.aseprite": {
+    "frame": { "x": 1056, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 4.aseprite": {
+    "frame": { "x": 0, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 5.aseprite": {
+    "frame": { "x": 352, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 6.aseprite": {
+    "frame": { "x": 704, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 7.aseprite": {
+    "frame": { "x": 1056, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 8.aseprite": {
+    "frame": { "x": 0, "y": 396, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 9.aseprite": {
+    "frame": { "x": 352, "y": 396, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 10.aseprite": {
+    "frame": { "x": 704, "y": 396, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 11.aseprite": {
+    "frame": { "x": 1056, "y": 396, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 12.aseprite": {
+    "frame": { "x": 0, "y": 594, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 13.aseprite": {
+    "frame": { "x": 352, "y": 594, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "apartment 14.aseprite": {
+    "frame": { "x": 704, "y": 594, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta2-x64",
+  "image": "apartment.png",
+  "format": "RGBA8888",
+  "size": { "w": 1408, "h": 792 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "BG", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "Couch", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "Door", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "Door-open", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
+   { "name": "Pillar", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
+   { "name": "Fan", "from": 6, "to": 10, "direction": "forward", "color": "#000000ff" },
+   { "name": "Table", "from": 11, "to": 11, "direction": "forward", "color": "#000000ff" },
+   { "name": "Bread", "from": 12, "to": 12, "direction": "forward", "color": "#000000ff" },
+   { "name": "PeanutButter", "from": 13, "to": 13, "direction": "forward", "color": "#000000ff" },
+   { "name": "Knife", "from": 14, "to": 14, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Walls and Floor", "opacity": 255, "blendMode": "normal" },
+   { "name": "Ceiling", "opacity": 255, "blendMode": "normal" },
+   { "name": "Window", "opacity": 255, "blendMode": "normal" },
+   { "name": "Layer 1", "opacity": 255, "blendMode": "normal" },
+   { "name": "Couch", "opacity": 255, "blendMode": "normal" },
+   { "name": "Door", "opacity": 255, "blendMode": "normal" },
+   { "name": "Door Open", "opacity": 255, "blendMode": "normal" },
+   { "name": "Table", "opacity": 255, "blendMode": "normal" },
+   { "name": "Bread", "opacity": 255, "blendMode": "normal" },
+   { "name": "Peanut butter", "opacity": 255, "blendMode": "normal" },
+   { "name": "Knife", "opacity": 255, "blendMode": "normal" },
+   { "name": "Fan", "opacity": 255, "blendMode": "normal" },
+   { "name": "Hank", "opacity": 255, "blendMode": "normal" },
+   { "name": "Verbs", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
+</file>
+
+<file path="src/game/assets/images/rooms/outside/outside.json">
+{ "frames": {
+   "outside 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 1.aseprite": {
+    "frame": { "x": 600, "y": 0, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 2.aseprite": {
+    "frame": { "x": 1200, "y": 0, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 3.aseprite": {
+    "frame": { "x": 1800, "y": 0, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 4.aseprite": {
+    "frame": { "x": 0, "y": 198, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 5.aseprite": {
+    "frame": { "x": 600, "y": 198, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 6.aseprite": {
+    "frame": { "x": 1200, "y": 198, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 7.aseprite": {
+    "frame": { "x": 1800, "y": 198, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 8.aseprite": {
+    "frame": { "x": 0, "y": 396, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 9.aseprite": {
+    "frame": { "x": 600, "y": 396, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   },
+   "outside 10.aseprite": {
+    "frame": { "x": 1200, "y": 396, "w": 600, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 600, "h": 198 },
+    "sourceSize": { "w": 600, "h": 198 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta2-x64",
+  "image": "outside.png",
+  "format": "RGBA8888",
+  "size": { "w": 2400, "h": 594 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "Sky", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "Trees", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "BG", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "Rock", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
+   { "name": "RockMoved", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
+   { "name": "LeverPulled", "from": 6, "to": 6, "direction": "forward", "color": "#000000ff" },
+   { "name": "FountainOff", "from": 7, "to": 7, "direction": "forward", "color": "#000000ff" },
+   { "name": "FountainOn", "from": 8, "to": 10, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Sky", "opacity": 255, "blendMode": "normal" },
+   { "name": "Clouds", "opacity": 255, "blendMode": "normal" },
+   { "name": "Trees", "opacity": 255, "blendMode": "normal" },
+   { "name": "Ground", "opacity": 255, "blendMode": "normal" },
+   { "name": "Sidewalk", "opacity": 255, "blendMode": "normal" },
+   { "name": "House", "opacity": 255, "blendMode": "normal" },
+   { "name": "Door", "opacity": 255, "blendMode": "normal" },
+   { "name": "Fountain", "opacity": 255, "blendMode": "normal" },
+   { "name": "Lever", "opacity": 255, "blendMode": "normal" },
+   { "name": "Weird Rock", "opacity": 255, "blendMode": "normal" },
+   { "name": "Hank", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
+</file>
+
+<file path="src/game/characters/hank/hank.character.ts">
 import { registerCharacterScript } from '@engine/scripting';
 
 /**
- * Character script for `penny` — self-only Bennescript (`B.whenLookAt(() => …)`).
+ * Character script for `hank` — self-only Bennescript (`B.whenLookAt(() => …)`).
  * Room-scoped handlers in `*.room.ts` still run first for the same verb.
  */
-registerCharacterScript('penny', ({ B }) => {
+registerCharacterScript('hank', ({ B }) => {
   // Example: B.whenLookAt(() => { B.player.say('…'); });
   // Delete this line when you add your first handler.
   void B;
 });
 </file>
 
-<file path="src/game/dialogs/chatwithpenny/chatwithpenny.dialog.ts">
-import { registerDialogScript } from '@engine/scripting';
-
-registerDialogScript('chatwithpenny', ({ B }) => {
-  // Player picks are handled with B.whenChoice('optionId', () => { … }) — use the Inspector "Script" button per option.
-  void B;
-
-
-  B.whenChoice("door", () => {
-    B.say`
-      Player: I want to go outside.
-      Penny: I want a sandwich.
-      `;
-      B.wait(0.5);
-      B.player.say`Uhh...`;
-      B.wait(0.5);
-      B.character('penny').say`Make me a sandwich and I'll give you the key.`;
-  });
-
-  B.whenChoice("bye", () => {
-    B.say`
-      Penny: Bye!
-    `;
-    B.dialog("chatwithpenny").stop();
-  });
-
-  B.whenChoice("greeting", () => {
-    B.say`
-      Penny: Fine.
-    `;
-  });
-});
-</file>
-
-<file path="src/game/guis/dialog/dialog.gui.json">
-{
-  "id": "dialog",
-  "name": "Dialog",
-  "description": "",
-  "visible": false,
-  "display": {
-    "aseprite": true
-  },
-  "controls": [
-    {
-      "type": "image",
-      "id": "DialogBG",
-      "x": 0,
-      "y": 0,
-      "tag": "VerbsBG",
-      "zIndex": 1,
-      "visible": true,
-      "backgroundOffsetY": -13
-    },
-    {
-      "type": "button",
-      "id": "scrollUp",
-      "x": 2,
-      "y": 6,
-      "width": 7,
-      "height": 18,
-      "text": "Button",
-      "font": "",
-      "fontSize": 16,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": 0,
-      "backgroundTag": "UpBtn",
-      "backgroundOffsetX": -3,
-      "backgroundOffsetY": -2,
-      "zIndex": 100,
-      "backgroundAnchor": "top-left"
-    },
-    {
-      "type": "button",
-      "id": "scrollDown",
-      "x": 2,
-      "y": 30,
-      "width": 7,
-      "height": 18,
-      "backgroundAnchor": "top-left",
-      "text": "Button",
-      "font": "",
-      "fontSize": 16,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetY": 0,
-      "backgroundTag": "DownBtn",
-      "backgroundOffsetX": -3,
-      "backgroundOffsetY": -12,
-      "zIndex": 100
-    },
-    {
-      "type": "image",
-      "id": "Bullet",
-      "x": 0,
-      "y": 0,
-      "tag": "Bullet",
-      "zIndex": 50,
-      "backgroundAnchor": "center",
-      "gridPlacement": {
-        "gridControlId": "Option-Grid",
-        "row": 0,
-        "col": 0,
-        "align": "center"
-      },
-      "backgroundOffsetY": 3
-    },
-    {
-      "type": "grid",
-      "id": "Option-Grid",
-      "x": 12,
-      "y": 4,
-      "width": 304,
-      "height": 14,
-      "rows": 1,
-      "columns": 2,
-      "colWidths": [
-        10,
-        294
-      ],
-      "zIndex": 10
-    },
-    {
-      "type": "button",
-      "id": "Dialog-Option",
-      "x": 0,
-      "y": 0,
-      "width": 294,
-      "height": 14,
-      "backgroundAnchor": "top-left",
-      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "left",
-      "textOffsetX": 0,
-      "textOffsetY": 0,
-      "backgroundTag": "",
-      "gridPlacement": {
-        "gridControlId": "Option-Grid",
-        "row": 0,
-        "col": 1
-      }
-    }
-  ]
-}
-</file>
-
-<file path="src/game/guis/display-text/display-text.gui.ts">
-import { registerGuiScript } from '@engine/scripting';
+<file path="src/game/characters/henry/henry.character.ts">
+import { registerCharacterScript } from '@engine/scripting';
 
 /**
- * GUI script for `display-text` — Bennescript entry (`B.raw`, future onShow/onHide/control hooks on `B`).
+ * Character script for `henry` — self-only Bennescript (`B.whenLookAt(() => …)`).
+ * Room-scoped handlers in `*.room.ts` still run first for the same verb.
  */
-registerGuiScript('display-text', ({ B }) => {
+registerCharacterScript('henry', ({ B }) => {
+  // Example: B.whenLookAt(() => { B.player.say('…'); });
+  // Delete this line when you add your first handler.
   void B;
-});
-</file>
-
-<file path="src/game/guis/inventoryBar/inventoryBar.gui.json">
-{
-  "id": "inventoryBar",
-  "name": "Inventory Bar",
-  "description": "Main inventory bar displayed on screen",
-  "visible": true,
-  "y": -33,
-  "display": {
-    "aseprite": true
-  },
-  "fixedControls": [
-    "hoverZone",
-    "hideZone"
-  ],
-  "controls": [
-    {
-      "type": "inventoryPanel",
-      "id": "mainInv",
-      "x": 10,
-      "y": 2,
-      "zIndex": 175,
-      "visible": true,
-      "rows": 1,
-      "cols": 6,
-      "slotWidth": 38,
-      "slotHeight": 30,
-      "spacingX": 2,
-      "spacingY": 2,
-      "scrollDirection": "horizontal",
-      "backButton": "back",
-      "forwardButton": "Fwd",
-      "itemScale": 1,
-      "showEmptySlots": true,
-      "backgroundTag": "",
-      "backgroundAnchor": "screen"
-    },
-    {
-      "type": "button",
-      "id": "back",
-      "x": 2,
-      "y": 10,
-      "width": 6,
-      "height": 13,
-      "visible": true,
-      "text": "",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": 0,
-      "backgroundTag": "BackBtn",
-      "zIndex": 200,
-      "backgroundAnchor": "screen"
-    },
-    {
-      "type": "button",
-      "id": "Fwd",
-      "x": 250,
-      "y": 10,
-      "width": 6,
-      "height": 13,
-      "visible": true,
-      "backgroundAnchor": "screen",
-      "text": "",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": 0,
-      "backgroundTag": "FwBtn",
-      "zIndex": 300
-    },
-    {
-      "type": "image",
-      "id": "imageTest",
-      "visible": true,
-      "x": 0,
-      "y": 0,
-      "zIndex": 150,
-      "tag": "InvBG"
-    },
-    {
-      "type": "trigger",
-      "id": "hoverZone",
-      "x": 0,
-      "y": 0,
-      "width": 200,
-      "height": 10,
-      "visible": true
-    },
-    {
-      "type": "trigger",
-      "id": "hideZone",
-      "x": 0,
-      "y": 0,
-      "width": 258,
-      "height": 34,
-      "visible": true
-    }
-  ]
-}
-</file>
-
-<file path="src/game/guis/save-menu/save-menu.gui.json">
-{
-  "id": "save-menu",
-  "name": "Save Menu",
-  "description": "",
-  "visible": false,
-  "display": {
-    "aseprite": true
-  },
-  "controls": [
-    {
-      "type": "nineSliceImage",
-      "id": "save-bg",
-      "x": 30,
-      "y": 16,
-      "width": 260,
-      "height": 148,
-      "tag": "9-slice-BG",
-      "sliceNames": {
-        "topLeft": "TopLeft",
-        "topCenter": "TopMid",
-        "topRight": "TopRight",
-        "middleLeft": "MidLeft",
-        "center": "Mid",
-        "middleRight": "MidRight",
-        "bottomLeft": "BottomLeft",
-        "bottomCenter": "BottomMid",
-        "bottomRight": "BottomRight"
-      }
-    },
-    {
-      "type": "text",
-      "id": "title",
-      "x": 142,
-      "y": 24,
-      "text": "Save",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "color": "#1a466b"
-    },
-    {
-      "type": "textInput",
-      "id": "save-name",
-      "x": 42,
-      "y": 138,
-      "width": 158,
-      "height": 14,
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "text": "",
-      "maxLength": 25,
-      "placeholder": "Enter text...",
-      "color": "#ffffff",
-      "backgroundColor": "#222222",
-      "outlineColor": "#666666",
-      "caretColor": "#ffffff",
-      "hoverBackgroundColor": "#2f2f2f",
-      "focusedOutlineColor": "#a0a0a0",
-      "textAlign": "left"
-    },
-    {
-      "type": "listBox",
-      "id": "saved-list",
-      "x": 42,
-      "y": 52,
-      "width": 158,
-      "height": 80,
-      "rowCount": 5,
-      "rowPadding": 2,
-      "normalBackgroundColor": "#222222",
-      "hoverBackgroundColor": "#2f2f2f",
-      "selectedBackgroundColor": "#4a4a4a",
-      "textColor": "#ffffff",
-      "selectedTextColor": "#ffffff",
-      "placeholderTextColor": "#999999"
-    },
-    {
-      "type": "text",
-      "id": "instructions",
-      "x": 42,
-      "y": 36,
-      "text": "Select a slot and enter a name to save.",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "color": "#1a466b",
-      "wordWrapWidth": 224
-    },
-    {
-      "type": "button",
-      "id": "save-btn",
-      "x": 210,
-      "y": 81,
-      "width": 62,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Save",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "backgroundColor": "#132243",
-      "backgroundColorStates": {
-        "hover": "#1a466b",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      }
-    },
-    {
-      "type": "button",
-      "id": "back-btn",
-      "x": 210,
-      "y": 98,
-      "width": 62,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Back",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "backgroundColor": "#132243",
-      "backgroundColorStates": {
-        "hover": "#1a466b",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      }
-    }
-  ],
-  "modal": true,
-  "zIndex": 101
-}
-</file>
-
-<file path="src/game/guis/save-menu/save-menu.gui.ts">
-import { registerGuiScript } from '@engine/scripting';
-
-const MAX_SLOTS = 5;
-
-/**
- * GUI script for `save-menu`.
- * Five fixed slots (0–4); `B.state.save(name, slot)` writes the selected slot.
- */
-registerGuiScript('save-menu', ({ B }) => {
-  B.whenButtonClick('back-btn', () => {
-    B.gui('save-menu').hide();
-    B.gui('game-menu').show();
-  });
-
-  let selectedSlotIndex = 0;
-
-  /** Map manifest entries onto fixed slot indices (ignores unnamed / out-of-range saves). */
-  function getSavesBySlot() {
-    const bySlot: Array<{ name: string; slot?: number; timestamp: number } | undefined> =
-      Array(MAX_SLOTS);
-    for (const save of B.state.getSaveList()) {
-      const slot = save.slot;
-      if (typeof slot === 'number' && slot >= 0 && slot < MAX_SLOTS) {
-        bySlot[slot] = save;
-      }
-    }
-    return bySlot;
-  }
-
-  function firstEmptyOrLastSlot(savesBySlot: ReturnType<typeof getSavesBySlot>): number {
-    for (let i = 0; i < MAX_SLOTS; i++) {
-      if (!savesBySlot[i]) return i;
-    }
-    return MAX_SLOTS - 1;
-  }
-
-  function syncNameAndSaveButton(slotIndex: number) {
-    const gui = B.gui('save-menu');
-    const save = getSavesBySlot()[slotIndex];
-    const name = save ? save.name : '';
-    gui.control('save-name').textNow(name);
-    gui.control('save-btn').enabled = name.trim().length > 0;
-  }
-
-  /** Repaint list rows. When `autoSelect` is true, pick the first empty slot or the last slot if full. */
-  function refreshSaveList(autoSelect: boolean) {
-    const savesBySlot = getSavesBySlot();
-    const listBox = B.gui('save-menu').control('saved-list');
-
-    for (let i = 0; i < MAX_SLOTS; i++) {
-      const existing = savesBySlot[i];
-      listBox.setRowText(i, existing ? existing.name : `(Empty Slot ${i + 1})`);
-    }
-
-    if (autoSelect) {
-      selectedSlotIndex = firstEmptyOrLastSlot(savesBySlot);
-    }
-
-    listBox.selectedIndex = selectedSlotIndex;
-  }
-
-  B.onGuiBuilt(() => {
-    const gui = B.gui('save-menu');
-    const listBox = gui.control('saved-list');
-    const nameInput = gui.control('save-name');
-    const saveButton = gui.control('save-btn');
-
-    refreshSaveList(true);
-    syncNameAndSaveButton(selectedSlotIndex);
-
-    listBox.whenSelectionChanged((index: number) => {
-      selectedSlotIndex = index;
-      syncNameAndSaveButton(index);
-    });
-
-    nameInput.whenValueChanged((newValue) => {
-      const trimmed = String(newValue || '').trim();
-      saveButton.enabled = trimmed.length > 0;
-    });
-  });
-
-  B.whenButtonClick('save-btn', () => {
-    const gui = B.gui('save-menu');
-    const nameInput = gui.control('save-name');
-    const name = String(nameInput.text || '').trim();
-    if (name.length === 0) return;
-
-    B.state.save.now(name, selectedSlotIndex);
-    B.state.flush();
-
-    refreshSaveList(false);
-    syncNameAndSaveButton(selectedSlotIndex);
-
-    B.gui('save-menu').hide();
-    B.gui('game-menu').show();
-  });
-});
-</file>
-
-<file path="src/game/inventory/Bread/Bread.inventory.json">
-{
-  "id": "Bread",
-  "name": "Bread",
-  "description": "",
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  },
-  "cursorAnimation": "Bread"
-}
-</file>
-
-<file path="src/game/inventory/Broom/Broom.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Broom', ({ B }) => {
 
   B.whenLookAt(() => {
-    B.say`Hank: It's a broom.`;
+    B.faceClicked();
+    B.player.say('It looks like my buddy, Henry.');
   });
 
-  B.whenUse(() => {
-    // TODO
+  B.whenPickUp(() => {
+    B.faceClicked();
+    B.player.say("He's too heavy.");
   });
 });
 </file>
 
-<file path="src/game/inventory/Key/Key.inventory.json">
+<file path="src/game/inventory/Broom/Broom.inventory.json">
 {
-  "id": "Key",
-  "name": "Key",
-  "description": "",
+  "id": "Broom",
+  "name": "Broom",
+  "description": "broom",
   "onVerb": {
     "look": true,
-    "use": true
-  },
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  },
-  "cursorAnimation": "Key"
-}
-</file>
-
-<file path="src/game/inventory/Key/Key.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Key', ({ B }) => {
-
-  B.whenLookAt(() => {
-    B.say`Hank: It's a key.`;
-  });
-
-  B.whenUse(() => {
-    // TODO
-  });
-});
-</file>
-
-<file path="src/game/inventory/Knife/Knife.inventory.json">
-{
-  "id": "Knife",
-  "name": "Knife",
-  "description": "",
-  "onVerb": {
     "use": true,
-    "look": true
+    "give": true,
+    "pickUp": true,
+    "open": true,
+    "close": true,
+    "talkTo": true,
+    "pull": true,
+    "push": true
   },
   "stackable": false,
   "animations": {},
   "display": {
     "aseprite": "shared"
-  },
-  "cursorAnimation": "Knife"
+  }
 }
 </file>
 
-<file path="src/game/inventory/Knife/Knife.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Knife', ({ B }) => {
-
-  B.whenUse(() => {
-    // TODO
-  });
-
-  B.whenLookAt(() => {
-    B.say`Hank: It's a knife.`;
-  });
-});
-</file>
-
-<file path="src/game/inventory/Lantern/Lantern.inventory.json">
+<file path="src/game/rooms/rooms.manifest.json">
 {
-  "id": "Lantern",
-  "name": "Lantern",
-  "description": "",
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  },
-  "defaultAnimation": "Lantern",
-  "cursorAnimation": "Lantern"
+  "startRoomId": "office",
+  "rooms": [
+    {
+      "id": "apartment",
+      "definition": "apartment/apartment.room.json"
+    },
+    {
+      "id": "outside",
+      "definition": "outside/outside.room.json"
+    }
+  ]
 }
 </file>
 
-<file path="src/game/inventory/PB/PB.inventory.json">
-{
-  "id": "PB",
-  "name": "PB",
-  "description": "",
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  },
-  "cursorAnimation": "PB"
-}
-</file>
+<file path="src/types/room.ts">
+import type { CharacterFacingLetter, CharacterAnimationsConfig } from './character';
 
-<file path="src/game/inventory/Sammich/Sammich.inventory.json">
-{
-  "id": "Sammich",
-  "name": "Sammich",
-  "description": "",
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
-  "stackable": false,
-  "animations": {},
-  "display": {
-    "aseprite": "shared"
-  },
-  "cursorAnimation": "Sammich"
+export interface Point2 {
+  x: number;
+  y: number;
+}
+
+/** Inner ring subtracted from a walkable polygon when `active` is not false. */
+export interface WalkableHole {
+  id: string;
+  /** When false, this ring does not cut a hole (ignored for walk tests and debug). Omitted = active. */
+  active?: boolean;
+  points: Point2[];
+}
+
+export interface WalkablePolygon {
+  id: string;
+  /** When false, this polygon is ignored for walking and debug overlays. Omitted = active. */
+  active?: boolean;
+  points: Point2[];
+  /** Optional holes (each an inner closed ring). Inactive holes are ignored. */
+  holes?: WalkableHole[];
+}
+
+/**
+ * Clickable room hotspot: closed polygon in room pixels (same space as walkable meshes).
+ * The engine requires at least three vertices in `points` for hit-testing.
+ */
+export interface RoomHotspotData {
+  id: string;
+  /** When false, ignored for interaction. Omitted = active. */
+  active?: boolean;
+  description?: string;
+  /** Draw / hit stacking vs other hotspots (higher tested later, tends to sit on top). */
+  zIndex?: number;
+  /**
+   * Room-space Y (pixels, y increases downward). When set, characters with **world feet Y greater
+   * than** this line draw in front of this hotspot’s stack entry; otherwise `zIndex` ordering applies.
+   */
+  baseline?: number;
+  /** Polygon hit area in room pixels (at least three vertices). */
+  points: Point2[];
+  /** Where the player walks when this hotspot is used (optional; editor + future walk-to flow). */
+  walkToPoint?: Point2;
+  /** Facing target after walking (optional; pairs with `walkToPoint`). */
+  lookAtPoint?: Point2;
+  /**
+   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this hotspot.
+   * Falls back to `"look"` when omitted.
+   */
+  defaultVerb?: string;
+  /** Enables object-level fallback dispatch when no supported verb matches. */
+  onVerbFallback?: boolean;
+  /**
+   * Optional Aseprite tag on the **game** cursor sheet (`game-config.json` `cursor` + `images/cursor/`).
+   * When set and the pointer hovers this hotspot, the custom cursor uses this tag instead of
+   * `cursor.activeAnimation`. Active inventory with `cursorAnimation` still wins.
+   */
+  activeCursorOverride?: string;
+}
+
+/** Named marker in room space (spawns, triggers, script anchors). */
+export interface RoomPointData {
+  id: string;
+  x: number;
+  y: number;
+}
+
+/** Logical area (perspective scale, tint, walk blocking, triggers) as a closed polygon in room space. */
+export interface RoomRegionData {
+  id: string;
+  /** When false, ignored by tooling/runtime that respects regions. Omitted = active. */
+  active?: boolean;
+  /**
+   * When `false`, characters cannot walk through this polygon (treated as a hole in the walkable mesh).
+   * Omitted or `true` = walkable (no movement restriction from this region).
+   */
+  walkable?: boolean;
+  points: Point2[];
+  /**
+   * Character scale at the **top** of the region (smaller room Y). `1` = normal size. Omitted = `1`.
+   * Interpolates linearly with {@link scaleBottom} by feet Y across the region’s vertical bounds.
+   */
+  scaleTop?: number;
+  /**
+   * Character scale at the **bottom** of the region (larger room Y). Omitted = `1`.
+   */
+  scaleBottom?: number;
+  /**
+   * When `true`, walking speed is multiplied by a perspective factor derived from the same linear
+   * {@link scaleTop} / {@link scaleBottom} value as sprite scale (see `game-config.json` `perspective`).
+   * Omitted = `false`.
+   */
+  scaleWalkSpeed?: boolean;
+  /**
+   * Hex RGB (e.g. `#aabbcc`). When set, characters whose feet are inside this **winning** region
+   * multiply-tint toward this color. Omitted or invalid hex = no tint from this region.
+   */
+  tint?: string;
+  /**
+   * 0–1 blend between no tint and full {@link tint} multiply (`1` = full strength). Omitted = `1` when `tint` is set.
+   */
+  tintAlpha?: number;
+}
+
+export interface RoomCharacterInstance {
+  /** Unique id for this placement in the room (Phaser texture key suffix). */
+  instanceId: string;
+  /** Path relative to `src/game/characters/` (e.g. `clerk/clerk.character.json`). */
+  definition: string;
+  x: number;
+  y: number;
+  /** Facing for the first directional animation (e.g. `Idle` + `L` -> `IdleL`). */
+  initialFacing?: CharacterFacingLetter;
+  /** Base name before direction suffix; default `Idle`. */
+  initialAnimation?: string;
+  /** When false, sprite is hidden and not interactive. Default true. */
+  visible?: boolean;
+  /** Added to the engine character layer base depth; higher draws in front of lower. */
+  zIndex?: number;
+}
+
+/** Clickable / hit-test region for a room prop, in room pixel space (same as walkable polygons). */
+export interface RoomPropCollider {
+  points: Point2[];
+}
+
+/**
+ * One placed prop in a room: Aseprite tag on this room's sheet (`images/rooms/<roomId>/`), draw order, and interaction.
+ */
+export interface RoomPropInstance {
+  id: string;
+  /**
+   * Aseprite frame-tag name for this prop. Must appear in `meta.frameTags` on the room sheet
+   * (see `getAsepriteFrameTagNames('room', roomId)`); cels with no tag are not props.
+   */
+  tag: string;
+  /**
+   * Optional extra root for `<root>-*` clip families on the room sheet (editor / import tooling).
+   * When set (non-empty), tags matching `defaultAnimation` or `defaultAnimation-*` are grouped with this prop
+   * alongside tags matching `id` / `id-*`. Omitted when `id` alone is the Aseprite prefix root.
+   */
+  defaultAnimation?: string;
+  /**
+   * How the prop’s `x` / `y` fields map to the Aseprite cel when the room sheet uses **trim cells** (JSON
+   * `spriteSourceSize` / Phaser `frame.data.trim`).
+   * - **`canvas`** (default): `(x, y)` is the **logical cel / sheet canvas** origin — same as a GUI
+   *   `screen` anchor; Phaser’s built-in trim offset keeps art aligned with the Aseprite canvas
+   *   (typical full-room composite props).
+   * - **`tight`**: `(x, y)` is the **top-left of the trimmed opaque** region in room pixels — same
+   *   idea as a GUI `top-left` image with trim; the engine subtracts `spriteSourceSize` and keeps
+   *   it in sync when the prop’s current frame changes.
+   */
+  spritePlacement?: 'canvas' | 'tight';
+  /** Sprite position in room pixels (default top-left 0,0 for full-room composite frames). */
+  x?: number;
+  y?: number;
+  /** Draw order: higher values render in front of lower values. */
+  zIndex?: number;
+  /**
+   * Room-space Y (pixels, y increases downward). When set, characters with **world feet Y greater
+   * than** this line draw in front of this prop; otherwise `zIndex` ordering applies.
+   */
+  baseline?: number;
+  /** When true, the prop may receive clicks; the engine dispatches verb scripts immediately (no auto walk/face). */
+  clickable?: boolean;
+  visible?: boolean;
+  /** 0–1; default 1. */
+  alpha?: number;
+  /**
+   * Optional stand position for script-driven movement (not used by the engine for clicks).
+   * Game scripts may read this from payloads / room data when implementing walk-to-object behavior.
+   */
+  walkToPoint?: Point2;
+  /**
+   * Optional facing target for script-driven facing (not used by the engine for clicks).
+   */
+  lookAtPoint?: Point2;
+  description?: string;
+  /** Hit area in room space; required when `clickable` is true. */
+  collider?: RoomPropCollider;
+  /**
+   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this prop.
+   * Falls back to `"look"` when omitted. Shown in the Inspector as the "Default verb" dropdown.
+   */
+  defaultVerb?: string;
+  /** Enables object-level fallback dispatch when no supported verb matches (before global handlers). */
+  onVerbFallback?: boolean;
+  /**
+   * Optional Aseprite tag on the **game** cursor sheet. When set and the pointer hovers this clickable
+   * prop, the cursor uses this tag instead of `cursor.activeAnimation`. Inventory cursor clips take precedence.
+   */
+  activeCursorOverride?: string;
+  /** Per-tag playback (loop, frameDuration); keys match Aseprite tags on this room's sheet. */
+  animations?: CharacterAnimationsConfig;
+  /**
+   * Parallax multiplier vs camera view. Each frame:
+   * `sprite position = parallaxDepth * (x,y) + (1 - parallaxDepth) * (worldView.x, worldView.y)`.
+   * - `0` — moves fully with the camera (world position tracks scroll origin)
+   * - `0–1` — distant; moves slower than the camera
+   * - `1` — no parallax (default if omitted); stays at authored `(x, y)`
+   * - `>1` — foreground; moves faster than the camera
+   */
+  parallaxDepth?: number;
+}
+
+export interface RoomData {
+  id: string;
+  name: string;
+  /**
+   * Optional static backdrop under props. When omitted, only props (and game backgroundColor) show.
+   */
+  background?: {
+    /** Path under `src/game/assets/` (e.g. `images/backgrounds/office.png`). Resolved by Vite at build time. */
+    image: string;
+  };
+  /**
+   * Explicit room dimensions in pixels. When omitted the room is assumed to be the same size as the
+   * game viewport (e.g. 352x198). Set this when the background or prop sheet is wider or taller than
+   * the game resolution so the camera can scroll.
+   */
+  size?: { width: number; height: number };
+  /**
+   * Camera scroll bounds in room pixel space. Restricts how far the camera can pan within the room.
+   * When omitted the camera is bounded by the full room `size`.
+   * Equivalent to "scroll bounds" in PowerQuest: the character can walk beyond scroll bounds but the
+   * camera stops panning before reaching the room edge.
+   */
+  scrollBounds?: { x: number; y: number; width: number; height: number };
+  walkable: {
+    polygons: WalkablePolygon[];
+  };
+  hotspots: RoomHotspotData[];
+  /** Named points in room space (optional; used by editor and future systems). */
+  points?: RoomPointData[];
+  /** Closed polygons for regions (optional; editor + future gameplay). */
+  regions?: RoomRegionData[];
+  /**
+   * Layered Aseprite props from `images/rooms/<id>/<id>.png` + `.json` (one sheet per room).
+   */
+  props?: RoomPropInstance[];
+  /** NPCs / props that use a character definition. */
+  characters?: RoomCharacterInstance[];
 }
 </file>
 
@@ -23938,1209 +22976,567 @@ export function addGuiNineSliceImage(
 }
 </file>
 
-<file path="src/engine/scripting/GuiBenneScript.ts">
-import * as Phaser from 'phaser';
-import {
-  guiAllButtonsClickEventId,
-  guiButtonClickEventId,
-  type GuiAllButtonsClickPayload,
-} from '../events/guiButtonEvents.js';
-import {
-  guiCheckboxCheckEventId,
-  guiCheckboxUncheckEventId,
-} from '../events/guiCheckboxEvents.js';
-import {
-  guiControlMouseEnterEventId,
-  guiControlMouseLeaveEventId,
-} from '../events/guiControlHoverEvents.js';
-import { SCENE_ROOM } from '../../game/constants.js';
-import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
-import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import { BenneScriptCore } from './BenneScriptCore.js';
-import type { BenneScriptDialogCommandSurface, BenneScriptGuiOverlayRef } from './benneScriptFacades.js';
-import {
-  createLazyBenneScriptGameStateNamespace,
-  createLazyBenneScriptInventoryNamespace,
-  type BenneScriptGameStateNamespace,
-  type BenneScriptInventoryNamespace,
-} from './benneScriptGameStateApi.js';
-import {
-  createBenneNoopGuiControlFacade,
-  createDetachedBenneNoopGuiControlFacade,
-  type BenneScriptControlBinding,
-  type BenneScriptControlBindingTarget,
-  type ControlFacade,
-  type GuiRuntime,
-} from './GuiRuntime.js';
-import {
-  createBenneScriptDialogAccessor,
-  createNoopDialogCommandSurface,
-} from './DialogBenneScript.js';
-import type { RoomScene } from '../scenes/RoomScene.js';
-
-/**
- * Bennescript facade for `*.gui.ts`: GUI-scoped channels (button clicks, pointer hover per control), `raw`, and `wait`.
- * Handlers run through the same interaction queue as room / character scripts.
- */
-export class GuiBenneScript extends BenneScriptCore {
-  private readonly guiId: string;
-  /** Resolves the game lazily — `registerGuiScript` runs before `createBenneGame`. */
-  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
-  readonly state: BenneScriptGameStateNamespace;
-  readonly inventory: BenneScriptInventoryNamespace;
-  private readonly onGuiBuiltHandlers: Array<(gui: GuiRuntime) => void> = [];
-  /** While `onGuiBuilt` handlers run, supports {@link GuiBenneScript.scene}. */
-  private activeGuiRuntime: GuiRuntime | null = null;
-
-  /**
-   * Resolve another GUI overlay’s controls by id (same pattern as **`B.dialog`** / **`B.inventory`**).
-   * Call from **`onGuiBuilt`** (after the room registers {@link GuiRuntime} instances — includes **`this.guiId`** overlays).
-   */
-  gui(overlayGuiId: string): BenneScriptGuiOverlayRef {
-    const gid = overlayGuiId.trim();
-    const self = this;
-    const setOverlayVisible = (visible: boolean): void => {
-      const rm = GuiBenneScript.tryResolveRoomSceneForGuiOverlay();
-      const handle = rm?.tryGetGuiOverlayHandle(gid);
-      if (!handle) {
-        if (import.meta.env.DEV) {
-          console.warn(
-            `[Benne] B.gui("${gid}").${visible ? 'show' : 'hide'}(): overlay not found in active room — no-op.`,
-          );
-        }
-        return;
-      }
-      handle.setVisible(visible);
-    };
-    return {
-      control(controlId: string): ControlFacade {
-        const id = controlId.trim();
-        const queue = (factory: () => Promise<unknown>) => self.chain(factory);
-        const rm = GuiBenneScript.tryResolveRoomSceneForGuiOverlay();
-        const rt = rm?.tryGetGuiRuntime(gid);
-        const scene = self.resolveSceneForGuiControlNoop(rt, rm);
-        const binding = id ? self.createControlScriptBinding(gid, id) : null;
-        const attachBinding = (facade: BenneScriptControlBindingTarget): void => {
-          if (binding) {
-            facade.attachScriptBinding(binding);
-          }
-        };
-        if (!scene) {
-          const detached = createDetachedBenneNoopGuiControlFacade(queue);
-          attachBinding(detached);
-          return detached;
-        }
-        if (!id) {
-          return createBenneNoopGuiControlFacade(scene, queue);
-        }
-        const resolved = rt?.getControl(id) ?? createBenneNoopGuiControlFacade(scene, queue);
-        attachBinding(resolved);
-        return resolved;
-      },
-      show(): void {
-        setOverlayVisible(true);
-      },
-      hide(): void {
-        setOverlayVisible(false);
-      },
-    };
-  }
-
-  private resolveSceneForGuiControlNoop(
-    rt: GuiRuntime | null | undefined,
-    rm: RoomScene | null,
-  ): Phaser.Scene | null {
-    if (rt?.scene) {
-      return rt.scene;
-    }
-    if (this.activeGuiRuntime?.scene) {
-      return this.activeGuiRuntime.scene;
-    }
-    if (rm) {
-      return rm;
-    }
-    const g = tryGetActiveBenneGame();
-    const room = g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
-    if (room) {
-      return room;
-    }
-    const scenes = g?.scene.getScenes(true);
-    const first = scenes?.[0];
-    return first ?? null;
-  }
-
-  private static tryResolveRoomSceneForGuiOverlay(): RoomScene | null {
-    const g = tryGetActiveBenneGame();
-    return (g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined) ?? null;
-  }
-
-  private createControlScriptBinding(guiId: string, controlId: string): BenneScriptControlBinding {
-    return {
-      guiId,
-      controlId,
-      subscribe: (event, handler) => {
-        this.subscribe(event, (payload) => {
-          handler(payload);
-        });
-      },
-      subscribeImmediate: (event, handler) => {
-        this.subscribeImmediateWithPayload(event, (payload) => {
-          handler(payload);
-        });
-      },
-    };
-  }
-
-  constructor(events: Phaser.Events.EventEmitter, guiId: string) {
-    super(
-      events,
-      () => null,
-      () => {
-        const g = tryGetActiveBenneGame();
-        return (g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined) ?? undefined;
-      },
-    );
-    this.guiId = guiId;
-    this.state = createLazyBenneScriptGameStateNamespace(() => tryGetActiveGameStateManager());
-    this.inventory = createLazyBenneScriptInventoryNamespace(
-      () => tryGetActiveGameStateManager(),
-      () => {
-        const g = tryGetActiveBenneGame();
-        return (g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined) ?? undefined;
-      },
-      (factory) => this.chain(factory),
-    );
-    this.dialog = (dialogId: string) => {
-      const manager = tryGetActiveGameStateManager();
-      const game = tryGetActiveBenneGame();
-      if (!manager || !game) {
-        if (import.meta.env.DEV) {
-          console.warn(
-            `[Benne] B.dialog("${dialogId}") from GUI "${this.guiId}": game not ready — no-op surface.`,
-          );
-        }
-        return createNoopDialogCommandSurface();
-      }
-      return createBenneScriptDialogAccessor(manager, game, (factory) => this.chain(factory))(dialogId);
-    };
-  }
-
-  /**
-   * The active room scene while an **`onGuiBuilt`** handler runs (e.g. **`B.scene.scale.width`** for full canvas width).
-   * Not available at `registerGuiScript` top level — use **`gui.scene`** from the **`onGuiBuilt`** callback parameter if you prefer.
-   */
-  get scene(): Phaser.Scene {
-    const rt = this.activeGuiRuntime;
-    if (!rt) {
-      throw new Error(
-        `[Benne] B.scene ("${this.guiId}") is only available synchronously inside B.onGuiBuilt — use the gui argument's gui.scene, or move code into the callback.`,
-      );
-    }
-    return rt.scene;
-  }
-
-  /**
-   * Registers a callback invoked each time this GUI’s overlay is built in the room scene (fresh {@link GuiRuntime}
-   * per load). Use for custom layout and tweens — keep work generic; engine stays data-driven.
-   */
-  onGuiBuilt(callback: (gui: GuiRuntime) => void): void {
-    this.onGuiBuiltHandlers.push(callback);
-  }
-
-  /**
-   * Queues async work on this GUI script’s interaction tail (same lazy factory semantics as {@link BenneScriptCore}).
-   * Used by {@link GuiRuntime} / {@link ControlFacade} tweens.
-   */
-  queueInteraction(factory: () => Promise<unknown>): void {
-    this.chain(factory);
-  }
-
-  /**
-   * Called from the scene after {@link buildGuiOverlay}; runs all `onGuiBuilt` registrations for this overlay instance.
-   */
-  notifyGuiBuilt(gui: GuiRuntime): void {
-    this.activeGuiRuntime = gui;
-    try {
-      for (const handler of this.onGuiBuiltHandlers) {
-        try {
-          handler(gui);
-        } catch (err) {
-          console.error(`[Benne] Error in onGuiBuilt handler for GUI "${this.guiId}":`, err);
-        }
-      }
-    } finally {
-      this.activeGuiRuntime = null;
-    }
-  }
-
-  /**
-   * When the player activates a specific `button` control (by `id` in `*.gui.json`), run `handler`.
-   * Mirrors verb sugar (`whenLookAt`, …): one string id, scoped to this GUI file’s `registerGuiScript` id.
-   */
-  whenButtonClick(buttonId: string, handler: () => void): void {
-    this.subscribe(guiButtonClickEventId(this.guiId, buttonId), () => {
-      handler();
-    });
-  }
-
-  /**
-   * Runs when any `button` control in this GUI is activated; receives the control `id`.
-   * Prefer {@link whenButtonClick} for normal wiring; use this for logging, shared fallbacks, etc.
-   */
-  whenAnyButtonClick(handler: (buttonId: string) => void): void {
-    this.subscribe(guiAllButtonsClickEventId(this.guiId), (payload) => {
-      const p = payload as GuiAllButtonsClickPayload | undefined;
-      if (p && typeof p.buttonId === 'string') {
-        handler(p.buttonId);
-      }
-    });
-  }
-
-  /**
-   * When the player toggles a `checkbox` control to **checked**, run `handler`.
-   * Programmatic **`control(…).checked = true`** does not invoke this.
-   */
-  whenCheckboxCheck(checkboxId: string, handler: () => void): void {
-    this.subscribe(guiCheckboxCheckEventId(this.guiId, checkboxId), () => {
-      handler();
-    });
-  }
-
-  /**
-   * When the player toggles a `checkbox` control to **unchecked**, run `handler`.
-   * Programmatic **`control(…).checked = false`** does not invoke this.
-   */
-  whenCheckboxUncheck(checkboxId: string, handler: () => void): void {
-    this.subscribe(guiCheckboxUncheckEventId(this.guiId, checkboxId), () => {
-      handler();
-    });
-  }
-
-  /**
-   * Runs when the pointer enters the hit area of a GUI control with this **`id`**. Works for any authored
-   * control that exposes a hit area: **`trigger`**, **`button`** (while enabled), **`checkbox`**, **`image`**, **`inventoryPanel`**,
-   * and **`text`** (bounded by its rendered size).
-   */
-  whenMouseEnter(controlId: string, handler: () => void): void {
-    const id = controlId.trim();
-    if (!id) {
-      return;
-    }
-    this.subscribeImmediate(guiControlMouseEnterEventId(this.guiId, id), () => {
-      handler();
-    });
-  }
-
-  /**
-   * Runs when the pointer leaves a GUI control’s hit area. Paired with {@link whenMouseEnter}; same control-id rules.
-   */
-  whenMouseLeave(controlId: string, handler: () => void): void {
-    const id = controlId.trim();
-    if (!id) {
-      return;
-    }
-    this.subscribeImmediate(guiControlMouseLeaveEventId(this.guiId, id), () => {
-      handler();
-    });
-  }
+<file path="src/game/assets/images/guis/verbs/verbs.json">
+{ "frames": {
+   "verbs 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "verbs 1.aseprite": {
+    "frame": { "x": 352, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "verbs 2.aseprite": {
+    "frame": { "x": 704, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "verbs 3.aseprite": {
+    "frame": { "x": 0, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "verbs 4.aseprite": {
+    "frame": { "x": 352, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "verbs 5.aseprite": {
+    "frame": { "x": 704, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "verbs 6.aseprite": {
+    "frame": { "x": 0, "y": 396, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18-beta2-x64",
+  "image": "verbs.png",
+  "format": "RGBA8888",
+  "size": { "w": 1056, "h": 594 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "VerbsBG", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "UpBtn", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "DownBtn", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "MenuBtn", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" },
+   { "name": "UpBtn-hover", "from": 5, "to": 5, "direction": "forward", "color": "#000000ff" },
+   { "name": "DownBtn-hover", "from": 6, "to": 6, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "BG", "opacity": 255, "blendMode": "normal" },
+   { "name": "GUI BG", "opacity": 255, "blendMode": "normal" },
+   { "name": "Inv BG", "opacity": 255, "blendMode": "normal" },
+   { "name": "Arrow Down", "opacity": 255, "blendMode": "normal" },
+   { "name": "Arrow Up", "opacity": 255, "blendMode": "normal" },
+   { "name": "Arrow Down Hover", "opacity": 255, "blendMode": "normal" },
+   { "name": "Arrow Up Hover", "opacity": 255, "blendMode": "normal" },
+   { "name": "Verb Button BGs", "opacity": 255, "blendMode": "normal" },
+   { "name": "Menu BG", "opacity": 255, "blendMode": "normal" },
+   { "name": "Menu Lines", "opacity": 255, "blendMode": "normal" },
+   { "name": "Verb Line", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
 }
 </file>
 
-<file path="src/game/guis/game-menu/game-menu.gui.json">
+<file path="src/game/characters/hank/hank.character.json">
 {
-  "id": "game-menu",
-  "name": "Game Menu",
+  "id": "hank",
+  "name": "Hank",
   "description": "",
-  "visible": false,
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 40,
+    "y": 61
+  },
+  "talkPoint": {
+    "x": 18,
+    "y": -1
+  },
+  "clickable": false,
   "display": {
     "aseprite": true
   },
-  "controls": [
-    {
-      "type": "nineSliceImage",
-      "id": "menu-bg",
-      "x": 102,
-      "y": 33,
-      "width": 116,
-      "height": 114,
-      "tag": "9-slice-BG",
-      "sliceNames": {
-        "topLeft": "TopLeft",
-        "topCenter": "TopMid",
-        "topRight": "TopRight",
-        "middleLeft": "MidLeft",
-        "center": "Mid",
-        "middleRight": "MidRight",
-        "bottomLeft": "BottomLeft",
-        "bottomCenter": "BottomMid",
-        "bottomRight": "BottomRight"
-      },
-      "zIndex": 1
+  "feet": {
+    "x": 18,
+    "y": 61
+  },
+  "animations": {
+    "IdleL": {
+      "loop": true
     },
-    {
-      "type": "grid",
-      "id": "menu-layout",
-      "x": 109,
-      "y": 36,
-      "width": 102,
-      "height": 102,
-      "rows": 6,
-      "columns": 1,
-      "zIndex": 2
+    "IdleD": {
+      "loop": true
     },
-    {
-      "type": "text",
-      "id": "title",
-      "x": 0,
-      "y": 0,
-      "text": "Menu",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "color": "#1a466b",
-      "gridPlacement": {
-        "gridControlId": "menu-layout",
-        "row": 0,
-        "col": 0,
-        "align": "center"
-      },
-      "zIndex": 3
+    "IdleU": {
+      "loop": true
     },
-    {
-      "type": "button",
-      "id": "save",
-      "x": 0,
-      "y": 0,
-      "width": 50,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Save",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "zIndex": 5,
-      "gridPlacement": {
-        "gridControlId": "menu-layout",
-        "row": 2,
-        "col": 0,
-        "align": "center-left"
-      },
-      "backgroundColor": "#132243",
-      "backgroundColorStates": {
-        "hover": "#1a466b",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      }
+    "WalkL": {
+      "loop": true,
+      "frameDuration": 80
     },
-    {
-      "type": "button",
-      "id": "load",
-      "x": 0,
-      "y": 0,
-      "width": 50,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Load",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "zIndex": 5,
-      "gridPlacement": {
-        "gridControlId": "menu-layout",
-        "row": 2,
-        "col": 0,
-        "align": "center-right"
-      },
-      "backgroundColor": "#132243",
-      "backgroundColorStates": {
-        "hover": "#1a466b",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      }
+    "WalkD": {
+      "loop": true,
+      "frameDuration": 60
     },
-    {
-      "type": "button",
-      "id": "settings",
-      "x": 0,
-      "y": 0,
-      "width": 102,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Settings",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "zIndex": 5,
-      "gridPlacement": {
-        "gridControlId": "menu-layout",
-        "row": 3,
-        "col": 0,
-        "align": "center"
-      },
-      "backgroundColor": "#132243",
-      "backgroundColorStates": {
-        "hover": "#1a466b",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      }
+    "WalkU": {
+      "loop": true,
+      "frameDuration": 60
     },
-    {
-      "type": "button",
-      "id": "quit",
-      "x": 0,
-      "y": 0,
-      "width": 102,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Quit",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "zIndex": 5,
-      "gridPlacement": {
-        "gridControlId": "menu-layout",
-        "row": 5,
-        "col": 0,
-        "align": "center"
-      },
-      "backgroundColor": "#132243",
-      "backgroundColorStates": {
-        "hover": "#1a466b",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      }
+    "TalkL": {
+      "loop": true
     },
-    {
-      "type": "button",
-      "id": "resume",
-      "x": 0,
-      "y": 0,
-      "width": 102,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Resume",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "gridPlacement": {
-        "gridControlId": "menu-layout",
-        "row": 1,
-        "col": 0,
-        "align": "center"
-      },
-      "backgroundColor": "#1a466b",
-      "backgroundColorStates": {
-        "hover": "#10908e",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      }
+    "TalkD": {
+      "loop": true
     },
-    {
-      "type": "button",
-      "id": "title-screen",
-      "x": 0,
-      "y": 0,
-      "width": 102,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Title Screen",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "gridPlacement": {
-        "gridControlId": "menu-layout",
-        "row": 4,
-        "col": 0,
-        "align": "center"
-      },
-      "backgroundColor": "#132243",
-      "backgroundColorStates": {
-        "hover": "#1a466b",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      }
+    "TalkU": {
+      "loop": true
     }
-  ],
-  "modal": true,
-  "zIndex": 100
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 31,
+        "y": 28
+      },
+      {
+        "x": 26,
+        "y": 0
+      },
+      {
+        "x": 11,
+        "y": 0
+      },
+      {
+        "x": 5,
+        "y": 30
+      },
+      {
+        "x": 7,
+        "y": 64
+      },
+      {
+        "x": 28,
+        "y": 64
+      }
+    ]
+  },
+  "speechColor": "#4bb49f"
 }
 </file>
 
-<file path="src/game/guis/game-menu/game-menu.gui.ts">
-import { registerGuiScript } from '@engine/scripting';
+<file path="src/game/characters/henry/henry.character.json">
+{
+  "id": "henry",
+  "name": "Henry",
+  "description": "Henry",
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": -18,
+    "y": 63
+  },
+  "talkPoint": {
+    "x": 18,
+    "y": 1
+  },
+  "clickable": true,
+  "display": {
+    "aseprite": true
+  },
+  "feet": {
+    "x": 18,
+    "y": 62
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 11,
+        "y": 3
+      },
+      {
+        "x": 5,
+        "y": 34
+      },
+      {
+        "x": 9,
+        "y": 64
+      },
+      {
+        "x": 28,
+        "y": 64
+      },
+      {
+        "x": 31,
+        "y": 34
+      },
+      {
+        "x": 25,
+        "y": 1
+      }
+    ]
+  },
+  "animations": {
+    "IdleL": {
+      "loop": true
+    },
+    "IdleD": {
+      "loop": true
+    },
+    "IdleU": {
+      "loop": true
+    },
+    "WalkL": {
+      "loop": true,
+      "frameDuration": 80
+    },
+    "WalkD": {
+      "loop": true,
+      "frameDuration": 60
+    },
+    "WalkU": {
+      "loop": true,
+      "frameDuration": 60
+    },
+    "TalkL": {
+      "loop": true
+    },
+    "TalkD": {
+      "loop": true
+    },
+    "TalkU": {
+      "loop": true
+    }
+  },
+  "defaultVerb": "talkTo",
+  "speechColor": "#5972d9"
+}
+</file>
+
+<file path="src/game/characters/penny/penny.character.ts">
+import { registerCharacterScript } from '@engine/scripting';
 
 /**
- * GUI script for `game-menu` — Bennescript entry (`B.raw`, future onShow/onHide/control hooks on `B`).
+ * Character script for `penny` — self-only Bennescript (`B.whenLookAt(() => …)`).
+ * Room-scoped handlers in `*.room.ts` still run first for the same verb.
  */
-registerGuiScript('game-menu', ({ B }) => {
+registerCharacterScript('penny', ({ B }) => {
+  // Example: B.whenLookAt(() => { B.player.say('…'); });
   // Delete this line when you add your first handler.
   void B;
 
-  B.whenButtonClick("resume", () => {
-    B.gui('game-menu').hide();
-  });
-
-  B.whenButtonClick("settings", () => {
-    B.gui('settings-menu').show();
-    B.gui('game-menu').hide();
-  });
-
-  B.whenButtonClick("save", () => {
-    B.gui('save-menu').show();
-    B.gui('game-menu').hide();
-  });
-
-  B.whenButtonClick("load", () => {
-    B.gui('load-menu').show();
-    B.gui('game-menu').hide();
+  B.whenLookAt(() => {
+    B.player.say("It's Penny.");
   });
 });
 </file>
 
-<file path="src/game/guis/settings-menu/settings-menu.gui.json">
-{
-  "id": "settings-menu",
-  "name": "Settings Menu",
-  "description": "",
-  "visible": false,
-  "display": {
-    "aseprite": true
-  },
-  "controls": [
-    {
-      "type": "nineSliceImage",
-      "id": "settings-BG",
-      "x": 56,
-      "y": 33,
-      "width": 208,
-      "height": 116,
-      "tag": "9-slice-BG",
-      "sliceNames": {
-        "topLeft": "TopLeft",
-        "topCenter": "TopMid",
-        "topRight": "TopRight",
-        "middleLeft": "MidLeft",
-        "center": "Mid",
-        "middleRight": "MidRight",
-        "bottomLeft": "BottomLeft",
-        "bottomCenter": "BottomMid",
-        "bottomRight": "BottomRight"
-      },
-      "zIndex": 101
-    },
-    {
-      "type": "text",
-      "id": "title",
-      "x": 160,
-      "y": 40,
-      "text": "Settings",
-      "font": "lucasarts-scumm-solid",
-      "fontSize": 8,
-      "color": "#1a466b",
-      "align": "center",
-      "zIndex": 102
-    },
-    {
-      "type": "checkbox",
-      "id": "musicEnabled",
-      "x": 0,
-      "y": 0,
-      "width": 12,
-      "height": 12,
-      "backgroundAnchor": "top-left",
-      "tag": "checkbox",
-      "states": {
-        "uncheckedHover": "checkbox-hover",
-        "checked": "checkbox-checked",
-        "checkedHover": "checkbox-checked-hover",
-        "disabled": "checkbox-disabled",
-        "disabledChecked": "checkbox-checked-disabled"
-      },
-      "gridPlacement": {
-        "gridControlId": "settings-layout",
-        "row": 0,
-        "col": 1,
-        "align": "top-left",
-        "offsetX": 1,
-        "offsetY": 1
-      },
-      "checked": true,
-      "zIndex": 103
-    },
-    {
-      "type": "slider",
-      "id": "sfxVolume",
-      "x": 118,
-      "y": 88,
-      "width": 70,
-      "height": 11,
-      "trackTag": "slider-track",
-      "handleTag": "slider-handle",
-      "states": {
-        "hover": {
-          "handle": "slider-handle-hover"
-        },
-        "disabled": {
-          "track": "slider-track-disabled",
-          "handle": "slider-handle-disabled"
-        }
-      },
-      "min": 0,
-      "max": 100,
-      "defaultValue": 100,
-      "step": 1,
-      "backgroundAnchor": "top-left",
-      "backgroundOffsetY": 0,
-      "gridPlacement": {
-        "gridControlId": "settings-layout",
-        "row": 2,
-        "col": 1,
-        "align": "center-left",
-        "offsetX": 1,
-        "offsetY": -2
-      },
-      "zIndex": 103
-    },
-    {
-      "type": "slider",
-      "id": "musicVolume",
-      "x": 118,
-      "y": 112,
-      "width": 70,
-      "height": 11,
-      "backgroundAnchor": "top-left",
-      "trackTag": "slider-track",
-      "handleTag": "slider-handle",
-      "states": {
-        "hover": {
-          "handle": "slider-handle-hover"
-        },
-        "disabled": {
-          "track": "slider-track-disabled",
-          "handle": "slider-handle-disabled"
-        }
-      },
-      "min": 0,
-      "max": 100,
-      "defaultValue": 100,
-      "step": 1,
-      "gridPlacement": {
-        "gridControlId": "settings-layout",
-        "row": 3,
-        "col": 1,
-        "align": "center-left",
-        "offsetX": 1,
-        "offsetY": -2
-      },
-      "zIndex": 103
-    },
-    {
-      "type": "text",
-      "id": "click-to-skip",
-      "x": 74,
-      "y": 63,
-      "text": "click to skip dialogue",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "color": "#ffffff",
-      "gridPlacement": {
-        "gridControlId": "settings-layout",
-        "row": 0,
-        "col": 0,
-        "align": "top-right",
-        "offsetX": -3
-      },
-      "zIndex": 103
-    },
-    {
-      "type": "grid",
-      "id": "settings-layout",
-      "x": 60,
-      "y": 56,
-      "height": 64,
-      "rows": 4,
-      "columns": 2,
-      "colWidths": [
-        120,
-        80
-      ],
-      "zIndex": 102
-    },
-    {
-      "type": "text",
-      "id": "sound-effects-volume",
-      "x": 0,
-      "y": 0,
-      "text": "sound effects volume",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "color": "#ffffff",
-      "gridPlacement": {
-        "gridControlId": "settings-layout",
-        "row": 2,
-        "col": 0,
-        "align": "top-right",
-        "offsetX": -3
-      },
-      "zIndex": 103
-    },
-    {
-      "type": "text",
-      "id": "music-volume",
-      "x": 0,
-      "y": 0,
-      "text": "music volume",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "color": "#ffffff",
-      "gridPlacement": {
-        "gridControlId": "settings-layout",
-        "row": 3,
-        "col": 0,
-        "align": "top-right",
-        "offsetX": -3
-      },
-      "zIndex": 103
-    },
-    {
-      "type": "button",
-      "id": "back",
-      "x": 136,
-      "y": 124,
-      "width": 50,
-      "height": 15,
-      "backgroundAnchor": "top-left",
-      "text": "Back",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "textColor": "#ffffff",
-      "textAlign": "center",
-      "textOffsetX": 0,
-      "textOffsetY": -1,
-      "backgroundTag": "",
-      "backgroundColor": "#132243",
-      "backgroundColorStates": {
-        "hover": "#1a466b",
-        "pressed": "#10908e",
-        "disabled": "#636363"
-      },
-      "zIndex": 103
-    },
-    {
-      "type": "text",
-      "id": "dialog-text-speed",
-      "x": 0,
-      "y": 0,
-      "text": "dialog text speed",
-      "font": "lucasfont-alternate",
-      "fontSize": 8,
-      "color": "#ffffff",
-      "gridPlacement": {
-        "gridControlId": "settings-layout",
-        "row": 1,
-        "col": 0,
-        "align": "top-right",
-        "offsetX": -3
-      },
-      "zIndex": 103
-    },
-    {
-      "type": "slider",
-      "id": "text-speed-slider",
-      "x": 0,
-      "y": 0,
-      "width": 70,
-      "height": 11,
-      "backgroundAnchor": "top-left",
-      "trackTag": "slider-track",
-      "handleTag": "slider-handle",
-      "min": 0.1,
-      "max": 2,
-      "defaultValue": 1,
-      "step": 0.1,
-      "states": {
-        "hover": {
-          "handle": "slider-handle-hover"
-        },
-        "disabled": {
-          "track": "slider-track-disabled",
-          "handle": "slider-handle-disabled"
-        }
-      },
-      "gridPlacement": {
-        "gridControlId": "settings-layout",
-        "row": 1,
-        "col": 1,
-        "offsetX": 1,
-        "offsetY": 1
-      },
-      "zIndex": 103
-    }
-  ],
-  "modal": true,
-  "zIndex": 101
-}
-</file>
-
-<file path="src/game/guis/settings-menu/settings-menu.gui.ts">
+<file path="src/game/guis/display-text/display-text.gui.ts">
 import { registerGuiScript } from '@engine/scripting';
 
-registerGuiScript('settings-menu', ({ B }) => {
+/**
+ * GUI script for `display-text` — Bennescript entry (`B.raw`, future onShow/onHide/control hooks on `B`).
+ */
+registerGuiScript('display-text', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
+});
+</file>
 
-  const TEXT_SPEED_MIN = 0.1;
-  const TEXT_SPEED_MAX = 2;
+<file path="src/game/guis/save-menu/save-menu.gui.ts">
+import { registerGuiScript } from '@engine/scripting';
 
-  function sliderToDurationMultiplier(sliderVal: number): number {
-    return TEXT_SPEED_MIN + TEXT_SPEED_MAX - sliderVal;
+const MAX_SLOTS = 5;
+
+/**
+ * GUI script for `save-menu`.
+ * Five fixed slots (0–4); `B.state.save(name, slot)` writes the selected slot.
+ */
+registerGuiScript('save-menu', ({ B }) => {
+  B.whenButtonClick('back-btn', () => {
+    B.gui('save-menu').hide();
+    B.gui('game-menu').show();
+  });
+
+  let selectedSlotIndex = 0;
+
+  /** Map manifest entries onto fixed slot indices (ignores unnamed / out-of-range saves). */
+  function getSavesBySlot() {
+    const bySlot: Array<{ name: string; slot?: number; timestamp: number } | undefined> =
+      Array(MAX_SLOTS);
+    for (const save of B.state.getSaveList()) {
+      const slot = save.slot;
+      if (typeof slot === 'number' && slot >= 0 && slot < MAX_SLOTS) {
+        bySlot[slot] = save;
+      }
+    }
+    return bySlot;
   }
 
-  function durationMultiplierToSlider(mult: number): number {
-    return TEXT_SPEED_MIN + TEXT_SPEED_MAX - mult;
+  function firstEmptyOrLastSlot(savesBySlot: ReturnType<typeof getSavesBySlot>): number {
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      if (!savesBySlot[i]) return i;
+    }
+    return MAX_SLOTS - 1;
+  }
+
+  function syncNameAndSaveButton(slotIndex: number) {
+    const gui = B.gui('save-menu');
+    const save = getSavesBySlot()[slotIndex];
+    const name = save ? save.name : '';
+    gui.control('save-name').textNow(name);
+    gui.control('save-btn').enabled = name.trim().length > 0;
+  }
+
+  /** Repaint list rows. When `autoSelect` is true, pick the first empty slot or the last slot if full. */
+  function refreshSaveList(autoSelect: boolean) {
+    const savesBySlot = getSavesBySlot();
+    const listBox = B.gui('save-menu').control('saved-list');
+
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const existing = savesBySlot[i];
+      listBox.setRowText(i, existing ? existing.name : `(Empty Slot ${i + 1})`);
+    }
+
+    if (autoSelect) {
+      selectedSlotIndex = firstEmptyOrLastSlot(savesBySlot);
+    }
+
+    listBox.selectedIndex = selectedSlotIndex;
   }
 
   B.onGuiBuilt(() => {
-    B.gui('settings-menu').control('sfxVolume').value = B.sound.getSfxVolume() * 100;
-    B.gui('settings-menu').control('musicVolume').value = B.sound.getMusicVolume() * 100;
+    const gui = B.gui('save-menu');
+    const listBox = gui.control('saved-list');
+    const nameInput = gui.control('save-name');
+    const saveButton = gui.control('save-btn');
 
-    B.gui('settings-menu').control('text-speed-slider').setValue(durationMultiplierToSlider(B.dialogSettings.durationMultiplier));
+    refreshSaveList(true);
+    syncNameAndSaveButton(selectedSlotIndex);
+
+    listBox.whenSelectionChanged((index: number) => {
+      selectedSlotIndex = index;
+      syncNameAndSaveButton(index);
+    });
+
+    nameInput.whenValueChanged((newValue) => {
+      const trimmed = String(newValue || '').trim();
+      saveButton.enabled = trimmed.length > 0;
+    });
   });
 
-  B.gui('settings-menu').control('sfxVolume').whenValueChanged((newVal) => {
-    B.sound.setSfxVolume(newVal / 100);
+  B.onGuiShow(() => {
+    refreshSaveList(false);
+    syncNameAndSaveButton(selectedSlotIndex);
   });
 
-  B.gui('settings-menu').control('musicVolume').whenValueChanged((newVal) => {
-    B.sound.setMusicVolume(newVal / 100);
-  });
+  B.whenButtonClick('save-btn', () => {
+    const gui = B.gui('save-menu');
+    const nameInput = gui.control('save-name');
+    const name = String(nameInput.text || '').trim();
+    if (name.length === 0) return;
 
-  B.whenCheckboxCheck("musicEnabled", () => {
-    B.dialogSettings.clickToSkip = true;
-  });
+    B.state.save.now(name, selectedSlotIndex);
+    B.state.flush();
 
-  B.whenCheckboxUncheck("musicEnabled", () => {
-    B.dialogSettings.clickToSkip = false;
-  });
+    refreshSaveList(false);
+    syncNameAndSaveButton(selectedSlotIndex);
 
-  B.gui("settings-menu").control("text-speed-slider").whenValueChanged((newVal) => {
-    B.dialogSettings.durationMultiplier = sliderToDurationMultiplier(newVal);
-  });
-
-  B.whenButtonClick("back", () => {
-    B.gui('settings-menu').hide();
+    B.gui('save-menu').hide();
     B.gui('game-menu').show();
   });
 });
 </file>
 
-<file path="src/game/inventory/Lantern/Lantern.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Lantern', ({ B }) => {
-
-  B.whenLookAt(() => {
-    // TODO
-  });
-
-  B.whenUse.doNotActivate(() => {
-    if (B.inventory('Lantern').animation === 'Lantern') {
-      B.say`Hank: I will turn on the Lantern.`;
-      B.wait(.5);
-      B.inventory('Lantern').animation = 'Lantern-glowing';
-      B.wait(.5);
-      B.say`Hank: There we go!`;
-    } else if (B.inventory('Lantern').animation === 'Lantern-glowing') {
-      B.say`Hank: I will turn off the Lantern.`;
-      B.wait(.5);
-      B.inventory('Lantern').animation = 'Lantern';
-      B.wait(.5);
-      B.say`Hank: There we go!`;
-    }
-  });
-});
+<file path="src/game/inventory/Bread/Bread.inventory.json">
+{
+  "id": "Bread",
+  "name": "Bread",
+  "description": "bread",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}
 </file>
 
-<file path="src/game/inventory/Sammich/Sammich.inventory.ts">
+<file path="src/game/inventory/Broom/Broom.inventory.ts">
 import { registerInventoryScript } from '@engine/scripting';
 
-registerInventoryScript('Sammich', ({ B }) => {
+registerInventoryScript('Broom', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
 
   B.whenLookAt(() => {
-    B.say`Hank: It looks delicious!`;
+    B.player.say('The broom is a broom.');
   });
 
   B.whenUse(() => {
-    // TODO
+    
+  });
+
+  B.whenVerb("give", () => {
+    B.setActiveInventory('Broom');
+  });
+
+  B.whenVerb("pickUp", () => {
+    B.player.say("I already have the broom.");
+  });
+
+  B.whenVerb("talkTo", () => {
+    B.player.say("I can't talk to the broom.");
+  });
+
+  B.whenVerb("open", () => {
+    B.player.say("I can't open the broom.");
+  });
+
+  B.whenVerb("close", () => {
+    B.player.say("I can't close the broom.");
+  });
+
+  B.whenVerb("push", () => {
+    B.player.say("I can't push the broom.");
+  });
+
+  B.whenVerb("pull", () => {
+    B.player.say("I can't pull the broom.");
   });
 });
 </file>
 
-<file path="src/types/room.ts">
-import type { CharacterFacingLetter, CharacterAnimationsConfig } from './character';
-
-export interface Point2 {
-  x: number;
-  y: number;
+<file path="src/game/inventory/Key/Key.inventory.json">
+{
+  "id": "Key",
+  "name": "Key",
+  "description": "key",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
 }
+</file>
 
-/** Inner ring subtracted from a walkable polygon when `active` is not false. */
-export interface WalkableHole {
-  id: string;
-  /** When false, this ring does not cut a hole (ignored for walk tests and debug). Omitted = active. */
-  active?: boolean;
-  points: Point2[];
+<file path="src/game/inventory/Key/Key.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('Key', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
+});
+</file>
+
+<file path="src/game/inventory/Knife/Knife.inventory.json">
+{
+  "id": "Knife",
+  "name": "Knife",
+  "description": "knife",
+  "onVerb": {},
+  "stackable": false,
+  "animations": {
+    "Knife-PB": {
+      "loop": true
+    }
+  },
+  "display": {
+    "aseprite": "shared"
+  }
 }
+</file>
 
-export interface WalkablePolygon {
-  id: string;
-  /** When false, this polygon is ignored for walking and debug overlays. Omitted = active. */
-  active?: boolean;
-  points: Point2[];
-  /** Optional holes (each an inner closed ring). Inactive holes are ignored. */
-  holes?: WalkableHole[];
+<file path="src/game/inventory/Knife/Knife.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('Knife', ({ B }) => {
+  // "Use" / "Give" on this item will automatically make it active for combining with world targets.
+  // Add B.whenUse / B.whenGive only if you need extra behavior (sound, dialogue, consumption, etc.).
+  // Use B.whenUse.doNotActivate / B.whenGive.doNotActivate if this item should never become active.
+  void B; // keep this until you add real handlers
+});
+</file>
+
+<file path="src/game/inventory/Lantern/Lantern.inventory.json">
+{
+  "id": "Lantern",
+  "name": "lantern",
+  "description": "",
+  "onVerb": {
+    "use": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "defaultAnimation": "Lantern",
+  "cursorAnimation": "Lantern"
 }
+</file>
 
-/**
- * Clickable room hotspot: closed polygon in room pixels (same space as walkable meshes).
- * The engine requires at least three vertices in `points` for hit-testing.
- */
-export interface RoomHotspotData {
-  id: string;
-  /** When false, ignored for interaction. Omitted = active. */
-  active?: boolean;
-  description?: string;
-  /** Draw / hit stacking vs other hotspots (higher tested later, tends to sit on top). */
-  zIndex?: number;
-  /**
-   * Room-space Y (pixels, y increases downward). When set, characters with **world feet Y greater
-   * than** this line draw in front of this hotspot’s stack entry; otherwise `zIndex` ordering applies.
-   */
-  baseline?: number;
-  /** Polygon hit area in room pixels (at least three vertices). */
-  points: Point2[];
-  /** Where the player walks when this hotspot is used (optional; editor + future walk-to flow). */
-  walkToPoint?: Point2;
-  /** Facing target after walking (optional; pairs with `walkToPoint`). */
-  lookAtPoint?: Point2;
-  /**
-   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this hotspot.
-   * Falls back to `"look"` when omitted.
-   */
-  defaultVerb?: string;
-  /** Enables object-level fallback dispatch when no supported verb matches. */
-  onVerbFallback?: boolean;
-  /**
-   * Optional Aseprite tag on the **game** cursor sheet (`game-config.json` `cursor` + `images/cursor/`).
-   * When set and the pointer hovers this hotspot, the custom cursor uses this tag instead of
-   * `cursor.activeAnimation`. Active inventory with `cursorAnimation` still wins.
-   */
-  activeCursorOverride?: string;
+<file path="src/game/inventory/PB/PB.inventory.json">
+{
+  "id": "PB",
+  "name": "PB",
+  "description": "peanut butter",
+  "onVerb": {
+    "open": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "defaultAnimation": "PB"
 }
+</file>
 
-/** Named marker in room space (spawns, triggers, script anchors). */
-export interface RoomPointData {
-  id: string;
-  x: number;
-  y: number;
-}
-
-/** Logical area (perspective scale, tint, walk blocking, triggers) as a closed polygon in room space. */
-export interface RoomRegionData {
-  id: string;
-  /** When false, ignored by tooling/runtime that respects regions. Omitted = active. */
-  active?: boolean;
-  /**
-   * When `false`, characters cannot walk through this polygon (treated as a hole in the walkable mesh).
-   * Omitted or `true` = walkable (no movement restriction from this region).
-   */
-  walkable?: boolean;
-  points: Point2[];
-  /**
-   * Character scale at the **top** of the region (smaller room Y). `1` = normal size. Omitted = `1`.
-   * Interpolates linearly with {@link scaleBottom} by feet Y across the region’s vertical bounds.
-   */
-  scaleTop?: number;
-  /**
-   * Character scale at the **bottom** of the region (larger room Y). Omitted = `1`.
-   */
-  scaleBottom?: number;
-  /**
-   * When `true`, walking speed is multiplied by a perspective factor derived from the same linear
-   * {@link scaleTop} / {@link scaleBottom} value as sprite scale (see `game-config.json` `perspective`).
-   * Omitted = `false`.
-   */
-  scaleWalkSpeed?: boolean;
-  /**
-   * Hex RGB (e.g. `#aabbcc`). When set, characters whose feet are inside this **winning** region
-   * multiply-tint toward this color. Omitted or invalid hex = no tint from this region.
-   */
-  tint?: string;
-  /**
-   * 0–1 blend between no tint and full {@link tint} multiply (`1` = full strength). Omitted = `1` when `tint` is set.
-   */
-  tintAlpha?: number;
-}
-
-export interface RoomCharacterInstance {
-  /** Unique id for this placement in the room (Phaser texture key suffix). */
-  instanceId: string;
-  /** Path relative to `src/game/characters/` (e.g. `clerk/clerk.character.json`). */
-  definition: string;
-  x: number;
-  y: number;
-  /** Facing for the first directional animation (e.g. `Idle` + `L` -> `IdleL`). */
-  initialFacing?: CharacterFacingLetter;
-  /** Base name before direction suffix; default `Idle`. */
-  initialAnimation?: string;
-  /** When false, sprite is hidden and not interactive. Default true. */
-  visible?: boolean;
-  /** Added to the engine character layer base depth; higher draws in front of lower. */
-  zIndex?: number;
-}
-
-/** Clickable / hit-test region for a room prop, in room pixel space (same as walkable polygons). */
-export interface RoomPropCollider {
-  points: Point2[];
-}
-
-/**
- * One placed prop in a room: Aseprite tag on this room's sheet (`images/rooms/<roomId>/`), draw order, and interaction.
- */
-export interface RoomPropInstance {
-  id: string;
-  /**
-   * Aseprite frame-tag name for this prop. Must appear in `meta.frameTags` on the room sheet
-   * (see `getAsepriteFrameTagNames('room', roomId)`); cels with no tag are not props.
-   */
-  tag: string;
-  /**
-   * Optional extra root for `<root>-*` clip families on the room sheet (editor / import tooling).
-   * When set (non-empty), tags matching `defaultAnimation` or `defaultAnimation-*` are grouped with this prop
-   * alongside tags matching `id` / `id-*`. Omitted when `id` alone is the Aseprite prefix root.
-   */
-  defaultAnimation?: string;
-  /**
-   * How the prop’s `x` / `y` fields map to the Aseprite cel when the room sheet uses **trim cells** (JSON
-   * `spriteSourceSize` / Phaser `frame.data.trim`).
-   * - **`canvas`** (default): `(x, y)` is the **logical cel / sheet canvas** origin — same as a GUI
-   *   `screen` anchor; Phaser’s built-in trim offset keeps art aligned with the Aseprite canvas
-   *   (typical full-room composite props).
-   * - **`tight`**: `(x, y)` is the **top-left of the trimmed opaque** region in room pixels — same
-   *   idea as a GUI `top-left` image with trim; the engine subtracts `spriteSourceSize` and keeps
-   *   it in sync when the prop’s current frame changes.
-   */
-  spritePlacement?: 'canvas' | 'tight';
-  /** Sprite position in room pixels (default top-left 0,0 for full-room composite frames). */
-  x?: number;
-  y?: number;
-  /** Draw order: higher values render in front of lower values. */
-  zIndex?: number;
-  /**
-   * Room-space Y (pixels, y increases downward). When set, characters with **world feet Y greater
-   * than** this line draw in front of this prop; otherwise `zIndex` ordering applies.
-   */
-  baseline?: number;
-  /** When true, the prop may receive clicks; the engine dispatches verb scripts immediately (no auto walk/face). */
-  clickable?: boolean;
-  visible?: boolean;
-  /** 0–1; default 1. */
-  alpha?: number;
-  /**
-   * Optional stand position for script-driven movement (not used by the engine for clicks).
-   * Game scripts may read this from payloads / room data when implementing walk-to-object behavior.
-   */
-  walkToPoint?: Point2;
-  /**
-   * Optional facing target for script-driven facing (not used by the engine for clicks).
-   */
-  lookAtPoint?: Point2;
-  description?: string;
-  /** Hit area in room space; required when `clickable` is true. */
-  collider?: RoomPropCollider;
-  /**
-   * Verb id invoked when an `inputProfile` slot resolves to `"defaultVerb"` on this prop.
-   * Falls back to `"look"` when omitted. Shown in the Inspector as the "Default verb" dropdown.
-   */
-  defaultVerb?: string;
-  /** Enables object-level fallback dispatch when no supported verb matches (before global handlers). */
-  onVerbFallback?: boolean;
-  /**
-   * Optional Aseprite tag on the **game** cursor sheet. When set and the pointer hovers this clickable
-   * prop, the cursor uses this tag instead of `cursor.activeAnimation`. Inventory cursor clips take precedence.
-   */
-  activeCursorOverride?: string;
-  /** Per-tag playback (loop, frameDuration); keys match Aseprite tags on this room's sheet. */
-  animations?: CharacterAnimationsConfig;
-  /**
-   * Parallax multiplier vs camera view. Each frame:
-   * `sprite position = parallaxDepth * (x,y) + (1 - parallaxDepth) * (worldView.x, worldView.y)`.
-   * - `0` — moves fully with the camera (world position tracks scroll origin)
-   * - `0–1` — distant; moves slower than the camera
-   * - `1` — no parallax (default if omitted); stays at authored `(x, y)`
-   * - `>1` — foreground; moves faster than the camera
-   */
-  parallaxDepth?: number;
-}
-
-export interface RoomData {
-  id: string;
-  name: string;
-  /**
-   * Optional static backdrop under props. When omitted, only props (and game backgroundColor) show.
-   */
-  background?: {
-    /** Path under `src/game/assets/` (e.g. `images/backgrounds/office.png`). Resolved by Vite at build time. */
-    image: string;
-  };
-  /**
-   * Explicit room dimensions in pixels. When omitted the room is assumed to be the same size as the
-   * game viewport (e.g. 352x198). Set this when the background or prop sheet is wider or taller than
-   * the game resolution so the camera can scroll.
-   */
-  size?: { width: number; height: number };
-  /**
-   * Camera scroll bounds in room pixel space. Restricts how far the camera can pan within the room.
-   * When omitted the camera is bounded by the full room `size`.
-   * Equivalent to "scroll bounds" in PowerQuest: the character can walk beyond scroll bounds but the
-   * camera stops panning before reaching the room edge.
-   */
-  scrollBounds?: { x: number; y: number; width: number; height: number };
-  walkable: {
-    polygons: WalkablePolygon[];
-  };
-  hotspots: RoomHotspotData[];
-  /** Named points in room space (optional; used by editor and future systems). */
-  points?: RoomPointData[];
-  /** Closed polygons for regions (optional; editor + future gameplay). */
-  regions?: RoomRegionData[];
-  /**
-   * Layered Aseprite props from `images/rooms/<id>/<id>.png` + `.json` (one sheet per room).
-   */
-  props?: RoomPropInstance[];
-  /** NPCs / props that use a character definition. */
-  characters?: RoomCharacterInstance[];
+<file path="src/game/inventory/Sammich/Sammich.inventory.json">
+{
+  "id": "Sammich",
+  "name": "Sammich",
+  "description": "sammich",
+  "onVerb": {
+    "look": true,
+    "use": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
 }
 </file>
 
@@ -25652,235 +24048,1824 @@ export function createGuiPreviewPhaserGame(
 }
 </file>
 
-<file path="src/game/characters/penny/penny.character.json">
-{
-  "id": "penny",
-  "name": "Penny",
-  "description": "",
-  "walkSpeed": 88,
-  "walkToPoint": {
-    "x": 41,
-    "y": 50
-  },
-  "talkPoint": {
-    "x": 18,
-    "y": 3
-  },
-  "clickable": true,
-  "display": {
-    "aseprite": true
-  },
-  "animations": {
-    "IdleD": {
-      "loop": true
-    },
-    "TalkD": {
-      "loop": true
-    },
-    "IdleL": {
-      "loop": true
-    },
-    "TalkL": {
-      "loop": true
-    },
-    "IdleU": {
-      "loop": true
-    },
-    "TalkU": {
-      "loop": true
+<file path="src/engine/ConfigManager.ts">
+import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
+import type { GameSettings, GameSettingsDialog, GameSettingsPerspective, GameSettingsSpeech } from '../types/game';
+import { readEffectiveDialogSettings } from './dialog/dialogGameState.js';
+import { readEffectiveSpeechSettings } from './dialog/speechGameState.js';
+import type { GameStateManager } from './gameState/GameStateManager.js';
+import { DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbs/verbConfig';
+import rawSettings from '../game/game-config.json';
+
+const SPEECH_DEFAULTS: GameSettingsSpeech = {
+  clickToSkip: false,
+  showText: true,
+  defaultTalkOffset: { x: 0, y: 0 },
+  minDurationMs: 800,
+  msPerCharacter: 35,
+  maxDurationMs: 4500,
+  durationMultiplier: 1.0,
+};
+
+const DIALOG_DEFAULTS: GameSettingsDialog = {};
+
+const PERSPECTIVE_DEFAULTS: GameSettingsPerspective = {
+  minWalkScale: 0.3,
+  walkScalePower: 0.8,
+};
+
+function mergePerspectiveSettings(data: GameSettings): GameSettingsPerspective {
+  const p = data.perspective;
+  if (!p || typeof p !== 'object') {
+    return { ...PERSPECTIVE_DEFAULTS };
+  }
+  return {
+    minWalkScale:
+      typeof p.minWalkScale === 'number' && Number.isFinite(p.minWalkScale)
+        ? p.minWalkScale
+        : PERSPECTIVE_DEFAULTS.minWalkScale,
+    walkScalePower:
+      typeof p.walkScalePower === 'number' && Number.isFinite(p.walkScalePower)
+        ? p.walkScalePower
+        : PERSPECTIVE_DEFAULTS.walkScalePower,
+  };
+}
+
+function assertPerspectiveSettings(data: GameSettings): void {
+  const p = data.perspective;
+  if (p === undefined) {
+    return;
+  }
+  if (typeof p !== 'object' || p === null || Array.isArray(p)) {
+    throw new Error('game-config perspective must be an object when present');
+  }
+  for (const key of ['minWalkScale', 'walkScalePower'] as const) {
+    const v = p[key];
+    if (v !== undefined && !Number.isFinite(v)) {
+      throw new Error(`game-config perspective.${key} must be a finite number when present`);
     }
-  },
-  "feet": {
-    "x": 20,
-    "y": 50
-  },
-  "collider": {
-    "points": [
-      {
-        "x": 8,
-        "y": 5
-      },
-      {
-        "x": 26,
-        "y": 4
-      },
-      {
-        "x": 28,
-        "y": 50
-      },
-      {
-        "x": 8,
-        "y": 50
+  }
+  const merged = mergePerspectiveSettings(data);
+  if (merged.minWalkScale <= 0) {
+    throw new Error('game-config perspective.minWalkScale must be > 0');
+  }
+}
+
+function mergeSpeechSettings(data: GameSettings): GameSettingsSpeech {
+  const s = data.speech;
+  if (!s) {
+    return { ...SPEECH_DEFAULTS };
+  }
+  const off = s.defaultTalkOffset;
+  return {
+    clickToSkip: s.clickToSkip ?? SPEECH_DEFAULTS.clickToSkip,
+    showText: s.showText ?? SPEECH_DEFAULTS.showText,
+    defaultTalkOffset:
+      off != null && typeof off === 'object' && Number.isFinite(off.x) && Number.isFinite(off.y)
+        ? { x: off.x, y: off.y }
+        : { ...SPEECH_DEFAULTS.defaultTalkOffset },
+    minDurationMs: s.minDurationMs ?? SPEECH_DEFAULTS.minDurationMs,
+    msPerCharacter: s.msPerCharacter ?? SPEECH_DEFAULTS.msPerCharacter,
+    maxDurationMs: s.maxDurationMs ?? SPEECH_DEFAULTS.maxDurationMs,
+    durationMultiplier: s.durationMultiplier ?? SPEECH_DEFAULTS.durationMultiplier,
+  };
+}
+
+function mergeDialogSettings(data: GameSettings): GameSettingsDialog {
+  const d = data.dialog;
+  if (!d) {
+    return { ...DIALOG_DEFAULTS };
+  }
+  return {
+    choiceOptionsViewportHeightPx:
+      typeof d.choiceOptionsViewportHeightPx === 'number' &&
+      Number.isFinite(d.choiceOptionsViewportHeightPx)
+        ? d.choiceOptionsViewportHeightPx
+        : undefined,
+    usedColor:
+      typeof d.usedColor === 'string' && d.usedColor.trim().length > 0
+        ? d.usedColor.trim()
+        : undefined,
+  };
+}
+
+function assertSpeechSettings(data: GameSettings): void {
+  const s = data.speech;
+  if (s === undefined) {
+    return;
+  }
+  if (typeof s !== 'object' || s === null) {
+    throw new Error('game-config speech must be an object when present');
+  }
+  if (s.clickToSkip !== undefined && typeof s.clickToSkip !== 'boolean') {
+    throw new Error('game-config speech.clickToSkip must be a boolean when present');
+  }
+  if (s.showText !== undefined && typeof s.showText !== 'boolean') {
+    throw new Error('game-config speech.showText must be a boolean when present');
+  }
+  const off = s.defaultTalkOffset;
+  if (off !== undefined) {
+    if (typeof off !== 'object' || off === null) {
+      throw new Error('game-config speech.defaultTalkOffset must be an object when present');
+    }
+    if (!Number.isFinite(off.x) || !Number.isFinite(off.y)) {
+      throw new Error('game-config speech.defaultTalkOffset.x and .y must be finite numbers when present');
+    }
+  }
+  for (const key of ['minDurationMs', 'msPerCharacter', 'maxDurationMs', 'durationMultiplier'] as const) {
+    const v = s[key];
+    if (v !== undefined && !Number.isFinite(v)) {
+      throw new Error(`game-config speech.${key} must be a finite number when present`);
+    }
+  }
+  const merged = mergeSpeechSettings(data);
+  if (merged.minDurationMs < 0 || merged.maxDurationMs < 0 || merged.msPerCharacter < 0 || merged.durationMultiplier <= 0) {
+    throw new Error(
+      'game-config speech: minDurationMs, maxDurationMs, and msPerCharacter must be >= 0; durationMultiplier must be > 0',
+    );
+  }
+  if (merged.minDurationMs > merged.maxDurationMs) {
+    throw new Error('game-config speech.minDurationMs must be <= maxDurationMs');
+  }
+}
+
+function assertDialogSettings(data: GameSettings): void {
+  const d = data.dialog;
+  if (d === undefined) {
+    return;
+  }
+  if (typeof d !== 'object' || d === null) {
+    throw new Error('game-config dialog must be an object when present');
+  }
+  if (d.choiceOptionsViewportHeightPx !== undefined) {
+    if (!Number.isFinite(d.choiceOptionsViewportHeightPx)) {
+      throw new Error('game-config dialog.choiceOptionsViewportHeightPx must be a finite number when present');
+    }
+    if (d.choiceOptionsViewportHeightPx <= 0) {
+      throw new Error('game-config dialog.choiceOptionsViewportHeightPx must be > 0 when present');
+    }
+  }
+}
+
+function collectEffectiveVerbIds(data: GameSettings): Set<string> {
+  const ids = new Set<string>();
+  if (data.verbs !== undefined && data.verbs.length > 0) {
+    for (const v of data.verbs) {
+      ids.add(v.id);
+    }
+    return ids;
+  }
+  ids.add('look');
+  ids.add('use');
+  return ids;
+}
+
+function assertVerbSettings(data: GameSettings): void {
+  if (data.verbs !== undefined) {
+    if (!Array.isArray(data.verbs)) {
+      throw new Error('game-config verbs must be an array when present');
+    }
+    const seen = new Set<string>();
+    for (const v of data.verbs) {
+      if (typeof v !== 'object' || v === null) {
+        throw new Error('game-config each verbs entry must be an object');
       }
-    ]
-  },
-  "activeCursorOverride": "Talk"
+      if (typeof v.id !== 'string' || v.id.length === 0) {
+        throw new Error('game-config each verbs[].id must be a non-empty string');
+      }
+      if (v.id === WALK_TO_VERB_ID) {
+        throw new Error(
+          `game-config verbs[] may not declare "${WALK_TO_VERB_ID}" — it is a reserved built-in verb id`,
+        );
+      }
+      if (v.id === DEFAULT_VERB_TOKEN) {
+        throw new Error(
+          `game-config verbs[] may not declare "${DEFAULT_VERB_TOKEN}" — it is a reserved inputProfile token`,
+        );
+      }
+      if (seen.has(v.id)) {
+        throw new Error(`game-config duplicate verb id: ${v.id}`);
+      }
+      seen.add(v.id);
+      if (v.label !== undefined && typeof v.label !== 'string') {
+        throw new Error(`game-config verbs["${v.id}"].label must be a string when present`);
+      }
+      if (v.preposition !== undefined && typeof v.preposition !== 'string') {
+        throw new Error(`game-config verbs["${v.id}"].preposition must be a string when present`);
+      }
+    }
+  }
+
+  const effectiveIds = collectEffectiveVerbIds(data);
+  const isValidSlotValue = (value: string): boolean =>
+    value === WALK_TO_VERB_ID || value === DEFAULT_VERB_TOKEN || effectiveIds.has(value);
+
+  const ip = data.inputProfile;
+  if (ip !== undefined) {
+    if (typeof ip !== 'object' || ip === null) {
+      throw new Error('game-config inputProfile must be an object when present');
+    }
+    if ('kind' in ip) {
+      throw new Error(
+        'game-config inputProfile.kind is no longer supported — remove the field (the profile is flat `primaryButtonVerb` / `secondaryButtonVerb`)',
+      );
+    }
+    if (typeof ip.primaryButtonVerb !== 'string' || ip.primaryButtonVerb.length === 0) {
+      throw new Error('game-config inputProfile.primaryButtonVerb must be a non-empty string');
+    }
+    if (typeof ip.secondaryButtonVerb !== 'string' || ip.secondaryButtonVerb.length === 0) {
+      throw new Error('game-config inputProfile.secondaryButtonVerb must be a non-empty string');
+    }
+    if (!isValidSlotValue(ip.primaryButtonVerb)) {
+      throw new Error(
+        `game-config inputProfile.primaryButtonVerb "${ip.primaryButtonVerb}" must be listed in verbs, or one of "${WALK_TO_VERB_ID}" / "${DEFAULT_VERB_TOKEN}"`,
+      );
+    }
+    if (!isValidSlotValue(ip.secondaryButtonVerb)) {
+      throw new Error(
+        `game-config inputProfile.secondaryButtonVerb "${ip.secondaryButtonVerb}" must be listed in verbs, or one of "${WALK_TO_VERB_ID}" / "${DEFAULT_VERB_TOKEN}"`,
+      );
+    }
+  }
+
+  if (data.defaultFallbackLine !== undefined && typeof data.defaultFallbackLine !== 'string') {
+    throw new Error('game-config defaultFallbackLine must be a string when present');
+  }
+}
+
+function assertInitialGameState(data: GameSettings): void {
+  const init = data.initialGameState;
+  if (init === undefined) {
+    return;
+  }
+  if (typeof init !== 'object' || init === null || Array.isArray(init)) {
+    throw new Error('game-config initialGameState must be an object when present');
+  }
+  if (init.flags !== undefined) {
+    if (typeof init.flags !== 'object' || init.flags === null || Array.isArray(init.flags)) {
+      throw new Error('game-config initialGameState.flags must be a plain object when present');
+    }
+    for (const [k, v] of Object.entries(init.flags)) {
+      if (k.length === 0) {
+        throw new Error('game-config initialGameState.flags keys must be non-empty strings');
+      }
+      const ok = typeof v === 'boolean' || typeof v === 'number' || typeof v === 'string';
+      if (!ok) {
+        throw new Error(
+          `game-config initialGameState.flags["${k}"] must be a boolean, number, or string when present`,
+        );
+      }
+    }
+  }
+  if (init.variables !== undefined) {
+    if (typeof init.variables !== 'object' || init.variables === null || Array.isArray(init.variables)) {
+      throw new Error('game-config initialGameState.variables must be a plain object when present');
+    }
+  }
+  if (init.inventory !== undefined) {
+    if (Array.isArray(init.inventory)) {
+      const seen = new Set<string>();
+      for (const item of init.inventory) {
+        if (typeof item !== 'string' || item.length === 0) {
+          throw new Error('game-config initialGameState.inventory entries must be non-empty strings');
+        }
+        if (seen.has(item)) {
+          console.warn(
+            `[Benne] game-config initialGameState.inventory: duplicate "${item}" — quantities merge at runtime`,
+          );
+        }
+        seen.add(item);
+      }
+    } else if (typeof init.inventory === 'object' && init.inventory !== null && !Array.isArray(init.inventory)) {
+      for (const [k, v] of Object.entries(init.inventory as Record<string, unknown>)) {
+        if (k.length === 0) {
+          throw new Error('game-config initialGameState.inventory keys must be non-empty strings');
+        }
+        const n = typeof v === 'number' ? v : Number(v);
+        if (!Number.isFinite(n) || n < 0) {
+          throw new Error(
+            `game-config initialGameState.inventory["${k}"] must be a non-negative finite number when present`,
+          );
+        }
+      }
+    } else {
+      throw new Error(
+        'game-config initialGameState.inventory must be a string[] id list or Record<string, number> when present',
+      );
+    }
+  }
+}
+
+function assertGameSettings(data: GameSettings): void {
+  const { width, height } = data.resolution;
+  if (!Number.isFinite(width) || width < 1 || !Number.isFinite(height) || height < 1) {
+    throw new Error(`Invalid game-config resolution: ${width} x ${height}`);
+  }
+  const { masterVolume, sfxVolume, musicVolume, dialogueVolume } = data.audio;
+  for (const [key, v] of Object.entries({
+    masterVolume,
+    sfxVolume,
+    musicVolume,
+    dialogueVolume,
+  })) {
+    if (!Number.isFinite(v) || v < 0 || v > 1) {
+      throw new Error(`Invalid game-config audio.${key}: ${v} (expected 0.0–1.0)`);
+    }
+  }
+  if (typeof data.startingPlayerCharacter !== 'string' || data.startingPlayerCharacter.length === 0) {
+    throw new Error('game-config startingPlayerCharacter must be a non-empty string');
+  }
+  if (data.dropWhenInventoryUsed !== undefined && typeof data.dropWhenInventoryUsed !== 'boolean') {
+    throw new Error('game-config dropWhenInventoryUsed must be a boolean when present');
+  }
+  if (data.debug !== undefined) {
+    const d = data.debug;
+    if (typeof d !== 'object' || d === null) {
+      throw new Error('game-config debug must be an object when present');
+    }
+    for (const key of ['showWalkable', 'showPropOutlines', 'showGuiOutlines', 'showRegionOutlines'] as const) {
+      const v = d[key];
+      if (v !== undefined && typeof v !== 'boolean') {
+        throw new Error(`game-config debug.${key} must be a boolean when present`);
+      }
+    }
+  }
+  assertInitialGameState(data);
+  assertVerbSettings(data);
+  assertSpeechSettings(data);
+  assertDialogSettings(data);
+  assertPerspectiveSettings(data);
+  assertCursorSettings(data);
+}
+
+function assertCursorSettings(data: GameSettings): void {
+  const c = data.cursor;
+  if (c === undefined) {
+    return;
+  }
+  if (typeof c !== 'object' || c === null || Array.isArray(c)) {
+    throw new Error('game-config cursor must be an object when present');
+  }
+  if (typeof c.idleAnimation !== 'string' || c.idleAnimation.trim().length === 0) {
+    throw new Error('game-config cursor.idleAnimation must be a non-empty string when cursor is set');
+  }
+  if (typeof c.activeAnimation !== 'string' || c.activeAnimation.trim().length === 0) {
+    throw new Error('game-config cursor.activeAnimation must be a non-empty string when cursor is set');
+  }
+  const anims = c.animations;
+  if (anims !== undefined) {
+    if (typeof anims !== 'object' || anims === null || Array.isArray(anims)) {
+      throw new Error('game-config cursor.animations must be a plain object when present');
+    }
+    for (const [tag, clip] of Object.entries(anims)) {
+      if (typeof tag !== 'string' || tag.length === 0) {
+        throw new Error('game-config cursor.animations keys must be non-empty strings');
+      }
+      if (typeof clip !== 'object' || clip === null || Array.isArray(clip)) {
+        throw new Error(`game-config cursor.animations["${tag}"] must be an object when present`);
+      }
+      const rec = clip as Record<string, unknown>;
+      if (rec.loop !== undefined && typeof rec.loop !== 'boolean') {
+        throw new Error(`game-config cursor.animations["${tag}"].loop must be a boolean when present`);
+      }
+      if (rec.frameDuration !== undefined && !Number.isFinite(rec.frameDuration)) {
+        throw new Error(`game-config cursor.animations["${tag}"].frameDuration must be a finite number when present`);
+      }
+    }
+  }
+  const hs = c.hotspot;
+  if (hs !== undefined) {
+    if (typeof hs !== 'string' || !isValidGameSettingsCursorHotspot(hs)) {
+      throw new Error(
+        `game-config cursor.hotspot must be one of: ${CURSOR_HOTSPOT_PRESETS.join(', ')}`,
+      );
+    }
+    if (hs === 'custom') {
+      const p = c.hotspotPixel;
+      if (p === undefined || typeof p !== 'object' || p === null || Array.isArray(p)) {
+        throw new Error('game-config cursor.hotspotPixel { x, y } is required when cursor.hotspot is "custom"');
+      }
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+        throw new Error('game-config cursor.hotspotPixel.x and .y must be finite numbers when hotspot is "custom"');
+      }
+    }
+  } else if (c.hotspotPixel !== undefined) {
+    console.warn('[Benne] game-config cursor.hotspotPixel is ignored unless cursor.hotspot is "custom"');
+  }
+  const disp = c.display;
+  if (disp !== undefined) {
+    if (typeof disp !== 'object' || disp === null || Array.isArray(disp)) {
+      throw new Error('game-config cursor.display must be an object when present');
+    }
+    if (disp.aseprite !== undefined && typeof disp.aseprite !== 'boolean') {
+      throw new Error('game-config cursor.display.aseprite must be a boolean when present');
+    }
+  }
+}
+
+const settings = rawSettings as GameSettings;
+assertGameSettings(settings);
+
+/**
+ * Synchronous access to `src/game/game-config.json` (bundled by Vite at build time).
+ */
+export function getGameSettings(): GameSettings {
+  return settings;
+}
+
+/** Merged `speech` values from `game-config.json` only (no runtime variable overrides). */
+export function getSpeechSettingsFromConfig(): GameSettingsSpeech {
+  return mergeSpeechSettings(settings);
+}
+
+/**
+ * Merged `speech` values: when `manager` is set, overlays runtime `speech:*` variables
+ * (see `B.speechSettings`); otherwise returns config defaults only.
+ */
+export function getSpeechSettings(manager?: GameStateManager | null): GameSettingsSpeech {
+  if (manager) {
+    return readEffectiveSpeechSettings(manager);
+  }
+  return mergeSpeechSettings(settings);
+}
+
+/** Merged `dialog` values from `game-config.json` only (no runtime variable overrides). */
+export function getDialogSettingsFromConfig(): GameSettingsDialog {
+  return mergeDialogSettings(settings);
+}
+
+/**
+ * Merged `dialog` values: when `manager` is set, overlays runtime `dialog:*` variables
+ * (see `B.dialogSettings`); otherwise returns config defaults only.
+ */
+export function getDialogSettings(manager?: GameStateManager | null): GameSettingsDialog {
+  if (manager) {
+    return readEffectiveDialogSettings(manager);
+  }
+  return mergeDialogSettings(settings);
+}
+
+/** Merged `perspective` values for room-region walk-speed scaling (defaults when block or fields are omitted). */
+export function getPerspectiveSettings(): GameSettingsPerspective {
+  return mergePerspectiveSettings(settings);
+}
+
+/** How long a `.say()` line should stay on screen from {@link getSpeechSettings} timing rules. */
+export function computeSpeechLineDurationMs(
+  line: string,
+  manager?: GameStateManager | null,
+): number {
+  const speech = getSpeechSettings(manager);
+  const n = Array.from(line).length;
+  const scaled = n * speech.msPerCharacter * speech.durationMultiplier;
+  const clamped = Math.min(speech.maxDurationMs, Math.max(speech.minDurationMs, scaled));
+  return Math.round(clamped);
 }
 </file>
 
-<file path="src/game/globalScript.ts">
-import { registerGlobalScript } from '@engine/scripting';
-import type {
-  VerbGlobalFallbackPayload,
-  VerbUnhandledPayload,
-} from '@engine/events/verbInteractionEvents';
-import { getGameSettings } from '@engine/ConfigManager';
+<file path="src/engine/scripting/GuiBenneScript.ts">
+import * as Phaser from 'phaser';
+import {
+  guiAllButtonsClickEventId,
+  guiButtonClickEventId,
+  type GuiAllButtonsClickPayload,
+} from '../events/guiButtonEvents.js';
+import {
+  guiCheckboxCheckEventId,
+  guiCheckboxUncheckEventId,
+} from '../events/guiCheckboxEvents.js';
+import {
+  guiControlMouseEnterEventId,
+  guiControlMouseLeaveEventId,
+} from '../events/guiControlHoverEvents.js';
+import { SCENE_ROOM } from '../../game/constants.js';
+import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
+import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import { BenneScriptCore } from './BenneScriptCore.js';
+import type { BenneScriptDialogCommandSurface, BenneScriptGuiOverlayRef } from './benneScriptFacades.js';
+import {
+  createLazyBenneScriptGameStateNamespace,
+  createLazyBenneScriptInventoryNamespace,
+  type BenneScriptGameStateNamespace,
+  type BenneScriptInventoryNamespace,
+} from './benneScriptGameStateApi.js';
+import {
+  createBenneNoopGuiControlFacade,
+  createDetachedBenneNoopGuiControlFacade,
+  type BenneScriptControlBinding,
+  type BenneScriptControlBindingTarget,
+  type ControlFacade,
+  type GuiRuntime,
+} from './GuiRuntime.js';
+import {
+  createBenneScriptDialogAccessor,
+  createNoopDialogCommandSurface,
+} from './DialogBenneScript.js';
+import type { RoomScene } from '../scenes/RoomScene.js';
+import { getGuiBenneScript } from './registerGuiScript.js';
 
-registerGlobalScript(({ B }) => {
+/**
+ * Bennescript facade for `*.gui.ts`: GUI-scoped channels (button clicks, pointer hover per control), `raw`, and `wait`.
+ * Handlers run through the same interaction queue as room / character scripts.
+ */
+export class GuiBenneScript extends BenneScriptCore {
+  private readonly guiId: string;
+  /** Resolves the game lazily — `registerGuiScript` runs before `createBenneGame`. */
+  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+  readonly state: BenneScriptGameStateNamespace;
+  readonly inventory: BenneScriptInventoryNamespace;
+  private readonly onGuiBuiltHandlers: Array<(gui: GuiRuntime) => void> = [];
+  private readonly onGuiShowHandlers: Array<(gui: GuiRuntime) => void> = [];
+  private readonly onGuiHideHandlers: Array<(gui: GuiRuntime) => void> = [];
+  /** While `onGuiBuilt` handlers run, supports {@link GuiBenneScript.scene}. */
+  private activeGuiRuntime: GuiRuntime | null = null;
 
   /**
-  * Game state flags.
-  *
-  * These are used to store game state across room loads.
-  */
-  B.state.setFlag('unlockedDoor', false);
-  B.state.setFlag('turnedOnFountain', false);
-  
-  /**
-  * Global update handler. Runs every frame while the game is running. Can also be used in room scripts.
-  * @param ctx - The update context.
-  * @returns void
-  */
-  B.onUpdate((_ctx) => { })
-
-  // ─────────────────────────────────────────────────────────────
-  // Room transitions (global hooks — optional)
-  // Runs for every room load, including the first from BootScene. See architecture.md
-  // (Room transitions) for hook order and RoomTransitionContext.
-  // ─────────────────────────────────────────────────────────────
-  B.whenLeaveAnyRoom(() => {
-    // Optional: extra leave effects (sound, music crossfade, etc.)
-  });
-
-  B.whenEnterAnyRoom((_ctx) => {
-    // Invisible setup — player placement, prop state, music, etc.
-    // Example using last room:
-    // if (_ctx.lastRoom === 'apartment') {
-    //   B.player.moveToNow('streetDoor');
-    // }
-  });
-
-  B.whenEnterAnyRoomAfterFade(() => {
-    // Visible entrance behavior (walk in, cutscene start, etc.)
-  });
-
-  /**
-  * Global fallbacks.
-  *
-  * These run when a verb is used on something that has no specific handler
-  * in the room script, character script, or inventory script.
-  *
-  * Feel free to put ANY code here — play animations, change game state,
-  * start cutscenes, etc. These are real global handlers.
-  */
-
-  // ─────────────────────────────────────────────────────────────
-  // Global per-verb fallbacks
-  // ─────────────────────────────────────────────────────────────
-
-  B.whenGlobalVerb('look', () => {
-    B.player.say("Nothing special about that.");
-  });
-
-  B.whenGlobalVerb('use', () => {
-    B.player.say("That doesn't work.");
-  });
-
-  // ─────────────────────────────────────────────────────────────
-  // Ultimate safety net (for verbs added in game-config.json
-  // but not handled above)
-  // ─────────────────────────────────────────────────────────────
-  B.whenGlobalFallback((_payload: VerbGlobalFallbackPayload) => {
-    B.player.say(
-      getGameSettings().defaultFallbackLine ?? "That doesn't work."
-    );
-  });
-
-  // ─────────────────────────────────────────────────────────────
-  // Inventory "use X on Y" when nothing handled it
-  // ─────────────────────────────────────────────────────────────
-  B.whenInventoryOnVerbTargetUnhandled(() => {
-    B.player.say("That doesn't work.");
-  });
-
-  // DEV diagnostic
-  B.whenVerbUnhandled((p: VerbUnhandledPayload) => {
-    if (import.meta.env.DEV) {
-      console.info(`[Benne 9-verb] verb:unhandled → "${p.fallbackLine}"`, p.target);
-    }
-  });
-});
-</file>
-
-<file path="src/game/inventory/Bread/Bread.inventory.ts">
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Bread', ({ B }) => {
-
-  B.whenLookAt(() => {
-    B.say`Hank: It's some bread.`;
-  });
-
-  B.whenUse(() => {
-    // TODO
-  });
-
-  B.whenInventoryUsedOn('Bread', (payload) => {
-    if (payload.itemId === 'Knife') {
-      
-      if (B.inventory('Knife').animation === 'Knife') {
-        B.say`Hank: It won't do any good without something to spread!`;
-      } else {
-        B.inventory.add('Sammich');
-        B.inventory.remove('Bread');
-        B.clearActiveInventory();
-        B.say`Hank: This looks delicious!`;
+   * Resolve another GUI overlay’s controls by id (same pattern as **`B.dialog`** / **`B.inventory`**).
+   * Call from **`onGuiBuilt`** (after the room registers {@link GuiRuntime} instances — includes **`this.guiId`** overlays).
+   */
+  gui(overlayGuiId: string): BenneScriptGuiOverlayRef {
+    const gid = overlayGuiId.trim();
+    const self = this;
+    const setOverlayVisible = (visible: boolean): void => {
+      const rm = GuiBenneScript.tryResolveRoomSceneForGuiOverlay();
+      const handle = rm?.tryGetGuiOverlayHandle(gid);
+      if (!handle) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            `[Benne] B.gui("${gid}").${visible ? 'show' : 'hide'}(): overlay not found in active room — no-op.`,
+          );
+        }
+        return;
       }
-      
+      handle.setVisible(visible);
+      const targetScript = getGuiBenneScript(gid);
+      const rt = rm?.tryGetGuiRuntime(gid);
+      if (targetScript && rt) {
+        if (visible) {
+          targetScript.notifyGuiShown(rt);
+        } else {
+          targetScript.notifyGuiHidden(rt);
+        }
+      }
+    };
+    return {
+      control(controlId: string): ControlFacade {
+        const id = controlId.trim();
+        const queue = (factory: () => Promise<unknown>) => self.chain(factory);
+        const rm = GuiBenneScript.tryResolveRoomSceneForGuiOverlay();
+        const rt = rm?.tryGetGuiRuntime(gid);
+        const scene = self.resolveSceneForGuiControlNoop(rt, rm);
+        const binding = id ? self.createControlScriptBinding(gid, id) : null;
+        const attachBinding = (facade: BenneScriptControlBindingTarget): void => {
+          if (binding) {
+            facade.attachScriptBinding(binding);
+          }
+        };
+        if (!scene) {
+          const detached = createDetachedBenneNoopGuiControlFacade(queue);
+          attachBinding(detached);
+          return detached;
+        }
+        if (!id) {
+          return createBenneNoopGuiControlFacade(scene, queue);
+        }
+        const resolved = rt?.getControl(id) ?? createBenneNoopGuiControlFacade(scene, queue);
+        attachBinding(resolved);
+        return resolved;
+      },
+      show(): void {
+        setOverlayVisible(true);
+      },
+      hide(): void {
+        setOverlayVisible(false);
+      },
+    };
+  }
+
+  private resolveSceneForGuiControlNoop(
+    rt: GuiRuntime | null | undefined,
+    rm: RoomScene | null,
+  ): Phaser.Scene | null {
+    if (rt?.scene) {
+      return rt.scene;
+    }
+    if (this.activeGuiRuntime?.scene) {
+      return this.activeGuiRuntime.scene;
+    }
+    if (rm) {
+      return rm;
+    }
+    const g = tryGetActiveBenneGame();
+    const room = g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
+    if (room) {
+      return room;
+    }
+    const scenes = g?.scene.getScenes(true);
+    const first = scenes?.[0];
+    return first ?? null;
+  }
+
+  private static tryResolveRoomSceneForGuiOverlay(): RoomScene | null {
+    const g = tryGetActiveBenneGame();
+    return (g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined) ?? null;
+  }
+
+  private createControlScriptBinding(guiId: string, controlId: string): BenneScriptControlBinding {
+    return {
+      guiId,
+      controlId,
+      subscribe: (event, handler) => {
+        this.subscribe(event, (payload) => {
+          handler(payload);
+        });
+      },
+      subscribeImmediate: (event, handler) => {
+        this.subscribeImmediateWithPayload(event, (payload) => {
+          handler(payload);
+        });
+      },
+    };
+  }
+
+  constructor(events: Phaser.Events.EventEmitter, guiId: string) {
+    super(
+      events,
+      () => null,
+      () => {
+        const g = tryGetActiveBenneGame();
+        return (g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined) ?? undefined;
+      },
+    );
+    this.guiId = guiId;
+    this.state = createLazyBenneScriptGameStateNamespace(() => tryGetActiveGameStateManager());
+    this.inventory = createLazyBenneScriptInventoryNamespace(
+      () => tryGetActiveGameStateManager(),
+      () => {
+        const g = tryGetActiveBenneGame();
+        return (g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined) ?? undefined;
+      },
+      (factory) => this.chain(factory),
+    );
+    this.dialog = (dialogId: string) => {
+      const manager = tryGetActiveGameStateManager();
+      const game = tryGetActiveBenneGame();
+      if (!manager || !game) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            `[Benne] B.dialog("${dialogId}") from GUI "${this.guiId}": game not ready — no-op surface.`,
+          );
+        }
+        return createNoopDialogCommandSurface();
+      }
+      return createBenneScriptDialogAccessor(manager, game, (factory) => this.chain(factory))(dialogId);
+    };
+  }
+
+  /**
+   * The active room scene while an **`onGuiBuilt`** handler runs (e.g. **`B.scene.scale.width`** for full canvas width).
+   * Not available at `registerGuiScript` top level — use **`gui.scene`** from the **`onGuiBuilt`** callback parameter if you prefer.
+   */
+  get scene(): Phaser.Scene {
+    const rt = this.activeGuiRuntime;
+    if (!rt) {
+      throw new Error(
+        `[Benne] B.scene ("${this.guiId}") is only available synchronously inside B.onGuiBuilt — use the gui argument's gui.scene, or move code into the callback.`,
+      );
+    }
+    return rt.scene;
+  }
+
+  /**
+   * Registers a callback invoked each time this GUI’s overlay is built in the room scene (fresh {@link GuiRuntime}
+   * per load). Use for custom layout and tweens — keep work generic; engine stays data-driven.
+   */
+  onGuiBuilt(callback: (gui: GuiRuntime) => void): void {
+    this.onGuiBuiltHandlers.push(callback);
+  }
+
+  /**
+   * Registers a callback invoked when this GUI overlay becomes visible via {@link BenneScriptGuiOverlayRef.show}
+   * (including `B.gui(this.guiId).show()` from another GUI script). Use to refresh lists that read persisted state.
+   */
+  onGuiShow(callback: (gui: GuiRuntime) => void): void {
+    this.onGuiShowHandlers.push(callback);
+  }
+
+  /**
+   * Registers a callback invoked when this GUI overlay is hidden via {@link BenneScriptGuiOverlayRef.hide}.
+   */
+  onGuiHide(callback: (gui: GuiRuntime) => void): void {
+    this.onGuiHideHandlers.push(callback);
+  }
+
+  /**
+   * Queues async work on this GUI script’s interaction tail (same lazy factory semantics as {@link BenneScriptCore}).
+   * Used by {@link GuiRuntime} / {@link ControlFacade} tweens.
+   */
+  queueInteraction(factory: () => Promise<unknown>): void {
+    this.chain(factory);
+  }
+
+  /**
+   * Called from the scene after {@link buildGuiOverlay}; runs all `onGuiBuilt` registrations for this overlay instance.
+   */
+  notifyGuiBuilt(gui: GuiRuntime): void {
+    this.activeGuiRuntime = gui;
+    try {
+      for (const handler of this.onGuiBuiltHandlers) {
+        try {
+          handler(gui);
+        } catch (err) {
+          console.error(`[Benne] Error in onGuiBuilt handler for GUI "${this.guiId}":`, err);
+        }
+      }
+    } finally {
+      this.activeGuiRuntime = null;
+    }
+  }
+
+  /** Called from {@link BenneScriptGuiOverlayRef.show} after the overlay is shown. */
+  notifyGuiShown(gui: GuiRuntime): void {
+    for (const handler of this.onGuiShowHandlers) {
+      try {
+        handler(gui);
+      } catch (err) {
+        console.error(`[Benne] Error in onGuiShow handler for GUI "${this.guiId}":`, err);
+      }
+    }
+  }
+
+  /** Called from {@link BenneScriptGuiOverlayRef.hide} after the overlay is hidden. */
+  notifyGuiHidden(gui: GuiRuntime): void {
+    for (const handler of this.onGuiHideHandlers) {
+      try {
+        handler(gui);
+      } catch (err) {
+        console.error(`[Benne] Error in onGuiHide handler for GUI "${this.guiId}":`, err);
+      }
+    }
+  }
+
+  /**
+   * When the player activates a specific `button` control (by `id` in `*.gui.json`), run `handler`.
+   * Mirrors verb sugar (`whenLookAt`, …): one string id, scoped to this GUI file’s `registerGuiScript` id.
+   */
+  whenButtonClick(buttonId: string, handler: () => void): void {
+    this.subscribe(guiButtonClickEventId(this.guiId, buttonId), () => {
+      handler();
+    });
+  }
+
+  /**
+   * Runs when any `button` control in this GUI is activated; receives the control `id`.
+   * Prefer {@link whenButtonClick} for normal wiring; use this for logging, shared fallbacks, etc.
+   */
+  whenAnyButtonClick(handler: (buttonId: string) => void): void {
+    this.subscribe(guiAllButtonsClickEventId(this.guiId), (payload) => {
+      const p = payload as GuiAllButtonsClickPayload | undefined;
+      if (p && typeof p.buttonId === 'string') {
+        handler(p.buttonId);
+      }
+    });
+  }
+
+  /**
+   * When the player toggles a `checkbox` control to **checked**, run `handler`.
+   * Programmatic **`control(…).checked = true`** does not invoke this.
+   */
+  whenCheckboxCheck(checkboxId: string, handler: () => void): void {
+    this.subscribe(guiCheckboxCheckEventId(this.guiId, checkboxId), () => {
+      handler();
+    });
+  }
+
+  /**
+   * When the player toggles a `checkbox` control to **unchecked**, run `handler`.
+   * Programmatic **`control(…).checked = false`** does not invoke this.
+   */
+  whenCheckboxUncheck(checkboxId: string, handler: () => void): void {
+    this.subscribe(guiCheckboxUncheckEventId(this.guiId, checkboxId), () => {
+      handler();
+    });
+  }
+
+  /**
+   * Runs when the pointer enters the hit area of a GUI control with this **`id`**. Works for any authored
+   * control that exposes a hit area: **`trigger`**, **`button`** (while enabled), **`checkbox`**, **`image`**, **`inventoryPanel`**,
+   * and **`text`** (bounded by its rendered size).
+   */
+  whenMouseEnter(controlId: string, handler: () => void): void {
+    const id = controlId.trim();
+    if (!id) {
       return;
     }
-    
-    return false;
+    this.subscribeImmediate(guiControlMouseEnterEventId(this.guiId, id), () => {
+      handler();
+    });
+  }
+
+  /**
+   * Runs when the pointer leaves a GUI control’s hit area. Paired with {@link whenMouseEnter}; same control-id rules.
+   */
+  whenMouseLeave(controlId: string, handler: () => void): void {
+    const id = controlId.trim();
+    if (!id) {
+      return;
+    }
+    this.subscribeImmediate(guiControlMouseLeaveEventId(this.guiId, id), () => {
+      handler();
+    });
+  }
+}
+</file>
+
+<file path="src/game/guis/dialog/dialog.gui.json">
+{
+  "id": "dialog",
+  "name": "Dialog",
+  "description": "",
+  "visible": false,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "image",
+      "id": "DialogBG",
+      "x": 0,
+      "y": 0,
+      "tag": "VerbsBG",
+      "zIndex": 1,
+      "backgroundAnchor": "screen",
+      "visible": true
+    },
+    {
+      "type": "button",
+      "id": "scrollUp",
+      "x": 2,
+      "y": 150,
+      "width": 7,
+      "height": 18,
+      "text": "Button",
+      "font": "",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "UpBtn",
+      "backgroundOffsetX": -3,
+      "backgroundOffsetY": -4,
+      "zIndex": 100,
+      "backgroundAnchor": "top-left"
+    },
+    {
+      "type": "button",
+      "id": "scrollDown",
+      "x": 2,
+      "y": 176,
+      "width": 7,
+      "height": 18,
+      "backgroundAnchor": "top-left",
+      "text": "Button",
+      "font": "",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetY": 0,
+      "backgroundTag": "DownBtn",
+      "backgroundOffsetX": -3,
+      "backgroundOffsetY": -14,
+      "zIndex": 100
+    },
+    {
+      "type": "image",
+      "id": "Bullet",
+      "x": 0,
+      "y": 0,
+      "tag": "Bullet",
+      "zIndex": 50,
+      "backgroundAnchor": "center",
+      "gridPlacement": {
+        "gridControlId": "Option-Grid",
+        "row": 0,
+        "col": 0,
+        "align": "center"
+      }
+    },
+    {
+      "type": "grid",
+      "id": "Option-Grid",
+      "x": 12,
+      "y": 148,
+      "width": 334,
+      "height": 14,
+      "rows": 1,
+      "columns": 2,
+      "colWidths": [
+        10,
+        324
+      ],
+      "zIndex": 10
+    },
+    {
+      "type": "button",
+      "id": "Dialog-Option",
+      "x": 0,
+      "y": 0,
+      "width": 324,
+      "height": 14,
+      "backgroundAnchor": "top-left",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "left",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "gridPlacement": {
+        "gridControlId": "Option-Grid",
+        "row": 0,
+        "col": 1
+      }
+    }
+  ]
+}
+</file>
+
+<file path="src/game/guis/game-menu/game-menu.gui.json">
+{
+  "id": "game-menu",
+  "name": "Game Menu",
+  "description": "",
+  "visible": false,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "nineSliceImage",
+      "id": "menu-bg",
+      "x": 118,
+      "y": 42,
+      "width": 116,
+      "height": 114,
+      "tag": "9-slice-BG",
+      "sliceNames": {
+        "topLeft": "TopLeft",
+        "topCenter": "TopMid",
+        "topRight": "TopRight",
+        "middleLeft": "MidLeft",
+        "center": "Mid",
+        "middleRight": "MidRight",
+        "bottomLeft": "BottomLeft",
+        "bottomCenter": "BottomMid",
+        "bottomRight": "BottomRight"
+      },
+      "zIndex": 1
+    },
+    {
+      "type": "grid",
+      "id": "menu-layout",
+      "x": 125,
+      "y": 46,
+      "width": 102,
+      "height": 102,
+      "rows": 6,
+      "columns": 1,
+      "zIndex": 2
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "x": 0,
+      "y": 0,
+      "text": "Menu",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#1a466b",
+      "gridPlacement": {
+        "gridControlId": "menu-layout",
+        "row": 0,
+        "col": 0,
+        "align": "center"
+      },
+      "zIndex": 3
+    },
+    {
+      "type": "button",
+      "id": "save",
+      "x": 0,
+      "y": 0,
+      "width": 50,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Save",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "zIndex": 5,
+      "gridPlacement": {
+        "gridControlId": "menu-layout",
+        "row": 2,
+        "col": 0,
+        "align": "center-left"
+      },
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    },
+    {
+      "type": "button",
+      "id": "load",
+      "x": 0,
+      "y": 0,
+      "width": 50,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Load",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "zIndex": 5,
+      "gridPlacement": {
+        "gridControlId": "menu-layout",
+        "row": 2,
+        "col": 0,
+        "align": "center-right"
+      },
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    },
+    {
+      "type": "button",
+      "id": "settings",
+      "x": 0,
+      "y": 0,
+      "width": 102,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Settings",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "zIndex": 5,
+      "gridPlacement": {
+        "gridControlId": "menu-layout",
+        "row": 3,
+        "col": 0,
+        "align": "center"
+      },
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    },
+    {
+      "type": "button",
+      "id": "quit",
+      "x": 0,
+      "y": 0,
+      "width": 102,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Quit",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "zIndex": 5,
+      "gridPlacement": {
+        "gridControlId": "menu-layout",
+        "row": 5,
+        "col": 0,
+        "align": "center"
+      },
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    },
+    {
+      "type": "button",
+      "id": "resume",
+      "x": 0,
+      "y": 0,
+      "width": 102,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Resume",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "gridPlacement": {
+        "gridControlId": "menu-layout",
+        "row": 1,
+        "col": 0,
+        "align": "center"
+      },
+      "backgroundColor": "#1a466b",
+      "backgroundColorStates": {
+        "hover": "#10908e",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    },
+    {
+      "type": "button",
+      "id": "title-screen",
+      "x": 0,
+      "y": 0,
+      "width": 102,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Title Screen",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "gridPlacement": {
+        "gridControlId": "menu-layout",
+        "row": 4,
+        "col": 0,
+        "align": "center"
+      },
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    }
+  ],
+  "modal": true,
+  "zIndex": 100
+}
+</file>
+
+<file path="src/game/guis/game-menu/game-menu.gui.ts">
+import { registerGuiScript } from '@engine/scripting';
+
+/**
+ * GUI script for `game-menu` — Bennescript entry (`B.raw`, `onGuiBuilt`, `onGuiShow`, …).
+ */
+registerGuiScript('game-menu', ({ B }) => {
+  // Delete this line when you add your first handler.
+  void B;
+
+  B.whenButtonClick("resume", () => {
+    B.gui('game-menu').hide();
   });
 
+  B.whenButtonClick("settings", () => {
+    B.gui('settings-menu').show();
+    B.gui('game-menu').hide();
+  });
+
+  B.whenButtonClick("save", () => {
+    B.gui('save-menu').show();
+    B.gui('game-menu').hide();
+  });
+
+  B.whenButtonClick("load", () => {
+    B.gui('load-menu').show();
+    B.gui('game-menu').hide();
+  });
 });
 </file>
 
-<file path="src/game/inventory/PB/PB.inventory.ts">
+<file path="src/game/guis/save-menu/save-menu.gui.json">
+{
+  "id": "save-menu",
+  "name": "Save Menu",
+  "description": "",
+  "visible": false,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "nineSliceImage",
+      "id": "save-bg",
+      "x": 46,
+      "y": 25,
+      "width": 260,
+      "height": 148,
+      "tag": "9-slice-BG",
+      "sliceNames": {
+        "topLeft": "TopLeft",
+        "topCenter": "TopMid",
+        "topRight": "TopRight",
+        "middleLeft": "MidLeft",
+        "center": "Mid",
+        "middleRight": "MidRight",
+        "bottomLeft": "BottomLeft",
+        "bottomCenter": "BottomMid",
+        "bottomRight": "BottomRight"
+      }
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "x": 176,
+      "y": 34,
+      "text": "Save",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#1a466b",
+      "align": "center"
+    },
+    {
+      "type": "textInput",
+      "id": "save-name",
+      "x": 60,
+      "y": 148,
+      "width": 158,
+      "height": 14,
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "text": "",
+      "maxLength": 26,
+      "placeholder": "Enter save name...",
+      "color": "#ffffff",
+      "backgroundColor": "#222222",
+      "outlineColor": "#666666",
+      "caretColor": "#ffffff",
+      "hoverBackgroundColor": "#2f2f2f",
+      "focusedOutlineColor": "#a0a0a0",
+      "textAlign": "left"
+    },
+    {
+      "type": "listBox",
+      "id": "saved-list",
+      "x": 60,
+      "y": 64,
+      "width": 158,
+      "height": 80,
+      "rowCount": 5,
+      "rowPadding": 2,
+      "normalBackgroundColor": "#222222",
+      "hoverBackgroundColor": "#2f2f2f",
+      "selectedBackgroundColor": "#4a4a4a",
+      "textColor": "#ffffff",
+      "selectedTextColor": "#ffffff",
+      "placeholderTextColor": "#999999",
+      "font": "lucasfont-alternate",
+      "fontSize": 8
+    },
+    {
+      "type": "text",
+      "id": "instructions",
+      "x": 60,
+      "y": 48,
+      "text": "Select a slot and enter a name to save.",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "color": "#1a466b",
+      "wordWrapWidth": 224
+    },
+    {
+      "type": "button",
+      "id": "save-btn",
+      "x": 228,
+      "y": 100,
+      "width": 62,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Save",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    },
+    {
+      "type": "button",
+      "id": "back-btn",
+      "x": 228,
+      "y": 117,
+      "width": 62,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Back",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    }
+  ],
+  "modal": true,
+  "zIndex": 101
+}
+</file>
+
+<file path="src/game/guis/settings-menu/settings-menu.gui.json">
+{
+  "id": "settings-menu",
+  "name": "Settings Menu",
+  "description": "",
+  "visible": false,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "nineSliceImage",
+      "id": "settings-BG",
+      "x": 72,
+      "y": 41,
+      "width": 208,
+      "height": 116,
+      "tag": "9-slice-BG",
+      "sliceNames": {
+        "topLeft": "TopLeft",
+        "topCenter": "TopMid",
+        "topRight": "TopRight",
+        "middleLeft": "MidLeft",
+        "center": "Mid",
+        "middleRight": "MidRight",
+        "bottomLeft": "BottomLeft",
+        "bottomCenter": "BottomMid",
+        "bottomRight": "BottomRight"
+      },
+      "zIndex": 101
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "x": 176,
+      "y": 50,
+      "text": "Settings",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#1a466b",
+      "align": "center",
+      "zIndex": 102
+    },
+    {
+      "type": "checkbox",
+      "id": "musicEnabled",
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "tag": "checkbox",
+      "states": {
+        "uncheckedHover": "checkbox-hover",
+        "checked": "checkbox-checked",
+        "checkedHover": "checkbox-checked-hover",
+        "disabled": "checkbox-disabled",
+        "disabledChecked": "checkbox-checked-disabled"
+      },
+      "gridPlacement": {
+        "gridControlId": "settings-layout",
+        "row": 0,
+        "col": 1,
+        "align": "top-left",
+        "offsetX": 1,
+        "offsetY": 1
+      },
+      "checked": true,
+      "zIndex": 103
+    },
+    {
+      "type": "slider",
+      "id": "sfxVolume",
+      "x": 118,
+      "y": 88,
+      "width": 70,
+      "height": 11,
+      "trackTag": "slider-track",
+      "handleTag": "slider-handle",
+      "states": {
+        "hover": {
+          "handle": "slider-handle-hover"
+        },
+        "disabled": {
+          "track": "slider-track-disabled",
+          "handle": "slider-handle-disabled"
+        }
+      },
+      "min": 0,
+      "max": 100,
+      "defaultValue": 100,
+      "step": 1,
+      "backgroundAnchor": "top-left",
+      "backgroundOffsetY": 0,
+      "gridPlacement": {
+        "gridControlId": "settings-layout",
+        "row": 2,
+        "col": 1,
+        "align": "center-left",
+        "offsetX": 1,
+        "offsetY": -2
+      },
+      "zIndex": 103
+    },
+    {
+      "type": "slider",
+      "id": "musicVolume",
+      "x": 118,
+      "y": 112,
+      "width": 70,
+      "height": 11,
+      "backgroundAnchor": "top-left",
+      "trackTag": "slider-track",
+      "handleTag": "slider-handle",
+      "states": {
+        "hover": {
+          "handle": "slider-handle-hover"
+        },
+        "disabled": {
+          "track": "slider-track-disabled",
+          "handle": "slider-handle-disabled"
+        }
+      },
+      "min": 0,
+      "max": 100,
+      "defaultValue": 100,
+      "step": 1,
+      "gridPlacement": {
+        "gridControlId": "settings-layout",
+        "row": 3,
+        "col": 1,
+        "align": "center-left",
+        "offsetX": 1,
+        "offsetY": -2
+      },
+      "zIndex": 103
+    },
+    {
+      "type": "text",
+      "id": "click-to-skip",
+      "x": 74,
+      "y": 63,
+      "text": "click to skip dialogue",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "color": "#ffffff",
+      "gridPlacement": {
+        "gridControlId": "settings-layout",
+        "row": 0,
+        "col": 0,
+        "align": "top-right",
+        "offsetX": -3
+      },
+      "zIndex": 103
+    },
+    {
+      "type": "grid",
+      "id": "settings-layout",
+      "x": 76,
+      "y": 65,
+      "height": 64,
+      "rows": 4,
+      "columns": 2,
+      "colWidths": [
+        120,
+        80
+      ],
+      "zIndex": 102
+    },
+    {
+      "type": "text",
+      "id": "sound-effects-volume",
+      "x": 0,
+      "y": 0,
+      "text": "sound effects volume",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "color": "#ffffff",
+      "gridPlacement": {
+        "gridControlId": "settings-layout",
+        "row": 2,
+        "col": 0,
+        "align": "top-right",
+        "offsetX": -3
+      },
+      "zIndex": 103
+    },
+    {
+      "type": "text",
+      "id": "music-volume",
+      "x": 0,
+      "y": 0,
+      "text": "music volume",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "color": "#ffffff",
+      "gridPlacement": {
+        "gridControlId": "settings-layout",
+        "row": 3,
+        "col": 0,
+        "align": "top-right",
+        "offsetX": -3
+      },
+      "zIndex": 103
+    },
+    {
+      "type": "button",
+      "id": "back",
+      "x": 151,
+      "y": 133,
+      "width": 50,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Back",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      },
+      "zIndex": 103
+    },
+    {
+      "type": "text",
+      "id": "dialog-text-speed",
+      "x": 0,
+      "y": 0,
+      "text": "dialog text speed",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "color": "#ffffff",
+      "gridPlacement": {
+        "gridControlId": "settings-layout",
+        "row": 1,
+        "col": 0,
+        "align": "top-right",
+        "offsetX": -3
+      },
+      "zIndex": 103
+    },
+    {
+      "type": "slider",
+      "id": "text-speed-slider",
+      "x": 0,
+      "y": 0,
+      "width": 70,
+      "height": 11,
+      "backgroundAnchor": "top-left",
+      "trackTag": "slider-track",
+      "handleTag": "slider-handle",
+      "min": 0.1,
+      "max": 2,
+      "defaultValue": 1,
+      "step": 0.1,
+      "states": {
+        "hover": {
+          "handle": "slider-handle-hover"
+        },
+        "disabled": {
+          "track": "slider-track-disabled",
+          "handle": "slider-handle-disabled"
+        }
+      },
+      "gridPlacement": {
+        "gridControlId": "settings-layout",
+        "row": 1,
+        "col": 1,
+        "offsetX": 1,
+        "offsetY": 1
+      },
+      "zIndex": 103
+    }
+  ],
+  "modal": true,
+  "zIndex": 101
+}
+</file>
+
+<file path="src/game/guis/settings-menu/settings-menu.gui.ts">
+import { registerGuiScript } from '@engine/scripting';
+
+registerGuiScript('settings-menu', ({ B }) => {
+
+  const TEXT_SPEED_MIN = 0.1;
+  const TEXT_SPEED_MAX = 2;
+
+  function sliderToDurationMultiplier(sliderVal: number): number {
+    return TEXT_SPEED_MIN + TEXT_SPEED_MAX - sliderVal;
+  }
+
+  function durationMultiplierToSlider(mult: number): number {
+    return TEXT_SPEED_MIN + TEXT_SPEED_MAX - mult;
+  }
+
+  B.onGuiBuilt(() => {
+    B.gui('settings-menu').control('sfxVolume').value = B.sound.getSfxVolume() * 100;
+    B.gui('settings-menu').control('musicVolume').value = B.sound.getMusicVolume() * 100;
+
+    B.gui('settings-menu').control('text-speed-slider').setValue(durationMultiplierToSlider(B.speechSettings.durationMultiplier));
+  });
+
+  B.gui('settings-menu').control('sfxVolume').whenValueChanged((newVal) => {
+    B.sound.setSfxVolume(newVal / 100);
+  });
+
+  B.gui('settings-menu').control('musicVolume').whenValueChanged((newVal) => {
+    B.sound.setMusicVolume(newVal / 100);
+  });
+
+  B.whenCheckboxCheck("musicEnabled", () => {
+    B.speechSettings.clickToSkip = true;
+  });
+
+  B.whenCheckboxUncheck("musicEnabled", () => {
+    B.speechSettings.clickToSkip = false;
+  });
+
+  B.gui("settings-menu").control("text-speed-slider").whenValueChanged((newVal) => {
+    B.speechSettings.durationMultiplier = sliderToDurationMultiplier(newVal);
+  });
+
+  B.whenButtonClick("back", () => {
+    B.gui('settings-menu').hide();
+    B.gui('game-menu').show();
+  });
+});
+</file>
+
+<file path="src/game/guis/verbs/verbs.gui.ts">
+import { BENNE_VERB_CONTEXT_CHANGED_EVENT, registerGuiScript } from '@engine/scripting';
+import { DEFAULT_VERB_FALLBACK } from '@engine/verbs/verbConfig';
+
+/**
+ * GUI script for `verbs` — wires each verb button to `B.setActiveVerb(<id>)`. The pointer
+ * resolver uses the active verb on the next left-click against a clickable target (and clears
+ * it on consume), so clicking `OpenBtn` then a prop dispatches `open` on that prop.
+ */
+registerGuiScript('verbs', ({ B }) => {
+  B.onGuiBuilt(() => {
+    const line = B.gui('verbs').control('verbLineText');
+
+    const verbButtons = {
+      look: B.gui('verbs').control('LookAtBtn'),
+      use: B.gui('verbs').control('UseBtn'),
+      pickUp: B.gui('verbs').control('PickUpBtn'),
+      talkTo: B.gui('verbs').control('TalkToBtn'),
+      give: B.gui('verbs').control('GiveBtn'),
+      open: B.gui('verbs').control('OpenBtn'),
+      close: B.gui('verbs').control('CloseBtn'),
+      push: B.gui('verbs').control('PushBtn'),
+      pull: B.gui('verbs').control('PullBtn'),
+    } as const;
+
+    function refresh(): void {
+      const verb = B.activeVerb;
+      const item = B.activeInventory;
+      const hoverDescription = B.currentHoverDescription;
+
+      const hover = B.currentHoverTarget;
+      const effectiveDefaultVerb =
+        hover == null
+          ? undefined
+          : (hover.defaultVerb?.trim().length ? hover.defaultVerb.trim() : DEFAULT_VERB_FALLBACK);
+
+      // == Verb Line ==
+      let text = verb?.label ?? 'Walk to';
+      if (item) {
+        const itemName = item.description || item.name || item.id;
+        const prep = verb?.preposition ?? 'on';
+        text = `${text} ${itemName} ${prep}`;
+      }
+      if (hoverDescription) text += ` ${hoverDescription}`;
+
+      line.text = text.trim();
+
+      // == Default-verb button highlight ==
+      // First, reset everything to normal
+      Object.values(verbButtons).forEach(btn => {
+        btn.setVisualState('normal');
+      });
+
+      // Then highlight the matching button if we have a hover default verb
+      if ( effectiveDefaultVerb && verbButtons[effectiveDefaultVerb as keyof typeof verbButtons] ) {
+        verbButtons[effectiveDefaultVerb as keyof typeof verbButtons].setVisualState('hover');
+      }
+
+    }
+
+    refresh();
+    B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, refresh);
+  });
+
+  B.whenButtonClick('GiveBtn',   () => B.setActiveVerb('give'));
+  B.whenButtonClick('OpenBtn',   () => B.setActiveVerb('open'));
+  B.whenButtonClick('CloseBtn',  () => B.setActiveVerb('close'));
+  B.whenButtonClick('PickUpBtn', () => B.setActiveVerb('pickUp'));
+  B.whenButtonClick('TalkToBtn', () => B.setActiveVerb('talkTo'));
+  B.whenButtonClick('LookAtBtn', () => B.setActiveVerb('look'));
+  B.whenButtonClick('UseBtn',    () => B.setActiveVerb('use'));
+  B.whenButtonClick('PushBtn',   () => B.setActiveVerb('push'));
+  B.whenButtonClick('PullBtn',   () => B.setActiveVerb('pull'));
+
+  B.whenButtonClick("MenuBtn", () => {
+    B.gui('game-menu').show();
+  });
+});
+</file>
+
+<file path="src/game/inventory/Lantern/Lantern.inventory.ts">
 import { registerInventoryScript } from '@engine/scripting';
 
-registerInventoryScript('PB', ({ B }) => {
+registerInventoryScript('Lantern', ({ B }) => {
+
+  B.whenUse.doNotActivate(() => {
+    if (B.inventory('Lantern').animation === 'Lantern') {
+      B.say`Hank: I will turn on the Lantern.`;
+      B.wait(.5);
+      B.inventory('Lantern').animation = 'Lantern-glowing';
+      B.wait(.5);
+      B.say`Hank: There we go!`;
+    } else if (B.inventory('Lantern').animation === 'Lantern-glowing') {
+      B.say`Hank: I will turn off the Lantern.`;
+      B.wait(.5);
+      B.inventory('Lantern').animation = 'Lantern';
+      B.wait(.5);
+      B.say`Hank: There we go!`;
+    }
+    
+  });
+});
+</file>
+
+<file path="src/game/inventory/Sammich/Sammich.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('Sammich', ({ B }) => {
+  // "Use" / "Give" on this item will automatically make it active for combining with world targets.
+  // Add B.whenUse / B.whenGive only if you need extra behavior (sound, dialogue, consumption, etc.).
+  // Use B.whenUse.doNotActivate / B.whenGive.doNotActivate if this item should never become active.
+  void B; // keep this until you add real handlers
 
   B.whenLookAt(() => {
-    B.say`Hank: It's some peanut butter.`;
+    B.player.say('It looks delicious!');
   });
 
   B.whenUse.doNotActivate(() => {
-    if (B.inventory('PB').animation === 'PB') {
-      B.inventory('PB').animation = 'PB-open';
-      B.say`Hank: I opened the jar.`;
-    } else {
-      B.say`Hank: It's already open.`;
-    }
+    B.player.say('I am not hungry right now.');
   });
-
-  B.whenInventoryUsedOn('PB', (payload) => {
-    if (payload.itemId === 'Knife') {
-      
-      if (B.inventory('PB').animation === 'PB') {
-        B.say`Hank: I need to open the jar first.`;
-      } else {
-        B.inventory('Knife').animation = 'Knife-PB';
-        B.inventory('Knife').cursorAnimation = 'Knife-PB';
-        B.say`Hank: Mmmm... gooey peanut butter.`;
-      }
-      
-      return;
-    }
-    
-    return false;
-  });
-
 });
 </file>
 
@@ -25917,6 +25902,7 @@ import {
   GAME_STATE_VARIABLE_CHANGED_EVENT,
 } from '../../types/gameState.js';
 import { mergePreserveDialogSettingsVariables } from '../dialog/dialogGameState.js';
+import { mergePreserveSpeechSettingsVariables } from '../dialog/speechGameState.js';
 import { mergePreserveAudioVolumeVariables } from '../sound/audioGameState.js';
 import { runSnapshotFlushHooks } from './snapshotFlushHooks.js';
 
@@ -26107,8 +26093,11 @@ export class GameStateManager {
     }
     const previousCurrentRoom = this.state.currentRoom;
     const previousLastRoom = this.state.lastRoom;
-    const mergedVariables = mergePreserveDialogSettingsVariables(
-      mergePreserveAudioVolumeVariables({ ...snapshot.variables }, this.state.variables),
+    const mergedVariables = mergePreserveSpeechSettingsVariables(
+      mergePreserveDialogSettingsVariables(
+        mergePreserveAudioVolumeVariables({ ...snapshot.variables }, this.state.variables),
+        this.state.variables,
+      ),
       this.state.variables,
     );
     this.state = {
@@ -27885,6 +27874,185 @@ export class GuiRuntime {
 }
 </file>
 
+<file path="src/game/globalScript.ts">
+import { registerGlobalScript } from '@engine/scripting';
+import type {
+  VerbGlobalFallbackPayload,
+  VerbUnhandledPayload,
+} from '@engine/events/verbInteractionEvents';
+import { getGameSettings } from '@engine/ConfigManager';
+
+
+registerGlobalScript(({ B }) => {
+
+  /**
+   * Game state flags.
+   *
+   * These are used to store game state across room loads.
+   */
+  B.state.setFlag('unlockedDoor', false);
+  B.state.setFlag('turnedOnFountain', false);
+
+  /**
+   * Global update handler. Runs every frame while the game is running. Can also be used in room scripts.
+   * @param ctx - The update context.
+   * @returns void
+   */
+  B.onUpdate((ctx) => { })
+
+  // ─────────────────────────────────────────────────────────────
+  // Room transitions (global hooks — optional)
+  // Runs for every room load, including the first from BootScene. See architecture.md
+  // (Room transitions) for hook order and RoomTransitionContext.
+  // ─────────────────────────────────────────────────────────────
+  B.whenLeaveAnyRoom(() => {
+    // Optional: extra leave effects (sound, music crossfade, etc.)
+  });
+
+  B.whenEnterAnyRoom((_ctx) => {
+    // Invisible setup — player placement, prop state, music, etc.
+    // Example using last room:
+    // if (_ctx.lastRoom === 'apartment') {
+    //   B.player.moveToNow('streetDoor');
+    // }
+  });
+
+  B.whenEnterAnyRoomAfterFade(() => {
+    // Visible entrance behavior (walk in, cutscene start, etc.)
+  });
+
+  /**
+   * Global fallbacks.
+   *
+   * These run when a verb is used on something that has no specific handler
+   * in the room script, character script, or inventory script.
+   *
+   * Feel free to put ANY code here — play animations, change game state,
+   * start cutscenes, etc. These are real global handlers.
+   */
+
+  // ─────────────────────────────────────────────────────────────
+  // Global per-verb fallbacks
+  // ─────────────────────────────────────────────────────────────
+
+  B.whenGlobalVerb('look', () => {
+    B.player.say("Nothing special about that.");
+  });
+
+  B.whenGlobalVerb('use', () => {
+    B.player.say("That doesn't work.");
+  });
+
+  B.whenGlobalVerb('pickUp', () => {
+    B.player.say("I can't take that.");
+  });
+
+  B.whenGlobalVerb('push', () => {
+    B.player.say("It won't move.");
+  });
+
+  B.whenGlobalVerb('pull', () => {
+    B.player.say("It won't move.");
+  });
+
+  B.whenGlobalVerb('open', () => {
+    B.player.say("I can't open that.");
+  });
+
+  B.whenGlobalVerb('close', () => {
+    B.player.say("That doesn't need closing.");
+  });
+
+  B.whenGlobalVerb('talkTo', () => {
+    B.player.say("I don't have anything to say to that.");
+  });
+
+  B.whenGlobalVerb('give', () => {
+    B.player.say("I can't give that.");
+  });
+
+
+  // ─────────────────────────────────────────────────────────────
+  // Ultimate safety net (for verbs added in game-config.json
+  // but not handled above)
+  // ─────────────────────────────────────────────────────────────
+  B.whenGlobalFallback((_payload: VerbGlobalFallbackPayload) => {
+    B.player.say(
+      getGameSettings().defaultFallbackLine ?? "That doesn't work."
+    );
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Inventory "use X on Y" when nothing handled it
+  // ─────────────────────────────────────────────────────────────
+  B.whenInventoryOnVerbTargetUnhandled(() => {
+    B.player.say("That doesn't work.");
+  });
+
+  // DEV diagnostic
+  B.whenVerbUnhandled((p: VerbUnhandledPayload) => {
+    if (import.meta.env.DEV) {
+      console.info(`[Benne 9-verb] verb:unhandled → "${p.fallbackLine}"`, p.target);
+    }
+  });
+});
+</file>
+
+<file path="src/game/inventory/Bread/Bread.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('Bread', ({ B }) => {
+  // "Use" / "Give" on this item will automatically make it active for combining with world targets.
+  // Add B.whenUse / B.whenGive only if you need extra behavior (sound, dialogue, consumption, etc.).
+  // Use B.whenUse.doNotActivate / B.whenGive.doNotActivate if this item should never become active.
+  void B; // keep this until you add real handlers
+
+  B.whenInventoryUsedOn('Bread', (payload) => {
+    if (payload.itemId === 'Knife' && payload.verbId === 'use') {
+      if (B.inventory('Knife').animation === 'Knife') {
+        B.say`Hank: It won't do any good without something to spread!`;
+      } else {
+        B.inventory.add('Sammich');
+        B.inventory.remove('Bread');
+        B.say`Hank: This looks delicious!`;
+      }
+
+      return;
+    }
+
+    return false;
+  });
+
+});
+</file>
+
+<file path="src/game/inventory/PB/PB.inventory.ts">
+import { registerInventoryScript } from '@engine/scripting';
+
+registerInventoryScript('PB', ({ B }) => {
+  // "Use" / "Give" on this item will automatically make it active for combining with world targets.
+  // Add B.whenUse / B.whenGive only if you need extra behavior (sound, dialogue, consumption, etc.).
+  // Use B.whenUse.doNotActivate / B.whenGive.doNotActivate if this item should never become active.
+  void B; // keep this until you add real handlers
+
+  B.whenInventoryUsedOn('PB', (payload) => {
+    if (payload.itemId === 'Knife' && payload.verbId === 'use') {
+      if (B.inventory('PB').animation === 'PB') {
+        B.say`Hank: I need to open the jar first.`;
+      } else {
+        B.inventory('Knife').animation = 'Knife-PB';
+        B.say`Hank: Mmmm... gooey peanut butter.`;
+      }
+    }
+  });
+
+  B.whenOpen(() => {
+    B.inventory('PB').animation = 'PB-open';
+    B.say`Hank: I opened the jar.`;
+  });
+});
+</file>
+
 <file path="src/engine/benneAnimationRuntime.ts">
 import * as Phaser from 'phaser';
 import { getStartingPlayerCharacterId } from '../game/constants.js';
@@ -28486,6 +28654,73 @@ export function promiseWhenSpriteAnimationFinishes(
 }
 </file>
 
+<file path="src/game/characters/penny/penny.character.json">
+{
+  "id": "penny",
+  "name": "Penny",
+  "description": "",
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 44,
+    "y": 50
+  },
+  "talkPoint": {
+    "x": 18,
+    "y": 5
+  },
+  "clickable": true,
+  "display": {
+    "aseprite": true
+  },
+  "feet": {
+    "x": 19,
+    "y": 50
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 24,
+        "y": 4
+      },
+      {
+        "x": 28,
+        "y": 51
+      },
+      {
+        "x": 10,
+        "y": 51
+      },
+      {
+        "x": 10,
+        "y": 4
+      }
+    ]
+  },
+  "animations": {
+    "IdleD": {
+      "loop": true
+    },
+    "TalkD": {
+      "loop": true
+    },
+    "IdleL": {
+      "loop": true
+    },
+    "TalkL": {
+      "loop": true
+    },
+    "IdleU": {
+      "loop": true
+    },
+    "TalkU": {
+      "loop": true
+    }
+  },
+  "defaultVerb": "talkTo",
+  "speechColor": "#ffc2c2"
+}
+</file>
+
 <file path="src/game/guis/display-text/display-text.gui.json">
 {
   "id": "display-text",
@@ -28499,10 +28734,10 @@ export function promiseWhenSpriteAnimationFinishes(
     {
       "type": "nineSliceImage",
       "id": "displayTextBg",
-      "x": 160,
-      "y": 99,
+      "x": 176,
+      "y": 104,
       "width": 200,
-      "height": 66,
+      "height": 80,
       "tag": "9-slice-BG",
       "sliceNames": {
         "topLeft": "TopLeft",
@@ -28521,10 +28756,10 @@ export function promiseWhenSpriteAnimationFinishes(
     {
       "type": "text",
       "id": "text",
-      "x": 160,
+      "x": 176,
       "y": 70,
       "text": "Even if a woodchuck could chuck wood and even if a woodchuck would chuck wood, should a woodchuck chuck wood?",
-      "font": "lucasarts-scumm-solid",
+      "font": "lucasfont-alternate",
       "fontSize": 8,
       "color": "#ffffff",
       "zIndex": 2,
@@ -28548,7 +28783,7 @@ export function promiseWhenSpriteAnimationFinishes(
     {
       "type": "text",
       "id": "line",
-      "x": 160,
+      "x": 176,
       "y": 120,
       "text": "Even if a woodchuck could chuck wood and even if a woodchuck would chuck wood, should a woodchuck chuck wood?",
       "font": "lucasarts-scumm-solid",
@@ -28560,6 +28795,337 @@ export function promiseWhenSpriteAnimationFinishes(
         "enabled": true,
         "color": "#000000"
       }
+    }
+  ]
+}
+</file>
+
+<file path="src/game/guis/verbs/verbs.gui.json">
+{
+  "id": "verbs",
+  "name": "Verbs",
+  "description": "",
+  "visible": true,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "image",
+      "id": "VerbsBG",
+      "x": 0,
+      "y": 0,
+      "tag": "VerbsBG",
+      "backgroundAnchor": "screen"
+    },
+    {
+      "type": "inventoryPanel",
+      "id": "inventoryPanel",
+      "x": 185,
+      "y": 154,
+      "rows": 2,
+      "cols": 4,
+      "slotWidth": 36,
+      "slotHeight": 20,
+      "showEmptySlots": true,
+      "spacingX": 2,
+      "spacingY": 2,
+      "scrollDirection": "vertical",
+      "backButton": "upBtn",
+      "forwardButton": "downBtn"
+    },
+    {
+      "type": "button",
+      "id": "upBtn",
+      "x": 176,
+      "y": 154,
+      "width": 7,
+      "height": 20,
+      "backgroundAnchor": "screen",
+      "text": "",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "UpBtn",
+      "states": {
+        "hover": "UpBtn-hover"
+      }
+    },
+    {
+      "type": "button",
+      "id": "downBtn",
+      "x": 176,
+      "y": 176,
+      "width": 7,
+      "height": 20,
+      "backgroundAnchor": "screen",
+      "text": "",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "DownBtn",
+      "states": {
+        "hover": "DownBtn-hover"
+      }
+    },
+    {
+      "type": "button",
+      "id": "GiveBtn",
+      "x": 36,
+      "y": 155,
+      "width": 40,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Give",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#10908e",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
+    },
+    {
+      "type": "button",
+      "id": "OpenBtn",
+      "x": 36,
+      "y": 169,
+      "width": 40,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Open",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#10908e",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
+    },
+    {
+      "type": "button",
+      "id": "CloseBtn",
+      "x": 36,
+      "y": 183,
+      "width": 40,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Close",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#10908e",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
+    },
+    {
+      "type": "button",
+      "id": "PickUpBtn",
+      "x": 78,
+      "y": 155,
+      "width": 54,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Pick up",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#10908e",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
+    },
+    {
+      "type": "button",
+      "id": "TalkToBtn",
+      "x": 78,
+      "y": 169,
+      "width": 54,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Talk to",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#10908e",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
+    },
+    {
+      "type": "button",
+      "id": "LookAtBtn",
+      "x": 78,
+      "y": 183,
+      "width": 54,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Look at",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#10908e",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
+    },
+    {
+      "type": "button",
+      "id": "UseBtn",
+      "x": 134,
+      "y": 155,
+      "width": 40,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Use",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#10908e",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
+    },
+    {
+      "type": "button",
+      "id": "PushBtn",
+      "x": 134,
+      "y": 169,
+      "width": 40,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Push",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#10908e",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
+    },
+    {
+      "type": "button",
+      "id": "PullBtn",
+      "x": 134,
+      "y": 183,
+      "width": 40,
+      "height": 12,
+      "backgroundAnchor": "top-left",
+      "text": "Pull",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "textColor": "#10908e",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "textColorStates": {
+        "hover": "#28c074"
+      },
+      "textOutline": {
+        "enabled": true,
+        "color": "#132243",
+        "sides": "bottomRight"
+      }
+    },
+    {
+      "type": "text",
+      "id": "verbLineText",
+      "x": 176,
+      "y": 141,
+      "text": "Walk to",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "color": "#28c074",
+      "align": "center"
+    },
+    {
+      "type": "button",
+      "id": "MenuBtn",
+      "x": 20,
+      "y": 181,
+      "width": 14,
+      "height": 14,
+      "backgroundAnchor": "screen",
+      "text": "Button",
+      "font": "",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "MenuBtn"
     }
   ]
 }
@@ -28625,31 +29191,45 @@ export interface GameSettingsPerspective {
 }
 
 /**
- * Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults.
- * At runtime, `B.dialogSettings` / `dialog:*` game-state variables override these fields (see architecture.md).
+ * Optional `game-config.json` `speech` block; see {@link getSpeechSettings} for merged defaults.
+ * At runtime, `B.speechSettings` / `speech:*` game-state variables override these fields (see architecture.md).
  */
-export interface GameSettingsDialog {
+export interface GameSettingsSpeech {
   /**
    * Default for timed Bennescript `.say` / `.say.now` lines when the call omits **`clickToSkip`** in the options object.
    * When true, a **left**-click ends the line early (same cleanup as the timer). Per-line overrides:
    * `say('…', { clickToSkip: false })` always disables skip; `say('…', { clickToSkip: true })` always enables skip even
-   * when this global flag is false. Overridable at runtime via **`B.dialogSettings.clickToSkip`**.
+   * when this global flag is false. Overridable at runtime via **`B.speechSettings.clickToSkip`**.
    */
   clickToSkip: boolean;
-  /** When false, `.say()` timing still runs but no Speaking Text (`speaking-text`) GUI. Overridable via **`B.dialogSettings.showText`**. */
+  /** When false, `.say()` timing still runs but no Speaking Text (`speaking-text`) GUI. Overridable via **`B.speechSettings.showText`**. */
   showText: boolean;
-  /** Extra offset in **game canvas pixels** applied after projecting the character `talkPoint`. Overridable via **`B.dialogSettings.defaultTalkOffset`**. */
+  /** Extra offset in **game canvas pixels** applied after projecting the character `talkPoint`. Overridable via **`B.speechSettings.defaultTalkOffset`**. */
   defaultTalkOffset: { x: number; y: number };
   minDurationMs: number;
   msPerCharacter: number;
   maxDurationMs: number;
   durationMultiplier: number;
+}
+
+/**
+ * Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults.
+ * At runtime, `B.dialogSettings` / `dialog:*` game-state variables override these fields (see architecture.md).
+ */
+export interface GameSettingsDialog {
   /**
    * When set, caps how many pixels of choice option rows may stack below **`Option-Grid`** (see
    * {@link getDialogChoiceAvailableHeightPx}). Omitted = extend to the bottom of the internal canvas.
    * Overridable via **`B.dialogSettings.choiceOptionsViewportHeightPx`** (set **`undefined`** to clear override).
    */
   choiceOptionsViewportHeightPx?: number;
+  /**
+   * Hex color (e.g. `"#888888"`) applied to dialog option rows the player has already picked.
+   * When set, tints the bullet, label, label outlines, and background instead of alpha-dimming.
+   * Omitted = legacy `setAlpha(0.45)` behavior.
+   * Overridable via **`B.dialogSettings.usedColor`** (`undefined` clears override).
+   */
+  usedColor?: string;
 }
 
 /** One verb the game exposes (ids power inventory `onVerb`, `inputProfile`, and global handler events). */
@@ -28733,7 +29313,9 @@ export interface GameSettings {
    * Individual items can override this per-item via **`InventoryItemData.dropWhenUsed`**.
    */
   dropWhenInventoryUsed?: boolean;
-  /** In-game dialog line timing and Speaking Text (`speaking-text`) overlay placement (see `getDialogSettings()`). */
+  /** Speech line timing, click-to-skip, and Speaking Text overlay placement (see `getSpeechSettings()`). */
+  speech?: Partial<GameSettingsSpeech>;
+  /** Dialog choice UI settings (viewport height cap, etc.). See `getDialogSettings()`. */
   dialog?: Partial<GameSettingsDialog>;
   /**
    * Perspective / walk-speed tuning for optional **`scaleWalkSpeed`** on room regions (`RoomRegionData`).
@@ -29041,6 +29623,11 @@ export class RoomTransitionOrchestrator {
       };
       if (kind === 'load') {
         await runRoomHandlersEachSafe(
+          this.hooks.getAnyLoaded(),
+          enterCtx,
+          'onRoomSceneCreateComplete: any loaded',
+        );
+        await runRoomHandlersEachSafe(
           this.hooks.getLoadedHandlersForRoom(roomId),
           enterCtx,
           'onRoomSceneCreateComplete: loaded',
@@ -29050,11 +29637,13 @@ export class RoomTransitionOrchestrator {
       // is protected from player input during invisible setup (moveTo, music, etc.).
       roomScene.pushCutscene();
       try {
-        await runRoomHandlersEachSafe(
-          [...this.hooks.getEnterHandlersForRoom(roomId), ...this.hooks.getAnyEnter()],
-          enterCtx,
-          'onRoomSceneCreateComplete: room enter',
-        );
+        if (kind !== 'load') {
+          await runRoomHandlersEachSafe(
+            [...this.hooks.getAnyEnter(), ...this.hooks.getEnterHandlersForRoom(roomId)],
+            enterCtx,
+            'onRoomSceneCreateComplete: room enter',
+          );
+        }
 
         if (kind === 'boot' || kind === 'preview') {
           const g = globalThis as { __BENNE_PLAY_FROM_NAME?: unknown };
@@ -29121,12 +29710,14 @@ export class RoomTransitionOrchestrator {
       // cutscene block — otherwise popCutscene() fires before say/walk/wait steps execute.
       roomScene.pushCutscene();
       try {
-        await runRoomHandlersEachSafe(
-          [...this.hooks.getAfterFadeHandlersForRoom(roomId), ...this.hooks.getAnyAfterFade()],
-          afterCtx,
-          'onRoomSceneCreateComplete: after-fade',
-        );
-        await roomScene.waitForEnterPhaseBenneScriptQueues();
+        if (kind !== 'load') {
+          await runRoomHandlersEachSafe(
+            [...this.hooks.getAnyAfterFade(), ...this.hooks.getAfterFadeHandlersForRoom(roomId)],
+            afterCtx,
+            'onRoomSceneCreateComplete: after-fade',
+          );
+          await roomScene.waitForEnterPhaseBenneScriptQueues();
+        }
       } finally {
         roomScene.popCutscene();
       }
@@ -29259,9 +29850,9 @@ export {
   unwireBenneVerbContextGameStateRelay,
 } from './benneVerbContextScriptSurface.js';
 export {
-  BENNE_DIALOG_SETTINGS_CHANGED_EVENT,
-  getBenneDialogSettingsChangedEmitter,
-} from './benneDialogSettingsScriptSurface.js';
+  BENNE_SPEECH_SETTINGS_CHANGED_EVENT,
+  getBenneSpeechSettingsChangedEmitter,
+} from './benneSpeechSettingsScriptSurface.js';
 export type {
   VerbDefinition,
   VerbHoverTarget,
@@ -29270,7 +29861,7 @@ export type {
 } from '../../types/verbContext.js';
 export type { BenneGuiScriptButtonVisualState } from '../../types/gui.js';
 export type { CharacterFollowOptions } from '../../types/characterFollow.js';
-export type { BenneScriptDialogSettingsFacade, BenneScriptSoundFacade } from './benneScriptFacades.js';
+export type { BenneScriptDialogSettingsFacade, BenneScriptSpeechSettingsFacade, BenneScriptSoundFacade } from './benneScriptFacades.js';
 export type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
 </file>
 
@@ -29788,6 +30379,9 @@ export interface GuiListBoxControl {
   textColor: string;
   selectedTextColor: string;
   placeholderTextColor: string;
+  /** Key in `src/game/assets/fonts/fonts.json` (bitmap font). */
+  font: string;
+  fontSize: number;
   gridPlacement?: GuiGridPlacement;
 }
 
@@ -29880,522 +30474,13 @@ export interface GuiData {
 }
 </file>
 
-<file path="src/game/game-config.json">
-{
-  "name": "2-click",
-  "resolution": {
-    "width": 320,
-    "height": 180
-  },
-  "verbs": [
-    {
-      "id": "look",
-      "label": "Look at"
-    },
-    {
-      "id": "use",
-      "label": "Use",
-      "preposition": "with"
-    }
-  ],
-  "inputProfile": {
-    "primaryButtonVerb": "use",
-    "secondaryButtonVerb": "look"
-  },
-  "dropWhenInventoryUsed": false,
-  "defaultFallbackLine": "You can't do that.",
-  "startingPlayerCharacter": "hank",
-  "startingRoomId": "apartment",
-  "audio": {
-    "masterVolume": 1,
-    "sfxVolume": 1,
-    "musicVolume": 0.75,
-    "dialogueVolume": 1
-  },
-  "debug": {
-    "showWalkable": false,
-    "showPropOutlines": false,
-    "showGuiOutlines": false,
-    "showRegionOutlines": false
-  },
-  "initialGameState": {
-    "flags": {},
-    "variables": {},
-    "inventory": [
-      "Broom",
-      "Lantern"
-    ]
-  },
-  "cursor": {
-    "idleAnimation": "Idle",
-    "activeAnimation": "Active",
-    "hotspot": "center",
-    "animations": {
-      "Idle": {
-        "loop": true
-      },
-      "Active": {
-        "loop": true
-      },
-      "Talk": {
-        "loop": true
-      }
-    },
-    "display": {
-      "aseprite": true
-    }
-  },
-  "dialog": {
-    "clickToSkip": true,
-    "showText": true,
-    "defaultTalkOffset": {
-      "x": 0,
-      "y": 0
-    },
-    "minDurationMs": 800,
-    "msPerCharacter": 80,
-    "maxDurationMs": 4500,
-    "durationMultiplier": 1,
-    "choiceOptionsViewportHeightPx": 47
-  },
-  "perspective": {
-    "minWalkScale": 0.3,
-    "walkScalePower": 0.8
-  }
-}
-</file>
-
-<file path="src/game/rooms/apartment/apartment.room.json">
-{
-  "id": "apartment",
-  "name": "Apartment",
-  "size": {
-    "width": 320,
-    "height": 180
-  },
-  "scrollBounds": {
-    "x": 0,
-    "y": 0,
-    "width": 320,
-    "height": 180
-  },
-  "walkable": {
-    "polygons": [
-      {
-        "id": "walk-1",
-        "active": true,
-        "points": [
-          {
-            "x": 50,
-            "y": 131
-          },
-          {
-            "x": 10,
-            "y": 171
-          },
-          {
-            "x": 306,
-            "y": 172
-          },
-          {
-            "x": 258,
-            "y": 120
-          },
-          {
-            "x": 137,
-            "y": 121
-          },
-          {
-            "x": 123,
-            "y": 131
-          }
-        ],
-        "holes": [
-          {
-            "id": "hole-1",
-            "active": true,
-            "points": [
-              {
-                "x": 143,
-                "y": 149
-              },
-              {
-                "x": 154,
-                "y": 155
-              },
-              {
-                "x": 208,
-                "y": 155
-              },
-              {
-                "x": 219,
-                "y": 148
-              },
-              {
-                "x": 206,
-                "y": 141
-              },
-              {
-                "x": 154,
-                "y": 141
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  "hotspots": [],
-  "points": [],
-  "regions": [],
-  "props": [
-    {
-      "id": "BG",
-      "tag": "BG",
-      "animations": {
-        "BG": {}
-      },
-      "zIndex": 0,
-      "visible": true,
-      "alpha": 1
-    },
-    {
-      "id": "Fan",
-      "tag": "Fan",
-      "animations": {
-        "Fan": {
-          "loop": true
-        }
-      },
-      "zIndex": 1,
-      "visible": true,
-      "alpha": 1
-    },
-    {
-      "id": "Couch",
-      "tag": "Couch",
-      "animations": {
-        "Couch": {}
-      },
-      "zIndex": 2,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 56,
-            "y": 98
-          },
-          {
-            "x": 58,
-            "y": 85
-          },
-          {
-            "x": 70,
-            "y": 83
-          },
-          {
-            "x": 122,
-            "y": 82
-          },
-          {
-            "x": 131,
-            "y": 87
-          },
-          {
-            "x": 130,
-            "y": 99
-          },
-          {
-            "x": 134,
-            "y": 102
-          },
-          {
-            "x": 135,
-            "y": 121
-          },
-          {
-            "x": 128,
-            "y": 128
-          },
-          {
-            "x": 50,
-            "y": 129
-          },
-          {
-            "x": 44,
-            "y": 109
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 101,
-        "y": 133
-      },
-      "lookAtPoint": {
-        "x": 88,
-        "y": 126
-      },
-      "baseline": 121
-    },
-    {
-      "id": "Door",
-      "tag": "Door",
-      "animations": {
-        "Door": {},
-        "Door-open": {}
-      },
-      "zIndex": 3,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 271,
-            "y": 63
-          },
-          {
-            "x": 293,
-            "y": 72
-          },
-          {
-            "x": 291,
-            "y": 143
-          },
-          {
-            "x": 270,
-            "y": 126
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 268,
-        "y": 133
-      },
-      "lookAtPoint": {
-        "x": 279,
-        "y": 129
-      }
-    },
-    {
-      "id": "Bread",
-      "tag": "Bread",
-      "animations": {
-        "Bread": {}
-      },
-      "zIndex": 10,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 179,
-            "y": 127
-          },
-          {
-            "x": 192,
-            "y": 127
-          },
-          {
-            "x": 192,
-            "y": 133
-          },
-          {
-            "x": 178,
-            "y": 133
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 169,
-        "y": 157
-      },
-      "lookAtPoint": {
-        "x": 185,
-        "y": 132
-      },
-      "baseline": 132
-    },
-    {
-      "id": "Knife",
-      "tag": "Knife",
-      "animations": {
-        "Knife": {}
-      },
-      "zIndex": 9,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 162,
-            "y": 127
-          },
-          {
-            "x": 157,
-            "y": 132
-          },
-          {
-            "x": 173,
-            "y": 137
-          },
-          {
-            "x": 174,
-            "y": 132
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 149,
-        "y": 151
-      },
-      "lookAtPoint": {
-        "x": 168,
-        "y": 134
-      },
-      "baseline": 134
-    },
-    {
-      "id": "PeanutButter",
-      "tag": "PeanutButter",
-      "animations": {
-        "PeanutButter": {}
-      },
-      "zIndex": 8,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 199,
-            "y": 119
-          },
-          {
-            "x": 199,
-            "y": 129
-          },
-          {
-            "x": 207,
-            "y": 129
-          },
-          {
-            "x": 207,
-            "y": 119
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 217,
-        "y": 140
-      },
-      "lookAtPoint": {
-        "x": 203,
-        "y": 127
-      },
-      "baseline": 128
-    },
-    {
-      "id": "Table",
-      "tag": "Table",
-      "animations": {
-        "Table": {}
-      },
-      "zIndex": 7,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 214,
-            "y": 140
-          },
-          {
-            "x": 196,
-            "y": 143
-          },
-          {
-            "x": 192,
-            "y": 154
-          },
-          {
-            "x": 169,
-            "y": 153
-          },
-          {
-            "x": 166,
-            "y": 143
-          },
-          {
-            "x": 150,
-            "y": 141
-          },
-          {
-            "x": 145,
-            "y": 130
-          },
-          {
-            "x": 153,
-            "y": 123
-          },
-          {
-            "x": 205,
-            "y": 123
-          },
-          {
-            "x": 216,
-            "y": 130
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 141,
-        "y": 145
-      },
-      "lookAtPoint": {
-        "x": 180,
-        "y": 151
-      },
-      "baseline": 149
-    }
-  ],
-  "characters": [
-    {
-      "instanceId": "hank-1",
-      "definition": "hank/hank.character.json",
-      "x": 236,
-      "y": 132,
-      "initialFacing": "L",
-      "initialAnimation": "Idle",
-      "visible": true,
-      "zIndex": 6
-    },
-    {
-      "instanceId": "penny-1",
-      "definition": "penny/penny.character.json",
-      "x": 34,
-      "y": 158,
-      "initialFacing": "R",
-      "initialAnimation": "Idle",
-      "visible": true,
-      "zIndex": 7
-    }
-  ]
-}
-</file>
-
 <file path="src/engine/scripting/BenneScriptCore.ts">
 import * as Phaser from 'phaser';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { CharacterFollowOptions } from '../../types/characterFollow.js';
 import type { Point2 } from '../../types/room.js';
 import { getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants.js';
-import { computeDialogLineDurationMs, getDialogSettings, getGameSettings } from '../ConfigManager.js';
+import { computeSpeechLineDurationMs, getSpeechSettings, getGameSettings } from '../ConfigManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
   applyCharacterEffectiveAnimation,
@@ -30417,8 +30502,8 @@ import { getEffectiveVerbDefinitions, WALK_TO_VERB_ID } from '../verbs/verbConfi
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import type { InventoryItemDefinition, VerbDefinition, VerbHoverTarget } from '../../types/verbContext.js';
 import {
-  getBenneDialogSettingsChangedEmitter,
-} from './benneDialogSettingsScriptSurface.js';
+  getBenneSpeechSettingsChangedEmitter,
+} from './benneSpeechSettingsScriptSurface.js';
 import {
   getBenneVerbContextChangedEmitter,
   getBenneVerbContextHoverDescription,
@@ -30437,8 +30522,10 @@ import type {
   BenneScriptPlayerFacade,
   BenneScriptRoomFacade,
   BenneScriptSoundFacade,
+  BenneScriptSpeechSettingsFacade,
 } from './benneScriptFacades.js';
 import { createBenneScriptDialogSettingsFacade } from './benneScriptDialogSettingsApi.js';
+import { createBenneScriptSpeechSettingsFacade } from './benneScriptSpeechSettingsApi.js';
 import { createBenneScriptSoundFacade } from './benneScriptSoundApi.js';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
 import { getCharacterWorldFeet } from '../characterFeet.js';
@@ -30743,7 +30830,10 @@ export abstract class BenneScriptCore {
   /** SFX + music (`B.sound.play('creak')`, `B.sound.playMusic('song')`, …). */
   readonly sound: BenneScriptSoundFacade;
 
-  /** Runtime dialog prefs (`B.dialogSettings.clickToSkip`, timing, talk offset, …). */
+  /** Runtime speech prefs (`B.speechSettings.clickToSkip`, timing, talk offset, …). */
+  readonly speechSettings: BenneScriptSpeechSettingsFacade;
+
+  /** Runtime dialog prefs (`B.dialogSettings.choiceOptionsViewportHeightPx`). */
   readonly dialogSettings: BenneScriptDialogSettingsFacade;
 
   /**
@@ -30875,6 +30965,7 @@ export abstract class BenneScriptCore {
 
     this.room = bindRoomFacadeForBenneScriptCore((f) => this.chain(f));
     this.sound = createBenneScriptSoundFacade((f) => this.chain(f));
+    this.speechSettings = createBenneScriptSpeechSettingsFacade();
     this.dialogSettings = createBenneScriptDialogSettingsFacade();
   }
 
@@ -31161,11 +31252,11 @@ export abstract class BenneScriptCore {
   }
 
   /**
-   * Subscribe with **`B.onDialogSettingsChanged.on(BENNE_DIALOG_SETTINGS_CHANGED_EVENT, handler)`**
-   * (import from **`@engine/scripting`**). Emits when any **`B.dialogSettings`** property is written.
+   * Subscribe with **`B.onSpeechSettingsChanged.on(BENNE_SPEECH_SETTINGS_CHANGED_EVENT, handler)`**
+   * (import from **`@engine/scripting`**). Emits when any **`B.speechSettings`** or **`B.dialogSettings`** property is written.
    */
-  get onDialogSettingsChanged(): Phaser.Events.EventEmitter {
-    return getBenneDialogSettingsChangedEmitter();
+  get onSpeechSettingsChanged(): Phaser.Events.EventEmitter {
+    return getBenneSpeechSettingsChangedEmitter();
   }
 
   /** Verb-line hover description from {@link RoomScene} hit-testing (`null` when none / suppressed). */
@@ -31409,11 +31500,11 @@ export abstract class BenneScriptCore {
     options?: BenneScriptSayLineOptions,
   ): Promise<void> {
     const manager = resolveGameStateManager(scene.game);
-    const dialog = getDialogSettings(manager);
-    const ms = computeDialogLineDurationMs(line, manager);
+    const speech = getSpeechSettings(manager);
+    const ms = computeSpeechLineDurationMs(line, manager);
     const lineOpt = options?.clickToSkip;
     const allowClickToSkip =
-      lineOpt === true || (lineOpt !== false && dialog.clickToSkip);
+      lineOpt === true || (lineOpt !== false && speech.clickToSkip);
 
     return new Promise<void>((resolve) => {
       let completed = false;
@@ -32322,6 +32413,1335 @@ export abstract class BenneScriptCore {
 }
 </file>
 
+<file path="src/game/rooms/apartment/apartment.room.json">
+{
+  "id": "apartment",
+  "name": "Apartment",
+  "size": {
+    "width": 352,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 352,
+    "height": 198
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "walk-1",
+        "active": true,
+        "points": [
+          {
+            "x": 67,
+            "y": 117
+          },
+          {
+            "x": 41,
+            "y": 141
+          },
+          {
+            "x": 314,
+            "y": 141
+          },
+          {
+            "x": 277,
+            "y": 107
+          },
+          {
+            "x": 153,
+            "y": 108
+          },
+          {
+            "x": 146,
+            "y": 117
+          }
+        ],
+        "holes": [
+          {
+            "id": "hole-1",
+            "active": true,
+            "points": [
+              {
+                "x": 162,
+                "y": 124
+              },
+              {
+                "x": 177,
+                "y": 133
+              },
+              {
+                "x": 229,
+                "y": 133
+              },
+              {
+                "x": 245,
+                "y": 125
+              },
+              {
+                "x": 229,
+                "y": 117
+              },
+              {
+                "x": 176,
+                "y": 117
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [
+    {
+      "id": "window",
+      "active": true,
+      "description": "window",
+      "zIndex": 0,
+      "points": [
+        {
+          "x": 0,
+          "y": 70
+        },
+        {
+          "x": 54,
+          "y": 58
+        },
+        {
+          "x": 59,
+          "y": 94
+        },
+        {
+          "x": 4,
+          "y": 120
+        }
+      ],
+      "walkToPoint": {
+        "x": 58,
+        "y": 130
+      },
+      "lookAtPoint": {
+        "x": 33,
+        "y": 102
+      }
+    }
+  ],
+  "points": [],
+  "regions": [
+    {
+      "id": "darkness",
+      "active": true,
+      "points": [
+        {
+          "x": 250,
+          "y": 47
+        },
+        {
+          "x": 286,
+          "y": 48
+        },
+        {
+          "x": 286,
+          "y": 111
+        },
+        {
+          "x": 251,
+          "y": 108
+        }
+      ],
+      "tint": "#000000",
+      "tintAlpha": 0.75
+    }
+  ],
+  "props": [
+    {
+      "id": "BG",
+      "tag": "BG",
+      "animations": {
+        "BG": {}
+      },
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Couch",
+      "tag": "Couch",
+      "animations": {
+        "Couch": {}
+      },
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 66,
+            "y": 117
+          },
+          {
+            "x": 60,
+            "y": 96
+          },
+          {
+            "x": 71,
+            "y": 85
+          },
+          {
+            "x": 71,
+            "y": 74
+          },
+          {
+            "x": 82,
+            "y": 68
+          },
+          {
+            "x": 147,
+            "y": 69
+          },
+          {
+            "x": 151,
+            "y": 109
+          },
+          {
+            "x": 146,
+            "y": 117
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 125,
+        "y": 123
+      },
+      "lookAtPoint": {
+        "x": 108,
+        "y": 113
+      },
+      "description": "couch"
+    },
+    {
+      "id": "Door",
+      "tag": "Door",
+      "animations": {
+        "Door-open": {}
+      },
+      "zIndex": 3,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 289,
+            "y": 51
+          },
+          {
+            "x": 309,
+            "y": 60
+          },
+          {
+            "x": 307,
+            "y": 132
+          },
+          {
+            "x": 287,
+            "y": 114
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 286,
+        "y": 124
+      },
+      "lookAtPoint": {
+        "x": 297,
+        "y": 115
+      },
+      "description": "door",
+      "defaultVerb": "open"
+    },
+    {
+      "id": "Fan",
+      "tag": "Fan",
+      "animations": {
+        "Fan": {
+          "loop": true
+        }
+      },
+      "zIndex": 5,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Bread",
+      "tag": "Bread",
+      "animations": {
+        "Bread": {}
+      },
+      "zIndex": 14,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 205,
+            "y": 104
+          },
+          {
+            "x": 212,
+            "y": 103
+          },
+          {
+            "x": 215,
+            "y": 106
+          },
+          {
+            "x": 211,
+            "y": 109
+          },
+          {
+            "x": 202,
+            "y": 108
+          },
+          {
+            "x": 201,
+            "y": 106
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 219,
+        "y": 130
+      },
+      "lookAtPoint": {
+        "x": 208,
+        "y": 108
+      },
+      "baseline": 109,
+      "description": "bread"
+    },
+    {
+      "id": "Knife",
+      "tag": "Knife",
+      "animations": {
+        "Knife": {}
+      },
+      "zIndex": 12,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 181,
+            "y": 109
+          },
+          {
+            "x": 184,
+            "y": 104
+          },
+          {
+            "x": 197,
+            "y": 108
+          },
+          {
+            "x": 194,
+            "y": 113
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 172,
+        "y": 128
+      },
+      "lookAtPoint": {
+        "x": 189,
+        "y": 110
+      },
+      "baseline": 111,
+      "description": "knife"
+    },
+    {
+      "id": "PeanutButter",
+      "tag": "PeanutButter",
+      "zIndex": 11,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 230,
+            "y": 95
+          },
+          {
+            "x": 230,
+            "y": 105
+          },
+          {
+            "x": 221,
+            "y": 105
+          },
+          {
+            "x": 221,
+            "y": 94
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 241,
+        "y": 120
+      },
+      "lookAtPoint": {
+        "x": 225,
+        "y": 104
+      },
+      "baseline": 104,
+      "description": "peanut butter"
+    },
+    {
+      "id": "Table",
+      "tag": "Table",
+      "animations": {
+        "Table": {}
+      },
+      "zIndex": 10,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 168,
+            "y": 105
+          },
+          {
+            "x": 176,
+            "y": 101
+          },
+          {
+            "x": 188,
+            "y": 99
+          },
+          {
+            "x": 218,
+            "y": 99
+          },
+          {
+            "x": 229,
+            "y": 101
+          },
+          {
+            "x": 238,
+            "y": 105
+          },
+          {
+            "x": 237,
+            "y": 112
+          },
+          {
+            "x": 232,
+            "y": 115
+          },
+          {
+            "x": 215,
+            "y": 118
+          },
+          {
+            "x": 214,
+            "y": 126
+          },
+          {
+            "x": 210,
+            "y": 129
+          },
+          {
+            "x": 196,
+            "y": 129
+          },
+          {
+            "x": 192,
+            "y": 126
+          },
+          {
+            "x": 191,
+            "y": 118
+          },
+          {
+            "x": 181,
+            "y": 117
+          },
+          {
+            "x": 169,
+            "y": 113
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 162,
+        "y": 129
+      },
+      "lookAtPoint": {
+        "x": 203,
+        "y": 129
+      },
+      "baseline": 128,
+      "description": "table"
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 260,
+      "y": 115,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 9
+    },
+    {
+      "instanceId": "penny-1",
+      "definition": "penny/penny.character.json",
+      "x": 60,
+      "y": 135,
+      "initialFacing": "R",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 42
+    }
+  ]
+}
+</file>
+
+<file path="src/engine/scripting/BenneScript.ts">
+import * as Phaser from 'phaser';
+import type {
+  CharacterVerbInteractPayload,
+  RoomHotspotInteractPayload,
+  RoomPropInteractPayload,
+} from '../events/propInteractionEvents.js';
+import type { GivePropInteractPayload } from './benneScriptPayloads.js';
+import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import { registerPlayFromForRoom } from './devPlayFromRegistry.js';
+import type { RoomScene } from '../scenes/RoomScene.js';
+import {
+  globalInventoryOnCharacterAnySourceEventId,
+  globalInventoryOnHotspotAnySourceEventId,
+  globalInventoryOnPropAnySourceEventId,
+  roomInventoryOnCharacterAnySourceEventId,
+  roomInventoryOnHotspotAnySourceEventId,
+  roomInventoryOnPropAnySourceEventId,
+} from '../events/inventoryOnVerbEvents.js';
+import {
+  characterVerbEventId,
+  roomCharacterVerbEventId,
+  roomHotspotVerbEventId,
+  roomPropVerbEventId,
+} from '../events/verbInteractionEvents.js';
+import type {
+  BenneScriptDialogCommandSurface,
+  BenneScriptHotspotFacade,
+  BenneScriptPlayerFacade,
+  BenneScriptPropFacade,
+  BenneScriptRegionFacade,
+  InventoryWhenUsedOnPayloadHandler,
+  RoomInventoryUsedOnRegistrar,
+} from './benneScriptFacades.js';
+import { BenneScriptCore, withNow } from './BenneScriptCore.js';
+import {
+  createBenneScriptGameStateNamespace,
+  createBenneScriptInventoryNamespace,
+  type BenneScriptGameStateNamespace,
+  type BenneScriptInventoryNamespace,
+} from './benneScriptGameStateApi.js';
+import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
+import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
+import type { RoomTransitionContext } from '../../types/roomTransition.js';
+import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
+import type { UpdateContext } from './types.js';
+import { roomRegionEnterEventId, roomRegionExitEventId } from '../events/regionEnterExitEvents.js';
+
+export type {
+  AnyInventoryUsedOnPayload,
+  BenneScriptCharacterFacade,
+  BenneScriptDialogCommandSurface,
+  BenneScriptHotspotFacade,
+  BenneScriptInventoryItemFacade,
+  BenneScriptPlayerFacade,
+  BenneScriptPropFacade,
+  BenneScriptRegionFacade,
+  BenneScriptRoomFacade,
+  BenneScriptSoundFacade,
+  BenneScriptSharedSelectionApi,
+  InventoryWhenGiveHandler,
+  InventoryWhenGiveRegistrar,
+  InventoryWhenUsedOnPayloadHandler,
+  InventoryWhenUseHandler,
+  InventoryWhenUseRegistrar,
+  RoomInventoryUsedOnRegistrar,
+} from './benneScriptFacades.js';
+export type { CharacterFollowOptions } from '../../types/characterFollow.js';
+export type {
+  BenneScriptSayArgs,
+  BenneScriptSayLineOptions,
+  BenneScriptSayDialogueTagged,
+  BenneScriptSayDialogueHybrid,
+  BenneSayDialogueScope,
+  BlockingWithNow,
+} from './BenneScriptCore.js';
+export type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
+export { withNow } from './BenneScriptCore.js';
+
+/**
+ * # Bennescript — valid string ids for this room
+ *
+ * Use ids that match **this room’s** `*.room.json` and placed characters, so handlers and movement resolve correctly.
+ *
+ * | Kind | Where it comes from |
+ * |------|---------------------|
+ * | **`whenLookAt`**, **`whenUse`**, **`whenTalkTo`**, **`whenPickUp`**, **`whenPush`**, **`whenPull`**, **`whenOpen`**, **`whenClose`**, **`whenVerb`** | One **`targetId`** per room: **prop** (`props[].id`) → **hotspot** (`hotspots[].id`) → **character** (`CharacterData.id` spawned here, including the player). Optional **`(p: any)`** payload — shape depends on which kind matched; see **`registerVerbForTarget`**. Character verb payloads may include **world** **`walkToPoint`** / **`talkPoint`** when authored in **`*.character.json`**. |
+ * | **`whenGive`** | **`targetId`** is the receiving **prop** only (`props[].id`; inventory **`itemId`** is separate). |
+ * | **`onProp`**, **`B.prop(id)`** | **`props[].id`** only (explicit prop wiring). |
+ * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | Pathfind **Walk**; **Unified target string** (first match): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** → **`points[].id`**, or **`{ x, y }`** in **room pixels**. **`walkTo.now`** does not block the queue. No-op when **`movable`** is **`false`** (see **`*.character.json`** **`movable`** and **`B.player` / `B.character(id).movable`**). |
+ * | **`moveTo` / `moveTo.now`** / **`moveToNow`** | Instantly place **feet** at the resolved point (clamped to walkable) and update **Idle** facing — not a walk. **`moveTo`** queues on the interaction tail; **`moveTo.now`** and **`moveToNow`** run immediately. |
+ * | **`walkToClicked` / `walkToClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Inside a verb handler, walks the player to the **clicked** prop / hotspot / character (same resolution as **`walkTo`** for that id), then faces like **`faceClicked`** after the walk completes. No room target for pure inventory-row verbs (one-time dev warn). |
+ * | **`faceClicked` / `faceClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Uses payload **`lookAtPoint`** for props/hotspots when present; for **characters**, faces that character’s **feet**; otherwise falls back to the walk stand point (see {@link RoomScene.facePlayerTowardClicked}). Same dev warnings as **`walkToClicked`** when there is no target or no room. |
+ * | **`B.fadeOut` / `B.fadeIn`**, **`.now`** | Full-screen fade over the room and all GUI overlays; optional duration (default **0.35** s) and **`0xRRGGBB` color** (default black). Queues on the interaction tail except **`.now`**. |
+ * | **`playAnimation(tag)`** / **`playAnimation.now`** | One-shot Aseprite tag (not saved); then **directional idle** or **persisted** `animation` override. Same idea for **`B.prop(id).playAnimation`**, which restores that prop’s saved **base** `animation`. |
+ * | **`animation` / `animation =`**, **`animationNow(...)`** | Setters queue on the **interaction tail** (order with **`walkTo`** / **`say`** / **`playAnimation`**); **`animationNow`** applies persist + sprite **immediately**. Props: persisted base tag. Characters / player: effective get; set / **`animationNow`** accept **`string \| null`** (`null` clears). **`stopAnimation()`** (characters / player) clears override + save, always immediate. |
+ * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
+ * | **`startFacingCharacter` / `stopFacingCharacter`** on **`B.character('…')`** | **`startFacingCharacter(targetCharacterId, minWaitTime?, maxWaitTime?)`** keeps the NPC’s **Idle** facing toward the other character’s **feet**; when either’s feet move, a new random delay in **[`minWaitTime`, `maxWaitTime`]** seconds (defaults **0.2** / **0.4**) runs before turning again. **`stopFacingCharacter()`** clears it. Both queue on the interaction tail; routed through **`RoomScene.startCharacterFacingCharacter` / `stopCharacterFacingCharacter`**. |
+ * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
+ * | **`B.region(id).whenEnter` / `whenExit`**, **`B.whenEnterRegion` / `whenExitRegion`** | **`regions[].id`** in this room’s JSON. Feet crossing uses the same **last-wins** active polygon test as perspective scale (**`resolveWinningRoomRegionIdAtFeet`**). Handlers wire through **`subscribe`** (interaction queue + verb click context rules, like **`whenLookAt`**). Payload: **`RegionEnterExitContext`**. |
+ * | **`B.onUpdate`** | Non-blocking per-frame hook (**`UpdateContext`**: **`deltaSeconds`**, **`roomId`**). Runs after engine **`RoomScene.update`** work; **not** on the interaction tail; **no** **`.now`**. Cleaned up when the room script’s **`B`** is disposed (room unload). Global **`B.onUpdate`** runs after room handlers. |
+ * | **`B.hotspot(id).active`** | **`hotspots[].id`** (case-sensitive, exact JSON match) — get/set persisted **active** (immediate, not queued). Mounts or removes the polygon input zone; **`resolveMovementTarget`** still resolves inactive hotspot ids. Unknown id: getter **`false`**, setter no-op, DEV warn once per room load. |
+ * | **`B.say` / `B.say.now`** | Tagged **`B.say`**…``: PowerQuest-style block — lines **`Speaker: text`** (`Player` any case → protagonist id; other names match spawned character ids **case-insensitively**). Blank lines and **`//`** comments ignored; unknown speakers throw. Queues each line; **`B.say.now`**… skips the interaction tail (see implementation notes in **`BenneScriptCore`**). |
+ * | **`B.display` / `B.display.now`** | Narration via **`display-text`** GUI — **`B.display('…')`** blocks until the player clicks to dismiss (no timer). Same interaction-tail rules as **`B.wait`** / **`say`**; **`.now`** skips the tail. |
+ * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Same dialog overlay as **`B.say`**, plus string form **`B.player.say('…')`**. Scoped tagged blocks: each line is that character (optional **`Player:`** prefix); mismatched **`Name:`** throws (compared **case-insensitively** to the scoped character). Optional second argument **`{ clickToSkip: false \| true }`** on string calls. |
+ * | **`B.playFrom('…', () => { … })`** | **Dev / tooling** — named starting-state for this room; runs once after **`whenEnterRoom`** / **`whenEnterAnyRoom`** on **`boot`** or editor **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`** matches (BENNE Play). Skipped on in-game **`changeTo`** (`transition`). |
+ * | **`B.inventory.add` / `remove`**, **`.now`** | **`GameStateManager`** quantity mutations. Blocking form **queues** on the interaction tail; **`.now`** applies immediately. **`has`**, **`quantityOf`**, **`items`**, **`clearInventory`** stay synchronous. |
+ * | **`B.inventory('id').animation`**, **`cursorAnimation`** (getter / setter) | **Getters**: effective tags (JSON **`defaultAnimation`** / **`cursorAnimation`** ± save overrides — **`''`** when no armed cursor clip). **Setters**: persisted in **`GameStateManager`** variables; **queue** on the interaction tail (same as **`B.player.animation`**); **`animationNow`** / **`cursorAnimationNow`** apply immediately. Setter **empty string** clears that field’s override (JSON applies). |
+ * | **`B.prop(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Script visibility overrides. **`hide` / `show` / `visible =`** queue on the interaction tail; **`.now`** / **`visibleNow`** apply immediately. |
+ * | **`B.character(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Same as props: persisted script visibility (global per character definition id); **`hide` / `show` / `visible =`** queue; **`.now`** / **`visibleNow`** immediate. |
+ * | **`movable` / `movable =`** on **`B.player`** or **`B.character('…')`** | When **`false`**, pathfind walks are ignored (including **`walkToClicked`** and click-to-walk); **`moveTo`** still teleports. Setter queues on the interaction tail; persists **`character:<id>:movable`** over the JSON default from **`*.character.json`**. |
+ * | **`B.prop(id).fade(from, to, durationSeconds)`** / **`.now`**, **`B.character(id).fade(...)`** / **`.now`** | Sprite alpha tween (linear ease) from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`**; alphas clamp to **`[0, 1]`**. Blocking form queues on the interaction tail and waits for completion; **`fade.now`** starts immediately. **`toAlpha`** is persisted (**`room:…:prop:…:alpha`** / **`character:…:alpha`**). |
+ *
+ * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in `BenneScriptCore`. **`whenVerb`** uses an exact verb id.
+ */
+
+const noopBenneScriptRegionFacade: BenneScriptRegionFacade = {
+  get active() { return true; },
+  set active(_v: boolean) {},
+  whenEnter(): void {},
+  whenExit(): void {},
+};
+
+const noopBenneScriptHotspotFacade: BenneScriptHotspotFacade = {
+  get active() { return true; },
+  set active(_v: boolean) {},
+};
+
+/**
+ * High-level API passed as **`B`** in the `registerRoomScript` callback. Chains async steps (walk, delays) in order; use **`await`** only if you expose promises yourself.
+ *
+ * @see The module comment above for which string ids to use with each method.
+ */
+export class BenneScript extends BenneScriptCore {
+  private static unresolvedTargetVerbWarnings = new Set<string>();
+  private static unresolvedInventoryOnTargetWarnings = new Set<string>();
+
+  private roomId: string;
+  private roomScene: RoomScene;
+
+  /** Cross-room flags and variables (see `GameStateManager`). */
+  readonly state: BenneScriptGameStateNamespace;
+  /** Item quantities; survives room loads (see `GameStateManager`). */
+  readonly inventory: BenneScriptInventoryNamespace;
+
+  /** SCUMM-style dialog session control (`*.dialog.json` + `registerDialogScript`). */
+  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+
+  /**
+   * Register a handler for "inventory used on target" clicks for this room. Whether the active
+   * inventory selection is dropped (active inventory + active verb both cleared) after the handler
+   * runs follows {@link import('../verbs/dispatchInventoryOnVerbTarget.js').shouldDropActiveInventoryOnUse}
+   * (per-item **`dropWhenUsed`** → global **`dropWhenInventoryUsed`** → default **`false`**), unless you
+   * **`return false`** from the payload handler — that re-emits the global **`whenInventoryOnVerbTargetUnhandled`**
+   * path and skips this subscription’s drop-after-tail so the global script owns clearing.
+   * **`doNotClear`** is a per-handler hard opt-out: the active inventory always stays armed after
+   * this handler's queued steps regardless of policy.
+   */
+  readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
+
+  constructor(events: Phaser.Events.EventEmitter, roomId: string, roomScene: RoomScene) {
+    super(events, () => roomScene.time, () => roomScene);
+    this.roomId = roomId;
+    this.roomScene = roomScene;
+    const manager = resolveGameStateManager(roomScene.game);
+    this.state = createBenneScriptGameStateNamespace(manager);
+    this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene, (factory) =>
+      this.chain(factory),
+    );
+    this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
+    this.whenInventoryUsedOn = Object.assign(
+      (
+        targetId: string,
+        handler: InventoryWhenUsedOnPayloadHandler,
+        options?: { doNotClear?: boolean },
+      ) => {
+        this.registerInventoryUsedOnForTarget(targetId, handler, options?.doNotClear === true);
+      },
+      {
+        doNotClear: (targetId: string, handler: InventoryWhenUsedOnPayloadHandler) => {
+          this.registerInventoryUsedOnForTarget(targetId, handler, true);
+        },
+      },
+    ) as RoomInventoryUsedOnRegistrar;
+  }
+
+  protected acquireOnUpdateSubscription(handler: (ctx: UpdateContext) => void): () => void {
+    return this.roomScene.registerBenneScriptOnUpdateHandler(handler);
+  }
+
+  /**
+   * Subscribe to a **prop** verb event for this room (**prop id only**). Prefer **`when*`** / **`whenVerb`** for prop → hotspot → character resolution.
+   *
+   * @param propId - **`props[].id`** in this room’s `.room.json`.
+   * @param verbId - Verb id from **`game-config.json`** `verbs[]` (dispatch is listener-first).
+   * @param handler - Receives {@link RoomPropInteractPayload} when the handler accepts a parameter.
+   *
+   * @example
+   * B.onProp('desk', 'look', () => console.log('looked'));
+   * B.onProp('desk', 'use', (p) => console.log(p.propId));
+   */
+  onProp(
+    propId: string,
+    verbId: string,
+    handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
+  ): void {
+    const eventId = roomPropVerbEventId(this.roomId, propId, verbId);
+    this.subscribe(eventId, (payload) => {
+      const p = payload as RoomPropInteractPayload;
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: RoomPropInteractPayload) => void)(p);
+      }
+    });
+  }
+
+  /**
+   * Subscribe to a **hotspot** verb event for this room (hotspot id only). Prefer **`when*`** / **`whenVerb`** for automatic resolution.
+   */
+  private onHotspot(
+    hotspotId: string,
+    verbId: string,
+    handler: ((payload: RoomHotspotInteractPayload) => void) | (() => void),
+  ): void {
+    const eventId = roomHotspotVerbEventId(this.roomId, hotspotId, verbId);
+    this.subscribe(eventId, (payload) => {
+      const p = payload as RoomHotspotInteractPayload;
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: RoomHotspotInteractPayload) => void)(p);
+      }
+    });
+  }
+
+  /**
+   * Subscribes to **both** room-scoped and character-global verb events for a **character** target.
+   * Used only when {@link registerVerbForTarget} resolves **`targetId`** to a spawned character — not for props or hotspots.
+   *
+   * Handlers use **`(p: any)`** for the same reason as {@link registerVerbForTarget}.
+   */
+  private subscribeCharacterVerb(
+    characterId: string,
+    verbId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    const inner = (payload: unknown) => {
+      const p = payload as CharacterVerbInteractPayload;
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: any) => void)(p);
+      }
+    };
+    this.subscribe(roomCharacterVerbEventId(this.roomId, characterId, verbId), inner);
+    this.subscribe(characterVerbEventId(characterId, verbId), inner);
+  }
+
+  /**
+   * Registers **`handler`** for **`verbId`** on **`targetId`** by resolving the target in order:
+   *
+   * 1. **Prop** — if `props[]` has this id: single room event via {@link onProp}.
+   * 2. **Hotspot** — else if `hotspots[]` has this id: single room event via {@link onHotspot}.
+   * 3. **Character** — else if a character with this **definition id** is spawned in the room: {@link subscribeCharacterVerb}
+   *    (room + character-global events, matching **`dispatchVerbInteraction`** for characters).
+   *
+   * If nothing matches, calls {@link warnNoVerbTarget} once per (`roomId`, `targetId`, `verbId`).
+   *
+   * Handlers use **`(p: any)`** so one API can cover prop, hotspot, and character payloads without a public exported union;
+   * use **`onProp`** or types from **`propInteractionEvents`** when you want strict typing.
+   */
+  private registerVerbForTarget(
+    verbId: string,
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    if (this.roomScene.getRoomPropInstance(targetId)) {
+      this.onProp(
+        targetId,
+        verbId,
+        handler as ((payload: RoomPropInteractPayload) => void) | (() => void),
+      );
+      return;
+    }
+    if (this.roomScene.getRoomHotspotInstance(targetId)) {
+      this.onHotspot(
+        targetId,
+        verbId,
+        handler as ((payload: RoomHotspotInteractPayload) => void) | (() => void),
+      );
+      return;
+    }
+    if (this.roomScene.getCharacterSprite(targetId)) {
+      this.subscribeCharacterVerb(targetId, verbId, handler);
+      return;
+    }
+    this.warnNoVerbTarget(targetId, verbId);
+  }
+
+  private warnNoVerbTarget(targetId: string, verbId: string): void {
+    const key = `${this.roomId}:${targetId}:${verbId}`;
+    if (BenneScript.unresolvedTargetVerbWarnings.has(key)) {
+      return;
+    }
+    BenneScript.unresolvedTargetVerbWarnings.add(key);
+    console.warn(
+      `[Benne] No prop, hotspot, or character found with id '${targetId}' for verb '${verbId}' in room '${this.roomId}'. Handler was not registered.`,
+    );
+  }
+
+  private warnNoInventoryOnTarget(targetId: string): void {
+    const key = `${this.roomId}:${targetId}:inventoryOn`;
+    if (BenneScript.unresolvedInventoryOnTargetWarnings.has(key)) {
+      return;
+    }
+    BenneScript.unresolvedInventoryOnTargetWarnings.add(key);
+    console.warn(
+      `[Benne] No prop, hotspot, or character found with id '${targetId}' for whenInventoryUsedOn in room '${this.roomId}'. Handler was not registered.`,
+    );
+  }
+
+  private registerInventoryUsedOnForTarget(
+    targetId: string,
+    handler: InventoryWhenUsedOnPayloadHandler,
+    doNotClear: boolean,
+  ): void {
+    if (this.roomScene.getRoomPropInstance(targetId)) {
+      this.subscribeInventoryUsedOnTargetEvents(
+        roomInventoryOnPropAnySourceEventId(this.roomId, targetId),
+        globalInventoryOnPropAnySourceEventId(targetId),
+        handler,
+        doNotClear,
+      );
+      return;
+    }
+    if (this.roomScene.getRoomHotspotInstance(targetId)) {
+      this.subscribeInventoryUsedOnTargetEvents(
+        roomInventoryOnHotspotAnySourceEventId(this.roomId, targetId),
+        globalInventoryOnHotspotAnySourceEventId(targetId),
+        handler,
+        doNotClear,
+      );
+      return;
+    }
+    if (this.roomScene.getCharacterSprite(targetId)) {
+      this.subscribeInventoryUsedOnTargetEvents(
+        roomInventoryOnCharacterAnySourceEventId(this.roomId, targetId),
+        globalInventoryOnCharacterAnySourceEventId(targetId),
+        handler,
+        doNotClear,
+      );
+      return;
+    }
+    this.warnNoInventoryOnTarget(targetId);
+  }
+
+  /** Like {@link onProp} but passes a transformed payload (e.g. {@link whenGive}). */
+  private onPropMapped<P>(
+    propId: string,
+    verbId: string,
+    handler: ((payload: P) => void) | (() => void),
+    map: (base: RoomPropInteractPayload) => P,
+  ): void {
+    const eventId = roomPropVerbEventId(this.roomId, propId, verbId);
+    this.subscribe(eventId, (payload) => {
+      const base = payload as RoomPropInteractPayload;
+      const p = map(base);
+      if (handler.length === 0) {
+        (handler as () => void)();
+      } else {
+        (handler as (x: P) => void)(p);
+      }
+    });
+  }
+
+  whenLookAt(targetId: string, handler: () => void): void;
+  whenLookAt(targetId: string, handler: (p: any) => void): void;
+  whenLookAt(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('look'), targetId, handler);
+  }
+
+  whenUse(targetId: string, handler: () => void): void;
+  whenUse(targetId: string, handler: (p: any) => void): void;
+  whenUse(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('use'), targetId, handler);
+  }
+
+  whenPickUp(targetId: string, handler: () => void): void;
+  whenPickUp(targetId: string, handler: (p: any) => void): void;
+  whenPickUp(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('pickUp'), targetId, handler);
+  }
+
+  whenGive(itemId: string, targetId: string, handler: () => void): void;
+  whenGive(itemId: string, targetId: string, handler: (payload: GivePropInteractPayload) => void): void;
+  whenGive(
+    itemId: string,
+    targetId: string,
+    handler: ((payload: GivePropInteractPayload) => void) | (() => void),
+  ): void {
+    const verbId = this.resolveVerbId('give');
+    this.onPropMapped(targetId, verbId, handler, (base) => ({ ...base, itemId }));
+  }
+
+  whenPush(targetId: string, handler: () => void): void;
+  whenPush(targetId: string, handler: (p: any) => void): void;
+  whenPush(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('push'), targetId, handler);
+  }
+
+  whenPull(targetId: string, handler: () => void): void;
+  whenPull(targetId: string, handler: (p: any) => void): void;
+  whenPull(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('pull'), targetId, handler);
+  }
+
+  whenOpen(targetId: string, handler: () => void): void;
+  whenOpen(targetId: string, handler: (p: any) => void): void;
+  whenOpen(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('open'), targetId, handler);
+  }
+
+  whenClose(targetId: string, handler: () => void): void;
+  whenClose(targetId: string, handler: (p: any) => void): void;
+  whenClose(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('close'), targetId, handler);
+  }
+
+  whenVerb(verbId: string, targetId: string, handler: () => void): void;
+  whenVerb(verbId: string, targetId: string, handler: (p: any) => void): void;
+  whenVerb(
+    verbId: string,
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(verbId, targetId, handler);
+  }
+
+  whenTalkTo(targetId: string, handler: () => void): void;
+  whenTalkTo(targetId: string, handler: (p: any) => void): void;
+  whenTalkTo(
+    targetId: string,
+    handler: ((p: any) => void) | (() => void),
+  ): void {
+    this.registerVerbForTarget(this.resolveVerbId('talkTo'), targetId, handler);
+  }
+
+  prop(propId: string): BenneScriptPropFacade {
+    const scene = this.roomScene;
+    const B = this;
+    return {
+      sound: this.sound,
+      hide: withNow(
+        () => {
+          B.chain(() => {
+            scene.setPropScriptVisible(propId, false);
+            return Promise.resolve();
+          });
+        },
+        () => {
+          scene.setPropScriptVisible(propId, false);
+        },
+      ),
+      show: withNow(
+        () => {
+          B.chain(() => {
+            scene.setPropScriptVisible(propId, true);
+            return Promise.resolve();
+          });
+        },
+        () => {
+          scene.setPropScriptVisible(propId, true);
+        },
+      ),
+      get visible() {
+        return scene.getPropScriptVisible(propId);
+      },
+      set visible(v: boolean) {
+        B.chain(() => {
+          scene.setPropScriptVisible(propId, v);
+          return Promise.resolve();
+        });
+      },
+      visibleNow(v: boolean): void {
+        scene.setPropScriptVisible(propId, v);
+      },
+      get description() {
+        return scene.getPropScriptDescription(propId);
+      },
+      set description(v: string) {
+        scene.setPropScriptDescription(propId, v);
+      },
+      get animation() {
+        return scene.getPropScriptBaseAnimationTag(propId);
+      },
+      set animation(tag: string) {
+        B.chain(() => {
+          scene.setPropScriptBaseAnimationTag(propId, tag);
+          return Promise.resolve();
+        });
+      },
+      animationNow(tag: string): void {
+        scene.setPropScriptBaseAnimationTag(propId, tag);
+      },
+      playAnimation: withNow(
+        (tag: string) => {
+          B.chain(() => scene.playPropScriptAnimationOneShot(propId, tag));
+        },
+        (tag: string) => {
+          void scene.playPropScriptAnimationOneShot(propId, tag);
+        },
+      ),
+      fade: withNow(
+        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
+          B.chain(() => scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds));
+        },
+        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
+          void scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds);
+        },
+      ),
+      moveTo: withNow(
+        (point) => {
+          B.chain(() => {
+            scene.movePropToNow(propId, point);
+            return Promise.resolve();
+          });
+        },
+        (point) => {
+          scene.movePropToNow(propId, point);
+        },
+      ),
+      moveToNow(point): void {
+        scene.movePropToNow(propId, point);
+      },
+    } as BenneScriptPropFacade;
+  }
+
+  get player(): BenneScriptPlayerFacade {
+    return this.makePlayerFacadeFromScene(() => this.roomScene);
+  }
+
+  region(regionId: string): BenneScriptRegionFacade {
+    const rid = String(regionId).trim();
+    if (rid.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.region: region id must be a non-empty string.');
+      }
+      return noopBenneScriptRegionFacade;
+    }
+    const B = this;
+    const scene = this.roomScene;
+    return {
+      get active() {
+        return scene.getRegionScriptActive(rid);
+      },
+      set active(v: boolean) {
+        scene.setRegionScriptActive(rid, v);
+      },
+      whenEnter(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void {
+        const eventId = roomRegionEnterEventId(B.roomId, rid);
+        B.subscribe(eventId, (payload) => {
+          const p = payload as RegionEnterExitContext;
+          if (handler.length === 0) {
+            (handler as () => void)();
+          } else {
+            (handler as (x: RegionEnterExitContext) => void)(p);
+          }
+        });
+      },
+      whenExit(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void {
+        const eventId = roomRegionExitEventId(B.roomId, rid);
+        B.subscribe(eventId, (payload) => {
+          const p = payload as RegionEnterExitContext;
+          if (handler.length === 0) {
+            (handler as () => void)();
+          } else {
+            (handler as (x: RegionEnterExitContext) => void)(p);
+          }
+        });
+      },
+    };
+  }
+
+  hotspot(hotspotId: string): BenneScriptHotspotFacade {
+    const hid = String(hotspotId).trim();
+    if (hid.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.hotspot: hotspot id must be a non-empty string.');
+      }
+      return noopBenneScriptHotspotFacade;
+    }
+    const scene = this.roomScene;
+    return {
+      get active() {
+        return scene.getHotspotScriptActive(hid);
+      },
+      set active(v: boolean) {
+        scene.setHotspotScriptActive(hid, v);
+      },
+    };
+  }
+
+  whenEnterRegion(
+    regionId: string,
+    handler: (() => void) | ((ctx: RegionEnterExitContext) => void),
+  ): void {
+    this.region(regionId).whenEnter(handler);
+  }
+
+  whenExitRegion(
+    regionId: string,
+    handler: (() => void) | ((ctx: RegionEnterExitContext) => void),
+  ): void {
+    this.region(regionId).whenExit(handler);
+  }
+
+  whenLeaveRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenLeaveRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.registerRoomLeaveRoom(this.roomId, handler);
+  }
+
+  whenEnterRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenEnterRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.registerRoomEnterRoom(this.roomId, handler);
+  }
+
+  whenLoadedRoom(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenLoadedRoom: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.registerRoomLoadedRoom(this.roomId, handler);
+  }
+
+  whenEnterRoomAfterFade(
+    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+  ): void {
+    const r = tryGetGlobalRoomHookRegistry();
+    if (!r) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.whenEnterRoomAfterFade: room hook registry missing — not wired.');
+      }
+      return;
+    }
+    r.registerRoomEnterRoomAfterFade(this.roomId, handler);
+  }
+
+  /**
+   * Registers a named **Play From** block for this room (BENNE Play). Runs once after
+   * **`whenEnterRoom`** / **`whenEnterAnyRoom`** on **`boot`** or **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`**
+   * matches and the current room matches **`this.roomId`**. Skipped on in-game **`changeTo`** (`transition`).
+   * Queued **`B.*`** without **`.now`** from enter / play-from are flushed before fade-in (see **`RoomScene.waitForEnterPhaseBenneScriptQueues`**).
+   */
+  playFrom(name: string, handler: () => void | Promise<void>): void {
+    const id = String(name).trim();
+    if (id.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.playFrom: name must be a non-empty string.');
+      }
+      return;
+    }
+    registerPlayFromForRoom(this.roomId, id, handler);
+  }
+
+}
+</file>
+
+<file path="src/game/game-config.json">
+{
+  "name": "9-verb",
+  "resolution": {
+    "width": 352,
+    "height": 198
+  },
+  "verbs": [
+    {
+      "id": "give",
+      "label": "Give",
+      "preposition": "to"
+    },
+    {
+      "id": "pickUp",
+      "label": "Pick up"
+    },
+    {
+      "id": "use",
+      "label": "Use",
+      "preposition": "with"
+    },
+    {
+      "id": "open",
+      "label": "Open"
+    },
+    {
+      "id": "look",
+      "label": "Look at"
+    },
+    {
+      "id": "push",
+      "label": "Push"
+    },
+    {
+      "id": "close",
+      "label": "Close"
+    },
+    {
+      "id": "talkTo",
+      "label": "Talk to"
+    },
+    {
+      "id": "pull",
+      "label": "Pull"
+    }
+  ],
+  "inputProfile": {
+    "primaryButtonVerb": "walkTo",
+    "secondaryButtonVerb": "defaultVerb"
+  },
+  "dropWhenInventoryUsed": true,
+  "defaultFallbackLine": "That doesn't seem to work.",
+  "startingPlayerCharacter": "hank",
+  "startingRoomId": "apartment",
+  "initialGameState": {
+    "flags": {},
+    "variables": {},
+    "inventory": [
+      "Broom",
+      "Lantern",
+      "Key"
+    ]
+  },
+  "audio": {
+    "masterVolume": 1,
+    "sfxVolume": 1,
+    "musicVolume": 0.75,
+    "dialogueVolume": 1
+  },
+  "debug": {
+    "showWalkable": false,
+    "showPropOutlines": false,
+    "showGuiOutlines": false,
+    "showRegionOutlines": false
+  },
+  "speech": {
+    "clickToSkip": true,
+    "showText": true,
+    "defaultTalkOffset": {
+      "x": 0,
+      "y": 0
+    },
+    "minDurationMs": 800,
+    "msPerCharacter": 80,
+    "maxDurationMs": 4500,
+    "durationMultiplier": 1
+  },
+  "dialog": {
+    "choiceOptionsViewportHeightPx": 46,
+    "usedColor": "#888888"
+  },
+  "perspective": {
+    "minWalkScale": 0.1,
+    "walkScalePower": 1.3
+  },
+  "cursor": {
+    "idleAnimation": "Idle",
+    "activeAnimation": "Active",
+    "hotspot": "center",
+    "animations": {
+      "Idle": {
+        "loop": true
+      },
+      "Active": {
+        "loop": true
+      }
+    },
+    "display": {
+      "aseprite": true
+    }
+  }
+}
+</file>
+
 <file path="src/engine/scripting/benneScriptFacades.ts">
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { CharacterFollowOptions } from '../../types/characterFollow.js';
@@ -32354,10 +33774,10 @@ export interface BenneScriptSoundFacade {
 }
 
 /**
- * {@link import('./BenneScriptCore.js').BenneScriptCore.dialogSettings} — runtime dialog prefs
- * (`dialog:*` variables); getters/setters only, sync (not queued on interaction tail).
+ * {@link import('./BenneScriptCore.js').BenneScriptCore.speechSettings} — runtime speech prefs
+ * (`speech:*` variables); getters/setters only, sync (not queued on interaction tail).
  */
-export interface BenneScriptDialogSettingsFacade {
+export interface BenneScriptSpeechSettingsFacade {
   get clickToSkip(): boolean;
   set clickToSkip(v: boolean);
   get showText(): boolean;
@@ -32372,8 +33792,17 @@ export interface BenneScriptDialogSettingsFacade {
   set maxDurationMs(v: number);
   get defaultTalkOffset(): { x: number; y: number };
   set defaultTalkOffset(v: { x: number; y: number });
+}
+
+/**
+ * {@link import('./BenneScriptCore.js').BenneScriptCore.dialogSettings} — runtime dialog prefs
+ * (`dialog:*` variables); getters/setters only, sync (not queued on interaction tail).
+ */
+export interface BenneScriptDialogSettingsFacade {
   get choiceOptionsViewportHeightPx(): number | undefined;
   set choiceOptionsViewportHeightPx(v: number | undefined);
+  get usedColor(): string | undefined;
+  set usedColor(v: string | undefined);
 }
 
 export interface BenneScriptRoomFacade {
@@ -32415,11 +33844,12 @@ export type BenneScriptSharedSelectionApi = Pick<
   | 'activeVerb'
   | 'activeInventory'
   | 'onVerbContextChanged'
-  | 'onDialogSettingsChanged'
+  | 'onSpeechSettingsChanged'
   | 'currentHoverDescription'
   | 'currentHoverTarget'
   | 'room'
   | 'sound'
+  | 'speechSettings'
   | 'dialogSettings'
 > & {
   readonly fadeOut: BenneScriptCore['fadeOut'];
@@ -32673,6 +34103,533 @@ export interface BenneScriptInventoryItemFacade {
 }
 </file>
 
+<file path="src/game/rooms/outside/outside.room.json">
+{
+  "id": "outside",
+  "name": "Outside",
+  "size": {
+    "width": 600,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 600,
+    "height": 198
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "walk-1",
+        "active": true,
+        "points": [
+          {
+            "x": 86,
+            "y": 140
+          },
+          {
+            "x": 578,
+            "y": 135
+          },
+          {
+            "x": 577,
+            "y": 77
+          },
+          {
+            "x": 138,
+            "y": 78
+          },
+          {
+            "x": 137,
+            "y": 120
+          }
+        ],
+        "holes": [
+          {
+            "id": "hole-1",
+            "active": true,
+            "points": [
+              {
+                "x": 302,
+                "y": 83
+              },
+              {
+                "x": 310,
+                "y": 87
+              },
+              {
+                "x": 326,
+                "y": 87
+              },
+              {
+                "x": 337,
+                "y": 82
+              },
+              {
+                "x": 327,
+                "y": 79
+              },
+              {
+                "x": 311,
+                "y": 79
+              }
+            ]
+          },
+          {
+            "id": "hole-2",
+            "active": true,
+            "points": [
+              {
+                "x": 511,
+                "y": 109
+              },
+              {
+                "x": 527,
+                "y": 111
+              },
+              {
+                "x": 550,
+                "y": 111
+              },
+              {
+                "x": 561,
+                "y": 109
+              },
+              {
+                "x": 548,
+                "y": 104
+              },
+              {
+                "x": 526,
+                "y": 103
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [
+    {
+      "id": "door",
+      "active": true,
+      "description": "door",
+      "zIndex": 80,
+      "points": [
+        {
+          "x": 70,
+          "y": 69
+        },
+        {
+          "x": 103,
+          "y": 62
+        },
+        {
+          "x": 113,
+          "y": 128
+        },
+        {
+          "x": 81,
+          "y": 139
+        }
+      ],
+      "walkToPoint": {
+        "x": 108,
+        "y": 133
+      },
+      "lookAtPoint": {
+        "x": 95,
+        "y": 130
+      },
+      "baseline": 163,
+      "defaultVerb": "open"
+    }
+  ],
+  "points": [
+    {
+      "id": "enter-from-door",
+      "x": 105,
+      "y": 132
+    },
+    {
+      "id": "henry-fountain",
+      "x": 338,
+      "y": 85
+    }
+  ],
+  "regions": [
+    {
+      "id": "distance",
+      "active": true,
+      "points": [
+        {
+          "x": 118,
+          "y": 70
+        },
+        {
+          "x": 600,
+          "y": 72
+        },
+        {
+          "x": 600,
+          "y": 101
+        },
+        {
+          "x": 118,
+          "y": 104
+        }
+      ],
+      "scaleTop": 0,
+      "scaleBottom": 1,
+      "scaleWalkSpeed": true
+    }
+  ],
+  "props": [
+    {
+      "id": "BG",
+      "tag": "BG",
+      "animations": {
+        "BG": {}
+      },
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "Sky",
+      "tag": "Sky",
+      "animations": {
+        "Sky": {}
+      },
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1,
+      "parallaxDepth": 0.75
+    },
+    {
+      "id": "Trees",
+      "tag": "Trees",
+      "animations": {
+        "Trees": {}
+      },
+      "zIndex": 1,
+      "visible": true,
+      "alpha": 1,
+      "parallaxDepth": 0.9
+    },
+    {
+      "id": "FountainOff",
+      "tag": "FountainOff",
+      "animations": {
+        "FountainOff": {}
+      },
+      "zIndex": 10,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 305,
+            "y": 81
+          },
+          {
+            "x": 306,
+            "y": 76
+          },
+          {
+            "x": 312,
+            "y": 73
+          },
+          {
+            "x": 314,
+            "y": 65
+          },
+          {
+            "x": 318,
+            "y": 62
+          },
+          {
+            "x": 323,
+            "y": 65
+          },
+          {
+            "x": 325,
+            "y": 72
+          },
+          {
+            "x": 331,
+            "y": 75
+          },
+          {
+            "x": 333,
+            "y": 82
+          },
+          {
+            "x": 327,
+            "y": 86
+          },
+          {
+            "x": 308,
+            "y": 86
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 299,
+        "y": 86
+      },
+      "lookAtPoint": {
+        "x": 320,
+        "y": 85
+      },
+      "baseline": 84,
+      "description": "fountain"
+    },
+    {
+      "id": "FountainOn",
+      "tag": "FountainOn",
+      "animations": {
+        "FountainOn": {
+          "loop": true
+        }
+      },
+      "zIndex": 10,
+      "visible": false,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 305,
+            "y": 81
+          },
+          {
+            "x": 306,
+            "y": 76
+          },
+          {
+            "x": 312,
+            "y": 73
+          },
+          {
+            "x": 314,
+            "y": 65
+          },
+          {
+            "x": 318,
+            "y": 62
+          },
+          {
+            "x": 323,
+            "y": 65
+          },
+          {
+            "x": 325,
+            "y": 72
+          },
+          {
+            "x": 331,
+            "y": 75
+          },
+          {
+            "x": 333,
+            "y": 82
+          },
+          {
+            "x": 327,
+            "y": 86
+          },
+          {
+            "x": 308,
+            "y": 86
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 299,
+        "y": 86
+      },
+      "lookAtPoint": {
+        "x": 320,
+        "y": 85
+      },
+      "baseline": 84,
+      "description": "fountain"
+    },
+    {
+      "id": "LeverPulled",
+      "tag": "LeverPulled",
+      "animations": {
+        "LeverPulled": {}
+      },
+      "zIndex": 12,
+      "visible": false,
+      "alpha": 1,
+      "clickable": false,
+      "description": "",
+      "collider": {
+        "points": [
+          {
+            "x": 527,
+            "y": 93
+          },
+          {
+            "x": 518,
+            "y": 95
+          },
+          {
+            "x": 524,
+            "y": 109
+          },
+          {
+            "x": 529,
+            "y": 110
+          },
+          {
+            "x": 536,
+            "y": 108
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 531,
+        "y": 113
+      },
+      "lookAtPoint": {
+        "x": 531,
+        "y": 107
+      },
+      "baseline": 109
+    },
+    {
+      "id": "Rock",
+      "tag": "Rock",
+      "animations": {
+        "Rock": {}
+      },
+      "zIndex": 12,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 528,
+            "y": 90
+          },
+          {
+            "x": 534,
+            "y": 93
+          },
+          {
+            "x": 542,
+            "y": 96
+          },
+          {
+            "x": 543,
+            "y": 104
+          },
+          {
+            "x": 535,
+            "y": 111
+          },
+          {
+            "x": 523,
+            "y": 110
+          },
+          {
+            "x": 515,
+            "y": 104
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 506,
+        "y": 108
+      },
+      "lookAtPoint": {
+        "x": 530,
+        "y": 108
+      },
+      "baseline": 110,
+      "description": "rock"
+    },
+    {
+      "id": "RockMoved",
+      "tag": "RockMoved",
+      "animations": {
+        "RockMoved": {}
+      },
+      "zIndex": 12,
+      "visible": false,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 529,
+            "y": 92
+          },
+          {
+            "x": 539,
+            "y": 93
+          },
+          {
+            "x": 537,
+            "y": 107
+          },
+          {
+            "x": 532,
+            "y": 109
+          },
+          {
+            "x": 526,
+            "y": 108
+          },
+          {
+            "x": 524,
+            "y": 105
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 530,
+        "y": 114
+      },
+      "lookAtPoint": {
+        "x": 530,
+        "y": 108
+      },
+      "baseline": 110,
+      "description": "lever"
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 290,
+      "y": 86,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 8
+    },
+    {
+      "instanceId": "henry-1",
+      "definition": "henry/henry.character.json",
+      "x": 340,
+      "y": 116,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 8
+    }
+  ]
+}
+</file>
+
 <file path="src/game/rooms/outside/outside.room.ts">
 import { registerRoomScript } from '@engine/scripting';
 
@@ -32695,7 +34652,6 @@ registerRoomScript(({ B }) => {
   });
 
   B.whenEnterRoomAfterFade(() => {
-    B.sound.playMusic.now('halloween-spooky', { fadeSeconds: 10.0 });
     B.sound.play('doorClose');
     if (B.room.isFirstVisit) {
       B.character('henry').say('Hey, Hank!');
@@ -32715,14 +34671,18 @@ registerRoomScript(({ B }) => {
     }
   });
 
-  B.whenUse('door', () => {
+  const handleOpenOrUseDoor = () => {
     B.walkToClicked();
     B.room.changeTo('apartment');
-  });
+  };
+  
+  B.whenOpen('door', handleOpenOrUseDoor); 
+  B.whenUse('door', handleOpenOrUseDoor);
+
 
   B.whenLookAt('door', () => {
     B.faceClicked();
-    B.say`Hank: It's the door.`;
+    B.say`Hank: It's the door to the apartment.`;
   });
 
   B.whenLookAt('FountainOff', () => {
@@ -32733,23 +34693,10 @@ registerRoomScript(({ B }) => {
     `;
   });
 
-  B.whenUse('FountainOff', () => {
-    B.walkToClicked();
-    B.wait(.5);
-    B.player.say('I don\'t see how to turn it on.');
-  });
-
   B.whenLookAt('FountainOn', () => {
     B.faceClicked();
     B.say`
     Hank: I got it working!.
-    `;
-  });
-
-  B.whenUse('FountainOn', () => {
-    B.faceClicked();
-    B.say`
-    Hank: Cool!.
     `;
   });
 
@@ -32760,15 +34707,13 @@ registerRoomScript(({ B }) => {
     `;
   });
 
-  B.whenUse('Rock', () => {
+  B.whenPush('Rock', () => {
     B.walkToClicked();
     B.player.say('I think I can move it.');
     B.prop('Rock').hide();
     B.prop('RockMoved').show();
     B.player.say('Huh, some weird lever hidden under the rock.');
   });
-
-
 
   B.whenLookAt('RockMoved', () => {
     B.faceClicked();
@@ -32777,9 +34722,7 @@ registerRoomScript(({ B }) => {
     `;
   });
 
-
-
-  B.whenUse('RockMoved', () => {
+  const handlePushOrPullLever = () => {
     B.walkToClicked();
     B.say`Hank: Let's see what this does...`;
     B.prop('RockMoved').hide();
@@ -32789,502 +34732,12 @@ registerRoomScript(({ B }) => {
     B.state.setFlag('turnedOnFountain', true);
     B.character('henry').say('WOO HOO! IT\'S WORKING!');
     B.display('You won!');
-  });
-});
-</file>
+  };
 
-<file path="src/game/rooms/outside/outside.room.json">
-{
-  "id": "outside",
-  "name": "Outside",
-  "size": {
-    "width": 600,
-    "height": 180
-  },
-  "scrollBounds": {
-    "x": 0,
-    "y": 0,
-    "width": 600,
-    "height": 180
-  },
-  "walkable": {
-    "polygons": [
-      {
-        "id": "walk-1",
-        "active": true,
-        "points": [
-          {
-            "x": 136,
-            "y": 152
-          },
-          {
-            "x": 82,
-            "y": 174
-          },
-          {
-            "x": 586,
-            "y": 170
-          },
-          {
-            "x": 583,
-            "y": 110
-          },
-          {
-            "x": 144,
-            "y": 111
-          }
-        ],
-        "holes": [
-          {
-            "id": "hole-1",
-            "active": true,
-            "points": [
-              {
-                "x": 302,
-                "y": 116
-              },
-              {
-                "x": 310,
-                "y": 120
-              },
-              {
-                "x": 328,
-                "y": 120
-              },
-              {
-                "x": 336,
-                "y": 115
-              },
-              {
-                "x": 328,
-                "y": 113
-              },
-              {
-                "x": 308,
-                "y": 113
-              }
-            ]
-          },
-          {
-            "id": "hole-2",
-            "active": true,
-            "points": [
-              {
-                "x": 510,
-                "y": 141
-              },
-              {
-                "x": 524,
-                "y": 145
-              },
-              {
-                "x": 552,
-                "y": 145
-              },
-              {
-                "x": 566,
-                "y": 140
-              },
-              {
-                "x": 550,
-                "y": 134
-              },
-              {
-                "x": 522,
-                "y": 134
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  "hotspots": [
-    {
-      "id": "door",
-      "active": true,
-      "description": "",
-      "zIndex": 0,
-      "points": [
-        {
-          "x": 72,
-          "y": 101
-        },
-        {
-          "x": 102,
-          "y": 95
-        },
-        {
-          "x": 112,
-          "y": 159
-        },
-        {
-          "x": 82,
-          "y": 171
-        }
-      ],
-      "walkToPoint": {
-        "x": 109,
-        "y": 164
-      },
-      "lookAtPoint": {
-        "x": 97,
-        "y": 162
-      },
-      "baseline": 90
-    }
-  ],
-  "points": [
-    {
-      "id": "enter-from-door",
-      "x": 110,
-      "y": 164
-    },
-    {
-      "id": "henry-fountain",
-      "x": 335,
-      "y": 118
-    }
-  ],
-  "regions": [
-    {
-      "id": "distance",
-      "active": true,
-      "points": [
-        {
-          "x": 127,
-          "y": 105
-        },
-        {
-          "x": 600,
-          "y": 101
-        },
-        {
-          "x": 600,
-          "y": 134
-        },
-        {
-          "x": 126,
-          "y": 137
-        }
-      ],
-      "scaleTop": 0.1,
-      "scaleBottom": 1,
-      "scaleWalkSpeed": true
-    }
-  ],
-  "props": [
-    {
-      "id": "BG",
-      "tag": "BG",
-      "animations": {
-        "BG": {}
-      },
-      "zIndex": 3,
-      "visible": true,
-      "alpha": 1
-    },
-    {
-      "id": "Sky",
-      "tag": "Sky",
-      "animations": {
-        "Sky": {}
-      },
-      "zIndex": 1,
-      "visible": true,
-      "alpha": 1,
-      "parallaxDepth": 0.75
-    },
-    {
-      "id": "Trees",
-      "tag": "Trees",
-      "animations": {
-        "Trees": {}
-      },
-      "zIndex": 2,
-      "visible": true,
-      "alpha": 1,
-      "parallaxDepth": 0.9
-    },
-    {
-      "id": "FountainOff",
-      "tag": "FountainOff",
-      "animations": {
-        "FountainOff": {}
-      },
-      "zIndex": 10,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 309,
-            "y": 119
-          },
-          {
-            "x": 328,
-            "y": 119
-          },
-          {
-            "x": 333,
-            "y": 116
-          },
-          {
-            "x": 332,
-            "y": 109
-          },
-          {
-            "x": 325,
-            "y": 105
-          },
-          {
-            "x": 323,
-            "y": 95
-          },
-          {
-            "x": 314,
-            "y": 95
-          },
-          {
-            "x": 312,
-            "y": 106
-          },
-          {
-            "x": 307,
-            "y": 108
-          },
-          {
-            "x": 304,
-            "y": 115
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 300,
-        "y": 117
-      },
-      "lookAtPoint": {
-        "x": 319,
-        "y": 118
-      },
-      "baseline": 118
-    },
-    {
-      "id": "FountainOn",
-      "tag": "FountainOn",
-      "zIndex": 10,
-      "visible": false,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 309,
-            "y": 119
-          },
-          {
-            "x": 328,
-            "y": 119
-          },
-          {
-            "x": 333,
-            "y": 116
-          },
-          {
-            "x": 332,
-            "y": 109
-          },
-          {
-            "x": 325,
-            "y": 105
-          },
-          {
-            "x": 323,
-            "y": 95
-          },
-          {
-            "x": 314,
-            "y": 95
-          },
-          {
-            "x": 312,
-            "y": 106
-          },
-          {
-            "x": 307,
-            "y": 108
-          },
-          {
-            "x": 304,
-            "y": 115
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 300,
-        "y": 117
-      },
-      "lookAtPoint": {
-        "x": 319,
-        "y": 118
-      },
-      "baseline": 118,
-      "animations": {
-        "FountainOn": {
-          "loop": true
-        }
-      }
-    },
-    {
-      "id": "LeverPulled",
-      "tag": "LeverPulled",
-      "animations": {
-        "LeverPulled": {}
-      },
-      "zIndex": 12,
-      "visible": false,
-      "alpha": 1,
-      "clickable": false,
-      "collider": {
-        "points": [
-          {
-            "x": 520,
-            "y": 127
-          },
-          {
-            "x": 530,
-            "y": 124
-          },
-          {
-            "x": 535,
-            "y": 141
-          },
-          {
-            "x": 526,
-            "y": 142
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 512,
-        "y": 144
-      },
-      "lookAtPoint": {
-        "x": 530,
-        "y": 142
-      },
-      "baseline": 143
-    },
-    {
-      "id": "Rock",
-      "tag": "Rock",
-      "animations": {
-        "Rock": {}
-      },
-      "zIndex": 12,
-      "visible": true,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 525,
-            "y": 122
-          },
-          {
-            "x": 541,
-            "y": 128
-          },
-          {
-            "x": 542,
-            "y": 139
-          },
-          {
-            "x": 530,
-            "y": 145
-          },
-          {
-            "x": 514,
-            "y": 138
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 511,
-        "y": 141
-      },
-      "lookAtPoint": {
-        "x": 530,
-        "y": 140
-      },
-      "baseline": 143
-    },
-    {
-      "id": "RockMoved",
-      "tag": "RockMoved",
-      "animations": {
-        "RockMoved": {}
-      },
-      "zIndex": 12,
-      "visible": false,
-      "alpha": 1,
-      "clickable": true,
-      "collider": {
-        "points": [
-          {
-            "x": 530,
-            "y": 126
-          },
-          {
-            "x": 538,
-            "y": 127
-          },
-          {
-            "x": 536,
-            "y": 142
-          },
-          {
-            "x": 521,
-            "y": 142
-          }
-        ]
-      },
-      "walkToPoint": {
-        "x": 530,
-        "y": 146
-      },
-      "lookAtPoint": {
-        "x": 530,
-        "y": 140
-      },
-      "baseline": 143,
-      "description": "lever"
-    }
-  ],
-  "characters": [
-    {
-      "instanceId": "henry-1",
-      "definition": "henry/henry.character.json",
-      "x": 345,
-      "y": 152,
-      "initialFacing": "L",
-      "initialAnimation": "Idle",
-      "visible": true,
-      "zIndex": 8
-    },
-    {
-      "instanceId": "hank-1",
-      "definition": "hank/hank.character.json",
-      "x": 300,
-      "y": 90,
-      "initialFacing": "L",
-      "initialAnimation": "Idle",
-      "visible": true,
-      "zIndex": 8
-    }
-  ]
-}
+  B.whenPull('RockMoved', handlePushOrPullLever);
+  B.whenPush('RockMoved', handlePushOrPullLever);
+  
+});
 </file>
 
 <file path="src/engine/gui/buildGuiOverlay.ts">
@@ -33529,6 +34982,11 @@ export interface GuiOverlayHandle {
    */
   setDisplayTextLayout(text: string): void;
   setVisible(visible: boolean): void;
+  /**
+   * Overrides the primary line's fill tint colour. Pass `undefined` to restore the
+   * authored default from the GUI JSON `color` field.
+   */
+  setPrimaryTextColor(hex: string | undefined): void;
   /** Extra horizontal gap between glyphs (Phaser `BitmapText` letter spacing). */
   setLetterSpacing(spacing: number): void;
   /**
@@ -35899,6 +37357,7 @@ export function buildGuiOverlay(
     guiContentRoot.add(row.go);
     row.go.setDepth(row.depth - minDepth);
   }
+  guiContentRoot.setVisible(startVisible);
 
   const triggerZoneSet = new Set<Phaser.GameObjects.GameObject>(triggerZones);
   const guiInteractiveHitTargets = new Set<Phaser.GameObjects.GameObject>([
@@ -35943,6 +37402,9 @@ export function buildGuiOverlay(
   const primaryInitialY = primaryLine?.y ?? 0;
   const primaryInitialOriginX = primaryLine?.originX ?? 0;
   const primaryInitialOriginY = primaryLine?.originY ?? 0;
+  const primaryInitialTint: number | undefined = primaryLine
+    ? (primaryLine.getData(BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY) as number | undefined) ?? 0xffffff
+    : undefined;
 
   const runDisplayTextLayout =
     wireDisplayTextOverlayLayout(gui, controlsById, linesById) ?? ((_t: string) => {});
@@ -35981,6 +37443,7 @@ export function buildGuiOverlay(
       runDisplayTextLayout(text);
     },
     setVisible(visible: boolean) {
+      guiContentRoot.setVisible(visible);
       if (modalBlocker) {
         modalBlocker.setVisible(visible);
         if (visible) {
@@ -36079,6 +37542,14 @@ export function buildGuiOverlay(
         g.setVisible(visible);
       }
     },
+    setPrimaryTextColor(hex: string | undefined) {
+      if (!primaryLine) {
+        return;
+      }
+      const tint = hex ? hexStringToTint(hex) : (primaryInitialTint ?? 0xffffff);
+      applyGuiBitmapTextFillTint(primaryLine, tint);
+      primaryLine.setData(BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY, tint);
+    },
     setLetterSpacing(spacing: number) {
       for (const line of allLines) {
         line.setLetterSpacing(spacing);
@@ -36139,716 +37610,6 @@ export function buildGuiOverlay(
 }
 </file>
 
-<file path="src/engine/scripting/BenneScript.ts">
-import * as Phaser from 'phaser';
-import type {
-  CharacterVerbInteractPayload,
-  RoomHotspotInteractPayload,
-  RoomPropInteractPayload,
-} from '../events/propInteractionEvents.js';
-import type { GivePropInteractPayload } from './benneScriptPayloads.js';
-import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import { registerPlayFromForRoom } from './devPlayFromRegistry.js';
-import type { RoomScene } from '../scenes/RoomScene.js';
-import {
-  globalInventoryOnCharacterAnySourceEventId,
-  globalInventoryOnHotspotAnySourceEventId,
-  globalInventoryOnPropAnySourceEventId,
-  roomInventoryOnCharacterAnySourceEventId,
-  roomInventoryOnHotspotAnySourceEventId,
-  roomInventoryOnPropAnySourceEventId,
-} from '../events/inventoryOnVerbEvents.js';
-import {
-  characterVerbEventId,
-  roomCharacterVerbEventId,
-  roomHotspotVerbEventId,
-  roomPropVerbEventId,
-} from '../events/verbInteractionEvents.js';
-import type {
-  BenneScriptDialogCommandSurface,
-  BenneScriptHotspotFacade,
-  BenneScriptPlayerFacade,
-  BenneScriptPropFacade,
-  BenneScriptRegionFacade,
-  InventoryWhenUsedOnPayloadHandler,
-  RoomInventoryUsedOnRegistrar,
-} from './benneScriptFacades.js';
-import { BenneScriptCore, withNow } from './BenneScriptCore.js';
-import {
-  createBenneScriptGameStateNamespace,
-  createBenneScriptInventoryNamespace,
-  type BenneScriptGameStateNamespace,
-  type BenneScriptInventoryNamespace,
-} from './benneScriptGameStateApi.js';
-import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
-import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
-import type { RoomTransitionContext } from '../../types/roomTransition.js';
-import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
-import type { UpdateContext } from './types.js';
-import { roomRegionEnterEventId, roomRegionExitEventId } from '../events/regionEnterExitEvents.js';
-
-export type {
-  AnyInventoryUsedOnPayload,
-  BenneScriptCharacterFacade,
-  BenneScriptDialogCommandSurface,
-  BenneScriptHotspotFacade,
-  BenneScriptInventoryItemFacade,
-  BenneScriptPlayerFacade,
-  BenneScriptPropFacade,
-  BenneScriptRegionFacade,
-  BenneScriptRoomFacade,
-  BenneScriptSoundFacade,
-  BenneScriptSharedSelectionApi,
-  InventoryWhenGiveHandler,
-  InventoryWhenGiveRegistrar,
-  InventoryWhenUsedOnPayloadHandler,
-  InventoryWhenUseHandler,
-  InventoryWhenUseRegistrar,
-  RoomInventoryUsedOnRegistrar,
-} from './benneScriptFacades.js';
-export type { CharacterFollowOptions } from '../../types/characterFollow.js';
-export type {
-  BenneScriptSayArgs,
-  BenneScriptSayLineOptions,
-  BenneScriptSayDialogueTagged,
-  BenneScriptSayDialogueHybrid,
-  BenneSayDialogueScope,
-  BlockingWithNow,
-} from './BenneScriptCore.js';
-export type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
-export { withNow } from './BenneScriptCore.js';
-
-/**
- * # Bennescript — valid string ids for this room
- *
- * Use ids that match **this room’s** `*.room.json` and placed characters, so handlers and movement resolve correctly.
- *
- * | Kind | Where it comes from |
- * |------|---------------------|
- * | **`whenLookAt`**, **`whenUse`**, **`whenTalkTo`**, **`whenPickUp`**, **`whenPush`**, **`whenPull`**, **`whenOpen`**, **`whenClose`**, **`whenVerb`** | One **`targetId`** per room: **prop** (`props[].id`) → **hotspot** (`hotspots[].id`) → **character** (`CharacterData.id` spawned here, including the player). Optional **`(p: any)`** payload — shape depends on which kind matched; see **`registerVerbForTarget`**. Character verb payloads may include **world** **`walkToPoint`** / **`talkPoint`** when authored in **`*.character.json`**. |
- * | **`whenGive`** | **`targetId`** is the receiving **prop** only (`props[].id`; inventory **`itemId`** is separate). |
- * | **`onProp`**, **`B.prop(id)`** | **`props[].id`** only (explicit prop wiring). |
- * | **`walkTo` / `walkTo.now`** on **`B.player`** or **`B.character('…')`** | Pathfind **Walk**; **Unified target string** (first match): **`props[].id`** → **`hotspots[].id`** → **`CharacterData.id`** → **`points[].id`**, or **`{ x, y }`** in **room pixels**. **`walkTo.now`** does not block the queue. No-op when **`movable`** is **`false`** (see **`*.character.json`** **`movable`** and **`B.player` / `B.character(id).movable`**). |
- * | **`moveTo` / `moveTo.now`** / **`moveToNow`** | Instantly place **feet** at the resolved point (clamped to walkable) and update **Idle** facing — not a walk. **`moveTo`** queues on the interaction tail; **`moveTo.now`** and **`moveToNow`** run immediately. |
- * | **`walkToClicked` / `walkToClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Inside a verb handler, walks the player to the **clicked** prop / hotspot / character (same resolution as **`walkTo`** for that id), then faces like **`faceClicked`** after the walk completes. No room target for pure inventory-row verbs (one-time dev warn). |
- * | **`faceClicked` / `faceClicked.now`** on **`B`**, **`B.player`**, or global **`B`** | Uses payload **`lookAtPoint`** for props/hotspots when present; for **characters**, faces that character’s **feet**; otherwise falls back to the walk stand point (see {@link RoomScene.facePlayerTowardClicked}). Same dev warnings as **`walkToClicked`** when there is no target or no room. |
- * | **`B.fadeOut` / `B.fadeIn`**, **`.now`** | Full-screen fade over the room and all GUI overlays; optional duration (default **0.35** s) and **`0xRRGGBB` color** (default black). Queues on the interaction tail except **`.now`**. |
- * | **`playAnimation(tag)`** / **`playAnimation.now`** | One-shot Aseprite tag (not saved); then **directional idle** or **persisted** `animation` override. Same idea for **`B.prop(id).playAnimation`**, which restores that prop’s saved **base** `animation`. |
- * | **`animation` / `animation =`**, **`animationNow(...)`** | Setters queue on the **interaction tail** (order with **`walkTo`** / **`say`** / **`playAnimation`**); **`animationNow`** applies persist + sprite **immediately**. Props: persisted base tag. Characters / player: effective get; set / **`animationNow`** accept **`string \| null`** (`null` clears). **`stopAnimation()`** (characters / player) clears override + save, always immediate. |
- * | **`face(direction)`** | One of **`CharacterFacingLetter`**: `'L' \| 'R' \| 'U' \| 'D' \| 'UL' \| 'UR' \| 'DL' \| 'DR'`. |
- * | **`startFacingCharacter` / `stopFacingCharacter`** on **`B.character('…')`** | **`startFacingCharacter(targetCharacterId, minWaitTime?, maxWaitTime?)`** keeps the NPC’s **Idle** facing toward the other character’s **feet**; when either’s feet move, a new random delay in **[`minWaitTime`, `maxWaitTime`]** seconds (defaults **0.2** / **0.4**) runs before turning again. **`stopFacingCharacter()`** clears it. Both queue on the interaction tail; routed through **`RoomScene.startCharacterFacingCharacter` / `stopCharacterFacingCharacter`**. |
- * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
- * | **`B.region(id).whenEnter` / `whenExit`**, **`B.whenEnterRegion` / `whenExitRegion`** | **`regions[].id`** in this room’s JSON. Feet crossing uses the same **last-wins** active polygon test as perspective scale (**`resolveWinningRoomRegionIdAtFeet`**). Handlers wire through **`subscribe`** (interaction queue + verb click context rules, like **`whenLookAt`**). Payload: **`RegionEnterExitContext`**. |
- * | **`B.onUpdate`** | Non-blocking per-frame hook (**`UpdateContext`**: **`deltaSeconds`**, **`roomId`**). Runs after engine **`RoomScene.update`** work; **not** on the interaction tail; **no** **`.now`**. Cleaned up when the room script’s **`B`** is disposed (room unload). Global **`B.onUpdate`** runs after room handlers. |
- * | **`B.hotspot(id).active`** | **`hotspots[].id`** (case-sensitive, exact JSON match) — get/set persisted **active** (immediate, not queued). Mounts or removes the polygon input zone; **`resolveMovementTarget`** still resolves inactive hotspot ids. Unknown id: getter **`false`**, setter no-op, DEV warn once per room load. |
- * | **`B.say` / `B.say.now`** | Tagged **`B.say`**…``: PowerQuest-style block — lines **`Speaker: text`** (`Player` any case → protagonist id; other names match spawned character ids **case-insensitively**). Blank lines and **`//`** comments ignored; unknown speakers throw. Queues each line; **`B.say.now`**… skips the interaction tail (see implementation notes in **`BenneScriptCore`**). |
- * | **`B.display` / `B.display.now`** | Narration via **`display-text`** GUI — **`B.display('…')`** blocks until the player clicks to dismiss (no timer). Same interaction-tail rules as **`B.wait`** / **`say`**; **`.now`** skips the tail. |
- * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Same dialog overlay as **`B.say`**, plus string form **`B.player.say('…')`**. Scoped tagged blocks: each line is that character (optional **`Player:`** prefix); mismatched **`Name:`** throws (compared **case-insensitively** to the scoped character). Optional second argument **`{ clickToSkip: false \| true }`** on string calls. |
- * | **`B.playFrom('…', () => { … })`** | **Dev / tooling** — named starting-state for this room; runs once after **`whenEnterRoom`** / **`whenEnterAnyRoom`** on **`boot`** or editor **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`** matches (BENNE Play). Skipped on in-game **`changeTo`** (`transition`). |
- * | **`B.inventory.add` / `remove`**, **`.now`** | **`GameStateManager`** quantity mutations. Blocking form **queues** on the interaction tail; **`.now`** applies immediately. **`has`**, **`quantityOf`**, **`items`**, **`clearInventory`** stay synchronous. |
- * | **`B.inventory('id').animation`**, **`cursorAnimation`** (getter / setter) | **Getters**: effective tags (JSON **`defaultAnimation`** / **`cursorAnimation`** ± save overrides — **`''`** when no armed cursor clip). **Setters**: persisted in **`GameStateManager`** variables; **queue** on the interaction tail (same as **`B.player.animation`**); **`animationNow`** / **`cursorAnimationNow`** apply immediately. Setter **empty string** clears that field’s override (JSON applies). |
- * | **`B.prop(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Script visibility overrides. **`hide` / `show` / `visible =`** queue on the interaction tail; **`.now`** / **`visibleNow`** apply immediately. |
- * | **`B.character(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Same as props: persisted script visibility (global per character definition id); **`hide` / `show` / `visible =`** queue; **`.now`** / **`visibleNow`** immediate. |
- * | **`movable` / `movable =`** on **`B.player`** or **`B.character('…')`** | When **`false`**, pathfind walks are ignored (including **`walkToClicked`** and click-to-walk); **`moveTo`** still teleports. Setter queues on the interaction tail; persists **`character:<id>:movable`** over the JSON default from **`*.character.json`**. |
- * | **`B.prop(id).fade(from, to, durationSeconds)`** / **`.now`**, **`B.character(id).fade(...)`** / **`.now`** | Sprite alpha tween (linear ease) from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`**; alphas clamp to **`[0, 1]`**. Blocking form queues on the interaction tail and waits for completion; **`fade.now`** starts immediately. **`toAlpha`** is persisted (**`room:…:prop:…:alpha`** / **`character:…:alpha`**). |
- *
- * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in `BenneScriptCore`. **`whenVerb`** uses an exact verb id.
- */
-
-const noopBenneScriptRegionFacade: BenneScriptRegionFacade = {
-  get active() { return true; },
-  set active(_v: boolean) {},
-  whenEnter(): void {},
-  whenExit(): void {},
-};
-
-const noopBenneScriptHotspotFacade: BenneScriptHotspotFacade = {
-  get active() { return true; },
-  set active(_v: boolean) {},
-};
-
-/**
- * High-level API passed as **`B`** in the `registerRoomScript` callback. Chains async steps (walk, delays) in order; use **`await`** only if you expose promises yourself.
- *
- * @see The module comment above for which string ids to use with each method.
- */
-export class BenneScript extends BenneScriptCore {
-  private static unresolvedTargetVerbWarnings = new Set<string>();
-  private static unresolvedInventoryOnTargetWarnings = new Set<string>();
-
-  private roomId: string;
-  private roomScene: RoomScene;
-
-  /** Cross-room flags and variables (see `GameStateManager`). */
-  readonly state: BenneScriptGameStateNamespace;
-  /** Item quantities; survives room loads (see `GameStateManager`). */
-  readonly inventory: BenneScriptInventoryNamespace;
-
-  /** SCUMM-style dialog session control (`*.dialog.json` + `registerDialogScript`). */
-  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
-
-  /**
-   * Register a handler for "inventory used on target" clicks for this room. Whether the active
-   * inventory selection is dropped (active inventory + active verb both cleared) after the handler
-   * runs follows {@link import('../verbs/dispatchInventoryOnVerbTarget.js').shouldDropActiveInventoryOnUse}
-   * (per-item **`dropWhenUsed`** → global **`dropWhenInventoryUsed`** → default **`false`**), unless you
-   * **`return false`** from the payload handler — that re-emits the global **`whenInventoryOnVerbTargetUnhandled`**
-   * path and skips this subscription’s drop-after-tail so the global script owns clearing.
-   * **`doNotClear`** is a per-handler hard opt-out: the active inventory always stays armed after
-   * this handler's queued steps regardless of policy.
-   */
-  readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
-
-  constructor(events: Phaser.Events.EventEmitter, roomId: string, roomScene: RoomScene) {
-    super(events, () => roomScene.time, () => roomScene);
-    this.roomId = roomId;
-    this.roomScene = roomScene;
-    const manager = resolveGameStateManager(roomScene.game);
-    this.state = createBenneScriptGameStateNamespace(manager);
-    this.inventory = createBenneScriptInventoryNamespace(manager, () => this.roomScene, (factory) =>
-      this.chain(factory),
-    );
-    this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
-    this.whenInventoryUsedOn = Object.assign(
-      (
-        targetId: string,
-        handler: InventoryWhenUsedOnPayloadHandler,
-        options?: { doNotClear?: boolean },
-      ) => {
-        this.registerInventoryUsedOnForTarget(targetId, handler, options?.doNotClear === true);
-      },
-      {
-        doNotClear: (targetId: string, handler: InventoryWhenUsedOnPayloadHandler) => {
-          this.registerInventoryUsedOnForTarget(targetId, handler, true);
-        },
-      },
-    ) as RoomInventoryUsedOnRegistrar;
-  }
-
-  protected acquireOnUpdateSubscription(handler: (ctx: UpdateContext) => void): () => void {
-    return this.roomScene.registerBenneScriptOnUpdateHandler(handler);
-  }
-
-  /**
-   * Subscribe to a **prop** verb event for this room (**prop id only**). Prefer **`when*`** / **`whenVerb`** for prop → hotspot → character resolution.
-   *
-   * @param propId - **`props[].id`** in this room’s `.room.json`.
-   * @param verbId - Verb id from **`game-config.json`** `verbs[]` (dispatch is listener-first).
-   * @param handler - Receives {@link RoomPropInteractPayload} when the handler accepts a parameter.
-   *
-   * @example
-   * B.onProp('desk', 'look', () => console.log('looked'));
-   * B.onProp('desk', 'use', (p) => console.log(p.propId));
-   */
-  onProp(
-    propId: string,
-    verbId: string,
-    handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
-  ): void {
-    const eventId = roomPropVerbEventId(this.roomId, propId, verbId);
-    this.subscribe(eventId, (payload) => {
-      const p = payload as RoomPropInteractPayload;
-      if (handler.length === 0) {
-        (handler as () => void)();
-      } else {
-        (handler as (x: RoomPropInteractPayload) => void)(p);
-      }
-    });
-  }
-
-  /**
-   * Subscribe to a **hotspot** verb event for this room (hotspot id only). Prefer **`when*`** / **`whenVerb`** for automatic resolution.
-   */
-  private onHotspot(
-    hotspotId: string,
-    verbId: string,
-    handler: ((payload: RoomHotspotInteractPayload) => void) | (() => void),
-  ): void {
-    const eventId = roomHotspotVerbEventId(this.roomId, hotspotId, verbId);
-    this.subscribe(eventId, (payload) => {
-      const p = payload as RoomHotspotInteractPayload;
-      if (handler.length === 0) {
-        (handler as () => void)();
-      } else {
-        (handler as (x: RoomHotspotInteractPayload) => void)(p);
-      }
-    });
-  }
-
-  /**
-   * Subscribes to **both** room-scoped and character-global verb events for a **character** target.
-   * Used only when {@link registerVerbForTarget} resolves **`targetId`** to a spawned character — not for props or hotspots.
-   *
-   * Handlers use **`(p: any)`** for the same reason as {@link registerVerbForTarget}.
-   */
-  private subscribeCharacterVerb(
-    characterId: string,
-    verbId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    const inner = (payload: unknown) => {
-      const p = payload as CharacterVerbInteractPayload;
-      if (handler.length === 0) {
-        (handler as () => void)();
-      } else {
-        (handler as (x: any) => void)(p);
-      }
-    };
-    this.subscribe(roomCharacterVerbEventId(this.roomId, characterId, verbId), inner);
-    this.subscribe(characterVerbEventId(characterId, verbId), inner);
-  }
-
-  /**
-   * Registers **`handler`** for **`verbId`** on **`targetId`** by resolving the target in order:
-   *
-   * 1. **Prop** — if `props[]` has this id: single room event via {@link onProp}.
-   * 2. **Hotspot** — else if `hotspots[]` has this id: single room event via {@link onHotspot}.
-   * 3. **Character** — else if a character with this **definition id** is spawned in the room: {@link subscribeCharacterVerb}
-   *    (room + character-global events, matching **`dispatchVerbInteraction`** for characters).
-   *
-   * If nothing matches, calls {@link warnNoVerbTarget} once per (`roomId`, `targetId`, `verbId`).
-   *
-   * Handlers use **`(p: any)`** so one API can cover prop, hotspot, and character payloads without a public exported union;
-   * use **`onProp`** or types from **`propInteractionEvents`** when you want strict typing.
-   */
-  private registerVerbForTarget(
-    verbId: string,
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    if (this.roomScene.getRoomPropInstance(targetId)) {
-      this.onProp(
-        targetId,
-        verbId,
-        handler as ((payload: RoomPropInteractPayload) => void) | (() => void),
-      );
-      return;
-    }
-    if (this.roomScene.getRoomHotspotInstance(targetId)) {
-      this.onHotspot(
-        targetId,
-        verbId,
-        handler as ((payload: RoomHotspotInteractPayload) => void) | (() => void),
-      );
-      return;
-    }
-    if (this.roomScene.getCharacterSprite(targetId)) {
-      this.subscribeCharacterVerb(targetId, verbId, handler);
-      return;
-    }
-    this.warnNoVerbTarget(targetId, verbId);
-  }
-
-  private warnNoVerbTarget(targetId: string, verbId: string): void {
-    const key = `${this.roomId}:${targetId}:${verbId}`;
-    if (BenneScript.unresolvedTargetVerbWarnings.has(key)) {
-      return;
-    }
-    BenneScript.unresolvedTargetVerbWarnings.add(key);
-    console.warn(
-      `[Benne] No prop, hotspot, or character found with id '${targetId}' for verb '${verbId}' in room '${this.roomId}'. Handler was not registered.`,
-    );
-  }
-
-  private warnNoInventoryOnTarget(targetId: string): void {
-    const key = `${this.roomId}:${targetId}:inventoryOn`;
-    if (BenneScript.unresolvedInventoryOnTargetWarnings.has(key)) {
-      return;
-    }
-    BenneScript.unresolvedInventoryOnTargetWarnings.add(key);
-    console.warn(
-      `[Benne] No prop, hotspot, or character found with id '${targetId}' for whenInventoryUsedOn in room '${this.roomId}'. Handler was not registered.`,
-    );
-  }
-
-  private registerInventoryUsedOnForTarget(
-    targetId: string,
-    handler: InventoryWhenUsedOnPayloadHandler,
-    doNotClear: boolean,
-  ): void {
-    if (this.roomScene.getRoomPropInstance(targetId)) {
-      this.subscribeInventoryUsedOnTargetEvents(
-        roomInventoryOnPropAnySourceEventId(this.roomId, targetId),
-        globalInventoryOnPropAnySourceEventId(targetId),
-        handler,
-        doNotClear,
-      );
-      return;
-    }
-    if (this.roomScene.getRoomHotspotInstance(targetId)) {
-      this.subscribeInventoryUsedOnTargetEvents(
-        roomInventoryOnHotspotAnySourceEventId(this.roomId, targetId),
-        globalInventoryOnHotspotAnySourceEventId(targetId),
-        handler,
-        doNotClear,
-      );
-      return;
-    }
-    if (this.roomScene.getCharacterSprite(targetId)) {
-      this.subscribeInventoryUsedOnTargetEvents(
-        roomInventoryOnCharacterAnySourceEventId(this.roomId, targetId),
-        globalInventoryOnCharacterAnySourceEventId(targetId),
-        handler,
-        doNotClear,
-      );
-      return;
-    }
-    this.warnNoInventoryOnTarget(targetId);
-  }
-
-  /** Like {@link onProp} but passes a transformed payload (e.g. {@link whenGive}). */
-  private onPropMapped<P>(
-    propId: string,
-    verbId: string,
-    handler: ((payload: P) => void) | (() => void),
-    map: (base: RoomPropInteractPayload) => P,
-  ): void {
-    const eventId = roomPropVerbEventId(this.roomId, propId, verbId);
-    this.subscribe(eventId, (payload) => {
-      const base = payload as RoomPropInteractPayload;
-      const p = map(base);
-      if (handler.length === 0) {
-        (handler as () => void)();
-      } else {
-        (handler as (x: P) => void)(p);
-      }
-    });
-  }
-
-  whenLookAt(targetId: string, handler: () => void): void;
-  whenLookAt(targetId: string, handler: (p: any) => void): void;
-  whenLookAt(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('look'), targetId, handler);
-  }
-
-  whenUse(targetId: string, handler: () => void): void;
-  whenUse(targetId: string, handler: (p: any) => void): void;
-  whenUse(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('use'), targetId, handler);
-  }
-
-  whenPickUp(targetId: string, handler: () => void): void;
-  whenPickUp(targetId: string, handler: (p: any) => void): void;
-  whenPickUp(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('pickUp'), targetId, handler);
-  }
-
-  whenGive(itemId: string, targetId: string, handler: () => void): void;
-  whenGive(itemId: string, targetId: string, handler: (payload: GivePropInteractPayload) => void): void;
-  whenGive(
-    itemId: string,
-    targetId: string,
-    handler: ((payload: GivePropInteractPayload) => void) | (() => void),
-  ): void {
-    const verbId = this.resolveVerbId('give');
-    this.onPropMapped(targetId, verbId, handler, (base) => ({ ...base, itemId }));
-  }
-
-  whenPush(targetId: string, handler: () => void): void;
-  whenPush(targetId: string, handler: (p: any) => void): void;
-  whenPush(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('push'), targetId, handler);
-  }
-
-  whenPull(targetId: string, handler: () => void): void;
-  whenPull(targetId: string, handler: (p: any) => void): void;
-  whenPull(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('pull'), targetId, handler);
-  }
-
-  whenOpen(targetId: string, handler: () => void): void;
-  whenOpen(targetId: string, handler: (p: any) => void): void;
-  whenOpen(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('open'), targetId, handler);
-  }
-
-  whenClose(targetId: string, handler: () => void): void;
-  whenClose(targetId: string, handler: (p: any) => void): void;
-  whenClose(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('close'), targetId, handler);
-  }
-
-  whenVerb(verbId: string, targetId: string, handler: () => void): void;
-  whenVerb(verbId: string, targetId: string, handler: (p: any) => void): void;
-  whenVerb(
-    verbId: string,
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(verbId, targetId, handler);
-  }
-
-  whenTalkTo(targetId: string, handler: () => void): void;
-  whenTalkTo(targetId: string, handler: (p: any) => void): void;
-  whenTalkTo(
-    targetId: string,
-    handler: ((p: any) => void) | (() => void),
-  ): void {
-    this.registerVerbForTarget(this.resolveVerbId('talkTo'), targetId, handler);
-  }
-
-  prop(propId: string): BenneScriptPropFacade {
-    const scene = this.roomScene;
-    const B = this;
-    return {
-      sound: this.sound,
-      hide: withNow(
-        () => {
-          B.chain(() => {
-            scene.setPropScriptVisible(propId, false);
-            return Promise.resolve();
-          });
-        },
-        () => {
-          scene.setPropScriptVisible(propId, false);
-        },
-      ),
-      show: withNow(
-        () => {
-          B.chain(() => {
-            scene.setPropScriptVisible(propId, true);
-            return Promise.resolve();
-          });
-        },
-        () => {
-          scene.setPropScriptVisible(propId, true);
-        },
-      ),
-      get visible() {
-        return scene.getPropScriptVisible(propId);
-      },
-      set visible(v: boolean) {
-        B.chain(() => {
-          scene.setPropScriptVisible(propId, v);
-          return Promise.resolve();
-        });
-      },
-      visibleNow(v: boolean): void {
-        scene.setPropScriptVisible(propId, v);
-      },
-      get description() {
-        return scene.getPropScriptDescription(propId);
-      },
-      set description(v: string) {
-        scene.setPropScriptDescription(propId, v);
-      },
-      get animation() {
-        return scene.getPropScriptBaseAnimationTag(propId);
-      },
-      set animation(tag: string) {
-        B.chain(() => {
-          scene.setPropScriptBaseAnimationTag(propId, tag);
-          return Promise.resolve();
-        });
-      },
-      animationNow(tag: string): void {
-        scene.setPropScriptBaseAnimationTag(propId, tag);
-      },
-      playAnimation: withNow(
-        (tag: string) => {
-          B.chain(() => scene.playPropScriptAnimationOneShot(propId, tag));
-        },
-        (tag: string) => {
-          void scene.playPropScriptAnimationOneShot(propId, tag);
-        },
-      ),
-      fade: withNow(
-        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
-          B.chain(() => scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds));
-        },
-        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
-          void scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds);
-        },
-      ),
-      moveTo: withNow(
-        (point) => {
-          B.chain(() => {
-            scene.movePropToNow(propId, point);
-            return Promise.resolve();
-          });
-        },
-        (point) => {
-          scene.movePropToNow(propId, point);
-        },
-      ),
-      moveToNow(point): void {
-        scene.movePropToNow(propId, point);
-      },
-    } as BenneScriptPropFacade;
-  }
-
-  get player(): BenneScriptPlayerFacade {
-    return this.makePlayerFacadeFromScene(() => this.roomScene);
-  }
-
-  region(regionId: string): BenneScriptRegionFacade {
-    const rid = String(regionId).trim();
-    if (rid.length === 0) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.region: region id must be a non-empty string.');
-      }
-      return noopBenneScriptRegionFacade;
-    }
-    const B = this;
-    const scene = this.roomScene;
-    return {
-      get active() {
-        return scene.getRegionScriptActive(rid);
-      },
-      set active(v: boolean) {
-        scene.setRegionScriptActive(rid, v);
-      },
-      whenEnter(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void {
-        const eventId = roomRegionEnterEventId(B.roomId, rid);
-        B.subscribe(eventId, (payload) => {
-          const p = payload as RegionEnterExitContext;
-          if (handler.length === 0) {
-            (handler as () => void)();
-          } else {
-            (handler as (x: RegionEnterExitContext) => void)(p);
-          }
-        });
-      },
-      whenExit(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void {
-        const eventId = roomRegionExitEventId(B.roomId, rid);
-        B.subscribe(eventId, (payload) => {
-          const p = payload as RegionEnterExitContext;
-          if (handler.length === 0) {
-            (handler as () => void)();
-          } else {
-            (handler as (x: RegionEnterExitContext) => void)(p);
-          }
-        });
-      },
-    };
-  }
-
-  hotspot(hotspotId: string): BenneScriptHotspotFacade {
-    const hid = String(hotspotId).trim();
-    if (hid.length === 0) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.hotspot: hotspot id must be a non-empty string.');
-      }
-      return noopBenneScriptHotspotFacade;
-    }
-    const scene = this.roomScene;
-    return {
-      get active() {
-        return scene.getHotspotScriptActive(hid);
-      },
-      set active(v: boolean) {
-        scene.setHotspotScriptActive(hid, v);
-      },
-    };
-  }
-
-  whenEnterRegion(
-    regionId: string,
-    handler: (() => void) | ((ctx: RegionEnterExitContext) => void),
-  ): void {
-    this.region(regionId).whenEnter(handler);
-  }
-
-  whenExitRegion(
-    regionId: string,
-    handler: (() => void) | ((ctx: RegionEnterExitContext) => void),
-  ): void {
-    this.region(regionId).whenExit(handler);
-  }
-
-  whenLeaveRoom(
-    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
-  ): void {
-    const r = tryGetGlobalRoomHookRegistry();
-    if (!r) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.whenLeaveRoom: room hook registry missing — not wired.');
-      }
-      return;
-    }
-    r.registerRoomLeaveRoom(this.roomId, handler);
-  }
-
-  whenEnterRoom(
-    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
-  ): void {
-    const r = tryGetGlobalRoomHookRegistry();
-    if (!r) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.whenEnterRoom: room hook registry missing — not wired.');
-      }
-      return;
-    }
-    r.registerRoomEnterRoom(this.roomId, handler);
-  }
-
-  whenLoadedRoom(
-    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
-  ): void {
-    const r = tryGetGlobalRoomHookRegistry();
-    if (!r) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.whenLoadedRoom: room hook registry missing — not wired.');
-      }
-      return;
-    }
-    r.registerRoomLoadedRoom(this.roomId, handler);
-  }
-
-  whenEnterRoomAfterFade(
-    handler: (ctx: RoomTransitionContext) => void | Promise<void>,
-  ): void {
-    const r = tryGetGlobalRoomHookRegistry();
-    if (!r) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.whenEnterRoomAfterFade: room hook registry missing — not wired.');
-      }
-      return;
-    }
-    r.registerRoomEnterRoomAfterFade(this.roomId, handler);
-  }
-
-  /**
-   * Registers a named **Play From** block for this room (BENNE Play). Runs once after
-   * **`whenEnterRoom`** / **`whenEnterAnyRoom`** on **`boot`** or **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`**
-   * matches and the current room matches **`this.roomId`**. Skipped on in-game **`changeTo`** (`transition`).
-   * Queued **`B.*`** without **`.now`** from enter / play-from are flushed before fade-in (see **`RoomScene.waitForEnterPhaseBenneScriptQueues`**).
-   */
-  playFrom(name: string, handler: () => void | Promise<void>): void {
-    const id = String(name).trim();
-    if (id.length === 0) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.playFrom: name must be a non-empty string.');
-      }
-      return;
-    }
-    registerPlayFromForRoom(this.roomId, id, handler);
-  }
-
-}
-</file>
-
 <file path="src/game/rooms/apartment/apartment.room.ts">
 import { registerRoomScript } from '@engine/scripting';
 
@@ -36865,7 +37626,60 @@ import { registerRoomScript } from '@engine/scripting';
  */
 registerRoomScript(({ B }) => {
 
-  B.whenUse('Door', () => {
+  B.whenEnterRoom(() => {
+
+    if (!B.sound.isMusicPlaying()) {
+      B.sound.playMusic('my-cat-is-crazy');
+    }
+
+  });
+
+  B.whenEnterRoomAfterFade(() => {
+
+    if (B.room.last === 'outside') {
+      B.wait(.5);
+      B.sound.play('doorClose');
+      B.prop('Door').animation = 'Door';
+    }
+
+  });
+
+  B.whenInventoryUsedOn('Couch', (payload) => {
+    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
+      B.player.walkTo('Couch');
+      B.faceClicked();
+      B.player.say('I used the broom on the couch.');
+      return;
+    }
+    if (payload.itemId === 'Broom' && payload.verbId === 'give') {
+      B.player.walkTo('Couch');
+      B.player.face('U');
+      B.player.say('Here, couch.');
+      B.inventory.remove('Broom');
+      return;
+    }
+    return false;
+  });
+
+  B.whenLookAt('penny', () => {
+    B.player.say("It's Penny.");
+  });
+
+  B.whenTalkTo('penny', () => {
+    B.walkToClicked();
+    B.say`
+      Hank: Hey Penny!
+      Penny: Hi!
+      `;
+    B.dialog("chatwithpenny").start();
+  });
+
+  B.whenLookAt('Couch', () => {
+    B.faceClicked();
+    B.say`Hank: It's my weird, magical, poorly drawn couch.`;
+  });
+
+  const handleOpenOrUseDoor = () => {
     B.walkToClicked();
 
     if (B.state.getFlag('unlockedDoor')) {
@@ -36877,100 +37691,32 @@ registerRoomScript(({ B }) => {
       B.display('The door is locked. AHH! I can\'t get out! HELP ME! HELP ME! SOMEBODY HELP ME! PLEASE HELP ME!');
       B.display('Ok calm down.');
     }
-  });
+  };
+  
+  B.whenOpen('Door', handleOpenOrUseDoor); 
+  B.whenUse('Door', handleOpenOrUseDoor);
 
-  B.whenLookAt('Couch', () => {
-    B.faceClicked();
-    B.say`Hank: It's my weird, poorly drawn couch.`;
-  });
-
-  B.whenInventoryUsedOn('Couch', (payload) => {
-    if (payload.itemId === 'Broom') {
-      B.player.walkTo('Couch');
-      B.faceClicked();
-      B.player.say('I used the broom on the couch.');
-      return;
-    }
-    return false;
-  });
-
-
-  B.whenLookAt('Door', () => {
-    B.player.say('It\'s the door to the outside.');
-  });
-
-  B.whenInventoryUsedOn('Door', (payload) => {
-    if (payload.itemId === 'Key') {
-      B.walkToClicked();
-      B.state.setFlag('unlockedDoor', true);
-      B.inventory.remove('Key');
-      B.player.say('The door is unlocked.');
-      return;
-    }
-    
-    return false;
-  });
-
-  B.whenLookAt('penny', () => {
-    B.player.say('It\'s Penny.');
-  });
-
-  B.whenUse('penny', () => {
+  B.whenPull('Couch', () => {
     B.walkToClicked();
-    B.player.say('Hey Penny!');
-    B.dialog('chatwithpenny').start();
+    B.player.say('It\'s too heavy.');
   });
 
-  B.whenInventoryUsedOn('penny', (payload) => {
-    if (payload.itemId === 'Sammich') {
-      B.walkToClicked();
-      B.say`Hank: Here, Penny! Have a sandwich.`;
-      B.inventory.remove('Sammich');
-      B.character('penny').say`Thank you! Here's the key.`;
-      B.inventory.add('Key');
+  B.whenClose('Couch', () => {
+    B.fadeOut(2, 0x00ff00);
+    B.wait(1);
+    B.fadeIn(2, 0x00ff00);
+  });
+  
+  B.whenInventoryUsedOn('Bread', (payload) => {
+    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
+      B.say`Hank: I don't need to clean the bread.`;
+      return;
+    }
+    if (payload.itemId === 'Broom' && payload.verbId === 'give') {
+      B.say`Hank: I can't give something to bread.`;
       return;
     }
     return false;
-  });
-
-
-  B.whenLookAt('Table', () => {
-    B.player.say('I like to keep this table here so I can walk around it.');
-  });
-
-  B.whenInventoryUsedOn('Table', (payload) => {
-    if (payload.itemId === 'Broom') {
-      B.walkToClicked();
-      B.sound.playAndWait('sweeping');
-      B.player.say('I cleaned the table.');
-      return;
-      return;
-    }
-    
-    return false;
-  });
-
-
-  B.whenLookAt('PeanutButter', () => {
-    B.faceClicked();
-    B.say`Hank: It's some peanut butter.`;
-  });
-
-  B.whenUse('PeanutButter', () => {
-    B.walkToClicked();
-    B.inventory.add('PB');
-    B.prop('PeanutButter').hide();
-  });
-
-  B.whenLookAt('Knife', () => {
-    B.faceClicked();
-    B.say`Hank: It's a knife.`;
-  });
-
-  B.whenUse('Knife', () => {
-    B.walkToClicked();
-    B.inventory.add('Knife');
-    B.prop('Knife').hide();
   });
 
   B.whenLookAt('Bread', () => {
@@ -36978,29 +37724,113 @@ registerRoomScript(({ B }) => {
     B.say`Hank: It's some bread.`;
   });
 
-  B.whenUse('Bread', () => {
+  B.whenPickUp('Bread', () => {
     B.walkToClicked();
     B.inventory.add('Bread');
     B.prop('Bread').hide();
   });
 
-  B.whenEnterRoom(() => {
-    if (!B.sound.isMusicPlaying()) {
-      B.sound.playMusic('my-cat-is-crazy');
-    }
+  B.whenLookAt('Knife', () => {
+    B.faceClicked();
+    B.say`Hank: It's a knife.`;
   });
 
-  B.whenEnterRoomAfterFade(() => {
-    if (B.room.last === 'outside') {
-      B.wait(.5);
-      B.sound.play('doorClose');
-      B.prop('Door').animation = 'Door';
-    }
-  });
-
-  B.whenUse('Table', () => {
+  B.whenPickUp('Knife', () => {
     B.walkToClicked();
+    B.inventory.add('Knife');
+    B.prop('Knife').hide();
   });
+
+  B.whenLookAt('PeanutButter', () => {
+    B.faceClicked();
+    B.say`Hank: It's some peanut butter.`;
+  });
+
+  B.whenPickUp('PeanutButter', () => {
+    B.walkToClicked();
+    B.inventory.add('PB');
+    B.prop('PeanutButter').hide();
+  });
+
+  B.whenLookAt('Table', () => {
+    B.player.say('I like to keep this table here so I can walk around it.');
+  });
+
+  B.whenInventoryUsedOn('penny', (payload) => {
+    if (payload.itemId === 'Sammich' && payload.verbId === 'give') {
+      B.walkToClicked();
+      B.say`Hank: Here, Penny! Have a sandwich.`;
+      B.inventory.remove('Sammich');
+      B.character('penny').say`Thank you! Here's the key.`;
+      B.inventory.add('Key');
+      return;
+    }
+    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
+    return false;
+  });
+  B.whenInventoryUsedOn('Door', (payload) => {
+    if (payload.itemId === 'Key' && payload.verbId === 'use') {
+      B.walkToClicked();
+      B.state.setFlag('unlockedDoor', true);
+      B.inventory.remove('Key');
+      B.player.say('The door is unlocked.');
+      return;
+    }
+    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
+    return false;
+  });
+
+  B.playFrom("gotKey", () => {
+    B.inventory.add('Key');
+  });
+
+  B.playFrom("doorUnlocked", () => {
+    B.state.setFlag('unlockedDoor', true);
+  });
+
+
+  B.whenInventoryUsedOn('Table', (payload) => {
+    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
+      B.walkToClicked();
+      B.sound.playAndWait('sweeping');
+      B.player.say('I cleaned the table.');
+      return;
+    }
+    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
+    return false;
+  });
+
+  B.whenOpen('Couch', () => {
+    B.prop('Couch').fade(1, 0.5, 1);
+  });
+
+  B.whenOpen('penny', () => {
+    B.character('penny').fade(1, 0.5, 1);
+  });
+
+  B.whenClose('penny', () => {
+    B.character('penny').hide();
+  });
+
+  B.whenTalkTo('Couch', () => {
+    B.prop('Couch').moveTo({ x: 5, y: 5 });
+  });
+
+  B.region("darkness").whenEnter(() => {
+    B.say`Hank: It's dark over here.`;
+  });
+
+  B.whenPush('Couch', () => {
+    // Hotspot id matches `hotspots[].id` in apartment.room.json (`window`, not `Window`).
+    if (B.hotspot('window').active) {
+      B.hotspot('window').active = false;
+      B.say`Hank: Goodbye window.`;
+    } else {
+      B.hotspot('window').active = true;
+      B.say`Hank: Hello window.`;
+    }
+  });
+
 });
 </file>
 
@@ -37088,7 +37918,7 @@ import {
 } from '../benneAnimationRuntime';
 import { registerSnapshotFlushHook } from '../gameState/snapshotFlushHooks';
 import type { CharacterFacingLetter } from '../../types/character';
-import { getDialogSettings, getGameSettings, getPerspectiveSettings } from '../ConfigManager';
+import { getDialogSettings, getGameSettings, getPerspectiveSettings, getSpeechSettings } from '../ConfigManager';
 import {
   applyGameCursorSpriteHotspot,
   CURSOR_TEXTURE_KEY,
@@ -37193,9 +38023,9 @@ import {
 import { guiAllButtonsClickEventId, guiButtonClickEventId, type GuiAllButtonsClickPayload } from '../events/guiButtonEvents';
 import { endDialogSessionIfMatches, getActiveDialogBenneScript } from '../scripting/dialogSession.js';
 import {
-  BENNE_DIALOG_SETTINGS_CHANGED_EVENT,
-  getBenneDialogSettingsChangedEmitter,
-} from '../scripting/benneDialogSettingsScriptSurface.js';
+  BENNE_SPEECH_SETTINGS_CHANGED_EVENT,
+  getBenneSpeechSettingsChangedEmitter,
+} from '../scripting/benneSpeechSettingsScriptSurface.js';
 import {
   BENNE_VERB_CONTEXT_CHANGED_EVENT,
   clearBenneVerbHoverContext,
@@ -37389,6 +38219,8 @@ export class RoomScene extends Phaser.Scene {
   private characterJsonVisibleByDefId = new Map<string, boolean>();
   /** Definition JSON default for `CharacterData.movable` (first spawn in this room wins). */
   private characterJsonMovableByDefId = new Map<string, boolean>();
+  /** `CharacterData.speechColor` per definition id (first spawn wins); used by `setDialogTextOverlay`. */
+  private characterSpeechColorByDefId = new Map<string, string>();
 
   /** Active scripted walks for non-player characters (by sprite identity). */
   private npcWalkTweens = new Map<
@@ -37579,6 +38411,7 @@ export class RoomScene extends Phaser.Scene {
     this.characterSpritesByDefId.clear();
     this.characterJsonVisibleByDefId.clear();
     this.characterJsonMovableByDefId.clear();
+    this.characterSpeechColorByDefId.clear();
     this.npcWalkTweens.clear();
     this.characterFollowBehaviorEnabled = false;
     this.characterFollowLastGoalByFollowerId.clear();
@@ -37634,6 +38467,9 @@ export class RoomScene extends Phaser.Scene {
       }
       if (!this.characterJsonMovableByDefId.has(defId)) {
         this.characterJsonMovableByDefId.set(defId, spawn.data.movable !== false);
+      }
+      if (!this.characterSpeechColorByDefId.has(defId) && spawn.data.speechColor) {
+        this.characterSpeechColorByDefId.set(defId, spawn.data.speechColor);
       }
     }
     data.characters.forEach((spawn) => this.spawnCharacter(data.room.id, spawn));
@@ -37872,7 +38708,7 @@ export class RoomScene extends Phaser.Scene {
       // Detach verb HUD listeners and clear hover *before* destroying overlays — otherwise
       // `clearBenneVerbHoverContext` emits and `verbs.gui` refresh runs against destroyed BitmapText.
       getBenneVerbContextChangedEmitter().removeAllListeners(BENNE_VERB_CONTEXT_CHANGED_EVENT);
-      getBenneDialogSettingsChangedEmitter().removeAllListeners(BENNE_DIALOG_SETTINGS_CHANGED_EVENT);
+      getBenneSpeechSettingsChangedEmitter().removeAllListeners(BENNE_SPEECH_SETTINGS_CHANGED_EVENT);
       clearBenneVerbHoverContext();
       for (const h of this.genericGuiOverlays) {
         h.destroy();
@@ -38077,7 +38913,7 @@ export class RoomScene extends Phaser.Scene {
     gameEvents.on(DIALOG_STOPPED_EVENT, onStopped);
     gameEvents.on(DIALOG_OPTION_ENABLED_CHANGED_EVENT, onOptionEnabledChanged);
     gameEvents.on(GAME_STATE_VARIABLE_CHANGED_EVENT, onVar);
-    getBenneDialogSettingsChangedEmitter().on(BENNE_DIALOG_SETTINGS_CHANGED_EVENT, onDialogSettingsChanged);
+    getBenneSpeechSettingsChangedEmitter().on(BENNE_SPEECH_SETTINGS_CHANGED_EVENT, onDialogSettingsChanged);
 
     const scrollHandlers: Array<{ guiId: string; off: () => void }> = [];
     const pickHandlers: Array<{ guiId: string; off: () => void }> = [];
@@ -38107,8 +38943,8 @@ export class RoomScene extends Phaser.Scene {
       gameEvents.off(DIALOG_STOPPED_EVENT, onStopped);
       gameEvents.off(DIALOG_OPTION_ENABLED_CHANGED_EVENT, onOptionEnabledChanged);
       gameEvents.off(GAME_STATE_VARIABLE_CHANGED_EVENT, onVar);
-      getBenneDialogSettingsChangedEmitter().off(
-        BENNE_DIALOG_SETTINGS_CHANGED_EVENT,
+      getBenneSpeechSettingsChangedEmitter().off(
+        BENNE_SPEECH_SETTINGS_CHANGED_EVENT,
         onDialogSettingsChanged,
       );
       for (const { off } of scrollHandlers) {
@@ -38145,16 +38981,14 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * True if any top-level object in the overlay is currently visible (author / script may have turned the HUD off).
+   * Overlay-level visibility for dialog snapshot/restore ({@link GuiOverlayHandle.gameObjects}[0] is `guiContentRoot`).
    */
   private readGenericGuiOverlayVisibleHint(handle: GuiOverlayHandle): boolean {
-    for (const go of handle.gameObjects) {
-      const v = go as unknown as Phaser.GameObjects.Components.Visible | Phaser.GameObjects.GameObject;
-      if ('visible' in v && (v as Phaser.GameObjects.Components.Visible).visible) {
-        return true;
-      }
+    const root = handle.gameObjects[0];
+    if (!root || !('visible' in root)) {
+      return false;
     }
-    return false;
+    return Boolean((root as unknown as Phaser.GameObjects.Components.Visible).visible);
   }
 
   /** Called when a choice dialog session successfully opens (after {@link DIALOG_STARTED_EVENT}). */
@@ -38291,9 +39125,10 @@ export class RoomScene extends Phaser.Scene {
     const gridDef = entry.guiData.controls?.find(
       (c): c is GuiGridControl => c.type === 'grid' && c.id === DIALOG_CHOICE_GRID_ID,
     );
+    const dialogSettings = getDialogSettings(manager);
     const maxViewportHeightPx = resolveDialogChoiceViewportHeightPx(
       entry.guiData,
-      getDialogSettings(manager),
+      dialogSettings,
     );
     const viewportAvailableHeightPx = getDialogChoiceAvailableHeightPx(
       gridDef,
@@ -38313,6 +39148,7 @@ export class RoomScene extends Phaser.Scene {
       manager,
       scrollTopPx: session.scrollTopPx,
       viewportAvailableHeightPx,
+      dialogSettings,
     });
     session.scrollTopPx = clampedScrollTopPx;
     this.updateDialogChoiceScrollButtons(session.guiId, def, manager, entry.guiData);
@@ -38512,31 +39348,34 @@ export class RoomScene extends Phaser.Scene {
       }
       return;
     }
-    const dialog = getDialogSettings(resolveGameStateManager(this.game));
+    const speech = getSpeechSettings(resolveGameStateManager(this.game));
     if (!state.visible) {
+      h.setPrimaryTextColor(undefined);
       h.resetPrimaryScreenPosition();
       h.setVisible(false);
       return;
     }
-    if (state.text !== undefined && dialog.showText) {
+    if (state.text !== undefined && speech.showText) {
       h.setPrimaryText(state.text);
     }
-    if (!dialog.showText) {
+    if (!speech.showText) {
       return;
     }
     const id = state.talkCharacterDefinitionId;
     if (id) {
+      h.setPrimaryTextColor(this.characterSpeechColorByDefId.get(id));
       const anchor = this.getTalkAnchorWorldForCharacterDefinition(id);
       if (anchor) {
         const p = this.worldPointToDialogOverlayScreen(anchor.x, anchor.y);
         h.setPrimaryScreenPositionBottomCenter(
-          p.x + dialog.defaultTalkOffset.x,
-          p.y + dialog.defaultTalkOffset.y,
+          p.x + speech.defaultTalkOffset.x,
+          p.y + speech.defaultTalkOffset.y,
         );
       } else {
         h.resetPrimaryScreenPosition();
       }
     } else {
+      h.setPrimaryTextColor(undefined);
       h.resetPrimaryScreenPosition();
     }
     h.setVisible(true);

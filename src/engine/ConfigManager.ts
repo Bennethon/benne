@@ -1,4 +1,4 @@
-import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
+import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/boot/cursorAseprite';
 import type { GameSettings, GameSettingsDialog, GameSettingsPerspective, GameSettingsSpeech } from '../types/game';
 import { readEffectiveDialogSettings } from './dialog/dialogGameState.js';
 import { readEffectiveSpeechSettings } from './dialog/speechGameState.js';

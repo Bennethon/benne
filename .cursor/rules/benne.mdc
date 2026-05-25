@@ -10,7 +10,7 @@ globs:
 
 - **Stack**: Phaser 4 (current `phaser@4.0.0-rc.7`), TypeScript (strict), Vite. The shipped game, **BENNE Play**, and all Phaser previews use **`Phaser.WEBGL`** from **`getBenneRendererConfigFields()`** in `gameConfig.ts` (with `pixelArt` + `roundPixels` for crisp UI).
 - **Editor ↔ game rendering**: Any Phaser display or scale change must keep **previews and runtime aligned** — see **`benne-preview-rendering-parity.mdc`** (always applied).
-- **Resolution**: Internal size comes from `src/game/game-config.json` (`resolution.width` × `resolution.height`). Use `getGameSettings()` or `getInternalWidth()` / `getInternalHeight()` from `src/game/constants.ts`.
+- **Resolution**: Internal size comes from `src/game/game-config.json` (`resolution.width` × `resolution.height`). Use `getGameSettings()` or `getInternalWidth()` / `getInternalHeight()` from `src/game/boot/constants.ts`.
 - **Pixel art**: Preserve `pixelArt` and `roundPixels`. The shipped runtime uses **`Scale.NONE`** plus **`wireBenneRuntimeHiDpiCanvasScale`** (`src/engine/benneRuntimeHiDpiScale.ts`) for hi-DPI canvas + integer letterboxing; **previews** keep their existing `FIT` / `RESIZE` configs unless you change them deliberately.
 - **Data vs code**: Put room/character/dialogue JSON and `*.room.ts` scripts under `src/game/`. Keep game media under `src/game/assets/`; room JSON uses paths relative to that folder (e.g. `images/backgrounds/room.png`). Resolve loader URLs with `resolveGameAssetUrl()` (`import.meta.glob` under the hood).
 - **Interactions**: Emit gameplay events through `EventBus` (`src/engine/events/EventBus.ts`); do not couple puzzles directly to Phaser input handlers in large monoliths — thin handlers dispatch to events or services.

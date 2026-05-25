@@ -16,7 +16,7 @@ import {
   guiHasTextControls,
   guiHasTriggerControls,
   type GuiFontLoadRequest,
-} from '../../game/collectFontLoadsForGui';
+} from '../../game/boot/collectFontLoadsForGui';
 import {
   buildGuiGridLayoutRuntimeMap,
   cumulativeOffsets,

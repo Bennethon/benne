@@ -4,24 +4,24 @@ import {
   guiHasGridControls,
   guiHasImageControls,
   guiHasTextControls,
-} from '../../game/collectFontLoadsForGui';
+} from '../../game/boot/collectFontLoadsForGui';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
 import {
   getAsepriteAssetPaths,
   getAsepriteTextureKey,
   usesAsepriteDisplay,
-} from '../../game/guiAseprite';
+} from '../../game/boot/guiAseprite';
 import {
   sharedInventoryAssetPaths,
   sharedInventoryTextureKey,
-} from '../../game/inventoryAseprite';
-import { prefixGuiAsepriteFrameTags } from '../../game/loadAsepriteAtlasData';
-import { normalizeAsepriteJsonForPhaser } from '../../game/normalizeAsepriteJson';
+} from '../../game/boot/inventoryAseprite';
+import { prefixGuiAsepriteFrameTags } from '../../game/boot/loadAsepriteAtlasData';
+import { normalizeAsepriteJsonForPhaser } from '../../game/boot/normalizeAsepriteJson';
 import type { GameFontsManifest } from '../../types/fonts';
 import type { GameSettingsInitialGameState } from '../../types/game';
 import type { GuiData, GuiInventoryPanelControl } from '../../types/gui';
 import { createGuiPreviewPhaserGame, type GuiPreviewGamePayload } from './createGuiPreviewGame';
-import { registerInventoryDefinitionsFromGame } from '../../game/registerInventoryDefinitions';
+import { registerInventoryDefinitionsFromGame } from '../../game/boot/registerInventoryDefinitions';
 import { joinGameWebviewUri } from './previewUrls';
 
 registerInventoryDefinitionsFromGame();

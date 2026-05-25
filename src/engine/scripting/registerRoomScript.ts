@@ -27,7 +27,7 @@ let _currentLoadingRoomId: string | null = null;
 
 /**
  * Stores the lazy module factory for each room. Called once from
- * {@link import('../../game/registerGameContent.js').registerGameContent} with the full
+ * {@link import('../../game/boot/registerGameContent.js').registerGameContent} with the full
  * roomId → factory map derived from `import.meta.glob`.
  */
 export function registerRoomScriptModuleLoaders(

@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { CharacterFollowOptions } from '../../types/characterFollow.js';
 import type { Point2 } from '../../types/room.js';
-import { getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants.js';
+import { getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/boot/constants.js';
 import { computeSpeechLineDurationMs, getSpeechSettings, getGameSettings } from '../ConfigManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {

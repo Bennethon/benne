@@ -18,12 +18,12 @@ import {
   GAME_STATE_VARIABLE_CHANGED_EVENT,
   type GameStateVariableChangedPayload,
 } from '../../types/gameState';
-import { cursorPhaserAnimationKey, roomPropPhaserAnimationKey } from '../../game/asepritePhaserAnimationKeys';
+import { cursorPhaserAnimationKey, roomPropPhaserAnimationKey } from '../../game/boot/asepritePhaserAnimationKeys';
 import {
   getPerItemInventoryTextureKey,
   inventoryPhaserAnimationKeyForTag,
   sharedInventoryTextureKey,
-} from '../../game/inventoryAseprite';
+} from '../../game/boot/inventoryAseprite';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import {
   inventoryCursorAnimationVariableKey,
@@ -86,7 +86,7 @@ import {
   applyGameCursorSpriteHotspot,
   CURSOR_TEXTURE_KEY,
   isBenneGameCursorAsepriteEnabled,
-} from '../../game/cursorAseprite';
+} from '../../game/boot/cursorAseprite';
 import {
   syncBenneRoomPropTightWorldPosition,
   warnDevIfAsepriteJsonMissingSpriteSourceSize,
@@ -132,7 +132,7 @@ import { getEffectiveInputProfile } from '../verbs/verbConfig';
 import { resolvePointerVerbForTarget, type PointerVerbTarget } from '../verbs/resolvePointerVerb';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { incrementRoomVisitCount } from '../gameState/roomVisitState';
-import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants';
+import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/boot/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
 import type { CharacterFollowOptions } from '../../types/characterFollow';
@@ -210,7 +210,7 @@ import {
 } from './roomTransitionGlobals.js';
 import { clearPlayFromRegistrationsForRoom } from '../scripting/devPlayFromRegistry.js';
 import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
-import { getAllGuiData } from '../../game/loadGuiData';
+import { getAllGuiData } from '../../game/boot/loadGuiData';
 import {
   applyRoomStackDepths,
   sortRoomStackEntities,

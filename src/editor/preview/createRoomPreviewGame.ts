@@ -7,7 +7,7 @@ import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKe
 import { RoomScene } from '../../engine/scenes/RoomScene';
 import { BENNE_ROOM_START_KIND_KEY } from '../../engine/scenes/roomStartKindConstants';
 import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from '../../engine/sound/benneSoundRegistry';
-import { SCENE_ROOM } from '../../game/constants';
+import { SCENE_ROOM } from '../../game/boot/constants';
 import type { PreviewManifest } from './buildPreviewManifest';
 import type { RoomPolygonPatch } from './polygonPatchTypes';
 import { BENNE_POLYGON_EDIT_SCENE, RoomPolygonEditScene } from './RoomPolygonEditScene';

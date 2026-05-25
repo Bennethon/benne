@@ -1,6 +1,6 @@
 import * as Phaser from 'phaser';
-import { loadRoomDataById } from '../../game/loadRoomData.js';
-import { SCENE_ROOM } from '../../game/constants.js';
+import { loadRoomDataById } from '../../game/boot/loadRoomData.js';
+import { SCENE_ROOM } from '../../game/boot/constants.js';
 import type { EventBus } from '../events/EventBus.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { getAllGuiBenneScriptInstances } from '../scripting/registerGuiScript.js';

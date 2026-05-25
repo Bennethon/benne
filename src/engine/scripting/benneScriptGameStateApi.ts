@@ -13,7 +13,7 @@ import type { BenneScriptInventoryItemFacade } from './benneScriptFacades.js';
 import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { runSnapshotFlushHooks } from '../gameState/snapshotFlushHooks.js';
-import { SCENE_ROOM } from '../../game/constants.js';
+import { SCENE_ROOM } from '../../game/boot/constants.js';
 import type { SaveMetadata } from '../../types/gameState.js';
 
 /**

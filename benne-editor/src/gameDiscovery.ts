@@ -274,13 +274,13 @@ async function readCharacterMeta(uri: vscode.Uri, fallbackId: string): Promise<{
     }
 }
 
-/** Same as `getAsepriteAssetPaths` in `src/game/characterAseprite.ts`. */
+/** Same as `getAsepriteAssetPaths` in `src/game/boot/characterAseprite.ts`. */
 export function getCharacterAsepriteAssetRelativePaths(characterId: string): { png: string; json: string } {
     const base = `images/characters/${characterId}/${characterId}`;
     return { png: `${base}.png`, json: `${base}.json` };
 }
 
-/** Same layout as `getAsepriteAssetPaths` in `src/game/guiAseprite.ts`. */
+/** Same layout as `getAsepriteAssetPaths` in `src/game/boot/guiAseprite.ts`. */
 export function getGuiAsepriteAssetRelativePaths(guiId: string): { png: string; json: string } {
     const base = `images/guis/${guiId}/${guiId}`;
     return { png: `${base}.png`, json: `${base}.json` };
@@ -435,7 +435,7 @@ export async function listDialogDefinitions(
     return result;
 }
 
-/** Same layout as `getRoomAsepriteAssetPaths` in the game (`src/game/roomAseprite.ts`). */
+/** Same layout as `getRoomAsepriteAssetPaths` in the game (`src/game/boot/roomAseprite.ts`). */
 export function getRoomAsepriteAssetRelativePaths(roomId: string): { png: string; json: string } {
     const base = `images/rooms/${roomId}/${roomId}`;
     return { png: `${base}.png`, json: `${base}.json` };

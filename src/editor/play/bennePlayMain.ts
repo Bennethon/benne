@@ -4,7 +4,7 @@ import { gameEvents } from '../../engine/events/EventBus';
 import { tryGetActiveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
 import { getRegisteredInventoryDefinitionIds } from '../../engine/inventory/inventoryDefinitionRegistry';
 import { wireBenneGlobalScripts } from '../../engine/scripting/wireBenneGlobalScripts';
-import { registerGameContent } from '../../game/registerGameContent';
+import { registerGameContent } from '../../game/boot/registerGameContent';
 
 const parent = document.querySelector<HTMLElement>('#game-container');
 if (!parent) {

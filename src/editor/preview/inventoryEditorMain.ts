@@ -7,12 +7,12 @@ import {
   sharedInventoryTextureKey,
   usesPerItemInventoryAseprite,
   usesSharedInventoryAseprite,
-} from '../../game/inventoryAseprite';
+} from '../../game/boot/inventoryAseprite';
 import {
   prefixPerItemInventoryAsepriteFrameTags,
   readAsepriteFrameTagNamesFromRawJson,
-} from '../../game/loadAsepriteAtlasData';
-import { normalizeAsepriteJsonForPhaser } from '../../game/normalizeAsepriteJson';
+} from '../../game/boot/loadAsepriteAtlasData';
+import { normalizeAsepriteJsonForPhaser } from '../../game/boot/normalizeAsepriteJson';
 import type { InventoryItemData } from '../../types/inventory';
 import {
   createInventoryPreviewPhaserGame,
