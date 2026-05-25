@@ -17,7 +17,7 @@ registerGuiScript('settings-menu', ({ B }) => {
     B.gui('settings-menu').control('sfxVolume').value = B.sound.getSfxVolume() * 100;
     B.gui('settings-menu').control('musicVolume').value = B.sound.getMusicVolume() * 100;
 
-    B.gui('settings-menu').control('text-speed-slider').setValue(durationMultiplierToSlider(B.dialogSettings.durationMultiplier));
+    B.gui('settings-menu').control('text-speed-slider').setValue(durationMultiplierToSlider(B.speechSettings.durationMultiplier));
   });
 
   B.gui('settings-menu').control('sfxVolume').whenValueChanged((newVal) => {
@@ -29,15 +29,15 @@ registerGuiScript('settings-menu', ({ B }) => {
   });
 
   B.whenCheckboxCheck("musicEnabled", () => {
-    B.dialogSettings.clickToSkip = true;
+    B.speechSettings.clickToSkip = true;
   });
 
   B.whenCheckboxUncheck("musicEnabled", () => {
-    B.dialogSettings.clickToSkip = false;
+    B.speechSettings.clickToSkip = false;
   });
 
   B.gui("settings-menu").control("text-speed-slider").whenValueChanged((newVal) => {
-    B.dialogSettings.durationMultiplier = sliderToDurationMultiplier(newVal);
+    B.speechSettings.durationMultiplier = sliderToDurationMultiplier(newVal);
   });
 
   B.whenButtonClick("back", () => {

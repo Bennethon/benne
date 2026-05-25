@@ -57,25 +57,32 @@ export interface GameSettingsPerspective {
 }
 
 /**
- * Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults.
- * At runtime, `B.dialogSettings` / `dialog:*` game-state variables override these fields (see architecture.md).
+ * Optional `game-config.json` `speech` block; see {@link getSpeechSettings} for merged defaults.
+ * At runtime, `B.speechSettings` / `speech:*` game-state variables override these fields (see architecture.md).
  */
-export interface GameSettingsDialog {
+export interface GameSettingsSpeech {
   /**
    * Default for timed Bennescript `.say` / `.say.now` lines when the call omits **`clickToSkip`** in the options object.
    * When true, a **left**-click ends the line early (same cleanup as the timer). Per-line overrides:
    * `say('…', { clickToSkip: false })` always disables skip; `say('…', { clickToSkip: true })` always enables skip even
-   * when this global flag is false. Overridable at runtime via **`B.dialogSettings.clickToSkip`**.
+   * when this global flag is false. Overridable at runtime via **`B.speechSettings.clickToSkip`**.
    */
   clickToSkip: boolean;
-  /** When false, `.say()` timing still runs but no Speaking Text (`speaking-text`) GUI. Overridable via **`B.dialogSettings.showText`**. */
+  /** When false, `.say()` timing still runs but no Speaking Text (`speaking-text`) GUI. Overridable via **`B.speechSettings.showText`**. */
   showText: boolean;
-  /** Extra offset in **game canvas pixels** applied after projecting the character `talkPoint`. Overridable via **`B.dialogSettings.defaultTalkOffset`**. */
+  /** Extra offset in **game canvas pixels** applied after projecting the character `talkPoint`. Overridable via **`B.speechSettings.defaultTalkOffset`**. */
   defaultTalkOffset: { x: number; y: number };
   minDurationMs: number;
   msPerCharacter: number;
   maxDurationMs: number;
   durationMultiplier: number;
+}
+
+/**
+ * Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults.
+ * At runtime, `B.dialogSettings` / `dialog:*` game-state variables override these fields (see architecture.md).
+ */
+export interface GameSettingsDialog {
   /**
    * When set, caps how many pixels of choice option rows may stack below **`Option-Grid`** (see
    * {@link getDialogChoiceAvailableHeightPx}). Omitted = extend to the bottom of the internal canvas.
@@ -165,7 +172,9 @@ export interface GameSettings {
    * Individual items can override this per-item via **`InventoryItemData.dropWhenUsed`**.
    */
   dropWhenInventoryUsed?: boolean;
-  /** In-game dialog line timing and Speaking Text (`speaking-text`) overlay placement (see `getDialogSettings()`). */
+  /** Speech line timing, click-to-skip, and Speaking Text overlay placement (see `getSpeechSettings()`). */
+  speech?: Partial<GameSettingsSpeech>;
+  /** Dialog choice UI settings (viewport height cap, etc.). See `getDialogSettings()`. */
   dialog?: Partial<GameSettingsDialog>;
   /**
    * Perspective / walk-speed tuning for optional **`scaleWalkSpeed`** on room regions (`RoomRegionData`).

@@ -62,7 +62,7 @@
       "aseprite": true
     }
   },
-  "dialog": {
+  "speech": {
     "clickToSkip": true,
     "showText": true,
     "defaultTalkOffset": {
@@ -72,7 +72,9 @@
     "minDurationMs": 800,
     "msPerCharacter": 80,
     "maxDurationMs": 4500,
-    "durationMultiplier": 1,
+    "durationMultiplier": 1
+  },
+  "dialog": {
     "choiceOptionsViewportHeightPx": 47
   },
   "perspective": {

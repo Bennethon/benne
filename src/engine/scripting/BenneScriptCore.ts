@@ -3,7 +3,7 @@ import type { CharacterFacingLetter } from '../../types/character.js';
 import type { CharacterFollowOptions } from '../../types/characterFollow.js';
 import type { Point2 } from '../../types/room.js';
 import { getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/constants.js';
-import { computeDialogLineDurationMs, getDialogSettings, getGameSettings } from '../ConfigManager.js';
+import { computeSpeechLineDurationMs, getSpeechSettings, getGameSettings } from '../ConfigManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
   applyCharacterEffectiveAnimation,
@@ -25,8 +25,8 @@ import { getEffectiveVerbDefinitions, WALK_TO_VERB_ID } from '../verbs/verbConfi
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import type { InventoryItemDefinition, VerbDefinition, VerbHoverTarget } from '../../types/verbContext.js';
 import {
-  getBenneDialogSettingsChangedEmitter,
-} from './benneDialogSettingsScriptSurface.js';
+  getBenneSpeechSettingsChangedEmitter,
+} from './benneSpeechSettingsScriptSurface.js';
 import {
   getBenneVerbContextChangedEmitter,
   getBenneVerbContextHoverDescription,
@@ -45,8 +45,10 @@ import type {
   BenneScriptPlayerFacade,
   BenneScriptRoomFacade,
   BenneScriptSoundFacade,
+  BenneScriptSpeechSettingsFacade,
 } from './benneScriptFacades.js';
 import { createBenneScriptDialogSettingsFacade } from './benneScriptDialogSettingsApi.js';
+import { createBenneScriptSpeechSettingsFacade } from './benneScriptSpeechSettingsApi.js';
 import { createBenneScriptSoundFacade } from './benneScriptSoundApi.js';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
 import { getCharacterWorldFeet } from '../characterFeet.js';
@@ -351,7 +353,10 @@ export abstract class BenneScriptCore {
   /** SFX + music (`B.sound.play('creak')`, `B.sound.playMusic('song')`, …). */
   readonly sound: BenneScriptSoundFacade;
 
-  /** Runtime dialog prefs (`B.dialogSettings.clickToSkip`, timing, talk offset, …). */
+  /** Runtime speech prefs (`B.speechSettings.clickToSkip`, timing, talk offset, …). */
+  readonly speechSettings: BenneScriptSpeechSettingsFacade;
+
+  /** Runtime dialog prefs (`B.dialogSettings.choiceOptionsViewportHeightPx`). */
   readonly dialogSettings: BenneScriptDialogSettingsFacade;
 
   /**
@@ -483,6 +488,7 @@ export abstract class BenneScriptCore {
 
     this.room = bindRoomFacadeForBenneScriptCore((f) => this.chain(f));
     this.sound = createBenneScriptSoundFacade((f) => this.chain(f));
+    this.speechSettings = createBenneScriptSpeechSettingsFacade();
     this.dialogSettings = createBenneScriptDialogSettingsFacade();
   }
 
@@ -769,11 +775,11 @@ export abstract class BenneScriptCore {
   }
 
   /**
-   * Subscribe with **`B.onDialogSettingsChanged.on(BENNE_DIALOG_SETTINGS_CHANGED_EVENT, handler)`**
-   * (import from **`@engine/scripting`**). Emits when any **`B.dialogSettings`** property is written.
+   * Subscribe with **`B.onSpeechSettingsChanged.on(BENNE_SPEECH_SETTINGS_CHANGED_EVENT, handler)`**
+   * (import from **`@engine/scripting`**). Emits when any **`B.speechSettings`** or **`B.dialogSettings`** property is written.
    */
-  get onDialogSettingsChanged(): Phaser.Events.EventEmitter {
-    return getBenneDialogSettingsChangedEmitter();
+  get onSpeechSettingsChanged(): Phaser.Events.EventEmitter {
+    return getBenneSpeechSettingsChangedEmitter();
   }
 
   /** Verb-line hover description from {@link RoomScene} hit-testing (`null` when none / suppressed). */
@@ -1017,11 +1023,11 @@ export abstract class BenneScriptCore {
     options?: BenneScriptSayLineOptions,
   ): Promise<void> {
     const manager = resolveGameStateManager(scene.game);
-    const dialog = getDialogSettings(manager);
-    const ms = computeDialogLineDurationMs(line, manager);
+    const speech = getSpeechSettings(manager);
+    const ms = computeSpeechLineDurationMs(line, manager);
     const lineOpt = options?.clickToSkip;
     const allowClickToSkip =
-      lineOpt === true || (lineOpt !== false && dialog.clickToSkip);
+      lineOpt === true || (lineOpt !== false && speech.clickToSkip);
 
     return new Promise<void>((resolve) => {
       let completed = false;

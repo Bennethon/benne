@@ -35,7 +35,7 @@ For architecture, dispatch order, persistence keys, and editor workflows, see [a
 
 | Surface | Room | Character | Inventory | Global | GUI | Dialog (session) |
 |--------|:----:|:---------:|:---------:|:------:|:---:|:----------------:|
-| Core queue, **`raw`**, **`wait`**, **`say`**, **`display`**, **`sound`** (**`B.sound`** — same object on **`B.player.sound`**, **`B.character('…').sound`**, **`B.prop('…').sound`** where applicable), **`dialogSettings`**, **`onDialogSettingsChanged`**, **`walkToClicked`**, **`faceClicked`**, fades, **`room`**, active verb/inventory helpers | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Core queue, **`raw`**, **`wait`**, **`say`**, **`display`**, **`sound`** (**`B.sound`** — same object on **`B.player.sound`**, **`B.character('…').sound`**, **`B.prop('…').sound`** where applicable), **`speechSettings`**, **`dialogSettings`**, **`onSpeechSettingsChanged`**, **`walkToClicked`**, **`faceClicked`**, fades, **`room`**, active verb/inventory helpers | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.state`** / **`B.inventory`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.dialog(id)`** | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ |
 | **`B.player`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -249,39 +249,46 @@ Same handoff but aligned to the outgoing track’s playback head (best effort; f
 B.sound.playMusic('outside-ambient', { fadeSeconds: 2, sync: true });
 ```
 
-### Dialog settings (`B.dialogSettings`)
+### Speech settings (`B.speechSettings`)
 
 Available on every **`BenneScriptCore`** facade (**room / character / inventory / global / GUI / dialog session**). **Getter/setter properties only** — reads and writes are **sync** (not queued on **`interactionTail`**, unlike **`B.sound.play`**).
 
-**Effective values** — getters return the runtime value: saved **`GameStateManager`** variable when present and typed correctly, else the merged default from **`game-config.json`** **`dialog`**. Engine code uses **`getDialogSettings(manager)`** with the same resolution.
+**Effective values** — getters return the runtime value: saved **`GameStateManager`** variable when present and typed correctly, else the merged default from **`game-config.json`** **`speech`**. Engine code uses **`getSpeechSettings(manager)`** with the same resolution.
 
-**Persistence** — setters write immediately to **`variables`** (included in **`B.state.save`**, **`exportJson`**, etc.). **`applySnapshot`** keeps prior in-memory **`dialog:*`** values when the incoming snapshot omits a key (unless **`initialGameState.variables`** seeds it). See [architecture.md — `B.dialogSettings`](architecture.md#benne--architecture).
+**Persistence** — setters write immediately to **`variables`** (included in **`B.state.save`**, **`exportJson`**, etc.). **`applySnapshot`** keeps prior in-memory **`speech:*`** values when the incoming snapshot omits a key (unless **`initialGameState.variables`** seeds it). See [architecture.md — `B.speechSettings`](architecture.md#benne--architecture).
 
-**Reactivity** — import **`BENNE_DIALOG_SETTINGS_CHANGED_EVENT`** from **`@engine/scripting`** and subscribe in GUI scripts:
+**Reactivity** — import **`BENNE_SPEECH_SETTINGS_CHANGED_EVENT`** from **`@engine/scripting`** and subscribe in GUI scripts:
 
 ```ts
-import { BENNE_DIALOG_SETTINGS_CHANGED_EVENT, registerGuiScript } from '@engine/scripting';
+import { BENNE_SPEECH_SETTINGS_CHANGED_EVENT, registerGuiScript } from '@engine/scripting';
 
 registerGuiScript('settings-menu', ({ B }) => {
   const sync = () => {
-    // e.g. B.gui('settings-menu').control('clickToSkip').checked = B.dialogSettings.clickToSkip;
+    // e.g. B.gui('settings-menu').control('clickToSkip').checked = B.speechSettings.clickToSkip;
   };
   B.onGuiBuilt(sync);
-  B.onDialogSettingsChanged.on(BENNE_DIALOG_SETTINGS_CHANGED_EVENT, sync);
+  B.onSpeechSettingsChanged.on(BENNE_SPEECH_SETTINGS_CHANGED_EVENT, sync);
 });
 ```
 
-**`RoomScene`** clears **`onDialogSettingsChanged`** listeners on shutdown (same pattern as **`onVerbContextChanged`**).
+**`RoomScene`** clears **`onSpeechSettingsChanged`** listeners on shutdown (same pattern as **`onVerbContextChanged`**).
 
 | Property | Variable key | Description |
 |----------|--------------|-------------|
-| **`clickToSkip`** | `dialog:clickToSkip` | Global default for timed **`say`** lines when the call omits **`{ clickToSkip }`**. Per-line **`say('…', { clickToSkip: true \| false })`** still wins. |
-| **`showText`** | `dialog:showText` | When **`false`**, **`.say()`** timing still runs but the Speaking Text overlay stays hidden. |
-| **`msPerCharacter`** | `dialog:msPerCharacter` | Base ms per character for line duration. |
-| **`durationMultiplier`** | `dialog:durationMultiplier` | Multiplier on character count (must be **> 0**). |
-| **`minDurationMs`** | `dialog:minDurationMs` | Minimum line display time (ms). |
-| **`maxDurationMs`** | `dialog:maxDurationMs` | Maximum line display time (ms). |
-| **`defaultTalkOffset`** | `dialog:defaultTalkOffset` | **`{ x, y }`** offset in canvas pixels after projecting **`talkPoint`**. |
+| **`clickToSkip`** | `speech:clickToSkip` | Global default for timed **`say`** lines when the call omits **`{ clickToSkip }`**. Per-line **`say('…', { clickToSkip: true \| false })`** still wins. |
+| **`showText`** | `speech:showText` | When **`false`**, **`.say()`** timing still runs but the Speaking Text overlay stays hidden. |
+| **`msPerCharacter`** | `speech:msPerCharacter` | Base ms per character for line duration. |
+| **`durationMultiplier`** | `speech:durationMultiplier` | Multiplier on character count (must be **> 0**). |
+| **`minDurationMs`** | `speech:minDurationMs` | Minimum line display time (ms). |
+| **`maxDurationMs`** | `speech:maxDurationMs` | Maximum line display time (ms). |
+| **`defaultTalkOffset`** | `speech:defaultTalkOffset` | **`{ x, y }`** offset in canvas pixels after projecting **`talkPoint`**. |
+
+### Dialog settings (`B.dialogSettings`)
+
+Available on every **`BenneScriptCore`** facade. Controls settings for the SCUMM-style dialog choice UI.
+
+| Property | Variable key | Description |
+|----------|--------------|-------------|
 | **`choiceOptionsViewportHeightPx`** | `dialog:choiceOptionsViewportHeightPx` | Game-level cap for choice option stacking; **`undefined`** setter clears override. Per-GUI **`choiceOptionsViewportHeightPx`** on **`*.gui.json`** still wins when set. |
 
 ---
@@ -302,7 +309,7 @@ Constructed from active **`RoomScene`** (global/dialog resolve **`SCENE_ROOM` on
 | **`animationNow`** | `(tag: string \| null) => void` | Immediate override / clear. | Immediate |
 | **`playAnimation`** | `BlockingWithNow<[tag: string]>` | One-shot tag; restores idle/override after. | Queued vs **`.now`** |
 | **`stopAnimation`** | `() => void` | Clears override + returns to directional idle. | Immediate |
-| **`say`** | **`BenneScriptSayDialogueHybrid`** | **`'line'`**, **`say.now('line', opts?)`**, or tagged scoped to player id. **`clickToSkip`** from arg or effective **`B.dialogSettings.clickToSkip`**. | Per hybrid rules |
+| **`say`** | **`BenneScriptSayDialogueHybrid`** | **`'line'`**, **`say.now('line', opts?)`**, or tagged scoped to player id. **`clickToSkip`** from arg or effective **`B.speechSettings.clickToSkip`**. | Per hybrid rules |
 | **`face`** | `BlockingWithNow<[CharacterFacingLetter]>` | **`facePlayerScriptDirection`**. | Queued vs **`.now`** |
 | **`movable`** get/set | `boolean` | When **`false`**, **`walkTo`**, **`walkToClicked`**, click-to-walk, and verb-driven player walks are ignored; **`moveTo`** / **`moveTo.now` / `moveToNow`** still teleport. Setter **queues** on the interaction tail (like **`visible`** on **`B.character`**); persists `` `character:<startingPlayerId>:movable` `` (see [architecture.md §7 → Persistence](architecture.md#7-scripting--interaction-system-bennescript)). Getter with no **`RoomScene`** falls back to saved state, else **`true`**. | Setter queued |
 | **`startFollowingCharacter`** | **`(targetId: string, options?: CharacterFollowOptions) => void`** | Persists follow state for the starting player (keys `` `character:<startingPlayerId>:followingTarget` `` and `` `character:<startingPlayerId>:followOptions` ``). **`targetId`** is another character’s definition id or the string **`"player"`** (case-insensitive **`"player"`** is stored as lowercase **`"player"`** — resolves to the same starting player id at runtime). Idempotent for the same target; re-call merges new **`options`**. Self-follow / empty target: DEV warn + no-op. When a **`RoomScene`** is active, **`RoomScene.startCharacterFollowingCharacter`** also clears the follow goal cache for repath; without a room, **`applyPersistedCharacterFollowFromScript`** still writes **`GameStateManager`** if a manager exists. | Queued |
@@ -870,10 +877,12 @@ Strict typing when bypassing **`(p: any)`**:
 
 | Module | Role |
 |--------|------|
-| [`BenneScriptCore.ts`](../src/engine/scripting/BenneScriptCore.ts) | **`BlockingWithNow`**, queue, **`say`/`wait`/fades/clicks/active selection**, **`sound`**, **`dialogSettings`**, **`onDialogSettingsChanged`**, **`events`/`raw`**, inventory-on-target **`subscribe*`** helpers, **`cutscene`** / **`cutscene.now`**, **`onUpdate`** (room/global subclasses) |
+| [`BenneScriptCore.ts`](../src/engine/scripting/BenneScriptCore.ts) | **`BlockingWithNow`**, queue, **`say`/`wait`/fades/clicks/active selection**, **`sound`**, **`speechSettings`**, **`dialogSettings`**, **`onSpeechSettingsChanged`**, **`events`/`raw`**, inventory-on-target **`subscribe*`** helpers, **`cutscene`** / **`cutscene.now`**, **`onUpdate`** (room/global subclasses) |
+| [`benneScriptSpeechSettingsApi.ts`](../src/engine/scripting/benneScriptSpeechSettingsApi.ts) | **`createBenneScriptSpeechSettingsFacade`** (**`B.speechSettings`**) |
 | [`benneScriptDialogSettingsApi.ts`](../src/engine/scripting/benneScriptDialogSettingsApi.ts) | **`createBenneScriptDialogSettingsFacade`** (**`B.dialogSettings`**) |
-| [`benneDialogSettingsScriptSurface.ts`](../src/engine/scripting/benneDialogSettingsScriptSurface.ts) | **`BENNE_DIALOG_SETTINGS_CHANGED_EVENT`**, change emitter |
-| [`dialogGameState.ts`](../src/engine/dialog/dialogGameState.ts) | **`dialog:*`** variable keys, read/write, snapshot merge |
+| [`benneSpeechSettingsScriptSurface.ts`](../src/engine/scripting/benneSpeechSettingsScriptSurface.ts) | **`BENNE_SPEECH_SETTINGS_CHANGED_EVENT`**, change emitter |
+| [`speechGameState.ts`](../src/engine/dialog/speechGameState.ts) | **`speech:*`** variable keys, read/write, snapshot merge |
+| [`dialogGameState.ts`](../src/engine/dialog/dialogGameState.ts) | **`dialog:*`** variable keys (choice viewport height), read/write, snapshot merge |
 | [`benneScriptOnUpdateRegistry.ts`](../src/engine/scripting/benneScriptOnUpdateRegistry.ts) | Global **`B.onUpdate`** handler list + **`runGlobalBenneScriptOnUpdateHandlers`**, **`clearGlobalBenneScriptOnUpdateHandlers`** (game **`DESTROY`**) |
 | [`benneScriptSoundApi.ts`](../src/engine/scripting/benneScriptSoundApi.ts) | **`createBenneScriptSoundFacade`** (**`B.sound`**) |
 | [`SoundManager.ts`](../src/engine/sound/SoundManager.ts) | **`Phaser.Game#sound`** playback, SFX tracking, music slot, lifecycle |
