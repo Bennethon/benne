@@ -59,5 +59,6 @@
       }
     ]
   },
-  "activeCursorOverride": "Talk"
+  "activeCursorOverride": "Talk",
+  "speechColor": "#ffc2c2"
 }

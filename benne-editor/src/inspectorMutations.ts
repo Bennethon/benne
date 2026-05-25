@@ -673,6 +673,8 @@ export function updateCharacterFields(
         defaultVerb?: string;
         /** Game cursor sheet tag while hovering this clickable character; empty removes from JSON. */
         activeCursorOverride?: string;
+        /** Hex speech colour for speaking-text GUI; empty or default `#ffffff` removes from JSON. */
+        speechColor?: string;
     }
 ): { ok: true } {
     if (fields.name !== undefined) {
@@ -724,6 +726,14 @@ export function updateCharacterFields(
             delete data.activeCursorOverride;
         } else {
             data.activeCursorOverride = t;
+        }
+    }
+    if (fields.speechColor !== undefined) {
+        const c = fields.speechColor.trim().toLowerCase();
+        if (c.length === 0 || c === '#ffffff') {
+            delete data.speechColor;
+        } else {
+            data.speechColor = c;
         }
     }
     return { ok: true };

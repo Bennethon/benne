@@ -239,6 +239,11 @@ export interface GuiOverlayHandle {
    */
   setDisplayTextLayout(text: string): void;
   setVisible(visible: boolean): void;
+  /**
+   * Overrides the primary line's fill tint colour. Pass `undefined` to restore the
+   * authored default from the GUI JSON `color` field.
+   */
+  setPrimaryTextColor(hex: string | undefined): void;
   /** Extra horizontal gap between glyphs (Phaser `BitmapText` letter spacing). */
   setLetterSpacing(spacing: number): void;
   /**
@@ -2654,6 +2659,9 @@ export function buildGuiOverlay(
   const primaryInitialY = primaryLine?.y ?? 0;
   const primaryInitialOriginX = primaryLine?.originX ?? 0;
   const primaryInitialOriginY = primaryLine?.originY ?? 0;
+  const primaryInitialTint: number | undefined = primaryLine
+    ? (primaryLine.getData(BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY) as number | undefined) ?? 0xffffff
+    : undefined;
 
   const runDisplayTextLayout =
     wireDisplayTextOverlayLayout(gui, controlsById, linesById) ?? ((_t: string) => {});
@@ -2790,6 +2798,14 @@ export function buildGuiOverlay(
       for (const g of gridContainers) {
         g.setVisible(visible);
       }
+    },
+    setPrimaryTextColor(hex: string | undefined) {
+      if (!primaryLine) {
+        return;
+      }
+      const tint = hex ? hexStringToTint(hex) : (primaryInitialTint ?? 0xffffff);
+      applyGuiBitmapTextFillTint(primaryLine, tint);
+      primaryLine.setData(BENNE_GUI_BITMAP_TEXT_FILL_TINT_KEY, tint);
     },
     setLetterSpacing(spacing: number) {
       for (const line of allLines) {
