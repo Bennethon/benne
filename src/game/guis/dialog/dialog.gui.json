@@ -98,7 +98,7 @@
       "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
       "font": "lucasfont-alternate",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "left",
       "textOffsetX": 0,
       "textOffsetY": 0,
@@ -107,6 +107,11 @@
         "gridControlId": "Option-Grid",
         "row": 0,
         "col": 1
+      },
+      "textColorStates": {
+        "hover": "#28c074",
+        "pressed": "#28c074",
+        "disabled": "#636363"
       }
     }
   ]
