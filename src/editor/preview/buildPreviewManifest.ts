@@ -1,8 +1,8 @@
-import { getAsepriteAssetPaths, getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/characterAseprite';
+import { getAsepriteAssetPaths, getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/boot/characterAseprite';
 import {
     getRoomAsepriteAssetPaths,
     getRoomAsepriteTextureKey,
-} from '../../game/roomAseprite';
+} from '../../game/boot/roomAseprite';
 import {
     hasBundledCursorSheet,
     prefixCursorAsepriteFrameTags,
@@ -11,16 +11,16 @@ import {
     prefixRoomAsepriteFrameTags,
     readAsepriteFrameTagNamesFromRawJson,
     warnIfAnimationConfigKeysMissingFromFrameTags,
-} from '../../game/loadAsepriteAtlasData';
-import { normalizeAsepriteJsonForPhaser } from '../../game/normalizeAsepriteJson';
+} from '../../game/boot/loadAsepriteAtlasData';
+import { normalizeAsepriteJsonForPhaser } from '../../game/boot/normalizeAsepriteJson';
 import { joinGameWebviewUri } from './previewUrls';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
-import { collectFontIdsReferencedByGuiControls, getAllGuiData } from '../../game/loadGuiData';
+import { collectFontIdsReferencedByGuiControls, getAllGuiData } from '../../game/boot/loadGuiData';
 import {
     getAsepriteAssetPaths as getGuiAsepriteAssetPaths,
     getAsepriteTextureKey as getGuiAsepriteTextureKey,
     usesAsepriteDisplay as usesGuiAsepriteDisplay,
-} from '../../game/guiAseprite';
+} from '../../game/boot/guiAseprite';
 import {
     getPerItemInventoryAsepritePaths,
     getPerItemInventoryTextureKey,
@@ -28,7 +28,7 @@ import {
     sharedInventoryTextureKey,
     usesPerItemInventoryAseprite,
     usesSharedInventoryAseprite,
-} from '../../game/inventoryAseprite';
+} from '../../game/boot/inventoryAseprite';
 import {
     getInventoryDefinition,
     getRegisteredInventoryDefinitionIds,
@@ -43,7 +43,7 @@ import type {
     RoomSceneStartData,
 } from '../../engine/scenes/BootScene';
 import { getGameSettings } from '../../engine/ConfigManager';
-import { CURSOR_TEXTURE_KEY, getCursorAsepriteAssetPaths, isBenneGameCursorAsepriteEnabled } from '../../game/cursorAseprite';
+import { CURSOR_TEXTURE_KEY, getCursorAsepriteAssetPaths, isBenneGameCursorAsepriteEnabled } from '../../game/boot/cursorAseprite';
 
 export type PreviewManifest = {
     loads: PreviewLoadEntry[];

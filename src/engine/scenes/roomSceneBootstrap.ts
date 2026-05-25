@@ -4,11 +4,11 @@ import {
   getNormalizedAsepriteAtlasData,
   getNormalizedRoomAsepriteAtlasData,
   warnIfAnimationConfigKeysMissingFromFrameTags,
-} from '../../game/loadAsepriteAtlasData';
-import { getAsepriteAssetPaths, getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/characterAseprite';
-import { getRoomAsepriteAssetPaths, getRoomAsepriteTextureKey } from '../../game/roomAseprite';
-import { loadCharacterData } from '../../game/loadCharacterData';
-import { resolveGameAssetUrl } from '../../game/resolveGameAssetUrl';
+} from '../../game/boot/loadAsepriteAtlasData';
+import { getAsepriteAssetPaths, getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/boot/characterAseprite';
+import { getRoomAsepriteAssetPaths, getRoomAsepriteTextureKey } from '../../game/boot/roomAseprite';
+import { loadCharacterData } from '../../game/boot/loadCharacterData';
+import { resolveGameAssetUrl } from '../../game/boot/resolveGameAssetUrl';
 import type { RoomCharacterInstance, RoomData } from '../../types/room';
 import type { CharacterData } from '../../types/character';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';

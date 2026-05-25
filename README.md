@@ -21,7 +21,7 @@ npm run preview  # Serve production build locally
 ## Project structure
 
 - `src/game/assets/` game media (`images/backgrounds`, `images/characters`, `audio`, …) — bundled via Vite
-- `src/game/` game logic and data: `game-config.json`, `globalScript.ts`, `resolveGameAssetUrl.ts`, `rooms/`, `characters/`, …
+- `src/game/` game logic and data: `game-config.json`, `globalScript.ts`, `boot/` (loaders and registration), `rooms/`, `characters/`, …
 - `src/engine/` reusable systems and scenes
 - `src/types/` JSON and engine contract types
 

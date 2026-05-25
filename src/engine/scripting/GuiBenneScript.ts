@@ -12,7 +12,7 @@ import {
   guiControlMouseEnterEventId,
   guiControlMouseLeaveEventId,
 } from '../events/guiControlHoverEvents.js';
-import { SCENE_ROOM } from '../../game/constants.js';
+import { SCENE_ROOM } from '../../game/boot/constants.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { BenneScriptCore } from './BenneScriptCore.js';

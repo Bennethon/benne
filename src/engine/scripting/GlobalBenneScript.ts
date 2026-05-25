@@ -12,7 +12,7 @@ import type { VerbGlobalFallbackPayload, VerbUnhandledPayload } from '../events/
 import type { RoomScene } from '../scenes/RoomScene.js';
 import type { BenneScriptDialogCommandSurface, BenneScriptPlayerFacade } from './benneScriptFacades.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import { SCENE_ROOM } from '../../game/constants.js';
+import { SCENE_ROOM } from '../../game/boot/constants.js';
 import { BenneScriptCore } from './BenneScriptCore.js';
 import {
   createBenneScriptGameStateNamespace,

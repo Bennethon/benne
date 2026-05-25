@@ -13,7 +13,7 @@
     "build:benne-play": "tsc && vite build --config vite.benne-play.config.ts",
     "watch:benne-play": "vite build --watch --config vite.benne-play.config.ts",
     "preview": "vite preview",
-    "sync-bootstrap-down": "node scripts/switch-game-template.mjs sync-bootstrap-down",
+    "sync-boot-down": "node scripts/switch-game-template.mjs sync-boot-down",
     "sync-template-down": "node scripts/switch-game-template.mjs sync-template-down",
     "set-template": "node scripts/switch-game-template.mjs set-template",
     "set-template:2-click": "node scripts/switch-game-template.mjs set-template 2-click",

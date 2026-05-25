@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
-import { guiPhaserAnimationKey } from '../../game/asepritePhaserAnimationKeys.js';
-import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/guiAseprite.js';
-import { getBundledGuiAsepriteRawJson } from '../../game/loadAsepriteAtlasData.js';
+import { guiPhaserAnimationKey } from '../../game/boot/asepritePhaserAnimationKeys.js';
+import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/boot/guiAseprite.js';
+import { getBundledGuiAsepriteRawJson } from '../../game/boot/loadAsepriteAtlasData.js';
 import type {
   GuiData,
   GuiNineSliceImageControl,

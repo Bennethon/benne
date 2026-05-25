@@ -4,18 +4,18 @@
  */
 import * as Phaser from 'phaser';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
-import { getInternalHeight, getInternalWidth } from '../../game/constants';
-import { isBenneGameCursorAsepriteEnabled } from '../../game/cursorAseprite';
-import { guiPhaserAnimationKey } from '../../game/asepritePhaserAnimationKeys';
+import { getInternalHeight, getInternalWidth } from '../../game/boot/constants';
+import { isBenneGameCursorAsepriteEnabled } from '../../game/boot/cursorAseprite';
+import { guiPhaserAnimationKey } from '../../game/boot/asepritePhaserAnimationKeys';
 import { getGameSettings } from '../ConfigManager';
-import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/guiAseprite';
+import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/boot/guiAseprite';
 import {
   getPerItemInventoryTextureKey,
   inventoryPhaserAnimationKeyForTag,
   sharedInventoryTextureKey,
   usesPerItemInventoryAseprite,
   usesSharedInventoryAseprite,
-} from '../../game/inventoryAseprite';
+} from '../../game/boot/inventoryAseprite';
 import type { GameBitmapFontDefinition, GameFontsManifest } from '../../types/fonts';
 import { gameEvents } from '../events/EventBus';
 import { guiAllButtonsClickEventId, guiButtonClickEventId, type GuiAllButtonsClickPayload } from '../events/guiButtonEvents';

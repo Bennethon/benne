@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/guiAseprite';
+import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/boot/guiAseprite';
 import type { GuiCheckboxControl, GuiData } from '../../types/gui';
 import { gameEvents } from '../events/EventBus';
 import {

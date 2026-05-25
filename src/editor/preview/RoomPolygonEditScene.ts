@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { getInternalHeight, getInternalWidth, SCENE_ROOM } from '../../game/constants';
+import { getInternalHeight, getInternalWidth, SCENE_ROOM } from '../../game/boot/constants';
 import type { RoomScene } from '../../engine/scenes/RoomScene';
 import type {
     Point2,

@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { SCENE_ROOM } from '../../game/constants.js';
+import { SCENE_ROOM } from '../../game/boot/constants.js';
 import { gameEvents } from '../events/EventBus.js';
 import {
   DIALOG_OPTION_ENABLED_CHANGED_EVENT,

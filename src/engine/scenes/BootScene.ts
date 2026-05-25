@@ -10,7 +10,7 @@ import {
   hasBundledCursorSheet,
   hasBundledSharedInventorySheet,
   warnIfAnimationConfigKeysMissingFromFrameTags,
-} from '../../game/loadAsepriteAtlasData';
+} from '../../game/boot/loadAsepriteAtlasData';
 import {
   getPerItemInventoryAsepritePaths,
   getPerItemInventoryTextureKey,
@@ -18,19 +18,19 @@ import {
   sharedInventoryTextureKey,
   usesPerItemInventoryAseprite,
   usesSharedInventoryAseprite,
-} from '../../game/inventoryAseprite';
+} from '../../game/boot/inventoryAseprite';
 import { getInventoryDefinition, getRegisteredInventoryDefinitionIds } from '../inventory/inventoryDefinitionRegistry.js';
-import { SCENE_BOOT, SCENE_ROOM } from '../../game/constants';
-import { loadStartRoomData } from '../../game/loadStartRoom';
+import { SCENE_BOOT, SCENE_ROOM } from '../../game/boot/constants';
+import { loadStartRoomData } from '../../game/boot/loadStartRoom';
 import {
   getAsepriteAssetPaths as getGuiAsepriteAssetPaths,
   getAsepriteTextureKey as getGuiAsepriteTextureKey,
   usesAsepriteDisplay as usesGuiAsepriteDisplay,
-} from '../../game/guiAseprite';
-import { getAllGuiData } from '../../game/loadGuiData';
-import { queueGuiFontsForBootLoader } from '../../game/queueGuiFontsForBootLoader';
-import { resolveGameAssetUrl } from '../../game/resolveGameAssetUrl';
-import { CURSOR_TEXTURE_KEY, getCursorAsepriteAssetPaths, isBenneGameCursorAsepriteEnabled } from '../../game/cursorAseprite';
+} from '../../game/boot/guiAseprite';
+import { getAllGuiData } from '../../game/boot/loadGuiData';
+import { queueGuiFontsForBootLoader } from '../../game/boot/queueGuiFontsForBootLoader';
+import { resolveGameAssetUrl } from '../../game/boot/resolveGameAssetUrl';
+import { CURSOR_TEXTURE_KEY, getCursorAsepriteAssetPaths, isBenneGameCursorAsepriteEnabled } from '../../game/boot/cursorAseprite';
 import { getGameSettings } from '../ConfigManager';
 import type { CharacterFacingLetter, CharacterData } from '../../types/character';
 import type { RoomData, RoomPropInstance } from '../../types/room';

@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { getStartingPlayerCharacterId } from '../game/constants.js';
+import { getStartingPlayerCharacterId } from '../game/boot/constants.js';
 import type { CharacterFollowOptions } from '../types/characterFollow.js';
 import type { Point2 } from '../types/room.js';
 import type { CharacterFacingLetter } from '../types/character.js';
