@@ -79,5 +79,6 @@
       "loop": true
     }
   },
-  "defaultVerb": "talkTo"
+  "defaultVerb": "talkTo",
+  "speechColor": "#5972d9"
 }

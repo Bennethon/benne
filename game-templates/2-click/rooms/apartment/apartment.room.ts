@@ -12,25 +12,6 @@ import { registerRoomScript } from '@engine/scripting';
  * - `walkTo('…')`: unified target — prop id → hotspot id → character id → `points[].id`, or `{ x, y }` in room pixels.
  */
 registerRoomScript(({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-  B.whenInventoryUsedOn('Pillar', (payload) => {
-    if (payload.itemId === 'Broom') {
-      B.player.walkTo('Pillar');
-      B.player.say('I used the Broom on the Pillar.');
-      return;
-    }
-    return false;
-  });
-
-  B.whenUse('Pillar', () => {
-    B.player.walkTo('Pillar');
-    B.player.say('I used the Pillar.');
-  });
-
-  B.whenLookAt('Pillar', () => {
-    B.player.say('I like to keep this pillar here so I can walk around it.');
-  });
 
   B.whenUse('Door', () => {
     B.walkToClicked();
@@ -154,6 +135,8 @@ registerRoomScript(({ B }) => {
   B.whenEnterRoom(() => {
     if (!B.sound.isMusicPlaying()) {
       B.sound.playMusic('my-cat-is-crazy');
+    } else {
+      B.sound.playMusic.now('my-cat-is-crazy', { fadeSeconds: 5.0 });
     }
   });
 

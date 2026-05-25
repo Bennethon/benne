@@ -14,12 +14,14 @@ import { registerRoomScript } from '@engine/scripting';
 registerRoomScript(({ B }) => {
 
   B.whenEnterRoom(() => {
-    B.player.moveTo.now('enter-from-door');
-    B.player.face('R');
+    if (B.state.getLastRoom() === 'apartment') {
+      B.player.moveTo.now('enter-from-door');
+      B.player.face('R');
+    }
   });
 
   B.whenEnterRoomAfterFade(() => {
-    B.sound.playMusic.now('halloween-spooky', { fadeSeconds: 10.0 });
+    B.sound.playMusic.now('halloween-spooky', { fadeSeconds: 5.0 });
     B.sound.play('doorClose');
     if (B.room.isFirstVisit) {
       B.character('henry').say('Hey, Hank!');
