@@ -70,4 +70,8 @@ registerGuiScript('verbs', ({ B }) => {
   B.whenButtonClick('UseBtn',    () => B.setActiveVerb('use'));
   B.whenButtonClick('PushBtn',   () => B.setActiveVerb('push'));
   B.whenButtonClick('PullBtn',   () => B.setActiveVerb('pull'));
+
+  B.whenButtonClick("MenuBtn", () => {
+    B.gui('game-menu').show();
+  });
 });

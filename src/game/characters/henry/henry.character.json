@@ -1,100 +1,84 @@
 {
   "id": "henry",
   "name": "Henry",
-  "description": "",
+  "description": "Henry",
   "walkSpeed": 88,
+  "walkToPoint": {
+    "x": -18,
+    "y": 63
+  },
+  "talkPoint": {
+    "x": 18,
+    "y": 1
+  },
   "clickable": true,
   "display": {
     "aseprite": true
   },
+  "feet": {
+    "x": 18,
+    "y": 62
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 11,
+        "y": 3
+      },
+      {
+        "x": 5,
+        "y": 34
+      },
+      {
+        "x": 9,
+        "y": 64
+      },
+      {
+        "x": 28,
+        "y": 64
+      },
+      {
+        "x": 31,
+        "y": 34
+      },
+      {
+        "x": 25,
+        "y": 1
+      }
+    ]
+  },
   "animations": {
-    "IdleDR": {
-      "loop": true
-    },
-    "IdleDL": {
-      "loop": true
-    },
     "IdleL": {
-      "loop": true
-    },
-    "IdleU": {
-      "loop": true
-    },
-    "WalkDR": {
-      "loop": true
-    },
-    "WalkDL": {
-      "loop": true
-    },
-    "WalkL": {
-      "loop": true
-    },
-    "WalkU": {
-      "loop": true
-    },
-    "GrabL": {
-      "loop": true
-    },
-    "GrabU": {
-      "loop": true
-    },
-    "TalkDR": {
-      "loop": true
-    },
-    "TalkDL": {
-      "loop": true
-    },
-    "TalkL": {
-      "loop": true
-    },
-    "TalkU": {
       "loop": true
     },
     "IdleD": {
       "loop": true
     },
+    "IdleU": {
+      "loop": true
+    },
+    "WalkL": {
+      "loop": true,
+      "frameDuration": 80
+    },
     "WalkD": {
+      "loop": true,
+      "frameDuration": 60
+    },
+    "WalkU": {
+      "loop": true,
+      "frameDuration": 60
+    },
+    "TalkL": {
       "loop": true
     },
     "TalkD": {
       "loop": true
+    },
+    "TalkU": {
+      "loop": true
     }
   },
-  "feet": {
-    "x": 18,
-    "y": 64
-  },
-  "walkToPoint": {
-    "x": -11,
-    "y": 61
-  },
-  "talkPoint": {
-    "x": 17,
-    "y": 0
-  },
-  "collider": {
-    "points": [
-      {
-        "x": 6,
-        "y": 2
-      },
-      {
-        "x": 17,
-        "y": 0
-      },
-      {
-        "x": 30,
-        "y": 2
-      },
-      {
-        "x": 31,
-        "y": 63
-      },
-      {
-        "x": 5,
-        "y": 63
-      }
-    ]
-  },
+  "defaultVerb": "talkTo",
   "speechColor": "#5972d9"
 }

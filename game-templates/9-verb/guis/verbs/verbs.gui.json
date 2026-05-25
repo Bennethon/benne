@@ -306,6 +306,23 @@
       "fontSize": 8,
       "color": "#28c074",
       "align": "center"
+    },
+    {
+      "type": "button",
+      "id": "MenuBtn",
+      "x": 20,
+      "y": 181,
+      "width": 14,
+      "height": 14,
+      "backgroundAnchor": "screen",
+      "text": "Button",
+      "font": "",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "MenuBtn"
     }
   ]
 }

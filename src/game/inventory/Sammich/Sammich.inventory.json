@@ -1,7 +1,7 @@
 {
   "id": "Sammich",
   "name": "Sammich",
-  "description": "",
+  "description": "sammich",
   "onVerb": {
     "look": true,
     "use": true
@@ -10,6 +10,5 @@
   "animations": {},
   "display": {
     "aseprite": "shared"
-  },
-  "cursorAnimation": "Sammich"
+  }
 }

@@ -59,5 +59,6 @@
       "loop": true
     }
   },
-  "defaultVerb": "talkTo"
+  "defaultVerb": "talkTo",
+  "speechColor": "#ffc2c2"
 }

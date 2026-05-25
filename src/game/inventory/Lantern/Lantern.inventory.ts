@@ -2,10 +2,6 @@ import { registerInventoryScript } from '@engine/scripting';
 
 registerInventoryScript('Lantern', ({ B }) => {
 
-  B.whenLookAt(() => {
-    // TODO
-  });
-
   B.whenUse.doNotActivate(() => {
     if (B.inventory('Lantern').animation === 'Lantern') {
       B.say`Hank: I will turn on the Lantern.`;
@@ -20,5 +16,6 @@ registerInventoryScript('Lantern', ({ B }) => {
       B.wait(.5);
       B.say`Hank: There we go!`;
     }
+    
   });
 });

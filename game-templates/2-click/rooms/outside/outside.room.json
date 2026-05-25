@@ -277,11 +277,6 @@
     {
       "id": "FountainOn",
       "tag": "FountainOn",
-      "animations": {
-        "FountainOn": {
-          "loop": true
-        }
-      },
       "zIndex": 10,
       "visible": false,
       "alpha": 1,
@@ -338,7 +333,12 @@
         "x": 319,
         "y": 118
       },
-      "baseline": 118
+      "baseline": 118,
+      "animations": {
+        "FountainOn": {
+          "loop": true
+        }
+      }
     },
     {
       "id": "LeverPulled",

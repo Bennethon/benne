@@ -3,13 +3,13 @@
   "name": "Outside",
   "size": {
     "width": 600,
-    "height": 180
+    "height": 198
   },
   "scrollBounds": {
     "x": 0,
     "y": 0,
     "width": 600,
-    "height": 180
+    "height": 198
   },
   "walkable": {
     "polygons": [
@@ -18,24 +18,24 @@
         "active": true,
         "points": [
           {
-            "x": 136,
-            "y": 152
+            "x": 86,
+            "y": 140
           },
           {
-            "x": 82,
-            "y": 174
+            "x": 578,
+            "y": 135
           },
           {
-            "x": 586,
-            "y": 170
+            "x": 577,
+            "y": 77
           },
           {
-            "x": 583,
-            "y": 110
+            "x": 138,
+            "y": 78
           },
           {
-            "x": 144,
-            "y": 111
+            "x": 137,
+            "y": 120
           }
         ],
         "holes": [
@@ -45,27 +45,27 @@
             "points": [
               {
                 "x": 302,
-                "y": 116
+                "y": 83
               },
               {
                 "x": 310,
-                "y": 120
+                "y": 87
               },
               {
-                "x": 328,
-                "y": 120
+                "x": 326,
+                "y": 87
               },
               {
-                "x": 336,
-                "y": 115
+                "x": 337,
+                "y": 82
               },
               {
-                "x": 328,
-                "y": 113
+                "x": 327,
+                "y": 79
               },
               {
-                "x": 308,
-                "y": 113
+                "x": 311,
+                "y": 79
               }
             ]
           },
@@ -74,28 +74,28 @@
             "active": true,
             "points": [
               {
-                "x": 510,
-                "y": 141
+                "x": 511,
+                "y": 109
               },
               {
-                "x": 524,
-                "y": 145
-              },
-              {
-                "x": 552,
-                "y": 145
-              },
-              {
-                "x": 566,
-                "y": 140
+                "x": 527,
+                "y": 111
               },
               {
                 "x": 550,
-                "y": 134
+                "y": 111
               },
               {
-                "x": 522,
-                "y": 134
+                "x": 561,
+                "y": 109
+              },
+              {
+                "x": 548,
+                "y": 104
+              },
+              {
+                "x": 526,
+                "y": 103
               }
             ]
           }
@@ -107,47 +107,48 @@
     {
       "id": "door",
       "active": true,
-      "description": "",
-      "zIndex": 0,
+      "description": "door",
+      "zIndex": 80,
       "points": [
         {
-          "x": 72,
-          "y": 101
+          "x": 70,
+          "y": 69
         },
         {
-          "x": 102,
-          "y": 95
+          "x": 103,
+          "y": 62
         },
         {
-          "x": 112,
-          "y": 159
+          "x": 113,
+          "y": 128
         },
         {
-          "x": 82,
-          "y": 171
+          "x": 81,
+          "y": 139
         }
       ],
       "walkToPoint": {
-        "x": 109,
-        "y": 164
+        "x": 108,
+        "y": 133
       },
       "lookAtPoint": {
-        "x": 97,
-        "y": 162
+        "x": 95,
+        "y": 130
       },
-      "baseline": 90
+      "baseline": 163,
+      "defaultVerb": "open"
     }
   ],
   "points": [
     {
       "id": "enter-from-door",
-      "x": 110,
-      "y": 164
+      "x": 105,
+      "y": 132
     },
     {
       "id": "henry-fountain",
-      "x": 335,
-      "y": 118
+      "x": 338,
+      "y": 85
     }
   ],
   "regions": [
@@ -156,23 +157,23 @@
       "active": true,
       "points": [
         {
-          "x": 127,
-          "y": 105
+          "x": 118,
+          "y": 70
+        },
+        {
+          "x": 600,
+          "y": 72
         },
         {
           "x": 600,
           "y": 101
         },
         {
-          "x": 600,
-          "y": 134
-        },
-        {
-          "x": 126,
-          "y": 137
+          "x": 118,
+          "y": 104
         }
       ],
-      "scaleTop": 0.1,
+      "scaleTop": 0,
       "scaleBottom": 1,
       "scaleWalkSpeed": true
     }
@@ -184,7 +185,7 @@
       "animations": {
         "BG": {}
       },
-      "zIndex": 3,
+      "zIndex": 2,
       "visible": true,
       "alpha": 1
     },
@@ -194,7 +195,7 @@
       "animations": {
         "Sky": {}
       },
-      "zIndex": 1,
+      "zIndex": 0,
       "visible": true,
       "alpha": 1,
       "parallaxDepth": 0.75
@@ -205,7 +206,7 @@
       "animations": {
         "Trees": {}
       },
-      "zIndex": 2,
+      "zIndex": 1,
       "visible": true,
       "alpha": 1,
       "parallaxDepth": 0.9
@@ -223,60 +224,70 @@
       "collider": {
         "points": [
           {
-            "x": 309,
-            "y": 119
+            "x": 305,
+            "y": 81
           },
           {
-            "x": 328,
-            "y": 119
-          },
-          {
-            "x": 333,
-            "y": 116
-          },
-          {
-            "x": 332,
-            "y": 109
-          },
-          {
-            "x": 325,
-            "y": 105
-          },
-          {
-            "x": 323,
-            "y": 95
-          },
-          {
-            "x": 314,
-            "y": 95
+            "x": 306,
+            "y": 76
           },
           {
             "x": 312,
-            "y": 106
+            "y": 73
           },
           {
-            "x": 307,
-            "y": 108
+            "x": 314,
+            "y": 65
           },
           {
-            "x": 304,
-            "y": 115
+            "x": 318,
+            "y": 62
+          },
+          {
+            "x": 323,
+            "y": 65
+          },
+          {
+            "x": 325,
+            "y": 72
+          },
+          {
+            "x": 331,
+            "y": 75
+          },
+          {
+            "x": 333,
+            "y": 82
+          },
+          {
+            "x": 327,
+            "y": 86
+          },
+          {
+            "x": 308,
+            "y": 86
           }
         ]
       },
       "walkToPoint": {
-        "x": 300,
-        "y": 117
+        "x": 299,
+        "y": 86
       },
       "lookAtPoint": {
-        "x": 319,
-        "y": 118
+        "x": 320,
+        "y": 85
       },
-      "baseline": 118
+      "baseline": 84,
+      "description": "fountain"
     },
     {
       "id": "FountainOn",
       "tag": "FountainOn",
+      "animations": {
+        "FountainOn": {
+          "loop": true
+        }
+      },
       "zIndex": 10,
       "visible": false,
       "alpha": 1,
@@ -284,61 +295,61 @@
       "collider": {
         "points": [
           {
-            "x": 309,
-            "y": 119
+            "x": 305,
+            "y": 81
           },
           {
-            "x": 328,
-            "y": 119
-          },
-          {
-            "x": 333,
-            "y": 116
-          },
-          {
-            "x": 332,
-            "y": 109
-          },
-          {
-            "x": 325,
-            "y": 105
-          },
-          {
-            "x": 323,
-            "y": 95
-          },
-          {
-            "x": 314,
-            "y": 95
+            "x": 306,
+            "y": 76
           },
           {
             "x": 312,
-            "y": 106
+            "y": 73
           },
           {
-            "x": 307,
-            "y": 108
+            "x": 314,
+            "y": 65
           },
           {
-            "x": 304,
-            "y": 115
+            "x": 318,
+            "y": 62
+          },
+          {
+            "x": 323,
+            "y": 65
+          },
+          {
+            "x": 325,
+            "y": 72
+          },
+          {
+            "x": 331,
+            "y": 75
+          },
+          {
+            "x": 333,
+            "y": 82
+          },
+          {
+            "x": 327,
+            "y": 86
+          },
+          {
+            "x": 308,
+            "y": 86
           }
         ]
       },
       "walkToPoint": {
-        "x": 300,
-        "y": 117
+        "x": 299,
+        "y": 86
       },
       "lookAtPoint": {
-        "x": 319,
-        "y": 118
+        "x": 320,
+        "y": 85
       },
-      "baseline": 118,
-      "animations": {
-        "FountainOn": {
-          "loop": true
-        }
-      }
+      "baseline": 84,
+      "description": "fountain"
     },
     {
       "id": "LeverPulled",
@@ -350,35 +361,40 @@
       "visible": false,
       "alpha": 1,
       "clickable": false,
+      "description": "",
       "collider": {
         "points": [
           {
-            "x": 520,
-            "y": 127
+            "x": 527,
+            "y": 93
           },
           {
-            "x": 530,
-            "y": 124
+            "x": 518,
+            "y": 95
           },
           {
-            "x": 535,
-            "y": 141
+            "x": 524,
+            "y": 109
           },
           {
-            "x": 526,
-            "y": 142
+            "x": 529,
+            "y": 110
+          },
+          {
+            "x": 536,
+            "y": 108
           }
         ]
       },
       "walkToPoint": {
-        "x": 512,
-        "y": 144
+        "x": 531,
+        "y": 113
       },
       "lookAtPoint": {
-        "x": 530,
-        "y": 142
+        "x": 531,
+        "y": 107
       },
-      "baseline": 143
+      "baseline": 109
     },
     {
       "id": "Rock",
@@ -393,36 +409,45 @@
       "collider": {
         "points": [
           {
-            "x": 525,
-            "y": 122
+            "x": 528,
+            "y": 90
           },
           {
-            "x": 541,
-            "y": 128
+            "x": 534,
+            "y": 93
           },
           {
             "x": 542,
-            "y": 139
+            "y": 96
           },
           {
-            "x": 530,
-            "y": 145
+            "x": 543,
+            "y": 104
           },
           {
-            "x": 514,
-            "y": 138
+            "x": 535,
+            "y": 111
+          },
+          {
+            "x": 523,
+            "y": 110
+          },
+          {
+            "x": 515,
+            "y": 104
           }
         ]
       },
       "walkToPoint": {
-        "x": 511,
-        "y": 141
+        "x": 506,
+        "y": 108
       },
       "lookAtPoint": {
         "x": 530,
-        "y": 140
+        "y": 108
       },
-      "baseline": 143
+      "baseline": 110,
+      "description": "rock"
     },
     {
       "id": "RockMoved",
@@ -437,51 +462,59 @@
       "collider": {
         "points": [
           {
-            "x": 530,
-            "y": 126
+            "x": 529,
+            "y": 92
           },
           {
-            "x": 538,
-            "y": 127
+            "x": 539,
+            "y": 93
           },
           {
-            "x": 536,
-            "y": 142
+            "x": 537,
+            "y": 107
           },
           {
-            "x": 521,
-            "y": 142
+            "x": 532,
+            "y": 109
+          },
+          {
+            "x": 526,
+            "y": 108
+          },
+          {
+            "x": 524,
+            "y": 105
           }
         ]
       },
       "walkToPoint": {
         "x": 530,
-        "y": 146
+        "y": 114
       },
       "lookAtPoint": {
         "x": 530,
-        "y": 140
+        "y": 108
       },
-      "baseline": 143,
+      "baseline": 110,
       "description": "lever"
     }
   ],
   "characters": [
     {
-      "instanceId": "henry-1",
-      "definition": "henry/henry.character.json",
-      "x": 345,
-      "y": 152,
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 290,
+      "y": 86,
       "initialFacing": "L",
       "initialAnimation": "Idle",
       "visible": true,
       "zIndex": 8
     },
     {
-      "instanceId": "hank-1",
-      "definition": "hank/hank.character.json",
-      "x": 300,
-      "y": 90,
+      "instanceId": "henry-1",
+      "definition": "henry/henry.character.json",
+      "x": 340,
+      "y": 116,
       "initialFacing": "L",
       "initialAnimation": "Idle",
       "visible": true,

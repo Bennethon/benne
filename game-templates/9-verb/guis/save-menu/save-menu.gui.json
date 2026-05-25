@@ -1,0 +1,139 @@
+{
+  "id": "save-menu",
+  "name": "Save Menu",
+  "description": "",
+  "visible": false,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "nineSliceImage",
+      "id": "save-bg",
+      "x": 46,
+      "y": 25,
+      "width": 260,
+      "height": 148,
+      "tag": "9-slice-BG",
+      "sliceNames": {
+        "topLeft": "TopLeft",
+        "topCenter": "TopMid",
+        "topRight": "TopRight",
+        "middleLeft": "MidLeft",
+        "center": "Mid",
+        "middleRight": "MidRight",
+        "bottomLeft": "BottomLeft",
+        "bottomCenter": "BottomMid",
+        "bottomRight": "BottomRight"
+      }
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "x": 176,
+      "y": 34,
+      "text": "Save",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#1a466b",
+      "align": "center"
+    },
+    {
+      "type": "textInput",
+      "id": "save-name",
+      "x": 60,
+      "y": 148,
+      "width": 158,
+      "height": 14,
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "text": "",
+      "maxLength": 26,
+      "placeholder": "Enter save name...",
+      "color": "#ffffff",
+      "backgroundColor": "#222222",
+      "outlineColor": "#666666",
+      "caretColor": "#ffffff",
+      "hoverBackgroundColor": "#2f2f2f",
+      "focusedOutlineColor": "#a0a0a0",
+      "textAlign": "left"
+    },
+    {
+      "type": "listBox",
+      "id": "saved-list",
+      "x": 60,
+      "y": 64,
+      "width": 158,
+      "height": 80,
+      "rowCount": 5,
+      "rowPadding": 2,
+      "normalBackgroundColor": "#222222",
+      "hoverBackgroundColor": "#2f2f2f",
+      "selectedBackgroundColor": "#4a4a4a",
+      "textColor": "#ffffff",
+      "selectedTextColor": "#ffffff",
+      "placeholderTextColor": "#999999",
+      "font": "lucasfont-alternate",
+      "fontSize": 8
+    },
+    {
+      "type": "text",
+      "id": "instructions",
+      "x": 60,
+      "y": 48,
+      "text": "Select a slot and enter a name to save.",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "color": "#1a466b",
+      "wordWrapWidth": 224
+    },
+    {
+      "type": "button",
+      "id": "save-btn",
+      "x": 228,
+      "y": 100,
+      "width": 62,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Save",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    },
+    {
+      "type": "button",
+      "id": "back-btn",
+      "x": 228,
+      "y": 117,
+      "width": 62,
+      "height": 15,
+      "backgroundAnchor": "top-left",
+      "text": "Back",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": -1,
+      "backgroundTag": "",
+      "backgroundColor": "#132243",
+      "backgroundColorStates": {
+        "hover": "#1a466b",
+        "pressed": "#10908e",
+        "disabled": "#636363"
+      }
+    }
+  ],
+  "modal": true,
+  "zIndex": 101
+}

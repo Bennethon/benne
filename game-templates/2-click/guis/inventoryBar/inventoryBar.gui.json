@@ -85,7 +85,7 @@
       "id": "hoverZone",
       "x": 0,
       "y": 0,
-      "width": 50,
+      "width": 200,
       "height": 10,
       "visible": true
     },

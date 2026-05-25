@@ -1,15 +1,11 @@
 {
   "id": "Key",
   "name": "Key",
-  "description": "",
-  "onVerb": {
-    "look": true,
-    "use": true
-  },
+  "description": "key",
+  "onVerb": {},
   "stackable": false,
   "animations": {},
   "display": {
     "aseprite": "shared"
-  },
-  "cursorAnimation": "Key"
+  }
 }
