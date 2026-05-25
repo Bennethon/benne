@@ -81,7 +81,7 @@ import {
 } from '../benneAnimationRuntime';
 import { registerSnapshotFlushHook } from '../gameState/snapshotFlushHooks';
 import type { CharacterFacingLetter } from '../../types/character';
-import { getDialogSettings, getGameSettings, getPerspectiveSettings } from '../ConfigManager';
+import { getDialogSettings, getGameSettings, getPerspectiveSettings, getSpeechSettings } from '../ConfigManager';
 import {
   applyGameCursorSpriteHotspot,
   CURSOR_TEXTURE_KEY,
@@ -186,9 +186,9 @@ import {
 import { guiAllButtonsClickEventId, guiButtonClickEventId, type GuiAllButtonsClickPayload } from '../events/guiButtonEvents';
 import { endDialogSessionIfMatches, getActiveDialogBenneScript } from '../scripting/dialogSession.js';
 import {
-  BENNE_DIALOG_SETTINGS_CHANGED_EVENT,
-  getBenneDialogSettingsChangedEmitter,
-} from '../scripting/benneDialogSettingsScriptSurface.js';
+  BENNE_SPEECH_SETTINGS_CHANGED_EVENT,
+  getBenneSpeechSettingsChangedEmitter,
+} from '../scripting/benneSpeechSettingsScriptSurface.js';
 import {
   BENNE_VERB_CONTEXT_CHANGED_EVENT,
   clearBenneVerbHoverContext,
@@ -871,7 +871,7 @@ export class RoomScene extends Phaser.Scene {
       // Detach verb HUD listeners and clear hover *before* destroying overlays — otherwise
       // `clearBenneVerbHoverContext` emits and `verbs.gui` refresh runs against destroyed BitmapText.
       getBenneVerbContextChangedEmitter().removeAllListeners(BENNE_VERB_CONTEXT_CHANGED_EVENT);
-      getBenneDialogSettingsChangedEmitter().removeAllListeners(BENNE_DIALOG_SETTINGS_CHANGED_EVENT);
+      getBenneSpeechSettingsChangedEmitter().removeAllListeners(BENNE_SPEECH_SETTINGS_CHANGED_EVENT);
       clearBenneVerbHoverContext();
       for (const h of this.genericGuiOverlays) {
         h.destroy();
@@ -1076,7 +1076,7 @@ export class RoomScene extends Phaser.Scene {
     gameEvents.on(DIALOG_STOPPED_EVENT, onStopped);
     gameEvents.on(DIALOG_OPTION_ENABLED_CHANGED_EVENT, onOptionEnabledChanged);
     gameEvents.on(GAME_STATE_VARIABLE_CHANGED_EVENT, onVar);
-    getBenneDialogSettingsChangedEmitter().on(BENNE_DIALOG_SETTINGS_CHANGED_EVENT, onDialogSettingsChanged);
+    getBenneSpeechSettingsChangedEmitter().on(BENNE_SPEECH_SETTINGS_CHANGED_EVENT, onDialogSettingsChanged);
 
     const scrollHandlers: Array<{ guiId: string; off: () => void }> = [];
     const pickHandlers: Array<{ guiId: string; off: () => void }> = [];
@@ -1106,8 +1106,8 @@ export class RoomScene extends Phaser.Scene {
       gameEvents.off(DIALOG_STOPPED_EVENT, onStopped);
       gameEvents.off(DIALOG_OPTION_ENABLED_CHANGED_EVENT, onOptionEnabledChanged);
       gameEvents.off(GAME_STATE_VARIABLE_CHANGED_EVENT, onVar);
-      getBenneDialogSettingsChangedEmitter().off(
-        BENNE_DIALOG_SETTINGS_CHANGED_EVENT,
+      getBenneSpeechSettingsChangedEmitter().off(
+        BENNE_SPEECH_SETTINGS_CHANGED_EVENT,
         onDialogSettingsChanged,
       );
       for (const { off } of scrollHandlers) {
@@ -1509,17 +1509,17 @@ export class RoomScene extends Phaser.Scene {
       }
       return;
     }
-    const dialog = getDialogSettings(resolveGameStateManager(this.game));
+    const speech = getSpeechSettings(resolveGameStateManager(this.game));
     if (!state.visible) {
       h.setPrimaryTextColor(undefined);
       h.resetPrimaryScreenPosition();
       h.setVisible(false);
       return;
     }
-    if (state.text !== undefined && dialog.showText) {
+    if (state.text !== undefined && speech.showText) {
       h.setPrimaryText(state.text);
     }
-    if (!dialog.showText) {
+    if (!speech.showText) {
       return;
     }
     const id = state.talkCharacterDefinitionId;
@@ -1529,8 +1529,8 @@ export class RoomScene extends Phaser.Scene {
       if (anchor) {
         const p = this.worldPointToDialogOverlayScreen(anchor.x, anchor.y);
         h.setPrimaryScreenPositionBottomCenter(
-          p.x + dialog.defaultTalkOffset.x,
-          p.y + dialog.defaultTalkOffset.y,
+          p.x + speech.defaultTalkOffset.x,
+          p.y + speech.defaultTalkOffset.y,
         );
       } else {
         h.resetPrimaryScreenPosition();

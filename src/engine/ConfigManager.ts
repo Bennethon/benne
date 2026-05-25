@@ -1,11 +1,12 @@
 import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/cursorAseprite';
-import type { GameSettings, GameSettingsDialog, GameSettingsPerspective } from '../types/game';
+import type { GameSettings, GameSettingsDialog, GameSettingsPerspective, GameSettingsSpeech } from '../types/game';
 import { readEffectiveDialogSettings } from './dialog/dialogGameState.js';
+import { readEffectiveSpeechSettings } from './dialog/speechGameState.js';
 import type { GameStateManager } from './gameState/GameStateManager.js';
 import { DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbs/verbConfig';
 import rawSettings from '../game/game-config.json';
 
-const DIALOG_DEFAULTS: GameSettingsDialog = {
+const SPEECH_DEFAULTS: GameSettingsSpeech = {
   clickToSkip: false,
   showText: true,
   defaultTalkOffset: { x: 0, y: 0 },
@@ -14,6 +15,8 @@ const DIALOG_DEFAULTS: GameSettingsDialog = {
   maxDurationMs: 4500,
   durationMultiplier: 1.0,
 };
+
+const DIALOG_DEFAULTS: GameSettingsDialog = {};
 
 const PERSPECTIVE_DEFAULTS: GameSettingsPerspective = {
   minWalkScale: 0.3,
@@ -57,29 +60,78 @@ function assertPerspectiveSettings(data: GameSettings): void {
   }
 }
 
+function mergeSpeechSettings(data: GameSettings): GameSettingsSpeech {
+  const s = data.speech;
+  if (!s) {
+    return { ...SPEECH_DEFAULTS };
+  }
+  const off = s.defaultTalkOffset;
+  return {
+    clickToSkip: s.clickToSkip ?? SPEECH_DEFAULTS.clickToSkip,
+    showText: s.showText ?? SPEECH_DEFAULTS.showText,
+    defaultTalkOffset:
+      off != null && typeof off === 'object' && Number.isFinite(off.x) && Number.isFinite(off.y)
+        ? { x: off.x, y: off.y }
+        : { ...SPEECH_DEFAULTS.defaultTalkOffset },
+    minDurationMs: s.minDurationMs ?? SPEECH_DEFAULTS.minDurationMs,
+    msPerCharacter: s.msPerCharacter ?? SPEECH_DEFAULTS.msPerCharacter,
+    maxDurationMs: s.maxDurationMs ?? SPEECH_DEFAULTS.maxDurationMs,
+    durationMultiplier: s.durationMultiplier ?? SPEECH_DEFAULTS.durationMultiplier,
+  };
+}
+
 function mergeDialogSettings(data: GameSettings): GameSettingsDialog {
   const d = data.dialog;
   if (!d) {
     return { ...DIALOG_DEFAULTS };
   }
-  const off = d.defaultTalkOffset;
   return {
-    clickToSkip: d.clickToSkip ?? DIALOG_DEFAULTS.clickToSkip,
-    showText: d.showText ?? DIALOG_DEFAULTS.showText,
-    defaultTalkOffset:
-      off != null && typeof off === 'object' && Number.isFinite(off.x) && Number.isFinite(off.y)
-        ? { x: off.x, y: off.y }
-        : { ...DIALOG_DEFAULTS.defaultTalkOffset },
-    minDurationMs: d.minDurationMs ?? DIALOG_DEFAULTS.minDurationMs,
-    msPerCharacter: d.msPerCharacter ?? DIALOG_DEFAULTS.msPerCharacter,
-    maxDurationMs: d.maxDurationMs ?? DIALOG_DEFAULTS.maxDurationMs,
-    durationMultiplier: d.durationMultiplier ?? DIALOG_DEFAULTS.durationMultiplier,
     choiceOptionsViewportHeightPx:
       typeof d.choiceOptionsViewportHeightPx === 'number' &&
       Number.isFinite(d.choiceOptionsViewportHeightPx)
         ? d.choiceOptionsViewportHeightPx
         : undefined,
   };
+}
+
+function assertSpeechSettings(data: GameSettings): void {
+  const s = data.speech;
+  if (s === undefined) {
+    return;
+  }
+  if (typeof s !== 'object' || s === null) {
+    throw new Error('game-config speech must be an object when present');
+  }
+  if (s.clickToSkip !== undefined && typeof s.clickToSkip !== 'boolean') {
+    throw new Error('game-config speech.clickToSkip must be a boolean when present');
+  }
+  if (s.showText !== undefined && typeof s.showText !== 'boolean') {
+    throw new Error('game-config speech.showText must be a boolean when present');
+  }
+  const off = s.defaultTalkOffset;
+  if (off !== undefined) {
+    if (typeof off !== 'object' || off === null) {
+      throw new Error('game-config speech.defaultTalkOffset must be an object when present');
+    }
+    if (!Number.isFinite(off.x) || !Number.isFinite(off.y)) {
+      throw new Error('game-config speech.defaultTalkOffset.x and .y must be finite numbers when present');
+    }
+  }
+  for (const key of ['minDurationMs', 'msPerCharacter', 'maxDurationMs', 'durationMultiplier'] as const) {
+    const v = s[key];
+    if (v !== undefined && !Number.isFinite(v)) {
+      throw new Error(`game-config speech.${key} must be a finite number when present`);
+    }
+  }
+  const merged = mergeSpeechSettings(data);
+  if (merged.minDurationMs < 0 || merged.maxDurationMs < 0 || merged.msPerCharacter < 0 || merged.durationMultiplier <= 0) {
+    throw new Error(
+      'game-config speech: minDurationMs, maxDurationMs, and msPerCharacter must be >= 0; durationMultiplier must be > 0',
+    );
+  }
+  if (merged.minDurationMs > merged.maxDurationMs) {
+    throw new Error('game-config speech.minDurationMs must be <= maxDurationMs');
+  }
 }
 
 function assertDialogSettings(data: GameSettings): void {
@@ -90,27 +142,6 @@ function assertDialogSettings(data: GameSettings): void {
   if (typeof d !== 'object' || d === null) {
     throw new Error('game-config dialog must be an object when present');
   }
-  if (d.clickToSkip !== undefined && typeof d.clickToSkip !== 'boolean') {
-    throw new Error('game-config dialog.clickToSkip must be a boolean when present');
-  }
-  if (d.showText !== undefined && typeof d.showText !== 'boolean') {
-    throw new Error('game-config dialog.showText must be a boolean when present');
-  }
-  const off = d.defaultTalkOffset;
-  if (off !== undefined) {
-    if (typeof off !== 'object' || off === null) {
-      throw new Error('game-config dialog.defaultTalkOffset must be an object when present');
-    }
-    if (!Number.isFinite(off.x) || !Number.isFinite(off.y)) {
-      throw new Error('game-config dialog.defaultTalkOffset.x and .y must be finite numbers when present');
-    }
-  }
-  for (const key of ['minDurationMs', 'msPerCharacter', 'maxDurationMs', 'durationMultiplier'] as const) {
-    const v = d[key];
-    if (v !== undefined && !Number.isFinite(v)) {
-      throw new Error(`game-config dialog.${key} must be a finite number when present`);
-    }
-  }
   if (d.choiceOptionsViewportHeightPx !== undefined) {
     if (!Number.isFinite(d.choiceOptionsViewportHeightPx)) {
       throw new Error('game-config dialog.choiceOptionsViewportHeightPx must be a finite number when present');
@@ -118,15 +149,6 @@ function assertDialogSettings(data: GameSettings): void {
     if (d.choiceOptionsViewportHeightPx <= 0) {
       throw new Error('game-config dialog.choiceOptionsViewportHeightPx must be > 0 when present');
     }
-  }
-  const merged = mergeDialogSettings(data);
-  if (merged.minDurationMs < 0 || merged.maxDurationMs < 0 || merged.msPerCharacter < 0 || merged.durationMultiplier <= 0) {
-    throw new Error(
-      'game-config dialog: minDurationMs, maxDurationMs, and msPerCharacter must be >= 0; durationMultiplier must be > 0',
-    );
-  }
-  if (merged.minDurationMs > merged.maxDurationMs) {
-    throw new Error('game-config dialog.minDurationMs must be <= maxDurationMs');
   }
 }
 
@@ -315,6 +337,7 @@ function assertGameSettings(data: GameSettings): void {
   }
   assertInitialGameState(data);
   assertVerbSettings(data);
+  assertSpeechSettings(data);
   assertDialogSettings(data);
   assertPerspectiveSettings(data);
   assertCursorSettings(data);
@@ -395,6 +418,22 @@ export function getGameSettings(): GameSettings {
   return settings;
 }
 
+/** Merged `speech` values from `game-config.json` only (no runtime variable overrides). */
+export function getSpeechSettingsFromConfig(): GameSettingsSpeech {
+  return mergeSpeechSettings(settings);
+}
+
+/**
+ * Merged `speech` values: when `manager` is set, overlays runtime `speech:*` variables
+ * (see `B.speechSettings`); otherwise returns config defaults only.
+ */
+export function getSpeechSettings(manager?: GameStateManager | null): GameSettingsSpeech {
+  if (manager) {
+    return readEffectiveSpeechSettings(manager);
+  }
+  return mergeSpeechSettings(settings);
+}
+
 /** Merged `dialog` values from `game-config.json` only (no runtime variable overrides). */
 export function getDialogSettingsFromConfig(): GameSettingsDialog {
   return mergeDialogSettings(settings);
@@ -416,14 +455,14 @@ export function getPerspectiveSettings(): GameSettingsPerspective {
   return mergePerspectiveSettings(settings);
 }
 
-/** How long a `.say()` line should stay on screen from {@link getDialogSettings} timing rules. */
-export function computeDialogLineDurationMs(
+/** How long a `.say()` line should stay on screen from {@link getSpeechSettings} timing rules. */
+export function computeSpeechLineDurationMs(
   line: string,
   manager?: GameStateManager | null,
 ): number {
-  const dialog = getDialogSettings(manager);
+  const speech = getSpeechSettings(manager);
   const n = Array.from(line).length;
-  const scaled = n * dialog.msPerCharacter * dialog.durationMultiplier;
-  const clamped = Math.min(dialog.maxDurationMs, Math.max(dialog.minDurationMs, scaled));
+  const scaled = n * speech.msPerCharacter * speech.durationMultiplier;
+  const clamped = Math.min(speech.maxDurationMs, Math.max(speech.minDurationMs, scaled));
   return Math.round(clamped);
 }
