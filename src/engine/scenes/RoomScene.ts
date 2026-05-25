@@ -382,6 +382,8 @@ export class RoomScene extends Phaser.Scene {
   private characterJsonVisibleByDefId = new Map<string, boolean>();
   /** Definition JSON default for `CharacterData.movable` (first spawn in this room wins). */
   private characterJsonMovableByDefId = new Map<string, boolean>();
+  /** `CharacterData.speechColor` per definition id (first spawn wins); used by `setDialogTextOverlay`. */
+  private characterSpeechColorByDefId = new Map<string, string>();
 
   /** Active scripted walks for non-player characters (by sprite identity). */
   private npcWalkTweens = new Map<
@@ -572,6 +574,7 @@ export class RoomScene extends Phaser.Scene {
     this.characterSpritesByDefId.clear();
     this.characterJsonVisibleByDefId.clear();
     this.characterJsonMovableByDefId.clear();
+    this.characterSpeechColorByDefId.clear();
     this.npcWalkTweens.clear();
     this.characterFollowBehaviorEnabled = false;
     this.characterFollowLastGoalByFollowerId.clear();
@@ -627,6 +630,9 @@ export class RoomScene extends Phaser.Scene {
       }
       if (!this.characterJsonMovableByDefId.has(defId)) {
         this.characterJsonMovableByDefId.set(defId, spawn.data.movable !== false);
+      }
+      if (!this.characterSpeechColorByDefId.has(defId) && spawn.data.speechColor) {
+        this.characterSpeechColorByDefId.set(defId, spawn.data.speechColor);
       }
     }
     data.characters.forEach((spawn) => this.spawnCharacter(data.room.id, spawn));
@@ -1505,6 +1511,7 @@ export class RoomScene extends Phaser.Scene {
     }
     const dialog = getDialogSettings(resolveGameStateManager(this.game));
     if (!state.visible) {
+      h.setPrimaryTextColor(undefined);
       h.resetPrimaryScreenPosition();
       h.setVisible(false);
       return;
@@ -1517,6 +1524,7 @@ export class RoomScene extends Phaser.Scene {
     }
     const id = state.talkCharacterDefinitionId;
     if (id) {
+      h.setPrimaryTextColor(this.characterSpeechColorByDefId.get(id));
       const anchor = this.getTalkAnchorWorldForCharacterDefinition(id);
       if (anchor) {
         const p = this.worldPointToDialogOverlayScreen(anchor.x, anchor.y);
@@ -1528,6 +1536,7 @@ export class RoomScene extends Phaser.Scene {
         h.resetPrimaryScreenPosition();
       }
     } else {
+      h.setPrimaryTextColor(undefined);
       h.resetPrimaryScreenPosition();
     }
     h.setVisible(true);

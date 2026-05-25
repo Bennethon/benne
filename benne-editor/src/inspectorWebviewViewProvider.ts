@@ -691,6 +691,7 @@ type WebviewPatch =
           feet?: { x: number; y: number } | null;
           defaultVerb?: string;
           activeCursorOverride?: string;
+          speechColor?: string;
       }
     | { type: 'characterAnimation'; id?: string; loop?: boolean; frameDuration?: number | null }
     | {
@@ -1530,7 +1531,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 talkPoint: p.talkPoint,
                 feet: p.feet,
                 defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined,
-                activeCursorOverride: typeof p.activeCursorOverride === 'string' ? p.activeCursorOverride : undefined
+                activeCursorOverride: typeof p.activeCursorOverride === 'string' ? p.activeCursorOverride : undefined,
+                speechColor: typeof p.speechColor === 'string' ? p.speechColor : undefined
             });
             return;
         }

@@ -94,4 +94,9 @@ export interface CharacterData {
    * character, the cursor uses this tag instead of `cursor.activeAnimation`. Inventory cursor clips take precedence.
    */
   activeCursorOverride?: string;
+  /**
+   * Hex color for this character's speech text in the `speaking-text` GUI (e.g. `"#ff0000"`).
+   * When omitted, the overlay keeps its authored default color (`#ffffff`).
+   */
+  speechColor?: string;
 }

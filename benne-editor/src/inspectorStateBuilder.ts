@@ -194,6 +194,8 @@ export type InspectorCharacterState = {
     inventoryUsedOnDefined: boolean;
     /** Game cursor sheet tag while hovering this clickable character; empty when unset in JSON. */
     activeCursorOverride: string;
+    /** Hex speech text colour for the speaking-text GUI; empty when unset in JSON (engine default #ffffff). */
+    speechColor: string;
 };
 
 export type InspectorGuiSpriteAnchor = '' | 'top-left' | 'center' | 'screen';
@@ -1290,7 +1292,8 @@ async function buildCharacterInspectorState(
         availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS),
         inventoryUsedOnDefined: clickable ? scriptRegistersWhenInventoryUsedOn(scriptText, characterId) : false,
         activeCursorOverride:
-            typeof data.activeCursorOverride === 'string' ? data.activeCursorOverride.trim() : ''
+            typeof data.activeCursorOverride === 'string' ? data.activeCursorOverride.trim() : '',
+        speechColor: typeof data.speechColor === 'string' ? data.speechColor.trim() : ''
     };
 }
 

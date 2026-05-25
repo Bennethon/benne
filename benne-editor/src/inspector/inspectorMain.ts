@@ -148,6 +148,7 @@ type InspectorCharacterState = {
     availableVerbs: { id: string; label?: string; preposition?: string }[];
     inventoryUsedOnDefined: boolean;
     activeCursorOverride: string;
+    speechColor: string;
 };
 
 type InspectorGuiSpriteAnchor = '' | 'top-left' | 'center' | 'screen';
@@ -2144,6 +2145,8 @@ function renderCharacter(state: InspectorCharacterState): string {
           <label class="benne-pg-check benne-inline-check"><input type="checkbox" id="char-movable" ${state.movable ? 'checked' : ''} title="When off, character cannot pathfind-walk (JSON movable: false)" /></label>
           <span class="benne-pg-lbl">Active cursor override</span>
           <input type="text" id="char-active-cursor-override" value="${esc(state.activeCursorOverride)}" placeholder="(optional)" title="JSON key: activeCursorOverride — Aseprite tag on the game cursor sheet while hovering this clickable character. Empty = use game-config cursor.activeAnimation. Inventory item cursor still wins." ${state.clickable ? '' : 'disabled'} />
+          <span class="benne-pg-lbl">Speech color</span>
+          <input type="color" id="char-speech-color" value="${esc(state.speechColor || '#ffffff')}" title="JSON key: speechColor — hex colour of this character's speech text in the speaking-text GUI. Default #ffffff (white)." />
         </div>
         <label class="benne-field-label muted small">Description</label>
         <textarea id="char-description" rows="3">${esc(state.description)}</textarea>
@@ -2910,7 +2913,9 @@ function collectCharacterMeta(): Record<string, unknown> {
         feet: readPointFields('char-feet'),
         defaultVerb: (document.querySelector('.char-default-verb') as HTMLSelectElement | null)?.value ?? '',
         activeCursorOverride:
-            (document.getElementById('char-active-cursor-override') as HTMLInputElement | null)?.value ?? ''
+            (document.getElementById('char-active-cursor-override') as HTMLInputElement | null)?.value ?? '',
+        speechColor:
+            (document.getElementById('char-speech-color') as HTMLInputElement | null)?.value ?? ''
     };
 }
 
@@ -2922,7 +2927,7 @@ function mountCharacterHandlers(state: InspectorCharacterState): void {
     document.getElementById('btn-open-json-char')?.addEventListener('click', () => {
         post('openRawJson', { characterJsonUri: state.characterJsonUri });
     });
-    ['char-name', 'char-walk-speed', 'char-clickable', 'char-movable', 'char-description', 'char-walk-x', 'char-walk-y', 'char-talk-x', 'char-talk-y', 'char-feet-x', 'char-feet-y', 'char-active-cursor-override'].forEach((id) => {
+    ['char-name', 'char-walk-speed', 'char-clickable', 'char-movable', 'char-description', 'char-walk-x', 'char-walk-y', 'char-talk-x', 'char-talk-y', 'char-feet-x', 'char-feet-y', 'char-active-cursor-override', 'char-speech-color'].forEach((id) => {
         document.getElementById(id)?.addEventListener('blur', flush);
         document.getElementById(id)?.addEventListener('change', flush);
     });
