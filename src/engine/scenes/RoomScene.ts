@@ -1288,9 +1288,10 @@ export class RoomScene extends Phaser.Scene {
     const gridDef = entry.guiData.controls?.find(
       (c): c is GuiGridControl => c.type === 'grid' && c.id === DIALOG_CHOICE_GRID_ID,
     );
+    const dialogSettings = getDialogSettings(manager);
     const maxViewportHeightPx = resolveDialogChoiceViewportHeightPx(
       entry.guiData,
-      getDialogSettings(manager),
+      dialogSettings,
     );
     const viewportAvailableHeightPx = getDialogChoiceAvailableHeightPx(
       gridDef,
@@ -1310,6 +1311,7 @@ export class RoomScene extends Phaser.Scene {
       manager,
       scrollTopPx: session.scrollTopPx,
       viewportAvailableHeightPx,
+      dialogSettings,
     });
     session.scrollTopPx = clampedScrollTopPx;
     this.updateDialogChoiceScrollButtons(session.guiId, def, manager, entry.guiData);
