@@ -623,7 +623,7 @@ function renderRoom(state) {
         <span class="benne-pg-lbl" title="Slow or speed up walking by the same perspective factor as sprite scale (see game-config perspective).">Scale walk speed</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-scale-walk" data-id="${esc(r.id)}" ${r.scaleWalkSpeed ? 'checked' : ''} /></label>
         <span class="benne-pg-lbl" title="Hex RGB multiply tint while feet are in this region (empty = none).">Character tint</span>
-        <input type="text" class="rg-tint" data-id="${esc(r.id)}" value="${esc(r.tint)}" placeholder="#88ccff" />
+        <input type="color" class="rg-tint" data-id="${esc(r.id)}" value="${esc(r.tint || '#88ccff')}" />
         <span class="benne-pg-lbl" title="0 = no tint, 1 = full tint color (multiplicative blend).">Tint alpha</span>
         <input type="number" class="rg-tint-alpha" data-id="${esc(r.id)}" value="${r.tintAlpha}" min="0" max="1" step="0.05" />
       </div>
@@ -901,7 +901,7 @@ function renderGuiTextOutlineAccordion(controlKey, idx, o) {
       <span class="benne-pg-lbl">enabled</span>
       <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="gui-outline-field" data-o-field="enabled" ${o.enabled ? 'checked' : ''} /></label>
       <span class="benne-pg-lbl">color</span>
-      <input type="text" class="gui-outline-field" data-o-field="color" value="${esc(o.color)}" placeholder="#000000" />
+      <input type="color" class="gui-outline-field" data-o-field="color" value="${esc(o.color || '#000000')}" />
       <span class="benne-pg-lbl">alpha</span>
       <input type="number" class="gui-outline-field" data-o-field="alpha" value="${al}" min="0" max="1" step="0.05" />
       <span class="benne-pg-lbl">thickness</span>
@@ -973,7 +973,7 @@ function renderGuiControlCardBody(state, c) {
         <span class="benne-pg-lbl">fontSize</span>
         <input type="number" class="gui-field" data-index="${idx}" data-field="fontSize" value="${c.fontSize}" />
         <span class="benne-pg-lbl">color</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="color" value="${esc(c.color)}" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="color" value="${esc(c.color || '#ffffff')}" />
         <span class="benne-pg-lbl">align</span>
         ${alignSel}
         <span class="benne-pg-lbl">wordWrapWidth</span>
@@ -1087,13 +1087,13 @@ function renderGuiControlCardBody(state, c) {
         const sheetBlock = (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(c.key, 'sheet', 'Sheet', sheetFieldsBody);
         const colorsFieldsBody = `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">backgroundColor</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="backgroundColor" value="${esc(c.backgroundColor)}" placeholder="#888888" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="backgroundColor" value="${esc(c.backgroundColor || '#888888')}" />
         <span class="benne-pg-lbl">color hover</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="backgroundColorStatesHover" value="${esc(c.backgroundColorStatesHover)}" placeholder="#ffffff" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="backgroundColorStatesHover" value="${esc(c.backgroundColorStatesHover || '#ffffff')}" />
         <span class="benne-pg-lbl">color pressed</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="backgroundColorStatesPressed" value="${esc(c.backgroundColorStatesPressed)}" placeholder="#ffffff" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="backgroundColorStatesPressed" value="${esc(c.backgroundColorStatesPressed || '#ffffff')}" />
         <span class="benne-pg-lbl">color disabled</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="backgroundColorStatesDisabled" value="${esc(c.backgroundColorStatesDisabled)}" placeholder="#ffffff" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="backgroundColorStatesDisabled" value="${esc(c.backgroundColorStatesDisabled || '#ffffff')}" />
       </div>`;
         const colorsBlock = (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(c.key, 'colors', 'Colors', colorsFieldsBody);
         return `<div class="benne-prop-grid benne-prop-grid--tight">
@@ -1113,13 +1113,13 @@ function renderGuiControlCardBody(state, c) {
         <span class="benne-pg-lbl">fontSize</span>
         <input type="number" class="gui-field" data-index="${idx}" data-field="fontSize" value="${c.fontSize}" />
         <span class="benne-pg-lbl">textColor</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="textColor" value="${esc(c.textColor)}" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="textColor" value="${esc(c.textColor || '#ffffff')}" />
         <span class="benne-pg-lbl">text color hover</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="textColorStatesHover" value="${esc(c.textColorStatesHover)}" placeholder="#ffffff" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="textColorStatesHover" value="${esc(c.textColorStatesHover || '#ffffff')}" />
         <span class="benne-pg-lbl">text color pressed</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="textColorStatesPressed" value="${esc(c.textColorStatesPressed)}" placeholder="#ffffff" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="textColorStatesPressed" value="${esc(c.textColorStatesPressed || '#ffffff')}" />
         <span class="benne-pg-lbl">text color disabled</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="textColorStatesDisabled" value="${esc(c.textColorStatesDisabled)}" placeholder="#ffffff" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="textColorStatesDisabled" value="${esc(c.textColorStatesDisabled || '#ffffff')}" />
         <span class="benne-pg-lbl">textAlign</span>
         ${textAlignSel}
         <span class="benne-pg-lbl">textOffsetX</span>
@@ -1245,15 +1245,15 @@ function renderGuiControlCardBody(state, c) {
       </select>`;
         const colorsFieldsBody = `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">backgroundColor</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="backgroundColor" value="${esc(c.backgroundColor)}" placeholder="#222222" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="backgroundColor" value="${esc(c.backgroundColor || '#222222')}" />
         <span class="benne-pg-lbl">hover background</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="hoverBackgroundColor" value="${esc(c.hoverBackgroundColor)}" placeholder="#2f2f2f" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="hoverBackgroundColor" value="${esc(c.hoverBackgroundColor || '#2f2f2f')}" />
         <span class="benne-pg-lbl">outlineColor</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="outlineColor" value="${esc(c.outlineColor)}" placeholder="#666666" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="outlineColor" value="${esc(c.outlineColor || '#666666')}" />
         <span class="benne-pg-lbl">focused outline</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="focusedOutlineColor" value="${esc(c.focusedOutlineColor)}" placeholder="#a0a0a0" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="focusedOutlineColor" value="${esc(c.focusedOutlineColor || '#a0a0a0')}" />
         <span class="benne-pg-lbl">caretColor</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="caretColor" value="${esc(c.caretColor)}" placeholder="#ffffff" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="caretColor" value="${esc(c.caretColor || '#ffffff')}" />
       </div>`;
         const colorsBlock = (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(c.key, 'colors', 'Colors', colorsFieldsBody);
         return `<div class="benne-prop-grid benne-prop-grid--tight">
@@ -1277,7 +1277,7 @@ function renderGuiControlCardBody(state, c) {
         <span class="benne-pg-lbl">fontSize</span>
         <input type="number" class="gui-field" data-index="${idx}" data-field="fontSize" value="${c.fontSize}" />
         <span class="benne-pg-lbl">color</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="color" value="${esc(c.color)}" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="color" value="${esc(c.color || '#ffffff')}" />
         <span class="benne-pg-lbl">textAlign</span>
         ${textAlignSel}
         <span class="benne-pg-lbl">wordWrapWidth</span>
@@ -1298,17 +1298,17 @@ function renderGuiControlCardBody(state, c) {
     if (c.controlKind === 'listBox') {
         const colorsFieldsBody = `<div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">normal bg</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="normalBackgroundColor" value="${esc(c.normalBackgroundColor)}" placeholder="#222222" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="normalBackgroundColor" value="${esc(c.normalBackgroundColor || '#222222')}" />
         <span class="benne-pg-lbl">hover bg</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="hoverBackgroundColor" value="${esc(c.hoverBackgroundColor)}" placeholder="#2f2f2f" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="hoverBackgroundColor" value="${esc(c.hoverBackgroundColor || '#2f2f2f')}" />
         <span class="benne-pg-lbl">selected bg</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="selectedBackgroundColor" value="${esc(c.selectedBackgroundColor)}" placeholder="#4a4a4a" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="selectedBackgroundColor" value="${esc(c.selectedBackgroundColor || '#4a4a4a')}" />
         <span class="benne-pg-lbl">text color</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="textColor" value="${esc(c.textColor)}" placeholder="#ffffff" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="textColor" value="${esc(c.textColor || '#ffffff')}" />
         <span class="benne-pg-lbl">selected text</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="selectedTextColor" value="${esc(c.selectedTextColor)}" placeholder="#ffffff" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="selectedTextColor" value="${esc(c.selectedTextColor || '#ffffff')}" />
         <span class="benne-pg-lbl">placeholder text</span>
-        <input type="text" class="gui-field" data-index="${idx}" data-field="placeholderTextColor" value="${esc(c.placeholderTextColor)}" placeholder="#999999" />
+        <input type="color" class="gui-field" data-index="${idx}" data-field="placeholderTextColor" value="${esc(c.placeholderTextColor || '#999999')}" />
       </div>`;
         const colorsBlock = (0, inspectorCardSubsection_1.renderGuiControlSubAccordion)(c.key, 'colors', 'Colors', colorsFieldsBody);
         return `<div class="benne-prop-grid benne-prop-grid--tight">
@@ -2659,7 +2659,7 @@ function mountGuiHandlers(state) {
                 postGuiPatch(idx, patch);
             }
         };
-        if (he instanceof HTMLSelectElement) {
+        if (he instanceof HTMLSelectElement || (he instanceof HTMLInputElement && he.type === 'color')) {
             he.addEventListener('change', flush);
         }
         else {
@@ -2730,7 +2730,7 @@ function mountGuiHandlers(state) {
                 return;
             }
             const inp = el;
-            if (inp instanceof HTMLSelectElement || (inp instanceof HTMLInputElement && inp.type === 'checkbox')) {
+            if (inp instanceof HTMLSelectElement || (inp instanceof HTMLInputElement && (inp.type === 'checkbox' || inp.type === 'color'))) {
                 inp.addEventListener('change', flushOutline);
             }
             else {
