@@ -16,8 +16,6 @@ let currentUri = '';
 let fileId = '';
 let fileName = '';
 let saveTimer;
-/** First node id chosen in “link” mode; tap another node to add an edge. */
-let linkPickFrom;
 let isPanning = false;
 let panLastX = 0;
 let panLastY = 0;
@@ -40,6 +38,12 @@ let resizeStartW = 0;
 let resizeStartH = 0;
 let resizeStartPosX = 0;
 let resizeStartPosY = 0;
+let isConnecting = false;
+let connectSource;
+let hoveredForConnect;
+let connectLineStartX = 0;
+let connectLineStartY = 0;
+let connectHandleSource;
 function normalizeElements(raw) {
     const el = raw.elements;
     if (Array.isArray(el)) {
@@ -146,6 +150,14 @@ function baseStylesheet() {
             style: {
                 'line-color': '#f9a825',
                 'target-arrow-color': '#f9a825'
+            }
+        },
+        {
+            selector: 'node.pdc-connect-target',
+            style: {
+                'border-color': '#f9a825',
+                'border-width': 3,
+                'border-opacity': 0.85
             }
         }
     ];
@@ -303,6 +315,181 @@ function updateResizeHandles() {
         hideResizeHandles();
     }
 }
+const CONNECT_SIDES = ['top', 'right', 'bottom', 'left'];
+const CONNECT_HANDLE_SIZE = 14;
+const CONNECT_HANDLE_OFFSET = 12;
+function getOrCreateConnectHandles() {
+    const wrapper = document.getElementById('pdc-cy-wrapper');
+    if (!wrapper) {
+        return new Map();
+    }
+    const map = new Map();
+    for (const side of CONNECT_SIDES) {
+        const elId = `pdc-connect-${side}`;
+        let el = document.getElementById(elId);
+        if (!el) {
+            el = document.createElement('div');
+            el.id = elId;
+            el.className = 'pdc-connect-handle';
+            el.dataset.connectSide = side;
+            el.title = 'Drag to connect to another node';
+            wrapper.appendChild(el);
+        }
+        map.set(side, el);
+    }
+    return map;
+}
+function showConnectHandleForNode(node) {
+    const handles = getOrCreateConnectHandles();
+    const bb = node.renderedBoundingBox();
+    const half = CONNECT_HANDLE_SIZE / 2;
+    const cx = (bb.x1 + bb.x2) / 2;
+    const cy_ = (bb.y1 + bb.y2) / 2;
+    const positions = {
+        top: { x: cx, y: bb.y1 - CONNECT_HANDLE_OFFSET },
+        right: { x: bb.x2 + CONNECT_HANDLE_OFFSET, y: cy_ },
+        bottom: { x: cx, y: bb.y2 + CONNECT_HANDLE_OFFSET },
+        left: { x: bb.x1 - CONNECT_HANDLE_OFFSET, y: cy_ },
+    };
+    for (const side of CONNECT_SIDES) {
+        const el = handles.get(side);
+        const pos = positions[side];
+        el.style.left = `${pos.x - half}px`;
+        el.style.top = `${pos.y - half}px`;
+        el.style.width = `${CONNECT_HANDLE_SIZE}px`;
+        el.style.height = `${CONNECT_HANDLE_SIZE}px`;
+        el.style.display = 'block';
+    }
+    connectHandleSource = node;
+}
+function hideConnectHandle() {
+    for (const side of CONNECT_SIDES) {
+        const el = document.getElementById(`pdc-connect-${side}`);
+        if (el) {
+            el.style.display = 'none';
+        }
+    }
+    connectHandleSource = undefined;
+}
+function updateConnectHandle() {
+    if (!cy || isConnecting || editingNode || resizeTarget) {
+        hideConnectHandle();
+        return;
+    }
+    let targetNode;
+    if (hoveredForConnect) {
+        try {
+            if (hoveredForConnect.inside && hoveredForConnect.inside()) {
+                targetNode = hoveredForConnect;
+            }
+        }
+        catch {
+            hoveredForConnect = undefined;
+        }
+    }
+    if (!targetNode) {
+        const sel = cy.$('node:selected');
+        if (sel.length === 1) {
+            targetNode = sel.first();
+        }
+    }
+    if (targetNode) {
+        showConnectHandleForNode(targetNode);
+    }
+    else {
+        hideConnectHandle();
+    }
+}
+function getNodeUnderClientPoint(clientX, clientY) {
+    if (!cy) {
+        return null;
+    }
+    const cyEl = document.getElementById('pdc-cy');
+    if (!cyEl) {
+        return null;
+    }
+    const crect = cyEl.getBoundingClientRect();
+    const sx = clientX - crect.left;
+    const sy = clientY - crect.top;
+    const nodes = cy.nodes();
+    for (let i = nodes.length - 1; i >= 0; i--) {
+        const n = nodes[i];
+        const bb = n.renderedBoundingBox();
+        if (sx >= bb.x1 && sx <= bb.x2 && sy >= bb.y1 && sy <= bb.y2) {
+            return n;
+        }
+    }
+    return null;
+}
+function showConnectPreview(x1, y1, x2, y2) {
+    const svg = document.getElementById('pdc-connect-svg');
+    const line = document.getElementById('pdc-connect-line');
+    if (!svg || !line) {
+        return;
+    }
+    line.setAttribute('x1', String(x1));
+    line.setAttribute('y1', String(y1));
+    line.setAttribute('x2', String(x2));
+    line.setAttribute('y2', String(y2));
+    svg.style.display = 'block';
+}
+function hideConnectPreview() {
+    const svg = document.getElementById('pdc-connect-svg');
+    if (svg) {
+        svg.style.display = 'none';
+    }
+}
+function startConnectionDrag(source, startClientX, startClientY, side = 'right') {
+    if (!cy) {
+        return;
+    }
+    isConnecting = true;
+    connectSource = source;
+    document.body.style.cursor = 'crosshair';
+    const wrapper = document.getElementById('pdc-cy-wrapper');
+    const wrect = wrapper.getBoundingClientRect();
+    const bb = source.renderedBoundingBox();
+    const midX = (bb.x1 + bb.x2) / 2 - wrect.left;
+    const midY = (bb.y1 + bb.y2) / 2 - wrect.top;
+    switch (side) {
+        case 'top':
+            connectLineStartX = midX;
+            connectLineStartY = bb.y1 - wrect.top;
+            break;
+        case 'bottom':
+            connectLineStartX = midX;
+            connectLineStartY = bb.y2 - wrect.top;
+            break;
+        case 'left':
+            connectLineStartX = bb.x1 - wrect.left;
+            connectLineStartY = midY;
+            break;
+        case 'right':
+        default:
+            connectLineStartX = bb.x2 - wrect.left;
+            connectLineStartY = midY;
+            break;
+    }
+    showConnectPreview(connectLineStartX, connectLineStartY, connectLineStartX + 24, connectLineStartY);
+    const tgt = getNodeUnderClientPoint(startClientX, startClientY);
+    if (tgt && tgt.id() !== source.id()) {
+        cy.nodes().removeClass('pdc-connect-target');
+        tgt.addClass('pdc-connect-target');
+    }
+}
+function cleanupConnectionDrag() {
+    isConnecting = false;
+    connectSource = undefined;
+    hoveredForConnect = undefined;
+    document.body.style.cursor = '';
+    hideConnectPreview();
+    if (cy) {
+        cy.nodes().removeClass('pdc-connect-target');
+    }
+    hideConnectHandle();
+    updateResizeHandles();
+    updateConnectHandle();
+}
 function positionInlineInput(input, node) {
     const bb = node.renderedBoundingBox();
     const nodeW = bb.x2 - bb.x1;
@@ -331,6 +518,7 @@ function commitInlineEdit() {
     editingNode = undefined;
     input.style.display = 'none';
     updateResizeHandles();
+    updateConnectHandle();
     if (wasEditing.selected()) {
         showResizeHandlesForNode(wasEditing);
     }
@@ -345,6 +533,7 @@ function cancelInlineEdit() {
     editingNode.unlock();
     editingNode = undefined;
     input.style.display = 'none';
+    updateConnectHandle();
     setStatus('');
 }
 function beginEditNodeLabel(node) {
@@ -368,34 +557,13 @@ function beginEditNodeLabel(node) {
         input.select();
     });
 }
-function bindLinkTapHandler() {
-    if (!cy) {
-        return;
-    }
-    cy.on('tap', 'node', (evt) => {
-        if (!linkPickFrom) {
-            return;
-        }
-        const nid = String(evt.target.id());
-        if (nid === linkPickFrom) {
-            return;
-        }
-        const id = newEdgeId(linkPickFrom, nid);
-        cy?.add({
-            group: 'edges',
-            data: { id, source: linkPickFrom, target: nid }
-        });
-        linkPickFrom = undefined;
-        syncLinkButton();
-        setStatus('');
-        postSave();
-    });
-}
 function destroyGraph() {
     if (editingNode) {
         cancelInlineEdit();
     }
     hideResizeHandles();
+    hideConnectHandle();
+    cleanupConnectionDrag();
     resizeTarget = undefined;
     resizeHandle = undefined;
     mountAbort?.abort();
@@ -435,8 +603,19 @@ function mountGraph(container, elements) {
     graph.on('position', 'node', () => {
         postSave();
         updateResizeHandles();
+        updateConnectHandle();
     });
-    bindLinkTapHandler();
+    graph.on('mouseover', 'node', (evt) => {
+        if (isConnecting || editingNode || resizeTarget) {
+            return;
+        }
+        hoveredForConnect = evt.target;
+        updateConnectHandle();
+    });
+    graph.on('mouseout', 'node', () => {
+        hoveredForConnect = undefined;
+        updateConnectHandle();
+    });
     graph.on('dbltap', 'node', (evt) => {
         beginEditNodeLabel(evt.target);
     });
@@ -462,9 +641,11 @@ function mountGraph(container, elements) {
             }
         }
         updateResizeHandles();
+        updateConnectHandle();
     });
     graph.on('select unselect', 'node', () => {
         updateResizeHandles();
+        updateConnectHandle();
     });
     graph.on('mousedown', (evt) => {
         if (evt.target !== graph) {
@@ -512,7 +693,20 @@ function mountGraph(container, elements) {
     const wrapper = document.getElementById('pdc-cy-wrapper');
     wrapper.addEventListener('mousedown', (e) => {
         const target = e.target;
-        if (!target.classList.contains('pdc-resize-handle') || e.button !== 0) {
+        if (e.button !== 0) {
+            return;
+        }
+        if (target.classList.contains('pdc-connect-handle')) {
+            e.preventDefault();
+            e.stopPropagation();
+            const sourceNode = connectHandleSource || hoveredForConnect;
+            if (sourceNode) {
+                const side = target.dataset.connectSide || 'right';
+                startConnectionDrag(sourceNode, e.clientX, e.clientY, side);
+            }
+            return;
+        }
+        if (!target.classList.contains('pdc-resize-handle')) {
             return;
         }
         e.preventDefault();
@@ -539,6 +733,33 @@ function mountGraph(container, elements) {
         hideResizeHandles();
     }, { signal });
     window.addEventListener('mousemove', (e) => {
+        if (isConnecting && connectSource) {
+            const wrapper = document.getElementById('pdc-cy-wrapper');
+            const wrect = wrapper.getBoundingClientRect();
+            const x2 = e.clientX - wrect.left;
+            const y2 = e.clientY - wrect.top;
+            // update preview line
+            const svg = document.getElementById('pdc-connect-svg');
+            const line = document.getElementById('pdc-connect-line');
+            if (svg && line) {
+                line.setAttribute('x1', String(connectLineStartX));
+                line.setAttribute('y1', String(connectLineStartY));
+                line.setAttribute('x2', String(x2));
+                line.setAttribute('y2', String(y2));
+                if (svg.style.display !== 'block') {
+                    svg.style.display = 'block';
+                }
+            }
+            // live target highlight
+            const tgt = getNodeUnderClientPoint(e.clientX, e.clientY);
+            if (cy) {
+                cy.nodes().removeClass('pdc-connect-target');
+            }
+            if (tgt && connectSource && tgt.id() !== connectSource.id()) {
+                tgt.addClass('pdc-connect-target');
+            }
+            return;
+        }
         if (resizeTarget && resizeHandle && cy) {
             const zoom = cy.zoom();
             const dx = (e.clientX - resizeStartX) / zoom;
@@ -591,11 +812,25 @@ function mountGraph(container, elements) {
         }
     }, { signal });
     window.addEventListener('mouseup', (e) => {
+        if (isConnecting) {
+            const tgt = getNodeUnderClientPoint(e.clientX, e.clientY);
+            if (cy && connectSource && tgt && tgt.id() !== connectSource.id()) {
+                const id = newEdgeId(connectSource.id(), tgt.id());
+                cy.add({
+                    group: 'edges',
+                    data: { id, source: connectSource.id(), target: tgt.id() }
+                });
+                postSave();
+            }
+            cleanupConnectionDrag();
+            return;
+        }
         if (e.button === 0 && resizeTarget) {
             resizeTarget.unlock();
             resizeTarget = undefined;
             resizeHandle = undefined;
             updateResizeHandles();
+            updateConnectHandle();
             postSave();
             return;
         }
@@ -630,20 +865,6 @@ function mountGraph(container, elements) {
         }
     }, { signal });
 }
-const linkBtn = document.getElementById('pdc-link');
-function syncLinkButton() {
-    if (!linkBtn) {
-        return;
-    }
-    if (linkPickFrom) {
-        linkBtn.textContent = 'Cancel link';
-        linkBtn.classList.add('active');
-    }
-    else {
-        linkBtn.textContent = 'Link nodes';
-        linkBtn.classList.remove('active');
-    }
-}
 function setStatus(msg) {
     const el = document.getElementById('pdc-status');
     if (el) {
@@ -665,8 +886,7 @@ function applyLoad(msg) {
     if (!(host instanceof HTMLElement)) {
         return;
     }
-    linkPickFrom = undefined;
-    syncLinkButton();
+    cleanupConnectionDrag();
     mountGraph(host, elements);
     setStatus('');
 }
@@ -674,8 +894,7 @@ function applyClear() {
     currentUri = '';
     fileId = '';
     fileName = '';
-    linkPickFrom = undefined;
-    syncLinkButton();
+    cleanupConnectionDrag();
     const host = document.getElementById('pdc-cy');
     if (host instanceof HTMLElement) {
         mountGraph(host, []);
@@ -712,23 +931,6 @@ document.getElementById('pdc-add-node')?.addEventListener('click', () => {
         position: { x: cx, y: cyC }
     });
     postSave();
-});
-linkBtn?.addEventListener('click', () => {
-    if (linkPickFrom) {
-        linkPickFrom = undefined;
-        syncLinkButton();
-        setStatus('');
-        return;
-    }
-    const sel = cy?.$('node:selected');
-    const first = sel && !sel.empty() ? String(sel.first().id()) : undefined;
-    if (!first) {
-        setStatus('Select a source node, then press “Link nodes”.');
-        return;
-    }
-    linkPickFrom = first;
-    syncLinkButton();
-    setStatus('Tap a target node.');
 });
 document.getElementById('pdc-edit-label')?.addEventListener('click', () => {
     if (!cy) {
@@ -780,6 +982,13 @@ inlineInput?.addEventListener('input', () => {
 inlineInput?.addEventListener('blur', () => {
     if (editingNode) {
         commitInlineEdit();
+    }
+});
+// Global Escape to cancel in-progress connection drag (harmless if not connecting)
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isConnecting) {
+        cleanupConnectionDrag();
+        e.preventDefault();
     }
 });
 vscode.postMessage({ type: 'benne/pdcEditor/ready' });

@@ -781,7 +781,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 { kind: 'guiOpen', label: 'Open chart JSON', targetUri: main.uri },
                 {
                     kind: 'hint',
-                    message: 'Edit the graph in the PDC Editor panel: add nodes, set labels, link two nodes with “Link nodes”, delete with “Delete selected”.'
+                    message: 'Edit the graph in the PDC Editor panel: double-click the canvas to add nodes, drag the handle on the right side of a node to create connections, double-click nodes to edit labels, use “Delete selected” to remove.'
                 }
             ];
         }
