@@ -251,6 +251,22 @@ function buildPdcEditorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
       background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
     }
     #pdc-status { flex: 1; min-width: 120px; opacity: 0.85; padding-left: 8px; }
+    #pdc-connect-svg {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 12; display: none;
+    }
+    #pdc-connect-line {
+      stroke: #8ab4d4; stroke-width: 2; stroke-dasharray: 5 3; opacity: 0.9;
+    }
+    .pdc-connect-handle {
+      position: absolute; z-index: 16; border-radius: 50%;
+      background: #ffffff;
+      border: 1.5px solid rgba(0,0,0,0.45);
+      width: 14px; height: 14px; display: none; cursor: crosshair;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+      transition: transform 60ms ease;
+    }
+    .pdc-connect-handle:hover { transform: scale(1.2); background: #e0e0e0; }
     #pdc-cy-wrapper { position: relative; flex: 1; min-height: 0; overflow: hidden; }
     #pdc-cy { position: absolute; inset: 0; background: var(--vscode-sideBar-background); }
     #pdc-selection-box {
@@ -291,7 +307,6 @@ function buildPdcEditorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
 <body>
   <div id="pdc-toolbar">
     <button type="button" id="pdc-add-node">Add node</button>
-    <button type="button" id="pdc-link">Link nodes</button>
     <button type="button" id="pdc-edit-label">Edit label</button>
     <button type="button" id="pdc-delete">Delete selected</button>
     <button type="button" id="pdc-fit">Fit</button>
@@ -300,6 +315,14 @@ function buildPdcEditorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
   <div id="pdc-cy-wrapper">
     <div id="pdc-cy"></div>
     <div id="pdc-selection-box"></div>
+    <svg id="pdc-connect-svg" aria-hidden="true">
+      <defs>
+        <marker id="pdc-arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#8ab4d4"/>
+        </marker>
+      </defs>
+      <line id="pdc-connect-line" x1="0" y1="0" x2="0" y2="0" marker-end="url(#pdc-arrow)"/>
+    </svg>
     <textarea id="pdc-inline-input" autocomplete="off" spellcheck="false" rows="1"></textarea>
   </div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
