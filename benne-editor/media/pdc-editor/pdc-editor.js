@@ -18,6 +18,28 @@ let fileName = '';
 let saveTimer;
 /** First node id chosen in “link” mode; tap another node to add an edge. */
 let linkPickFrom;
+let isPanning = false;
+let panLastX = 0;
+let panLastY = 0;
+let isBoxSelecting = false;
+let boxStartX = 0;
+let boxStartY = 0;
+let editingNode;
+let mountAbort;
+const NODE_DEFAULT_WIDTH = 88;
+const NODE_DEFAULT_HEIGHT = 44;
+const NODE_MIN_WIDTH = 50;
+const NODE_MIN_HEIGHT = 30;
+const NODE_FONT_SIZE = 11;
+const NODE_PADDING = 12;
+let resizeTarget;
+let resizeHandle;
+let resizeStartX = 0;
+let resizeStartY = 0;
+let resizeStartW = 0;
+let resizeStartH = 0;
+let resizeStartPosX = 0;
+let resizeStartPosY = 0;
 function normalizeElements(raw) {
     const el = raw.elements;
     if (Array.isArray(el)) {
@@ -89,12 +111,14 @@ function baseStylesheet() {
                 label: 'data(label)',
                 'text-valign': 'center',
                 'text-halign': 'center',
+                'text-wrap': 'wrap',
+                'text-max-width': 'data(textMaxWidth)',
                 'background-color': '#3c7eb5',
                 color: '#fff',
-                width: 88,
-                height: 44,
+                width: 'data(width)',
+                height: 'data(height)',
                 shape: 'roundrectangle',
-                'font-size': 11,
+                'font-size': NODE_FONT_SIZE,
                 'border-width': 1,
                 'border-color': '#1a4971'
             }
@@ -126,70 +150,222 @@ function baseStylesheet() {
         }
     ];
 }
-/**
- * VS Code webviews do not reliably support `window.prompt`; use an in-webview dialog instead.
- */
-function openNodeLabelPrompt(initial, onDone) {
-    const overlay = document.getElementById('pdc-label-overlay');
-    const input = document.getElementById('pdc-label-input');
-    const btnOk = document.getElementById('pdc-label-ok');
-    const btnCancel = document.getElementById('pdc-label-cancel');
-    if (!overlay || !input || !btnOk || !btnCancel) {
-        onDone(null);
-        setStatus('Label editor unavailable.');
+const measureCanvas = document.createElement('canvas');
+const measureCtx = measureCanvas.getContext('2d');
+function measureTextForNode(label, maxWidth) {
+    measureCtx.font = `${NODE_FONT_SIZE}px sans-serif`;
+    const words = label.split(/\s+/);
+    const lines = [];
+    let currentLine = '';
+    for (const word of words) {
+        const test = currentLine ? `${currentLine} ${word}` : word;
+        if (measureCtx.measureText(test).width > maxWidth) {
+            if (currentLine) {
+                lines.push(currentLine);
+            }
+            currentLine = word;
+        }
+        else {
+            currentLine = test;
+        }
+    }
+    if (currentLine) {
+        lines.push(currentLine);
+    }
+    if (lines.length === 0) {
+        lines.push('');
+    }
+    const lineHeight = NODE_FONT_SIZE * 1.3;
+    let widest = 0;
+    for (const line of lines) {
+        widest = Math.max(widest, measureCtx.measureText(line).width);
+    }
+    return {
+        width: widest,
+        height: lines.length * lineHeight
+    };
+}
+function ensureNodeDimensions(node) {
+    if (node.data('width') == null) {
+        node.data('width', NODE_DEFAULT_WIDTH);
+    }
+    if (node.data('height') == null) {
+        node.data('height', NODE_DEFAULT_HEIGHT);
+    }
+    if (node.data('textMaxWidth') == null) {
+        node.data('textMaxWidth', node.data('width') - NODE_PADDING);
+    }
+}
+function autoSizeNode(node) {
+    const label = node.data('label') ?? '';
+    const currentW = node.data('width') || NODE_DEFAULT_WIDTH;
+    const currentH = node.data('height') || NODE_DEFAULT_HEIGHT;
+    const textMaxW = currentW - NODE_PADDING;
+    const measured = measureTextForNode(label, textMaxW);
+    const neededH = measured.height + NODE_PADDING * 2;
+    let newW = currentW;
+    let newH = currentH;
+    if (neededH > currentH) {
+        newH = Math.ceil(neededH);
+    }
+    if (measured.width + NODE_PADDING > currentW) {
+        newW = Math.ceil(measured.width + NODE_PADDING * 2);
+        const remeasured = measureTextForNode(label, newW - NODE_PADDING);
+        newH = Math.max(newH, Math.ceil(remeasured.height + NODE_PADDING * 2));
+    }
+    newW = Math.max(newW, NODE_MIN_WIDTH);
+    newH = Math.max(newH, NODE_MIN_HEIGHT);
+    if (newW !== currentW || newH !== currentH) {
+        node.data('width', newW);
+        node.data('height', newH);
+        node.data('textMaxWidth', newW - NODE_PADDING);
+    }
+}
+const HANDLE_IDS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+const HANDLE_SIZE = 8;
+function getOrCreateHandleElements() {
+    const wrapper = document.getElementById('pdc-cy-wrapper');
+    if (!wrapper) {
+        return new Map();
+    }
+    const map = new Map();
+    for (const hid of HANDLE_IDS) {
+        const elId = `pdc-resize-${hid}`;
+        let el = document.getElementById(elId);
+        if (!el) {
+            el = document.createElement('div');
+            el.id = elId;
+            el.className = 'pdc-resize-handle';
+            el.dataset.handle = hid;
+            wrapper.appendChild(el);
+        }
+        map.set(hid, el);
+    }
+    return map;
+}
+function cursorForHandle(hid) {
+    switch (hid) {
+        case 'nw': return 'nwse-resize';
+        case 'se': return 'nwse-resize';
+        case 'ne': return 'nesw-resize';
+        case 'sw': return 'nesw-resize';
+        case 'n': return 'ns-resize';
+        case 's': return 'ns-resize';
+        case 'e': return 'ew-resize';
+        case 'w': return 'ew-resize';
+    }
+}
+function showResizeHandlesForNode(node) {
+    const handles = getOrCreateHandleElements();
+    const bb = node.renderedBoundingBox();
+    const cx = (bb.x1 + bb.x2) / 2;
+    const cy_ = (bb.y1 + bb.y2) / 2;
+    const half = HANDLE_SIZE / 2;
+    const positions = {
+        nw: { x: bb.x1, y: bb.y1 },
+        n: { x: cx, y: bb.y1 },
+        ne: { x: bb.x2, y: bb.y1 },
+        e: { x: bb.x2, y: cy_ },
+        se: { x: bb.x2, y: bb.y2 },
+        s: { x: cx, y: bb.y2 },
+        sw: { x: bb.x1, y: bb.y2 },
+        w: { x: bb.x1, y: cy_ }
+    };
+    for (const hid of HANDLE_IDS) {
+        const el = handles.get(hid);
+        const pos = positions[hid];
+        el.style.left = `${pos.x - half}px`;
+        el.style.top = `${pos.y - half}px`;
+        el.style.width = `${HANDLE_SIZE}px`;
+        el.style.height = `${HANDLE_SIZE}px`;
+        el.style.cursor = cursorForHandle(hid);
+        el.style.display = 'block';
+    }
+}
+function hideResizeHandles() {
+    for (const hid of HANDLE_IDS) {
+        const el = document.getElementById(`pdc-resize-${hid}`);
+        if (el) {
+            el.style.display = 'none';
+        }
+    }
+}
+function updateResizeHandles() {
+    if (!cy) {
+        hideResizeHandles();
         return;
     }
-    input.value = initial;
-    overlay.dataset.open = 'true';
-    overlay.setAttribute('aria-hidden', 'false');
-    const finish = (value) => {
-        overlay.dataset.open = 'false';
-        overlay.setAttribute('aria-hidden', 'true');
-        btnOk.removeEventListener('click', onOk);
-        btnCancel.removeEventListener('click', onCancel);
-        overlay.removeEventListener('click', onOverlayClick);
-        document.removeEventListener('keydown', onDocKey, true);
-        input.removeEventListener('keydown', onInputKey);
-        onDone(value);
-    };
-    const onOk = () => finish(input.value);
-    const onCancel = () => finish(null);
-    const onOverlayClick = (e) => {
-        if (e.target === overlay) {
-            finish(null);
-        }
-    };
-    const onDocKey = (e) => {
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            finish(null);
-        }
-    };
-    const onInputKey = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            finish(input.value);
-        }
-    };
-    btnOk.addEventListener('click', onOk);
-    btnCancel.addEventListener('click', onCancel);
-    overlay.addEventListener('click', onOverlayClick);
-    document.addEventListener('keydown', onDocKey, true);
-    input.addEventListener('keydown', onInputKey);
+    const sel = cy.$('node:selected');
+    if (sel.length === 1 && !editingNode && !resizeTarget) {
+        showResizeHandlesForNode(sel.first());
+    }
+    else {
+        hideResizeHandles();
+    }
+}
+function positionInlineInput(input, node) {
+    const bb = node.renderedBoundingBox();
+    const nodeW = bb.x2 - bb.x1;
+    const nodeH = bb.y2 - bb.y1;
+    const minW = Math.max(nodeW, 200);
+    const offsetX = (minW - nodeW) / 2;
+    input.style.left = `${bb.x1 - offsetX}px`;
+    input.style.top = `${bb.y1}px`;
+    input.style.width = `${minW}px`;
+    input.style.minHeight = `${nodeH}px`;
+}
+function autoResizeTextarea(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+}
+function commitInlineEdit() {
+    const input = document.getElementById('pdc-inline-input');
+    if (!input || !editingNode) {
+        return;
+    }
+    const val = input.value.trim();
+    editingNode.data('label', val.length > 0 ? val : ' ');
+    autoSizeNode(editingNode);
+    editingNode.unlock();
+    const wasEditing = editingNode;
+    editingNode = undefined;
+    input.style.display = 'none';
+    updateResizeHandles();
+    if (wasEditing.selected()) {
+        showResizeHandlesForNode(wasEditing);
+    }
+    postSave();
+    setStatus('');
+}
+function cancelInlineEdit() {
+    const input = document.getElementById('pdc-inline-input');
+    if (!input || !editingNode) {
+        return;
+    }
+    editingNode.unlock();
+    editingNode = undefined;
+    input.style.display = 'none';
+    setStatus('');
+}
+function beginEditNodeLabel(node) {
+    if (editingNode) {
+        commitInlineEdit();
+    }
+    const input = document.getElementById('pdc-inline-input');
+    if (!input || !cy) {
+        return;
+    }
+    hideResizeHandles();
+    editingNode = node;
+    node.lock();
+    positionInlineInput(input, node);
+    const prev = node.data('label') ?? '';
+    input.value = prev;
+    input.style.display = 'block';
+    autoResizeTextarea(input);
     requestAnimationFrame(() => {
         input.focus();
         input.select();
-    });
-}
-function beginEditNodeLabel(node) {
-    const prev = node.data('label') ?? '';
-    openNodeLabelPrompt(prev, (next) => {
-        if (next === null) {
-            return;
-        }
-        node.data('label', next.trim().length > 0 ? next.trim() : ' ');
-        postSave();
-        setStatus('');
     });
 }
 function bindLinkTapHandler() {
@@ -216,6 +392,20 @@ function bindLinkTapHandler() {
     });
 }
 function destroyGraph() {
+    if (editingNode) {
+        cancelInlineEdit();
+    }
+    hideResizeHandles();
+    resizeTarget = undefined;
+    resizeHandle = undefined;
+    mountAbort?.abort();
+    mountAbort = undefined;
+    isPanning = false;
+    isBoxSelecting = false;
+    const selBox = document.getElementById('pdc-selection-box');
+    if (selBox) {
+        selBox.style.display = 'none';
+    }
     if (cy) {
         cy.destroy();
         cy = undefined;
@@ -230,13 +420,22 @@ function mountGraph(container, elements) {
         layout: elements.length > 0
             ? { name: 'preset', fit: true, padding: 40 }
             : { name: 'grid', rows: 1, cols: 1, fit: true, padding: 40 },
-        wheelSensitivity: 0.35,
         minZoom: 0.15,
-        maxZoom: 4
+        maxZoom: 4,
+        userPanningEnabled: false,
+        userZoomingEnabled: false,
+        boxSelectionEnabled: false
     });
     const graph = cy;
+    graph.nodes().forEach((node) => {
+        ensureNodeDimensions(node);
+        autoSizeNode(node);
+    });
     graph.on('dragfreeon', 'node', () => postSave());
-    graph.on('position', 'node', () => postSave());
+    graph.on('position', 'node', () => {
+        postSave();
+        updateResizeHandles();
+    });
     bindLinkTapHandler();
     graph.on('dbltap', 'node', (evt) => {
         beginEditNodeLabel(evt.target);
@@ -249,11 +448,187 @@ function mountGraph(container, elements) {
         const id = newNodeId();
         graph.add({
             group: 'nodes',
-            data: { id, label: 'Step' },
+            data: { id, label: 'Step', width: NODE_DEFAULT_WIDTH, height: NODE_DEFAULT_HEIGHT, textMaxWidth: NODE_DEFAULT_WIDTH - NODE_PADDING },
             position: { x: pos.x, y: pos.y }
         });
         postSave();
     });
+    graph.on('viewport', () => {
+        if (editingNode) {
+            const input = document.getElementById('pdc-inline-input');
+            if (input) {
+                positionInlineInput(input, editingNode);
+                autoResizeTextarea(input);
+            }
+        }
+        updateResizeHandles();
+    });
+    graph.on('select unselect', 'node', () => {
+        updateResizeHandles();
+    });
+    graph.on('mousedown', (evt) => {
+        if (evt.target !== graph) {
+            return;
+        }
+        const oe = evt.originalEvent;
+        if (oe.button !== 0) {
+            return;
+        }
+        if (editingNode) {
+            commitInlineEdit();
+        }
+        const rect = container.getBoundingClientRect();
+        isBoxSelecting = true;
+        boxStartX = oe.clientX - rect.left;
+        boxStartY = oe.clientY - rect.top;
+    });
+    mountAbort = new AbortController();
+    const { signal } = mountAbort;
+    container.addEventListener('contextmenu', (e) => e.preventDefault(), { signal });
+    container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        if (!cy) {
+            return;
+        }
+        const currentZoom = cy.zoom();
+        const diff = (e.deltaY / -250) * currentZoom * 0.35;
+        const newZoom = Math.max(cy.minZoom(), Math.min(cy.maxZoom(), currentZoom + diff));
+        const rect = container.getBoundingClientRect();
+        cy.zoom({
+            level: newZoom,
+            renderedPosition: {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            }
+        });
+    }, { signal, passive: false });
+    container.addEventListener('mousedown', (e) => {
+        if (e.button === 2) {
+            isPanning = true;
+            panLastX = e.clientX;
+            panLastY = e.clientY;
+        }
+    }, { signal });
+    const wrapper = document.getElementById('pdc-cy-wrapper');
+    wrapper.addEventListener('mousedown', (e) => {
+        const target = e.target;
+        if (!target.classList.contains('pdc-resize-handle') || e.button !== 0) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        const hid = target.dataset.handle;
+        if (!hid || !cy) {
+            return;
+        }
+        const sel = cy.$('node:selected');
+        if (sel.empty()) {
+            return;
+        }
+        const node = sel.first();
+        resizeTarget = node;
+        resizeHandle = hid;
+        resizeStartX = e.clientX;
+        resizeStartY = e.clientY;
+        resizeStartW = node.data('width') || NODE_DEFAULT_WIDTH;
+        resizeStartH = node.data('height') || NODE_DEFAULT_HEIGHT;
+        const pos = node.position();
+        resizeStartPosX = pos.x;
+        resizeStartPosY = pos.y;
+        node.lock();
+        hideResizeHandles();
+    }, { signal });
+    window.addEventListener('mousemove', (e) => {
+        if (resizeTarget && resizeHandle && cy) {
+            const zoom = cy.zoom();
+            const dx = (e.clientX - resizeStartX) / zoom;
+            const dy = (e.clientY - resizeStartY) / zoom;
+            let newW = resizeStartW;
+            let newH = resizeStartH;
+            let newPosX = resizeStartPosX;
+            let newPosY = resizeStartPosY;
+            if (resizeHandle.includes('e')) {
+                newW = Math.max(NODE_MIN_WIDTH, resizeStartW + dx);
+                newPosX = resizeStartPosX + (newW - resizeStartW) / 2;
+            }
+            if (resizeHandle.includes('w')) {
+                newW = Math.max(NODE_MIN_WIDTH, resizeStartW - dx);
+                newPosX = resizeStartPosX - (newW - resizeStartW) / 2;
+            }
+            if (resizeHandle.includes('s')) {
+                newH = Math.max(NODE_MIN_HEIGHT, resizeStartH + dy);
+                newPosY = resizeStartPosY + (newH - resizeStartH) / 2;
+            }
+            if (resizeHandle.includes('n')) {
+                newH = Math.max(NODE_MIN_HEIGHT, resizeStartH - dy);
+                newPosY = resizeStartPosY - (newH - resizeStartH) / 2;
+            }
+            resizeTarget.data('width', Math.round(newW));
+            resizeTarget.data('height', Math.round(newH));
+            resizeTarget.data('textMaxWidth', Math.round(newW) - NODE_PADDING);
+            resizeTarget.position({ x: newPosX, y: newPosY });
+            return;
+        }
+        if (isPanning && cy) {
+            const dx = e.clientX - panLastX;
+            const dy = e.clientY - panLastY;
+            panLastX = e.clientX;
+            panLastY = e.clientY;
+            cy.panBy({ x: dx, y: dy });
+        }
+        if (isBoxSelecting) {
+            const rect = container.getBoundingClientRect();
+            const curX = e.clientX - rect.left;
+            const curY = e.clientY - rect.top;
+            const selBox = document.getElementById('pdc-selection-box');
+            if (selBox) {
+                selBox.style.display = 'block';
+                selBox.style.left = `${Math.min(boxStartX, curX)}px`;
+                selBox.style.top = `${Math.min(boxStartY, curY)}px`;
+                selBox.style.width = `${Math.abs(curX - boxStartX)}px`;
+                selBox.style.height = `${Math.abs(curY - boxStartY)}px`;
+            }
+        }
+    }, { signal });
+    window.addEventListener('mouseup', (e) => {
+        if (e.button === 0 && resizeTarget) {
+            resizeTarget.unlock();
+            resizeTarget = undefined;
+            resizeHandle = undefined;
+            updateResizeHandles();
+            postSave();
+            return;
+        }
+        if (e.button === 2) {
+            isPanning = false;
+        }
+        if (e.button === 0 && isBoxSelecting) {
+            isBoxSelecting = false;
+            const selBox = document.getElementById('pdc-selection-box');
+            if (selBox) {
+                selBox.style.display = 'none';
+            }
+            const rect = container.getBoundingClientRect();
+            const endX = e.clientX - rect.left;
+            const endY = e.clientY - rect.top;
+            const x1 = Math.min(boxStartX, endX);
+            const y1 = Math.min(boxStartY, endY);
+            const x2 = Math.max(boxStartX, endX);
+            const y2 = Math.max(boxStartY, endY);
+            if (Math.abs(x2 - x1) < 5 && Math.abs(y2 - y1) < 5) {
+                return;
+            }
+            if (!e.shiftKey) {
+                cy?.elements().unselect();
+            }
+            cy?.nodes().forEach((node) => {
+                const bb = node.renderedBoundingBox();
+                if (bb.x1 < x2 && bb.x2 > x1 && bb.y1 < y2 && bb.y2 > y1) {
+                    node.select();
+                }
+            });
+        }
+    }, { signal });
 }
 const linkBtn = document.getElementById('pdc-link');
 function syncLinkButton() {
@@ -333,7 +708,7 @@ document.getElementById('pdc-add-node')?.addEventListener('click', () => {
     const cyC = (h / 2 - pan.y) / z;
     cy.add({
         group: 'nodes',
-        data: { id, label: 'Step' },
+        data: { id, label: 'Step', width: NODE_DEFAULT_WIDTH, height: NODE_DEFAULT_HEIGHT, textMaxWidth: NODE_DEFAULT_WIDTH - NODE_PADDING },
         position: { x: cx, y: cyC }
     });
     postSave();
@@ -385,6 +760,27 @@ document.getElementById('pdc-delete')?.addEventListener('click', () => {
 });
 document.getElementById('pdc-fit')?.addEventListener('click', () => {
     cy?.fit(undefined, 48);
+});
+const inlineInput = document.getElementById('pdc-inline-input');
+inlineInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        commitInlineEdit();
+    }
+    else if (e.key === 'Escape') {
+        e.preventDefault();
+        cancelInlineEdit();
+    }
+});
+inlineInput?.addEventListener('input', () => {
+    if (inlineInput) {
+        autoResizeTextarea(inlineInput);
+    }
+});
+inlineInput?.addEventListener('blur', () => {
+    if (editingNode) {
+        commitInlineEdit();
+    }
 });
 vscode.postMessage({ type: 'benne/pdcEditor/ready' });
 

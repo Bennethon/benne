@@ -251,61 +251,40 @@ function buildPdcEditorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
       background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
     }
     #pdc-status { flex: 1; min-width: 120px; opacity: 0.85; padding-left: 8px; }
-    #pdc-cy { flex: 1; min-height: 0; width: 100%; background: var(--vscode-sideBar-background); }
-    #pdc-label-overlay {
+    #pdc-cy-wrapper { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+    #pdc-cy { position: absolute; inset: 0; background: var(--vscode-sideBar-background); }
+    #pdc-selection-box {
+      position: absolute;
+      border: 1px dashed var(--vscode-focusBorder);
+      background: rgba(100, 150, 255, 0.12);
+      pointer-events: none;
       display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.45);
+      z-index: 10;
     }
-    #pdc-label-overlay[data-open="true"] { display: flex; }
-    .pdc-label-dialog {
-      min-width: 280px;
-      max-width: 90vw;
-      padding: 12px 14px;
-      border-radius: 4px;
-      border: 1px solid var(--vscode-panel-border);
-      background: var(--vscode-editor-background);
-      color: var(--vscode-editor-foreground);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-    }
-    .pdc-label-dialog label {
-      display: block;
-      margin-bottom: 6px;
-      font-weight: 600;
-    }
-    .pdc-label-dialog input[type="text"] {
-      width: 100%;
+    #pdc-inline-input {
+      position: absolute;
+      z-index: 20;
       box-sizing: border-box;
-      padding: 6px 8px;
-      margin-bottom: 10px;
-      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+      text-align: center;
+      padding: 4px 6px;
+      border: 1px solid var(--vscode-focusBorder);
       background: var(--vscode-input-background);
       color: var(--vscode-input-foreground);
+      font-size: 28px;
       font-family: inherit;
-      font-size: 13px;
+      outline: none;
+      display: none;
+      resize: none;
+      overflow: hidden;
+      line-height: 1.3;
     }
-    .pdc-label-actions {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
-    .pdc-label-actions button {
-      background: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-      border: none;
-      border-radius: 2px;
-      padding: 6px 12px;
-      cursor: pointer;
-      font-size: 12px;
-    }
-    .pdc-label-actions button:hover { background: var(--vscode-button-hoverBackground); }
-    .pdc-label-actions button.secondary {
-      background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
-      color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
+    .pdc-resize-handle {
+      position: absolute;
+      z-index: 15;
+      background: var(--vscode-focusBorder);
+      border: 1px solid var(--vscode-editor-background);
+      border-radius: 1px;
+      display: none;
     }
   </style>
 </head>
@@ -318,16 +297,10 @@ function buildPdcEditorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
     <button type="button" id="pdc-fit">Fit</button>
     <span id="pdc-status"></span>
   </div>
-  <div id="pdc-cy"></div>
-  <div id="pdc-label-overlay" role="dialog" aria-modal="true" aria-labelledby="pdc-label-heading" aria-hidden="true">
-    <div class="pdc-label-dialog">
-      <label id="pdc-label-heading" for="pdc-label-input">Node text</label>
-      <input type="text" id="pdc-label-input" autocomplete="off" spellcheck="false" />
-      <div class="pdc-label-actions">
-        <button type="button" id="pdc-label-cancel" class="secondary">Cancel</button>
-        <button type="button" id="pdc-label-ok">OK</button>
-      </div>
-    </div>
+  <div id="pdc-cy-wrapper">
+    <div id="pdc-cy"></div>
+    <div id="pdc-selection-box"></div>
+    <textarea id="pdc-inline-input" autocomplete="off" spellcheck="false" rows="1"></textarea>
   </div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
