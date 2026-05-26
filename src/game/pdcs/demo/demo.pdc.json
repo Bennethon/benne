@@ -5,21 +5,40 @@
     {
       "data": {
         "id": "n_1778261345291_kfnbv7x",
-        "label": "Test"
+        "label": "This is a test!\nLALA\nHOHO\nHEE HEE\nHAAHAA",
+        "width": 88,
+        "height": 82,
+        "textMaxWidth": 76
       },
       "position": {
-        "x": 54.20146684040361,
-        "y": -156.72990398670657
+        "x": -91.47614147900424,
+        "y": -278.52310436602073
       }
     },
     {
       "data": {
         "id": "n_1778264678134_is09j0w",
-        "label": "BOO"
+        "label": "BOO",
+        "width": 88,
+        "height": 44,
+        "textMaxWidth": 76
       },
       "position": {
-        "x": 57.312139371237265,
-        "y": -40.67482108792781
+        "x": 68.81213937123727,
+        "y": -43.42482108792781
+      }
+    },
+    {
+      "data": {
+        "id": "n_1779767810004_9fgns9i",
+        "label": "Does\nThis\nWork?\nMore\nText",
+        "width": 103,
+        "height": 78,
+        "textMaxWidth": 91
+      },
+      "position": {
+        "x": -119.24727266851443,
+        "y": -51.720013485505646
       }
     },
     {
@@ -27,6 +46,13 @@
         "id": "e_n_1778261345291_kfnbv7x_n_1778264678134_is09j0w_9h2afv3",
         "source": "n_1778261345291_kfnbv7x",
         "target": "n_1778264678134_is09j0w"
+      }
+    },
+    {
+      "data": {
+        "id": "e_n_1778261345291_kfnbv7x_n_1779767810004_9fgns9i_ywh1x6l",
+        "source": "n_1778261345291_kfnbv7x",
+        "target": "n_1779767810004_9fgns9i"
       }
     }
   ]
