@@ -375,7 +375,7 @@ function isUnmanagedEditorArtifact(rel) {
   // macOS duplicate: `name copy.ext`, `name copy 2.ext`
   if (/\s+copy(?:\s+\d+)?\./i.test(base)) return true;
   // Explorer: `name (1).ext`
-  if (/\s+\(\d+)\./.test(base)) return true;
+  if (/\s+\(\d+\)\./.test(base)) return true;
   return false;
 }
 
