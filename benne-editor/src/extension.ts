@@ -56,6 +56,8 @@ import {
 } from './propVerbScaffolding';
 import { addRoomRegionHandler } from './regionScriptScaffolding';
 import { registerDialogBenneScriptCompletion } from './dialogCompletion';
+import { registerBenneScriptIdCompletion } from './benneScriptIdCompletion';
+import { scheduleGenerateGameIds } from './gameIdsGenerator';
 import { openDialogScriptEditorOnly, runCreateDialogWizard } from './dialogScaffolding';
 import { runCreatePdcWizard } from './pdcScaffolding';
 import { PdcEditorPanelController } from './pdcPreviewPanel';
@@ -167,6 +169,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const actionsProvider = new ActionsTreeProvider(selection);
 
     registerDialogBenneScriptCompletion(context);
+    registerBenneScriptIdCompletion(context);
 
     const mainTreeView = vscode.window.createTreeView('benne-editor.main', {
         treeDataProvider: mainProvider,
@@ -539,11 +542,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
     let inspectorProvider!: InspectorWebviewViewProvider;
 
-    const refreshTrees = (): void => {
+    const refreshTrees = (hintUri?: vscode.Uri): void => {
         mainProvider.refresh();
         actionsProvider.refresh();
         void syncMainTreeFilterUi();
         void inspectorProvider.pushState();
+        scheduleGenerateGameIds(hintUri);
     };
 
     inspectorProvider = new InspectorWebviewViewProvider(
@@ -1505,18 +1509,18 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         jsonWatcher,
         jsonWatcher.onDidChange((uri) => {
-            refreshTrees();
+            refreshTrees(uri);
             roomPreview.onWorkspaceRoomJsonChanged(uri);
             guiPreview.onWorkspaceGuiJsonChanged(uri);
             pdcEditor.onWorkspacePdcJsonChanged(uri);
         }),
         jsonWatcher.onDidCreate((uri) => {
-            refreshTrees();
+            refreshTrees(uri);
             roomPreview.onWorkspaceRoomJsonChanged(uri);
             guiPreview.onWorkspaceGuiJsonChanged(uri);
             pdcEditor.onWorkspacePdcJsonChanged(uri);
         }),
-        jsonWatcher.onDidDelete(refreshTrees),
+        jsonWatcher.onDidDelete((uri) => refreshTrees(uri)),
         vscode.workspace.onDidChangeTextDocument((e) => {
             if (e.document.uri.fsPath.endsWith('.gui.json')) {
                 guiPreview.onWorkspaceGuiJsonChanged(e.document.uri);

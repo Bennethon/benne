@@ -42,6 +42,15 @@ import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
 import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
+import type {
+  DialogId,
+  GameVerbId,
+  HotspotId,
+  InventoryItemId,
+  PropId,
+  RegionId,
+  VerbTargetId,
+} from '../../types/generated/benne-game-ids.js';
 import type { UpdateContext } from './types.js';
 import { roomRegionEnterEventId, roomRegionExitEventId } from '../events/regionEnterExitEvents.js';
 
@@ -111,6 +120,8 @@ export { withNow } from './BenneScriptCore.js';
  * | **`B.prop(id).fade(from, to, durationSeconds)`** / **`.now`**, **`B.character(id).fade(...)`** / **`.now`** | Sprite alpha tween (linear ease) from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`**; alphas clamp to **`[0, 1]`**. Blocking form queues on the interaction tail and waits for completion; **`fade.now`** starts immediately. **`toAlpha`** is persisted (**`room:…:prop:…:alpha`** / **`character:…:alpha`**). |
  *
  * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in `BenneScriptCore`. **`whenVerb`** uses an exact verb id.
+ *
+ * String id parameters use generated unions from **`src/types/generated/benne-game-ids.d.ts`** (regenerate with **`npm run generate:game-ids`**).
  */
 
 const noopBenneScriptRegionFacade: BenneScriptRegionFacade = {
@@ -143,7 +154,7 @@ export class BenneScript extends BenneScriptCore {
   readonly inventory: BenneScriptInventoryNamespace;
 
   /** SCUMM-style dialog session control (`*.dialog.json` + `registerDialogScript`). */
-  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+  readonly dialog: (dialogId: DialogId) => BenneScriptDialogCommandSurface;
 
   /**
    * Register a handler for "inventory used on target" clicks for this room. Whether the active
@@ -169,14 +180,14 @@ export class BenneScript extends BenneScriptCore {
     this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
     this.whenInventoryUsedOn = Object.assign(
       (
-        targetId: string,
+        targetId: VerbTargetId,
         handler: InventoryWhenUsedOnPayloadHandler,
         options?: { doNotClear?: boolean },
       ) => {
         this.registerInventoryUsedOnForTarget(targetId, handler, options?.doNotClear === true);
       },
       {
-        doNotClear: (targetId: string, handler: InventoryWhenUsedOnPayloadHandler) => {
+        doNotClear: (targetId: VerbTargetId, handler: InventoryWhenUsedOnPayloadHandler) => {
           this.registerInventoryUsedOnForTarget(targetId, handler, true);
         },
       },
@@ -199,8 +210,8 @@ export class BenneScript extends BenneScriptCore {
    * B.onProp('desk', 'use', (p) => console.log(p.propId));
    */
   onProp(
-    propId: string,
-    verbId: string,
+    propId: PropId,
+    verbId: GameVerbId,
     handler: ((payload: RoomPropInteractPayload) => void) | (() => void),
   ): void {
     const eventId = roomPropVerbEventId(this.roomId, propId, verbId);
@@ -270,8 +281,8 @@ export class BenneScript extends BenneScriptCore {
    * use **`onProp`** or types from **`propInteractionEvents`** when you want strict typing.
    */
   private registerVerbForTarget(
-    verbId: string,
-    targetId: string,
+    verbId: GameVerbId,
+    targetId: VerbTargetId,
     handler: ((p: any) => void) | (() => void),
   ): void {
     if (this.roomScene.getRoomPropInstance(targetId)) {
@@ -320,7 +331,7 @@ export class BenneScript extends BenneScriptCore {
   }
 
   private registerInventoryUsedOnForTarget(
-    targetId: string,
+    targetId: VerbTargetId,
     handler: InventoryWhenUsedOnPayloadHandler,
     doNotClear: boolean,
   ): void {
@@ -373,8 +384,8 @@ export class BenneScript extends BenneScriptCore {
     });
   }
 
-  whenLookAt(targetId: string, handler: () => void): void;
-  whenLookAt(targetId: string, handler: (p: any) => void): void;
+  whenLookAt(targetId: VerbTargetId, handler: () => void): void;
+  whenLookAt(targetId: VerbTargetId, handler: (p: any) => void): void;
   whenLookAt(
     targetId: string,
     handler: ((p: any) => void) | (() => void),
@@ -382,8 +393,8 @@ export class BenneScript extends BenneScriptCore {
     this.registerVerbForTarget(this.resolveVerbId('look'), targetId, handler);
   }
 
-  whenUse(targetId: string, handler: () => void): void;
-  whenUse(targetId: string, handler: (p: any) => void): void;
+  whenUse(targetId: VerbTargetId, handler: () => void): void;
+  whenUse(targetId: VerbTargetId, handler: (p: any) => void): void;
   whenUse(
     targetId: string,
     handler: ((p: any) => void) | (() => void),
@@ -391,8 +402,8 @@ export class BenneScript extends BenneScriptCore {
     this.registerVerbForTarget(this.resolveVerbId('use'), targetId, handler);
   }
 
-  whenPickUp(targetId: string, handler: () => void): void;
-  whenPickUp(targetId: string, handler: (p: any) => void): void;
+  whenPickUp(targetId: VerbTargetId, handler: () => void): void;
+  whenPickUp(targetId: VerbTargetId, handler: (p: any) => void): void;
   whenPickUp(
     targetId: string,
     handler: ((p: any) => void) | (() => void),
@@ -400,8 +411,8 @@ export class BenneScript extends BenneScriptCore {
     this.registerVerbForTarget(this.resolveVerbId('pickUp'), targetId, handler);
   }
 
-  whenGive(itemId: string, targetId: string, handler: () => void): void;
-  whenGive(itemId: string, targetId: string, handler: (payload: GivePropInteractPayload) => void): void;
+  whenGive(itemId: InventoryItemId, targetId: PropId, handler: () => void): void;
+  whenGive(itemId: InventoryItemId, targetId: PropId, handler: (payload: GivePropInteractPayload) => void): void;
   whenGive(
     itemId: string,
     targetId: string,
@@ -411,8 +422,8 @@ export class BenneScript extends BenneScriptCore {
     this.onPropMapped(targetId, verbId, handler, (base) => ({ ...base, itemId }));
   }
 
-  whenPush(targetId: string, handler: () => void): void;
-  whenPush(targetId: string, handler: (p: any) => void): void;
+  whenPush(targetId: VerbTargetId, handler: () => void): void;
+  whenPush(targetId: VerbTargetId, handler: (p: any) => void): void;
   whenPush(
     targetId: string,
     handler: ((p: any) => void) | (() => void),
@@ -420,8 +431,8 @@ export class BenneScript extends BenneScriptCore {
     this.registerVerbForTarget(this.resolveVerbId('push'), targetId, handler);
   }
 
-  whenPull(targetId: string, handler: () => void): void;
-  whenPull(targetId: string, handler: (p: any) => void): void;
+  whenPull(targetId: VerbTargetId, handler: () => void): void;
+  whenPull(targetId: VerbTargetId, handler: (p: any) => void): void;
   whenPull(
     targetId: string,
     handler: ((p: any) => void) | (() => void),
@@ -429,8 +440,8 @@ export class BenneScript extends BenneScriptCore {
     this.registerVerbForTarget(this.resolveVerbId('pull'), targetId, handler);
   }
 
-  whenOpen(targetId: string, handler: () => void): void;
-  whenOpen(targetId: string, handler: (p: any) => void): void;
+  whenOpen(targetId: VerbTargetId, handler: () => void): void;
+  whenOpen(targetId: VerbTargetId, handler: (p: any) => void): void;
   whenOpen(
     targetId: string,
     handler: ((p: any) => void) | (() => void),
@@ -438,8 +449,8 @@ export class BenneScript extends BenneScriptCore {
     this.registerVerbForTarget(this.resolveVerbId('open'), targetId, handler);
   }
 
-  whenClose(targetId: string, handler: () => void): void;
-  whenClose(targetId: string, handler: (p: any) => void): void;
+  whenClose(targetId: VerbTargetId, handler: () => void): void;
+  whenClose(targetId: VerbTargetId, handler: (p: any) => void): void;
   whenClose(
     targetId: string,
     handler: ((p: any) => void) | (() => void),
@@ -447,26 +458,26 @@ export class BenneScript extends BenneScriptCore {
     this.registerVerbForTarget(this.resolveVerbId('close'), targetId, handler);
   }
 
-  whenVerb(verbId: string, targetId: string, handler: () => void): void;
-  whenVerb(verbId: string, targetId: string, handler: (p: any) => void): void;
+  whenVerb(verbId: GameVerbId, targetId: VerbTargetId, handler: () => void): void;
+  whenVerb(verbId: GameVerbId, targetId: VerbTargetId, handler: (p: any) => void): void;
   whenVerb(
-    verbId: string,
-    targetId: string,
+    verbId: GameVerbId,
+    targetId: VerbTargetId,
     handler: ((p: any) => void) | (() => void),
   ): void {
     this.registerVerbForTarget(verbId, targetId, handler);
   }
 
-  whenTalkTo(targetId: string, handler: () => void): void;
-  whenTalkTo(targetId: string, handler: (p: any) => void): void;
+  whenTalkTo(targetId: VerbTargetId, handler: () => void): void;
+  whenTalkTo(targetId: VerbTargetId, handler: (p: any) => void): void;
   whenTalkTo(
-    targetId: string,
+    targetId: VerbTargetId,
     handler: ((p: any) => void) | (() => void),
   ): void {
     this.registerVerbForTarget(this.resolveVerbId('talkTo'), targetId, handler);
   }
 
-  prop(propId: string): BenneScriptPropFacade {
+  prop(propId: PropId): BenneScriptPropFacade {
     const scene = this.roomScene;
     const B = this;
     return {
@@ -560,7 +571,7 @@ export class BenneScript extends BenneScriptCore {
     return this.makePlayerFacadeFromScene(() => this.roomScene);
   }
 
-  region(regionId: string): BenneScriptRegionFacade {
+  region(regionId: RegionId): BenneScriptRegionFacade {
     const rid = String(regionId).trim();
     if (rid.length === 0) {
       if (import.meta.env.DEV) {
@@ -602,7 +613,7 @@ export class BenneScript extends BenneScriptCore {
     };
   }
 
-  hotspot(hotspotId: string): BenneScriptHotspotFacade {
+  hotspot(hotspotId: HotspotId): BenneScriptHotspotFacade {
     const hid = String(hotspotId).trim();
     if (hid.length === 0) {
       if (import.meta.env.DEV) {
@@ -622,14 +633,14 @@ export class BenneScript extends BenneScriptCore {
   }
 
   whenEnterRegion(
-    regionId: string,
+    regionId: RegionId,
     handler: (() => void) | ((ctx: RegionEnterExitContext) => void),
   ): void {
     this.region(regionId).whenEnter(handler);
   }
 
   whenExitRegion(
-    regionId: string,
+    regionId: RegionId,
     handler: (() => void) | ((ctx: RegionEnterExitContext) => void),
   ): void {
     this.region(regionId).whenExit(handler);

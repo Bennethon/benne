@@ -110,6 +110,7 @@
 | **`RoomScene`** | Renders one room: background, Aseprite props, hotspots, characters, player walk, prop/character hit tests, debug overlays, and **every** screen-space GUI from **`./guis/**/*.gui.json`** (via **`buildGuiOverlay`**), except **Speaking Text** (**`speaking-text`**, reserved for **`say`**) and **choice-dialog GUI ids** (reserved for **`B.dialog`…`start` / `stop`** — see **§3 → Dialog system**). |
 | **`EventBus` (`gameEvents`)`** | `Phaser.Events.EventEmitter` — verb dispatch is **listener-first** (room-scoped per-verb events, then character-global, then object **`onVerbFallback`**, then globals / **`verb:unhandled`**). Props and hotspots wire handlers only in **`*.room.ts`**; **`InventoryItemData`** may still carry optional **`onVerb`** / **`onVerbFallback`** for tooling; **`CharacterData`** mirrors props/hotspots (**`onVerbFallback`** only, no **`onVerb`**). |
 | **`registerGameContent`** | **Discovery** pass for all game script modules. `*.room.ts` files are registered as **lazy** Vite dynamic-import factories (not executed here) via **`registerRoomScriptModuleLoaders`**. All other script types (**`*.character.ts`**, **`*.gui.ts`**, **`*.inventory.ts`**, **`./dialogs/**/*.dialog.ts`**, **`globalScript.ts`**) still use eager `import.meta.glob` so their side-effect registrations run immediately. Also registers **`*.inventory.json`** and **`./dialogs/**/*.dialog.json`** (`registerInventoryDefinitionsFromGame`, `registerDialogDefinitionsFromGame`); runs GUI callbacks; records each **`GuiBenneScript`** instance per `guiId`. Room script modules are executed on demand by **`ensureRoomScriptLoaded`** (called by `BootScene` and `RoomTransitionOrchestrator`) so only the active room's handlers register when its `RoomScene` runs `create`. **`wireBenneGlobalScripts(game, gameEvents)`** in `main.ts` (after `createBenneGame`) always constructs **`RoomTransitionHookRegistry`** + **`RoomTransitionOrchestrator`**, and when a **`registerGlobalScript`** module exists, wires **`GlobalBenneScript`** and **`setGlobalBenneScriptForRoomTransitions`**. |
+| **`src/types/generated/benne-game-ids.d.ts`** | **Build-time** literal unions for Bennescript string ids (`CharacterId`, `PropId`, `RoomId`, …). Scanned from **`src/game/`** by **`scripts/generate-game-ids.mjs`** (same folder conventions as **`benne-editor/src/gameDiscovery.ts`**). Regenerated on **`npm run build`**, **`npm run dev`**, and when the BENNE Editor changes game JSON. **Types only** — zero runtime cost. See **§7 → Generated game ID types**. |
 | **`src/game/assets/`** | Images + Aseprite JSON; URLs resolved at build time via Vite `import.meta.glob` (`boot/resolveGameAssetUrl`). |
 
 **Interaction sketch**
@@ -531,6 +532,18 @@ registerRoomScript(({ B }) => {
   });
 });
 ```
+
+### Generated game ID types (Bennescript IntelliSense)
+
+**Purpose** — Give authors compile-time checking and autocomplete for content ids in **`*.room.ts`**, **`*.character.ts`**, **`globalScript.ts`**, and other Bennescript entrypoints without changing runtime behavior.
+
+**Output** — [`src/types/generated/benne-game-ids.d.ts`](../src/types/generated/benne-game-ids.d.ts) exports unions such as **`CharacterId`**, **`PropId`**, **`DialogId`**, **`GuiId`**, **`InventoryItemId`**, **`RoomId`**, **`HotspotId`**, **`RegionId`**, **`PointId`**, **`DialogOptionId`**, **`GameVerbId`**, plus composite **`VerbTargetId`** (prop / hotspot / character verb targets) and **`ResolvableTargetId`** (walk / teleport string targets). Each type uses **`LooseString<'literal' | …>`** so known ids autocomplete while arbitrary strings still type-check (backward compatible).
+
+**Scanner** — [`scripts/lib/scanGameContentIds.mjs`](../scripts/lib/scanGameContentIds.mjs) walks **`src/game/`**: folder names for rooms / characters / dialogs / guis / inventory; **`props[]` / `hotspots[]` / `regions[]` / `points[]`** across all **`*.room.json`** (props are a **global** namespace); **`options[].id`** in dialog JSON; **`game-config.json`** **`verbs[]`**.
+
+**Regeneration** — **`npm run generate:game-ids`** (also **`predev`** / **`prebuild`** and the Vite plugin in [`vite.config.ts`](../vite.config.ts) during dev watch). The BENNE Editor runs the same script debounced when game JSON changes (see **§8**). The **`.d.ts` file is committed**; do not edit it by hand.
+
+**Facades** — Bennescript APIs in **`src/engine/scripting/`** import these types for **`B.character('…')`**, **`B.prop('…')`**, **`B.room.changeTo('…')`**, **`registerCharacterScript('…')`**, etc. Domain barrels under **`src/types/`** re-export the same names for game scripts.
 
 Character definition scripts use the same `B` movement/dialog primitives on the active `RoomScene`, but **self-only** verb sugar (no target id string — subscribes to `verb:character:<id>:<verb>` only):
 

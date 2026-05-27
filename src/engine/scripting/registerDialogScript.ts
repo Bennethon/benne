@@ -1,4 +1,5 @@
 import type { DialogScriptContext } from './types.js';
+import type { DialogId } from '../../types/generated/benne-game-ids.js';
 
 const benneDialogScriptRegistrations: Array<{
   dialogId: string;
@@ -18,7 +19,7 @@ export function getBenneDialogScriptRegistrations(): ReadonlyArray<{
  * (typically via `B.dialog(dialogId).start()` from room / character / global / GUI / inventory scripts).
  */
 export function registerDialogScript(
-  dialogId: string,
+  dialogId: DialogId,
   registerFn: (context: DialogScriptContext) => void,
 ): void {
   benneDialogScriptRegistrations.push({ dialogId, registerFn });

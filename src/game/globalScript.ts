@@ -21,7 +21,7 @@ registerGlobalScript(({ B }) => {
    * @param ctx - The update context.
    * @returns void
    */
-  B.onUpdate((ctx) => { })
+  B.onUpdate((_ctx) => { })
 
   // ─────────────────────────────────────────────────────────────
   // Room transitions (global hooks — optional)

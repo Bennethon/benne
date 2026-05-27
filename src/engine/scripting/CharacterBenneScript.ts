@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import type { CharacterId, DialogId, GameVerbId } from '../../types/generated/benne-game-ids.js';
 import type { CharacterVerbInteractPayload } from '../events/propInteractionEvents.js';
 import { characterVerbEventId } from '../events/verbInteractionEvents.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
@@ -35,7 +36,7 @@ export class CharacterBenneScript extends BenneScriptCore {
 
   readonly state: BenneScriptGameStateNamespace;
   readonly inventory: BenneScriptInventoryNamespace;
-  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+  readonly dialog: (dialogId: DialogId) => BenneScriptDialogCommandSurface;
 
   readonly whenInventoryUsedOn: RoomInventoryUsedOnRegistrar;
 
@@ -52,7 +53,7 @@ export class CharacterBenneScript extends BenneScriptCore {
     this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
     this.whenInventoryUsedOn = Object.assign(
       (
-        targetId: string,
+        targetId: CharacterId,
         handler: InventoryWhenUsedOnPayloadHandler,
         options?: { doNotClear?: boolean },
       ) => {
@@ -157,10 +158,10 @@ export class CharacterBenneScript extends BenneScriptCore {
     this.subscribeSelfVerb(this.resolveVerbId('talkTo'), handler);
   }
 
-  whenVerb(verbId: string, handler: () => void): void;
-  whenVerb(verbId: string, handler: (p: CharacterVerbInteractPayload) => void): void;
+  whenVerb(verbId: GameVerbId, handler: () => void): void;
+  whenVerb(verbId: GameVerbId, handler: (p: CharacterVerbInteractPayload) => void): void;
   whenVerb(
-    verbId: string,
+    verbId: GameVerbId,
     handler: ((p: CharacterVerbInteractPayload) => void) | (() => void),
   ): void {
     this.subscribeSelfVerb(verbId, handler);

@@ -1,3 +1,4 @@
+import type { RoomId } from '../../types/generated/benne-game-ids.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { getRoomVisitCount } from '../gameState/roomVisitState.js';
 import { tryGetRoomTransitionOrchestrator } from '../scenes/roomTransitionGlobals.js';
@@ -11,11 +12,11 @@ type ChainFn = (factory: () => Promise<unknown>) => void;
  */
 export function createBenneScriptRoomFacade(
   chain: ChainFn,
-  changeToNowImpl: (roomId: string) => void,
+  changeToNowImpl: (roomId: RoomId) => void,
 ): BenneScriptRoomFacade {
   const makeChangeTo = (): BenneScriptRoomFacade['changeTo'] =>
     withNow(
-      (roomId: string) => {
+      (roomId: RoomId) => {
         const orch = tryGetRoomTransitionOrchestrator();
         if (!orch) {
           if (import.meta.env.DEV) {
@@ -25,7 +26,7 @@ export function createBenneScriptRoomFacade(
         }
         chain(() => orch.changeTo(String(roomId), false));
       },
-      (roomId: string) => {
+      (roomId: RoomId) => {
         changeToNowImpl(String(roomId));
       },
     );
@@ -49,7 +50,7 @@ export function createBenneScriptRoomFacade(
       return this.visitCount === 1;
     },
     changeTo: makeChangeTo(),
-    changeToNow: (roomId: string) => {
+    changeToNow: (roomId: RoomId) => {
       changeToNowImpl(String(roomId));
     },
   };
@@ -59,7 +60,7 @@ export function createBenneScriptRoomFacade(
  * `changeTo.now` and {@link createBenneScriptRoomFacade} `.changeToNow` use this when a subclass has no
  * interaction queue of its own.
  */
-export function defaultRoomChangeToNow(this: void, roomId: string): void {
+export function defaultRoomChangeToNow(this: void, roomId: RoomId): void {
   const orch = tryGetRoomTransitionOrchestrator();
   if (!orch) {
     if (import.meta.env.DEV) {

@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import type { DialogId, GameVerbId, InventoryItemId } from '../../types/generated/benne-game-ids.js';
 import type { InventoryVerbInteractPayload } from '../events/inventoryVerbEvents.js';
 import { inventoryVerbEventId, roomInventoryVerbEventId } from '../events/inventoryVerbEvents.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
@@ -54,7 +55,7 @@ export class InventoryBenneScript extends BenneScriptCore {
 
   readonly state: BenneScriptGameStateNamespace;
   readonly inventory: BenneScriptInventoryNamespace;
-  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+  readonly dialog: (dialogId: DialogId) => BenneScriptDialogCommandSurface;
 
   /**
    * Extra handlers for the resolved **use** verb; arming still happens unless every registered handler
@@ -105,7 +106,7 @@ export class InventoryBenneScript extends BenneScriptCore {
     });
     this.whenInventoryUsedOn = Object.assign(
       (
-        targetId: string,
+        targetId: InventoryItemId,
         handler: InventoryWhenUsedOnPayloadHandler,
         options?: { doNotClear?: boolean },
       ) => {
@@ -281,10 +282,10 @@ export class InventoryBenneScript extends BenneScriptCore {
     this.subscribeInventoryVerb(this.resolveVerbId('talkTo'), handler);
   }
 
-  whenVerb(verbId: string, handler: () => void): void;
-  whenVerb(verbId: string, handler: (p: InventoryVerbInteractPayload) => void): void;
+  whenVerb(verbId: GameVerbId, handler: () => void): void;
+  whenVerb(verbId: GameVerbId, handler: (p: InventoryVerbInteractPayload) => void): void;
   whenVerb(
-    verbId: string,
+    verbId: GameVerbId,
     handler: ((p: InventoryVerbInteractPayload) => void) | (() => void),
   ): void {
     this.subscribeInventoryVerb(verbId, handler);

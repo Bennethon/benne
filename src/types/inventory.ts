@@ -1,3 +1,5 @@
+export type { InventoryItemId } from './generated/benne-game-ids.js';
+
 export interface InventoryItemData {
   id: string;
   name: string;

@@ -1,4 +1,9 @@
 import type { BenneGameStateFlagValue } from '../../types/gameState.js';
+import type {
+  GameVerbId,
+  InventoryItemId,
+  RoomId,
+} from '../../types/generated/benne-game-ids.js';
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import { tryGetRoomTransitionOrchestrator } from '../scenes/roomTransitionGlobals.js';
@@ -72,21 +77,21 @@ export interface BenneScriptGameStateNamespace {
    * pointer resolver uses it for left-clicks on clickable targets (consuming it on dispatch) and
    * right-clicks clear it. Pass `null` to clear; empty strings are treated as `null`.
    */
-  setActiveVerb(verbId: string | null): void;
-  getActiveVerb(): string | null;
+  setActiveVerb(verbId: GameVerbId | null): void;
+  getActiveVerb(): GameVerbId | null;
   clearActiveVerb(): void;
   /**
    * Active inventory item for use-on-target (see {@link GameStateManager.setActiveInventory}). Persisted in
    * save snapshots. Pass `null` to clear; empty strings are treated as `null`. (Maps to {@link GameStateManager.setActiveInventoryItem}.)
    */
-  setActiveInventory(id: string | null): void;
-  getActiveInventoryItemId(): string | null;
+  setActiveInventory(id: InventoryItemId | null): void;
+  getActiveInventoryItemId(): InventoryItemId | null;
   clearActiveInventory(): void;
   /** See {@link import('../gameState/GameStateManager.js').GameStateManager.getCurrentRoom}. */
-  getCurrentRoom(): string;
-  getLastRoom(): string | null;
-  setCurrentRoom(roomId: string): void;
-  setLastRoom(roomId: string | null): void;
+  getCurrentRoom(): RoomId;
+  getLastRoom(): RoomId | null;
+  setCurrentRoom(roomId: RoomId): void;
+  setLastRoom(roomId: RoomId | null): void;
   /**
    * Read-only: `true` while a cutscene block is active on the current {@link RoomScene}
    * (any of: `B.cutscene(…)`, `whenEnterRoom`, `whenEnterAnyRoom`, `whenEnterRoomAfterFade`,
@@ -114,12 +119,12 @@ export interface BenneScriptGameStateNamespace {
  * animation fields (see {@link BenneScriptInventoryItemFacade}).
  */
 export interface BenneScriptInventoryNamespace {
-  (itemId: string): BenneScriptInventoryItemFacade;
+  (itemId: InventoryItemId): BenneScriptInventoryItemFacade;
   /** Queues on the owning script interaction tail when wired with chain; `.now` applies immediately. */
-  add: BlockingWithNow<[string, number?]>;
-  remove: BlockingWithNow<[string, number?]>;
-  has(id: string): boolean;
-  quantityOf(id: string): number;
+  add: BlockingWithNow<[InventoryItemId, number?]>;
+  remove: BlockingWithNow<[InventoryItemId, number?]>;
+  has(id: InventoryItemId): boolean;
+  quantityOf(id: InventoryItemId): number;
   /** Legacy accessor for inventory entries; prefer `add`/`remove`/`has`/`quantityOf` for gameplay logic. */
   readonly items: ReadonlyArray<{ id: string; quantity: number }>;
   clearInventory(): void;

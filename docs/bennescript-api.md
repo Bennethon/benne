@@ -1,8 +1,30 @@
 # Bennescript API Reference
 
-> Last updated: 2026-05-21 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
+> Last updated: 2026-05-27 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
 
-For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§3 → Audio system](architecture.md#audio-system), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`, `B.onGuiShow`, `B.onGuiHide`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt-bonguishow-bonguihide), and the **Blocking interaction queue** / API tables in §7.
+For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§7 → Generated game ID types](architecture.md#generated-game-id-types-bennescript-intellisense), [§3 → Audio system](architecture.md#audio-system), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`, `B.onGuiShow`, `B.onGuiHide`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt-bonguishow-bonguihide), and the **Blocking interaction queue** / API tables in §7.
+
+---
+
+## Generated game ID types
+
+String parameters for **content ids** in registration and facade calls use types from [`src/types/generated/benne-game-ids.d.ts`](../src/types/generated/benne-game-ids.d.ts) (regenerate with **`npm run generate:game-ids`**). Examples:
+
+| API | Type |
+|-----|------|
+| `registerCharacterScript('…')`, `B.character('…')` | `CharacterId` |
+| `B.prop('…')`, `whenGive(item, '…')` prop target | `PropId` |
+| `B.hotspot('…')`, `B.region('…')` | `HotspotId`, `RegionId` |
+| `whenLookAt('…')`, `whenVerb(verb, '…')` target | `VerbTargetId` |
+| `B.player.walkTo('…')`, `moveTo('…')` | `ResolvableTargetId` |
+| `B.room.changeTo('…')`, `B.state.setCurrentRoom('…')` | `RoomId` |
+| `B.dialog('…')`, `registerDialogScript('…')` | `DialogId` |
+| `whenChoice('…')`, `B.dialog('…').optionOn('…')` | `DialogOptionId` |
+| `B.gui('…')`, `registerGuiScript('…')` | `GuiId` |
+| `B.inventory('…')`, `registerInventoryScript('…')` | `InventoryItemId` |
+| `whenVerb('…', …)`, `B.setActiveVerb('…')` | `GameVerbId` |
+
+Each union is **`LooseString<…>`** — known literals from your game appear in IntelliSense; dynamic strings still compile. See [architecture.md — Generated game ID types](architecture.md#generated-game-id-types-bennescript-intellisense) for scan rules and maintenance.
 
 ---
 

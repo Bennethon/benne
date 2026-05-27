@@ -12,6 +12,7 @@ import {
   guiControlMouseEnterEventId,
   guiControlMouseLeaveEventId,
 } from '../events/guiControlHoverEvents.js';
+import type { DialogId, GuiId } from '../../types/generated/benne-game-ids.js';
 import { SCENE_ROOM } from '../../game/boot/constants.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
@@ -45,7 +46,7 @@ import { getGuiBenneScript } from './registerGuiScript.js';
 export class GuiBenneScript extends BenneScriptCore {
   private readonly guiId: string;
   /** Resolves the game lazily — `registerGuiScript` runs before `createBenneGame`. */
-  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+  readonly dialog: (dialogId: DialogId) => BenneScriptDialogCommandSurface;
   readonly state: BenneScriptGameStateNamespace;
   readonly inventory: BenneScriptInventoryNamespace;
   private readonly onGuiBuiltHandlers: Array<(gui: GuiRuntime) => void> = [];
@@ -58,7 +59,7 @@ export class GuiBenneScript extends BenneScriptCore {
    * Resolve another GUI overlay’s controls by id (same pattern as **`B.dialog`** / **`B.inventory`**).
    * Call from **`onGuiBuilt`** (after the room registers {@link GuiRuntime} instances — includes **`this.guiId`** overlays).
    */
-  gui(overlayGuiId: string): BenneScriptGuiOverlayRef {
+  gui(overlayGuiId: GuiId): BenneScriptGuiOverlayRef {
     const gid = overlayGuiId.trim();
     const self = this;
     const setOverlayVisible = (visible: boolean): void => {

@@ -1,5 +1,12 @@
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { CharacterFollowOptions } from '../../types/characterFollow.js';
+import type {
+  CharacterId,
+  DialogOptionId,
+  ResolvableTargetId,
+  RoomId,
+  VerbTargetId,
+} from '../../types/generated/benne-game-ids.js';
 import type { Point2 } from '../../types/room.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import type { InventoryVerbInteractPayload } from '../events/inventoryVerbEvents.js';
@@ -70,8 +77,8 @@ export interface BenneScriptRoomFacade {
   readonly visitCount: number;
   /** `true` when {@link visitCount} is `1` for the current room (first persisted enter). */
   readonly isFirstVisit: boolean;
-  changeTo: BlockingWithNow<[string]>;
-  changeToNow(roomId: string): void;
+  changeTo: BlockingWithNow<[RoomId]>;
+  changeToNow(roomId: RoomId): void;
 }
 
 /**
@@ -147,12 +154,12 @@ export type InventoryWhenUsedOnPayloadHandler =
  */
 export interface RoomInventoryUsedOnRegistrar {
   (
-    targetId: string,
+    targetId: VerbTargetId,
     handler: InventoryWhenUsedOnPayloadHandler,
     options?: { doNotClear?: boolean },
   ): void;
   doNotClear(
-    targetId: string,
+    targetId: VerbTargetId,
     handler: InventoryWhenUsedOnPayloadHandler,
   ): void;
 }
@@ -225,14 +232,14 @@ export interface BenneScriptPropFacade {
 /** Movement + animation + facing for the player. */
 export interface BenneScriptPlayerFacade {
   readonly sound: BenneScriptSoundFacade;
-  walkTo: BlockingWithNow<[Point2 | string]>;
+  walkTo: BlockingWithNow<[Point2 | ResolvableTargetId]>;
   /**
    * Teleport feet to a resolved point (clamped to walkable); updates **Idle** facing. Queued on the
    * interaction tail — use {@link walkTo} for pathfind walking.
    */
-  moveTo: BlockingWithNow<[Point2 | string]>;
+  moveTo: BlockingWithNow<[Point2 | ResolvableTargetId]>;
   /** Same as `moveTo.now` — immediate teleport, skips the queue. */
-  moveToNow: (target: Point2 | string) => void;
+  moveToNow: (target: Point2 | ResolvableTargetId) => void;
   /** Same as {@link import('./BenneScriptCore.js').BenneScriptCore.walkToClicked} on the owning script. */
   walkToClicked: BlockingWithNow<[]>;
   /** Same as {@link import('./BenneScriptCore.js').BenneScriptCore.faceClicked} on the owning script. */
@@ -259,22 +266,25 @@ export interface BenneScriptPlayerFacade {
    * Starts persistent following of another character id or the special string **`"player"`** (resolved at runtime).
    * Idempotent for the same target; updates saved options when called again. Queues on the interaction tail.
    */
-  startFollowingCharacter(targetId: string, options?: CharacterFollowOptions): void;
+  startFollowingCharacter(
+    targetId: CharacterId | 'player',
+    options?: CharacterFollowOptions,
+  ): void;
   /** Clears persisted follow state. Queues on the interaction tail. */
   stopFollowingCharacter(): void;
   /** True when a follow target is saved in game state. */
   readonly isFollowing: boolean;
   /** Persisted target id (`"player"` or a character definition id), or `null`. */
-  readonly followingTarget: string | null;
+  readonly followingTarget: CharacterId | 'player' | null;
 }
 
 /** Movement + animation + facing for an NPC. */
 export interface BenneScriptCharacterFacade {
   readonly sound: BenneScriptSoundFacade;
-  walkTo: BlockingWithNow<[Point2 | string]>;
+  walkTo: BlockingWithNow<[Point2 | ResolvableTargetId]>;
   /** Teleport (see {@link BenneScriptPlayerFacade.moveTo}). */
-  moveTo: BlockingWithNow<[Point2 | string]>;
-  moveToNow: (target: Point2 | string) => void;
+  moveTo: BlockingWithNow<[Point2 | ResolvableTargetId]>;
+  moveToNow: (target: Point2 | ResolvableTargetId) => void;
   hide: BlockingWithNow<[]>;
   show: BlockingWithNow<[]>;
   get visible(): boolean;
@@ -297,7 +307,7 @@ export interface BenneScriptCharacterFacade {
    * after feet settle. Queues on the interaction tail. No-op when the observer or target has no live
    * sprite in the active room, or when ids are equal. Replaces any prior lock for this observer.
    */
-  startFacingCharacter(character: string, minWaitTime?: number, maxWaitTime?: number): void;
+  startFacingCharacter(character: CharacterId, minWaitTime?: number, maxWaitTime?: number): void;
   /** Clears {@link startFacingCharacter} for this observer. Queues on the interaction tail. */
   stopFacingCharacter(): void;
   /**
@@ -317,11 +327,14 @@ export interface BenneScriptCharacterFacade {
    * Starts persistent following of another character id or **`"player"`** (see {@link BenneScriptPlayerFacade.startFollowingCharacter}).
    * Queues on the interaction tail.
    */
-  startFollowingCharacter(targetId: string, options?: CharacterFollowOptions): void;
+  startFollowingCharacter(
+    targetId: CharacterId | 'player',
+    options?: CharacterFollowOptions,
+  ): void;
   /** Clears persisted follow state. Queues on the interaction tail. */
   stopFollowingCharacter(): void;
   readonly isFollowing: boolean;
-  readonly followingTarget: string | null;
+  readonly followingTarget: CharacterId | 'player' | null;
 }
 
 /**
@@ -338,8 +351,8 @@ export interface BenneScriptCharacterFacade {
 export interface BenneScriptDialogCommandSurface {
   start: BlockingWithNow<[]>;
   stop: BlockingWithNow<[]>;
-  optionOn: BlockingWithNow<[optionId: string]>;
-  optionOff: BlockingWithNow<[optionId: string]>;
+  optionOn: BlockingWithNow<[optionId: DialogOptionId]>;
+  optionOff: BlockingWithNow<[optionId: DialogOptionId]>;
 }
 
 export interface BenneScriptInventoryItemFacade {
