@@ -725,6 +725,9 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "cytoscape": "^3.31.2"
+    "cytoscape": "^3.31.2",
+    "cytoscape-compound-drag-and-drop": "^1.1.0",
+    "cytoscape-elk": "^2.3.0",
+    "elkjs": "^0.11.1"
   }
 }
