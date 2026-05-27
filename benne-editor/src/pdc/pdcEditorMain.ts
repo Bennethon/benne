@@ -1,4 +1,9 @@
 import cytoscape, { type Core, type ElementDefinition } from 'cytoscape';
+import elk from 'cytoscape-elk';
+import compoundDragAndDrop from 'cytoscape-compound-drag-and-drop';
+
+cytoscape.use(elk);
+cytoscape.use(compoundDragAndDrop);
 
 declare function acquireVsCodeApi(): {
     postMessage: (msg: unknown) => void;
@@ -46,6 +51,8 @@ let hoveredForConnect: cytoscape.NodeSingular | undefined;
 let connectLineStartX = 0;
 let connectLineStartY = 0;
 let connectHandleSource: cytoscape.NodeSingular | undefined;
+let connectHandleHideTimer: ReturnType<typeof setTimeout> | undefined;
+let mouseOverConnectHandle = false;
 
 function normalizeElements(raw: Record<string, unknown>): ElementDefinition[] {
     const el = raw.elements;
@@ -87,6 +94,9 @@ function postSave(): void {
     const elements: ElementDefinition[] = cy.elements().map((ele) => {
         const data = { ...ele.data() };
         if (ele.isNode()) {
+            if (data.isGroup) {
+                return { data } as ElementDefinition;
+            }
             const p = ele.position();
             return {
                 data,
@@ -126,14 +136,14 @@ function baseStylesheet(): import('cytoscape').StylesheetStyle[] {
                 'text-halign': 'center',
                 'text-wrap': 'wrap',
                 'text-max-width': 'data(textMaxWidth)',
-                'background-color': '#3c7eb5',
-                color: '#fff',
+                'background-color': '#ffffff',
+                color: '#000',
                 width: 'data(width)',
                 height: 'data(height)',
                 shape: 'roundrectangle',
                 'font-size': NODE_FONT_SIZE,
                 'border-width': 1,
-                'border-color': '#1a4971'
+                'border-color': '#bbb'
             } as unknown as cytoscape.Css.Node
         },
         {
@@ -167,6 +177,40 @@ function baseStylesheet(): import('cytoscape').StylesheetStyle[] {
                 'border-color': '#f9a825',
                 'border-width': 3,
                 'border-opacity': 0.85
+            }
+        },
+        {
+            selector: 'node[?isGroup]',
+            style: {
+                'background-color': '#1a1a2e',
+                'background-opacity': 0.35,
+                'border-width': 2,
+                'border-color': '#666',
+                'border-style': 'dashed' as unknown as undefined,
+                shape: 'roundrectangle',
+                'text-valign': 'top',
+                'text-halign': 'center',
+                'text-margin-y': -4,
+                'font-size': NODE_FONT_SIZE,
+                color: '#aaa',
+                padding: '20px' as unknown as undefined,
+                label: 'data(label)',
+            } as unknown as cytoscape.Css.Node
+        },
+        {
+            selector: 'node[?isGroup]:selected',
+            style: {
+                'border-width': 3,
+                'border-color': '#f9a825'
+            }
+        },
+        {
+            selector: 'node.cdnd-drop-target',
+            style: {
+                'border-color': '#4fc3f7',
+                'border-width': 3,
+                'background-color': '#1a3a4e',
+                'background-opacity': 0.5
             }
         }
     ];
@@ -210,6 +254,9 @@ function measureTextForNode(label: string, maxWidth: number): { width: number; h
 }
 
 function ensureNodeDimensions(node: cytoscape.NodeSingular): void {
+    if (node.data('isGroup')) {
+        return;
+    }
     if (node.data('width') == null) {
         node.data('width', NODE_DEFAULT_WIDTH);
     }
@@ -222,6 +269,9 @@ function ensureNodeDimensions(node: cytoscape.NodeSingular): void {
 }
 
 function autoSizeNode(node: cytoscape.NodeSingular): void {
+    if (node.data('isGroup')) {
+        return;
+    }
     const label = (node.data('label') as string | undefined) ?? '';
     const currentW = (node.data('width') as number) || NODE_DEFAULT_WIDTH;
     const currentH = (node.data('height') as number) || NODE_DEFAULT_HEIGHT;
@@ -337,7 +387,12 @@ function updateResizeHandles(): void {
     }
     const sel = cy.$('node:selected');
     if (sel.length === 1 && !editingNode && !resizeTarget) {
-        showResizeHandlesForNode(sel.first() as cytoscape.NodeSingular);
+        const node = sel.first() as cytoscape.NodeSingular;
+        if (node.data('isGroup')) {
+            hideResizeHandles();
+        } else {
+            showResizeHandlesForNode(node);
+        }
     } else {
         hideResizeHandles();
     }
@@ -371,6 +426,10 @@ function getOrCreateConnectHandles(): Map<ConnectSide, HTMLElement> {
 }
 
 function showConnectHandleForNode(node: cytoscape.NodeSingular): void {
+    if (connectHandleHideTimer !== undefined) {
+        clearTimeout(connectHandleHideTimer);
+        connectHandleHideTimer = undefined;
+    }
     const handles = getOrCreateConnectHandles();
     const bb = node.renderedBoundingBox();
     const half = CONNECT_HANDLE_SIZE / 2;
@@ -392,18 +451,49 @@ function showConnectHandleForNode(node: cytoscape.NodeSingular): void {
         el.style.width = `${CONNECT_HANDLE_SIZE}px`;
         el.style.height = `${CONNECT_HANDLE_SIZE}px`;
         el.style.display = 'block';
+        if (!el.dataset.hasListeners) {
+            el.addEventListener('mouseenter', () => {
+                mouseOverConnectHandle = true;
+                if (connectHandleHideTimer !== undefined) {
+                    clearTimeout(connectHandleHideTimer);
+                    connectHandleHideTimer = undefined;
+                }
+            });
+            el.addEventListener('mouseleave', () => {
+                mouseOverConnectHandle = false;
+                scheduleConnectHandleHide();
+            });
+            el.dataset.hasListeners = '1';
+        }
     }
     connectHandleSource = node;
 }
 
 function hideConnectHandle(): void {
+    if (connectHandleHideTimer !== undefined) {
+        clearTimeout(connectHandleHideTimer);
+        connectHandleHideTimer = undefined;
+    }
     for (const side of CONNECT_SIDES) {
         const el = document.getElementById(`pdc-connect-${side}`);
         if (el) {
             el.style.display = 'none';
         }
     }
+    mouseOverConnectHandle = false;
     connectHandleSource = undefined;
+}
+
+function scheduleConnectHandleHide(): void {
+    if (connectHandleHideTimer !== undefined) {
+        clearTimeout(connectHandleHideTimer);
+    }
+    connectHandleHideTimer = setTimeout(() => {
+        connectHandleHideTimer = undefined;
+        if (!mouseOverConnectHandle) {
+            updateConnectHandle();
+        }
+    }, 200);
 }
 
 function updateConnectHandle(): void {
@@ -664,7 +754,7 @@ function mountGraph(container: HTMLElement, elements: ElementDefinition[]): void
     });
     graph.on('mouseout', 'node', () => {
         hoveredForConnect = undefined;
-        updateConnectHandle();
+        scheduleConnectHandleHide();
     });
 
     graph.on('dbltap', 'node', (evt) => {
@@ -701,6 +791,15 @@ function mountGraph(container: HTMLElement, elements: ElementDefinition[]): void
         updateResizeHandles();
         updateConnectHandle();
     });
+
+    (graph as unknown as { compoundDragAndDrop: (opts: unknown) => void }).compoundDragAndDrop({
+        grabbedNode: (node: cytoscape.NodeSingular) => !node.data('isGroup'),
+        dropTarget: (dropTarget: cytoscape.NodeSingular) => dropTarget.data('isGroup') === true,
+        dropSibling: () => false,
+        overThreshold: 12,
+        outThreshold: 12,
+    });
+    graph.on('cdnddrop' as unknown as cytoscape.EventNames, () => postSave());
 
     graph.on('mousedown', (evt) => {
         if (evt.target !== graph) {
@@ -1038,6 +1137,72 @@ document.getElementById('pdc-fit')?.addEventListener('click', () => {
     cy?.fit(undefined, 48);
 });
 
+document.getElementById('pdc-group-selected')?.addEventListener('click', () => {
+    if (!cy) {
+        return;
+    }
+    const sel = cy.$('node:selected').filter((n) => !n.data('isGroup'));
+    if (sel.length < 2) {
+        setStatus('Select 2+ nodes to group.');
+        return;
+    }
+    const groupId = newNodeId().replace('n_', 'g_');
+    cy.add({
+        group: 'nodes',
+        data: { id: groupId, label: 'Group', isGroup: true }
+    });
+    sel.forEach((n) => { n.move({ parent: groupId }); });
+    postSave();
+    setStatus('');
+});
+
+document.getElementById('pdc-ungroup')?.addEventListener('click', () => {
+    if (!cy) {
+        return;
+    }
+    const sel = cy.$('node:selected').filter((n) => n.data('isGroup') === true);
+    if (sel.empty()) {
+        setStatus('Select a group node to ungroup.');
+        return;
+    }
+    sel.forEach((group) => {
+        const children = group.children();
+        children.forEach((child) => { child.move({ parent: null }); });
+        group.remove();
+    });
+    postSave();
+    setStatus('');
+});
+
+function runElkLayout(direction: 'DOWN' | 'RIGHT'): void {
+    if (!cy) {
+        return;
+    }
+    const layout = cy.layout({
+        name: 'elk',
+        fit: true,
+        padding: 48,
+        animate: true,
+        animationDuration: 300,
+        elk: {
+            algorithm: 'layered',
+            'elk.direction': direction,
+            'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+            'elk.spacing.nodeNode': '40',
+        },
+        stop: () => postSave(),
+    } as unknown as cytoscape.LayoutOptions);
+    layout.run();
+}
+
+document.getElementById('pdc-layout-down')?.addEventListener('click', () => {
+    runElkLayout('DOWN');
+});
+
+document.getElementById('pdc-layout-right')?.addEventListener('click', () => {
+    runElkLayout('RIGHT');
+});
+
 const inlineInput = document.getElementById('pdc-inline-input') as HTMLTextAreaElement | null;
 inlineInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1059,11 +1224,21 @@ inlineInput?.addEventListener('blur', () => {
     }
 });
 
-// Global Escape to cancel in-progress connection drag (harmless if not connecting)
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && isConnecting) {
         cleanupConnectionDrag();
         e.preventDefault();
+        return;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !editingNode && !isConnecting && cy) {
+        const sel = cy.$(':selected');
+        if (!sel.empty()) {
+            sel.remove();
+            postSave();
+            updateResizeHandles();
+            updateConnectHandle();
+            e.preventDefault();
+        }
     }
 });
 

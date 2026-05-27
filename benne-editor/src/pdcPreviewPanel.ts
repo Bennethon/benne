@@ -11,6 +11,8 @@ export class PdcEditorPanelController implements vscode.Disposable {
     private webviewReady = false;
     private readonly disposables: vscode.Disposable[] = [];
     private pdcJsonChangeTimer: ReturnType<typeof setTimeout> | undefined;
+    /** URIs recently written by the editor webview — suppresses file-watcher reloads. */
+    private readonly selfSaveUris = new Set<string>();
 
     constructor(
         private readonly extensionUri: vscode.Uri,
@@ -51,6 +53,11 @@ export class PdcEditorPanelController implements vscode.Disposable {
         if (!uri.fsPath.endsWith('.pdc.json')) {
             return;
         }
+        const uriStr = uri.toString();
+        if (this.selfSaveUris.has(uriStr)) {
+            this.selfSaveUris.delete(uriStr);
+            return;
+        }
         if (!this.panel || !this.webviewReady) {
             return;
         }
@@ -58,7 +65,7 @@ export class PdcEditorPanelController implements vscode.Disposable {
         if (focus.kind !== 'pdc') {
             return;
         }
-        if (focus.uri.toString() !== uri.toString()) {
+        if (focus.uri.toString() !== uriStr) {
             return;
         }
         if (this.pdcJsonChangeTimer !== undefined) {
@@ -141,6 +148,9 @@ export class PdcEditorPanelController implements vscode.Disposable {
         }
 
         try {
+            const uriStr = uri.toString();
+            this.selfSaveUris.add(uriStr);
+            setTimeout(() => this.selfSaveUris.delete(uriStr), 2000);
             const enc = new TextEncoder().encode(m.json.endsWith('\n') ? m.json : `${m.json}\n`);
             await vscode.workspace.fs.writeFile(uri, enc);
         } catch (e) {
@@ -250,6 +260,7 @@ function buildPdcEditorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
       outline: 1px solid var(--vscode-focusBorder);
       background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
     }
+    .pdc-toolbar-sep { width: 1px; height: 20px; background: var(--vscode-panel-border); margin: 0 2px; }
     #pdc-status { flex: 1; min-width: 120px; opacity: 0.85; padding-left: 8px; }
     #pdc-connect-svg {
       position: absolute; inset: 0; width: 100%; height: 100%;
@@ -310,6 +321,12 @@ function buildPdcEditorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
     <button type="button" id="pdc-edit-label">Edit label</button>
     <button type="button" id="pdc-delete">Delete selected</button>
     <button type="button" id="pdc-fit">Fit</button>
+    <span class="pdc-toolbar-sep"></span>
+    <button type="button" id="pdc-group-selected">Group selected</button>
+    <button type="button" id="pdc-ungroup">Ungroup</button>
+    <span class="pdc-toolbar-sep"></span>
+    <button type="button" id="pdc-layout-down">Layout ↓</button>
+    <button type="button" id="pdc-layout-right">Layout →</button>
     <span id="pdc-status"></span>
   </div>
   <div id="pdc-cy-wrapper">
