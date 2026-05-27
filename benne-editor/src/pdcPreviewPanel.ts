@@ -127,13 +127,18 @@ export class PdcEditorPanelController implements vscode.Disposable {
         );
     }
 
-    private async onWebviewMessage(m: { type?: string; documentUri?: string; json?: string }): Promise<void> {
+    private async onWebviewMessage(m: { type?: string; documentUri?: string; json?: string; format?: string; data?: string }): Promise<void> {
         if (m?.type === 'benne/pdcEditor/ready') {
             this.webviewReady = true;
             const focus = this.selection.focus;
             if (focus.kind === 'pdc') {
                 await this.pushPdcDocument(focus.uri);
             }
+            return;
+        }
+
+        if (m?.type === 'benne/pdcEditor/export') {
+            await this.handleExport(m.format, m.data);
             return;
         }
 
@@ -155,6 +160,50 @@ export class PdcEditorPanelController implements vscode.Disposable {
             await vscode.workspace.fs.writeFile(uri, enc);
         } catch (e) {
             void vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e));
+        }
+    }
+
+    private async handleExport(format?: string, data?: string): Promise<void> {
+        if (typeof data !== 'string' || !data) {
+            return;
+        }
+
+        const focus = this.selection.focus;
+        const defaultName = focus.kind === 'pdc' ? getPdcIdFromPdcJsonUri(focus.uri) : 'pdc-export';
+
+        if (format === 'png') {
+            const dest = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(`${defaultName}.png`),
+                filters: { 'PNG Image': ['png'] }
+            });
+            if (!dest) {
+                return;
+            }
+            try {
+                const bytes = Buffer.from(data, 'base64');
+                await vscode.workspace.fs.writeFile(dest, bytes);
+                void vscode.window.showInformationMessage(`Exported PNG → ${vscode.workspace.asRelativePath(dest)}`);
+            } catch (e) {
+                void vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e));
+            }
+            return;
+        }
+
+        if (format === 'svg') {
+            const dest = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(`${defaultName}.svg`),
+                filters: { 'SVG Image': ['svg'] }
+            });
+            if (!dest) {
+                return;
+            }
+            try {
+                const enc = new TextEncoder().encode(data);
+                await vscode.workspace.fs.writeFile(dest, enc);
+                void vscode.window.showInformationMessage(`Exported SVG → ${vscode.workspace.asRelativePath(dest)}`);
+            } catch (e) {
+                void vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e));
+            }
         }
     }
 
@@ -294,16 +343,17 @@ function buildPdcEditorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
       box-sizing: border-box;
       text-align: center;
       padding: 4px 6px;
-      border: 1px solid var(--vscode-focusBorder);
-      background: var(--vscode-input-background);
-      color: var(--vscode-input-foreground);
-      font-size: 28px;
-      font-family: inherit;
+      border: 2px solid var(--vscode-focusBorder);
+      background: #ffffff;
+      color: #000000;
+      font-size: 11px;
+      font-family: sans-serif;
       outline: none;
       display: none;
       resize: none;
       overflow: hidden;
       line-height: 1.3;
+      border-radius: 4px;
     }
     .pdc-resize-handle {
       position: absolute;
@@ -327,7 +377,23 @@ function buildPdcEditorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
     <span class="pdc-toolbar-sep"></span>
     <button type="button" id="pdc-layout-down">Layout ↓</button>
     <button type="button" id="pdc-layout-right">Layout →</button>
+    <span class="pdc-toolbar-sep"></span>
+    <button type="button" id="pdc-select-edges">Select all connectors</button>
+    <span class="pdc-toolbar-sep"></span>
+    <button type="button" id="pdc-edge-straight">Straight</button>
+    <button type="button" id="pdc-edge-curved">Curved</button>
+    <button type="button" id="pdc-edge-ortho">90-deg</button>
+    <span class="pdc-toolbar-sep"></span>
+    <button type="button" id="pdc-edge-solid">Solid</button>
+    <button type="button" id="pdc-edge-dashed">Dashed</button>
+    <button type="button" id="pdc-edge-dotted">Dotted</button>
+    <span class="pdc-toolbar-sep"></span>
+    <button type="button" id="pdc-swap-edge">Swap ↔</button>
+    <button type="button" id="pdc-bidir-edge">Bidir ⇄</button>
     <span id="pdc-status"></span>
+    <span class="pdc-toolbar-sep" style="margin-left:auto"></span>
+    <button type="button" id="pdc-export-png">Export PNG</button>
+    <button type="button" id="pdc-export-svg">Export SVG</button>
   </div>
   <div id="pdc-cy-wrapper">
     <div id="pdc-cy"></div>

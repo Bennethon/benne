@@ -1,9 +1,11 @@
 import cytoscape, { type Core, type ElementDefinition } from 'cytoscape';
 import elk from 'cytoscape-elk';
 import compoundDragAndDrop from 'cytoscape-compound-drag-and-drop';
+import svg from 'cytoscape-svg';
 
 cytoscape.use(elk);
 cytoscape.use(compoundDragAndDrop);
+cytoscape.use(svg);
 
 declare function acquireVsCodeApi(): {
     postMessage: (msg: unknown) => void;
@@ -159,16 +161,34 @@ function baseStylesheet(): import('cytoscape').StylesheetStyle[] {
                 width: 2,
                 'line-color': '#8ab4d4',
                 'target-arrow-color': '#8ab4d4',
+                'source-arrow-color': '#8ab4d4',
                 'target-arrow-shape': 'triangle',
-                'curve-style': 'bezier',
+                'source-arrow-shape': 'none',
+                'curve-style': 'data(curveStyle)' as unknown as undefined,
+                'line-style': 'data(lineStyle)' as unknown as undefined,
+                'taxi-direction': 'auto' as unknown as undefined,
                 'arrow-scale': 1.1
+            }
+        },
+        {
+            selector: 'edge[direction = "backward"]',
+            style: {
+                'target-arrow-shape': 'none',
+                'source-arrow-shape': 'triangle'
+            }
+        },
+        {
+            selector: 'edge[direction = "both"]',
+            style: {
+                'source-arrow-shape': 'triangle'
             }
         },
         {
             selector: 'edge:selected',
             style: {
                 'line-color': '#f9a825',
-                'target-arrow-color': '#f9a825'
+                'target-arrow-color': '#f9a825',
+                'source-arrow-color': '#f9a825'
             }
         },
         {
@@ -251,6 +271,18 @@ function measureTextForNode(label: string, maxWidth: number): { width: number; h
         width: widest,
         height: lines.length * lineHeight
     };
+}
+
+function ensureEdgeDefaults(edge: cytoscape.EdgeSingular): void {
+    if (edge.data('curveStyle') == null) {
+        edge.data('curveStyle', 'bezier');
+    }
+    if (edge.data('lineStyle') == null) {
+        edge.data('lineStyle', 'solid');
+    }
+    if (edge.data('direction') == null) {
+        edge.data('direction', 'forward');
+    }
 }
 
 function ensureNodeDimensions(node: cytoscape.NodeSingular): void {
@@ -536,14 +568,23 @@ function getNodeUnderClientPoint(clientX: number, clientY: number): cytoscape.No
     const sx = clientX - crect.left;
     const sy = clientY - crect.top;
     const nodes = cy.nodes();
+    let bestLeaf: cytoscape.NodeSingular | null = null;
+    let bestGroup: cytoscape.NodeSingular | null = null;
     for (let i = nodes.length - 1; i >= 0; i--) {
         const n = nodes[i];
         const bb = n.renderedBoundingBox();
         if (sx >= bb.x1 && sx <= bb.x2 && sy >= bb.y1 && sy <= bb.y2) {
-            return n;
+            if (n.data('isGroup')) {
+                if (!bestGroup) {
+                    bestGroup = n;
+                }
+            } else {
+                bestLeaf = n;
+                break;
+            }
         }
     }
-    return null;
+    return bestLeaf ?? bestGroup;
 }
 
 function showConnectPreview(x1: number, y1: number, x2: number, y2: number): void {
@@ -644,10 +685,14 @@ function commitInlineEdit(): void {
     const val = input.value.trim();
     editingNode.data('label', val.length > 0 ? val : ' ');
     autoSizeNode(editingNode);
+    editingNode.style('label', editingNode.data('label'));
     editingNode.unlock();
     const wasEditing = editingNode;
     editingNode = undefined;
     input.style.display = 'none';
+    if (cy) {
+        cy.style().update();
+    }
     updateResizeHandles();
     updateConnectHandle();
     if (wasEditing.selected()) {
@@ -662,9 +707,13 @@ function cancelInlineEdit(): void {
     if (!input || !editingNode) {
         return;
     }
+    editingNode.style('label', editingNode.data('label'));
     editingNode.unlock();
     editingNode = undefined;
     input.style.display = 'none';
+    if (cy) {
+        cy.style().update();
+    }
     updateConnectHandle();
     setStatus('');
 }
@@ -680,7 +729,9 @@ function beginEditNodeLabel(node: cytoscape.NodeSingular): void {
     hideResizeHandles();
     editingNode = node;
     node.lock();
+    node.style('label', '');
     positionInlineInput(input, node);
+    input.style.fontSize = `${NODE_FONT_SIZE * cy.zoom()}px`;
     const prev = (node.data('label') as string | undefined) ?? '';
     input.value = prev;
     input.style.display = 'block';
@@ -737,6 +788,9 @@ function mountGraph(container: HTMLElement, elements: ElementDefinition[]): void
         ensureNodeDimensions(node);
         autoSizeNode(node);
     });
+    graph.edges().forEach((edge) => {
+        ensureEdgeDefaults(edge);
+    });
 
     graph.on('dragfreeon', 'node', () => postSave());
     graph.on('position', 'node', () => {
@@ -778,8 +832,9 @@ function mountGraph(container: HTMLElement, elements: ElementDefinition[]): void
     graph.on('viewport', () => {
         if (editingNode) {
             const input = document.getElementById('pdc-inline-input') as HTMLTextAreaElement | null;
-            if (input) {
+            if (input && cy) {
                 positionInlineInput(input, editingNode);
+                input.style.fontSize = `${NODE_FONT_SIZE * cy.zoom()}px`;
                 autoResizeTextarea(input);
             }
         }
@@ -982,7 +1037,7 @@ function mountGraph(container: HTMLElement, elements: ElementDefinition[]): void
                 const id = newEdgeId(connectSource.id(), tgt.id());
                 cy.add({
                     group: 'edges',
-                    data: { id, source: connectSource.id(), target: tgt.id() }
+                    data: { id, source: connectSource.id(), target: tgt.id(), curveStyle: 'bezier', lineStyle: 'solid', direction: 'forward' }
                 });
                 postSave();
             }
@@ -1024,6 +1079,12 @@ function mountGraph(container: HTMLElement, elements: ElementDefinition[]): void
                 const bb = node.renderedBoundingBox();
                 if (bb.x1 < x2 && bb.x2 > x1 && bb.y1 < y2 && bb.y2 > y1) {
                     node.select();
+                }
+            });
+            cy?.edges().forEach((edge) => {
+                const mp = edge.renderedMidpoint();
+                if (mp.x >= x1 && mp.x <= x2 && mp.y >= y1 && mp.y <= y2) {
+                    edge.select();
                 }
             });
         }
@@ -1203,6 +1264,82 @@ document.getElementById('pdc-layout-right')?.addEventListener('click', () => {
     runElkLayout('RIGHT');
 });
 
+document.getElementById('pdc-select-edges')?.addEventListener('click', () => {
+    if (!cy) {
+        return;
+    }
+    cy.edges().select();
+});
+
+function setEdgeDataOnSelected(key: string, value: string): void {
+    if (!cy) {
+        return;
+    }
+    const sel = cy.$('edge:selected');
+    if (sel.empty()) {
+        setStatus('Select edge(s) first.');
+        return;
+    }
+    sel.forEach((edge) => { edge.data(key, value); });
+    postSave();
+    setStatus('');
+}
+
+document.getElementById('pdc-edge-straight')?.addEventListener('click', () => {
+    setEdgeDataOnSelected('curveStyle', 'straight');
+});
+document.getElementById('pdc-edge-curved')?.addEventListener('click', () => {
+    setEdgeDataOnSelected('curveStyle', 'bezier');
+});
+document.getElementById('pdc-edge-ortho')?.addEventListener('click', () => {
+    setEdgeDataOnSelected('curveStyle', 'taxi');
+});
+
+document.getElementById('pdc-edge-solid')?.addEventListener('click', () => {
+    setEdgeDataOnSelected('lineStyle', 'solid');
+});
+document.getElementById('pdc-edge-dashed')?.addEventListener('click', () => {
+    setEdgeDataOnSelected('lineStyle', 'dashed');
+});
+document.getElementById('pdc-edge-dotted')?.addEventListener('click', () => {
+    setEdgeDataOnSelected('lineStyle', 'dotted');
+});
+
+document.getElementById('pdc-swap-edge')?.addEventListener('click', () => {
+    if (!cy) {
+        return;
+    }
+    const sel = cy.$('edge:selected');
+    if (sel.empty()) {
+        setStatus('Select edge(s) first.');
+        return;
+    }
+    sel.forEach((edge) => {
+        const src = edge.data('source') as string;
+        const tgt = edge.data('target') as string;
+        edge.move({ source: tgt, target: src });
+    });
+    postSave();
+    setStatus('');
+});
+
+document.getElementById('pdc-bidir-edge')?.addEventListener('click', () => {
+    if (!cy) {
+        return;
+    }
+    const sel = cy.$('edge:selected');
+    if (sel.empty()) {
+        setStatus('Select edge(s) first.');
+        return;
+    }
+    sel.forEach((edge) => {
+        const cur = edge.data('direction') as string | undefined;
+        edge.data('direction', cur === 'both' ? 'forward' : 'both');
+    });
+    postSave();
+    setStatus('');
+});
+
 const inlineInput = document.getElementById('pdc-inline-input') as HTMLTextAreaElement | null;
 inlineInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1240,6 +1377,22 @@ document.addEventListener('keydown', (e) => {
             e.preventDefault();
         }
     }
+});
+
+document.getElementById('pdc-export-png')?.addEventListener('click', () => {
+    if (!cy) {
+        return;
+    }
+    const data = cy.png({ full: true, scale: 2, bg: '#1e1e1e', output: 'base64' });
+    vscode.postMessage({ type: 'benne/pdcEditor/export', format: 'png', data });
+});
+
+document.getElementById('pdc-export-svg')?.addEventListener('click', () => {
+    if (!cy) {
+        return;
+    }
+    const data = cy.svg({ full: true, scale: 1, bg: '#1e1e1e' });
+    vscode.postMessage({ type: 'benne/pdcEditor/export', format: 'svg', data });
 });
 
 vscode.postMessage({ type: 'benne/pdcEditor/ready' });
