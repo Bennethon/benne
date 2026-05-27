@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+import { benneGenerateGameIdsPlugin } from './vite-plugin-bennegame-ids';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -9,6 +10,7 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
  * Vite can resolve the UMD file, which has no `default` export — force the ESM build.
  */
 export default defineConfig({
+  plugins: [benneGenerateGameIdsPlugin()],
   resolve: {
     alias: {
       phaser: path.join(dir, 'node_modules/phaser/dist/phaser.esm.js'),

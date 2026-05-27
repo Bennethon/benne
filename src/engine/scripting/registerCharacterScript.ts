@@ -1,4 +1,5 @@
 import type { CharacterScriptContext } from './types.js';
+import type { CharacterId } from '../../types/generated/benne-game-ids.js';
 
 const benneCharacterScriptRegistrations: Array<{
   characterId: string;
@@ -18,7 +19,7 @@ export function getBenneCharacterScriptRegistrations(): ReadonlyArray<{
  * (see {@link import('../verbs/dispatchVerb.js').dispatchVerbInteraction}).
  */
 export function registerCharacterScript(
-  characterId: string,
+  characterId: CharacterId,
   registerFn: (context: CharacterScriptContext) => void,
 ): void {
   benneCharacterScriptRegistrations.push({ characterId, registerFn });

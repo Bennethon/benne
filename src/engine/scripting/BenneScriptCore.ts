@@ -2,6 +2,12 @@ import * as Phaser from 'phaser';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { CharacterFollowOptions } from '../../types/characterFollow.js';
 import type { Point2 } from '../../types/room.js';
+import type {
+  CharacterId,
+  GameVerbId,
+  InventoryItemId,
+  ResolvableTargetId,
+} from '../../types/generated/benne-game-ids.js';
 import { getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/boot/constants.js';
 import { computeSpeechLineDurationMs, getSpeechSettings, getGameSettings } from '../ConfigManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
@@ -85,7 +91,7 @@ export function withNow<TArgs extends readonly unknown[]>(
  * verbs from {@link import('../events/inventoryVerbEvents.js').dispatchInventoryVerbInteraction},
  * or use-on-another-inventory-item).
  */
-function resolveWalkToClickedTargetFromPayload(payload: unknown): Point2 | string | null {
+function resolveWalkToClickedTargetFromPayload(payload: unknown): Point2 | ResolvableTargetId | null {
   if (payload == null || typeof payload !== 'object') {
     return null;
   }
@@ -127,7 +133,7 @@ function resolveWalkToClickedTargetFromPayload(payload: unknown): Point2 | strin
 
 /** Per-handler context for {@link BenneScriptCore.walkToClicked} / {@link BenneScriptCore.faceClicked}. */
 interface VerbClickScriptContext {
-  walkTarget: Point2 | string | null;
+  walkTarget: Point2 | ResolvableTargetId | null;
   /** Room-space point for facing (payload `lookAtPoint`, or NPC feet for characters); `null` uses walk resolution only. */
   faceLookWorld: Point2 | null;
 }
@@ -690,7 +696,7 @@ export abstract class BenneScriptCore {
    * Pass `null` or an empty string to clear. Typical wiring: a verb GUI button calls
    * `B.setActiveVerb('open')` from its `whenButtonClick` handler.
    */
-  setActiveVerb(verbId: string | null): void {
+  setActiveVerb(verbId: GameVerbId | null): void {
     const manager = tryGetActiveGameStateManager();
     if (!manager) {
       if (import.meta.env.DEV) {
@@ -704,7 +710,7 @@ export abstract class BenneScriptCore {
   }
 
   /** Current active verb id, or `null` when none is set. */
-  getActiveVerb(): string | null {
+  getActiveVerb(): GameVerbId | null {
     return tryGetActiveGameStateManager()?.getActiveVerb() ?? null;
   }
 
@@ -718,7 +724,7 @@ export abstract class BenneScriptCore {
    * Available on every Bennescript facade via `B.setActiveInventory(...)` and on `B.state`. Pass `null` or an
    * empty string to clear.
    */
-  setActiveInventory(id: string | null): void {
+  setActiveInventory(id: InventoryItemId | null): void {
     const manager = tryGetActiveGameStateManager();
     if (!manager) {
       if (import.meta.env.DEV) {
@@ -732,7 +738,7 @@ export abstract class BenneScriptCore {
   }
 
   /** Current active inventory item id, or `null` when none is set. */
-  getActiveInventoryItemId(): string | null {
+  getActiveInventoryItemId(): InventoryItemId | null {
     return tryGetActiveGameStateManager()?.getActiveInventoryItemId() ?? null;
   }
 
@@ -1412,7 +1418,7 @@ export abstract class BenneScriptCore {
     };
 
     const walkPlayerWithNow = withNow(
-      (target: Point2 | string) => {
+      (target: Point2 | ResolvableTargetId) => {
         const scene = getScene();
         if (!scene) {
           warnNoRoom();
@@ -1420,7 +1426,7 @@ export abstract class BenneScriptCore {
         }
         core.chain(() => scene.walkPlayerTo(target));
       },
-      (target: Point2 | string) => {
+      (target: Point2 | ResolvableTargetId) => {
         const scene = getScene();
         if (!scene) {
           warnNoRoom();
@@ -1430,7 +1436,7 @@ export abstract class BenneScriptCore {
       },
     );
     const moveToTeleport = withNow(
-      (target: Point2 | string) => {
+      (target: Point2 | ResolvableTargetId) => {
         const scene = getScene();
         if (!scene) {
           warnNoRoom();
@@ -1441,7 +1447,7 @@ export abstract class BenneScriptCore {
           return Promise.resolve();
         });
       },
-      (target: Point2 | string) => {
+      (target: Point2 | ResolvableTargetId) => {
         const scene = getScene();
         if (!scene) {
           warnNoRoom();
@@ -1454,7 +1460,7 @@ export abstract class BenneScriptCore {
       sound: core.sound,
       walkTo: walkPlayerWithNow,
       moveTo: moveToTeleport,
-      moveToNow: (target: Point2 | string) => {
+      moveToNow: (target: Point2 | ResolvableTargetId) => {
         moveToTeleport.now(target);
       },
       walkToClicked: withNow(
@@ -1548,7 +1554,10 @@ export abstract class BenneScriptCore {
           return Promise.resolve();
         });
       },
-      startFollowingCharacter(targetId: string, options?: CharacterFollowOptions): void {
+      startFollowingCharacter(
+        targetId: CharacterId | 'player',
+        options?: CharacterFollowOptions,
+      ): void {
         core.chain(() => {
           const scene = getScene();
           const mgr = tryGetActiveGameStateManager();
@@ -1592,7 +1601,7 @@ export abstract class BenneScriptCore {
    * **`getPlayerWalkRoomScene`** hook as **`B.player`** (room/character/inventory pass a stable
    * **`() => this.roomScene`** closure; dialog/global/gui pass **`() => game.scene.getScene(SCENE_ROOM)`**).
    */
-  character(definitionId: string): BenneScriptCharacterFacade {
+  character(definitionId: CharacterId): BenneScriptCharacterFacade {
     return this.makeCharacterFacadeLazy(() => this.getPlayerWalkRoomScene(), definitionId);
   }
 
@@ -1619,7 +1628,7 @@ export abstract class BenneScriptCore {
       scene.faceCharacterScriptDirection(definitionId, direction);
     };
     const walkCharacterWithNow = withNow(
-      (target: Point2 | string) => {
+      (target: Point2 | ResolvableTargetId) => {
         core.chain(() => {
           const scene = getScene();
           if (!scene) {
@@ -1629,7 +1638,7 @@ export abstract class BenneScriptCore {
           return scene.walkCharacterTo(definitionId, target);
         });
       },
-      (target: Point2 | string) => {
+      (target: Point2 | ResolvableTargetId) => {
         const scene = getScene();
         if (!scene) {
           warnNoRoom();
@@ -1639,7 +1648,7 @@ export abstract class BenneScriptCore {
       },
     );
     const moveToTeleport = withNow(
-      (target: Point2 | string) => {
+      (target: Point2 | ResolvableTargetId) => {
         core.chain(() => {
           const scene = getScene();
           if (!scene) {
@@ -1650,7 +1659,7 @@ export abstract class BenneScriptCore {
           return Promise.resolve();
         });
       },
-      (target: Point2 | string) => {
+      (target: Point2 | ResolvableTargetId) => {
         const scene = getScene();
         if (!scene) {
           warnNoRoom();
@@ -1663,7 +1672,7 @@ export abstract class BenneScriptCore {
       sound: core.sound,
       walkTo: walkCharacterWithNow,
       moveTo: moveToTeleport,
-      moveToNow: (target: Point2 | string) => {
+      moveToNow: (target: Point2 | ResolvableTargetId) => {
         moveToTeleport.now(target);
       },
       hide: withNow(
@@ -1824,7 +1833,7 @@ export abstract class BenneScriptCore {
         },
         runCharacterFace,
       ),
-      startFacingCharacter(character: string, minWaitTime?: number, maxWaitTime?: number): void {
+      startFacingCharacter(character: CharacterId, minWaitTime?: number, maxWaitTime?: number): void {
         core.chain(() => {
           const scene = getScene();
           if (!scene) {
@@ -1895,7 +1904,10 @@ export abstract class BenneScriptCore {
           return Promise.resolve();
         });
       },
-      startFollowingCharacter(targetId: string, options?: CharacterFollowOptions): void {
+      startFollowingCharacter(
+        targetId: CharacterId | 'player',
+        options?: CharacterFollowOptions,
+      ): void {
         core.chain(() => {
           const scene = getScene();
           const mgr = tryGetActiveGameStateManager();

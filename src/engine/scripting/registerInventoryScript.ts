@@ -1,4 +1,5 @@
 import type { InventoryScriptContext } from './types.js';
+import type { InventoryItemId } from '../../types/generated/benne-game-ids.js';
 
 const benneInventoryScriptRegistrations: Array<{
   itemId: string;
@@ -23,7 +24,7 @@ export function getInventoryItemIdsWithBenneScripts(): ReadonlySet<string> {
  * {@link import('../verbs/dispatchInventoryVerb.js').dispatchInventoryVerbInteraction} can prefer room listeners first.
  */
 export function registerInventoryScript(
-  itemId: string,
+  itemId: InventoryItemId,
   registerFn: (context: InventoryScriptContext) => void,
 ): void {
   benneInventoryScriptRegistrations.push({ itemId, registerFn });

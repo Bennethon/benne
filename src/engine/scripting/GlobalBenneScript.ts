@@ -10,6 +10,7 @@ import {
 } from '../events/verbInteractionEvents.js';
 import type { VerbGlobalFallbackPayload, VerbUnhandledPayload } from '../events/verbInteractionEvents.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
+import type { DialogId, GameVerbId } from '../../types/generated/benne-game-ids.js';
 import type { BenneScriptDialogCommandSurface, BenneScriptPlayerFacade } from './benneScriptFacades.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { SCENE_ROOM } from '../../game/boot/constants.js';
@@ -33,7 +34,7 @@ export class GlobalBenneScript extends BenneScriptCore {
   private readonly game: Phaser.Game;
   readonly state: BenneScriptGameStateNamespace;
   readonly inventory: BenneScriptInventoryNamespace;
-  readonly dialog: (dialogId: string) => BenneScriptDialogCommandSurface;
+  readonly dialog: (dialogId: DialogId) => BenneScriptDialogCommandSurface;
 
   constructor(events: Phaser.Events.EventEmitter, game: Phaser.Game) {
     super(
@@ -93,7 +94,7 @@ export class GlobalBenneScript extends BenneScriptCore {
   }
 
   whenGlobalVerb(
-    verbId: string,
+    verbId: GameVerbId,
     handler: ((payload: VerbGlobalFallbackPayload) => void) | (() => void),
   ): void {
     const eventId = globalVerbHandlerEventId(verbId);

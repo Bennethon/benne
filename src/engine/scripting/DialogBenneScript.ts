@@ -14,6 +14,7 @@ import {
   BENNE_ACTIVE_DIALOG_ID_VARIABLE,
   dialogOptionEnabledVariableKey,
 } from '../dialog/dialogOptionVariables.js';
+import type { DialogId, DialogOptionId } from '../../types/generated/benne-game-ids.js';
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
@@ -63,8 +64,8 @@ export function createNoopDialogCommandSurface(): BenneScriptDialogCommandSurfac
     () => {},
   );
   const noopOpt = withNow(
-    (_optionId: string) => {},
-    (_optionId: string) => {},
+    (_optionId: DialogOptionId) => {},
+    (_optionId: DialogOptionId) => {},
   );
   return {
     start: noop,
@@ -185,8 +186,8 @@ export function createBenneScriptDialogAccessor(
   manager: GameStateManager,
   game: Phaser.Game,
   queue: BenneScriptDialogInteractionQueue,
-): (dialogId: string) => BenneScriptDialogCommandSurface {
-  return (dialogId: string) => {
+): (dialogId: DialogId) => BenneScriptDialogCommandSurface {
+  return (dialogId: DialogId) => {
     const id = dialogId.trim();
     if (!id) {
       if (import.meta.env.DEV) {
@@ -207,7 +208,7 @@ export function createBenneScriptDialogAccessor(
 /**
  * Opens a dialog session (used by **`B.dialog(id).start()`** and **`.start.now()`**).
  */
-export function openDialogSessionForId(game: Phaser.Game, dialogId: string): void {
+export function openDialogSessionForId(game: Phaser.Game, dialogId: DialogId): void {
   const trimmed = dialogId.trim();
   if (!trimmed) {
     if (import.meta.env.DEV) {
@@ -327,7 +328,7 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
    * While the handler’s synchronous work plus any interaction-tail steps (`say`, `walk`, etc.) run, the
    * dialog choice GUI is hidden so additional options cannot be activated.
    */
-  whenChoice(optionId: string, handler: (() => void) | ((payload: { optionId: string }) => void)): void {
+  whenChoice(optionId: DialogOptionId, handler: (() => void) | ((payload: { optionId: string }) => void)): void {
     const id = optionId.trim();
     if (!id) {
       return;

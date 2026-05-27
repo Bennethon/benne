@@ -1,5 +1,6 @@
 import type { GuiBenneScript } from './GuiBenneScript.js';
 import type { GuiScriptContext } from './types.js';
+import type { GuiId } from '../../types/generated/benne-game-ids.js';
 
 const benneGuiScriptRegistrations: Array<{
   guiId: string;
@@ -31,7 +32,7 @@ export function getAllGuiBenneScriptInstances(): ReadonlyMap<string, GuiBenneScr
 
 /** Call at the top level of each `*.gui.ts` to register GUI-scoped Bennescript (or `raw`) handlers. */
 export function registerGuiScript(
-  guiId: string,
+  guiId: GuiId,
   registerFn: (context: GuiScriptContext) => void,
 ): void {
   benneGuiScriptRegistrations.push({ guiId, registerFn });
