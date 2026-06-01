@@ -336,7 +336,7 @@ export abstract class BenneScriptCore {
   readonly fadeIn: BlockingWithNow<[durationSeconds?: number, color?: number]>;
 
   /**
-   * PowerQuest-style uncancelable sequence. Increments the active {@link RoomScene}'s cutscene
+   * Uncancelable sequence. Increments the active {@link RoomScene}'s cutscene
    * depth counter while the callback's queued steps execute, then decrements it.
    *
    * **Blocking form** (`B.cutscene(callback)`): waits for any previously-queued steps to drain,

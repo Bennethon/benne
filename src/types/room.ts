@@ -233,8 +233,7 @@ export interface RoomData {
   /**
    * Camera scroll bounds in room pixel space. Restricts how far the camera can pan within the room.
    * When omitted the camera is bounded by the full room `size`.
-   * Equivalent to "scroll bounds" in PowerQuest: the character can walk beyond scroll bounds but the
-   * camera stops panning before reaching the room edge.
+   * The character can walk beyond scroll bounds but the camera stops panning before reaching the room edge.
    */
   scrollBounds?: { x: number; y: number; width: number; height: number };
   walkable: {

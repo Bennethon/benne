@@ -181,7 +181,7 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
     const roomTs = `import { registerRoomScript } from '@engine/scripting';
 
 /**
- * Room script for \`${id}\` — keep handlers for this room here (PowerQuest-style).
+ * Room script for \`${id}\` — keep handlers for this room here.
  *
  * String ids must match your \`${id}.room.json\` (and character JSON where noted):
  * - \`whenLookAt\` / \`whenUse\` / \`whenTalkTo\` / \`whenPickUp\` / \`whenPush\` / \`whenPull\` / \`whenOpen\` / \`whenClose\`: work on props, hotspots, and characters — same string id, resolution order \`props[]\` → \`hotspots[]\` → \`CharacterData.id\` in this room.

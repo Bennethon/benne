@@ -1,7 +1,7 @@
 import { registerRoomScript } from '@engine/scripting';
 
 /**
- * Room script for `outside` — keep handlers for this room here (PowerQuest-style).
+ * Room script for `outside` — keep handlers for this room here.
  *
  * String ids must match your `outside.room.json` (and character JSON where noted):
  * - `whenLookAt` / `whenUse` / `whenTalkTo` / `whenPickUp` / `whenPush` / `whenPull` / `whenOpen` / `whenClose`: work on props, hotspots, and characters — same string id, resolution order `props[]` → `hotspots[]` → `CharacterData.id` in this room.
