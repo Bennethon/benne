@@ -85,14 +85,14 @@
 
 ## 1. Overview
 
-**BENNE** is a **web-based point-and-click adventure game engine** (LucasArts / PowerQuest–style): fixed-resolution pixel rooms, click-to-walk, and verb-style interactions on props and characters. The runtime is **Phaser 4** (RC), **TypeScript**, and **Vite**.
+**BENNE** is a **web-based point-and-click adventure game engine** (LucasArts SCUMM / AGS / PowerQuest): fixed-resolution pixel rooms, click-to-walk, and verb-style interactions on props and characters. The runtime is **Phaser 4** (RC), **TypeScript**, and **Vite**.
 
 **Core design goals**
 
 - **Data-first**: Rooms, characters, **GUIs** (overlay UI definitions), **inventory** definitions, **dialogs** (topic lines + choice options in JSON), and game tuning live in **JSON** (and Aseprite exports) under `src/game/`; TypeScript supplies **room** / **character** / **GUI** / **inventory** / **dialog** scripts and engine code, not hand-authored level blobs in code. Optional **`src/game/pdcs/<id>/<id>.pdc.json`** files store **designer-only puzzle flow charts** (Cytoscape JSON); they are **not** registered by **`registerGameContent`** and do not participate in runtime loading.
 - **Separation**: **`src/engine/`** is reusable; **`src/game/`** is project-specific content and registration (`registerGameContent`).
 - **Retro display**: Internal resolution defaults to **352×198** and remains the source of truth for gameplay + GUI coordinates. Runtime scaling uses a **hi-DPI canvas** strategy (`Scale.NONE`) instead of `FIT + MAX_ZOOM`: backing buffer targets **parent CSS size × device pixel ratio** (capped), `scale.zoom = 1 / dpr` keeps CSS sizing predictable, and the game frame is aspect-fit via `cameras.main.setViewport` + smooth (non-integer) zoom. Resize uses a two-phase path in `benneRuntimeHiDpiScale.ts`: per-frame cheap camera/CSS updates while dragging, plus a short debounced backing-store commit (`scale.resize`) to reduce flicker. Startup runs an unconditional commit burst across initial RAFs, and camera dedupe includes active-scene keys so scene changes (`BootScene` -> `RoomScene`) still force first-frame camera application. **Post-processing** is wired as a **camera hook** (`attachPostProcessingPlaceholder`) — currently a no-op, reserved for CRT / dissolve-style effects.
-- **Scrolling rooms**: Rooms wider or taller than the viewport declare `size` in `RoomData` (e.g. `"size": { "width": 704, "height": 198 }`). `RoomScene` reads this and sets `cameras.main.setBounds` + `startFollow` on the player so the camera tracks movement within the room. An optional `scrollBounds` field further restricts how far the camera pans (PowerQuest-style).
+- **Scrolling rooms**: Rooms wider or taller than the viewport declare `size` in `RoomData` (e.g. `"size": { "width": 704, "height": 198 }`). `RoomScene` reads this and sets `cameras.main.setBounds` + `startFollow` on the player so the camera tracks movement within the room. An optional `scrollBounds` field further restricts how far the camera pans.
 - **Simplicity over frameworks**: One primary gameplay scene (`RoomScene`), a thin boot loader (`BootScene`), and a **global `EventBus`** for script-facing events instead of a heavy ECS.
 
 ---
@@ -154,9 +154,9 @@ The **VS Code extension** (`benne-editor/`) and **`src/editor/preview/`** build 
 
 ### Scrolling room camera
 
-- **Room size** (`RoomData.size`): the physical extent of the room in game-world pixels.  Controls camera bounds, walkable-area extent, and whether `startFollow` is activated.  The background image and Aseprite prop sheets render at their **own natural dimensions** — `size` does **not** scale the art.  Setting `size` smaller than the art restricts the camera to a sub-region of the art, which is valid (e.g. the art bleeds beyond the playable area).  Matches PowerQuest's "Room Bounds."
+- **Room size** (`RoomData.size`): the physical extent of the room in game-world pixels.  Controls camera bounds, walkable-area extent, and whether `startFollow` is activated.  The background image and Aseprite prop sheets render at their **own natural dimensions** — `size` does **not** scale the art.  Setting `size` smaller than the art restricts the camera to a sub-region of the art, which is valid (e.g. the art bleeds beyond the playable area).
 
-- **Scroll bounds** (`RoomData.scrollBounds`): optional `{ x, y, width, height }` in room space that restricts how far `cameras.main` may pan within the room.  When omitted the camera pans anywhere within `size`.  Making `scrollBounds` narrower than `size` keeps the camera away from room edges (the camera is "less eager" to scroll to the edge).  Making `scrollBounds` equal to `size` lets the camera pan all the way to the edge.  Implemented via `cameras.main.setBounds(scrollBounds)`.  Matches PowerQuest's "Scroll Bounds."
+- **Scroll bounds** (`RoomData.scrollBounds`): optional `{ x, y, width, height }` in room space that restricts how far `cameras.main` may pan within the room.  When omitted the camera pans anywhere within `size`.  Making `scrollBounds` narrower than `size` keeps the camera away from room edges (the camera is "less eager" to scroll to the edge).  Making `scrollBounds` equal to `size` lets the camera pan all the way to the edge.  Implemented via `cameras.main.setBounds(scrollBounds)`.
 - **`RoomScene.setupRoomCamera`** (private): called at the end of `create` after characters spawn. Sets `cameras.main.setBounds` from `scrollBounds` (or room size). When the room is larger than the viewport and a player exists, **`applyPlayerCameraFollow`** calls `startFollow` with an offset derived from **`CharacterData.feet`** so the camera tracks the character’s **feet** (see **`src/engine/characterFeet.ts`**), not the sprite’s top-left.
 - **`RoomScene.setEditorCameraMode(mode)`** (public): called by the editor's `RoomPolygonEditScene` whenever the toolbar mode changes. Stores the current mode so it can be re-applied on panel resize. Two behaviours: `'navigate'` — letterboxes the game's virtual resolution (352×198) inside the panel using `cameras.main.setViewport`, sets zoom to fill that box, and re-activates player follow + scroll bounds for game-accurate preview; `'edit'` — expands the camera to fill the entire panel (`setViewport(0,0,panelW,panelH)`), computes `zoom = min(panelW/roomW, panelH/roomH)` to fit the full room art, sets bounds to room bounds, and disables player follow so the authoring view is stable. The `scale.on('resize')` hook re-invokes `setEditorCameraMode` automatically when the VS Code panel is resized.
 - **Runtime hi-DPI camera split** (`RoomScene` + `benneRuntimeHiDpiScale.ts`): runtime keeps world rendering on `cameras.main` (normal origin/follow math) and routes GUI / cursor through a dedicated UI camera (`ensureEditorUiCamera`, also used in preview). This avoids `scrollFactor: 0` HUD drift under zoomed/letterboxed viewports while preserving room-art alignment and click mapping.
@@ -422,7 +422,7 @@ The sprite’s **`facing`** data stores the **logical** facing the gameplay aske
   1. Script-level **`B.whenInventoryUsedOn.doNotClear(...)`** (or **`{ doNotClear: true }`**) — hard per-handler opt-out; inventory stays armed.
   2. Per-item **`dropWhenUsed`** on **`*.inventory.json`** (**`InventoryItemData`**) — when present, wins.
   3. Global **`dropWhenInventoryUsed`** on **`game-config.json`** (**`GameSettings`**).
-  4. Default **`false`** — inventory stays armed so the player can use the same item on several targets in a row (classic modern adventure behavior). Set the global or per-item flag to **`true`** for classic PowerQuest-style “drop after use”.
+  4. Default **`false`** — inventory stays armed so the player can use the same item on several targets in a row (classic modern adventure behavior). Set the global or per-item flag to **`true`** for classic “drop after use”.
 
   When the policy resolves to **drop** **and** the **`whenInventoryUsedOn`** payload handler did **not** **`return false`**, **`BenneScriptCore.subscribeInventoryUsedOnTargetEvents`** clears **both** the active inventory and the runtime **active verb** after the handler’s queued steps so the verb HUD resets to idle (no stale "Use …" armed). **`RoomScene`** prop / hotspot / character pointer handlers and **`buildGuiOverlay`** inventory-on-inventory synchronously clear both when **`dispatchInventoryOnVerbTargetInteraction`** / **`dispatchInventoryOnInventoryItemInteraction`** is unhandled and **`shouldDropActiveInventoryOnUse`** is true. **`payload.verbId`** is captured at dispatch time, so handler bodies still see the verb that fired even after the post-tail clear. When the policy resolves to **don’t drop**, both the armed item **and** the active verb stay set across the click; clear them manually with **`B.clearActiveInventory()` / `B.clearActiveVerb()`**, verb GUI buttons, or right-click while armed.
 - **Right-click / empty-space clears while armed**: whenever **`activeInventoryItemId`** is set, a **right**-click on **anything** (prop, hotspot, clickable character, inventory row, or empty space) clears **both** the active inventory and the active verb. A **left**-click on empty space while armed also clears both instead of walking — the player must re-arm before the empty-space click walks again (`RoomScene.handleRoomPointerDown` + `resolution.kind === 'clearActive'` branches in the prop / hotspot / character pointer handlers and in **`buildGuiOverlay`** inventory rows).
@@ -602,7 +602,7 @@ These schedule work on the queue when called from a handler (or any code path us
 - Return type is **`void`** (same as the blocking form); the engine does not surface promises to authors for the default API.  
 - TypeScript models blocking methods as **`BlockingWithNow<…>`** — the callable plus a **`now`** property with the same parameters (good autocomplete).
 
-**Sprite animation & persistence (PowerQuest-style `Animation` vs `PlayAnimation`)**  
+**Sprite animation & persistence (`Animation` vs `PlayAnimation`)**  
 
 Bennescript separates a **saved** “what should this prop/character show by default?” from a **temporary** scripted clip (inventory row clips use **saved** overrides only — no **`playAnimation`** on **`B.inventory(id)`**):
 
@@ -700,11 +700,11 @@ This layer turns BENNE from "wiring events" into "telling a story" while keeping
 
 ### Per-frame hooks — `B.onUpdate`
 
-PowerQuest-style **`void Update()`** continuous logic: **`B.onUpdate((ctx: UpdateContext) => { … })`** on **room** and **global** script facades only (**`registerRoomScript`**, **`registerGlobalScript`**). **`UpdateContext`** (**`src/engine/scripting/types.ts`**) exposes **`deltaSeconds`** (Phaser **`game.loop.delta / 1000`**) and **`roomId`** (active **`RoomData.id`**). The engine invokes handlers from **`RoomScene.update`** **after** snap/follow/region/parallax/stack/path work, **not** on the **`interactionTail`**; **room** callbacks run **before** **global** callbacks. Handlers **still run** while **`cutsceneDepth > 0`**. Per-handler failures log to **`console.error`** without skipping later handlers. Wiring: **`BenneScriptCore.onUpdate`** + subclass **`acquireOnUpdateSubscription`**, **`RoomScene.registerBenneScriptOnUpdateHandler`**, **`benneScriptOnUpdateRegistry.ts`** for globals (**`runGlobalBenneScriptOnUpdateHandlers`**, cleared on **`Phaser.Core.Events.DESTROY`** from **`wireBenneGlobalScripts`**). See **`docs/bennescript-api.md` → Per-frame hook — `B.onUpdate`**.
+**`void Update()`** continuous logic: **`B.onUpdate((ctx: UpdateContext) => { … })`** on **room** and **global** script facades only (**`registerRoomScript`**, **`registerGlobalScript`**). **`UpdateContext`** (**`src/engine/scripting/types.ts`**) exposes **`deltaSeconds`** (Phaser **`game.loop.delta / 1000`**) and **`roomId`** (active **`RoomData.id`**). The engine invokes handlers from **`RoomScene.update`** **after** snap/follow/region/parallax/stack/path work, **not** on the **`interactionTail`**; **room** callbacks run **before** **global** callbacks. Handlers **still run** while **`cutsceneDepth > 0`**. Per-handler failures log to **`console.error`** without skipping later handlers. Wiring: **`BenneScriptCore.onUpdate`** + subclass **`acquireOnUpdateSubscription`**, **`RoomScene.registerBenneScriptOnUpdateHandler`**, **`benneScriptOnUpdateRegistry.ts`** for globals (**`runGlobalBenneScriptOnUpdateHandlers`**, cleared on **`Phaser.Core.Events.DESTROY`** from **`wireBenneGlobalScripts`**). See **`docs/bennescript-api.md` → Per-frame hook — `B.onUpdate`**.
 
 ### Cutscene mode
 
-BENNE supports **PowerQuest-style uncancelable sequences** that suppress all player input for the duration of a scripted sequence.
+BENNE supports **uncancelable sequences** that suppress all player input for the duration of a scripted sequence.
 
 **Automatic activation** — the following handlers are always wrapped in a cutscene block with no author changes required:
 
@@ -750,7 +750,7 @@ Both forms use the interaction tail so they chain correctly with `walkTo`, `say`
 **Custom cursor** — when the Aseprite cursor is enabled, `game-config.json`'s `cursor.busyAnimation` controls the appearance during a cutscene:
 
 - Non-empty string and the animation key exists → cursor plays that tag.
-- Missing, blank, or clip not found → cursor sprite is hidden entirely (classic PowerQuest style).
+- Missing, blank, or clip not found → cursor sprite is hidden entirely.
 
 Both `idle` and `active` animations are fully restored when the cutscene ends.
 

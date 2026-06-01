@@ -30,7 +30,7 @@ export interface RoomScriptContext {
   /**
    * Main authoring facade (`whenLookAt`, `B.player.walkTo`, …).
    * String ids for verb sugar (prop → hotspot → character), `walkTo`, and prop-only helpers are documented in the **module comment** at the top of `BenneScript.ts`.
-   * Includes {@link BenneScriptSharedSelectionApi} (`setActiveVerb`, `setActiveInventory`, …) from {@link import('./BenneScriptCore.js').BenneScriptCore} and tagged **`B.say`**…`` / **`B.say.now`**…`` (PowerQuest-style dialogue blocks).
+   * Includes {@link BenneScriptSharedSelectionApi} (`setActiveVerb`, `setActiveInventory`, …) from {@link import('./BenneScriptCore.js').BenneScriptCore} and tagged **`B.say`**…`` / **`B.say.now`**…``.
    */
   readonly B: BenneScript & BenneScriptSharedSelectionApi;
 
