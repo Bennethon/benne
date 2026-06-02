@@ -25,7 +25,12 @@
     "sync-template-down": "node scripts/switch-game-template.mjs sync-template-down",
     "set-template": "node scripts/switch-game-template.mjs set-template",
     "set-template:2-click": "node scripts/switch-game-template.mjs set-template 2-click",
-    "set-template:9-verb": "node scripts/switch-game-template.mjs set-template 9-verb"
+    "set-template:9-verb": "node scripts/switch-game-template.mjs set-template 9-verb",
+    "bundle:scaffold": "node scripts/bundle-extension-scaffold.mjs",
+    "package:extension": "node scripts/package-extension.mjs",
+    "package:extension:minor": "node scripts/package-extension.mjs minor",
+    "package:extension:major": "node scripts/package-extension.mjs major",
+    "package:extension:no-bump": "node scripts/package-extension.mjs --no-bump"
   },
   "devDependencies": {
     "typescript": "~5.9.3",

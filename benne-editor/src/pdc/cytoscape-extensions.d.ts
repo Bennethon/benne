@@ -15,3 +15,10 @@ declare module 'cytoscape-svg' {
     const ext: Parameters<typeof use>[0];
     export default ext;
 }
+
+/** cytoscape-svg registers `core.svg()` at runtime via cytoscape.use(svg). */
+declare namespace cytoscape {
+    interface Core {
+        svg(options?: ExportOptions): string;
+    }
+}

@@ -1,7 +1,11 @@
 import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
-import { getRoomIdFromRoomJsonUri } from './gameDiscovery';
+import {
+    findBenneGameFolders,
+    getRoomIdFromRoomJsonUri,
+} from './gameDiscovery';
+import { resolvePreviewScriptUri } from './previewBundlePaths';
 import { readRoomPlayFromNamesFromSource } from './playFromDiscovery';
 import {
     applyRoomPolygonPatch,
@@ -24,6 +28,8 @@ export class RoomPreviewPanelController implements vscode.Disposable {
     private lastPushedPreviewLoadKey: string | null = null;
     /** Debounced reload when the active room JSON file changes on disk (e.g. add-hotspot wizard uses `writeFile`). */
     private roomJsonDiskChangeTimer: ReturnType<typeof setTimeout> | undefined;
+    /** Game root used to resolve locally rebuilt preview bundles (`.benne/` or monorepo sibling). */
+    private lastGameRootUri: vscode.Uri | undefined;
     /** Dedupes `toolbarUi` posts when focus is already reflected in the webview. */
     private lastToolbarUiKey: string | null = null;
     /**
@@ -397,7 +403,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             }
         );
 
-        this.panel.webview.html = buildRoomPreviewHtml(this.panel.webview, this.extensionUri);
+        void this.applyPreviewHtml();
 
         this.disposables.push(
             this.panel.webview.onDidReceiveMessage(
@@ -714,6 +720,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             });
             return;
         }
+        this.lastGameRootUri = folder.uri;
 
         const gameSrc = vscode.Uri.joinPath(folder.uri, 'src', 'game');
         try {
@@ -777,7 +784,24 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         this.lastPushedRoomJsonUri = null;
         this.lastPushedPreviewLoadKey = null;
         this.lastToolbarUiKey = null;
-        this.panel.webview.html = buildRoomPreviewHtml(this.panel.webview, this.extensionUri);
+        void this.applyPreviewHtml();
+    }
+
+    private async applyPreviewHtml(): Promise<void> {
+        if (!this.panel) {
+            return;
+        }
+        if (!this.lastGameRootUri) {
+            const games = await findBenneGameFolders();
+            if (games.length > 0) {
+                this.lastGameRootUri = games[0].uri;
+            }
+        }
+        this.panel.webview.html = await buildRoomPreviewHtml(
+            this.panel.webview,
+            this.extensionUri,
+            this.lastGameRootUri,
+        );
     }
 
     /** Prefer in-memory buffer when the room JSON is open in an editor (matches unsaved edits on Refresh). */
@@ -812,10 +836,18 @@ export class RoomPreviewPanelController implements vscode.Disposable {
     }
 }
 
-function buildRoomPreviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
-    const scriptUri = webview.asWebviewUri(
-        vscode.Uri.joinPath(extensionUri, 'media', 'room-preview', 'room-preview.js')
-    );
+function buildRoomPreviewHtml(
+    webview: vscode.Webview,
+    extensionUri: vscode.Uri,
+    gameRoot: vscode.Uri | undefined,
+): Promise<string> {
+    return resolvePreviewScriptUri(
+        webview,
+        extensionUri,
+        gameRoot,
+        'room-preview',
+        'room-preview.js',
+    ).then((scriptUri) => {
     const nonce = crypto.randomBytes(16).toString('hex');
     const csp = [
         `default-src 'none'`,
@@ -853,4 +885,5 @@ function buildRoomPreviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri)
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
+    });
 }

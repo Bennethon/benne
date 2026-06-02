@@ -25,6 +25,8 @@ import {
     getRoomPreviewBuildOutputChannel,
     resolveGameFolderForRoomPreviewBuild,
     roomPreviewBuildHintUri,
+    canRunBenneEditorWebpackCompile,
+    ensureBennePlayBundleForGame,
     runBenneEditorWebpackCompile,
     runBennePlayBuild,
     runCharacterPreviewBuild,
@@ -60,6 +62,7 @@ import { registerBenneScriptIdCompletion } from './benneScriptIdCompletion';
 import { scheduleGenerateGameIds } from './gameIdsGenerator';
 import { openDialogScriptEditorOnly, runCreateDialogWizard } from './dialogScaffolding';
 import { runCreatePdcWizard } from './pdcScaffolding';
+import { runCreateGameWizard } from './gameCreationScaffolding';
 import { PdcEditorPanelController } from './pdcPreviewPanel';
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import {
@@ -738,6 +741,13 @@ export function activate(context: vscode.ExtensionContext): void {
                 void vscode.window.showInformationMessage(`Deleted ${kindLabel} “${target.displayLabel}”.`);
             }
         ),
+        vscode.commands.registerCommand('benne-editor.createGame', async () => {
+            const version =
+                typeof context.extension.packageJSON.version === 'string'
+                    ? context.extension.packageJSON.version
+                    : '0.0.0';
+            await runCreateGameWizard(context.extensionPath, version);
+        }),
         vscode.commands.registerCommand(
             'benne-editor.createRoom',
             async (arg?: MainTreeNode | MainTreeNode[]) => {
@@ -769,7 +779,15 @@ export function activate(context: vscode.ExtensionContext): void {
                 }
                 const gameFolder = await resolveGameFolderForRoomPreviewBuild(target.roomJsonUri);
                 if (gameFolder) {
-                    await bennePlayWatch.ensureStarted(gameFolder, () => {
+                    const ch = getRoomPreviewBuildOutputChannel();
+                    const bundleOk = await ensureBennePlayBundleForGame(gameFolder, ch);
+                    if (!bundleOk) {
+                        void vscode.window.showErrorMessage(
+                            'Could not build BENNE Play bundle. See the "BENNE rebuild previews" output channel.',
+                        );
+                        return;
+                    }
+                    void bennePlayWatch.ensureStarted(gameFolder, () => {
                         bennePlay.reloadWebview();
                     });
                     bennePlay.setPanelDisposeSideEffect(() => {
@@ -778,7 +796,12 @@ export function activate(context: vscode.ExtensionContext): void {
                 } else {
                     bennePlay.setPanelDisposeSideEffect(undefined);
                 }
-                bennePlay.playFromRoom(target.roomId, target.roomName, target.playFromName);
+                bennePlay.playFromRoom(
+                    target.roomId,
+                    target.roomName,
+                    target.playFromName,
+                    gameFolder?.uri,
+                );
             }
         ),
         vscode.commands.registerCommand(
@@ -1014,46 +1037,55 @@ export function activate(context: vscode.ExtensionContext): void {
                 return;
             }
 
+            const includeWebpack = await canRunBenneEditorWebpackCompile(context.extensionUri);
+            const totalSteps = includeWebpack ? 6 : 5;
+
             const roomOk = await runRoomPreviewBuild(folder, ch, {
-                title: 'Rebuilding editor preview bundles (1/6: room)'
+                title: `Rebuilding editor preview bundles (1/${totalSteps}: room)`
             });
             if (!roomOk) {
                 return;
             }
 
             const characterOk = await runCharacterPreviewBuild(folder, ch, {
-                title: 'Rebuilding editor preview bundles (2/6: character)'
+                title: `Rebuilding editor preview bundles (2/${totalSteps}: character)`
             });
             if (!characterOk) {
                 return;
             }
 
             const guiOk = await runGuiPreviewBuild(folder, ch, {
-                title: 'Rebuilding editor preview bundles (3/6: GUI)'
+                title: `Rebuilding editor preview bundles (3/${totalSteps}: GUI)`
             });
             if (!guiOk) {
                 return;
             }
 
             const inventoryOk = await runInventoryPreviewBuild(folder, ch, {
-                title: 'Rebuilding editor preview bundles (4/6: inventory)'
+                title: `Rebuilding editor preview bundles (4/${totalSteps}: inventory)`
             });
             if (!inventoryOk) {
                 return;
             }
 
             const playOk = await runBennePlayBuild(folder, ch, {
-                title: 'Rebuilding editor preview bundles (5/6: BENNE Play)'
+                title: `Rebuilding editor preview bundles (5/${totalSteps}: BENNE Play)`
             });
             if (!playOk) {
                 return;
             }
 
-            const editorOk = await runBenneEditorWebpackCompile(context.extensionUri, ch, {
-                title: 'Rebuilding editor preview bundles (6/6: extension webpack / Inspector)'
-            });
-            if (!editorOk) {
-                return;
+            if (includeWebpack) {
+                const editorOk = await runBenneEditorWebpackCompile(context.extensionUri, ch, {
+                    title: `Rebuilding editor preview bundles (6/${totalSteps}: extension webpack / Inspector)`
+                });
+                if (!editorOk) {
+                    return;
+                }
+            } else {
+                ch.appendLine(
+                    '[skip] Extension webpack compile skipped (installed extension has no devDependencies).',
+                );
             }
 
             roomPreview.reloadRoomPreviewBundle();
@@ -1061,7 +1093,9 @@ export function activate(context: vscode.ExtensionContext): void {
             guiPreview.reloadGuiPreviewBundle();
             inventoryPreview.reloadInventoryPreviewBundle();
             void vscode.window.showInformationMessage(
-                'Editor preview bundles rebuilt (room, character, GUI, inventory, BENNE Play) and extension webpack (Inspector). Reload the window if the Inspector did not refresh.'
+                includeWebpack
+                    ? 'Editor preview bundles rebuilt (room, character, GUI, inventory, BENNE Play) and extension webpack (Inspector). Reload the window if the Inspector did not refresh.'
+                    : 'Editor preview bundles rebuilt (room, character, GUI, inventory, BENNE Play). Reload preview panels if they do not pick up changes.',
             );
         }),
         vscode.commands.registerCommand(
