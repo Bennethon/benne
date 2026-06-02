@@ -36,7 +36,7 @@ function globalScriptTsUri(folder: vscode.WorkspaceFolder): vscode.Uri {
 }
 
 export type MainTreeNode =
-    | { kind: 'hint'; key: string; message: string }
+    | { kind: 'hint'; key: string; message: string; command?: string }
     | { kind: 'workspace'; folder: vscode.WorkspaceFolder }
     | { kind: 'gameConfig'; folder: vscode.WorkspaceFolder; uri: vscode.Uri }
     | { kind: 'globalScript'; folder: vscode.WorkspaceFolder; uri: vscode.Uri }
@@ -445,6 +445,10 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
             case 'hint': {
                 const item = new vscode.TreeItem(element.message, vscode.TreeItemCollapsibleState.None);
                 item.id = `hint:${element.key}`;
+                if (element.command) {
+                    item.command = { command: element.command, title: element.message };
+                    item.iconPath = new vscode.ThemeIcon('add');
+                }
                 return item;
             }
             case 'workspace': {
@@ -734,8 +738,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                 {
                     kind: 'hint',
                     key: 'no-game',
-                    message: 'No BENNE game (src/game/rooms) in this workspace'
-                }
+                    message: 'Create a BENNE game…',
+                    command: 'benne-editor.createGame',
+                },
             ];
         }
 

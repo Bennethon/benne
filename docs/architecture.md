@@ -1025,6 +1025,8 @@ Each mirror builds a **plan** (new / modified / unchanged / orphan deletes), pri
 
 Empty templates still need a **`src/game/rooms/rooms.manifest.json`** (and usually manifest **room entries**) because **`boot/loadStartRoom.ts`** imports the manifest statically; the **Create New Room** wizard only **appends** to an existing manifest — it does not create the file if missing.
 
+For packaging, distribution, and VSIX publishing, see **[publishing.md](publishing.md)**.
+
 ---
 
 ## 10. Future Considerations

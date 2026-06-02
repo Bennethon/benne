@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
 import { findBenneGameFolders } from './gameDiscovery';
+import { resolvePreviewBundleFileUri } from './previewBundlePaths';
 
 function getOutputChannel(): vscode.OutputChannel {
     return vscode.window.createOutputChannel('BENNE room preview build');
@@ -404,6 +406,40 @@ export async function runBennePlayBuild(
     return true;
 }
 
+/** True when `npm run compile` can run (monorepo / Extension Development Host with node_modules). */
+export async function canRunBenneEditorWebpackCompile(extensionRoot: vscode.Uri): Promise<boolean> {
+    try {
+        await vscode.workspace.fs.stat(
+            vscode.Uri.joinPath(extensionRoot, 'node_modules', 'webpack', 'package.json'),
+        );
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Ensures a workspace-local BENNE Play bundle exists (`.benne/` or monorepo `benne-editor/media/`).
+ * The extension's shipped demo bundle is not used — Play must reflect this project's `src/game/`.
+ */
+export async function ensureBennePlayBundleForGame(
+    gameFolder: vscode.WorkspaceFolder,
+    channel: vscode.OutputChannel,
+    opts?: { title?: string },
+): Promise<boolean> {
+    const existing = await resolvePreviewBundleFileUri(
+        gameFolder.uri,
+        'benne-play',
+        'benne-play.js',
+    );
+    if (existing) {
+        return true;
+    }
+    return runBennePlayBuild(gameFolder, channel, {
+        title: opts?.title ?? 'Building BENNE Play bundle for this project',
+    });
+}
+
 /**
  * Rebuilds the BENNE VS Code extension webpack output (`benne-editor` package), including the Inspector bundle.
  * Used for the **Rebuild Dialog Inspector** command (dialogs have no Phaser preview webview).
@@ -413,6 +449,12 @@ export async function runBenneEditorWebpackCompile(
     channel: vscode.OutputChannel,
     opts?: { title?: string }
 ): Promise<boolean> {
+    if (!(await canRunBenneEditorWebpackCompile(extensionRoot))) {
+        channel.appendLine(
+            `[skip] Extension webpack compile is unavailable (no webpack under ${path.join(extensionRoot.fsPath, 'node_modules')}).`,
+        );
+        return true;
+    }
     const cwd = extensionRoot.fsPath;
     const title = opts?.title ?? 'Rebuilding BENNE editor (webpack)';
 

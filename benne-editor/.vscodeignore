@@ -2,13 +2,13 @@
 .vscode-test/**
 out/**
 node_modules/**
+# Extension TS sources (compiled to dist/extension.js). Do not use **/*.ts — it strips scaffold/shared.
 src/**
 .gitignore
 .yarnrc
 webpack.config.js
 vsc-extension-quickstart.md
-**/tsconfig.json
-**/eslint.config.mjs
+/tsconfig.json
+/eslint.config.mjs
 **/*.map
-**/*.ts
-**/.vscode-test.*
+**/.vscode-test.**

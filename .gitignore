@@ -13,6 +13,8 @@ dist-ssr
 
 # VS Code extension — compiled test output (`npm run compile-tests` / `pretest`)
 benne-editor/out
+# Extension scaffold payload (built by `npm run bundle:scaffold`)
+benne-editor/scaffold
 *.local
 
 # Editor directories and files

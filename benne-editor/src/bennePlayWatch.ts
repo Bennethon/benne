@@ -1,21 +1,23 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import * as vscode from 'vscode';
+import { resolveBennePlayJsWatchPattern } from './previewBundlePaths';
 import { getRoomPreviewBuildOutputChannel, getWatchBennePlayNpmScript } from './roomPreviewBuild';
 
-const BENNE_PLAY_JS_REL = 'benne-editor/media/benne-play/benne-play.js';
 const DEBOUNCE_MS = 400;
 const FIRST_BUNDLE_WAIT_MS = 120_000;
 const FIRST_BUNDLE_POLL_MS = 250;
 
-function bennePlayJsUri(gameFolder: vscode.WorkspaceFolder): vscode.Uri {
-    return vscode.Uri.joinPath(gameFolder.uri, ...BENNE_PLAY_JS_REL.split('/'));
+async function bennePlayJsUri(gameFolder: vscode.WorkspaceFolder): Promise<vscode.Uri> {
+    const rel = await resolveBennePlayJsWatchPattern(gameFolder.uri);
+    return vscode.Uri.joinPath(gameFolder.uri, ...rel.split('/'));
 }
 
 async function waitForBennePlayJs(
     gameFolder: vscode.WorkspaceFolder,
     channel: vscode.OutputChannel,
 ): Promise<boolean> {
-    const uri = bennePlayJsUri(gameFolder);
+    const uri = await bennePlayJsUri(gameFolder);
+    const rel = await resolveBennePlayJsWatchPattern(gameFolder.uri);
     const deadline = Date.now() + FIRST_BUNDLE_WAIT_MS;
     while (Date.now() < deadline) {
         try {
@@ -26,7 +28,7 @@ async function waitForBennePlayJs(
         }
     }
     channel.appendLine(
-        `[BENNE Play watch] Timed out waiting for ${BENNE_PLAY_JS_REL} (${FIRST_BUNDLE_WAIT_MS} ms).`,
+        `[BENNE Play watch] Timed out waiting for ${rel} (${FIRST_BUNDLE_WAIT_MS} ms).`,
     );
     void vscode.window.showWarningMessage(
         'BENNE Play watch did not produce benne-play.js in time. Try "Rebuild BENNE Play" once, then Play again.',
@@ -50,7 +52,7 @@ export class BennePlayWatchManager implements vscode.Disposable {
 
     /**
      * Starts or reuses a Vite watch for this game folder. Updates the debounced reload callback when
-     * already running. Returns false if `watch:benne-play` is missing or the first bundle never appears.
+     * already running. Returns false only if `watch:benne-play` is missing.
      */
     async ensureStarted(
         gameFolder: vscode.WorkspaceFolder,
@@ -130,8 +132,9 @@ export class BennePlayWatchManager implements vscode.Disposable {
             }, DEBOUNCE_MS);
         };
 
+        const watchPattern = await resolveBennePlayJsWatchPattern(gameFolder.uri);
         const watcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(gameFolder, BENNE_PLAY_JS_REL),
+            new vscode.RelativePattern(gameFolder, watchPattern),
         );
         const entry: WatchEntry = {
             proc,
@@ -148,11 +151,14 @@ export class BennePlayWatchManager implements vscode.Disposable {
 
         this.byCwd.set(key, entry);
 
-        const ready = await waitForBennePlayJs(gameFolder, channel);
-        if (!ready) {
-            this.stop(key);
-            return false;
-        }
+        // Do not block Play — wait for the first bundle in the background.
+        void waitForBennePlayJs(gameFolder, channel).then((ready) => {
+            if (!ready) {
+                channel.appendLine(
+                    '[BENNE Play watch] Still running; save game files or run "Rebuild BENNE Play" if the panel does not update.',
+                );
+            }
+        });
 
         return true;
     }

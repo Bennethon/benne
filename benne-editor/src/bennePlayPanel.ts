@@ -1,5 +1,6 @@
 import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
+import { resolveBennePlayMediaRootUri, resolvePreviewScriptUri } from './previewBundlePaths';
 
 /**
  * Full playable BENNE runtime in an editor webview. This is intentionally separate from
@@ -10,6 +11,7 @@ export class BennePlayPanelController implements vscode.Disposable {
     private lastStartRoomId: string | undefined;
     private lastRoomName: string | undefined;
     private lastPlayFromName: string | undefined;
+    private lastGameRootUri: vscode.Uri | undefined;
     private panelDisposeSideEffect: (() => void) | undefined;
 
     constructor(private readonly extensionUri: vscode.Uri) {}
@@ -34,18 +36,21 @@ export class BennePlayPanelController implements vscode.Disposable {
             return;
         }
         this.panel.title = `BENNE Play: ${this.lastRoomName ?? this.lastStartRoomId}`;
-        this.panel.webview.html = buildBennePlayHtml(
-            this.panel.webview,
-            this.extensionUri,
-            this.lastStartRoomId,
-            this.lastPlayFromName,
-        );
+        void this.applyPlayHtml();
     }
 
-    playFromRoom(roomId: string, roomName?: string, playFromName?: string): void {
+    playFromRoom(
+        roomId: string,
+        roomName?: string,
+        playFromName?: string,
+        gameRoot?: vscode.Uri,
+    ): void {
         this.lastStartRoomId = roomId;
         this.lastRoomName = roomName;
         this.lastPlayFromName = playFromName;
+        if (gameRoot) {
+            this.lastGameRootUri = gameRoot;
+        }
 
         if (!this.panel) {
             this.panel = vscode.window.createWebviewPanel(
@@ -72,11 +77,19 @@ export class BennePlayPanelController implements vscode.Disposable {
         }
 
         this.panel.title = `BENNE Play: ${roomName ?? roomId}`;
-        this.panel.webview.html = buildBennePlayHtml(
+        void this.applyPlayHtml();
+    }
+
+    private async applyPlayHtml(): Promise<void> {
+        if (!this.panel || !this.lastStartRoomId) {
+            return;
+        }
+        this.panel.webview.html = await buildBennePlayHtml(
             this.panel.webview,
             this.extensionUri,
-            roomId,
-            playFromName,
+            this.lastGameRootUri,
+            this.lastStartRoomId,
+            this.lastPlayFromName,
         );
     }
 
@@ -90,13 +103,20 @@ export class BennePlayPanelController implements vscode.Disposable {
 function buildBennePlayHtml(
     webview: vscode.Webview,
     extensionUri: vscode.Uri,
+    gameRoot: vscode.Uri | undefined,
     startRoomId: string,
     playFromName?: string,
-): string {
-    const playRoot = vscode.Uri.joinPath(extensionUri, 'media', 'benne-play');
+): Promise<string> {
+    return resolveBennePlayMediaRootUri(extensionUri, gameRoot).then(async (playRoot) => {
     const baseHrefRaw = webview.asWebviewUri(playRoot).toString();
     const baseHref = baseHrefRaw.endsWith('/') ? baseHrefRaw : `${baseHrefRaw}/`;
-    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(playRoot, 'benne-play.js'));
+    const scriptUri = await resolvePreviewScriptUri(
+        webview,
+        extensionUri,
+        gameRoot,
+        'benne-play',
+        'benne-play.js',
+    );
     const nonce = crypto.randomBytes(16).toString('hex');
     const csp = [
         `default-src 'none'`,
@@ -179,4 +199,5 @@ function buildBennePlayHtml(
   <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
+    });
 }

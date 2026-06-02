@@ -16,6 +16,7 @@
     "onView:benne-editor.inspector",
     "onCommand:benne-editor.openEditor",
     "onCommand:benne-editor.showSidebar",
+    "onCommand:benne-editor.createGame",
     "onCommand:benne-editor.createRoom",
     "onCommand:benne-editor.addRoomProp",
     "onCommand:benne-editor.importPropsFromAsepriteTags",
@@ -197,6 +198,12 @@
         "command": "benne-editor.revealCharacterScriptEvent",
         "title": "Reveal character script event",
         "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.createGame",
+        "title": "Create New Game",
+        "category": "BENNE",
+        "icon": "$(new-folder)"
       },
       {
         "command": "benne-editor.createRoom",
@@ -391,9 +398,14 @@
           "group": "navigation@1"
         },
         {
-          "command": "benne-editor.createRoom",
+          "command": "benne-editor.createGame",
           "when": "view == benne-editor.main",
           "group": "navigation@2"
+        },
+        {
+          "command": "benne-editor.createRoom",
+          "when": "view == benne-editor.main",
+          "group": "navigation@3"
         },
         {
           "command": "benne-editor.rebuildRoomPreview",
@@ -696,7 +708,9 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run package",
+    "vscode:prepublish": "npm run bundle:scaffold && npm run build:previews && npm run package",
+    "bundle:scaffold": "npm --prefix .. run bundle:scaffold",
+    "build:previews": "npm --prefix .. run build:room-preview && npm --prefix .. run build:character-preview && npm --prefix .. run build:gui-preview && npm --prefix .. run build:inventory-preview && npm --prefix .. run build:benne-play",
     "build:room-preview": "npm --prefix .. run build:room-preview",
     "build:character-preview": "npm --prefix .. run build:character-preview",
     "build:gui-preview": "npm --prefix .. run build:gui-preview",
@@ -722,7 +736,8 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
     "webpack": "^5.105.3",
-    "webpack-cli": "^6.0.1"
+    "webpack-cli": "^6.0.1",
+    "@vscode/vsce": "^3.7.1"
   },
   "dependencies": {
     "cytoscape": "^3.31.2",

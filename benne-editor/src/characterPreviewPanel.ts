@@ -2,6 +2,7 @@ import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
 import { getCharacterIdFromCharacterJsonUri } from './gameDiscovery';
+import { resolvePreviewScriptUri } from './previewBundlePaths';
 import { applyCharacterGeometryPatch, type CharacterGeometryPayload } from './characterGeometryPatch';
 
 /**
@@ -10,6 +11,7 @@ import { applyCharacterGeometryPatch, type CharacterGeometryPayload } from './ch
 export class CharacterPreviewPanelController implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
   private webviewReady = false;
+  private lastGameRootUri: vscode.Uri | undefined;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -48,7 +50,18 @@ export class CharacterPreviewPanelController implements vscode.Disposable {
       return;
     }
     this.webviewReady = false;
-    this.panel.webview.html = buildCharacterPreviewHtml(this.panel.webview, this.extensionUri);
+    void this.applyPreviewHtml();
+  }
+
+  private async applyPreviewHtml(): Promise<void> {
+    if (!this.panel) {
+      return;
+    }
+    this.panel.webview.html = await buildCharacterPreviewHtml(
+      this.panel.webview,
+      this.extensionUri,
+      this.lastGameRootUri,
+    );
   }
 
   private async onSelectionChanged(): Promise<void> {
@@ -85,7 +98,7 @@ export class CharacterPreviewPanelController implements vscode.Disposable {
       },
     );
 
-    this.panel.webview.html = buildCharacterPreviewHtml(this.panel.webview, this.extensionUri);
+    void this.applyPreviewHtml();
 
     this.disposables.push(
       this.panel.webview.onDidReceiveMessage(
@@ -143,6 +156,7 @@ export class CharacterPreviewPanelController implements vscode.Disposable {
     if (!folder) {
       return;
     }
+    this.lastGameRootUri = folder.uri;
 
     const gameSrc = vscode.Uri.joinPath(folder.uri, 'src', 'game');
     try {
@@ -216,10 +230,18 @@ export class CharacterPreviewPanelController implements vscode.Disposable {
   }
 }
 
-function buildCharacterPreviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
-  const scriptUri = webview.asWebviewUri(
-    vscode.Uri.joinPath(extensionUri, 'media', 'character-preview', 'character-preview.js'),
-  );
+function buildCharacterPreviewHtml(
+  webview: vscode.Webview,
+  extensionUri: vscode.Uri,
+  gameRoot: vscode.Uri | undefined,
+): Promise<string> {
+  return resolvePreviewScriptUri(
+    webview,
+    extensionUri,
+    gameRoot,
+    'character-preview',
+    'character-preview.js',
+  ).then((scriptUri) => {
   const nonce = crypto.randomBytes(16).toString('hex');
   const csp = [
     `default-src 'none'`,
@@ -243,4 +265,5 @@ function buildCharacterPreviewHtml(webview: vscode.Webview, extensionUri: vscode
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
+  });
 }

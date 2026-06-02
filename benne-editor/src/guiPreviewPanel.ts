@@ -2,6 +2,7 @@ import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
 import { getGuiIdFromGuiJsonUri } from './gameDiscovery';
+import { resolvePreviewScriptUri } from './previewBundlePaths';
 
 /**
  * Phaser GUI overlay preview (Aseprite sheet) in a {@link vscode.WebviewPanel}.
@@ -9,6 +10,7 @@ import { getGuiIdFromGuiJsonUri } from './gameDiscovery';
 export class GuiPreviewPanelController implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
     private webviewReady = false;
+    private lastGameRootUri: vscode.Uri | undefined;
     private readonly disposables: vscode.Disposable[] = [];
     /** Debounced reload when the active GUI JSON file changes on disk or in-buffer. */
     private guiJsonChangeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -85,7 +87,18 @@ export class GuiPreviewPanelController implements vscode.Disposable {
             return;
         }
         this.webviewReady = false;
-        this.panel.webview.html = buildGuiPreviewHtml(this.panel.webview, this.extensionUri);
+        void this.applyPreviewHtml();
+    }
+
+    private async applyPreviewHtml(): Promise<void> {
+        if (!this.panel) {
+            return;
+        }
+        this.panel.webview.html = await buildGuiPreviewHtml(
+            this.panel.webview,
+            this.extensionUri,
+            this.lastGameRootUri,
+        );
     }
 
     private async onSelectionChanged(): Promise<void> {
@@ -122,7 +135,7 @@ export class GuiPreviewPanelController implements vscode.Disposable {
             }
         );
 
-        this.panel.webview.html = buildGuiPreviewHtml(this.panel.webview, this.extensionUri);
+        void this.applyPreviewHtml();
 
         this.disposables.push(
             this.panel.webview.onDidReceiveMessage((m: { type?: string }) => {
@@ -164,6 +177,7 @@ export class GuiPreviewPanelController implements vscode.Disposable {
         if (!folder) {
             return;
         }
+        this.lastGameRootUri = folder.uri;
 
         const gameSrc = vscode.Uri.joinPath(folder.uri, 'src', 'game');
         try {
@@ -200,10 +214,18 @@ export class GuiPreviewPanelController implements vscode.Disposable {
     }
 }
 
-function buildGuiPreviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
-    const scriptUri = webview.asWebviewUri(
-        vscode.Uri.joinPath(extensionUri, 'media', 'gui-preview', 'gui-preview.js')
-    );
+function buildGuiPreviewHtml(
+    webview: vscode.Webview,
+    extensionUri: vscode.Uri,
+    gameRoot: vscode.Uri | undefined,
+): Promise<string> {
+    return resolvePreviewScriptUri(
+        webview,
+        extensionUri,
+        gameRoot,
+        'gui-preview',
+        'gui-preview.js',
+    ).then((scriptUri) => {
     const nonce = crypto.randomBytes(16).toString('hex');
     const csp = [
         `default-src 'none'`,
@@ -226,4 +248,5 @@ function buildGuiPreviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
+    });
 }
