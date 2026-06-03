@@ -17,6 +17,7 @@
     "onCommand:benne-editor.openEditor",
     "onCommand:benne-editor.showSidebar",
     "onCommand:benne-editor.createGame",
+    "onCommand:benne-editor.updateEngine",
     "onCommand:benne-editor.createRoom",
     "onCommand:benne-editor.addRoomProp",
     "onCommand:benne-editor.importPropsFromAsepriteTags",
@@ -204,6 +205,12 @@
         "title": "Create New Game",
         "category": "BENNE",
         "icon": "$(new-folder)"
+      },
+      {
+        "command": "benne-editor.updateEngine",
+        "title": "Update Engine",
+        "category": "BENNE",
+        "icon": "$(cloud-download)"
       },
       {
         "command": "benne-editor.createRoom",
@@ -403,6 +410,11 @@
           "group": "navigation@2"
         },
         {
+          "command": "benne-editor.updateEngine",
+          "when": "view == benne-editor.main",
+          "group": "navigation@9"
+        },
+        {
           "command": "benne-editor.createRoom",
           "when": "view == benne-editor.main",
           "group": "navigation@3"
@@ -464,6 +476,11 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "benne-editor.updateEngine",
+          "when": "view == benne-editor.main && viewItem == benneWorkspace",
+          "group": "benne@0"
+        },
         {
           "command": "benne-editor.createRoom",
           "when": "view == benne-editor.main && viewItem == benneRoomsGroup",

@@ -1,56 +1,19 @@
-import { spawn } from 'node:child_process';
-import { cp, mkdir, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import {
+    buildPackageJson,
+    copyTreeNonDestructive,
+    readScaffoldManifest,
+    runNpmScript,
+    scaffoldRoot,
+    type BenneProjectFile,
+    type ScaffoldManifest,
+} from './scaffoldPayload';
 import { validateSlug } from './roomScaffolding';
-
-type ScaffoldManifest = {
-    scaffoldVersion: string;
-    templates: Array<{
-        id: string;
-        displayName: string;
-        description: string;
-    }>;
-};
-
-type BenneProjectFile = {
-    scaffoldVersion: string;
-    extensionVersion: string;
-    templateId: string;
-    projectName: string;
-    createdAt: string;
-};
-
-const PHASER_VERSION = '4.0.0-rc.7';
-const TYPESCRIPT_VERSION = '~5.9.3';
-const VITE_VERSION = '^8.0.1';
 
 function getOutputChannel(): vscode.OutputChannel {
     return vscode.window.createOutputChannel('BENNE create game');
-}
-
-function scaffoldRoot(extensionPath: string): string {
-    return path.join(extensionPath, 'scaffold');
-}
-
-async function readScaffoldManifest(extensionPath: string): Promise<ScaffoldManifest> {
-    const manifestPath = path.join(scaffoldRoot(extensionPath), 'manifest.json');
-    try {
-        const raw = await vscode.workspace.fs.readFile(vscode.Uri.file(manifestPath));
-        const parsed = JSON.parse(Buffer.from(raw).toString('utf8')) as ScaffoldManifest;
-        if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.templates)) {
-            throw new Error('Invalid scaffold manifest shape.');
-        }
-        return parsed;
-    } catch (e) {
-        const msg =
-            e instanceof Error && e.message.includes('ENOENT')
-                ? 'Scaffold payload missing. Run `npm run bundle:scaffold` from the BENNE repo (or rebuild the extension).'
-                : e instanceof Error
-                  ? e.message
-                  : String(e);
-        throw new Error(msg);
-    }
 }
 
 function sanitizeProjectFolderName(name: string): string {
@@ -60,42 +23,6 @@ function sanitizeProjectFolderName(name: string): string {
         .replace(/[^a-z0-9_-]+/g, '-')
         .replace(/^-+|-+$/g, '');
     return slug.length > 0 ? slug : 'my-benne-game';
-}
-
-function buildPackageJson(projectName: string): string {
-    const pkg = {
-        name: projectName,
-        private: true,
-        version: '0.0.0',
-        type: 'module',
-        scripts: {
-            'generate:game-ids': 'node scripts/generate-game-ids.mjs',
-            predev: 'npm run generate:game-ids',
-            dev: 'vite',
-            prebuild: 'npm run generate:game-ids',
-            build: 'tsc && vite build',
-            'prebuild:room-preview': 'npm run generate:game-ids',
-            'build:room-preview': 'tsc && vite build --config vite.room-preview.config.ts',
-            'prebuild:character-preview': 'npm run generate:game-ids',
-            'build:character-preview': 'tsc && vite build --config vite.character-preview.config.ts',
-            'prebuild:gui-preview': 'npm run generate:game-ids',
-            'build:gui-preview': 'tsc && vite build --config vite.gui-preview.config.ts',
-            'prebuild:inventory-preview': 'npm run generate:game-ids',
-            'build:inventory-preview': 'tsc && vite build --config vite.inventory-preview.config.ts',
-            'prebuild:benne-play': 'npm run generate:game-ids',
-            'build:benne-play': 'tsc && vite build --config vite.benne-play.config.ts',
-            'watch:benne-play': 'vite build --watch --config vite.benne-play.config.ts',
-            preview: 'vite preview',
-        },
-        devDependencies: {
-            typescript: TYPESCRIPT_VERSION,
-            vite: VITE_VERSION,
-        },
-        dependencies: {
-            phaser: PHASER_VERSION,
-        },
-    };
-    return `${JSON.stringify(pkg, null, 2)}\n`;
 }
 
 function buildReadme(projectName: string, templateDisplayName: string): string {
@@ -150,57 +77,6 @@ async function isNonEmptyDirectory(dirPath: string): Promise<boolean> {
         }
         throw e;
     }
-}
-
-async function copyTree(src: string, dest: string): Promise<void> {
-    await cp(src, dest, { recursive: true, force: false });
-}
-
-async function runNpmScript(
-    cwd: string,
-    channel: vscode.OutputChannel,
-    args: string[],
-    progressTitle: string,
-): Promise<boolean> {
-    const exitCode = await vscode.window.withProgress(
-        {
-            location: vscode.ProgressLocation.Notification,
-            title: progressTitle,
-            cancellable: false,
-        },
-        () =>
-            new Promise<number>((resolve) => {
-                channel.show(true);
-                channel.appendLine('');
-                channel.appendLine(`$ npm ${args.join(' ')}`);
-                channel.appendLine(`  (cwd: ${cwd})`);
-
-                const proc = spawn('npm', args, {
-                    cwd,
-                    shell: true,
-                    env: process.env,
-                });
-
-                proc.stdout?.on('data', (d: Buffer) => {
-                    const s = d.toString();
-                    if (s.trim()) {
-                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
-                    }
-                });
-                proc.stderr?.on('data', (d: Buffer) => {
-                    const s = d.toString();
-                    if (s.trim()) {
-                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
-                    }
-                });
-                proc.on('error', (e) => {
-                    channel.appendLine(e instanceof Error ? e.message : String(e));
-                    resolve(1);
-                });
-                proc.on('close', (code) => resolve(code ?? 1));
-            }),
-    );
-    return exitCode === 0;
 }
 
 async function runNpmInstall(cwd: string, channel: vscode.OutputChannel): Promise<boolean> {
@@ -286,8 +162,8 @@ export async function runCreateGameWizard(extensionPath: string, extensionVersio
         },
         async () => {
             await mkdir(destPath, { recursive: true });
-            await copyTree(sharedSrc, destPath);
-            await copyTree(templateSrc, path.join(destPath, 'src', 'game'));
+            await copyTreeNonDestructive(sharedSrc, destPath);
+            await copyTreeNonDestructive(templateSrc, path.join(destPath, 'src', 'game'));
 
             const benneProject: BenneProjectFile = {
                 scaffoldVersion: manifest.scaffoldVersion,
