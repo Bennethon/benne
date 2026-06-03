@@ -63,6 +63,7 @@ import { scheduleGenerateGameIds } from './gameIdsGenerator';
 import { openDialogScriptEditorOnly, runCreateDialogWizard } from './dialogScaffolding';
 import { runCreatePdcWizard } from './pdcScaffolding';
 import { runCreateGameWizard } from './gameCreationScaffolding';
+import { runUpdateEngineWizard } from './engineUpdateScaffolding';
 import { PdcEditorPanelController } from './pdcPreviewPanel';
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import {
@@ -748,6 +749,19 @@ export function activate(context: vscode.ExtensionContext): void {
                     : '0.0.0';
             await runCreateGameWizard(context.extensionPath, version);
         }),
+        vscode.commands.registerCommand(
+            'benne-editor.updateEngine',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                const preferredFolder =
+                    node && node.kind !== 'hint' && 'folder' in node ? node.folder : undefined;
+                const version =
+                    typeof context.extension.packageJSON.version === 'string'
+                        ? context.extension.packageJSON.version
+                        : '0.0.0';
+                await runUpdateEngineWizard(context.extensionPath, version, preferredFolder);
+            },
+        ),
         vscode.commands.registerCommand(
             'benne-editor.createRoom',
             async (arg?: MainTreeNode | MainTreeNode[]) => {

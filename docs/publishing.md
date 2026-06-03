@@ -113,9 +113,19 @@ Without this, **Create New Game** will report that the scaffold payload is missi
 
 ## Versioning
 
-- **Extension version** (`benne-editor/package.json` `version`) implicitly defines the **engine and template version** bundled into the VSIX.
-- **`scaffold/manifest.json`** records `scaffoldVersion` (same as extension version at build time) and the template catalog.
-- Generated projects include **`.benne-project`** at the workspace root:
+BENNE uses **one version number**: the extension semver in **`benne-editor/package.json`** (currently `0.0.1`). There is no separate “engine version”, “SDK version”, or internal milestone label like “v1.5” — when docs or conversation refer to a release, they mean this semver.
+
+| Label | Where it lives | Meaning |
+|-------|----------------|---------|
+| **Extension version** | `benne-editor/package.json` → `version` | What `@vscode/vsce` publishes; VSIX filename (`benne-editor-0.0.2.vsix`) |
+| **Scaffold version** | `benne-editor/scaffold/manifest.json` → `scaffoldVersion` | Copied from extension `version` when you run `bundle:scaffold` / package |
+| **Project metadata** | `.benne-project` in each created game | `scaffoldVersion` + `extensionVersion` stamped at **Create New Game** time |
+
+The monorepo root `package.json` (`"version": "0.0.0"`, private) is **not** the distributable version — only `benne-editor/package.json` matters for authors.
+
+**Extension-as-SDK** is the distribution *model* (extension ships engine + editor + templates), not a version number.
+
+Example `.benne-project` written into a new game:
 
 ```json
 {
@@ -127,7 +137,40 @@ Without this, **Create New Game** will report that the scaffold payload is missi
 }
 ```
 
-Future upgrade flows can compare `scaffoldVersion` / `extensionVersion` against the installed extension (not implemented in v1.5).
+### Updating an existing game’s engine
+
+Use **BENNE: Update Engine** (Command Palette, BENNE sidebar title bar, or right-click the workspace root in the BENNE tree).
+
+**Typical workflow:**
+
+1. Install a newer extension build (`npm run package:extension` in the monorepo, then install the VSIX).
+2. Open your game workspace in VS Code.
+3. Run **BENNE: Update Engine**.
+4. Review the summary (unchanged / overwritten / new file counts) and confirm **Update**.
+5. If editor previews look stale afterward, run **Rebuild Editor Preview Bundles**.
+
+**What changes**
+
+| Updated from extension `scaffold/shared/` | Preserved |
+|-------------------------------------------|-----------|
+| `src/engine/`, `src/editor/`, `src/types/` | `src/game/` (rooms, characters, assets, scripts) |
+| Vite configs, HTML entrypoints, `scripts/` | `README.md`, `.vscode/settings.json` |
+| `package.json` scripts + `phaser` / `typescript` / `vite` versions | `package.json` `name`, `private`, `version` |
+| `.benne-project` → `scaffoldVersion` + `extensionVersion` | `templateId`, `projectName`, `createdAt` |
+
+The command runs `npm install` and `npm run build:benne-play` after copying files.
+
+**Version behavior**
+
+- Extension **newer** than the game → update proceeds after the file summary confirmation.
+- Versions **equal** → offers **Re-sync anyway** (useful for dev or a corrupted tree).
+- Extension **older** than the game → warns before allowing a downgrade.
+
+Games without `.benne-project` (e.g. the monorepo dev slot) still work; the current engine version is treated as **unknown**.
+
+**If npm fails after the copy**
+
+Engine files are already on disk. Fix the error and run `npm install` and `npm run build:benne-play` manually, or re-run the command (use **Re-sync** if versions match).
 
 ## End-user flow
 

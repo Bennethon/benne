@@ -28,7 +28,7 @@ const extensionConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: [/node_modules/, /scaffold/],
+        exclude: [/node_modules/, /[\\/]scaffold[\\/]/],
         use: [
           {
             loader: 'ts-loader'
@@ -60,7 +60,7 @@ const inspectorWebviewConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: [/node_modules/, /scaffold/],
+        exclude: [/node_modules/, /[\\/]scaffold[\\/]/],
         use: [{ loader: 'ts-loader' }],
       },
     ],
@@ -88,7 +88,7 @@ const pdcEditorWebviewConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: [/node_modules/, /scaffold/],
+        exclude: [/node_modules/, /[\\/]scaffold[\\/]/],
         use: [{ loader: 'ts-loader' }],
       },
     ],
