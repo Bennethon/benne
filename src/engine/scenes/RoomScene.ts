@@ -224,11 +224,10 @@ const SPEAKING_TEXT_GUI_ID = 'speaking-text';
 const DISPLAY_TEXT_GUI_ID = 'display-text';
 
 /**
- * Optional `Phaser.Game.registry` key: when set to a boolean, overrides the initial visibility of
- * every non-`speaking-text` GUI overlay at room load. Used by the BENNE room preview so authors can
- * toggle HUD GUIs on/off from the preview toolbar without hand-editing each GUI's `visible` in `*.gui.json`
- * flags. Unset (the default) preserves per-GUI JSON `visible` semantics (`false` hides at load;
- * omitted/`true` shows).
+ * Optional `Phaser.Game.registry` key: when set to a boolean, acts as the BENNE room preview **Show GUIs**
+ * master switch. Generic HUD overlays start at `registryValue && gui.visible` (and the same AND applies in
+ * {@link setGenericGuisVisible}). Unset (the default) preserves per-GUI JSON `visible` only (`false` hides at
+ * load; `true` shows).
  */
 const GENERIC_GUIS_INITIAL_VISIBILITY_REGISTRY_KEY = 'benneRoomSceneGenericGuisVisible';
 
@@ -462,6 +461,12 @@ export class RoomScene extends Phaser.Scene {
   /** Every other registered GUI overlay (authoring under `src/game/guis/<id>/`), built automatically in `create`. */
   private genericGuiOverlays: GuiOverlayHandle[] = [];
 
+  /**
+   * Parallel to {@link genericGuiOverlays}: each overlay's authored `GuiData.visible` at build time. Used by
+   * the room preview **Show GUIs** toggle ({@link setGenericGuisVisible} ANDs the toolbar flag with these values).
+   */
+  private genericGuiOverlayJsonVisible: boolean[] = [];
+
   /** Latest live overlay handle per `guiId` for whole-overlay visibility control (`B.gui('id').show()` / `.hide()`). */
   private guiOverlayHandleByGuiId = new Map<string, GuiOverlayHandle>();
 
@@ -651,6 +656,7 @@ export class RoomScene extends Phaser.Scene {
     const hasGenericGuiVisibilityOverride = typeof genericGuiVisibilityOverride === 'boolean';
 
     this.genericGuiOverlays = [];
+    this.genericGuiOverlayJsonVisible = [];
     this.guiOverlayHandleByGuiId.clear();
     this.guiRuntimeByGuiId.clear();
     this.dialogTextOverlay = null;
@@ -679,7 +685,7 @@ export class RoomScene extends Phaser.Scene {
         isSpeakingText || isDisplayText || isChoiceDialog
           ? false
           : hasGenericGuiVisibilityOverride
-            ? genericGuiVisibilityOverride
+            ? genericGuiVisibilityOverride && gui.visible
             : gui.visible;
 
       const built = buildGuiOverlay(
@@ -735,6 +741,7 @@ export class RoomScene extends Phaser.Scene {
         choiceScript?.notifyGuiBuilt(rt);
       } else if (isGenericHud) {
         this.genericGuiOverlays.push(built.handle);
+        this.genericGuiOverlayJsonVisible.push(gui.visible);
         const guiScript = getGuiBenneScript(gui.id);
         if (guiScript) {
           const rt = built.createGuiRuntime((factory) => guiScript.queueInteraction(factory));
@@ -877,6 +884,7 @@ export class RoomScene extends Phaser.Scene {
         h.destroy();
       }
       this.genericGuiOverlays = [];
+      this.genericGuiOverlayJsonVisible = [];
       this.genericGuiVisibilityBeforeDialog = null;
       this.modalGuiEntries = [];
       this.dialogTextOverlay?.destroy();
@@ -1477,15 +1485,22 @@ export class RoomScene extends Phaser.Scene {
    * Does not affect the `speaking-text` overlay or choice-dialog GUIs. During an active dialog session, the room
    * first snapshots per-overlay visibility and hides these; when the dialog ends, that snapshot is restored.
    * Any call while a dialog is open updates both the live visibility and the snapshot entry for each overlay
-   * so restore matches the latest explicit state. Also used for preview toolbars and cutscene overrides.
+   * so restore matches the latest explicit state. Room preview ANDs `visible` with each overlay's JSON
+   * `GuiData.visible` ({@link genericGuiOverlayJsonVisible}); cutscene callers without the preview registry use a
+   * single boolean for every generic overlay.
    */
   setGenericGuisVisible(visible: boolean): void {
     const snap = this.genericGuiVisibilityBeforeDialog;
+    const previewOverride = this.game.registry.get(GENERIC_GUIS_INITIAL_VISIBILITY_REGISTRY_KEY);
+    const hasPreviewOverride = typeof previewOverride === 'boolean';
     for (let i = 0; i < this.genericGuiOverlays.length; i++) {
       const h = this.genericGuiOverlays[i]!;
-      h.setVisible(visible);
+      const nextVisible = hasPreviewOverride
+        ? visible && (this.genericGuiOverlayJsonVisible[i] ?? false)
+        : visible;
+      h.setVisible(nextVisible);
       if (snap !== null) {
-        snap[i] = visible;
+        snap[i] = nextVisible;
       }
     }
   }
