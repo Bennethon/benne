@@ -54,10 +54,12 @@ registerRoomScript(({ B }) => {
 
   B.whenLookAt('FountainOff', () => {
     B.faceClicked();
+    B.camera.zoomTo('FountainOff', 1.5, 0.6);
     B.say`
     Hank: It's a fountain.
     Hank: It's not running.
     `;
+    B.camera.reset();
   });
 
   B.whenLookAt('FountainOn', () => {

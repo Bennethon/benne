@@ -81,7 +81,13 @@ import {
 } from '../benneAnimationRuntime';
 import { registerSnapshotFlushHook } from '../gameState/snapshotFlushHooks';
 import type { CharacterFacingLetter } from '../../types/character';
-import { getDialogSettings, getGameSettings, getPerspectiveSettings, getSpeechSettings } from '../ConfigManager';
+import {
+  getCameraSettings,
+  getDialogSettings,
+  getGameSettings,
+  getPerspectiveSettings,
+  getSpeechSettings,
+} from '../ConfigManager';
 import {
   applyGameCursorSpriteHotspot,
   CURSOR_TEXTURE_KEY,
@@ -98,6 +104,7 @@ import {
   registerBenneCharacterPerspectiveBatch,
 } from '../rendering/benneCharacterPerspectiveBatch.js';
 import {
+  BENNE_RUNTIME_HI_DPI_CAM_ZOOM_REGISTRY_KEY,
   BENNE_RUNTIME_HI_DPI_WIRED_REGISTRY_KEY,
   syncBenneRuntimeHiDpiSceneMainCameras,
 } from '../benneRuntimeHiDpiScale.js';
@@ -308,6 +315,17 @@ export class RoomScene extends Phaser.Scene {
    */
   private editorCameraMode: 'navigate' | 'edit' | null = null;
 
+  /** Letterbox / fit-room display zoom from editor mode or hi-DPI layout (excludes script gameplay zoom). */
+  private editorDisplayBaseZoom = 1;
+
+  /** When true, player follow is suspended until {@link queueCameraReset}. */
+  private scriptCameraFocusActive = false;
+
+  /** Gameplay zoom multiplier on top of display zoom (`1` = room default). */
+  private scriptGameplayZoom = 1;
+
+  private scriptCameraZoomTween: Phaser.Tweens.Tween | null = null;
+
   /**
    * Dedicated UI camera used **only** in the editor preview (`setEditorCameraMode`). In the
    * shipped game `cameras.main.zoom` follows {@link syncBenneRuntimeHiDpiSceneMainCameras} (hi-DPI
@@ -427,6 +445,8 @@ export class RoomScene extends Phaser.Scene {
 
   /** String ids that already triggered `walkTo` resolution warnings (warn once per id per room load). */
   private unresolvedWalkTargetIdsWarned = new Set<string>();
+
+  private unresolvedCameraTargetIdsWarned = new Set<string>();
 
   /** `B.hotspot(id)` with an id not in `roomData.hotspots` — warn once per id per room load. */
   private unknownHotspotScriptIdsWarned = new Set<string>();
@@ -591,6 +611,7 @@ export class RoomScene extends Phaser.Scene {
     this.restoreRegionActiveOverrides();
     this.restoreHotspotActiveOverrides();
     this.unresolvedWalkTargetIdsWarned.clear();
+    this.unresolvedCameraTargetIdsWarned.clear();
     this.unknownHotspotScriptIdsWarned.clear();
     this.unknownActiveCursorOverrideTagsWarned.clear();
     this.missingDialogTextOverlaySayWarned = false;
@@ -3078,6 +3099,292 @@ export class RoomScene extends Phaser.Scene {
     return walkerFeet;
   }
 
+  /**
+   * Resolve a camera focus / zoom target in room space. String ids: prop → hotspot → character →
+   * `room.points`. Props and hotspots use **`lookAtPoint`** (not **`walkToPoint`**); characters use
+   * **`talkPoint`** in frame space when set, else world feet.
+   */
+  resolveCameraFocusTarget(target: Point2 | string, refPoint: Point2): Point2 {
+    if (typeof target !== 'string') {
+      return { x: target.x, y: target.y };
+    }
+    const id = target;
+
+    const propInst = this.getRoomPropInstance(id);
+    if (propInst) {
+      if (propInst.lookAtPoint) {
+        return { x: propInst.lookAtPoint.x, y: propInst.lookAtPoint.y };
+      }
+      const colliderPts = propInst.collider?.points;
+      if (colliderPts && colliderPts.length >= 3) {
+        const onPoly = closestPointInOrOnSimplePolygon(refPoint.x, refPoint.y, colliderPts);
+        if (onPoly) {
+          return onPoly;
+        }
+      }
+      const propSprite = this.propSpritesById.get(id);
+      if (propSprite) {
+        const f = propSprite.frame;
+        return { x: propSprite.x + f.width * 0.5, y: propSprite.y + f.height * 0.5 };
+      }
+      return refPoint;
+    }
+
+    const hotspot = this.roomData.hotspots.find((h) => h.id === id);
+    if (hotspot) {
+      if (hotspot.lookAtPoint) {
+        return { x: hotspot.lookAtPoint.x, y: hotspot.lookAtPoint.y };
+      }
+      const hp = hotspot.points;
+      if (hp.length >= 3) {
+        const c = polygonRingCentroid(hp);
+        if (c) {
+          return c;
+        }
+      }
+      return refPoint;
+    }
+
+    const charSprite = this.characterSpritesByDefId.get(id);
+    if (charSprite) {
+      const data = charSprite.getData('character') as CharacterData | undefined;
+      if (data?.talkPoint) {
+        return {
+          x: charSprite.x + data.talkPoint.x,
+          y: charSprite.y + data.talkPoint.y,
+        };
+      }
+      return getCharacterWorldFeet(charSprite as Phaser.GameObjects.Sprite);
+    }
+
+    const namedPoint = this.roomData.points?.find((p) => p.id === id);
+    if (namedPoint) {
+      return { x: namedPoint.x, y: namedPoint.y };
+    }
+
+    if (!this.unresolvedCameraTargetIdsWarned.has(id)) {
+      this.unresolvedCameraTargetIdsWarned.add(id);
+      console.warn(`[Benne] camera: unresolved target "${id}"`);
+    }
+    return refPoint;
+  }
+
+  private resolveCameraFocusWorldPoint(target: Point2 | string): Point2 {
+    const refPoint = this.player
+      ? getCharacterWorldFeet(this.player)
+      : this.cameras.main.getWorldPoint(
+          this.cameras.main.centerX,
+          this.cameras.main.centerY,
+        );
+    return this.resolveCameraFocusTarget(target, refPoint);
+  }
+
+  private clampScriptGameplayZoom(zoom: number): number {
+    const { minZoom, maxZoom } = getCameraSettings();
+    return Phaser.Math.Clamp(zoom, minZoom, maxZoom);
+  }
+
+  /** `undefined` → config `defaultTransitionSeconds`; explicit `0` → instant. */
+  private resolveCameraTransitionSeconds(transitionSeconds?: number): number {
+    if (transitionSeconds !== undefined) {
+      return Math.max(0, transitionSeconds);
+    }
+    return getCameraSettings().defaultTransitionSeconds;
+  }
+
+  private resolvePlayerCameraCenterPoint(): Point2 | null {
+    if (!this.player) {
+      return null;
+    }
+    return getCharacterWorldFeet(this.player);
+  }
+
+  private finishCameraReset(): void {
+    this.scriptCameraFocusActive = false;
+    const vW = getInternalWidth();
+    const vH = getInternalHeight();
+    const roomW = this.roomData.size?.width ?? vW;
+    const roomH = this.roomData.size?.height ?? vH;
+    this.applyPlayerCameraFollow(roomW, roomH);
+  }
+
+  private resolveDisplayCameraZoom(): number {
+    if (this.editorCameraMode !== null) {
+      return this.editorDisplayBaseZoom;
+    }
+    const registryZoom = this.game.registry.get(BENNE_RUNTIME_HI_DPI_CAM_ZOOM_REGISTRY_KEY);
+    if (typeof registryZoom === 'number' && Number.isFinite(registryZoom) && registryZoom > 0) {
+      return registryZoom;
+    }
+    const cam = this.cameras.main;
+    const gameplay = Math.max(this.scriptGameplayZoom, 0.001);
+    return cam.zoom / gameplay;
+  }
+
+  /** Applies `displayZoom × scriptGameplayZoom` and keeps the UI camera matched. */
+  private applyScriptCameraZoom(): void {
+    const displayZoom = this.resolveDisplayCameraZoom();
+    this.cameras.main.setZoom(displayZoom * this.scriptGameplayZoom);
+    this.syncEditorUiCameraToMain();
+  }
+
+  private killScriptCameraPan(): void {
+    const cam = this.cameras.main as Phaser.Cameras.Scene2D.Camera & {
+      panEffect?: { reset: () => void; isRunning?: boolean };
+    };
+    cam.panEffect?.reset();
+  }
+
+  private killScriptCameraZoomTween(): void {
+    if (this.scriptCameraZoomTween) {
+      this.scriptCameraZoomTween.stop();
+      this.scriptCameraZoomTween = null;
+    }
+  }
+
+  private queueCameraPan(worldX: number, worldY: number, transitionSeconds?: number): Promise<void> {
+    const cam = this.cameras.main;
+    this.killScriptCameraPan();
+    const durMs = Math.max(0, (transitionSeconds ?? 0) * 1000);
+    if (durMs <= 0) {
+      cam.centerOn(worldX, worldY);
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const onComplete = (): void => {
+        cam.off(Phaser.Cameras.Scene2D.Events.PAN_COMPLETE, onComplete);
+        resolve();
+      };
+      cam.once(Phaser.Cameras.Scene2D.Events.PAN_COMPLETE, onComplete);
+      cam.pan(worldX, worldY, durMs, 'Linear', true);
+    });
+  }
+
+  private queueCameraGameplayZoomTo(targetZoom: number, transitionSeconds?: number): Promise<void> {
+    const clamped = this.clampScriptGameplayZoom(targetZoom);
+    this.killScriptCameraZoomTween();
+    const durMs = Math.max(0, (transitionSeconds ?? 0) * 1000);
+    if (durMs <= 0) {
+      this.scriptGameplayZoom = clamped;
+      this.applyScriptCameraZoom();
+      return Promise.resolve();
+    }
+    const from = this.scriptGameplayZoom;
+    const state = { z: from };
+    return new Promise((resolve) => {
+      this.scriptCameraZoomTween = this.tweens.add({
+        targets: state,
+        z: clamped,
+        duration: durMs,
+        ease: 'Linear',
+        onUpdate: () => {
+          this.scriptGameplayZoom = state.z;
+          this.applyScriptCameraZoom();
+        },
+        onComplete: () => {
+          this.scriptGameplayZoom = clamped;
+          this.applyScriptCameraZoom();
+          this.scriptCameraZoomTween = null;
+          resolve();
+        },
+      });
+    });
+  }
+
+  /**
+   * Centers the camera on a world point or resolved target; suspends player follow until
+   * {@link queueCameraReset}.
+   */
+  queueCameraFocus(target: Point2 | string, transitionSeconds?: number): Promise<void> {
+    const cam = this.cameras.main;
+    cam.stopFollow();
+    this.scriptCameraFocusActive = true;
+    const point = this.resolveCameraFocusWorldPoint(target);
+    return this.queueCameraPan(point.x, point.y, transitionSeconds);
+  }
+
+  /** Clears script focus and gameplay zoom, restoring default player follow. */
+  queueCameraReset(transitionSeconds?: number): Promise<void> {
+    const durSec = this.resolveCameraTransitionSeconds(transitionSeconds);
+    this.killScriptCameraPan();
+    this.killScriptCameraZoomTween();
+
+    if (durSec <= 0) {
+      this.cameras.main.resetFX();
+      this.scriptGameplayZoom = 1;
+      this.applyScriptCameraZoom();
+      this.finishCameraReset();
+      return Promise.resolve();
+    }
+
+    const cam = this.cameras.main;
+    cam.stopFollow();
+    const playerCenter = this.resolvePlayerCameraCenterPoint();
+    const tasks: Promise<void>[] = [this.queueCameraGameplayZoomTo(1, durSec)];
+    if (playerCenter) {
+      tasks.push(this.queueCameraPan(playerCenter.x, playerCenter.y, durSec));
+    }
+
+    return Promise.all(tasks).then(() => {
+      cam.resetFX();
+      this.finishCameraReset();
+    });
+  }
+
+  /** Sets the gameplay zoom multiplier (`1` = room default). */
+  queueCameraSetZoom(zoom: number, transitionSeconds?: number): Promise<void> {
+    return this.queueCameraGameplayZoomTo(zoom, transitionSeconds);
+  }
+
+  /** Returns gameplay zoom to room default (`1`). */
+  queueCameraResetZoom(transitionSeconds?: number): Promise<void> {
+    return this.queueCameraGameplayZoomTo(1, transitionSeconds);
+  }
+
+  /** Focuses on a target and sets zoom in parallel with a shared transition time. */
+  queueCameraZoomTo(
+    target: Point2 | string,
+    zoom: number,
+    transitionSeconds?: number,
+  ): Promise<void> {
+    const cam = this.cameras.main;
+    cam.stopFollow();
+    this.scriptCameraFocusActive = true;
+    const point = this.resolveCameraFocusWorldPoint(target);
+    return Promise.all([
+      this.queueCameraPan(point.x, point.y, transitionSeconds),
+      this.queueCameraGameplayZoomTo(zoom, transitionSeconds),
+    ]).then(() => undefined);
+  }
+
+  /** Fire-and-forget screen shake; does not participate in the Bennescript interaction queue. */
+  cameraShake(intensity?: number, durationSeconds?: number, falloff?: boolean): void {
+    const defaults = getCameraSettings().shake;
+    const shakeIntensity = intensity ?? defaults.intensity;
+    const durationMs = Math.max(0, (durationSeconds ?? defaults.durationSeconds) * 1000);
+    const useFalloff = falloff ?? defaults.falloff;
+    const cam = this.cameras.main as Phaser.Cameras.Scene2D.Camera & {
+      shakeEffect?: { intensity: Phaser.Math.Vector2 };
+    };
+    if (durationMs <= 0 || shakeIntensity <= 0) {
+      return;
+    }
+    if (useFalloff) {
+      cam.shake(
+        durationMs,
+        shakeIntensity,
+        true,
+        (_camera: Phaser.Cameras.Scene2D.Camera, progress: number) => {
+          const scaled = shakeIntensity * (1 - progress);
+          cam.shakeEffect?.intensity.set(scaled);
+        },
+        this,
+      );
+    } else {
+      cam.shake(durationMs, shakeIntensity, true);
+    }
+  }
+
   /** Configures camera bounds and player follow for the current room. */
   private setupRoomCamera(roomW: number, roomH: number): void {
     const sb = this.roomData.scrollBounds;
@@ -3091,6 +3398,9 @@ export class RoomScene extends Phaser.Scene {
 
   /** Starts follow on the player’s feet (see `CharacterData.feet`). */
   private applyPlayerCameraFollow(roomW: number, roomH: number): void {
+    if (this.scriptCameraFocusActive) {
+      return;
+    }
     const vW = getInternalWidth();
     const vH = getInternalHeight();
     if (!this.player || (roomW <= vW && roomH <= vH)) {
@@ -3198,7 +3508,7 @@ export class RoomScene extends Phaser.Scene {
       const viewX = Math.round((panelW - viewW) / 2);
       const viewY = Math.round((panelH - viewH) / 2);
       cam.setViewport(viewX, viewY, viewW, viewH);
-      cam.setZoom(scale);
+      this.editorDisplayBaseZoom = scale;
 
       const sb = this.roomData.scrollBounds;
       cam.setBounds(
@@ -3208,7 +3518,7 @@ export class RoomScene extends Phaser.Scene {
         sb?.height ?? roomH,
       );
 
-      if (this.player && (roomW > gameW || roomH > gameH)) {
+      if (!this.scriptCameraFocusActive && this.player && (roomW > gameW || roomH > gameH)) {
         const feet = getFeetFollowOffset(this.player);
         cam.startFollow(this.player, true, 1, 1, feet.x, feet.y);
       } else {
@@ -3220,7 +3530,7 @@ export class RoomScene extends Phaser.Scene {
       cam.setViewport(0, 0, panelW, panelH);
 
       const zoom = Math.min(panelW / roomW, panelH / roomH);
-      cam.setZoom(zoom);
+      this.editorDisplayBaseZoom = zoom;
 
       // Room bounds — Phaser's clampX/Y will position the room at the canvas top-left.
       cam.setBounds(0, 0, roomW, roomH);
@@ -3228,6 +3538,7 @@ export class RoomScene extends Phaser.Scene {
       cam.scrollY = 0;
     }
 
+    this.applyScriptCameraZoom();
     this.ensureEditorUiCamera();
     this.syncEditorUiCameraToMain();
   }
@@ -3358,13 +3669,10 @@ export class RoomScene extends Phaser.Scene {
 
   /** Called by `applyBenneRuntimeHiDpiCameras` after main camera layout updates. */
   syncRuntimeHiDpiUiCameraToMain(): void {
-    if (this.editorCameraMode !== null || !this.editorUiCamera) {
-      return;
-    }
     if (!this.game.registry.get(BENNE_RUNTIME_HI_DPI_WIRED_REGISTRY_KEY)) {
       return;
     }
-    this.syncEditorUiCameraToMain();
+    this.applyScriptCameraZoom();
   }
 
   private readonly handleRoomPointerDown = (
