@@ -1,6 +1,6 @@
 # Bennescript API Reference
 
-> Last updated: 2026-05-27 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
+> Last updated: 2026-06-05 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
 
 For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§7 → Generated game ID types](architecture.md#generated-game-id-types-bennescript-intellisense), [§3 → Audio system](architecture.md#audio-system), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`, `B.onGuiShow`, `B.onGuiHide`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt-bonguishow-bonguihide), and the **Blocking interaction queue** / API tables in §7.
 
@@ -39,7 +39,7 @@ Each union is **`LooseString<…>`** — known literals from your game appear in
 - **`registerGuiScript('guiId', ({ B, events, guiId }) => …)`** — at content registration; overlay built per room.
 - **`registerDialogScript('dialogId', ({ B, events, dialogId, game }) => …)`** — runs when **`openDialogSessionForId`** opens that dialog (after **`B.dialog(id).start()`** / **`.start.now()`**).
 
-**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`display`**, **`wait`**, **`B.sound.play`**, **`B.sound.playAndWait`**, **`B.sound.playMusic`**, **`B.sound.stop`**, **`B.sound.stopMusic`**, queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. **`B.gui('id').show()` / `hide()`** are immediate overlay toggles (not queued on the interaction tail). See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
+**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`display`**, **`wait`**, **`B.sound.play`**, **`B.sound.playAndWait`**, **`B.sound.playMusic`**, **`B.sound.stop`**, **`B.sound.stopMusic`**, **`B.camera.focus`**, **`B.camera.setZoom`**, **`B.camera.reset`**, etc., queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. **`B.gui('id').show()` / `hide()`** and **`B.camera.shake`** are immediate (not queued on the interaction tail). See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
 
 **`BlockingWithNow` pattern** — Many APIs are **`(…args) => void`** plus **`.now(…args)`** with the same parameters. The blocking form **queues** on **`interactionTail`**; **`.now`** performs the same work **without** extending the tail, so later lines in your handler still run in source order but do not wait for that action.
 
@@ -57,7 +57,7 @@ Each union is **`LooseString<…>`** — known literals from your game appear in
 
 | Surface | Room | Character | Inventory | Global | GUI | Dialog (session) |
 |--------|:----:|:---------:|:---------:|:------:|:---:|:----------------:|
-| Core queue, **`raw`**, **`wait`**, **`say`**, **`display`**, **`sound`** (**`B.sound`** — same object on **`B.player.sound`**, **`B.character('…').sound`**, **`B.prop('…').sound`** where applicable), **`speechSettings`**, **`dialogSettings`**, **`onSpeechSettingsChanged`**, **`walkToClicked`**, **`faceClicked`**, fades, **`room`**, active verb/inventory helpers | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Core queue, **`raw`**, **`wait`**, **`say`**, **`display`**, **`sound`** (**`B.sound`** — same object on **`B.player.sound`**, **`B.character('…').sound`**, **`B.prop('…').sound`** where applicable), **`camera`** (**`B.camera`**), **`speechSettings`**, **`dialogSettings`**, **`onSpeechSettingsChanged`**, **`walkToClicked`**, **`faceClicked`**, fades, **`room`**, active verb/inventory helpers | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.state`** / **`B.inventory`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.dialog(id)`** | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ |
 | **`B.player`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -269,6 +269,42 @@ Same handoff but aligned to the outgoing track’s playback head (best effort; f
 
 ```ts
 B.sound.playMusic('outside-ambient', { fadeSeconds: 2, sync: true });
+```
+
+### Camera (`B.camera`)
+
+Available on every **`BenneScriptCore`** facade (**room / character / inventory / global / GUI / dialog session**). Script camera state is **runtime-only** — it resets automatically on room transitions and when loading a saved game (fresh **`RoomScene`** boot). Use **`B.camera.reset()`** to return control to the player during a cutscene.
+
+**Config** — Global defaults and limits live in **`game-config.json`** **`camera`** (`minZoom`, `maxZoom`, `defaultTransitionSeconds`, **`shake`** defaults). See **`getCameraSettings()`** in **`ConfigManager.ts`**.
+
+**Targets** — String ids resolve prop → hotspot → character → room point (first match wins). Props and hotspots use **`lookAtPoint`** when set (not **`walkToPoint`**); characters use **`talkPoint`** in frame space when set, else world feet. Room **`points`** and explicit **`Point2`** values are used as-is in room pixels. When **`lookAtPoint`** / **`talkPoint`** is omitted, props fall back to collider geometry / frame center; hotspots fall back to polygon centroid.
+
+**Zoom** — **`1.0`** is the room default (normal). Gameplay zoom composes on top of the engine’s display letterbox zoom; GUI overlays stay aligned via the runtime UI camera.
+
+| Member | Signature | Description | Blocking |
+|--------|-----------|-------------|----------|
+| **`focus`** | `BlockingWithNow<[target: Point2 \| ResolvableTargetId, transitionSeconds?: number]>` | Centers the camera on the target. Suspends player follow until **`reset`**. Omitted / **`0`** **`transitionSeconds`** = instant snap. | Queued vs **`.now`** |
+| **`reset`** | `BlockingWithNow<[transitionSeconds?: number]>` | Clears focus and gameplay zoom; restores default player follow. Omitted **`transitionSeconds`** uses config **`defaultTransitionSeconds`**; pass **`0`** for an instant snap. | Queued vs **`.now`** |
+| **`setZoom`** | `BlockingWithNow<[zoom: number, transitionSeconds?: number]>` | Sets gameplay zoom (clamped to config **`minZoom`** / **`maxZoom`**). | Queued vs **`.now`** |
+| **`resetZoom`** | `BlockingWithNow<[transitionSeconds?: number]>` | Returns zoom to room default (**`1.0`**). Does not clear focus or restore follow — use **`reset`** for that. | Queued vs **`.now`** |
+| **`zoomTo`** | `BlockingWithNow<[target, zoom, transitionSeconds?: number]>` | **`focus`** + **`setZoom`** in parallel with one shared transition time. | Queued vs **`.now`** |
+| **`shake`** | `(intensity?: number, durationSeconds?: number, falloff?: boolean) => void` | Screen shake. **Fire-and-forget** — never queued, no **`.now`** variant. Omitted args use **`camera.shake`** config defaults. | Immediate |
+
+Example (cutscene):
+
+```ts
+B.cutscene(() => {
+  B.camera.zoomTo('villain', 1.5, 0.6);
+  B.player.say`Look out!`;
+  B.camera.shake(0.04, 0.5);
+  B.camera.reset(); // uses camera.defaultTransitionSeconds from game-config.json
+});
+```
+
+Instant reset (no tween):
+
+```ts
+B.camera.reset(0);
 ```
 
 ### Speech settings (`B.speechSettings`)
@@ -871,7 +907,7 @@ For the full reference — automatic activation table, suppressed-input matrix, 
 
 ## Common patterns
 
-**Cutscene-style ordering** — Use the automatic wrapping from `whenEnterRoomAfterFade` / `whenChoice`, or wrap explicit sequences with `B.cutscene(…)`. Use blocking **`walkTo`**, **`wait`**, **`player.say`**, **`fadeOut`** / **`fadeIn`** inside; reserve **`.now`** for overlapping effects you intentionally do not wait for.
+**Cutscene-style ordering** — Use the automatic wrapping from `whenEnterRoomAfterFade` / `whenChoice`, or wrap explicit sequences with `B.cutscene(…)`. Use blocking **`walkTo`**, **`wait`**, **`player.say`**, **`fadeOut`** / **`fadeIn`**, **`B.camera.focus`** / **`zoomTo`** / **`reset`** inside; reserve **`.now`** for overlapping effects you intentionally do not wait for. **`B.camera.shake`** is fire-and-forget and can overlap queued steps.
 
 **Use-on-target** — Player arms item via **`B.inventory('key').*`** verb row (**use**/ **give**) or **`B.setActiveInventory`**. Room: **`B.whenInventoryUsedOn('door', ({ itemId }) => { … })`**. Use **`return false`** when no branch handles the combo so **`globalScript.ts`**’s **`whenInventoryOnVerbTargetUnhandled`** runs (no duplicated fallback line). Clearing: **`doNotClear`** / **`shouldDropActiveInventoryOnUse`** on the handler that actually concludes the click (after delegation, that is the global unhandled listener — see [`dispatchInventoryOnVerbTarget`](../src/engine/verbs/dispatchInventoryOnVerbTarget.ts) and [architecture.md — Drop policy](architecture.md#inventory-system)).
 
@@ -900,7 +936,7 @@ Strict typing when bypassing **`(p: any)`**:
 
 | Module | Role |
 |--------|------|
-| [`BenneScriptCore.ts`](../src/engine/scripting/BenneScriptCore.ts) | **`BlockingWithNow`**, queue, **`say`/`wait`/fades/clicks/active selection**, **`sound`**, **`speechSettings`**, **`dialogSettings`**, **`onSpeechSettingsChanged`**, **`events`/`raw`**, inventory-on-target **`subscribe*`** helpers, **`cutscene`** / **`cutscene.now`**, **`onUpdate`** (room/global subclasses) |
+| [`BenneScriptCore.ts`](../src/engine/scripting/BenneScriptCore.ts) | **`BlockingWithNow`**, queue, **`say`/`wait`/fades/clicks/active selection**, **`sound`**, **`camera`**, **`speechSettings`**, **`dialogSettings`**, **`onSpeechSettingsChanged`**, **`events`/`raw`**, inventory-on-target **`subscribe*`** helpers, **`cutscene`** / **`cutscene.now`**, **`onUpdate`** (room/global subclasses) |
 | [`benneScriptSpeechSettingsApi.ts`](../src/engine/scripting/benneScriptSpeechSettingsApi.ts) | **`createBenneScriptSpeechSettingsFacade`** (**`B.speechSettings`**) |
 | [`benneScriptDialogSettingsApi.ts`](../src/engine/scripting/benneScriptDialogSettingsApi.ts) | **`createBenneScriptDialogSettingsFacade`** (**`B.dialogSettings`**) |
 | [`benneSpeechSettingsScriptSurface.ts`](../src/engine/scripting/benneSpeechSettingsScriptSurface.ts) | **`BENNE_SPEECH_SETTINGS_CHANGED_EVENT`**, change emitter |
@@ -908,6 +944,7 @@ Strict typing when bypassing **`(p: any)`**:
 | [`dialogGameState.ts`](../src/engine/dialog/dialogGameState.ts) | **`dialog:*`** variable keys (choice viewport height), read/write, snapshot merge |
 | [`benneScriptOnUpdateRegistry.ts`](../src/engine/scripting/benneScriptOnUpdateRegistry.ts) | Global **`B.onUpdate`** handler list + **`runGlobalBenneScriptOnUpdateHandlers`**, **`clearGlobalBenneScriptOnUpdateHandlers`** (game **`DESTROY`**) |
 | [`benneScriptSoundApi.ts`](../src/engine/scripting/benneScriptSoundApi.ts) | **`createBenneScriptSoundFacade`** (**`B.sound`**) |
+| [`benneScriptCameraApi.ts`](../src/engine/scripting/benneScriptCameraApi.ts) | **`createBenneScriptCameraFacade`** (**`B.camera`**) |
 | [`SoundManager.ts`](../src/engine/sound/SoundManager.ts) | **`Phaser.Game#sound`** playback, SFX tracking, music slot, lifecycle |
 | [`BenneScript.ts`](../src/engine/scripting/BenneScript.ts) | Room **`B`**, verb sugar, **`prop`/`character`/`player`/`region`**, **`state`/`inventory`/`dialog`** |
 | [`CharacterBenneScript.ts`](../src/engine/scripting/CharacterBenneScript.ts) | Character facade |

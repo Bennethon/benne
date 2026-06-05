@@ -57,6 +57,21 @@ export interface BenneScriptSpeechSettingsFacade {
 }
 
 /**
+ * {@link import('./BenneScriptCore.js').BenneScriptCore.camera} — script camera control
+ * (focus, zoom, shake) for cutscenes and dramatic moments.
+ */
+export interface BenneScriptCameraFacade {
+  readonly focus: BlockingWithNow<[Point2 | ResolvableTargetId, transitionSeconds?: number]>;
+  readonly reset: BlockingWithNow<[transitionSeconds?: number]>;
+  readonly setZoom: BlockingWithNow<[zoom: number, transitionSeconds?: number]>;
+  readonly resetZoom: BlockingWithNow<[transitionSeconds?: number]>;
+  readonly zoomTo: BlockingWithNow<
+    [Point2 | ResolvableTargetId, zoom: number, transitionSeconds?: number]
+  >;
+  shake(intensity?: number, durationSeconds?: number, falloff?: boolean): void;
+}
+
+/**
  * {@link import('./BenneScriptCore.js').BenneScriptCore.dialogSettings} — runtime dialog prefs
  * (`dialog:*` variables); getters/setters only, sync (not queued on interaction tail).
  */
@@ -111,6 +126,7 @@ export type BenneScriptSharedSelectionApi = Pick<
   | 'currentHoverTarget'
   | 'room'
   | 'sound'
+  | 'camera'
   | 'speechSettings'
   | 'dialogSettings'
 > & {

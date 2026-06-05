@@ -1,5 +1,11 @@
 import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/boot/cursorAseprite';
-import type { GameSettings, GameSettingsDialog, GameSettingsPerspective, GameSettingsSpeech } from '../types/game';
+import type {
+  GameSettings,
+  GameSettingsCamera,
+  GameSettingsDialog,
+  GameSettingsPerspective,
+  GameSettingsSpeech,
+} from '../types/game';
 import { readEffectiveDialogSettings } from './dialog/dialogGameState.js';
 import { readEffectiveSpeechSettings } from './dialog/speechGameState.js';
 import type { GameStateManager } from './gameState/GameStateManager.js';
@@ -22,6 +28,90 @@ const PERSPECTIVE_DEFAULTS: GameSettingsPerspective = {
   minWalkScale: 0.3,
   walkScalePower: 0.8,
 };
+
+const CAMERA_DEFAULTS: GameSettingsCamera = {
+  minZoom: 0.5,
+  maxZoom: 2.5,
+  defaultTransitionSeconds: 0.4,
+  shake: {
+    intensity: 0.02,
+    durationSeconds: 0.35,
+    falloff: true,
+  },
+};
+
+function mergeCameraSettings(data: GameSettings): GameSettingsCamera {
+  const c = data.camera;
+  if (!c || typeof c !== 'object') {
+    return { ...CAMERA_DEFAULTS, shake: { ...CAMERA_DEFAULTS.shake } };
+  }
+  const shake = c.shake;
+  return {
+    minZoom:
+      typeof c.minZoom === 'number' && Number.isFinite(c.minZoom) ? c.minZoom : CAMERA_DEFAULTS.minZoom,
+    maxZoom:
+      typeof c.maxZoom === 'number' && Number.isFinite(c.maxZoom) ? c.maxZoom : CAMERA_DEFAULTS.maxZoom,
+    defaultTransitionSeconds:
+      typeof c.defaultTransitionSeconds === 'number' && Number.isFinite(c.defaultTransitionSeconds)
+        ? c.defaultTransitionSeconds
+        : CAMERA_DEFAULTS.defaultTransitionSeconds,
+    shake: {
+      intensity:
+        typeof shake?.intensity === 'number' && Number.isFinite(shake.intensity)
+          ? shake.intensity
+          : CAMERA_DEFAULTS.shake.intensity,
+      durationSeconds:
+        typeof shake?.durationSeconds === 'number' && Number.isFinite(shake.durationSeconds)
+          ? shake.durationSeconds
+          : CAMERA_DEFAULTS.shake.durationSeconds,
+      falloff: typeof shake?.falloff === 'boolean' ? shake.falloff : CAMERA_DEFAULTS.shake.falloff,
+    },
+  };
+}
+
+function assertCameraSettings(data: GameSettings): void {
+  const c = data.camera;
+  if (c === undefined) {
+    return;
+  }
+  if (typeof c !== 'object' || c === null || Array.isArray(c)) {
+    throw new Error('game-config camera must be an object when present');
+  }
+  for (const key of ['minZoom', 'maxZoom', 'defaultTransitionSeconds'] as const) {
+    const v = c[key];
+    if (v !== undefined && !Number.isFinite(v)) {
+      throw new Error(`game-config camera.${key} must be a finite number when present`);
+    }
+  }
+  const shake = c.shake;
+  if (shake !== undefined) {
+    if (typeof shake !== 'object' || shake === null || Array.isArray(shake)) {
+      throw new Error('game-config camera.shake must be an object when present');
+    }
+    for (const key of ['intensity', 'durationSeconds'] as const) {
+      const v = shake[key];
+      if (v !== undefined && !Number.isFinite(v)) {
+        throw new Error(`game-config camera.shake.${key} must be a finite number when present`);
+      }
+    }
+    if (shake.falloff !== undefined && typeof shake.falloff !== 'boolean') {
+      throw new Error('game-config camera.shake.falloff must be a boolean when present');
+    }
+  }
+  const merged = mergeCameraSettings(data);
+  if (merged.minZoom <= 0 || merged.maxZoom <= 0) {
+    throw new Error('game-config camera.minZoom and maxZoom must be > 0');
+  }
+  if (merged.minZoom > merged.maxZoom) {
+    throw new Error('game-config camera.minZoom must be <= maxZoom');
+  }
+  if (merged.defaultTransitionSeconds < 0) {
+    throw new Error('game-config camera.defaultTransitionSeconds must be >= 0');
+  }
+  if (merged.shake.intensity < 0 || merged.shake.durationSeconds < 0) {
+    throw new Error('game-config camera.shake.intensity and durationSeconds must be >= 0');
+  }
+}
 
 function mergePerspectiveSettings(data: GameSettings): GameSettingsPerspective {
   const p = data.perspective;
@@ -344,6 +434,7 @@ function assertGameSettings(data: GameSettings): void {
   assertSpeechSettings(data);
   assertDialogSettings(data);
   assertPerspectiveSettings(data);
+  assertCameraSettings(data);
   assertCursorSettings(data);
 }
 
@@ -457,6 +548,11 @@ export function getDialogSettings(manager?: GameStateManager | null): GameSettin
 /** Merged `perspective` values for room-region walk-speed scaling (defaults when block or fields are omitted). */
 export function getPerspectiveSettings(): GameSettingsPerspective {
   return mergePerspectiveSettings(settings);
+}
+
+/** Merged `camera` values for script camera APIs (defaults when block or fields are omitted). */
+export function getCameraSettings(): GameSettingsCamera {
+  return mergeCameraSettings(settings);
 }
 
 /** How long a `.say()` line should stay on screen from {@link getSpeechSettings} timing rules. */

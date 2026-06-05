@@ -47,6 +47,7 @@ import { INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT } from '../events/inventoryOnV
 import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerbTarget.js';
 import type {
   BenneScriptCharacterFacade,
+  BenneScriptCameraFacade,
   BenneScriptDialogSettingsFacade,
   BenneScriptPlayerFacade,
   BenneScriptRoomFacade,
@@ -55,6 +56,7 @@ import type {
 } from './benneScriptFacades.js';
 import { createBenneScriptDialogSettingsFacade } from './benneScriptDialogSettingsApi.js';
 import { createBenneScriptSpeechSettingsFacade } from './benneScriptSpeechSettingsApi.js';
+import { createBenneScriptCameraFacade } from './benneScriptCameraApi.js';
 import { createBenneScriptSoundFacade } from './benneScriptSoundApi.js';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
 import { getCharacterWorldFeet } from '../characterFeet.js';
@@ -359,6 +361,9 @@ export abstract class BenneScriptCore {
   /** SFX + music (`B.sound.play('creak')`, `B.sound.playMusic('song')`, …). */
   readonly sound: BenneScriptSoundFacade;
 
+  /** Script camera control (`B.camera.focus`, `B.camera.setZoom`, …). */
+  readonly camera: BenneScriptCameraFacade;
+
   /** Runtime speech prefs (`B.speechSettings.clickToSkip`, timing, talk offset, …). */
   readonly speechSettings: BenneScriptSpeechSettingsFacade;
 
@@ -494,6 +499,10 @@ export abstract class BenneScriptCore {
 
     this.room = bindRoomFacadeForBenneScriptCore((f) => this.chain(f));
     this.sound = createBenneScriptSoundFacade((f) => this.chain(f));
+    this.camera = createBenneScriptCameraFacade(
+      (f) => this.chain(f),
+      () => this.getPlayerWalkRoomScene(),
+    );
     this.speechSettings = createBenneScriptSpeechSettingsFacade();
     this.dialogSettings = createBenneScriptDialogSettingsFacade();
   }

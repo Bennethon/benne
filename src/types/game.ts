@@ -48,6 +48,29 @@ export interface GameSettingsDebug {
 }
 
 /**
+ * Optional `game-config.json` `camera` block; see {@link getCameraSettings} for merged defaults.
+ * Script camera overrides (`B.camera`) are runtime-only and do not persist.
+ */
+export interface GameSettingsCameraShake {
+  /** Default shake intensity (small float; Phaser viewport fraction). */
+  intensity: number;
+  /** Default shake duration in seconds. */
+  durationSeconds: number;
+  /** When true, shake intensity decays over the effect duration. */
+  falloff: boolean;
+}
+
+export interface GameSettingsCamera {
+  /** Minimum gameplay zoom multiplier (`B.camera.setZoom`). */
+  minZoom: number;
+  /** Maximum gameplay zoom multiplier (`B.camera.setZoom`). */
+  maxZoom: number;
+  /** Default transition duration in seconds when a camera method omits `transitionTime`. */
+  defaultTransitionSeconds: number;
+  shake: GameSettingsCameraShake;
+}
+
+/**
  * Room region **scale walk speed** tuning (`game-config.json` `perspective`).
  * See {@link computeRoomRegionPerspective} in `src/engine/room/regionCharacterScale.ts`.
  */
@@ -190,6 +213,8 @@ export interface GameSettings {
    * See **`getPerspectiveSettings()`** in **`ConfigManager.ts`**.
    */
   perspective?: Partial<GameSettingsPerspective>;
+  /** Script camera defaults (zoom limits, shake, transition timing). See **`getCameraSettings()`**. */
+  camera?: Partial<GameSettingsCamera>;
   /** Starting flags, variables, and inventory merged at game creation (see `GameStateManager`). */
   initialGameState?: GameSettingsInitialGameState;
   /**
