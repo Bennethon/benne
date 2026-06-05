@@ -1,4 +1,8 @@
-import type { RoomRegionData, WalkablePolygon } from '../types/room';
+import type { Point2, RoomRegionData, WalkableHole, WalkablePolygon } from '../types/room';
+
+const EPS = 1e-6;
+const CLAMP_BOUNDARY_INSET_PX = 0.01;
+const CLAMP_WALKABLE_SIDE_INSET_PX = 0.25;
 
 /**
  * Ray-casting point-in-polygon test. Vertices are in room/world space (game pixels).
@@ -30,6 +34,44 @@ export function pointInPolygon(
 
 function isActive(active: boolean | undefined): boolean {
   return active !== false;
+}
+
+function almostSamePoint(a: Point2, b: Point2): boolean {
+  return distSq(a.x, a.y, b.x, b.y) <= EPS * EPS;
+}
+
+function isPointOnSegment(px: number, py: number, a: Point2, b: Point2): boolean {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const apx = px - a.x;
+  const apy = py - a.y;
+  const cross = abx * apy - aby * apx;
+  if (Math.abs(cross) > EPS) {
+    return false;
+  }
+  const dot = apx * abx + apy * aby;
+  if (dot < -EPS) {
+    return false;
+  }
+  const lenSq = abx * abx + aby * aby;
+  return dot <= lenSq + EPS;
+}
+
+function pointOnPolygonBoundary(
+  px: number,
+  py: number,
+  vertices: readonly Point2[],
+): boolean {
+  for (let i = 0, n = vertices.length; i < n; i++) {
+    if (isPointOnSegment(px, py, vertices[i]!, vertices[(i + 1) % n]!)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function pointInOrOnPolygon(px: number, py: number, vertices: readonly Point2[]): boolean {
+  return pointInPolygon(px, py, vertices) || pointOnPolygonBoundary(px, py, vertices);
 }
 
 /**
@@ -126,6 +168,187 @@ function closestPointOnPolygonBoundary(
   return { x: bestX, y: bestY };
 }
 
+function activeHoles(poly: WalkablePolygon): WalkableHole[] {
+  return (poly.holes ?? []).filter((h) => isActive(h.active) && h.points.length >= 3);
+}
+
+function isPointBlockedByAnyHole(
+  px: number,
+  py: number,
+  holes: readonly WalkableHole[],
+  exceptHole?: WalkableHole,
+): boolean {
+  for (const h of holes) {
+    if (h === exceptHole) {
+      continue;
+    }
+    if (pointInOrOnPolygon(px, py, h.points)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function pushUniqueNumber(out: number[], value: number): void {
+  const clamped = Math.max(0, Math.min(1, value));
+  if (!out.some((n) => Math.abs(n - clamped) <= EPS)) {
+    out.push(clamped);
+  }
+}
+
+function pushUniquePoint(out: Point2[], point: Point2): void {
+  if (!out.some((p) => almostSamePoint(p, point))) {
+    out.push(point);
+  }
+}
+
+function segmentIntersection(
+  a: Point2,
+  b: Point2,
+  c: Point2,
+  d: Point2,
+): { x: number; y: number; t: number; u: number } | null {
+  const rx = b.x - a.x;
+  const ry = b.y - a.y;
+  const sx = d.x - c.x;
+  const sy = d.y - c.y;
+  const denom = rx * sy - ry * sx;
+  if (Math.abs(denom) <= EPS) {
+    return null;
+  }
+  const qpx = c.x - a.x;
+  const qpy = c.y - a.y;
+  const t = (qpx * sy - qpy * sx) / denom;
+  const u = (qpx * ry - qpy * rx) / denom;
+  if (t < -EPS || t > 1 + EPS || u < -EPS || u > 1 + EPS) {
+    return null;
+  }
+  const tc = Math.max(0, Math.min(1, t));
+  return { x: a.x + rx * tc, y: a.y + ry * tc, t: tc, u: Math.max(0, Math.min(1, u)) };
+}
+
+function collectIntersectionTs(
+  edgeA: Point2,
+  edgeB: Point2,
+  rings: readonly (readonly Point2[])[],
+): number[] {
+  const ts = [0, 1];
+  const ex = edgeB.x - edgeA.x;
+  const ey = edgeB.y - edgeA.y;
+  const edgeLenSq = ex * ex + ey * ey;
+  for (const ring of rings) {
+    for (let i = 0, n = ring.length; i < n; i++) {
+      const a = ring[i]!;
+      const b = ring[(i + 1) % n]!;
+      const hit = segmentIntersection(edgeA, edgeB, a, b);
+      if (hit) {
+        pushUniqueNumber(ts, hit.t);
+      }
+      if (edgeLenSq > EPS && isPointOnSegment(a.x, a.y, edgeA, edgeB)) {
+        pushUniqueNumber(ts, ((a.x - edgeA.x) * ex + (a.y - edgeA.y) * ey) / edgeLenSq);
+      }
+      if (edgeLenSq > EPS && isPointOnSegment(b.x, b.y, edgeA, edgeB)) {
+        pushUniqueNumber(ts, ((b.x - edgeA.x) * ex + (b.y - edgeA.y) * ey) / edgeLenSq);
+      }
+    }
+  }
+  return ts.sort((a, b) => a - b);
+}
+
+function pointAtT(a: Point2, b: Point2, t: number): Point2 {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+interface BoundaryCandidate extends Point2 {
+  readonly edgeA: Point2;
+  readonly edgeB: Point2;
+}
+
+function insetIntervalT(a: Point2, b: Point2, lo: number, hi: number, t: number): number {
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  if (len <= EPS) {
+    return t;
+  }
+  const insetT = Math.min(CLAMP_BOUNDARY_INSET_PX / len, Math.max(0, (hi - lo) / 3));
+  return Math.max(lo + insetT, Math.min(hi - insetT, t));
+}
+
+function closestPointOnAllowedBoundary(
+  px: number,
+  py: number,
+  boundary: readonly Point2[],
+  splitRings: readonly (readonly Point2[])[],
+  isAllowedMidpoint: (mid: Point2) => boolean,
+): BoundaryCandidate | null {
+  let best: BoundaryCandidate | null = null;
+  let bestD = Infinity;
+  for (let i = 0, n = boundary.length; i < n; i++) {
+    const a = boundary[i]!;
+    const b = boundary[(i + 1) % n]!;
+    const ts = collectIntersectionTs(a, b, splitRings);
+    for (let j = 0; j + 1 < ts.length; j++) {
+      const lo = ts[j]!;
+      const hi = ts[j + 1]!;
+      if (hi - lo <= EPS) {
+        continue;
+      }
+      const mid = pointAtT(a, b, (lo + hi) / 2);
+      if (!isAllowedMidpoint(mid)) {
+        continue;
+      }
+      const q = closestPointOnSegment(px, py, a.x, a.y, b.x, b.y);
+      const edgeLenSq = distSq(a.x, a.y, b.x, b.y);
+      const rawT =
+        edgeLenSq <= EPS
+          ? lo
+          : ((q.x - a.x) * (b.x - a.x) + (q.y - a.y) * (b.y - a.y)) / edgeLenSq;
+      const t = insetIntervalT(a, b, lo, hi, rawT);
+      const candidate = pointAtT(a, b, t);
+      const d = distSq(px, py, candidate.x, candidate.y);
+      if (d < bestD) {
+        bestD = d;
+        best = { ...candidate, edgeA: a, edgeB: b };
+      }
+    }
+  }
+  return best;
+}
+
+function nudgeBoundaryCandidateIntoWalkable(
+  candidate: BoundaryCandidate | null,
+  poly: WalkablePolygon,
+): Point2 | null {
+  if (!candidate) {
+    return null;
+  }
+  if (isPointInWalkablePolygon(candidate.x, candidate.y, poly)) {
+    return { x: candidate.x, y: candidate.y };
+  }
+  const dx = candidate.edgeB.x - candidate.edgeA.x;
+  const dy = candidate.edgeB.y - candidate.edgeA.y;
+  const len = Math.hypot(dx, dy);
+  if (len <= EPS) {
+    return null;
+  }
+  const nx = -dy / len;
+  const ny = dx / len;
+  const plus = {
+    x: candidate.x + nx * CLAMP_WALKABLE_SIDE_INSET_PX,
+    y: candidate.y + ny * CLAMP_WALKABLE_SIDE_INSET_PX,
+  };
+  if (isPointInWalkablePolygon(plus.x, plus.y, poly)) {
+    return plus;
+  }
+  const minus = {
+    x: candidate.x - nx * CLAMP_WALKABLE_SIDE_INSET_PX,
+    y: candidate.y - ny * CLAMP_WALKABLE_SIDE_INSET_PX,
+  };
+  if (isPointInWalkablePolygon(minus.x, minus.y, poly)) {
+    return minus;
+  }
+  return null;
+}
+
 /**
  * Closest point in a filled simple polygon (interior ∪ boundary) to P.
  * If P is inside, returns P; otherwise the closest point lies on an edge.
@@ -163,14 +386,59 @@ function closestPointInWalkablePolygonRegion(
   }
 
   const inOuter = pointInPolygon(px, py, poly.points);
+  const holes = activeHoles(poly);
+
+  if (holes.length === 0) {
+    return closestPointInFilledPolygon(px, py, poly.points);
+  }
+
+  const holeRings = holes.map((h) => h.points);
+  const outerCandidate = closestPointOnAllowedBoundary(px, py, poly.points, holeRings, (mid) => {
+    return !isPointBlockedByAnyHole(mid.x, mid.y, holes);
+  });
+  const outerPoint = nudgeBoundaryCandidateIntoWalkable(outerCandidate, poly);
+
+  if (!inOuter) {
+    return outerPoint ?? closestPointOnPolygonBoundary(px, py, poly.points);
+  }
+
+  let best = outerPoint;
+  let bestD = best ? distSq(px, py, best.x, best.y) : Infinity;
+
+  for (const h of holes) {
+    if (!pointInPolygon(px, py, h.points)) {
+      continue;
+    }
+    const candidate = nudgeBoundaryCandidateIntoWalkable(
+      closestPointOnAllowedBoundary(
+        px,
+        py,
+        h.points,
+        [poly.points, ...holeRings.filter((ring) => ring !== h.points)],
+        (mid) =>
+          pointInOrOnPolygon(mid.x, mid.y, poly.points) &&
+          !isPointBlockedByAnyHole(mid.x, mid.y, holes, h),
+      ),
+      poly,
+    );
+    if (!candidate) {
+      continue;
+    }
+    const d = distSq(px, py, candidate.x, candidate.y);
+    if (d < bestD) {
+      bestD = d;
+      best = candidate;
+    }
+  }
+
+  if (best) {
+    return best;
+  }
 
   if (inOuter) {
     let best: { x: number; y: number } | null = null;
     let bestD = Infinity;
-    for (const h of poly.holes ?? []) {
-      if (!isActive(h.active) || h.points.length < 3) {
-        continue;
-      }
+    for (const h of holes) {
       if (!pointInPolygon(px, py, h.points)) {
         continue;
       }
@@ -243,76 +511,107 @@ function closestPointInWalkableUnion(
  * @returns `null` only if there is no usable polygon geometry (e.g. all regions have fewer than
  *          three vertices).
  */
-/** Intersection point of lines P1→P2 and P3→P4, or null if parallel. */
-function lineLineIntersect(
-  p1: { x: number; y: number },
-  p2: { x: number; y: number },
-  p3: { x: number; y: number },
-  p4: { x: number; y: number },
-): { x: number; y: number } | null {
-  const d1x = p2.x - p1.x;
-  const d1y = p2.y - p1.y;
-  const d2x = p4.x - p3.x;
-  const d2y = p4.y - p3.y;
-  const denom = d1x * d2y - d1y * d2x;
-  if (Math.abs(denom) < 1e-9) return null;
-  const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / denom;
-  return { x: p1.x + t * d1x, y: p1.y + t * d1y };
-}
-
-/**
- * Clips `subject` to the interior of `clip` using Sutherland–Hodgman.
- * Handles both CW and CCW winding for `clip` (determined from signed area).
- * Returns `[]` when there is no intersection.
- */
-function clipToPolygon(
-  subject: readonly { x: number; y: number }[],
-  clip: readonly { x: number; y: number }[],
-): { x: number; y: number }[] {
-  if (clip.length < 3 || subject.length < 3) return [];
-  let area = 0;
-  for (let i = 0, n = clip.length; i < n; i++) {
-    const a = clip[i]!;
-    const b = clip[(i + 1) % n]!;
-    area += a.x * b.y - b.x * a.y;
+function clipBlockerToOuter(
+  blocker: readonly Point2[],
+  outer: readonly Point2[],
+): Point2[] {
+  if (outer.length < 3 || blocker.length < 3) {
+    return [];
   }
-  if (area === 0) return [];
-  const negArea = area < 0;
 
-  let output = subject.slice() as { x: number; y: number }[];
-  for (let i = 0, n = clip.length; i < n && output.length > 0; i++) {
-    const a = clip[i]!;
-    const b = clip[(i + 1) % n]!;
-    const input = output;
-    output = [];
-    for (let j = 0; j < input.length; j++) {
-      const curr = input[j]!;
-      const prev = input[(j - 1 + input.length) % input.length]!;
-      const xc = (b.x - a.x) * (curr.y - a.y) - (b.y - a.y) * (curr.x - a.x);
-      const xp = (b.x - a.x) * (prev.y - a.y) - (b.y - a.y) * (prev.x - a.x);
-      const currIn = negArea ? xc <= 0 : xc >= 0;
-      const prevIn = negArea ? xp <= 0 : xp >= 0;
-      if (currIn) {
-        if (!prevIn) {
-          const isect = lineLineIntersect(prev, curr, a, b);
-          if (isect) output.push(isect);
-        }
-        output.push(curr);
-      } else if (prevIn) {
-        const isect = lineLineIntersect(prev, curr, a, b);
-        if (isect) output.push(isect);
+  const points: Point2[] = [];
+  let allBlockerVerticesInsideOuter = true;
+  let hasOuterVertexInsideBlocker = false;
+  let hasEdgeIntersection = false;
+  for (const p of blocker) {
+    if (pointInOrOnPolygon(p.x, p.y, outer)) {
+      pushUniquePoint(points, { x: p.x, y: p.y });
+    } else {
+      allBlockerVerticesInsideOuter = false;
+    }
+  }
+  for (const p of outer) {
+    if (pointInOrOnPolygon(p.x, p.y, blocker)) {
+      hasOuterVertexInsideBlocker = true;
+      pushUniquePoint(points, { x: p.x, y: p.y });
+    }
+  }
+  for (let i = 0, n = blocker.length; i < n; i++) {
+    const a = blocker[i]!;
+    const b = blocker[(i + 1) % n]!;
+    for (let j = 0, m = outer.length; j < m; j++) {
+      const c = outer[j]!;
+      const d = outer[(j + 1) % m]!;
+      const hit = segmentIntersection(a, b, c, d);
+      if (hit) {
+        hasEdgeIntersection = true;
+        pushUniquePoint(points, { x: hit.x, y: hit.y });
       }
     }
   }
-  return output;
+
+  if (allBlockerVerticesInsideOuter && !hasOuterVertexInsideBlocker && !hasEdgeIntersection) {
+    return blocker.map((p) => ({ x: p.x, y: p.y }));
+  }
+
+  if (points.length < 3) {
+    return [];
+  }
+
+  const cx = points.reduce((sum, p) => sum + p.x, 0) / points.length;
+  const cy = points.reduce((sum, p) => sum + p.y, 0) / points.length;
+  return points
+    .slice()
+    .sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+}
+
+function normalizeWalkablePolygonBlockers(
+  poly: WalkablePolygon,
+  extraBlockers: readonly { id: string; active?: boolean; points: Point2[] }[],
+): WalkablePolygon {
+  if (!isActive(poly.active) || poly.points.length < 3) {
+    return poly;
+  }
+
+  const holes: WalkableHole[] = [];
+  let changed = false;
+  for (const h of poly.holes ?? []) {
+    if (!isActive(h.active) || h.points.length < 3) {
+      holes.push(h);
+      continue;
+    }
+    const clipped = clipBlockerToOuter(h.points, poly.points);
+    if (clipped.length >= 3) {
+      holes.push({ ...h, points: clipped });
+      changed ||= clipped.length !== h.points.length || clipped.some((p, i) => !almostSamePoint(p, h.points[i]!));
+    } else {
+      changed = true;
+    }
+  }
+
+  for (const blocker of extraBlockers) {
+    if (!isActive(blocker.active) || blocker.points.length < 3) {
+      continue;
+    }
+    const clipped = clipBlockerToOuter(blocker.points, poly.points);
+    if (clipped.length >= 3) {
+      holes.push({ id: blocker.id, points: clipped });
+      changed = true;
+    }
+  }
+
+  if (!changed) {
+    return poly;
+  }
+  return { ...poly, holes };
 }
 
 /**
- * Returns the walkable polygons with any active `walkable: false` regions injected as synthetic
- * holes. Each region is clipped to the walkable polygon's outer ring first so hole vertices
- * always lie on the walkable boundary — giving the pathfinder valid corner nodes to route around.
+ * Returns the walkable polygons with active authored holes and `walkable: false` regions clipped
+ * to their owning walkable polygon. Boundary-overlapping blockers then subtract only the portion
+ * that can actually overlap the walk mesh, and the pathfinder gets valid boundary corner nodes.
  *
- * Returns the original array unchanged when no blocking regions exist (no allocation).
+ * Returns the original array unchanged when the effective blocker geometry is unchanged.
  */
 export function withNonWalkableRegionsAsHoles(
   polygons: readonly WalkablePolygon[],
@@ -321,25 +620,15 @@ export function withNonWalkableRegionsAsHoles(
   const blocking = (regions ?? []).filter(
     (r) => r.active !== false && r.walkable === false && r.points.length >= 3,
   );
-  if (blocking.length === 0) {
-    return polygons;
-  }
-  return polygons.map((poly) => {
-    if (!isActive(poly.active) || poly.points.length < 3) {
-      return poly;
+  let changed = false;
+  const normalized = polygons.map((poly) => {
+    const next = normalizeWalkablePolygonBlockers(poly, blocking);
+    if (next !== poly) {
+      changed = true;
     }
-    const added: { id: string; points: { x: number; y: number }[] }[] = [];
-    for (const r of blocking) {
-      const clipped = clipToPolygon(r.points, poly.points);
-      if (clipped.length >= 3) {
-        added.push({ id: r.id, points: clipped });
-      }
-    }
-    if (added.length === 0) {
-      return poly;
-    }
-    return { ...poly, holes: [...(poly.holes ?? []), ...added] };
+    return next;
   });
+  return changed ? normalized : polygons;
 }
 
 export function clampWalkDestinationTowardClick(

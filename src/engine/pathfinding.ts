@@ -34,7 +34,7 @@ import {
  *  - The goal is always clamped to the walkable union before pathfinding (reusing
  *    {@link clampWalkDestinationTowardClick}).
  *  - If start and goal lie in **disconnected** components of the walkable union, A\* returns no
- *    path and we fall back to a direct line to the clamped goal.
+ *    path and we walk as far as possible toward the clamped goal before the first blocker.
  *
  * **Complexity** — O((N+2)²) visibility tests per query, where N is the number of candidate
  * nodes (typically tens for hand-authored rooms). Each visibility test is O(E) across all
@@ -73,6 +73,9 @@ const BOUNDARY_JITTER_PX = 0.5;
 /** Tolerance for orientation tests (pixel-scale; coordinates are integer in authored JSON). */
 const EPS = 1e-6;
 
+/** Ignore disconnected fallback movement smaller than this; it would be visually indistinguishable. */
+const MIN_FALLBACK_PROGRESS_PX = 0.25;
+
 interface GraphNode {
   readonly x: number;
   readonly y: number;
@@ -85,10 +88,11 @@ interface GraphNode {
  * - Returns `[goal]` when the straight line is entirely inside the walkable region.
  * - Returns a polyline `[corner₁, corner₂, …, goal]` when a path must bend around hole rings
  *   or concavities.
- * - Returns `[clampedGoal]` as a one-hop fallback when:
- *   - the start is outside the walkable region (spawn / cutscene placement), or
- *   - start and goal are in disconnected walkable components and A\* cannot reach the goal.
- * - Returns `[]` only when there is no usable polygon geometry at all.
+ * - Returns `[clampedGoal]` as a one-hop fallback when the start is outside the walkable region
+ *   (spawn / cutscene placement).
+ * - Returns a partial one-hop fallback when the goal is in a disconnected component: the farthest
+ *   visible walkable point toward the clamped goal before the first blocker.
+ * - Returns `[]` when there is no usable polygon geometry, or no visible fallback progress exists.
  */
 export function findWalkPath(
   start: Point2,
@@ -133,9 +137,43 @@ export function findWalkPath(
   const nodes = buildGraphNodes(polygons);
   const path = aStarPath(effectiveStart, clamped, nodes, polygons);
   if (path.length === 0) {
-    return [clamped];
+    const partial = farthestReachablePointToward(effectiveStart, clamped, polygons);
+    return partial ? [partial] : [];
   }
   return path;
+}
+
+function farthestReachablePointToward(
+  start: Point2,
+  goal: Point2,
+  polygons: readonly WalkablePolygon[],
+): Point2 | null {
+  const dx = goal.x - start.x;
+  const dy = goal.y - start.y;
+  const len = Math.hypot(dx, dy);
+  if (len <= MIN_FALLBACK_PROGRESS_PX) {
+    return null;
+  }
+
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 32; i++) {
+    const mid = (lo + hi) / 2;
+    const candidate = { x: start.x + dx * mid, y: start.y + dy * mid };
+    if (
+      isPointInWalkableArea(candidate.x, candidate.y, polygons) &&
+      isSegmentInsideWalkable(start, candidate, polygons)
+    ) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  if (lo * len <= MIN_FALLBACK_PROGRESS_PX) {
+    return null;
+  }
+  return { x: start.x + dx * lo, y: start.y + dy * lo };
 }
 
 /**
