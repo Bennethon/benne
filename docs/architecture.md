@@ -922,7 +922,7 @@ The editor preview uses **`Scale.RESIZE`** (not `Scale.FIT`) so the Phaser canva
 
 ### Toolbar UX (tree selection or Inspector)
 
-A persistent **Show GUIs** checkbox sits in `#benne-preview-topbar` (next to **Refresh**) for every room preview session. When checked, `RoomScene.setGenericGuisVisible(true)` turns on every GUI under `src/game/guis/**` **except** Speaking Text (`speaking-text`, still driven by Bennescript **`say`**). The state is stored via `vscode.setState({ showGuis })` so the webview remembers the last choice across reloads and `loadRoom` cycles; the value is also forwarded through `createRoomPreviewGame.ts` into the `benneRoomSceneGenericGuisVisible` registry key so `RoomScene.create` picks it up on the first frame (no flash of hidden / visible GUIs).
+A persistent **Show GUIs** checkbox sits in `#benne-preview-topbar` (next to **Refresh**) for every room preview session. When checked, `RoomScene.setGenericGuisVisible(true)` shows only generic HUD GUIs under `src/game/guis/**` whose `*.gui.json` has **`visible: true`** (modals and menus authored with **`visible: false`** stay hidden). Speaking Text (`speaking-text`), Display Text (`display-text`), and choice-dialog GUIs are still excluded and remain engine-driven. The state is stored via `vscode.setState({ showGuis })` so the webview remembers the last choice across reloads and `loadRoom` cycles; the value is also forwarded through `createRoomPreviewGame.ts` into the `benneRoomSceneGenericGuisVisible` registry key so `RoomScene.create` picks it up on the first frame (no flash of hidden / visible GUIs).
 
 | BENNE tree selection (or Inspector) | Preview toolbar |
 |----------------------|-----------------|
