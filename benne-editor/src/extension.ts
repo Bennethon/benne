@@ -12,6 +12,8 @@ import {
     runAddRoomPropWizard,
     runAddRoomRegionWizard,
     runAddRoomSpawnedCharacterWizard,
+    runAddRoomWalkableAreaWizard,
+    runAddRoomWalkableHoleWizard,
     runCreateRoomWizard,
     runImportPropsFromAsepriteTags
 } from './roomScaffolding';
@@ -664,7 +666,7 @@ export function activate(context: vscode.ExtensionContext): void {
                     resolveDeleteTargetFromSelectionFocus(selection);
                 if (!target) {
                     void vscode.window.showInformationMessage(
-                        'Choose a room, character, GUI, GUI control, inventory item, dialog, puzzle chart, prop, hotspot, point, region, or spawned character in the BENNE tree (or run this from its context menu), then try again.'
+                        'Choose a room, character, GUI, GUI control, inventory item, dialog, puzzle chart, prop, hotspot, point, region, walkable area, hole, or spawned character in the BENNE tree (or run this from its context menu), then try again.'
                     );
                     return;
                 }
@@ -921,6 +923,22 @@ export function activate(context: vscode.ExtensionContext): void {
             async (arg?: MainTreeNode | MainTreeNode[]) => {
                 const node = firstTreeContextArg(arg);
                 await runAddRoomRegionWizard(selection, node);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addRoomWalkableArea',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                await runAddRoomWalkableAreaWizard(selection, node);
+                refreshTrees();
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.addRoomWalkableHole',
+            async (arg?: MainTreeNode | MainTreeNode[]) => {
+                const node = firstTreeContextArg(arg);
+                await runAddRoomWalkableHoleWizard(selection, node);
                 refreshTrees();
             }
         ),

@@ -535,7 +535,7 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MainTreeNode> {
                     item.iconPath = warningIcon;
                     item.tooltip = `Missing room Aseprite export: src/game/assets/images/rooms/${element.id}/${element.id}.png and ${element.id}.json`;
                 } else {
-                    item.iconPath = new vscode.ThemeIcon('symbol-structure');
+                    item.iconPath = new vscode.ThemeIcon('home');
                 }
                 item.contextValue = 'benneRoom';
                 return item;

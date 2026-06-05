@@ -6,6 +6,7 @@ import {
     listCharacterDefinitions,
     listRoomDefinitions,
     readGameConfigResolution,
+    readRoomWalkablePolygons,
     resolveRoomAsepriteSheetForProps
 } from './gameDiscovery';
 import type { EditorSelection } from './editorSelection';
@@ -307,6 +308,15 @@ export async function resolveRoomTarget(
         return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
     }
     if (node?.kind === 'roomSubGroup') {
+        return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
+    }
+    if (node?.kind === 'walkableAreasRoot') {
+        return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
+    }
+    if (node?.kind === 'walkablePolygon') {
+        return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
+    }
+    if (node?.kind === 'walkableHole') {
         return { roomJsonUri: node.roomJsonUri, roomId: node.roomId };
     }
 
@@ -1037,6 +1047,210 @@ export async function runAddRoomRegionWizard(
     await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
 
     void vscode.window.showInformationMessage(`Added region "${id}" to room ${target.roomId}.`);
+    await applyBenneTwoRowJsonScriptLayout();
+    await openBenneRoomTypeScript(target.roomJsonUri, target.roomId);
+}
+
+function ensureWalkableRoot(data: Record<string, unknown>): Record<string, unknown> {
+    let w = data.walkable;
+    if (!w || typeof w !== 'object' || Array.isArray(w)) {
+        w = { polygons: [] };
+        data.walkable = w;
+    }
+    const wo = w as Record<string, unknown>;
+    if (!Array.isArray(wo.polygons)) {
+        wo.polygons = [];
+    }
+    return wo;
+}
+
+function collectWalkableIds(data: Record<string, unknown>): Set<string> {
+    const wo = ensureWalkableRoot(data);
+    const polys = wo.polygons as Record<string, unknown>[];
+    const ids = new Set<string>();
+    for (const p of polys) {
+        if (typeof p.id === 'string') {
+            ids.add(p.id);
+        }
+        const holes = p.holes;
+        if (Array.isArray(holes)) {
+            for (const h of holes) {
+                if (h && typeof h === 'object' && typeof (h as { id?: unknown }).id === 'string') {
+                    ids.add((h as { id: string }).id);
+                }
+            }
+        }
+    }
+    return ids;
+}
+
+/** Default walkable triangle centered in room space (matches Inspector / polygon editor). */
+function defaultWalkableTriangle(width: number, height: number): { x: number; y: number }[] {
+    const { cx, cy } = roomCenterFromExtents(width, height);
+    return [
+        { x: cx - 24, y: cy + 20 },
+        { x: cx + 24, y: cy + 20 },
+        { x: cx, y: cy - 28 }
+    ];
+}
+
+async function resolveWalkablePolygonId(
+    node: MainTreeNode | undefined,
+    roomJsonUri: vscode.Uri
+): Promise<string | undefined> {
+    if (node?.kind === 'walkablePolygon') {
+        return node.polygonId;
+    }
+    if (node?.kind === 'walkableHole') {
+        return node.polygonId;
+    }
+    const polys = await readRoomWalkablePolygons(roomJsonUri);
+    if (polys.length === 0) {
+        void vscode.window.showErrorMessage('Add a walkable area first, then add a hole.');
+        return undefined;
+    }
+    if (polys.length === 1) {
+        return polys[0]!.id;
+    }
+    const picked = await vscode.window.showQuickPick(
+        polys.map((p) => ({ label: p.id, description: `${p.holes.length} hole(s)`, polygonId: p.id })),
+        { placeHolder: 'Choose the walkable area to add a hole to' }
+    );
+    return picked?.polygonId;
+}
+
+/** Append a `walkable.polygons[]` entry with a small default triangle (editable in the preview). */
+export async function runAddRoomWalkableAreaWizard(
+    selection: EditorSelection,
+    node?: MainTreeNode
+): Promise<void> {
+    const target = await resolveRoomTarget(node, selection);
+    if (!target) {
+        return;
+    }
+
+    const defaultId = `${target.roomId}-walk`;
+    const polygonId = await vscode.window.showInputBox({
+        prompt: 'Walkable area id (unique among walkable polygons and holes in this room)',
+        value: defaultId,
+        validateInput: (v) => validateSlug(v?.trim() ?? '', 'Walkable area id')
+    });
+    if (!polygonId) {
+        return;
+    }
+    const id = polygonId.trim();
+
+    const raw = await vscode.workspace.fs.readFile(target.roomJsonUri);
+    const text = new TextDecoder('utf-8').decode(raw);
+    let data: Record<string, unknown>;
+    try {
+        data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        void vscode.window.showErrorMessage('Room JSON is not valid; cannot add walkable area.');
+        return;
+    }
+
+    const walkableIds = collectWalkableIds(data);
+    if (walkableIds.has(id)) {
+        void vscode.window.showErrorMessage(
+            `An id "${id}" already exists among walkable polygons or holes in this room.`
+        );
+        return;
+    }
+
+    const gameRoot = await gameRootContaining(target.roomJsonUri);
+    if (!gameRoot) {
+        void vscode.window.showErrorMessage('Could not locate BENNE game root for this room.');
+        return;
+    }
+    const { width: roomW, height: roomH } = await resolveRoomWidthHeight(data, gameRoot);
+
+    const wo = ensureWalkableRoot(data);
+    const polys = wo.polygons as Record<string, unknown>[];
+    polys.push({
+        id,
+        active: true,
+        points: defaultWalkableTriangle(roomW, roomH)
+    });
+    await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
+
+    void vscode.window.showInformationMessage(`Added walkable area "${id}" to room ${target.roomId}.`);
+    await applyBenneTwoRowJsonScriptLayout();
+    await openBenneRoomTypeScript(target.roomJsonUri, target.roomId);
+}
+
+/** Append a hole under a walkable polygon (editable in the preview). */
+export async function runAddRoomWalkableHoleWizard(
+    selection: EditorSelection,
+    node?: MainTreeNode
+): Promise<void> {
+    const target = await resolveRoomTarget(node, selection);
+    if (!target) {
+        return;
+    }
+
+    const parentPolygonId = await resolveWalkablePolygonId(node, target.roomJsonUri);
+    if (!parentPolygonId) {
+        return;
+    }
+
+    const defaultId = `${parentPolygonId}-hole`;
+    const holeId = await vscode.window.showInputBox({
+        prompt: `Hole id (unique among walkable polygons and holes; parent: ${parentPolygonId})`,
+        value: defaultId,
+        validateInput: (v) => validateSlug(v?.trim() ?? '', 'Hole id')
+    });
+    if (!holeId) {
+        return;
+    }
+    const id = holeId.trim();
+
+    const raw = await vscode.workspace.fs.readFile(target.roomJsonUri);
+    const text = new TextDecoder('utf-8').decode(raw);
+    let data: Record<string, unknown>;
+    try {
+        data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        void vscode.window.showErrorMessage('Room JSON is not valid; cannot add hole.');
+        return;
+    }
+
+    const walkableIds = collectWalkableIds(data);
+    if (walkableIds.has(id)) {
+        void vscode.window.showErrorMessage(
+            `An id "${id}" already exists among walkable polygons or holes in this room.`
+        );
+        return;
+    }
+
+    const wo = ensureWalkableRoot(data);
+    const polys = wo.polygons as Record<string, unknown>[];
+    const poly = polys.find((p) => typeof p.id === 'string' && (p.id as string) === parentPolygonId);
+    if (!poly) {
+        void vscode.window.showErrorMessage(`Walkable area "${parentPolygonId}" was not found in this room.`);
+        return;
+    }
+
+    const gameRoot = await gameRootContaining(target.roomJsonUri);
+    if (!gameRoot) {
+        void vscode.window.showErrorMessage('Could not locate BENNE game root for this room.');
+        return;
+    }
+    const { width: roomW, height: roomH } = await resolveRoomWidthHeight(data, gameRoot);
+
+    if (!Array.isArray(poly.holes)) {
+        poly.holes = [];
+    }
+    (poly.holes as Record<string, unknown>[]).push({
+        id,
+        active: true,
+        points: defaultWalkableTriangle(roomW, roomH)
+    });
+    await vscode.workspace.fs.writeFile(target.roomJsonUri, formatJson(data));
+
+    void vscode.window.showInformationMessage(
+        `Added hole "${id}" to walkable area "${parentPolygonId}" in room ${target.roomId}.`
+    );
     await applyBenneTwoRowJsonScriptLayout();
     await openBenneRoomTypeScript(target.roomJsonUri, target.roomId);
 }
