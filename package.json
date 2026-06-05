@@ -20,6 +20,7 @@
     "prebuild:benne-play": "npm run generate:game-ids",
     "build:benne-play": "tsc && vite build --config vite.benne-play.config.ts",
     "watch:benne-play": "vite build --watch --config vite.benne-play.config.ts",
+    "test:pathfinding": "node scripts/pathfinding-regression.mjs",
     "preview": "vite preview",
     "sync-boot-down": "node scripts/switch-game-template.mjs sync-boot-down",
     "sync-template-down": "node scripts/switch-game-template.mjs sync-template-down",
