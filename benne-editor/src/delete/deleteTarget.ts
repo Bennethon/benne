@@ -114,6 +114,25 @@ export type DeleteTarget =
           /** May be empty when the control has no `id`. */
           controlId: string;
           displayLabel: string;
+      }
+    | {
+          type: 'walkablePolygon';
+          folder: vscode.WorkspaceFolder;
+          roomId: string;
+          roomName: string;
+          roomJsonUri: vscode.Uri;
+          polygonId: string;
+          displayLabel: string;
+      }
+    | {
+          type: 'walkableHole';
+          folder: vscode.WorkspaceFolder;
+          roomId: string;
+          roomName: string;
+          roomJsonUri: vscode.Uri;
+          polygonId: string;
+          holeId: string;
+          displayLabel: string;
       };
 
 /** Argument type for `benne-editor.deleteGameEntity` (tree context menu passes one node). */
@@ -243,6 +262,27 @@ export function resolveDeleteTargetFromMainTreeNode(
                 displayLabel: node.controlId
                     ? `${node.typeLabel} (${node.controlId})`
                     : `${node.typeLabel} (#${node.controlIndex + 1})`
+            };
+        case 'walkablePolygon':
+            return {
+                type: 'walkablePolygon',
+                folder: node.folder,
+                roomId: node.roomId,
+                roomName: node.roomName,
+                roomJsonUri: node.roomJsonUri,
+                polygonId: node.polygonId,
+                displayLabel: node.polygonId
+            };
+        case 'walkableHole':
+            return {
+                type: 'walkableHole',
+                folder: node.folder,
+                roomId: node.roomId,
+                roomName: node.roomName,
+                roomJsonUri: node.roomJsonUri,
+                polygonId: node.polygonId,
+                holeId: node.holeId,
+                displayLabel: node.holeId
             };
         default:
             return undefined;

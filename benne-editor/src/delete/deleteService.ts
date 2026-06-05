@@ -4,6 +4,7 @@ import { stripLineAndBlockComments } from '../verbHandlerPresence';
 import { formatJson } from '../roomScaffolding';
 import { listRoomDefinitions } from '../gameDiscovery';
 import { readRoomJsonText } from '../inspectorStateBuilder';
+import { deleteWalkableHole, deleteWalkablePolygon } from '../inspectorMutations';
 import type { DeleteTarget } from './deleteTarget';
 import type { EditorSelection } from '../editorSelection';
 
@@ -161,6 +162,9 @@ function regexesForDeleteTarget(target: DeleteTarget): RegExp[] {
                 new RegExp(`whenCheckboxUncheck\\(\\s*['\`]${c}['\`]`)
             ];
         }
+        case 'walkablePolygon':
+        case 'walkableHole':
+            return [];
         default:
             return [];
     }
@@ -346,6 +350,8 @@ function collectUrisToClose(target: DeleteTarget): vscode.Uri[] {
         case 'point':
         case 'region':
         case 'spawnedCharacter':
+        case 'walkablePolygon':
+        case 'walkableHole':
             return [target.roomJsonUri];
         case 'guiControl':
             return [target.guiJsonUri];
@@ -380,6 +386,10 @@ function entityKindLabel(target: DeleteTarget): string {
             return 'spawned character';
         case 'guiControl':
             return 'GUI control';
+        case 'walkablePolygon':
+            return 'walkable area';
+        case 'walkableHole':
+            return 'hole';
         default:
             return 'entity';
     }
@@ -485,6 +495,16 @@ export async function buildDeleteImpactSummary(target: DeleteTarget): Promise<De
                     '• Control has no id — no script scan performed (scripts can only reference controls by id).'
                 );
             }
+            break;
+        case 'walkablePolygon':
+            detailLines.push(
+                `• Walkable area “${target.polygonId}” (and any holes under it) from room “${target.roomName}” (${target.roomId}) in room JSON`
+            );
+            break;
+        case 'walkableHole':
+            detailLines.push(
+                `• Hole “${target.holeId}” from walkable area “${target.polygonId}” in room “${target.roomName}” (${target.roomId}) in room JSON`
+            );
             break;
         default:
             break;
@@ -935,6 +955,24 @@ export async function deleteGameEntity(target: DeleteTarget): Promise<void> {
             await writeRoomJson(target.guiJsonUri, data);
             break;
         }
+        case 'walkablePolygon': {
+            const data = await readRoomJsonRecord(target.roomJsonUri);
+            if (!data) {
+                throw new Error('Room JSON could not be read');
+            }
+            deleteWalkablePolygon(data, target.polygonId);
+            await writeRoomJson(target.roomJsonUri, data);
+            break;
+        }
+        case 'walkableHole': {
+            const data = await readRoomJsonRecord(target.roomJsonUri);
+            if (!data) {
+                throw new Error('Room JSON could not be read');
+            }
+            deleteWalkableHole(data, target.polygonId, target.holeId);
+            await writeRoomJson(target.roomJsonUri, data);
+            break;
+        }
         default:
             break;
     }
@@ -1040,6 +1078,25 @@ export function applySelectionAfterDelete(selection: EditorSelection, target: De
             ) {
                 // Reset to plain GUI focus so the Inspector stays on the right card list.
                 selection.setGui(target.guiJsonUri, target.guiName);
+            }
+            break;
+        case 'walkablePolygon':
+            if (
+                selection.roomPanel.kind === 'walkable' &&
+                selection.roomPanel.roomJsonUri.toString() === target.roomJsonUri.toString() &&
+                selection.roomPanel.polygonId === target.polygonId
+            ) {
+                selection.clearRoomPanelFocus();
+            }
+            break;
+        case 'walkableHole':
+            if (
+                selection.roomPanel.kind === 'walkable' &&
+                selection.roomPanel.roomJsonUri.toString() === target.roomJsonUri.toString() &&
+                selection.roomPanel.polygonId === target.polygonId &&
+                selection.roomPanel.holeId === target.holeId
+            ) {
+                selection.clearRoomPanelFocus();
             }
             break;
         default:

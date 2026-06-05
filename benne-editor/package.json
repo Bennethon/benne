@@ -24,6 +24,8 @@
     "onCommand:benne-editor.addRoomHotspot",
     "onCommand:benne-editor.addRoomPoint",
     "onCommand:benne-editor.addRoomRegion",
+    "onCommand:benne-editor.addRoomWalkableArea",
+    "onCommand:benne-editor.addRoomWalkableHole",
     "onCommand:benne-editor.addRoomSpawnedCharacter",
     "onCommand:benne-editor.addRoomPlayFromMethod",
     "onCommand:benne-editor.createCharacter",
@@ -247,6 +249,18 @@
         "title": "Add Region",
         "category": "BENNE",
         "icon": "$(layout-panel)"
+      },
+      {
+        "command": "benne-editor.addRoomWalkableArea",
+        "title": "Add Walkable Area",
+        "category": "BENNE",
+        "icon": "$(symbol-interface)"
+      },
+      {
+        "command": "benne-editor.addRoomWalkableHole",
+        "title": "Add Hole",
+        "category": "BENNE",
+        "icon": "$(debug-breakpoint-data-unverified)"
       },
       {
         "command": "benne-editor.addRoomSpawnedCharacter",
@@ -592,6 +606,16 @@
           "group": "benne@2"
         },
         {
+          "command": "benne-editor.addRoomWalkableArea",
+          "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomWalkableHole",
+          "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "benne@2"
+        },
+        {
           "command": "benne-editor.addRoomSpawnedCharacter",
           "when": "view == benne-editor.main && viewItem == benneRoomCharacter",
           "group": "benne@2"
@@ -649,6 +673,36 @@
         {
           "command": "benne-editor.addRoomSpawnedCharacter",
           "when": "view == benne-editor.main && viewItem == benneRoomSubGroupCharacters",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomWalkableArea",
+          "when": "view == benne-editor.main && viewItem == benneWalkableAreasRoot",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomWalkableArea",
+          "when": "view == benne-editor.main && viewItem == benneWalkablePolygon",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomWalkableArea",
+          "when": "view == benne-editor.main && viewItem == benneWalkableHole",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomWalkableHole",
+          "when": "view == benne-editor.main && viewItem == benneWalkableAreasRoot",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomWalkableHole",
+          "when": "view == benne-editor.main && viewItem == benneWalkablePolygon",
+          "group": "benne@2"
+        },
+        {
+          "command": "benne-editor.addRoomWalkableHole",
+          "when": "view == benne-editor.main && viewItem == benneWalkableHole",
           "group": "benne@2"
         },
         {
@@ -719,6 +773,16 @@
         {
           "command": "benne-editor.deleteGameEntity",
           "when": "view == benne-editor.main && viewItem == bennePdc",
+          "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneWalkablePolygon",
+          "group": "modification@benneDelete"
+        },
+        {
+          "command": "benne-editor.deleteGameEntity",
+          "when": "view == benne-editor.main && viewItem == benneWalkableHole",
           "group": "modification@benneDelete"
         }
       ]
