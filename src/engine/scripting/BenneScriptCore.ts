@@ -15,11 +15,14 @@ import {
   applyCharacterEffectiveAnimation,
   applyPersistedCharacterFollowFromScript,
   clearSavedCharacterFollowState,
+  clearSavedCharacterSpeechPosition,
   getCharacterAnimationOverrideTag,
   readSavedCharacterFollowingTarget,
   readSavedCharacterMovable,
   readSavedCharacterVisible,
   writeSavedCharacterMovable,
+  writeSavedCharacterSpeechOffset,
+  writeSavedCharacterSpeechPosition,
   writeSavedCharacterVisible,
 } from '../benneAnimationRuntime.js';
 import {
@@ -1398,6 +1401,91 @@ export abstract class BenneScriptCore {
   }
 
   /**
+   * Shared speech GUI positioning methods for {@link makePlayerFacadeFromScene} and
+   * {@link makeCharacterFacadeLazy}.
+   */
+  private makeCharacterSpeechPositionMethods(
+    getScene: () => RoomScene | undefined,
+    definitionId: string,
+    warnNoRoom: () => void,
+  ): Pick<
+    BenneScriptCharacterFacade,
+    'setSpeechPosition' | 'setSpeechOffset' | 'resetSpeechPosition'
+  > {
+    const applySpeechPosition = (x: number, y: number): void => {
+      const scene = getScene();
+      if (scene) {
+        scene.setCharacterScriptSpeechPosition(definitionId, x, y);
+        return;
+      }
+      const mgr = tryGetActiveGameStateManager();
+      if (mgr) {
+        writeSavedCharacterSpeechPosition(mgr, definitionId, { x, y });
+        return;
+      }
+      warnNoRoom();
+    };
+
+    const applySpeechOffset = (x: number, y: number): void => {
+      const scene = getScene();
+      if (scene) {
+        scene.setCharacterScriptSpeechOffset(definitionId, x, y);
+        return;
+      }
+      const mgr = tryGetActiveGameStateManager();
+      if (mgr) {
+        writeSavedCharacterSpeechOffset(mgr, definitionId, { x, y });
+        return;
+      }
+      warnNoRoom();
+    };
+
+    const applyResetSpeechPosition = (): void => {
+      const scene = getScene();
+      if (scene) {
+        scene.resetCharacterScriptSpeechPosition(definitionId);
+        return;
+      }
+      const mgr = tryGetActiveGameStateManager();
+      if (mgr) {
+        clearSavedCharacterSpeechPosition(mgr, definitionId);
+        return;
+      }
+      warnNoRoom();
+    };
+
+    return {
+      setSpeechPosition: withNow(
+        (x: number, y: number) => {
+          this.chain(() => {
+            applySpeechPosition(x, y);
+            return Promise.resolve();
+          });
+        },
+        applySpeechPosition,
+      ),
+      setSpeechOffset: withNow(
+        (x: number, y: number) => {
+          this.chain(() => {
+            applySpeechOffset(x, y);
+            return Promise.resolve();
+          });
+        },
+        applySpeechOffset,
+      ),
+      resetSpeechPosition: withNow(
+        () => {
+          this.chain(() => {
+            applyResetSpeechPosition();
+            return Promise.resolve();
+          });
+        },
+        applyResetSpeechPosition,
+      ),
+    };
+  }
+
+  /**
    * Shared with {@link import('./GlobalBenneScript.js').GlobalBenneScript} so global handlers can use **`B.player.say`**
    * (resolves the room scene on each call).
    */
@@ -1602,6 +1690,7 @@ export abstract class BenneScriptCore {
         const mgr = tryGetActiveGameStateManager();
         return mgr ? readSavedCharacterFollowingTarget(mgr, pid) : null;
       },
+      ...this.makeCharacterSpeechPositionMethods(getScene, pid, warnNoRoom),
     } as BenneScriptPlayerFacade;
   }
 
@@ -1952,6 +2041,7 @@ export abstract class BenneScriptCore {
         const mgr = tryGetActiveGameStateManager();
         return mgr ? readSavedCharacterFollowingTarget(mgr, definitionId) : null;
       },
+      ...this.makeCharacterSpeechPositionMethods(getScene, definitionId, warnNoRoom),
     } as BenneScriptCharacterFacade;
   }
 }

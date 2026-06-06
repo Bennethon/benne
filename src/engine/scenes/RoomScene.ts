@@ -59,6 +59,8 @@ import {
   readSavedCharacterFollowingTarget,
   readSavedCharacterMovable,
   readSavedCharacterPosition,
+  readSavedCharacterSpeechOffset,
+  readSavedCharacterSpeechPosition,
   readSavedCharacterVisible,
   readSavedPropAlpha,
   readSavedPropBaseAnimationTag,
@@ -73,7 +75,10 @@ import {
   writeSavedCharacterAnimationOverride,
   writeSavedCharacterMovable,
   writeSavedCharacterPosition,
+  writeSavedCharacterSpeechOffset,
+  writeSavedCharacterSpeechPosition,
   writeSavedCharacterVisible,
+  clearSavedCharacterSpeechPosition,
   writeSavedPropAlpha,
   writeSavedPropBaseAnimationTag,
   writeSavedPropPosition,
@@ -1528,8 +1533,8 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Shows or hides the `speaking-text` GUI line (`controls` text with `id: line` or the first text control).
-   * With `talkCharacterDefinitionId`, places the line so its **bottom-center** sits on the character’s `talkPoint`
-   * projected into GUI space (plus `game-config.json` `dialog.defaultTalkOffset`), including wrapped height.
+   * With `talkCharacterDefinitionId`, places the line so its **bottom-center** sits on the resolved speech
+   * anchor projected into GUI space (see {@link resolveSpeechOverlayScreenPosition}), including wrapped height.
    */
   setDialogTextOverlay(state: {
     visible: boolean;
@@ -1563,13 +1568,9 @@ export class RoomScene extends Phaser.Scene {
     const id = state.talkCharacterDefinitionId;
     if (id) {
       h.setPrimaryTextColor(this.characterSpeechColorByDefId.get(id));
-      const anchor = this.getTalkAnchorWorldForCharacterDefinition(id);
-      if (anchor) {
-        const p = this.worldPointToDialogOverlayScreen(anchor.x, anchor.y);
-        h.setPrimaryScreenPositionBottomCenter(
-          p.x + speech.defaultTalkOffset.x,
-          p.y + speech.defaultTalkOffset.y,
-        );
+      const screenPos = this.resolveSpeechOverlayScreenPosition(id, speech);
+      if (screenPos) {
+        h.setPrimaryScreenPositionBottomCenter(screenPos.x, screenPos.y);
       } else {
         h.resetPrimaryScreenPosition();
       }
@@ -1730,6 +1731,31 @@ export class RoomScene extends Phaser.Scene {
       return { x: sprite.x + data.talkPoint.x, y: sprite.y + data.talkPoint.y };
     }
     return { x: sprite.x + f.width * 0.5, y: sprite.y - 4 };
+  }
+
+  /**
+   * Resolves canvas-pixel bottom-center for the speaking-text GUI for one speaker id.
+   * Precedence: saved absolute world position → default talk anchor + global/defaultTalkOffset + saved offset.
+   */
+  private resolveSpeechOverlayScreenPosition(
+    definitionId: string,
+    speech: ReturnType<typeof getSpeechSettings>,
+  ): Point2 | null {
+    const manager = resolveGameStateManager(this.game);
+    const abs = readSavedCharacterSpeechPosition(manager, definitionId);
+    if (abs) {
+      return this.worldPointToDialogOverlayScreen(abs.x, abs.y);
+    }
+    const anchor = this.getTalkAnchorWorldForCharacterDefinition(definitionId);
+    if (!anchor) {
+      return null;
+    }
+    const p = this.worldPointToDialogOverlayScreen(anchor.x, anchor.y);
+    const off = readSavedCharacterSpeechOffset(manager, definitionId);
+    return {
+      x: p.x + speech.defaultTalkOffset.x + (off?.x ?? 0),
+      y: p.y + speech.defaultTalkOffset.y + (off?.y ?? 0),
+    };
   }
 
   /** Maps room/world pixels to coordinates in the same space as GUI `controls[].x` / `y` for this camera. */
@@ -2652,6 +2678,21 @@ export class RoomScene extends Phaser.Scene {
   /** Persist movability for one character definition id (backs **`B.character` / `B.player` `.movable`**). */
   setCharacterScriptMovable(definitionId: string, movable: boolean): void {
     writeSavedCharacterMovable(resolveGameStateManager(this.game), definitionId, movable);
+  }
+
+  /** Persist absolute world speech GUI position (backs **`setSpeechPosition`**). */
+  setCharacterScriptSpeechPosition(definitionId: string, x: number, y: number): void {
+    writeSavedCharacterSpeechPosition(resolveGameStateManager(this.game), definitionId, { x, y });
+  }
+
+  /** Persist canvas-pixel speech GUI offset after default placement (backs **`setSpeechOffset`**). */
+  setCharacterScriptSpeechOffset(definitionId: string, x: number, y: number): void {
+    writeSavedCharacterSpeechOffset(resolveGameStateManager(this.game), definitionId, { x, y });
+  }
+
+  /** Clears saved speech position and offset overrides (backs **`resetSpeechPosition`**). */
+  resetCharacterScriptSpeechPosition(definitionId: string): void {
+    clearSavedCharacterSpeechPosition(resolveGameStateManager(this.game), definitionId);
   }
 
   /**
