@@ -39,6 +39,14 @@ export function characterMovableVariableKey(characterId: string): string {
   return `character:${characterId}:movable`;
 }
 
+export function characterSpeechPositionVariableKey(characterId: string): string {
+  return `character:${characterId}:speechPosition`;
+}
+
+export function characterSpeechOffsetVariableKey(characterId: string): string {
+  return `character:${characterId}:speechOffset`;
+}
+
 /** Saved per-room character feet world position (lazily written via flush hooks; see {@link writeSavedCharacterPosition}). */
 export function characterPositionVariableKey(roomId: string, characterId: string): string {
   return `room:${roomId}:character:${characterId}:position`;
@@ -270,6 +278,65 @@ export function writeSavedCharacterMovable(
   movable: boolean,
 ): void {
   manager.setVariable(characterMovableVariableKey(characterId), movable);
+}
+
+/** Saved absolute world position for a character's speaking-text GUI, or `null` when unset. */
+export function readSavedCharacterSpeechPosition(
+  manager: GameStateManager,
+  characterId: string,
+): Point2 | null {
+  return readSavedXY(manager, characterSpeechPositionVariableKey(characterId));
+}
+
+/** Persist `B.character(id).setSpeechPosition` / `B.player.setSpeechPosition` for this character id. */
+export function writeSavedCharacterSpeechPosition(
+  manager: GameStateManager,
+  characterId: string,
+  position: Point2 | null,
+): void {
+  const key = characterSpeechPositionVariableKey(characterId);
+  if (position == null) {
+    manager.clearVariable(key);
+    return;
+  }
+  if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+    return;
+  }
+  manager.setVariable(key, { x: position.x, y: position.y });
+}
+
+/** Saved canvas-pixel offset for a character's speaking-text GUI, or `null` when unset. */
+export function readSavedCharacterSpeechOffset(
+  manager: GameStateManager,
+  characterId: string,
+): Point2 | null {
+  return readSavedXY(manager, characterSpeechOffsetVariableKey(characterId));
+}
+
+/** Persist `B.character(id).setSpeechOffset` / `B.player.setSpeechOffset` for this character id. */
+export function writeSavedCharacterSpeechOffset(
+  manager: GameStateManager,
+  characterId: string,
+  offset: Point2 | null,
+): void {
+  const key = characterSpeechOffsetVariableKey(characterId);
+  if (offset == null) {
+    manager.clearVariable(key);
+    return;
+  }
+  if (!Number.isFinite(offset.x) || !Number.isFinite(offset.y)) {
+    return;
+  }
+  manager.setVariable(key, { x: offset.x, y: offset.y });
+}
+
+/** Clears both speech position and offset overrides for this character id. */
+export function clearSavedCharacterSpeechPosition(
+  manager: GameStateManager,
+  characterId: string,
+): void {
+  manager.clearVariable(characterSpeechPositionVariableKey(characterId));
+  manager.clearVariable(characterSpeechOffsetVariableKey(characterId));
 }
 
 function readSavedXY(manager: GameStateManager, key: string): { x: number; y: number } | null {

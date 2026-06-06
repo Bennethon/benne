@@ -292,6 +292,19 @@ export interface BenneScriptPlayerFacade {
   readonly isFollowing: boolean;
   /** Persisted target id (`"player"` or a character definition id), or `null`. */
   readonly followingTarget: CharacterId | 'player' | null;
+  /**
+   * Fixed world/room-space bottom-center for this character's speaking-text GUI (highest precedence).
+   * Persists under `` `character:<startingPlayerId>:speechPosition` ``; bypasses talkPoint and
+   * `defaultTalkOffset`. Queued vs **`.now`**.
+   */
+  setSpeechPosition: BlockingWithNow<[x: number, y: number]>;
+  /**
+   * Canvas-pixel offset applied after default talk anchor + `defaultTalkOffset` when no absolute
+   * position is set. Persists under `` `character:<startingPlayerId>:speechOffset` ``.
+   */
+  setSpeechOffset: BlockingWithNow<[x: number, y: number]>;
+  /** Clears both speech position and offset overrides. Queued vs **`.now`**. */
+  resetSpeechPosition: BlockingWithNow<[]>;
 }
 
 /** Movement + animation + facing for an NPC. */
@@ -351,6 +364,19 @@ export interface BenneScriptCharacterFacade {
   stopFollowingCharacter(): void;
   readonly isFollowing: boolean;
   readonly followingTarget: CharacterId | 'player' | null;
+  /**
+   * Fixed world/room-space bottom-center for this character's speaking-text GUI (highest precedence).
+   * Persists under `` `character:<characterId>:speechPosition` ``; bypasses talkPoint and
+   * `defaultTalkOffset`. Queued vs **`.now`**.
+   */
+  setSpeechPosition: BlockingWithNow<[x: number, y: number]>;
+  /**
+   * Canvas-pixel offset applied after default talk anchor + `defaultTalkOffset` when no absolute
+   * position is set. Persists under `` `character:<characterId>:speechOffset` ``.
+   */
+  setSpeechOffset: BlockingWithNow<[x: number, y: number]>;
+  /** Clears both speech position and offset overrides. Queued vs **`.now`**. */
+  resetSpeechPosition: BlockingWithNow<[]>;
 }
 
 /**

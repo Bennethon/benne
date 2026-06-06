@@ -375,8 +375,19 @@ Constructed from active **`RoomScene`** (global/dialog resolve **`SCENE_ROOM` on
 | **`stopFollowingCharacter`** | **`() => void`** | Clears persisted follow keys and stops a follow-initiated walk tween if the player’s sprite has follow purpose data. | Queued |
 | **`isFollowing`** | getter **`boolean`** | **`true`** when `` `character:<startingPlayerId>:followingTarget` `` is set in **`GameStateManager`**; **`false`** when no manager. | Sync |
 | **`followingTarget`** | getter **`string \| null`** | Raw persisted target string (**`"player"`** or a character id), or **`null`**. | Sync |
+| **`setSpeechPosition`** | **`BlockingWithNow<[x: number, y: number]>`** | Absolute world/room-space bottom-center for the starting player's speaking-text GUI. Persists `` `character:<startingPlayerId>:speechPosition` ``; bypasses **`talkPoint`** and **`B.speechSettings.defaultTalkOffset`**. Highest precedence when set. | Queued vs **`.now`** |
+| **`setSpeechOffset`** | **`BlockingWithNow<[x: number, y: number]>`** | Canvas-pixel offset added after default talk anchor + **`defaultTalkOffset`** when no absolute position is set. Persists `` `character:<startingPlayerId>:speechOffset` ``. | Queued vs **`.now`** |
+| **`resetSpeechPosition`** | **`BlockingWithNow<[]>`** | Clears both speech position and offset overrides for the starting player. | Queued vs **`.now`** |
 
 The **`options`** argument is **`CharacterFollowOptions`** (**`src/types/characterFollow.ts`**); see **`B.character(id)`** below for defaults and examples.
+
+```ts
+B.player.setSpeechOffset(0, -120);
+B.player.say('Hello from up here.');
+B.player.setSpeechPosition(400, 300);
+B.player.say('Fixed world spot.');
+B.player.resetSpeechPosition();
+```
 
 ---
 
@@ -384,7 +395,7 @@ The **`options`** argument is **`CharacterFollowOptions`** (**`src/types/charact
 
 Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / **`face`** / **`movable`** / **follow** pattern as **`B.player`**, routed to **`walkCharacterTo`**, **`moveCharacterToNow`**, **`faceCharacterScriptDirection`**, **`startCharacterFollowingCharacter` / `stopCharacterFollowingCharacter`**, **`startCharacterFacingCharacter` / `stopCharacterFacingCharacter`**, character animation scripting APIs (**`NPC`** — no **`walkToClicked`** on facade; use top-level **`B.walkToClicked`** / **`B.player.*`**). Exposes **`sound`** (**same object** as **`B.sound`**).
 
-**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. Movement / **`face`** / **`fade`** / **`startFacingCharacter` / `stopFacingCharacter`** with no room no-op and DEV **`console.warn`** once. **`hide` / `show` / `visible` / `visibleNow`**, **`movable`**, **`startFollowingCharacter` / `stopFollowingCharacter`** setters still persist to **`GameStateManager`** when a manager is active so values survive the next room load even if **`RoomScene`** is not resolved yet.
+**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. Movement / **`face`** / **`fade`** / **`startFacingCharacter` / `stopFacingCharacter`** with no room no-op and DEV **`console.warn`** once. **`hide` / `show` / `visible` / `visibleNow`**, **`movable`**, **`setSpeechPosition` / `setSpeechOffset` / `resetSpeechPosition`**, and **`startFollowingCharacter` / `stopFollowingCharacter`** setters still persist to **`GameStateManager`** when a manager is active so values survive the next room load even if **`RoomScene`** is not resolved yet.
 
 **`movable` getter:** Effective value is the saved override (if any), else **`CharacterData.movable`** from the **first** spawn of that **`characterId`** in the active room’s JSON (**`true`** when omitted). If that id is **not** spawned in the current room, there is no JSON row from this room — the getter still returns a saved **`character:<id>:movable`** boolean when set; otherwise **`true`**. Use **`B.player.movable`** when you mean the protagonist, not an arbitrary **`B.character('…')`** id that might be absent from the room.
 
@@ -400,8 +411,19 @@ Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / *
 | **`startFacingCharacter`** | **`(targetCharacterId: string, minWaitTime?: number, maxWaitTime?: number) => void`** | Keeps this NPC’s **Idle** facing toward **`targetCharacterId`**’s **feet** (same **`CharacterData.id`** as other **`B.character`** calls). When either character’s feet move by more than a small epsilon, **`RoomScene`** cancels any pending turn and schedules a new one after a **uniform random** delay in **`[minWaitTime, maxWaitTime]`** seconds — defaults **`0.2`** and **`0.4`**. Negative bounds clamp to **`0`**; if **`minWaitTime > maxWaitTime`**, the engine swaps them. Calling **`startFacingCharacter`** again on the same observer replaces the previous target and timing. No-op when observer **equals** target, or when either id has no **`Sprite`** instance in the room. Not persisted across room loads (cleared in **`RoomScene`** **`create`** / **shutdown**). | Queued |
 | **`stopFacingCharacter`** | **`() => void`** | Removes the observer’s active face-target lock and cancels its pending timer. | Queued |
 | **`fade`** | `BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>` | Tween the character sprite's `alpha` from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`** (`Linear`); alphas clamp to `[0, 1]`, duration to `>= 0` (`0` snaps to **`toAlpha`**). Each call kills running tweens on the sprite first, then sets `alpha = fromAlpha` before tweening. **`toAlpha`** is **persisted** to **`GameStateManager`** (key `` `character:<characterId>:alpha` ``) at call time and re-applied on every spawn (saving mid-fade restores the intended final alpha). Routes through **`RoomScene.fadeCharacterScriptAlpha`**. | Queued (waits for tween) vs **`.now`** |
+| **`setSpeechPosition`** | **`BlockingWithNow<[x: number, y: number]>`** | Absolute world/room-space bottom-center for this character's speaking-text GUI. Persists `` `character:<characterId>:speechPosition` ``; bypasses authored **`talkPoint`** and global **`B.speechSettings.defaultTalkOffset`**. Takes precedence over **`setSpeechOffset`**. Applied on-demand when that character speaks. | Queued vs **`.now`** |
+| **`setSpeechOffset`** | **`BlockingWithNow<[x: number, y: number]>`** | Canvas-pixel offset added after the default talk anchor is projected and **`defaultTalkOffset`** is applied. Persists `` `character:<characterId>:speechOffset` ``. Ignored while an absolute **`speechPosition`** override is set. | Queued vs **`.now`** |
+| **`resetSpeechPosition`** | **`BlockingWithNow<[]>`** | Clears both **`speechPosition`** and **`speechOffset`** overrides for this character id. | Queued vs **`.now`** |
 
 ```ts
+B.character('hank').setSpeechOffset(0, -120); // fine-tune above head
+B.character('hank').say('Hello from up here.');
+
+B.character('narrator').setSpeechPosition(400, 300); // fixed world spot
+B.character('narrator').say('This line always appears at the same screen location.');
+
+B.character('hank').resetSpeechPosition(); // back to default
+
 B.character('penny').movable = false; // queued; penny won't pathfind-walk until set true again
 B.character('penny').hide(); // persisted; stays hidden after room change / save when Penny is in the room
 B.character('penny').startFollowingCharacter('hank');
@@ -448,7 +470,7 @@ B.prop('Knife').hide(); // persisted; the prop stays hidden after B.room.changeT
 B.prop('Rock').moveTo.now({ x: 80, y: 90 }); // teleport authoring origin; persisted on next flush
 ```
 
-**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, **movable**, **follow** (**`followingTarget`** + **`followOptions`**), alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`save` / `load`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`save`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
+**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, **movable**, **speech position / offset**, **follow** (**`followingTarget`** + **`followOptions`**), alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`save` / `load`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`save`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
 
 ---
 
