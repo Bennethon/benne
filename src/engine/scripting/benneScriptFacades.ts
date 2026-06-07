@@ -11,6 +11,7 @@ import type { Point2 } from '../../types/room.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import type { InventoryVerbInteractPayload } from '../events/inventoryVerbEvents.js';
 import type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
+import type { BenneScriptCharacterInventoryNamespace } from './benneScriptGameStateApi.js';
 import type { BenneScriptCore, BenneScriptSayDialogueHybrid, BlockingWithNow } from './BenneScriptCore.js';
 import type { ControlFacade } from './GuiRuntime.js';
 import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
@@ -248,6 +249,12 @@ export interface BenneScriptPropFacade {
 /** Movement + animation + facing for the player. */
 export interface BenneScriptPlayerFacade {
   readonly sound: BenneScriptSoundFacade;
+  /** Character definition id currently controlled as the player. */
+  readonly id: CharacterId;
+  /** Switch player control to another spawned character, updating camera follow and active inventory ownership. */
+  switchTo: BlockingWithNow<[CharacterId]>;
+  /** Same as `switchTo.now` — immediate control handoff, skips the queue. */
+  switchToNow(characterId: CharacterId): void;
   walkTo: BlockingWithNow<[Point2 | ResolvableTargetId]>;
   /**
    * Teleport feet to a resolved point (clamped to walkable); updates **Idle** facing. Queued on the
@@ -292,6 +299,8 @@ export interface BenneScriptPlayerFacade {
   readonly isFollowing: boolean;
   /** Persisted target id (`"player"` or a character definition id), or `null`. */
   readonly followingTarget: CharacterId | 'player' | null;
+  /** Active player's bag (same as {@link BenneScriptInventoryNamespace} quantity helpers). */
+  readonly inventory: BenneScriptCharacterInventoryNamespace;
   /**
    * Fixed world/room-space bottom-center for this character's speaking-text GUI (highest precedence).
    * Persists under `` `character:<startingPlayerId>:speechPosition` ``; bypasses talkPoint and
@@ -353,6 +362,12 @@ export interface BenneScriptCharacterFacade {
   get movable(): boolean;
   set movable(v: boolean);
   /**
+   * When false, the NPC is not hit-tested (no hover, verbs, or inventory-on-target).
+   * Queued setter; persists under `` `character:<id>:clickable` `` (saved override over JSON **`clickable`** default from **`*.character.json`**).
+   */
+  get clickable(): boolean;
+  set clickable(v: boolean);
+  /**
    * Starts persistent following of another character id or **`"player"`** (see {@link BenneScriptPlayerFacade.startFollowingCharacter}).
    * Queues on the interaction tail.
    */
@@ -364,6 +379,8 @@ export interface BenneScriptCharacterFacade {
   stopFollowingCharacter(): void;
   readonly isFollowing: boolean;
   readonly followingTarget: CharacterId | 'player' | null;
+  /** This character's bag (`B.inventory` targets the active player only). */
+  readonly inventory: BenneScriptCharacterInventoryNamespace;
   /**
    * Fixed world/room-space bottom-center for this character's speaking-text GUI (highest precedence).
    * Persists under `` `character:<characterId>:speechPosition` ``; bypasses talkPoint and

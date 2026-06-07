@@ -126,6 +126,11 @@ export interface GuiInventoryPanelControl {
   type: 'inventoryPanel';
   /** Optional ID for Bennescript targeting, e.g. B.whenInventorySlotClick('mainInv', ...) */
   id?: string;
+  /**
+   * Character definition id whose bag fills this panel. Omitted = active player character
+   * (`GameStateManager.getActivePlayerCharacterId()`).
+   */
+  characterId?: string;
   x: number;
   y: number;
   /** Draw order within the GUI overlay: added to the overlay’s base depth (not an absolute scene depth). */

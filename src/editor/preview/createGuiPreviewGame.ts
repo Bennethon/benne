@@ -4,9 +4,11 @@ import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
 import { getBenneRendererConfigFields } from '../../engine/gameConfig';
 import { buildGuiOverlay, GUI_TEXT_OVERLAY_DEPTH } from '../../engine/gui/buildGuiOverlay';
 import {
-  GameStateManager,
+  buildInitialInventoryByCharacter,
   normalizeSerializedInventory,
-} from '../../engine/gameState/GameStateManager';
+} from '../../engine/gameState/characterInventory';
+import { GameStateManager } from '../../engine/gameState/GameStateManager';
+import { getStartingPlayerCharacterId } from '../../game/boot/constants';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKey';
 import {
   guiHasButtonControls,
@@ -130,13 +132,21 @@ class BenneGuiPreviewBoot extends Phaser.Scene {
   create(): void {
     applyBootAudioSettings(this);
     const rawInit = this.payload.previewInitialGameState;
+    const startingPlayer = getStartingPlayerCharacterId();
     const initial =
       rawInit != null
         ? {
             flags: rawInit.flags,
             variables: rawInit.variables,
-            inventory:
-              rawInit.inventory !== undefined ? normalizeSerializedInventory(rawInit.inventory) : undefined,
+            inventoryByCharacter: buildInitialInventoryByCharacter({
+              inventoryByCharacter: rawInit.inventoryByCharacter,
+              legacyInventory:
+                rawInit.inventory !== undefined
+                  ? normalizeSerializedInventory(rawInit.inventory)
+                  : undefined,
+              startingPlayerCharacterId: startingPlayer,
+            }),
+            activePlayerCharacterId: rawInit.activePlayerCharacterId ?? startingPlayer,
           }
         : undefined;
     const gameState = new GameStateManager(this.game.events, initial);

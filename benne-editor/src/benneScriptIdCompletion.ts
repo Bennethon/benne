@@ -133,11 +133,14 @@ function detectIdContext(document: vscode.TextDocument, position: vscode.Positio
         tryMatch(/whenChoice\s*\(\s*(['"])([\w-]*)$/, 'dialogOption', false, true) ??
         tryMatch(/\.option(?:On|Off)(?:\.now)?\s*\(\s*(['"])([\w-]*)$/, 'dialogOption', false, true) ??
         tryMatch(/\.(?:walkTo|moveTo|moveToNow)(?:\.now)?\s*\(\s*(['"])([\w-]*)$/, 'resolvable', true) ??
+        tryMatch(/B\.player\.switchTo(?:\.now)?\s*\(\s*(['"])([\w-]*)$/, 'character') ??
+        tryMatch(/B\.state\.setActivePlayerCharacterId\s*\(\s*(['"])([\w-]*)$/, 'character') ??
         tryMatch(/B\.room\.changeTo(?:\.now)?\s*\(\s*(['"])([\w-]*)$/, 'room') ??
         tryMatch(/B\.character\s*\(\s*(['"])([\w-]*)$/, 'character') ??
         tryMatch(/B\.prop\s*\(\s*(['"])([\w-]*)$/, 'prop') ??
         tryMatch(/B\.dialog\s*\(\s*(['"])([\w-]*)$/, 'dialog') ??
         tryMatch(/B\.gui\s*\(\s*(['"])([\w-]*)$/, 'gui') ??
+        tryMatch(/B\.character\s*\([^)]*\)\.inventory(?:\.(?:add|remove|has|quantityOf))?\s*\(\s*(['"])([\w-]*)$/, 'inventory') ??
         tryMatch(/B\.inventory(?:\.(?:add|remove|has|quantityOf))?\s*\(\s*(['"])([\w-]*)$/, 'inventory') ??
         tryMatch(/B\.region\s*\(\s*(['"])([\w-]*)$/, 'region', true) ??
         tryMatch(/B\.hotspot\s*\(\s*(['"])([\w-]*)$/, 'hotspot', true) ??
@@ -437,11 +440,14 @@ function detectHoverContext(
         { re: /whenChoice\s*\(\s*(['"])$/, kind: 'dialogOption', dialogScoped: true },
         { re: /\.option(?:On|Off)(?:\.now)?\s*\(\s*(['"])$/, kind: 'dialogOption', dialogScoped: true },
         { re: /\.(?:walkTo|moveTo|moveToNow)(?:\.now)?\s*\(\s*(['"])$/, kind: 'resolvable', roomScoped: true },
+        { re: /B\.player\.switchTo(?:\.now)?\s*\(\s*(['"])$/, kind: 'character' },
+        { re: /B\.state\.setActivePlayerCharacterId\s*\(\s*(['"])$/, kind: 'character' },
         { re: /B\.room\.changeTo(?:\.now)?\s*\(\s*(['"])$/, kind: 'room' },
         { re: /B\.character\s*\(\s*(['"])$/, kind: 'character' },
         { re: /B\.prop\s*\(\s*(['"])$/, kind: 'prop' },
         { re: /B\.dialog\s*\(\s*(['"])$/, kind: 'dialog' },
         { re: /B\.gui\s*\(\s*(['"])$/, kind: 'gui' },
+        { re: /B\.character\s*\([^)]*\)\.inventory(?:\.(?:add|remove|has|quantityOf))?\s*\(\s*(['"])$/, kind: 'inventory' },
         { re: /B\.inventory(?:\.(?:add|remove|has|quantityOf))?\s*\(\s*(['"])$/, kind: 'inventory' },
         { re: /B\.region\s*\(\s*(['"])$/, kind: 'region', roomScoped: true },
         { re: /B\.hotspot\s*\(\s*(['"])$/, kind: 'hotspot', roomScoped: true },

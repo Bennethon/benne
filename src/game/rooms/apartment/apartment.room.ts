@@ -218,4 +218,16 @@ registerRoomScript(({ B }) => {
     }
   });
 
+
+  B.whenPush('penny', () => {
+    B.player.switchTo('penny');
+    B.character('penny').clickable = false;
+    B.character('hank').clickable = true;
+  });
+
+  B.whenPush('hank', () => {
+    B.player.switchTo('hank');
+    B.character('penny').clickable = true;
+    B.character('hank').clickable = false;
+  });
 });

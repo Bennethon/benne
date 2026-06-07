@@ -1,8 +1,10 @@
 import * as Phaser from 'phaser';
+import { getStartingPlayerCharacterId } from '../../game/boot/constants.js';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import type {
   BenneGameStateFlagValue,
   GameStateActiveInventoryItemChangedPayload,
+  GameStateActivePlayerCharacterChangedPayload,
   GameStateActiveVerbChangedPayload,
   GameStateFlagChangedPayload,
   GameStateInventoryChangedPayload,
@@ -13,15 +15,23 @@ import type {
   SaveManifestEntry,
   SaveMetadata,
   SerializableBenneGameState,
+  SerializableBenneGameStateV1,
+  SerializableBenneGameStateV2,
 } from '../../types/gameState.js';
 
-/** In-memory state always has normalized room context (unlike optional fields on snapshot JSON). */
-type PersistedGameStateSlice = SerializableBenneGameState & {
+/** In-memory v2 state always has normalized room context (unlike optional fields on snapshot JSON). */
+type PersistedGameStateSlice = {
+  version: 2;
+  flags: Record<string, BenneGameStateFlagValue>;
+  variables: Record<string, unknown>;
+  inventoryByCharacter: Record<string, Record<string, number>>;
+  activePlayerCharacterId: string;
   currentRoom: string;
   lastRoom: string | null;
 };
 import {
   GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
+  GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT,
   GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
   GAME_STATE_FLAG_CHANGED_EVENT,
   GAME_STATE_INVENTORY_CHANGED_EVENT,
@@ -32,11 +42,29 @@ import {
 import { mergePreserveDialogSettingsVariables } from '../dialog/dialogGameState.js';
 import { mergePreserveSpeechSettingsVariables } from '../dialog/speechGameState.js';
 import { mergePreserveAudioVolumeVariables } from '../sound/audioGameState.js';
+import {
+  buildInitialInventoryByCharacter,
+  cloneInventoryBag,
+  cloneInventoryByCharacter,
+  normalizeActivePlayerCharacterIdFromSnapshot,
+  normalizeSerializedInventory,
+  normalizeSerializedInventoryByCharacter,
+  resolveActivePlayerCharacterId,
+} from './characterInventory.js';
 import { runSnapshotFlushHooks } from './snapshotFlushHooks.js';
 
-export type GameStateInitialSlice = Partial<
-  Pick<SerializableBenneGameState, 'flags' | 'variables' | 'inventory' | 'currentRoom' | 'lastRoom'>
->;
+export { normalizeSerializedInventory } from './characterInventory.js';
+
+export type GameStateInitialSlice = Partial<{
+  flags: Record<string, BenneGameStateFlagValue>;
+  variables: Record<string, unknown>;
+  inventoryByCharacter: Record<string, Record<string, number>>;
+  activePlayerCharacterId: string;
+  currentRoom: string;
+  lastRoom: string | null;
+  /** Legacy bootstrap: seeds the starting player character bag only. */
+  inventory: Record<string, number>;
+}>;
 
 /** Options for {@link GameStateManager.getSnapshot}. */
 export type GetSnapshotOptions = {
@@ -48,41 +76,6 @@ export type GetSnapshotOptions = {
   runFlushHooks?: boolean;
 };
 
-/** Accepts v1 map, legacy string[], or empty. */
-export function normalizeSerializedInventory(raw: unknown): Record<string, number> {
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    const out: Record<string, number> = {};
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-      if (k.length === 0) {
-        continue;
-      }
-      const n = typeof v === 'number' ? v : Number(v);
-      if (!Number.isFinite(n)) {
-        continue;
-      }
-      const q = Math.floor(n);
-      if (q > 0) {
-        out[k] = q;
-      }
-    }
-    return out;
-  }
-  if (Array.isArray(raw)) {
-    const out: Record<string, number> = {};
-    for (const id of raw) {
-      if (typeof id === 'string' && id.length > 0) {
-        out[id] = (out[id] ?? 0) + 1;
-      }
-    }
-    return out;
-  }
-  return {};
-}
-
-function cloneInventory(inv: Record<string, number>): Record<string, number> {
-  return { ...inv };
-}
-
 function normalizeActiveInventoryItemId(raw: unknown): string | null {
   if (raw == null) {
     return null;
@@ -93,14 +86,29 @@ function normalizeActiveInventoryItemId(raw: unknown): string | null {
   return null;
 }
 
-function cloneSnapshot(state: PersistedGameStateSlice): SerializableBenneGameState {
+function cloneSnapshot(state: PersistedGameStateSlice): SerializableBenneGameStateV2 {
   return {
-    version: 1,
+    version: 2,
     flags: { ...state.flags },
     variables: { ...state.variables },
-    inventory: cloneInventory(state.inventory),
+    inventoryByCharacter: cloneInventoryByCharacter(state.inventoryByCharacter),
+    activePlayerCharacterId: state.activePlayerCharacterId,
     currentRoom: state.currentRoom,
     lastRoom: state.lastRoom,
+  };
+}
+
+function migrateV1SnapshotToPersistedState(
+  snapshot: SerializableBenneGameStateV1,
+): Pick<PersistedGameStateSlice, 'flags' | 'variables' | 'inventoryByCharacter' | 'activePlayerCharacterId'> {
+  const startingPlayer = getStartingPlayerCharacterId();
+  return {
+    flags: { ...snapshot.flags },
+    variables: { ...snapshot.variables },
+    inventoryByCharacter: {
+      [startingPlayer]: cloneInventoryBag(normalizeSerializedInventory(snapshot.inventory)),
+    },
+    activePlayerCharacterId: startingPlayer,
   };
 }
 
@@ -189,17 +197,27 @@ export class GameStateManager {
 
   constructor(events: Phaser.Events.EventEmitter, initial?: GameStateInitialSlice) {
     this.events = events;
+    const startingPlayer = getStartingPlayerCharacterId();
+    const inventoryByCharacter = buildInitialInventoryByCharacter({
+      inventoryByCharacter: initial?.inventoryByCharacter,
+      legacyInventory: initial?.inventory,
+      startingPlayerCharacterId: startingPlayer,
+    });
     this.state = {
-      version: 1,
+      version: 2,
       flags: initial?.flags != null ? { ...initial.flags } : {},
       variables: initial?.variables != null ? { ...initial.variables } : {},
-      inventory: normalizeSerializedInventory(initial?.inventory),
+      inventoryByCharacter,
+      activePlayerCharacterId: resolveActivePlayerCharacterId(
+        initial?.activePlayerCharacterId,
+        startingPlayer,
+      ),
       currentRoom: initial?.currentRoom != null ? String(initial.currentRoom) : '',
       lastRoom: initial?.lastRoom === undefined ? null : normalizeLastRoomFromSnapshot(initial.lastRoom),
     };
   }
 
-  getSnapshot(options?: GetSnapshotOptions): SerializableBenneGameState {
+  getSnapshot(options?: GetSnapshotOptions): SerializableBenneGameStateV2 {
     if (options?.runFlushHooks !== false) {
       runSnapshotFlushHooks();
     }
@@ -215,10 +233,12 @@ export class GameStateManager {
    * snapshot is already authoritative (avoids clobbering saved positions from the live scene).
    */
   applySnapshot(snapshot: SerializableBenneGameState): void {
-    if (snapshot.version !== 1) {
-      console.error(`[Benne] GameStateManager.applySnapshot: unsupported version ${snapshot.version}`);
+    const snapshotVersion = snapshot.version;
+    if (snapshotVersion !== 1 && snapshotVersion !== 2) {
+      console.error(`[Benne] GameStateManager.applySnapshot: unsupported version ${snapshotVersion}`);
       return;
     }
+    const previousActivePlayerCharacterId = this.state.activePlayerCharacterId;
     const previousCurrentRoom = this.state.currentRoom;
     const previousLastRoom = this.state.lastRoom;
     const mergedVariables = mergePreserveSpeechSettingsVariables(
@@ -228,16 +248,45 @@ export class GameStateManager {
       ),
       this.state.variables,
     );
-    this.state = {
-      version: 1,
-      flags: { ...snapshot.flags },
-      variables: mergedVariables,
-      inventory: normalizeSerializedInventory(snapshot.inventory),
-      currentRoom: normalizeCurrentRoomFromSnapshot(snapshot.currentRoom),
-      lastRoom: normalizeLastRoomFromSnapshot(snapshot.lastRoom),
-    };
+    const startingPlayer = getStartingPlayerCharacterId();
+    if (snapshotVersion === 1) {
+      const migrated = migrateV1SnapshotToPersistedState(snapshot as SerializableBenneGameStateV1);
+      this.state = {
+        version: 2,
+        flags: migrated.flags,
+        variables: mergedVariables,
+        inventoryByCharacter: migrated.inventoryByCharacter,
+        activePlayerCharacterId: migrated.activePlayerCharacterId,
+        currentRoom: normalizeCurrentRoomFromSnapshot(snapshot.currentRoom),
+        lastRoom: normalizeLastRoomFromSnapshot(snapshot.lastRoom),
+      };
+    } else {
+      this.state = {
+        version: 2,
+        flags: { ...snapshot.flags },
+        variables: mergedVariables,
+        inventoryByCharacter: normalizeSerializedInventoryByCharacter(
+          (snapshot as SerializableBenneGameStateV2).inventoryByCharacter,
+        ),
+        activePlayerCharacterId: resolveActivePlayerCharacterId(
+          normalizeActivePlayerCharacterIdFromSnapshot(
+            (snapshot as SerializableBenneGameStateV2).activePlayerCharacterId,
+          ),
+          startingPlayer,
+        ),
+        currentRoom: normalizeCurrentRoomFromSnapshot(snapshot.currentRoom),
+        lastRoom: normalizeLastRoomFromSnapshot(snapshot.lastRoom),
+      };
+    }
     const nextCurrent = this.state.currentRoom;
     const nextLast = this.state.lastRoom;
+    if (previousActivePlayerCharacterId !== this.state.activePlayerCharacterId) {
+      const playerPayload: GameStateActivePlayerCharacterChangedPayload = {
+        previousCharacterId: previousActivePlayerCharacterId,
+        characterId: this.state.activePlayerCharacterId,
+      };
+      this.events.emit(GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT, playerPayload);
+    }
     if (previousCurrentRoom !== nextCurrent || previousLastRoom !== nextLast) {
       const roomPayload: GameStateRoomContextChangedPayload = {
         currentRoom: nextCurrent,
@@ -290,17 +339,57 @@ export class GameStateManager {
 
   importSnapshotJson(json: string): void {
     try {
-      const parsed = JSON.parse(json) as SerializableBenneGameState & {
-        inventory?: unknown;
-        activeInventoryItemId?: unknown;
-      };
-      if (parsed && typeof parsed === 'object') {
-        parsed.inventory = normalizeSerializedInventory(parsed.inventory);
-      }
-      this.applySnapshot(parsed as SerializableBenneGameState);
+      const parsed = JSON.parse(json) as SerializableBenneGameState;
+      this.applySnapshot(parsed);
     } catch (err) {
       console.error('[Benne] GameStateManager.importSnapshotJson failed:', err);
     }
+  }
+
+  getActivePlayerCharacterId(): string {
+    return this.state.activePlayerCharacterId;
+  }
+
+  setActivePlayerCharacterId(characterId: string): void {
+    const next = characterId.trim();
+    if (next.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] GameStateManager.setActivePlayerCharacterId: empty id — ignored.');
+      }
+      return;
+    }
+    if (this.state.activePlayerCharacterId === next) {
+      return;
+    }
+    const previousCharacterId = this.state.activePlayerCharacterId;
+    this.state.activePlayerCharacterId = next;
+    if (this.activeInventoryItemId != null && !this.hasInInventory(this.activeInventoryItemId, next)) {
+      this.clearActiveVerb();
+      this.clearActiveInventoryItem();
+    }
+    const payload: GameStateActivePlayerCharacterChangedPayload = {
+      previousCharacterId,
+      characterId: next,
+    };
+    this.events.emit(GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT, payload);
+  }
+
+  private resolveCharacterId(characterId?: string): string {
+    const id = characterId?.trim();
+    return id && id.length > 0 ? id : this.getActivePlayerCharacterId();
+  }
+
+  private ensureCharacterBag(characterId: string): Record<string, number> {
+    let bag = this.state.inventoryByCharacter[characterId];
+    if (!bag) {
+      bag = {};
+      this.state.inventoryByCharacter[characterId] = bag;
+    }
+    return bag;
+  }
+
+  private getCharacterBag(characterId: string): Record<string, number> {
+    return this.state.inventoryByCharacter[characterId] ?? {};
   }
 
   setFlag(key: string, value: BenneGameStateFlagValue): void {
@@ -395,112 +484,136 @@ export class GameStateManager {
     this.events.emit(GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT, roomPayload);
   }
 
-  private emitInventory(reason: 'add' | 'remove' | 'clear', itemId?: string): void {
+  private emitInventory(
+    characterId: string,
+    reason: 'add' | 'remove' | 'clear',
+    itemId?: string,
+  ): void {
     const payload: GameStateInventoryChangedPayload = {
       reason,
+      characterId,
       itemId,
-      inventory: cloneInventory(this.state.inventory),
+      inventory: cloneInventoryBag(this.getCharacterBag(characterId)),
     };
     this.events.emit(GAME_STATE_INVENTORY_CHANGED_EVENT, payload);
   }
 
   /**
-   * Adds inventory entries. Non-stackable definitions cap at quantity 1. Unknown ids default to non-stackable.
+   * Adds inventory entries for a character bag. Non-stackable definitions cap at quantity 1.
+   * Unknown ids default to non-stackable. Omit `characterId` for the active player's bag.
    */
-  addInventory(itemId: string, quantity = 1): boolean {
+  addInventory(itemId: string, quantity = 1, characterId?: string): boolean {
     if (itemId.length === 0) {
       return false;
     }
+    const ownerId = this.resolveCharacterId(characterId);
+    const bag = this.ensureCharacterBag(ownerId);
     const q = Math.max(1, Math.floor(quantity));
     const def = getInventoryDefinition(itemId);
     const stackable = def?.stackable ?? false;
-    const current = this.state.inventory[itemId] ?? 0;
+    const current = bag[itemId] ?? 0;
 
     if (!stackable) {
       if (current >= 1) {
         return false;
       }
-      this.state.inventory[itemId] = 1;
-      this.emitInventory('add', itemId);
+      bag[itemId] = 1;
+      this.emitInventory(ownerId, 'add', itemId);
       return true;
     }
 
-    this.state.inventory[itemId] = current + q;
-    this.emitInventory('add', itemId);
+    bag[itemId] = current + q;
+    this.emitInventory(ownerId, 'add', itemId);
     return true;
   }
 
-  hasInInventory(itemId: string): boolean {
-    return (this.state.inventory[itemId] ?? 0) > 0;
+  hasInInventory(itemId: string, characterId?: string): boolean {
+    const ownerId = this.resolveCharacterId(characterId);
+    return (this.getCharacterBag(ownerId)[itemId] ?? 0) > 0;
   }
 
-  quantityOf(itemId: string): number {
-    return this.state.inventory[itemId] ?? 0;
+  quantityOf(itemId: string, characterId?: string): number {
+    const ownerId = this.resolveCharacterId(characterId);
+    return this.getCharacterBag(ownerId)[itemId] ?? 0;
   }
 
   /**
    * Removes quantity (default 1). Non-stackable inventory entries are fully removed when present.
+   * Omit `characterId` for the active player's bag.
    */
-  removeFromInventory(itemId: string, quantity = 1): boolean {
+  removeFromInventory(itemId: string, quantity = 1, characterId?: string): boolean {
     if (itemId.length === 0) {
       return false;
     }
-    const current = this.state.inventory[itemId] ?? 0;
+    const ownerId = this.resolveCharacterId(characterId);
+    const bag = this.ensureCharacterBag(ownerId);
+    const current = bag[itemId] ?? 0;
     if (current <= 0) {
       return false;
     }
     const def = getInventoryDefinition(itemId);
     const stackable = def?.stackable ?? false;
     if (!stackable) {
-      delete this.state.inventory[itemId];
-      this.emitInventory('remove', itemId);
-      this.disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(itemId);
+      delete bag[itemId];
+      this.emitInventory(ownerId, 'remove', itemId);
+      this.disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(itemId, ownerId);
       return true;
     }
     const q = Math.max(1, Math.floor(quantity));
     const next = current - q;
     if (next <= 0) {
-      delete this.state.inventory[itemId];
+      delete bag[itemId];
     } else {
-      this.state.inventory[itemId] = next;
+      bag[itemId] = next;
     }
-    this.emitInventory('remove', itemId);
-    this.disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(itemId);
+    this.emitInventory(ownerId, 'remove', itemId);
+    this.disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(itemId, ownerId);
     return true;
   }
 
   /**
-   * Script / engine inventory removal: if the player had this item armed for use-on-target and
-   * it is no longer carried, clear active verb + active inventory regardless of
-   * `dropWhenInventoryUsed` (that flag only affects post–use-on-target click policy).
+   * Script / engine inventory removal: if the active player had this item armed for use-on-target
+   * and it is no longer carried in that bag, clear active verb + active inventory.
    */
-  private disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(removedItemId: string): void {
+  private disarmUseOnTargetIfActiveInventoryItemNoLongerHeld(
+    removedItemId: string,
+    ownerCharacterId: string,
+  ): void {
+    if (ownerCharacterId !== this.getActivePlayerCharacterId()) {
+      return;
+    }
     if (this.activeInventoryItemId !== removedItemId) {
       return;
     }
-    if (this.hasInInventory(removedItemId)) {
+    if (this.hasInInventory(removedItemId, ownerCharacterId)) {
       return;
     }
     this.clearActiveVerb();
     this.clearActiveInventoryItem();
   }
 
-  clearInventory(): void {
-    if (Object.keys(this.state.inventory).length === 0) {
+  /** Clears a character bag. Omit `characterId` for the active player's bag. */
+  clearInventory(characterId?: string): void {
+    const ownerId = this.resolveCharacterId(characterId);
+    const bag = this.getCharacterBag(ownerId);
+    if (Object.keys(bag).length === 0) {
       return;
     }
-    this.state.inventory = {};
-    this.emitInventory('clear');
+    this.state.inventoryByCharacter[ownerId] = {};
+    this.emitInventory(ownerId, 'clear');
+    if (ownerId === this.getActivePlayerCharacterId() && this.activeInventoryItemId != null) {
+      this.clearActiveVerb();
+      this.clearActiveInventoryItem();
+    }
   }
 
   /**
-   * Returns inventory entries in **insertion order** (the order in which ids were first
-   * added to state). `game-config.json`'s `initialGameState.inventory` array seeds the map
-   * in that order, and subsequent `addInventory` calls append new ids to the end, so the
-   * `inventoryPanel` GUI control renders items in the order the game author specified.
+   * Returns inventory entries in **insertion order** for a character bag. Omit `characterId`
+   * for the active player's bag.
    */
-  getInventoryItems(): ReadonlyArray<{ id: string; quantity: number }> {
-    return Object.entries(this.state.inventory)
+  getInventoryItems(characterId?: string): ReadonlyArray<{ id: string; quantity: number }> {
+    const ownerId = this.resolveCharacterId(characterId);
+    return Object.entries(this.getCharacterBag(ownerId))
       .filter(([, q]) => q > 0)
       .map(([id, quantity]) => ({ id, quantity }));
   }

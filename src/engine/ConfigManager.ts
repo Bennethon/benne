@@ -361,6 +361,14 @@ function assertInitialGameState(data: GameSettings): void {
       throw new Error('game-config initialGameState.variables must be a plain object when present');
     }
   }
+  if (
+    init.activePlayerCharacterId !== undefined &&
+    (typeof init.activePlayerCharacterId !== 'string' || init.activePlayerCharacterId.length === 0)
+  ) {
+    throw new Error(
+      'game-config initialGameState.activePlayerCharacterId must be a non-empty string when present',
+    );
+  }
   if (init.inventory !== undefined) {
     if (Array.isArray(init.inventory)) {
       const seen = new Set<string>();
@@ -391,6 +399,51 @@ function assertInitialGameState(data: GameSettings): void {
       throw new Error(
         'game-config initialGameState.inventory must be a string[] id list or Record<string, number> when present',
       );
+    }
+  }
+  if (init.inventoryByCharacter !== undefined) {
+    if (
+      typeof init.inventoryByCharacter !== 'object' ||
+      init.inventoryByCharacter === null ||
+      Array.isArray(init.inventoryByCharacter)
+    ) {
+      throw new Error(
+        'game-config initialGameState.inventoryByCharacter must be a plain object when present',
+      );
+    }
+    for (const [characterId, bag] of Object.entries(init.inventoryByCharacter)) {
+      if (characterId.length === 0) {
+        throw new Error(
+          'game-config initialGameState.inventoryByCharacter keys must be non-empty character ids',
+        );
+      }
+      if (Array.isArray(bag)) {
+        for (const item of bag) {
+          if (typeof item !== 'string' || item.length === 0) {
+            throw new Error(
+              `game-config initialGameState.inventoryByCharacter["${characterId}"] entries must be non-empty strings`,
+            );
+          }
+        }
+      } else if (typeof bag === 'object' && bag !== null && !Array.isArray(bag)) {
+        for (const [k, v] of Object.entries(bag as Record<string, unknown>)) {
+          if (k.length === 0) {
+            throw new Error(
+              `game-config initialGameState.inventoryByCharacter["${characterId}"] keys must be non-empty strings`,
+            );
+          }
+          const n = typeof v === 'number' ? v : Number(v);
+          if (!Number.isFinite(n) || n < 0) {
+            throw new Error(
+              `game-config initialGameState.inventoryByCharacter["${characterId}"]["${k}"] must be a non-negative finite number when present`,
+            );
+          }
+        }
+      } else {
+        throw new Error(
+          `game-config initialGameState.inventoryByCharacter["${characterId}"] must be a string[] or Record<string, number>`,
+        );
+      }
     }
   }
 }
