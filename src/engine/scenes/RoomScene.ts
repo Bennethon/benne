@@ -13,9 +13,11 @@ import {
 import { gameEvents } from '../events/EventBus';
 import {
   GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT,
+  GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT,
   GAME_STATE_ACTIVE_VERB_CHANGED_EVENT,
   GAME_STATE_INVENTORY_CHANGED_EVENT,
   GAME_STATE_VARIABLE_CHANGED_EVENT,
+  type GameStateActivePlayerCharacterChangedPayload,
   type GameStateVariableChangedPayload,
 } from '../../types/gameState';
 import { cursorPhaserAnimationKey, roomPropPhaserAnimationKey } from '../../game/boot/asepritePhaserAnimationKeys';
@@ -57,6 +59,7 @@ import {
   readSavedCharacterAnimationOverride,
   readSavedCharacterFollowEffectiveOptions,
   readSavedCharacterFollowingTarget,
+  readSavedCharacterClickable,
   readSavedCharacterMovable,
   readSavedCharacterPosition,
   readSavedCharacterSpeechOffset,
@@ -73,6 +76,7 @@ import {
   setCharacterAnimationOverrideTagOnSprite,
   writeSavedCharacterAlpha,
   writeSavedCharacterAnimationOverride,
+  writeSavedCharacterClickable,
   writeSavedCharacterMovable,
   writeSavedCharacterPosition,
   writeSavedCharacterSpeechOffset,
@@ -144,7 +148,7 @@ import { getEffectiveInputProfile } from '../verbs/verbConfig';
 import { resolvePointerVerbForTarget, type PointerVerbTarget } from '../verbs/resolvePointerVerb';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { incrementRoomVisitCount } from '../gameState/roomVisitState';
-import { getInternalHeight, getInternalWidth, getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/boot/constants';
+import { getInternalHeight, getInternalWidth, SCENE_ROOM } from '../../game/boot/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
 import type { CharacterFollowOptions } from '../../types/characterFollow';
@@ -311,7 +315,7 @@ function verbHoverDefaultVerbPatch(def: PointerVerbTarget): Pick<VerbHoverTarget
 export class RoomScene extends Phaser.Scene {
   private roomData!: RoomData;
 
-  /** Player Aseprite sprite; null if no matching `startingPlayerCharacter` in the room. */
+  /** Active player Aseprite sprite; null if the active character is absent or image-only in the room. */
   player: DirectionalCharacterSprite | null = null;
 
   /**
@@ -404,6 +408,8 @@ export class RoomScene extends Phaser.Scene {
   private characterJsonVisibleByDefId = new Map<string, boolean>();
   /** Definition JSON default for `CharacterData.movable` (first spawn in this room wins). */
   private characterJsonMovableByDefId = new Map<string, boolean>();
+  /** Definition JSON default for `CharacterData.clickable` (first spawn in this room wins). */
+  private characterJsonClickableByDefId = new Map<string, boolean>();
   /** `CharacterData.speechColor` per definition id (first spawn wins); used by `setDialogTextOverlay`. */
   private characterSpeechColorByDefId = new Map<string, string>();
 
@@ -575,6 +581,11 @@ export class RoomScene extends Phaser.Scene {
     this.lastCustomCursorVisualKey = null;
     this.refreshCustomCursor(this.input.activePointer);
   };
+  private readonly onActivePlayerCharacterChanged = (
+    payload: GameStateActivePlayerCharacterChangedPayload,
+  ): void => {
+    this.applyActivePlayerCharacterBinding(payload.characterId);
+  };
 
   private readonly onVariableChangeForCustomCursor = (payload: unknown): void => {
     const p = payload as GameStateVariableChangedPayload;
@@ -604,6 +615,7 @@ export class RoomScene extends Phaser.Scene {
     this.characterSpritesByDefId.clear();
     this.characterJsonVisibleByDefId.clear();
     this.characterJsonMovableByDefId.clear();
+    this.characterJsonClickableByDefId.clear();
     this.characterSpeechColorByDefId.clear();
     this.npcWalkTweens.clear();
     this.characterFollowBehaviorEnabled = false;
@@ -662,11 +674,15 @@ export class RoomScene extends Phaser.Scene {
       if (!this.characterJsonMovableByDefId.has(defId)) {
         this.characterJsonMovableByDefId.set(defId, spawn.data.movable !== false);
       }
+      if (!this.characterJsonClickableByDefId.has(defId)) {
+        this.characterJsonClickableByDefId.set(defId, spawn.data.clickable === true);
+      }
       if (!this.characterSpeechColorByDefId.has(defId) && spawn.data.speechColor) {
         this.characterSpeechColorByDefId.set(defId, spawn.data.speechColor);
       }
     }
     data.characters.forEach((spawn) => this.spawnCharacter(data.room.id, spawn));
+    this.applyActivePlayerCharacterBinding();
     this.updateRoomStackDepths();
 
     this.setupRoomCamera(roomW, roomH);
@@ -790,6 +806,7 @@ export class RoomScene extends Phaser.Scene {
     this.setupRuntimeUiCameraIfNeeded();
     this.input.on('pointermove', this.onRoomPointerMove);
     gameEvents.on(GAME_STATE_INVENTORY_CHANGED_EVENT, this.syncVerbHoverScriptSurfaceAtActivePointer);
+    gameEvents.on(GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT, this.onActivePlayerCharacterChanged);
 
     // ─────────────────────────────────────────────────────────────
     // Bennescript: after props, characters, player, and camera exist
@@ -926,6 +943,7 @@ export class RoomScene extends Phaser.Scene {
       this.input.off('pointerdown', this.handleRoomPointerDown);
       this.input.off('pointermove', this.onRoomPointerMove);
       gameEvents.off(GAME_STATE_INVENTORY_CHANGED_EVENT, this.syncVerbHoverScriptSurfaceAtActivePointer);
+      gameEvents.off(GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT, this.onActivePlayerCharacterChanged);
       this.teardownCustomGameCursor();
       if (this.screenFadeRect) {
         this.tweens.killTweensOf(this.screenFadeRect);
@@ -949,6 +967,80 @@ export class RoomScene extends Phaser.Scene {
 
   getCurrentRoomId(): string {
     return this.roomData.id;
+  }
+
+  getActivePlayerCharacterId(): string {
+    return resolveGameStateManager(this.game).getActivePlayerCharacterId();
+  }
+
+  private reapplyPlayerCameraFollow(): void {
+    if (this.scriptCameraFocusActive) {
+      return;
+    }
+    this.cameras.main.stopFollow();
+    const vW = getInternalWidth();
+    const vH = getInternalHeight();
+    const roomW = this.roomData.size?.width ?? vW;
+    const roomH = this.roomData.size?.height ?? vH;
+    this.applyPlayerCameraFollow(roomW, roomH);
+  }
+
+  private applyActivePlayerCharacterBinding(characterId = this.getActivePlayerCharacterId()): void {
+    const previousPlayer = this.player;
+    const next = this.characterSpritesByDefId.get(characterId);
+    if (previousPlayer && next !== previousPlayer && this.playerMoveTween) {
+      this.stopPlayerMoveTween(true);
+    }
+    if (previousPlayer) {
+      previousPlayer.setData('isPlayer', false);
+    }
+
+    this.player = next instanceof Phaser.GameObjects.Sprite
+      ? (next as DirectionalCharacterSprite)
+      : null;
+    if (next) {
+      next.setData('isPlayer', true);
+    }
+
+    if (next && next !== previousPlayer) {
+      const npcTween = this.npcWalkTweens.get(next);
+      if (npcTween) {
+        npcTween.stop();
+        this.npcWalkTweens.delete(next);
+      }
+      this.clearBenneFollowWalkSpriteData(next);
+    }
+
+    this.reapplyPlayerCameraFollow();
+    this.characterFollowLastGoalByFollowerId.delete(characterId);
+    this.characterFollowPrevLeaderWalkingByFollowerId.clear();
+    this.characterFollowPrevDistToLeaderByFollowerId.clear();
+    this.syncVerbHoverScriptSurfaceAtActivePointer();
+    this.lastCustomCursorVisualKey = null;
+    this.refreshCustomCursor(this.input.activePointer);
+  }
+
+  switchPlayerCharacter(characterId: string): void {
+    const id = characterId.trim();
+    if (id.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[Benne] B.player.switchTo: empty character id — ignored.');
+      }
+      return;
+    }
+    if (!this.characterSpritesByDefId.has(id)) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[Benne] B.player.switchTo("${id}"): character is not spawned in room "${this.roomData.id}" — ignored.`,
+        );
+      }
+      return;
+    }
+    const manager = resolveGameStateManager(this.game);
+    manager.setActivePlayerCharacterId(id);
+    if (manager.getActivePlayerCharacterId() === id) {
+      this.applyActivePlayerCharacterBinding(id);
+    }
   }
 
   /**
@@ -2177,7 +2269,7 @@ export class RoomScene extends Phaser.Scene {
 
   /** Stops the current NPC or player walk only when it was issued by the follow driver. */
   private interruptFollowWalkIfPurposeMatches(followerDefinitionId: string, purpose: string): void {
-    if (followerDefinitionId === getStartingPlayerCharacterId()) {
+    if (followerDefinitionId === this.getActivePlayerCharacterId()) {
       const pl = this.player;
       if (!pl || this.playerMoveTween == null) {
         return;
@@ -2282,7 +2374,7 @@ export class RoomScene extends Phaser.Scene {
     }
     const manager = resolveGameStateManager(this.game);
     const polys = withNonWalkableRegionsAsHoles(this.roomData.walkable.polygons, this.roomData.regions);
-    const playerId = getStartingPlayerCharacterId();
+    const playerId = this.getActivePlayerCharacterId();
 
     for (const followerId of this.characterSpritesByDefId.keys()) {
       const targetRaw = readSavedCharacterFollowingTarget(manager, followerId);
@@ -2680,6 +2772,54 @@ export class RoomScene extends Phaser.Scene {
     writeSavedCharacterMovable(resolveGameStateManager(this.game), definitionId, movable);
   }
 
+  /**
+   * Effective clickability for NPC pointer hit-test (hover, verbs, inventory-on-target). Saved script
+   * override wins, else the first spawned definition’s {@link CharacterData.clickable} default for this room.
+   */
+  getCharacterScriptClickable(definitionId: string): boolean {
+    const jsonDefault = this.characterJsonClickableByDefId.get(definitionId) ?? true;
+    const manager = resolveGameStateManager(this.game);
+    return readSavedCharacterClickable(manager, definitionId, jsonDefault);
+  }
+
+  /**
+   * Persist + apply clickability for one character definition id. Survives room reloads;
+   * spawn re-applies via {@link readSavedCharacterClickable}. Backs **`B.character(id).clickable`**.
+   */
+  setCharacterScriptClickable(definitionId: string, clickable: boolean): void {
+    writeSavedCharacterClickable(resolveGameStateManager(this.game), definitionId, clickable);
+    const sprite = this.characterSpritesByDefId.get(definitionId);
+    if (!sprite) {
+      return;
+    }
+    if (!clickable) {
+      if (sprite.input) {
+        sprite.disableInteractive();
+      }
+      return;
+    }
+    if (sprite.getData('benneCharacterInteractionAttached') === true) {
+      if (sprite.input && !sprite.input.enabled) {
+        sprite.setInteractive();
+      }
+      return;
+    }
+    const charData = sprite.getData('character') as CharacterData | undefined;
+    const instanceId = sprite.getData('instanceId') as string | undefined;
+    if (!charData || !instanceId) {
+      return;
+    }
+    const spawnStub: RoomCharacterSpawn = {
+      instanceId,
+      x: 0,
+      y: 0,
+      data: charData,
+      loadKind: 'aseprite',
+      textureKey: '',
+    };
+    this.attachCharacterInteraction(this.roomData.id, spawnStub, sprite);
+  }
+
   /** Persist absolute world speech GUI position (backs **`setSpeechPosition`**). */
   setCharacterScriptSpeechPosition(definitionId: string, x: number, y: number): void {
     writeSavedCharacterSpeechPosition(resolveGameStateManager(this.game), definitionId, { x, y });
@@ -2775,7 +2915,7 @@ export class RoomScene extends Phaser.Scene {
     if (!this.player) {
       return Promise.resolve();
     }
-    const playerId = getStartingPlayerCharacterId();
+    const playerId = this.getActivePlayerCharacterId();
     if (!this.getCharacterScriptMovable(playerId)) {
       return Promise.resolve();
     }
@@ -2843,7 +2983,7 @@ export class RoomScene extends Phaser.Scene {
   private syncCharacterRegionEnterExit(): void {
     const roomId = this.roomData.id;
     const regions = this.roomData.regions;
-    const playerCharacterId = getStartingPlayerCharacterId();
+    const playerCharacterId = this.getActivePlayerCharacterId();
 
     if (!this.regionEnterExitSeeded) {
       for (const [characterId, sprite] of this.characterSpritesByDefId) {
@@ -2933,7 +3073,7 @@ export class RoomScene extends Phaser.Scene {
    * Region / timer handlers do not go through verb dispatch (which already interrupts the player walk).
    */
   interruptCharacterWalkForScriptedSpeech(characterDefinitionId: string): void {
-    if (characterDefinitionId === getStartingPlayerCharacterId()) {
+    if (characterDefinitionId === this.getActivePlayerCharacterId()) {
       this.interruptPlayerWalk();
       return;
     }
@@ -3812,7 +3952,7 @@ export class RoomScene extends Phaser.Scene {
       onArrive?.();
       return;
     }
-    if (!this.getCharacterScriptMovable(getStartingPlayerCharacterId())) {
+    if (!this.getCharacterScriptMovable(this.getActivePlayerCharacterId())) {
       onArrive?.();
       return;
     }
@@ -4625,6 +4765,8 @@ export class RoomScene extends Phaser.Scene {
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
     sprite.setData('instanceId', spawn.instanceId);
+    const isPlayer = spawn.data.id === this.getActivePlayerCharacterId();
+    sprite.setData('isPlayer', isPlayer);
     if (!this.characterSpritesByDefId.has(spawn.data.id)) {
       this.characterSpritesByDefId.set(spawn.data.id, sprite);
     }
@@ -4648,7 +4790,7 @@ export class RoomScene extends Phaser.Scene {
     sprite.setData('character', spawn.data);
     sprite.setData('walkSpeed', spawn.data.walkSpeed);
     sprite.setData('instanceId', spawn.instanceId);
-    const isPlayer = spawn.data.id === getStartingPlayerCharacterId();
+    const isPlayer = spawn.data.id === this.getActivePlayerCharacterId();
     sprite.setData('isPlayer', isPlayer);
 
     const createdAnims = sprite.anims.createFromAseprite(spawn.textureKey);
@@ -4706,7 +4848,10 @@ export class RoomScene extends Phaser.Scene {
     // register input anyway. Phaser only considers candidates that `willRender`, so invisible
     // spawns stay inert.
 
-    if (!spawn.data.clickable) {
+    if (sprite.getData('benneCharacterInteractionAttached') === true) {
+      return;
+    }
+    if (!this.getCharacterScriptClickable(spawn.data.id)) {
       return;
     }
     const handlers = getCharacterVerbHandlers(spawn.data);
@@ -4802,6 +4947,7 @@ export class RoomScene extends Phaser.Scene {
         manager.clearActiveVerb();
       }
     });
+    sprite.setData('benneCharacterInteractionAttached', true);
   }
 
   private setupCustomGameCursor(): void {
@@ -4955,7 +5101,7 @@ export class RoomScene extends Phaser.Scene {
         if (go.getData('isPlayer') === true) {
           return null;
         }
-        if (!charData.clickable) {
+        if (!this.getCharacterScriptClickable(charData.id)) {
           continue;
         }
         const chDesc = charData.description?.trim();
@@ -5145,7 +5291,11 @@ export class RoomScene extends Phaser.Scene {
           };
         }
         const charData = go.getData('character') as CharacterData | undefined;
-        if (charData && go.getData('isPlayer') !== true && charData.clickable) {
+        if (
+          charData &&
+          go.getData('isPlayer') !== true &&
+          this.getCharacterScriptClickable(charData.id)
+        ) {
           if (dialogSuppressed) {
             return { useActiveVerbCursor: false, overrideAuthor: '' };
           }

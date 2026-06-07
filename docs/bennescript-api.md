@@ -1,6 +1,6 @@
 # Bennescript API Reference
 
-> Last updated: 2026-06-05 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
+> Last updated: 2026-06-06 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
 
 For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§7 → Generated game ID types](architecture.md#generated-game-id-types-bennescript-intellisense), [§3 → Audio system](architecture.md#audio-system), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`, `B.onGuiShow`, `B.onGuiHide`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt-bonguishow-bonguihide), and the **Blocking interaction queue** / API tables in §7.
 
@@ -176,7 +176,7 @@ interface BenneScriptRoomFacade {
 |--------|-----------|---------|----------|
 | **`say`** | **`BenneScriptSayDialogueTagged`** | Room, Character, Inventory, Global, Dialog (inherit **`BenneScriptCore`**). Tagged only: **`B.say`**\`…\``. Prefer **`player.say('…')`** / hybrid for scoped player-only lines in dialog scripts. | Queued per line on tail; **`B.say.now`**— single-line block skips tail orchestration for *that* **`say`** run; multi-line **`now`** sequences lines concurrently with the tail (see **`runDialogueFromTaggedTemplate`** in [`BenneScriptCore.ts`](../src/engine/scripting/BenneScriptCore.ts)) |
 
-Rules: **`Speaker: text`** per line; **`Player`** (any case) → starting player character id; other speakers must match spawned character ids **case-insensitively**; blank lines and **`//`** comments skipped; mismatched unknown speaker throws. Requires active **`RoomScene`** for **`B.say`** (DEV warn otherwise).
+Rules: **`Speaker: text`** per line; **`Player`** (any case) → active player character id; other speakers must match spawned character ids **case-insensitively**; blank lines and **`//`** comments skipped; mismatched unknown speaker throws. Requires active **`RoomScene`** for **`B.say`** (DEV warn otherwise).
 
 Example:
 
@@ -359,6 +359,9 @@ Constructed from active **`RoomScene`** (global/dialog resolve **`SCENE_ROOM` on
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
 | **`sound`** | **`BenneScriptSoundFacade`** | Alias of top-level **`B.sound`** (same object). | See [Sound (`B.sound`)](#sound-bsound) |
+| **`id`** | getter **`CharacterId`** | Current active player character id (`GameStateManager.activePlayerCharacterId`). | Sync |
+| **`switchTo`** | `BlockingWithNow<[characterId: string]>` | Switches live player control to a spawned character in the active room: persists **`activePlayerCharacterId`**, rebinds `RoomScene.player`, refreshes camera follow, hover/cursor state, and active-player inventory panels. DEV warns + no-op when the id is empty or not spawned in the current room. | Queued vs **`.now`** |
+| **`switchToNow`** | `(characterId: string) => void` | Alias for **`switchTo.now`**. | Immediate |
 | **`walkTo`** | `BlockingWithNow<[Point2 \| string]>` | Pathfind + walk tween. **No-op** when **`movable`** is **`false`** (promise resolves immediately). | Queued vs **`.now`** |
 | **`moveTo`** | `BlockingWithNow<[Point2 \| string]>` | Teleport feet (**`movePlayerToNow`**); updates idle facing. **Not** gated by **`movable`**. | Queued vs **`.now`** |
 | **`moveToNow`** | `(target: Point2 \| string) => void` | Alias for **`moveTo.now`**. | Immediate |
@@ -370,14 +373,14 @@ Constructed from active **`RoomScene`** (global/dialog resolve **`SCENE_ROOM` on
 | **`stopAnimation`** | `() => void` | Clears override + returns to directional idle. | Immediate |
 | **`say`** | **`BenneScriptSayDialogueHybrid`** | **`'line'`**, **`say.now('line', opts?)`**, or tagged scoped to player id. **`clickToSkip`** from arg or effective **`B.speechSettings.clickToSkip`**. | Per hybrid rules |
 | **`face`** | `BlockingWithNow<[CharacterFacingLetter]>` | **`facePlayerScriptDirection`**. | Queued vs **`.now`** |
-| **`movable`** get/set | `boolean` | When **`false`**, **`walkTo`**, **`walkToClicked`**, click-to-walk, and verb-driven player walks are ignored; **`moveTo`** / **`moveTo.now` / `moveToNow`** still teleport. Setter **queues** on the interaction tail (like **`visible`** on **`B.character`**); persists `` `character:<startingPlayerId>:movable` `` (see [architecture.md §7 → Persistence](architecture.md#7-scripting--interaction-system-bennescript)). Getter with no **`RoomScene`** falls back to saved state, else **`true`**. | Setter queued |
-| **`startFollowingCharacter`** | **`(targetId: string, options?: CharacterFollowOptions) => void`** | Persists follow state for the starting player (keys `` `character:<startingPlayerId>:followingTarget` `` and `` `character:<startingPlayerId>:followOptions` ``). **`targetId`** is another character’s definition id or the string **`"player"`** (case-insensitive **`"player"`** is stored as lowercase **`"player"`** — resolves to the same starting player id at runtime). Idempotent for the same target; re-call merges new **`options`**. Self-follow / empty target: DEV warn + no-op. When a **`RoomScene`** is active, **`RoomScene.startCharacterFollowingCharacter`** also clears the follow goal cache for repath; without a room, **`applyPersistedCharacterFollowFromScript`** still writes **`GameStateManager`** if a manager exists. | Queued |
+| **`movable`** get/set | `boolean` | When **`false`**, **`walkTo`**, **`walkToClicked`**, click-to-walk, and verb-driven player walks are ignored; **`moveTo`** / **`moveTo.now` / `moveToNow`** still teleport. Setter **queues** on the interaction tail (like **`visible`** on **`B.character`**); persists `` `character:<activePlayerId>:movable` `` (see [architecture.md §7 → Persistence](architecture.md#7-scripting--interaction-system-bennescript)). Getter with no **`RoomScene`** falls back to saved state, else **`true`**. | Setter queued |
+| **`startFollowingCharacter`** | **`(targetId: string, options?: CharacterFollowOptions) => void`** | Persists follow state for the active player (keys `` `character:<activePlayerId>:followingTarget` `` and `` `character:<activePlayerId>:followOptions` ``). **`targetId`** is another character’s definition id or the string **`"player"`** (case-insensitive **`"player"`** is stored as lowercase **`"player"`** — resolves to the current active player at runtime). Idempotent for the same target; re-call merges new **`options`**. Self-follow / empty target: DEV warn + no-op. When a **`RoomScene`** is active, **`RoomScene.startCharacterFollowingCharacter`** also clears the follow goal cache for repath; without a room, **`applyPersistedCharacterFollowFromScript`** still writes **`GameStateManager`** if a manager exists. | Queued |
 | **`stopFollowingCharacter`** | **`() => void`** | Clears persisted follow keys and stops a follow-initiated walk tween if the player’s sprite has follow purpose data. | Queued |
-| **`isFollowing`** | getter **`boolean`** | **`true`** when `` `character:<startingPlayerId>:followingTarget` `` is set in **`GameStateManager`**; **`false`** when no manager. | Sync |
+| **`isFollowing`** | getter **`boolean`** | **`true`** when `` `character:<activePlayerId>:followingTarget` `` is set in **`GameStateManager`**; **`false`** when no manager. | Sync |
 | **`followingTarget`** | getter **`string \| null`** | Raw persisted target string (**`"player"`** or a character id), or **`null`**. | Sync |
-| **`setSpeechPosition`** | **`BlockingWithNow<[x: number, y: number]>`** | Absolute world/room-space bottom-center for the starting player's speaking-text GUI. Persists `` `character:<startingPlayerId>:speechPosition` ``; bypasses **`talkPoint`** and **`B.speechSettings.defaultTalkOffset`**. Highest precedence when set. | Queued vs **`.now`** |
-| **`setSpeechOffset`** | **`BlockingWithNow<[x: number, y: number]>`** | Canvas-pixel offset added after default talk anchor + **`defaultTalkOffset`** when no absolute position is set. Persists `` `character:<startingPlayerId>:speechOffset` ``. | Queued vs **`.now`** |
-| **`resetSpeechPosition`** | **`BlockingWithNow<[]>`** | Clears both speech position and offset overrides for the starting player. | Queued vs **`.now`** |
+| **`setSpeechPosition`** | **`BlockingWithNow<[x: number, y: number]>`** | Absolute world/room-space bottom-center for the active player's speaking-text GUI. Persists `` `character:<activePlayerId>:speechPosition` ``; bypasses **`talkPoint`** and **`B.speechSettings.defaultTalkOffset`**. Highest precedence when set. | Queued vs **`.now`** |
+| **`setSpeechOffset`** | **`BlockingWithNow<[x: number, y: number]>`** | Canvas-pixel offset added after default talk anchor + **`defaultTalkOffset`** when no absolute position is set. Persists `` `character:<activePlayerId>:speechOffset` ``. | Queued vs **`.now`** |
+| **`resetSpeechPosition`** | **`BlockingWithNow<[]>`** | Clears both speech position and offset overrides for the active player. | Queued vs **`.now`** |
 
 The **`options`** argument is **`CharacterFollowOptions`** (**`src/types/characterFollow.ts`**); see **`B.character(id)`** below for defaults and examples.
 
@@ -395,19 +398,23 @@ B.player.resetSpeechPosition();
 
 Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / **`face`** / **`movable`** / **follow** pattern as **`B.player`**, routed to **`walkCharacterTo`**, **`moveCharacterToNow`**, **`faceCharacterScriptDirection`**, **`startCharacterFollowingCharacter` / `stopCharacterFollowingCharacter`**, **`startCharacterFacingCharacter` / `stopCharacterFacingCharacter`**, character animation scripting APIs (**`NPC`** — no **`walkToClicked`** on facade; use top-level **`B.walkToClicked`** / **`B.player.*`**). Exposes **`sound`** (**same object** as **`B.sound`**).
 
-**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. Movement / **`face`** / **`fade`** / **`startFacingCharacter` / `stopFacingCharacter`** with no room no-op and DEV **`console.warn`** once. **`hide` / `show` / `visible` / `visibleNow`**, **`movable`**, **`setSpeechPosition` / `setSpeechOffset` / `resetSpeechPosition`**, and **`startFollowingCharacter` / `stopFollowingCharacter`** setters still persist to **`GameStateManager`** when a manager is active so values survive the next room load even if **`RoomScene`** is not resolved yet.
+**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. Movement / **`face`** / **`fade`** / **`startFacingCharacter` / `stopFacingCharacter`** with no room no-op and DEV **`console.warn`** once. **`hide` / `show` / `visible` / `visibleNow`**, **`movable`**, **`clickable`**, **`setSpeechPosition` / `setSpeechOffset` / `resetSpeechPosition`**, and **`startFollowingCharacter` / `stopFollowingCharacter`** setters still persist to **`GameStateManager`** when a manager is active so values survive the next room load even if **`RoomScene`** is not resolved yet.
 
 **`movable` getter:** Effective value is the saved override (if any), else **`CharacterData.movable`** from the **first** spawn of that **`characterId`** in the active room’s JSON (**`true`** when omitted). If that id is **not** spawned in the current room, there is no JSON row from this room — the getter still returns a saved **`character:<id>:movable`** boolean when set; otherwise **`true`**. Use **`B.player.movable`** when you mean the protagonist, not an arbitrary **`B.character('…')`** id that might be absent from the room.
+
+**`clickable` getter:** Effective value is the saved override (if any), else **`CharacterData.clickable`** from the **first** spawn of that **`characterId`** in the active room’s JSON. When **`false`**, the NPC is not hit-tested (no hover label, verb dispatch, or inventory-on-target). **`B.player.walkTo('penny')`** / **`resolveMovementTarget`** still resolve the character id for movement (same rule as inactive hotspots — interaction only). Not exposed on **`B.player`**.
 
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
 | **`hide` / `show`** | **`BlockingWithNow<[]>`** | Script visibility overrides (persisted — see [architecture.md §7](architecture.md#7-scripting--interaction-system-bennescript)); queue vs **`.now`**. | Queued vs **`.now`** |
 | **`visible`** get/set | Setter queues like **`animation`**; **`visibleNow(v)`** applies immediately. Both persist a boolean to **`GameStateManager`** (key `` `character:<characterId>:visible` ``). **`getCharacterScriptVisible`** returns the live sprite when one exists, else the saved override, then the first room JSON placement default. | Setter queued |
 | **`movable`** get/set | When **`false`**, **`walkTo`** is a no-op for this NPC (**`walkCharacterTo`** returns immediately). Setter queues like **`visible`**; persists `` `character:<characterId>:movable` ``. **`moveTo`** is **not** gated. | Setter queued |
+| **`clickable`** get/set | When **`false`**, the NPC is not hit-tested (no hover, verbs, or inventory-on-target). Setter queues like **`movable`**; persists `` `character:<characterId>:clickable` ``. **`walkTo('id')`** / movement resolution is **not** gated. | Setter queued |
 | **`startFollowingCharacter`** | **`(targetId: string, options?: CharacterFollowOptions) => void`** | Same persistence and semantics as **`B.player.startFollowingCharacter`** (keys use this NPC’s **`characterId`**). **`RoomScene.startCharacterFollowingCharacter`** when a room is active. | Queued |
 | **`stopFollowingCharacter`** | **`() => void`** | Clears follow state and stops a follow-initiated NPC walk if applicable. | Queued |
 | **`isFollowing`** | getter **`boolean`** | Whether this id has a persisted **`followingTarget`**. | Sync |
 | **`followingTarget`** | getter **`string \| null`** | Persisted target id or **`null`**. | Sync |
+| **`inventory`** | **`BenneScriptCharacterInventoryNamespace`** | This NPC's carried-items bag (**`add` / `remove` / `has` / `quantityOf` / `items` / `clearInventory`** — same signatures as **`B.inventory`**, without callable **`B.inventory(itemId)`**). | Mixed |
 | **`startFacingCharacter`** | **`(targetCharacterId: string, minWaitTime?: number, maxWaitTime?: number) => void`** | Keeps this NPC’s **Idle** facing toward **`targetCharacterId`**’s **feet** (same **`CharacterData.id`** as other **`B.character`** calls). When either character’s feet move by more than a small epsilon, **`RoomScene`** cancels any pending turn and schedules a new one after a **uniform random** delay in **`[minWaitTime, maxWaitTime]`** seconds — defaults **`0.2`** and **`0.4`**. Negative bounds clamp to **`0`**; if **`minWaitTime > maxWaitTime`**, the engine swaps them. Calling **`startFacingCharacter`** again on the same observer replaces the previous target and timing. No-op when observer **equals** target, or when either id has no **`Sprite`** instance in the room. Not persisted across room loads (cleared in **`RoomScene`** **`create`** / **shutdown**). | Queued |
 | **`stopFacingCharacter`** | **`() => void`** | Removes the observer’s active face-target lock and cancels its pending timer. | Queued |
 | **`fade`** | `BlockingWithNow<[fromAlpha: number, toAlpha: number, durationSeconds: number]>` | Tween the character sprite's `alpha` from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`** (`Linear`); alphas clamp to `[0, 1]`, duration to `>= 0` (`0` snaps to **`toAlpha`**). Each call kills running tweens on the sprite first, then sets `alpha = fromAlpha` before tweening. **`toAlpha`** is **persisted** to **`GameStateManager`** (key `` `character:<characterId>:alpha` ``) at call time and re-applied on every spawn (saving mid-fade restores the intended final alpha). Routes through **`RoomScene.fadeCharacterScriptAlpha`**. | Queued (waits for tween) vs **`.now`** |
@@ -416,6 +423,9 @@ Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / *
 | **`resetSpeechPosition`** | **`BlockingWithNow<[]>`** | Clears both **`speechPosition`** and **`speechOffset`** overrides for this character id. | Queued vs **`.now`** |
 
 ```ts
+B.character('penny').inventory.add('Flower');
+B.inventory.remove('Key'); // active player's bag
+
 B.character('hank').setSpeechOffset(0, -120); // fine-tune above head
 B.character('hank').say('Hello from up here.');
 
@@ -425,6 +435,10 @@ B.character('narrator').say('This line always appears at the same screen locatio
 B.character('hank').resetSpeechPosition(); // back to default
 
 B.character('penny').movable = false; // queued; penny won't pathfind-walk until set true again
+B.character('penny').clickable = false; // queued; penny can't be clicked until set true again
+if (B.character('penny').clickable) {
+  B.character('penny').say('Try clicking me.');
+}
 B.character('penny').hide(); // persisted; stays hidden after room change / save when Penny is in the room
 B.character('penny').startFollowingCharacter('hank');
 B.character('penny').startFollowingCharacter('hank', {
@@ -470,7 +484,7 @@ B.prop('Knife').hide(); // persisted; the prop stays hidden after B.room.changeT
 B.prop('Rock').moveTo.now({ x: 80, y: 90 }); // teleport authoring origin; persisted on next flush
 ```
 
-**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, **movable**, **speech position / offset**, **follow** (**`followingTarget`** + **`followOptions`**), alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`save` / `load`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`save`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
+**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, **movable**, **clickable**, **speech position / offset**, **follow** (**`followingTarget`** + **`followOptions`**), alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`save` / `load`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`save`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
 
 ---
 
@@ -478,7 +492,9 @@ B.prop('Rock').moveTo.now({ x: 80, y: 90 }); // teleport authoring origin; persi
 
 Callable **`B.inventory(itemId)`** returns **`BenneScriptInventoryItemFacade`** (see **[`benneScriptGameStateApi.ts`](../src/engine/scripting/benneScriptGameStateApi.ts)**). GUI scripts now share the same inventory namespace as room/global/dialog surfaces (pre-game calls no-op with a DEV warning until the manager is active).
 
-**Quantity API** — **`add`** and **`remove`** are **`BlockingWithNow<[string, number?]>`** (queue on **`interactionTail`** when the namespace is wired with **`chain`**; **`.now`** mutates **`GameStateManager`** immediately). **`has`**, **`quantityOf`**, **`items`**, and **`clearInventory`** stay synchronous. After **`remove`**, if that id was the armed use-on-target item (**`activeInventory`**) and the id is no longer carried (quantity 0), the engine clears **active verb** and **active inventory** — even when **`dropWhenInventoryUsed`** is **`false`** in **`game-config.json`** (that flag applies to post–use-on-target clicks, not script removal).
+**Bag scope** — Quantity helpers (**`add`**, **`remove`**, **`has`**, **`quantityOf`**, **`items`**, **`clearInventory`**) mutate the **active player's** bag (`GameStateManager.getActivePlayerCharacterId()`, persisted as **`activePlayerCharacterId`** in save snapshots v2; defaults to **`startingPlayerCharacter`** from **`game-config.json`**). **`B.player.inventory`** is the same active-player bag. For another character's bag use **`B.character('penny').inventory`**.
+
+**Quantity API** — **`add`** and **`remove`** are **`BlockingWithNow<[string, number?]>`** (queue on **`interactionTail`** when the namespace is wired with **`chain`**; **`.now`** mutates **`GameStateManager`** immediately). **`has`**, **`quantityOf`**, **`items`**, and **`clearInventory`** stay synchronous. After **`remove`** from the **active player's** bag, if that id was the armed use-on-target item (**`activeInventory`**) and the id is no longer carried (quantity 0), the engine clears **active verb** and **active inventory** — even when **`dropWhenInventoryUsed`** is **`false`** in **`game-config.json`** (that flag applies to post–use-on-target clicks, not script removal).
 
 ```ts
 B.inventory(id: string): BenneScriptInventoryItemFacade;
@@ -562,11 +578,15 @@ clearActiveVerb(): void;
 setActiveInventory(id: string | null): void;
 getActiveInventoryItemId(): string | null;
 clearActiveInventory(): void;
+getActivePlayerCharacterId(): string;
+setActivePlayerCharacterId(characterId: string): void;
 getCurrentRoom(): string;
 getLastRoom(): string | null;
 setCurrentRoom(roomId: string): void;
 setLastRoom(roomId: string | null): void;
 ```
+
+**Active player character** — **`getActivePlayerCharacterId()`** returns the persisted id used by **`B.player`**, **`B.inventory`**, and default **`inventoryPanel`** controls. **`setActivePlayerCharacterId(id)`** updates the saved id and emits **`GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT`**; in an active room, use **`B.player.switchTo(id)`** when you also want the live controlled sprite, camera follow, and input routing to switch immediately.
 
 **`flush()`** runs every registered **snapshot flush hook** (see [architecture.md §3 → Game state](architecture.md#game-state-v1) and [§7 → Sprite animation & persistence → Snapshot flush hooks](architecture.md#7-scripting--interaction-system-bennescript)). It pulls **lazily-saved** runtime state on the active **`RoomScene`** — today, character feet world positions and prop authoring positions — into **`GameStateManager.variables`** so the next room load (or save snapshot) restores them. **Most state is already eagerly persisted** on every change (visibility, alpha, animation overrides, flags, variables, inventory) — `flush` exists for fields that are too noisy to write per-tick during walks. It also runs **automatically** inside **`getSnapshot`** (so **`save`** / **`exportJson`** already pick everything up) and on room-transition leave (**`RoomTransitionOrchestrator.prepareForLeave`**). Call it directly only at custom save points.
 

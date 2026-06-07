@@ -9,7 +9,7 @@ export type RegionEnterExitContext = {
   regionId: string;
   /** Spawned character definition id (`CharacterData.id`). */
   characterId: string;
-  /** `true` when `characterId` matches `game-config.json` `startingPlayerCharacter`. */
+  /** `true` when `characterId` matches the current active player character. */
   isPlayer: boolean;
   /** World feet position in room pixels when the crossing was detected. */
   feetX: number;

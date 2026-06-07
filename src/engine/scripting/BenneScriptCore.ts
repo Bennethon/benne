@@ -18,8 +18,10 @@ import {
   clearSavedCharacterSpeechPosition,
   getCharacterAnimationOverrideTag,
   readSavedCharacterFollowingTarget,
+  readSavedCharacterClickable,
   readSavedCharacterMovable,
   readSavedCharacterVisible,
+  writeSavedCharacterClickable,
   writeSavedCharacterMovable,
   writeSavedCharacterSpeechOffset,
   writeSavedCharacterSpeechPosition,
@@ -48,6 +50,10 @@ import {
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import { INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT } from '../events/inventoryOnVerbEvents.js';
 import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerbTarget.js';
+import {
+  createLazyBenneScriptCharacterInventoryNamespace,
+  createLazyBenneScriptInventoryNamespace,
+} from './benneScriptGameStateApi.js';
 import type {
   BenneScriptCharacterFacade,
   BenneScriptCameraFacade,
@@ -374,7 +380,7 @@ export abstract class BenneScriptCore {
   readonly dialogSettings: BenneScriptDialogSettingsFacade;
 
   /**
-   * PowerQuest-style **`B.say`**…``: lines **`Speaker: text`** (blank lines and **`//`** line / trailing comments ignored). **`Player`** (any case) → starting player character. Queues each line on the interaction tail; **`B.say.now`**… does not wait behind prior queued steps (each line still uses the dialog overlay lock).
+   * PowerQuest-style **`B.say`**…``: lines **`Speaker: text`** (blank lines and **`//`** line / trailing comments ignored). **`Player`** (any case) → active player character. Queues each line on the interaction tail; **`B.say.now`**… does not wait behind prior queued steps (each line still uses the dialog overlay lock).
    */
   readonly say: BenneScriptSayDialogueTagged;
 
@@ -1175,7 +1181,7 @@ export abstract class BenneScriptCore {
         throw new Error('[Benne] say: empty speaker name before ":".');
       }
       if (t.toLowerCase() === 'player') {
-        return getStartingPlayerCharacterId();
+        return scene.getActivePlayerCharacterId();
       }
       const canon = spawnedByLower.get(t.toLowerCase());
       if (canon == null) {
@@ -1362,14 +1368,13 @@ export abstract class BenneScriptCore {
     logSay: (line: string) => void,
     warnNoRoom: () => void,
   ): BenneScriptSayDialogueHybrid {
-    const pid = getStartingPlayerCharacterId();
-    const scope: BenneSayDialogueScope = { mode: 'fixed', definitionId: pid };
     const runStr = (line: string, opts: BenneScriptSayLineOptions | undefined, chain: boolean): void => {
       const scene = getScene();
       if (!scene) {
         warnNoRoom();
         return;
       }
+      const pid = scene.getActivePlayerCharacterId();
       logSay(line);
       this.queueSayDialogWithInputLock(scene, line, pid, chain, opts);
     };
@@ -1380,6 +1385,10 @@ export abstract class BenneScriptCore {
         return;
       }
       if (isTemplateStringsArray(first)) {
+        const scope: BenneSayDialogueScope = {
+          mode: 'fixed',
+          definitionId: scene.getActivePlayerCharacterId(),
+        };
         this.runDialogueFromTaggedTemplate(first, rest, scope, true, scene, logSay);
       } else {
         runStr(first as string, rest[0] as BenneScriptSayLineOptions | undefined, true);
@@ -1392,6 +1401,10 @@ export abstract class BenneScriptCore {
         return;
       }
       if (isTemplateStringsArray(first)) {
+        const scope: BenneSayDialogueScope = {
+          mode: 'fixed',
+          definitionId: scene.getActivePlayerCharacterId(),
+        };
         this.runDialogueFromTaggedTemplate(first, rest, scope, false, scene, logSay);
       } else {
         runStr(first as string, rest[0] as BenneScriptSayLineOptions | undefined, false);
@@ -1485,6 +1498,90 @@ export abstract class BenneScriptCore {
     };
   }
 
+  private makeDynamicCharacterSpeechPositionMethods(
+    getScene: () => RoomScene | undefined,
+    getDefinitionId: () => string,
+    warnNoRoom: () => void,
+  ): Pick<
+    BenneScriptCharacterFacade,
+    'setSpeechPosition' | 'setSpeechOffset' | 'resetSpeechPosition'
+  > {
+    const applySpeechPosition = (x: number, y: number): void => {
+      const definitionId = getDefinitionId();
+      const scene = getScene();
+      if (scene) {
+        scene.setCharacterScriptSpeechPosition(definitionId, x, y);
+        return;
+      }
+      const mgr = tryGetActiveGameStateManager();
+      if (mgr) {
+        writeSavedCharacterSpeechPosition(mgr, definitionId, { x, y });
+        return;
+      }
+      warnNoRoom();
+    };
+
+    const applySpeechOffset = (x: number, y: number): void => {
+      const definitionId = getDefinitionId();
+      const scene = getScene();
+      if (scene) {
+        scene.setCharacterScriptSpeechOffset(definitionId, x, y);
+        return;
+      }
+      const mgr = tryGetActiveGameStateManager();
+      if (mgr) {
+        writeSavedCharacterSpeechOffset(mgr, definitionId, { x, y });
+        return;
+      }
+      warnNoRoom();
+    };
+
+    const applyResetSpeechPosition = (): void => {
+      const definitionId = getDefinitionId();
+      const scene = getScene();
+      if (scene) {
+        scene.resetCharacterScriptSpeechPosition(definitionId);
+        return;
+      }
+      const mgr = tryGetActiveGameStateManager();
+      if (mgr) {
+        clearSavedCharacterSpeechPosition(mgr, definitionId);
+        return;
+      }
+      warnNoRoom();
+    };
+
+    return {
+      setSpeechPosition: withNow(
+        (x: number, y: number) => {
+          this.chain(() => {
+            applySpeechPosition(x, y);
+            return Promise.resolve();
+          });
+        },
+        applySpeechPosition,
+      ),
+      setSpeechOffset: withNow(
+        (x: number, y: number) => {
+          this.chain(() => {
+            applySpeechOffset(x, y);
+            return Promise.resolve();
+          });
+        },
+        applySpeechOffset,
+      ),
+      resetSpeechPosition: withNow(
+        () => {
+          this.chain(() => {
+            applyResetSpeechPosition();
+            return Promise.resolve();
+          });
+        },
+        applyResetSpeechPosition,
+      ),
+    };
+  }
+
   /**
    * Shared with {@link import('./GlobalBenneScript.js').GlobalBenneScript} so global handlers can use **`B.player.say`**
    * (resolves the room scene on each call).
@@ -1500,7 +1597,28 @@ export abstract class BenneScriptCore {
       }
     };
 
-    const pid = getStartingPlayerCharacterId();
+    const activePlayerId = (): CharacterId => {
+      const scene = getScene();
+      if (scene) {
+        return scene.getActivePlayerCharacterId() as CharacterId;
+      }
+      const mgr = tryGetActiveGameStateManager();
+      return (mgr?.getActivePlayerCharacterId() ?? getStartingPlayerCharacterId()) as CharacterId;
+    };
+
+    const runSwitchPlayer = (characterId: CharacterId): void => {
+      const scene = getScene();
+      if (scene) {
+        scene.switchPlayerCharacter(characterId);
+        return;
+      }
+      const mgr = tryGetActiveGameStateManager();
+      if (mgr) {
+        mgr.setActivePlayerCharacterId(characterId);
+        return;
+      }
+      warnNoRoom();
+    };
 
     const runPlayerFace = (direction: CharacterFacingLetter): void => {
       const scene = getScene();
@@ -1555,6 +1673,21 @@ export abstract class BenneScriptCore {
     );
     return {
       sound: core.sound,
+      get id() {
+        return activePlayerId();
+      },
+      switchTo: withNow(
+        (characterId: CharacterId) => {
+          core.chain(() => {
+            runSwitchPlayer(characterId);
+            return Promise.resolve();
+          });
+        },
+        runSwitchPlayer,
+      ),
+      switchToNow(characterId: CharacterId): void {
+        runSwitchPlayer(characterId);
+      },
       walkTo: walkPlayerWithNow,
       moveTo: moveToTeleport,
       moveToNow: (target: Point2 | ResolvableTargetId) => {
@@ -1576,13 +1709,13 @@ export abstract class BenneScriptCore {
               warnNoRoom();
               return Promise.resolve();
             }
-            return scene.playCharacterScriptAnimationOneShot(pid, tag);
+            return scene.playCharacterScriptAnimationOneShot(activePlayerId(), tag);
           });
         },
         (tag: string) => {
           const scene = getScene();
           if (scene) {
-            void scene.playCharacterScriptAnimationOneShot(pid, tag);
+            void scene.playCharacterScriptAnimationOneShot(activePlayerId(), tag);
           }
         },
       ),
@@ -1598,7 +1731,7 @@ export abstract class BenneScriptCore {
       ),
       get animation() {
         const scene = getScene();
-        return scene ? scene.getCharacterScriptEffectiveAnimationTag(pid) : '';
+        return scene ? scene.getCharacterScriptEffectiveAnimationTag(activePlayerId()) : '';
       },
       set animation(tag: string | null) {
         core.chain(() => {
@@ -1606,7 +1739,7 @@ export abstract class BenneScriptCore {
           if (!scene) {
             warnNoRoom();
           } else {
-            scene.setCharacterScriptAnimationOverride(pid, tag);
+            scene.setCharacterScriptAnimationOverride(activePlayerId(), tag);
           }
           return Promise.resolve();
         });
@@ -1617,7 +1750,7 @@ export abstract class BenneScriptCore {
           warnNoRoom();
           return;
         }
-        scene.setCharacterScriptAnimationOverride(pid, tag);
+        scene.setCharacterScriptAnimationOverride(activePlayerId(), tag);
       },
       stopAnimation(): void {
         const scene = getScene();
@@ -1625,10 +1758,11 @@ export abstract class BenneScriptCore {
           warnNoRoom();
           return;
         }
-        scene.stopCharacterScriptAnimation(pid);
+        scene.stopCharacterScriptAnimation(activePlayerId());
       },
       get movable() {
         const scene = getScene();
+        const pid = activePlayerId();
         if (scene) {
           return scene.getCharacterScriptMovable(pid);
         }
@@ -1638,6 +1772,7 @@ export abstract class BenneScriptCore {
       set movable(v: boolean) {
         core.chain(() => {
           const scene = getScene();
+          const pid = activePlayerId();
           if (scene) {
             scene.setCharacterScriptMovable(pid, v);
           } else {
@@ -1658,6 +1793,7 @@ export abstract class BenneScriptCore {
         core.chain(() => {
           const scene = getScene();
           const mgr = tryGetActiveGameStateManager();
+          const pid = activePlayerId();
           if (scene) {
             scene.startCharacterFollowingCharacter(pid, targetId, options);
           } else if (mgr) {
@@ -1672,6 +1808,7 @@ export abstract class BenneScriptCore {
         core.chain(() => {
           const scene = getScene();
           const mgr = tryGetActiveGameStateManager();
+          const pid = activePlayerId();
           if (scene) {
             scene.stopCharacterFollowingCharacter(pid);
           } else if (mgr) {
@@ -1684,13 +1821,18 @@ export abstract class BenneScriptCore {
       },
       get isFollowing() {
         const mgr = tryGetActiveGameStateManager();
-        return mgr ? readSavedCharacterFollowingTarget(mgr, pid) != null : false;
+        return mgr ? readSavedCharacterFollowingTarget(mgr, activePlayerId()) != null : false;
       },
       get followingTarget() {
         const mgr = tryGetActiveGameStateManager();
-        return mgr ? readSavedCharacterFollowingTarget(mgr, pid) : null;
+        return mgr ? readSavedCharacterFollowingTarget(mgr, activePlayerId()) : null;
       },
-      ...this.makeCharacterSpeechPositionMethods(getScene, pid, warnNoRoom),
+      inventory: createLazyBenneScriptInventoryNamespace(
+        () => tryGetActiveGameStateManager(),
+        getScene,
+        (factory) => core.chain(factory),
+      ),
+      ...this.makeDynamicCharacterSpeechPositionMethods(getScene, activePlayerId, warnNoRoom),
     } as BenneScriptPlayerFacade;
   }
 
@@ -2002,6 +2144,30 @@ export abstract class BenneScriptCore {
           return Promise.resolve();
         });
       },
+      get clickable() {
+        const scene = getScene();
+        if (scene) {
+          return scene.getCharacterScriptClickable(definitionId);
+        }
+        const mgr = tryGetActiveGameStateManager();
+        return mgr ? readSavedCharacterClickable(mgr, definitionId, true) : true;
+      },
+      set clickable(v: boolean) {
+        core.chain(() => {
+          const scene = getScene();
+          if (scene) {
+            scene.setCharacterScriptClickable(definitionId, v);
+          } else {
+            const mgr = tryGetActiveGameStateManager();
+            if (mgr) {
+              writeSavedCharacterClickable(mgr, definitionId, v);
+            } else {
+              warnNoRoom();
+            }
+          }
+          return Promise.resolve();
+        });
+      },
       startFollowingCharacter(
         targetId: CharacterId | 'player',
         options?: CharacterFollowOptions,
@@ -2041,6 +2207,11 @@ export abstract class BenneScriptCore {
         const mgr = tryGetActiveGameStateManager();
         return mgr ? readSavedCharacterFollowingTarget(mgr, definitionId) : null;
       },
+      inventory: createLazyBenneScriptCharacterInventoryNamespace(
+        () => tryGetActiveGameStateManager(),
+        definitionId,
+        (factory) => core.chain(factory),
+      ),
       ...this.makeCharacterSpeechPositionMethods(getScene, definitionId, warnNoRoom),
     } as BenneScriptCharacterFacade;
   }

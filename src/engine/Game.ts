@@ -6,7 +6,12 @@ import {
   unwireBenneVerbContextGameStateRelay,
 } from './scripting/benneVerbContextScriptSurface.js';
 import { setActiveBenneGame } from './gameState/activeBenneGame.js';
-import { GameStateManager, normalizeSerializedInventory } from './gameState/GameStateManager.js';
+import { getStartingPlayerCharacterId } from '../game/boot/constants.js';
+import {
+  buildInitialInventoryByCharacter,
+  normalizeSerializedInventory,
+} from './gameState/characterInventory.js';
+import { GameStateManager } from './gameState/GameStateManager.js';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from './gameState/registryKey.js';
 import { setActiveGameStateManager } from './gameState/resolveGameStateManager.js';
 import { wireBenneRuntimeHiDpiCanvasScale } from './benneRuntimeHiDpiScale.js';
@@ -43,13 +48,21 @@ export function createBenneGame(parent: HTMLElement | string): Phaser.Game {
   const game = new Phaser.Game(createGameConfig(parent));
   wireBenneRuntimeHiDpiCanvasScale(game);
   const rawInit = getGameSettings().initialGameState;
+  const startingPlayer = getStartingPlayerCharacterId();
   const initial =
     rawInit != null
       ? {
           flags: rawInit.flags,
           variables: rawInit.variables,
-          inventory:
-            rawInit.inventory !== undefined ? normalizeSerializedInventory(rawInit.inventory) : undefined,
+          inventoryByCharacter: buildInitialInventoryByCharacter({
+            inventoryByCharacter: rawInit.inventoryByCharacter,
+            legacyInventory:
+              rawInit.inventory !== undefined
+                ? normalizeSerializedInventory(rawInit.inventory)
+                : undefined,
+            startingPlayerCharacterId: startingPlayer,
+          }),
+          activePlayerCharacterId: rawInit.activePlayerCharacterId ?? startingPlayer,
         }
       : undefined;
   const gameState = new GameStateManager(gameEvents, initial);

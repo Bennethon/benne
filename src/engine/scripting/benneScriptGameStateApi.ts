@@ -1,5 +1,6 @@
 import type { BenneGameStateFlagValue } from '../../types/gameState.js';
 import type {
+  CharacterId,
   GameVerbId,
   InventoryItemId,
   RoomId,
@@ -87,6 +88,10 @@ export interface BenneScriptGameStateNamespace {
   setActiveInventory(id: InventoryItemId | null): void;
   getActiveInventoryItemId(): InventoryItemId | null;
   clearActiveInventory(): void;
+  /** Character definition id currently controlled by `B.player` and targeted by active-player inventory panels. */
+  getActivePlayerCharacterId(): CharacterId;
+  /** Persist the active player character id. Use `B.player.switchTo` when a live room should rebind control too. */
+  setActivePlayerCharacterId(characterId: CharacterId): void;
   /** See {@link import('../gameState/GameStateManager.js').GameStateManager.getCurrentRoom}. */
   getCurrentRoom(): RoomId;
   getLastRoom(): RoomId | null;
@@ -114,12 +119,8 @@ export interface BenneScriptGameStateNamespace {
   flush(): void;
 }
 
-/**
- * `B.inventory` — quantities per item id (see `GameStateManager`), plus **`B.inventory(itemId)`** for per-item
- * animation fields (see {@link BenneScriptInventoryItemFacade}).
- */
-export interface BenneScriptInventoryNamespace {
-  (itemId: InventoryItemId): BenneScriptInventoryItemFacade;
+/** Quantity helpers for a single character bag (`B.character(id).inventory`). */
+export interface BenneScriptCharacterInventoryNamespace {
   /** Queues on the owning script interaction tail when wired with chain; `.now` applies immediately. */
   add: BlockingWithNow<[InventoryItemId, number?]>;
   remove: BlockingWithNow<[InventoryItemId, number?]>;
@@ -128,6 +129,14 @@ export interface BenneScriptInventoryNamespace {
   /** Legacy accessor for inventory entries; prefer `add`/`remove`/`has`/`quantityOf` for gameplay logic. */
   readonly items: ReadonlyArray<{ id: string; quantity: number }>;
   clearInventory(): void;
+}
+
+/**
+ * `B.inventory` — active player's bag quantities, plus **`B.inventory(itemId)`** for per-item
+ * animation fields (see {@link BenneScriptInventoryItemFacade}).
+ */
+export interface BenneScriptInventoryNamespace extends BenneScriptCharacterInventoryNamespace {
+  (itemId: InventoryItemId): BenneScriptInventoryItemFacade;
 }
 
 function createBenneScriptGameStateNamespaceFromResolver(
@@ -201,6 +210,14 @@ function createBenneScriptGameStateNamespaceFromResolver(
       withManagerResult('getActiveInventoryItemId', null, (m) => m.getActiveInventoryItemId()),
     clearActiveInventory: () =>
       withManagerVoid('clearActiveInventory', (m) => m.clearActiveInventoryItem()),
+    getActivePlayerCharacterId: () =>
+      withManagerResult('getActivePlayerCharacterId', '' as CharacterId, (m) =>
+        m.getActivePlayerCharacterId(),
+      ),
+    setActivePlayerCharacterId: (characterId) =>
+      withManagerVoid('setActivePlayerCharacterId', (m) =>
+        m.setActivePlayerCharacterId(characterId),
+      ),
     getCurrentRoom: () => withManagerResult('getCurrentRoom', '', (m) => m.getCurrentRoom()),
     getLastRoom: () => withManagerResult('getLastRoom', null, (m) => m.getLastRoom()),
     setCurrentRoom: (roomId) => withManagerVoid('setCurrentRoom', (m) => m.setCurrentRoom(roomId)),
@@ -348,23 +365,37 @@ export function createBenneScriptInventoryNamespace(
 ): BenneScriptInventoryNamespace {
   return createBenneScriptInventoryNamespaceFromResolver(
     () => m,
+    undefined,
     getRoomScene,
     queueInteraction,
   );
 }
 
-function createBenneScriptInventoryNamespaceFromResolver(
-  resolveManager: BenneScriptGameStateManagerResolver,
-  getRoomScene?: () => RoomScene | undefined,
+export function createBenneScriptCharacterInventoryNamespace(
+  m: GameStateManager,
+  characterId: string,
   queueInteraction?: BenneScriptInventoryInteractionQueue,
-): BenneScriptInventoryNamespace {
+): BenneScriptCharacterInventoryNamespace {
+  return createBenneScriptCharacterInventoryNamespaceFromResolver(
+    () => m,
+    characterId,
+    queueInteraction,
+  );
+}
+
+function createBenneScriptCharacterInventoryQuantityMethods(
+  resolveManager: BenneScriptGameStateManagerResolver,
+  characterId: string | undefined,
+  queueInteraction: BenneScriptInventoryInteractionQueue | undefined,
+  apiLabel: string,
+): BenneScriptCharacterInventoryNamespace {
   const resolveInventoryManager = (actionLabel: string): GameStateManager | null => {
     const manager = resolveManager();
     if (manager) {
       return manager;
     }
     if (import.meta.env.DEV) {
-      console.warn(`[Benne] B.inventory.${actionLabel}: game state manager is not active yet — ignored.`);
+      console.warn(`[Benne] ${apiLabel}.${actionLabel}: game state manager is not active yet — ignored.`);
     }
     return null;
   };
@@ -379,7 +410,7 @@ function createBenneScriptInventoryNamespaceFromResolver(
     }
   };
 
-  const methods = {
+  return {
     add: withNow(
       (id: string, quantity?: number) => {
         queueOrRunSync(() => {
@@ -387,7 +418,7 @@ function createBenneScriptInventoryNamespaceFromResolver(
           if (!manager) {
             return;
           }
-          void manager.addInventory(id, quantity);
+          void manager.addInventory(id, quantity, characterId);
         });
       },
       (id: string, quantity?: number) => {
@@ -395,7 +426,7 @@ function createBenneScriptInventoryNamespaceFromResolver(
         if (!manager) {
           return;
         }
-        void manager.addInventory(id, quantity);
+        void manager.addInventory(id, quantity, characterId);
       },
     ),
     remove: withNow(
@@ -405,7 +436,7 @@ function createBenneScriptInventoryNamespaceFromResolver(
           if (!manager) {
             return;
           }
-          void manager.removeFromInventory(id, quantity);
+          void manager.removeFromInventory(id, quantity, characterId);
         });
       },
       (id: string, quantity?: number) => {
@@ -413,32 +444,59 @@ function createBenneScriptInventoryNamespaceFromResolver(
         if (!manager) {
           return;
         }
-        void manager.removeFromInventory(id, quantity);
+        void manager.removeFromInventory(id, quantity, characterId);
       },
     ),
     has: (id: string) => {
       const manager = resolveInventoryManager('has');
-      return manager ? manager.hasInInventory(id) : false;
+      return manager ? manager.hasInInventory(id, characterId) : false;
     },
     quantityOf: (id: string) => {
       const manager = resolveInventoryManager('quantityOf');
-      return manager ? manager.quantityOf(id) : 0;
+      return manager ? manager.quantityOf(id, characterId) : 0;
     },
     get items() {
       const manager = resolveInventoryManager('items');
-      return manager ? manager.getInventoryItems() : [];
+      return manager ? manager.getInventoryItems(characterId) : [];
     },
     clearInventory: () => {
       const manager = resolveInventoryManager('clearInventory');
       if (!manager) {
         return;
       }
-      manager.clearInventory();
+      manager.clearInventory(characterId);
     },
   };
+}
+
+function createBenneScriptInventoryNamespaceFromResolver(
+  resolveManager: BenneScriptGameStateManagerResolver,
+  characterId: string | undefined,
+  getRoomScene?: () => RoomScene | undefined,
+  queueInteraction?: BenneScriptInventoryInteractionQueue,
+): BenneScriptInventoryNamespace {
+  const methods = createBenneScriptCharacterInventoryQuantityMethods(
+    resolveManager,
+    characterId,
+    queueInteraction,
+    'B.inventory',
+  );
   const callable = (itemId: string) =>
     createBenneScriptInventoryItemFacade(itemId, resolveManager, getRoomScene, queueInteraction);
   return Object.assign(callable, methods) as BenneScriptInventoryNamespace;
+}
+
+function createBenneScriptCharacterInventoryNamespaceFromResolver(
+  resolveManager: BenneScriptGameStateManagerResolver,
+  characterId: string,
+  queueInteraction?: BenneScriptInventoryInteractionQueue,
+): BenneScriptCharacterInventoryNamespace {
+  return createBenneScriptCharacterInventoryQuantityMethods(
+    resolveManager,
+    characterId,
+    queueInteraction,
+    `B.character("${characterId}").inventory`,
+  );
 }
 
 export function createLazyBenneScriptInventoryNamespace(
@@ -446,5 +504,22 @@ export function createLazyBenneScriptInventoryNamespace(
   getRoomScene?: () => RoomScene | undefined,
   queueInteraction?: BenneScriptInventoryInteractionQueue,
 ): BenneScriptInventoryNamespace {
-  return createBenneScriptInventoryNamespaceFromResolver(resolveManager, getRoomScene, queueInteraction);
+  return createBenneScriptInventoryNamespaceFromResolver(
+    resolveManager,
+    undefined,
+    getRoomScene,
+    queueInteraction,
+  );
+}
+
+export function createLazyBenneScriptCharacterInventoryNamespace(
+  resolveManager: BenneScriptGameStateManagerResolver,
+  characterId: string,
+  queueInteraction?: BenneScriptInventoryInteractionQueue,
+): BenneScriptCharacterInventoryNamespace {
+  return createBenneScriptCharacterInventoryNamespaceFromResolver(
+    resolveManager,
+    characterId,
+    queueInteraction,
+  );
 }

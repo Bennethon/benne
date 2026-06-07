@@ -18,9 +18,19 @@ export interface GameSettingsInitialGameState {
   flags?: Record<string, BenneGameStateFlagValue>;
   variables?: Record<string, unknown>;
   /**
-   * Starting inventory: either unique id list (legacy; each becomes quantity 1) or id → quantity map.
+   * Starting inventory for the **starting player character** only: unique id list (legacy; each
+   * becomes quantity 1) or id → quantity map. Prefer {@link inventoryByCharacter} for multi-bag setup.
    */
   inventory?: string[] | Record<string, number>;
+  /**
+   * Per-character starting bags: character definition id → inventory id list or quantity map.
+   */
+  inventoryByCharacter?: Record<string, string[] | Record<string, number>>;
+  /**
+   * Character definition id controlled at new-game start. Omitted defaults to
+   * `startingPlayerCharacter`.
+   */
+  activePlayerCharacterId?: string;
 }
 
 /** Loaded from `src/game/game-config.json` (authoritative game bootstrap settings). */

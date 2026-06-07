@@ -1,26 +1,41 @@
 /** Values stored in {@link SerializableBenneGameState.flags}. */
 export type BenneGameStateFlagValue = boolean | number | string;
 
-/** Serializable cross-room game state (v1). */
-export interface SerializableBenneGameState {
+/** Legacy v1 snapshot (flat player inventory). Loaded for migration only; new saves use v2. */
+export interface SerializableBenneGameStateV1 {
   version: 1;
   flags: Record<string, BenneGameStateFlagValue>;
   variables: Record<string, unknown>;
-  /** Item id → quantity (omitted or zero means not carried). */
+  /** @deprecated v1 — migrated into {@link SerializableBenneGameStateV2.inventoryByCharacter} on load. */
   inventory: Record<string, number>;
-  /**
-   * Runtime "use on target" selection (item id). Persisted in save snapshots; omitted or invalid in JSON is treated as null.
-   */
   activeInventoryItemId?: string | null;
-  /**
-   * Id of the room the player is considered to be in (for saves and room-transition orchestration). Empty string when unknown / not yet set. Omitted in legacy snapshots (treated as `""` / `null` when loaded).
-   */
   currentRoom?: string;
-  /**
-   * Previous room id when transitioning, or `null` when not applicable. Omitted in legacy saves.
-   */
   lastRoom?: string | null;
 }
+
+/** Serializable cross-room game state (v2). */
+export interface SerializableBenneGameStateV2 {
+  version: 2;
+  flags: Record<string, BenneGameStateFlagValue>;
+  variables: Record<string, unknown>;
+  /** Character definition id → item id → quantity. */
+  inventoryByCharacter: Record<string, Record<string, number>>;
+  /**
+   * Character definition id the player controls (`B.inventory`, default `inventoryPanel`).
+   * Omitted in JSON defaults to `game-config.json` `startingPlayerCharacter` at load.
+   */
+  activePlayerCharacterId?: string;
+  /**
+   * Runtime "use on target" selection (item id) for the active player's bag.
+   * Persisted in save snapshots; omitted or invalid in JSON is treated as null.
+   */
+  activeInventoryItemId?: string | null;
+  currentRoom?: string;
+  lastRoom?: string | null;
+}
+
+/** Union accepted by {@link import('../engine/gameState/GameStateManager.js').GameStateManager.applySnapshot}. */
+export type SerializableBenneGameState = SerializableBenneGameStateV1 | SerializableBenneGameStateV2;
 
 /** Public metadata returned by `B.state.getSaveList()`. */
 export interface SaveMetadata {
@@ -54,6 +69,8 @@ export const GAME_STATE_REPLACED_EVENT = 'gameState:replaced' as const;
 export const GAME_STATE_ACTIVE_VERB_CHANGED_EVENT = 'gameState:activeVerbChanged' as const;
 export const GAME_STATE_ACTIVE_INVENTORY_ITEM_CHANGED_EVENT =
   'gameState:activeInventoryItemChanged' as const;
+export const GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT =
+  'gameState:activePlayerCharacterChanged' as const;
 export const GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT = 'gameState:roomContextChanged' as const;
 
 export interface GameStateFlagChangedPayload {
@@ -70,12 +87,15 @@ export interface GameStateVariableChangedPayload {
 
 export interface GameStateInventoryChangedPayload {
   reason: 'add' | 'remove' | 'clear';
+  /** Character definition id whose bag changed. */
+  characterId: string;
   itemId?: string;
+  /** Clone of that character's bag after the mutation. */
   inventory: Record<string, number>;
 }
 
 export interface GameStateReplacedPayload {
-  snapshot: SerializableBenneGameState;
+  snapshot: SerializableBenneGameStateV2;
 }
 
 /**
@@ -90,6 +110,12 @@ export interface GameStateActiveVerbChangedPayload {
 /** Emitted when the runtime active inventory item (use-on-target) changes. */
 export interface GameStateActiveInventoryItemChangedPayload {
   itemId: string | null;
+}
+
+/** Emitted when the active controllable player character changes. */
+export interface GameStateActivePlayerCharacterChangedPayload {
+  previousCharacterId: string;
+  characterId: string;
 }
 
 /** Emitted when persisted room context (`currentRoom` / `lastRoom`) changes. */

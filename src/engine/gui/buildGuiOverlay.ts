@@ -72,9 +72,11 @@ import {
 } from './guiGridLayout';
 import type { InventoryItemData } from '../../types/inventory';
 import {
+  GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT,
   GAME_STATE_INVENTORY_CHANGED_EVENT,
   GAME_STATE_REPLACED_EVENT,
   GAME_STATE_VARIABLE_CHANGED_EVENT,
+  type GameStateInventoryChangedPayload,
   type GameStateVariableChangedPayload,
 } from '../../types/gameState.js';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
@@ -1626,9 +1628,14 @@ function fillInventoryPanelContent(
 
   let inventoryItems: ReadonlyArray<{ id: string; quantity: number }> = [];
   let gameState: GameStateManager | undefined;
+  const panelCharacterId = c.characterId?.trim();
   try {
     gameState = resolveGameStateManager(scene.game);
-    inventoryItems = gameState.getInventoryItems();
+    const ownerId =
+      panelCharacterId && panelCharacterId.length > 0
+        ? panelCharacterId
+        : gameState.getActivePlayerCharacterId();
+    inventoryItems = gameState.getInventoryItems(ownerId);
   } catch {
     /* e.g. GUI preview without GameStateManager on game.registry */
   }
@@ -2188,7 +2195,25 @@ export function buildGuiOverlay(
       if (scrollSt) {
         scrollSt.refresh = refreshInventoryPanel;
       }
-      const onGameStateInventory = (): void => {
+      const boundCharacterId =
+        c.characterId?.trim() && c.characterId.trim().length > 0
+          ? c.characterId.trim()
+          : null;
+      const shouldRefreshForCharacterBag = (changedCharacterId: string): boolean => {
+        if (boundCharacterId != null) {
+          return changedCharacterId === boundCharacterId;
+        }
+        try {
+          return changedCharacterId === resolveGameStateManager(scene.game).getActivePlayerCharacterId();
+        } catch {
+          return true;
+        }
+      };
+      const onGameStateInventory = (payload: unknown): void => {
+        const p = payload as GameStateInventoryChangedPayload;
+        if (typeof p.characterId === 'string' && !shouldRefreshForCharacterBag(p.characterId)) {
+          return;
+        }
         refreshInventoryPanel();
       };
       const onInventoryAnimationVariable = (payload: unknown): void => {
@@ -2197,13 +2222,20 @@ export function buildGuiOverlay(
           refreshInventoryPanel();
         }
       };
+      const onActivePlayerChanged = (): void => {
+        if (boundCharacterId == null) {
+          refreshInventoryPanel();
+        }
+      };
       gameEvents.on(GAME_STATE_INVENTORY_CHANGED_EVENT, onGameStateInventory);
       gameEvents.on(GAME_STATE_REPLACED_EVENT, onGameStateInventory);
       gameEvents.on(GAME_STATE_VARIABLE_CHANGED_EVENT, onInventoryAnimationVariable);
+      gameEvents.on(GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT, onActivePlayerChanged);
       overlayDisposers.push(() => {
         gameEvents.off(GAME_STATE_INVENTORY_CHANGED_EVENT, onGameStateInventory);
         gameEvents.off(GAME_STATE_REPLACED_EVENT, onGameStateInventory);
         gameEvents.off(GAME_STATE_VARIABLE_CHANGED_EVENT, onInventoryAnimationVariable);
+        gameEvents.off(GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT, onActivePlayerChanged);
       });
       refreshInventoryPanel();
       inventoryPanels.push(panel);

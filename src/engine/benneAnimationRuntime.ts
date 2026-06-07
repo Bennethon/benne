@@ -1,5 +1,4 @@
 import * as Phaser from 'phaser';
-import { getStartingPlayerCharacterId } from '../game/boot/constants.js';
 import type { CharacterFollowOptions } from '../types/characterFollow.js';
 import type { Point2 } from '../types/room.js';
 import type { CharacterFacingLetter } from '../types/character.js';
@@ -37,6 +36,10 @@ export function characterVisibleVariableKey(characterId: string): string {
 
 export function characterMovableVariableKey(characterId: string): string {
   return `character:${characterId}:movable`;
+}
+
+export function characterClickableVariableKey(characterId: string): string {
+  return `character:${characterId}:clickable`;
 }
 
 export function characterSpeechPositionVariableKey(characterId: string): string {
@@ -278,6 +281,28 @@ export function writeSavedCharacterMovable(
   movable: boolean,
 ): void {
   manager.setVariable(characterMovableVariableKey(characterId), movable);
+}
+
+/**
+ * Effective `B.character(id).clickable` — saved override (boolean) when set,
+ * else `jsonDefault` from `CharacterData.clickable` on `*.character.json`.
+ */
+export function readSavedCharacterClickable(
+  manager: GameStateManager,
+  characterId: string,
+  jsonDefault: boolean,
+): boolean {
+  const v = manager.getVariable(characterClickableVariableKey(characterId));
+  return typeof v === 'boolean' ? v : jsonDefault;
+}
+
+/** Persist script `clickable = …` for this character definition id. */
+export function writeSavedCharacterClickable(
+  manager: GameStateManager,
+  characterId: string,
+  clickable: boolean,
+): void {
+  manager.setVariable(characterClickableVariableKey(characterId), clickable);
 }
 
 /** Saved absolute world position for a character's speaking-text GUI, or `null` when unset. */
@@ -612,7 +637,7 @@ export function applyPersistedCharacterFollowFromScript(
     return false;
   }
   const targetPersist = trimmed.toLowerCase() === 'player' ? 'player' : trimmed;
-  const targetDef = targetPersist === 'player' ? getStartingPlayerCharacterId() : targetPersist;
+  const targetDef = targetPersist === 'player' ? manager.getActivePlayerCharacterId() : targetPersist;
   if (targetDef === followerId) {
     if (import.meta.env.DEV) {
       console.warn(
