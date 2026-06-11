@@ -44,7 +44,7 @@ async function main() {
  * AUTO-GENERATED — do not edit manually.
  *
  * Regenerate: npm run generate:game-ids
- * Source: src/game/ (rooms, characters, dialogs, guis, inventory, game-config.json)
+ * Source: src/game/ (rooms, characters, dialogs, guis, inventory, game-config.json, assets/videos)
  */
 
 /** Preserves autocomplete for known ids while still accepting any string at compile time. */
@@ -107,6 +107,11 @@ type LooseString<T extends string = string> = T | (string & {});
       'GameVerbId',
       'Verb ids from src/game/game-config.json verbs[] (or engine defaults when omitted).',
       ids.gameVerbIds,
+    ),
+    emitLooseStringType(
+      'VideoId',
+      'Video stem ids from src/game/assets/videos/<stem>.{mp4,webm} (basename without extension).',
+      ids.videoIds,
     ),
     `/** Prop, hotspot, or spawned character id for room verb handlers (whenLookAt, whenVerb, whenInventoryUsedOn). */\nexport type VerbTargetId = PropId | HotspotId | CharacterId;\n`,
     `/** Walk / teleport string target: prop → hotspot → character → room point (see RoomScene.resolveMovementTarget). */\nexport type ResolvableTargetId = PropId | HotspotId | CharacterId | PointId;\n`,

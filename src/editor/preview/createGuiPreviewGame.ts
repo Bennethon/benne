@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from '../../engine/sound/benneSoundRegistry';
+import { BENNE_VIDEO_SCRIPT_DISABLED_KEY } from '../../engine/video/benneVideoRegistry';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
 import { getBenneRendererConfigFields } from '../../engine/gameConfig';
 import { buildGuiOverlay, GUI_TEXT_OVERLAY_DEPTH } from '../../engine/gui/buildGuiOverlay';
@@ -508,6 +509,7 @@ export function createGuiPreviewPhaserGame(
     callbacks: {
       preBoot: (game: Phaser.Game) => {
         game.registry.set(BENNE_AUDIO_SCRIPT_DISABLED_KEY, true);
+        game.registry.set(BENNE_VIDEO_SCRIPT_DISABLED_KEY, true);
       },
     },
     scene: [new BenneGuiPreviewBoot(payload), GuiPreviewScene],

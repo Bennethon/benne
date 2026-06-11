@@ -7,6 +7,7 @@ import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKe
 import { RoomScene } from '../../engine/scenes/RoomScene';
 import { BENNE_ROOM_START_KIND_KEY } from '../../engine/scenes/roomStartKindConstants';
 import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from '../../engine/sound/benneSoundRegistry';
+import { BENNE_VIDEO_SCRIPT_DISABLED_KEY } from '../../engine/video/benneVideoRegistry';
 import { SCENE_ROOM } from '../../game/boot/constants';
 import type { PreviewManifest } from './buildPreviewManifest';
 import type { RoomPolygonPatch } from './polygonPatchTypes';
@@ -75,6 +76,7 @@ export function createRoomPreviewPhaserGame(
         callbacks: {
             preBoot: (game: Phaser.Game) => {
                 game.registry.set(BENNE_AUDIO_SCRIPT_DISABLED_KEY, true);
+                game.registry.set(BENNE_VIDEO_SCRIPT_DISABLED_KEY, true);
                 game.registry.set('bennePreviewRoom', manifestRef.startData.room);
                 game.registry.set('bennePreviewRoomJsonUri', options.roomJsonUri);
                 game.registry.set('bennePreviewPostPatch', options.onPolygonPatch);

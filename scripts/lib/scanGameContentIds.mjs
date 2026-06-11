@@ -27,6 +27,7 @@ export async function scanGameContentIds(gameRoot) {
     pointIds: [],
     dialogOptionIds: [],
     gameVerbIds: [],
+    videoIds: [],
   };
 
   const meta = {
@@ -97,6 +98,8 @@ export async function scanGameContentIds(gameRoot) {
   ids.dialogOptionIds = sortUnique([...dialogOptionIdSet]);
 
   ids.gameVerbIds = await readGameConfigVerbIds(gameRoot, meta.verbs);
+
+  ids.videoIds = await scanAssetStems(path.join(gameRoot, 'assets', 'videos'), ['.mp4', '.webm']);
 
   sortAllIdArrays(ids);
 
@@ -191,6 +194,49 @@ async function scanFolderEntities(gameRoot, subdir, suffix, outIds, metaMap, rea
     outIds.push(id);
     metaMap[id] = await readMeta(jsonPath, id);
   }
+}
+
+/**
+ * Recursively collects deduped basename stems (filename without extension) of asset files under
+ * `dir` whose extension is in `extensions` (lowercased, including the leading dot). Mirrors the
+ * basename-only keying used by `import.meta.glob('../assets/videos/**')` in `resolveGameAssetUrl.ts`.
+ * @param {string} dir Absolute path to the asset folder (e.g. `src/game/assets/videos`).
+ * @param {string[]} extensions Allowed extensions, e.g. `['.mp4', '.webm']`.
+ */
+async function scanAssetStems(dir, extensions) {
+  const stems = new Set();
+  const allowed = new Set(extensions.map((e) => e.toLowerCase()));
+
+  /** @param {string} current */
+  async function walk(current) {
+    let entries;
+    try {
+      entries = await readdir(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of entries) {
+      const full = path.join(current, ent.name);
+      if (ent.isDirectory()) {
+        await walk(full);
+        continue;
+      }
+      if (!ent.isFile()) {
+        continue;
+      }
+      const ext = path.extname(ent.name).toLowerCase();
+      if (!allowed.has(ext)) {
+        continue;
+      }
+      const stem = ent.name.slice(0, ent.name.length - ext.length);
+      if (stem.length > 0) {
+        stems.add(stem);
+      }
+    }
+  }
+
+  await walk(dir);
+  return sortUnique([...stems]);
 }
 
 async function scanAllRoomJson(gameRoot, onRoom) {

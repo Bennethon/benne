@@ -6,11 +6,13 @@ import type {
   ResolvableTargetId,
   RoomId,
   VerbTargetId,
+  VideoId,
 } from '../../types/generated/benne-game-ids.js';
 import type { Point2 } from '../../types/room.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import type { InventoryVerbInteractPayload } from '../events/inventoryVerbEvents.js';
 import type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
+import type { VideoPlayOptions } from '../video/benneVideoTypes.js';
 import type { BenneScriptCharacterInventoryNamespace } from './benneScriptGameStateApi.js';
 import type { BenneScriptCore, BenneScriptSayDialogueHybrid, BlockingWithNow } from './BenneScriptCore.js';
 import type { ControlFacade } from './GuiRuntime.js';
@@ -34,6 +36,25 @@ export interface BenneScriptSoundFacade {
   getMusicVolume(): number;
   isPlaying(key: string): boolean;
   isMusicPlaying(): boolean;
+}
+
+/**
+ * {@link import('./BenneScriptCore.js').BenneScriptCore.video} — cinematic video playback. Shared
+ * reference on `B`, nested facades, and GUIs (same pattern as {@link BenneScriptSoundFacade}). `play`
+ * starts playback and returns immediately (does **not** block the script chain); `playAndWait` blocks
+ * until the video ends. All forms are safe to call with no active RoomScene (DEV warn-once + no-op).
+ */
+export interface BenneScriptVideoFacade {
+  /** Start a full-screen cinematic; queued on the interaction tail but resolves immediately (playback runs concurrently). */
+  readonly play: BlockingWithNow<[VideoId, VideoPlayOptions?]>;
+  /** Start a cinematic and block the script chain until it ends or is stopped. */
+  readonly playAndWait: BlockingWithNow<[VideoId, VideoPlayOptions?]>;
+  readonly pause: BlockingWithNow<[]>;
+  readonly resume: BlockingWithNow<[]>;
+  readonly stop: BlockingWithNow<[]>;
+  /** Seek the active video to `seconds` from its start. */
+  readonly seek: BlockingWithNow<[seconds: number]>;
+  isPlaying(): boolean;
 }
 
 /**
@@ -127,6 +148,7 @@ export type BenneScriptSharedSelectionApi = Pick<
   | 'currentHoverTarget'
   | 'room'
   | 'sound'
+  | 'video'
   | 'camera'
   | 'speechSettings'
   | 'dialogSettings'
@@ -204,6 +226,7 @@ export interface BenneScriptHotspotFacade {
 /** Visibility + description overrides for one prop (`BenneScript.prop`). */
 export interface BenneScriptPropFacade {
   readonly sound: BenneScriptSoundFacade;
+  readonly video: BenneScriptVideoFacade;
   hide: BlockingWithNow<[]>;
   show: BlockingWithNow<[]>;
   get visible(): boolean;
@@ -249,6 +272,7 @@ export interface BenneScriptPropFacade {
 /** Movement + animation + facing for the player. */
 export interface BenneScriptPlayerFacade {
   readonly sound: BenneScriptSoundFacade;
+  readonly video: BenneScriptVideoFacade;
   /** Character definition id currently controlled as the player. */
   readonly id: CharacterId;
   /** Switch player control to another spawned character, updating camera follow and active inventory ownership. */
@@ -319,6 +343,7 @@ export interface BenneScriptPlayerFacade {
 /** Movement + animation + facing for an NPC. */
 export interface BenneScriptCharacterFacade {
   readonly sound: BenneScriptSoundFacade;
+  readonly video: BenneScriptVideoFacade;
   walkTo: BlockingWithNow<[Point2 | ResolvableTargetId]>;
   /** Teleport (see {@link BenneScriptPlayerFacade.moveTo}). */
   moveTo: BlockingWithNow<[Point2 | ResolvableTargetId]>;

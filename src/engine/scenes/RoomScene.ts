@@ -218,6 +218,10 @@ import {
   BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
   BENNE_SCREEN_FADE_OVERLAY_DEPTH,
 } from './roomScreenFadeConstants';
+import { ROOM_VIDEO_LAYER_DEPTH } from './roomVideoConstants';
+import { benneVideoCacheKey } from '../video/benneVideoCacheKeys.js';
+import { BENNE_VIDEO_ENDED_EVENT } from '../video/benneVideoEvents.js';
+import type { VideoPlayOptions } from '../video/benneVideoTypes.js';
 import { getGuiBenneScript } from '../scripting/registerGuiScript.js';
 import type { BenneScriptCore } from '../scripting/BenneScriptCore.js';
 import {
@@ -477,6 +481,28 @@ export class RoomScene extends Phaser.Scene {
    */
   private screenFadeRect: Phaser.GameObjects.Rectangle | null = null;
 
+  /**
+   * Single-slot cinematic video layer (`B.video`). Created hidden in {@link create} (no source) and
+   * reused across `play` calls; renders at {@link ROOM_VIDEO_LAYER_DEPTH} (above room art, below all
+   * GUIs). Null only before `create` or after shutdown.
+   */
+  private roomVideo: Phaser.GameObjects.Video | null = null;
+
+  /** Black letterbox backdrop behind {@link roomVideo}; visible only while a video is playing. */
+  private roomVideoBackdrop: Phaser.GameObjects.Rectangle | null = null;
+
+  /** Stem key of the video currently loaded into {@link roomVideo}, or null when idle. */
+  private roomVideoActiveKey: string | null = null;
+
+  /** `options.onComplete` for the current playback, called once on end/stop. */
+  private roomVideoOnComplete: (() => void) | null = null;
+
+  /** Resolvers for outstanding `playAndWait` promises on the current playback. */
+  private roomVideoCompleteResolvers: Array<() => void> = [];
+
+  /** Dedupes missing-video-cache warnings for `B.video.play` (once per stem per room `create`). */
+  private missingVideoKeysWarned = new Set<string>();
+
   /** Screen-fixed Speaking Text overlay (`speaking-text` id): `guis/speaking-text/speaking-text.gui.json`. */
   private dialogTextOverlay: GuiOverlayHandle | null = null;
 
@@ -509,6 +535,13 @@ export class RoomScene extends Phaser.Scene {
    * them. `null` when no dialog is open.
    */
   private genericGuiVisibilityBeforeDialog: boolean[] | null = null;
+
+  /**
+   * Parallel to {@link genericGuiOverlays}: each overlay’s effective visibility before a cinematic video
+   * ({@link startRoomVideo}) hid them. `null` when no video is playing. Tracked separately from
+   * {@link genericGuiVisibilityBeforeDialog} so video and dialog snapshots never clobber each other.
+   */
+  private genericGuiVisibilityBeforeVideo: boolean[] | null = null;
 
   /** Visible modal overlays (`GuiData.modal`) for depth-based pointer blocking. */
   private modalGuiEntries: ModalGuiDepthEntry[] = [];
@@ -634,6 +667,7 @@ export class RoomScene extends Phaser.Scene {
     this.missingDialogTextOverlaySayWarned = false;
     this.missingDisplayTextOverlayWarned = false;
     this.genericGuiVisibilityBeforeDialog = null;
+    this.genericGuiVisibilityBeforeVideo = null;
     this.modalGuiEntries = [];
     this.benneCoresForTransitionReset.length = 0;
     this.benneScriptRoomOnUpdateHandlers.length = 0;
@@ -795,6 +829,7 @@ export class RoomScene extends Phaser.Scene {
 
     this.wireDialogChoiceUi();
 
+    this.createRoomVideoLayer();
     this.createScreenFadeOverlay();
     const startKind: BenneRoomStartKind =
       (this.game.registry.get(BENNE_ROOM_START_KIND_KEY) as BenneRoomStartKind | undefined) ?? 'boot';
@@ -929,6 +964,7 @@ export class RoomScene extends Phaser.Scene {
       this.genericGuiOverlays = [];
       this.genericGuiOverlayJsonVisible = [];
       this.genericGuiVisibilityBeforeDialog = null;
+      this.genericGuiVisibilityBeforeVideo = null;
       this.modalGuiEntries = [];
       this.dialogTextOverlay?.destroy();
       this.dialogTextOverlay = null;
@@ -950,6 +986,8 @@ export class RoomScene extends Phaser.Scene {
         this.screenFadeRect.destroy();
         this.screenFadeRect = null;
       }
+      this.teardownRoomVideoLayer();
+      this.missingVideoKeysWarned.clear();
       this.editorUiChildListenerOff?.();
       this.editorUiChildListenerOff = null;
       this.editorUiGuiObjects.clear();
@@ -1126,6 +1164,7 @@ export class RoomScene extends Phaser.Scene {
     if (activeDialog) {
       endDialogSessionIfMatches(activeDialog);
     }
+    this.stopRoomVideo();
     this.scriptedDialogInputSuppressionDepth = 0;
     this.cutsceneDepth = 0;
     this.time.removeAllEvents();
@@ -1300,6 +1339,36 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
     this.genericGuiVisibilityBeforeDialog = null;
+    for (let i = 0; i < this.genericGuiOverlays.length; i++) {
+      this.genericGuiOverlays[i]!.setVisible(snap[i] ?? false);
+    }
+  }
+
+  /**
+   * Hides every generic HUD overlay (verbs, menus, etc.) while a cinematic video plays, snapshotting
+   * their effective visibility so {@link restoreGenericGuisAfterVideo} can put them back. The reserved
+   * Speaking Text / Display Text overlays are **not** in {@link genericGuiOverlays}, so they keep showing
+   * over the video as normal. No-op if a video snapshot is already held.
+   */
+  private snapshotAndHideGenericGuisForVideo(): void {
+    if (this.genericGuiVisibilityBeforeVideo !== null) {
+      return;
+    }
+    const snap: boolean[] = [];
+    for (const h of this.genericGuiOverlays) {
+      snap.push(this.readGenericGuiOverlayVisibleHint(h));
+      h.setVisible(false);
+    }
+    this.genericGuiVisibilityBeforeVideo = snap;
+  }
+
+  /** Restores generic GUI visibility from {@link genericGuiVisibilityBeforeVideo} (video end / stop / teardown). */
+  private restoreGenericGuisAfterVideo(): void {
+    const snap = this.genericGuiVisibilityBeforeVideo;
+    if (snap === null) {
+      return;
+    }
+    this.genericGuiVisibilityBeforeVideo = null;
     for (let i = 0; i < this.genericGuiOverlays.length; i++) {
       this.genericGuiOverlays[i]!.setVisible(snap[i] ?? false);
     }
@@ -1557,6 +1626,180 @@ export class RoomScene extends Phaser.Scene {
       .setDepth(BENNE_SCREEN_FADE_OVERLAY_DEPTH)
       .setAlpha(0);
     this.screenFadeRect = rect;
+  }
+
+  /**
+   * Creates the (hidden) single-slot cinematic video layer + black letterbox backdrop. Both are
+   * screen-fixed (`scrollFactor 0`) at {@link ROOM_VIDEO_LAYER_DEPTH} so they sit above room art and
+   * below every GUI overlay (Speaking Text / Display Text always draw on top). The {@link Phaser.GameObjects.Video}
+   * starts without a source and is fed via {@link startRoomVideo}; mirrors the screen-fade lifecycle.
+   */
+  private createRoomVideoLayer(): void {
+    const w = getInternalWidth();
+    const h = getInternalHeight();
+    const backdrop = this.add
+      .rectangle(0, 0, w, h, 0x000000, 1)
+      .setOrigin(0, 0)
+      .setScrollFactor(0, 0)
+      .setDepth(ROOM_VIDEO_LAYER_DEPTH - 1)
+      .setVisible(false);
+    this.roomVideoBackdrop = backdrop;
+
+    const video = this.add
+      .video(w / 2, h / 2)
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0, 0)
+      .setDepth(ROOM_VIDEO_LAYER_DEPTH)
+      .setVisible(false);
+    video.on(Phaser.GameObjects.Events.VIDEO_PLAY, () => this.onRoomVideoPlay());
+    video.on(Phaser.GameObjects.Events.VIDEO_COMPLETE, () => this.finalizeRoomVideo(true));
+    video.on(Phaser.GameObjects.Events.VIDEO_STOP, () => this.finalizeRoomVideo(true));
+    this.roomVideo = video;
+  }
+
+  /** Crisp nearest-neighbor + letterbox fit to the internal resolution once the frame is ready. */
+  private onRoomVideoPlay(): void {
+    const video = this.roomVideo;
+    if (!video) {
+      return;
+    }
+    video.videoTexture?.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    const nativeW = video.width;
+    const nativeH = video.height;
+    if (nativeW > 0 && nativeH > 0) {
+      const scale = Math.min(getInternalWidth() / nativeW, getInternalHeight() / nativeH);
+      video.setDisplaySize(nativeW * scale, nativeH * scale);
+    }
+    video.setPosition(getInternalWidth() / 2, getInternalHeight() / 2);
+  }
+
+  /**
+   * Starts cinematic playback of the bundled video stem `key`. Single-slot: any video already playing
+   * is stopped first. Returns a handle whose `whenComplete` resolves when the video ends or is stopped
+   * (used by `B.video.playAndWait`). Missing / disabled cache → DEV warn-once + already-resolved handle.
+   */
+  startRoomVideo(key: string, options?: VideoPlayOptions): { whenComplete: Promise<void> } {
+    const video = this.roomVideo;
+    const cacheKey = benneVideoCacheKey(key);
+    if (!video || !this.cache.video.has(cacheKey)) {
+      if (import.meta.env.DEV && !this.missingVideoKeysWarned.has(key)) {
+        this.missingVideoKeysWarned.add(key);
+        console.warn(
+          `[Benne] B.video.play('${key}'): no bundled video found (expected src/game/assets/videos/${key}.{mp4,webm}) — ignored.`,
+        );
+      }
+      return { whenComplete: Promise.resolve() };
+    }
+
+    // Replace any in-flight video (resolves the previous playback's waiters via finalizeRoomVideo).
+    if (this.roomVideoActiveKey !== null) {
+      video.stop();
+    }
+
+    const masterVolume = Phaser.Math.Clamp(getGameSettings().audio.masterVolume, 0, 1);
+    const optVolume = options?.volume === undefined ? 1 : Phaser.Math.Clamp(options.volume, 0, 1);
+    const loop = options?.loop === true;
+
+    this.roomVideoActiveKey = key;
+    this.roomVideoOnComplete = options?.onComplete ?? null;
+
+    // Hide HUD GUIs (verbs/menus/dialog) for the cinematic; Speaking/Display Text overlays are not in
+    // `genericGuiOverlays`, so they keep working over the video. Restored in `finalizeRoomVideo`.
+    this.snapshotAndHideGenericGuisForVideo();
+
+    video
+      .setVisible(true)
+      .setLoop(loop)
+      .setVolume(masterVolume * optVolume);
+    this.roomVideoBackdrop?.setVisible(true);
+    video.load(cacheKey);
+    video.play(loop);
+
+    return {
+      whenComplete: new Promise<void>((resolve) => {
+        this.roomVideoCompleteResolvers.push(resolve);
+      }),
+    };
+  }
+
+  /** Resolves outstanding `playAndWait` waiters, fires `onComplete`, emits the ended event, and hides the layer. */
+  private finalizeRoomVideo(emitEvent: boolean): void {
+    const key = this.roomVideoActiveKey;
+    if (key === null) {
+      return;
+    }
+    const resolvers = this.roomVideoCompleteResolvers;
+    const onComplete = this.roomVideoOnComplete;
+    this.roomVideoActiveKey = null;
+    this.roomVideoOnComplete = null;
+    this.roomVideoCompleteResolvers = [];
+
+    this.roomVideo?.setVisible(false);
+    this.roomVideoBackdrop?.setVisible(false);
+    this.restoreGenericGuisAfterVideo();
+
+    for (const resolve of resolvers) {
+      resolve();
+    }
+    onComplete?.();
+    if (emitEvent) {
+      gameEvents.emit(BENNE_VIDEO_ENDED_EVENT, { key });
+    }
+  }
+
+  /** Stops the active cinematic video (resolves `playAndWait` waiters); no-op when idle. */
+  stopRoomVideo(): void {
+    if (this.roomVideoActiveKey === null) {
+      return;
+    }
+    // `stop()` emits VIDEO_STOP → finalizeRoomVideo handles waiters / cleanup.
+    this.roomVideo?.stop();
+  }
+
+  /** Pauses the active cinematic video (no-op when idle). */
+  pauseRoomVideo(): void {
+    if (this.roomVideoActiveKey === null) {
+      return;
+    }
+    this.roomVideo?.setPaused(true);
+  }
+
+  /** Resumes a paused cinematic video (no-op when idle). */
+  resumeRoomVideo(): void {
+    if (this.roomVideoActiveKey === null) {
+      return;
+    }
+    this.roomVideo?.setPaused(false);
+  }
+
+  /** Seeks the active cinematic video to `seconds` from its start (no-op when idle). */
+  seekRoomVideo(seconds: number): void {
+    if (this.roomVideoActiveKey === null) {
+      return;
+    }
+    this.roomVideo?.setCurrentTime(Math.max(0, seconds));
+  }
+
+  /** True while a cinematic video is loaded and playing/paused. */
+  isRoomVideoPlaying(): boolean {
+    return this.roomVideoActiveKey !== null;
+  }
+
+  /** Stops playback and destroys the video layer game objects (called on transition + shutdown). */
+  private teardownRoomVideoLayer(): void {
+    // Resolve any waiters without re-emitting (teardown, not a natural end) before destroying objects.
+    if (this.roomVideoActiveKey !== null) {
+      this.roomVideo?.stop(false);
+      this.finalizeRoomVideo(false);
+    }
+    if (this.roomVideo) {
+      this.roomVideo.destroy();
+      this.roomVideo = null;
+    }
+    if (this.roomVideoBackdrop) {
+      this.roomVideoBackdrop.destroy();
+      this.roomVideoBackdrop = null;
+    }
   }
 
   /**
@@ -3759,6 +4002,12 @@ export class RoomScene extends Phaser.Scene {
     registerOverlay(this.displayTextOverlay);
     for (const { built } of this.dialogChoiceInstallByGuiId.values()) {
       registerOverlay(built.handle);
+    }
+    if (this.roomVideoBackdrop) {
+      this.editorUiGuiObjects.add(this.roomVideoBackdrop);
+    }
+    if (this.roomVideo) {
+      this.editorUiGuiObjects.add(this.roomVideo);
     }
     if (this.screenFadeRect) {
       this.editorUiGuiObjects.add(this.screenFadeRect);

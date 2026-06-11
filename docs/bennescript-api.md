@@ -39,7 +39,7 @@ Each union is **`LooseString<…>`** — known literals from your game appear in
 - **`registerGuiScript('guiId', ({ B, events, guiId }) => …)`** — at content registration; overlay built per room.
 - **`registerDialogScript('dialogId', ({ B, events, dialogId, game }) => …)`** — runs when **`openDialogSessionForId`** opens that dialog (after **`B.dialog(id).start()`** / **`.start.now()`**).
 
-**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`display`**, **`wait`**, **`B.sound.play`**, **`B.sound.playAndWait`**, **`B.sound.playMusic`**, **`B.sound.stop`**, **`B.sound.stopMusic`**, **`B.camera.focus`**, **`B.camera.setZoom`**, **`B.camera.reset`**, etc., queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. **`B.gui('id').show()` / `hide()`** and **`B.camera.shake`** are immediate (not queued on the interaction tail). See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
+**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`display`**, **`wait`**, **`B.sound.play`**, **`B.sound.playAndWait`**, **`B.sound.playMusic`**, **`B.sound.stop`**, **`B.sound.stopMusic`**, **`B.video.play`**, **`B.video.playAndWait`**, **`B.camera.focus`**, **`B.camera.setZoom`**, **`B.camera.reset`**, etc., queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. **`B.gui('id').show()` / `hide()`** and **`B.camera.shake`** are immediate (not queued on the interaction tail). See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
 
 **`BlockingWithNow` pattern** — Many APIs are **`(…args) => void`** plus **`.now(…args)`** with the same parameters. The blocking form **queues** on **`interactionTail`**; **`.now`** performs the same work **without** extending the tail, so later lines in your handler still run in source order but do not wait for that action.
 
@@ -57,7 +57,7 @@ Each union is **`LooseString<…>`** — known literals from your game appear in
 
 | Surface | Room | Character | Inventory | Global | GUI | Dialog (session) |
 |--------|:----:|:---------:|:---------:|:------:|:---:|:----------------:|
-| Core queue, **`raw`**, **`wait`**, **`say`**, **`display`**, **`sound`** (**`B.sound`** — same object on **`B.player.sound`**, **`B.character('…').sound`**, **`B.prop('…').sound`** where applicable), **`camera`** (**`B.camera`**), **`speechSettings`**, **`dialogSettings`**, **`onSpeechSettingsChanged`**, **`walkToClicked`**, **`faceClicked`**, fades, **`room`**, active verb/inventory helpers | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Core queue, **`raw`**, **`wait`**, **`say`**, **`display`**, **`sound`** (**`B.sound`** — same object on **`B.player.sound`**, **`B.character('…').sound`**, **`B.prop('…').sound`** where applicable), **`video`** (**`B.video`** — same object on the same nested facades), **`camera`** (**`B.camera`**), **`speechSettings`**, **`dialogSettings`**, **`onSpeechSettingsChanged`**, **`walkToClicked`**, **`faceClicked`**, fades, **`room`**, active verb/inventory helpers | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.state`** / **`B.inventory`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.dialog(id)`** | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ |
 | **`B.player`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -271,6 +271,44 @@ Same handoff but aligned to the outgoing track’s playback head (best effort; f
 B.sound.playMusic('outside-ambient', { fadeSeconds: 2, sync: true });
 ```
 
+### Video (`B.video`)
+
+Available on every **`BenneScriptCore`** facade (**room / character / inventory / global / GUI / dialog session**). The **same** facade object is exposed as **`B.player.video`**, **`B.character('…').video`**, and **`B.prop('…').video`** for readability. Cinematic video renders full-screen in the active **`RoomScene`** **above** room art. On playback start the engine **hides the HUD** (all generic GUIs — verbs, menus, the dialog choice band, etc.) and **restores** their prior visibility when the video ends, is stopped, or the room tears down. Speaking Text (**`say`**) and Display Text (**`B.display`**) are **not** hidden — they keep working **on top** of the playing video, so you can show dialog and narration over a cinematic.
+
+**Assets** — Put files under **`src/game/assets/videos/<name>.{mp4,webm}`** and reference them by **basename only** (e.g. **`B.video.play('intro-cinematic')`** for **`…/videos/intro-cinematic.mp4`**). Stems are auto-discovered (no manifest) and typed as **`VideoId`** for autocomplete (regenerated by **`npm run generate:game-ids`**). Multiple container formats sharing a stem become fallback URLs.
+
+**Rendering** — Single slot: a new **`play`** replaces any in-flight video. The video is letterboxed to the internal resolution over a black backdrop, screen-fixed, and forced to **nearest-neighbor** filtering for crisp upscaling of low-res sources (e.g. 320×180), matching BENNE's **`pixelArt`** / **`roundPixels`** renderer.
+
+**Volume** — Audio tracks play at **`game-config.json`** **`audio.masterVolume`** × **`VideoPlayOptions.volume`** (0–1, default 1). There is no separate video slider or save persistence in v1.
+
+**Concurrency** — Blocking **`play`** is queued on the interaction tail (so it orders after prior **`walkTo`** / **`wait`** steps) but **resolves immediately** — the script keeps running while the video plays. Use **`playAndWait`** when the next step should run only **after** the video finishes.
+
+| Member | Signature | Description | Blocking |
+|--------|-----------|-------------|--------|
+| **`play`** | `BlockingWithNow<[key: VideoId, options?: VideoPlayOptions]>` | Start a full-screen cinematic. **Blocking** form queues on the tail then resolves immediately (playback runs concurrently). **`play.now`** starts immediately without tail ordering. | Queued vs **`.now`** |
+| **`playAndWait`** | `BlockingWithNow<[key: VideoId, options?: VideoPlayOptions]>` | Same as **`play`**, but the **blocking** form **waits** until the video **ends or is stopped**. **`playAndWait.now`** starts playback without making following lines wait. | Queued vs **`.now`** |
+| **`pause`** | `BlockingWithNow<[]>` | Pause the active video. | Queued vs **`.now`** |
+| **`resume`** | `BlockingWithNow<[]>` | Resume a paused video. | Queued vs **`.now`** |
+| **`stop`** | `BlockingWithNow<[]>` | Stop the active video (resolves any **`playAndWait`** waiters; fires **`onComplete`** + **`benne:video:ended`**). | Queued vs **`.now`** |
+| **`seek`** | `BlockingWithNow<[seconds: number]>` | Seek the active video to **`seconds`** from its start. | Queued vs **`.now`** |
+| **`isPlaying`** | `() => boolean` | Whether a video is currently loaded and playing/paused. | Sync |
+
+**`VideoPlayOptions`** — optional **`loop?: boolean`** (default false; looping videos never fire completion), **`volume?: number`** (0–1), **`onComplete?: () => void`** (called once on end/stop).
+
+**Lifecycle** — Playback stops on room-leave and the video object is destroyed on **`RoomScene`** shutdown, so cinematics never leak across rooms. **`B.video`** does **not** force cutscene mode; wrap calls in **`B.cutscene(…)`** when you want input suppressed during a cinematic. Calling **`B.video`** with no active **`RoomScene`** is a safe no-op (DEV warn-once, like **`B.camera`**).
+
+**Editor previews** — VS Code **room / GUI / inventory / character** previews set **`benneVideoScriptDisabled`** so **`B.video`** never loads or plays cinematics (full runtime and **BENNE Play** behave normally).
+
+Example (cinematic plays while the player narrates over it, then a queued line waits for the outro):
+
+```ts
+B.video.play('intro-cinematic');
+B.player.say('It all started on a rainy night...');
+B.wait(2);
+B.video.playAndWait('outro-cinematic');
+B.player.say('And that was the end of it.');
+```
+
 ### Camera (`B.camera`)
 
 Available on every **`BenneScriptCore`** facade (**room / character / inventory / global / GUI / dialog session**). Script camera state is **runtime-only** — it resets automatically on room transitions and when loading a saved game (fresh **`RoomScene`** boot). Use **`B.camera.reset()`** to return control to the player during a cutscene.
@@ -359,6 +397,7 @@ Constructed from active **`RoomScene`** (global/dialog resolve **`SCENE_ROOM` on
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
 | **`sound`** | **`BenneScriptSoundFacade`** | Alias of top-level **`B.sound`** (same object). | See [Sound (`B.sound`)](#sound-bsound) |
+| **`video`** | **`BenneScriptVideoFacade`** | Alias of top-level **`B.video`** (same object). | See [Video (`B.video`)](#video-bvideo) |
 | **`id`** | getter **`CharacterId`** | Current active player character id (`GameStateManager.activePlayerCharacterId`). | Sync |
 | **`switchTo`** | `BlockingWithNow<[characterId: string]>` | Switches live player control to a spawned character in the active room: persists **`activePlayerCharacterId`**, rebinds `RoomScene.player`, refreshes camera follow, hover/cursor state, and active-player inventory panels. DEV warns + no-op when the id is empty or not spawned in the current room. | Queued vs **`.now`** |
 | **`switchToNow`** | `(characterId: string) => void` | Alias for **`switchTo.now`**. | Immediate |
@@ -467,6 +506,7 @@ B.character('penny').fade.now(1, 0, 1); // start fade-out immediately, don't blo
 | Member | Description | Blocking |
 |--------|-------------|--------|
 | **`sound`** | Same **`BenneScriptSoundFacade`** as **`B.sound`**. | See [Sound (`B.sound`)](#sound-bsound) |
+| **`video`** | Same **`BenneScriptVideoFacade`** as **`B.video`**. | See [Video (`B.video`)](#video-bvideo) |
 | **`hide` / `show`** | Script visibility overrides (persisted — see below); **`BlockingWithNow<[]>`** (queue vs **`.now`**). | Queued vs **`.now`** |
 | **`visible`** get/set | Setter queues like **`animation`**; **`visibleNow(v)`** applies immediately. Both setter and **`hide` / `show`** persist the boolean to **`GameStateManager`** (key `` `room:<roomId>:prop:<propId>:visible` ``); **`getPropScriptVisible`** returns the live sprite when one exists, else the saved override, else JSON. | Setter queued |
 | **`description`** get/set | | Sync |
@@ -986,6 +1026,7 @@ Strict typing when bypassing **`(p: any)`**:
 | [`dialogGameState.ts`](../src/engine/dialog/dialogGameState.ts) | **`dialog:*`** variable keys (choice viewport height), read/write, snapshot merge |
 | [`benneScriptOnUpdateRegistry.ts`](../src/engine/scripting/benneScriptOnUpdateRegistry.ts) | Global **`B.onUpdate`** handler list + **`runGlobalBenneScriptOnUpdateHandlers`**, **`clearGlobalBenneScriptOnUpdateHandlers`** (game **`DESTROY`**) |
 | [`benneScriptSoundApi.ts`](../src/engine/scripting/benneScriptSoundApi.ts) | **`createBenneScriptSoundFacade`** (**`B.sound`**) |
+| [`benneScriptVideoApi.ts`](../src/engine/scripting/benneScriptVideoApi.ts) | **`createBenneScriptVideoFacade`** (**`B.video`**) |
 | [`benneScriptCameraApi.ts`](../src/engine/scripting/benneScriptCameraApi.ts) | **`createBenneScriptCameraFacade`** (**`B.camera`**) |
 | [`SoundManager.ts`](../src/engine/sound/SoundManager.ts) | **`Phaser.Game#sound`** playback, SFX tracking, music slot, lifecycle |
 | [`BenneScript.ts`](../src/engine/scripting/BenneScript.ts) | Room **`B`**, verb sugar, **`prop`/`character`/`player`/`region`**, **`state`/`inventory`/`dialog`** |

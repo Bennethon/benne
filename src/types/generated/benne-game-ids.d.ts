@@ -2,7 +2,7 @@
  * AUTO-GENERATED — do not edit manually.
  *
  * Regenerate: npm run generate:game-ids
- * Source: src/game/ (rooms, characters, dialogs, guis, inventory, game-config.json)
+ * Source: src/game/ (rooms, characters, dialogs, guis, inventory, game-config.json, assets/videos)
  */
 
 /** Preserves autocomplete for known ids while still accepting any string at compile time. */
@@ -40,6 +40,9 @@ export type DialogOptionId = LooseString<'bye' | 'door' | 'greeting'>;
 
 /** Verb ids from src/game/game-config.json verbs[] (or engine defaults when omitted). */
 export type GameVerbId = LooseString<'close' | 'give' | 'look' | 'open' | 'pickUp' | 'pull' | 'push' | 'talkTo' | 'use'>;
+
+/** Video stem ids from src/game/assets/videos/<stem>.{mp4,webm} (basename without extension). */
+export type VideoId = LooseString;
 
 /** Prop, hotspot, or spawned character id for room verb handlers (whenLookAt, whenVerb, whenInventoryUsedOn). */
 export type VerbTargetId = PropId | HotspotId | CharacterId;

@@ -230,4 +230,5 @@ registerRoomScript(({ B }) => {
     B.character('penny').clickable = true;
     B.character('hank').clickable = false;
   });
+
 });

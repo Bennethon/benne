@@ -62,11 +62,13 @@ import type {
   BenneScriptRoomFacade,
   BenneScriptSoundFacade,
   BenneScriptSpeechSettingsFacade,
+  BenneScriptVideoFacade,
 } from './benneScriptFacades.js';
 import { createBenneScriptDialogSettingsFacade } from './benneScriptDialogSettingsApi.js';
 import { createBenneScriptSpeechSettingsFacade } from './benneScriptSpeechSettingsApi.js';
 import { createBenneScriptCameraFacade } from './benneScriptCameraApi.js';
 import { createBenneScriptSoundFacade } from './benneScriptSoundApi.js';
+import { createBenneScriptVideoFacade } from './benneScriptVideoApi.js';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
 import { getCharacterWorldFeet } from '../characterFeet.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
@@ -370,6 +372,9 @@ export abstract class BenneScriptCore {
   /** SFX + music (`B.sound.play('creak')`, `B.sound.playMusic('song')`, …). */
   readonly sound: BenneScriptSoundFacade;
 
+  /** Cinematic video playback (`B.video.play('intro')`, `B.video.playAndWait('outro')`, …). */
+  readonly video: BenneScriptVideoFacade;
+
   /** Script camera control (`B.camera.focus`, `B.camera.setZoom`, …). */
   readonly camera: BenneScriptCameraFacade;
 
@@ -508,6 +513,10 @@ export abstract class BenneScriptCore {
 
     this.room = bindRoomFacadeForBenneScriptCore((f) => this.chain(f));
     this.sound = createBenneScriptSoundFacade((f) => this.chain(f));
+    this.video = createBenneScriptVideoFacade(
+      (f) => this.chain(f),
+      () => this.getPlayerWalkRoomScene(),
+    );
     this.camera = createBenneScriptCameraFacade(
       (f) => this.chain(f),
       () => this.getPlayerWalkRoomScene(),
@@ -1673,6 +1682,7 @@ export abstract class BenneScriptCore {
     );
     return {
       sound: core.sound,
+      video: core.video,
       get id() {
         return activePlayerId();
       },
@@ -1910,6 +1920,7 @@ export abstract class BenneScriptCore {
     );
     return {
       sound: core.sound,
+      video: core.video,
       walkTo: walkCharacterWithNow,
       moveTo: moveToTeleport,
       moveToNow: (target: Point2 | ResolvableTargetId) => {

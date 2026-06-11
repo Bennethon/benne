@@ -104,5 +104,7 @@ export type {
   BenneScriptDialogSettingsFacade,
   BenneScriptSpeechSettingsFacade,
   BenneScriptSoundFacade,
+  BenneScriptVideoFacade,
 } from './benneScriptFacades.js';
 export type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
+export type { VideoPlayOptions } from '../video/benneVideoTypes.js';
