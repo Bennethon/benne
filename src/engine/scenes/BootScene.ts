@@ -37,6 +37,8 @@ import type { RoomData, RoomPropInstance } from '../../types/room';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { isBenneAudioScriptDisabled } from '../sound/benneSoundRegistry.js';
 import { queueBenneAudioForBootLoader } from '../sound/queueBenneAudioBoot.js';
+import { isBenneVideoScriptDisabled } from '../video/benneVideoRegistry.js';
+import { queueBenneVideoForBootLoader } from '../video/queueBenneVideoBoot.js';
 import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from './roomSceneBootstrap';
 import { BENNE_ROOM_START_KIND_KEY } from './roomStartKindConstants';
 import { tryGetRoomTransitionOrchestrator } from './roomTransitionGlobals';
@@ -208,6 +210,10 @@ export class BootScene extends Phaser.Scene {
 
     if (!isBenneAudioScriptDisabled(this.game)) {
       queueBenneAudioForBootLoader(this.load);
+    }
+
+    if (!isBenneVideoScriptDisabled(this.game)) {
+      queueBenneVideoForBootLoader(this.load);
     }
 
     this.load.once(Phaser.Loader.Events.COMPLETE, () => {

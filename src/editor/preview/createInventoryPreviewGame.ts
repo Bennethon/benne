@@ -6,6 +6,7 @@ import {
 } from '../../engine/aseprite/ensureAsepriteAtlasAnimationsOnce.js';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
 import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from '../../engine/sound/benneSoundRegistry';
+import { BENNE_VIDEO_SCRIPT_DISABLED_KEY } from '../../engine/video/benneVideoRegistry';
 import { applyCharacterAnimationClips } from '../../engine/characterAnimationPlayback';
 import type { InventoryItemData } from '../../types/inventory';
 
@@ -120,6 +121,7 @@ export function createInventoryPreviewPhaserGame(
     callbacks: {
       preBoot: (game: Phaser.Game) => {
         game.registry.set(BENNE_AUDIO_SCRIPT_DISABLED_KEY, true);
+        game.registry.set(BENNE_VIDEO_SCRIPT_DISABLED_KEY, true);
       },
     },
     scene: [new BenneInventoryPreviewBoot(payload), InventoryPreviewScene],

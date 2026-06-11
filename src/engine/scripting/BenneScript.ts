@@ -482,6 +482,7 @@ export class BenneScript extends BenneScriptCore {
     const B = this;
     return {
       sound: this.sound,
+      video: this.video,
       hide: withNow(
         () => {
           B.chain(() => {
