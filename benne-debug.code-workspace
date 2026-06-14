@@ -1,0 +1,89 @@
+{
+  "folders": [
+	{
+		"name": "BENNE Game Engine",
+		"path": "."
+	},
+	{
+		"name": "BENNE Editor Extension",
+		"path": "benne-editor"
+	},
+	{
+		"path": "../hotel-detective"
+	}
+],
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "benne-editor: compile",
+        "type": "npm",
+        "script": "compile",
+        "path": "benne-editor",
+        "problemMatcher": [],
+        "group": "build",
+        "presentation": {
+          "reveal": "silent",
+          "panel": "shared"
+        }
+      },
+      {
+        "label": "benne-editor: npm watch",
+        "type": "npm",
+        "script": "watch",
+        "path": "benne-editor",
+        "problemMatcher": {
+          "owner": "webpack",
+          "source": "webpack",
+          "fileLocation": ["relative", "${workspaceFolder:BENNE Editor Extension}"],
+          "pattern": {
+            "regexp": "^ERROR in (.+)$",
+            "file": 1,
+            "message": 1
+          },
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "\\[webpack-cli\\] Compiler starting",
+            "endsPattern": "compiled successfully|compiled with \\d+ errors?"
+          }
+        },
+        "isBackground": true,
+        "presentation": {
+          "reveal": "silent",
+          "group": "watchers"
+        }
+      }
+    ]
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Launch BENNE Editor (workspace + watch)",
+        "type": "extensionHost",
+        "request": "launch",
+        "runtimeExecutable": "${execPath}",
+        "args": [
+          "--extensionDevelopmentPath=${workspaceFolder:BENNE Editor Extension}"
+        ],
+        "outFiles": [
+          "${workspaceFolder:BENNE Editor Extension}/dist/**/*.js"
+        ],
+        "preLaunchTask": "benne-editor: npm watch"
+      },
+      {
+        "name": "Launch BENNE Editor (workspace, compile once)",
+        "type": "extensionHost",
+        "request": "launch",
+        "runtimeExecutable": "${execPath}",
+        "args": [
+          "--extensionDevelopmentPath=${workspaceFolder:BENNE Editor Extension}"
+        ],
+        "outFiles": [
+          "${workspaceFolder:BENNE Editor Extension}/dist/**/*.js"
+        ],
+        "preLaunchTask": "benne-editor: compile"
+      }
+    ]
+  }
+}

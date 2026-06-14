@@ -4,11 +4,12 @@ import { findBenneGameFolders } from './gameDiscovery';
 import {
     compareSemver,
     copySharedScaffold,
+    copyTemplateBoot,
     mergeGamePackageJson,
     readBenneProject,
     readScaffoldManifest,
     runNpmScript,
-    scanSharedScaffoldUpdate,
+    scanScaffoldUpdate,
     writeBenneProject,
     type BenneProjectFile,
 } from './scaffoldPayload';
@@ -47,14 +48,14 @@ async function pickGameFolder(
 function formatScanSummary(
     fromVersion: string,
     toVersion: string,
-    scan: Awaited<ReturnType<typeof scanSharedScaffoldUpdate>>,
+    scan: Awaited<ReturnType<typeof scanScaffoldUpdate>>,
 ): string {
     return (
         `Update engine ${fromVersion} → ${toVersion}: ` +
         `${scan.unchangedFiles.length} unchanged, ` +
         `${scan.overwriteFiles.length} overwritten, ` +
         `${scan.newFiles.length} new. ` +
-        `src/game/ is not modified.`
+        `src/game/ is preserved (except src/game/boot/).`
     );
 }
 
@@ -128,7 +129,7 @@ export async function runUpdateEngineWizard(
 
     let scan;
     try {
-        scan = await scanSharedScaffoldUpdate(gameFolder.uri, extensionPath);
+        scan = await scanScaffoldUpdate(gameFolder.uri, extensionPath, existingProject?.templateId);
     } catch (e) {
         void vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e));
         return;
@@ -180,6 +181,24 @@ export async function runUpdateEngineWizard(
             } catch (e) {
                 channel.appendLine(
                     `Copy failed: ${e instanceof Error ? e.message : String(e)}`,
+                );
+                return false;
+            }
+
+            try {
+                const bootUpdated = await copyTemplateBoot(
+                    gameFolder.uri,
+                    extensionPath,
+                    existingProject?.templateId,
+                );
+                channel.appendLine(
+                    bootUpdated
+                        ? 'Updated src/game/boot/ from the engine scaffold (rest of src/game/ preserved).'
+                        : 'No scaffold boot files found; left src/game/boot/ unchanged.',
+                );
+            } catch (e) {
+                channel.appendLine(
+                    `Boot update failed: ${e instanceof Error ? e.message : String(e)}`,
                 );
                 return false;
             }
