@@ -187,6 +187,10 @@ registerRoomScript(({ B }) => {
     return false;
   });
 
+  B.whenUse('Table', () => {
+    B.walkToClicked();
+  });
+
   B.whenOpen('Couch', () => {
     B.prop('Couch').fade(1, 0.5, 1);
   });

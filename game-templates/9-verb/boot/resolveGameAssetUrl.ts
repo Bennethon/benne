@@ -1,4 +1,5 @@
 import { benneMusicCacheKey, benneSfxCacheKey } from '../../engine/sound/benneAudioCacheKeys.js';
+import { benneVideoCacheKey } from '../../engine/video/benneVideoCacheKeys.js';
 
 /**
  * Resolves paths from room JSON (`images/...` under `src/game/assets/`) to Vite-built URLs.
@@ -28,6 +29,12 @@ const sfxAudioUrls = import.meta.glob('../assets/audio/sfx/**/*.{mp3,ogg,wav,m4a
 }) as Record<string, string>;
 
 const musicAudioUrls = import.meta.glob('../assets/audio/music/**/*.{mp3,ogg,wav,m4a}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+const videoUrls = import.meta.glob('../assets/videos/**/*.{mp4,webm}', {
   eager: true,
   query: '?url',
   import: 'default',
@@ -165,4 +172,25 @@ export function getBenneAudioBootEntries(): { sfx: BenneAudioBootEntry[]; music:
   music.sort((a, b) => a.cacheKey.localeCompare(b.cacheKey));
 
   return { sfx, music };
+}
+
+export interface BenneVideoBootEntry {
+  readonly cacheKey: string;
+  /** Resolved URLs (often one); multiple formats for the same stem → Phaser tries fallbacks. */
+  readonly urls: readonly string[];
+}
+
+/**
+ * Entries for {@link import('../../engine/video/queueBenneVideoBoot.js').queueBenneVideoForBootLoader}.
+ * Keys match {@link import('../../engine/video/benneVideoCacheKeys.js').benneVideoCacheKey}; one entry
+ * per basename stem under `src/game/assets/videos/` (e.g. `intro-cinematic.mp4` → key `intro-cinematic`).
+ */
+export function getBenneVideoBootEntries(): BenneVideoBootEntry[] {
+  const grouped = groupAudioByStem(videoUrls);
+  const out: BenneVideoBootEntry[] = [];
+  for (const [stem, urls] of grouped) {
+    out.push({ cacheKey: benneVideoCacheKey(stem), urls });
+  }
+  out.sort((a, b) => a.cacheKey.localeCompare(b.cacheKey));
+  return out;
 }

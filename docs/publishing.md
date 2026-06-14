@@ -13,10 +13,13 @@ npm run package:extension
 That single command:
 
 1. **Increments** `benne-editor/package.json` `version` by one **patch** (e.g. `0.0.1` → `0.0.2`)
-2. **Bundles** engine, editor runtime, Vite configs, and game templates into `benne-editor/scaffold/`
-3. **Builds** all editor preview bundles into `benne-editor/media/`
-4. **Webpacks** the extension (`dist/extension.js`, Inspector, PDC editor)
-5. **Writes** `benne-editor/benne-editor-<version>.vsix`
+2. **Syncs the boot layer** — fans `src/game/boot/` out to every `game-templates/<name>/boot/` (`sync-boot-down`) so the scaffold can never ship a stale boot file
+3. **Bundles** engine, editor runtime, Vite configs, and game templates into `benne-editor/scaffold/`
+4. **Builds** all editor preview bundles into `benne-editor/media/`
+5. **Webpacks** the extension (`dist/extension.js`, Inspector, PDC editor)
+6. **Writes** `benne-editor/benne-editor-<version>.vsix`
+
+> **Why step 2 matters:** boot files (e.g. `resolveGameAssetUrl.ts`) live in the shared dev slot `src/game/boot/` and are mirrored into each template. If a new engine feature adds a boot export but the templates aren't re-synced, the VSIX ships engine code that imports a function the bundled boot file doesn't have — breaking both newly created games and engine updates. Running `sync-boot-down` automatically on every package command closes that gap.
 
 The scaffold manifest and every new game created from this VSIX will carry the same version as the extension.
 
@@ -94,12 +97,13 @@ The **`npm run package:extension`** command above runs everything below automati
 
 From the repo root, a full extension release build runs:
 
-1. **`npm run bundle:scaffold`** — copies engine, editor, types, Vite configs, scripts, and `game-templates/*` into `benne-editor/scaffold/`
-2. **Preview builds** — `build:room-preview`, `build:character-preview`, `build:gui-preview`, `build:inventory-preview`, `build:benne-play` (outputs to `benne-editor/media/` in the monorepo)
-3. **Extension webpack** — `npm run compile` / `package` under `benne-editor/`
-4. **VSIX** — `npx @vscode/vsce package` (or `publish`) from `benne-editor/`
+1. **`npm run sync-boot-down`** — mirrors `src/game/boot/` into every `game-templates/<name>/boot/` so templates carry the current boot layer. `npm run package:extension` runs this automatically (with `--yes`); when running steps by hand, do it **before** `bundle:scaffold`.
+2. **`npm run bundle:scaffold`** — copies engine, editor, types, Vite configs, scripts, and `game-templates/*` into `benne-editor/scaffold/`
+3. **Preview builds** — `build:room-preview`, `build:character-preview`, `build:gui-preview`, `build:inventory-preview`, `build:benne-play` (outputs to `benne-editor/media/` in the monorepo)
+4. **Extension webpack** — `npm run compile` / `package` under `benne-editor/`
+5. **VSIX** — `npx @vscode/vsce package` (or `publish`) from `benne-editor/`
 
-The `vscode:prepublish` script in `benne-editor/package.json` chains steps 1–3 automatically when packaging.
+The `vscode:prepublish` script in `benne-editor/package.json` chains steps 2–4 automatically when packaging; `npm run package:extension` runs step 1 first.
 
 ### Local scaffold only
 
@@ -151,14 +155,17 @@ Use **BENNE: Update Engine** (Command Palette, BENNE sidebar title bar, or right
 
 **What changes**
 
-| Updated from extension `scaffold/shared/` | Preserved |
-|-------------------------------------------|-----------|
-| `src/engine/`, `src/editor/`, `src/types/` | `src/game/` (rooms, characters, assets, scripts) |
-| Vite configs, HTML entrypoints, `scripts/` | `README.md`, `.vscode/settings.json` |
-| `package.json` scripts + `phaser` / `typescript` / `vite` versions | `package.json` `name`, `private`, `version` |
-| `.benne-project` → `scaffoldVersion` + `extensionVersion` | `templateId`, `projectName`, `createdAt` |
+| Updated | Preserved |
+|---------|-----------|
+| `src/engine/`, `src/editor/`, `src/types/` (from `scaffold/shared/`) | `src/game/` **except** `src/game/boot/` (rooms, characters, assets, scripts) |
+| **`src/game/boot/`** — shared loader glue (from the scaffold template's `boot/`) | `README.md`, `.vscode/settings.json` |
+| Vite configs, HTML entrypoints, `scripts/` | `package.json` `name`, `private`, `version` |
+| `package.json` scripts + `phaser` / `typescript` / `vite` versions | `templateId`, `projectName`, `createdAt` |
+| `.benne-project` → `scaffoldVersion` + `extensionVersion` | |
 
 The command runs `npm install` and `npm run build:benne-play` after copying files.
+
+> **Why `src/game/boot/` is updated:** the boot layer (e.g. `resolveGameAssetUrl.ts`) is shared engine glue that engine modules import, so new engine features can require new boot exports. It is the **only** part of `src/game/` an update overwrites — your authored content (rooms, characters, assets, `*.room.ts` scripts, `game-config.json`, `globalScript.ts`) is left untouched. Boot files are identical across templates, so the update uses the project's `templateId` (falling back to any bundled template when it is `unknown`). The update **overwrites and adds** boot files but does not delete ones no longer in the scaffold.
 
 **Version behavior**
 
