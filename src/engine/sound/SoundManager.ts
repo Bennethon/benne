@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import {
+  getEffectiveDialogueVolume,
   getEffectiveMusicVolume,
   getEffectiveSfxVolume,
 } from '../applyAudioFromSettings.js';
@@ -7,9 +8,9 @@ import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManag
 import { writePersistedCurrentMusicId } from './audioGameState.js';
 import { BENNE_AUDIO_SCRIPT_DISABLED_KEY } from './benneSoundRegistry.js';
 import type { MusicPlayOptions, SoundPlayOptions } from './benneSoundTypes.js';
-import { benneMusicCacheKey, benneSfxCacheKey } from './benneAudioCacheKeys.js';
+import { benneMusicCacheKey, benneSfxCacheKey, benneVoiceCacheKey } from './benneAudioCacheKeys.js';
 
-/** Author basename — must stay under `audio/sfx` / `audio/music`. */
+/** Author basename — must stay under `audio/sfx`, `audio/music`, or `audio/voice`. */
 const AUDIO_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
 function clamp01(n: number): number {
@@ -44,6 +45,11 @@ function readSoundVolume(sound: Phaser.Sound.BaseSound): number {
   return typeof s.volume === 'number' && Number.isFinite(s.volume) ? s.volume : 0;
 }
 
+export interface VoicePlaybackHandle {
+  readonly durationMs: number | null;
+  stop(): void;
+}
+
 /**
  * Game-scoped audio: uses {@link Phaser.Game#sound} only so playback survives `RoomScene` shutdown.
  */
@@ -54,6 +60,7 @@ export class SoundManager {
 
   private readonly activeSfx = new Set<Phaser.Sound.BaseSound>();
   private readonly sfxAuthorBySound = new WeakMap<Phaser.Sound.BaseSound, string>();
+  private readonly activeVoice = new Set<Phaser.Sound.BaseSound>();
 
   /** Primary music slot (incoming / sole instance). */
   private musicSound: Phaser.Sound.BaseSound | null = null;
@@ -87,6 +94,10 @@ export class SoundManager {
     const opt = options?.volume;
     const mul = opt === undefined ? 1 : clamp01(opt);
     return clamp01(base * this.musicSessionMultiplier * mul);
+  }
+
+  private effectiveVoiceVolume(): number {
+    return getEffectiveDialogueVolume();
   }
 
   private cancelMusicFadeRaf(): void {
@@ -200,6 +211,13 @@ export class SoundManager {
       }
       this.setInstanceVolume(sound, sfxVol);
     }
+    const voiceVol = this.effectiveVoiceVolume();
+    for (const sound of this.activeVoice) {
+      if (!sound.isPlaying) {
+        continue;
+      }
+      this.setInstanceVolume(sound, voiceVol);
+    }
     // Crossfade tweens own music volumes until the fade completes.
     if (this.musicFadeOutSound != null) {
       return;
@@ -293,6 +311,70 @@ export class SoundManager {
 
     sound.play();
     return this.awaitSoundFinish(sound);
+  }
+
+  playVoice(id: string): VoicePlaybackHandle | null {
+    if (this.isScriptAudioDisabled() || !validateAudioId(id)) {
+      return null;
+    }
+    const key = benneVoiceCacheKey(id);
+    if (!this.game.cache.audio.has(key)) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] voice: missing audio "${id}" (expected assets/audio/voice/${id}.*).`);
+      }
+      return null;
+    }
+    const sound = this.game.sound.add(key, { volume: this.effectiveVoiceVolume(), loop: false });
+    this.activeVoice.add(sound);
+
+    let cleaned = false;
+    const cleanup = (): void => {
+      if (cleaned) {
+        return;
+      }
+      cleaned = true;
+      this.activeVoice.delete(sound);
+      if (this.game.sound.getAll(key).includes(sound)) {
+        this.game.sound.remove(sound);
+      }
+    };
+    sound.once(Phaser.Sound.Events.COMPLETE, cleanup);
+    sound.once(Phaser.Sound.Events.DESTROY, cleanup);
+
+    let started = false;
+    try {
+      started = sound.play();
+    } catch {
+      started = false;
+    }
+
+    if (!started) {
+      cleanup();
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] voice: failed to start "${id}".`);
+      }
+      return null;
+    }
+
+    const durationSeconds =
+      typeof sound.duration === 'number' && Number.isFinite(sound.duration) && sound.duration > 0
+        ? sound.duration
+        : null;
+
+    return {
+      durationMs: durationSeconds == null ? null : Math.round(durationSeconds * 1000),
+      stop: () => {
+        if (cleaned) {
+          return;
+        }
+        try {
+          sound.stop();
+        } catch {
+          /* ignore */
+        }
+        cleanup();
+      },
+    };
   }
 
   private awaitSoundFinish(sound: Phaser.Sound.BaseSound): Promise<void> {
@@ -527,6 +609,17 @@ export class SoundManager {
     }
   }
 
+  stopAllVoice(): void {
+    if (this.isScriptAudioDisabled()) {
+      return;
+    }
+    for (const sound of [...this.activeVoice]) {
+      sound.stop();
+      this.game.sound.remove(sound);
+      this.activeVoice.delete(sound);
+    }
+  }
+
   stopMusic(): void {
     if (this.isScriptAudioDisabled()) {
       return;
@@ -578,6 +671,7 @@ export class SoundManager {
 
   destroy(): void {
     this.stopAllSfx();
+    this.stopAllVoice();
     this.stopMusic();
   }
 }

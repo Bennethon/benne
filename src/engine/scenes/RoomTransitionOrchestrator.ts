@@ -354,7 +354,9 @@ export class RoomTransitionOrchestrator {
       mgr.clearActiveVerb();
       mgr.clearActiveInventoryItem();
     }
-    tryGetBenneSoundManager(this.game)?.stopAllSfx();
+    const soundManager = tryGetBenneSoundManager(this.game);
+    soundManager?.stopAllSfx();
+    soundManager?.stopAllVoice();
     roomScene.clearStateForRoomTransition();
     for (const s of roomScene.getBenneScriptCoresForTransitionReset()) {
       s.resetInteractionTailForEngine();

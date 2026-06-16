@@ -140,7 +140,7 @@ registerRoomScript(({ B }) => {
   });
 
   B.whenLookAt('Table', () => {
-    B.player.say('I like to keep this table here so I can walk around it.');
+    B.player.say('|1| I like to keep this table here so I can walk around it.');
   });
 
   B.whenInventoryUsedOn('penny', (payload) => {
