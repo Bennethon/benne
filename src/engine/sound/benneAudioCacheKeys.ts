@@ -7,3 +7,8 @@ export function benneSfxCacheKey(stem: string): string {
 export function benneMusicCacheKey(stem: string): string {
   return `benne:music:${stem}`;
 }
+
+/** Phaser loader / cache key for one voice stem under `assets/audio/voice/`. */
+export function benneVoiceCacheKey(stem: string): string {
+  return `benne:voice:${stem}`;
+}

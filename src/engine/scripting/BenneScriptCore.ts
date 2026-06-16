@@ -50,6 +50,7 @@ import {
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import { INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT } from '../events/inventoryOnVerbEvents.js';
 import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerbTarget.js';
+import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
 import {
   createLazyBenneScriptCharacterInventoryNamespace,
   createLazyBenneScriptInventoryNamespace,
@@ -286,6 +287,32 @@ function stripTrailingLineComment(line: string): string {
     return line;
   }
   return line.slice(0, idx).trimEnd();
+}
+
+export interface BenneSayVoiceMarkerParseResult {
+  readonly text: string;
+  readonly voiceNumber: string | null;
+}
+
+export function parseBenneSayVoiceMarker(line: string): BenneSayVoiceMarkerParseResult {
+  const m = /^\|(\d+)\|\s*/.exec(line);
+  if (!m) {
+    return { text: line, voiceNumber: null };
+  }
+  return { text: line.slice(m[0].length), voiceNumber: m[1] ?? null };
+}
+
+interface BenneSayRuntimeLine {
+  readonly text: string;
+  readonly voiceStem: string | null;
+}
+
+function resolveBenneSayRuntimeLine(line: string, talkCharacterDefinitionId: string): BenneSayRuntimeLine {
+  const parsed = parseBenneSayVoiceMarker(line);
+  return {
+    text: parsed.text,
+    voiceStem: parsed.voiceNumber == null ? null : `${talkCharacterDefinitionId}${parsed.voiceNumber}`,
+  };
 }
 
 /**
@@ -1054,10 +1081,16 @@ export abstract class BenneScriptCore {
     line: string,
     talkCharacterDefinitionId: string,
     options?: BenneScriptSayLineOptions,
+    voiceStem?: string | null,
   ): Promise<void> {
     const manager = resolveGameStateManager(scene.game);
     const speech = getSpeechSettings(manager);
-    const ms = computeSpeechLineDurationMs(line, manager);
+    const voice = voiceStem ? tryGetBenneSoundManager(scene.game)?.playVoice(voiceStem) ?? null : null;
+    const textMs = computeSpeechLineDurationMs(line, manager);
+    const ms =
+      voice?.durationMs == null
+        ? textMs
+        : Math.round(Math.min(speech.maxDurationMs, Math.max(speech.minDurationMs, voice.durationMs)));
     const lineOpt = options?.clickToSkip;
     const allowClickToSkip =
       lineOpt === true || (lineOpt !== false && speech.clickToSkip);
@@ -1071,6 +1104,7 @@ export abstract class BenneScriptCore {
           return;
         }
         completed = true;
+        voice?.stop();
         timer?.remove(false);
         timer = null;
         scene.clearScriptedDialogClickToSkip();
@@ -1131,11 +1165,14 @@ export abstract class BenneScriptCore {
     talkCharacterDefinitionId: string,
     chain: boolean,
     options?: BenneScriptSayLineOptions,
+    voiceStem?: string | null,
   ): void {
     if (chain) {
-      this.chain(() => this.createSayLinePromise(scene, line, talkCharacterDefinitionId, options));
+      this.chain(() =>
+        this.createSayLinePromise(scene, line, talkCharacterDefinitionId, options, voiceStem),
+      );
     } else {
-      void this.createSayLinePromise(scene, line, talkCharacterDefinitionId, options);
+      void this.createSayLinePromise(scene, line, talkCharacterDefinitionId, options, voiceStem);
     }
   }
 
@@ -1260,21 +1297,45 @@ export abstract class BenneScriptCore {
     }
     if (chain) {
       for (const { definitionId, text } of entries) {
-        logLine(text);
-        this.chain(() => this.createSayLinePromise(scene, text, definitionId, undefined));
+        const runtimeLine = resolveBenneSayRuntimeLine(text, definitionId);
+        logLine(runtimeLine.text);
+        this.chain(() =>
+          this.createSayLinePromise(
+            scene,
+            runtimeLine.text,
+            definitionId,
+            undefined,
+            runtimeLine.voiceStem,
+          ),
+        );
       }
       return;
     }
     if (entries.length === 1) {
       const only = entries[0]!;
-      logLine(only.text);
-      this.queueSayDialogWithInputLock(scene, only.text, only.definitionId, false, undefined);
+      const runtimeLine = resolveBenneSayRuntimeLine(only.text, only.definitionId);
+      logLine(runtimeLine.text);
+      this.queueSayDialogWithInputLock(
+        scene,
+        runtimeLine.text,
+        only.definitionId,
+        false,
+        undefined,
+        runtimeLine.voiceStem,
+      );
       return;
     }
     void (async () => {
       for (const { definitionId, text } of entries) {
-        logLine(text);
-        await this.createSayLinePromise(scene, text, definitionId, undefined);
+        const runtimeLine = resolveBenneSayRuntimeLine(text, definitionId);
+        logLine(runtimeLine.text);
+        await this.createSayLinePromise(
+          scene,
+          runtimeLine.text,
+          definitionId,
+          undefined,
+          runtimeLine.voiceStem,
+        );
       }
     })();
   }
@@ -1306,8 +1367,16 @@ export abstract class BenneScriptCore {
   ): BenneScriptSayDialogueHybrid {
     const scope: BenneSayDialogueScope = { mode: 'fixed', definitionId };
     const runStr = (line: string, opts: BenneScriptSayLineOptions | undefined, chain: boolean): void => {
-      logSay(line);
-      this.queueSayDialogWithInputLock(scene, line, definitionId, chain, opts);
+      const runtimeLine = resolveBenneSayRuntimeLine(line, definitionId);
+      logSay(runtimeLine.text);
+      this.queueSayDialogWithInputLock(
+        scene,
+        runtimeLine.text,
+        definitionId,
+        chain,
+        opts,
+        runtimeLine.voiceStem,
+      );
     };
     const blocking = (first: string | TemplateStringsArray, ...rest: unknown[]): void => {
       if (isTemplateStringsArray(first)) {
@@ -1342,8 +1411,16 @@ export abstract class BenneScriptCore {
         warnNoRoom();
         return;
       }
-      logSay(line);
-      this.queueSayDialogWithInputLock(scene, line, definitionId, chain, opts);
+      const runtimeLine = resolveBenneSayRuntimeLine(line, definitionId);
+      logSay(runtimeLine.text);
+      this.queueSayDialogWithInputLock(
+        scene,
+        runtimeLine.text,
+        definitionId,
+        chain,
+        opts,
+        runtimeLine.voiceStem,
+      );
     };
     const blocking = (first: string | TemplateStringsArray, ...rest: unknown[]): void => {
       const scene = getScene();
@@ -1384,8 +1461,16 @@ export abstract class BenneScriptCore {
         return;
       }
       const pid = scene.getActivePlayerCharacterId();
-      logSay(line);
-      this.queueSayDialogWithInputLock(scene, line, pid, chain, opts);
+      const runtimeLine = resolveBenneSayRuntimeLine(line, pid);
+      logSay(runtimeLine.text);
+      this.queueSayDialogWithInputLock(
+        scene,
+        runtimeLine.text,
+        pid,
+        chain,
+        opts,
+        runtimeLine.voiceStem,
+      );
     };
     const blocking = (first: string | TemplateStringsArray, ...rest: unknown[]): void => {
       const scene = getScene();

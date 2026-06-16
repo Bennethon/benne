@@ -36,7 +36,9 @@ export function endDialogSessionIfMatches(script: DialogSessionScript): void {
   manager.clearVariable(BENNE_ACTIVE_DIALOG_ID_VARIABLE);
   script.dispose();
   script.resetInteractionTailForEngine();
-  tryGetBenneSoundManager(script.game)?.stopAllSfx();
+  const soundManager = tryGetBenneSoundManager(script.game);
+  soundManager?.stopAllSfx();
+  soundManager?.stopAllVoice();
   const payload: DialogStoppedPayload = { dialogId };
   gameEvents.emit(DIALOG_STOPPED_EVENT, payload);
 }

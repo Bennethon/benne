@@ -178,6 +178,8 @@ interface BenneScriptRoomFacade {
 
 Rules: **`Speaker: text`** per line; **`Player`** (any case) → active player character id; other speakers must match spawned character ids **case-insensitively**; blank lines and **`//`** comments skipped; mismatched unknown speaker throws. Requires active **`RoomScene`** for **`B.say`** (DEV warn otherwise).
 
+**Voice markers** — A say line may start with **`|number|`** to play a matching voice clip while the line is shown. The marker is stripped before display/logging. Voice files live under **`src/game/assets/audio/voice/`** and are named **`<characterId><number>.<ext>`**; for example, **`B.character('hank').say('|17| Hello.')`** resolves **`hank17.mp3`** / **`.ogg`** / **`.wav`** / **`.m4a`**. **`B.player.say('|42| …')`** uses the active player id, and tagged lines use the resolved speaker before the colon. Voice playback uses **`audio.dialogueVolume`**, keeps Speaking Text visible for the voice-driven duration (clamped by speech min/max settings), and click-to-skip stops both the overlay and voice.
+
 Example:
 
 ```ts
@@ -186,6 +188,7 @@ Npc: Hi there.`; // queued in order per line on interaction tail
 
 B.walkToClicked(); // walk + same facing as B.faceClicked() when the walk finishes
 B.player.say('Closer look…', { clickToSkip: true });
+B.character('hank').say('|17| This case just got a lot more complicated.');
 ```
 
 ### Narration — **`B.display`**
@@ -225,9 +228,9 @@ B.whenUse('machine', () => {
 
 Available on every **`BenneScriptCore`** facade (**room / character / inventory / global / GUI / dialog session**). The **same** facade object is exposed as **`B.player.sound`**, **`B.character('…').sound`**, and **`B.prop('…').sound`** (room scripts) for readability.
 
-**Assets** — Put files under **`src/game/assets/audio/sfx/<name>.<ext>`** (sound effects) and **`src/game/assets/audio/music/<name>.<ext>`** (music). Supported extensions include **`.wav`**, **`.mp3`**, **`.ogg`**, **`.m4a`**. Reference them by **basename only** (e.g. **`B.sound.play('creak')`** for **`…/audio/sfx/creak.wav`**). Ids must match **`^[a-zA-Z0-9_-]+$`**.
+**Assets** — Put files under **`src/game/assets/audio/sfx/<name>.<ext>`** (sound effects), **`src/game/assets/audio/music/<name>.<ext>`** (music), and **`src/game/assets/audio/voice/<characterId><number>.<ext>`** (voice clips for **`say`** markers). Supported extensions include **`.wav`**, **`.mp3`**, **`.ogg`**, **`.m4a`**. SFX/music APIs reference stems by **basename only** (e.g. **`B.sound.play('creak')`** for **`…/audio/sfx/creak.wav`**). Voice stems are resolved automatically from the speaker id and leading **`|number|`** marker. Ids must match **`^[a-zA-Z0-9_-]+$`**.
 
-**Volumes** — Playback uses **`getEffectiveSfxVolume`** / **`getEffectiveMusicVolume`** from **`game-config.json`** **`audio`** (master × category). Optional **`volume`** on **`play` / `playAndWait` / `playMusic`** (0–1) is an extra multiplier. **`setSfxVolume` / `setMusicVolume`** apply **session** multipliers on top of config and **persist** to **`GameStateManager`** variables **`settings:sfxVolume`** / **`settings:musicVolume`** (included in save snapshots). **`getSfxVolume` / `getMusicVolume`** read the live session multiplier (for GUI sliders, use `× 100` when driving **`slider`** controls). When a variable is unset, defaults come from **`game-config.json`** **`audio.sfxVolume`** / **`audio.musicVolume`**. Loading a snapshot re-applies persisted values to **`SoundManager`**; applying a snapshot that **omits** those keys keeps the previous in-memory values unless **`initialGameState.variables`** seeds them (see [architecture.md §3 → Audio system](architecture.md#audio-system)).
+**Volumes** — Playback uses **`getEffectiveSfxVolume`** / **`getEffectiveMusicVolume`** from **`game-config.json`** **`audio`** (master × category); voice clips use **`audio.masterVolume * audio.dialogueVolume`**. Optional **`volume`** on **`play` / `playAndWait` / `playMusic`** (0–1) is an extra multiplier. **`setSfxVolume` / `setMusicVolume`** apply **session** multipliers on top of config and **persist** to **`GameStateManager`** variables **`settings:sfxVolume`** / **`settings:musicVolume`** (included in save snapshots). **`getSfxVolume` / `getMusicVolume`** read the live session multiplier (for GUI sliders, use `× 100` when driving **`slider`** controls). When a variable is unset, defaults come from **`game-config.json`** **`audio.sfxVolume`** / **`audio.musicVolume`**. Loading a snapshot re-applies persisted values to **`SoundManager`**; applying a snapshot that **omits** those keys keeps the previous in-memory values unless **`initialGameState.variables`** seeds them (see [architecture.md §3 → Audio system](architecture.md#audio-system)).
 
 **Music track (save/load)** — **`B.sound.playMusic`** / **`stopMusic`** eagerly persist the current stem to **`settings:currentMusicId`** (cleared when music stops). Save snapshots include that variable; **`B.state.load`** restores the saved track via the engine (**instant** replace), not via **`whenEnterRoom`** hooks (which are skipped on load). Playback **position** is not saved. Legacy snapshots without **`settings:currentMusicId`** leave whatever music was already playing until the player saves again.
 
