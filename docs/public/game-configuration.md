@@ -1,0 +1,252 @@
+---
+title: Game Configuration
+outline: deep
+---
+
+# Game Configuration
+
+Every BENNE game has a single configuration file at `src/game/game-config.json`. It defines the game's internal resolution, the set of verbs the player can use, how the cursor behaves, audio levels, speech timing, the starting room and character, and more.
+
+This file is the engine's source of truth for these settings. The shipped game, the **BENNE Play** runtime, and the editor previews all read from it, so changing a value here changes it everywhere.
+
+Below is a complete example, followed by an explanation of each section.
+
+```json
+{
+  "name": "9-verb",
+  "resolution": { "width": 352, "height": 198 },
+  "verbs": [
+    { "id": "give", "label": "Give", "preposition": "to" },
+    { "id": "use", "label": "Use", "preposition": "with" },
+    { "id": "look", "label": "Look at" }
+  ],
+  "inputProfile": {
+    "primaryButtonVerb": "walkTo",
+    "secondaryButtonVerb": "defaultVerb"
+  },
+  "dropWhenInventoryUsed": true,
+  "defaultFallbackLine": "That doesn't seem to work.",
+  "startingPlayerCharacter": "hank",
+  "startingRoomId": "apartment",
+  "initialGameState": {
+    "flags": {},
+    "variables": {},
+    "inventory": ["Broom", "Lantern", "Key"]
+  },
+  "audio": { "masterVolume": 1, "sfxVolume": 1, "musicVolume": 0.75, "dialogueVolume": 1 },
+  "speech": { "clickToSkip": true, "showText": true, "msPerCharacter": 80, "minDurationMs": 800, "maxDurationMs": 4500, "durationMultiplier": 1, "defaultTalkOffset": { "x": 0, "y": 0 } },
+  "dialog": { "choiceOptionsViewportHeightPx": 46, "usedColor": "#888888" },
+  "perspective": { "minWalkScale": 0.1, "walkScalePower": 1.3 },
+  "camera": { "minZoom": 0.5, "maxZoom": 2.5, "defaultTransitionSeconds": 0.4, "shake": { "intensity": 0.02, "durationSeconds": 0.35, "falloff": true } },
+  "cursor": { "idleAnimation": "Idle", "activeAnimation": "Active", "hotspot": "center", "animations": { "Idle": { "loop": true }, "Active": { "loop": true } }, "display": { "aseprite": true } }
+}
+```
+
+## Resolution
+
+```json
+"resolution": { "width": 352, "height": 198 }
+```
+
+`resolution` defines your game's **internal rendering size** in pixels. This is the low-resolution canvas your game is drawn into before being scaled up to fit the player's display.
+
+BENNE is built for crisp, pixel-perfect retro rendering, so internal resolutions are deliberately small — classic adventure sizes like **320×240**, **352×198**, or up to **640×480** are typical. The engine renders with WebGL using `pixelArt` and `roundPixels`, then handles hi-DPI scaling and integer letterboxing automatically so your art stays sharp at any window size.
+
+A few important points:
+
+- **Author against this resolution.** Room backgrounds, prop placement, walkable polygons, hotspots, GUI layouts, and talk-point offsets are all expressed in these internal pixels.
+- **Rooms can be larger than the screen.** A room's `size` (in its `*.room.json`) can exceed the internal resolution; the camera scrolls to follow the player within the room's `scrollBounds`.
+- **Changing resolution affects everything.** If you change resolution after building content, existing layouts won't automatically re-flow — you'll be repositioning things. Pick your resolution early.
+
+## Verb Setup
+
+```json
+"verbs": [
+  { "id": "give",    "label": "Give",    "preposition": "to" },
+  { "id": "pickUp",  "label": "Pick up" },
+  { "id": "use",     "label": "Use",     "preposition": "with" },
+  { "id": "look",    "label": "Look at" },
+  { "id": "talkTo",  "label": "Talk to" }
+]
+```
+
+The `verbs` array defines **which verbs exist in your game**. This is where BENNE's flexibility shines: you can build a full 9-verb SCUMM bar, a minimalist two-verb scheme, or anything in between, simply by editing this list.
+
+Each verb has:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | ✅ | The internal verb identifier used in scripts (e.g. `B.whenVerb('use', …)`, `B.setActiveVerb('use')`). |
+| `label` | ✅ | The display text shown in the GUI verb bar and hover line (e.g. “Use”). |
+| `preposition` | optional | Connector word for “use X **with** Y” / “give X **to** Y” style hover lines. |
+
+### Verb ids and script handlers
+
+Bennescript provides convenience handlers (`whenUse`, `whenLookAt`, `whenTalkTo`, `whenPickUp`, `whenOpen`, `whenClose`, `whenPush`, `whenPull`, `whenGive`) that resolve to common verb ids through a built-in alias system. For example, `whenLookAt` matches a verb whose id is `look` or `examine`; `whenPickUp` matches `pickUp`, `pickup`, or `take`.
+
+For any verb id that isn't one of those built-ins, use `whenVerb(verbId, target, handler)` with the exact `id` from your config. See the [Bennescript](./bennescript) page for details.
+
+### The input profile
+
+```json
+"inputProfile": {
+  "primaryButtonVerb": "walkTo",
+  "secondaryButtonVerb": "defaultVerb"
+}
+```
+
+The `inputProfile` controls what a left-click and right-click do in the world. Common patterns:
+
+- **`walkTo`** — clicking walks the player toward the clicked point/target.
+- **`defaultVerb`** — uses the target's authored `defaultVerb` (set per prop/hotspot/character in their JSON), enabling Sierra-style "smart" interactions.
+- **A specific verb id** — always perform that verb.
+
+This is how you tune the game between LucasArts-style direct control, Sierra-style verb-first interaction, or hybrid schemes — without changing engine code.
+
+### Related verb settings
+
+- **`dropWhenInventoryUsed`** — When `true`, the armed inventory item is automatically unarmed after the player clicks a target with it (“use X on Y”).
+- **`defaultFallbackLine`** — The line the player character says when a verb is used on something with no matching handler anywhere. Your `globalScript.ts` typically also defines per-verb fallbacks (see [Bennescript → Global script](./bennescript)).
+
+## Cursor Setup
+
+```json
+"cursor": {
+  "idleAnimation": "Idle",
+  "activeAnimation": "Active",
+  "hotspot": "center",
+  "animations": {
+    "Idle":   { "loop": true },
+    "Active": { "loop": true }
+  },
+  "display": { "aseprite": true }
+}
+```
+
+BENNE replaces the system cursor with a custom, animated, sprite-based cursor authored in Aseprite. The `cursor` block controls how it looks and behaves.
+
+| Field | Description |
+|-------|-------------|
+| `idleAnimation` | The Aseprite tag used for the normal cursor (e.g. when just moving around). |
+| `activeAnimation` | The tag used when the cursor is "active" — for example when hovering an interactive target. |
+| `hotspot` | The cursor's click point. `"center"` aligns the hotspot to the middle of the sprite; you can also specify a pixel coordinate. |
+| `animations` | Per-tag options such as `loop`, matching the Aseprite tags on your cursor sheet. |
+| `display.aseprite` | Marks the cursor as an Aseprite-sourced sprite sheet. |
+
+Individual inventory items can also override the cursor when armed (via their `cursorAnimation`), so “using the key on the door” can show a key-shaped cursor. See [Inventory](./benne-editor#inventory) and the inventory facade in [Bennescript](./bennescript).
+
+## Starting State
+
+```json
+"startingPlayerCharacter": "hank",
+"startingRoomId": "apartment",
+"initialGameState": {
+  "flags": {},
+  "variables": {},
+  "inventory": ["Broom", "Lantern", "Key"]
+}
+```
+
+These fields define where a brand-new game begins:
+
+- **`startingPlayerCharacter`** — The `id` of the character the player controls at game start. This is also the default owner of the inventory bag.
+- **`startingRoomId`** — The `id` of the first room loaded.
+- **`initialGameState`** — Seeds the [GameStateManager](./core-concepts#game-state) at the start of a new game:
+  - `flags` — boolean/value flags available everywhere via `B.state`.
+  - `variables` — arbitrary persisted values.
+  - `inventory` — item ids the player starts carrying.
+
+## Audio
+
+```json
+"audio": { "masterVolume": 1, "sfxVolume": 1, "musicVolume": 0.75, "dialogueVolume": 1 }
+```
+
+`audio` sets the default volume levels (0–1). Effective playback volume for a sound is the **master volume × the category volume** (× any per-call multiplier). Players can adjust SFX and music volumes at runtime through settings GUIs; those session adjustments are persisted in save data and layered on top of these config defaults.
+
+## Speech
+
+```json
+"speech": {
+  "clickToSkip": true,
+  "showText": true,
+  "msPerCharacter": 80,
+  "minDurationMs": 800,
+  "maxDurationMs": 4500,
+  "durationMultiplier": 1,
+  "defaultTalkOffset": { "x": 0, "y": 0 }
+}
+```
+
+The `speech` block controls how spoken lines (`B.player.say(...)`, `B.say\`…\``) are timed and displayed:
+
+| Field | Description |
+|-------|-------------|
+| `clickToSkip` | Whether timed speech lines can be clicked to advance by default. |
+| `showText` | When `false`, line timing still runs but the speech text overlay stays hidden (useful for voice-only modes). |
+| `msPerCharacter` | Base milliseconds per character used to compute how long a line is shown. |
+| `durationMultiplier` | Multiplier applied to the computed duration (must be > 0). |
+| `minDurationMs` / `maxDurationMs` | Clamp the shortest and longest a line can be displayed. |
+| `defaultTalkOffset` | A default `{ x, y }` pixel offset for where speech text appears relative to a speaking character. |
+
+All of these can be overridden at runtime through `B.speechSettings` and persist in save data. Individual `say` calls can also override `clickToSkip` per line.
+
+## Dialog
+
+```json
+"dialog": { "choiceOptionsViewportHeightPx": 46, "usedColor": "#888888" }
+```
+
+Settings for the SCUMM-style dialog choice UI:
+
+- **`choiceOptionsViewportHeightPx`** — Caps the vertical space used to stack dialog choice rows (the rest scrolls/pages). A per-GUI override on a dialog choice `*.gui.json` takes precedence over this game-level value.
+- **`usedColor`** — A hex color applied to dialog options the player has already chosen, so used topics visually dim. Omit it to fall back to a simple transparency dim.
+
+## Perspective
+
+```json
+"perspective": { "minWalkScale": 0.1, "walkScalePower": 1.3 }
+```
+
+BENNE supports region-based perspective scaling: characters can shrink as they walk "away" (up the screen) and grow as they approach. The `perspective` block tunes the global curve:
+
+- **`minWalkScale`** — The smallest scale a character can be reduced to.
+- **`walkScalePower`** — The curve exponent controlling how sharply scale changes with depth.
+
+Per-room regions define where and how strongly perspective applies; this block sets sensible global limits.
+
+## Camera
+
+```json
+"camera": {
+  "minZoom": 0.5,
+  "maxZoom": 2.5,
+  "defaultTransitionSeconds": 0.4,
+  "shake": { "intensity": 0.02, "durationSeconds": 0.35, "falloff": true }
+}
+```
+
+Defaults and limits for the scriptable camera (`B.camera.focus`, `setZoom`, `shake`, etc.):
+
+| Field | Description |
+|-------|-------------|
+| `minZoom` / `maxZoom` | Clamp the gameplay zoom range. `1.0` is the room default. |
+| `defaultTransitionSeconds` | Default tween time for camera moves when a call omits an explicit duration. |
+| `shake.intensity` / `shake.durationSeconds` / `shake.falloff` | Defaults used by `B.camera.shake()` when called without arguments. |
+
+## Debug
+
+Templates also include a `debug` block that toggles editor/development overlays (walkable areas, prop outlines, GUI outlines, region outlines). These help while authoring and don't affect a shipped build's gameplay.
+
+```json
+"debug": {
+  "showWalkable": true,
+  "showPropOutlines": false,
+  "showGuiOutlines": false,
+  "showRegionOutlines": true
+}
+```
+
+---
+
+Most of these values can also be edited through the BENNE Editor's inspectors rather than by hand. The next page covers the [BENNE Editor](./benne-editor) in detail.
