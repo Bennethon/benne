@@ -153,6 +153,7 @@ export type ActionTreeNode =
     | { kind: 'rebuildInventoryPreviewBundle' }
     | { kind: 'rebuildDialogPreviewBundle' }
     | { kind: 'processGameVoiceIds' }
+    | { kind: 'exportSpeakingTextCsv' }
     | { kind: 'addInventoryItem' }
     | { kind: 'importInventoryFromAseprite' }
     | { kind: 'addGuiControl'; guiJsonUri: vscode.Uri }
@@ -598,6 +599,19 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 };
                 return item;
             }
+            case 'exportSpeakingTextCsv': {
+                const item = new vscode.TreeItem('Export Speaking Text as CSV', vscode.TreeItemCollapsibleState.None);
+                item.id = 'action:exportSpeakingTextCsv';
+                item.iconPath = new vscode.ThemeIcon('table');
+                item.contextValue = 'benneActionExportSpeakingTextCsv';
+                item.description = 'dialogue spreadsheet';
+                item.command = {
+                    command: 'benne-editor.exportSpeakingTextCsv',
+                    title: 'Export Speaking Text as CSV',
+                    arguments: []
+                };
+                return item;
+            }
             case 'addInventoryItem': {
                 const item = new vscode.TreeItem(
                     'Add Inventory',
@@ -802,6 +816,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
 
         return [
             { kind: 'processGameVoiceIds' },
+            { kind: 'exportSpeakingTextCsv' },
             { kind: 'rebuildRoomPreviewBundle' },
             { kind: 'rebuildCharacterPreviewBundle' },
             { kind: 'rebuildGuiPreviewBundle' },

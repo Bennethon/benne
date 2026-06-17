@@ -378,6 +378,12 @@
         "icon": "$(megaphone)"
       },
       {
+        "command": "benne-editor.exportSpeakingTextCsv",
+        "title": "Export Speaking Text as CSV",
+        "category": "BENNE",
+        "icon": "$(table)"
+      },
+      {
         "command": "benne-editor.filterMainTree",
         "title": "Filter BENNE tree",
         "category": "BENNE",
