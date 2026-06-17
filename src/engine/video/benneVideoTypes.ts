@@ -4,6 +4,8 @@ export interface VideoPlayOptions {
   loop?: boolean;
   /** Per-playback volume multiplier (0–1) on top of the game-config master volume (default `1`). */
   volume?: number;
+  /** When true, a primary click/tap stops the active video. Defaults to `false`. */
+  clickToSkip?: boolean;
   /** Invoked once when the video finishes or is stopped. */
   onComplete?: () => void;
 }

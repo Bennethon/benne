@@ -201,7 +201,7 @@ B.video.seek(12);
 B.video.stop();
 ```
 
-During video playback, BENNE hides generic HUD overlays such as verbs, menus, inventory, and dialog choices. Speaking Text and Display Text stay above the video, so you can layer dialogue or narration over a cinematic.
+During video playback, BENNE hides generic HUD overlays such as verbs, menus, inventory, and dialog choices. Speaking Text and Display Text stay above the video, so you can layer dialogue or narration over a cinematic. The video also blocks clicks and other gameplay input while it is visible; **ESC** stops the active video.
 
 ### Video Options
 
@@ -209,13 +209,14 @@ During video playback, BENNE hides generic HUD overlays such as verbs, menus, in
 B.video.play('intro', {
   volume: 0.8,
   loop: false,
+  clickToSkip: true,
   onComplete: () => {
     B.state.setFlag('watchedIntro', true);
   }
 });
 ```
 
-Video volume is `audio.masterVolume` multiplied by the per-playback `volume` option. There is no separate video volume slider in the current engine.
+Video volume is `audio.masterVolume` multiplied by the per-playback `volume` option. `clickToSkip` defaults to `false`; when set to `true`, a primary click or tap stops the video. There is no separate video volume slider in the current engine.
 
 ::: warning VS Code video audio
 BENNE Play runs inside a VS Code webview, whose codec support can differ from Chrome, Edge, or Brave. Some MP4 files show video frames but play no audio in VS Code when the audio track uses AAC.

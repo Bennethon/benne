@@ -20,6 +20,8 @@ function warnNoRoomScene(): void {
  * {@link import('./benneScriptSoundApi.js').createBenneScriptSoundFacade} (blocking vs `.now`) but uses
  * the `B.camera`-style RoomScene resolution + DEV warn-once. `play` starts playback and resolves
  * immediately so the script chain keeps running concurrently; `playAndWait` blocks until the video ends.
+ * Active playback suppresses input in RoomScene; `VideoPlayOptions.clickToSkip` only controls whether
+ * primary clicks also stop the active video.
  */
 export function createBenneScriptVideoFacade(
   chain: (factory: () => Promise<unknown>) => void,

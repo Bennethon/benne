@@ -497,6 +497,9 @@ export class RoomScene extends Phaser.Scene {
   /** `options.onComplete` for the current playback, called once on end/stop. */
   private roomVideoOnComplete: (() => void) | null = null;
 
+  /** Whether the active video should stop on the next primary click/tap. */
+  private roomVideoClickToSkip = false;
+
   /** Resolvers for outstanding `playAndWait` promises on the current playback. */
   private roomVideoCompleteResolvers: Array<() => void> = [];
 
@@ -609,6 +612,14 @@ export class RoomScene extends Phaser.Scene {
     if (this.customCursorSprite) {
       this.refreshCustomCursor(pointer);
     }
+  };
+  private readonly onRoomKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== 'Escape' || !this.isRoomVideoPlaying()) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.stopRoomVideo();
   };
   private readonly onCustomGameStateForCursor = (): void => {
     this.lastCustomCursorVisualKey = null;
@@ -744,9 +755,9 @@ export class RoomScene extends Phaser.Scene {
       roomId: data.room.id,
       isInputSuppressed: (): boolean => this.isInputSuppressed(),
       tryConsumeDialogClickToSkip: (pointer: Phaser.Input.Pointer): boolean =>
-        this.tryConsumeScriptedDialogClickToSkip(pointer),
+        this.tryConsumeRoomVideoOrScriptedDialogClickToSkip(pointer),
     };
-    const isButtonClickSuppressed = (): boolean => this.isCutsceneActive();
+    const isButtonClickSuppressed = (): boolean => this.isCutsceneActive() || this.isRoomVideoPlaying();
     const noopDialogQueue = (factory: () => Promise<unknown>): void => {
       void factory().catch((err) => console.error('[Benne] dialog choice GUI queued step failed:', err));
     };
@@ -923,6 +934,7 @@ export class RoomScene extends Phaser.Scene {
 
     this.scale.on('resize', this.onScaleResize, this);
     this.input.on('pointerdown', this.handleRoomPointerDown);
+    this.input.keyboard?.on('keydown', this.onRoomKeyDown);
 
     this.game.registry.remove(BENNE_ROOM_START_KIND_KEY);
     const orch = tryGetRoomTransitionOrchestrator();
@@ -978,6 +990,7 @@ export class RoomScene extends Phaser.Scene {
       this.scale.off('resize', this.onScaleResize, this);
       this.input.off('pointerdown', this.handleRoomPointerDown);
       this.input.off('pointermove', this.onRoomPointerMove);
+      this.input.keyboard?.off('keydown', this.onRoomKeyDown);
       gameEvents.off(GAME_STATE_INVENTORY_CHANGED_EVENT, this.syncVerbHoverScriptSurfaceAtActivePointer);
       gameEvents.off(GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT, this.onActivePlayerCharacterChanged);
       this.teardownCustomGameCursor();
@@ -1702,10 +1715,14 @@ export class RoomScene extends Phaser.Scene {
 
     this.roomVideoActiveKey = key;
     this.roomVideoOnComplete = options?.onComplete ?? null;
+    this.roomVideoClickToSkip = options?.clickToSkip === true;
 
     // Hide HUD GUIs (verbs/menus/dialog) for the cinematic; Speaking/Display Text overlays are not in
     // `genericGuiOverlays`, so they keep working over the video. Restored in `finalizeRoomVideo`.
     this.snapshotAndHideGenericGuisForVideo();
+    this.lastCustomCursorVisualKey = null;
+    this.refreshCustomCursor(this.input.activePointer);
+    this.syncVerbHoverScriptSurface(this.input.activePointer);
 
     video
       .setVisible(true)
@@ -1732,11 +1749,15 @@ export class RoomScene extends Phaser.Scene {
     const onComplete = this.roomVideoOnComplete;
     this.roomVideoActiveKey = null;
     this.roomVideoOnComplete = null;
+    this.roomVideoClickToSkip = false;
     this.roomVideoCompleteResolvers = [];
 
     this.roomVideo?.setVisible(false);
     this.roomVideoBackdrop?.setVisible(false);
     this.restoreGenericGuisAfterVideo();
+    this.lastCustomCursorVisualKey = null;
+    this.refreshCustomCursor(this.input.activePointer);
+    this.syncVerbHoverScriptSurface(this.input.activePointer);
 
     for (const resolve of resolvers) {
       resolve();
@@ -1960,13 +1981,18 @@ export class RoomScene extends Phaser.Scene {
     return this.scriptedDialogInputSuppressionDepth > 0;
   }
 
+  private isBusyCursorActive(): boolean {
+    return this.cutsceneDepth > 0 || this.isRoomVideoPlaying();
+  }
+
   /**
-   * True while ANY scripted-dialog line OR cutscene is active — gates props, hotspots, characters,
-   * inventory rows, hover descriptions, and background walks. GUI buttons are additionally gated
-   * only when {@link isCutsceneActive} is true (they remain live during say-line suppression).
+   * True while ANY scripted-dialog line, cutscene, or room video is active — gates props, hotspots,
+   * characters, inventory rows, hover descriptions, and background walks. GUI buttons are additionally
+   * gated only when {@link isCutsceneActive} or video playback is true (they remain live during
+   * say-line suppression).
    */
   private isInputSuppressed(): boolean {
-    return this.scriptedDialogInputSuppressionDepth > 0 || this.cutsceneDepth > 0;
+    return this.scriptedDialogInputSuppressionDepth > 0 || this.cutsceneDepth > 0 || this.isRoomVideoPlaying();
   }
 
   /**
@@ -2052,6 +2078,21 @@ export class RoomScene extends Phaser.Scene {
     this.scriptedDialogClickToSkip = null;
     fn();
     return true;
+  }
+
+  private tryConsumeRoomVideoClickToSkip(pointer: Phaser.Input.Pointer): boolean {
+    if (!this.roomVideoClickToSkip || !this.isRoomVideoPlaying()) {
+      return false;
+    }
+    if (!pointer.leftButtonDown()) {
+      return false;
+    }
+    this.stopRoomVideo();
+    return true;
+  }
+
+  private tryConsumeRoomVideoOrScriptedDialogClickToSkip(pointer: Phaser.Input.Pointer): boolean {
+    return this.tryConsumeRoomVideoClickToSkip(pointer) || this.tryConsumeScriptedDialogClickToSkip(pointer);
   }
 
   /** World position of `CharacterData.talkPoint` for the first spawned sprite of this definition, or a default above the sprite top. */
@@ -4110,7 +4151,7 @@ export class RoomScene extends Phaser.Scene {
     /** Same list Phaser passes after {@link Phaser.Input.InputPlugin#sortGameObjects} + `topOnly` (when emitted from POINTER_DOWN). */
     phaserCurrentlyOver?: Phaser.GameObjects.GameObject[],
   ): void => {
-    if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
+    if (this.tryConsumeRoomVideoOrScriptedDialogClickToSkip(pointer)) {
       return;
     }
     if (this.isInputSuppressed()) {
@@ -4767,7 +4808,7 @@ export class RoomScene extends Phaser.Scene {
     });
 
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
+      if (this.tryConsumeRoomVideoOrScriptedDialogClickToSkip(pointer)) {
         return;
       }
       if (this.isInputSuppressed()) {
@@ -4894,7 +4935,7 @@ export class RoomScene extends Phaser.Scene {
     }
 
     const onHotspotPointer = (pointer: Phaser.Input.Pointer): void => {
-      if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
+      if (this.tryConsumeRoomVideoOrScriptedDialogClickToSkip(pointer)) {
         return;
       }
       if (this.isInputSuppressed()) {
@@ -5118,7 +5159,7 @@ export class RoomScene extends Phaser.Scene {
       sprite.setInteractive({ useHandCursor: !isBenneGameCursorAsepriteEnabled(getGameSettings()) });
     }
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (this.tryConsumeScriptedDialogClickToSkip(pointer)) {
+      if (this.tryConsumeRoomVideoOrScriptedDialogClickToSkip(pointer)) {
         return;
       }
       if (this.isInputSuppressed()) {
@@ -5430,8 +5471,8 @@ export class RoomScene extends Phaser.Scene {
     const idleKey = cursorPhaserAnimationKey(cfg.idleAnimation.trim());
     const defaultActiveAuthor = cfg.activeAnimation.trim();
 
-    // Cutscene: show busy animation if configured and exists, otherwise hide the cursor.
-    if (this.cutsceneDepth > 0) {
+    // Cutscenes and videos show busy animation if configured and exists, otherwise hide the cursor.
+    if (this.isBusyCursorActive()) {
       const busyAuthor = cfg.busyAnimation?.trim() ?? '';
       const busyKey = busyAuthor.length > 0 ? cursorPhaserAnimationKey(busyAuthor) : '';
       const hasBusy = busyKey.length > 0 && this.anims.exists(busyKey);
@@ -5517,7 +5558,7 @@ export class RoomScene extends Phaser.Scene {
     useActiveVerbCursor: boolean;
     overrideAuthor: string;
   } {
-    if (this.cutsceneDepth > 0) {
+    if (this.isBusyCursorActive()) {
       return { useActiveVerbCursor: false, overrideAuthor: '' };
     }
     const dialogSuppressed = this.isScriptedDialogInputSuppressed();

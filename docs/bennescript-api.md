@@ -286,6 +286,8 @@ Available on every **`BenneScriptCore`** facade (**room / character / inventory 
 
 **Concurrency** — Blocking **`play`** is queued on the interaction tail (so it orders after prior **`walkTo`** / **`wait`** steps) but **resolves immediately** — the script keeps running while the video plays. Use **`playAndWait`** when the next step should run only **after** the video finishes.
 
+**Input while playing** — Active video playback blocks gameplay and GUI input: props, hotspots, characters, inventory rows, GUI buttons/inputs, background walks, and hover descriptions are ignored while the video is up. The custom game cursor uses **`cursor.busyAnimation`** during playback (or hides when no busy clip is configured). **ESC** stops the active video. Primary click/tap stops the video only when the playback was started with **`{ clickToSkip: true }`**; otherwise clicks are swallowed.
+
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
 | **`play`** | `BlockingWithNow<[key: VideoId, options?: VideoPlayOptions]>` | Start a full-screen cinematic. **Blocking** form queues on the tail then resolves immediately (playback runs concurrently). **`play.now`** starts immediately without tail ordering. | Queued vs **`.now`** |
@@ -296,9 +298,9 @@ Available on every **`BenneScriptCore`** facade (**room / character / inventory 
 | **`seek`** | `BlockingWithNow<[seconds: number]>` | Seek the active video to **`seconds`** from its start. | Queued vs **`.now`** |
 | **`isPlaying`** | `() => boolean` | Whether a video is currently loaded and playing/paused. | Sync |
 
-**`VideoPlayOptions`** — optional **`loop?: boolean`** (default false; looping videos never fire completion), **`volume?: number`** (0–1), **`onComplete?: () => void`** (called once on end/stop).
+**`VideoPlayOptions`** — optional **`loop?: boolean`** (default false; looping videos never fire completion), **`volume?: number`** (0–1), **`clickToSkip?: boolean`** (default false; primary click/tap stops the video when true), **`onComplete?: () => void`** (called once on end/stop).
 
-**Lifecycle** — Playback stops on room-leave and the video object is destroyed on **`RoomScene`** shutdown, so cinematics never leak across rooms. **`B.video`** does **not** force cutscene mode; wrap calls in **`B.cutscene(…)`** when you want input suppressed during a cinematic. Calling **`B.video`** with no active **`RoomScene`** is a safe no-op (DEV warn-once, like **`B.camera`**).
+**Lifecycle** — Playback stops on room-leave and the video object is destroyed on **`RoomScene`** shutdown, so cinematics never leak across rooms. Calling **`B.video`** with no active **`RoomScene`** is a safe no-op (DEV warn-once, like **`B.camera`**).
 
 **Editor previews** — VS Code **room / GUI / inventory / character** previews set **`benneVideoScriptDisabled`** so **`B.video`** never loads or plays cinematics (full runtime and **BENNE Play** behave normally).
 
