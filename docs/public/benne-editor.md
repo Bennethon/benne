@@ -14,7 +14,7 @@ While every piece of content is ultimately plain JSON and TypeScript that you *c
 When the extension is installed, a **BENNE** icon appears in the VS Code Activity Bar. Clicking it reveals the BENNE sidebar, which contains three views:
 
 - **BENNE** (the main tree) — A structured outline of your whole game: rooms, characters, GUIs, inventory, dialogs, and puzzle charts, each expandable down to individual props, hotspots, regions, points, walkable areas, and controls.
-- **Actions** — Buttons for rebuilding preview bundles (room, character, GUI, inventory, dialog/inspector, and BENNE Play).
+- **Actions** — Buttons for rebuilding preview bundles (room, character, GUI, inventory, dialog/inspector, and BENNE Play), plus workspace-level helpers such as **Process Game Voice IDs**.
 - **Inspector** — A webview panel that shows editable properties for whatever you've selected in the tree.
 
 From the sidebar title bars and right-click context menus you can create new content, add elements to a room, scaffold script handlers, import from Aseprite tags, play from a room, update the engine, and delete entities.
@@ -189,6 +189,8 @@ The editor's live previews are powered by prebuilt bundles. In a standalone game
 - `npm run build:benne-play` (and `npm run watch:benne-play` for auto-reload)
 
 The matching **Rebuild …** buttons in the Actions view trigger these for you. The room preview reloads automatically on a successful rebuild.
+
+The Actions view also includes **Process Game Voice IDs** when nothing is selected in the main tree. It scans `src/game/**/*.ts`, adds or rewrites `|number|` voice markers on supported `say` lines, and can show VS Code diffs before applying changes. See [Sound, Voice, and Video](./sound-voice-and-video#process-game-voice-ids).
 
 ---
 

@@ -152,6 +152,7 @@ export type ActionTreeNode =
     | { kind: 'rebuildGuiPreviewBundle' }
     | { kind: 'rebuildInventoryPreviewBundle' }
     | { kind: 'rebuildDialogPreviewBundle' }
+    | { kind: 'processGameVoiceIds' }
     | { kind: 'addInventoryItem' }
     | { kind: 'importInventoryFromAseprite' }
     | { kind: 'addGuiControl'; guiJsonUri: vscode.Uri }
@@ -584,6 +585,19 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 };
                 return item;
             }
+            case 'processGameVoiceIds': {
+                const item = new vscode.TreeItem('Process Game Voice IDs', vscode.TreeItemCollapsibleState.None);
+                item.id = 'action:processGameVoiceIds';
+                item.iconPath = new vscode.ThemeIcon('megaphone');
+                item.contextValue = 'benneActionProcessGameVoiceIds';
+                item.description = 'assign dialogue markers';
+                item.command = {
+                    command: 'benne-editor.processGameVoiceIds',
+                    title: 'Process Game Voice IDs',
+                    arguments: []
+                };
+                return item;
+            }
             case 'addInventoryItem': {
                 const item = new vscode.TreeItem(
                     'Add Inventory',
@@ -787,6 +801,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         }
 
         return [
+            { kind: 'processGameVoiceIds' },
             { kind: 'rebuildRoomPreviewBundle' },
             { kind: 'rebuildCharacterPreviewBundle' },
             { kind: 'rebuildGuiPreviewBundle' },

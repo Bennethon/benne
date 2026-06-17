@@ -1,6 +1,8 @@
 # BENNE — Architecture
 
 > **Voiced `say` lines** (2026-06-15): Dialogue voice is an extension of the existing **`say`** pipeline, not a separate scripting surface. **`BenneScriptCore`** parses a leading **`|number|`** marker from direct and tagged-template say text, strips it before the Speaking Text overlay/logging, resolves **`<speakerId><number>`**, and asks **`SoundManager`** to play **`src/game/assets/audio/voice/<stem>.{mp3,ogg,wav,m4a}`** through Phaser audio at **`audio.dialogueVolume`**. The existing say promise still owns **`interactionTail`** blocking, **`.now`** behavior, Speaking Text visibility, directional Talk/Idle animation, and click-to-skip; skip and teardown stop the retained voice instance.
+>
+> **Voice ID authoring helper** (2026-06-15): The BENNE Editor command **Process Game Voice IDs** is an authoring-only pass in **`benne-editor/src/voiceIdProcessor.ts`**. It scans **`src/game/**/*.ts`** for direct **`.say(...)`** calls and tagged **`B.say`** templates, inserts or rewrites leading **`|number|`** markers, and persists per-character high-water marks in **`.benne/voice-ids.json`**. The command defaults to preserving existing markers and previewing edits through VS Code diffs before applying them.
 
 > **Per-character inventory bags (game state v2)** (2026-06-06): Carried items are stored per **character definition id** in **`GameStateManager.inventoryByCharacter`** (`SerializableBenneGameState` **version 2**). **`B.inventory`** and **`B.player.inventory`** quantity helpers target the **active player's** bag (**`activePlayerCharacterId`**, default **`startingPlayerCharacter`**); **`B.character(id).inventory`** targets a specific character's bag. GUI **`inventoryPanel`** controls may set optional **`characterId`** (omit = active player). Legacy v1 saves with flat **`inventory`** migrate into the starting player's bag on load; **`initialGameState.inventory`** still seeds only the starting player; use **`initialGameState.inventoryByCharacter`** for multi-bag bootstrap.
 
@@ -376,7 +378,7 @@ The sprite’s **`facing`** data stores the **logical** facing the gameplay aske
 ### Asset management / loading
 
 - **Room & character JSON** for Aseprite: **eager globs** in `loadAsepriteAtlasData.ts` (and friends); **normalized** for Phaser frame indices (`normalizeAsepriteJson.ts`).
-- **Binary assets**: **`resolveGameAssetUrl` / `resolveGameAssetJsonUrl` / `resolveGameAssetXmlUrl`** map paths under `src/game/assets/**` to **Vite-built URLs** (images, JSON, BMFont XML for GUI bitmap fonts). **Audio** uses additional globs on **`./assets/audio/sfx/**`** and **`./assets/audio/music/**`** (.mp3 / .ogg / .wav / .m4a); **`getBenneAudioBootEntries()`** groups stems + URLs for **`queueBenneAudioForBootLoader`** (Phaser **`load.audio`** keys **`benne:sfx:<stem>`** / **`benne:music:<stem>`** via **`benneAudioCacheKeys.ts`**).
+- **Binary assets**: **`resolveGameAssetUrl` / `resolveGameAssetJsonUrl` / `resolveGameAssetXmlUrl`** map paths under `src/game/assets/**` to **Vite-built URLs** (images, JSON, BMFont XML for GUI bitmap fonts). **Audio** uses additional globs on **`./assets/audio/sfx/**`**, **`./assets/audio/music/**`**, and **`./assets/audio/voice/**`** (.mp3 / .ogg / .wav / .m4a); **`getBenneAudioBootEntries()`** groups stems + URLs for **`queueBenneAudioForBootLoader`** (Phaser **`load.audio`** keys **`benne:sfx:<stem>`** / **`benne:music:<stem>`** / **`benne:voice:<stem>`** via **`benneAudioCacheKeys.ts`**).
 - **Boot-time loading only** in `BootScene` (Phaser loader); **no streaming** or mid-room asset packs yet.
 
 ### Audio system
@@ -388,7 +390,7 @@ The sprite’s **`facing`** data stores the **logical** facing the gameplay aske
 
 **Asset discovery**
 
-- **`registerGameContent`** does **not** glob audio; **`resolveGameAssetUrl.ts`** holds **`import.meta.glob`** tables for **`assets/audio/sfx/**`** and **`assets/audio/music/**`**. **`getBenneAudioBootEntries()`** returns one boot row per **stem** (filename without extension); multiple formats for the same stem become a **fallback URL array** for **`load.audio`**.
+- **`registerGameContent`** does **not** glob audio; **`resolveGameAssetUrl.ts`** holds **`import.meta.glob`** tables for **`assets/audio/sfx/**`**, **`assets/audio/music/**`**, and **`assets/audio/voice/**`**. **`getBenneAudioBootEntries()`** returns one boot row per **stem** (filename without extension); multiple formats for the same stem become a **fallback URL array** for **`load.audio`**.
 - **`queueBenneAudioForBootLoader`** runs from **`BootScene.create`** only when **`game.registry`** **`benneAudioScriptDisabled`** is **not** `true` (VS Code **room / GUI / inventory / character** previews set **`benneAudioScriptDisabled`** in **`Phaser.Game` `callbacks.preBoot`**).
 
 **Runtime**
