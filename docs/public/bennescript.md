@@ -359,7 +359,7 @@ if (!B.state.getFlag('unlockedDoor')) B.player.say("It's locked.");
 
 ## `B.sound`
 
-Available everywhere (also as `B.player.sound`, `B.prop('id').sound`, etc.). Reference SFX by filename from `assets/audio/sfx/` and music from `assets/audio/music/`.
+Available everywhere (also as `B.player.sound`, `B.prop('id').sound`, etc.). Reference SFX by filename from `assets/audio/sfx/` and music from `assets/audio/music/`. For asset folders, voice markers, and video workflow details, see [Sound, Voice, and Video](./sound-voice-and-video).
 
 | Member | Description |
 |--------|-------------|
@@ -377,7 +377,7 @@ B.sound.playMusic('outside-ambient', { fadeSeconds: 2 });
 
 ## `B.video`
 
-Full-screen cinematics from `assets/videos/`. The HUD hides during playback; speech and display text remain on top.
+Full-screen cinematics from `assets/videos/`. The HUD hides during playback; speech and display text remain on top. See [Sound, Voice, and Video](./sound-voice-and-video#video) for file placement, options, and VS Code codec notes.
 
 | Member | Description |
 |--------|-------------|

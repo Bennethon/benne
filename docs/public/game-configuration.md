@@ -162,7 +162,7 @@ These fields define where a brand-new game begins:
 "audio": { "masterVolume": 1, "sfxVolume": 1, "musicVolume": 0.75, "dialogueVolume": 1 }
 ```
 
-`audio` sets the default volume levels (0–1). Effective playback volume for a sound is the **master volume × the category volume** (× any per-call multiplier). Players can adjust SFX and music volumes at runtime through settings GUIs; those session adjustments are persisted in save data and layered on top of these config defaults.
+`audio` sets the default volume levels (0–1). Effective playback volume for a sound is the **master volume × the category volume** (× any per-call multiplier). Players can adjust SFX and music volumes at runtime through settings GUIs; those session adjustments are persisted in save data and layered on top of these config defaults. See [Sound, Voice, and Video](./sound-voice-and-video) for asset folders, script calls, voice markers, and video notes.
 
 ## Speech
 

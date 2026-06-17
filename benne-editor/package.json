@@ -57,6 +57,7 @@
     "onCommand:benne-editor.addCharacterInventoryUsedOnStub",
     "onCommand:benne-editor.filterMainTree",
     "onCommand:benne-editor.clearMainTreeFilter",
+    "onCommand:benne-editor.processGameVoiceIds",
     "onCommand:benne-editor.deleteGameEntity",
     "onCommand:benne-editor.createPdc"
   ],
@@ -369,6 +370,12 @@
         "title": "Rebuild Editor Preview Bundles",
         "category": "BENNE",
         "icon": "$(sync)"
+      },
+      {
+        "command": "benne-editor.processGameVoiceIds",
+        "title": "Process Game Voice IDs",
+        "category": "BENNE",
+        "icon": "$(megaphone)"
       },
       {
         "command": "benne-editor.filterMainTree",

@@ -91,6 +91,7 @@ import {
     promptDeleteConfirmation,
     showReferenceHitsPicker
 } from './delete/deleteService';
+import { runProcessGameVoiceIdsCommand } from './voiceIdProcessor';
 
 function firstTreeContextArg(arg: MainTreeNode | MainTreeNode[] | undefined): MainTreeNode | undefined {
     if (arg === undefined) {
@@ -651,6 +652,9 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('benne-editor.clearMainTreeFilter', async () => {
             mainProvider.clearTreeFilter();
             await syncMainTreeFilterUi();
+        }),
+        vscode.commands.registerCommand('benne-editor.processGameVoiceIds', async () => {
+            await runProcessGameVoiceIdsCommand(context);
         }),
         vscode.commands.registerCommand(
             'benne-editor.deleteGameEntity',
