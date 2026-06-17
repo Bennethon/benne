@@ -190,7 +190,7 @@ The editor's live previews are powered by prebuilt bundles. In a standalone game
 
 The matching **Rebuild …** buttons in the Actions view trigger these for you. The room preview reloads automatically on a successful rebuild.
 
-The Actions view also includes **Process Game Voice IDs** when nothing is selected in the main tree. It scans `src/game/**/*.ts`, adds or rewrites `|number|` voice markers on supported `say` lines, and can show VS Code diffs before applying changes. See [Sound, Voice, and Video](./sound-voice-and-video#process-game-voice-ids).
+The Actions view also includes voice authoring helpers when nothing is selected in the main tree. **Process Game Voice IDs** scans `src/game/**/*.ts`, adds or rewrites `|number|` voice markers on supported `say` lines, and can show VS Code diffs before applying changes. **Export Speaking Text as CSV** writes those same supported speaking lines to a spreadsheet with Character, ID, Script, and Line columns. See [Sound, Voice, and Video](./sound-voice-and-video#process-game-voice-ids).
 
 ---
 

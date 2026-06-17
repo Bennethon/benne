@@ -24,6 +24,18 @@ export interface VoiceIdPlanResult {
     readonly skippedCount: number;
 }
 
+export interface SpeakingTextCsvRow {
+    readonly character: string;
+    readonly id: string;
+    readonly script: string;
+    readonly line: string;
+}
+
+export interface SpeakingTextExportResult {
+    readonly rows: SpeakingTextCsvRow[];
+    readonly skippedCount: number;
+}
+
 interface Replacement {
     readonly start: number;
     readonly end: number;
@@ -420,22 +432,32 @@ function nextUnused(used: Set<number>): number {
     return id;
 }
 
-export function planVoiceIdsForFiles(
-    files: readonly VoiceIdTextFileInput[],
-    existingSidecar: Record<string, number>,
-    options: { mode: VoiceIdMode; startingPlayerCharacterId: string; knownCharacterIds?: readonly string[] },
-): VoiceIdPlanResult {
+function createSpeakerCharacterResolver(
+    startingPlayerCharacterId: string,
+    knownCharacterIds: readonly string[] = [],
+): (speaker: string) => string {
     const knownByLower = new Map<string, string>();
-    for (const id of options.knownCharacterIds ?? []) {
+    for (const id of knownCharacterIds) {
         const key = id.toLowerCase();
         if (!knownByLower.has(key)) {
             knownByLower.set(key, id);
         }
     }
-    const resolveSpeakerCharacterId = (speaker: string): string =>
+    return (speaker: string): string =>
         speaker.toLowerCase() === 'player'
-            ? options.startingPlayerCharacterId
+            ? startingPlayerCharacterId
             : (knownByLower.get(speaker.toLowerCase()) ?? speaker);
+}
+
+export function planVoiceIdsForFiles(
+    files: readonly VoiceIdTextFileInput[],
+    existingSidecar: Record<string, number>,
+    options: { mode: VoiceIdMode; startingPlayerCharacterId: string; knownCharacterIds?: readonly string[] },
+): VoiceIdPlanResult {
+    const resolveSpeakerCharacterId = createSpeakerCharacterResolver(
+        options.startingPlayerCharacterId,
+        options.knownCharacterIds,
+    );
     const scans = files.map((file) => ({
         file,
         scan: scanDialogueParts(file.text, options.startingPlayerCharacterId, resolveSpeakerCharacterId),
@@ -517,6 +539,53 @@ export function planVoiceIdsForFiles(
     return { changes, sidecar, assignedCount, strippedCount, preservedCount, skippedCount };
 }
 
+export function exportSpeakingTextRowsForFiles(
+    files: readonly VoiceIdTextFileInput[],
+    options: { startingPlayerCharacterId: string; knownCharacterIds?: readonly string[] },
+): SpeakingTextExportResult {
+    const resolveSpeakerCharacterId = createSpeakerCharacterResolver(
+        options.startingPlayerCharacterId,
+        options.knownCharacterIds,
+    );
+    const rows: SpeakingTextCsvRow[] = [];
+    let skippedCount = 0;
+
+    for (const file of files) {
+        const scan = scanDialogueParts(file.text, options.startingPlayerCharacterId, resolveSpeakerCharacterId);
+        skippedCount += scan.skippedCount;
+        for (const part of scan.parts) {
+            if (!part.characterId) {
+                skippedCount += 1;
+                continue;
+            }
+            const marker = VOICE_MARKER_RE.exec(part.text);
+            rows.push({
+                character: part.characterId,
+                id: marker ? marker[1] : '',
+                script: path.basename(file.path),
+                line: marker ? part.text.slice(marker[0].length) : part.text,
+            });
+        }
+    }
+
+    return { rows, skippedCount };
+}
+
+function csvCell(value: string): string {
+    if (!/[",\r\n]/.test(value)) {
+        return value;
+    }
+    return `"${value.replace(/"/g, '""')}"`;
+}
+
+export function serializeSpeakingTextRowsAsCsv(rows: readonly SpeakingTextCsvRow[]): string {
+    const lines = [
+        ['Character', 'ID', 'Script', 'Line'],
+        ...rows.map((row) => [row.character, row.id, row.script, row.line]),
+    ];
+    return `\uFEFF${lines.map((line) => line.map(csvCell).join(',')).join('\r\n')}\r\n`;
+}
+
 function asWorkspaceFolderPick(folder: vscode.WorkspaceFolder): vscode.QuickPickItem & { folder: vscode.WorkspaceFolder } {
     return { label: folder.name, description: folder.uri.fsPath, folder };
 }
@@ -554,7 +623,11 @@ function isUnderGameScripts(gameFolder: vscode.WorkspaceFolder, uri: vscode.Uri)
     return relative.length > 0 && !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 
-async function confirmDirtyTypeScriptDocuments(gameFolder: vscode.WorkspaceFolder): Promise<boolean> {
+async function confirmDirtyTypeScriptDocuments(
+    gameFolder: vscode.WorkspaceFolder,
+    actionDescription: string,
+    cancelledAction: string,
+): Promise<boolean> {
     const dirtyDocs = vscode.workspace.textDocuments.filter(
         (doc) =>
             doc.isDirty &&
@@ -569,7 +642,7 @@ async function confirmDirtyTypeScriptDocuments(gameFolder: vscode.WorkspaceFolde
     const choice = await vscode.window.showWarningMessage(
         `There ${dirtyDocs.length === 1 ? 'is' : 'are'} ${dirtyDocs.length} unsaved TypeScript ${
             dirtyDocs.length === 1 ? 'file' : 'files'
-        } under src/game. Save before processing voice IDs?`,
+        } under src/game. Save before ${actionDescription}?`,
         { modal: true },
         'Save and Continue',
         'Continue Anyway',
@@ -581,7 +654,7 @@ async function confirmDirtyTypeScriptDocuments(gameFolder: vscode.WorkspaceFolde
     if (choice === 'Save and Continue') {
         for (const doc of dirtyDocs) {
             if (!(await doc.save())) {
-                void vscode.window.showErrorMessage(`Could not save ${doc.uri.fsPath}. Voice ID processing cancelled.`);
+                void vscode.window.showErrorMessage(`Could not save ${doc.uri.fsPath}. ${cancelledAction} cancelled.`);
                 return false;
             }
         }
@@ -751,7 +824,7 @@ export async function runProcessGameVoiceIdsCommand(context: vscode.ExtensionCon
         return;
     }
 
-    if (!(await confirmDirtyTypeScriptDocuments(gameFolder))) {
+    if (!(await confirmDirtyTypeScriptDocuments(gameFolder, 'processing voice IDs', 'Voice ID processing'))) {
         return;
     }
 
@@ -800,4 +873,65 @@ export async function runProcessGameVoiceIdsCommand(context: vscode.ExtensionCon
     }
 
     void vscode.window.showInformationMessage(completionMessage(plan));
+}
+
+export async function runExportSpeakingTextCsvCommand(): Promise<void> {
+    const gameFolder = await pickGameFolder();
+    if (!gameFolder) {
+        return;
+    }
+
+    if (!(await confirmDirtyTypeScriptDocuments(gameFolder, 'exporting speaking text', 'Speaking text export'))) {
+        return;
+    }
+
+    const [startingPlayerCharacterId, knownCharacterIds, files] = await Promise.all([
+        readStartingPlayerCharacterId(gameFolder),
+        readKnownCharacterIds(gameFolder),
+        readProcessableFiles(gameFolder),
+    ]);
+    const exportResult = exportSpeakingTextRowsForFiles(files, {
+        startingPlayerCharacterId,
+        knownCharacterIds,
+    });
+
+    if (exportResult.rows.length === 0) {
+        void vscode.window.showInformationMessage(
+            exportResult.skippedCount > 0
+                ? `No exportable speaking text found. ${exportResult.skippedCount} dialogue ${
+                      exportResult.skippedCount === 1 ? 'line was' : 'lines were'
+                  } skipped.`
+                : 'No speaking text found.',
+        );
+        return;
+    }
+
+    const dest = await vscode.window.showSaveDialog({
+        defaultUri: vscode.Uri.joinPath(gameFolder.uri, 'benne-speaking-text.csv'),
+        filters: { 'CSV Files': ['csv'] },
+        saveLabel: 'Export Speaking Text',
+        title: 'Export Speaking Text as CSV',
+    });
+    if (!dest) {
+        return;
+    }
+
+    try {
+        await vscode.workspace.fs.writeFile(dest, encoder.encode(serializeSpeakingTextRowsAsCsv(exportResult.rows)));
+    } catch (err) {
+        void vscode.window.showErrorMessage(
+            `Export Speaking Text as CSV failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return;
+    }
+
+    const skippedSuffix =
+        exportResult.skippedCount > 0
+            ? ` ${exportResult.skippedCount} dialogue ${exportResult.skippedCount === 1 ? 'line was' : 'lines were'} skipped.`
+            : '';
+    void vscode.window.showInformationMessage(
+        `Exported ${exportResult.rows.length} speaking text ${
+            exportResult.rows.length === 1 ? 'line' : 'lines'
+        } to ${vscode.workspace.asRelativePath(dest)}.${skippedSuffix}`,
+    );
 }

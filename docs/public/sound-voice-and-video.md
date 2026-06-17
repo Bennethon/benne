@@ -171,6 +171,19 @@ The command scans `src/game/**/*.ts`, updates direct `.say(...)` calls and tagge
 
 That sidecar lets the editor continue numbering safely across future runs. The default path, **Preserve + Review**, is the safest workflow when you already have recorded files.
 
+## Export Speaking Text as CSV
+
+The BENNE Editor also includes **Export Speaking Text as CSV** in the same Actions panel. It scans the same supported `say` lines as **Process Game Voice IDs** and prompts for a `.csv` save location.
+
+The exported spreadsheet has these columns:
+
+- **Character** — the resolved character id for the speaker.
+- **ID** — the `|number|` voice marker when present.
+- **Script** — the script filename that contains the line.
+- **Line** — the spoken text without the leading voice marker.
+
+Use this export when planning recording sessions, checking coverage, or handing dialogue to another tool.
+
 ## Video
 
 Put cinematic files under:
