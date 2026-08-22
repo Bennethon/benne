@@ -14,11 +14,14 @@ import { registerRoomScript } from '@engine/scripting';
 registerRoomScript(({ B }) => {
 
   B.whenEnterRoom(() => {
-    B.player.moveTo.now('enter-from-door');
-    B.player.face('R');
+    if (B.state.getLastRoom() === 'apartment') {
+      B.player.moveTo.now('enter-from-door');
+      B.player.face('R');
+    }
   });
 
   B.whenEnterRoomAfterFade(() => {
+    B.sound.playMusic.now('halloween-spooky', { fadeSeconds: 5.0 });
     B.sound.play('doorClose');
     if (B.room.isFirstVisit) {
       B.character('henry').say('Hey, Hank!');
@@ -38,34 +41,41 @@ registerRoomScript(({ B }) => {
     }
   });
 
-  const handleOpenOrUseDoor = () => {
+  B.whenUse('door', () => {
     B.walkToClicked();
     B.room.changeTo('apartment');
-  };
-  
-  B.whenOpen('door', handleOpenOrUseDoor); 
-  B.whenUse('door', handleOpenOrUseDoor);
-
+  });
 
   B.whenLookAt('door', () => {
     B.faceClicked();
-    B.say`Hank: It's the door to the apartment.`;
+    B.say`Hank: It's the door.`;
   });
 
   B.whenLookAt('FountainOff', () => {
     B.faceClicked();
-    B.camera.zoomTo('FountainOff', 1.5, 0.6);
     B.say`
     Hank: It's a fountain.
     Hank: It's not running.
     `;
-    B.camera.reset();
+  });
+
+  B.whenUse('FountainOff', () => {
+    B.walkToClicked();
+    B.wait(.5);
+    B.player.say('I don\'t see how to turn it on.');
   });
 
   B.whenLookAt('FountainOn', () => {
     B.faceClicked();
     B.say`
     Hank: I got it working!.
+    `;
+  });
+
+  B.whenUse('FountainOn', () => {
+    B.faceClicked();
+    B.say`
+    Hank: Cool!.
     `;
   });
 
@@ -76,13 +86,15 @@ registerRoomScript(({ B }) => {
     `;
   });
 
-  B.whenPush('Rock', () => {
+  B.whenUse('Rock', () => {
     B.walkToClicked();
     B.player.say('I think I can move it.');
     B.prop('Rock').hide();
     B.prop('RockMoved').show();
     B.player.say('Huh, some weird lever hidden under the rock.');
   });
+
+
 
   B.whenLookAt('RockMoved', () => {
     B.faceClicked();
@@ -91,7 +103,9 @@ registerRoomScript(({ B }) => {
     `;
   });
 
-  const handlePushOrPullLever = () => {
+
+
+  B.whenUse('RockMoved', () => {
     B.walkToClicked();
     B.say`Hank: Let's see what this does...`;
     B.prop('RockMoved').hide();
@@ -101,9 +115,5 @@ registerRoomScript(({ B }) => {
     B.state.setFlag('turnedOnFountain', true);
     B.character('henry').say('WOO HOO! IT\'S WORKING!');
     B.display('You won!');
-  };
-
-  B.whenPull('RockMoved', handlePushOrPullLever);
-  B.whenPush('RockMoved', handlePushOrPullLever);
-  
+  });
 });

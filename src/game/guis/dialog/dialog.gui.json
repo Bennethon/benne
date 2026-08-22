@@ -14,14 +14,14 @@
       "y": 0,
       "tag": "VerbsBG",
       "zIndex": 1,
-      "backgroundAnchor": "screen",
-      "visible": true
+      "visible": true,
+      "backgroundOffsetY": -13
     },
     {
       "type": "button",
       "id": "scrollUp",
       "x": 2,
-      "y": 150,
+      "y": 6,
       "width": 7,
       "height": 18,
       "text": "Button",
@@ -33,7 +33,7 @@
       "textOffsetY": 0,
       "backgroundTag": "UpBtn",
       "backgroundOffsetX": -3,
-      "backgroundOffsetY": -4,
+      "backgroundOffsetY": -2,
       "zIndex": 100,
       "backgroundAnchor": "top-left"
     },
@@ -41,7 +41,7 @@
       "type": "button",
       "id": "scrollDown",
       "x": 2,
-      "y": 176,
+      "y": 30,
       "width": 7,
       "height": 18,
       "backgroundAnchor": "top-left",
@@ -53,7 +53,7 @@
       "textOffsetY": 0,
       "backgroundTag": "DownBtn",
       "backgroundOffsetX": -3,
-      "backgroundOffsetY": -14,
+      "backgroundOffsetY": -12,
       "zIndex": 100
     },
     {
@@ -69,20 +69,21 @@
         "row": 0,
         "col": 0,
         "align": "center"
-      }
+      },
+      "backgroundOffsetY": 3
     },
     {
       "type": "grid",
       "id": "Option-Grid",
       "x": 12,
-      "y": 148,
-      "width": 334,
+      "y": 4,
+      "width": 304,
       "height": 14,
       "rows": 1,
       "columns": 2,
       "colWidths": [
         10,
-        324
+        294
       ],
       "zIndex": 10
     },
@@ -91,13 +92,13 @@
       "id": "Dialog-Option",
       "x": 0,
       "y": 0,
-      "width": 324,
+      "width": 294,
       "height": 14,
       "backgroundAnchor": "top-left",
       "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
       "font": "lucasfont-alternate",
       "fontSize": 8,
-      "textColor": "#ffffff",
+      "textColor": "#10908e",
       "textAlign": "left",
       "textOffsetX": 0,
       "textOffsetY": 0,
@@ -106,6 +107,11 @@
         "gridControlId": "Option-Grid",
         "row": 0,
         "col": 1
+      },
+      "textColorStates": {
+        "hover": "#28c074",
+        "pressed": "#28c074",
+        "disabled": "#636363"
       }
     }
   ]

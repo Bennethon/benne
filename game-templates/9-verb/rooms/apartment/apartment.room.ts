@@ -140,7 +140,7 @@ registerRoomScript(({ B }) => {
   });
 
   B.whenLookAt('Table', () => {
-    B.player.say('I like to keep this table here so I can walk around it.');
+    B.player.say('|1| I like to keep this table here so I can walk around it.');
   });
 
   B.whenInventoryUsedOn('penny', (payload) => {
@@ -187,6 +187,10 @@ registerRoomScript(({ B }) => {
     return false;
   });
 
+  B.whenUse('Table', () => {
+    B.walkToClicked();
+  });
+
   B.whenOpen('Couch', () => {
     B.prop('Couch').fade(1, 0.5, 1);
   });
@@ -216,6 +220,19 @@ registerRoomScript(({ B }) => {
       B.hotspot('window').active = true;
       B.say`Hank: Hello window.`;
     }
+  });
+
+
+  B.whenPush('penny', () => {
+    B.player.switchTo('penny');
+    B.character('penny').clickable = false;
+    B.character('hank').clickable = true;
+  });
+
+  B.whenPush('hank', () => {
+    B.player.switchTo('hank');
+    B.character('penny').clickable = true;
+    B.character('hank').clickable = false;
   });
 
 });

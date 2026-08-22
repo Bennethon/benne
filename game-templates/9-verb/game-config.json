@@ -68,10 +68,10 @@
     "dialogueVolume": 1
   },
   "debug": {
-    "showWalkable": false,
+    "showWalkable": true,
     "showPropOutlines": false,
     "showGuiOutlines": false,
-    "showRegionOutlines": false
+    "showRegionOutlines": true
   },
   "speech": {
     "clickToSkip": true,
@@ -92,6 +92,16 @@
   "perspective": {
     "minWalkScale": 0.1,
     "walkScalePower": 1.3
+  },
+  "camera": {
+    "minZoom": 0.5,
+    "maxZoom": 2.5,
+    "defaultTransitionSeconds": 0.4,
+    "shake": {
+      "intensity": 0.02,
+      "durationSeconds": 0.35,
+      "falloff": true
+    }
   },
   "cursor": {
     "idleAnimation": "Idle",
