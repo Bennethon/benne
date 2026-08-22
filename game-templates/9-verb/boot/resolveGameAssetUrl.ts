@@ -1,4 +1,8 @@
-import { benneMusicCacheKey, benneSfxCacheKey } from '../../engine/sound/benneAudioCacheKeys.js';
+import {
+  benneMusicCacheKey,
+  benneSfxCacheKey,
+  benneVoiceCacheKey,
+} from '../../engine/sound/benneAudioCacheKeys.js';
 import { benneVideoCacheKey } from '../../engine/video/benneVideoCacheKeys.js';
 
 /**
@@ -29,6 +33,12 @@ const sfxAudioUrls = import.meta.glob('../assets/audio/sfx/**/*.{mp3,ogg,wav,m4a
 }) as Record<string, string>;
 
 const musicAudioUrls = import.meta.glob('../assets/audio/music/**/*.{mp3,ogg,wav,m4a}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+const voiceAudioUrls = import.meta.glob('../assets/audio/voice/**/*.{mp3,ogg,wav,m4a}', {
   eager: true,
   query: '?url',
   import: 'default',
@@ -153,11 +163,17 @@ function groupAudioByStem(urlMap: Record<string, string>): Map<string, string[]>
 /**
  * Entries for {@link import('../../engine/sound/queueBenneAudioBoot.js').queueBenneAudioForBootLoader}.
  * Keys match {@link import('../../engine/sound/benneAudioCacheKeys.js').benneSfxCacheKey} /
- * {@link import('../../engine/sound/benneAudioCacheKeys.js').benneMusicCacheKey}.
+ * {@link import('../../engine/sound/benneAudioCacheKeys.js').benneMusicCacheKey} /
+ * {@link import('../../engine/sound/benneAudioCacheKeys.js').benneVoiceCacheKey}.
  */
-export function getBenneAudioBootEntries(): { sfx: BenneAudioBootEntry[]; music: BenneAudioBootEntry[] } {
+export function getBenneAudioBootEntries(): {
+  sfx: BenneAudioBootEntry[];
+  music: BenneAudioBootEntry[];
+  voice: BenneAudioBootEntry[];
+} {
   const sfxGrouped = groupAudioByStem(sfxAudioUrls);
   const musicGrouped = groupAudioByStem(musicAudioUrls);
+  const voiceGrouped = groupAudioByStem(voiceAudioUrls);
 
   const sfx: BenneAudioBootEntry[] = [];
   for (const [stem, urls] of sfxGrouped) {
@@ -171,7 +187,13 @@ export function getBenneAudioBootEntries(): { sfx: BenneAudioBootEntry[]; music:
   }
   music.sort((a, b) => a.cacheKey.localeCompare(b.cacheKey));
 
-  return { sfx, music };
+  const voice: BenneAudioBootEntry[] = [];
+  for (const [stem, urls] of voiceGrouped) {
+    voice.push({ cacheKey: benneVoiceCacheKey(stem), urls });
+  }
+  voice.sort((a, b) => a.cacheKey.localeCompare(b.cacheKey));
+
+  return { sfx, music, voice };
 }
 
 export interface BenneVideoBootEntry {

@@ -10,8 +10,8 @@
     {
       "type": "nineSliceImage",
       "id": "settings-BG",
-      "x": 72,
-      "y": 41,
+      "x": 56,
+      "y": 33,
       "width": 208,
       "height": 116,
       "tag": "9-slice-BG",
@@ -31,8 +31,8 @@
     {
       "type": "text",
       "id": "title",
-      "x": 176,
-      "y": 50,
+      "x": 160,
+      "y": 40,
       "text": "Settings",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
@@ -155,8 +155,8 @@
     {
       "type": "grid",
       "id": "settings-layout",
-      "x": 76,
-      "y": 65,
+      "x": 60,
+      "y": 56,
       "height": 64,
       "rows": 4,
       "columns": 2,
@@ -205,8 +205,8 @@
     {
       "type": "button",
       "id": "back",
-      "x": 151,
-      "y": 133,
+      "x": 136,
+      "y": 124,
       "width": 50,
       "height": 15,
       "backgroundAnchor": "top-left",

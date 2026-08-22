@@ -18,7 +18,7 @@ export type CharacterId = LooseString<'hank' | 'henry' | 'penny'>;
 export type DialogId = LooseString<'chatwithpenny'>;
 
 /** GUI overlay ids from src/game/guis/<id>/<id>.gui.json. */
-export type GuiId = LooseString<'dialog' | 'display-text' | 'game-menu' | 'load-menu' | 'save-menu' | 'settings-menu' | 'speaking-text' | 'verbs'>;
+export type GuiId = LooseString<'dialog' | 'display-text' | 'game-menu' | 'hover-text' | 'inventoryBar' | 'load-menu' | 'menu-bar' | 'save-menu' | 'settings-menu' | 'speaking-text'>;
 
 /** Inventory item ids from src/game/inventory/<id>/<id>.inventory.json. */
 export type InventoryItemId = LooseString<'Bread' | 'Broom' | 'Key' | 'Knife' | 'Lantern' | 'PB' | 'Sammich'>;
@@ -27,10 +27,10 @@ export type InventoryItemId = LooseString<'Bread' | 'Broom' | 'Key' | 'Knife' | 
 export type PropId = LooseString<'BG' | 'Bread' | 'Couch' | 'Door' | 'Fan' | 'FountainOff' | 'FountainOn' | 'Knife' | 'LeverPulled' | 'PeanutButter' | 'Rock' | 'RockMoved' | 'Sky' | 'Table' | 'Trees'>;
 
 /** Hotspot ids from all *.room.json hotspots[]. */
-export type HotspotId = LooseString<'door' | 'window'>;
+export type HotspotId = LooseString<'door'>;
 
 /** Region ids from all *.room.json regions[]. */
-export type RegionId = LooseString<'darkness' | 'distance'>;
+export type RegionId = LooseString<'distance'>;
 
 /** Named room point ids from all *.room.json points[]. */
 export type PointId = LooseString<'enter-from-door' | 'henry-fountain'>;
@@ -39,7 +39,7 @@ export type PointId = LooseString<'enter-from-door' | 'henry-fountain'>;
 export type DialogOptionId = LooseString<'bye' | 'door' | 'greeting'>;
 
 /** Verb ids from src/game/game-config.json verbs[] (or engine defaults when omitted). */
-export type GameVerbId = LooseString<'close' | 'give' | 'look' | 'open' | 'pickUp' | 'pull' | 'push' | 'talkTo' | 'use'>;
+export type GameVerbId = LooseString<'look' | 'use'>;
 
 /** Video stem ids from src/game/assets/videos/<stem>.{mp4,webm} (basename without extension). */
 export type VideoId = LooseString;

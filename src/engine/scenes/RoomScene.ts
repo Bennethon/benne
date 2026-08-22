@@ -1590,6 +1590,16 @@ export class RoomScene extends Phaser.Scene {
    * or this room’s active choice session no longer matches **`dialogId`** / **`guiId`**.
    */
   restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId: string, dialogId: string): void {
+    // A click-to-skip finishes speech on pointerdown, while GUI buttons activate on
+    // pointerup. Keep the choices hidden until that same press is released so it
+    // cannot also activate whichever option appears beneath the stationary pointer.
+    if (this.input.activePointer.leftButtonDown()) {
+      this.input.once('pointerup', () => {
+        this.restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId, dialogId);
+      });
+      return;
+    }
+
     const active = getActiveDialogBenneScript();
     if (!active || active.dialogId !== dialogId) {
       return;
