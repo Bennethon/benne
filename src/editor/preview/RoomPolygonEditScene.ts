@@ -137,13 +137,20 @@ function insertPointOnEdge(pts: Point2[], edgeIdx: number, wx: number, wy: numbe
     pts.splice(edgeIdx + 1, 0, { x: ix, y: iy });
 }
 
-function baselineDisplayWorldYForProp(prop: RoomPropInstance, roomH: number): number {
+function baselineDisplayWorldYForProp(
+    prop: RoomPropInstance,
+    roomH: number,
+    spriteBottomY?: number,
+): number {
     if (typeof prop.baseline === 'number' && Number.isFinite(prop.baseline)) {
         return prop.baseline;
     }
     const c = prop.collider?.points;
     if (c && c.length > 0) {
         return centroidFromPoints(c).y;
+    }
+    if (typeof spriteBottomY === 'number' && Number.isFinite(spriteBottomY)) {
+        return Math.round(spriteBottomY);
     }
     return Math.round(roomH / 2);
 }
@@ -467,6 +474,36 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             return;
         }
 
+        if (polygonEditBridge.mode === 'propBaseline') {
+            const p = this.getActiveProp();
+            const roomWGuide = this.room.size?.width ?? getInternalWidth();
+            const roomHGuide = this.room.size?.height ?? getInternalHeight();
+            const baselineWorldY = p ? this.displayedPropBaselineY(p, roomHGuide) : 0;
+            this.overlay.clearAndDraw({
+                pts: [],
+                strokeStyle: '#000000',
+                handleFill: COL_HANDLE,
+                handleStroke: COL_HANDLE_STROKE,
+                selectedIndex: null,
+                handleRadiusCss: HANDLE_R_CSS,
+                lineWidthCss: LINE_WIDTH_CSS,
+                horizontalGuidesRoomWidth: roomWGuide,
+                horizontalGuides: p
+                    ? [
+                          {
+                              worldY: baselineWorldY,
+                              label: 'Baseline',
+                              strokeStyle: COL_BASELINE_LINE,
+                              lineWidthCss: 2,
+                              dashCss: [7, 5],
+                              selected: this.selectedBaseline || this.dragBaseline,
+                          },
+                      ]
+                    : [],
+            }, roomCam);
+            return;
+        }
+
         const auxEd = this.getPolygonAuxEditor();
         if (auxEd) {
             auxEd.ensure();
@@ -494,7 +531,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             if (polygonEditBridge.mode === 'propCollider') {
                 const p = this.getActiveProp();
                 if (p) {
-                    baselineWorldY = baselineDisplayWorldYForProp(p, roomHGuide);
+                    baselineWorldY = this.displayedPropBaselineY(p, roomHGuide);
                 }
             } else {
                 const h = this.getActiveHotspot();
@@ -617,15 +654,31 @@ export class RoomPolygonEditScene extends Phaser.Scene {
     }
 
     private getActiveProp(): RoomPropInstance | null {
-        if (polygonEditBridge.mode !== 'propCollider') {
+        if (polygonEditBridge.mode !== 'propCollider' && polygonEditBridge.mode !== 'propBaseline') {
             return null;
         }
         const id = polygonEditBridge.propId;
         const p = this.room.props?.find((x) => x.id === id);
-        if (!p || p.clickable !== true) {
+        if (!p) {
+            return null;
+        }
+        if (polygonEditBridge.mode === 'propCollider' && p.clickable !== true) {
             return null;
         }
         return p;
+    }
+
+    /** Bottom of the live prop sprite in room space (origin top-left). */
+    private propSpriteBottomY(propId: string): number | undefined {
+        const sprite = this.roomScene?.getPropSprite?.(propId);
+        if (!sprite || !Number.isFinite(sprite.displayHeight)) {
+            return undefined;
+        }
+        return sprite.y + sprite.displayHeight * (1 - sprite.originY);
+    }
+
+    private displayedPropBaselineY(prop: RoomPropInstance, roomH: number): number {
+        return baselineDisplayWorldYForProp(prop, roomH, this.propSpriteBottomY(prop.id));
     }
 
     private ensurePropWalkLook(prop: RoomPropInstance): void {
@@ -737,13 +790,13 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         toCss: (p: Point2) => { x: number; y: number },
     ): boolean {
         let worldY: number;
-        if (polygonEditBridge.mode === 'propCollider') {
+        if (polygonEditBridge.mode === 'propCollider' || polygonEditBridge.mode === 'propBaseline') {
             const p = this.getActiveProp();
             if (!p) {
                 return false;
             }
             const roomH = this.room.size?.height ?? getInternalHeight();
-            worldY = baselineDisplayWorldYForProp(p, roomH);
+            worldY = this.displayedPropBaselineY(p, roomH);
         } else if (polygonEditBridge.mode === 'hotspotPolygon') {
             const h = this.getActiveHotspot();
             if (!h) {
@@ -772,7 +825,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
     private setAuxBaselineWorldY(worldY: number): void {
         const roomH = this.room.size?.height ?? getInternalHeight();
         const y = Math.round(Phaser.Math.Clamp(worldY, 0, roomH));
-        if (polygonEditBridge.mode === 'propCollider') {
+        if (polygonEditBridge.mode === 'propCollider' || polygonEditBridge.mode === 'propBaseline') {
             const p = this.getActiveProp();
             if (p) {
                 p.baseline = y;
@@ -900,6 +953,24 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 walkToPoint: { x: prop.walkToPoint!.x, y: prop.walkToPoint!.y },
                 lookAtPoint: { x: prop.lookAtPoint!.x, y: prop.lookAtPoint!.y },
                 ...baselinePart,
+            });
+            return;
+        }
+        if (polygonEditBridge.mode === 'propBaseline') {
+            const prop = this.getActiveProp();
+            if (!prop) {
+                return;
+            }
+            const roomH = this.room.size?.height ?? getInternalHeight();
+            const y =
+                typeof prop.baseline === 'number' && Number.isFinite(prop.baseline)
+                    ? Math.round(prop.baseline)
+                    : Math.round(this.displayedPropBaselineY(prop, roomH));
+            prop.baseline = y;
+            this.postPatch({
+                kind: 'propBaseline',
+                propId: polygonEditBridge.propId,
+                baseline: y,
             });
             return;
         }
@@ -1128,6 +1199,14 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 const hit = this.hitRectHandle(cx, cy, handles, HANDLE_R_CSS + 2, toCss, locked);
                 this.dragRectHandle = hit;
                 this.selectedRectHandle = hit;
+            }
+            return;
+        }
+
+        if (polygonEditBridge.mode === 'propBaseline') {
+            const roomWPick = this.room.size?.width ?? getInternalWidth();
+            if (this.tryPickBaselineLine(cx, cy, roomWPick, toCss)) {
+                this.snapAuxBaselineFromPointer(e);
             }
             return;
         }

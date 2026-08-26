@@ -2,6 +2,7 @@ export type EditToolbarMode =
     | 'navigate'
     | 'walkable'
     | 'propCollider'
+    | 'propBaseline'
     | 'hotspotPolygon'
     | 'regionPolygon'
     | 'roomPoint'

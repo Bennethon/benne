@@ -85,13 +85,14 @@ Most of a room's interactive geometry is defined as **polygons**, and you edit t
 - **Walkable areas** — Polygons describing where the player can walk. Each walkable area can contain **holes** (e.g. a table the player must walk around). The example apartment room defines a single walkable polygon with one hole.
 - **Hotspots** — Clickable polygonal areas with no sprite of their own (a window, a sign, a patch of floor). Each can have a `walkToPoint` and `lookAtPoint`.
 - **Regions** — Polygonal zones used for triggers (`whenEnter` / `whenExit`), perspective scaling, and character tinting. A region can carry a `tint` and `tintAlpha` to darken or color characters standing in it.
-- **Prop colliders** — The clickable shape of a prop.
+- **Prop colliders** — The clickable shape of a prop (only when the prop is clickable).
+- **Prop / hotspot baseline** — A horizontal line used for depth sorting against walking characters. Clickable props and hotspots show it alongside collider/polygon editing; **non-clickable props** still get this line so you can walk around scenery correctly.
 
 You draw and reshape these polygons by dragging vertices in the preview, with real-time feedback. Debug overlays (configurable in `game-config.json`) can show walkable areas, prop outlines, and region outlines while you work.
 
 ### Props
 
-Props are the room's sprites — furniture, doors, items, animated background elements. A prop references an **Aseprite tag** for its art and defines a collider, a z-index for layering, a walk-to point, a look-at point, an optional baseline (for depth sorting against the player), a description, and an optional `defaultVerb`.
+Props are the room's sprites — furniture, doors, items, animated background elements. A prop references an **Aseprite tag** for its art and defines a z-index for layering, an optional baseline (for depth sorting against the player), a description, and — when clickable — a collider, a walk-to point, a look-at point, and an optional `defaultVerb`.
 
 You can add props one at a time (**Add Prop**) or **Import Props from Aseprite Tags** to create multiple props at once from a tagged sheet.
 

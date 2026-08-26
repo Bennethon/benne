@@ -372,10 +372,11 @@ function buildRoomPointToolbarHtml(pointId: string): string {
 function buildPropTreeNonClickableToolbarHtml(propLabel: string): string {
     return `
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
-      <span style="opacity:0.95;"><strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong> — not clickable</span>
+      <span style="opacity:0.95;">Prop — <strong style="color:#e8ecff;">${escapeHtml(propLabel)}</strong> (baseline)</span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
       <span id="benne-polygon-status" style="opacity:0.85;"></span>
     </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Collider editing is only available when <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">"clickable": true</code> is set on this prop in the room JSON.</div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the cyan <strong>Baseline</strong> line for depth sorting vs walkers. Collider / walk / look editing is only available when <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">"clickable": true</code> is set on this prop.</div>
   `;
 }
 
@@ -505,12 +506,17 @@ function wirePropTreeToolbarNonClickable(room: RoomData, propColliderId: string)
         return;
     }
     bar.innerHTML = buildPropTreeNonClickableToolbarHtml(propColliderLabel(room, propColliderId));
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
     polygonEditBridge.setWalkableEditTarget('', '');
-    polygonEditBridge.setPropId('');
     polygonEditBridge.setHotspotId('');
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId('');
-    polygonEditBridge.setMode('navigate');
+    polygonEditBridge.setPropId(propColliderId);
+    polygonEditBridge.setMode('propBaseline');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
 }
 
 function wireHotspotToolbar(room: RoomData, hotspotId: string): void {
@@ -726,6 +732,17 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
         if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
             (hs as { baseline?: number }).baseline = patch.baseline;
         }
+        return;
+    }
+    if (patch.kind === 'propBaseline') {
+        const baselineProp = room.props?.find((p) => p.id === patch.propId);
+        if (!baselineProp) {
+            return;
+        }
+        (baselineProp as { baseline?: number }).baseline = patch.baseline;
+        return;
+    }
+    if (patch.kind !== 'propCollider') {
         return;
     }
     const src = patch.points;
