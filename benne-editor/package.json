@@ -3,7 +3,7 @@
   "displayName": "BENNE Editor",
   "description": "Visual editor for the BENNE point-and-click adventure game engine.",
   "publisher": "bennethon",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "engines": {
     "vscode": "^1.85.0"
   },

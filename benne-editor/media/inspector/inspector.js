@@ -460,13 +460,11 @@ function renderRoom(state) {
             : `<p class="muted small">No animation clips listed — add <code>animations</code> in JSON or ensure the room sheet has matching frame tags.</p>`;
         const animSection = (0, inspectorCardSubsection_1.renderInspectorCardSubsection)('prop', p.id, 'animations', `Animations (${p.animations.length})`, animSubbody, { bodyWrapper: 'benne-card-subsection-body' });
         const propClickableCls = p.clickable ? ' benne-card--prop-clickable' : '';
-        const propActions = p.clickable
-            ? `<div class="benne-card-actions">
+        const propActions = `<div class="benne-card-actions">
         <div class="benne-card-actions-inner">
           <button type="button" class="btn-link" data-edit-preview="prop" data-id="${esc(p.id)}">Edit in Preview →</button>
         </div>
-      </div>`
-            : '';
+      </div>`;
         const summary = `<div class="benne-card-titles">
           <div class="benne-card-title tag">${title}</div>
           <div class="benne-card-sub muted">${esc(p.id)}</div>

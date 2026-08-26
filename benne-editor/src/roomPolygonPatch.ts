@@ -13,6 +13,11 @@ export type RoomPolygonPatch =
           baseline?: number;
       }
     | {
+          kind: 'propBaseline';
+          propId: string;
+          baseline: number;
+      }
+    | {
           kind: 'hotspotPolygon';
           hotspotId: string;
           points: Point2[];
@@ -71,6 +76,14 @@ export function parseRoomPolygonPatch(body: unknown): RoomPolygonPatch | null {
             propPatch.baseline = o.baseline;
         }
         return propPatch;
+    }
+    if (
+        o.kind === 'propBaseline' &&
+        typeof o.propId === 'string' &&
+        typeof o.baseline === 'number' &&
+        Number.isFinite(o.baseline)
+    ) {
+        return { kind: 'propBaseline', propId: o.propId, baseline: o.baseline };
     }
     if (o.kind === 'hotspotPolygon' && typeof o.hotspotId === 'string' && Array.isArray(o.points)) {
         const pts = o.points.filter(isPoint2);
@@ -323,6 +336,22 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
             lookAtPoint: { ...l },
             ...(propBaselineOut !== undefined ? { baseline: propBaselineOut } : {}),
         };
+    }
+
+    if (patch.kind === 'propBaseline') {
+        const props = room.props as { id: string; baseline?: number }[] | undefined;
+        if (!Array.isArray(props)) {
+            throw new Error('Room JSON has no props array.');
+        }
+        const prop = props.find((p) => p.id === patch.propId);
+        if (!prop) {
+            throw new Error(`Prop "${patch.propId}" not found.`);
+        }
+        const baselineOut = Math.round(patch.baseline);
+        prop.baseline = baselineOut;
+        const out = `${JSON.stringify(room, null, 2)}\n`;
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
+        return { kind: 'propBaseline', propId: patch.propId, baseline: baselineOut };
     }
 
     if (patch.kind === 'roomSize') {

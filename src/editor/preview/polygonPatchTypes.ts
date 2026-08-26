@@ -13,6 +13,12 @@ export type RoomPolygonPatch =
           baseline?: number;
       }
     | {
+          /** Baseline-only save for non-clickable props (no collider / walk / look). */
+          kind: 'propBaseline';
+          propId: string;
+          baseline: number;
+      }
+    | {
           kind: 'hotspotPolygon';
           hotspotId: string;
           points: Point2[];
