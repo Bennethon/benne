@@ -826,7 +826,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             return;
         }
 
-        if (focusKind === 'pdc') {
+        if (focusKind === 'pdc' || focusKind === 'inventoryGroup') {
             return;
         }
 

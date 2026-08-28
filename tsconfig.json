@@ -6,9 +6,8 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
     "skipLibCheck": true,
-    "baseUrl": ".",
     "paths": {
-      "@engine/*": ["src/engine/*"]
+      "@engine/*": ["./src/engine/*"]
     },
 
     /* Bundler mode */
