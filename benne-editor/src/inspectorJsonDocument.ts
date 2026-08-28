@@ -17,6 +17,46 @@ function findOpenJsonDocument(uri: vscode.Uri): vscode.TextDocument | undefined 
     return vscode.workspace.textDocuments.find((d) => uriSameResource(d.uri, uri));
 }
 
+function jsonFileLockKey(uri: vscode.Uri): string {
+    if (process.platform === 'win32') {
+        return path.normalize(uri.fsPath).toLowerCase();
+    }
+    return uri.fsPath;
+}
+
+const jsonFileWorkTails = new Map<string, Promise<void>>();
+const jsonFileWorkHeld = new Set<string>();
+
+/**
+ * Serialize load/patch/write for one JSON file so preview saves and Inspector blur-saves
+ * cannot interleave (the classic flash-then-revert when the JSON tab is open).
+ */
+export async function enqueueJsonFileWork<T>(uri: vscode.Uri, task: () => Promise<T>): Promise<T> {
+    const key = jsonFileLockKey(uri);
+    if (jsonFileWorkHeld.has(key)) {
+        return task();
+    }
+    const prev = jsonFileWorkTails.get(key) ?? Promise.resolve();
+    let result!: T;
+    const run = prev.then(async () => {
+        jsonFileWorkHeld.add(key);
+        try {
+            result = await task();
+        } finally {
+            jsonFileWorkHeld.delete(key);
+        }
+    });
+    jsonFileWorkTails.set(
+        key,
+        run.then(
+            () => undefined,
+            () => undefined
+        )
+    );
+    await run;
+    return result;
+}
+
 /**
  * Replace the full contents of an open JSON tab so it matches `text`.
  * No-op when the file is not open or the buffer already matches.

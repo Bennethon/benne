@@ -267,7 +267,12 @@ function scrollExpandedGuiCardIntoView(state) {
 function esc(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 }
+/** True while `render()` replaces the DOM so blur/change on torn-down inputs cannot write stale JSON. */
+let suppressInspectorFlush = false;
 function post(action, payload) {
+    if (suppressInspectorFlush) {
+        return;
+    }
     vscodeApi?.postMessage({ action, ...payload });
 }
 function inspectorItemExpanded(state, entity, id) {
@@ -2212,36 +2217,51 @@ function readPointFields(prefix) {
     const y = Number(yStr);
     return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
 }
-function collectCharacterMeta() {
-    return {
+const CHARACTER_GEOMETRY_FIELD_IDS = new Set([
+    'char-walk-x',
+    'char-walk-y',
+    'char-talk-x',
+    'char-talk-y',
+    'char-feet-x',
+    'char-feet-y'
+]);
+function collectCharacterMeta(includeGeometry) {
+    const payload = {
         type: 'characterMeta',
         name: document.getElementById('char-name')?.value ?? '',
         walkSpeed: Number(document.getElementById('char-walk-speed')?.value ?? '0'),
         clickable: document.getElementById('char-clickable')?.checked ?? false,
         movable: document.getElementById('char-movable')?.checked ?? true,
         description: document.getElementById('char-description')?.value ?? '',
-        walkToPoint: readPointFields('char-walk'),
-        talkPoint: readPointFields('char-talk'),
-        feet: readPointFields('char-feet'),
         defaultVerb: document.querySelector('.char-default-verb')?.value ?? '',
         activeCursorOverride: document.getElementById('char-active-cursor-override')?.value ?? '',
         speechColor: document.getElementById('char-speech-color')?.value ?? ''
     };
+    if (includeGeometry) {
+        payload.walkToPoint = readPointFields('char-walk');
+        payload.talkPoint = readPointFields('char-talk');
+        payload.feet = readPointFields('char-feet');
+    }
+    return payload;
 }
 function mountCharacterHandlers(state) {
-    const flush = () => {
-        post('applyPatches', { patches: [collectCharacterMeta()] });
+    const flushMeta = () => {
+        post('applyPatches', { patches: [collectCharacterMeta(false)] });
     };
-    document.getElementById('btn-save-char')?.addEventListener('click', flush);
+    const flushAll = () => {
+        post('applyPatches', { patches: [collectCharacterMeta(true)] });
+    };
+    document.getElementById('btn-save-char')?.addEventListener('click', flushAll);
     document.getElementById('btn-open-json-char')?.addEventListener('click', () => {
         post('openRawJson', { characterJsonUri: state.characterJsonUri });
     });
     ['char-name', 'char-walk-speed', 'char-clickable', 'char-movable', 'char-description', 'char-walk-x', 'char-walk-y', 'char-talk-x', 'char-talk-y', 'char-feet-x', 'char-feet-y', 'char-active-cursor-override', 'char-speech-color'].forEach((id) => {
+        const flush = CHARACTER_GEOMETRY_FIELD_IDS.has(id) ? flushAll : flushMeta;
         document.getElementById(id)?.addEventListener('blur', flush);
         document.getElementById(id)?.addEventListener('change', flush);
     });
     document.querySelectorAll('.char-default-verb').forEach((el) => {
-        el.addEventListener('change', flush);
+        el.addEventListener('change', flushMeta);
     });
     document.querySelectorAll('.char-anim-loop, .char-anim-dur').forEach((el) => {
         el.addEventListener('change', () => {
@@ -3051,35 +3071,41 @@ function render(state) {
     if (!root) {
         return;
     }
-    if (state.kind === 'empty') {
-        lastInspectorPreserveRoomUri = null;
-        root.innerHTML = renderEmpty(state.message);
-        return;
+    suppressInspectorFlush = true;
+    try {
+        if (state.kind === 'empty') {
+            lastInspectorPreserveRoomUri = null;
+            root.innerHTML = renderEmpty(state.message);
+            return;
+        }
+        let preserved = null;
+        const hadRoomShell = root.querySelector('.inspector-root') !== null;
+        const stateKey = inspectorStateKey(state);
+        if (hadRoomShell && lastInspectorPreserveRoomUri === stateKey) {
+            preserved = captureInspectorOpenState(root);
+        }
+        if (state.kind === 'room') {
+            root.innerHTML = renderRoom(state);
+        }
+        else if (state.kind === 'character') {
+            root.innerHTML = renderCharacter(state);
+        }
+        else if (state.kind === 'inventory') {
+            root.innerHTML = renderInventory(state);
+        }
+        else if (state.kind === 'dialog') {
+            root.innerHTML = renderDialog(state);
+        }
+        else {
+            root.innerHTML = renderGui(state);
+        }
+        lastInspectorPreserveRoomUri = stateKey;
+        if (preserved) {
+            restoreInspectorOpenState(root, preserved);
+        }
     }
-    let preserved = null;
-    const hadRoomShell = root.querySelector('.inspector-root') !== null;
-    const stateKey = inspectorStateKey(state);
-    if (hadRoomShell && lastInspectorPreserveRoomUri === stateKey) {
-        preserved = captureInspectorOpenState(root);
-    }
-    if (state.kind === 'room') {
-        root.innerHTML = renderRoom(state);
-    }
-    else if (state.kind === 'character') {
-        root.innerHTML = renderCharacter(state);
-    }
-    else if (state.kind === 'inventory') {
-        root.innerHTML = renderInventory(state);
-    }
-    else if (state.kind === 'dialog') {
-        root.innerHTML = renderDialog(state);
-    }
-    else {
-        root.innerHTML = renderGui(state);
-    }
-    lastInspectorPreserveRoomUri = stateKey;
-    if (preserved) {
-        restoreInspectorOpenState(root, preserved);
+    finally {
+        suppressInspectorFlush = false;
     }
     if (state.kind === 'room') {
         mountHandlers(state);

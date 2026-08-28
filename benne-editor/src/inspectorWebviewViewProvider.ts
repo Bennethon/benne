@@ -1,6 +1,7 @@
 import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
+import { enqueueJsonFileWork } from './inspectorJsonDocument';
 import { buildInspectorState, type InspectorStatePayload } from './inspectorStateBuilder';
 import {
     addWalkableHole,
@@ -1305,23 +1306,25 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             if (!Array.isArray(patchesUnknown)) {
                 return;
             }
-            const data = await loadRoomData(uri);
-            if (!data) {
-                void vscode.window.showErrorMessage('Could not load JSON.');
-                return;
-            }
-            for (const p of patchesUnknown as WebviewPatch[]) {
-                this.applyOnePatch(data, uri, p, focusKind);
-            }
-            if (focusKind === 'room') {
-                await writeRoomJson(uri, data);
-                this.roomPreview.onWorkspaceRoomJsonChanged(uri);
-            } else {
-                await writeDataJson(uri, data);
-                if (focusKind === 'gui') {
-                    this.guiPreview.onWorkspaceGuiJsonChanged(uri);
+            await enqueueJsonFileWork(uri, async () => {
+                const data = await loadRoomData(uri);
+                if (!data) {
+                    void vscode.window.showErrorMessage('Could not load JSON.');
+                    return;
                 }
-            }
+                for (const p of patchesUnknown as WebviewPatch[]) {
+                    this.applyOnePatch(data, uri, p, focusKind);
+                }
+                if (focusKind === 'room') {
+                    await writeRoomJson(uri, data);
+                    this.roomPreview.onWorkspaceRoomJsonChanged(uri);
+                } else {
+                    await writeDataJson(uri, data);
+                    if (focusKind === 'gui') {
+                        this.guiPreview.onWorkspaceGuiJsonChanged(uri);
+                    }
+                }
+            });
             this.refreshMainAndActions();
             await this.pushState();
         }
@@ -1527,9 +1530,9 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 clickable: p.clickable,
                 movable: p.movable,
                 description: p.description,
-                walkToPoint: p.walkToPoint,
-                talkPoint: p.talkPoint,
-                feet: p.feet,
+                ...(p.walkToPoint !== undefined ? { walkToPoint: p.walkToPoint } : {}),
+                ...(p.talkPoint !== undefined ? { talkPoint: p.talkPoint } : {}),
+                ...(p.feet !== undefined ? { feet: p.feet } : {}),
                 defaultVerb: typeof p.defaultVerb === 'string' ? p.defaultVerb : undefined,
                 activeCursorOverride: typeof p.activeCursorOverride === 'string' ? p.activeCursorOverride : undefined,
                 speechColor: typeof p.speechColor === 'string' ? p.speechColor : undefined
