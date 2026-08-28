@@ -4,6 +4,7 @@ import type { EditorSelection } from './editorSelection';
 import { getCharacterIdFromCharacterJsonUri } from './gameDiscovery';
 import { resolvePreviewScriptUri } from './previewBundlePaths';
 import { applyCharacterGeometryPatch, type CharacterGeometryPayload } from './characterGeometryPatch';
+import { readInspectorJsonText } from './inspectorJsonDocument';
 
 /**
  * Phaser character preview (feet, walk/talk points, collider) in a {@link vscode.WebviewPanel}.
@@ -166,7 +167,7 @@ export class CharacterPreviewPanelController implements vscode.Disposable {
     }
 
     try {
-      const jsonText = await this.readCharacterJsonAsUtf8(uri);
+      const jsonText = await readInspectorJsonText(uri);
       const character = JSON.parse(jsonText) as Record<string, unknown>;
       const characterId = getCharacterIdFromCharacterJsonUri(uri);
       const gameSrcWebviewUri = webview.asWebviewUri(gameSrc).toString();
@@ -219,15 +220,6 @@ export class CharacterPreviewPanelController implements vscode.Disposable {
     }
   }
 
-  private async readCharacterJsonAsUtf8(uri: vscode.Uri): Promise<string> {
-    const uriStr = uri.toString();
-    const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uriStr);
-    if (open) {
-      return open.getText();
-    }
-    const raw = await vscode.workspace.fs.readFile(uri);
-    return Buffer.from(raw).toString('utf8');
-  }
 }
 
 function buildCharacterPreviewHtml(

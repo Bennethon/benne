@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { enqueueJsonFileWork } from './inspectorJsonDocument';
+import { loadRoomData, writeDataJson } from './inspectorMutations';
 
 export type CharacterPointPayload = { x: number; y: number };
 
@@ -29,6 +31,9 @@ function isFinitePoint(p: unknown): p is CharacterPointPayload {
 /**
  * Writes feet, walkToPoint, talkPoint, and collider into `*.character.json` in one edit.
  * Fewer than three collider vertices removes `collider` (full sprite hit area when clickable).
+ *
+ * Uses the same disk-then-sync-open-tab path as the Inspector (`writeDataJson`) so an open JSON
+ * editor cannot flash new geometry and then be overwritten by a stale buffer or blur-save.
  */
 export async function applyCharacterGeometryPatch(
   characterJsonUri: vscode.Uri,
@@ -42,38 +47,26 @@ export async function applyCharacterGeometryPatch(
     throw new Error('Invalid feet, walkToPoint, or talkPoint coordinates.');
   }
 
-  const raw = await vscode.workspace.fs.readFile(characterJsonUri);
-  const text = Buffer.from(raw).toString('utf8');
-  const data = JSON.parse(text) as Record<string, unknown>;
+  await enqueueJsonFileWork(characterJsonUri, async () => {
+    const data = await loadRoomData(characterJsonUri);
+    if (!data) {
+      throw new Error('Could not parse character JSON.');
+    }
 
-  data.feet = roundPoint(geometry.feet);
-  data.walkToPoint = roundPoint(geometry.walkToPoint);
-  data.talkPoint = roundPoint(geometry.talkPoint);
+    data.feet = roundPoint(geometry.feet);
+    data.walkToPoint = roundPoint(geometry.walkToPoint);
+    data.talkPoint = roundPoint(geometry.talkPoint);
 
-  const pts =
-    geometry.collider && Array.isArray(geometry.collider.points) ? geometry.collider.points : [];
-  const roundedCollider = pts.filter(isFinitePoint).map(roundPoint);
+    const pts =
+      geometry.collider && Array.isArray(geometry.collider.points) ? geometry.collider.points : [];
+    const roundedCollider = pts.filter(isFinitePoint).map(roundPoint);
 
-  if (roundedCollider.length >= 3) {
-    data.collider = { points: roundedCollider };
-  } else {
-    delete data.collider;
-  }
+    if (roundedCollider.length >= 3) {
+      data.collider = { points: roundedCollider };
+    } else {
+      delete data.collider;
+    }
 
-  const out = `${JSON.stringify(data, null, 2)}\n`;
-  const edit = new vscode.WorkspaceEdit();
-  const doc = await vscode.workspace.openTextDocument(characterJsonUri);
-  const fullRange = new vscode.Range(
-    doc.positionAt(0),
-    doc.positionAt(doc.getText().length),
-  );
-  edit.replace(characterJsonUri, fullRange, out);
-  const ok = await vscode.workspace.applyEdit(edit);
-  if (!ok) {
-    throw new Error('Could not apply workspace edit to character JSON.');
-  }
-  const saved = await doc.save();
-  if (!saved) {
-    throw new Error('Character geometry was written to the buffer but the file could not be saved to disk.');
-  }
+    await writeDataJson(characterJsonUri, data);
+  });
 }

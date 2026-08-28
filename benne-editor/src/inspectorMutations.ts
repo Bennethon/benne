@@ -1,5 +1,9 @@
 import * as vscode from 'vscode';
-import { readInspectorJsonText, syncOpenJsonDocumentFromData } from './inspectorJsonDocument';
+import {
+    enqueueJsonFileWork,
+    readInspectorJsonText,
+    syncOpenJsonDocumentFromData
+} from './inspectorJsonDocument';
 import { formatJson } from './roomScaffolding';
 import { readPngDimensions } from './inspectorPngDimensions';
 
@@ -35,14 +39,17 @@ function nextId(prefix: string, existing: Set<string>): string {
     return `${prefix}${n}`;
 }
 
-export async function writeRoomJson(uri: vscode.Uri, data: Record<string, unknown>): Promise<void> {
+async function writeJsonFileUnlocked(uri: vscode.Uri, data: Record<string, unknown>): Promise<void> {
     await vscode.workspace.fs.writeFile(uri, formatJson(data));
     await syncOpenJsonDocumentFromData(uri, data);
 }
 
+export async function writeRoomJson(uri: vscode.Uri, data: Record<string, unknown>): Promise<void> {
+    await enqueueJsonFileWork(uri, () => writeJsonFileUnlocked(uri, data));
+}
+
 export async function writeDataJson(uri: vscode.Uri, data: Record<string, unknown>): Promise<void> {
-    await vscode.workspace.fs.writeFile(uri, formatJson(data));
-    await syncOpenJsonDocumentFromData(uri, data);
+    await enqueueJsonFileWork(uri, () => writeJsonFileUnlocked(uri, data));
 }
 
 export async function loadRoomData(uri: vscode.Uri): Promise<Record<string, unknown> | null> {

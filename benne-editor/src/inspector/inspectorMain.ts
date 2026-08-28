@@ -768,7 +768,13 @@ function esc(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 }
 
+/** True while `render()` replaces the DOM so blur/change on torn-down inputs cannot write stale JSON. */
+let suppressInspectorFlush = false;
+
 function post(action: string, payload?: Record<string, unknown>): void {
+    if (suppressInspectorFlush) {
+        return;
+    }
     vscodeApi?.postMessage({ action, ...payload });
 }
 
@@ -2898,39 +2904,55 @@ function readPointFields(prefix: string): { x: number; y: number } | null {
     return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
 }
 
-function collectCharacterMeta(): Record<string, unknown> {
-    return {
+const CHARACTER_GEOMETRY_FIELD_IDS = new Set([
+    'char-walk-x',
+    'char-walk-y',
+    'char-talk-x',
+    'char-talk-y',
+    'char-feet-x',
+    'char-feet-y'
+]);
+
+function collectCharacterMeta(includeGeometry: boolean): Record<string, unknown> {
+    const payload: Record<string, unknown> = {
         type: 'characterMeta',
         name: (document.getElementById('char-name') as HTMLInputElement | null)?.value ?? '',
         walkSpeed: Number((document.getElementById('char-walk-speed') as HTMLInputElement | null)?.value ?? '0'),
         clickable: (document.getElementById('char-clickable') as HTMLInputElement | null)?.checked ?? false,
         movable: (document.getElementById('char-movable') as HTMLInputElement | null)?.checked ?? true,
         description: (document.getElementById('char-description') as HTMLTextAreaElement | null)?.value ?? '',
-        walkToPoint: readPointFields('char-walk'),
-        talkPoint: readPointFields('char-talk'),
-        feet: readPointFields('char-feet'),
         defaultVerb: (document.querySelector('.char-default-verb') as HTMLSelectElement | null)?.value ?? '',
         activeCursorOverride:
             (document.getElementById('char-active-cursor-override') as HTMLInputElement | null)?.value ?? '',
         speechColor:
             (document.getElementById('char-speech-color') as HTMLInputElement | null)?.value ?? ''
     };
+    if (includeGeometry) {
+        payload.walkToPoint = readPointFields('char-walk');
+        payload.talkPoint = readPointFields('char-talk');
+        payload.feet = readPointFields('char-feet');
+    }
+    return payload;
 }
 
 function mountCharacterHandlers(state: InspectorCharacterState): void {
-    const flush = (): void => {
-        post('applyPatches', { patches: [collectCharacterMeta()] });
+    const flushMeta = (): void => {
+        post('applyPatches', { patches: [collectCharacterMeta(false)] });
     };
-    document.getElementById('btn-save-char')?.addEventListener('click', flush);
+    const flushAll = (): void => {
+        post('applyPatches', { patches: [collectCharacterMeta(true)] });
+    };
+    document.getElementById('btn-save-char')?.addEventListener('click', flushAll);
     document.getElementById('btn-open-json-char')?.addEventListener('click', () => {
         post('openRawJson', { characterJsonUri: state.characterJsonUri });
     });
     ['char-name', 'char-walk-speed', 'char-clickable', 'char-movable', 'char-description', 'char-walk-x', 'char-walk-y', 'char-talk-x', 'char-talk-y', 'char-feet-x', 'char-feet-y', 'char-active-cursor-override', 'char-speech-color'].forEach((id) => {
+        const flush = CHARACTER_GEOMETRY_FIELD_IDS.has(id) ? flushAll : flushMeta;
         document.getElementById(id)?.addEventListener('blur', flush);
         document.getElementById(id)?.addEventListener('change', flush);
     });
     document.querySelectorAll('.char-default-verb').forEach((el) => {
-        el.addEventListener('change', flush);
+        el.addEventListener('change', flushMeta);
     });
     document.querySelectorAll('.char-anim-loop, .char-anim-dur').forEach((el) => {
         el.addEventListener('change', () => {
@@ -3776,34 +3798,39 @@ function render(state: InspectorStatePayload): void {
     if (!root) {
         return;
     }
-    if (state.kind === 'empty') {
-        lastInspectorPreserveRoomUri = null;
-        root.innerHTML = renderEmpty(state.message);
-        return;
-    }
+    suppressInspectorFlush = true;
+    try {
+        if (state.kind === 'empty') {
+            lastInspectorPreserveRoomUri = null;
+            root.innerHTML = renderEmpty(state.message);
+            return;
+        }
 
-    let preserved: InspectorOpenPreserve | null = null;
-    const hadRoomShell = root.querySelector('.inspector-root') !== null;
-    const stateKey = inspectorStateKey(state);
-    if (hadRoomShell && lastInspectorPreserveRoomUri === stateKey) {
-        preserved = captureInspectorOpenState(root);
-    }
+        let preserved: InspectorOpenPreserve | null = null;
+        const hadRoomShell = root.querySelector('.inspector-root') !== null;
+        const stateKey = inspectorStateKey(state);
+        if (hadRoomShell && lastInspectorPreserveRoomUri === stateKey) {
+            preserved = captureInspectorOpenState(root);
+        }
 
-    if (state.kind === 'room') {
-        root.innerHTML = renderRoom(state);
-    } else if (state.kind === 'character') {
-        root.innerHTML = renderCharacter(state);
-    } else if (state.kind === 'inventory') {
-        root.innerHTML = renderInventory(state);
-    } else if (state.kind === 'dialog') {
-        root.innerHTML = renderDialog(state);
-    } else {
-        root.innerHTML = renderGui(state);
-    }
-    lastInspectorPreserveRoomUri = stateKey;
+        if (state.kind === 'room') {
+            root.innerHTML = renderRoom(state);
+        } else if (state.kind === 'character') {
+            root.innerHTML = renderCharacter(state);
+        } else if (state.kind === 'inventory') {
+            root.innerHTML = renderInventory(state);
+        } else if (state.kind === 'dialog') {
+            root.innerHTML = renderDialog(state);
+        } else {
+            root.innerHTML = renderGui(state);
+        }
+        lastInspectorPreserveRoomUri = stateKey;
 
-    if (preserved) {
-        restoreInspectorOpenState(root, preserved);
+        if (preserved) {
+            restoreInspectorOpenState(root, preserved);
+        }
+    } finally {
+        suppressInspectorFlush = false;
     }
 
     if (state.kind === 'room') {
