@@ -7,6 +7,7 @@ export type EditorFocus =
     | { kind: 'character'; uri: vscode.Uri; label: string }
     | { kind: 'gui'; uri: vscode.Uri; label: string }
     | { kind: 'inventory'; uri: vscode.Uri; label: string }
+    | { kind: 'inventoryGroup'; folder: vscode.Uri; label: string }
     | { kind: 'dialog'; uri: vscode.Uri; label: string }
     | { kind: 'pdc'; uri: vscode.Uri; label: string };
 
@@ -164,6 +165,13 @@ export class EditorSelection {
 
     setInventory(uri: vscode.Uri, label: string): void {
         this._main = { kind: 'inventory', uri, label };
+        this._roomPanel = { kind: 'none' };
+        this._guiPanel = { kind: 'none' };
+        this._onDidChange.fire();
+    }
+
+    setInventoryGroup(folder: vscode.Uri, label: string): void {
+        this._main = { kind: 'inventoryGroup', folder, label };
         this._roomPanel = { kind: 'none' };
         this._guiPanel = { kind: 'none' };
         this._onDidChange.fire();

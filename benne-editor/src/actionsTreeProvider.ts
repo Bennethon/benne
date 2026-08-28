@@ -24,6 +24,12 @@ import {
     roomScriptRegistersPropVerb,
     roomScriptRegistersRoomCharacterVerb
 } from './verbHandlerPresence';
+import {
+    getCharacterAssetsFolderUri,
+    getGuiAssetsFolderUri,
+    getInventoryAssetsFolderUri,
+    getRoomAssetsFolderUri
+} from './openAssetsFolder';
 
 function roomPropVerbEventId(roomId: string, propId: string, verbId: string): string {
     return `verb:room:${roomId}:prop:${propId}:${verbId}`;
@@ -157,7 +163,8 @@ export type ActionTreeNode =
     | { kind: 'addInventoryItem' }
     | { kind: 'importInventoryFromAseprite' }
     | { kind: 'addGuiControl'; guiJsonUri: vscode.Uri }
-    | { kind: 'guiOpen'; label: string; targetUri: vscode.Uri };
+    | { kind: 'guiOpen'; label: string; targetUri: vscode.Uri }
+    | { kind: 'openAssetsFolder'; label: string; folderUri: vscode.Uri };
 
 export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNode> {
     private readonly _onDidChangeTreeData = new vscode.EventEmitter<ActionTreeNode | undefined | void>();
@@ -669,6 +676,18 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 };
                 return item;
             }
+            case 'openAssetsFolder': {
+                const item = new vscode.TreeItem(element.label, vscode.TreeItemCollapsibleState.None);
+                item.id = `open-assets:${element.folderUri.toString()}`;
+                item.iconPath = new vscode.ThemeIcon('folder-opened');
+                item.contextValue = 'benneActionOpenAssetsFolder';
+                item.command = {
+                    command: 'benne-editor.openAssetsFolder',
+                    title: element.label,
+                    arguments: [element.folderUri.toString()]
+                };
+                return item;
+            }
         }
     }
 
@@ -679,6 +698,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         if (main.kind === 'room') {
             const rebuild: ActionTreeNode = { kind: 'rebuildRoomPreviewBundle' };
             const roomId = getRoomIdFromRoomJsonUri(main.uri);
+            const workspaceFolder = vscode.workspace.getWorkspaceFolder(main.uri);
             /** Room row or Props/Hotspots/Points/Regions subgroup — not a specific element. */
             const showRoomBulkActions = roomPanel.kind === 'none';
 
@@ -688,6 +708,15 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                     roomJsonUri: main.uri,
                     roomId
                 },
+                ...(workspaceFolder
+                    ? [
+                          {
+                              kind: 'openAssetsFolder' as const,
+                              label: `Open assets folder for ${main.label}`,
+                              folderUri: getRoomAssetsFolderUri(workspaceFolder.uri, roomId)
+                          }
+                      ]
+                    : []),
                 {
                     kind: 'roomOpen',
                     label: 'Open room JSON',
@@ -777,16 +806,29 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         if (main.kind === 'character') {
             return [
                 { kind: 'rebuildCharacterPreviewBundle' },
-                ...(await this.characterActionNodes(main.uri))
+                ...(await this.characterActionNodes(main.uri, main.label))
             ];
         }
 
         if (main.kind === 'gui') {
-            return this.guiActionNodes(main.uri);
+            return this.guiActionNodes(main.uri, main.label);
         }
 
         if (main.kind === 'inventory') {
             return [
+                { kind: 'addInventoryItem' },
+                { kind: 'importInventoryFromAseprite' },
+                { kind: 'rebuildInventoryPreviewBundle' }
+            ];
+        }
+
+        if (main.kind === 'inventoryGroup') {
+            return [
+                {
+                    kind: 'openAssetsFolder',
+                    label: `Open assets folder for ${main.label}`,
+                    folderUri: getInventoryAssetsFolderUri(main.folder)
+                },
                 { kind: 'addInventoryItem' },
                 { kind: 'importInventoryFromAseprite' },
                 { kind: 'rebuildInventoryPreviewBundle' }
@@ -830,12 +872,23 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         ];
     }
 
-    private guiActionNodes(guiJsonUri: vscode.Uri): ActionTreeNode[] {
+    private guiActionNodes(guiJsonUri: vscode.Uri, displayName: string): ActionTreeNode[] {
         const guiId = getGuiIdFromGuiJsonUri(guiJsonUri);
         const scriptUri = vscode.Uri.joinPath(guiJsonUri, '..', `${guiId}.gui.ts`);
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(guiJsonUri);
+        const openAssets: ActionTreeNode[] = workspaceFolder
+            ? [
+                  {
+                      kind: 'openAssetsFolder',
+                      label: `Open assets folder for ${displayName}`,
+                      folderUri: getGuiAssetsFolderUri(workspaceFolder.uri, guiId)
+                  }
+              ]
+            : [];
         return [
             { kind: 'addGuiControl', guiJsonUri },
             { kind: 'rebuildGuiPreviewBundle' },
+            ...openAssets,
             { kind: 'guiOpen', label: 'Open GUI JSON', targetUri: guiJsonUri },
             { kind: 'guiOpen', label: 'Open GUI script', targetUri: scriptUri }
         ];
@@ -1110,11 +1163,24 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         return out;
     }
 
-    private async characterActionNodes(characterJsonUri: vscode.Uri): Promise<ActionTreeNode[]> {
+    private async characterActionNodes(
+        characterJsonUri: vscode.Uri,
+        displayName: string
+    ): Promise<ActionTreeNode[]> {
         const hooks = await readCharacterHooks(characterJsonUri);
         const characterId = this.inferCharacterId(characterJsonUri);
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(characterJsonUri);
         const out: ActionTreeNode[] = [
             { kind: 'importCharAnimationsFromAseprite' },
+            ...(workspaceFolder
+                ? [
+                      {
+                          kind: 'openAssetsFolder' as const,
+                          label: `Open assets folder for ${displayName}`,
+                          folderUri: getCharacterAssetsFolderUri(workspaceFolder.uri, characterId)
+                      }
+                  ]
+                : []),
             { kind: 'charOpen', label: 'Open character JSON', characterJsonUri }
         ];
 

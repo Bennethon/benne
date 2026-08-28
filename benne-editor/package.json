@@ -59,7 +59,8 @@
     "onCommand:benne-editor.clearMainTreeFilter",
     "onCommand:benne-editor.processGameVoiceIds",
     "onCommand:benne-editor.deleteGameEntity",
-    "onCommand:benne-editor.createPdc"
+    "onCommand:benne-editor.createPdc",
+    "onCommand:benne-editor.openAssetsFolder"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -107,6 +108,12 @@
         "command": "benne-editor.openUriPreview",
         "title": "Open URI (preview)",
         "category": "BENNE"
+      },
+      {
+        "command": "benne-editor.openAssetsFolder",
+        "title": "Open Assets Folder",
+        "category": "BENNE",
+        "icon": "$(folder-opened)"
       },
       {
         "command": "benne-editor.openRoomScriptPreview",
@@ -727,6 +734,26 @@
           "command": "benne-editor.importInventoryItemsFromAsepriteTags",
           "when": "view == benne-editor.main && viewItem == benneInventoryItem",
           "group": "benne@3"
+        },
+        {
+          "command": "benne-editor.openAssetsFolder",
+          "when": "view == benne-editor.main && viewItem == benneRoom",
+          "group": "benne@8"
+        },
+        {
+          "command": "benne-editor.openAssetsFolder",
+          "when": "view == benne-editor.main && viewItem == benneCharacter",
+          "group": "benne@8"
+        },
+        {
+          "command": "benne-editor.openAssetsFolder",
+          "when": "view == benne-editor.main && viewItem == benneGui",
+          "group": "benne@8"
+        },
+        {
+          "command": "benne-editor.openAssetsFolder",
+          "when": "view == benne-editor.main && viewItem == benneInventoryGroup",
+          "group": "benne@8"
         },
         {
           "command": "benne-editor.deleteGameEntity",

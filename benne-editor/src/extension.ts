@@ -49,6 +49,11 @@ import {
 } from './gameDiscovery';
 import { addRoomCharacterVerbEvent } from './roomCharacterVerbScaffolding';
 import {
+    revealAssetsFolder,
+    resolveAssetsFolderUriFromSelection,
+    resolveAssetsFolderUriFromTreeNode
+} from './openAssetsFolder';
+import {
     addCharacterInventoryUsedOnStub,
     addInventoryItemInventoryUsedOnStub,
     addRoomInventoryUsedOnStub
@@ -104,7 +109,7 @@ function resolveDeleteTargetFromSelectionFocus(
     selection: EditorSelection
 ): import('./delete/deleteTarget').DeleteTarget | undefined {
     const focus = selection.focus;
-    if (focus.kind === 'none') {
+    if (focus.kind === 'none' || focus.kind === 'inventoryGroup') {
         return undefined;
     }
     const folder = vscode.workspace.getWorkspaceFolder(focus.uri);
@@ -537,6 +542,9 @@ export function activate(context: vscode.ExtensionContext): void {
             await applyBenneTwoRowJsonScriptLayout();
             selection.setInventory(node.uri, node.name);
             await openBenneInventoryTypeScript(node.uri, node.id);
+        } else if (node.kind === 'inventoryGroup') {
+            await resetBenneEditorSurface();
+            selection.setInventoryGroup(node.folder.uri, 'Inventory');
         } else if (node.kind === 'dialog') {
             await resetBenneEditorSurface();
             selection.setDialog(node.uri, node.name);
@@ -1144,6 +1152,32 @@ export function activate(context: vscode.ExtensionContext): void {
                     return;
                 }
                 await openDocumentUri(vscode.Uri.parse(uriStr), preview === true);
+            }
+        ),
+        vscode.commands.registerCommand(
+            'benne-editor.openAssetsFolder',
+            async (arg?: MainTreeNode | MainTreeNode[] | string) => {
+                let folderUri: vscode.Uri | undefined;
+                if (typeof arg === 'string') {
+                    folderUri = vscode.Uri.parse(arg);
+                } else {
+                    const node = firstTreeContextArg(arg);
+                    const fromTree =
+                        node ??
+                        (mainTreeView.selection.length > 0
+                            ? (mainTreeView.selection[0] as MainTreeNode)
+                            : undefined);
+                    folderUri =
+                        resolveAssetsFolderUriFromTreeNode(fromTree) ??
+                        resolveAssetsFolderUriFromSelection(selection.focus);
+                }
+                if (!folderUri) {
+                    void vscode.window.showInformationMessage(
+                        'Select a room, character, GUI, or Inventory in the BENNE tree.'
+                    );
+                    return;
+                }
+                await revealAssetsFolder(folderUri);
             }
         ),
         vscode.commands.registerCommand(
