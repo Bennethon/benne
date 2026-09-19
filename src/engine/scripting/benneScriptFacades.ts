@@ -223,6 +223,12 @@ export interface BenneScriptHotspotFacade {
    */
   get active(): boolean;
   set active(v: boolean);
+  /**
+   * Alias of {@link active} — same persist key and immediate setter. Symmetric with
+   * `B.character(id).clickable` / `B.prop(id).clickable`.
+   */
+  get clickable(): boolean;
+  set clickable(v: boolean);
 }
 
 /** Visibility + description overrides for one prop (`BenneScript.prop`). */
@@ -236,6 +242,14 @@ export interface BenneScriptPropFacade {
   set visible(v: boolean);
   /** Script visibility immediately (skips interaction tail). */
   visibleNow(v: boolean): void;
+  /**
+   * When false, the prop is not hit-tested (no hover, verbs, or inventory-on-target).
+   * Queued setter; persists under `` `room:<roomId>:prop:<id>:clickable` `` (saved override over JSON
+   * **`clickable`** default from **`*.room.json`**). Enabling requires an authored collider
+   * (≥3 points). Does not gate {@link import('../scenes/RoomScene.js').RoomScene.resolveMovementTarget}.
+   */
+  get clickable(): boolean;
+  set clickable(v: boolean);
   get description(): string;
   set description(v: string);
   /** Persisted base Aseprite tag; falls back to room JSON default when unset in save state. */
