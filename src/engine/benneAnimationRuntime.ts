@@ -18,6 +18,10 @@ export function roomPropVisibleVariableKey(roomId: string, propId: string): stri
   return `room:${roomId}:prop:${propId}:visible`;
 }
 
+export function roomPropClickableVariableKey(roomId: string, propId: string): string {
+  return `room:${roomId}:prop:${propId}:clickable`;
+}
+
 export function roomPropAlphaVariableKey(roomId: string, propId: string): string {
   return `room:${roomId}:prop:${propId}:alpha`;
 }
@@ -192,6 +196,30 @@ export function writeSavedPropVisible(
   visible: boolean,
 ): void {
   manager.setVariable(roomPropVisibleVariableKey(roomId, propId), visible);
+}
+
+/**
+ * Effective `B.prop(id).clickable` — saved override (boolean) when set, else `jsonDefault`
+ * from `RoomPropInstance.clickable` (`true` only when the JSON field is explicitly `true`).
+ */
+export function readSavedPropClickable(
+  manager: GameStateManager,
+  roomId: string,
+  propId: string,
+  jsonDefault: boolean,
+): boolean {
+  const v = manager.getVariable(roomPropClickableVariableKey(roomId, propId));
+  return typeof v === 'boolean' ? v : jsonDefault;
+}
+
+/** Persist `B.prop(id).clickable` for this room+prop pair (booleans only). */
+export function writeSavedPropClickable(
+  manager: GameStateManager,
+  roomId: string,
+  propId: string,
+  clickable: boolean,
+): void {
+  manager.setVariable(roomPropClickableVariableKey(roomId, propId), clickable);
 }
 
 /** Effective `B.prop(id)` alpha — saved override when set in `[0, 1]`, else `jsonDefault`. */

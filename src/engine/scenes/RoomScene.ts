@@ -67,6 +67,7 @@ import {
   readSavedCharacterVisible,
   readSavedPropAlpha,
   readSavedPropBaseAnimationTag,
+  readSavedPropClickable,
   readSavedPropPosition,
   readSavedPropVisible,
   readSavedHotspotActive,
@@ -85,6 +86,7 @@ import {
   clearSavedCharacterSpeechPosition,
   writeSavedPropAlpha,
   writeSavedPropBaseAnimationTag,
+  writeSavedPropClickable,
   writeSavedPropPosition,
   writeSavedPropVisible,
 } from '../benneAnimationRuntime';
@@ -2871,6 +2873,57 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
+   * Effective clickability for prop pointer hit-test (hover, verbs, inventory-on-target). Saved script
+   * override wins, else JSON {@link RoomPropInstance.clickable} (`true` only when the field is
+   * explicitly `true`). Unknown ids fall back to **`false`**.
+   */
+  getPropScriptClickable(propId: string): boolean {
+    const inst = this.getRoomPropInstance(propId);
+    const jsonDefault = inst?.clickable === true;
+    const manager = resolveGameStateManager(this.game);
+    return readSavedPropClickable(manager, this.roomData.id, propId, jsonDefault);
+  }
+
+  /**
+   * Persist + apply clickability for one prop. Survives room reloads; spawn re-applies via
+   * {@link readSavedPropClickable}. Backs **`B.prop(id).clickable`**. Enabling needs an authored
+   * collider (≥3 points); missing collider is persisted but not attached (warn in attach).
+   * **`walkTo('id')`** / movement resolution is **not** gated.
+   */
+  setPropScriptClickable(propId: string, clickable: boolean): void {
+    writeSavedPropClickable(resolveGameStateManager(this.game), this.roomData.id, propId, clickable);
+    const sprite = this.propSpritesById.get(propId);
+    if (!sprite) {
+      return;
+    }
+    if (!clickable) {
+      if (sprite.input) {
+        sprite.disableInteractive();
+      }
+      return;
+    }
+    if (sprite.getData('bennePropInteractionAttached') === true) {
+      if (sprite.input && !sprite.input.enabled) {
+        sprite.setInteractive();
+      }
+      return;
+    }
+    const inst = this.getRoomPropInstance(propId);
+    if (!inst) {
+      return;
+    }
+    const spawnStub: RoomPropSpawn = {
+      id: propId,
+      textureKey: sprite.texture.key,
+      tag: inst.tag,
+      x: sprite.x,
+      y: sprite.y,
+      data: inst,
+    };
+    this.attachPropInteraction(this.roomData.id, spawnStub, sprite);
+  }
+
+  /**
    * Effective `B.region(id).active` — saved override wins; falls back to the JSON `active` field
    * (`undefined` / omitted = `true`, explicit `false` = inactive).
    */
@@ -4793,17 +4846,29 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private setupRoomProp(roomId: string, spawn: RoomPropSpawn, sprite: Phaser.GameObjects.Sprite): void {
-    const d = spawn.data;
-    if (!d.clickable) {
+    if (!this.getPropScriptClickable(spawn.id)) {
+      return;
+    }
+    this.attachPropInteraction(roomId, spawn, sprite);
+  }
+
+  /**
+   * Registers collider hit-test + pointerdown for one prop. Caller ensures the prop should be
+   * interactive (JSON/script clickable). Props may start hidden (`visible: false`) and be shown
+   * later via `B.prop(id).show()` / `setPropScriptVisible`. Interactive must still be registered:
+   * Phaser's hit test skips objects that do not `willRender` (including invisible sprites), so
+   * hidden props stay non-interactive until visibly shown.
+   */
+  private attachPropInteraction(
+    roomId: string,
+    spawn: RoomPropSpawn,
+    sprite: Phaser.GameObjects.Sprite,
+  ): void {
+    if (sprite.getData('bennePropInteractionAttached') === true) {
       return;
     }
 
-    // Props may start hidden (`visible: false`) and be shown later via `B.prop(id).show()` /
-    // `setPropScriptVisible`. Interactive must still be registered: Phaser's hit test skips
-    // objects that do not `willRender` (including invisible sprites), so hidden props stay
-    // non-interactive until visibly shown.
-
-    const pts = d.collider?.points;
+    const pts = spawn.data.collider?.points;
     if (!pts || pts.length < 3) {
       console.warn(`[Benne] Clickable prop '${spawn.id}' needs a collider polygon (at least 3 points).`);
       return;
@@ -4873,6 +4938,7 @@ export class RoomScene extends Phaser.Scene {
         manager.clearActiveVerb();
       }
     });
+    sprite.setData('bennePropInteractionAttached', true);
   }
 
   /**
@@ -5613,9 +5679,9 @@ export class RoomScene extends Phaser.Scene {
           if (dialogSuppressed) {
             return { useActiveVerbCursor: false, overrideAuthor: '' };
           }
-          const row = this.roomData.props?.find((p) => p.id === propId);
-          if (row?.clickable === true) {
-            const raw = row.activeCursorOverride;
+          if (this.getPropScriptClickable(propId)) {
+            const row = this.roomData.props?.find((p) => p.id === propId);
+            const raw = row?.activeCursorOverride;
             return {
               useActiveVerbCursor: true,
               overrideAuthor: typeof raw === 'string' ? raw.trim() : '',

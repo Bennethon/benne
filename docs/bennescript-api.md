@@ -64,7 +64,7 @@ Each union is **`LooseString<…>`** — known literals from your game appear in
 | **`B.character(id)`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.prop(id)`** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **`B.region(id)`** (**`whenEnter`**, **`whenExit`**), **`whenEnterRegion` / `whenExitRegion`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **`B.hotspot(id).active`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **`B.hotspot(id).active`** / **`.clickable`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **`B.onUpdate`** (per-frame, **not** on **`interactionTail`**) | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | Room **`when*(`target`,`…)` verb sugar**, **`onProp`**, **`whenGive(item,target,…)`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Character self-only **`when*(() => …)`** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -514,6 +514,7 @@ B.character('penny').fade.now(1, 0, 1); // start fade-out immediately, don't blo
 | **`video`** | Same **`BenneScriptVideoFacade`** as **`B.video`**. | See [Video (`B.video`)](#video-bvideo) |
 | **`hide` / `show`** | Script visibility overrides (persisted — see below); **`BlockingWithNow<[]>`** (queue vs **`.now`**). | Queued vs **`.now`** |
 | **`visible`** get/set | Setter queues like **`animation`**; **`visibleNow(v)`** applies immediately. Both setter and **`hide` / `show`** persist the boolean to **`GameStateManager`** (key `` `room:<roomId>:prop:<propId>:visible` ``); **`getPropScriptVisible`** returns the live sprite when one exists, else the saved override, else JSON. | Setter queued |
+| **`clickable`** get/set | When **`false`**, the prop is not hit-tested (no hover, verbs, or inventory-on-target). Setter queues like **`visible`**; persists `` `room:<roomId>:prop:<propId>:clickable` `` over JSON **`RoomPropInstance.clickable`**. Enabling at runtime needs an authored collider (≥3 points); missing collider is persisted but the sprite stays non-interactive (warn). **`walkTo('id')`** / movement resolution is **not** gated. | Setter queued |
 | **`description`** get/set | | Sync |
 | **`animation`** get/set | Base prop tag persisted; setter **queued**. | Setter queued |
 | **`animationNow(tag)`** | Immediate persist + sprite. | Immediate |
@@ -526,6 +527,7 @@ B.character('penny').fade.now(1, 0, 1); // start fade-out immediately, don't blo
 B.prop('Knife').fade(1, 0.5, 2); // fade Knife from opaque to 50% over 2 s; persisted alpha = 0.5
 B.prop('Knife').fade.now(0.5, 1, 1); // start fade back to opaque without blocking the chain
 B.prop('Knife').hide(); // persisted; the prop stays hidden after B.room.changeTo and reload
+B.prop('FountainOff').clickable = false; // queued; fountain can't be clicked until set true again
 B.prop('Rock').moveTo.now({ x: 80, y: 90 }); // teleport authoring origin; persisted on next flush
 ```
 
@@ -751,13 +753,15 @@ Advanced: stable event strings **`roomRegionEnterEventId(roomId, regionId)`** / 
 
 ### Room hotspots — `active`
 
-**`registerRoomScript`** only — **`B.hotspot('hotspotId').active`** getter and setter (same persistence pattern as **`B.region(…).active`**).
+**`registerRoomScript`** only — **`B.hotspot('hotspotId').active`** getter and setter (same persistence pattern as **`B.region(…).active`**). **`B.hotspot(id).clickable`** is an alias of **`.active`** (same persist key, same immediate setter) so hotspots share a **`.clickable`** name with **`B.character(id).clickable`** / **`B.prop(id).clickable`**.
 
 - **`active` get/set** — immediate (not queued on the interaction tail). Persisted to **`GameStateManager`** (key `` `room:<roomId>:hotspot:<hotspotId>:active` ``), re-applied to the live **`roomData.hotspots`** entry at room load. When **inactive**, the engine removes the polygon input zone (no hit-test, hover, or verb dispatch for that hotspot). When **active** and the hotspot has a valid polygon (≥3 points), the zone is mounted or left mounted. **`RoomScene.resolveMovementTarget`** still resolves string ids to hotspot geometry for **`walkTo` / `moveTo`** even when the hotspot is inactive — **`active`** gates **interaction** only.
+- **`clickable` get/set** — alias of **`active`**. Prefer **`.active`** in new scripts when you mean the JSON **`active`** field; **`.clickable`** is the character/prop-symmetric name.
 - **`hotspotId`** must match **`hotspots[].id`** in this room’s **`*.room.json`** exactly (**case-sensitive**). If there is no matching row, the getter returns **`false`**, the setter is a no-op, and DEV logs once per room load with the list of known hotspot ids.
 
 ```ts
 B.hotspot('secret-door').active = false;
+B.hotspot('window').clickable = false; // same as .active = false
 
 if (B.hotspot('secret-door').active) {
   // …

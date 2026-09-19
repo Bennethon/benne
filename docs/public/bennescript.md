@@ -106,7 +106,7 @@ registerRoomScript(({ B }) => {
 
 String ids passed to room handlers resolve in order: **props → hotspots → characters in this room → room points**. The same id you click is the id you handle.
 
-Room scripts also support: `whenVerb(verbId, target, …)` for any configured verb, `whenGive(itemId, propId, …)`, `B.prop('id')`, `B.region('id')`, `B.hotspot('id').active`, per-room transition hooks (`whenEnterRoom`, `whenEnterRoomAfterFade`, `whenLeaveRoom`, `whenLoadedRoom`), `B.onUpdate`, and `B.playFrom('name', …)` entry points for the editor's "Play from here".
+Room scripts also support: `whenVerb(verbId, target, …)` for any configured verb, `whenGive(itemId, propId, …)`, `B.prop('id')`, `B.region('id')`, `B.hotspot('id').active` / `.clickable`, per-room transition hooks (`whenEnterRoom`, `whenEnterRoomAfterFade`, `whenLeaveRoom`, `whenLoadedRoom`), `B.onUpdate`, and `B.playFrom('name', …)` entry points for the editor's "Play from here".
 
 ### Character script
 
@@ -292,6 +292,7 @@ Controls a room prop (its sprite, animation, visibility, position).
 | Member | Description |
 |--------|-------------|
 | `.hide()` / `.show()` / `.visible` | Visibility (persisted). |
+| `.clickable` | Whether the prop is hit-tested for interaction (persisted). |
 | `.animation` / `animationNow(tag)` / `playAnimation(tag)` | Set the base clip, set it immediately, or play a one-shot then restore. |
 | `.fade(from, to, seconds)` | Tween alpha (final alpha persists). |
 | `.moveTo(point)` | Teleport the prop's authoring origin in room space. |
@@ -300,6 +301,7 @@ Controls a room prop (its sprite, animation, visibility, position).
 ```ts
 B.prop('Door').animation = 'Door-open';
 B.prop('Knife').hide();
+B.prop('FountainOff').clickable = false;
 ```
 
 ## `B.region(id)` and `B.hotspot(id)`  <Badge type="info" text="room scripts" />
@@ -311,9 +313,10 @@ B.region('stage-front').whenEnter((ctx) => {
 B.region('darkness').active = false; // deactivate (persisted)
 
 B.hotspot('secret-door').active = true; // mount/unmount its input zone (persisted)
+B.hotspot('window').clickable = false; // alias of .active
 ```
 
-Region enter/exit handlers run on the interaction queue. Setting `.active` on a region or hotspot is immediate and persisted; deactivating disables triggers and interaction (movement resolution still works).
+Region enter/exit handlers run on the interaction queue. Setting `.active` on a region or hotspot is immediate and persisted; deactivating disables triggers and interaction (movement resolution still works). **`B.hotspot(id).clickable`** is an alias of **`.active`**.
 
 ## `B.inventory`
 
