@@ -288,11 +288,28 @@ function extractBindingFromRegisterDialogScriptCall(source: string, callIdx: num
     return extractBenneBindingFromParamInner(paramInner);
 }
 
-function minimalNewDialogScript(dialogId: string, optionId: string): string {
+/** `//` comment lines for the option’s spoken text (empty when the line is blank). */
+function formatOptionTextCommentLines(optionText: string): string[] {
+    const normalized = optionText.replace(/\r\n/g, '\n').trim();
+    if (!normalized) {
+        return [];
+    }
+    return normalized.split('\n').map((line) => `// ${line.trimEnd()}`);
+}
+
+function whenChoiceHandlerStub(binding: string, optionId: string, optionText: string): string {
+    const comments = formatOptionTextCommentLines(optionText);
+    const commentBlock = comments.length > 0 ? `${comments.map((line) => `  ${line}`).join('\n')}\n` : '';
+    return `\n${commentBlock}  ${binding}.whenChoice(${JSON.stringify(optionId)}, () => {\n  });\n`;
+}
+
+function minimalNewDialogScript(dialogId: string, optionId: string, optionText: string): string {
+    const comments = formatOptionTextCommentLines(optionText);
+    const commentBlock = comments.length > 0 ? `${comments.map((line) => `  ${line}`).join('\n')}\n` : '';
     return `import { registerDialogScript } from '@engine/scripting';
 
 registerDialogScript(${JSON.stringify(dialogId)}, ({ B }) => {
-  B.whenChoice(${JSON.stringify(optionId)}, () => {
+${commentBlock}  B.whenChoice(${JSON.stringify(optionId)}, () => {
   });
 });
 `;
@@ -304,7 +321,8 @@ registerDialogScript(${JSON.stringify(dialogId)}, ({ B }) => {
 export async function ensureDialogWhenChoiceHandlerAndReveal(
     dialogJsonUri: vscode.Uri,
     dialogId: string,
-    optionId: string
+    optionId: string,
+    optionText = ''
 ): Promise<void> {
     const jsonStringId = await readDialogJsonStringId(dialogJsonUri);
     const preferredScriptIds = [...new Set([jsonStringId, dialogId].filter((s): s is string => Boolean(s?.trim())))];
@@ -315,7 +333,7 @@ export async function ensureDialogWhenChoiceHandlerAndReveal(
     try {
         text = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
     } catch {
-        const body = minimalNewDialogScript(registrationIdForNewFile, optionId);
+        const body = minimalNewDialogScript(registrationIdForNewFile, optionId, optionText);
         await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(body));
         const range = findWhenChoiceCallRange(body, optionId);
         if (range) {
@@ -344,7 +362,7 @@ export async function ensureDialogWhenChoiceHandlerAndReveal(
         return;
     }
 
-    const stub = `\n  ${binding}.whenChoice(${JSON.stringify(optionId)}, () => {\n  });\n`;
+    const stub = whenChoiceHandlerStub(binding, optionId, optionText);
     const inserted = insertIntoBenneRegisterDialogScriptAtCall(text, callIdx, stub);
     if (!inserted) {
         void vscode.window.showErrorMessage(`Could not insert into ${dialogId}.dialog.ts. ${DIALOG_SCRIPT_HINT}`);

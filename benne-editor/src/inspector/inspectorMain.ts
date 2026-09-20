@@ -2257,7 +2257,7 @@ function renderGui(state: InspectorGuiState): string {
 }
 
 function renderDialogOptionCard(state: InspectorDialogState, opt: InspectorDialogOptionRow): string {
-    const summary = `<span class="dlg-opt-drag-handle" draggable="true" data-idx="${opt.index}" title="Drag to reorder" aria-label="Drag to reorder">⋮⋮</span><div class="benne-card-titles">
+    const summary = `<span class="dlg-opt-drag-handle" data-idx="${opt.index}" title="Drag to reorder" aria-label="Drag to reorder">⋮⋮</span><div class="benne-card-titles">
         <div class="benne-card-title">${esc(opt.id)}</div>
         <div class="benne-card-sub muted">Option ${opt.index + 1}</div>
       </div>`;
@@ -3592,6 +3592,34 @@ function collectDialogOptionPatches(): Record<string, unknown>[] {
     return patches;
 }
 
+function closestDialogOptionRow(el: EventTarget | null, list: HTMLElement): HTMLElement | null {
+    const node = el instanceof Element ? el : el instanceof Node ? el.parentElement : null;
+    const row = node?.closest?.('[data-entity="dialogOption"]');
+    if (!row || !list.contains(row) || !(row instanceof HTMLElement)) {
+        return null;
+    }
+    return row;
+}
+
+function dialogOptionRowAtPoint(list: HTMLElement, x: number, y: number): HTMLElement | null {
+    return closestDialogOptionRow(document.elementFromPoint(x, y), list);
+}
+
+function clearDialogOptionDragOver(list: HTMLElement): void {
+    list.querySelectorAll('.benne-dlg-opt--drag-over').forEach((el) => el.classList.remove('benne-dlg-opt--drag-over'));
+}
+
+/** Insertion index after removing `from`, matching `reorderDialogOptionAtIndex`. */
+function dialogReorderToIndex(from: number, over: number, insertAfter: boolean): number {
+    if (over === from) {
+        return from;
+    }
+    if (insertAfter) {
+        return over > from ? over : over + 1;
+    }
+    return over > from ? over - 1 : over;
+}
+
 function mountDialogOptionDragReorder(): void {
     const list = document.getElementById('dlg-option-card-list');
     if (!list) {
@@ -3599,77 +3627,108 @@ function mountDialogOptionDragReorder(): void {
     }
 
     let dragFrom = -1;
-    let draggingRow: Element | null = null;
+    let draggingRow: HTMLElement | null = null;
+    let overRow: HTMLElement | null = null;
+    let activeHandle: HTMLElement | null = null;
 
-    list.addEventListener('mousedown', (e) => {
-        const h = (e.target as Element | null)?.closest?.('.dlg-opt-drag-handle');
-        if (h && list.contains(h)) {
-            e.stopPropagation();
+    const releaseHandle = (pointerId: number): void => {
+        if (activeHandle?.hasPointerCapture(pointerId)) {
+            activeHandle.releasePointerCapture(pointerId);
         }
-    });
+    };
 
-    list.addEventListener('dragstart', (e) => {
-        const h = (e.target as Element | null)?.closest?.('.dlg-opt-drag-handle');
-        if (!h || !list.contains(h)) {
-            return;
-        }
-        const from = Number((h as HTMLElement).dataset.idx ?? '-1');
-        if (!Number.isInteger(from) || from < 0) {
-            return;
-        }
-        dragFrom = from;
-        draggingRow = h.closest('[data-entity="dialogOption"]');
-        draggingRow?.classList.add('benne-dlg-opt--dragging');
-        const dt = e.dataTransfer;
-        if (dt) {
-            dt.setData('text/plain', String(from));
-            dt.effectAllowed = 'move';
-        }
-    });
-
-    list.addEventListener('dragend', () => {
-        dragFrom = -1;
-        draggingRow?.classList.remove('benne-dlg-opt--dragging');
-        draggingRow = null;
-        list.querySelectorAll('.benne-dlg-opt--drag-over').forEach((el) => el.classList.remove('benne-dlg-opt--drag-over'));
-    });
-
-    list.addEventListener('dragover', (e) => {
-        if (dragFrom < 0) {
-            return;
-        }
-        const row = (e.target as Element | null)?.closest?.('[data-entity="dialogOption"]');
-        if (!row || !list.contains(row)) {
-            return;
-        }
-        e.preventDefault();
-        const dt = e.dataTransfer;
-        if (dt) {
-            dt.dropEffect = 'move';
-        }
-        list.querySelectorAll('.benne-dlg-opt--drag-over').forEach((el) => el.classList.remove('benne-dlg-opt--drag-over'));
-        row.classList.add('benne-dlg-opt--drag-over');
-    });
-
-    list.addEventListener('drop', (e) => {
-        if (dragFrom < 0) {
-            return;
-        }
-        const row = (e.target as Element | null)?.closest?.('[data-entity="dialogOption"]');
-        if (!row || !list.contains(row)) {
-            return;
-        }
-        e.preventDefault();
-        list.querySelectorAll('.benne-dlg-opt--drag-over').forEach((el) => el.classList.remove('benne-dlg-opt--drag-over'));
-        const to = Number((row as HTMLElement).dataset.id ?? '-1');
+    const finishDrag = (clientX: number, clientY: number, commit: boolean): void => {
         const from = dragFrom;
-        dragFrom = -1;
+        const row = overRow ?? dialogOptionRowAtPoint(list, clientX, clientY);
         draggingRow?.classList.remove('benne-dlg-opt--dragging');
+        clearDialogOptionDragOver(list);
+        dragFrom = -1;
         draggingRow = null;
-        if (!Number.isInteger(from) || from < 0 || !Number.isInteger(to) || to < 0 || from === to) {
+        overRow = null;
+        activeHandle = null;
+        if (!commit || from < 0 || !row) {
+            return;
+        }
+        const over = Number(row.dataset.id ?? '-1');
+        if (!Number.isInteger(over) || over < 0) {
+            return;
+        }
+        const rect = row.getBoundingClientRect();
+        const insertAfter = clientY > rect.top + rect.height / 2;
+        const to = dialogReorderToIndex(from, over, insertAfter);
+        if (!Number.isInteger(to) || to < 0 || from === to) {
             return;
         }
         post('applyPatches', { patches: [{ type: 'dialogReorderOption', fromIndex: from, toIndex: to }] });
+    };
+
+    list.addEventListener(
+        'pointerdown',
+        (e) => {
+            if (e.button !== 0) {
+                return;
+            }
+            const node = e.target instanceof Element ? e.target : e.target instanceof Node ? e.target.parentElement : null;
+            const h = node?.closest?.('.dlg-opt-drag-handle');
+            if (!h || !list.contains(h) || !(h instanceof HTMLElement)) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            const from = Number(h.dataset.idx ?? '-1');
+            if (!Number.isInteger(from) || from < 0) {
+                return;
+            }
+            dragFrom = from;
+            activeHandle = h;
+            const row = h.closest('[data-entity="dialogOption"]');
+            draggingRow = row instanceof HTMLElement ? row : null;
+            draggingRow?.classList.add('benne-dlg-opt--dragging');
+            h.setPointerCapture(e.pointerId);
+        },
+        true
+    );
+
+    list.addEventListener(
+        'click',
+        (e) => {
+            const node = e.target instanceof Element ? e.target : e.target instanceof Node ? e.target.parentElement : null;
+            const h = node?.closest?.('.dlg-opt-drag-handle');
+            if (!h || !list.contains(h)) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+        },
+        true
+    );
+
+    list.addEventListener('pointermove', (e) => {
+        if (dragFrom < 0) {
+            return;
+        }
+        const row = dialogOptionRowAtPoint(list, e.clientX, e.clientY);
+        overRow = row;
+        clearDialogOptionDragOver(list);
+        if (row && row !== draggingRow) {
+            row.classList.add('benne-dlg-opt--drag-over');
+        }
+    });
+
+    list.addEventListener('pointerup', (e) => {
+        if (dragFrom < 0) {
+            return;
+        }
+        releaseHandle(e.pointerId);
+        finishDrag(e.clientX, e.clientY, true);
+    });
+
+    list.addEventListener('pointercancel', (e) => {
+        if (dragFrom < 0) {
+            return;
+        }
+        releaseHandle(e.pointerId);
+        finishDrag(e.clientX, e.clientY, false);
     });
 }
 
@@ -3715,7 +3774,9 @@ function mountDialogHandlers(state: InspectorDialogState): void {
             if (!optionId) {
                 return;
             }
-            post('dialogEnsureWhenChoice', { dialogJsonUri: state.dialogJsonUri, optionId });
+            const textInput = row?.querySelector(`.dlg-opt-text[data-idx="${idx}"]`) as HTMLTextAreaElement | null;
+            const optionText = textInput?.value ?? '';
+            post('dialogEnsureWhenChoice', { dialogJsonUri: state.dialogJsonUri, optionId, optionText });
         });
     });
     document.querySelectorAll('.dlg-opt-remove').forEach((btn) => {
