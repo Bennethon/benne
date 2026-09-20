@@ -442,7 +442,7 @@ B.player.resetSpeechPosition();
 
 Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / **`face`** / **`movable`** / **follow** pattern as **`B.player`**, routed to **`walkCharacterTo`**, **`moveCharacterToNow`**, **`faceCharacterScriptDirection`**, **`startCharacterFollowingCharacter` / `stopCharacterFollowingCharacter`**, **`startCharacterFacingCharacter` / `stopCharacterFacingCharacter`**, character animation scripting APIs (**`NPC`** — no **`walkToClicked`** on facade; use top-level **`B.walkToClicked`** / **`B.player.*`**). Exposes **`sound`** (**same object** as **`B.sound`**).
 
-**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. Movement / **`face`** / **`fade`** / **`startFacingCharacter` / `stopFacingCharacter`** with no room no-op and DEV **`console.warn`** once. **`hide` / `show` / `visible` / `visibleNow`**, **`movable`**, **`clickable`**, **`setSpeechPosition` / `setSpeechOffset` / `resetSpeechPosition`**, and **`startFollowingCharacter` / `stopFollowingCharacter`** setters still persist to **`GameStateManager`** when a manager is active so values survive the next room load even if **`RoomScene`** is not resolved yet.
+**Room resolution:** Each call uses the same **`getPlayerWalkRoomScene`** hook as **`B.player`** — room / character / inventory scripts pass a stable **`() => this.roomScene`** closure; dialog / global / GUI pass **`() => game.scene.getScene(SCENE_ROOM)`**. Movement / **`face`** / **`fade`** / **`startFacingCharacter` / `stopFacingCharacter`** with no room no-op and DEV **`console.warn`** once. **`hide` / `show` / `visible` / `visibleNow`**, **`movable`**, **`clickable`**, **`description`**, **`setSpeechPosition` / `setSpeechOffset` / `resetSpeechPosition`**, and **`startFollowingCharacter` / `stopFollowingCharacter`** setters still persist to **`GameStateManager`** when a manager is active so values survive the next room load even if **`RoomScene`** is not resolved yet.
 
 **`movable` getter:** Effective value is the saved override (if any), else **`CharacterData.movable`** from the **first** spawn of that **`characterId`** in the active room’s JSON (**`true`** when omitted). If that id is **not** spawned in the current room, there is no JSON row from this room — the getter still returns a saved **`character:<id>:movable`** boolean when set; otherwise **`true`**. Use **`B.player.movable`** when you mean the protagonist, not an arbitrary **`B.character('…')`** id that might be absent from the room.
 
@@ -454,6 +454,7 @@ Defined on **`BenneScriptCore`**: same movement/teleport/play/stop **`say`** / *
 | **`visible`** get/set | Setter queues like **`animation`**; **`visibleNow(v)`** applies immediately. Both persist a boolean to **`GameStateManager`** (key `` `character:<characterId>:visible` ``). **`getCharacterScriptVisible`** returns the live sprite when one exists, else the saved override, then the first room JSON placement default. | Setter queued |
 | **`movable`** get/set | When **`false`**, **`walkTo`** is a no-op for this NPC (**`walkCharacterTo`** returns immediately). Setter queues like **`visible`**; persists `` `character:<characterId>:movable` ``. **`moveTo`** is **not** gated. | Setter queued |
 | **`clickable`** get/set | When **`false`**, the NPC is not hit-tested (no hover, verbs, or inventory-on-target). Setter queues like **`movable`**; persists `` `character:<characterId>:clickable` ``. **`walkTo('id')`** / movement resolution is **not** gated. | Setter queued |
+| **`description`** get/set | Hover / verb-line label. Setter is **immediate** (not queued). Persists `` `character:<characterId>:description` `` over JSON **`CharacterData.description`**. Empty string is stored as empty (does **not** clear to JSON). Hover still falls back to **name** when the effective (trimmed) string is empty. | Sync |
 | **`startFollowingCharacter`** | **`(targetId: string, options?: CharacterFollowOptions) => void`** | Same persistence and semantics as **`B.player.startFollowingCharacter`** (keys use this NPC’s **`characterId`**). **`RoomScene.startCharacterFollowingCharacter`** when a room is active. | Queued |
 | **`stopFollowingCharacter`** | **`() => void`** | Clears follow state and stops a follow-initiated NPC walk if applicable. | Queued |
 | **`isFollowing`** | getter **`boolean`** | Whether this id has a persisted **`followingTarget`**. | Sync |
@@ -480,6 +481,7 @@ B.character('hank').resetSpeechPosition(); // back to default
 
 B.character('penny').movable = false; // queued; penny won't pathfind-walk until set true again
 B.character('penny').clickable = false; // queued; penny can't be clicked until set true again
+B.character('penny').description = 'A soggy detective.'; // immediate; persisted hover label
 if (B.character('penny').clickable) {
   B.character('penny').say('Try clicking me.');
 }
@@ -515,7 +517,7 @@ B.character('penny').fade.now(1, 0, 1); // start fade-out immediately, don't blo
 | **`hide` / `show`** | Script visibility overrides (persisted — see below); **`BlockingWithNow<[]>`** (queue vs **`.now`**). | Queued vs **`.now`** |
 | **`visible`** get/set | Setter queues like **`animation`**; **`visibleNow(v)`** applies immediately. Both setter and **`hide` / `show`** persist the boolean to **`GameStateManager`** (key `` `room:<roomId>:prop:<propId>:visible` ``); **`getPropScriptVisible`** returns the live sprite when one exists, else the saved override, else JSON. | Setter queued |
 | **`clickable`** get/set | When **`false`**, the prop is not hit-tested (no hover, verbs, or inventory-on-target). Setter queues like **`visible`**; persists `` `room:<roomId>:prop:<propId>:clickable` `` over JSON **`RoomPropInstance.clickable`**. Enabling at runtime needs an authored collider (≥3 points); missing collider is persisted but the sprite stays non-interactive (warn). **`walkTo('id')`** / movement resolution is **not** gated. | Setter queued |
-| **`description`** get/set | | Sync |
+| **`description`** get/set | Hover / verb-line label. Setter is **immediate** (not queued). Persists `` `room:<roomId>:prop:<propId>:description` `` over JSON **`RoomPropInstance.description`**. Empty string is stored as empty (does **not** clear to JSON). Hover still falls back to the **prop id** when the effective (trimmed) string is empty. | Sync |
 | **`animation`** get/set | Base prop tag persisted; setter **queued**. | Setter queued |
 | **`animationNow(tag)`** | Immediate persist + sprite. | Immediate |
 | **`playAnimation`** | **`BlockingWithNow<[string]>`** one-shot → restore base tag. | Queued vs **`.now`** |
@@ -528,10 +530,11 @@ B.prop('Knife').fade(1, 0.5, 2); // fade Knife from opaque to 50% over 2 s; pers
 B.prop('Knife').fade.now(0.5, 1, 1); // start fade back to opaque without blocking the chain
 B.prop('Knife').hide(); // persisted; the prop stays hidden after B.room.changeTo and reload
 B.prop('FountainOff').clickable = false; // queued; fountain can't be clicked until set true again
+B.prop('Knife').description = 'Still sticky.'; // immediate; persisted hover label
 B.prop('Rock').moveTo.now({ x: 80, y: 90 }); // teleport authoring origin; persisted on next flush
 ```
 
-**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, **movable**, **clickable**, **speech position / offset**, **follow** (**`followingTarget`** + **`followOptions`**), alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`save` / `load`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`save`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
+**Persistence keys** — see [architecture.md §7 → Sprite animation & persistence](architecture.md#7-scripting--interaction-system-bennescript) for the full reserved key list. Visibility, **movable**, **clickable**, **description**, **speech position / offset**, **follow** (**`followingTarget`** + **`followOptions`**), alpha, and animation overrides all flow through **`GameStateManager.variables`** and survive **`exportJson` / `importJson`** / **`save` / `load`** like any other **`B.state`** value. **Position** flows the same way but is **lazily** written — it is pulled into **`variables`** by a snapshot flush hook installed in **`RoomScene.create`** that fires automatically on room-leave (**`prepareForLeave`**), inside **`getSnapshot`** (so **`save`** / **`exportJson`** capture it), and on **`B.state.flush()`**.
 
 ---
 
@@ -563,6 +566,8 @@ interface BenneScriptInventoryItemFacade {
   get cursorAnimation(): string;
   set cursorAnimation(tag: string);
   cursorAnimationNow(tag: string): void;
+  get description(): string;
+  set description(v: string);
 }
 ```
 
@@ -573,7 +578,8 @@ interface BenneScriptInventoryItemFacade {
 | **`add`**, **`remove`** | Queued when namespace wired with **`chain`** | **`add.now(…)`**, **`remove.now(…)`** |
 | **`animation`** get/set — effective **`defaultAnimation`** | Queued when namespace wired with **`chain`** (room/character/inventory/global/dialog) | **`animationNow(tag)`** |
 | **`cursorAnimation`** get/set — effective armed cursor Aseprite tag (`InventoryItemData.cursorAnimation` ± save override) | Same | **`cursorAnimationNow(tag)`** |
-| Setter **empty string** | Clears **`GameStateManager`** override for that field (JSON defaults return). |
+| **`description`** get/set — hover / verb-line label | Immediate (not queued) | — |
+| Setter **empty string** on **`animation`** / **`cursorAnimation`** | Clears **`GameStateManager`** override for that field (JSON defaults return). **`description = ''`** persists as empty (does **not** clear to JSON). |
 
 **`cursorAnimation` getter** — Returns the **effective** tag the engine uses when this item is **`activeInventory`** (same resolution as the custom game cursor). **`''`** means *no* per-item cursor clip (fall back to the verb / global cursor). Unknown **`itemId`** yields **`''`** (DEV may warn).
 
@@ -585,6 +591,7 @@ if (B.inventory('Knife').cursorAnimation === 'Knife-PB') {
 }
 B.inventory('Knife').cursorAnimation = 'Knife-alt'; // queued on interaction tail
 B.inventory('Knife').cursorAnimationNow('Knife-alt'); // immediate
+B.inventory('Key').description = 'Now slightly bent.'; // immediate; persisted hover label
 ```
 
 ---
@@ -751,17 +758,19 @@ if (B.region('leave').active) {
 
 Advanced: stable event strings **`roomRegionEnterEventId(roomId, regionId)`** / **`roomRegionExitEventId`** in **`src/engine/events/regionEnterExitEvents.ts`** for **`B.raw.on`** tooling.
 
-### Room hotspots — `active`
+### Room hotspots — `active` / `description`
 
 **`registerRoomScript`** only — **`B.hotspot('hotspotId').active`** getter and setter (same persistence pattern as **`B.region(…).active`**). **`B.hotspot(id).clickable`** is an alias of **`.active`** (same persist key, same immediate setter) so hotspots share a **`.clickable`** name with **`B.character(id).clickable`** / **`B.prop(id).clickable`**.
 
 - **`active` get/set** — immediate (not queued on the interaction tail). Persisted to **`GameStateManager`** (key `` `room:<roomId>:hotspot:<hotspotId>:active` ``), re-applied to the live **`roomData.hotspots`** entry at room load. When **inactive**, the engine removes the polygon input zone (no hit-test, hover, or verb dispatch for that hotspot). When **active** and the hotspot has a valid polygon (≥3 points), the zone is mounted or left mounted. **`RoomScene.resolveMovementTarget`** still resolves string ids to hotspot geometry for **`walkTo` / `moveTo`** even when the hotspot is inactive — **`active`** gates **interaction** only.
 - **`clickable` get/set** — alias of **`active`**. Prefer **`.active`** in new scripts when you mean the JSON **`active`** field; **`.clickable`** is the character/prop-symmetric name.
-- **`hotspotId`** must match **`hotspots[].id`** in this room’s **`*.room.json`** exactly (**case-sensitive**). If there is no matching row, the getter returns **`false`**, the setter is a no-op, and DEV logs once per room load with the list of known hotspot ids.
+- **`description` get/set** — immediate (not queued). Persisted to **`GameStateManager`** (key `` `room:<roomId>:hotspot:<hotspotId>:description` ``) over JSON **`hotspots[].description`**. Empty string is stored as empty. Hover still shows **`null`** (and the hover-text GUI may fall back to **`targetId`**) when the effective (trimmed) string is empty. Unknown id: getter **`''`**, setter no-op, DEV warn once per room load.
+- **`hotspotId`** must match **`hotspots[].id`** in this room’s **`*.room.json`** exactly (**case-sensitive**). If there is no matching row, the **`active`** getter returns **`false`**, the **`description`** getter returns **`''`**, the setter is a no-op, and DEV logs once per room load with the list of known hotspot ids.
 
 ```ts
 B.hotspot('secret-door').active = false;
 B.hotspot('window').clickable = false; // same as .active = false
+B.hotspot('secret-door').description = 'A door that used to be locked.';
 
 if (B.hotspot('secret-door').active) {
   // …
@@ -1067,5 +1076,5 @@ Strict typing when bypassing **`(p: any)`**:
 | [`benneScriptGameStateApi.ts`](../src/engine/scripting/benneScriptGameStateApi.ts) | **`B.state`**, **`B.inventory`** factories |
 | [`benneScriptRoomApi.ts`](../src/engine/scripting/benneScriptRoomApi.ts) | **`B.room`** |
 | [`snapshotFlushHooks.ts`](../src/engine/gameState/snapshotFlushHooks.ts) | **`registerSnapshotFlushHook`** / **`runSnapshotFlushHooks`** (powers **`B.state.flush`**, run inside **`getSnapshot`** and **`prepareForLeave`**) |
-| [`benneAnimationRuntime.ts`](../src/engine/benneAnimationRuntime.ts) | Variable-key + read/write helpers for prop/character animation, visibility, alpha, **and position** |
+| [`benneAnimationRuntime.ts`](../src/engine/benneAnimationRuntime.ts) | Variable-key + read/write helpers for prop/character/hotspot animation, visibility, alpha, **description**, **and position** |
 | [`types.ts`](../src/engine/scripting/types.ts) | **`RoomScriptContext`**, **`CharacterScriptContext`**, **`UpdateContext`**, etc. |

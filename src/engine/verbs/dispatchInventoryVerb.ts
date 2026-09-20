@@ -3,9 +3,11 @@ import type { EventBus } from '../events/EventBus';
 import { inventoryVerbEventId, roomInventoryVerbEventId } from '../events/inventoryVerbEvents.js';
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
+import { readEffectiveInventoryDescription } from '../inventory/inventoryScriptingAnimations.js';
 import { getInventoryItemIdsWithBenneScripts } from '../scripting/registerInventoryScript.js';
 import { interruptPlayerWalkForVerbInteraction } from '../scenes/interruptPlayerWalkForVerbInteraction.js';
 import { dispatchVerbInteraction } from './dispatchVerb.js';
+import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { resolveEffectiveGiveVerbId, resolveEffectiveUseVerbId } from './verbConfig.js';
 
 function listenerCount(bus: EventBus, event: string): number {
@@ -36,13 +38,16 @@ export function dispatchInventoryVerbInteraction(
     return;
   }
   const def = getInventoryDefinition(itemId);
+  const manager = tryGetActiveGameStateManager();
+  const description =
+    def && manager
+      ? readEffectiveInventoryDescription(manager, def)
+      : def?.description;
   dispatchVerbInteraction(bus, verbId, { onVerbFallback: false }, {
     type: 'inventoryItem',
     itemId,
     roomId,
-    ...(def?.description !== undefined && def.description.length > 0
-      ? { description: def.description }
-      : {}),
+    ...(description !== undefined && description.length > 0 ? { description } : {}),
   });
 }
 

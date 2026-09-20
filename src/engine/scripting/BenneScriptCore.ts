@@ -20,9 +20,11 @@ import {
   getCharacterAnimationOverrideTag,
   readSavedCharacterFollowingTarget,
   readSavedCharacterClickable,
+  readSavedCharacterDescription,
   readSavedCharacterMovable,
   readSavedCharacterVisible,
   writeSavedCharacterClickable,
+  writeSavedCharacterDescription,
   writeSavedCharacterMovable,
   writeSavedCharacterSpeechOffset,
   writeSavedCharacterSpeechPosition,
@@ -1975,6 +1977,8 @@ export abstract class BenneScriptCore {
    * Movement / speech / facing for an NPC **spawned in the active room**, resolved via the same
    * **`getPlayerWalkRoomScene`** hook as **`B.player`** (room/character/inventory pass a stable
    * **`() => this.roomScene`** closure; dialog/global/gui pass **`() => game.scene.getScene(SCENE_ROOM)`**).
+   * **`description`** still persists to **`GameStateManager`** when a manager is active even if
+   * **`RoomScene`** is not resolved yet.
    */
   character(definitionId: CharacterId): BenneScriptCharacterFacade {
     return this.makeCharacterFacadeLazy(() => this.getPlayerWalkRoomScene(), definitionId);
@@ -2303,6 +2307,27 @@ export abstract class BenneScriptCore {
           }
           return Promise.resolve();
         });
+      },
+      get description() {
+        const scene = getScene();
+        if (scene) {
+          return scene.getCharacterScriptDescription(definitionId);
+        }
+        const mgr = tryGetActiveGameStateManager();
+        return mgr ? readSavedCharacterDescription(mgr, definitionId, '') : '';
+      },
+      set description(v: string) {
+        const scene = getScene();
+        if (scene) {
+          scene.setCharacterScriptDescription(definitionId, v);
+        } else {
+          const mgr = tryGetActiveGameStateManager();
+          if (mgr) {
+            writeSavedCharacterDescription(mgr, definitionId, v);
+          } else {
+            warnNoRoom();
+          }
+        }
       },
       startFollowingCharacter(
         targetId: CharacterId | 'player',

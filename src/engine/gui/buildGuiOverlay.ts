@@ -83,6 +83,7 @@ import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry
 import {
   isPersistedInventoryAnimationVariableKey,
   readEffectiveInventoryDefaultAnimationTag,
+  readEffectiveInventoryDescription,
 } from '../inventory/inventoryScriptingAnimations.js';
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
@@ -1882,7 +1883,9 @@ function fillInventoryPanelContent(
                   resolution.verbId,
                   itemId,
                   invPointerCtx.roomId,
-                  invDef?.description,
+                  invDef
+                    ? readEffectiveInventoryDescription(manager, invDef)
+                    : undefined,
                 );
                 if (!handled && shouldDrop) {
                   manager.clearActiveInventoryItem();

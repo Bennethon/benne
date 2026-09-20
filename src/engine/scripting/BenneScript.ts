@@ -108,15 +108,17 @@ export { withNow } from './BenneScriptCore.js';
  * | **`B.character(id)`** | **`CharacterData.id`** for a character **placed in this room**. |
  * | **`B.region(id).whenEnter` / `whenExit`**, **`B.whenEnterRegion` / `whenExitRegion`** | **`regions[].id`** in this room’s JSON. Feet crossing uses the same **last-wins** active polygon test as perspective scale (**`resolveWinningRoomRegionIdAtFeet`**). Handlers wire through **`subscribe`** (interaction queue + verb click context rules, like **`whenLookAt`**). Payload: **`RegionEnterExitContext`**. |
  * | **`B.onUpdate`** | Non-blocking per-frame hook (**`UpdateContext`**: **`deltaSeconds`**, **`roomId`**). Runs after engine **`RoomScene.update`** work; **not** on the interaction tail; **no** **`.now`**. Cleaned up when the room script’s **`B`** is disposed (room unload). Global **`B.onUpdate`** runs after room handlers. |
- * | **`B.hotspot(id).active`** / **`.clickable`** | **`hotspots[].id`** (case-sensitive, exact JSON match) — get/set persisted **active** (immediate, not queued). **`.clickable`** is an alias of **`.active`**. Mounts or removes the polygon input zone; **`resolveMovementTarget`** still resolves inactive hotspot ids. Unknown id: getter **`false`**, setter no-op, DEV warn once per room load. |
+ * | **`B.hotspot(id).active`** / **`.clickable`** / **`.description`** | **`hotspots[].id`** (case-sensitive, exact JSON match) — get/set persisted **active** (immediate, not queued). **`.clickable`** is an alias of **`.active`**. **`.description`** is the hover / verb-line label (immediate; persists `` `room:<roomId>:hotspot:<id>:description` ``). Mounts or removes the polygon input zone; **`resolveMovementTarget`** still resolves inactive hotspot ids. Unknown id: **`.active`** getter **`false`**, **`.description`** getter **`''`**, setter no-op, DEV warn once per room load. |
  * | **`B.say` / `B.say.now`** | Tagged **`B.say`**…``: PowerQuest-style block — lines **`Speaker: text`** (`Player` any case → protagonist id; other names match spawned character ids **case-insensitively**). Blank lines and **`//`** comments ignored; unknown speakers throw. Queues each line; **`B.say.now`**… skips the interaction tail (see implementation notes in **`BenneScriptCore`**). |
  * | **`B.display` / `B.display.now`** | Narration via **`display-text`** GUI — **`B.display('…')`** blocks until the player clicks to dismiss (no timer). Same interaction-tail rules as **`B.wait`** / **`say`**; **`.now`** skips the tail. |
  * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Same dialog overlay as **`B.say`**, plus string form **`B.player.say('…')`**. Scoped tagged blocks: each line is that character (optional **`Player:`** prefix); mismatched **`Name:`** throws (compared **case-insensitively** to the scoped character). Optional second argument **`{ clickToSkip: false \| true }`** on string calls. |
  * | **`B.playFrom('…', () => { … })`** | **Dev / tooling** — named starting-state for this room; runs once after **`whenEnterRoom`** / **`whenEnterAnyRoom`** on **`boot`** or editor **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`** matches (BENNE Play). Skipped on in-game **`changeTo`** (`transition`). |
  * | **`B.inventory.add` / `remove`**, **`.now`** | **`GameStateManager`** quantity mutations. Blocking form **queues** on the interaction tail; **`.now`** applies immediately. **`has`**, **`quantityOf`**, **`items`**, **`clearInventory`** stay synchronous. |
  * | **`B.inventory('id').animation`**, **`cursorAnimation`** (getter / setter) | **Getters**: effective tags (JSON **`defaultAnimation`** / **`cursorAnimation`** ± save overrides — **`''`** when no armed cursor clip). **Setters**: persisted in **`GameStateManager`** variables; **queue** on the interaction tail (same as **`B.player.animation`**); **`animationNow`** / **`cursorAnimationNow`** apply immediately. Setter **empty string** clears that field’s override (JSON applies). |
+ * | **`B.inventory('id').description`** | Hover / verb-line label. Immediate (not queued). Persists `` `inventory:<itemId>:description` `` over JSON **`description`**. Empty string is stored as empty (does **not** clear to JSON). |
  * | **`B.prop(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Script visibility overrides. **`hide` / `show` / `visible =`** queue on the interaction tail; **`.now`** / **`visibleNow`** apply immediately. |
  * | **`B.prop(id).clickable`** | When **`false`**, the prop is not hit-tested (no hover, verbs, or inventory-on-target). Setter queues like **`visible`**; persists `` `room:<roomId>:prop:<id>:clickable` `` over JSON **`clickable`**. Enabling needs a collider (≥3 points). **`walkTo('id')`** is **not** gated. |
+ * | **`B.prop(id).description`** | Hover / verb-line label. Immediate (not queued). Persists `` `room:<roomId>:prop:<id>:description` `` over JSON **`description`**. |
  * | **`B.character(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Same as props: persisted script visibility (global per character definition id); **`hide` / `show` / `visible =`** queue; **`.now`** / **`visibleNow`** immediate. |
  * | **`movable` / `movable =`** on **`B.player`** or **`B.character('…')`** | When **`false`**, pathfind walks are ignored (including **`walkToClicked`** and click-to-walk); **`moveTo`** still teleports. Setter queues on the interaction tail; persists **`character:<id>:movable`** over the JSON default from **`*.character.json`**. |
  * | **`B.prop(id).fade(from, to, durationSeconds)`** / **`.now`**, **`B.character(id).fade(...)`** / **`.now`** | Sprite alpha tween (linear ease) from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`**; alphas clamp to **`[0, 1]`**. Blocking form queues on the interaction tail and waits for completion; **`fade.now`** starts immediately. **`toAlpha`** is persisted (**`room:…:prop:…:alpha`** / **`character:…:alpha`**). |
@@ -138,6 +140,8 @@ const noopBenneScriptHotspotFacade: BenneScriptHotspotFacade = {
   set active(_v: boolean) {},
   get clickable() { return true; },
   set clickable(_v: boolean) {},
+  get description() { return ''; },
+  set description(_v: string) {},
 };
 
 /**
@@ -648,6 +652,12 @@ export class BenneScript extends BenneScriptCore {
       },
       set clickable(v: boolean) {
         scene.setHotspotScriptActive(hid, v);
+      },
+      get description() {
+        return scene.getHotspotScriptDescription(hid);
+      },
+      set description(v: string) {
+        scene.setHotspotScriptDescription(hid, v);
       },
     };
   }
