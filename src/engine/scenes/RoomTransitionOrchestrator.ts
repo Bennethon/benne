@@ -10,6 +10,8 @@ import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from '.
 import type { RoomSceneStartData } from './BootScene';
 import type { RoomScene } from './RoomScene.js';
 import {
+  areHookEntriesSkippable,
+  hookEntryHandlers,
   RoomTransitionHookRegistry,
   runRoomHandlersEachSafe,
   runRoomHandlersSeq,
@@ -135,7 +137,10 @@ export class RoomTransitionOrchestrator {
         visitCount: leaveVisit,
       };
       await runRoomHandlersSeq(
-        [...this.hooks.getLeaveHandlersForRoom(fromId), ...this.hooks.getAnyLeave()],
+        hookEntryHandlers([
+          ...this.hooks.getLeaveHandlersForRoom(fromId),
+          ...this.hooks.getAnyLeave(),
+        ]),
         leaveCtx,
       );
 
@@ -234,23 +239,27 @@ export class RoomTransitionOrchestrator {
       };
       if (kind === 'load') {
         await runRoomHandlersEachSafe(
-          this.hooks.getAnyLoaded(),
+          hookEntryHandlers(this.hooks.getAnyLoaded()),
           enterCtx,
           'onRoomSceneCreateComplete: any loaded',
         );
         await runRoomHandlersEachSafe(
-          this.hooks.getLoadedHandlersForRoom(roomId),
+          hookEntryHandlers(this.hooks.getLoadedHandlersForRoom(roomId)),
           enterCtx,
           'onRoomSceneCreateComplete: loaded',
         );
       }
+      const enterEntries = [
+        ...this.hooks.getAnyEnter(),
+        ...this.hooks.getEnterHandlersForRoom(roomId),
+      ];
       // Enter handlers and the enter-phase queue drain run inside a cutscene block so the room
       // is protected from player input during invisible setup (moveTo, music, etc.).
-      roomScene.pushCutscene();
+      roomScene.pushCutscene({ skippable: areHookEntriesSkippable(enterEntries) });
       try {
         if (kind !== 'load') {
           await runRoomHandlersEachSafe(
-            [...this.hooks.getAnyEnter(), ...this.hooks.getEnterHandlersForRoom(roomId)],
+            hookEntryHandlers(enterEntries),
             enterCtx,
             'onRoomSceneCreateComplete: room enter',
           );
@@ -319,11 +328,15 @@ export class RoomTransitionOrchestrator {
       // Handlers are typically synchronous (they queue B.* steps on the interaction tail without
       // awaiting), so we must drain the tail with waitForEnterPhaseBenneScriptQueues() inside the
       // cutscene block — otherwise popCutscene() fires before say/walk/wait steps execute.
-      roomScene.pushCutscene();
+      const afterFadeEntries = [
+        ...this.hooks.getAnyAfterFade(),
+        ...this.hooks.getAfterFadeHandlersForRoom(roomId),
+      ];
+      roomScene.pushCutscene({ skippable: areHookEntriesSkippable(afterFadeEntries) });
       try {
         if (kind !== 'load') {
           await runRoomHandlersEachSafe(
-            [...this.hooks.getAnyAfterFade(), ...this.hooks.getAfterFadeHandlersForRoom(roomId)],
+            hookEntryHandlers(afterFadeEntries),
             afterCtx,
             'onRoomSceneCreateComplete: after-fade',
           );

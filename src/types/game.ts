@@ -214,6 +214,18 @@ export interface GameSettings {
    * Individual items can override this per-item via **`InventoryItemData.dropWhenUsed`**.
    */
   dropWhenInventoryUsed?: boolean;
+  /**
+   * Global default policy for whether the player may press **ESC** to skip a cutscene
+   * (`B.cutscene`, enter-room hooks, `whenChoice` handlers). Defaults to **`true`**.
+   *
+   * A skipped cutscene is fast-forwarded, not aborted: every remaining queued step still runs, but
+   * timed steps (waits, say lines, walks, fades, camera transitions, video) complete instantly at
+   * their final value, so the resulting game state matches a cutscene that played out in full.
+   *
+   * Individual cutscenes can opt out via **`B.cutscene(fn, { skippable: false })`** (and the same
+   * option on `whenEnterRoom` / `whenEnterRoomAfterFade` / `whenEnterAnyRoom*` / `whenChoice`).
+   */
+  cutscenesSkippable?: boolean;
   /** Speech line timing, click-to-skip, and Speaking Text overlay placement (see `getSpeechSettings()`). */
   speech?: Partial<GameSettingsSpeech>;
   /** Dialog choice UI settings (viewport height cap, etc.). See `getDialogSettings()`. */

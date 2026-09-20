@@ -20,6 +20,7 @@
     "secondaryButtonVerb": "look"
   },
   "dropWhenInventoryUsed": false,
+  "cutscenesSkippable": true,
   "defaultFallbackLine": "You can't do that.",
   "startingPlayerCharacter": "hank",
   "startingRoomId": "apartment",

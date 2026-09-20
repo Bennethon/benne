@@ -334,7 +334,7 @@ The sprite’s **`facing`** data stores the **logical** facing the gameplay aske
 - **Ownership and loading**: cinematic playback is a single hidden Phaser `Video` plus black letterbox backdrop owned by `RoomScene`, not by a game-scoped manager. Authors use basename-only ids under **`src/game/assets/videos/<stem>.{mp4,webm}`**. `resolveGameAssetUrl.ts` discovers them, `getBenneVideoBootEntries` groups formats, and `BootScene` calls `queueBenneVideoForBootLoader`. Preview games set **`benneVideoScriptDisabled`** in `preBoot` so authoring surfaces never start cinematics.
 - **Composition**: the video is screen-fixed at **`ROOM_VIDEO_LAYER_DEPTH = 24_000`**, above room art and below the GUI band. It is letterboxed to internal resolution, registered with the runtime/editor UI camera, and forced to `FilterMode.NEAREST` when playback starts. Speaking Text and Display Text remain above it. Other HUD overlays and the dialog choice band are snapshot-hidden for playback and restored independently of dialog visibility snapshots when playback ends, stops, or tears down.
 - **Bennescript**: `B.video` is shared by every `BenneScriptCore` surface and by `B.player`, `B.character(id)`, and `B.prop(id)`. It resolves the active `RoomScene`; missing-scene calls DEV-warn once. `play` queues after prior interaction steps but resolves immediately so later speech, fades, and character actions can run over the movie; `playAndWait` blocks until end/stop. `pause`, `resume`, `stop`, and `seek` follow the same `BlockingWithNow` convention. Completion invokes `options.onComplete` and emits **`benne:video:ended`**.
-- **Input and lifecycle**: active video suppresses gameplay/GUI input and uses the cursor's busy state. Escape stops playback; primary click/tap stops only when `clickToSkip` is true (default false). Room leave stops playback, scene shutdown destroys the objects, and video state is not saved. Volume is `audio.masterVolume × VideoPlayOptions.volume`.
+- **Input and lifecycle**: active video suppresses gameplay/GUI input and uses the cursor's busy state. Escape stops playback (or skips the enclosing cutscene when the video plays inside a skippable one); primary click/tap stops only when `clickToSkip` is true (default false). Room leave stops playback, scene shutdown destroys the objects, and video state is not saved. Volume is `audio.masterVolume × VideoPlayOptions.volume`.
 - **VS Code codec caveat**: BENNE Play uses VS Code's webview browser, whose codec support differs from Chrome/Edge. MP4/H.264 with AAC may show frames but produce no sound. For editor testing, use a webview-supported audio codec (for example `ffmpeg -i Intro.mp4 -c:v copy -c:a libmp3lame -b:a 192k -movflags +faststart Intro-vscode.mp4`). When both MP4 and WebM exist, Phaser chooses one by container support and does not verify that the selected container's audio codec is decodable.
 
 ### Game state (v2)
@@ -662,7 +662,7 @@ This layer turns BENNE from "wiring events" into "telling a story" while keeping
 
 ### Cutscene mode
 
-BENNE supports **uncancelable sequences** that suppress all player input for the duration of a scripted sequence.
+BENNE supports **scripted sequences** that suppress all player input for the duration of the sequence. They are **skippable with ESC** by default — see **Skipping cutscenes** below.
 
 **Automatic activation** — the following handlers are always wrapped in a cutscene block with no author changes required:
 
@@ -676,7 +676,7 @@ BENNE supports **uncancelable sequences** that suppress all player input for the
 | `B.whenEnterAnyRoomAfterFade(…)` | Same timing as `whenEnterRoomAfterFade` (global script, non-load only) |
 | `B.whenChoice(optionId, …)` | Full `say` + interaction-tail drain after the player picks an option |
 
-**Explicit API** — `B.cutscene(callback)` / `B.cutscene.now(callback)` is available on every Bennescript surface (room, character, inventory, global, GUI, dialog):
+**Explicit API** — `B.cutscene(callback, options?)` / `B.cutscene.now(callback, options?)` is available on every Bennescript surface (room, character, inventory, global, GUI, dialog):
 
 ```ts
 B.cutscene(() => {
@@ -714,7 +714,35 @@ Both `idle` and `active` animations are fully restored when the cutscene ends.
 
 **`B.state.isCutsceneActive`** — read-only `boolean` on every `B.state`, true while any cutscene block is active on the current `RoomScene`. Safe to read from GUI / global scripts.
 
-**Key modules:** `src/engine/scenes/RoomScene.ts` (`pushCutscene` / `popCutscene` / `isCutsceneActive`), `src/engine/scripting/BenneScriptCore.ts` (`cutscene` / `cutscene.now`), `src/engine/scenes/RoomTransitionOrchestrator.ts` (automatic enter / after-fade wrapping + queue drain), `src/engine/scripting/DialogBenneScript.ts` (automatic `whenChoice` wrapping), `src/engine/gui/buildGuiOverlay.ts` (`isButtonClickSuppressed` callback), `src/engine/scripting/benneScriptGameStateApi.ts` (`B.state.isCutsceneActive`), `src/types/game.ts` (`GameSettingsCursor.busyAnimation`).
+#### Skipping cutscenes
+
+Pressing **ESC** during a cutscene **fast-forwards** it. The cutscene is never aborted: every step still queued on the interaction tail runs, in order, with the same conditional logic — only the *time* is removed. That is what guarantees a skipped cutscene ends in exactly the state it would have produced had it played out (characters at their final positions and facings, props at their final animation / alpha, flags and inventory applied, room transition performed, camera restored).
+
+Each timed primitive checks `RoomScene.isCutsceneSkipFastForwarding()` and takes an instant branch:
+
+| Step | Skipped behavior |
+|------|------------------|
+| `B.wait(n)` | Resolves immediately |
+| `say` / `display` | No overlay, no voice; resolves immediately |
+| `walkTo` (player and NPC) | Teleports to the end of the pathfound route with the arrival facing; still emits the walk start / stop pair |
+| `fadeIn` / `fadeOut`, prop / character `fade` | Jumps to the target alpha |
+| `B.camera.*` transitions | Applied with a zero-second transition |
+| `playAnimation` one-shots | Lands on the base / effective animation without playing the clip |
+| `B.sound.playAndWait` and `B.sound.play` | Skipped (one-shot SFX leave no lasting state) |
+| `B.sound.playMusic` | Track still changes, without the crossfade |
+| `B.video.play` / `playAndWait` | Video never starts; `onComplete` and `benne:video:ended` still fire |
+| Flags, variables, inventory, `moveTo`, prop / character setters | Unchanged — already instant |
+
+The step that is *in flight* when ESC is pressed is finished separately: blocking steps register a finisher via `RoomScene.registerCutsceneSkipFinisher` while they run, and `requestCutsceneSkip()` drains those finishers (plus snapping the active player walk and stopping any playing video) before the queue drains at full speed.
+
+**Opting out** — two levels, mirroring `say`'s `clickToSkip`:
+
+- **Global**: `game-config.json` → `"cutscenesSkippable": false` disables ESC skipping for the whole game (default `true`).
+- **Per cutscene**: `{ skippable: false }` on `B.cutscene(fn, opts)` / `B.cutscene.now`, `B.whenEnterRoom`, `B.whenEnterRoomAfterFade`, `B.whenEnterAnyRoom`, `B.whenEnterAnyRoomAfterFade`, and `B.whenChoice(optionId, fn, opts)`. One unskippable entry anywhere on the cutscene stack locks the whole nest; for the enter / after-fade phases, one unskippable handler locks that phase's batch.
+
+**ESC and video** — ESC still stops a standalone `B.video` playback. When the video plays *inside* a skippable cutscene, one ESC press skips the whole cutscene, video included.
+
+**Key modules:** `src/engine/scenes/RoomScene.ts` (`pushCutscene` / `popCutscene` / `isCutsceneActive`, `canSkipActiveCutscene` / `requestCutsceneSkip` / `registerCutsceneSkipFinisher`, `onRoomKeyDown`), `src/engine/scripting/BenneScriptCore.ts` (`cutscene` / `cutscene.now`, `wait`, say / display promises), `src/engine/scenes/RoomTransitionOrchestrator.ts` (automatic enter / after-fade wrapping + queue drain), `src/engine/scenes/RoomTransitionHookRegistry.ts` (per-hook `skippable`), `src/engine/scripting/DialogBenneScript.ts` (automatic `whenChoice` wrapping), `src/engine/gui/buildGuiOverlay.ts` (`isButtonClickSuppressed` callback), `src/engine/scripting/benneScriptGameStateApi.ts` (`B.state.isCutsceneActive`), `src/types/cutscene.ts` (`CutsceneOptions`), `src/types/game.ts` (`GameSettings.cutscenesSkippable`, `GameSettingsCursor.busyAnimation`).
 
 ---
 

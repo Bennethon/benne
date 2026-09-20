@@ -214,7 +214,7 @@ B.video.seek(12);
 B.video.stop();
 ```
 
-During video playback, BENNE hides generic HUD overlays such as verbs, menus, inventory, and dialog choices. Speaking Text and Display Text stay above the video, so you can layer dialogue or narration over a cinematic. The video also blocks clicks and other gameplay input while it is visible; **ESC** stops the active video.
+During video playback, BENNE hides generic HUD overlays such as verbs, menus, inventory, and dialog choices. Speaking Text and Display Text stay above the video, so you can layer dialogue or narration over a cinematic. The video also blocks clicks and other gameplay input while it is visible; **ESC** stops the active video. If the video is playing inside a skippable cutscene, one ESC press skips the whole cutscene, video included (see [Bennescript → Cutscenes](./bennescript)).
 
 ### Video Options
 
