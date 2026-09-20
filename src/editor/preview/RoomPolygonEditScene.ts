@@ -3,6 +3,7 @@ import { getInternalHeight, getInternalWidth, SCENE_ROOM } from '../../game/boot
 import type { RoomScene } from '../../engine/scenes/RoomScene';
 import type {
     Point2,
+    RoomCharacterInstance,
     RoomData,
     RoomHotspotData,
     RoomPointData,
@@ -12,6 +13,11 @@ import type {
 import { polygonEditBridge } from './polygonEditBridge';
 import { PreviewPolygonOverlay } from './previewPolygonOverlay';
 import type { RoomPolygonPatch } from './polygonPatchTypes';
+import {
+    applyMoveGizmoDelta,
+    hitMoveGizmo,
+    type MoveGizmoPart,
+} from './previewMoveGizmo';
 
 export const BENNE_POLYGON_EDIT_SCENE = 'BennePolygonEdit';
 
@@ -207,6 +213,18 @@ export class RoomPolygonEditScene extends Phaser.Scene {
     private dragBaseline = false;
     private selectedBaseline = false;
 
+    private dragGizmo: MoveGizmoPart | null = null;
+    private gizmoOriginStart: Point2 = { x: 0, y: 0 };
+    private gizmoPointerStart: Point2 = { x: 0, y: 0 };
+    private gizmoPropSnapshot: {
+        x: number;
+        y: number;
+        collider: Point2[];
+        walk: Point2 | null;
+        look: Point2 | null;
+        baseline: number | undefined;
+    } | null = null;
+
     private tapEdge: { t: number; edgeIdx: number } | null = null;
 
     private unsubBridge!: () => void;
@@ -255,6 +273,8 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             this.selectedRectHandle = -1;
             this.dragBaseline = false;
             this.selectedBaseline = false;
+            this.dragGizmo = null;
+            this.gizmoPropSnapshot = null;
         });
         this.syncRoomInput();
         this.syncEditorCameraMode();
@@ -501,6 +521,21 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                       ]
                     : [],
             }, roomCam);
+            this.drawMoveGizmoIfAny(roomCam);
+            return;
+        }
+
+        if (polygonEditBridge.mode === 'roomCharacter') {
+            this.overlay.clearAndDraw({
+                pts: [],
+                strokeStyle: '#000000',
+                handleFill: COL_HANDLE,
+                handleStroke: COL_HANDLE_STROKE,
+                selectedIndex: null,
+                handleRadiusCss: HANDLE_R_CSS,
+                lineWidthCss: LINE_WIDTH_CSS,
+            }, roomCam);
+            this.drawMoveGizmoIfAny(roomCam);
             return;
         }
 
@@ -560,6 +595,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                     },
                 ],
             }, roomCam);
+            this.drawMoveGizmoIfAny(roomCam);
             return;
         }
 
@@ -590,17 +626,16 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         }
 
         if (polygonEditBridge.mode === 'roomPoint') {
-            const p = this.getActiveRoomPoint();
-            const pts = p ? [{ x: p.x, y: p.y }] : [];
             this.overlay.clearAndDraw({
-                pts,
+                pts: [],
                 strokeStyle: COL_WALK_TO,
                 handleFill: COL_HANDLE,
                 handleStroke: COL_HANDLE_STROKE,
-                selectedIndex: this.selectedVertexIndex,
+                selectedIndex: null,
                 handleRadiusCss: HANDLE_R_CSS + 1,
                 lineWidthCss: LINE_WIDTH_CSS,
             }, roomCam);
+            this.drawMoveGizmoIfAny(roomCam);
             return;
         }
 
@@ -679,6 +714,135 @@ export class RoomPolygonEditScene extends Phaser.Scene {
 
     private displayedPropBaselineY(prop: RoomPropInstance, roomH: number): number {
         return baselineDisplayWorldYForProp(prop, roomH, this.propSpriteBottomY(prop.id));
+    }
+
+    private getActiveRoomCharacter(): RoomCharacterInstance | null {
+        if (polygonEditBridge.mode !== 'roomCharacter') {
+            return null;
+        }
+        const id = polygonEditBridge.characterInstanceId;
+        const ch = this.room.characters?.find((x) => x.instanceId === id);
+        return ch ?? null;
+    }
+
+    private authoredPropOrigin(prop: RoomPropInstance): Point2 {
+        return { x: prop.x ?? 0, y: prop.y ?? 0 };
+    }
+
+    private getMoveGizmoWorld(): Point2 | null {
+        if (polygonEditBridge.mode === 'roomCharacter') {
+            const ch = this.getActiveRoomCharacter();
+            return ch ? { x: ch.x, y: ch.y } : null;
+        }
+        if (polygonEditBridge.mode === 'roomPoint') {
+            const p = this.getActiveRoomPoint();
+            return p ? { x: p.x, y: p.y } : null;
+        }
+        if (polygonEditBridge.mode === 'propCollider' || polygonEditBridge.mode === 'propBaseline') {
+            const p = this.getActiveProp();
+            return p ? this.authoredPropOrigin(p) : null;
+        }
+        return null;
+    }
+
+    private drawMoveGizmoIfAny(roomCam: Phaser.Cameras.Scene2D.Camera): void {
+        const origin = this.getMoveGizmoWorld();
+        if (!origin || !this.overlay) {
+            return;
+        }
+        this.overlay.drawMoveGizmo(origin, roomCam, this.dragGizmo);
+    }
+
+    private beginGizmoDrag(part: MoveGizmoPart, world: Point2): void {
+        const origin = this.getMoveGizmoWorld();
+        if (!origin) {
+            return;
+        }
+        this.dragGizmo = part;
+        this.gizmoOriginStart = { x: origin.x, y: origin.y };
+        this.gizmoPointerStart = { x: world.x, y: world.y };
+        this.dragVertexIndex = null;
+        this.downOnVertex = false;
+        this.dragAux = null;
+        this.selectedAux = null;
+        this.dragBaseline = false;
+        this.selectedBaseline = false;
+        this.gizmoPropSnapshot = null;
+        if (polygonEditBridge.mode === 'propCollider' || polygonEditBridge.mode === 'propBaseline') {
+            const p = this.getActiveProp();
+            if (p) {
+                this.gizmoPropSnapshot = {
+                    x: p.x ?? 0,
+                    y: p.y ?? 0,
+                    collider: (p.collider?.points ?? []).map((pt) => ({ x: pt.x, y: pt.y })),
+                    walk: p.walkToPoint ? { x: p.walkToPoint.x, y: p.walkToPoint.y } : null,
+                    look: p.lookAtPoint ? { x: p.lookAtPoint.x, y: p.lookAtPoint.y } : null,
+                    baseline: typeof p.baseline === 'number' && Number.isFinite(p.baseline) ? p.baseline : undefined,
+                };
+            }
+        }
+    }
+
+    private applyGizmoDragWorld(wx: number, wy: number): void {
+        if (!this.dragGizmo) {
+            return;
+        }
+        const roomW = this.room.size?.width ?? getInternalWidth();
+        const roomH = this.room.size?.height ?? getInternalHeight();
+        const next = applyMoveGizmoDelta(this.dragGizmo, this.gizmoOriginStart, this.gizmoPointerStart, {
+            x: wx,
+            y: wy,
+        });
+        const nx = Math.round(Phaser.Math.Clamp(next.x, 0, roomW));
+        const ny = Math.round(Phaser.Math.Clamp(next.y, 0, roomH));
+
+        if (polygonEditBridge.mode === 'roomPoint') {
+            const p = this.getActiveRoomPoint();
+            if (p) {
+                p.x = nx;
+                p.y = ny;
+            }
+            return;
+        }
+        if (polygonEditBridge.mode === 'roomCharacter') {
+            const ch = this.getActiveRoomCharacter();
+            if (!ch) {
+                return;
+            }
+            ch.x = nx;
+            ch.y = ny;
+            this.roomScene?.placeCharacterFeetNow?.(ch.instanceId, nx, ny);
+            return;
+        }
+        if (polygonEditBridge.mode === 'propCollider' || polygonEditBridge.mode === 'propBaseline') {
+            const p = this.getActiveProp();
+            const snap = this.gizmoPropSnapshot;
+            if (!p || !snap) {
+                return;
+            }
+            const dx = nx - snap.x;
+            const dy = ny - snap.y;
+            p.x = nx;
+            p.y = ny;
+            if (p.collider?.points && snap.collider.length === p.collider.points.length) {
+                for (let i = 0; i < p.collider.points.length; i++) {
+                    p.collider.points[i]!.x = snap.collider[i]!.x + dx;
+                    p.collider.points[i]!.y = snap.collider[i]!.y + dy;
+                }
+            }
+            if (p.walkToPoint && snap.walk) {
+                p.walkToPoint.x = snap.walk.x + dx;
+                p.walkToPoint.y = snap.walk.y + dy;
+            }
+            if (p.lookAtPoint && snap.look) {
+                p.lookAtPoint.x = snap.look.x + dx;
+                p.lookAtPoint.y = snap.look.y + dy;
+            }
+            if (snap.baseline !== undefined) {
+                p.baseline = snap.baseline + dy;
+            }
+            this.roomScene?.movePropToNow?.(p.id, { x: nx, y: ny });
+        }
     }
 
     private ensurePropWalkLook(prop: RoomPropInstance): void {
@@ -952,6 +1116,8 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 points: copy,
                 walkToPoint: { x: prop.walkToPoint!.x, y: prop.walkToPoint!.y },
                 lookAtPoint: { x: prop.lookAtPoint!.x, y: prop.lookAtPoint!.y },
+                x: prop.x ?? 0,
+                y: prop.y ?? 0,
                 ...baselinePart,
             });
             return;
@@ -971,6 +1137,8 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 kind: 'propBaseline',
                 propId: polygonEditBridge.propId,
                 baseline: y,
+                x: prop.x ?? 0,
+                y: prop.y ?? 0,
             });
             return;
         }
@@ -1022,6 +1190,19 @@ export class RoomPolygonEditScene extends Phaser.Scene {
                 pointId: polygonEditBridge.roomPointId,
                 x: p.x,
                 y: p.y,
+            });
+            return;
+        }
+        if (polygonEditBridge.mode === 'roomCharacter') {
+            const ch = this.getActiveRoomCharacter();
+            if (!ch) {
+                return;
+            }
+            this.postPatch({
+                kind: 'roomCharacter',
+                instanceId: polygonEditBridge.characterInstanceId,
+                x: ch.x,
+                y: ch.y,
             });
             return;
         }
@@ -1174,19 +1355,20 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         const { cx, cy } = this.pointerCss(e);
         const roomCam = this.getRoomCamera();
         const toCss = (p: Point2): { x: number; y: number } => ov.worldToCanvasCss(p, roomCam);
-
-        if (polygonEditBridge.mode === 'roomPoint') {
-            const p = this.getActiveRoomPoint();
-            const pts = p ? [{ x: p.x, y: p.y }] : [];
-            if (pts.length === 0) {
+        const world = ov.domToWorld(e.pageX, e.pageY, roomCam);
+        const gizmoOrigin = this.getMoveGizmoWorld();
+        if (gizmoOrigin) {
+            const part = hitMoveGizmo(cx, cy, toCss(gizmoOrigin));
+            if (part) {
+                this.beginGizmoDrag(part, world);
                 return;
             }
-            const vi = hitVertexCss(cx, cy, pts, HANDLE_R_CSS + 1, toCss);
-            if (vi >= 0) {
-                this.downOnVertex = true;
-                this.dragVertexIndex = vi;
-                this.selectedVertexIndex = vi;
-            }
+        }
+
+        if (polygonEditBridge.mode === 'roomPoint') {
+            return;
+        }
+        if (polygonEditBridge.mode === 'roomCharacter') {
             return;
         }
 
@@ -1314,6 +1496,12 @@ export class RoomPolygonEditScene extends Phaser.Scene {
         const roomW = this.room.size?.width ?? getInternalWidth();
         const roomH = this.room.size?.height ?? getInternalHeight();
 
+        if (this.dragGizmo) {
+            const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, roomCam);
+            this.applyGizmoDragWorld(wx, wy);
+            return;
+        }
+
         // ── Rect handle drag ─────────────────────────────────────────────────
         if (this.dragRectHandle >= 0 &&
             (polygonEditBridge.mode === 'roomSize' || polygonEditBridge.mode === 'scrollBounds')) {
@@ -1345,16 +1533,6 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             return;
         }
         if (this.dragVertexIndex === null) {
-            return;
-        }
-        if (polygonEditBridge.mode === 'roomPoint') {
-            const p = this.getActiveRoomPoint();
-            if (!p || this.dragVertexIndex !== 0) {
-                return;
-            }
-            const { x: wx, y: wy } = ov.domToWorld(e.pageX, e.pageY, roomCam);
-            p.x = Phaser.Math.Clamp(wx, 0, roomW);
-            p.y = Phaser.Math.Clamp(wy, 0, roomH);
             return;
         }
         const pts = this.getActivePoints();
@@ -1393,6 +1571,16 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             this.downOnVertex = false;
             this.dragAux = null;
             this.dragBaseline = false;
+            this.dragGizmo = null;
+            this.gizmoPropSnapshot = null;
+            return;
+        }
+
+        if (this.dragGizmo) {
+            this.dragGizmo = null;
+            this.gizmoPropSnapshot = null;
+            this.downOnVertex = false;
+            this.dragVertexIndex = null;
             return;
         }
 
@@ -1433,7 +1621,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
             return;
         }
 
-        if (polygonEditBridge.mode === 'roomPoint') {
+        if (polygonEditBridge.mode === 'roomPoint' || polygonEditBridge.mode === 'roomCharacter') {
             this.tapEdge = null;
             return;
         }
@@ -1549,7 +1737,7 @@ export class RoomPolygonEditScene extends Phaser.Scene {
 
     /** Returns true if a vertex was removed. */
     private applyDeleteSelectedVertex(): boolean {
-        if (polygonEditBridge.mode === 'roomPoint') {
+        if (polygonEditBridge.mode === 'roomPoint' || polygonEditBridge.mode === 'roomCharacter') {
             return false;
         }
         const pts = this.getActivePoints();

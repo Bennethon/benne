@@ -40,7 +40,8 @@ type PreviewToolbarPayload =
     | { previewFocus: 'prop'; propColliderId: string }
     | { previewFocus: 'hotspot'; hotspotId: string }
     | { previewFocus: 'region'; regionId: string }
-    | { previewFocus: 'roomPoint'; roomPointId: string };
+    | { previewFocus: 'roomPoint'; roomPointId: string }
+    | { previewFocus: 'roomCharacter'; characterInstanceId: string };
 
 function parsePreviewToolbarPayload(msg: {
     previewFocus?: string;
@@ -48,6 +49,7 @@ function parsePreviewToolbarPayload(msg: {
     hotspotId?: string;
     regionId?: string;
     roomPointId?: string;
+    characterInstanceId?: string;
     walkablePolygonId?: string;
     walkableHoleId?: string;
 }): PreviewToolbarPayload {
@@ -78,6 +80,13 @@ function parsePreviewToolbarPayload(msg: {
         msg.roomPointId.length > 0
     ) {
         return { previewFocus: 'roomPoint', roomPointId: msg.roomPointId };
+    }
+    if (
+        msg.previewFocus === 'roomCharacter' &&
+        typeof msg.characterInstanceId === 'string' &&
+        msg.characterInstanceId.length > 0
+    ) {
+        return { previewFocus: 'roomCharacter', characterInstanceId: msg.characterInstanceId };
     }
     if (
         msg.previewFocus === 'walkable' &&
@@ -261,6 +270,7 @@ function clearToolbar(): void {
     polygonEditBridge.setHotspotId('');
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setCharacterInstanceId('');
     polygonEditBridge.setWalkableEditTarget('', '');
     clearPlayFromSelect();
     setPlayFromHereButtonVisible(false);
@@ -332,7 +342,7 @@ function buildPropTreeToolbarHtml(propLabel: string): string {
       <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
       <span id="benne-polygon-status" style="opacity:0.85;"></span>
     </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Collider (magenta), cyan <strong>Walk to</strong>, amber <strong>Look at</strong>. New collider: click ${MIN_POLY_POINTS} times, then double-click edges. Delete removes a selected collider vertex only.</div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Red <strong>X</strong> / green <strong>Y</strong> gizmo moves the sprite (and collider, walk, look, baseline). Collider (magenta), cyan <strong>Walk to</strong>, amber <strong>Look at</strong>. New collider: click ${MIN_POLY_POINTS} times, then double-click edges. Delete removes a selected collider vertex only.</div>
   `;
 }
 
@@ -358,6 +368,17 @@ function buildRegionToolbarHtml(regionId: string): string {
   `;
 }
 
+function buildRoomCharacterToolbarHtml(instanceId: string): string {
+    return `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
+      <span style="opacity:0.95;">Character — <strong style="color:#e8ecff;">${escapeHtml(instanceId)}</strong></span>
+      <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
+      <span id="benne-polygon-status" style="opacity:0.85;"></span>
+    </div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Gizmo at the character's feet. Red <strong>X</strong> / green <strong>Y</strong> arrows constrain an axis; the centre square moves freely. Save writes integer <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">x</code> / <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">y</code> to JSON.</div>
+  `;
+}
+
 function buildRoomPointToolbarHtml(pointId: string): string {
     return `
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;">
@@ -365,7 +386,7 @@ function buildRoomPointToolbarHtml(pointId: string): string {
       <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
       <span id="benne-polygon-status" style="opacity:0.85;"></span>
     </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the handle to move this point. Save writes integer <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">x</code> / <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">y</code> to JSON.</div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Red <strong>X</strong> / green <strong>Y</strong> arrows constrain an axis; the centre square moves freely. Save writes integer <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">x</code> / <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">y</code> to JSON.</div>
   `;
 }
 
@@ -376,7 +397,7 @@ function buildPropTreeNonClickableToolbarHtml(propLabel: string): string {
       <button type="button" id="benne-save-polygon" style="background:#3d5a80;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Save to JSON</button>
       <span id="benne-polygon-status" style="opacity:0.85;"></span>
     </div>
-    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Drag the cyan <strong>Baseline</strong> line for depth sorting vs walkers. Collider / walk / look editing is only available when <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">"clickable": true</code> is set on this prop.</div>
+    <div id="benne-toolbar-hint" style="font-size:11px;opacity:0.75;margin-top:4px;">Red <strong>X</strong> / green <strong>Y</strong> gizmo moves the sprite (and baseline). Drag the cyan <strong>Baseline</strong> line for depth sorting vs walkers. Collider / walk / look editing is only available when <code style="background:#2a2a3e;padding:1px 4px;border-radius:3px;">"clickable": true</code> is set on this prop.</div>
   `;
 }
 
@@ -418,6 +439,7 @@ function wireRoomNavigateToolbar(_room: RoomData): void {
     polygonEditBridge.setHotspotId('');
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setCharacterInstanceId('');
     polygonEditBridge.setWalkableEditTarget('', '');
     polygonEditBridge.setMode('navigate');
     setPlayFromHereButtonVisible(true);
@@ -435,6 +457,7 @@ function wireWalkableEditToolbar(room: RoomData, polygonId: string, holeId: stri
     polygonEditBridge.setHotspotId('');
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setCharacterInstanceId('');
     const poly = room.walkable?.polygons?.find((p) => p.id === polygonId);
     if (!poly) {
         polygonEditBridge.setWalkableEditTarget('', '');
@@ -472,6 +495,7 @@ function wireRoomSizeToolbar(_room: RoomData): void {
     polygonEditBridge.setHotspotId('');
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setCharacterInstanceId('');
     polygonEditBridge.setMode('roomSize');
     saveBtn.addEventListener('click', () => {
         setStatus('Saving…');
@@ -492,6 +516,7 @@ function wireScrollBoundsToolbar(_room: RoomData): void {
     polygonEditBridge.setHotspotId('');
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setCharacterInstanceId('');
     polygonEditBridge.setMode('scrollBounds');
     saveBtn.addEventListener('click', () => {
         setStatus('Saving…');
@@ -511,6 +536,7 @@ function wirePropTreeToolbarNonClickable(room: RoomData, propColliderId: string)
     polygonEditBridge.setHotspotId('');
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setCharacterInstanceId('');
     polygonEditBridge.setPropId(propColliderId);
     polygonEditBridge.setMode('propBaseline');
     saveBtn.addEventListener('click', () => {
@@ -531,6 +557,7 @@ function wireHotspotToolbar(room: RoomData, hotspotId: string): void {
     polygonEditBridge.setPropId('');
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setCharacterInstanceId('');
     polygonEditBridge.setHotspotId(hotspotId);
     polygonEditBridge.setMode('hotspotPolygon');
     saveBtn.addEventListener('click', () => {
@@ -551,6 +578,7 @@ function wireRegionToolbar(_room: RoomData, regionId: string): void {
     polygonEditBridge.setPropId('');
     polygonEditBridge.setHotspotId('');
     polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setCharacterInstanceId('');
     polygonEditBridge.setRegionId(regionId);
     polygonEditBridge.setMode('regionPolygon');
     saveBtn.addEventListener('click', () => {
@@ -572,7 +600,29 @@ function wireRoomPointToolbar(_room: RoomData, roomPointId: string): void {
     polygonEditBridge.setHotspotId('');
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId(roomPointId);
+    polygonEditBridge.setCharacterInstanceId('');
     polygonEditBridge.setMode('roomPoint');
+    saveBtn.addEventListener('click', () => {
+        setStatus('Saving…');
+        window.dispatchEvent(new Event('benne-save-polygon'));
+    });
+}
+
+function wireRoomCharacterToolbar(_room: RoomData, characterInstanceId: string): void {
+    setPlayFromHereButtonVisible(false);
+    const bar = document.getElementById('benne-polygon-toolbar');
+    if (!bar) {
+        return;
+    }
+    bar.innerHTML = buildRoomCharacterToolbarHtml(characterInstanceId);
+    const saveBtn = document.getElementById('benne-save-polygon') as HTMLButtonElement;
+    polygonEditBridge.setWalkableEditTarget('', '');
+    polygonEditBridge.setPropId('');
+    polygonEditBridge.setHotspotId('');
+    polygonEditBridge.setRegionId('');
+    polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setCharacterInstanceId(characterInstanceId);
+    polygonEditBridge.setMode('roomCharacter');
     saveBtn.addEventListener('click', () => {
         setStatus('Saving…');
         window.dispatchEvent(new Event('benne-save-polygon'));
@@ -596,6 +646,7 @@ function wirePropTreeToolbar(room: RoomData, propColliderId: string): void {
     polygonEditBridge.setHotspotId('');
     polygonEditBridge.setRegionId('');
     polygonEditBridge.setRoomPointId('');
+    polygonEditBridge.setCharacterInstanceId('');
     polygonEditBridge.setPropId(propColliderId);
     polygonEditBridge.setMode('propCollider');
 
@@ -614,6 +665,8 @@ function wireToolbarFromPreviewState(room: RoomData, preview: PreviewToolbarPayl
         wireRegionToolbar(room, preview.regionId);
     } else if (preview.previewFocus === 'roomPoint') {
         wireRoomPointToolbar(room, preview.roomPointId);
+    } else if (preview.previewFocus === 'roomCharacter') {
+        wireRoomCharacterToolbar(room, preview.characterInstanceId);
     } else if (preview.previewFocus === 'walkable') {
         wireWalkableEditToolbar(room, preview.walkablePolygonId, preview.walkableHoleId);
     } else if (preview.previewFocus === 'roomSize') {
@@ -639,6 +692,14 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
         if (p) {
             p.x = patch.x;
             p.y = patch.y;
+        }
+        return;
+    }
+    if (patch.kind === 'roomCharacter') {
+        const ch = room.characters?.find((x) => x.instanceId === patch.instanceId);
+        if (ch) {
+            ch.x = patch.x;
+            ch.y = patch.y;
         }
         return;
     }
@@ -740,6 +801,8 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
             return;
         }
         (baselineProp as { baseline?: number }).baseline = patch.baseline;
+        baselineProp.x = patch.x;
+        baselineProp.y = patch.y;
         return;
     }
     if (patch.kind !== 'propCollider') {
@@ -764,6 +827,8 @@ function applyAppliedPatchToPreviewRoom(patch: RoomPolygonPatch): void {
     }
     prop.walkToPoint = { x: patch.walkToPoint.x, y: patch.walkToPoint.y };
     prop.lookAtPoint = { x: patch.lookAtPoint.x, y: patch.lookAtPoint.y };
+    prop.x = patch.x;
+    prop.y = patch.y;
     if (patch.baseline !== undefined && Number.isFinite(patch.baseline)) {
         (prop as { baseline?: number }).baseline = patch.baseline;
     }
@@ -822,6 +887,7 @@ type HostPreviewMessage = {
     hotspotId?: string;
     regionId?: string;
     roomPointId?: string;
+    characterInstanceId?: string;
     walkablePolygonId?: string;
     walkableHoleId?: string;
 };

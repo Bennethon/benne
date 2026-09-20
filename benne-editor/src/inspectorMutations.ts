@@ -348,6 +348,9 @@ export function updatePropFields(
         defaultVerb?: string;
         /** Room-space Y; `null` clears. */
         baseline?: number | null;
+        /** Sprite origin in room pixels. */
+        x?: number;
+        y?: number;
         /** Game cursor sheet tag; empty string removes from JSON. */
         activeCursorOverride?: string;
     }
@@ -399,6 +402,12 @@ export function updatePropFields(
         } else {
             prop.baseline = fields.baseline;
         }
+    }
+    if (fields.x !== undefined && Number.isFinite(fields.x)) {
+        prop.x = Math.round(fields.x);
+    }
+    if (fields.y !== undefined && Number.isFinite(fields.y)) {
+        prop.y = Math.round(fields.y);
     }
     if (fields.activeCursorOverride !== undefined) {
         const t = fields.activeCursorOverride.trim();

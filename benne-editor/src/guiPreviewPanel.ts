@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
 import { getGuiIdFromGuiJsonUri } from './gameDiscovery';
 import { resolvePreviewScriptUri } from './previewBundlePaths';
+import { loadRoomData, updateGuiControlPatch, writeDataJson } from './inspectorMutations';
 
 /**
  * Phaser GUI overlay preview (Aseprite sheet) in a {@link vscode.WebviewPanel}.
@@ -11,6 +12,10 @@ export class GuiPreviewPanelController implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
     private webviewReady = false;
     private lastGameRootUri: vscode.Uri | undefined;
+    private lastPushedGuiJsonUri: string | null = null;
+    /** After a preview-originated position write, skip JSON-watcher Phaser rebuild. */
+    private previewOriginatedGuiJsonUri: string | null = null;
+    private previewOriginatedGuiJsonSkipUntil = 0;
     private readonly disposables: vscode.Disposable[] = [];
     /** Debounced reload when the active GUI JSON file changes on disk or in-buffer. */
     private guiJsonChangeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -47,6 +52,7 @@ export class GuiPreviewPanelController implements vscode.Disposable {
         const p = this.panel;
         this.panel = undefined;
         this.webviewReady = false;
+        this.lastPushedGuiJsonUri = null;
         p.dispose();
     }
 
@@ -62,6 +68,13 @@ export class GuiPreviewPanelController implements vscode.Disposable {
         if (!this.panel || !this.webviewReady) {
             return;
         }
+        const uriStr = uri.toString();
+        if (
+            this.previewOriginatedGuiJsonUri === uriStr &&
+            Date.now() < this.previewOriginatedGuiJsonSkipUntil
+        ) {
+            return;
+        }
         const focus = this.selection.focus;
         if (focus.kind !== 'gui') {
             return;
@@ -74,6 +87,12 @@ export class GuiPreviewPanelController implements vscode.Disposable {
         }
         this.guiJsonChangeTimer = setTimeout(() => {
             this.guiJsonChangeTimer = undefined;
+            if (
+                this.previewOriginatedGuiJsonUri === uriStr &&
+                Date.now() < this.previewOriginatedGuiJsonSkipUntil
+            ) {
+                return;
+            }
             void this.pushGuiPreview(uri);
         }, 200);
     }
@@ -107,11 +126,17 @@ export class GuiPreviewPanelController implements vscode.Disposable {
             if (this.panel && this.webviewReady) {
                 void this.panel.webview.postMessage({ type: 'benne/guiPreview/clear' });
             }
+            this.lastPushedGuiJsonUri = null;
             return;
         }
 
         this.ensurePanel();
         if (this.webviewReady) {
+            const uriStr = focus.uri.toString();
+            if (uriStr === this.lastPushedGuiJsonUri) {
+                this.postSelectControl();
+                return;
+            }
             await this.pushGuiPreview(focus.uri);
         }
     }
@@ -138,15 +163,20 @@ export class GuiPreviewPanelController implements vscode.Disposable {
         void this.applyPreviewHtml();
 
         this.disposables.push(
-            this.panel.webview.onDidReceiveMessage((m: { type?: string }) => {
+            this.panel.webview.onDidReceiveMessage((m: { type?: string; guiJsonUri?: string; index?: unknown; patch?: unknown }) => {
                 if (m?.type === 'benne/guiPreview/ready') {
                     this.webviewReady = true;
                     void this.pushGuiPreviewFromSelection();
+                    return;
+                }
+                if (m?.type === 'benne/guiPreview/positionPatch') {
+                    void this.handlePositionPatchFromWebview(m.guiJsonUri, m.index, m.patch);
                 }
             }),
             this.panel.onDidDispose(() => {
                 this.panel = undefined;
                 this.webviewReady = false;
+                this.lastPushedGuiJsonUri = null;
             })
         );
     }
@@ -170,6 +200,7 @@ export class GuiPreviewPanelController implements vscode.Disposable {
             (this.selection.focus.kind === 'gui' ? this.selection.focus.uri : undefined);
         if (!uri) {
             webview.postMessage({ type: 'benne/guiPreview/clear' });
+            this.lastPushedGuiJsonUri = null;
             return;
         }
 
@@ -191,13 +222,16 @@ export class GuiPreviewPanelController implements vscode.Disposable {
             const gui = JSON.parse(jsonText) as Record<string, unknown>;
             const guiId = getGuiIdFromGuiJsonUri(uri);
             const gameSrcWebviewUri = webview.asWebviewUri(gameSrc).toString();
+            const selectedControlKey = this.selectedControlKeyForUri(uri);
             webview.postMessage({
                 type: 'benne/guiPreview/loadGui',
                 gui,
                 guiId,
                 gameSrcWebviewUri,
-                guiJsonUri: uri.toString()
+                guiJsonUri: uri.toString(),
+                selectedControlKey,
             });
+            this.lastPushedGuiJsonUri = uri.toString();
         } catch (e) {
             void vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e));
         }
@@ -211,6 +245,59 @@ export class GuiPreviewPanelController implements vscode.Disposable {
         }
         const raw = await vscode.workspace.fs.readFile(uri);
         return Buffer.from(raw).toString('utf8');
+    }
+
+    private selectedControlKeyForUri(uri: vscode.Uri): string {
+        const gp = this.selection.guiPanel;
+        if (gp.kind === 'control' && gp.guiJsonUri.toString() === uri.toString()) {
+            return gp.controlKey;
+        }
+        return '';
+    }
+
+    private postSelectControl(): void {
+        const webview = this.panel?.webview;
+        if (!webview) {
+            return;
+        }
+        const uri = this.selection.focus.kind === 'gui' ? this.selection.focus.uri : undefined;
+        webview.postMessage({
+            type: 'benne/guiPreview/selectControl',
+            controlKey: uri ? this.selectedControlKeyForUri(uri) : '',
+        });
+    }
+
+    private async handlePositionPatchFromWebview(
+        guiJsonUriStr: string | undefined,
+        indexUnknown: unknown,
+        patchUnknown: unknown
+    ): Promise<void> {
+        if (typeof guiJsonUriStr !== 'string' || guiJsonUriStr.length === 0) {
+            return;
+        }
+        if (typeof indexUnknown !== 'number' || !Number.isInteger(indexUnknown) || indexUnknown < 0) {
+            return;
+        }
+        if (!patchUnknown || typeof patchUnknown !== 'object' || Array.isArray(patchUnknown)) {
+            return;
+        }
+        let uri: vscode.Uri;
+        try {
+            uri = vscode.Uri.parse(guiJsonUriStr);
+        } catch {
+            return;
+        }
+        const data = await loadRoomData(uri);
+        if (!data) {
+            return;
+        }
+        const result = updateGuiControlPatch(data, indexUnknown, patchUnknown as Record<string, unknown>);
+        if (!result.ok) {
+            return;
+        }
+        this.previewOriginatedGuiJsonUri = uri.toString();
+        this.previewOriginatedGuiJsonSkipUntil = Date.now() + 1200;
+        await writeDataJson(uri, data);
     }
 }
 

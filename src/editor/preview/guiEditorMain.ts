@@ -21,6 +21,7 @@ import type { GameFontsManifest } from '../../types/fonts';
 import type { GameSettingsInitialGameState } from '../../types/game';
 import type { GuiData, GuiInventoryPanelControl } from '../../types/gui';
 import { createGuiPreviewPhaserGame, type GuiPreviewGamePayload } from './createGuiPreviewGame';
+import { guiPreviewSelectBridge } from './guiPreviewSelectBridge';
 import { registerInventoryDefinitionsFromGame } from '../../game/boot/registerInventoryDefinitions';
 import { joinGameWebviewUri } from './previewUrls';
 
@@ -89,6 +90,7 @@ async function runLoadGui(msg: {
   guiId: string;
   gameSrcWebviewUri: string;
   guiJsonUri: string;
+  selectedControlKey?: string;
 }): Promise<void> {
   const root = document.getElementById('benne-gui-preview-root');
   if (!root) {
@@ -213,9 +215,21 @@ async function runLoadGui(msg: {
     aseprite,
     previewInitialGameState,
     sharedInventoryAseprite,
+    guiJsonUri: msg.guiJsonUri,
+    onControlPositionPatch: (index, patch) => {
+      vscodeApi?.postMessage({
+        type: 'benne/guiPreview/positionPatch',
+        guiJsonUri: msg.guiJsonUri,
+        index,
+        patch,
+      });
+    },
   };
 
   game = createGuiPreviewPhaserGame(inner, payload);
+  guiPreviewSelectBridge.setSelectedControlKey(
+    typeof msg.selectedControlKey === 'string' ? msg.selectedControlKey : '',
+  );
 }
 
 window.addEventListener('message', (event: MessageEvent) => {
@@ -227,11 +241,18 @@ window.addEventListener('message', (event: MessageEvent) => {
       guiId: string;
       gameSrcWebviewUri: string;
       guiJsonUri: string;
+      selectedControlKey?: string;
     };
     void runLoadGui(m);
     return;
   }
+  if (msg?.type === 'benne/guiPreview/selectControl') {
+    const key = (event.data as { controlKey?: unknown }).controlKey;
+    guiPreviewSelectBridge.setSelectedControlKey(typeof key === 'string' ? key : '');
+    return;
+  }
   if (msg?.type === 'benne/guiPreview/clear') {
+    guiPreviewSelectBridge.setSelectedControlKey('');
     destroyPreviewGame();
     const root = document.getElementById('benne-gui-preview-root');
     if (root) {

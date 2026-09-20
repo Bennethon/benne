@@ -6,6 +6,7 @@ export type EditToolbarMode =
     | 'hotspotPolygon'
     | 'regionPolygon'
     | 'roomPoint'
+    | 'roomCharacter'
     | 'roomSize'
     | 'scrollBounds';
 
@@ -18,6 +19,7 @@ class PolygonEditBridgeImpl {
     hotspotId = '';
     regionId = '';
     roomPointId = '';
+    characterInstanceId = '';
     private readonly listeners = new Set<() => void>();
 
     subscribe(fn: () => void): () => void {
@@ -68,6 +70,11 @@ class PolygonEditBridgeImpl {
 
     setRoomPointId(id: string): void {
         this.roomPointId = id;
+        this.notify();
+    }
+
+    setCharacterInstanceId(id: string): void {
+        this.characterInstanceId = id;
         this.notify();
     }
 

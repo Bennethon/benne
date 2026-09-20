@@ -474,7 +474,13 @@ function renderRoom(state) {
           <div class="benne-card-title tag">${title}</div>
           <div class="benne-card-sub muted">${esc(p.id)}</div>
         </div>`;
-        const body = `<div class="benne-prop-grid benne-prop-grid--tight">
+        const body = `<div class="benne-dim-grid" role="group" aria-label="Position">
+        <span class="benne-dim-lbl">X</span>
+        <input type="number" class="prop-x" data-id="${esc(p.id)}" value="${p.x}" />
+        <span class="benne-dim-lbl">Y</span>
+        <input type="number" class="prop-y" data-id="${esc(p.id)}" value="${p.y}" />
+      </div>
+      <div class="benne-prop-grid benne-prop-grid--tight">
         <span class="benne-pg-lbl">Visible</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="prop-visible" data-id="${esc(p.id)}" ${p.visible ? 'checked' : ''} /></label>
         <span class="benne-pg-lbl">zIndex</span>
@@ -585,7 +591,12 @@ function renderRoom(state) {
       </div>
       <label class="benne-field-label muted small">Verbs</label>
       ${verbHtml}`;
-        return renderInspectorItem(state, 'character', c.instanceId, ' benne-card--character', summary, body);
+        const charActions = `<div class="benne-card-actions">
+        <div class="benne-card-actions-inner">
+          <button type="button" class="btn-link" data-edit-preview="character" data-id="${esc(c.instanceId)}">Edit in Preview →</button>
+        </div>
+      </div>`;
+        return renderInspectorItem(state, 'character', c.instanceId, ' benne-card--character', summary, `${body}${charActions}`);
     })
         .join('');
     const pointCards = state.points
@@ -1852,6 +1863,17 @@ function mountHandlers(state) {
             else {
                 propPatch(id, { alpha: Number(inp.value) });
             }
+        });
+    });
+    root.querySelectorAll('.prop-x, .prop-y').forEach((el) => {
+        el.addEventListener('change', () => {
+            const id = el.dataset.id;
+            if (!id) {
+                return;
+            }
+            const x = Number(root.querySelector(`.prop-x[data-id="${id}"]`)?.value);
+            const y = Number(root.querySelector(`.prop-y[data-id="${id}"]`)?.value);
+            propPatch(id, { x, y });
         });
     });
     root.querySelectorAll('.prop-tag-select').forEach((el) => {
