@@ -20,6 +20,7 @@ import {
 import type { BenneScriptInventoryItemFacade } from './benneScriptFacades.js';
 import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
+import { setRoomVisitCount } from '../gameState/roomVisitState.js';
 import { runSnapshotFlushHooks } from '../gameState/snapshotFlushHooks.js';
 import { SCENE_ROOM } from '../../game/boot/constants.js';
 import type { SaveMetadata } from '../../types/gameState.js';
@@ -99,6 +100,12 @@ export interface BenneScriptGameStateNamespace {
   getLastRoom(): RoomId | null;
   setCurrentRoom(roomId: RoomId): void;
   setLastRoom(roomId: RoomId | null): void;
+  /**
+   * Overwrite persisted enter count for the **current** room (`` `room:<currentRoomId>:visitCount` ``).
+   * Immediate (not queued). No-op when there is no manager or `currentRoom` is empty.
+   * Read back via `B.room.visitCount` / `B.room.isFirstVisit`.
+   */
+  setVisitCount(count: number): void;
   /**
    * Read-only: `true` while a cutscene block is active on the current {@link RoomScene}
    * (any of: `B.cutscene(…)`, `whenEnterRoom`, `whenEnterAnyRoom`, `whenEnterRoomAfterFade`,
@@ -224,6 +231,17 @@ function createBenneScriptGameStateNamespaceFromResolver(
     getLastRoom: () => withManagerResult('getLastRoom', null, (m) => m.getLastRoom()),
     setCurrentRoom: (roomId) => withManagerVoid('setCurrentRoom', (m) => m.setCurrentRoom(roomId)),
     setLastRoom: (roomId) => withManagerVoid('setLastRoom', (m) => m.setLastRoom(roomId)),
+    setVisitCount: (count) =>
+      withManagerVoid('setVisitCount', (m) => {
+        const roomId = m.getCurrentRoom();
+        if (roomId.length === 0) {
+          if (import.meta.env.DEV) {
+            console.warn('[Benne] B.state.setVisitCount: no current room — ignored.');
+          }
+          return;
+        }
+        setRoomVisitCount(m, roomId, count);
+      }),
     get isCutsceneActive(): boolean {
       const game = tryGetActiveBenneGame();
       if (!game) {
