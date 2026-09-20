@@ -472,6 +472,7 @@ function buildInspectorHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
       color: var(--vscode-descriptionForeground);
       font-size: 13px;
       user-select: none;
+      touch-action: none;
       align-self: center;
     }
     .benne-card--dialog-opt .dlg-opt-drag-handle:hover {
@@ -926,8 +927,9 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             if (!optionId || uri.toString() !== dialogJsonUriStr) {
                 return;
             }
+            const optionText = typeof msg.optionText === 'string' ? msg.optionText : '';
             const dialogFolderId = getDialogIdFromDialogJsonUri(uri);
-            await ensureDialogWhenChoiceHandlerAndReveal(uri, dialogFolderId, optionId);
+            await ensureDialogWhenChoiceHandlerAndReveal(uri, dialogFolderId, optionId, optionText);
             return;
         }
 
