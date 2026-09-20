@@ -9,6 +9,7 @@ import {
 } from '../sound/audioGameState.js';
 import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
 import type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
+import type { RoomScene } from '../scenes/RoomScene.js';
 import { withNow } from './BenneScriptCore.js';
 import type { BenneScriptSoundFacade } from './benneScriptFacades.js';
 
@@ -23,12 +24,19 @@ function resolveSoundManager() {
 
 export function createBenneScriptSoundFacade(
   chain: (factory: () => Promise<unknown>) => void,
+  getRoomScene: () => RoomScene | undefined,
 ): BenneScriptSoundFacade {
+  /** True while an ESC cutscene skip is fast-forwarding the queue (see `RoomScene`). */
+  const isSkipping = (): boolean => getRoomScene()?.isCutsceneSkipFastForwarding() === true;
+
   return {
     play: withNow(
       (key: string, options?: SoundPlayOptions) => {
         chain(() => {
-          resolveSoundManager()?.playSfx(key, options);
+          // One-shot SFX leave no lasting state, so a skipped cutscene does not fire them off.
+          if (!isSkipping()) {
+            resolveSoundManager()?.playSfx(key, options);
+          }
           return Promise.resolve();
         });
       },
@@ -42,7 +50,7 @@ export function createBenneScriptSoundFacade(
         if (!sm) {
           return;
         }
-        chain(() => sm.playSfxAndWait(key, options));
+        chain(() => (isSkipping() ? Promise.resolve() : sm.playSfxAndWait(key, options)));
       },
       (key: string, options?: SoundPlayOptions) => {
         void resolveSoundManager()?.playSfxAndWait(key, options);
@@ -50,7 +58,16 @@ export function createBenneScriptSoundFacade(
     ),
     playMusic: withNow(
       (key: string, options?: MusicPlayOptions) => {
-        chain(() => resolveSoundManager()?.playMusic(key, options) ?? Promise.resolve());
+        chain(() => {
+          const sm = resolveSoundManager();
+          if (!sm) {
+            return Promise.resolve();
+          }
+          // Music is lasting state, so a skip still switches tracks — just without the crossfade.
+          return isSkipping()
+            ? sm.playMusic(key, { ...options, fadeSeconds: 0 })
+            : sm.playMusic(key, options);
+        });
       },
       (key: string, options?: MusicPlayOptions) => {
         resolveSoundManager()?.playMusic(key, options);

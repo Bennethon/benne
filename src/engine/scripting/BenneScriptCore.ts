@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { CharacterFollowOptions } from '../../types/characterFollow.js';
+import type { CutsceneOptions } from '../../types/cutscene.js';
 import type { Point2 } from '../../types/room.js';
 import type {
   CharacterId,
@@ -376,8 +377,8 @@ export abstract class BenneScriptCore {
   readonly fadeIn: BlockingWithNow<[durationSeconds?: number, color?: number]>;
 
   /**
-   * Uncancelable sequence. Increments the active {@link RoomScene}'s cutscene
-   * depth counter while the callback's queued steps execute, then decrements it.
+   * Cutscene sequence. Pushes the active {@link RoomScene}'s cutscene stack while the callback's
+   * queued steps execute, then pops it.
    *
    * **Blocking form** (`B.cutscene(callback)`): waits for any previously-queued steps to drain,
    * then pushes the cutscene flag, runs `callback` synchronously (which may queue further
@@ -390,8 +391,14 @@ export abstract class BenneScriptCore {
    * During the cutscene: all pointer input is suppressed (props, hotspots, characters, GUI
    * buttons, inventory rows, background walks); the custom cursor switches to the configured
    * `busyAnimation` or is hidden. Only the click-to-skip scripted dialog path remains live.
+   *
+   * **Skipping**: unless `game-config.json` sets **`cutscenesSkippable: false`**, the player can
+   * press **ESC** to fast-forward the cutscene — every remaining step still runs, but timed steps
+   * complete instantly at their final value, so the end state matches a cutscene that played out.
+   * Pass **`{ skippable: false }`** to make one cutscene unskippable (same shape as per-line
+   * **`say('…', { clickToSkip: false })`**).
    */
-  readonly cutscene: BlockingWithNow<[callback: () => void]>;
+  readonly cutscene: BlockingWithNow<[callback: () => void, options?: CutsceneOptions]>;
 
   /** Room id / transitions (`B.room.changeTo`, `current` / `last` from game state). */
   readonly room: BenneScriptRoomFacade;
@@ -451,12 +458,24 @@ export abstract class BenneScriptCore {
         this.chain(
           () =>
             new Promise<void>((resolve) => {
+              const scene = this.getPlayerWalkRoomScene();
               const clock = this.getClock();
-              if (!clock) {
+              if (!clock || scene?.isCutsceneSkipFastForwarding()) {
                 resolve();
                 return;
               }
-              clock.delayedCall(ms, () => resolve());
+              let unregisterSkipFinisher: (() => void) | null = null;
+              const timer = clock.delayedCall(ms, () => {
+                unregisterSkipFinisher?.();
+                unregisterSkipFinisher = null;
+                resolve();
+              });
+              unregisterSkipFinisher =
+                scene?.registerCutsceneSkipFinisher(() => {
+                  unregisterSkipFinisher = null;
+                  timer.remove(false);
+                  resolve();
+                }) ?? null;
             }),
         );
       },
@@ -490,13 +509,13 @@ export abstract class BenneScriptCore {
     );
 
     this.cutscene = withNow(
-      (callback: () => void) => {
+      (callback: () => void, options?: CutsceneOptions) => {
         // Blocking form: wait for prior tail to drain, then push cutscene, run callback
         // (which appends its own sub-steps to the tail), then append the pop.
         // Crucially the pop must be chained INSIDE the factory (after callback()), not in the
         // outer synchronous call, so it comes after callback's sub-steps rather than before them.
         this.chain(() => {
-          this.getPlayerWalkRoomScene()?.pushCutscene();
+          this.getPlayerWalkRoomScene()?.pushCutscene(options);
           callback(); // synchronously appends sub-steps A, B, … to this.interactionTail
           // Pop step is appended here, after A and B — final chain order: push → A → B → pop.
           this.chain(() => {
@@ -506,9 +525,9 @@ export abstract class BenneScriptCore {
           return Promise.resolve();
         });
       },
-      (callback: () => void) => {
+      (callback: () => void, options?: CutsceneOptions) => {
         // .now: push immediately, run callback, chain pop at end of whatever callback added.
-        this.getPlayerWalkRoomScene()?.pushCutscene();
+        this.getPlayerWalkRoomScene()?.pushCutscene(options);
         callback(); // appends sub-steps to this.interactionTail
         this.chain(() => {
           this.getPlayerWalkRoomScene()?.popCutscene();
@@ -539,7 +558,10 @@ export abstract class BenneScriptCore {
     );
 
     this.room = bindRoomFacadeForBenneScriptCore((f) => this.chain(f));
-    this.sound = createBenneScriptSoundFacade((f) => this.chain(f));
+    this.sound = createBenneScriptSoundFacade(
+      (f) => this.chain(f),
+      () => this.getPlayerWalkRoomScene(),
+    );
     this.video = createBenneScriptVideoFacade(
       (f) => this.chain(f),
       () => this.getPlayerWalkRoomScene(),
@@ -1083,6 +1105,11 @@ export abstract class BenneScriptCore {
     options?: BenneScriptSayLineOptions,
     voiceStem?: string | null,
   ): Promise<void> {
+    // A skipped cutscene plays no lines: no overlay, no voice, no timer — the end state of a
+    // say line is simply "line finished".
+    if (scene.isCutsceneSkipFastForwarding()) {
+      return Promise.resolve();
+    }
     const manager = resolveGameStateManager(scene.game);
     const speech = getSpeechSettings(manager);
     const voice = voiceStem ? tryGetBenneSoundManager(scene.game)?.playVoice(voiceStem) ?? null : null;
@@ -1098,12 +1125,15 @@ export abstract class BenneScriptCore {
     return new Promise<void>((resolve) => {
       let completed = false;
       let timer: Phaser.Time.TimerEvent | null = null;
+      let unregisterSkipFinisher: (() => void) | null = null;
 
       const finish = (): void => {
         if (completed) {
           return;
         }
         completed = true;
+        unregisterSkipFinisher?.();
+        unregisterSkipFinisher = null;
         voice?.stop();
         timer?.remove(false);
         timer = null;
@@ -1124,6 +1154,8 @@ export abstract class BenneScriptCore {
       this.applySayLineDirectionalBase(scene, talkCharacterDefinitionId, 'Talk');
 
       timer = scene.time.delayedCall(ms, finish);
+      // ESC ends the line the same way its timer would, whatever the per-line click-to-skip setting.
+      unregisterSkipFinisher = scene.registerCutsceneSkipFinisher(finish);
 
       if (allowClickToSkip) {
         scene.setScriptedDialogClickToSkip(() => {
@@ -1139,14 +1171,21 @@ export abstract class BenneScriptCore {
    * Display Text overlay — click anywhere to dismiss (no timer), same scripted-input suppression as **`say`**.
    */
   protected createDisplayTextPromise(scene: RoomScene, line: string): Promise<void> {
+    // A skipped cutscene shows no narration; the end state is simply "dismissed".
+    if (scene.isCutsceneSkipFastForwarding()) {
+      return Promise.resolve();
+    }
     return new Promise<void>((resolve) => {
       let completed = false;
+      let unregisterSkipFinisher: (() => void) | null = null;
 
       const finish = (): void => {
         if (completed) {
           return;
         }
         completed = true;
+        unregisterSkipFinisher?.();
+        unregisterSkipFinisher = null;
         scene.clearScriptedDialogClickToSkip();
         scene.setDisplayTextOverlay({ visible: false });
         scene.popScriptedDialogInputSuppression();
@@ -1156,6 +1195,7 @@ export abstract class BenneScriptCore {
       scene.pushScriptedDialogInputSuppression();
       scene.setDisplayTextOverlay({ visible: true, text: line });
       scene.setScriptedDialogClickToSkip(finish);
+      unregisterSkipFinisher = scene.registerCutsceneSkipFinisher(finish);
     });
   }
 

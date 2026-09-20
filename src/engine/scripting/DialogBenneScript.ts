@@ -14,6 +14,7 @@ import {
   BENNE_ACTIVE_DIALOG_ID_VARIABLE,
   dialogOptionEnabledVariableKey,
 } from '../dialog/dialogOptionVariables.js';
+import type { CutsceneOptions } from '../../types/cutscene.js';
 import type { DialogId, DialogOptionId } from '../../types/generated/benne-game-ids.js';
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
@@ -327,8 +328,15 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
    *
    * While the handler’s synchronous work plus any interaction-tail steps (`say`, `walk`, etc.) run, the
    * dialog choice GUI is hidden so additional options cannot be activated.
+   *
+   * @param options `{ skippable: false }` makes this branch's cutscene unskippable by ESC (see
+   * {@link BenneScriptCore.cutscene}).
    */
-  whenChoice(optionId: DialogOptionId, handler: (() => void) | ((payload: { optionId: string }) => void)): void {
+  whenChoice(
+    optionId: DialogOptionId,
+    handler: (() => void) | ((payload: { optionId: string }) => void),
+    options?: CutsceneOptions,
+  ): void {
     const id = optionId.trim();
     if (!id) {
       return;
@@ -343,7 +351,7 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
       room?.suppressDialogChoiceGuiForWhenChoice(guiId);
       // Wrap the entire handler + interaction-tail drain in a cutscene block so additional
       // dialog options and other input are suppressed while the choice plays out.
-      room?.pushCutscene();
+      room?.pushCutscene(options);
 
       this.beginInteraction();
       try {

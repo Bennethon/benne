@@ -286,7 +286,7 @@ Available on every **`BenneScriptCore`** facade (**room / character / inventory 
 
 **Concurrency** — Blocking **`play`** is queued on the interaction tail (so it orders after prior **`walkTo`** / **`wait`** steps) but **resolves immediately** — the script keeps running while the video plays. Use **`playAndWait`** when the next step should run only **after** the video finishes.
 
-**Input while playing** — Active video playback blocks gameplay and GUI input: props, hotspots, characters, inventory rows, GUI buttons/inputs, background walks, and hover descriptions are ignored while the video is up. The custom game cursor uses **`cursor.busyAnimation`** during playback (or hides when no busy clip is configured). **ESC** stops the active video. Primary click/tap stops the video only when the playback was started with **`{ clickToSkip: true }`**; otherwise clicks are swallowed.
+**Input while playing** — Active video playback blocks gameplay and GUI input: props, hotspots, characters, inventory rows, GUI buttons/inputs, background walks, and hover descriptions are ignored while the video is up. The custom game cursor uses **`cursor.busyAnimation`** during playback (or hides when no busy clip is configured). **ESC** stops the active video — or, when the video is playing inside a skippable cutscene, skips that whole cutscene (see [Cutscene mode → Skipping](#skipping)). Primary click/tap stops the video only when the playback was started with **`{ clickToSkip: true }`**; otherwise clicks are swallowed.
 
 | Member | Signature | Description | Blocking |
 |--------|-----------|-------------|--------|
@@ -992,7 +992,26 @@ B.cutscene(() => {
 
 While active, all pointer input is suppressed (props, hotspots, characters, GUI buttons, inventory rows, background walks, hover descriptions). Click-to-skip scripted `say` lines remain live. `B.state.isCutsceneActive` exposes the flag for GUI and global scripts.
 
-For the full reference — automatic activation table, suppressed-input matrix, walk promise contract, `busyAnimation` cursor config, and implementation modules — see [architecture.md §7 → Cutscene mode](architecture.md#cutscene-mode).
+### Skipping
+
+Unless `game-config.json` sets `"cutscenesSkippable": false`, pressing **ESC** fast-forwards the cutscene. Every remaining step still runs in order — waits, say lines, walks, fades, camera moves, and video just finish instantly at their final value — so the skipped cutscene leaves the game in the same state it would have reached had it played out.
+
+Pass `{ skippable: false }` to make one cutscene unskippable, the same way `say('…', { clickToSkip: false })` pins one line:
+
+```ts
+B.cutscene(() => {
+  B.display('The door locks behind you.');
+  B.state.setFlag('trapped', true);
+}, { skippable: false });
+
+B.whenEnterRoomAfterFade(() => {
+  B.player.say('No skipping this intro.');
+}, { skippable: false });
+```
+
+The same option is accepted by `whenEnterRoom`, `whenEnterRoomAfterFade`, `whenEnterAnyRoom`, `whenEnterAnyRoomAfterFade`, and `whenChoice(optionId, handler, options)`.
+
+For the full reference — automatic activation table, suppressed-input matrix, per-step skip behavior, walk promise contract, `busyAnimation` cursor config, and implementation modules — see [architecture.md §7 → Cutscene mode](architecture.md#cutscene-mode).
 
 ---
 

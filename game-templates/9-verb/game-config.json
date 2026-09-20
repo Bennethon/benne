@@ -49,6 +49,7 @@
     "secondaryButtonVerb": "defaultVerb"
   },
   "dropWhenInventoryUsed": true,
+  "cutscenesSkippable": true,
   "defaultFallbackLine": "That doesn't seem to work.",
   "startingPlayerCharacter": "hank",
   "startingRoomId": "apartment",

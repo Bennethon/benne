@@ -25,6 +25,7 @@ Below is a complete example, followed by an explanation of each section.
     "secondaryButtonVerb": "defaultVerb"
   },
   "dropWhenInventoryUsed": true,
+  "cutscenesSkippable": true,
   "defaultFallbackLine": "That doesn't seem to work.",
   "startingPlayerCharacter": "hank",
   "startingRoomId": "apartment",
@@ -190,6 +191,16 @@ The `speech` block controls how spoken lines (`B.player.say(...)`, `B.say\`…\`
 | `defaultTalkOffset` | A default `{ x, y }` pixel offset for where speech text appears relative to a speaking character. |
 
 All of these can be overridden at runtime through `B.speechSettings` and persist in save data. Individual `say` calls can also override `clickToSkip` per line.
+
+## Cutscenes
+
+```json
+"cutscenesSkippable": true
+```
+
+When `true` (the default), the player can press **ESC** during a cutscene to skip it. Skipping fast-forwards the cutscene instead of cancelling it: every scripted step still runs, but waits, speech lines, walks, fades, camera moves, and video finish instantly, so the game ends in exactly the state the cutscene would have produced.
+
+Set it to `false` to make every cutscene in the game unskippable. For a single cutscene, pass `{ skippable: false }` to `B.cutscene(...)` (or to `whenEnterRoom` / `whenEnterRoomAfterFade` / `whenEnterAnyRoom` / `whenEnterAnyRoomAfterFade` / `whenChoice`) — the same idea as `say('...', { clickToSkip: false })`. See [Bennescript → Cutscenes](./bennescript).
 
 ## Dialog
 

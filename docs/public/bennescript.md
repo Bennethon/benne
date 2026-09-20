@@ -212,6 +212,20 @@ B.cutscene(() => {
 });
 ```
 
+### Skipping
+
+Players can press **ESC** to skip a cutscene. Skipping fast-forwards it rather than cancelling it: every step still runs, but waits, lines, walks, fades, camera moves, and video finish instantly, so the game ends up in exactly the state the cutscene would have produced.
+
+Turn skipping off for the whole game with `"cutscenesSkippable": false` in `game-config.json`, or for one cutscene with `{ skippable: false }`:
+
+```ts
+B.cutscene(() => {
+  B.player.say('You cannot skip this.');
+}, { skippable: false });
+```
+
+The same option works on `whenEnterRoom`, `whenEnterRoomAfterFade`, `whenEnterAnyRoom`, `whenEnterAnyRoomAfterFade`, and `whenChoice`.
+
 ---
 
 # Methods and Properties
@@ -226,7 +240,7 @@ The `B` facade exposes several namespaces. The exact set available depends on th
 | `B.say\`…\`` | Tagged multi-speaker dialogue (queued per line). |
 | `B.display(text)` | Show narration in the display-text overlay (click to dismiss). |
 | `B.fadeOut(seconds?, color?)` / `B.fadeIn(...)` | Full-screen fade to/from a color (default black, ~0.35s). |
-| `B.cutscene(fn)` | Run `fn` with player input suppressed. |
+| `B.cutscene(fn, options?)` | Run `fn` with player input suppressed. `{ skippable: false }` blocks ESC skipping. |
 | `B.walkToClicked()` / `B.faceClicked()` | Walk the player to / face toward the target the player just clicked (inside a verb handler). |
 | `B.setActiveVerb(id)` / `B.getActiveVerb()` / `B.clearActiveVerb()` | Read/write the active verb. |
 | `B.setActiveInventory(id)` / `B.clearActiveInventory()` | Arm/disarm an inventory item for "use on target". |

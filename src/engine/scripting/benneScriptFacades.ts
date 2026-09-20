@@ -43,8 +43,9 @@ export interface BenneScriptSoundFacade {
  * reference on `B`, nested facades, and GUIs (same pattern as {@link BenneScriptSoundFacade}). `play`
  * starts playback and returns immediately (does **not** block the script chain); `playAndWait` blocks
  * until the video ends. While active, video suppresses gameplay / GUI input; `clickToSkip` enables
- * primary-click skipping, and ESC always stops the active video. All forms are safe to call with no
- * active RoomScene (DEV warn-once + no-op).
+ * primary-click skipping, and ESC stops the active video — or, when the video plays inside a
+ * skippable cutscene, skips that whole cutscene (video included). All forms are safe to call with
+ * no active RoomScene (DEV warn-once + no-op).
  */
 export interface BenneScriptVideoFacade {
   /** Start a full-screen cinematic; queued on the interaction tail but resolves immediately (playback runs concurrently). */

@@ -24,6 +24,8 @@ const SPEECH_DEFAULTS: GameSettingsSpeech = {
 
 const DIALOG_DEFAULTS: GameSettingsDialog = {};
 
+const CUTSCENES_SKIPPABLE_DEFAULT = true;
+
 const PERSPECTIVE_DEFAULTS: GameSettingsPerspective = {
   minWalkScale: 0.3,
   walkScalePower: 0.8,
@@ -470,6 +472,9 @@ function assertGameSettings(data: GameSettings): void {
   if (data.dropWhenInventoryUsed !== undefined && typeof data.dropWhenInventoryUsed !== 'boolean') {
     throw new Error('game-config dropWhenInventoryUsed must be a boolean when present');
   }
+  if (data.cutscenesSkippable !== undefined && typeof data.cutscenesSkippable !== 'boolean') {
+    throw new Error('game-config cutscenesSkippable must be a boolean when present');
+  }
   if (data.debug !== undefined) {
     const d = data.debug;
     if (typeof d !== 'object' || d === null) {
@@ -596,6 +601,14 @@ export function getDialogSettings(manager?: GameStateManager | null): GameSettin
     return readEffectiveDialogSettings(manager);
   }
   return mergeDialogSettings(settings);
+}
+
+/**
+ * Whether ESC may skip cutscenes at all (`game-config.json` `cutscenesSkippable`, default **`true`**).
+ * Individual cutscenes still opt out via `{ skippable: false }`.
+ */
+export function getCutscenesSkippable(): boolean {
+  return settings.cutscenesSkippable ?? CUTSCENES_SKIPPABLE_DEFAULT;
 }
 
 /** Merged `perspective` values for room-region walk-speed scaling (defaults when block or fields are omitted). */

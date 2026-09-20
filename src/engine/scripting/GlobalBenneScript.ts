@@ -23,6 +23,7 @@ import {
 } from './benneScriptGameStateApi.js';
 import { createBenneScriptDialogAccessor } from './DialogBenneScript.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
+import type { CutsceneOptions } from '../../types/cutscene.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
 import { registerGlobalBenneScriptOnUpdateHandler } from './benneScriptOnUpdateRegistry.js';
 import type { UpdateContext } from './types.js';
@@ -153,8 +154,13 @@ export class GlobalBenneScript extends BenneScriptCore {
     r.whenLoadedAnyRoom(handler);
   }
 
+  /**
+   * @param options `{ skippable: false }` makes the automatic enter cutscene unskippable by ESC in
+   * every room (see {@link BenneScriptCore.cutscene}).
+   */
   whenEnterAnyRoom(
     handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+    options?: CutsceneOptions,
   ): void {
     const r = tryGetGlobalRoomHookRegistry();
     if (!r) {
@@ -163,11 +169,16 @@ export class GlobalBenneScript extends BenneScriptCore {
       }
       return;
     }
-    r.whenEnterAnyRoom(handler);
+    r.whenEnterAnyRoom(handler, options);
   }
 
+  /**
+   * @param options `{ skippable: false }` makes the automatic after-fade cutscene unskippable by
+   * ESC in every room (see {@link BenneScriptCore.cutscene}).
+   */
   whenEnterAnyRoomAfterFade(
     handler: (ctx: RoomTransitionContext) => void | Promise<void>,
+    options?: CutsceneOptions,
   ): void {
     const r = tryGetGlobalRoomHookRegistry();
     if (!r) {
@@ -176,6 +187,6 @@ export class GlobalBenneScript extends BenneScriptCore {
       }
       return;
     }
-    r.whenEnterAnyRoomAfterFade(handler);
+    r.whenEnterAnyRoomAfterFade(handler, options);
   }
 }

@@ -94,6 +94,7 @@ import { registerSnapshotFlushHook } from '../gameState/snapshotFlushHooks';
 import type { CharacterFacingLetter } from '../../types/character';
 import {
   getCameraSettings,
+  getCutscenesSkippable,
   getDialogSettings,
   getGameSettings,
   getPerspectiveSettings,
@@ -154,6 +155,7 @@ import { getInternalHeight, getInternalWidth, SCENE_ROOM } from '../../game/boot
 import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
 import type { CharacterFollowOptions } from '../../types/characterFollow';
+import type { CutsceneOptions } from '../../types/cutscene';
 import type { InventoryItemData } from '../../types/inventory';
 import type { VerbHoverTarget } from '../../types/verbContext';
 import type { Point2, RoomData, RoomHotspotData, RoomPropInstance, WalkablePolygon } from '../../types/room';
@@ -581,12 +583,29 @@ export class RoomScene extends Phaser.Scene {
   private scriptedDialogInputSuppressionDepth = 0;
 
   /**
-   * Reference-counted cutscene depth. While > 0 ALL pointer input (props, hotspots, characters,
-   * GUI buttons, inventory rows, background walks, hover descriptions) is suppressed. Only the
-   * click-to-skip scripted-dialog path remains live. Increment via {@link pushCutscene},
-   * decrement via {@link popCutscene}. Reset to 0 on room transitions.
+   * Reference-counted cutscene stack (one entry per {@link pushCutscene}). While non-empty ALL
+   * pointer input (props, hotspots, characters, GUI buttons, inventory rows, background walks,
+   * hover descriptions) is suppressed. Only the click-to-skip scripted-dialog path remains live.
+   * Each entry records whether that cutscene opted out of ESC skipping; an unskippable entry
+   * anywhere in the stack locks the whole nest. Emptied on room transitions.
    */
-  private cutsceneDepth = 0;
+  private readonly cutsceneStack: Array<{ skippable: boolean }> = [];
+
+  /**
+   * True while an ESC skip is fast-forwarding the cutscene: every remaining queued Bennescript step
+   * still runs, but timed steps (waits, say lines, walks, fades, camera transitions, sound, video)
+   * complete instantly at their final value so the end state matches a cutscene that played out.
+   * Cleared when the cutscene stack empties or on a room transition.
+   */
+  private cutsceneSkipFastForwardActive = false;
+
+  /**
+   * In-flight blocking script steps that know how to finish themselves at their final state when
+   * the player skips (timers fire now, tweens jump to their end value, walks teleport to the walk
+   * destination). Registered while the step runs via {@link registerCutsceneSkipFinisher}, drained
+   * by {@link requestCutsceneSkip}.
+   */
+  private readonly cutsceneSkipFinishers = new Set<() => void>();
 
   /**
    * Character definition id → last frame’s winning `room.regions[].id` at world feet (`null` = outside all).
@@ -616,7 +635,18 @@ export class RoomScene extends Phaser.Scene {
     }
   };
   private readonly onRoomKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== 'Escape' || !this.isRoomVideoPlaying()) {
+    if (event.key !== 'Escape') {
+      return;
+    }
+    // A skippable cutscene wins over the video handler: skipping fast-forwards the whole cutscene,
+    // which stops any video playing inside it as part of finishing the in-flight step.
+    if (this.canSkipActiveCutscene()) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.requestCutsceneSkip();
+      return;
+    }
+    if (!this.isRoomVideoPlaying()) {
       return;
     }
     event.preventDefault();
@@ -664,6 +694,7 @@ export class RoomScene extends Phaser.Scene {
     this.characterJsonClickableByDefId.clear();
     this.characterSpeechColorByDefId.clear();
     this.npcWalkTweens.clear();
+    this.cutsceneSkipFinishers.clear();
     this.characterFollowBehaviorEnabled = false;
     this.characterFollowLastGoalByFollowerId.clear();
     this.characterFollowPrevLeaderWalkingByFollowerId.clear();
@@ -1181,7 +1212,10 @@ export class RoomScene extends Phaser.Scene {
     }
     this.stopRoomVideo();
     this.scriptedDialogInputSuppressionDepth = 0;
-    this.cutsceneDepth = 0;
+    this.cutsceneStack.length = 0;
+    this.cutsceneSkipFastForwardActive = false;
+    // Steps from the old room can never finish now; their finishers would outlive the scene.
+    this.cutsceneSkipFinishers.clear();
     this.time.removeAllEvents();
   }
 
@@ -1716,6 +1750,14 @@ export class RoomScene extends Phaser.Scene {
       return { whenComplete: Promise.resolve() };
     }
 
+    // Skipping a cutscene skips the cinematics inside it: the video never starts, but scripts
+    // waiting on it still continue and `onComplete` / the ended event still fire.
+    if (this.cutsceneSkipFastForwardActive) {
+      options?.onComplete?.();
+      gameEvents.emit(BENNE_VIDEO_ENDED_EVENT, { key });
+      return { whenComplete: Promise.resolve() };
+    }
+
     // Replace any in-flight video (resolves the previous playback's waiters via finalizeRoomVideo).
     if (this.roomVideoActiveKey !== null) {
       video.stop();
@@ -1861,17 +1903,27 @@ export class RoomScene extends Phaser.Scene {
     rect.setFillStyle(fillColor, 1);
     const a = Phaser.Math.Clamp(toAlpha, 0, 1);
 
-    return new Promise((resolve) => {
-      this.tweens.add({
-        targets: rect,
-        alpha: a,
-        duration: durMs,
-        ease: 'Linear',
-        onComplete: () => {
-          resolve();
-        },
-      });
-    });
+    if (this.cutsceneSkipFastForwardActive) {
+      rect.setAlpha(a);
+      return Promise.resolve();
+    }
+
+    return this.runSkippableStep(
+      (done) => {
+        this.tweens.add({
+          targets: rect,
+          alpha: a,
+          duration: durMs,
+          ease: 'Linear',
+          onComplete: done,
+        });
+      },
+      (done) => {
+        this.tweens.killTweensOf(rect);
+        rect.setAlpha(a);
+        done();
+      },
+    );
   }
 
   /**
@@ -1994,7 +2046,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private isBusyCursorActive(): boolean {
-    return this.cutsceneDepth > 0 || this.isRoomVideoPlaying();
+    return this.isCutsceneActive() || this.isRoomVideoPlaying();
   }
 
   /**
@@ -2004,32 +2056,197 @@ export class RoomScene extends Phaser.Scene {
    * say-line suppression).
    */
   private isInputSuppressed(): boolean {
-    return this.scriptedDialogInputSuppressionDepth > 0 || this.cutsceneDepth > 0 || this.isRoomVideoPlaying();
+    return (
+      this.scriptedDialogInputSuppressionDepth > 0 ||
+      this.isCutsceneActive() ||
+      this.isRoomVideoPlaying()
+    );
   }
 
   /**
-   * Increment the cutscene depth counter. While non-zero, all input is suppressed and the custom
-   * cursor switches to the busy animation (or hidden). Called automatically by {@link BenneScriptCore}
-   * `B.cutscene`, enter-room hooks, and `whenChoice` handlers.
+   * Push a cutscene onto the stack. While the stack is non-empty, all input is suppressed and the
+   * custom cursor switches to the busy animation (or hidden). Called automatically by
+   * {@link BenneScriptCore} `B.cutscene`, enter-room hooks, and `whenChoice` handlers.
+   *
+   * @param options `skippable: false` opts this cutscene out of ESC skipping even when
+   * `game-config.json` `cutscenesSkippable` is true. Defaults to skippable.
    */
-  pushCutscene(): void {
-    this.cutsceneDepth++;
+  pushCutscene(options?: CutsceneOptions): void {
+    this.cutsceneStack.push({ skippable: options?.skippable !== false });
     this.lastCustomCursorVisualKey = null;
     this.refreshCustomCursor(this.input.activePointer);
     this.syncVerbHoverScriptSurface(this.input.activePointer);
   }
 
-  /** Decrement the cutscene depth counter. When it reaches 0, normal input resumes. */
+  /** Pop the innermost cutscene. When the stack empties, normal input (and skip state) resumes. */
   popCutscene(): void {
-    this.cutsceneDepth = Math.max(0, this.cutsceneDepth - 1);
+    this.cutsceneStack.pop();
+    if (this.cutsceneStack.length === 0) {
+      this.cutsceneSkipFastForwardActive = false;
+    }
     this.lastCustomCursorVisualKey = null;
     this.refreshCustomCursor(this.input.activePointer);
     this.syncVerbHoverScriptSurface(this.input.activePointer);
   }
 
-  /** True while a cutscene is in progress (cutscene depth > 0). */
+  /** True while a cutscene is in progress. */
   isCutsceneActive(): boolean {
-    return this.cutsceneDepth > 0;
+    return this.cutsceneStack.length > 0;
+  }
+
+  /**
+   * True when ESC should skip the active cutscene: a cutscene is running, `game-config.json`
+   * `cutscenesSkippable` is not false, every entry on the stack is skippable, and a skip is not
+   * already in flight.
+   */
+  canSkipActiveCutscene(): boolean {
+    if (this.cutsceneStack.length === 0 || this.cutsceneSkipFastForwardActive) {
+      return false;
+    }
+    if (!getCutscenesSkippable()) {
+      return false;
+    }
+    return this.cutsceneStack.every((entry) => entry.skippable);
+  }
+
+  /**
+   * True while a skip is fast-forwarding the cutscene. Timed engine primitives (waits, say lines,
+   * walks, fades, camera transitions, sound, video) check this and complete instantly at their
+   * final value instead of animating, so the skipped cutscene produces the same state it would
+   * have produced had it played normally.
+   */
+  isCutsceneSkipFastForwarding(): boolean {
+    return this.cutsceneSkipFastForwardActive;
+  }
+
+  /**
+   * Registers `finish` to run if the player skips the cutscene while this step is in flight.
+   * `finish` must leave the step in the state it would have reached had it played out, then
+   * resolve the step's promise. Returns the unregister function — call it when the step ends
+   * normally.
+   */
+  registerCutsceneSkipFinisher(finish: () => void): () => void {
+    this.cutsceneSkipFinishers.add(finish);
+    return () => {
+      this.cutsceneSkipFinishers.delete(finish);
+    };
+  }
+
+  /**
+   * Runs a blocking step that an ESC skip can cut short. `start` receives a `done` callback that
+   * settles the step; `finishNow` runs instead when the player skips mid-step and must apply the
+   * step's end state before calling `done`. Whichever fires first wins.
+   */
+  private runSkippableStep(
+    start: (done: () => void) => void,
+    finishNow: (done: () => void) => void,
+  ): Promise<void> {
+    return new Promise<void>((resolve) => {
+      let settled = false;
+      let unregister: (() => void) | null = null;
+      const done = (): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        unregister?.();
+        unregister = null;
+        resolve();
+      };
+      unregister = this.registerCutsceneSkipFinisher(() => {
+        unregister = null;
+        if (!settled) {
+          finishNow(done);
+        }
+      });
+      start(done);
+    });
+  }
+
+  /**
+   * Fast-forwards the active cutscene to its end state (ESC). The step that is currently running
+   * is finished at its final value here; every step still queued behind it runs instantly because
+   * the timed primitives check {@link isCutsceneSkipFastForwarding}. No step is dropped, so the
+   * flags, inventory, positions, and room the cutscene would have produced all still happen.
+   */
+  requestCutsceneSkip(): void {
+    if (!this.canSkipActiveCutscene()) {
+      return;
+    }
+    this.cutsceneSkipFastForwardActive = true;
+
+    this.fastForwardPlayerWalkForSkip();
+
+    const pending = [...this.cutsceneSkipFinishers];
+    this.cutsceneSkipFinishers.clear();
+    for (const finish of pending) {
+      try {
+        finish();
+      } catch (e) {
+        console.error('[Benne] cutscene skip: step finisher failed:', e);
+      }
+    }
+
+    this.stopRoomVideo();
+
+    this.lastCustomCursorVisualKey = null;
+    this.refreshCustomCursor(this.input.activePointer);
+  }
+
+  /**
+   * Teleports the player to the end of the active walk path and resolves the walk promise as if
+   * they had walked the whole way (facing taken from the final leg), so a skipped cutscene leaves
+   * the player exactly where the walk would have put them.
+   */
+  private fastForwardPlayerWalkForSkip(): void {
+    const sprite = this.player;
+    const path = this.currentPlayerPath;
+    if (!sprite || !path || path.length === 0) {
+      return;
+    }
+    const final = path[path.length - 1]!;
+    const prev = path.length >= 2 ? path[path.length - 2]! : getCharacterWorldFeet(sprite);
+    const facing = facingFromWorldDelta(final.x - prev.x, final.y - prev.y);
+    // Clearing the field first makes the running leg tween's onUpdate / onStop guards bail out,
+    // so only finishPlayerWalk below resolves the walk.
+    const tween = this.playerMoveTween;
+    this.playerMoveTween = null;
+    tween?.stop();
+    this.applyFeetWorldWithRegionScale(sprite, this.getSpriteFeetLocal(sprite), final.x, final.y);
+    this.finishPlayerWalk(sprite, facing);
+  }
+
+  /**
+   * Same as {@link fastForwardPlayerWalkForSkip} for a non-player character walk; `arrive` is the
+   * walk's own completion callback (also unregisters the skip finisher).
+   */
+  private fastForwardNpcWalkForSkip(
+    sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+    path: readonly Point2[],
+    arrive: () => void,
+  ): void {
+    if (path.length === 0) {
+      arrive();
+      return;
+    }
+    const final = path[path.length - 1]!;
+    const prev =
+      path.length >= 2 ? path[path.length - 2]! : getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
+    const facing = facingFromWorldDelta(final.x - prev.x, final.y - prev.y);
+    // Dropping the map entry first makes the running leg tween's onStop guard bail out.
+    const tween = this.npcWalkTweens.get(sprite);
+    this.npcWalkTweens.delete(sprite);
+    tween?.stop();
+    this.applyFeetWorldWithRegionScale(sprite, this.getSpriteFeetLocal(sprite), final.x, final.y);
+    if (sprite instanceof Phaser.GameObjects.Sprite && sprite.anims) {
+      if (!getCharacterAnimationOverrideTag(sprite)) {
+        playDirectionalAnimation(sprite as DirectionalCharacterSprite, 'Idle', facing);
+      } else {
+        sprite.setData('facing', facing);
+        applyCharacterEffectiveAnimation(sprite);
+      }
+    }
+    arrive();
   }
 
   private makeGuiOverlayBuildOptions(
@@ -2225,14 +2442,36 @@ export class RoomScene extends Phaser.Scene {
       console.warn(`[Benne] Unknown prop animation tag "${tag}" for prop "${propId}"`);
       return Promise.resolve();
     }
-    sprite.play(phaserKey);
-    return promiseWhenSpriteAnimationFinishes(sprite, phaserKey).then(() => {
+    let restored = false;
+    const restoreBaseOnce = (): void => {
+      if (restored) {
+        return;
+      }
+      restored = true;
       const baseAuthor = this.getPropScriptBaseAnimationTag(propId);
       const baseKey = roomPropPhaserAnimationKey(this.roomData.id, baseAuthor);
       if (this.anims.exists(baseKey)) {
         sprite.play(baseKey);
       }
-    });
+    };
+    // Skipping lands on the clip's end state: the base animation, without playing the one-shot.
+    if (this.cutsceneSkipFastForwardActive) {
+      restoreBaseOnce();
+      return Promise.resolve();
+    }
+    sprite.play(phaserKey);
+    return this.runSkippableStep(
+      (done) => {
+        void promiseWhenSpriteAnimationFinishes(sprite, phaserKey).then(() => {
+          restoreBaseOnce();
+          done();
+        });
+      },
+      (done) => {
+        restoreBaseOnce();
+        done();
+      },
+    );
   }
 
   /** Persisted default GUI clip (`B.inventory(id).animation`); falls back to inventory JSON when unset. */
@@ -2359,10 +2598,32 @@ export class RoomScene extends Phaser.Scene {
       console.warn(`[Benne] Unknown animation tag "${tag}" for character "${definitionId}"`);
       return Promise.resolve();
     }
-    playCharacterAnimation(sprite, tag);
-    return promiseWhenSpriteAnimationFinishes(sprite, tag).then(() => {
+    let restored = false;
+    const restoreEffectiveOnce = (): void => {
+      if (restored) {
+        return;
+      }
+      restored = true;
       applyCharacterEffectiveAnimation(sprite);
-    });
+    };
+    // Skipping lands on the clip's end state without playing the one-shot.
+    if (this.cutsceneSkipFastForwardActive) {
+      restoreEffectiveOnce();
+      return Promise.resolve();
+    }
+    playCharacterAnimation(sprite, tag);
+    return this.runSkippableStep(
+      (done) => {
+        void promiseWhenSpriteAnimationFinishes(sprite, tag).then(() => {
+          restoreEffectiveOnce();
+          done();
+        });
+      },
+      (done) => {
+        restoreEffectiveOnce();
+        done();
+      },
+    );
   }
 
   faceCharacterScriptDirection(definitionId: string, direction: CharacterFacingLetter): void {
@@ -3237,19 +3498,26 @@ export class RoomScene extends Phaser.Scene {
     const to = Phaser.Math.Clamp(toAlpha, 0, 1);
     sprite.setAlpha(from);
     const durMs = Math.max(0, durationSeconds * 1000);
-    if (durMs === 0) {
+    if (durMs === 0 || this.cutsceneSkipFastForwardActive) {
       sprite.setAlpha(to);
       return Promise.resolve();
     }
-    return new Promise((resolve) => {
-      this.tweens.add({
-        targets: sprite,
-        alpha: to,
-        duration: durMs,
-        ease: 'Linear',
-        onComplete: () => resolve(),
-      });
-    });
+    return this.runSkippableStep(
+      (done) => {
+        this.tweens.add({
+          targets: sprite,
+          alpha: to,
+          duration: durMs,
+          ease: 'Linear',
+          onComplete: done,
+        });
+      },
+      (done) => {
+        this.tweens.killTweensOf(sprite);
+        sprite.setAlpha(to);
+        done();
+      },
+    );
   }
 
   /**
@@ -3773,25 +4041,42 @@ export class RoomScene extends Phaser.Scene {
   private queueCameraPan(worldX: number, worldY: number, transitionSeconds?: number): Promise<void> {
     const cam = this.cameras.main;
     this.killScriptCameraPan();
-    const durMs = Math.max(0, (transitionSeconds ?? 0) * 1000);
+    const durMs = this.cutsceneSkipFastForwardActive
+      ? 0
+      : Math.max(0, (transitionSeconds ?? 0) * 1000);
     if (durMs <= 0) {
       cam.centerOn(worldX, worldY);
       return Promise.resolve();
     }
-    return new Promise((resolve) => {
-      const onComplete = (): void => {
-        cam.off(Phaser.Cameras.Scene2D.Events.PAN_COMPLETE, onComplete);
-        resolve();
-      };
-      cam.once(Phaser.Cameras.Scene2D.Events.PAN_COMPLETE, onComplete);
-      cam.pan(worldX, worldY, durMs, 'Linear', true);
-    });
+    let onPanComplete: (() => void) | null = null;
+    return this.runSkippableStep(
+      (done) => {
+        onPanComplete = (): void => {
+          cam.off(Phaser.Cameras.Scene2D.Events.PAN_COMPLETE, onPanComplete!);
+          onPanComplete = null;
+          done();
+        };
+        cam.once(Phaser.Cameras.Scene2D.Events.PAN_COMPLETE, onPanComplete);
+        cam.pan(worldX, worldY, durMs, 'Linear', true);
+      },
+      (done) => {
+        if (onPanComplete) {
+          cam.off(Phaser.Cameras.Scene2D.Events.PAN_COMPLETE, onPanComplete);
+          onPanComplete = null;
+        }
+        this.killScriptCameraPan();
+        cam.centerOn(worldX, worldY);
+        done();
+      },
+    );
   }
 
   private queueCameraGameplayZoomTo(targetZoom: number, transitionSeconds?: number): Promise<void> {
     const clamped = this.clampScriptGameplayZoom(targetZoom);
     this.killScriptCameraZoomTween();
-    const durMs = Math.max(0, (transitionSeconds ?? 0) * 1000);
+    const durMs = this.cutsceneSkipFastForwardActive
+      ? 0
+      : Math.max(0, (transitionSeconds ?? 0) * 1000);
     if (durMs <= 0) {
       this.scriptGameplayZoom = clamped;
       this.applyScriptCameraZoom();
@@ -3799,24 +4084,32 @@ export class RoomScene extends Phaser.Scene {
     }
     const from = this.scriptGameplayZoom;
     const state = { z: from };
-    return new Promise((resolve) => {
-      this.scriptCameraZoomTween = this.tweens.add({
-        targets: state,
-        z: clamped,
-        duration: durMs,
-        ease: 'Linear',
-        onUpdate: () => {
-          this.scriptGameplayZoom = state.z;
-          this.applyScriptCameraZoom();
-        },
-        onComplete: () => {
-          this.scriptGameplayZoom = clamped;
-          this.applyScriptCameraZoom();
-          this.scriptCameraZoomTween = null;
-          resolve();
-        },
-      });
-    });
+    return this.runSkippableStep(
+      (done) => {
+        this.scriptCameraZoomTween = this.tweens.add({
+          targets: state,
+          z: clamped,
+          duration: durMs,
+          ease: 'Linear',
+          onUpdate: () => {
+            this.scriptGameplayZoom = state.z;
+            this.applyScriptCameraZoom();
+          },
+          onComplete: () => {
+            this.scriptGameplayZoom = clamped;
+            this.applyScriptCameraZoom();
+            this.scriptCameraZoomTween = null;
+            done();
+          },
+        });
+      },
+      (done) => {
+        this.killScriptCameraZoomTween();
+        this.scriptGameplayZoom = clamped;
+        this.applyScriptCameraZoom();
+        done();
+      },
+    );
   }
 
   /**
@@ -3833,7 +4126,9 @@ export class RoomScene extends Phaser.Scene {
 
   /** Clears script focus and gameplay zoom, restoring default player follow. */
   queueCameraReset(transitionSeconds?: number): Promise<void> {
-    const durSec = this.resolveCameraTransitionSeconds(transitionSeconds);
+    const durSec = this.cutsceneSkipFastForwardActive
+      ? 0
+      : this.resolveCameraTransitionSeconds(transitionSeconds);
     this.killScriptCameraPan();
     this.killScriptCameraZoomTween();
 
@@ -4270,7 +4565,7 @@ export class RoomScene extends Phaser.Scene {
     this.currentPlayerPath = null;
     if (!this.playerMoveTween) {
       // During a cutscene the walk promise must still resolve so the interaction chain continues.
-      if (this.cutsceneDepth > 0 && arriveCallback) {
+      if (this.isCutsceneActive() && arriveCallback) {
         arriveCallback();
       }
       return;
@@ -4288,7 +4583,7 @@ export class RoomScene extends Phaser.Scene {
     // During a cutscene, resolve the interrupted walk's promise so the interaction chain
     // can continue without hanging — player clicks are suppressed, so the only interruptions
     // are scripted (room transitions reset the tail separately).
-    if (this.cutsceneDepth > 0 && arriveCallback) {
+    if (this.isCutsceneActive() && arriveCallback) {
       arriveCallback();
     }
   }
@@ -4345,6 +4640,13 @@ export class RoomScene extends Phaser.Scene {
       targetX: final.x,
       targetY: final.y,
     } satisfies PlayerWalkStartPayload);
+
+    // Skipping a cutscene still emits the same walk start / stop pair; the player just arrives
+    // at the end of the path immediately instead of tweening along it.
+    if (this.cutsceneSkipFastForwardActive) {
+      this.fastForwardPlayerWalkForSkip();
+      return;
+    }
 
     this.beginPlayerWalkLeg(sprite, path, 0);
   }
@@ -4524,7 +4826,25 @@ export class RoomScene extends Phaser.Scene {
       this.npcWalkTweens.delete(sprite);
     }
 
-    this.beginNpcWalkLeg(sprite, path, 0, onArrive);
+    // Every terminal branch of the walk (arrived, interrupted, skipped) runs `arrive` exactly once,
+    // so the skip finisher is always unregistered with it.
+    let unregisterSkipFinisher: (() => void) | null = null;
+    const arrive = (): void => {
+      unregisterSkipFinisher?.();
+      unregisterSkipFinisher = null;
+      onArrive?.();
+    };
+    unregisterSkipFinisher = this.registerCutsceneSkipFinisher(() => {
+      unregisterSkipFinisher = null;
+      this.fastForwardNpcWalkForSkip(sprite, path, arrive);
+    });
+
+    if (this.cutsceneSkipFastForwardActive) {
+      this.fastForwardNpcWalkForSkip(sprite, path, arrive);
+      return;
+    }
+
+    this.beginNpcWalkLeg(sprite, path, 0, arrive);
   }
 
   private beginNpcWalkLeg(
