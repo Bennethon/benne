@@ -230,6 +230,12 @@ export interface BenneScriptHotspotFacade {
    */
   get clickable(): boolean;
   set clickable(v: boolean);
+  /**
+   * Hover / verb-line label. Setter is immediate (not queued). Persists under
+   * `` `room:<roomId>:hotspot:<id>:description` `` over JSON **`description`**.
+   */
+  get description(): string;
+  set description(v: string);
 }
 
 /** Visibility + description overrides for one prop (`BenneScript.prop`). */
@@ -251,6 +257,10 @@ export interface BenneScriptPropFacade {
    */
   get clickable(): boolean;
   set clickable(v: boolean);
+  /**
+   * Hover / verb-line label. Setter is immediate (not queued). Persists under
+   * `` `room:<roomId>:prop:<id>:description` `` over JSON **`description`**.
+   */
   get description(): string;
   set description(v: string);
   /** Persisted base Aseprite tag; falls back to room JSON default when unset in save state. */
@@ -410,6 +420,12 @@ export interface BenneScriptCharacterFacade {
   get clickable(): boolean;
   set clickable(v: boolean);
   /**
+   * Hover / verb-line label. Setter is immediate (not queued). Persists under
+   * `` `character:<id>:description` `` over JSON **`CharacterData.description`**.
+   */
+  get description(): string;
+  set description(v: string);
+  /**
    * Starts persistent following of another character id or **`"player"`** (see {@link BenneScriptPlayerFacade.startFollowingCharacter}).
    * Queues on the interaction tail.
    */
@@ -469,4 +485,10 @@ export interface BenneScriptInventoryItemFacade {
   set cursorAnimation(tag: string);
   /** Apply cursor tag + persistence immediately (skips interaction tail). */
   cursorAnimationNow(tag: string): void;
+  /**
+   * Hover / verb-line label. Setter is immediate (not queued). Persists under
+   * `` `inventory:<itemId>:description` `` over JSON **`InventoryItemData.description`**.
+   */
+  get description(): string;
+  set description(v: string);
 }

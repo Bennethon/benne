@@ -9,6 +9,10 @@ export function inventoryCursorAnimationVariableKey(itemId: string): string {
   return `inventory:${itemId}:cursorAnimation`;
 }
 
+export function inventoryDescriptionVariableKey(itemId: string): string {
+  return `inventory:${itemId}:description`;
+}
+
 /** Keys written by {@link import('../scenes/RoomScene.js').RoomScene} inventory scripting animation setters. */
 export function isPersistedInventoryAnimationVariableKey(key: string): boolean {
   return (
@@ -57,4 +61,28 @@ export function readEffectiveInventoryCursorAnimationTag(
     return t.length > 0 ? t : null;
   }
   return hasJson ? jsonTag! : null;
+}
+
+/**
+ * Effective `B.inventory(id).description` — saved override (string, including empty) when set,
+ * else JSON `InventoryItemData.description`, else `''`.
+ */
+export function readEffectiveInventoryDescription(
+  manager: GameStateManager,
+  def: InventoryItemData,
+): string {
+  const v = manager.getVariable(inventoryDescriptionVariableKey(def.id));
+  if (typeof v === 'string') {
+    return v;
+  }
+  return def.description ?? '';
+}
+
+/** Persist `B.inventory(id).description = …` for this item id. */
+export function writeSavedInventoryDescription(
+  manager: GameStateManager,
+  itemId: string,
+  description: string,
+): void {
+  manager.setVariable(inventoryDescriptionVariableKey(itemId), description);
 }

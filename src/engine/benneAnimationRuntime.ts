@@ -22,6 +22,10 @@ export function roomPropClickableVariableKey(roomId: string, propId: string): st
   return `room:${roomId}:prop:${propId}:clickable`;
 }
 
+export function roomPropDescriptionVariableKey(roomId: string, propId: string): string {
+  return `room:${roomId}:prop:${propId}:description`;
+}
+
 export function roomPropAlphaVariableKey(roomId: string, propId: string): string {
   return `room:${roomId}:prop:${propId}:alpha`;
 }
@@ -44,6 +48,10 @@ export function characterMovableVariableKey(characterId: string): string {
 
 export function characterClickableVariableKey(characterId: string): string {
   return `character:${characterId}:clickable`;
+}
+
+export function characterDescriptionVariableKey(characterId: string): string {
+  return `character:${characterId}:description`;
 }
 
 export function characterSpeechPositionVariableKey(characterId: string): string {
@@ -120,6 +128,35 @@ export function writeSavedHotspotActive(
   active: boolean,
 ): void {
   manager.setVariable(roomHotspotActiveVariableKey(roomId, hotspotId), active);
+}
+
+/** Persistence key for `B.hotspot(id).description` overrides. */
+export function roomHotspotDescriptionVariableKey(roomId: string, hotspotId: string): string {
+  return `room:${roomId}:hotspot:${hotspotId}:description`;
+}
+
+/**
+ * Effective `B.hotspot(id).description` — saved override (string, including empty) when set,
+ * else `jsonDefault`.
+ */
+export function readSavedHotspotDescription(
+  manager: GameStateManager,
+  roomId: string,
+  hotspotId: string,
+  jsonDefault: string,
+): string {
+  const v = manager.getVariable(roomHotspotDescriptionVariableKey(roomId, hotspotId));
+  return typeof v === 'string' ? v : jsonDefault;
+}
+
+/** Persist `B.hotspot(id).description = …` for this room+hotspot pair. */
+export function writeSavedHotspotDescription(
+  manager: GameStateManager,
+  roomId: string,
+  hotspotId: string,
+  description: string,
+): void {
+  manager.setVariable(roomHotspotDescriptionVariableKey(roomId, hotspotId), description);
 }
 
 /** Sprite data: persisted override tag (`string`) or `null` when cleared. */
@@ -220,6 +257,30 @@ export function writeSavedPropClickable(
   clickable: boolean,
 ): void {
   manager.setVariable(roomPropClickableVariableKey(roomId, propId), clickable);
+}
+
+/**
+ * Effective `B.prop(id).description` — saved override (string, including empty) when set,
+ * else `jsonDefault`.
+ */
+export function readSavedPropDescription(
+  manager: GameStateManager,
+  roomId: string,
+  propId: string,
+  jsonDefault: string,
+): string {
+  const v = manager.getVariable(roomPropDescriptionVariableKey(roomId, propId));
+  return typeof v === 'string' ? v : jsonDefault;
+}
+
+/** Persist `B.prop(id).description = …` for this room+prop pair. */
+export function writeSavedPropDescription(
+  manager: GameStateManager,
+  roomId: string,
+  propId: string,
+  description: string,
+): void {
+  manager.setVariable(roomPropDescriptionVariableKey(roomId, propId), description);
 }
 
 /** Effective `B.prop(id)` alpha — saved override when set in `[0, 1]`, else `jsonDefault`. */
@@ -331,6 +392,28 @@ export function writeSavedCharacterClickable(
   clickable: boolean,
 ): void {
   manager.setVariable(characterClickableVariableKey(characterId), clickable);
+}
+
+/**
+ * Effective `B.character(id).description` — saved override (string, including empty) when set,
+ * else `jsonDefault` from `CharacterData.description`.
+ */
+export function readSavedCharacterDescription(
+  manager: GameStateManager,
+  characterId: string,
+  jsonDefault: string,
+): string {
+  const v = manager.getVariable(characterDescriptionVariableKey(characterId));
+  return typeof v === 'string' ? v : jsonDefault;
+}
+
+/** Persist `B.character(id).description = …` for this character definition id. */
+export function writeSavedCharacterDescription(
+  manager: GameStateManager,
+  characterId: string,
+  description: string,
+): void {
+  manager.setVariable(characterDescriptionVariableKey(characterId), description);
 }
 
 /** Saved absolute world position for a character's speaking-text GUI, or `null` when unset. */

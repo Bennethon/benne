@@ -106,7 +106,7 @@ registerRoomScript(({ B }) => {
 
 String ids passed to room handlers resolve in order: **props → hotspots → characters in this room → room points**. The same id you click is the id you handle.
 
-Room scripts also support: `whenVerb(verbId, target, …)` for any configured verb, `whenGive(itemId, propId, …)`, `B.prop('id')`, `B.region('id')`, `B.hotspot('id').active` / `.clickable`, per-room transition hooks (`whenEnterRoom`, `whenEnterRoomAfterFade`, `whenLeaveRoom`, `whenLoadedRoom`), `B.onUpdate`, and `B.playFrom('name', …)` entry points for the editor's "Play from here".
+Room scripts also support: `whenVerb(verbId, target, …)` for any configured verb, `whenGive(itemId, propId, …)`, `B.prop('id')`, `B.region('id')`, `B.hotspot('id').active` / `.clickable` / `.description`, per-room transition hooks (`whenEnterRoom`, `whenEnterRoomAfterFade`, `whenLeaveRoom`, `whenLoadedRoom`), `B.onUpdate`, and `B.playFrom('name', …)` entry points for the editor's "Play from here".
 
 ### Character script
 
@@ -287,6 +287,7 @@ Same movement / speech / animation / follow pattern as `B.player`, for any chara
 |--------|-------------|
 | `.hide()` / `.show()` / `.visible` | Visibility (persisted across room changes and saves). |
 | `.clickable` | Whether the character is hit-tested for interaction. |
+| `.description` | Hover / verb-line label (persisted). |
 | `.movable` | Whether the character can pathfind-walk. |
 | `.fade(from, to, seconds)` | Tween the sprite's alpha (final alpha persists). |
 | `.inventory` | This character's own item bag. |
@@ -307,10 +308,10 @@ Controls a room prop (its sprite, animation, visibility, position).
 |--------|-------------|
 | `.hide()` / `.show()` / `.visible` | Visibility (persisted). |
 | `.clickable` | Whether the prop is hit-tested for interaction (persisted). |
+| `.description` | Hover / verb-line label (persisted). |
 | `.animation` / `animationNow(tag)` / `playAnimation(tag)` | Set the base clip, set it immediately, or play a one-shot then restore. |
 | `.fade(from, to, seconds)` | Tween alpha (final alpha persists). |
 | `.moveTo(point)` | Teleport the prop's authoring origin in room space. |
-| `.description` | The prop's description text. |
 
 ```ts
 B.prop('Door').animation = 'Door-open';
@@ -328,9 +329,10 @@ B.region('darkness').active = false; // deactivate (persisted)
 
 B.hotspot('secret-door').active = true; // mount/unmount its input zone (persisted)
 B.hotspot('window').clickable = false; // alias of .active
+B.hotspot('secret-door').description = 'A door that used to be locked.'; // persisted hover label
 ```
 
-Region enter/exit handlers run on the interaction queue. Setting `.active` on a region or hotspot is immediate and persisted; deactivating disables triggers and interaction (movement resolution still works). **`B.hotspot(id).clickable`** is an alias of **`.active`**.
+Region enter/exit handlers run on the interaction queue. Setting `.active` on a region or hotspot is immediate and persisted; deactivating disables triggers and interaction (movement resolution still works). **`B.hotspot(id).clickable`** is an alias of **`.active`**. **`B.hotspot(id).description`** is the hover / verb-line label (immediate and persisted).
 
 ## `B.inventory`
 
@@ -343,6 +345,7 @@ The active player's item bag, plus a callable accessor for per-item control.
 | `B.inventory.items` | The current list of `{ id, quantity }`. |
 | `B.inventory(id).animation` | The item's icon clip (with a runtime override option). |
 | `B.inventory(id).cursorAnimation` | The cursor clip shown when the item is armed. |
+| `B.inventory(id).description` | Hover / verb-line label (persisted). |
 
 ```ts
 B.inventory.add('Key');

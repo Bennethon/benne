@@ -14,6 +14,8 @@ import {
   inventoryDefaultAnimationVariableKey,
   readEffectiveInventoryCursorAnimationTag,
   readEffectiveInventoryDefaultAnimationTag,
+  readEffectiveInventoryDescription,
+  writeSavedInventoryDescription,
 } from '../inventory/inventoryScriptingAnimations.js';
 import type { BenneScriptInventoryItemFacade } from './benneScriptFacades.js';
 import { withNow, type BlockingWithNow } from './BenneScriptCore.js';
@@ -354,6 +356,36 @@ function createBenneScriptInventoryItemFacade(
     },
     cursorAnimationNow(tag: string): void {
       applyCursor(tag);
+    },
+    get description() {
+      const def = getInventoryDefinition(itemId);
+      if (!def) {
+        return '';
+      }
+      const manager = resolveManager();
+      if (!manager) {
+        return def.description ?? '';
+      }
+      return readEffectiveInventoryDescription(manager, def);
+    },
+    set description(v: string) {
+      const scene = getRoomScene?.();
+      if (scene) {
+        scene.setInventoryScriptDescription(itemId, v);
+        return;
+      }
+      const def = getInventoryDefinition(itemId);
+      if (!def) {
+        if (import.meta.env.DEV) {
+          console.warn(`[Benne] B.inventory("${itemId}"): unknown item id.`);
+        }
+        return;
+      }
+      const manager = resolveInventoryManager();
+      if (!manager) {
+        return;
+      }
+      writeSavedInventoryDescription(manager, itemId, v);
     },
   };
 }

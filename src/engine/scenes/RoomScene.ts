@@ -32,6 +32,8 @@ import {
   inventoryDefaultAnimationVariableKey,
   readEffectiveInventoryCursorAnimationTag,
   readEffectiveInventoryDefaultAnimationTag,
+  readEffectiveInventoryDescription,
+  writeSavedInventoryDescription,
 } from '../inventory/inventoryScriptingAnimations.js';
 import {
   PLAYER_WALK_START,
@@ -60,6 +62,7 @@ import {
   readSavedCharacterFollowEffectiveOptions,
   readSavedCharacterFollowingTarget,
   readSavedCharacterClickable,
+  readSavedCharacterDescription,
   readSavedCharacterMovable,
   readSavedCharacterPosition,
   readSavedCharacterSpeechOffset,
@@ -71,8 +74,13 @@ import {
   readSavedPropPosition,
   readSavedPropVisible,
   readSavedHotspotActive,
+  readSavedHotspotDescription,
+  readSavedPropDescription,
   readSavedRegionActive,
+  writeSavedCharacterDescription,
   writeSavedHotspotActive,
+  writeSavedHotspotDescription,
+  writeSavedPropDescription,
   writeSavedRegionActive,
   setCharacterAnimationOverrideTagOnSprite,
   writeSavedCharacterAlpha,
@@ -400,9 +408,6 @@ export class RoomScene extends Phaser.Scene {
   /** Prop id → sprite (every placed prop, for Bennescript). */
   private propSpritesById = new Map<string, Phaser.GameObjects.Sprite>();
 
-  /** Runtime-only description overrides for props (B.prop(id).description). */
-  private propDescriptionOverrides = new Map<string, string>();
-
   /** Character definition id → first spawned sprite/image in this room. */
   private characterSpritesByDefId = new Map<
     string,
@@ -687,7 +692,6 @@ export class RoomScene extends Phaser.Scene {
     this.parallaxProps = [];
     this.roomStackEntities = [];
     this.propSpritesById.clear();
-    this.propDescriptionOverrides.clear();
     this.characterSpritesByDefId.clear();
     this.characterJsonVisibleByDefId.clear();
     this.characterJsonMovableByDefId.clear();
@@ -2570,6 +2574,31 @@ export class RoomScene extends Phaser.Scene {
     m.setVariable(inventoryCursorAnimationVariableKey(itemId), t);
   }
 
+  /** Effective `B.inventory(id).description` — saved override (including empty) wins, else JSON. */
+  getInventoryScriptDescription(itemId: string): string {
+    const def = getInventoryDefinition(itemId);
+    if (!def) {
+      return '';
+    }
+    return readEffectiveInventoryDescription(resolveGameStateManager(this.game), def);
+  }
+
+  /**
+   * Persist `B.inventory(id).description`. Survives room reloads and save/load. Unknown ids no-op
+   * (DEV warns). Refreshes the verb hover line so the new text shows without a pointer move.
+   */
+  setInventoryScriptDescription(itemId: string, value: string): void {
+    const def = getInventoryDefinition(itemId);
+    if (!def) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Benne] setInventoryScriptDescription: unknown inventory id "${itemId}".`);
+      }
+      return;
+    }
+    writeSavedInventoryDescription(resolveGameStateManager(this.game), itemId, value);
+    this.syncVerbHoverScriptSurfaceAtActivePointer();
+  }
+
   private inventoryAuthorAsepriteTagIsLoaded(def: InventoryItemData, tag: string): boolean {
     const mode = def.display?.aseprite;
     if (mode !== true && mode !== 'shared') {
@@ -3123,15 +3152,26 @@ export class RoomScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Effective `B.prop(id).description` — saved override (including empty) wins, else room JSON.
+   */
   getPropScriptDescription(propId: string): string {
-    if (this.propDescriptionOverrides.has(propId)) {
-      return this.propDescriptionOverrides.get(propId) ?? '';
-    }
-    return this.getRoomPropInstance(propId)?.description ?? '';
+    const jsonDefault = this.getRoomPropInstance(propId)?.description ?? '';
+    return readSavedPropDescription(
+      resolveGameStateManager(this.game),
+      this.roomData.id,
+      propId,
+      jsonDefault,
+    );
   }
 
+  /**
+   * Persist `B.prop(id).description`. Survives room reloads and save/load. Refreshes the verb hover
+   * line so the new text shows without requiring a pointer move.
+   */
   setPropScriptDescription(propId: string, value: string): void {
-    this.propDescriptionOverrides.set(propId, value);
+    writeSavedPropDescription(resolveGameStateManager(this.game), this.roomData.id, propId, value);
+    this.syncVerbHoverScriptSurfaceAtActivePointer();
   }
 
   /**
@@ -3316,6 +3356,43 @@ export class RoomScene extends Phaser.Scene {
     this.updateRoomStackDepths();
   }
 
+  /**
+   * Effective `B.hotspot(id).description` — saved override (including empty) wins, else JSON.
+   * Unknown ids return **`''`** and log once in DEV.
+   */
+  getHotspotScriptDescription(hotspotId: string): string {
+    const hotspot = this.roomData.hotspots.find((h) => h.id === hotspotId);
+    if (!hotspot) {
+      this.warnIfUnknownHotspotScriptId(hotspotId);
+      return '';
+    }
+    return readSavedHotspotDescription(
+      resolveGameStateManager(this.game),
+      this.roomData.id,
+      hotspotId,
+      hotspot.description ?? '',
+    );
+  }
+
+  /**
+   * Persist `B.hotspot(id).description`. Survives room reloads and save/load. Unknown ids no-op
+   * (DEV warns once). Refreshes the verb hover line so the new text shows without a pointer move.
+   */
+  setHotspotScriptDescription(hotspotId: string, value: string): void {
+    const hotspot = this.roomData.hotspots.find((h) => h.id === hotspotId);
+    if (!hotspot) {
+      this.warnIfUnknownHotspotScriptId(hotspotId);
+      return;
+    }
+    writeSavedHotspotDescription(
+      resolveGameStateManager(this.game),
+      this.roomData.id,
+      hotspotId,
+      value,
+    );
+    this.syncVerbHoverScriptSurfaceAtActivePointer();
+  }
+
   private warnIfUnknownHotspotScriptId(hotspotId: string): void {
     if (!import.meta.env.DEV) {
       return;
@@ -3453,6 +3530,30 @@ export class RoomScene extends Phaser.Scene {
       textureKey: '',
     };
     this.attachCharacterInteraction(this.roomData.id, spawnStub, sprite);
+  }
+
+  /**
+   * Effective `B.character(id).description` — saved override (including empty) wins, else
+   * {@link CharacterData.description} from the spawned sprite, else `''`.
+   */
+  getCharacterScriptDescription(definitionId: string): string {
+    const sprite = this.getCharacterSprite(definitionId);
+    const charData = sprite?.getData('character') as CharacterData | undefined;
+    const jsonDefault = charData?.description ?? '';
+    return readSavedCharacterDescription(
+      resolveGameStateManager(this.game),
+      definitionId,
+      jsonDefault,
+    );
+  }
+
+  /**
+   * Persist `B.character(id).description`. Survives room reloads and save/load. Refreshes the verb
+   * hover line so the new text shows without requiring a pointer move.
+   */
+  setCharacterScriptDescription(definitionId: string, value: string): void {
+    writeSavedCharacterDescription(resolveGameStateManager(this.game), definitionId, value);
+    this.syncVerbHoverScriptSurfaceAtActivePointer();
   }
 
   /** Persist absolute world speech GUI position (backs **`setSpeechPosition`**). */
@@ -5296,10 +5397,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private resolvePropDescriptionForDispatch(spawn: RoomPropSpawn): string | undefined {
-    if (this.propDescriptionOverrides.has(spawn.id)) {
-      return this.propDescriptionOverrides.get(spawn.id);
-    }
-    return spawn.data.description;
+    return this.getPropScriptDescription(spawn.id);
   }
 
   private emitPropVerbInteraction(roomId: string, spawn: RoomPropSpawn, verbId: string): void {
@@ -5397,7 +5495,7 @@ export class RoomScene extends Phaser.Scene {
             type: 'hotspot',
             hotspotId: hotspot.id,
             roomId,
-            description: hotspot.description,
+            description: this.getHotspotScriptDescription(hotspot.id),
             walkToPoint: hotspot.walkToPoint,
             lookAtPoint: hotspot.lookAtPoint,
           });
@@ -5413,7 +5511,7 @@ export class RoomScene extends Phaser.Scene {
         type: 'hotspot',
         hotspotId: hotspot.id,
         roomId,
-        description: hotspot.description,
+        description: this.getHotspotScriptDescription(hotspot.id),
         walkToPoint: hotspot.walkToPoint,
         lookAtPoint: hotspot.lookAtPoint,
       });
@@ -5624,7 +5722,7 @@ export class RoomScene extends Phaser.Scene {
             characterId: d.id,
             instanceId: spawn.instanceId,
             roomId,
-            description: d.description,
+            description: this.getCharacterScriptDescription(d.id),
             ...(d.walkToPoint !== undefined
               ? { walkToPoint: { x: sx + d.walkToPoint.x, y: sy + d.walkToPoint.y } }
               : {}),
@@ -5648,7 +5746,7 @@ export class RoomScene extends Phaser.Scene {
         characterId: d.id,
         instanceId: spawn.instanceId,
         roomId,
-        description: d.description,
+        description: this.getCharacterScriptDescription(d.id),
         ...(d.walkToPoint !== undefined
           ? { walkToPoint: { x: sx + d.walkToPoint.x, y: sy + d.walkToPoint.y } }
           : {}),
@@ -5784,9 +5882,9 @@ export class RoomScene extends Phaser.Scene {
         if (!inv) {
           return null;
         }
-        const fromDesc = inv.description?.trim();
+        const fromDesc = this.getInventoryScriptDescription(itemId).trim();
         let description: string | null = null;
-        if (fromDesc && fromDesc.length > 0) {
+        if (fromDesc.length > 0) {
           description = fromDesc;
         } else {
           const fromName = inv.name?.trim();
@@ -5800,8 +5898,8 @@ export class RoomScene extends Phaser.Scene {
           return null;
         }
         const hs = this.roomData.hotspots.find((h) => h.id === hid);
-        const d = hs?.description?.trim();
-        const description = d && d.length > 0 ? d : null;
+        const d = this.getHotspotScriptDescription(hid).trim();
+        const description = d.length > 0 ? d : null;
         return {
           description,
           targetType: 'hotspot',
@@ -5817,9 +5915,9 @@ export class RoomScene extends Phaser.Scene {
         if (!this.getCharacterScriptClickable(charData.id)) {
           continue;
         }
-        const chDesc = charData.description?.trim();
+        const chDesc = this.getCharacterScriptDescription(charData.id).trim();
         let description: string | null = null;
-        if (chDesc && chDesc.length > 0) {
+        if (chDesc.length > 0) {
           description = chDesc;
         } else {
           const nm = charData.name?.trim();
@@ -5834,14 +5932,13 @@ export class RoomScene extends Phaser.Scene {
       }
       for (const [propId, propSprite] of this.propSpritesById) {
         if (propSprite === o) {
-          const trimmedOverride = this.propDescriptionOverrides.get(propId)?.trim();
+          const trimmedOverride = this.getPropScriptDescription(propId).trim();
           const p = this.roomData.props?.find((rp) => rp.id === propId);
           let description: string;
-          if (trimmedOverride && trimmedOverride.length > 0) {
+          if (trimmedOverride.length > 0) {
             description = trimmedOverride;
           } else {
-            const pd = p?.description?.trim();
-            description = pd && pd.length > 0 ? pd : propId;
+            description = propId;
           }
           return {
             description,
