@@ -262,72 +262,105 @@ export function measureDialogChoiceOptionsLayout(params: {
   return { layouts, totalHeightPx: topPx };
 }
 
-function clampDialogChoiceScrollTopPx(scrollTopPx: number, totalHeightPx: number, viewportH: number): number {
-  const maxScroll = Math.max(0, totalHeightPx - viewportH);
+type DialogChoiceRowMetrics = Pick<DialogChoiceOptionLayout, 'topPx' | 'heightPx'>;
+
+function clampDialogChoiceScrollTopPx(scrollTopPx: number, pageStarts: readonly number[]): number {
+  const maxScroll = pageStarts[pageStarts.length - 1] ?? 0;
   return Math.max(0, Math.min(Math.floor(scrollTopPx), maxScroll));
 }
 
+function dialogChoicePageIndexForScrollTop(scrollTopPx: number, pageStarts: readonly number[]): number {
+  let idx = 0;
+  for (let i = 0; i < pageStarts.length; i += 1) {
+    if (pageStarts[i]! <= scrollTopPx + 0.5) {
+      idx = i;
+    }
+  }
+  return idx;
+}
+
 /**
- * Discrete scroll positions: each page fills the viewport (last page may be shorter).
- * Avoids line-by-line stops that split multi-line options awkwardly.
+ * Discrete scroll positions at option-row tops, packing as many **complete** rows as fit in the viewport.
+ * The last page may be shorter. A row taller than the viewport occupies its own page (clipped to the viewport);
+ * the following page starts at the next row so text is never split across page boundaries.
  */
 export function computeDialogChoiceScrollPageStarts(
-  totalHeightPx: number,
+  layouts: readonly DialogChoiceRowMetrics[],
   viewportHeightPx: number,
 ): number[] {
-  if (viewportHeightPx <= 0 || totalHeightPx <= viewportHeightPx + 1e-6) {
+  if (viewportHeightPx <= 0 || layouts.length === 0) {
     return [0];
   }
-  const maxScroll = Math.max(0, totalHeightPx - viewportHeightPx);
+  const last = layouts[layouts.length - 1]!;
+  const totalHeightPx = last.topPx + last.heightPx;
+  if (totalHeightPx <= viewportHeightPx + 1e-6) {
+    return [0];
+  }
+
   const starts: number[] = [0];
-  let pos = 0;
-  while (pos < maxScroll - 1e-6) {
-    pos = Math.min(Math.floor(pos + viewportHeightPx), maxScroll);
-    if (starts[starts.length - 1] === pos) {
+  let pageStart = 0;
+  const maxSteps = layouts.length + 2;
+  for (let step = 0; step < maxSteps; step += 1) {
+    const windowEnd = pageStart + viewportHeightPx;
+    let overflowIdx = -1;
+    for (let i = 0; i < layouts.length; i += 1) {
+      const row = layouts[i]!;
+      if (row.topPx < pageStart - 1e-6) {
+        continue;
+      }
+      if (row.topPx + row.heightPx > windowEnd + 1e-6) {
+        overflowIdx = i;
+        break;
+      }
+    }
+    if (overflowIdx < 0) {
       break;
     }
-    starts.push(pos);
+    const overflow = layouts[overflowIdx]!;
+    const next =
+      overflow.topPx <= pageStart + 1e-6
+        ? layouts[overflowIdx + 1]?.topPx
+        : overflow.topPx;
+    if (next == null || next <= pageStart) {
+      break;
+    }
+    starts.push(next);
+    pageStart = next;
   }
   return starts;
 }
 
 export function snapDialogChoiceScrollTopToPage(
   scrollTopPx: number,
-  totalHeightPx: number,
+  layouts: readonly DialogChoiceRowMetrics[],
   viewportHeightPx: number,
 ): number {
-  const pages = computeDialogChoiceScrollPageStarts(totalHeightPx, viewportHeightPx);
-  let idx = 0;
-  for (let i = 0; i < pages.length; i += 1) {
-    if (pages[i]! <= scrollTopPx + 0.5) {
-      idx = i;
-    }
-  }
-  return pages[idx] ?? 0;
+  const pages = computeDialogChoiceScrollPageStarts(layouts, viewportHeightPx);
+  const clamped = clampDialogChoiceScrollTopPx(scrollTopPx, pages);
+  return pages[dialogChoicePageIndexForScrollTop(clamped, pages)] ?? 0;
 }
 
 export function advanceDialogChoiceScrollTopPx(
   scrollTopPx: number,
   deltaPages: number,
-  totalHeightPx: number,
+  layouts: readonly DialogChoiceRowMetrics[],
   viewportHeightPx: number,
 ): number {
-  const pages = computeDialogChoiceScrollPageStarts(totalHeightPx, viewportHeightPx);
+  const pages = computeDialogChoiceScrollPageStarts(layouts, viewportHeightPx);
   if (pages.length === 0) {
     return 0;
   }
-  let idx = 0;
-  for (let i = 0; i < pages.length; i += 1) {
-    if (pages[i]! <= scrollTopPx + 0.5) {
-      idx = i;
-    }
-  }
+  const idx = dialogChoicePageIndexForScrollTop(
+    clampDialogChoiceScrollTopPx(scrollTopPx, pages),
+    pages,
+  );
   const nextIdx = Math.max(0, Math.min(idx + deltaPages, pages.length - 1));
   return pages[nextIdx]!;
 }
 
 /**
- * Slices the virtual option list to what fits in `[scrollTopPx, scrollTopPx + viewportH)`, including partial rows.
+ * Slices the virtual option list to complete rows in `[scrollTopPx, scrollTopPx + viewportH)`.
+ * A row taller than the viewport is included from its top (bottom clipped); partial top slices are omitted.
  */
 export function layoutDialogChoiceViewportSegments(params: {
   scene: Phaser.Scene;
@@ -368,8 +401,8 @@ export function layoutDialogChoiceViewportSegments(params: {
   }
 
   const clampedScrollTopPx = snapDialogChoiceScrollTopToPage(
-    clampDialogChoiceScrollTopPx(scrollTopPx, totalHeightPx, viewportAvailableHeightPx),
-    totalHeightPx,
+    scrollTopPx,
+    layouts,
     viewportAvailableHeightPx,
   );
   const windowEnd = clampedScrollTopPx + viewportAvailableHeightPx;
@@ -377,30 +410,43 @@ export function layoutDialogChoiceViewportSegments(params: {
 
   for (const { option, topPx, heightPx } of layouts) {
     const optionEnd = topPx + heightPx;
-    const intersectStart = Math.max(clampedScrollTopPx, topPx);
-    const intersectEnd = Math.min(windowEnd, optionEnd);
-    if (intersectStart >= intersectEnd) {
+    if (optionEnd <= clampedScrollTopPx + 1e-6 || topPx >= windowEnd - 1e-6) {
       continue;
     }
-    segments.push({
-      option,
-      fullRowHeightPx: heightPx,
-      rowTopInViewportPx: intersectStart - clampedScrollTopPx,
-      clipTopPx: intersectStart - topPx,
-      visibleHeightPx: intersectEnd - intersectStart,
-    });
+    const fullyInside =
+      topPx >= clampedScrollTopPx - 1e-6 && optionEnd <= windowEnd + 1e-6;
+    const startsAtPage = Math.abs(topPx - clampedScrollTopPx) <= 1e-6;
+    const tallerThanViewport = heightPx > viewportAvailableHeightPx + 1e-6;
+    if (fullyInside) {
+      segments.push({
+        option,
+        fullRowHeightPx: heightPx,
+        rowTopInViewportPx: topPx - clampedScrollTopPx,
+        clipTopPx: 0,
+        visibleHeightPx: heightPx,
+      });
+      continue;
+    }
+    if (startsAtPage && tallerThanViewport) {
+      segments.push({
+        option,
+        fullRowHeightPx: heightPx,
+        rowTopInViewportPx: 0,
+        clipTopPx: 0,
+        visibleHeightPx: viewportAvailableHeightPx,
+      });
+    }
   }
 
   if (segments.length === 0) {
-    const first = layouts[0]!;
-    const clipTop = Math.min(first.heightPx, clampedScrollTopPx);
-    const visibleHeightPx = Math.min(first.heightPx - clipTop, viewportAvailableHeightPx);
+    const first =
+      layouts.find((row) => row.topPx + row.heightPx > clampedScrollTopPx + 1e-6) ?? layouts[0]!;
     segments.push({
       option: first.option,
       fullRowHeightPx: first.heightPx,
       rowTopInViewportPx: 0,
-      clipTopPx: clipTop,
-      visibleHeightPx: Math.max(1, visibleHeightPx),
+      clipTopPx: 0,
+      visibleHeightPx: Math.max(1, Math.min(first.heightPx, viewportAvailableHeightPx)),
     });
   }
 
@@ -498,7 +544,7 @@ export function getDialogChoiceScrollButtonState(params: {
 
   const optionButtonWidthPx = Math.max(1, Math.round(buttonDef.width));
   const wrapPx = resolveDialogChoiceOptionWordWrapMaxPx(buttonDef, optionButtonWidthPx);
-  const { totalHeightPx } = measureDialogChoiceOptionsLayout({
+  const { layouts } = measureDialogChoiceOptionsLayout({
     scene,
     gridDef,
     buttonDef,
@@ -506,19 +552,9 @@ export function getDialogChoiceScrollButtonState(params: {
     visibleOptions,
     wrapInnerWidth: wrapPx,
   });
-  const pages = computeDialogChoiceScrollPageStarts(totalHeightPx, viewportH);
-  const clampedScrollTopPx = snapDialogChoiceScrollTopToPage(
-    clampDialogChoiceScrollTopPx(scrollTopPx, totalHeightPx, viewportH),
-    totalHeightPx,
-    viewportH,
-  );
-  let pageIdx = 0;
-  for (let i = 0; i < pages.length; i += 1) {
-    if (pages[i] === clampedScrollTopPx) {
-      pageIdx = i;
-      break;
-    }
-  }
+  const pages = computeDialogChoiceScrollPageStarts(layouts, viewportH);
+  const clampedScrollTopPx = snapDialogChoiceScrollTopToPage(scrollTopPx, layouts, viewportH);
+  const pageIdx = dialogChoicePageIndexForScrollTop(clampedScrollTopPx, pages);
 
   return {
     needScroll: true,
@@ -689,7 +725,8 @@ export class DialogChoiceDynamicRowState {
       let btnLocalX: number;
       let btnLocalY: number;
 
-      const contentShiftY = -clipTopPx;
+      /** Only shift when a single over-tall option is cropped from the top; never pull complete rows above the viewport. */
+      const contentShiftY = clipTopPx > 0 ? -clipTopPx : 0;
 
       if (useTemplateOptionAnchor) {
         btnLocalX = Math.round(tplOptionXY!.x);

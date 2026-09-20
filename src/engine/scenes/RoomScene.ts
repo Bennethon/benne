@@ -1499,7 +1499,7 @@ export class RoomScene extends Phaser.Scene {
     );
     const optionButtonWidthPx = Math.max(1, Math.round(buttonDef.width));
     const wrapPx = resolveDialogChoiceOptionWordWrapMaxPx(buttonDef, optionButtonWidthPx);
-    const { totalHeightPx } = measureDialogChoiceOptionsLayout({
+    const { layouts } = measureDialogChoiceOptionsLayout({
       scene: this,
       gridDef,
       buttonDef,
@@ -1510,7 +1510,7 @@ export class RoomScene extends Phaser.Scene {
     this.activeDialogChoiceSession.scrollTopPx = advanceDialogChoiceScrollTopPx(
       this.activeDialogChoiceSession.scrollTopPx,
       delta,
-      totalHeightPx,
+      layouts,
       viewportH,
     );
     this.refreshDialogChoiceOverlay();
