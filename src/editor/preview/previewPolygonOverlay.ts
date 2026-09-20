@@ -1,5 +1,6 @@
 import type { Cameras, Game } from 'phaser';
 import type { Point2 } from '../../types/room';
+import { drawMoveGizmo as paintMoveGizmo, type MoveGizmoPart } from './previewMoveGizmo';
 
 /** Axis-aligned rect in world / game resolution space (same as room JSON). */
 export type PreviewOverlayWorldRect = {
@@ -440,5 +441,14 @@ export class PreviewPolygonOverlay {
         }
 
         this.ctx.globalAlpha = 1;
+    }
+
+    /**
+     * Draw a 2-axis move gizmo at a world point without clearing the overlay
+     * (call after {@link clearAndDraw} / rect strokes).
+     */
+    drawMoveGizmo(world: Point2, cam: Cameras.Scene2D.Camera, selected: MoveGizmoPart | null): void {
+        const q = this.worldToCanvasCss(world, cam);
+        paintMoveGizmo(this.ctx, q, selected);
     }
 }

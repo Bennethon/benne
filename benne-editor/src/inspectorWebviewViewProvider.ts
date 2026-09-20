@@ -638,6 +638,8 @@ type WebviewPatch =
           clickable?: boolean;
           zIndex?: number;
           baseline?: number | null;
+          x?: number;
+          y?: number;
           parallaxDepth?: number;
           alpha?: number;
           tag?: string;
@@ -1280,6 +1282,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 await this.roomPreview.focusInspectorGeometry(uri, { kind: 'hotspot', id });
             } else if (kind === 'point' && id) {
                 await this.roomPreview.focusInspectorGeometry(uri, { kind: 'roomPoint', id });
+            } else if (kind === 'character' && id) {
+                await this.roomPreview.focusInspectorGeometry(uri, { kind: 'roomCharacter', id });
             } else if (kind === 'region' && id) {
                 await this.roomPreview.focusInspectorGeometry(uri, { kind: 'region', id });
             } else if (kind === 'walkable') {
@@ -1411,6 +1415,8 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 clickable: p.clickable,
                 zIndex: p.zIndex,
                 baseline: p.baseline,
+                x: p.x,
+                y: p.y,
                 parallaxDepth: p.parallaxDepth,
                 alpha: p.alpha,
                 tag: p.tag,

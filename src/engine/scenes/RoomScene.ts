@@ -2391,6 +2391,33 @@ export class RoomScene extends Phaser.Scene {
     return this.characterSpritesByDefId.get(definitionId);
   }
 
+  /** Sprite for a specific room spawn row (`RoomCharacterInstance.instanceId`). */
+  getCharacterSpriteByInstanceId(
+    instanceId: string,
+  ): Phaser.GameObjects.Sprite | Phaser.GameObjects.Image | undefined {
+    for (const e of this.roomStackEntities) {
+      if (e.kind === 'character' && e.sprite.getData('instanceId') === instanceId) {
+        return e.sprite;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Editor/preview: place a spawned character's **feet** at room-space `(x, y)` and re-apply region scale.
+   */
+  placeCharacterFeetNow(instanceId: string, worldFeetX: number, worldFeetY: number): void {
+    const sprite = this.getCharacterSpriteByInstanceId(instanceId);
+    if (!sprite) {
+      return;
+    }
+    const data = sprite.getData('character') as CharacterData | undefined;
+    const feetLocal = data
+      ? resolveCharacterFeetLocal(data, sprite as Phaser.GameObjects.Sprite)
+      : { x: sprite.frame.width * 0.5, y: sprite.frame.height };
+    this.applyFeetWorldWithRegionScale(sprite, feetLocal, worldFeetX, worldFeetY);
+  }
+
   /** Spawned character definition ids (for script dialogue validation). */
   getSpawnedCharacterDefinitionIds(): readonly string[] {
     return Array.from(this.characterSpritesByDefId.keys());

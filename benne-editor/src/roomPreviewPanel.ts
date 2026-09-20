@@ -12,6 +12,41 @@ import {
     parseRoomPolygonPatch,
     type RoomPolygonPatch,
 } from './roomPolygonPatch';
+import { syncOpenJsonDocumentFromData } from './inspectorJsonDocument';
+
+type PreviewToolbarFocus =
+    | 'room'
+    | 'walkable'
+    | 'roomSize'
+    | 'scrollBounds'
+    | 'prop'
+    | 'hotspot'
+    | 'region'
+    | 'roomPoint'
+    | 'roomCharacter';
+
+type PreviewToolbarState = {
+    focus: PreviewToolbarFocus;
+    propId: string;
+    hotspotId: string;
+    regionId: string;
+    roomPointId: string;
+    characterInstanceId: string;
+    walkablePolygonId: string;
+    walkableHoleId: string;
+};
+
+function emptyPreviewToolbarIds(): Omit<PreviewToolbarState, 'focus'> {
+    return {
+        propId: '',
+        hotspotId: '',
+        regionId: '',
+        roomPointId: '',
+        characterInstanceId: '',
+        walkablePolygonId: '',
+        walkableHoleId: '',
+    };
+}
 
 /**
  * Phaser room preview in a {@link vscode.WebviewPanel} (editor area), driven by BENNE tree selection.
@@ -39,11 +74,18 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         | { roomJsonUriStr: string; kind: 'prop'; id: string }
         | { roomJsonUriStr: string; kind: 'hotspot'; id: string }
         | { roomJsonUriStr: string; kind: 'roomPoint'; id: string }
+        | { roomJsonUriStr: string; kind: 'roomCharacter'; id: string }
         | { roomJsonUriStr: string; kind: 'region'; id: string }
         | { roomJsonUriStr: string; kind: 'walkable'; polygonId: string; holeId: string | null }
         | { roomJsonUriStr: string; kind: 'roomSize' }
         | { roomJsonUriStr: string; kind: 'scrollBounds' }
         | undefined;
+    /**
+     * After a preview-originated `polygonPatch` write, ignore the JSON watcher's `pushPreview` so Save
+     * does not destroy the live Phaser session.
+     */
+    private previewOriginatedRoomJsonUri: string | null = null;
+    private previewOriginatedRoomJsonSkipUntil = 0;
     private readonly disposables: vscode.Disposable[] = [];
     /** Serializes preview loads so rapid saves do not post overlapping `loadRoom` messages. */
     private previewPushTail: Promise<void> = Promise.resolve();
@@ -171,10 +213,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             const nextUri = this.previewRoomJsonUriForSelection();
             const nextStr = nextUri?.toString() ?? '';
             const tb = this.getPreviewToolbarState();
-            const loadKey =
-                nextStr.length > 0
-                    ? `${nextStr}\0${tb.focus}\0${tb.propId}\0${tb.hotspotId}\0${tb.regionId}\0${tb.roomPointId}\0${tb.walkablePolygonId}\0${tb.walkableHoleId}`
-                    : '';
+            const loadKey = nextStr.length > 0 ? this.previewLoadKey(nextStr, tb) : '';
             if (nextStr && loadKey === this.lastPushedPreviewLoadKey) {
                 this.postToolbarUiIfNeeded();
                 return;
@@ -183,91 +222,60 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         }
     }
 
-    private getPreviewToolbarState(): {
-        focus: 'room' | 'walkable' | 'roomSize' | 'scrollBounds' | 'prop' | 'hotspot' | 'region' | 'roomPoint';
-        propId: string;
-        hotspotId: string;
-        regionId: string;
-        roomPointId: string;
-        walkablePolygonId: string;
-        walkableHoleId: string;
-    } {
+    private getPreviewToolbarState(): PreviewToolbarState {
         const roomPanel = this.selection.roomPanel;
-        const emptyWalk = { walkablePolygonId: '', walkableHoleId: '' };
+        const empty = emptyPreviewToolbarIds();
         if (roomPanel.kind === 'prop') {
             return {
                 focus: 'prop',
+                ...empty,
                 propId: roomPanel.prop.id,
-                hotspotId: '',
-                regionId: '',
-                roomPointId: '',
-                ...emptyWalk
             };
         }
         if (roomPanel.kind === 'hotspot') {
             return {
                 focus: 'hotspot',
-                propId: '',
+                ...empty,
                 hotspotId: roomPanel.hotspotId,
-                regionId: '',
-                roomPointId: '',
-                ...emptyWalk
             };
         }
         if (roomPanel.kind === 'region') {
             return {
                 focus: 'region',
-                propId: '',
-                hotspotId: '',
+                ...empty,
                 regionId: roomPanel.regionId,
-                roomPointId: '',
-                ...emptyWalk
             };
         }
         if (roomPanel.kind === 'roomPoint') {
             return {
                 focus: 'roomPoint',
-                propId: '',
-                hotspotId: '',
-                regionId: '',
+                ...empty,
                 roomPointId: roomPanel.pointId,
-                ...emptyWalk
+            };
+        }
+        if (roomPanel.kind === 'roomCharacter') {
+            return {
+                focus: 'roomCharacter',
+                ...empty,
+                characterInstanceId: roomPanel.instanceId,
             };
         }
         if (roomPanel.kind === 'walkable') {
             return {
                 focus: 'walkable',
-                propId: '',
-                hotspotId: '',
-                regionId: '',
-                roomPointId: '',
+                ...empty,
                 walkablePolygonId: roomPanel.polygonId,
-                walkableHoleId: roomPanel.holeId ?? ''
+                walkableHoleId: roomPanel.holeId ?? '',
             };
         }
         return {
             focus: 'room',
-            propId: '',
-            hotspotId: '',
-            regionId: '',
-            roomPointId: '',
-            ...emptyWalk
+            ...empty,
         };
     }
 
-    private previewLoadKey(
-        roomJsonUriStr: string,
-        tb: {
-            focus: 'room' | 'walkable' | 'roomSize' | 'scrollBounds' | 'prop' | 'hotspot' | 'region' | 'roomPoint';
-            propId: string;
-            hotspotId: string;
-            regionId: string;
-            roomPointId: string;
-            walkablePolygonId: string;
-            walkableHoleId: string;
-        }
-    ): string {
-        return `${roomJsonUriStr}\0${tb.focus}\0${tb.propId}\0${tb.hotspotId}\0${tb.regionId}\0${tb.roomPointId}\0${tb.walkablePolygonId}\0${tb.walkableHoleId}`;
+    private previewLoadKey(roomJsonUriStr: string, tb: PreviewToolbarState): string {
+        return `${roomJsonUriStr}\0${tb.focus}\0${tb.propId}\0${tb.hotspotId}\0${tb.regionId}\0${tb.roomPointId}\0${tb.characterInstanceId}\0${tb.walkablePolygonId}\0${tb.walkableHoleId}`;
     }
 
     /**
@@ -310,6 +318,12 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             return;
         }
         const uriStr = uri.toString();
+        if (
+            this.previewOriginatedRoomJsonUri === uriStr &&
+            Date.now() < this.previewOriginatedRoomJsonSkipUntil
+        ) {
+            return;
+        }
         const cur = this.previewRoomJsonUriForSelection()?.toString();
         if (uriStr !== cur && uriStr !== this.lastPushedRoomJsonUri) {
             return;
@@ -319,6 +333,12 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         }
         this.roomJsonDiskChangeTimer = setTimeout(() => {
             this.roomJsonDiskChangeTimer = undefined;
+            if (
+                this.previewOriginatedRoomJsonUri === uriStr &&
+                Date.now() < this.previewOriginatedRoomJsonSkipUntil
+            ) {
+                return;
+            }
             void this.pushPreview();
         }, 250);
     }
@@ -329,7 +349,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             return;
         }
         const ui = this.getPreviewToolbarState();
-        const key = `${ui.focus}:${ui.propId}:${ui.hotspotId}:${ui.regionId}:${ui.roomPointId}:${ui.walkablePolygonId}:${ui.walkableHoleId}`;
+        const key = `${ui.focus}:${ui.propId}:${ui.hotspotId}:${ui.regionId}:${ui.roomPointId}:${ui.characterInstanceId}:${ui.walkablePolygonId}:${ui.walkableHoleId}`;
         if (this.lastToolbarUiKey === key) {
             return;
         }
@@ -341,6 +361,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             ...(ui.focus === 'hotspot' ? { hotspotId: ui.hotspotId } : {}),
             ...(ui.focus === 'region' ? { regionId: ui.regionId } : {}),
             ...(ui.focus === 'roomPoint' ? { roomPointId: ui.roomPointId } : {}),
+            ...(ui.focus === 'roomCharacter' ? { characterInstanceId: ui.characterInstanceId } : {}),
             ...(ui.focus === 'walkable'
                 ? { walkablePolygonId: ui.walkablePolygonId, walkableHoleId: ui.walkableHoleId }
                 : {}),
@@ -479,6 +500,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             | { kind: 'prop'; id: string }
             | { kind: 'hotspot'; id: string }
             | { kind: 'roomPoint'; id: string }
+            | { kind: 'roomCharacter'; id: string }
             | { kind: 'region'; id: string }
             | { kind: 'walkable'; polygonId: string; holeId: string | null }
             | { kind: 'roomSize' }
@@ -494,6 +516,9 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 break;
             case 'roomPoint':
                 this.pendingInspectorFocus = { roomJsonUriStr: u, kind: 'roomPoint', id: target.id };
+                break;
+            case 'roomCharacter':
+                this.pendingInspectorFocus = { roomJsonUriStr: u, kind: 'roomCharacter', id: target.id };
                 break;
             case 'region':
                 this.pendingInspectorFocus = { roomJsonUriStr: u, kind: 'region', id: target.id };
@@ -521,60 +546,30 @@ export class RoomPreviewPanelController implements vscode.Disposable {
 
     private toolbarStateFromInspectorPending(
         pending: NonNullable<RoomPreviewPanelController['pendingInspectorFocus']>
-    ): {
-        focus: 'room' | 'walkable' | 'roomSize' | 'scrollBounds' | 'prop' | 'hotspot' | 'region' | 'roomPoint';
-        propId: string;
-        hotspotId: string;
-        regionId: string;
-        roomPointId: string;
-        walkablePolygonId: string;
-        walkableHoleId: string;
-    } {
-        const zw = { walkablePolygonId: '', walkableHoleId: '' };
+    ): PreviewToolbarState {
+        const empty = emptyPreviewToolbarIds();
         switch (pending.kind) {
             case 'prop':
-                return { focus: 'prop', propId: pending.id, hotspotId: '', regionId: '', roomPointId: '', ...zw };
+                return { focus: 'prop', ...empty, propId: pending.id };
             case 'hotspot':
-                return {
-                    focus: 'hotspot',
-                    propId: '',
-                    hotspotId: pending.id,
-                    regionId: '',
-                    roomPointId: '',
-                    ...zw
-                };
+                return { focus: 'hotspot', ...empty, hotspotId: pending.id };
             case 'roomPoint':
-                return {
-                    focus: 'roomPoint',
-                    propId: '',
-                    hotspotId: '',
-                    regionId: '',
-                    roomPointId: pending.id,
-                    ...zw
-                };
+                return { focus: 'roomPoint', ...empty, roomPointId: pending.id };
+            case 'roomCharacter':
+                return { focus: 'roomCharacter', ...empty, characterInstanceId: pending.id };
             case 'region':
-                return {
-                    focus: 'region',
-                    propId: '',
-                    hotspotId: '',
-                    regionId: pending.id,
-                    roomPointId: '',
-                    ...zw
-                };
+                return { focus: 'region', ...empty, regionId: pending.id };
             case 'walkable':
                 return {
                     focus: 'walkable',
-                    propId: '',
-                    hotspotId: '',
-                    regionId: '',
-                    roomPointId: '',
+                    ...empty,
                     walkablePolygonId: pending.polygonId,
-                    walkableHoleId: pending.holeId ?? ''
+                    walkableHoleId: pending.holeId ?? '',
                 };
             case 'roomSize':
-                return { focus: 'roomSize', propId: '', hotspotId: '', regionId: '', roomPointId: '', ...zw };
+                return { focus: 'roomSize', ...empty };
             case 'scrollBounds':
-                return { focus: 'scrollBounds', propId: '', hotspotId: '', regionId: '', roomPointId: '', ...zw };
+                return { focus: 'scrollBounds', ...empty };
         }
     }
 
@@ -604,6 +599,12 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 type: 'benne/preview/inspectorFocus',
                 previewFocus: 'roomPoint',
                 roomPointId: pending.id
+            });
+        } else if (pending.kind === 'roomCharacter') {
+            webview.postMessage({
+                type: 'benne/preview/inspectorFocus',
+                previewFocus: 'roomCharacter',
+                characterInstanceId: pending.id
             });
         } else if (pending.kind === 'walkable') {
             webview.postMessage({
@@ -667,6 +668,15 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 message: e instanceof Error ? e.message : String(e),
             });
             return;
+        }
+        this.previewOriginatedRoomJsonUri = uri.toString();
+        this.previewOriginatedRoomJsonSkipUntil = Date.now() + 1200;
+        try {
+            const raw = await vscode.workspace.fs.readFile(uri);
+            const data = JSON.parse(Buffer.from(raw).toString('utf8')) as Record<string, unknown>;
+            await syncOpenJsonDocumentFromData(uri, data);
+        } catch {
+            /* Inspector field refresh is best-effort */
         }
         // Do not pushPreview here: full destroy/recreate is brittle in the webview and unnecessary —
         // the preview already mutates live RoomData; appliedPatch syncs integer-rounded coordinates.
@@ -743,7 +753,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             const pend = this.pendingInspectorFocus;
             const usePending = !!(pend && pend.roomJsonUriStr === uriStr);
             const tb = usePending ? this.toolbarStateFromInspectorPending(pend) : this.getPreviewToolbarState();
-            this.lastToolbarUiKey = `${tb.focus}:${tb.propId}:${tb.hotspotId}:${tb.regionId}:${tb.roomPointId}:${tb.walkablePolygonId}:${tb.walkableHoleId}`;
+            this.lastToolbarUiKey = `${tb.focus}:${tb.propId}:${tb.hotspotId}:${tb.regionId}:${tb.roomPointId}:${tb.characterInstanceId}:${tb.walkablePolygonId}:${tb.walkableHoleId}`;
             webview.postMessage({
                 type: 'benne/preview/loadRoom',
                 room,
@@ -755,6 +765,7 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 ...(tb.focus === 'hotspot' ? { hotspotId: tb.hotspotId } : {}),
                 ...(tb.focus === 'region' ? { regionId: tb.regionId } : {}),
                 ...(tb.focus === 'roomPoint' ? { roomPointId: tb.roomPointId } : {}),
+                ...(tb.focus === 'roomCharacter' ? { characterInstanceId: tb.characterInstanceId } : {}),
                 ...(tb.focus === 'walkable'
                     ? { walkablePolygonId: tb.walkablePolygonId, walkableHoleId: tb.walkableHoleId }
                     : {}),

@@ -4,6 +4,27 @@ import { BENNE_VIDEO_SCRIPT_DISABLED_KEY } from '../../engine/video/benneVideoRe
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
 import { getBenneRendererConfigFields } from '../../engine/gameConfig';
 import { buildGuiOverlay, GUI_TEXT_OVERLAY_DEPTH } from '../../engine/gui/buildGuiOverlay';
+import type { BuiltGuiOverlay } from '../../engine/gui/buildGuiOverlay';
+import { syncOutlinedGuiBitmapTextPositions } from '../../engine/gui/guiTextOutline';
+import {
+  buildGuiGridLayoutRuntimeMap,
+  cumulativeOffsets,
+  isGuiGridPlacement,
+  layoutGuiGridTracks,
+  resolveGuiControlRootTopLeft,
+  spanCellRect,
+} from '../../engine/gui/guiGridLayout';
+import type { GuiControl, GuiData, GuiGridControl, GuiInventoryPanelControl } from '../../types/gui';
+import {
+  PreviewPolygonOverlay,
+  type PreviewStrokeRectOverlayExtras,
+} from './previewPolygonOverlay';
+import {
+  applyMoveGizmoDelta,
+  hitMoveGizmo,
+  type MoveGizmoPart,
+} from './previewMoveGizmo';
+import { guiPreviewSelectBridge } from './guiPreviewSelectBridge';
 import {
   buildInitialInventoryByCharacter,
   normalizeSerializedInventory,
@@ -20,24 +41,12 @@ import {
   guiHasTriggerControls,
   type GuiFontLoadRequest,
 } from '../../game/boot/collectFontLoadsForGui';
-import {
-  buildGuiGridLayoutRuntimeMap,
-  cumulativeOffsets,
-  layoutGuiGridTracks,
-  resolveGuiControlRootTopLeft,
-  spanCellRect,
-} from '../../engine/gui/guiGridLayout';
-import type { GuiData, GuiGridControl, GuiInventoryPanelControl } from '../../types/gui';
 import type { GameSettingsInitialGameState } from '../../types/game';
 import { resolveGameStateManager, setActiveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
 import {
   wireBenneVerbContextGameStateRelay,
   unwireBenneVerbContextGameStateRelay,
 } from '../../engine/scripting/benneVerbContextScriptSurface';
-import {
-  PreviewPolygonOverlay,
-  type PreviewStrokeRectOverlayExtras,
-} from './previewPolygonOverlay';
 
 const BOOT = 'BenneGuiPreviewBoot';
 const PREVIEW = 'BenneGuiPreview';
@@ -70,7 +79,82 @@ export type GuiPreviewGamePayload = {
     textureURL: string;
     atlasURL: string;
   } | null;
+  /** Host URI of the `*.gui.json` being previewed (for position patches). */
+  guiJsonUri?: string;
+  /** Persist a control's authored x/y or grid offsets after a gizmo drag. */
+  onControlPositionPatch?: (index: number, patch: Record<string, unknown>) => void;
 };
+
+function parseGuiControlKeyIndex(key: string): number | null {
+  const i = key.lastIndexOf(':');
+  if (i < 0) {
+    return null;
+  }
+  const n = Number(key.slice(i + 1));
+  return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+type PositionableGo = Phaser.GameObjects.GameObject & {
+  x: number;
+  y: number;
+  setPosition(x: number, y: number): unknown;
+  getWorldTransformMatrix?: () => { tx: number; ty: number };
+};
+
+function asPositionable(go: Phaser.GameObjects.GameObject | undefined): PositionableGo | null {
+  if (!go) {
+    return null;
+  }
+  const p = go as PositionableGo;
+  if (typeof p.setPosition !== 'function' || typeof p.x !== 'number' || typeof p.y !== 'number') {
+    return null;
+  }
+  return p;
+}
+
+function gameObjectWorldXY(go: PositionableGo): { x: number; y: number } {
+  if (typeof go.getWorldTransformMatrix === 'function') {
+    const m = go.getWorldTransformMatrix();
+    return { x: m.tx, y: m.ty };
+  }
+  return { x: go.x, y: go.y };
+}
+
+function syncMovedGuiRoot(go: Phaser.GameObjects.GameObject): void {
+  if (go instanceof Phaser.GameObjects.BitmapText) {
+    syncOutlinedGuiBitmapTextPositions(go);
+    return;
+  }
+  const list = (go as Phaser.GameObjects.Container).list;
+  if (!Array.isArray(list)) {
+    return;
+  }
+  for (const child of list) {
+    if (child instanceof Phaser.GameObjects.BitmapText) {
+      syncOutlinedGuiBitmapTextPositions(child);
+    }
+  }
+}
+
+function authoredControlXY(c: GuiControl): { x: number; y: number } {
+  if (c.type !== 'grid' && isGuiGridPlacement(c.gridPlacement)) {
+    return {
+      x: typeof c.gridPlacement.offsetX === 'number' && Number.isFinite(c.gridPlacement.offsetX) ? c.gridPlacement.offsetX : 0,
+      y: typeof c.gridPlacement.offsetY === 'number' && Number.isFinite(c.gridPlacement.offsetY) ? c.gridPlacement.offsetY : 0,
+    };
+  }
+  return { x: Math.round(c.x), y: Math.round(c.y) };
+}
+
+function applyAuthoredControlXY(c: GuiControl, x: number, y: number): Record<string, unknown> {
+  if (c.type !== 'grid' && isGuiGridPlacement(c.gridPlacement)) {
+    c.gridPlacement = { ...c.gridPlacement, offsetX: x, offsetY: y };
+    return { gridPlacement: { ...c.gridPlacement } };
+  }
+  c.x = x;
+  c.y = y;
+  return { x, y };
+}
 
 function editorGameConfig(
   parent: HTMLElement,
@@ -381,6 +465,13 @@ class GuiPreviewScene extends Phaser.Scene {
   private guiOutlineOverlay?: PreviewPolygonOverlay;
   /** Redraw outlines when the webview panel resizes (Phaser `scale.resize` alone may not fire). */
   private guiOutlineLayoutObserver?: ResizeObserver;
+  private builtOverlay: BuiltGuiOverlay | null = null;
+  private unsubSelect?: () => void;
+  private dragGizmo: MoveGizmoPart | null = null;
+  private gizmoOriginStart = { x: 0, y: 0 };
+  private gizmoPointerStart = { x: 0, y: 0 };
+  private gizmoRootStart = { x: 0, y: 0 };
+  private gizmoAuthoredStart = { x: 0, y: 0 };
   private readonly refreshGuiOutlineBound = (): void => {
     this.refreshGuiOutlineOverlay();
   };
@@ -398,12 +489,13 @@ class GuiPreviewScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.setBackgroundColor(0x000000);
 
-    buildGuiOverlay(this, guiData, {
-      depth: PREVIEW_GUI_TEXT_DEPTH,
-      startVisible: true,
-      emptyTextPlaceholder: 'Lorem ipsum dolor sit amet.',
-      previewGuiAsepriteSheetJson: this.payload.previewGuiAsepriteSheetJson,
-    });
+    this.builtOverlay =
+      buildGuiOverlay(this, guiData, {
+        depth: PREVIEW_GUI_TEXT_DEPTH,
+        startVisible: true,
+        emptyTextPlaceholder: 'Lorem ipsum dolor sit amet.',
+        previewGuiAsepriteSheetJson: this.payload.previewGuiAsepriteSheetJson,
+      }) ?? null;
 
     this.add
       .text(8, 6, `${internalWidth}×${internalHeight} · game resolution`, {
@@ -429,17 +521,36 @@ class GuiPreviewScene extends Phaser.Scene {
     ) {
       this.guiOutlineOverlay = new PreviewPolygonOverlay(this.game, mount);
       this.guiOutlineOverlay.setPointerEventsEnabled(false);
+      this.guiOutlineOverlay.canvas.addEventListener('pointerdown', this.onOverlayPointerDown);
+      this.guiOutlineOverlay.canvas.addEventListener('pointermove', this.onOverlayPointerMove);
+      this.guiOutlineOverlay.canvas.addEventListener('pointerup', this.onOverlayPointerUp);
+      this.guiOutlineOverlay.canvas.addEventListener('pointercancel', this.onOverlayPointerUp);
       this.scale.on('resize', this.refreshGuiOutlineBound);
       this.guiOutlineLayoutObserver = new ResizeObserver(this.refreshGuiOutlineBound);
       this.guiOutlineLayoutObserver.observe(mount);
     }
 
+    this.unsubSelect = guiPreviewSelectBridge.subscribe(() => {
+      this.syncGizmoPointerEvents();
+    });
+    this.syncGizmoPointerEvents();
+
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.unsubSelect?.();
+      this.unsubSelect = undefined;
       this.scale.off('resize', this.refreshGuiOutlineBound);
       this.guiOutlineLayoutObserver?.disconnect();
       this.guiOutlineLayoutObserver = undefined;
-      this.guiOutlineOverlay?.destroy();
+      const ov = this.guiOutlineOverlay;
+      if (ov) {
+        ov.canvas.removeEventListener('pointerdown', this.onOverlayPointerDown);
+        ov.canvas.removeEventListener('pointermove', this.onOverlayPointerMove);
+        ov.canvas.removeEventListener('pointerup', this.onOverlayPointerUp);
+        ov.canvas.removeEventListener('pointercancel', this.onOverlayPointerUp);
+        ov.destroy();
+      }
       this.guiOutlineOverlay = undefined;
+      this.builtOverlay = null;
     });
   }
 
@@ -450,6 +561,131 @@ class GuiPreviewScene extends Phaser.Scene {
   update(): void {
     this.refreshGuiOutlineOverlay();
   }
+
+  private selectedControlIndex(): number | null {
+    return parseGuiControlKeyIndex(guiPreviewSelectBridge.selectedControlKey);
+  }
+
+  private selectedControl(): GuiControl | null {
+    const idx = this.selectedControlIndex();
+    if (idx === null) {
+      return null;
+    }
+    return this.payload.guiData.controls?.[idx] ?? null;
+  }
+
+  private selectedRoot(): PositionableGo | null {
+    const idx = this.selectedControlIndex();
+    if (idx === null) {
+      return null;
+    }
+    return asPositionable(this.builtOverlay?.controlRootsByIndex.get(idx));
+  }
+
+  private gizmoWorldOrigin(): { x: number; y: number } | null {
+    const root = this.selectedRoot();
+    if (root) {
+      return gameObjectWorldXY(root);
+    }
+    const c = this.selectedControl();
+    if (!c) {
+      return null;
+    }
+    const gui = this.payload.guiData;
+    const caches = buildGuiGridLayoutRuntimeMap(gui.controls ?? []);
+    const id = 'id' in c && typeof c.id === 'string' ? c.id.trim() : '';
+    const fixed = (gui.fixedControls ?? []).some((fid) => fid.trim() === id);
+    const ox = fixed ? 0 : Math.round(gui.x ?? 0);
+    const oy = fixed ? 0 : Math.round(gui.y ?? 0);
+    return resolveGuiControlRootTopLeft(
+      caches,
+      ox,
+      oy,
+      c.type === 'grid' ? undefined : c.gridPlacement,
+      1,
+      1,
+      c.x,
+      c.y,
+    );
+  }
+
+  private syncGizmoPointerEvents(): void {
+    const on = this.selectedControlIndex() !== null;
+    this.guiOutlineOverlay?.setPointerEventsEnabled(on);
+  }
+
+  private pointerCss(e: PointerEvent): { cx: number; cy: number } {
+    const rect = this.game.canvas.getBoundingClientRect();
+    return { cx: e.clientX - rect.left, cy: e.clientY - rect.top };
+  }
+
+  private readonly onOverlayPointerDown = (e: PointerEvent): void => {
+    const ov = this.guiOutlineOverlay;
+    if (!ov || e.button !== 0) {
+      return;
+    }
+    const origin = this.gizmoWorldOrigin();
+    if (!origin) {
+      return;
+    }
+    const { cx, cy } = this.pointerCss(e);
+    const cssOrigin = ov.worldToCanvasCss(origin, this.cameras.main);
+    const part = hitMoveGizmo(cx, cy, cssOrigin);
+    if (!part) {
+      return;
+    }
+    e.preventDefault();
+    ov.canvas.setPointerCapture(e.pointerId);
+    this.dragGizmo = part;
+    this.gizmoOriginStart = { ...origin };
+    const world = ov.domToWorld(e.pageX, e.pageY, this.cameras.main);
+    this.gizmoPointerStart = { x: world.x, y: world.y };
+    const root = this.selectedRoot();
+    this.gizmoRootStart = root ? { x: root.x, y: root.y } : { x: 0, y: 0 };
+    const c = this.selectedControl();
+    this.gizmoAuthoredStart = c ? authoredControlXY(c) : { x: 0, y: 0 };
+  };
+
+  private readonly onOverlayPointerMove = (e: PointerEvent): void => {
+    if (!this.dragGizmo || !this.guiOutlineOverlay) {
+      return;
+    }
+    const world = this.guiOutlineOverlay.domToWorld(e.pageX, e.pageY, this.cameras.main);
+    const next = applyMoveGizmoDelta(this.dragGizmo, this.gizmoOriginStart, this.gizmoPointerStart, world);
+    const dx = Math.round(next.x - this.gizmoOriginStart.x);
+    const dy = Math.round(next.y - this.gizmoOriginStart.y);
+    const nx = this.gizmoAuthoredStart.x + dx;
+    const ny = this.gizmoAuthoredStart.y + dy;
+    const c = this.selectedControl();
+    if (c) {
+      applyAuthoredControlXY(c, nx, ny);
+    }
+    const root = this.selectedRoot();
+    if (root) {
+      root.setPosition(this.gizmoRootStart.x + dx, this.gizmoRootStart.y + dy);
+      syncMovedGuiRoot(root);
+    }
+  };
+
+  private readonly onOverlayPointerUp = (e: PointerEvent): void => {
+    if (!this.dragGizmo) {
+      return;
+    }
+    this.dragGizmo = null;
+    try {
+      this.guiOutlineOverlay?.canvas.releasePointerCapture(e.pointerId);
+    } catch {
+      /* capture may already be released */
+    }
+    const idx = this.selectedControlIndex();
+    const c = this.selectedControl();
+    if (idx === null || !c) {
+      return;
+    }
+    const authored = authoredControlXY(c);
+    const patch = applyAuthoredControlXY(c, authored.x, authored.y);
+    this.payload.onControlPositionPatch?.(idx, patch);
+  };
 
   private refreshGuiOutlineOverlay(): void {
     const ov = this.guiOutlineOverlay;
@@ -497,6 +733,10 @@ class GuiPreviewScene extends Phaser.Scene {
       strokeStyle: GUI_PREVIEW_CONTROL_OUTLINE_STROKE,
       lineWidthCss: PREVIEW_OVERLAY_LINE_WIDTH_CSS,
     }, triggerExtras);
+    const gizmo = this.gizmoWorldOrigin();
+    if (gizmo) {
+      ov.drawMoveGizmo(gizmo, this.cameras.main, this.dragGizmo);
+    }
   }
 }
 

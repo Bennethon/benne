@@ -67,6 +67,9 @@ export type InspectorPropCard = {
     zIndex: number;
     /** Room-space Y for draw sorting; `null` when omitted in JSON. */
     baseline: number | null;
+    /** Sprite origin in room pixels (defaults to 0). */
+    x: number;
+    y: number;
     parallaxDepth: number;
     alpha: number;
     verbs: InspectorVerbChip[];
@@ -984,6 +987,8 @@ async function buildRoomInspectorState(
                 clickable: entry.clickable === true,
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : 0,
                 baseline: typeof o.baseline === 'number' && Number.isFinite(o.baseline) ? o.baseline : null,
+                x: typeof o.x === 'number' && Number.isFinite(o.x) ? o.x : 0,
+                y: typeof o.y === 'number' && Number.isFinite(o.y) ? o.y : 0,
                 parallaxDepth: typeof o.parallaxDepth === 'number' ? o.parallaxDepth : 1,
                 alpha: typeof o.alpha === 'number' ? o.alpha : 1,
                 verbs,

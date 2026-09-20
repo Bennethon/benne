@@ -273,6 +273,11 @@ export interface BuiltGuiOverlay {
    * Disposal is chained into {@link GuiOverlayHandle.destroy}.
    */
   createGuiRuntime(queueInteraction: (factory: () => Promise<unknown>) => void): GuiRuntime;
+  /**
+   * Control array index → positioned root game object. Editor GUI preview uses this to live-move
+   * a selected control; runtime ignores it.
+   */
+  readonly controlRootsByIndex: ReadonlyMap<number, Phaser.GameObjects.GameObject>;
 }
 
 function originFromAlign(align: GuiTextAlign | undefined): { x: number; y: number } {
@@ -2042,6 +2047,12 @@ export function buildGuiOverlay(
   const triggerZones: Phaser.GameObjects.Rectangle[] = [];
   const linesById = new Map<string, Phaser.GameObjects.BitmapText>();
   const controlsById = new Map<string, Phaser.GameObjects.GameObject>();
+  const controlRootsByIndex = new Map<number, Phaser.GameObjects.GameObject>();
+  const recordControlRoot = (index: number, go: Phaser.GameObjects.GameObject | null | undefined): void => {
+    if (go) {
+      controlRootsByIndex.set(index, go);
+    }
+  };
   const extraSprites: Phaser.GameObjects.GameObject[] = [];
   const overlayDisposers: Array<() => void> = [];
   const runtimeExtraGameObjects: Phaser.GameObjects.GameObject[] = [];
@@ -2128,6 +2139,7 @@ export function buildGuiOverlay(
     gridsById.set(gidc, gridCont);
     gridContainers.push(gridCont);
     controlsById.set(gidc, gridCont);
+    recordControlRoot(gi, gridCont);
     ;(isGuiFixedControlId(gc.id) ? fixedPackedGameObjects : movablePackedParts).push(gridCont as DepthGameObject);
   }
 
@@ -2243,6 +2255,7 @@ export function buildGuiOverlay(
       if (pid) {
         controlsById.set(pid, panel);
       }
+      recordControlRoot(i, panel);
       guiImageInputDeferBelow.push(panel);
       if (!invPlace) {
         ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(panel as DepthGameObject);
@@ -2287,6 +2300,7 @@ export function buildGuiOverlay(
         previewGuiAsepriteSheetJson,
       );
       if (panel) {
+        recordControlRoot(i, panel);
         if (!imgPlace) {
           ;(isGuiFixedControlId(ns.id) ? fixedPackedGameObjects : movablePackedParts).push(panel as DepthGameObject);
         }
@@ -2328,6 +2342,7 @@ export function buildGuiOverlay(
           : undefined,
       );
       if (spr) {
+        recordControlRoot(i, spr);
         if (!imgPlace) {
           ;(isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts).push(spr as DepthGameObject);
         }
@@ -2372,6 +2387,7 @@ export function buildGuiOverlay(
         guiImageInputDeferBelow.push(built.hitTarget);
         guiButtons.push(built);
         controlsById.set(c.id.trim(), built.hitTarget);
+        recordControlRoot(i, built.hitTarget);
         if (!btnPlace) {
           const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
           bucket.push(built.hitTarget as DepthGameObject);
@@ -2407,6 +2423,7 @@ export function buildGuiOverlay(
         guiImageInputDeferBelow.push(built.hitTarget);
         guiCheckboxes.push(built);
         controlsById.set(c.id.trim(), built.hitTarget);
+        recordControlRoot(i, built.hitTarget);
         if (!cbPlace) {
           const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
           bucket.push(built.hitTarget as DepthGameObject);
@@ -2442,6 +2459,7 @@ export function buildGuiOverlay(
         guiSliders.push(builtSlider);
         guiImageInputDeferBelow.push(builtSlider.hitTarget);
         controlsById.set(c.id.trim(), builtSlider.hitTarget);
+        recordControlRoot(i, builtSlider.hitTarget);
         if (!slPlace) {
           const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
           bucket.push(builtSlider.hitTarget as DepthGameObject);
@@ -2476,6 +2494,7 @@ export function buildGuiOverlay(
         guiTextInputs.push(builtInput);
         guiImageInputDeferBelow.push(builtInput.hitTarget);
         controlsById.set(c.id.trim(), builtInput.hitTarget);
+        recordControlRoot(i, builtInput.hitTarget);
         if (!tiPlace) {
           const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
           bucket.push(builtInput.hitTarget as DepthGameObject);
@@ -2510,6 +2529,7 @@ export function buildGuiOverlay(
         guiListBoxes.push(builtListBox);
         guiImageInputDeferBelow.push(builtListBox.hitTarget);
         controlsById.set(c.id.trim(), builtListBox.hitTarget);
+        recordControlRoot(i, builtListBox.hitTarget);
         if (!lbPlace) {
           const bucket = isGuiFixedControlId(c.id) ? fixedPackedGameObjects : movablePackedParts;
           bucket.push(builtListBox.hitTarget as DepthGameObject);
@@ -2539,6 +2559,7 @@ export function buildGuiOverlay(
       if (zone) {
         triggerZones.push(zone);
         controlsById.set(c.id.trim(), zone);
+        recordControlRoot(i, zone);
         overlayDisposers.push(
           installGuiControlPointerHoverObserver(scene, gui, c.id, zone, {
             active: c.active !== false,
@@ -2581,6 +2602,7 @@ export function buildGuiOverlay(
       txPlace.parent.add(line);
     }
     allLines.push(...outlines, line);
+    recordControlRoot(i, line);
     if (c.id) {
       linesById.set(c.id, line);
       controlsById.set(c.id, line);
@@ -2877,6 +2899,7 @@ export function buildGuiOverlay(
 
   return {
     handle,
+    controlRootsByIndex,
     createGuiRuntime(queueInteraction: (factory: () => Promise<unknown>) => void): GuiRuntime {
       disposeGuiRuntime?.();
       disposeGuiRuntime = null;
