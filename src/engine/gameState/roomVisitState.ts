@@ -28,11 +28,17 @@ export function getRoomVisitCount(manager: GameStateManager, roomId: string): nu
 }
 
 /**
+ * Overwrite persisted visit count for `roomId` (floored, `>= 0`; non-finite → `0`).
+ */
+export function setRoomVisitCount(manager: GameStateManager, roomId: string, count: number): void {
+  manager.setVariable(roomVisitCountVariableKey(roomId), normalizeRoomVisitCountRaw(count));
+}
+
+/**
  * Increments persisted visit count for `roomId` and returns the new total (1 on first entry, then 2, …).
  */
 export function incrementRoomVisitCount(manager: GameStateManager, roomId: string): number {
-  const key = roomVisitCountVariableKey(roomId);
   const next = getRoomVisitCount(manager, roomId) + 1;
-  manager.setVariable(key, next);
+  setRoomVisitCount(manager, roomId, next);
   return next;
 }
