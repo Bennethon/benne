@@ -112,7 +112,7 @@ export { withNow } from './BenneScriptCore.js';
  * | **`B.say` / `B.say.now`** | Tagged **`B.say`**…``: PowerQuest-style block — lines **`Speaker: text`** (`Player` any case → protagonist id; other names match spawned character ids **case-insensitively**). Blank lines and **`//`** comments ignored; unknown speakers throw. Queues each line; **`B.say.now`**… skips the interaction tail (see implementation notes in **`BenneScriptCore`**). |
  * | **`B.display` / `B.display.now`** | Narration via **`display-text`** GUI — **`B.display('…')`** blocks until the player clicks to dismiss (no timer). Same interaction-tail rules as **`B.wait`** / **`say`**; **`.now`** skips the tail. |
  * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Same dialog overlay as **`B.say`**, plus string form **`B.player.say('…')`**. Scoped tagged blocks: each line is that character (optional **`Player:`** prefix); mismatched **`Name:`** throws (compared **case-insensitively** to the scoped character). Optional second argument **`{ clickToSkip: false \| true }`** on string calls. |
- * | **`B.playFrom('…', () => { … })`** | **Dev / tooling** — named starting-state for this room; runs once after **`whenEnterRoom`** / **`whenEnterAnyRoom`** on **`boot`** or editor **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`** matches (BENNE Play). Skipped on in-game **`changeTo`** (`transition`). |
+ * | **`B.playFrom('…', () => { … })`** | **Dev / tooling** — named starting-state for this room; runs once before **`whenEnterAnyRoom`** / **`whenEnterRoom`** on **`boot`** or editor **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`** matches (BENNE Play). Skipped on in-game **`changeTo`** (`transition`). |
  * | **`B.inventory.add` / `remove`**, **`.now`** | **`GameStateManager`** quantity mutations. Blocking form **queues** on the interaction tail; **`.now`** applies immediately. **`has`**, **`quantityOf`**, **`items`**, **`clearInventory`** stay synchronous. |
  * | **`B.inventory('id').animation`**, **`cursorAnimation`** (getter / setter) | **Getters**: effective tags (JSON **`defaultAnimation`** / **`cursorAnimation`** ± save overrides — **`''`** when no armed cursor clip). **Setters**: persisted in **`GameStateManager`** variables; **queue** on the interaction tail (same as **`B.player.animation`**); **`animationNow`** / **`cursorAnimationNow`** apply immediately. Setter **empty string** clears that field’s override (JSON applies). |
  * | **`B.inventory('id').description`** | Hover / verb-line label. Immediate (not queued). Persists `` `inventory:<itemId>:description` `` over JSON **`description`**. Empty string is stored as empty (does **not** clear to JSON). |
@@ -739,10 +739,11 @@ export class BenneScript extends BenneScriptCore {
   }
 
   /**
-   * Registers a named **Play From** block for this room (BENNE Play). Runs once after
-   * **`whenEnterRoom`** / **`whenEnterAnyRoom`** on **`boot`** or **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`**
+   * Registers a named **Play From** block for this room (BENNE Play). Runs once before
+   * **`whenEnterAnyRoom`** / **`whenEnterRoom`** on **`boot`** or **`preview`** when **`globalThis.__BENNE_PLAY_FROM_NAME`**
    * matches and the current room matches **`this.roomId`**. Skipped on in-game **`changeTo`** (`transition`).
-   * Queued **`B.*`** without **`.now`** from enter / play-from are flushed before fade-in (see **`RoomScene.waitForEnterPhaseBenneScriptQueues`**).
+   * Queued **`B.*`** without **`.now`** from Play From are flushed before enter handlers, and
+   * enter-handler queues are flushed before fade-in (see **`RoomScene.waitForEnterPhaseBenneScriptQueues`**).
    */
   playFrom(name: string, handler: () => void | Promise<void>): void {
     const id = String(name).trim();

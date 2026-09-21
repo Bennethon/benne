@@ -230,22 +230,21 @@ export class RoomTransitionOrchestrator {
       if (isFirst) {
         this.sessionEnteredRoomIds.add(roomId);
       }
-      const lastForEnter = manager.getLastRoom();
-      const enterCtx: RoomTransitionContext = {
+      const initialCtx: RoomTransitionContext = {
         roomId,
-        lastRoom: lastForEnter,
+        lastRoom: manager.getLastRoom(),
         isFirstEnter: isFirst,
         visitCount,
       };
       if (kind === 'load') {
         await runRoomHandlersEachSafe(
           hookEntryHandlers(this.hooks.getAnyLoaded()),
-          enterCtx,
+          initialCtx,
           'onRoomSceneCreateComplete: any loaded',
         );
         await runRoomHandlersEachSafe(
           hookEntryHandlers(this.hooks.getLoadedHandlersForRoom(roomId)),
-          enterCtx,
+          initialCtx,
           'onRoomSceneCreateComplete: loaded',
         );
       }
@@ -256,23 +255,18 @@ export class RoomTransitionOrchestrator {
       // Enter handlers and the enter-phase queue drain run inside a cutscene block so the room
       // is protected from player input during invisible setup (moveTo, music, etc.).
       roomScene.pushCutscene({ skippable: areHookEntriesSkippable(enterEntries) });
+      let enterCtx = initialCtx;
       try {
-        if (kind !== 'load') {
-          await runRoomHandlersEachSafe(
-            hookEntryHandlers(enterEntries),
-            enterCtx,
-            'onRoomSceneCreateComplete: room enter',
-          );
-        }
-
         if (kind === 'boot' || kind === 'preview') {
           const g = globalThis as { __BENNE_PLAY_FROM_NAME?: unknown };
           const raw = g.__BENNE_PLAY_FROM_NAME;
           const playFromName = typeof raw === 'string' ? raw.trim() : '';
           g.__BENNE_PLAY_FROM_NAME = '';
+          let didRunPlayFrom = false;
           if (playFromName.length > 0) {
             const playFromHandler = getPlayFromSetupForRoom(roomId, playFromName);
             if (playFromHandler) {
+              didRunPlayFrom = true;
               try {
                 await Promise.resolve(playFromHandler());
               } catch (playFromErr) {
@@ -289,6 +283,26 @@ export class RoomTransitionOrchestrator {
               );
             }
           }
+          if (didRunPlayFrom) {
+            // Play From establishes the simulated prior game state. Drain its queued setup before
+            // enter handlers so they observe inventory and other queued mutations as well as
+            // immediate flags/room context.
+            await roomScene.waitForEnterPhaseBenneScriptQueues();
+            enterCtx = {
+              roomId,
+              lastRoom: manager.getLastRoom(),
+              isFirstEnter: isFirst,
+              visitCount: getRoomVisitCount(manager, roomId),
+            };
+          }
+        }
+
+        if (kind !== 'load') {
+          await runRoomHandlersEachSafe(
+            hookEntryHandlers(enterEntries),
+            enterCtx,
+            'onRoomSceneCreateComplete: room enter',
+          );
         }
 
         await roomScene.waitForEnterPhaseBenneScriptQueues();
@@ -319,9 +333,9 @@ export class RoomTransitionOrchestrator {
 
       const afterCtx: RoomTransitionContext = {
         roomId,
-        lastRoom: lastForEnter,
+        lastRoom: enterCtx.lastRoom,
         isFirstEnter: isFirst,
-        visitCount,
+        visitCount: enterCtx.visitCount,
       };
       // After-fade handlers (walk-in animations, visible cutscenes) also run inside a cutscene
       // block so input remains suppressed for their full duration.
