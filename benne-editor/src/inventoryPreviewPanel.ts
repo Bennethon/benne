@@ -2,6 +2,7 @@ import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
 import { getInventoryIdFromInventoryJsonUri } from './gameDiscovery';
+import { readInspectorJsonText } from './inspectorJsonDocument';
 import { resolvePreviewScriptUri } from './previewBundlePaths';
 
 /**
@@ -162,13 +163,7 @@ export class InventoryPreviewPanelController implements vscode.Disposable {
     }
 
     private async readInventoryJsonAsUtf8(uri: vscode.Uri): Promise<string> {
-        const uriStr = uri.toString();
-        const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uriStr);
-        if (open) {
-            return open.getText();
-        }
-        const raw = await vscode.workspace.fs.readFile(uri);
-        return Buffer.from(raw).toString('utf8');
+        return readInspectorJsonText(uri);
     }
 }
 

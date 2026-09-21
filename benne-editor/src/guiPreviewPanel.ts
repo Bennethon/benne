@@ -2,8 +2,9 @@ import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
 import { getGuiIdFromGuiJsonUri } from './gameDiscovery';
-import { resolvePreviewScriptUri } from './previewBundlePaths';
+import { enqueueJsonFileWork, readInspectorJsonText } from './inspectorJsonDocument';
 import { loadRoomData, updateGuiControlPatch, writeDataJson } from './inspectorMutations';
+import { resolvePreviewScriptUri } from './previewBundlePaths';
 
 /**
  * Phaser GUI overlay preview (Aseprite sheet) in a {@link vscode.WebviewPanel}.
@@ -238,13 +239,7 @@ export class GuiPreviewPanelController implements vscode.Disposable {
     }
 
     private async readGuiJsonAsUtf8(uri: vscode.Uri): Promise<string> {
-        const uriStr = uri.toString();
-        const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uriStr);
-        if (open) {
-            return open.getText();
-        }
-        const raw = await vscode.workspace.fs.readFile(uri);
-        return Buffer.from(raw).toString('utf8');
+        return readInspectorJsonText(uri);
     }
 
     private selectedControlKeyForUri(uri: vscode.Uri): string {
@@ -287,17 +282,19 @@ export class GuiPreviewPanelController implements vscode.Disposable {
         } catch {
             return;
         }
-        const data = await loadRoomData(uri);
-        if (!data) {
-            return;
-        }
-        const result = updateGuiControlPatch(data, indexUnknown, patchUnknown as Record<string, unknown>);
-        if (!result.ok) {
-            return;
-        }
         this.previewOriginatedGuiJsonUri = uri.toString();
         this.previewOriginatedGuiJsonSkipUntil = Date.now() + 1200;
-        await writeDataJson(uri, data);
+        await enqueueJsonFileWork(uri, async () => {
+            const data = await loadRoomData(uri);
+            if (!data) {
+                return;
+            }
+            const result = updateGuiControlPatch(data, indexUnknown, patchUnknown as Record<string, unknown>);
+            if (!result.ok) {
+                return;
+            }
+            await writeDataJson(uri, data);
+        });
     }
 }
 

@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { enqueueJsonFileWork } from './inspectorJsonDocument';
+import { loadRoomData, writeRoomJson } from './inspectorMutations';
 
 export type Point2 = { x: number; y: number };
 
@@ -165,15 +167,13 @@ function roundPoint(p: Point2): Point2 {
 }
 
 /**
- * Apply a polygon patch to `*.room.json` on disk (Option A: merge into parsed JSON, rewrite file).
- * Returns the patch with integer-rounded points (same values written to disk) so the preview can
- * sync in-memory room data without a full Phaser teardown.
+ * Merge a polygon / point / bounds patch into parsed room JSON. Returns the integer-rounded
+ * patch so the preview can sync in-memory room data without a full Phaser teardown.
  */
-export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonPatch): Promise<RoomPolygonPatch> {
-    const raw = await vscode.workspace.fs.readFile(uri);
-    const text = Buffer.from(raw).toString('utf8');
-    const room = JSON.parse(text) as Record<string, unknown>;
-
+function applyRoomPolygonPatchToData(
+    room: Record<string, unknown>,
+    patch: RoomPolygonPatch,
+): RoomPolygonPatch {
     if (patch.kind === 'roomPoint') {
         const list = room.points;
         if (!Array.isArray(list)) {
@@ -189,8 +189,6 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
         const yr = Math.round(patch.y);
         row.x = xr;
         row.y = yr;
-        const out = `${JSON.stringify(room, null, 2)}\n`;
-        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
         return { kind: 'roomPoint', pointId: patch.pointId, x: xr, y: yr };
     }
 
@@ -210,8 +208,6 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
         const yr = Math.round(patch.y);
         row.x = xr;
         row.y = yr;
-        const out = `${JSON.stringify(room, null, 2)}\n`;
-        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
         return { kind: 'roomCharacter', instanceId: patch.instanceId, x: xr, y: yr };
     }
 
@@ -231,18 +227,6 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
             throw new Error(`Walkable polygon "${patch.polygonId}" not found.`);
         }
         const rounded = patch.points.map(roundPoint);
-        const outPayload = (): RoomPolygonPatch => {
-            if (patch.holeId) {
-                return {
-                    kind: 'walkable',
-                    polygonId: patch.polygonId,
-                    holeId: patch.holeId,
-                    points: rounded.map((p) => ({ ...p })),
-                };
-            }
-            return { kind: 'walkable', polygonId: patch.polygonId, points: rounded.map((p) => ({ ...p })) };
-        };
-
         if (patch.holeId) {
             if (!poly.holes) {
                 poly.holes = [];
@@ -254,15 +238,16 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
             } else {
                 hole.points = rounded;
             }
-            const out = `${JSON.stringify(room, null, 2)}\n`;
-            await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
-            return outPayload();
+            return {
+                kind: 'walkable',
+                polygonId: patch.polygonId,
+                holeId: patch.holeId,
+                points: rounded.map((p) => ({ ...p })),
+            };
         }
 
         poly.points = rounded;
-        const out = `${JSON.stringify(room, null, 2)}\n`;
-        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
-        return outPayload();
+        return { kind: 'walkable', polygonId: patch.polygonId, points: rounded.map((p) => ({ ...p })) };
     }
 
     if (patch.kind === 'regionPolygon') {
@@ -279,8 +264,6 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
         }
         const rounded = patch.points.map(roundPoint);
         reg.points = rounded;
-        const out = `${JSON.stringify(room, null, 2)}\n`;
-        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
         return { kind: 'regionPolygon', regionId: patch.regionId, points: rounded.map((p) => ({ ...p })) };
     }
 
@@ -321,8 +304,6 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
             baselineOut = Math.round(patch.baseline);
             hs.baseline = baselineOut;
         }
-        const out = `${JSON.stringify(room, null, 2)}\n`;
-        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
         return {
             kind: 'hotspotPolygon',
             hotspotId: patch.hotspotId,
@@ -374,8 +355,6 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
             propBaselineOut = Math.round(patch.baseline);
             prop.baseline = propBaselineOut;
         }
-        const out = `${JSON.stringify(room, null, 2)}\n`;
-        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
         return {
             kind: 'propCollider',
             propId: patch.propId,
@@ -403,17 +382,13 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
         prop.baseline = baselineOut;
         prop.x = px;
         prop.y = py;
-        const out = `${JSON.stringify(room, null, 2)}\n`;
-        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
         return { kind: 'propBaseline', propId: patch.propId, baseline: baselineOut, x: px, y: py };
     }
 
     if (patch.kind === 'roomSize') {
         const w = Math.max(1, Math.round(patch.width));
         const h = Math.max(1, Math.round(patch.height));
-        (room as Record<string, unknown>).size = { width: w, height: h };
-        const out = `${JSON.stringify(room, null, 2)}\n`;
-        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
+        room.size = { width: w, height: h };
         return { kind: 'roomSize', width: w, height: h };
     }
 
@@ -422,13 +397,29 @@ export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonP
         const y = Math.round(patch.y);
         const w = Math.max(1, Math.round(patch.width));
         const h = Math.max(1, Math.round(patch.height));
-        (room as Record<string, unknown>).scrollBounds = { x, y, width: w, height: h };
-        const out = `${JSON.stringify(room, null, 2)}\n`;
-        await vscode.workspace.fs.writeFile(uri, Buffer.from(out, 'utf8'));
+        room.scrollBounds = { x, y, width: w, height: h };
         return { kind: 'scrollBounds', x, y, width: w, height: h };
     }
 
     const _never: never = patch;
     void _never;
     throw new Error('Unsupported polygon patch.');
+}
+
+/**
+ * Writes a polygon / point / bounds patch into `*.room.json`.
+ *
+ * Uses the same disk-then-sync-open-tab path as the Inspector (`writeRoomJson`) so an open JSON
+ * editor cannot flash new geometry and then be overwritten by a stale buffer or blur-save.
+ */
+export async function applyRoomPolygonPatch(uri: vscode.Uri, patch: RoomPolygonPatch): Promise<RoomPolygonPatch> {
+    return enqueueJsonFileWork(uri, async () => {
+        const data = await loadRoomData(uri);
+        if (!data) {
+            throw new Error('Could not parse room JSON.');
+        }
+        const applied = applyRoomPolygonPatchToData(data, patch);
+        await writeRoomJson(uri, data);
+        return applied;
+    });
 }
