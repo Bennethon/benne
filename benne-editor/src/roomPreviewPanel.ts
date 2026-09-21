@@ -5,14 +5,14 @@ import {
     findBenneGameFolders,
     getRoomIdFromRoomJsonUri,
 } from './gameDiscovery';
-import { resolvePreviewScriptUri } from './previewBundlePaths';
+import { readInspectorJsonText } from './inspectorJsonDocument';
 import { readRoomPlayFromNamesFromSource } from './playFromDiscovery';
+import { resolvePreviewScriptUri } from './previewBundlePaths';
 import {
     applyRoomPolygonPatch,
     parseRoomPolygonPatch,
     type RoomPolygonPatch,
 } from './roomPolygonPatch';
-import { syncOpenJsonDocumentFromData } from './inspectorJsonDocument';
 
 type PreviewToolbarFocus =
     | 'room'
@@ -658,6 +658,8 @@ export class RoomPreviewPanelController implements vscode.Disposable {
             });
             return;
         }
+        this.previewOriginatedRoomJsonUri = uri.toString();
+        this.previewOriginatedRoomJsonSkipUntil = Date.now() + 1200;
         let appliedPatch: RoomPolygonPatch;
         try {
             appliedPatch = await applyRoomPolygonPatch(uri, patch);
@@ -668,15 +670,6 @@ export class RoomPreviewPanelController implements vscode.Disposable {
                 message: e instanceof Error ? e.message : String(e),
             });
             return;
-        }
-        this.previewOriginatedRoomJsonUri = uri.toString();
-        this.previewOriginatedRoomJsonSkipUntil = Date.now() + 1200;
-        try {
-            const raw = await vscode.workspace.fs.readFile(uri);
-            const data = JSON.parse(Buffer.from(raw).toString('utf8')) as Record<string, unknown>;
-            await syncOpenJsonDocumentFromData(uri, data);
-        } catch {
-            /* Inspector field refresh is best-effort */
         }
         // Do not pushPreview here: full destroy/recreate is brittle in the webview and unnecessary —
         // the preview already mutates live RoomData; appliedPatch syncs integer-rounded coordinates.
@@ -815,15 +808,9 @@ export class RoomPreviewPanelController implements vscode.Disposable {
         );
     }
 
-    /** Prefer in-memory buffer when the room JSON is open in an editor (matches unsaved edits on Refresh). */
+    /** Dirty JSON tab vs disk, with clean-but-stale tab repair — same reader as Inspector / character preview. */
     private async readRoomJsonAsUtf8(uri: vscode.Uri): Promise<string> {
-        const uriStr = uri.toString();
-        const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uriStr);
-        if (open) {
-            return open.getText();
-        }
-        const raw = await vscode.workspace.fs.readFile(uri);
-        return Buffer.from(raw).toString('utf8');
+        return readInspectorJsonText(uri);
     }
 
     private async readRoomScriptAsUtf8(uri: vscode.Uri): Promise<string> {
