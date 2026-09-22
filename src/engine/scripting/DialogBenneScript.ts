@@ -15,12 +15,23 @@ import {
   dialogOptionEnabledVariableKey,
 } from '../dialog/dialogOptionVariables.js';
 import type { CutsceneOptions } from '../../types/cutscene.js';
-import type { DialogId, DialogOptionId } from '../../types/generated/benne-game-ids.js';
+import type { DialogId, DialogOptionId, HotspotId, PropId, RegionId } from '../../types/generated/benne-game-ids.js';
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import { BenneScriptCore, withNow, type BlockingWithNow } from './BenneScriptCore.js';
-import type { BenneScriptDialogCommandSurface, BenneScriptPlayerFacade } from './benneScriptFacades.js';
+import type {
+  BenneScriptDialogCommandSurface,
+  BenneScriptHotspotFacade,
+  BenneScriptPlayerFacade,
+  BenneScriptPropFacade,
+  BenneScriptRegionActiveFacade,
+} from './benneScriptFacades.js';
+import {
+  createBenneScriptHotspotFacade,
+  createBenneScriptPropFacade,
+  createBenneScriptRegionActiveFacade,
+} from './benneScriptRoomEntityApi.js';
 import {
   createBenneScriptGameStateNamespace,
   createBenneScriptInventoryNamespace,
@@ -317,7 +328,40 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
   }
 
   get player(): BenneScriptPlayerFacade {
-    return this.makePlayerFacadeFromScene(() => this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined);
+    return this.makePlayerFacadeFromScene(() => this.activeRoomScene());
+  }
+
+  /**
+   * Prop in the **active** room (same facade as a room script’s `B.prop`).
+   * Queued members run on this dialog session’s interaction tail.
+   */
+  prop(propId: PropId): BenneScriptPropFacade {
+    return createBenneScriptPropFacade(
+      propId,
+      () => this.activeRoomScene(),
+      (factory) => this.chain(factory),
+      this.sound,
+      this.video,
+    );
+  }
+
+  /**
+   * Hotspot in the **active** room. `active` / `clickable` / `description` are immediate (not queued).
+   */
+  hotspot(hotspotId: HotspotId): BenneScriptHotspotFacade {
+    return createBenneScriptHotspotFacade(hotspotId, () => this.activeRoomScene());
+  }
+
+  /**
+   * Region **`active`** flag in the **active** room. Immediate (not queued).
+   * Enter / exit hooks stay on the room script.
+   */
+  region(regionId: RegionId): BenneScriptRegionActiveFacade {
+    return createBenneScriptRegionActiveFacade(regionId, () => this.activeRoomScene());
+  }
+
+  private activeRoomScene(): RoomScene | undefined {
+    return this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
   }
 
   /**

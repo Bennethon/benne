@@ -174,6 +174,8 @@ registerDialogScript('chatwithpenny', ({ B }) => {
 
   B.whenChoice('door', () => {
     B.say`Penny: Bring me a sandwich and I'll give you the key.`;
+    B.prop('cabinet').show();
+    B.hotspot('inside').active = true;
     B.dialog('chatwithpenny').optionOff('door');
   });
 
@@ -181,7 +183,7 @@ registerDialogScript('chatwithpenny', ({ B }) => {
 });
 ```
 
-You open a dialog from gameplay with `B.dialog('id').start()`, and toggle which topics are available with `optionOn` / `optionOff` to model conversation state.
+You open a dialog from gameplay with `B.dialog('id').start()`, and toggle which topics are available with `optionOn` / `optionOff` to model conversation state. Inside a choice handler you can also change the room the conversation is happening in: `B.prop(id)` (show, hide, clickable, animation, fade, move), `B.hotspot(id).active`, and `B.region(id).active`. Those ids are the current room’s. Region enter/exit hooks stay in the room script.
 
 ## Speaking lines
 
@@ -230,7 +232,7 @@ The same option works on `whenEnterRoom`, `whenEnterRoomAfterFade`, `whenEnterAn
 
 # Methods and Properties
 
-The `B` facade exposes several namespaces. The exact set available depends on the script type (for example, `B.prop(...)` and room verb sugar exist only in room scripts), but the core members below are available almost everywhere.
+The `B` facade exposes several namespaces. The exact set available depends on the script type (for example, room verb sugar exists only in room scripts; `B.prop(...)`, `B.hotspot(...)`, and `B.region(...).active` are on room scripts and dialog sessions), but the core members below are available almost everywhere.
 
 ## Core (`B`)
 
@@ -300,7 +302,7 @@ B.character('penny').startFollowingCharacter('hank', { minDistance: 60 });
 B.character('penny').fade(0, 1, 0.5);
 ```
 
-## `B.prop(id)`  <Badge type="info" text="room scripts" />
+## `B.prop(id)`  <Badge type="info" text="room and dialog scripts" />
 
 Controls a room prop (its sprite, animation, visibility, position).
 
@@ -319,7 +321,7 @@ B.prop('Knife').hide();
 B.prop('FountainOff').clickable = false;
 ```
 
-## `B.region(id)` and `B.hotspot(id)`  <Badge type="info" text="room scripts" />
+## `B.region(id)` and `B.hotspot(id)`  <Badge type="info" text="room and dialog scripts" />
 
 ```ts
 B.region('stage-front').whenEnter((ctx) => {
@@ -332,7 +334,7 @@ B.hotspot('window').clickable = false; // alias of .active
 B.hotspot('secret-door').description = 'A door that used to be locked.'; // persisted hover label
 ```
 
-Region enter/exit handlers run on the interaction queue. Setting `.active` on a region or hotspot is immediate and persisted; deactivating disables triggers and interaction (movement resolution still works). **`B.hotspot(id).clickable`** is an alias of **`.active`**. **`B.hotspot(id).description`** is the hover / verb-line label (immediate and persisted).
+Region enter/exit handlers (`whenEnter` / `whenExit`) are room scripts only — they run on the interaction queue. Dialog sessions can set `B.region(id).active` and the hotspot members below, but not those enter/exit hooks. Setting `.active` on a region or hotspot is immediate and persisted; deactivating disables triggers and interaction (movement resolution still works). **`B.hotspot(id).clickable`** is an alias of **`.active`**. **`B.hotspot(id).description`** is the hover / verb-line label (immediate and persisted).
 
 ## `B.inventory`
 

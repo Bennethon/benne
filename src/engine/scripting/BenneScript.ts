@@ -31,7 +31,12 @@ import type {
   InventoryWhenUsedOnPayloadHandler,
   RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
-import { BenneScriptCore, withNow } from './BenneScriptCore.js';
+import { BenneScriptCore } from './BenneScriptCore.js';
+import {
+  createBenneScriptHotspotFacade,
+  createBenneScriptPropFacade,
+  createBenneScriptRegionActiveFacade,
+} from './benneScriptRoomEntityApi.js';
 import {
   createBenneScriptGameStateNamespace,
   createBenneScriptInventoryNamespace,
@@ -61,6 +66,7 @@ export type {
   BenneScriptDialogCommandSurface,
   BenneScriptHotspotFacade,
   BenneScriptInventoryItemFacade,
+  BenneScriptRegionActiveFacade,
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
   BenneScriptRegionFacade,
@@ -133,15 +139,6 @@ const noopBenneScriptRegionFacade: BenneScriptRegionFacade = {
   set active(_v: boolean) {},
   whenEnter(): void {},
   whenExit(): void {},
-};
-
-const noopBenneScriptHotspotFacade: BenneScriptHotspotFacade = {
-  get active() { return true; },
-  set active(_v: boolean) {},
-  get clickable() { return true; },
-  set clickable(_v: boolean) {},
-  get description() { return ''; },
-  set description(_v: string) {},
 };
 
 /**
@@ -486,103 +483,13 @@ export class BenneScript extends BenneScriptCore {
   }
 
   prop(propId: PropId): BenneScriptPropFacade {
-    const scene = this.roomScene;
-    const B = this;
-    return {
-      sound: this.sound,
-      video: this.video,
-      hide: withNow(
-        () => {
-          B.chain(() => {
-            scene.setPropScriptVisible(propId, false);
-            return Promise.resolve();
-          });
-        },
-        () => {
-          scene.setPropScriptVisible(propId, false);
-        },
-      ),
-      show: withNow(
-        () => {
-          B.chain(() => {
-            scene.setPropScriptVisible(propId, true);
-            return Promise.resolve();
-          });
-        },
-        () => {
-          scene.setPropScriptVisible(propId, true);
-        },
-      ),
-      get visible() {
-        return scene.getPropScriptVisible(propId);
-      },
-      set visible(v: boolean) {
-        B.chain(() => {
-          scene.setPropScriptVisible(propId, v);
-          return Promise.resolve();
-        });
-      },
-      visibleNow(v: boolean): void {
-        scene.setPropScriptVisible(propId, v);
-      },
-      get clickable() {
-        return scene.getPropScriptClickable(propId);
-      },
-      set clickable(v: boolean) {
-        B.chain(() => {
-          scene.setPropScriptClickable(propId, v);
-          return Promise.resolve();
-        });
-      },
-      get description() {
-        return scene.getPropScriptDescription(propId);
-      },
-      set description(v: string) {
-        scene.setPropScriptDescription(propId, v);
-      },
-      get animation() {
-        return scene.getPropScriptBaseAnimationTag(propId);
-      },
-      set animation(tag: string) {
-        B.chain(() => {
-          scene.setPropScriptBaseAnimationTag(propId, tag);
-          return Promise.resolve();
-        });
-      },
-      animationNow(tag: string): void {
-        scene.setPropScriptBaseAnimationTag(propId, tag);
-      },
-      playAnimation: withNow(
-        (tag: string) => {
-          B.chain(() => scene.playPropScriptAnimationOneShot(propId, tag));
-        },
-        (tag: string) => {
-          void scene.playPropScriptAnimationOneShot(propId, tag);
-        },
-      ),
-      fade: withNow(
-        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
-          B.chain(() => scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds));
-        },
-        (fromAlpha: number, toAlpha: number, durationSeconds: number) => {
-          void scene.fadePropScriptAlpha(propId, fromAlpha, toAlpha, durationSeconds);
-        },
-      ),
-      moveTo: withNow(
-        (point) => {
-          B.chain(() => {
-            scene.movePropToNow(propId, point);
-            return Promise.resolve();
-          });
-        },
-        (point) => {
-          scene.movePropToNow(propId, point);
-        },
-      ),
-      moveToNow(point): void {
-        scene.movePropToNow(propId, point);
-      },
-    } as BenneScriptPropFacade;
+    return createBenneScriptPropFacade(
+      propId,
+      () => this.roomScene,
+      (factory) => this.chain(factory),
+      this.sound,
+      this.video,
+    );
   }
 
   get player(): BenneScriptPlayerFacade {
@@ -597,14 +504,14 @@ export class BenneScript extends BenneScriptCore {
       }
       return noopBenneScriptRegionFacade;
     }
+    const active = createBenneScriptRegionActiveFacade(rid, () => this.roomScene);
     const B = this;
-    const scene = this.roomScene;
     return {
       get active() {
-        return scene.getRegionScriptActive(rid);
+        return active.active;
       },
       set active(v: boolean) {
-        scene.setRegionScriptActive(rid, v);
+        active.active = v;
       },
       whenEnter(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void {
         const eventId = roomRegionEnterEventId(B.roomId, rid);
@@ -632,34 +539,7 @@ export class BenneScript extends BenneScriptCore {
   }
 
   hotspot(hotspotId: HotspotId): BenneScriptHotspotFacade {
-    const hid = String(hotspotId).trim();
-    if (hid.length === 0) {
-      if (import.meta.env.DEV) {
-        console.warn('[Benne] B.hotspot: hotspot id must be a non-empty string.');
-      }
-      return noopBenneScriptHotspotFacade;
-    }
-    const scene = this.roomScene;
-    return {
-      get active() {
-        return scene.getHotspotScriptActive(hid);
-      },
-      set active(v: boolean) {
-        scene.setHotspotScriptActive(hid, v);
-      },
-      get clickable() {
-        return scene.getHotspotScriptActive(hid);
-      },
-      set clickable(v: boolean) {
-        scene.setHotspotScriptActive(hid, v);
-      },
-      get description() {
-        return scene.getHotspotScriptDescription(hid);
-      },
-      set description(v: string) {
-        scene.setHotspotScriptDescription(hid, v);
-      },
-    };
+    return createBenneScriptHotspotFacade(hotspotId, () => this.roomScene);
   }
 
   whenEnterRegion(

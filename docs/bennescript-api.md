@@ -62,9 +62,10 @@ Each union is **`LooseString<…>`** — known literals from your game appear in
 | **`B.dialog(id)`** | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ |
 | **`B.player`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **`B.character(id)`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **`B.prop(id)`** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **`B.region(id)`** (**`whenEnter`**, **`whenExit`**), **`whenEnterRegion` / `whenExitRegion`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **`B.hotspot(id).active`** / **`.clickable`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **`B.prop(id)`** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| **`B.region(id).active`** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| **`B.region(id).whenEnter` / `whenExit`**, **`whenEnterRegion` / `whenExitRegion`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **`B.hotspot(id).active`** / **`.clickable`** / **`.description`** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | **`B.onUpdate`** (per-frame, **not** on **`interactionTail`**) | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | Room **`when*(`target`,`…)` verb sugar**, **`onProp`**, **`whenGive(item,target,…)`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Character self-only **`when*(() => …)`** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -508,7 +509,7 @@ B.character('penny').fade.now(1, 0, 1); // start fade-out immediately, don't blo
 
 ## `B.prop(propId)` (**`BenneScriptPropFacade`**)
 
-**Room scripts only.**
+**Room scripts and dialog sessions.** Ids are props in the **active** room (`props[].id`). Dialog calls resolve that room’s `RoomScene` when each operation runs (DEV warn once and no-op if no room is active). Queued members use the calling script’s interaction tail.
 
 | Member | Description | Blocking |
 |--------|-------------|--------|
@@ -724,7 +725,9 @@ On load, the orchestrator skips both room-local and global enter-phase hooks:
 **Non-load order** (`boot`, `preview`, `transition`) — global enter hooks run before room-local hooks in each phase:
 `whenEnterAnyRoom` → `whenEnterRoom`, then after fade `whenEnterAnyRoomAfterFade` → `whenEnterRoomAfterFade`.
 
-### Room regions — enter / exit
+### Room regions — `active`, enter / exit
+
+**`B.region(id).active`** is available on **room scripts and dialog sessions** (immediate get/set against the active room). **`whenEnter` / `whenExit`** (and **`whenEnterRegion` / `whenExitRegion`**) are **room scripts only** — a dialog session is disposed when the dialog stops, so those listeners belong in `*.room.ts`.
 
 ```ts
 B.region('stage-front').whenEnter((ctx) => {
@@ -760,7 +763,7 @@ Advanced: stable event strings **`roomRegionEnterEventId(roomId, regionId)`** / 
 
 ### Room hotspots — `active` / `description`
 
-**`registerRoomScript`** only — **`B.hotspot('hotspotId').active`** getter and setter (same persistence pattern as **`B.region(…).active`**). **`B.hotspot(id).clickable`** is an alias of **`.active`** (same persist key, same immediate setter) so hotspots share a **`.clickable`** name with **`B.character(id).clickable`** / **`B.prop(id).clickable`**.
+**Room scripts and dialog sessions** — **`B.hotspot('hotspotId').active`** getter and setter (same persistence pattern as **`B.region(…).active`**). **`B.hotspot(id).clickable`** is an alias of **`.active`** (same persist key, same immediate setter) so hotspots share a **`.clickable`** name with **`B.character(id).clickable`** / **`B.prop(id).clickable`**. Dialog calls use the active room; setters stay **immediate** (they do not wait behind earlier `say` lines on the interaction tail).
 
 - **`active` get/set** — immediate (not queued on the interaction tail). Persisted to **`GameStateManager`** (key `` `room:<roomId>:hotspot:<hotspotId>:active` ``), re-applied to the live **`roomData.hotspots`** entry at room load. When **inactive**, the engine removes the polygon input zone (no hit-test, hover, or verb dispatch for that hotspot). When **active** and the hotspot has a valid polygon (≥3 points), the zone is mounted or left mounted. **`RoomScene.resolveMovementTarget`** still resolves string ids to hotspot geometry for **`walkTo` / `moveTo`** even when the hotspot is inactive — **`active`** gates **interaction** only.
 - **`clickable` get/set** — alias of **`active`**. Prefer **`.active`** in new scripts when you mean the JSON **`active`** field; **`.clickable`** is the character/prop-symmetric name.
@@ -950,7 +953,16 @@ whenChoice(
 
 Wired to **`guiButtonClickEventId(dialogGuiId, dialogChoiceSyntheticButtonId(optionId))`**. **`RoomScene.suppressDialogChoiceGuiForWhenChoice`** hides the choice GUI during handler execution + **`interactionTail`** drain; restored after (**`restoreDialogChoiceGuiAfterWhenChoiceDrain`**).
 
-Tagged **`B.say`** and the rest of **`BenneScriptCore`** (**`wait`**, **`fadeOut`**, **`room`**, **`raw`**, **`B.character(id)`** …) apply as usual. **`DialogBenneScript`** adds **`state`** and **`inventory`**; **`cutscene`** / **`cutscene.now`** are inherited from **`BenneScriptCore`** like all other surfaces.
+Tagged **`B.say`** and the rest of **`BenneScriptCore`** (**`wait`**, **`fadeOut`**, **`room`**, **`raw`**, **`B.character(id)`** …) apply as usual. **`DialogBenneScript`** adds **`state`**, **`inventory`**, and the active-room mutators **`B.prop(id)`**, **`B.hotspot(id)`**, and **`B.region(id).active`** (same persistence and queue rules as a room script; ids are the current room’s). Region **`whenEnter` / `whenExit`** and room verb sugar stay on **`*.room.ts`**. **`cutscene`** / **`cutscene.now`** are inherited from **`BenneScriptCore`** like all other surfaces.
+
+```ts
+B.whenChoice('open-it', () => {
+  B.player.say('There.');
+  B.prop('cabinet').playAnimation('open');
+  B.prop('cabinet').clickable = false;
+  B.hotspot('inside').active = true;
+});
+```
 
 ---
 
@@ -1071,7 +1083,8 @@ Strict typing when bypassing **`(p: any)`**:
 | [`InventoryBenneScript.ts`](../src/engine/scripting/InventoryBenneScript.ts) | Inventory row façade |
 | [`GlobalBenneScript.ts`](../src/engine/scripting/GlobalBenneScript.ts) | Global fallbacks + any-room hooks |
 | [`GuiBenneScript.ts`](../src/engine/scripting/GuiBenneScript.ts) | GUI buttons, **`onGuiBuilt`**, **`onGuiShow`**, **`onGuiHide`**, cross-overlay control access (**`B.gui`**), overlay **`show`/`hide`**, hover (**`subscribeImmediate`**), null clock |
-| [`DialogBenneScript.ts`](../src/engine/scripting/DialogBenneScript.ts) | Dialog session **`B`**, **`whenChoice`**, **`openDialogSessionForId`** |
+| [`DialogBenneScript.ts`](../src/engine/scripting/DialogBenneScript.ts) | Dialog session **`B`**, **`whenChoice`**, **`openDialogSessionForId`**, **`B.prop` / `B.hotspot` / `B.region().active`** |
+| [`benneScriptRoomEntityApi.ts`](../src/engine/scripting/benneScriptRoomEntityApi.ts) | Shared **`B.prop`**, **`B.hotspot`**, and **`B.region().active`** facades (room scripts and dialog sessions) |
 | [`benneScriptFacades.ts`](../src/engine/scripting/benneScriptFacades.ts) | **`BenneScript*Facade`** interfaces |
 | [`benneScriptGameStateApi.ts`](../src/engine/scripting/benneScriptGameStateApi.ts) | **`B.state`**, **`B.inventory`** factories |
 | [`benneScriptRoomApi.ts`](../src/engine/scripting/benneScriptRoomApi.ts) | **`B.room`** |
