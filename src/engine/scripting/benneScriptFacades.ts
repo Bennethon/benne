@@ -206,11 +206,18 @@ export interface RoomInventoryUsedOnRegistrar {
   ): void;
 }
 
-/** Enter / exit hooks for one room region (`BenneScript.region`). */
-export interface BenneScriptRegionFacade {
+/**
+ * Immediate **`active`** flag for one room region (`B.region(id).active`).
+ * Room scripts and dialog sessions both expose this. Enter / exit hooks stay on {@link BenneScriptRegionFacade}.
+ */
+export interface BenneScriptRegionActiveFacade {
   /** Whether this region is active. Inactive regions are ignored by overlap tests, enter/exit detection, perspective scale, and character tint. Setter is immediate (not queued). */
   get active(): boolean;
   set active(v: boolean);
+}
+
+/** Enter / exit hooks for one room region (`BenneScript.region`). Room scripts only. */
+export interface BenneScriptRegionFacade extends BenneScriptRegionActiveFacade {
   whenEnter(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void;
   whenExit(handler: (() => void) | ((ctx: RegionEnterExitContext) => void)): void;
 }
