@@ -1,5 +1,7 @@
 /**
- * Parse `*.room.ts` source for `B.playFrom('Name', …)` / `B.playFrom("Name", …)` registrations (editor tooling).
+ * Parse `*.room.ts` source for `B.playFrom` name registrations (editor tooling).
+ * Accepts `'Name'`, `"Name"`, and `` `Name` ``.
+ * Template literals that contain `${…}` are skipped — the name is not static.
  */
 export function readRoomPlayFromNamesFromSource(source: string): string[] {
     const out: string[] = [];
@@ -8,11 +10,13 @@ export function readRoomPlayFromNamesFromSource(source: string): string[] {
     let m: RegExpExecArray | null;
     while ((m = needle.exec(source)) !== null) {
         const q = source[m.index + m[0].length];
-        if (q !== "'" && q !== '"') {
+        if (q !== "'" && q !== '"' && q !== '`') {
             continue;
         }
         let i = m.index + m[0].length + 1;
         let buf = '';
+        let closed = false;
+        let interpolated = false;
         while (i < source.length) {
             const c = source[i];
             if (c === '\\' && i + 1 < source.length) {
@@ -20,11 +24,19 @@ export function readRoomPlayFromNamesFromSource(source: string): string[] {
                 i += 2;
                 continue;
             }
+            if (q === '`' && c === '$' && source[i + 1] === '{') {
+                interpolated = true;
+                break;
+            }
             if (c === q) {
+                closed = true;
                 break;
             }
             buf += c;
             i++;
+        }
+        if (!closed || interpolated) {
+            continue;
         }
         const id = buf.trim();
         if (id.length > 0 && !seen.has(id)) {

@@ -1628,16 +1628,30 @@ export class RoomScene extends Phaser.Scene {
   /**
    * Shows the dialog choice overlay again once **`whenChoice`** work finishes, unless the dialog session ended
    * or this room’s active choice session no longer matches **`dialogId`** / **`guiId`**.
+   *
+   * When `popWhenChoiceCutscene` is true, pops the cutscene {@link DialogBenneScript.whenChoice} pushed on
+   * **this** room. That pop waits until this method actually finishes (list shown, or the session already
+   * gone) so a skip click cannot walk while the list is still hidden. Pass false when the cutscene was
+   * pushed on a different room that has already been popped.
    */
-  restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId: string, dialogId: string): void {
+  restoreDialogChoiceGuiAfterWhenChoiceDrain(
+    guiId: string,
+    dialogId: string,
+    popWhenChoiceCutscene = true,
+  ): void {
     // A click-to-skip finishes speech on pointerdown, while GUI buttons activate on
-    // pointerup. Keep the choices hidden until that same press is released so it
-    // cannot also activate whichever option appears beneath the stationary pointer.
+    // pointerup. Keep the choices hidden — and the whenChoice cutscene up — until that same
+    // press is released so it cannot also walk or activate whichever option appears beneath
+    // the stationary pointer.
     if (this.input.activePointer.leftButtonDown()) {
       this.input.once('pointerup', () => {
-        this.restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId, dialogId);
+        this.restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId, dialogId, popWhenChoiceCutscene);
       });
       return;
+    }
+
+    if (popWhenChoiceCutscene) {
+      this.popCutscene();
     }
 
     const active = getActiveDialogBenneScript();
@@ -2054,14 +2068,18 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * True while ANY scripted-dialog line, cutscene, or room video is active — gates props, hotspots,
-   * characters, inventory rows, hover descriptions, and background walks. GUI buttons are additionally
-   * gated only when {@link isCutsceneActive} or video playback is true (they remain live during
-   * say-line suppression).
+   * True while a choice dialog is open, a scripted-dialog line, cutscene, or room video is active.
+   * Gates props, hotspots, characters, inventory rows, hover descriptions, and background walks.
+   * The dialog-session check is separate from {@link scriptedDialogInputSuppressionDepth}: ending a
+   * `say` line pops that counter and must not unlock the floor while options are still hidden.
+   * GUI buttons are additionally gated only when {@link isCutsceneActive} or video playback is true
+   * (they remain live during say-line suppression and while a choice list is on screen).
    */
   private isInputSuppressed(): boolean {
     return (
       this.scriptedDialogInputSuppressionDepth > 0 ||
+      this.activeDialogChoiceSession != null ||
+      getActiveDialogBenneScript() != null ||
       this.isCutsceneActive() ||
       this.isRoomVideoPlaying()
     );
