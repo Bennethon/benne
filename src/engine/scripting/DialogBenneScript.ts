@@ -371,7 +371,8 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
    * **before** this handler runs (skipped when `say` is `false` or `text` is empty/whitespace).
    *
    * While the handler’s synchronous work plus any interaction-tail steps (`say`, `walk`, etc.) run, the
-   * dialog choice GUI is hidden so additional options cannot be activated.
+   * dialog choice GUI is hidden so additional options cannot be activated. The cutscene pushed for
+   * that work stays up until the choice list is shown again (or the session has already ended).
    *
    * @param options `{ skippable: false }` makes this branch's cutscene unskippable by ESC (see
    * {@link BenneScriptCore.cutscene}).
@@ -420,9 +421,16 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
       } catch (err) {
         console.error(`[Benne] Error in ${eventId} dialog whenChoice handler:`, err);
       } finally {
-        room?.popCutscene();
+        // The room that pushed the cutscene pops it when the list is shown, or when restore
+        // bails because the session ended. Leaving it up while the pointer is still down blocks
+        // the skip click from walking before the options return.
         const rm = this.game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
-        rm?.restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId, dialogScriptId);
+        if (rm && rm === room) {
+          rm.restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId, dialogScriptId);
+        } else {
+          room?.popCutscene();
+          rm?.restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId, dialogScriptId, false);
+        }
       }
     };
 
