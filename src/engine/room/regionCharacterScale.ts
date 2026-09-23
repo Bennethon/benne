@@ -18,8 +18,9 @@ function isActiveRegionContainingFeet(
 }
 
 /**
- * **Last** active polygon in `regions[]` that contains the feet point (same overlap rule as
- * {@link computeRoomRegionPerspective}). `null` when outside all regions or when `regions` is empty.
+ * **Last** active polygon in `regions[]` that contains the feet point (enter/exit and walkability).
+ * Scale and tint use their own winners inside {@link computeRoomRegionPerspective}. `null` when
+ * outside all regions or when `regions` is empty.
  */
 export function resolveWinningRoomRegionDataAtFeet(
   feetX: number,
@@ -40,9 +41,10 @@ export function resolveWinningRoomRegionDataAtFeet(
 }
 
 /**
- * Which authored region “wins” at the feet position — **last** active polygon in `regions[]` that
- * contains the point (same overlap rule as {@link computeRoomRegionPerspective}). `null` when
- * outside all regions or when `regions` is empty / unusable.
+ * Which authored region “wins” at the feet position for enter/exit — **last** active polygon in
+ * `regions[]` that contains the point. Scale and tint winners are independent
+ * ({@link computeRoomRegionPerspective}). `null` when outside all regions or when `regions` is empty
+ * / unusable.
  */
 export function resolveWinningRoomRegionIdAtFeet(
   feetX: number,
@@ -61,8 +63,8 @@ function tryParseTintHexRgb(hex: string): number | null {
 }
 
 /**
- * Raw tint color (`0xRRGGBB`) and alpha (`0`–`1`) from the **winning** region, or `null` when the
- * region has no authored `tint` field.
+ * Raw tint color (`0xRRGGBB`) and alpha (`0`–`1`) from the tint-winning region, or `null` when the
+ * region has no authored `tint` field (or `tintAlpha` is `0`).
  */
 export function regionTintForWinningRegion(
   region: RoomRegionData | null | undefined,
@@ -105,7 +107,7 @@ export function packedMultiplyTintFromRgbAndStrength(rgb: number, strength: numb
 }
 
 /**
- * Multiply tint for the winning region, or `null` when no tint applies (`clearTint` in that case).
+ * Multiply tint for the tint-winning region, or `null` when no tint applies (`clearTint` in that case).
  */
 export function packedTintFromWinningRegion(region: RoomRegionData | null | undefined): number | null {
   const spec = regionTintForWinningRegion(region);
@@ -116,7 +118,8 @@ export function packedTintFromWinningRegion(region: RoomRegionData | null | unde
 }
 
 /**
- * Applies region multiply-tint on a character `Sprite` / `Image`, or clears tint outside regions.
+ * Applies region multiply-tint on a character `Sprite` / `Image`, or clears tint when the tint
+ * winner has no usable color (or there is no tint winner).
  */
 export function applyCharacterSpriteRegionTintFromWinningRegion(
   sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
@@ -137,15 +140,20 @@ export type RoomRegionPerspectiveSettings = {
 };
 
 export type RoomRegionPerspectiveResult = {
-  /** Linear sprite scale from the winning region (1 outside regions). */
+  /** Linear sprite scale from the last `scaleEnabled` region (1 when none apply). */
   characterScale: number;
   /**
-   * Multiplier applied to authored walk speed when the winning region has `scaleWalkSpeed: true`;
+   * Multiplier applied to authored walk speed when the scale winner has `scaleWalkSpeed: true`;
    * otherwise `1`.
    */
   walkSpeedMultiplier: number;
-  /** Last region whose polygon contained the feet (same winner as {@link resolveWinningRoomRegionIdAtFeet}). */
+  /** Last active region whose polygon contained the feet (enter/exit; same as {@link resolveWinningRoomRegionIdAtFeet}). */
   winningRegion: RoomRegionData | null;
+  /**
+   * Last active region containing the feet with `tintEnabled: true`. `null` when no tint source
+   * applies (do not clear a tint that was never set by a later region with tint off).
+   */
+  tintRegion: RoomRegionData | null;
 };
 
 function linearScaleForRegionFeetY(region: RoomRegionData, feetY: number): number {
@@ -173,7 +181,10 @@ function linearScaleForRegionFeetY(region: RoomRegionData, feetY: number): numbe
 
 /**
  * Sprite scale and optional walk-speed multiplier from room regions (feet position in room space).
- * Overlapping regions: **last** match in `regions` wins for both values.
+ * Overlapping regions: the **last** active polygon still wins for enter/exit (`winningRegion`).
+ * Scale and tint are independent: only the last containing region with `scaleEnabled` updates
+ * scale and walk speed, and only the last with `tintEnabled` becomes `tintRegion`. A later region
+ * with that feature off does not reset the earlier winner.
  */
 export function computeRoomRegionPerspective(
   feetX: number,
@@ -182,28 +193,34 @@ export function computeRoomRegionPerspective(
   perspective: RoomRegionPerspectiveSettings,
 ): RoomRegionPerspectiveResult {
   if (!regions || regions.length === 0) {
-    return { characterScale: 1, walkSpeedMultiplier: 1, winningRegion: null };
+    return { characterScale: 1, walkSpeedMultiplier: 1, winningRegion: null, tintRegion: null };
   }
   let characterScale = 1;
   let walkSpeedMultiplier = 1;
   let winningRegion: RoomRegionData | null = null;
+  let tintRegion: RoomRegionData | null = null;
   for (const r of regions) {
     if (!isActiveRegionContainingFeet(r, feetX, feetY)) {
       continue;
     }
     winningRegion = r;
-    const linear = linearScaleForRegionFeetY(r, feetY);
-    characterScale = linear;
-    if (r.scaleWalkSpeed === true) {
-      walkSpeedMultiplier = Math.max(
-        perspective.minWalkScale,
-        Math.pow(linear, perspective.walkScalePower),
-      );
-    } else {
-      walkSpeedMultiplier = 1;
+    if (r.scaleEnabled === true) {
+      const linear = linearScaleForRegionFeetY(r, feetY);
+      characterScale = linear;
+      if (r.scaleWalkSpeed === true) {
+        walkSpeedMultiplier = Math.max(
+          perspective.minWalkScale,
+          Math.pow(linear, perspective.walkScalePower),
+        );
+      } else {
+        walkSpeedMultiplier = 1;
+      }
+    }
+    if (r.tintEnabled === true) {
+      tintRegion = r;
     }
   }
-  return { characterScale, walkSpeedMultiplier, winningRegion };
+  return { characterScale, walkSpeedMultiplier, winningRegion, tintRegion };
 }
 
 /**

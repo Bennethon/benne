@@ -130,9 +130,13 @@ export type InspectorRegionCard = {
     /** `false` when JSON has `walkable: false`; the region acts as a hole in the walk mesh. */
     walkable: boolean;
     pointCount: number;
+    /** `true` only when JSON has `scaleEnabled: true`. Omitted = off. */
+    scaleEnabled: boolean;
     scaleTop: number;
     scaleBottom: number;
     scaleWalkSpeed: boolean;
+    /** `true` only when JSON has `tintEnabled: true`. Omitted = off. */
+    tintEnabled: boolean;
     /** Hex RGB or empty when unset. */
     tint: string;
     /** 0–1; effective default 1 when tint is set in JSON. */
@@ -1159,9 +1163,11 @@ async function buildRoomInspectorState(
             }
             const pts = o.points;
             const pointCount = Array.isArray(pts) ? pts.length : 0;
+            const scaleEnabled = o.scaleEnabled === true;
             const scaleTop = typeof o.scaleTop === 'number' && Number.isFinite(o.scaleTop) ? o.scaleTop : 1;
             const scaleBottom =
                 typeof o.scaleBottom === 'number' && Number.isFinite(o.scaleBottom) ? o.scaleBottom : 1;
+            const tintEnabled = o.tintEnabled === true;
             const tint = typeof o.tint === 'string' ? o.tint : '';
             const tintAlpha =
                 typeof o.tintAlpha === 'number' && Number.isFinite(o.tintAlpha) ? o.tintAlpha : 1;
@@ -1170,9 +1176,11 @@ async function buildRoomInspectorState(
                 active: o.active !== false,
                 walkable: o.walkable !== false,
                 pointCount,
+                scaleEnabled,
                 scaleTop,
                 scaleBottom,
                 scaleWalkSpeed: o.scaleWalkSpeed === true,
+                tintEnabled,
                 tint,
                 tintAlpha,
                 whenEnterDefined: roomScriptRegistersRegionWhenEnter(roomScriptText, roomId, id),

@@ -32,8 +32,10 @@ import {
     updatePropFields,
     updateRegionActive,
     updateRegionWalkable,
+    updateRegionScaleEnabled,
     updateRegionScaleFields,
     updateRegionScaleWalkSpeed,
+    updateRegionTintEnabled,
     updateRegionTintFields,
     updateRoomCharacterFields,
     writeDataJson,
@@ -680,8 +682,10 @@ type WebviewPatch =
     | { type: 'pointField'; id?: string; x?: number; y?: number }
     | { type: 'regionActive'; id?: string; active?: boolean }
     | { type: 'regionWalkable'; id?: string; walkable?: boolean }
+    | { type: 'regionScaleEnabled'; id?: string; scaleEnabled?: boolean }
     | { type: 'regionScale'; id?: string; scaleTop?: number; scaleBottom?: number }
     | { type: 'regionScaleWalkSpeed'; id?: string; scaleWalkSpeed?: boolean }
+    | { type: 'regionTintEnabled'; id?: string; tintEnabled?: boolean }
     | { type: 'regionTint'; id?: string; tint?: string; tintAlpha?: number }
     | {
           type: 'characterMeta';
@@ -1498,6 +1502,13 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             updateRegionWalkable(data, p.id, p.walkable);
             return;
         }
+        if (p.type === 'regionScaleEnabled' && typeof p.id === 'string' && typeof p.scaleEnabled === 'boolean') {
+            if (focusKind !== 'room') {
+                return;
+            }
+            updateRegionScaleEnabled(data, p.id, p.scaleEnabled);
+            return;
+        }
         if (
             p.type === 'regionScale' &&
             typeof p.id === 'string' &&
@@ -1517,6 +1528,13 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 return;
             }
             updateRegionScaleWalkSpeed(data, p.id, p.scaleWalkSpeed);
+            return;
+        }
+        if (p.type === 'regionTintEnabled' && typeof p.id === 'string' && typeof p.tintEnabled === 'boolean') {
+            if (focusKind !== 'room') {
+                return;
+            }
+            updateRegionTintEnabled(data, p.id, p.tintEnabled);
             return;
         }
         if (p.type === 'regionTint' && typeof p.id === 'string') {

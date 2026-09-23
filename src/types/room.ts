@@ -88,27 +88,41 @@ export interface RoomRegionData {
   walkable?: boolean;
   points: Point2[];
   /**
+   * When `true`, this region applies perspective character scale (`scaleTop` / `scaleBottom`) and
+   * optional `scaleWalkSpeed`. Omitted or not `true` = this region does not scale (it does not
+   * cancel scale from an earlier overlapping region).
+   */
+  scaleEnabled?: boolean;
+  /**
    * Character scale at the **top** of the region (smaller room Y). `1` = normal size. Omitted = `1`.
    * Interpolates linearly with {@link scaleBottom} by feet Y across the region’s vertical bounds.
+   * Applied only when {@link scaleEnabled} is `true`.
    */
   scaleTop?: number;
   /**
    * Character scale at the **bottom** of the region (larger room Y). Omitted = `1`.
+   * Applied only when {@link scaleEnabled} is `true`.
    */
   scaleBottom?: number;
   /**
    * When `true`, walking speed is multiplied by a perspective factor derived from the same linear
    * {@link scaleTop} / {@link scaleBottom} value as sprite scale (see `game-config.json` `perspective`).
-   * Omitted = `false`.
+   * Omitted = `false`. Read only from the scale winner (`scaleEnabled`).
    */
   scaleWalkSpeed?: boolean;
   /**
-   * Hex RGB (e.g. `#aabbcc`). When set, characters whose feet are inside this **winning** region
-   * multiply-tint toward this color. Omitted or invalid hex = no tint from this region.
+   * When `true`, this region is a character-tint source (`tint` / `tintAlpha`). Omitted or not
+   * `true` = this region does not tint (it does not clear tint from an earlier overlapping region).
+   */
+  tintEnabled?: boolean;
+  /**
+   * Hex RGB (e.g. `#aabbcc`). When this region is the tint winner (`tintEnabled`), characters
+   * multiply-tint toward this color. Omitted or invalid hex = no tint color from this region.
    */
   tint?: string;
   /**
    * 0–1 blend between no tint and full {@link tint} multiply (`1` = full strength). Omitted = `1` when `tint` is set.
+   * Applied only when this region is the tint winner ({@link tintEnabled}).
    */
   tintAlpha?: number;
 }
