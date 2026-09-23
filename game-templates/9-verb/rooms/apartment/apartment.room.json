@@ -134,6 +134,7 @@
           "y": 108
         }
       ],
+      "tintEnabled": true,
       "tint": "#000000",
       "tintAlpha": 0.75
     }

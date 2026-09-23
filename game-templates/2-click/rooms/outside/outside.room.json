@@ -172,6 +172,7 @@
           "y": 137
         }
       ],
+      "scaleEnabled": true,
       "scaleTop": 0.1,
       "scaleBottom": 1,
       "scaleWalkSpeed": true

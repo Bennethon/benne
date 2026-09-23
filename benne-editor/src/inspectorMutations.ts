@@ -620,6 +620,23 @@ export function updateRegionScaleFields(
     return { ok: true };
 }
 
+export function updateRegionScaleEnabled(
+    data: Record<string, unknown>,
+    regionId: string,
+    scaleEnabled: boolean
+): { ok: true } | { ok: false; message: string } {
+    const reg = regionsArray(data).find((x) => typeof x.id === 'string' && (x.id as string) === regionId);
+    if (!reg) {
+        return { ok: false, message: 'Region not found.' };
+    }
+    if (scaleEnabled) {
+        reg.scaleEnabled = true;
+    } else {
+        delete reg.scaleEnabled;
+    }
+    return { ok: true };
+}
+
 export function updateRegionScaleWalkSpeed(
     data: Record<string, unknown>,
     regionId: string,
@@ -633,6 +650,23 @@ export function updateRegionScaleWalkSpeed(
         reg.scaleWalkSpeed = true;
     } else {
         delete reg.scaleWalkSpeed;
+    }
+    return { ok: true };
+}
+
+export function updateRegionTintEnabled(
+    data: Record<string, unknown>,
+    regionId: string,
+    tintEnabled: boolean
+): { ok: true } | { ok: false; message: string } {
+    const reg = regionsArray(data).find((x) => typeof x.id === 'string' && (x.id as string) === regionId);
+    if (!reg) {
+        return { ok: false, message: 'Region not found.' };
+    }
+    if (tintEnabled) {
+        reg.tintEnabled = true;
+    } else {
+        delete reg.tintEnabled;
     }
     return { ok: true };
 }

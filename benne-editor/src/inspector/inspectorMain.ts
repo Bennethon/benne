@@ -88,9 +88,11 @@ type InspectorRegionCard = {
     active: boolean;
     walkable: boolean;
     pointCount: number;
+    scaleEnabled: boolean;
     scaleTop: number;
     scaleBottom: number;
     scaleWalkSpeed: boolean;
+    tintEnabled: boolean;
     tint: string;
     tintAlpha: number;
     whenEnterDefined: boolean;
@@ -1203,12 +1205,16 @@ function renderRoom(state: InspectorRoomState): string {
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-active" data-id="${esc(r.id)}" ${r.active ? 'checked' : ''} /></label>
         <span class="benne-pg-lbl" title="When unchecked, characters cannot walk through this region (acts as a hole in the walk mesh).">Walkable</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-walkable" data-id="${esc(r.id)}" ${r.walkable ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl" title="When checked, this region applies perspective scale. Unchecked regions do not cancel scale from an earlier overlap.">Scale</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-scale-enabled" data-id="${esc(r.id)}" ${r.scaleEnabled ? 'checked' : ''} /></label>
         <span class="benne-pg-lbl" title="Scale at top of region (smaller Y). 1 = normal.">Scale top</span>
         <input type="number" class="rg-scale-top" data-id="${esc(r.id)}" value="${r.scaleTop}" step="0.05" />
         <span class="benne-pg-lbl" title="Scale at bottom of region (larger Y).">Scale bottom</span>
         <input type="number" class="rg-scale-bottom" data-id="${esc(r.id)}" value="${r.scaleBottom}" step="0.05" />
         <span class="benne-pg-lbl" title="Slow or speed up walking by the same perspective factor as sprite scale (see game-config perspective).">Scale walk speed</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-scale-walk" data-id="${esc(r.id)}" ${r.scaleWalkSpeed ? 'checked' : ''} /></label>
+        <span class="benne-pg-lbl" title="When checked, this region tints characters. Unchecked regions do not clear tint from an earlier overlap.">Tint</span>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="rg-tint-enabled" data-id="${esc(r.id)}" ${r.tintEnabled ? 'checked' : ''} /></label>
         <span class="benne-pg-lbl" title="Hex RGB multiply tint while feet are in this region (empty = none).">Character tint</span>
         <input type="color" class="rg-tint" data-id="${esc(r.id)}" value="${esc(r.tint || '#88ccff')}" />
         <span class="benne-pg-lbl" title="0 = no tint, 1 = full tint color (multiplicative blend).">Tint alpha</span>
@@ -2708,6 +2714,17 @@ function mountHandlers(state: InspectorRoomState): void {
         });
     });
 
+    root.querySelectorAll('.rg-scale-enabled').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el as HTMLInputElement;
+            const id = inp.dataset.id;
+            if (!id) {
+                return;
+            }
+            post('applyPatches', { patches: [{ type: 'regionScaleEnabled', id, scaleEnabled: inp.checked }] });
+        });
+    });
+
     root.querySelectorAll('.rg-scale-walk').forEach((el) => {
         el.addEventListener('change', () => {
             const inp = el as HTMLInputElement;
@@ -2749,6 +2766,17 @@ function mountHandlers(state: InspectorRoomState): void {
             patches: [{ type: 'regionTint', id: regionId, tint, tintAlpha }]
         });
     };
+
+    root.querySelectorAll('.rg-tint-enabled').forEach((el) => {
+        el.addEventListener('change', () => {
+            const inp = el as HTMLInputElement;
+            const id = inp.dataset.id;
+            if (!id) {
+                return;
+            }
+            post('applyPatches', { patches: [{ type: 'regionTintEnabled', id, tintEnabled: inp.checked }] });
+        });
+    });
 
     root.querySelectorAll('.rg-tint').forEach((el) => {
         el.addEventListener('change', () => {

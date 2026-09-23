@@ -3695,7 +3695,7 @@ export class RoomScene extends Phaser.Scene {
     const s = perspective.characterScale;
     sprite.setScale(s, s);
     placeSpriteByFeet(sprite as Phaser.GameObjects.Sprite, feetLocal, worldFeetX, worldFeetY);
-    applyCharacterSpriteRegionTintFromWinningRegion(sprite, perspective.winningRegion);
+    applyCharacterSpriteRegionTintFromWinningRegion(sprite, perspective.tintRegion);
   }
 
   /**
