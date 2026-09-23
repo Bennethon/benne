@@ -155,6 +155,16 @@ function detectIdContext(document: vscode.TextDocument, position: vscode.Positio
     );
 }
 
+function uniqueSuggestions(items: IdSuggestion[]): IdSuggestion[] {
+    const byId = new Map<string, IdSuggestion>();
+    for (const item of items) {
+        if (!byId.has(item.id)) {
+            byId.set(item.id, item);
+        }
+    }
+    return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
 async function allRoomPropSuggestions(gameFolder: vscode.WorkspaceFolder): Promise<IdSuggestion[]> {
     const rooms = await listRoomDefinitions(gameFolder);
     const byId = new Map<string, IdSuggestion>();
@@ -172,6 +182,132 @@ async function allRoomPropSuggestions(gameFolder: vscode.WorkspaceFolder): Promi
         }
     }
     return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+async function allRoomHotspotSuggestions(gameFolder: vscode.WorkspaceFolder): Promise<IdSuggestion[]> {
+    const rooms = await listRoomDefinitions(gameFolder);
+    const items: IdSuggestion[] = [];
+    for (const room of rooms) {
+        const hotspots = await readRoomHotspots(room.uri);
+        for (const h of hotspots) {
+            items.push({
+                id: h.id,
+                label: h.id,
+                detail: h.description,
+                description: `hotspot (${room.id})`,
+            });
+        }
+    }
+    return uniqueSuggestions(items);
+}
+
+async function allRoomRegionSuggestions(gameFolder: vscode.WorkspaceFolder): Promise<IdSuggestion[]> {
+    const rooms = await listRoomDefinitions(gameFolder);
+    const items: IdSuggestion[] = [];
+    for (const room of rooms) {
+        const regions = await readRoomRegions(room.uri);
+        for (const r of regions) {
+            items.push({
+                id: r.id,
+                label: r.id,
+                description: `region (${room.id})`,
+            });
+        }
+    }
+    return uniqueSuggestions(items);
+}
+
+async function allRoomPointSuggestions(gameFolder: vscode.WorkspaceFolder): Promise<IdSuggestion[]> {
+    const rooms = await listRoomDefinitions(gameFolder);
+    const items: IdSuggestion[] = [];
+    for (const room of rooms) {
+        const points = await readRoomPoints(room.uri);
+        for (const p of points) {
+            items.push({
+                id: p.id,
+                label: p.id,
+                description: `point (${room.id})`,
+            });
+        }
+    }
+    return uniqueSuggestions(items);
+}
+
+async function dialogOptionSuggestions(
+    gameFolder: vscode.WorkspaceFolder,
+    dialogId: string,
+): Promise<IdSuggestion[]> {
+    const uri = vscode.Uri.joinPath(
+        gameFolder.uri,
+        'src',
+        'game',
+        'dialogs',
+        dialogId,
+        `${dialogId}.dialog.json`,
+    );
+    try {
+        const raw = await vscode.workspace.fs.readFile(uri);
+        const data = JSON.parse(new TextDecoder('utf-8').decode(raw)) as {
+            options?: { id?: string; text?: string }[];
+        };
+        if (!Array.isArray(data.options)) {
+            return [];
+        }
+        return data.options
+            .filter((o) => typeof o.id === 'string' && o.id.length > 0)
+            .map((o) => ({
+                id: o.id as string,
+                label: o.id as string,
+                detail: typeof o.text === 'string' ? o.text : undefined,
+                description: `dialog option (${dialogId})`,
+            }));
+    } catch {
+        return [];
+    }
+}
+
+async function allDialogOptionSuggestions(gameFolder: vscode.WorkspaceFolder): Promise<IdSuggestion[]> {
+    const dialogs = await listDialogDefinitions(gameFolder);
+    const items: IdSuggestion[] = [];
+    for (const dialog of dialogs) {
+        items.push(...(await dialogOptionSuggestions(gameFolder, dialog.id)));
+    }
+    return uniqueSuggestions(items);
+}
+
+async function allRoomSpawnedCharacterSuggestions(gameFolder: vscode.WorkspaceFolder): Promise<IdSuggestion[]> {
+    const rooms = await listRoomDefinitions(gameFolder);
+    const items: IdSuggestion[] = [];
+    for (const room of rooms) {
+        const chars = await readRoomCharacters(room.uri);
+        for (const c of chars) {
+            items.push({
+                id: c.characterId,
+                label: c.characterId,
+                description: `character (${room.id})`,
+            });
+        }
+    }
+    return uniqueSuggestions(items);
+}
+
+async function roomPropSuggestions(
+    gameFolder: vscode.WorkspaceFolder,
+    roomId: string,
+): Promise<IdSuggestion[]> {
+    const uri = await roomJsonUri(gameFolder, roomId);
+    if (!uri) {
+        return [];
+    }
+    const props = await readRoomProps(uri);
+    return props
+        .map((p) => ({
+            id: p.id,
+            label: p.id,
+            detail: p.tag ? `tag: ${p.tag}` : undefined,
+            description: 'prop',
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id));
 }
 
 async function roomJsonUri(gameFolder: vscode.WorkspaceFolder, roomId: string): Promise<vscode.Uri | undefined> {
@@ -251,11 +387,15 @@ async function loadSuggestions(
             }));
         }
         case 'prop':
-            return allRoomPropSuggestions(gameFolder);
+            return match.roomId
+                ? roomPropSuggestions(gameFolder, match.roomId)
+                : allRoomPropSuggestions(gameFolder);
         case 'hotspot':
         case 'region': {
             if (!match.roomId) {
-                return [];
+                return match.kind === 'hotspot'
+                    ? allRoomHotspotSuggestions(gameFolder)
+                    : allRoomRegionSuggestions(gameFolder);
             }
             const uri = await roomJsonUri(gameFolder, match.roomId);
             if (!uri) {
@@ -279,7 +419,10 @@ async function loadSuggestions(
         }
         case 'verbTarget': {
             if (!match.roomId) {
-                return allRoomPropSuggestions(gameFolder);
+                const props = await allRoomPropSuggestions(gameFolder);
+                const hotspots = await allRoomHotspotSuggestions(gameFolder);
+                const chars = await allRoomSpawnedCharacterSuggestions(gameFolder);
+                return [...props, ...hotspots, ...chars].sort((a, b) => a.id.localeCompare(b.id));
             }
             const uri = await roomJsonUri(gameFolder, match.roomId);
             if (!uri) {
@@ -302,66 +445,55 @@ async function loadSuggestions(
             return out;
         }
         case 'resolvable': {
-            const propSuggestions = await allRoomPropSuggestions(gameFolder);
+            const appendUnique = (out: IdSuggestion[], extra: IdSuggestion[]): void => {
+                for (const item of extra) {
+                    if (!out.some((s) => s.id === item.id)) {
+                        out.push(item);
+                    }
+                }
+            };
             if (!match.roomId) {
-                return propSuggestions;
+                const out = [...(await allRoomPropSuggestions(gameFolder))];
+                appendUnique(out, await allRoomHotspotSuggestions(gameFolder));
+                appendUnique(out, await allRoomSpawnedCharacterSuggestions(gameFolder));
+                appendUnique(out, await allRoomPointSuggestions(gameFolder));
+                out.sort((a, b) => a.id.localeCompare(b.id));
+                return out;
             }
             const uri = await roomJsonUri(gameFolder, match.roomId);
             if (!uri) {
-                return propSuggestions;
+                return [];
             }
+            const props = await readRoomProps(uri);
             const hotspots = await readRoomHotspots(uri);
             const points = await readRoomPoints(uri);
             const chars = await readRoomCharacters(uri);
-            const out: IdSuggestion[] = [...propSuggestions];
-            for (const h of hotspots) {
-                if (!out.some((s) => s.id === h.id)) {
-                    out.push({ id: h.id, label: h.id, description: 'hotspot' });
-                }
-            }
-            for (const c of chars) {
-                if (!out.some((s) => s.id === c.characterId)) {
-                    out.push({ id: c.characterId, label: c.characterId, description: 'character' });
-                }
-            }
-            for (const p of points) {
-                out.push({ id: p.id, label: p.id, description: 'point' });
-            }
+            const out: IdSuggestion[] = props.map((p) => ({
+                id: p.id,
+                label: p.id,
+                detail: p.tag ? `tag: ${p.tag}` : undefined,
+                description: 'prop',
+            }));
+            appendUnique(
+                out,
+                hotspots.map((h) => ({ id: h.id, label: h.id, description: 'hotspot' })),
+            );
+            appendUnique(
+                out,
+                chars.map((c) => ({ id: c.characterId, label: c.characterId, description: 'character' })),
+            );
+            appendUnique(
+                out,
+                points.map((p) => ({ id: p.id, label: p.id, description: 'point' })),
+            );
             out.sort((a, b) => a.id.localeCompare(b.id));
             return out;
         }
         case 'dialogOption': {
-            const dialogId = match.dialogId;
-            if (!dialogId) {
-                return [];
+            if (match.dialogId) {
+                return dialogOptionSuggestions(gameFolder, match.dialogId);
             }
-            const uri = vscode.Uri.joinPath(
-                gameFolder.uri,
-                'src',
-                'game',
-                'dialogs',
-                dialogId,
-                `${dialogId}.dialog.json`,
-            );
-            try {
-                const raw = await vscode.workspace.fs.readFile(uri);
-                const data = JSON.parse(new TextDecoder('utf-8').decode(raw)) as {
-                    options?: { id?: string; text?: string }[];
-                };
-                if (!Array.isArray(data.options)) {
-                    return [];
-                }
-                return data.options
-                    .filter((o) => typeof o.id === 'string' && o.id.length > 0)
-                    .map((o) => ({
-                        id: o.id as string,
-                        label: o.id as string,
-                        detail: typeof o.text === 'string' ? o.text : undefined,
-                        description: 'dialog option',
-                    }));
-            } catch {
-                return [];
-            }
+            return allDialogOptionSuggestions(gameFolder);
         }
         default:
             return [];

@@ -99,4 +99,34 @@ const pdcEditorWebviewConfig = {
   },
 };
 
-module.exports = [extensionConfig, inspectorWebviewConfig, pdcEditorWebviewConfig];
+/** TypeScript server plugin (loaded by tsserver, not the extension host). */
+/** @type WebpackConfig */
+const roomScriptIdTsPluginConfig = {
+  target: 'node',
+  mode: 'none',
+  entry: './src/roomScriptIdTsPlugin.ts',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'room-script-id-ts-plugin.js',
+    libraryTarget: 'commonjs2',
+  },
+  externalsPresets: { node: true },
+  resolve: {
+    extensions: ['.ts', '.js'],
+  },
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        exclude: [/node_modules/, /[\\/]scaffold[\\/]/],
+        use: [{ loader: 'ts-loader' }],
+      },
+    ],
+  },
+  devtool: false,
+  infrastructureLogging: {
+    level: 'log',
+  },
+};
+
+module.exports = [extensionConfig, inspectorWebviewConfig, pdcEditorWebviewConfig, roomScriptIdTsPluginConfig];
