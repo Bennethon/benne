@@ -285,12 +285,12 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
   readonly state: BenneScriptGameStateNamespace;
   readonly inventory: BenneScriptInventoryNamespace;
 
-  readonly dialog: (id: string) => BenneScriptDialogCommandSurface;
+  readonly dialog: (dialogId: DialogId) => BenneScriptDialogCommandSurface;
 
   readonly start: BlockingWithNow<[]>;
   readonly stop: BlockingWithNow<[]>;
-  readonly optionOn: BlockingWithNow<[string]>;
-  readonly optionOff: BlockingWithNow<[string]>;
+  readonly optionOn: BenneScriptDialogCommandSurface['optionOn'];
+  readonly optionOff: BenneScriptDialogCommandSurface['optionOff'];
 
   constructor(events: Phaser.Events.EventEmitter, dialogId: string, game: Phaser.Game, dialogGuiId: string) {
     super(
