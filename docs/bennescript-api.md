@@ -1,6 +1,6 @@
 # Bennescript API Reference
 
-> Last updated: 2026-06-06 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
+> Last updated: 2026-09-25 — generated from source (`src/engine/scripting/*.ts`, `src/engine/sound/*.ts`)
 
 For architecture, dispatch order, persistence keys, and editor workflows, see [architecture.md §7 Scripting / interaction system (Bennescript)](architecture.md#7-scripting--interaction-system-bennescript), [§7 → Generated game ID types](architecture.md#generated-game-id-types-bennescript-intellisense), [§3 → Audio system](architecture.md#audio-system), [§3 Game state → Bennescript](architecture.md#game-state-v1), [§3 Inventory → Bennescript](architecture.md#inventory-system), [§3 Dialog system → Bennescript](architecture.md#dialog-system-choice-topics), [§7 → GUI runtime (`GuiRuntime`, `B.onGuiBuilt`, `B.onGuiShow`, `B.onGuiHide`)](architecture.md#gui-behavior-runtime-guiruntime-bguitbuilt-bonguishow-bonguihide), and the **Blocking interaction queue** / API tables in §7.
 
@@ -14,7 +14,7 @@ String parameters for **content ids** in registration and facade calls use types
 |-----|------|
 | `registerCharacterScript('…')`, `B.character('…')` | `CharacterId` |
 | `B.prop('…')`, `whenGive(item, '…')` prop target | `PropId` |
-| `B.hotspot('…')`, `B.region('…')` | `HotspotId`, `RegionId` |
+| `B.hotspot('…')`, `B.region('…')`, `B.walkable('…')` | `HotspotId`, `RegionId`, `WalkableId` |
 | `whenLookAt('…')`, `whenVerb(verb, '…')` target | `VerbTargetId` |
 | `B.player.walkTo('…')`, `moveTo('…')` | `ResolvableTargetId` |
 | `B.room.changeTo('…')`, `B.state.setCurrentRoom('…')` | `RoomId` |
@@ -39,7 +39,7 @@ Each union is **`LooseString<…>`** — known literals from your game appear in
 - **`registerGuiScript('guiId', ({ B, events, guiId }) => …)`** — at content registration; overlay built per room.
 - **`registerDialogScript('dialogId', ({ B, events, dialogId, game }) => …)`** — runs when **`openDialogSessionForId`** opens that dialog (after **`B.dialog(id).start()`** / **`.start.now()`**).
 
-**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`display`**, **`wait`**, **`B.sound.play`**, **`B.sound.playAndWait`**, **`B.sound.playMusic`**, **`B.sound.stop`**, **`B.sound.stopMusic`**, **`B.video.play`**, **`B.video.playAndWait`**, **`B.camera.focus`**, **`B.camera.setZoom`**, **`B.camera.reset`**, etc., queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. **`B.gui('id').show()` / `hide()`** and **`B.camera.shake`** are immediate (not queued on the interaction tail). See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
+**Interaction queue** — Verb / button handlers registered through **`subscribe`** run inside an **`async`** wrapper that **`beginInteraction()`** (resets the tail), runs your **synchronous** body, then **`await endInteraction()`** on an internal **`interactionTail`** chain. Methods that represent time or ordering (walk, **`say`**, **`display`**, **`wait`**, **`B.sound.play`**, **`B.sound.playAndWait`**, **`B.sound.playMusic`**, **`B.sound.stop`**, **`B.sound.stopMusic`**, **`B.video.play`**, **`B.video.playAndWait`**, **`B.camera.focus`**, **`B.camera.setZoom`**, **`B.camera.reset`**, etc., queued animation setters, **`B.room.changeTo`**, **`B.inventory.add` / `B.inventory.remove`**, etc.) append **lazy** `() => Promise<…>` factories so the *next* step does not start until the previous promise settles. **`B.gui('id').show()` / `hide()`** on **GUI** scripts, and **`B.camera.shake`**, are immediate (not queued on the interaction tail). On **room** scripts, **`B.gui('id').show()` / `hide()`** queue on that room’s tail ( **`.now`** is immediate). See [architecture.md — Important implementation detail (lazy factories)](architecture.md#7-scripting--interaction-system-bennescript).
 
 **`BlockingWithNow` pattern** — Many APIs are **`(…args) => void`** plus **`.now(…args)`** with the same parameters. The blocking form **queues** on **`interactionTail`**; **`.now`** performs the same work **without** extending the tail, so later lines in your handler still run in source order but do not wait for that action.
 
@@ -65,6 +65,7 @@ Each union is **`LooseString<…>`** — known literals from your game appear in
 | **`B.prop(id)`** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | **`B.region(id).active`** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | **`B.region(id).whenEnter` / `whenExit`**, **`whenEnterRegion` / `whenExitRegion`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **`B.walkable(id).active`** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | **`B.hotspot(id).active`** / **`.clickable`** / **`.description`** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | **`B.onUpdate`** (per-frame, **not** on **`interactionTail`**) | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | Room **`when*(`target`,`…)` verb sugar**, **`onProp`**, **`whenGive(item,target,…)`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
@@ -73,7 +74,8 @@ Each union is **`LooseString<…>`** — known literals from your game appear in
 | Global verb fallbacks (**`whenGlobalFallback`**, etc.) | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **`whenLeaveRoom`**, **`whenLoadedRoom`**, **`whenEnterRoom`**, **`whenEnterRoomAfterFade`** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **`whenLeaveAnyRoom`**, **`whenLoadedAnyRoom`**, **`whenEnterAnyRoom`**, **`whenEnterAnyRoomAfterFade`** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **`whenButtonClick`**, **`whenCheckboxCheck`**, **`whenCheckboxUncheck`**, **`onGuiBuilt`**, **`onGuiShow`**, **`onGuiHide`**, **`scene`**, hover, **`B.gui('…').show` / `hide`** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **`B.gui('…').show` / `hide` / `control`** | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **`whenButtonClick`**, **`whenCheckboxCheck`**, **`whenCheckboxUncheck`**, **`onGuiBuilt`**, **`onGuiShow`**, **`onGuiHide`**, **`scene`**, hover | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | **`whenChoice`** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | **`cutscene`** / **`cutscene.now`** — see [Cutscene mode](#cutscene-mode) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
@@ -761,6 +763,22 @@ if (B.region('leave').active) {
 
 Advanced: stable event strings **`roomRegionEnterEventId(roomId, regionId)`** / **`roomRegionExitEventId`** in **`src/engine/events/regionEnterExitEvents.ts`** for **`B.raw.on`** tooling.
 
+### Walkable areas — `B.walkable(id).active`
+
+**Room scripts and dialog sessions** — **`B.walkable('walkableId').active`** getter and setter (same persistence pattern as **`B.region(…).active`**). Dialog calls use the active room; the setter is **immediate** (it does not wait behind earlier `say` lines on the interaction tail).
+
+- **`active` get/set** — immediate (not queued). Persisted to **`GameStateManager`** (key `` `room:<roomId>:walkable:<walkableId>:active` ``), re-applied to the live **`roomData.walkable.polygons`** entry at room load. When **inactive**, that polygon is ignored by walk tests, destination clamping, and pathfinding; its holes are ignored with it. A walk that has already started keeps its current path. The JSON **`active: false`** field is the authoring default; the script override is layered on top.
+- **`walkableId`** must match **`walkable.polygons[].id`** in this room’s **`*.room.json`** exactly (**case-sensitive**). If there is no matching polygon, the getter returns **`false`**, the setter is a no-op, and DEV logs once per room load with the list of known walkable ids.
+- Hole rings are not script ids. To stop a hole from cutting the mesh, set **`holes[].active`** to **`false`** in JSON, or deactivate the owning polygon.
+
+```ts
+B.walkable('bridge').active = false; // immediately drop it from the nav mesh; persisted
+
+if (B.walkable('bridge').active) {
+  B.player.walkTo({ x: 120, y: 80 });
+}
+```
+
 ### Room hotspots — `active` / `description`
 
 **Room scripts and dialog sessions** — **`B.hotspot('hotspotId').active`** getter and setter (same persistence pattern as **`B.region(…).active`**). **`B.hotspot(id).clickable`** is an alias of **`.active`** (same persist key, same immediate setter) so hotspots share a **`.clickable`** name with **`B.character(id).clickable`** / **`B.prop(id).clickable`**. Dialog calls use the active room; setters stay **immediate** (they do not wait behind earlier `say` lines on the interaction tail).
@@ -779,6 +797,30 @@ if (B.hotspot('secret-door').active) {
   // …
 }
 ```
+
+### Room GUIs — `B.gui(id)`
+
+Room scripts can show, hide, and drive any GUI overlay that **`RoomScene`** has already built (`*.gui.json` id, typed as **`GuiId`**). Overlays are composed **before** `registerRoomScript` runs, so **`B.gui`** is valid in **`whenEnterRoom`**, verb handlers, and the top level of the room script.
+
+```ts
+B.whenUse('door', () => {
+  B.player.walkToClicked();
+  B.player.say('Let me check the panel.');
+  B.gui('puzzle-panel').show(); // runs after the walk and the line
+});
+
+B.gui('puzzle-panel').hide.now(); // immediate, does not wait on the tail
+B.gui('puzzle-panel').control('status').text = 'Locked';
+```
+
+- **`show` / `hide`** are **`BlockingWithNow`**: the plain call queues on **this room script’s** interaction tail (same idea as **`B.prop(id).hide()`**); **`.now`** applies immediately. GUI scripts keep immediate **`show()` / `hide()`** ( **`.now`** is the same immediate call there).
+- Both paths use **`GuiOverlayHandle.setVisible`**, then the target overlay’s **`onGuiShow` / `onGuiHide`**.
+- **`control(id)`** is the same facade as in a GUI script (real control, or an inert facade when the overlay or control id is missing). Most setters are immediate. **`tweenTo`** and text-input **`text` / `focused`** still queue on the **owning GUI script’s** tail, because that queue is bound when the overlay is built.
+- Visibility is **not** persisted. The next room load rebuilds each overlay from **`*.gui.json` `visible`**. Re-apply in **`whenEnterRoom`** when a puzzle GUI must stay hidden.
+- **`speaking-text`**, **`display-text`**, and dialog choice overlays stay engine-driven (**`say`**, **`display`**, **`B.dialog`**). Do not use them as generic panels.
+- Missing or not-yet-built overlays are a no-op (DEV warns).
+
+**`whenButtonClick`**, checkbox and hover hooks, **`onGuiBuilt` / `onGuiShow` / `onGuiHide`**, and **`B.scene`** stay on the GUI’s own script.
 
 ### Per-frame hook — `B.onUpdate`
 
@@ -900,15 +942,15 @@ notifyGuiHidden(gui: GuiRuntime): void; // engine-use; runs onGuiHide after B.gu
 // Re-exported from @engine/scripting (see benneScriptFacades.ts / GuiRuntime.ts)
 interface BenneScriptGuiOverlayRef {
   control(controlId: string): ControlFacade;
-  show(): void;
-  hide(): void;
+  show: BlockingWithNow<[]>;
+  hide: BlockingWithNow<[]>;
 }
 ```
 
 - **`get scene`** — throws unless called synchronously inside an **`onGuiBuilt`** invocation (during **`notifyGuiBuilt`**); prefer **`gui.scene`** argument.
 - **`onGuiBuilt`** — runs once per room load when **`RoomScene`** builds the overlay and constructs a fresh **`GuiRuntime`**. Wire control listeners, initial layout/tweens, and first-time sync from JSON or game state.
-- **`onGuiShow` / `onGuiHide`** — run when **`B.gui('thatGuiId').show()`** or **`.hide()`** is called (any script may target any built overlay id). **`onGuiShow`** receives the live **`GuiRuntime`** for that overlay; use it to re-read **`B.state.getSaveList()`** and repaint list rows on every open (see **[`load-menu.gui.ts`](../src/game/guis/load-menu/load-menu.gui.ts)** / **[`save-menu.gui.ts`](../src/game/guis/save-menu/save-menu.gui.ts)**). Does **not** run when the overlay starts **`visible: true`** at room load — use **`onGuiBuilt`** for that first paint. Does **not** run for engine-internal visibility restores (e.g. dialog hiding HUD overlays).
-- **`B.gui('otherOverlayId')`** — resolves controls on **any** built overlay (`*.gui.json`) in the active room. **`control`** always returns a facade: the real control, or a safe inert one when the **`id`** is missing/blank, the overlay/runtime is absent, or the control is unknown ( **`text`** assigns are no-ops on the inert facade). On real **`text`** controls, **`ControlFacade.text`** maps to **`BitmapText`**; on real **`textInput`** controls, **`text`** is queued and **`textNow`** applies immediately. **`show()` / `hide()`** toggle the whole overlay visibility (same path as engine overlay visibility, including modal blocker behavior when **`modal: true`**), then invoke the target overlay’s **`onGuiShow`** / **`onGuiHide`** handlers; unknown / unavailable overlays are no-op (DEV warns).
+- **`onGuiShow` / `onGuiHide`** — run when **`B.gui('thatGuiId').show()`** or **`.hide()`** is called from a GUI script or a room script. **`onGuiShow`** receives the live **`GuiRuntime`** for that overlay; use it to re-read **`B.state.getSaveList()`** and repaint list rows on every open (see **[`load-menu.gui.ts`](../src/game/guis/load-menu/load-menu.gui.ts)** / **[`save-menu.gui.ts`](../src/game/guis/save-menu/save-menu.gui.ts)**). Does **not** run when the overlay starts **`visible: true`** at room load — use **`onGuiBuilt`** for that first paint. Does **not** run for engine-internal visibility restores (e.g. dialog hiding HUD overlays).
+- **`B.gui('otherOverlayId')`** — resolves controls on **any** built overlay (`*.gui.json`) in the active room. Also available on **room** scripts (see [Room GUIs](#room-guis--bguiid)). **`control`** always returns a facade: the real control, or a safe inert one when the **`id`** is missing/blank, the overlay/runtime is absent, or the control is unknown ( **`text`** assigns are no-ops on the inert facade). On real **`text`** controls, **`ControlFacade.text`** maps to **`BitmapText`**; on real **`textInput`** controls, **`text`** is queued and **`textNow`** applies immediately. **`show()` / `hide()`** toggle the whole overlay visibility (same path as engine overlay visibility, including modal blocker behavior when **`modal: true`**), then invoke the target overlay’s **`onGuiShow`** / **`onGuiHide`** handlers; unknown / unavailable overlays are no-op (DEV warns). On **GUI** scripts both the call and **`.now`** are immediate. On **room** scripts the plain call queues on that room’s interaction tail and **`.now`** is immediate.
 - **Verb HUD** — combine **`B.activeVerb`**, **`B.activeInventory`**, **`B.currentHoverDescription`** (or **`composeVerbLineText`** in code); in **`onGuiBuilt`**, call **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, refresh)`** (see **[`verbs.gui.ts`](../src/game/guis/verbs/verbs.gui.ts)**). Subscriptions reset when the room scene shuts down.
 - Hover handlers use **`subscribeImmediate`** (**no interaction-tail wait**).
 - Button clicks use **`subscribe`** (queued with other **`B`** work on **this GUI’s** script instance).
@@ -953,7 +995,7 @@ whenChoice(
 
 Wired to **`guiButtonClickEventId(dialogGuiId, dialogChoiceSyntheticButtonId(optionId))`**. **`RoomScene.suppressDialogChoiceGuiForWhenChoice`** hides the choice GUI during handler execution + **`interactionTail`** drain; restored after (**`restoreDialogChoiceGuiAfterWhenChoiceDrain`**).
 
-Tagged **`B.say`** and the rest of **`BenneScriptCore`** (**`wait`**, **`fadeOut`**, **`room`**, **`raw`**, **`B.character(id)`** …) apply as usual. **`DialogBenneScript`** adds **`state`**, **`inventory`**, and the active-room mutators **`B.prop(id)`**, **`B.hotspot(id)`**, and **`B.region(id).active`** (same persistence and queue rules as a room script; ids are the current room’s). Region **`whenEnter` / `whenExit`** and room verb sugar stay on **`*.room.ts`**. **`cutscene`** / **`cutscene.now`** are inherited from **`BenneScriptCore`** like all other surfaces.
+Tagged **`B.say`** and the rest of **`BenneScriptCore`** (**`wait`**, **`fadeOut`**, **`room`**, **`raw`**, **`B.character(id)`** …) apply as usual. **`DialogBenneScript`** adds **`state`**, **`inventory`**, and the active-room mutators **`B.prop(id)`**, **`B.hotspot(id)`**, **`B.region(id).active`**, and **`B.walkable(id).active`** (same persistence and queue rules as a room script; ids are the current room’s). Region **`whenEnter` / `whenExit`** and room verb sugar stay on **`*.room.ts`**. **`cutscene`** / **`cutscene.now`** are inherited from **`BenneScriptCore`** like all other surfaces.
 
 ```ts
 B.whenChoice('open-it', () => {
@@ -1078,13 +1120,14 @@ Strict typing when bypassing **`(p: any)`**:
 | [`benneScriptVideoApi.ts`](../src/engine/scripting/benneScriptVideoApi.ts) | **`createBenneScriptVideoFacade`** (**`B.video`**) |
 | [`benneScriptCameraApi.ts`](../src/engine/scripting/benneScriptCameraApi.ts) | **`createBenneScriptCameraFacade`** (**`B.camera`**) |
 | [`SoundManager.ts`](../src/engine/sound/SoundManager.ts) | **`Phaser.Game#sound`** playback, SFX tracking, music slot, lifecycle |
-| [`BenneScript.ts`](../src/engine/scripting/BenneScript.ts) | Room **`B`**, verb sugar, **`prop`/`character`/`player`/`region`**, **`state`/`inventory`/`dialog`** |
+| [`BenneScript.ts`](../src/engine/scripting/BenneScript.ts) | Room **`B`**, verb sugar, **`prop`/`character`/`player`/`region`/`walkable`**, **`state`/`inventory`/`dialog`**, **`gui`** (queued **`show`/`hide`**) |
 | [`CharacterBenneScript.ts`](../src/engine/scripting/CharacterBenneScript.ts) | Character facade |
 | [`InventoryBenneScript.ts`](../src/engine/scripting/InventoryBenneScript.ts) | Inventory row façade |
 | [`GlobalBenneScript.ts`](../src/engine/scripting/GlobalBenneScript.ts) | Global fallbacks + any-room hooks |
-| [`GuiBenneScript.ts`](../src/engine/scripting/GuiBenneScript.ts) | GUI buttons, **`onGuiBuilt`**, **`onGuiShow`**, **`onGuiHide`**, cross-overlay control access (**`B.gui`**), overlay **`show`/`hide`**, hover (**`subscribeImmediate`**), null clock |
-| [`DialogBenneScript.ts`](../src/engine/scripting/DialogBenneScript.ts) | Dialog session **`B`**, **`whenChoice`**, **`openDialogSessionForId`**, **`B.prop` / `B.hotspot` / `B.region().active`** |
-| [`benneScriptRoomEntityApi.ts`](../src/engine/scripting/benneScriptRoomEntityApi.ts) | Shared **`B.prop`**, **`B.hotspot`**, and **`B.region().active`** facades (room scripts and dialog sessions) |
+| [`GuiBenneScript.ts`](../src/engine/scripting/GuiBenneScript.ts) | GUI buttons, **`onGuiBuilt`**, **`onGuiShow`**, **`onGuiHide`**, cross-overlay control access (**`B.gui`**), overlay **`show`/`hide`** (immediate), hover (**`subscribeImmediate`**), null clock |
+| [`benneScriptGuiApi.ts`](../src/engine/scripting/benneScriptGuiApi.ts) | Shared **`B.gui(id)`** accessor (room scripts queue **`show`/`hide`**; GUI scripts stay immediate) |
+| [`DialogBenneScript.ts`](../src/engine/scripting/DialogBenneScript.ts) | Dialog session **`B`**, **`whenChoice`**, **`openDialogSessionForId`**, **`B.prop` / `B.hotspot` / `B.region().active` / `B.walkable().active`** |
+| [`benneScriptRoomEntityApi.ts`](../src/engine/scripting/benneScriptRoomEntityApi.ts) | Shared **`B.prop`**, **`B.hotspot`**, **`B.region().active`**, and **`B.walkable().active`** facades (room scripts and dialog sessions) |
 | [`benneScriptFacades.ts`](../src/engine/scripting/benneScriptFacades.ts) | **`BenneScript*Facade`** interfaces |
 | [`benneScriptGameStateApi.ts`](../src/engine/scripting/benneScriptGameStateApi.ts) | **`B.state`**, **`B.inventory`** factories |
 | [`benneScriptRoomApi.ts`](../src/engine/scripting/benneScriptRoomApi.ts) | **`B.room`** |

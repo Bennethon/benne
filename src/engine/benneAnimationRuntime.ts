@@ -101,6 +101,35 @@ export function writeSavedRegionActive(
   manager.setVariable(roomRegionActiveVariableKey(roomId, regionId), active);
 }
 
+/** Persistence key for `B.walkable(id).active` overrides. */
+export function roomWalkableActiveVariableKey(roomId: string, walkableId: string): string {
+  return `room:${roomId}:walkable:${walkableId}:active`;
+}
+
+/**
+ * Effective `B.walkable(id).active` — saved override (boolean) when set, else `jsonDefault`
+ * (`true` when the JSON field is omitted or anything other than `false`).
+ */
+export function readSavedWalkableActive(
+  manager: GameStateManager,
+  roomId: string,
+  walkableId: string,
+  jsonDefault: boolean,
+): boolean {
+  const v = manager.getVariable(roomWalkableActiveVariableKey(roomId, walkableId));
+  return typeof v === 'boolean' ? v : jsonDefault;
+}
+
+/** Persist `B.walkable(id).active = …` for this room+walkable polygon pair. */
+export function writeSavedWalkableActive(
+  manager: GameStateManager,
+  roomId: string,
+  walkableId: string,
+  active: boolean,
+): void {
+  manager.setVariable(roomWalkableActiveVariableKey(roomId, walkableId), active);
+}
+
 /** Persistence key for `B.hotspot(id).active` overrides. */
 export function roomHotspotActiveVariableKey(roomId: string, hotspotId: string): string {
   return `room:${roomId}:hotspot:${hotspotId}:active`;

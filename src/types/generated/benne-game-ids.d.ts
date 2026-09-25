@@ -32,6 +32,9 @@ export type HotspotId = LooseString<'door'>;
 /** Region ids from all *.room.json regions[]. */
 export type RegionId = LooseString<'distance'>;
 
+/** Walkable polygon ids from all *.room.json walkable.polygons[]. */
+export type WalkableId = LooseString<'walk-1'>;
+
 /** Named room point ids from all *.room.json points[]. */
 export type PointId = LooseString<'enter-from-door' | 'henry-fountain'>;
 

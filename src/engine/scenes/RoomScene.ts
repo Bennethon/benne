@@ -77,11 +77,13 @@ import {
   readSavedHotspotDescription,
   readSavedPropDescription,
   readSavedRegionActive,
+  readSavedWalkableActive,
   writeSavedCharacterDescription,
   writeSavedHotspotActive,
   writeSavedHotspotDescription,
   writeSavedPropDescription,
   writeSavedRegionActive,
+  writeSavedWalkableActive,
   setCharacterAnimationOverrideTagOnSprite,
   writeSavedCharacterAlpha,
   writeSavedCharacterAnimationOverride,
@@ -346,6 +348,13 @@ export class RoomScene extends Phaser.Scene {
   /** When true, player follow is suspended until {@link queueCameraReset}. */
   private scriptCameraFocusActive = false;
 
+  /**
+   * World point of the active script focus. Hi-DPI layout resets scroll after enter hooks;
+   * this is reapplied in {@link syncRuntimeHiDpiUiCameraToMain} so the fade-in does not
+   * reveal the clamped right edge of a wide room.
+   */
+  private scriptCameraFocusPoint: Point2 | null = null;
+
   /** Gameplay zoom multiplier on top of display zoom (`1` = room default). */
   private scriptGameplayZoom = 1;
 
@@ -381,6 +390,10 @@ export class RoomScene extends Phaser.Scene {
 
   /** Debug graphics for the live player path (re-drawn each frame while walking). */
   private debugPathGraphics: Phaser.GameObjects.Graphics | null = null;
+
+  /** Walkable mesh strokes (`debug.showWalkable`). Cleared and restroked when `B.walkable(id).active` changes. */
+  private debugWalkableOuterGraphics: Phaser.GameObjects.Graphics | null = null;
+  private debugWalkableHoleGraphics: Phaser.GameObjects.Graphics | null = null;
 
   /** Fired once when a walk tween completes successfully (instant walks may call it without a tween). */
   private walkArriveCallback: (() => void) | null = null;
@@ -474,6 +487,9 @@ export class RoomScene extends Phaser.Scene {
 
   /** `B.hotspot(id)` with an id not in `roomData.hotspots` — warn once per id per room load. */
   private unknownHotspotScriptIdsWarned = new Set<string>();
+
+  /** `B.walkable(id)` with an id not in `walkable.polygons` — warn once per id per room load. */
+  private unknownWalkableScriptIdsWarned = new Set<string>();
 
   /** `activeCursorOverride` tags that are missing on the game cursor sheet — warn once per tag per room load. */
   private unknownActiveCursorOverrideTagsWarned = new Set<string>();
@@ -689,6 +705,8 @@ export class RoomScene extends Phaser.Scene {
     this.playerMoveTween = null;
     this.currentPlayerPath = null;
     this.debugPathGraphics = null;
+    this.debugWalkableOuterGraphics = null;
+    this.debugWalkableHoleGraphics = null;
     this.parallaxProps = [];
     this.roomStackEntities = [];
     this.propSpritesById.clear();
@@ -708,9 +726,11 @@ export class RoomScene extends Phaser.Scene {
     this.regionEnterExitSeeded = false;
     this.restoreRegionActiveOverrides();
     this.restoreHotspotActiveOverrides();
+    this.restoreWalkableActiveOverrides();
     this.unresolvedWalkTargetIdsWarned.clear();
     this.unresolvedCameraTargetIdsWarned.clear();
     this.unknownHotspotScriptIdsWarned.clear();
+    this.unknownWalkableScriptIdsWarned.clear();
     this.unknownActiveCursorOverrideTagsWarned.clear();
     this.missingDialogTextOverlaySayWarned = false;
     this.missingDisplayTextOverlayWarned = false;
@@ -729,6 +749,9 @@ export class RoomScene extends Phaser.Scene {
     });
 
     attachPostProcessingPlaceholder(this.cameras.main);
+    // Script focus does not survive a room restart (the scene instance is reused).
+    this.scriptCameraFocusActive = false;
+    this.scriptCameraFocusPoint = null;
     syncBenneRuntimeHiDpiSceneMainCameras(this.game);
 
     const vW = getInternalWidth();
@@ -1049,6 +1072,8 @@ export class RoomScene extends Phaser.Scene {
       this.npcWalkTweens.clear();
       this.clearCharacterFaceTowardCharacterLocks();
       this.debugPathGraphics = null;
+      this.debugWalkableOuterGraphics = null;
+      this.debugWalkableHoleGraphics = null;
       this.benneCoresForTransitionReset.length = 0;
     });
   }
@@ -3311,6 +3336,75 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
+   * Effective `B.walkable(id).active` — saved override wins; falls back to the JSON `active` field
+   * (`undefined` / omitted = `true`, explicit `false` = inactive). Unknown ids return **`false`**
+   * and log once in DEV with this room’s walkable polygon id list.
+   */
+  getWalkableScriptActive(walkableId: string): boolean {
+    const poly = this.roomData.walkable.polygons.find((p) => p.id === walkableId);
+    if (!poly) {
+      this.warnIfUnknownWalkableScriptId(walkableId);
+      return false;
+    }
+    const jsonDefault = poly.active !== false;
+    return readSavedWalkableActive(
+      resolveGameStateManager(this.game),
+      this.roomData.id,
+      walkableId,
+      jsonDefault,
+    );
+  }
+
+  /**
+   * Persist + immediately apply the `active` state for a walkable polygon. Mutates the live
+   * `roomData.walkable.polygons` entry so walk tests, clamping, and pathfinding pick it up
+   * without a room reload. Backs **`B.walkable(id).active = …`**. No-op when **`walkableId`**
+   * is not in this room’s **`walkable.polygons[]`** (DEV warns once per id per load).
+   */
+  setWalkableScriptActive(walkableId: string, active: boolean): void {
+    const poly = this.roomData.walkable.polygons.find((p) => p.id === walkableId);
+    if (!poly) {
+      this.warnIfUnknownWalkableScriptId(walkableId);
+      return;
+    }
+    writeSavedWalkableActive(resolveGameStateManager(this.game), this.roomData.id, walkableId, active);
+    poly.active = active;
+    this.redrawWalkableDebugStrokes();
+  }
+
+  /**
+   * Re-apply saved `B.walkable(id).active` overrides to `roomData.walkable.polygons` at room load.
+   * Called at the top of {@link create} so the live mesh matches persisted state before the first
+   * walk query or debug stroke.
+   */
+  private restoreWalkableActiveOverrides(): void {
+    const polygons = this.roomData?.walkable?.polygons;
+    if (!polygons || polygons.length === 0) return;
+    const manager = resolveGameStateManager(this.game);
+    for (const poly of polygons) {
+      const jsonDefault = poly.active !== false;
+      const saved = readSavedWalkableActive(manager, this.roomData.id, poly.id, jsonDefault);
+      if (saved !== jsonDefault) {
+        poly.active = saved;
+      }
+    }
+  }
+
+  private warnIfUnknownWalkableScriptId(walkableId: string): void {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+    if (this.unknownWalkableScriptIdsWarned.has(walkableId)) {
+      return;
+    }
+    this.unknownWalkableScriptIdsWarned.add(walkableId);
+    const ids = this.roomData.walkable.polygons.map((p) => p.id).join(', ');
+    console.warn(
+      `[Benne] B.walkable('${walkableId}'): no walkable polygon with this id in room '${this.roomData.id}'. Known ids: ${ids || '(none)'} — ids are case-sensitive and must match *.room.json.`,
+    );
+  }
+
+  /**
    * Re-apply saved `B.hotspot(id).active` overrides to `roomData.hotspots` entries at room load.
    * Called in {@link create} before hotspot zones are spawned.
    */
@@ -4143,6 +4237,7 @@ export class RoomScene extends Phaser.Scene {
 
   private finishCameraReset(): void {
     this.scriptCameraFocusActive = false;
+    this.scriptCameraFocusPoint = null;
     const vW = getInternalWidth();
     const vH = getInternalHeight();
     const roomW = this.roomData.size?.width ?? vW;
@@ -4267,6 +4362,7 @@ export class RoomScene extends Phaser.Scene {
     cam.stopFollow();
     this.scriptCameraFocusActive = true;
     const point = this.resolveCameraFocusWorldPoint(target);
+    this.scriptCameraFocusPoint = { x: point.x, y: point.y };
     return this.queueCameraPan(point.x, point.y, transitionSeconds);
   }
 
@@ -4320,6 +4416,7 @@ export class RoomScene extends Phaser.Scene {
     cam.stopFollow();
     this.scriptCameraFocusActive = true;
     const point = this.resolveCameraFocusWorldPoint(target);
+    this.scriptCameraFocusPoint = { x: point.x, y: point.y };
     return Promise.all([
       this.queueCameraPan(point.x, point.y, transitionSeconds),
       this.queueCameraGameplayZoomTo(zoom, transitionSeconds),
@@ -4648,6 +4745,27 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
     this.applyScriptCameraZoom();
+    this.reapplyCameraAfterHiDpiLayout();
+  }
+
+  /**
+   * `applyBenneRuntimeHiDpiCameras` sets scroll to 0 after changing the viewport. On a wide
+   * room that scroll clamps to the far right once follow has been stopped. Restore the script
+   * focus point, or player follow, before the next paint.
+   */
+  private reapplyCameraAfterHiDpiLayout(): void {
+    const cam = this.cameras.main;
+    if (this.scriptCameraFocusActive && this.scriptCameraFocusPoint) {
+      cam.stopFollow();
+      cam.centerOn(this.scriptCameraFocusPoint.x, this.scriptCameraFocusPoint.y);
+      return;
+    }
+    const vW = getInternalWidth();
+    const vH = getInternalHeight();
+    this.applyPlayerCameraFollow(
+      this.roomData.size?.width ?? vW,
+      this.roomData.size?.height ?? vH,
+    );
   }
 
   private readonly handleRoomPointerDown = (
@@ -5145,26 +5263,11 @@ export class RoomScene extends Phaser.Scene {
     const lineWidth = 1;
 
     if (debug.showWalkable) {
-      const gOuter = this.add.graphics();
-      const gHoles = this.add.graphics();
-      gOuter.lineStyle(lineWidth, DEBUG_WALKABLE_STROKE, 1);
-      gHoles.lineStyle(lineWidth, DEBUG_WALKABLE_HOLE_STROKE, 1);
-      for (const poly of this.roomData.walkable.polygons) {
-        if (poly.active === false || poly.points.length < 3) {
-          continue;
-        }
-        const vecs = poly.points.map((p) => new Phaser.Math.Vector2(p.x, p.y));
-        gOuter.strokePoints(vecs, true);
-        for (const h of poly.holes ?? []) {
-          if (h.active === false || h.points.length < 3) {
-            continue;
-          }
-          const hv = h.points.map((p) => new Phaser.Math.Vector2(p.x, p.y));
-          gHoles.strokePoints(hv, true);
-        }
-      }
-      gOuter.setDepth(DEBUG_OVERLAY_DEPTH);
-      gHoles.setDepth(DEBUG_OVERLAY_DEPTH);
+      this.debugWalkableOuterGraphics = this.add.graphics();
+      this.debugWalkableHoleGraphics = this.add.graphics();
+      this.debugWalkableOuterGraphics.setDepth(DEBUG_OVERLAY_DEPTH);
+      this.debugWalkableHoleGraphics.setDepth(DEBUG_OVERLAY_DEPTH);
+      this.redrawWalkableDebugStrokes();
     }
 
     if (debug.showRegionOutlines) {
@@ -5199,6 +5302,38 @@ export class RoomScene extends Phaser.Scene {
       // for the pathfinding route around holes / concavities.
       this.debugPathGraphics = this.add.graphics();
       this.debugPathGraphics.setDepth(DEBUG_OVERLAY_DEPTH + 3);
+    }
+  }
+
+  /**
+   * Restroke active walkable outers and holes. No-op when `debug.showWalkable` did not create
+   * the overlay graphics. Called from {@link drawRoomDebugOverlays} and when
+   * **`B.walkable(id).active`** changes.
+   */
+  private redrawWalkableDebugStrokes(): void {
+    const gOuter = this.debugWalkableOuterGraphics;
+    const gHoles = this.debugWalkableHoleGraphics;
+    if (!gOuter || !gHoles) {
+      return;
+    }
+    const lineWidth = 1;
+    gOuter.clear();
+    gHoles.clear();
+    gOuter.lineStyle(lineWidth, DEBUG_WALKABLE_STROKE, 1);
+    gHoles.lineStyle(lineWidth, DEBUG_WALKABLE_HOLE_STROKE, 1);
+    for (const poly of this.roomData.walkable.polygons) {
+      if (poly.active === false || poly.points.length < 3) {
+        continue;
+      }
+      const vecs = poly.points.map((p) => new Phaser.Math.Vector2(p.x, p.y));
+      gOuter.strokePoints(vecs, true);
+      for (const h of poly.holes ?? []) {
+        if (h.active === false || h.points.length < 3) {
+          continue;
+        }
+        const hv = h.points.map((p) => new Phaser.Math.Vector2(p.x, p.y));
+        gHoles.strokePoints(hv, true);
+      }
     }
   }
 

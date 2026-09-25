@@ -106,7 +106,7 @@ registerRoomScript(({ B }) => {
 
 String ids passed to room handlers resolve in order: **props → hotspots → characters in this room → room points**. The same id you click is the id you handle.
 
-Room scripts also support: `whenVerb(verbId, target, …)` for any configured verb, `whenGive(itemId, propId, …)`, `B.prop('id')`, `B.region('id')`, `B.hotspot('id').active` / `.clickable` / `.description`, per-room transition hooks (`whenEnterRoom`, `whenEnterRoomAfterFade`, `whenLeaveRoom`, `whenLoadedRoom`), `B.onUpdate`, and `B.playFrom('name', …)` entry points for the editor's "Play from here".
+Room scripts also support: `whenVerb(verbId, target, …)` for any configured verb, `whenGive(itemId, propId, …)`, `B.prop('id')`, `B.region('id')`, `B.walkable('id').active`, `B.hotspot('id').active` / `.clickable` / `.description`, `B.gui('id').show()` / `.hide()` (queued on the room interaction tail; `.now` is immediate) and `B.gui('id').control('id')` to drive a built overlay, per-room transition hooks (`whenEnterRoom`, `whenEnterRoomAfterFade`, `whenLeaveRoom`, `whenLoadedRoom`), `B.onUpdate`, and `B.playFrom('name', …)` entry points for the editor's "Play from here".
 
 ### Character script
 
@@ -183,7 +183,7 @@ registerDialogScript('chatwithpenny', ({ B }) => {
 });
 ```
 
-You open a dialog from gameplay with `B.dialog('id').start()`, and toggle which topics are available with `optionOn` / `optionOff` to model conversation state. Inside a choice handler you can also change the room the conversation is happening in: `B.prop(id)` (show, hide, clickable, animation, fade, move), `B.hotspot(id).active`, and `B.region(id).active`. Those ids are the current room’s. Region enter/exit hooks stay in the room script.
+You open a dialog from gameplay with `B.dialog('id').start()`, and toggle which topics are available with `optionOn` / `optionOff` to model conversation state. Inside a choice handler you can also change the room the conversation is happening in: `B.prop(id)` (show, hide, clickable, animation, fade, move), `B.hotspot(id).active`, `B.region(id).active`, and `B.walkable(id).active`. Those ids are the current room’s. Region enter/exit hooks stay in the room script.
 
 ## Speaking lines
 
@@ -232,7 +232,7 @@ The same option works on `whenEnterRoom`, `whenEnterRoomAfterFade`, `whenEnterAn
 
 # Methods and Properties
 
-The `B` facade exposes several namespaces. The exact set available depends on the script type (for example, room verb sugar exists only in room scripts; `B.prop(...)`, `B.hotspot(...)`, and `B.region(...).active` are on room scripts and dialog sessions), but the core members below are available almost everywhere.
+The `B` facade exposes several namespaces. The exact set available depends on the script type (for example, room verb sugar exists only in room scripts; `B.prop(...)`, `B.hotspot(...)`, `B.region(...).active`, and `B.walkable(...).active` are on room scripts and dialog sessions), but the core members below are available almost everywhere.
 
 ## Core (`B`)
 
@@ -320,6 +320,14 @@ B.prop('Door').animation = 'Door-open';
 B.prop('Knife').hide();
 B.prop('FountainOff').clickable = false;
 ```
+
+## `B.walkable(id)`  <Badge type="info" text="room and dialog scripts" />
+
+```ts
+B.walkable('bridge').active = false; // drop this polygon from the nav mesh (persisted)
+```
+
+Setting `.active` is immediate and persisted. An inactive polygon (and its holes) is ignored by walking, clamping, and pathfinding. A walk that has already started keeps its current path. The id is `walkable.polygons[].id` in the current room. Hole rings are not separate script ids.
 
 ## `B.region(id)` and `B.hotspot(id)`  <Badge type="info" text="room and dialog scripts" />
 

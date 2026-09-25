@@ -4,6 +4,7 @@ export {
   type BenneScriptCharacterFacade,
   type BenneScriptHotspotFacade,
   type BenneScriptRegionActiveFacade,
+  type BenneScriptWalkableActiveFacade,
   type BenneScriptInventoryItemFacade,
   type BenneScriptPlayerFacade,
   type BenneScriptPropFacade,
