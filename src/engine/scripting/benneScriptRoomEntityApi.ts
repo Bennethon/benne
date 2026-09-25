@@ -1,4 +1,4 @@
-import type { HotspotId, PropId, RegionId } from '../../types/generated/benne-game-ids.js';
+import type { HotspotId, PropId, RegionId, WalkableId } from '../../types/generated/benne-game-ids.js';
 import type { Point2 } from '../../types/room.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import { withNow } from './BenneScriptCore.js';
@@ -8,6 +8,7 @@ import type {
   BenneScriptRegionActiveFacade,
   BenneScriptSoundFacade,
   BenneScriptVideoFacade,
+  BenneScriptWalkableActiveFacade,
 } from './benneScriptFacades.js';
 
 /** Resolves the room the script is acting on. Looked up when each operation runs. */
@@ -21,7 +22,7 @@ function warnRoomEntityNoScene(): void {
   if (import.meta.env.DEV && !warnedRoomEntityNoScene) {
     warnedRoomEntityNoScene = true;
     console.warn(
-      '[Benne] B.prop / B.hotspot / B.region used while RoomScene is not active — ignored.',
+      '[Benne] B.prop / B.hotspot / B.region / B.walkable used while RoomScene is not active — ignored.',
     );
   }
 }
@@ -51,6 +52,13 @@ const noopHotspotFacade: BenneScriptHotspotFacade = {
 };
 
 const noopRegionActiveFacade: BenneScriptRegionActiveFacade = {
+  get active() {
+    return true;
+  },
+  set active(_v: boolean) {},
+};
+
+const noopWalkableActiveFacade: BenneScriptWalkableActiveFacade = {
   get active() {
     return true;
   },
@@ -244,6 +252,31 @@ export function createBenneScriptRegionActiveFacade(
     },
     set active(v: boolean) {
       resolveRoomEntityScene(getScene)?.setRegionScriptActive(rid, v);
+    },
+  };
+}
+
+/**
+ * `B.walkable(id).active` for room scripts and dialog sessions. Immediate (not queued).
+ * Empty id: DEV warn and a no-op facade. Missing scene: DEV warn once, then no-op.
+ */
+export function createBenneScriptWalkableActiveFacade(
+  walkableId: WalkableId,
+  getScene: RoomEntitySceneResolver,
+): BenneScriptWalkableActiveFacade {
+  const wid = String(walkableId).trim();
+  if (wid.length === 0) {
+    if (import.meta.env.DEV) {
+      console.warn('[Benne] B.walkable: walkable id must be a non-empty string.');
+    }
+    return noopWalkableActiveFacade;
+  }
+  return {
+    get active() {
+      return resolveRoomEntityScene(getScene)?.getWalkableScriptActive(wid) ?? false;
+    },
+    set active(v: boolean) {
+      resolveRoomEntityScene(getScene)?.setWalkableScriptActive(wid, v);
     },
   };
 }

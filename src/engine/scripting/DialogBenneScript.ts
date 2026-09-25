@@ -15,7 +15,7 @@ import {
   dialogOptionEnabledVariableKey,
 } from '../dialog/dialogOptionVariables.js';
 import type { CutsceneOptions } from '../../types/cutscene.js';
-import type { DialogId, DialogOptionId, HotspotId, PropId, RegionId } from '../../types/generated/benne-game-ids.js';
+import type { DialogId, DialogOptionId, HotspotId, PropId, RegionId, WalkableId } from '../../types/generated/benne-game-ids.js';
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
@@ -26,11 +26,13 @@ import type {
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
   BenneScriptRegionActiveFacade,
+  BenneScriptWalkableActiveFacade,
 } from './benneScriptFacades.js';
 import {
   createBenneScriptHotspotFacade,
   createBenneScriptPropFacade,
   createBenneScriptRegionActiveFacade,
+  createBenneScriptWalkableActiveFacade,
 } from './benneScriptRoomEntityApi.js';
 import {
   createBenneScriptGameStateNamespace,
@@ -358,6 +360,14 @@ export class DialogBenneScript extends BenneScriptCore implements BenneScriptDia
    */
   region(regionId: RegionId): BenneScriptRegionActiveFacade {
     return createBenneScriptRegionActiveFacade(regionId, () => this.activeRoomScene());
+  }
+
+  /**
+   * Walkable polygon **`active`** flag in the **active** room. Immediate (not queued).
+   * Ids match `walkable.polygons[].id` in the current room’s JSON.
+   */
+  walkable(walkableId: WalkableId): BenneScriptWalkableActiveFacade {
+    return createBenneScriptWalkableActiveFacade(walkableId, () => this.activeRoomScene());
   }
 
   private activeRoomScene(): RoomScene | undefined {

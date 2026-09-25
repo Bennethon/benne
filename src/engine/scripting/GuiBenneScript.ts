@@ -24,20 +24,13 @@ import {
   type BenneScriptGameStateNamespace,
   type BenneScriptInventoryNamespace,
 } from './benneScriptGameStateApi.js';
-import {
-  createBenneNoopGuiControlFacade,
-  createDetachedBenneNoopGuiControlFacade,
-  type BenneScriptControlBinding,
-  type BenneScriptControlBindingTarget,
-  type ControlFacade,
-  type GuiRuntime,
-} from './GuiRuntime.js';
+import { createBenneScriptGuiOverlayRef } from './benneScriptGuiApi.js';
+import type { GuiRuntime } from './GuiRuntime.js';
 import {
   createBenneScriptDialogAccessor,
   createNoopDialogCommandSurface,
 } from './DialogBenneScript.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
-import { getGuiBenneScript } from './registerGuiScript.js';
 
 /**
  * Bennescript facade for `*.gui.ts`: GUI-scoped channels (button clicks, pointer hover per control), `raw`, and `wait`.
@@ -58,64 +51,21 @@ export class GuiBenneScript extends BenneScriptCore {
   /**
    * Resolve another GUI overlay’s controls by id (same pattern as **`B.dialog`** / **`B.inventory`**).
    * Call from **`onGuiBuilt`** (after the room registers {@link GuiRuntime} instances — includes **`this.guiId`** overlays).
+   * **`show` / `hide`** (and **`.now`**) apply immediately — they do not wait on this GUI script’s interaction tail.
    */
   gui(overlayGuiId: GuiId): BenneScriptGuiOverlayRef {
-    const gid = overlayGuiId.trim();
-    const self = this;
-    const setOverlayVisible = (visible: boolean): void => {
-      const rm = GuiBenneScript.tryResolveRoomSceneForGuiOverlay();
-      const handle = rm?.tryGetGuiOverlayHandle(gid);
-      if (!handle) {
-        if (import.meta.env.DEV) {
-          console.warn(
-            `[Benne] B.gui("${gid}").${visible ? 'show' : 'hide'}(): overlay not found in active room — no-op.`,
-          );
-        }
-        return;
-      }
-      handle.setVisible(visible);
-      const targetScript = getGuiBenneScript(gid);
-      const rt = rm?.tryGetGuiRuntime(gid);
-      if (targetScript && rt) {
-        if (visible) {
-          targetScript.notifyGuiShown(rt);
-        } else {
-          targetScript.notifyGuiHidden(rt);
-        }
-      }
-    };
-    return {
-      control(controlId: string): ControlFacade {
-        const id = controlId.trim();
-        const queue = (factory: () => Promise<unknown>) => self.chain(factory);
-        const rm = GuiBenneScript.tryResolveRoomSceneForGuiOverlay();
-        const rt = rm?.tryGetGuiRuntime(gid);
-        const scene = self.resolveSceneForGuiControlNoop(rt, rm);
-        const binding = id ? self.createControlScriptBinding(gid, id) : null;
-        const attachBinding = (facade: BenneScriptControlBindingTarget): void => {
-          if (binding) {
-            facade.attachScriptBinding(binding);
-          }
-        };
-        if (!scene) {
-          const detached = createDetachedBenneNoopGuiControlFacade(queue);
-          attachBinding(detached);
-          return detached;
-        }
-        if (!id) {
-          return createBenneNoopGuiControlFacade(scene, queue);
-        }
-        const resolved = rt?.getControl(id) ?? createBenneNoopGuiControlFacade(scene, queue);
-        attachBinding(resolved);
-        return resolved;
+    return createBenneScriptGuiOverlayRef(overlayGuiId, {
+      queueVisibility: false,
+      chain: (factory) => this.chain(factory),
+      resolveRoomScene: () => GuiBenneScript.tryResolveRoomSceneForGuiOverlay(),
+      resolveScene: (rt, room) => this.resolveSceneForGuiControlNoop(rt, room),
+      subscribe: (event, handler) => {
+        this.subscribe(event, handler);
       },
-      show(): void {
-        setOverlayVisible(true);
+      subscribeImmediate: (event, handler) => {
+        this.subscribeImmediateWithPayload(event, handler);
       },
-      hide(): void {
-        setOverlayVisible(false);
-      },
-    };
+    });
   }
 
   private resolveSceneForGuiControlNoop(
@@ -144,23 +94,6 @@ export class GuiBenneScript extends BenneScriptCore {
   private static tryResolveRoomSceneForGuiOverlay(): RoomScene | null {
     const g = tryGetActiveBenneGame();
     return (g?.scene.getScene(SCENE_ROOM) as RoomScene | undefined) ?? null;
-  }
-
-  private createControlScriptBinding(guiId: string, controlId: string): BenneScriptControlBinding {
-    return {
-      guiId,
-      controlId,
-      subscribe: (event, handler) => {
-        this.subscribe(event, (payload) => {
-          handler(payload);
-        });
-      },
-      subscribeImmediate: (event, handler) => {
-        this.subscribeImmediateWithPayload(event, (payload) => {
-          handler(payload);
-        });
-      },
-    };
   }
 
   constructor(events: Phaser.Events.EventEmitter, guiId: string) {
@@ -221,7 +154,7 @@ export class GuiBenneScript extends BenneScriptCore {
 
   /**
    * Registers a callback invoked when this GUI overlay becomes visible via {@link BenneScriptGuiOverlayRef.show}
-   * (including `B.gui(this.guiId).show()` from another GUI script). Use to refresh lists that read persisted state.
+   * (including `B.gui(this.guiId).show()` from a room script or another GUI script). Use to refresh lists that read persisted state.
    */
   onGuiShow(callback: (gui: GuiRuntime) => void): void {
     this.onGuiShowHandlers.push(callback);

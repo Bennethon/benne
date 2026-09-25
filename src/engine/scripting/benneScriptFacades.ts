@@ -125,11 +125,14 @@ export interface BenneScriptRoomFacade {
  * Address a GUI overlay by **`*.gui.json` `id`** (**`B.gui('verbs').control('foo')`**).
  * **`control`** returns the live {@link import('./GuiRuntime.js').ControlFacade} (`button` **`.enabled`** / **`.setVisualState`**, **`checkbox`** **`.checked`** / **`.disabled`**, **`textInput`** **`.enabled`** / **`.text`** / **`.textNow`** / **`.focused`**, **`listBox`** **`.selectedIndex`** / **`.setRowText`**), or an inert noop facade when the overlay
  * is missing, **`id`** is blank, or the control is unknown (matching forgiving overlay behavior elsewhere).
+ *
+ * **`show` / `hide`** are {@link BlockingWithNow}. Room scripts queue the plain call on the interaction tail;
+ * GUI scripts apply both the call and **`.now`** immediately.
  */
 export interface BenneScriptGuiOverlayRef {
   control(controlId: string): ControlFacade;
-  show(): void;
-  hide(): void;
+  show: BlockingWithNow<[]>;
+  hide: BlockingWithNow<[]>;
 }
 
 /**
@@ -212,6 +215,20 @@ export interface RoomInventoryUsedOnRegistrar {
  */
 export interface BenneScriptRegionActiveFacade {
   /** Whether this region is active. Inactive regions are ignored by overlap tests, enter/exit detection, perspective scale, and character tint. Setter is immediate (not queued). */
+  get active(): boolean;
+  set active(v: boolean);
+}
+
+/**
+ * Immediate **`active`** flag for one walkable polygon (`B.walkable(id).active`).
+ * Room scripts and dialog sessions both expose this.
+ */
+export interface BenneScriptWalkableActiveFacade {
+  /**
+   * Whether this walkable polygon is part of the nav mesh. Inactive polygons are ignored by
+   * walk tests, clamping, and pathfinding (their holes are ignored with them). Setter is
+   * immediate (not queued).
+   */
   get active(): boolean;
   set active(v: boolean);
 }

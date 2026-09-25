@@ -24,18 +24,22 @@ import {
 } from '../events/verbInteractionEvents.js';
 import type {
   BenneScriptDialogCommandSurface,
+  BenneScriptGuiOverlayRef,
   BenneScriptHotspotFacade,
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
   BenneScriptRegionFacade,
+  BenneScriptWalkableActiveFacade,
   InventoryWhenUsedOnPayloadHandler,
   RoomInventoryUsedOnRegistrar,
 } from './benneScriptFacades.js';
+import { createBenneScriptGuiOverlayRef } from './benneScriptGuiApi.js';
 import { BenneScriptCore } from './BenneScriptCore.js';
 import {
   createBenneScriptHotspotFacade,
   createBenneScriptPropFacade,
   createBenneScriptRegionActiveFacade,
+  createBenneScriptWalkableActiveFacade,
 } from './benneScriptRoomEntityApi.js';
 import {
   createBenneScriptGameStateNamespace,
@@ -51,11 +55,13 @@ import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
 import type {
   DialogId,
   GameVerbId,
+  GuiId,
   HotspotId,
   InventoryItemId,
   PropId,
   RegionId,
   VerbTargetId,
+  WalkableId,
 } from '../../types/generated/benne-game-ids.js';
 import type { UpdateContext } from './types.js';
 import { roomRegionEnterEventId, roomRegionExitEventId } from '../events/regionEnterExitEvents.js';
@@ -70,6 +76,7 @@ export type {
   BenneScriptPlayerFacade,
   BenneScriptPropFacade,
   BenneScriptRegionFacade,
+  BenneScriptWalkableActiveFacade,
   BenneScriptRoomFacade,
   BenneScriptSoundFacade,
   BenneScriptSharedSelectionApi,
@@ -115,6 +122,7 @@ export { withNow } from './BenneScriptCore.js';
  * | **`B.region(id).whenEnter` / `whenExit`**, **`B.whenEnterRegion` / `whenExitRegion`** | **`regions[].id`** in this room’s JSON. Feet crossing uses the **last** active polygon (**`resolveWinningRoomRegionIdAtFeet`**), independent of per-region **`scaleEnabled`** / **`tintEnabled`**. Handlers wire through **`subscribe`** (interaction queue + verb click context rules, like **`whenLookAt`**). Payload: **`RegionEnterExitContext`**. |
  * | **`B.onUpdate`** | Non-blocking per-frame hook (**`UpdateContext`**: **`deltaSeconds`**, **`roomId`**). Runs after engine **`RoomScene.update`** work; **not** on the interaction tail; **no** **`.now`**. Cleaned up when the room script’s **`B`** is disposed (room unload). Global **`B.onUpdate`** runs after room handlers. |
  * | **`B.hotspot(id).active`** / **`.clickable`** / **`.description`** | **`hotspots[].id`** (case-sensitive, exact JSON match) — get/set persisted **active** (immediate, not queued). **`.clickable`** is an alias of **`.active`**. **`.description`** is the hover / verb-line label (immediate; persists `` `room:<roomId>:hotspot:<id>:description` ``). Mounts or removes the polygon input zone; **`resolveMovementTarget`** still resolves inactive hotspot ids. Unknown id: **`.active`** getter **`false`**, **`.description`** getter **`''`**, setter no-op, DEV warn once per room load. |
+ * | **`B.walkable(id).active`** | **`walkable.polygons[].id`** (case-sensitive, exact JSON match) — get/set persisted **active** (immediate, not queued; key `` `room:<roomId>:walkable:<id>:active` ``). Inactive polygons drop out of walk tests, clamping, and pathfinding (holes on that polygon go with them). A walk already in progress keeps its current path. Unknown id: getter **`false`**, setter no-op, DEV warn once per room load. |
  * | **`B.say` / `B.say.now`** | Tagged **`B.say`**…``: PowerQuest-style block — lines **`Speaker: text`** (`Player` any case → protagonist id; other names match spawned character ids **case-insensitively**). Blank lines and **`//`** comments ignored; unknown speakers throw. Queues each line; **`B.say.now`**… skips the interaction tail (see implementation notes in **`BenneScriptCore`**). |
  * | **`B.display` / `B.display.now`** | Narration via **`display-text`** GUI — **`B.display('…')`** blocks until the player clicks to dismiss (no timer). Same interaction-tail rules as **`B.wait`** / **`say`**; **`.now`** skips the tail. |
  * | **`say` / `say.now`** on **`B.player`** or **`B.character('…')`** | Same dialog overlay as **`B.say`**, plus string form **`B.player.say('…')`**. Scoped tagged blocks: each line is that character (optional **`Player:`** prefix); mismatched **`Name:`** throws (compared **case-insensitively** to the scoped character). Optional second argument **`{ clickToSkip: false \| true }`** on string calls. |
@@ -128,6 +136,7 @@ export { withNow } from './BenneScriptCore.js';
  * | **`B.character(id).hide` / `show`**, **`.now`**, **`visible`**, **`visibleNow`** | Same as props: persisted script visibility (global per character definition id); **`hide` / `show` / `visible =`** queue; **`.now`** / **`visibleNow`** immediate. |
  * | **`movable` / `movable =`** on **`B.player`** or **`B.character('…')`** | When **`false`**, pathfind walks are ignored (including **`walkToClicked`** and click-to-walk); **`moveTo`** still teleports. Setter queues on the interaction tail; persists **`character:<id>:movable`** over the JSON default from **`*.character.json`**. |
  * | **`B.prop(id).fade(from, to, durationSeconds)`** / **`.now`**, **`B.character(id).fade(...)`** / **`.now`** | Sprite alpha tween (linear ease) from **`fromAlpha`** to **`toAlpha`** over **`durationSeconds`**; alphas clamp to **`[0, 1]`**. Blocking form queues on the interaction tail and waits for completion; **`fade.now`** starts immediately. **`toAlpha`** is persisted (**`room:…:prop:…:alpha`** / **`character:…:alpha`**). |
+ * | **`B.gui(id).show` / `hide`**, **`.now`**, **`control(id)`** | Built overlay from **`*.gui.json`** (**`GuiId`**). **`show` / `hide`** queue on this room’s interaction tail; **`.now`** applies immediately. **`control`** is the same facade as a GUI script (inert when the id is missing). Visibility is **not** persisted — the next room load restores JSON **`visible`**. |
  *
  * Aliased sugar (**`whenLookAt`**, **`whenUse`**, …) maps to **`game-config.json`** verb ids via **`VERB_ALIAS_CANDIDATES`** in `BenneScriptCore`. **`whenVerb`** uses an exact verb id.
  *
@@ -162,6 +171,13 @@ export class BenneScript extends BenneScriptCore {
   readonly dialog: (dialogId: DialogId) => BenneScriptDialogCommandSurface;
 
   /**
+   * Show, hide, or drive a GUI overlay built in this room (`*.gui.json` id).
+   * **`show` / `hide`** queue on this room script’s interaction tail; **`.now`** applies immediately.
+   * Visibility is not persisted — the next room load restores JSON **`visible`**.
+   */
+  readonly gui: (overlayGuiId: GuiId) => BenneScriptGuiOverlayRef;
+
+  /**
    * Register a handler for "inventory used on target" clicks for this room. Whether the active
    * inventory selection is dropped (active inventory + active verb both cleared) after the handler
    * runs follows {@link import('../verbs/dispatchInventoryOnVerbTarget.js').shouldDropActiveInventoryOnUse}
@@ -183,6 +199,19 @@ export class BenneScript extends BenneScriptCore {
       this.chain(factory),
     );
     this.dialog = createBenneScriptDialogAccessor(manager, roomScene.game, (factory) => this.chain(factory));
+    this.gui = (overlayGuiId: GuiId) =>
+      createBenneScriptGuiOverlayRef(overlayGuiId, {
+        queueVisibility: true,
+        chain: (factory) => this.chain(factory),
+        resolveRoomScene: () => this.roomScene,
+        resolveScene: (rt, room) => rt?.scene ?? room,
+        subscribe: (event, handler) => {
+          this.subscribe(event, handler);
+        },
+        subscribeImmediate: (event, handler) => {
+          this.subscribeImmediateWithPayload(event, handler);
+        },
+      });
     this.whenInventoryUsedOn = Object.assign(
       (
         targetId: VerbTargetId,
@@ -540,6 +569,14 @@ export class BenneScript extends BenneScriptCore {
 
   hotspot(hotspotId: HotspotId): BenneScriptHotspotFacade {
     return createBenneScriptHotspotFacade(hotspotId, () => this.roomScene);
+  }
+
+  /**
+   * Walkable polygon in this room. `active` is immediate (not queued) and persisted.
+   * Ids match `walkable.polygons[].id` in this room’s JSON.
+   */
+  walkable(walkableId: WalkableId): BenneScriptWalkableActiveFacade {
+    return createBenneScriptWalkableActiveFacade(walkableId, () => this.roomScene);
   }
 
   whenEnterRegion(

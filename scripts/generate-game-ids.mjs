@@ -94,6 +94,11 @@ type LooseString<T extends string = string> = T | (string & {});
       ids.regionIds,
     ),
     emitLooseStringType(
+      'WalkableId',
+      'Walkable polygon ids from all *.room.json walkable.polygons[].',
+      ids.walkableIds,
+    ),
+    emitLooseStringType(
       'PointId',
       'Named room point ids from all *.room.json points[].',
       ids.pointIds,

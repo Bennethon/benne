@@ -8,6 +8,7 @@ export type {
   ResolvableTargetId,
   RoomId,
   VerbTargetId,
+  WalkableId,
 } from './generated/benne-game-ids.js';
 
 export interface Point2 {

@@ -24,6 +24,7 @@ export async function scanGameContentIds(gameRoot) {
     propIds: [],
     hotspotIds: [],
     regionIds: [],
+    walkableIds: [],
     pointIds: [],
     dialogOptionIds: [],
     gameVerbIds: [],
@@ -39,6 +40,7 @@ export async function scanGameContentIds(gameRoot) {
     props: /** @type {Record<string, { tag?: string; roomId?: string }>} */ ({}),
     hotspots: /** @type {Record<string, { description?: string; roomId?: string }>} */ ({}),
     regions: /** @type {Record<string, { roomId?: string }>} */ ({}),
+    walkables: /** @type {Record<string, { roomId?: string }>} */ ({}),
     points: /** @type {Record<string, { roomId?: string }>} */ ({}),
     dialogOptions: /** @type {Record<string, { text?: string; dialogId?: string }>} */ ({}),
     verbs: /** @type {Record<string, { label?: string }>} */ ({}),
@@ -47,6 +49,7 @@ export async function scanGameContentIds(gameRoot) {
   const propIdSet = new Set();
   const hotspotIdSet = new Set();
   const regionIdSet = new Set();
+  const walkableIdSet = new Set();
   const pointIdSet = new Set();
   const dialogOptionIdSet = new Set();
 
@@ -82,6 +85,7 @@ export async function scanGameContentIds(gameRoot) {
       propIdSet,
       hotspotIdSet,
       regionIdSet,
+      walkableIdSet,
       pointIdSet,
       meta,
     });
@@ -94,6 +98,7 @@ export async function scanGameContentIds(gameRoot) {
   ids.propIds = sortUnique([...propIdSet]);
   ids.hotspotIds = sortUnique([...hotspotIdSet]);
   ids.regionIds = sortUnique([...regionIdSet]);
+  ids.walkableIds = sortUnique([...walkableIdSet]);
   ids.pointIds = sortUnique([...pointIdSet]);
   ids.dialogOptionIds = sortUnique([...dialogOptionIdSet]);
 
@@ -117,6 +122,7 @@ export async function getRoomScopedIds(roomJsonPath) {
   const propIds = [];
   const hotspotIds = [];
   const regionIds = [];
+  const walkableIds = [];
   const pointIds = [];
   const characterIds = [];
 
@@ -138,6 +144,14 @@ export async function getRoomScopedIds(roomJsonPath) {
     for (const r of data.regions) {
       if (r && typeof r === 'object' && typeof r.id === 'string' && r.id.length > 0) {
         regionIds.push(r.id);
+      }
+    }
+  }
+  const walkablePolygons = data.walkable?.polygons;
+  if (Array.isArray(walkablePolygons)) {
+    for (const w of walkablePolygons) {
+      if (w && typeof w === 'object' && typeof w.id === 'string' && w.id.length > 0) {
+        walkableIds.push(w.id);
       }
     }
   }
@@ -164,6 +178,7 @@ export async function getRoomScopedIds(roomJsonPath) {
     propIds: sortUnique(propIds),
     hotspotIds: sortUnique(hotspotIds),
     regionIds: sortUnique(regionIds),
+    walkableIds: sortUnique(walkableIds),
     pointIds: sortUnique(pointIds),
     characterIds: sortUnique(characterIds),
   };
@@ -318,6 +333,17 @@ function collectRoomScopedIds(roomId, data, ctx) {
         ctx.regionIdSet.add(r.id);
         if (!ctx.meta.regions[r.id]) {
           ctx.meta.regions[r.id] = { roomId };
+        }
+      }
+    }
+  }
+  const walkablePolygons = data.walkable?.polygons;
+  if (Array.isArray(walkablePolygons)) {
+    for (const w of walkablePolygons) {
+      if (w && typeof w === 'object' && typeof w.id === 'string' && w.id.length > 0) {
+        ctx.walkableIdSet.add(w.id);
+        if (!ctx.meta.walkables[w.id]) {
+          ctx.meta.walkables[w.id] = { roomId };
         }
       }
     }
