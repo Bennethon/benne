@@ -121,7 +121,8 @@ export function createBenneScriptGuiOverlayRef(
       if (!id) {
         return createBenneNoopGuiControlFacade(scene, queue);
       }
-      const resolved = rt?.getControl(id) ?? createBenneNoopGuiControlFacade(scene, queue);
+      const resolved =
+        rt?.createControlFacade(id, queue) ?? createBenneNoopGuiControlFacade(scene, queue);
       attachBinding(resolved);
       return resolved;
     },
