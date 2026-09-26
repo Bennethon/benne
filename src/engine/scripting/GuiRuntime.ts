@@ -1011,6 +1011,26 @@ export class GuiRuntime {
   }
 
   /**
+   * Live control facade whose **`tweenTo`** steps queue on `queueInteraction` — the calling script’s
+   * interaction tail — rather than the GUI script tail stored by {@link getControl}.
+   * Room scripts need this so a tween waits behind that room’s **`B.wait`** / **`B.room.changeTo`**.
+   */
+  createControlFacade(
+    controlId: string,
+    queueInteraction: (factory: () => Promise<unknown>) => void,
+  ): ControlFacade | null {
+    const id = controlId.trim();
+    if (!id) {
+      return null;
+    }
+    const go = this.controlObjects.get(id);
+    if (!go) {
+      return null;
+    }
+    return new ControlFacade(go, this.scene, queueInteraction);
+  }
+
+  /**
    * Same as {@link getControl}, but throws if the control is missing (unknown id, blank string, or not in the overlay).
    * Recommended default for `onGuiBuilt` wiring when a missing control indicates an authoring bug.
    */

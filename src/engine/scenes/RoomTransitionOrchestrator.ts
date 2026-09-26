@@ -35,6 +35,8 @@ export class RoomTransitionOrchestrator {
   private deferredRunComplete: (() => void) | null = null;
   /** From the last `changeTo` call; the new `RoomScene` should fade in (unless this is `true`). */
   private lastChangeImmediate = false;
+  /** Set by `B.state.reset()`. The next `changeTo` treats the leave as a new game. */
+  private pendingFreshStart = false;
   private readonly hooks: RoomTransitionHookRegistry;
 
   constructor(game: Phaser.Game, _events: EventBus, hooks: RoomTransitionHookRegistry) {
@@ -61,12 +63,28 @@ export class RoomTransitionOrchestrator {
   }
 
   /**
+   * The next {@link changeTo} skips the leave position flush, re-applies the new-game slice after
+   * leave hooks, and does not copy the room being left into `lastRoom`.
+   */
+  armNextChangeAsFreshStart(): void {
+    this.pendingFreshStart = true;
+  }
+
+  /**
    * Main transition; awaited on the Bennescript interaction chain when not immediate.
    */
   async changeTo(targetRoomId: string, immediate: boolean): Promise<void> {
     const id = String(targetRoomId);
+    const freshStart = this.pendingFreshStart;
+    this.pendingFreshStart = false;
     this.transitionChain = this.transitionChain
-      .then(() => this.runChangeToImpl(id, immediate, { startKind: 'transition', forceRestart: false }))
+      .then(() =>
+        this.runChangeToImpl(id, immediate, {
+          startKind: 'transition',
+          forceRestart: freshStart,
+          freshStart,
+        }),
+      )
       .catch((err) => {
         console.error('[Benne] Room transition failed:', err);
         setRoomTransitionInProgress(this.game, false);
@@ -109,6 +127,8 @@ export class RoomTransitionOrchestrator {
       startKind: BenneRoomStartKind;
       forceRestart: boolean;
       preserveRoomContextFromSnapshot?: boolean;
+      /** New game: skip the leave flush, then replace state so leave hooks cannot leak. */
+      freshStart?: boolean;
     },
   ): Promise<void> {
     const fromScene = this.game.scene.getScene(SCENE_ROOM) as RoomScene | null;
@@ -126,7 +146,8 @@ export class RoomTransitionOrchestrator {
     const manager = resolveGameStateManager(this.game);
     try {
       this.prepareForLeave(fromScene, manager, {
-        preserveSnapshotState: options.preserveRoomContextFromSnapshot === true,
+        preserveSnapshotState:
+          options.preserveRoomContextFromSnapshot === true || options.freshStart === true,
       });
       const lastSnap = manager.getLastRoom();
       const leaveVisit = getRoomVisitCount(manager, fromId);
@@ -143,6 +164,13 @@ export class RoomTransitionOrchestrator {
         ]),
         leaveCtx,
       );
+
+      if (options.freshStart) {
+        manager.resetToInitial({
+          roomContext: { currentRoom: targetRoomId, lastRoom: null },
+        });
+        this.sessionEnteredRoomIds.clear();
+      }
 
       if (!immediate) {
         await fromScene.queueScreenFadeToAlpha(
@@ -163,7 +191,7 @@ export class RoomTransitionOrchestrator {
         ensureRoomScriptLoaded(targetRoomId),
       ]);
 
-      if (options.preserveRoomContextFromSnapshot !== true) {
+      if (!options.freshStart && options.preserveRoomContextFromSnapshot !== true) {
         manager.setLastRoom(fromId);
         manager.setCurrentRoom(targetRoomId);
       }

@@ -126,6 +126,17 @@ export interface BenneScriptGameStateNamespace {
    * save points.
    */
   flush(): void;
+  /**
+   * Rebuild flags, variables, inventory, and the active player from `game-config.json`
+   * `initialGameState` (same slice as boot). Keeps speech, dialog, and SFX/music volume
+   * variables when that slice does not seed them. Clears `settings:currentMusicId` unless
+   * the slice seeds it, which stops the current track. Does not change rooms.
+   *
+   * The next `B.room.changeTo` / `changeTo.now` is a fresh start: it skips the leave position
+   * flush, re-applies this slice after leave hooks (so those hooks cannot leak flags), leaves
+   * `lastRoom` null, and clears the session first-enter set.
+   */
+  reset: SyncWithNow<[], void>;
 }
 
 /** Quantity helpers for a single character bag (`B.character(id).inventory`). */
@@ -251,6 +262,19 @@ function createBenneScriptGameStateNamespaceFromResolver(
       return scene?.isCutsceneActive() ?? false;
     },
     flush: () => runSnapshotFlushHooks(),
+    reset: withNowResult((): void => {
+      withManagerVoid('reset', (m) => m.resetToInitial({ preserveRoomContext: true }));
+      const orch = tryGetRoomTransitionOrchestrator();
+      if (!orch) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            '[Benne] B.state.reset: no room transition orchestrator — state cleared, but the next room change cannot be marked as a fresh start.',
+          );
+        }
+        return;
+      }
+      orch.armNextChangeAsFreshStart();
+    }),
   };
 }
 

@@ -41,7 +41,10 @@ import {
 } from '../../types/gameState.js';
 import { mergePreserveDialogSettingsVariables } from '../dialog/dialogGameState.js';
 import { mergePreserveSpeechSettingsVariables } from '../dialog/speechGameState.js';
-import { mergePreserveAudioVolumeVariables } from '../sound/audioGameState.js';
+import {
+  mergePreserveAudioVolumeVariables,
+  SETTINGS_CURRENT_MUSIC_VARIABLE,
+} from '../sound/audioGameState.js';
 import {
   buildInitialInventoryByCharacter,
   cloneInventoryBag,
@@ -51,9 +54,24 @@ import {
   normalizeSerializedInventoryByCharacter,
   resolveActivePlayerCharacterId,
 } from './characterInventory.js';
+import { buildBootGameStateSlice } from './initialGameStateSlice.js';
 import { runSnapshotFlushHooks } from './snapshotFlushHooks.js';
 
 export { normalizeSerializedInventory } from './characterInventory.js';
+
+/** Options for {@link GameStateManager.resetToInitial}. */
+export type ResetToInitialOptions = {
+  /**
+   * Keep `currentRoom` / `lastRoom`. `B.state.reset()` uses this while the current scene is still up;
+   * the following fresh-start room change writes the destination afterward.
+   */
+  preserveRoomContext?: boolean;
+  /**
+   * Room context to store in this replace. Ignored when {@link preserveRoomContext} is set.
+   * Omit to clear `currentRoom` and set `lastRoom` to `null`.
+   */
+  roomContext?: { currentRoom: string; lastRoom: string | null };
+};
 
 export type GameStateInitialSlice = Partial<{
   flags: Record<string, BenneGameStateFlagValue>;
@@ -327,6 +345,79 @@ export class GameStateManager {
         );
       }
     }
+    const payload: GameStateReplacedPayload = {
+      snapshot: this.getSnapshot({ runFlushHooks: false }),
+    };
+    this.events.emit(GAME_STATE_REPLACED_EVENT, payload);
+  }
+
+  /**
+   * Replace gameplay state with the `game-config.json` `initialGameState` slice used at boot.
+   * Speech, dialog, and SFX/music volume variables are kept when that slice does not seed them.
+   * `settings:currentMusicId` is cleared (so the replaced-state hook stops playback) unless the
+   * slice seeds it. Emits {@link GAME_STATE_REPLACED_EVENT}.
+   */
+  resetToInitial(options?: ResetToInitialOptions): void {
+    const boot = buildBootGameStateSlice();
+    const startingPlayer = getStartingPlayerCharacterId();
+    const seededVariables = { ...(boot?.variables ?? {}) };
+    const mergedVariables = mergePreserveSpeechSettingsVariables(
+      mergePreserveDialogSettingsVariables(
+        mergePreserveAudioVolumeVariables(seededVariables, this.state.variables),
+        this.state.variables,
+      ),
+      this.state.variables,
+    );
+    if (!Object.prototype.hasOwnProperty.call(seededVariables, SETTINGS_CURRENT_MUSIC_VARIABLE)) {
+      mergedVariables[SETTINGS_CURRENT_MUSIC_VARIABLE] = null;
+    }
+
+    const previousActivePlayerCharacterId = this.state.activePlayerCharacterId;
+    const previousCurrentRoom = this.state.currentRoom;
+    const previousLastRoom = this.state.lastRoom;
+    const nextCurrentRoom = options?.preserveRoomContext
+      ? previousCurrentRoom
+      : (options?.roomContext?.currentRoom ?? '');
+    const nextLastRoom = options?.preserveRoomContext
+      ? previousLastRoom
+      : (options?.roomContext?.lastRoom ?? null);
+    const nextActivePlayerCharacterId = resolveActivePlayerCharacterId(
+      boot?.activePlayerCharacterId,
+      startingPlayer,
+    );
+    const inventoryByCharacter = cloneInventoryByCharacter(
+      boot?.inventoryByCharacter ??
+        buildInitialInventoryByCharacter({ startingPlayerCharacterId: startingPlayer }),
+    );
+
+    this.state = {
+      version: 2,
+      flags: boot?.flags != null ? { ...boot.flags } : {},
+      variables: mergedVariables,
+      inventoryByCharacter,
+      activePlayerCharacterId: nextActivePlayerCharacterId,
+      currentRoom: nextCurrentRoom,
+      lastRoom: nextLastRoom,
+    };
+
+    if (previousActivePlayerCharacterId !== nextActivePlayerCharacterId) {
+      const playerPayload: GameStateActivePlayerCharacterChangedPayload = {
+        previousCharacterId: previousActivePlayerCharacterId,
+        characterId: nextActivePlayerCharacterId,
+      };
+      this.events.emit(GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT, playerPayload);
+    }
+    if (previousCurrentRoom !== nextCurrentRoom || previousLastRoom !== nextLastRoom) {
+      const roomPayload: GameStateRoomContextChangedPayload = {
+        currentRoom: nextCurrentRoom,
+        lastRoom: nextLastRoom,
+        previousCurrentRoom,
+        previousLastRoom,
+      };
+      this.events.emit(GAME_STATE_ROOM_CONTEXT_CHANGED_EVENT, roomPayload);
+    }
+    this.clearActiveVerb();
+    this.clearActiveInventoryItem();
     const payload: GameStateReplacedPayload = {
       snapshot: this.getSnapshot({ runFlushHooks: false }),
     };
