@@ -34,14 +34,25 @@ export function createBenneScriptSoundFacade(
       (key: string, options?: SoundPlayOptions) => {
         chain(() => {
           // One-shot SFX leave no lasting state, so a skipped cutscene does not fire them off.
-          if (!isSkipping()) {
-            resolveSoundManager()?.playSfx(key, options);
+          // Await start so the next step (a door animation, a line) does not run ahead of a
+          // device that is still opening — that is what made entrance stings land seconds late.
+          // A rejection must not drop the following step: B.room.changeTo is often that step.
+          if (isSkipping()) {
+            return Promise.resolve();
           }
-          return Promise.resolve();
+          const playback = resolveSoundManager()?.playSfx(key, options) ?? Promise.resolve();
+          return Promise.resolve(playback).then(
+            () => undefined,
+            (err: unknown) => {
+              if (import.meta.env.DEV) {
+                console.warn(`[Benne] B.sound.play("${key}") failed.`, err);
+              }
+            },
+          );
         });
       },
       (key: string, options?: SoundPlayOptions) => {
-        resolveSoundManager()?.playSfx(key, options);
+        void resolveSoundManager()?.playSfx(key, options);
       },
     ),
     playAndWait: withNow(
@@ -50,7 +61,19 @@ export function createBenneScriptSoundFacade(
         if (!sm) {
           return;
         }
-        chain(() => (isSkipping() ? Promise.resolve() : sm.playSfxAndWait(key, options)));
+        chain(() => {
+          if (isSkipping()) {
+            return Promise.resolve();
+          }
+          return sm.playSfxAndWait(key, options).then(
+            () => undefined,
+            (err: unknown) => {
+              if (import.meta.env.DEV) {
+                console.warn(`[Benne] B.sound.playAndWait("${key}") failed.`, err);
+              }
+            },
+          );
+        });
       },
       (key: string, options?: SoundPlayOptions) => {
         void resolveSoundManager()?.playSfxAndWait(key, options);
@@ -59,14 +82,29 @@ export function createBenneScriptSoundFacade(
     playMusic: withNow(
       (key: string, options?: MusicPlayOptions) => {
         chain(() => {
-          const sm = resolveSoundManager();
-          if (!sm) {
+          try {
+            const sm = resolveSoundManager();
+            if (!sm) {
+              return Promise.resolve();
+            }
+            // Music is lasting state, so a skip still switches tracks — just without the crossfade.
+            const playback = isSkipping()
+              ? sm.playMusic(key, { ...options, fadeSeconds: 0 })
+              : sm.playMusic(key, options);
+            return Promise.resolve(playback).then(
+              () => undefined,
+              (err: unknown) => {
+                if (import.meta.env.DEV) {
+                  console.warn(`[Benne] B.sound.playMusic("${key}") failed.`, err);
+                }
+              },
+            );
+          } catch (err) {
+            if (import.meta.env.DEV) {
+              console.warn(`[Benne] B.sound.playMusic("${key}") failed.`, err);
+            }
             return Promise.resolve();
           }
-          // Music is lasting state, so a skip still switches tracks — just without the crossfade.
-          return isSkipping()
-            ? sm.playMusic(key, { ...options, fadeSeconds: 0 })
-            : sm.playMusic(key, options);
         });
       },
       (key: string, options?: MusicPlayOptions) => {

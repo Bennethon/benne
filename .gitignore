@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.benne/desktop-build/
+releases/
 
 # VS Code extension — compiled test output (`npm run compile-tests` / `pretest`)
 benne-editor/out

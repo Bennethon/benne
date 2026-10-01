@@ -173,6 +173,14 @@ interface BenneScriptRoomFacade {
 | **`fadeOut`** | `BlockingWithNow<[durationSeconds?: number, color?: number]>` | Full-screen fade to opaque. Defaults: **0.35** s, **`0x000000`**. Requires active **`RoomScene`** (also resolves via **`tryGetActiveBenneGame`** → **`SCENE_ROOM`**). | Queued vs **`.now`** |
 | **`fadeIn`** | `BlockingWithNow<[durationSeconds?: number, color?: number]>` | Fade to transparent; same defaults. | Queued vs **`.now`** |
 
+Speaking Text is drawn above the fade, so dialogue remains legible during a fade.
+
+### Input and desktop host
+
+- **`B.disableUserInput = true / false`** queues a player input lock. It hides the custom cursor and blocks world, inventory, GUI button, and Escape input across room changes. Clicks can still dismiss an already displayed speech or narration line. The lock is not part of saved state.
+- **`B.getEnvironment()`** returns **`'browser'`** on the web and in editor previews, or **`'electron'`** in a packaged desktop game.
+- **`B.quit()`** queues an Electron quit after prior actions; **`B.quit.now()`** quits immediately. Both are no-ops in browsers and previews.
+
 ### Dialogue & narration (tagged **`B.say`**)
 
 | Member | Signature | Context | Blocking |

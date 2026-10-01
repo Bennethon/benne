@@ -23,3 +23,45 @@ body {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
+
+.graphics-notice[hidden] {
+  display: none;
+}
+
+.graphics-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: auto;
+  background: #0f0f1af5;
+  color: #f4f4f8;
+  font: 16px/1.5 system-ui, sans-serif;
+  cursor: auto;
+}
+
+.graphics-notice > div {
+  width: min(100%, 520px);
+}
+
+.graphics-notice h1 {
+  font-size: 1.5rem;
+}
+
+.graphics-notice button {
+  padding: 12px 20px;
+  border: 2px solid #09f9c2;
+  border-radius: 4px;
+  background: #09f9c2;
+  color: #0f0f1a;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.graphics-notice button:focus-visible {
+  outline: 3px solid white;
+  outline-offset: 4px;
+}

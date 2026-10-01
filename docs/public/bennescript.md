@@ -242,6 +242,9 @@ The `B` facade exposes several namespaces. The exact set available depends on th
 | `B.say\`…\`` | Tagged multi-speaker dialogue (queued per line). |
 | `B.display(text)` | Show narration in the display-text overlay (click to dismiss). |
 | `B.fadeOut(seconds?, color?)` / `B.fadeIn(...)` | Full-screen fade to/from a color (default black, ~0.35s). |
+| `B.disableUserInput = true / false` | Hide the cursor and block player input across room changes; this lock is not saved. |
+| `B.getEnvironment()` | Return \`'browser'\` or \`'electron'\` for platform-specific GUI controls. |
+| `B.quit()` / `B.quit.now()` | Close the Electron game after queued actions, or immediately; browser calls do nothing. |
 | `B.cutscene(fn, options?)` | Run `fn` with player input suppressed. `{ skippable: false }` blocks ESC skipping. |
 | `B.walkToClicked()` / `B.faceClicked()` | Walk the player to / face toward the target the player just clicked (inside a verb handler). |
 | `B.setActiveVerb(id)` / `B.getActiveVerb()` / `B.clearActiveVerb()` | Read/write the active verb. |

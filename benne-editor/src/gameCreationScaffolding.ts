@@ -46,6 +46,12 @@ BENNE point-and-click adventure game scaffolded from the **${templateDisplayName
 
 3. Open this folder in VS Code with the **BENNE Editor** extension installed. Use the BENNE sidebar to author rooms, characters, GUIs, and more.
 
+## Publish your game
+
+Run \`npm run build:itch\` to create \`releases/${projectName}-itch.zip\` for an itch.io HTML game. Upload it as a browser-playable ZIP. The build uses relative URLs, so it works beneath itch.io's game path.
+
+Run \`npm run build:windows\` to create a portable Windows ZIP in \`releases/windows/\`. Set \`benne.displayName\` in \`package.json\` to control the window and executable name. Optionally add \`src/game/assets/images/icon.png\` for the desktop icon. The build includes an itch desktop launch manifest. You can try the Electron wrapper locally with \`npm run desktop\`.
+
 ## Preview rebuilds
 
 The BENNE extension ships default preview bundles. After changing engine-facing preview code, rebuild locally:
@@ -179,6 +185,7 @@ export async function runCreateGameWizard(extensionPath: string, extensionVersio
                 'utf8',
             );
             await writeFile(path.join(destPath, 'package.json'), buildPackageJson(projectName), 'utf8');
+            await writeFile(path.join(destPath, '.gitignore'), 'node_modules/\ndist/\n.benne/\nreleases/\n', 'utf8');
             await writeFile(
                 path.join(destPath, 'README.md'),
                 buildReadme(projectName, templatePick.template.displayName),

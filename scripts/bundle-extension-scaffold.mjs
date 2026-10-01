@@ -127,6 +127,7 @@ async function bundleShared() {
     ['src/engine', 'src/engine'],
     ['src/editor', 'src/editor'],
     ['src/types', 'src/types'],
+    ['electron', 'electron'],
     ['scripts/lib', 'scripts/lib'],
   ];
   for (const [from, to] of dirCopies) {
@@ -138,6 +139,11 @@ async function bundleShared() {
     'src/style.css',
     'scripts/generate-game-ids.mjs',
     'scripts/resolveBennePreviewOutDir.mjs',
+    'scripts/package-itch.mjs',
+    'scripts/prepare-desktop.mjs',
+    'scripts/smoke-desktop.cjs',
+    'scripts/test-webgl-recovery.cjs',
+    'electron-builder.config.cjs',
     'vite.config.ts',
     'vite.room-preview.config.ts',
     'vite.character-preview.config.ts',
