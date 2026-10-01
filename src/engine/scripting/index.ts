@@ -110,3 +110,4 @@ export type {
 } from './benneScriptFacades.js';
 export type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
 export type { VideoPlayOptions } from '../video/benneVideoTypes.js';
+export type { BenneEnvironment } from './benneEnvironment.js';

@@ -117,7 +117,7 @@ Without this, **Create New Game** will report that the scaffold payload is missi
 
 ## Versioning
 
-BENNE uses **one version number**: the extension semver in **`benne-editor/package.json`** (currently `0.0.1`). There is no separate “engine version”, “SDK version”, or internal milestone label like “v1.5” — when docs or conversation refer to a release, they mean this semver.
+BENNE uses **one version number**: the extension semver in **`benne-editor/package.json`**. There is no separate “engine version”, “SDK version”, or internal milestone label like “v1.5” — when docs or conversation refer to a release, they mean this semver.
 
 | Label | Where it lives | Meaning |
 |-------|----------------|---------|
@@ -200,7 +200,7 @@ Engine files are already on disk. Fix the error and run `npm install` and `npm r
 |----------------------------------------|-------------|
 | Full template tree (boot, rooms, assets, …) | `src/game/` |
 
-Generated `package.json` includes runtime and dev dependencies only (`phaser`, `typescript`, `vite`) plus npm scripts for dev, build, and preview bundle rebuilds. It does **not** include monorepo-only scripts (`set-template`, `sync-boot-down`, etc.).
+Generated `package.json` includes the engine, Vite, TypeScript, Electron packaging dependencies, and npm scripts for development, preview rebuilds, itch.io HTML ZIPs, and Windows desktop ZIPs. It does **not** include monorepo-only scripts (`set-template`, `sync-boot-down`, etc.). See [Publishing Games](public/publishing-games.md).
 
 ## Preview rebuilds in standalone projects
 

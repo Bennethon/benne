@@ -29,6 +29,8 @@ export type ScaffoldScanResult = {
 const PHASER_VERSION = '4.0.0-rc.7';
 const TYPESCRIPT_VERSION = '~5.9.3';
 const VITE_VERSION = '^8.0.1';
+const ELECTRON_VERSION = '^44.4.5';
+const ELECTRON_BUILDER_VERSION = '^26.15.3';
 
 export function scaffoldRoot(extensionPath: string): string {
     return path.join(extensionPath, 'scaffold');
@@ -289,12 +291,19 @@ export function scaffoldPackageJsonTemplate(projectName: string): Record<string,
         private: true,
         version: '0.0.0',
         type: 'module',
+        main: 'electron/main.cjs',
         scripts: {
             'generate:game-ids': 'node scripts/generate-game-ids.mjs',
             predev: 'npm run generate:game-ids',
             dev: 'vite',
             prebuild: 'npm run generate:game-ids',
             build: 'tsc && vite build',
+            'build:itch': 'npm run build && node scripts/package-itch.mjs',
+            desktop: 'npm run build && electron .',
+            'build:windows': 'npm run build && node scripts/prepare-desktop.mjs && electron-builder --config electron-builder.config.cjs --win --x64',
+            'test:desktop': 'node --experimental-strip-types --test electron/protocol-path.test.cjs electron/environment.test.mjs',
+            'test:desktop:smoke': 'electron scripts/smoke-desktop.cjs',
+            'test:webgl': 'electron scripts/test-webgl-recovery.cjs && electron scripts/test-webgl-recovery.cjs --startup-failure',
             'prebuild:room-preview': 'npm run generate:game-ids',
             'build:room-preview': 'tsc && vite build --config vite.room-preview.config.ts',
             'prebuild:character-preview': 'npm run generate:game-ids',
@@ -309,6 +318,10 @@ export function scaffoldPackageJsonTemplate(projectName: string): Record<string,
             preview: 'vite preview',
         },
         devDependencies: {
+            electron: ELECTRON_VERSION,
+            'electron-builder': ELECTRON_BUILDER_VERSION,
+            'png-to-ico': '^3.0.2',
+            pngjs: '^7.0.0',
             typescript: TYPESCRIPT_VERSION,
             vite: VITE_VERSION,
         },

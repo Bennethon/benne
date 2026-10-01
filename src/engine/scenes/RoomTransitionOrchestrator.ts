@@ -37,6 +37,14 @@ export class RoomTransitionOrchestrator {
   private lastChangeImmediate = false;
   /** Set by `B.state.reset()`. The next `changeTo` treats the leave as a new game. */
   private pendingFreshStart = false;
+  /** True while {@link runChangeToImpl} is still waiting on that room's enter / after-fade scripts. */
+  private inRunChangeToImpl = false;
+  /**
+   * `changeTo` requested from those scripts. Started after the current run finishes so the
+   * script queue is not awaiting the same transition that is awaiting the queue.
+   */
+  private deferredReentrantChange: { id: string; immediate: boolean; freshStart: boolean } | null =
+    null;
   private readonly hooks: RoomTransitionHookRegistry;
 
   constructor(game: Phaser.Game, _events: EventBus, hooks: RoomTransitionHookRegistry) {
@@ -77,6 +85,17 @@ export class RoomTransitionOrchestrator {
     const id = String(targetRoomId);
     const freshStart = this.pendingFreshStart;
     this.pendingFreshStart = false;
+    if (this.inRunChangeToImpl) {
+      // Enter and after-fade scripts run inside this transition, and this run waits until their
+      // queue drains. Awaiting another changeTo here would wait on that same run.
+      this.deferredReentrantChange = { id, immediate, freshStart };
+      return;
+    }
+    this.enqueueChange(id, immediate, freshStart);
+    return this.transitionChain;
+  }
+
+  private enqueueChange(id: string, immediate: boolean, freshStart: boolean): void {
     this.transitionChain = this.transitionChain
       .then(() =>
         this.runChangeToImpl(id, immediate, {
@@ -89,7 +108,16 @@ export class RoomTransitionOrchestrator {
         console.error('[Benne] Room transition failed:', err);
         setRoomTransitionInProgress(this.game, false);
       });
-    return this.transitionChain;
+  }
+
+  /** Runs a changeTo that was requested from the transition it would otherwise have waited on. */
+  private flushDeferredReentrantChange(): void {
+    const next = this.deferredReentrantChange;
+    if (!next) {
+      return;
+    }
+    this.deferredReentrantChange = null;
+    this.enqueueChange(next.id, next.immediate, next.freshStart);
   }
 
   /**
@@ -121,6 +149,30 @@ export class RoomTransitionOrchestrator {
   }
 
   private async runChangeToImpl(
+    targetRoomId: string,
+    immediate: boolean,
+    options: {
+      startKind: BenneRoomStartKind;
+      forceRestart: boolean;
+      preserveRoomContextFromSnapshot?: boolean;
+      /** New game: skip the leave flush, then replace state so leave hooks cannot leak. */
+      freshStart?: boolean;
+    },
+  ): Promise<void> {
+    this.inRunChangeToImpl = true;
+    try {
+      await this.runChangeToImplBody(targetRoomId, immediate, options);
+    } catch (e) {
+      this.deferredReentrantChange = null;
+      setRoomTransitionInProgress(this.game, false);
+      throw e;
+    } finally {
+      this.inRunChangeToImpl = false;
+    }
+    this.flushDeferredReentrantChange();
+  }
+
+  private async runChangeToImplBody(
     targetRoomId: string,
     immediate: boolean,
     options: {
@@ -182,6 +234,9 @@ export class RoomTransitionOrchestrator {
         fromScene.screenFadeLayer?.setAlpha(1);
       }
 
+      // After the fade, so a one-shot queued just before changeTo plays during it.
+      this.stopLeavingRoomAudio();
+
       const room = loadRoomDataById(targetRoomId);
       const startData = buildRoomSceneStartDataFromRoomData(room);
       queueRoomSceneAssetLoads(fromScene, startData);
@@ -237,6 +292,13 @@ export class RoomTransitionOrchestrator {
    * Finishes a transition: enter hooks, fade in, after-fade hooks. Also handles **boot** / **preview** (no `changeTo`).
    */
   async onRoomSceneCreateComplete(roomScene: RoomScene, kind: BenneRoomStartKind): Promise<void> {
+    // Boot/preview enter this without `runChangeToImpl`. Hold the same re-entry guard so a
+    // `changeTo` in those scripts waits until this pass finishes instead of tearing the room down
+    // mid-queue.
+    const deferChangeUntilDone = !this.inRunChangeToImpl;
+    if (deferChangeUntilDone) {
+      this.inRunChangeToImpl = true;
+    }
     const roomId = roomScene.getCurrentRoomId();
     const manager = resolveGameStateManager(this.game);
     const finishDeferred = ((): void => {
@@ -340,6 +402,14 @@ export class RoomTransitionOrchestrator {
 
       roomScene.setCharacterFollowBehaviorEnabled(true);
 
+      // Wake the output device before the room is revealed. An entrance SFX scheduled
+      // while that device is still opening is heard seconds after the script asked for it.
+      const entranceSound = tryGetBenneSoundManager(this.game);
+      if (entranceSound && !entranceSound.isAudioRunning()) {
+        roomScene.screenFadeLayer?.setAlpha(1);
+        await entranceSound.prepareForPlayback();
+      }
+
       if (skipEnterFadeIn) {
         roomScene.screenFadeLayer?.setAlpha(0);
       } else {
@@ -392,6 +462,21 @@ export class RoomTransitionOrchestrator {
     } finally {
       finishDeferred();
       setRoomTransitionInProgress(this.game, false);
+      if (deferChangeUntilDone) {
+        this.inRunChangeToImpl = false;
+        this.flushDeferredReentrantChange();
+      }
+    }
+  }
+
+  /** Stop SFX and voice from the room being left. Failures must not abort the transition. */
+  private stopLeavingRoomAudio(): void {
+    const soundManager = tryGetBenneSoundManager(this.game);
+    try {
+      soundManager?.stopAllSfx();
+      soundManager?.stopAllVoice();
+    } catch (err) {
+      console.warn('[Benne] Room transition: stopping leave audio failed.', err);
     }
   }
 
@@ -409,9 +494,6 @@ export class RoomTransitionOrchestrator {
       mgr.clearActiveVerb();
       mgr.clearActiveInventoryItem();
     }
-    const soundManager = tryGetBenneSoundManager(this.game);
-    soundManager?.stopAllSfx();
-    soundManager?.stopAllVoice();
     roomScene.clearStateForRoomTransition();
     for (const s of roomScene.getBenneScriptCoresForTransitionReset()) {
       s.resetInteractionTailForEngine();

@@ -160,6 +160,7 @@ import {
 import { getEffectiveInputProfile } from '../verbs/verbConfig';
 import { resolvePointerVerbForTarget, type PointerVerbTarget } from '../verbs/resolvePointerVerb';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
+import { BENNE_USER_INPUT_DISABLED_REGISTRY_KEY } from '../input/userInputDisabledRegistry';
 import { incrementRoomVisitCount } from '../gameState/roomVisitState';
 import { getInternalHeight, getInternalWidth, SCENE_ROOM } from '../../game/boot/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
@@ -231,6 +232,7 @@ import {
   BENNE_SCREEN_FADE_DEFAULT_COLOR,
   BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
   BENNE_SCREEN_FADE_OVERLAY_DEPTH,
+  SPEAKING_TEXT_OVERLAY_DEPTH,
 } from './roomScreenFadeConstants';
 import { ROOM_VIDEO_LAYER_DEPTH } from './roomVideoConstants';
 import { benneVideoCacheKey } from '../video/benneVideoCacheKeys.js';
@@ -501,8 +503,9 @@ export class RoomScene extends Phaser.Scene {
   private snapshotFlushHookUnregister: (() => void) | null = null;
 
   /**
-   * Full-screen fade (above all GUI overlays, below the custom pointer). Tweened by
-   * {@link queueScreenFadeToAlpha} (`B.fadeOut` / `B.fadeIn`). Null only before `create` or after shutdown.
+   * Full-screen fade (above HUD, choice, and display-text GUIs; below Speaking Text and the
+   * custom pointer). Tweened by {@link queueScreenFadeToAlpha} (`B.fadeOut` / `B.fadeIn`).
+   * Null only before `create` or after shutdown.
    */
   private screenFadeRect: Phaser.GameObjects.Rectangle | null = null;
 
@@ -656,6 +659,9 @@ export class RoomScene extends Phaser.Scene {
     }
   };
   private readonly onRoomKeyDown = (event: KeyboardEvent): void => {
+    if (this.isUserInputDisabled()) {
+      return;
+    }
     if (event.key !== 'Escape') {
       return;
     }
@@ -813,11 +819,12 @@ export class RoomScene extends Phaser.Scene {
     let stackIndex = 0;
     const inventoryPanelPointerContext = {
       roomId: data.room.id,
-      isInputSuppressed: (): boolean => this.isInputSuppressed(),
+      isInputSuppressed: (): boolean => this.isPlayerPointerBlocked(),
       tryConsumeDialogClickToSkip: (pointer: Phaser.Input.Pointer): boolean =>
         this.tryConsumeRoomVideoOrScriptedDialogClickToSkip(pointer),
     };
-    const isButtonClickSuppressed = (): boolean => this.isCutsceneActive() || this.isRoomVideoPlaying();
+    const isButtonClickSuppressed = (): boolean =>
+      this.isCutsceneActive() || this.isRoomVideoPlaying() || this.isUserInputDisabled();
     const noopDialogQueue = (factory: () => Promise<unknown>): void => {
       void factory().catch((err) => console.error('[Benne] dialog choice GUI queued step failed:', err));
     };
@@ -827,7 +834,8 @@ export class RoomScene extends Phaser.Scene {
       const isChoiceDialog = dialogChoiceGuiIds.has(gui.id);
       const isGenericHud = !isSpeakingText && !isDisplayText && !isChoiceDialog;
 
-      const guiDepth = GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE;
+      const stackDepth = GUI_TEXT_OVERLAY_DEPTH + stackIndex * GUI_OVERLAY_DEPTH_STRIDE;
+      const guiDepth = isSpeakingText ? SPEAKING_TEXT_OVERLAY_DEPTH : stackDepth;
       const guiStartVisible =
         isSpeakingText || isDisplayText || isChoiceDialog
           ? false
@@ -909,6 +917,7 @@ export class RoomScene extends Phaser.Scene {
     }
 
     this.setupCustomGameCursor();
+    this.applyUserInputCursorLock();
     this.setupRuntimeUiCameraIfNeeded();
     this.input.on('pointermove', this.onRoomPointerMove);
     gameEvents.on(GAME_STATE_INVENTORY_CHANGED_EVENT, this.syncVerbHoverScriptSurfaceAtActivePointer);
@@ -2108,6 +2117,49 @@ export class RoomScene extends Phaser.Scene {
       this.isCutsceneActive() ||
       this.isRoomVideoPlaying()
     );
+  }
+
+  /** True while `B.disableUserInput` is set. Survives room changes; not part of save snapshots. */
+  private isUserInputDisabled(): boolean {
+    return this.game.registry.get(BENNE_USER_INPUT_DISABLED_REGISTRY_KEY) === true;
+  }
+
+  /**
+   * World clicks, inventory rows, and hover. Separate from {@link isInputSuppressed} so NPC follow
+   * (`pauseDuringCutscene`) keeps moving while the player is locked out.
+   */
+  private isPlayerPointerBlocked(): boolean {
+    return this.isInputSuppressed() || this.isUserInputDisabled();
+  }
+
+  /**
+   * Applies `B.disableUserInput`. Writes the game registry (so the next room stays locked) and
+   * refreshes the cursor and hover line immediately.
+   */
+  setUserInputDisabled(disabled: boolean): void {
+    this.game.registry.set(BENNE_USER_INPUT_DISABLED_REGISTRY_KEY, disabled);
+    this.lastCustomCursorVisualKey = null;
+    this.applyUserInputCursorLock();
+    this.refreshCustomCursor(this.input.activePointer);
+    this.syncVerbHoverScriptSurface(this.input.activePointer);
+  }
+
+  /** Hide the OS cursor while input is locked, including hand cursors on clickable objects. */
+  private applyUserInputCursorLock(): void {
+    const canvas = this.game.canvas;
+    if (!canvas) {
+      return;
+    }
+    if (this.isUserInputDisabled()) {
+      canvas.style.setProperty('cursor', 'none', 'important');
+      return;
+    }
+    canvas.style.removeProperty('cursor');
+    if (this.customCursorSprite) {
+      this.input.setDefaultCursor('none');
+    } else {
+      this.input.setDefaultCursor('default');
+    }
   }
 
   /**
@@ -4776,7 +4828,7 @@ export class RoomScene extends Phaser.Scene {
     if (this.tryConsumeRoomVideoOrScriptedDialogClickToSkip(pointer)) {
       return;
     }
-    if (this.isInputSuppressed()) {
+    if (this.isPlayerPointerBlocked()) {
       return;
     }
 
@@ -5487,7 +5539,7 @@ export class RoomScene extends Phaser.Scene {
       if (this.tryConsumeRoomVideoOrScriptedDialogClickToSkip(pointer)) {
         return;
       }
-      if (this.isInputSuppressed()) {
+      if (this.isPlayerPointerBlocked()) {
         return;
       }
       const profile = getEffectiveInputProfile(getGameSettings());
@@ -5612,7 +5664,7 @@ export class RoomScene extends Phaser.Scene {
       if (this.tryConsumeRoomVideoOrScriptedDialogClickToSkip(pointer)) {
         return;
       }
-      if (this.isInputSuppressed()) {
+      if (this.isPlayerPointerBlocked()) {
         return;
       }
       const handlers = getHotspotVerbHandlers(hotspot);
@@ -5836,7 +5888,7 @@ export class RoomScene extends Phaser.Scene {
       if (this.tryConsumeRoomVideoOrScriptedDialogClickToSkip(pointer)) {
         return;
       }
-      if (this.isInputSuppressed()) {
+      if (this.isPlayerPointerBlocked()) {
         return;
       }
       const profile = getEffectiveInputProfile(getGameSettings());
@@ -6014,7 +6066,7 @@ export class RoomScene extends Phaser.Scene {
 
   /** Hover target + description under the pointer for **`B.currentHoverDescription`** (skips GUI buttons like the verb bar). */
   private resolveVerbHoverPointerContext(pointer: Phaser.Input.Pointer): VerbHoverTarget | null {
-    if (this.isInputSuppressed() || hasAnyVisibleModal(this.modalGuiEntries)) {
+    if (this.isPlayerPointerBlocked() || hasAnyVisibleModal(this.modalGuiEntries)) {
       return null;
     }
     const hits = this.sortRoomPointerHitStack(pointer);
@@ -6143,6 +6195,16 @@ export class RoomScene extends Phaser.Scene {
     const cfg = settings.cursor!;
     const idleKey = cursorPhaserAnimationKey(cfg.idleAnimation.trim());
     const defaultActiveAuthor = cfg.activeAnimation.trim();
+
+    // B.disableUserInput hides the pointer entirely (ahead of the cutscene busy cursor).
+    if (this.isUserInputDisabled()) {
+      const visualKey = 'input-lock|hide';
+      if (this.lastCustomCursorVisualKey !== visualKey) {
+        this.lastCustomCursorVisualKey = visualKey;
+        sprite.setVisible(false);
+      }
+      return;
+    }
 
     // Cutscenes and videos show busy animation if configured and exists, otherwise hide the cursor.
     if (this.isBusyCursorActive()) {

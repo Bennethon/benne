@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { getBenneEnvironment, quitBenneApplication, type BenneEnvironment } from './benneEnvironment.js';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { CharacterFollowOptions } from '../../types/characterFollow.js';
 import type { CutsceneOptions } from '../../types/cutscene.js';
@@ -76,6 +77,7 @@ import { createBenneScriptVideoFacade } from './benneScriptVideoApi.js';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
 import { getCharacterWorldFeet } from '../characterFeet.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
+import { BENNE_USER_INPUT_DISABLED_REGISTRY_KEY } from '../input/userInputDisabledRegistry.js';
 import {
   BENNE_SCREEN_FADE_DEFAULT_COLOR,
   BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
@@ -323,6 +325,14 @@ function resolveBenneSayRuntimeLine(line: string, talkCharacterDefinitionId: str
  * for room, character, global, and GUI Bennescript facades.
  */
 export abstract class BenneScriptCore {
+  /** Runtime host. Browser includes itch.io embeds and BENNE editor previews. */
+  getEnvironment(): BenneEnvironment {
+    return getBenneEnvironment();
+  }
+
+  /** Quit Electron after preceding actions finish; no-op in browsers. `.now()` skips the queue. */
+  readonly quit: BlockingWithNow<[]>;
+
   private static warnedOnUpdateUnsupported = false;
   private static unresolvedVerbWarnings = new Set<string>();
   private static warnedPlayerFacadeNoRoomScene = false;
@@ -331,6 +341,7 @@ export abstract class BenneScriptCore {
   private static walkToClickedDevWarnKeys = new Set<string>();
   private static faceClickedDevWarnKeys = new Set<string>();
   private static warnedScreenFadeNoRoom = false;
+  private static warnedDisableUserInputNoRoom = false;
   private static warnedCharacterFacadeNoRoomScene = false;
 
   protected readonly events: Phaser.Events.EventEmitter;
@@ -431,6 +442,33 @@ export abstract class BenneScriptCore {
    */
   readonly display: BlockingWithNow<[text: string]>;
 
+  /**
+   * Hide the cursor and ignore player input while `true` (world clicks, GUI controls, keyboard).
+   * Assignment queues on the interaction tail, like `B.prop(id).visible`. The getter returns the
+   * value already applied, not a step still waiting on the queue. Click-to-dismiss of a `say` or
+   * `display` line that is already on screen still works. Not saved.
+   */
+  get disableUserInput(): boolean {
+    const game = tryGetActiveBenneGame();
+    return game?.registry.get(BENNE_USER_INPUT_DISABLED_REGISTRY_KEY) === true;
+  }
+
+  set disableUserInput(value: boolean) {
+    const disabled = value === true;
+    this.chain(() => {
+      const scene = this.resolveRoomSceneForScreenFade();
+      if (!scene) {
+        if (import.meta.env.DEV && !BenneScriptCore.warnedDisableUserInputNoRoom) {
+          BenneScriptCore.warnedDisableUserInputNoRoom = true;
+          console.warn('[Benne] B.disableUserInput: no active RoomScene — ignored.');
+        }
+        return Promise.resolve();
+      }
+      scene.setUserInputDisabled(disabled);
+      return Promise.resolve();
+    });
+  }
+
   readonly raw: {
     on: (event: string | symbol, fn: (...args: unknown[]) => void, context?: unknown) => void;
     once: (event: string | symbol, fn: (...args: unknown[]) => void, context?: unknown) => void;
@@ -444,6 +482,7 @@ export abstract class BenneScriptCore {
     getPlayerWalkRoomScene?: () => RoomScene | undefined,
   ) {
     this.events = events;
+    this.quit = withNow(() => this.chain(async () => quitBenneApplication()), quitBenneApplication);
     this.getClock = getClock;
     this.getPlayerWalkRoomScene = getPlayerWalkRoomScene ?? (() => undefined);
 
