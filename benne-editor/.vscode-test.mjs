@@ -1,8 +1,26 @@
 import { defineConfig } from '@vscode/test-cli';
+import { downloadAndUnzipVSCode } from '@vscode/test-electron';
+import { access } from 'node:fs/promises';
+import path from 'node:path';
+
+const version = process.env.VSCODE_TEST_VERSION || '1.140.0';
+let useInstallation;
+if (process.platform === 'darwin') {
+  let executable = await downloadAndUnzipVSCode(version);
+  try { await access(executable); }
+  catch {
+    // Newer VS Code bundles renamed Electron to Code; test-electron 2.5 still
+    // returns the historical path. Keep the old path for the minimum-version job.
+    executable = path.join(path.dirname(executable), 'Code');
+    await access(executable);
+  }
+  useInstallation = { fromPath: executable };
+}
 
 export default defineConfig({
   files: 'out/test/**/*.test.js',
-  version: process.env.VSCODE_TEST_VERSION || '1.140.0',
+  version,
+  useInstallation,
   launchArgs: ['--disable-extensions', '--skip-welcome', '--skip-release-notes', '--disable-workspace-trust'],
   mocha: { timeout: 20000 },
 });
