@@ -51,7 +51,7 @@ jobs:
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
           BENNE_BROWSER_MATRIX: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '' }}
-          BENNE_SOAK: ${{ github.event_name == 'schedule' && '1' || '' }}
+          BENNE_SOAK: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -133,6 +133,8 @@ jobs:
           name: windows-build
           path: releases/windows/
   graphics:
+    env:
+      BENNE_TEST_SOFTWARE_GL: '1'
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15

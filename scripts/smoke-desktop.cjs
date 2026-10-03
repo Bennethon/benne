@@ -1,11 +1,18 @@
 // Run after npm run build. Uses the real wrapper and an isolated, temporary save profile.
 const { app } = require('electron');
+// Opt in only for CI's virtual display; shipped applications keep their normal GPU settings.
+if (process.env.BENNE_TEST_SOFTWARE_GL === '1') {
+  if (process.platform === 'linux') app.commandLine.appendSwitch('ozone-platform', 'x11');
+  app.commandLine.appendSwitch('use-gl', 'angle');
+  app.commandLine.appendSwitch('use-angle', 'swiftshader');
+  app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+}
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const info = require('../electron/game-info.cjs');
-const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'benne-desktop-smoke-'));
+const temporary = process.env.BENNE_TEST_PROFILE || fs.mkdtempSync(path.join(os.tmpdir(), 'benne-desktop-smoke-'));
 app.setAppPath(path.resolve(__dirname, '..'));
 const failures = [];
 const timeout = setTimeout(() => {
@@ -76,4 +83,4 @@ app.on('browser-window-created', (_event, window) => {
 require('../electron/main.cjs');
 app.setPath('userData', temporary);
 app.setPath('sessionData', temporary);
-app.on('quit', () => fs.rmSync(temporary, { recursive: true, force: true }));
+// The parent test runner removes the profile after Electron has released its file handles.
