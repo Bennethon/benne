@@ -6,14 +6,20 @@
 export function readRoomPlayFromNamesFromSource(source: string): string[] {
     const out: string[] = [];
     const seen = new Set<string>();
-    const needle = /\bB\.playFrom\s*\(\s*/g;
+    const needle = /\bB\.playFrom\s*\(/g;
+    // Mask comments and string contents while preserving offsets into the original source.
+    // A commented example or a quoted code sample must never become a launch target.
+    const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|'(?:\\[\s\S]|[^'\\])*'|"(?:\\[\s\S]|[^"\\])*"|`(?:\\[\s\S]|[^`\\])*`/g,
+        (text) => ' '.repeat(text.length));
     let m: RegExpExecArray | null;
-    while ((m = needle.exec(source)) !== null) {
-        const q = source[m.index + m[0].length];
+    while ((m = needle.exec(code)) !== null) {
+        let argumentStart = m.index + m[0].length;
+        while (/\s/.test(source[argumentStart] ?? '') && argumentStart < source.length) { argumentStart++; }
+        const q = source[argumentStart];
         if (q !== "'" && q !== '"' && q !== '`') {
             continue;
         }
-        let i = m.index + m[0].length + 1;
+        let i = argumentStart + 1;
         let buf = '';
         let closed = false;
         let interpolated = false;

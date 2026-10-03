@@ -10,8 +10,8 @@
     {
       "type": "nineSliceImage",
       "id": "menu-bg",
-      "x": 102,
-      "y": 33,
+      "x": 118,
+      "y": 42,
       "width": 116,
       "height": 114,
       "tag": "9-slice-BG",
@@ -31,8 +31,8 @@
     {
       "type": "grid",
       "id": "menu-layout",
-      "x": 109,
-      "y": 36,
+      "x": 125,
+      "y": 46,
       "width": 102,
       "height": 102,
       "rows": 6,

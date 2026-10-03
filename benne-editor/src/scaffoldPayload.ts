@@ -351,15 +351,19 @@ export async function mergeGamePackageJson(gameRoot: vscode.Uri): Promise<void> 
             : path.basename(gameRoot.fsPath);
     const template = scaffoldPackageJsonTemplate(projectName);
 
+    const record = (value: unknown): Record<string, unknown> =>
+        value !== null && typeof value === 'object' && !Array.isArray(value)
+            ? value as Record<string, unknown> : {};
     const merged = {
+        ...existing,
         ...template,
         name: existing.name ?? template.name,
         private: existing.private ?? template.private,
         version: existing.version ?? template.version,
         type: existing.type ?? template.type,
-        scripts: template.scripts,
-        devDependencies: template.devDependencies,
-        dependencies: template.dependencies,
+        scripts: { ...record(existing.scripts), ...record(template.scripts) },
+        devDependencies: { ...record(existing.devDependencies), ...record(template.devDependencies) },
+        dependencies: { ...record(existing.dependencies), ...record(template.dependencies) },
     };
 
     await writeFile(pkgPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');

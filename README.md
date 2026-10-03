@@ -12,6 +12,10 @@ npm run build    # Typecheck + production bundle
 npm run preview  # Serve production build locally
 ```
 
+## Testing
+
+See [the regression testing guide](docs/testing.md) for setup, suite commands, CI gates, coverage and remaining test priorities. Start with `npm run test:ci`; run browser, extension-host and artifact suites before releases.
+
 ## Conventions
 
 - **TypeScript**: `strict` mode; prefer explicit types for public engine APIs and JSON-backed shapes under `src/types/`.

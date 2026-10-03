@@ -2,7 +2,7 @@
 /**
  * Generates src/types/generated/benne-game-ids.d.ts from src/game/ content.
  */
-import { mkdir, rename, writeFile } from 'node:fs/promises';
+import { mkdir, rename, writeFile, readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanGameContentIds } from './lib/scanGameContentIds.mjs';
@@ -124,6 +124,12 @@ type LooseString<T extends string = string> = T | (string & {});
 
   const content = header + blocks.join('\n');
 
+  if (process.argv.includes('--check')) {
+    const existing = await readFile(outPath, 'utf8').catch(() => '');
+    if (existing !== content) throw new Error('Generated game IDs are stale. Run npm run generate:game-ids.');
+    console.log('[generate-game-ids] Declarations are current.');
+    return;
+  }
   await mkdir(outDir, { recursive: true });
   await writeFile(tmpPath, content, 'utf8');
   await rename(tmpPath, outPath);

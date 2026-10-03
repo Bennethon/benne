@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { formatJson } from './roomScaffolding';
@@ -25,7 +26,8 @@ function jsonFileLockKey(uri: vscode.Uri): string {
 }
 
 const jsonFileWorkTails = new Map<string, Promise<void>>();
-const jsonFileWorkHeld = new Set<string>();
+const jsonFileWorkContext = new AsyncLocalStorage<ReadonlyMap<string, symbol>>();
+const jsonFileWorkHeld = new Map<string, symbol>();
 
 /**
  * Serialize load/patch/write for one JSON file so preview saves and Inspector blur-saves
@@ -33,26 +35,29 @@ const jsonFileWorkHeld = new Set<string>();
  */
 export async function enqueueJsonFileWork<T>(uri: vscode.Uri, task: () => Promise<T>): Promise<T> {
     const key = jsonFileLockKey(uri);
-    if (jsonFileWorkHeld.has(key)) {
+    if (jsonFileWorkHeld.has(key) && jsonFileWorkContext.getStore()?.get(key) === jsonFileWorkHeld.get(key)) {
         return task();
     }
     const prev = jsonFileWorkTails.get(key) ?? Promise.resolve();
     let result!: T;
     const run = prev.then(async () => {
-        jsonFileWorkHeld.add(key);
+        const token = Symbol(key);
+        jsonFileWorkHeld.set(key, token);
+        const context = new Map(jsonFileWorkContext.getStore());
+        context.set(key, token);
         try {
-            result = await task();
+            result = await jsonFileWorkContext.run(context, task);
         } finally {
             jsonFileWorkHeld.delete(key);
         }
     });
-    jsonFileWorkTails.set(
-        key,
-        run.then(
-            () => undefined,
-            () => undefined
-        )
-    );
+    const tail = run.then(() => undefined, () => undefined);
+    jsonFileWorkTails.set(key, tail);
+    void tail.then(() => {
+        if (jsonFileWorkTails.get(key) === tail) {
+            jsonFileWorkTails.delete(key);
+        }
+    });
     await run;
     return result;
 }

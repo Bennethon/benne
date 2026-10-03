@@ -38,15 +38,35 @@
     "package:extension": "node scripts/package-extension.mjs",
     "package:extension:minor": "node scripts/package-extension.mjs minor",
     "package:extension:major": "node scripts/package-extension.mjs major",
-    "package:extension:no-bump": "node scripts/package-extension.mjs --no-bump"
+    "package:extension:no-bump": "node scripts/package-extension.mjs --no-bump",
+    "test": "npm run test:unit",
+    "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.tests.json --noEmit && tsc -p benne-editor --noEmit",
+    "lint": "eslint src tests scripts electron *.config.ts --max-warnings 0 && npm --prefix benne-editor run lint",
+    "validate:content": "node scripts/validate-content.mjs",
+    "check:generated": "node scripts/generate-game-ids.mjs --check",
+    "check": "npm run typecheck && npm run lint && npm run validate:content && npm run check:generated",
+    "test:extension": "npm --prefix benne-editor test",
+    "test:e2e": "playwright test",
+    "test:artifacts": "node scripts/test-artifacts.mjs",
+    "test:ci": "npm run check && npm run test:unit && npm run test:desktop && npm run test:pathfinding",
+    "test:nightly": "npm run test:ci && npm run test:extension && npm run test:e2e && npm run test:artifacts",
+    "test:release": "npm run test:ci && npm run test:coverage && npm run test:extension && npm run test:e2e && npm run test:artifacts -- --vsix"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.4",
+    "@vitest/coverage-v8": "^5.0.3",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
+    "eslint": "^10.12.0",
     "png-to-ico": "^3.0.2",
     "pngjs": "^7.0.0",
     "typescript": "~5.9.3",
-    "vite": "^8.0.1"
+    "typescript-eslint": "^8.71.0",
+    "vite": "^8.0.1",
+    "vitest": "^5.0.3"
   },
   "dependencies": {
     "phaser": "4.0.0-rc.7"

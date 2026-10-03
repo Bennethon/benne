@@ -44,7 +44,7 @@ function isPoint2(v: unknown): v is Point2 {
         return false;
     }
     const o = v as Record<string, unknown>;
-    return typeof o.x === 'number' && typeof o.y === 'number';
+    return typeof o.x === 'number' && Number.isFinite(o.x) && typeof o.y === 'number' && Number.isFinite(o.y);
 }
 
 /** Validate and narrow a message body from the webview. */
@@ -130,32 +130,32 @@ export function parseRoomPolygonPatch(body: unknown): RoomPolygonPatch | null {
     if (
         o.kind === 'roomPoint' &&
         typeof o.pointId === 'string' &&
-        typeof o.x === 'number' &&
-        typeof o.y === 'number'
+        typeof o.x === 'number' && Number.isFinite(o.x) &&
+        typeof o.y === 'number' && Number.isFinite(o.y)
     ) {
         return { kind: 'roomPoint', pointId: o.pointId, x: o.x, y: o.y };
     }
     if (
         o.kind === 'roomCharacter' &&
         typeof o.instanceId === 'string' &&
-        typeof o.x === 'number' &&
-        typeof o.y === 'number'
+        typeof o.x === 'number' && Number.isFinite(o.x) &&
+        typeof o.y === 'number' && Number.isFinite(o.y)
     ) {
         return { kind: 'roomCharacter', instanceId: o.instanceId, x: o.x, y: o.y };
     }
     if (
         o.kind === 'roomSize' &&
-        typeof o.width === 'number' &&
-        typeof o.height === 'number'
+        typeof o.width === 'number' && Number.isFinite(o.width) &&
+        typeof o.height === 'number' && Number.isFinite(o.height)
     ) {
         return { kind: 'roomSize', width: o.width, height: o.height };
     }
     if (
         o.kind === 'scrollBounds' &&
-        typeof o.x === 'number' &&
-        typeof o.y === 'number' &&
-        typeof o.width === 'number' &&
-        typeof o.height === 'number'
+        typeof o.x === 'number' && Number.isFinite(o.x) &&
+        typeof o.y === 'number' && Number.isFinite(o.y) &&
+        typeof o.width === 'number' && Number.isFinite(o.width) &&
+        typeof o.height === 'number' && Number.isFinite(o.height)
     ) {
         return { kind: 'scrollBounds', x: o.x, y: o.y, width: o.width, height: o.height };
     }

@@ -1,0 +1,15 @@
+import { readFile } from 'node:fs/promises';
+import { validateGameContent } from './lib/validate-game-content.mjs';
+const roots = ['src/game', 'game-templates/2-click', 'game-templates/9-verb'];
+const all = [];
+for (const root of roots) for (const diagnostic of await validateGameContent(root)) all.push({ root, ...diagnostic });
+const baseline = JSON.parse(await readFile(new URL('../tests/fixtures/content-baseline.json', import.meta.url), 'utf8'));
+const key = d => JSON.stringify(d);
+const known = new Set(baseline.map(key));
+const actual = new Set(all.map(key));
+const unexpected = all.filter(d => d.severity === 'error' && !known.has(key(d)));
+const stale = baseline.filter(d => !actual.has(key(d)));
+for (const d of all) console.log(`${known.has(key(d)) ? 'KNOWN' : d.severity.toUpperCase()} ${d.root}/${d.file}:${d.field}: ${d.message}`);
+for (const d of stale) console.error(`STALE baseline: ${d.root}/${d.file}:${d.field}`);
+console.log(`Content: ${unexpected.length} new errors, ${stale.length} stale baseline entries, ${baseline.length} documented existing diagnostics.`);
+if (unexpected.length || stale.length) process.exitCode = 1;

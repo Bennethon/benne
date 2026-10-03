@@ -1,14 +1,11 @@
 import { registerCharacterScript } from '@engine/scripting';
 
 /**
- * Character script for `hank` — Bennescript on this character’s global verb channel (room-scoped handlers win first).
+ * Character script for `hank` — self-only Bennescript (`B.whenLookAt(() => …)`).
+ * Room-scoped handlers in `*.room.ts` still run first for the same verb.
  */
 registerCharacterScript('hank', ({ B }) => {
-  B.whenLookAt(() => {
-    // TODO
-  });
-
-  B.whenUse(() => {
-    // TODO
-  });
+  // Example: B.whenLookAt(() => { B.player.say('…'); });
+  // Delete this line when you add your first handler.
+  void B;
 });

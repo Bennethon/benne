@@ -1,0 +1,13 @@
+{
+  "startRoomId": "a",
+  "rooms": [
+    {
+      "id": "a",
+      "definition": "a/a.room.json"
+    },
+    {
+      "id": "b",
+      "definition": "b/b.room.json"
+    }
+  ]
+}

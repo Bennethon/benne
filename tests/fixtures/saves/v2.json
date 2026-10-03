@@ -1,0 +1,1 @@
+{"version":2,"flags":{"doorOpen":true},"variables":{"score":7},"inventoryByCharacter":{"hero":{"key":2},"friend":{"coin":3}},"activePlayerCharacterId":"friend","currentRoom":"hall","lastRoom":"start","activeInventoryItemId":"coin"}

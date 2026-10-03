@@ -6,7 +6,7 @@ const server = await createServer({
   configFile: false,
   logLevel: 'error',
   optimizeDeps: { noDiscovery: true },
-  server: { middlewareMode: true },
+  server: { middlewareMode: true, hmr: false, ws: false },
 });
 
 try {

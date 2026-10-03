@@ -197,6 +197,16 @@ function normalizeSaveMetadataTimestamp(raw: unknown, fallback: number): number 
   return Math.floor(n);
 }
 
+/** Validate the serialized envelope before any state or events can change. */
+function isSnapshotEnvelope(value: unknown): value is SerializableBenneGameState {
+  const record = (v: unknown): v is Record<string, unknown> =>
+    v !== null && typeof v === 'object' && !Array.isArray(v);
+  if (!record(value) || (value.version !== 1 && value.version !== 2)) return false;
+  if (!record(value.flags) || !record(value.variables)) return false;
+  if (value.version === 1) return record(value.inventory) || Array.isArray(value.inventory);
+  return record(value.inventoryByCharacter) && typeof value.activePlayerCharacterId === 'string';
+}
+
 /**
  * Cross-room persistent state (flags, variables, inventory). Emits on the bus passed at construct time.
  */
@@ -251,6 +261,10 @@ export class GameStateManager {
    * snapshot is already authoritative (avoids clobbering saved positions from the live scene).
    */
   applySnapshot(snapshot: SerializableBenneGameState): void {
+    if (!isSnapshotEnvelope(snapshot)) {
+      console.error('[Benne] GameStateManager.applySnapshot: invalid snapshot');
+      return;
+    }
     const snapshotVersion = snapshot.version;
     if (snapshotVersion !== 1 && snapshotVersion !== 2) {
       console.error(`[Benne] GameStateManager.applySnapshot: unsupported version ${snapshotVersion}`);
@@ -428,12 +442,15 @@ export class GameStateManager {
     return JSON.stringify(this.getSnapshot());
   }
 
-  importSnapshotJson(json: string): void {
+  importSnapshotJson(json: string): boolean {
     try {
-      const parsed = JSON.parse(json) as SerializableBenneGameState;
+      const parsed: unknown = JSON.parse(json);
+      if (!isSnapshotEnvelope(parsed)) throw new Error('Invalid or unsupported save snapshot.');
       this.applySnapshot(parsed);
+      return true;
     } catch (err) {
       console.error('[Benne] GameStateManager.importSnapshotJson failed:', err);
+      return false;
     }
   }
 
@@ -723,8 +740,7 @@ export class GameStateManager {
       if (raw == null || raw.length === 0) {
         return false;
       }
-      this.importSnapshotJson(raw);
-      return true;
+      return this.importSnapshotJson(raw);
     } catch (err) {
       console.error('[Benne] GameStateManager.loadFromLocalStorage failed:', err);
       return false;
@@ -987,7 +1003,7 @@ export class GameStateManager {
       if (!raw || raw.length === 0) {
         return false;
       }
-      this.importSnapshotJson(raw);
+      if (!this.importSnapshotJson(raw)) return false;
       const now = Date.now();
       const updated = manifest.saves.map((entry) =>
         entry.storageKey === resolved.storageKey || canonicalizeSaveName(entry.name) === canonicalizeSaveName(normalized)

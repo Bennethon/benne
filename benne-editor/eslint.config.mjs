@@ -20,7 +20,7 @@ export default [{
         }],
 
         curly: "warn",
-        eqeqeq: "warn",
+        eqeqeq: ["error", "always", { null: "ignore" }],
         "no-throw-literal": "warn",
         semi: "warn",
     },

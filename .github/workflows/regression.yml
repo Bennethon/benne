@@ -1,0 +1,146 @@
+name: BENNE regressions
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: regression-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            benne-editor/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix benne-editor
+      - run: npm run test:ci
+      - run: npm run test:coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+        if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+      - run: npx playwright install --with-deps chromium firefox webkit
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      - run: npm run test:e2e
+        env:
+          BENNE_BROWSER_MATRIX: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '' }}
+          BENNE_SOAK: ${{ github.event_name == 'schedule' && '1' || '' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-reports
+          path: |
+            playwright-report/
+            test-results/browser/
+  extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: benne-editor/package-lock.json
+      - run: npm ci --prefix benne-editor
+      - run: xvfb-run -a npm run test:extension
+  artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            benne-editor/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix benne-editor
+      - run: npm run test:artifacts -- --vsix
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: artifact-reports
+          path: test-results/artifacts/
+  compatibility:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        vscode: ['1.85.2', '1.140.0']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --prefix benne-editor
+      - run: xvfb-run -a npm run test:extension
+        if: runner.os == 'Linux'
+        env:
+          VSCODE_TEST_VERSION: ${{ matrix.vscode }}
+      - run: npm run test:extension
+        if: runner.os != 'Linux'
+        env:
+          VSCODE_TEST_VERSION: ${{ matrix.vscode }}
+  windows-package:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm run test:desktop
+      - run: npm run build:windows
+      - run: npm run test:desktop:smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-build
+          path: releases/windows/
+  graphics:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm run build
+      - run: xvfb-run -a npm run test:desktop:smoke
+      - run: xvfb-run -a npm run test:webgl
