@@ -149,6 +149,12 @@ function applyBenneRuntimeHiDpiLayout(
     scale.updateCenter();
   }
 
+  // resize() refreshes input ratios before our final CSS dimensions are applied.
+  // updateBounds() alone does not update displayScale, leaving hit testing at the old ratio.
+  scale.displayScale.set(
+    scale.baseSize.width / Math.max(1, scale.canvasBounds.width),
+    scale.baseSize.height / Math.max(1, scale.canvasBounds.height),
+  );
   applyBenneRuntimeHiDpiCameras(game, parentW, parentH, state);
   return true;
 }

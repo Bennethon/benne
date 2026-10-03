@@ -31,3 +31,10 @@ benne-editor/scaffold
 *.sw?
 
 .VSCodeCounter/
+
+# Regression test artifacts
+coverage/
+playwright-report/
+test-results/
+.vitest/
+benne-editor/.vscode-test/

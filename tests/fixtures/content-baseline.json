@@ -1,0 +1,58 @@
+[
+  {
+    "root": "src/game",
+    "file": "rooms/rooms.manifest.json",
+    "field": "rooms[1].definition",
+    "severity": "error",
+    "message": "Missing room definition: bathroom/bathroom.room.json"
+  },
+  {
+    "root": "src/game",
+    "file": "rooms/rooms.manifest.json",
+    "field": "rooms[2].definition",
+    "severity": "error",
+    "message": "Missing room definition: diningRoom/diningRoom.room.json"
+  },
+  {
+    "root": "src/game",
+    "file": "rooms/rooms.manifest.json",
+    "field": "rooms[3].definition",
+    "severity": "error",
+    "message": "Missing room definition: garage/garage.room.json"
+  },
+  {
+    "root": "src/game",
+    "file": "rooms/rooms.manifest.json",
+    "field": "rooms[5].definition",
+    "severity": "error",
+    "message": "Missing room definition: outsideOffice/outsideOffice.room.json"
+  },
+  {
+    "root": "game-templates/2-click",
+    "file": "rooms/rooms.manifest.json",
+    "field": "rooms[1].definition",
+    "severity": "error",
+    "message": "Missing room definition: bathroom/bathroom.room.json"
+  },
+  {
+    "root": "game-templates/2-click",
+    "file": "rooms/rooms.manifest.json",
+    "field": "rooms[2].definition",
+    "severity": "error",
+    "message": "Missing room definition: diningRoom/diningRoom.room.json"
+  },
+  {
+    "root": "game-templates/2-click",
+    "file": "rooms/rooms.manifest.json",
+    "field": "rooms[3].definition",
+    "severity": "error",
+    "message": "Missing room definition: garage/garage.room.json"
+  },
+  {
+    "root": "game-templates/2-click",
+    "file": "rooms/rooms.manifest.json",
+    "field": "rooms[5].definition",
+    "severity": "error",
+    "message": "Missing room definition: outsideOffice/outsideOffice.room.json"
+  }
+]

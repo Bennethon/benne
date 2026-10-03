@@ -10,8 +10,8 @@
     {
       "type": "nineSliceImage",
       "id": "load-bg",
-      "x": 30,
-      "y": 24,
+      "x": 46,
+      "y": 33,
       "width": 260,
       "height": 132,
       "tag": "9-slice-BG",
@@ -30,18 +30,19 @@
     {
       "type": "text",
       "id": "title",
-      "x": 142,
-      "y": 32,
+      "x": 176,
+      "y": 42,
       "text": "Load",
       "font": "lucasarts-scumm-solid",
       "fontSize": 8,
-      "color": "#1a466b"
+      "color": "#1a466b",
+      "align": "center"
     },
     {
       "type": "listBox",
       "id": "load-list",
-      "x": 42,
-      "y": 60,
+      "x": 60,
+      "y": 70,
       "width": 158,
       "height": 80,
       "rowCount": 5,
@@ -58,8 +59,8 @@
     {
       "type": "text",
       "id": "instructions",
-      "x": 42,
-      "y": 44,
+      "x": 60,
+      "y": 54,
       "text": "Select a game to load.",
       "font": "lucasfont-alternate",
       "fontSize": 8,
@@ -69,8 +70,8 @@
     {
       "type": "button",
       "id": "load-btn",
-      "x": 210,
-      "y": 81,
+      "x": 228,
+      "y": 89,
       "width": 62,
       "height": 15,
       "backgroundAnchor": "top-left",
@@ -92,8 +93,8 @@
     {
       "type": "button",
       "id": "back-btn",
-      "x": 210,
-      "y": 98,
+      "x": 228,
+      "y": 106,
       "width": 62,
       "height": 15,
       "backgroundAnchor": "top-left",

@@ -1,0 +1,13 @@
+{
+  "id": "hero",
+  "name": "hero",
+  "walkSpeed": 180,
+  "clickable": false,
+  "feet": {
+    "x": 8,
+    "y": 23
+  },
+  "display": {
+    "defaultImage": "images/actor.png"
+  }
+}

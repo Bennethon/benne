@@ -172,10 +172,11 @@
           "y": 137
         }
       ],
-      "scaleEnabled": true,
       "scaleTop": 0.1,
       "scaleBottom": 1,
-      "scaleWalkSpeed": true
+      "scaleWalkSpeed": true,
+      "tint": "#0091ff",
+      "scaleEnabled": true
     }
   ],
   "props": [
@@ -482,7 +483,7 @@
       "instanceId": "hank-1",
       "definition": "hank/hank.character.json",
       "x": 300,
-      "y": 90,
+      "y": 123,
       "initialFacing": "L",
       "initialAnimation": "Idle",
       "visible": true,

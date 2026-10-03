@@ -2,6 +2,8 @@
 .vscode-test/**
 out/**
 node_modules/**
+!node_modules/benne-room-id-completions/index.js
+!node_modules/benne-room-id-completions/package.json
 # Extension TS sources (compiled to dist/extension.js). Do not use **/*.ts — it strips scaffold/shared.
 src/**
 .gitignore

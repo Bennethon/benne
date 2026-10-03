@@ -83,19 +83,36 @@ export function getCallbacksForRoom(roomId: string): ReadonlyArray<RoomCallback>
  * Must be awaited **before** `RoomScene.create` needs the callbacks (i.e. during the
  * asset-loading phase of a transition or boot).
  */
+const loadedRoomIds = new Set<string>();
+const inFlightRoomLoads = new Map<string, Promise<void>>();
+let roomLoadTail: Promise<void> = Promise.resolve();
+
 export async function ensureRoomScriptLoaded(roomId: string): Promise<void> {
-  if (perRoomCallbacks.has(roomId)) {
-    return;
-  }
+  if (loadedRoomIds.has(roomId)) return;
+  const existing = inFlightRoomLoads.get(roomId);
+  if (existing) return existing;
   const loader = roomModuleLoaders.get(roomId);
-  if (!loader) {
-    return;
-  }
-  _currentLoadingRoomId = roomId;
+  if (!loader) return;
+
+  // Registration is a synchronous side effect of an asynchronous import. Serialize imports
+  // so the ambient room ID cannot be changed by another room while its module evaluates.
+  const load = roomLoadTail.then(async () => {
+    _currentLoadingRoomId = roomId;
+    try {
+      await loader();
+      loadedRoomIds.add(roomId);
+    } catch (error) {
+      perRoomCallbacks.delete(roomId);
+      throw error;
+    } finally {
+      _currentLoadingRoomId = null;
+    }
+  });
+  inFlightRoomLoads.set(roomId, load);
+  roomLoadTail = load.then(() => undefined, () => undefined);
   try {
-    await loader();
+    await load;
   } finally {
-    _currentLoadingRoomId = null;
+    inFlightRoomLoads.delete(roomId);
   }
 }
-

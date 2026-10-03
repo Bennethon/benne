@@ -5,21 +5,22 @@ import type {
 } from '@engine/events/verbInteractionEvents';
 import { getGameSettings } from '@engine/ConfigManager';
 
+
 registerGlobalScript(({ B }) => {
 
   /**
-  * Game state flags.
-  *
-  * These are used to store game state across room loads.
-  */
+   * Game state flags.
+   *
+   * These are used to store game state across room loads.
+   */
   B.state.setFlag('unlockedDoor', false);
   B.state.setFlag('turnedOnFountain', false);
-  
+
   /**
-  * Global update handler. Runs every frame while the game is running. Can also be used in room scripts.
-  * @param ctx - The update context.
-  * @returns void
-  */
+   * Global update handler. Runs every frame while the game is running. Can also be used in room scripts.
+   * @param ctx - The update context.
+   * @returns void
+   */
   B.onUpdate((_ctx) => { })
 
   // ─────────────────────────────────────────────────────────────
@@ -44,14 +45,14 @@ registerGlobalScript(({ B }) => {
   });
 
   /**
-  * Global fallbacks.
-  *
-  * These run when a verb is used on something that has no specific handler
-  * in the room script, character script, or inventory script.
-  *
-  * Feel free to put ANY code here — play animations, change game state,
-  * start cutscenes, etc. These are real global handlers.
-  */
+   * Global fallbacks.
+   *
+   * These run when a verb is used on something that has no specific handler
+   * in the room script, character script, or inventory script.
+   *
+   * Feel free to put ANY code here — play animations, change game state,
+   * start cutscenes, etc. These are real global handlers.
+   */
 
   // ─────────────────────────────────────────────────────────────
   // Global per-verb fallbacks
@@ -64,6 +65,35 @@ registerGlobalScript(({ B }) => {
   B.whenGlobalVerb('use', () => {
     B.player.say("That doesn't work.");
   });
+
+  B.whenGlobalVerb('pickUp', () => {
+    B.player.say("I can't take that.");
+  });
+
+  B.whenGlobalVerb('push', () => {
+    B.player.say("It won't move.");
+  });
+
+  B.whenGlobalVerb('pull', () => {
+    B.player.say("It won't move.");
+  });
+
+  B.whenGlobalVerb('open', () => {
+    B.player.say("I can't open that.");
+  });
+
+  B.whenGlobalVerb('close', () => {
+    B.player.say("That doesn't need closing.");
+  });
+
+  B.whenGlobalVerb('talkTo', () => {
+    B.player.say("I don't have anything to say to that.");
+  });
+
+  B.whenGlobalVerb('give', () => {
+    B.player.say("I can't give that.");
+  });
+
 
   // ─────────────────────────────────────────────────────────────
   // Ultimate safety net (for verbs added in game-config.json
