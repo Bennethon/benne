@@ -1,11 +1,18 @@
 // Uses Chromium with no desktop bridge to exercise the shipped browser entry point.
 const { app, BrowserWindow } = require('electron');
+// Opt in only for CI's virtual display; shipped applications keep their normal GPU settings.
+if (process.env.BENNE_TEST_SOFTWARE_GL === '1') {
+  if (process.platform === 'linux') app.commandLine.appendSwitch('ozone-platform', 'x11');
+  app.commandLine.appendSwitch('use-gl', 'angle');
+  app.commandLine.appendSwitch('use-angle', 'swiftshader');
+  app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+}
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const startupFailure = process.argv.includes('--startup-failure');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'benne-webgl-test-'));
+const profile = process.env.BENNE_TEST_PROFILE || fs.mkdtempSync(path.join(os.tmpdir(), 'benne-webgl-test-'));
 app.setPath('userData', profile);
 let watchdog = setTimeout(() => { console.error('WebGL test timed out'); app.exit(1); }, 45000);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -68,4 +75,4 @@ app.whenReady().then(async () => {
     app.exit(1);
   }
 });
-app.on('quit', () => fs.rmSync(profile, { recursive: true, force: true }));
+// The parent test runner removes the profile after Electron has released its file handles.
