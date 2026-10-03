@@ -142,6 +142,7 @@ async function bundleShared() {
     'scripts/package-itch.mjs',
     'scripts/prepare-desktop.mjs',
     'scripts/smoke-desktop.cjs',
+    'scripts/run-electron-test.cjs',
     'scripts/test-webgl-recovery.cjs',
     'electron-builder.config.cjs',
     'vite.config.ts',

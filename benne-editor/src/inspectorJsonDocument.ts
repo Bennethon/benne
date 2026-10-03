@@ -81,17 +81,22 @@ export async function syncOpenJsonDocumentText(uri: vscode.Uri, text: string): P
     return vscode.workspace.applyEdit(edit);
 }
 
-/** After `workspace.fs.writeFile`, keep any open editor tab aligned with the bytes on disk. */
-export async function syncOpenJsonDocumentFromData(
+/** Save through VS Code when a document is open, keeping its disk version authoritative. */
+export async function writeInspectorJsonData(
     uri: vscode.Uri,
     data: Record<string, unknown>
 ): Promise<void> {
-    const text = new TextDecoder().decode(formatJson(data));
-    const ok = await syncOpenJsonDocumentText(uri, text);
-    if (!ok) {
-        void vscode.window.showWarningMessage(
-            `Could not update the open editor for "${path.basename(uri.fsPath)}". Close the tab or reload it, then try again.`
-        );
+    const bytes = formatJson(data);
+    const open = findOpenJsonDocument(uri);
+    if (!open) {
+        await vscode.workspace.fs.writeFile(uri, bytes);
+        return;
+    }
+    if (!await syncOpenJsonDocumentText(uri, new TextDecoder().decode(bytes))) {
+        throw new Error(`Could not update the open editor for "${path.basename(uri.fsPath)}".`);
+    }
+    if (!await open.save()) {
+        throw new Error(`Could not save "${path.basename(uri.fsPath)}". Resolve the editor's save conflict and retry.`);
     }
 }
 

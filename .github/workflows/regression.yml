@@ -2,7 +2,7 @@ name: BENNE regressions
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [master, main]
   workflow_dispatch:
   schedule:
     - cron: '23 6 * * *'
@@ -47,10 +47,11 @@ jobs:
         if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
       - run: npx playwright install --with-deps chromium firefox webkit
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-      - run: npm run test:e2e
+      - run: xvfb-run -a npm run test:e2e
         env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
           BENNE_BROWSER_MATRIX: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '' }}
-          BENNE_SOAK: ${{ github.event_name == 'schedule' && '1' || '' }}
+          BENNE_SOAK: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -132,6 +133,8 @@ jobs:
           name: windows-build
           path: releases/windows/
   graphics:
+    env:
+      BENNE_TEST_SOFTWARE_GL: '1'
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -142,5 +145,10 @@ jobs:
           node-version: '24'
       - run: npm ci
       - run: npm run build
+      - name: Configure Electron sandbox helper
+        run: |
+          node node_modules/electron/install.js
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
       - run: xvfb-run -a npm run test:desktop:smoke
       - run: xvfb-run -a npm run test:webgl

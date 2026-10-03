@@ -62,7 +62,8 @@ test('resizing preserves correct hit coordinates', async ({ page }) => {
   for (const size of [{ width: 640, height: 360 }, { width: 1280, height: 720 }]) {
     await page.setViewportSize(size);
     await expect.poll(async () => (await page.locator('canvas').boundingBox())?.width).toBe(size.width);
-    await expect.poll(() => page.evaluate(() => window.__BENNE_TEST__.layout())).toEqual({ width: size.width, zoom: size.width / 320, viewportWidth: size.width, inputScale: 1 });
+    const dpr = await page.evaluate(() => Math.min(window.devicePixelRatio, 2.5));
+    await expect.poll(() => page.evaluate(() => window.__BENNE_TEST__.layout())).toEqual({ width: size.width * dpr, zoom: size.width * dpr / 320, viewportWidth: size.width * dpr, inputScale: dpr });
     await click(page, 115, 30);
     await expect.poll(async () => (await snapshot(page)).variables.count).toBe(size.width === 640 ? 1 : 2);
   }
