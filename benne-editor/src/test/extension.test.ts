@@ -68,7 +68,11 @@ suite('BENNE extension integration', () => {
         const disk = JSON.parse(await fs.readFile(uri.fsPath, 'utf8'));
         assert.equal(disk.custom, 'dirty edit');
         assert.deepEqual(JSON.parse(document.getText()), disk);
-        await document.save();
+        assert.equal(document.isDirty, false, 'Tool saves must leave the editor clean');
+        assert.equal(await document.save(), true);
+        await applyRoomPolygonPatch(uri, { kind: 'roomPoint', pointId: 'entry', x: 9, y: 12 });
+        assert.equal(document.isDirty, false);
+        assert.deepEqual(JSON.parse(await fs.readFile(uri.fsPath, 'utf8')), JSON.parse(document.getText()));
     });
     test('missing geometry targets leave bytes untouched', async () => {
         const before = await fs.readFile(uri.fsPath, 'utf8');
