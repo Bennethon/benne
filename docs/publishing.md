@@ -93,6 +93,8 @@ Template switching, boot sync, and live authoring are documented in [architectur
 
 ## Publish checklist (manual steps)
 
+Before publishing, commit and push the final release candidate, then run **BENNE regressions** from GitHub Actions using **Run workflow** on that branch or tag. Wait for all 12 jobs to succeed, including the browser soak, compatibility matrix, Windows packaging, and graphics checks. Alternatively, dispatch from the CLI with `gh workflow run regression.yml --repo Bennethon/benne --ref <candidate-ref>`. This is the pre-release check; monthly validation does not replace testing the actual candidate. Packaging locally does not dispatch the GitHub workflow automatically.
+
 The **`npm run package:extension`** command above runs everything below automatically. Use this section only if you need to run steps individually.
 
 From the repo root, a full extension release build runs:
