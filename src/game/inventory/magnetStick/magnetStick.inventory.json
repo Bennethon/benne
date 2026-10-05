@@ -1,0 +1,14 @@
+{
+  "id": "magnetStick",
+  "name": "magnetStick",
+  "description": "magnet stick",
+  "onVerb": {
+    "look": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "defaultVerb": "use"
+}

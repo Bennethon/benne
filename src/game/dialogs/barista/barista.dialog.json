@@ -1,0 +1,34 @@
+{
+  "id": "barista",
+  "displayName": "Barista",
+  "options": [
+    {
+      "id": "greeting barista",
+      "text": "Hey. How's it going?"
+    },
+    {
+      "id": "waiting customer",
+      "text": "Why aren't you serving that guy over there?",
+      "enabled": false
+    },
+    {
+      "id": "dirty dishes",
+      "text": "Did you know there's some dirty dishes on the table over there?",
+      "enabled": false
+    },
+    {
+      "id": "high tech thing",
+      "text": "What's that high tech looking thing up there?",
+      "enabled": false
+    },
+    {
+      "id": "helped",
+      "text": "Ok. I bussed your table. I served your customer. Can I have that control relay thing now?",
+      "enabled": false
+    },
+    {
+      "id": "bye",
+      "text": "I'll be going."
+    }
+  ]
+}

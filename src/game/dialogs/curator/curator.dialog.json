@@ -1,0 +1,32 @@
+{
+  "id": "curator",
+  "displayName": "Curator",
+  "options": [
+    {
+      "id": "greet curator",
+      "text": "Hello."
+    },
+    {
+      "id": "hows it going curator",
+      "text": "How's it going?",
+      "enabled": false
+    },
+    {
+      "id": "paint spill",
+      "text": "What's the deal with that canvas and spilled paint?"
+    },
+    {
+      "id": "ask about lens",
+      "text": "What's the deal with that big statue with the glass over there?"
+    },
+    {
+      "id": "can have lens",
+      "text": "I think I can use that lens for something important. Can I have it?",
+      "enabled": false
+    },
+    {
+      "id": "bye",
+      "text": "Welp. Have a nice day."
+    }
+  ]
+}

@@ -4,8 +4,19 @@ import { registerGuiScript } from '@engine/scripting';
  * GUI script for `game-menu` — Bennescript entry (`B.raw`, `onGuiBuilt`, `onGuiShow`, …).
  */
 registerGuiScript('game-menu', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
+  const syncQuitButton = () => {
+    const isDesktop = B.getEnvironment() === 'electron';
+    const quitButton = B.gui('game-menu').control('quit');
+    quitButton.setVisible(isDesktop);
+    quitButton.enabled = isDesktop;
+  };
+
+  B.onGuiBuilt(syncQuitButton);
+  B.onGuiShow(syncQuitButton);
+
+  B.whenButtonClick('quit', () => {
+    B.quit();
+  });
 
   B.whenButtonClick("resume", () => {
     B.gui('game-menu').hide();
@@ -24,5 +35,9 @@ registerGuiScript('game-menu', ({ B }) => {
   B.whenButtonClick("load", () => {
     B.gui('load-menu').show();
     B.gui('game-menu').hide();
+  });
+
+  B.whenButtonClick("title-screen", () => {
+    B.room.changeTo('title');
   });
 });

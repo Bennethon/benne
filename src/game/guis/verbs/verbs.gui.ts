@@ -13,13 +13,10 @@ registerGuiScript('verbs', ({ B }) => {
     const verbButtons = {
       look: B.gui('verbs').control('LookAtBtn'),
       use: B.gui('verbs').control('UseBtn'),
-      pickUp: B.gui('verbs').control('PickUpBtn'),
+      take: B.gui('verbs').control('TakeBtn'),
       talkTo: B.gui('verbs').control('TalkToBtn'),
-      give: B.gui('verbs').control('GiveBtn'),
-      open: B.gui('verbs').control('OpenBtn'),
-      close: B.gui('verbs').control('CloseBtn'),
-      push: B.gui('verbs').control('PushBtn'),
-      pull: B.gui('verbs').control('PullBtn'),
+      move: B.gui('verbs').control('MoveBtn'),
+      clean: B.gui('verbs').control('CleanBtn'),
     } as const;
 
     function refresh(): void {
@@ -61,15 +58,12 @@ registerGuiScript('verbs', ({ B }) => {
     B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, refresh);
   });
 
-  B.whenButtonClick('GiveBtn',   () => B.setActiveVerb('give'));
-  B.whenButtonClick('OpenBtn',   () => B.setActiveVerb('open'));
-  B.whenButtonClick('CloseBtn',  () => B.setActiveVerb('close'));
-  B.whenButtonClick('PickUpBtn', () => B.setActiveVerb('pickUp'));
+  B.whenButtonClick('TakeBtn', () => B.setActiveVerb('take'));
   B.whenButtonClick('TalkToBtn', () => B.setActiveVerb('talkTo'));
   B.whenButtonClick('LookAtBtn', () => B.setActiveVerb('look'));
   B.whenButtonClick('UseBtn',    () => B.setActiveVerb('use'));
-  B.whenButtonClick('PushBtn',   () => B.setActiveVerb('push'));
-  B.whenButtonClick('PullBtn',   () => B.setActiveVerb('pull'));
+  B.whenButtonClick('MoveBtn',    () => B.setActiveVerb('move'));
+  B.whenButtonClick('CleanBtn',    () => B.setActiveVerb('clean'));
 
   B.whenButtonClick("MenuBtn", () => {
     B.gui('game-menu').show();

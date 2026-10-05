@@ -1,0 +1,433 @@
+{
+  "id": "cafe",
+  "name": "Cafe",
+  "size": {
+    "width": 352,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 352,
+    "height": 198
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "cafe-walk",
+        "active": true,
+        "points": [
+          {
+            "x": 15,
+            "y": 131
+          },
+          {
+            "x": 8,
+            "y": 148
+          },
+          {
+            "x": 334,
+            "y": 154
+          },
+          {
+            "x": 344,
+            "y": 141
+          },
+          {
+            "x": 326,
+            "y": 135
+          },
+          {
+            "x": 320,
+            "y": 126
+          },
+          {
+            "x": 221,
+            "y": 112
+          },
+          {
+            "x": 208,
+            "y": 114
+          },
+          {
+            "x": 306,
+            "y": 130
+          },
+          {
+            "x": 285,
+            "y": 144
+          },
+          {
+            "x": 168,
+            "y": 125
+          },
+          {
+            "x": 112,
+            "y": 126
+          },
+          {
+            "x": 88,
+            "y": 129
+          },
+          {
+            "x": 46,
+            "y": 123
+          }
+        ],
+        "holes": [
+          {
+            "id": "cafe-walk-hole",
+            "active": true,
+            "points": [
+              {
+                "x": 120,
+                "y": 140
+              },
+              {
+                "x": 127,
+                "y": 146
+              },
+              {
+                "x": 145,
+                "y": 149
+              },
+              {
+                "x": 180,
+                "y": 150
+              },
+              {
+                "x": 190,
+                "y": 139
+              },
+              {
+                "x": 175,
+                "y": 134
+              },
+              {
+                "x": 127,
+                "y": 134
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [
+    {
+      "id": "cafe-hotspot-window",
+      "active": true,
+      "description": "window",
+      "zIndex": 0,
+      "points": [
+        {
+          "x": 124,
+          "y": 55
+        },
+        {
+          "x": 180,
+          "y": 36
+        },
+        {
+          "x": 179,
+          "y": 87
+        },
+        {
+          "x": 124,
+          "y": 88
+        }
+      ],
+      "walkToPoint": {
+        "x": 144,
+        "y": 118
+      },
+      "lookAtPoint": {
+        "x": 152,
+        "y": 85
+      }
+    },
+    {
+      "id": "cafe-hotspot-coffeemaker",
+      "active": true,
+      "description": "coffee machine",
+      "zIndex": 1,
+      "points": [
+        {
+          "x": 214,
+          "y": 74
+        },
+        {
+          "x": 238,
+          "y": 73
+        },
+        {
+          "x": 239,
+          "y": 96
+        },
+        {
+          "x": 213,
+          "y": 93
+        }
+      ],
+      "walkToPoint": {
+        "x": 225,
+        "y": 113
+      },
+      "lookAtPoint": {
+        "x": 225,
+        "y": 93
+      }
+    },
+    {
+      "id": "cafe-hotspot-door",
+      "active": true,
+      "description": "door",
+      "zIndex": 2,
+      "points": [
+        {
+          "x": 9,
+          "y": 41
+        },
+        {
+          "x": 43,
+          "y": 44
+        },
+        {
+          "x": 44,
+          "y": 120
+        },
+        {
+          "x": 12,
+          "y": 127
+        }
+      ],
+      "walkToPoint": {
+        "x": 38,
+        "y": 127
+      },
+      "lookAtPoint": {
+        "x": 29,
+        "y": 120
+      },
+      "defaultVerb": "use"
+    },
+    {
+      "id": "menu",
+      "active": true,
+      "description": "menu",
+      "zIndex": 3,
+      "points": [
+        {
+          "x": 206,
+          "y": 22
+        },
+        {
+          "x": 280,
+          "y": 16
+        },
+        {
+          "x": 278,
+          "y": 62
+        },
+        {
+          "x": 208,
+          "y": 65
+        }
+      ],
+      "walkToPoint": {
+        "x": 204,
+        "y": 127
+      },
+      "lookAtPoint": {
+        "x": 239,
+        "y": 60
+      }
+    },
+    {
+      "id": "cleaning-stuff",
+      "active": true,
+      "description": "cleaning supplies",
+      "zIndex": 4,
+      "points": [
+        {
+          "x": 340,
+          "y": 90
+        },
+        {
+          "x": 352,
+          "y": 83
+        },
+        {
+          "x": 352,
+          "y": 137
+        },
+        {
+          "x": 321,
+          "y": 130
+        }
+      ],
+      "walkToPoint": {
+        "x": 314,
+        "y": 137
+      },
+      "lookAtPoint": {
+        "x": 336,
+        "y": 129
+      }
+    }
+  ],
+  "points": [],
+  "regions": [],
+  "props": [
+    {
+      "id": "bg",
+      "tag": "bg",
+      "animations": {
+        "bg": {}
+      },
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "counter",
+      "tag": "counter",
+      "animations": {
+        "counter": {}
+      },
+      "zIndex": 10,
+      "visible": true,
+      "alpha": 1,
+      "baseline": 128,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "table",
+      "tag": "table",
+      "animations": {
+        "table": {}
+      },
+      "zIndex": 15,
+      "visible": true,
+      "alpha": 1,
+      "baseline": 143,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "dishes",
+      "tag": "dishes",
+      "animations": {
+        "dishes": {}
+      },
+      "zIndex": 7,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 83,
+            "y": 98
+          },
+          {
+            "x": 103,
+            "y": 99
+          },
+          {
+            "x": 102,
+            "y": 107
+          },
+          {
+            "x": 80,
+            "y": 106
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 90,
+        "y": 129
+      },
+      "lookAtPoint": {
+        "x": 92,
+        "y": 105
+      },
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "relay",
+      "tag": "relay",
+      "animations": {
+        "relay": {}
+      },
+      "zIndex": 17,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 306,
+            "y": 27
+          },
+          {
+            "x": 328,
+            "y": 26
+          },
+          {
+            "x": 327,
+            "y": 42
+          },
+          {
+            "x": 307,
+            "y": 42
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 308,
+        "y": 134
+      },
+      "lookAtPoint": {
+        "x": 314,
+        "y": 40
+      },
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 31,
+      "y": 126,
+      "initialFacing": "r",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 9
+    },
+    {
+      "instanceId": "barista-1",
+      "definition": "barista/barista.character.json",
+      "x": 250,
+      "y": 126,
+      "initialFacing": "D",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 9
+    },
+    {
+      "instanceId": "customer-1",
+      "definition": "customer/customer.character.json",
+      "x": 164,
+      "y": 149,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 11
+    }
+  ]
+}

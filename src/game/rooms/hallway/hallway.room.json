@@ -1,0 +1,248 @@
+{
+  "id": "hallway",
+  "name": "Hallway",
+  "size": {
+    "width": 352,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 352,
+    "height": 198
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "hallway-walk",
+        "active": true,
+        "points": [
+          {
+            "x": 7,
+            "y": 156
+          },
+          {
+            "x": 345,
+            "y": 157
+          },
+          {
+            "x": 316,
+            "y": 140
+          },
+          {
+            "x": 265,
+            "y": 138
+          },
+          {
+            "x": 257,
+            "y": 144
+          },
+          {
+            "x": 219,
+            "y": 145
+          },
+          {
+            "x": 202,
+            "y": 142
+          },
+          {
+            "x": 113,
+            "y": 142
+          },
+          {
+            "x": 103,
+            "y": 136
+          },
+          {
+            "x": 36,
+            "y": 136
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [
+    {
+      "id": "hallway-hotspot-exit",
+      "active": true,
+      "description": "door",
+      "zIndex": 0,
+      "points": [
+        {
+          "x": 38,
+          "y": 71
+        },
+        {
+          "x": 98,
+          "y": 70
+        },
+        {
+          "x": 98,
+          "y": 132
+        },
+        {
+          "x": 39,
+          "y": 132
+        }
+      ],
+      "walkToPoint": {
+        "x": 67,
+        "y": 137
+      },
+      "lookAtPoint": {
+        "x": 68,
+        "y": 130
+      },
+      "defaultVerb": "use"
+    },
+    {
+      "id": "hallway-hotspot-bulliten-board",
+      "active": true,
+      "description": "bulletin board",
+      "zIndex": 1,
+      "points": [
+        {
+          "x": 135,
+          "y": 48
+        },
+        {
+          "x": 202,
+          "y": 48
+        },
+        {
+          "x": 203,
+          "y": 103
+        },
+        {
+          "x": 134,
+          "y": 103
+        }
+      ],
+      "walkToPoint": {
+        "x": 169,
+        "y": 141
+      },
+      "lookAtPoint": {
+        "x": 168,
+        "y": 100
+      }
+    },
+    {
+      "id": "cleanBot",
+      "active": true,
+      "description": "robot thing",
+      "zIndex": 2,
+      "points": [
+        {
+          "x": 213,
+          "y": 112
+        },
+        {
+          "x": 236,
+          "y": 112
+        },
+        {
+          "x": 239,
+          "y": 142
+        },
+        {
+          "x": 210,
+          "y": 143
+        }
+      ],
+      "walkToPoint": {
+        "x": 255,
+        "y": 147
+      },
+      "lookAtPoint": {
+        "x": 225,
+        "y": 140
+      }
+    },
+    {
+      "id": "door-to-lab",
+      "active": true,
+      "description": "",
+      "zIndex": 3,
+      "points": [
+        {
+          "x": 276,
+          "y": 75
+        },
+        {
+          "x": 320,
+          "y": 74
+        },
+        {
+          "x": 316,
+          "y": 139
+        },
+        {
+          "x": 277,
+          "y": 138
+        }
+      ],
+      "walkToPoint": {
+        "x": 296,
+        "y": 142
+      },
+      "lookAtPoint": {
+        "x": 295,
+        "y": 132
+      },
+      "defaultVerb": "use"
+    }
+  ],
+  "points": [
+    {
+      "id": "hallway-point-1",
+      "x": 124,
+      "y": 150
+    },
+    {
+      "id": "hallway-point-2",
+      "x": 80,
+      "y": 150
+    },
+    {
+      "id": "enter-from-plaza",
+      "x": 67,
+      "y": 137
+    }
+  ],
+  "regions": [],
+  "props": [
+    {
+      "id": "bg",
+      "tag": "bg",
+      "animations": {
+        "bg": {}
+      },
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 297,
+      "y": 141,
+      "initialFacing": "D",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 2
+    },
+    {
+      "instanceId": "jensen-1",
+      "definition": "jensen/jensen.character.json",
+      "x": 80,
+      "y": 138,
+      "initialFacing": "U",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 2
+    }
+  ]
+}

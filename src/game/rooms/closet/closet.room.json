@@ -1,0 +1,266 @@
+{
+  "id": "closet",
+  "name": "Closet",
+  "size": {
+    "width": 352,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 352,
+    "height": 198
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "closet-walk",
+        "active": true,
+        "points": [
+          {
+            "x": 158,
+            "y": 136
+          },
+          {
+            "x": 189,
+            "y": 136
+          },
+          {
+            "x": 175,
+            "y": 125
+          },
+          {
+            "x": 166,
+            "y": 125
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [
+    {
+      "id": "door",
+      "active": true,
+      "description": "door",
+      "zIndex": 0,
+      "points": [
+        {
+          "x": 147,
+          "y": 50
+        },
+        {
+          "x": 161,
+          "y": 61
+        },
+        {
+          "x": 160,
+          "y": 125
+        },
+        {
+          "x": 147,
+          "y": 136
+        }
+      ],
+      "walkToPoint": {
+        "x": 156,
+        "y": 131
+      },
+      "lookAtPoint": {
+        "x": 154,
+        "y": 98
+      },
+      "defaultVerb": "use"
+    },
+    {
+      "id": "shelves",
+      "active": true,
+      "description": "junk on shelves",
+      "zIndex": 1,
+      "points": [
+        {
+          "x": 182,
+          "y": 67
+        },
+        {
+          "x": 198,
+          "y": 66
+        },
+        {
+          "x": 198,
+          "y": 114
+        },
+        {
+          "x": 183,
+          "y": 114
+        }
+      ],
+      "walkToPoint": {
+        "x": 179,
+        "y": 126
+      },
+      "lookAtPoint": {
+        "x": 195,
+        "y": 108
+      }
+    }
+  ],
+  "points": [],
+  "regions": [
+    {
+      "id": "darkness",
+      "active": true,
+      "points": [
+        {
+          "x": 143,
+          "y": 38
+        },
+        {
+          "x": 209,
+          "y": 38
+        },
+        {
+          "x": 209,
+          "y": 141
+        },
+        {
+          "x": 143,
+          "y": 141
+        }
+      ],
+      "tintEnabled": true,
+      "tint": "#000000",
+      "tintAlpha": 0.5
+    }
+  ],
+  "props": [
+    {
+      "id": "bg",
+      "tag": "bg",
+      "animations": {
+        "bg": {}
+      },
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "mop",
+      "tag": "mop",
+      "animations": {
+        "mop": {}
+      },
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 203,
+            "y": 77
+          },
+          {
+            "x": 207,
+            "y": 77
+          },
+          {
+            "x": 204,
+            "y": 118
+          },
+          {
+            "x": 206,
+            "y": 139
+          },
+          {
+            "x": 192,
+            "y": 137
+          },
+          {
+            "x": 196,
+            "y": 118
+          },
+          {
+            "x": 198,
+            "y": 116
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 190,
+        "y": 136
+      },
+      "lookAtPoint": {
+        "x": 199,
+        "y": 136
+      },
+      "x": 0,
+      "y": 0,
+      "description": "mop"
+    },
+    {
+      "id": "electricalBox",
+      "tag": "electricalBox",
+      "animations": {
+        "electricalBox": {},
+        "electricalBox-open": {}
+      },
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 166,
+            "y": 83
+          },
+          {
+            "x": 172,
+            "y": 83
+          },
+          {
+            "x": 172,
+            "y": 90
+          },
+          {
+            "x": 166,
+            "y": 90
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 178,
+        "y": 123
+      },
+      "lookAtPoint": {
+        "x": 167,
+        "y": 90
+      },
+      "x": 0,
+      "y": 0,
+      "description": "electrical box"
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 174,
+      "y": 130,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 4
+    },
+    {
+      "instanceId": "jensen-1",
+      "definition": "jensen/jensen.character.json",
+      "x": 65,
+      "y": 138,
+      "initialFacing": "L",
+      "initialAnimation": "Idle",
+      "visible": false,
+      "zIndex": 1
+    }
+  ]
+}

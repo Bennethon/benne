@@ -42,6 +42,8 @@ registerGuiScript('settings-menu', ({ B }) => {
 
   B.whenButtonClick("back", () => {
     B.gui('settings-menu').hide();
-    B.gui('game-menu').show();
+    if (B.room.current !== "title") {
+      B.gui('game-menu').show();
+    }
   });
 });

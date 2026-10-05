@@ -7,9 +7,12 @@ const MAX_SLOTS = 5;
  * Five fixed slots (0–4); `B.state.load(slot)` restores the selected slot.
  */
 registerGuiScript('load-menu', ({ B }) => {
+
   B.whenButtonClick('back-btn', () => {
     B.gui('load-menu').hide();
-    B.gui('game-menu').show();
+    if (B.room.current !== "title") {
+      B.gui('game-menu').show();
+    }
   });
 
   let selectedSlotIndex = 0;

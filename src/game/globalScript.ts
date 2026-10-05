@@ -13,8 +13,11 @@ registerGlobalScript(({ B }) => {
    *
    * These are used to store game state across room loads.
    */
-  B.state.setFlag('unlockedDoor', false);
-  B.state.setFlag('turnedOnFountain', false);
+  B.state.setFlag(`canCleanPaint`, false);
+  B.state.setFlag(`canTakeLens`, false);
+  B.state.setFlag(`canWork`, false);
+  B.state.setFlag(`cleanedDishes`, false);
+  B.state.setFlag(`servedMan`, false);
 
   /**
    * Global update handler. Runs every frame while the game is running. Can also be used in room scripts.
@@ -66,32 +69,20 @@ registerGlobalScript(({ B }) => {
     B.player.say("That doesn't work.");
   });
 
-  B.whenGlobalVerb('pickUp', () => {
+  B.whenGlobalVerb('take', () => {
     B.player.say("I can't take that.");
-  });
-
-  B.whenGlobalVerb('push', () => {
-    B.player.say("It won't move.");
-  });
-
-  B.whenGlobalVerb('pull', () => {
-    B.player.say("It won't move.");
-  });
-
-  B.whenGlobalVerb('open', () => {
-    B.player.say("I can't open that.");
-  });
-
-  B.whenGlobalVerb('close', () => {
-    B.player.say("That doesn't need closing.");
   });
 
   B.whenGlobalVerb('talkTo', () => {
     B.player.say("I don't have anything to say to that.");
   });
 
-  B.whenGlobalVerb('give', () => {
-    B.player.say("I can't give that.");
+  B.whenGlobalVerb('clean', () => {
+    B.player.say("I don't need to clean that.");
+  });
+
+  B.whenGlobalVerb('move', () => {
+    B.player.say("It doesn't move.");
   });
 
 

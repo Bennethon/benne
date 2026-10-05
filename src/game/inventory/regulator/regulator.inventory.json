@@ -1,0 +1,13 @@
+{
+  "id": "regulator",
+  "name": "regulator",
+  "description": "power regulator",
+  "onVerb": {
+    "look": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}

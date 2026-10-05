@@ -1,0 +1,81 @@
+{
+  "id": "driver",
+  "name": "Driver",
+  "description": "guy",
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 114,
+    "y": 81
+  },
+  "talkPoint": {
+    "x": 39,
+    "y": 3
+  },
+  "clickable": true,
+  "display": {
+    "aseprite": true
+  },
+  "animations": {
+    "IdleD": {
+      "loop": true
+    },
+    "TalkD": {
+      "loop": true
+    },
+    "IdleU": {
+      "loop": true
+    },
+    "IdleL": {
+      "loop": true
+    },
+    "IdleR": {
+      "loop": true
+    }
+  },
+  "movable": false,
+  "feet": {
+    "x": 39,
+    "y": 72
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 48,
+        "y": 7
+      },
+      {
+        "x": 52,
+        "y": 23
+      },
+      {
+        "x": 60,
+        "y": 37
+      },
+      {
+        "x": 54,
+        "y": 73
+      },
+      {
+        "x": 22,
+        "y": 73
+      },
+      {
+        "x": 15,
+        "y": 39
+      },
+      {
+        "x": 23,
+        "y": 23
+      },
+      {
+        "x": 27,
+        "y": 9
+      },
+      {
+        "x": 39,
+        "y": 4
+      }
+    ]
+  },
+  "speechColor": "#d9ae7d"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "coin",
+  "name": "coin",
+  "description": "coin",
+  "onVerb": {
+    "look": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "defaultVerb": "use"
+}

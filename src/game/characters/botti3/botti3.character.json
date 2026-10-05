@@ -1,0 +1,83 @@
+{
+  "id": "botti3",
+  "name": "BOTT-i3",
+  "description": "AI kiosk",
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 56,
+    "y": 67
+  },
+  "talkPoint": {
+    "x": 31,
+    "y": -1
+  },
+  "clickable": true,
+  "display": {
+    "aseprite": true
+  },
+  "feet": {
+    "x": 31,
+    "y": 67
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 17,
+        "y": 69
+      },
+      {
+        "x": 16,
+        "y": 22
+      },
+      {
+        "x": 3,
+        "y": 17
+      },
+      {
+        "x": 11,
+        "y": 11
+      },
+      {
+        "x": 24,
+        "y": 10
+      },
+      {
+        "x": 27,
+        "y": 2
+      },
+      {
+        "x": 34,
+        "y": 2
+      },
+      {
+        "x": 37,
+        "y": 11
+      },
+      {
+        "x": 52,
+        "y": 12
+      },
+      {
+        "x": 58,
+        "y": 15
+      },
+      {
+        "x": 46,
+        "y": 22
+      },
+      {
+        "x": 44,
+        "y": 69
+      }
+    ]
+  },
+  "movable": false,
+  "animations": {
+    "IdleD": {
+      "loop": true
+    },
+    "TalkD": {
+      "loop": true
+    }
+  }
+}

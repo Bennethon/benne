@@ -1,0 +1,14 @@
+{
+  "id": "wrench",
+  "name": "wrench",
+  "description": "wrench",
+  "onVerb": {
+    "look": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "defaultVerb": "use"
+}
