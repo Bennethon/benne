@@ -275,6 +275,12 @@ export function transformBenneScript(code, { filename, speakers }) {
   }
 
   // 2. Rewrite each step function.
+  /** `x.now(…)` or `background(…)`: starts an action without waiting, so it needs the context. */
+  const startsAction = (call) => {
+    const callee = unwrap(call.callee);
+    if (callee.type === 'Identifier') return callee.name === 'background';
+    return propertyName(callee) === 'now';
+  };
   const isStepCall = (n) => {
     const u = unwrap(n);
     return u.type === 'CallExpression' && unwrap(u.callee).type === 'Identifier' && stepNames.has(unwrap(u.callee).name);
@@ -310,7 +316,11 @@ export function transformBenneScript(code, { filename, speakers }) {
     s.prependRight(expr.end, ')');
   };
 
-  /** Expression position: only calls to known step functions need an `await`. */
+  /**
+   * Expression position: calls to known step functions need an `await`. Calls that start an action
+   * (`x.now(…)`, `background(…)`) run inside `__$.run` so they get the ambient context, like a
+   * statement would: `const walk = jensen.walkTo.now(…)` (§12).
+   */
   const visitExpression = (expr) => {
     if (!expr) return;
     walk(expr, (n) => {
@@ -319,6 +329,12 @@ export function transformBenneScript(code, { filename, speakers }) {
         assertNoNestedStepCalls(n, 'the arguments of another step-function call');
         insertMappedBefore(n, '(await __$.step(() => ');
         s.prependRight(n.end, '))');
+        return false;
+      }
+      if (n.type === 'CallExpression' && startsAction(n)) {
+        assertNoNestedStepCalls(n, 'a `.now(…)` call');
+        insertMappedBefore(n, '__$.run(() => ');
+        s.prependRight(n.end, ')');
         return false;
       }
       return undefined;

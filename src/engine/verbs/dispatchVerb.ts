@@ -2,6 +2,7 @@ import { getGameSettings } from '../ConfigManager';
 import type { EventBus } from '../events/EventBus';
 import { interruptPlayerWalkForVerbInteraction } from '../scenes/interruptPlayerWalkForVerbInteraction.js';
 import type { VerbInteractTarget, VerbUnhandledPayload } from '../events/verbInteractionEvents';
+import type { Point2 } from '../../types/room';
 import {
   VERB_GLOBAL_FALLBACK_EVENT,
   VERB_UNHANDLED_EVENT,
@@ -77,7 +78,6 @@ export function dispatchVerbInteraction(
   target: VerbInteractTarget,
 ): void {
   interruptPlayerWalkForVerbInteraction();
-  const settings = getGameSettings();
   const payload = buildEmitPayload(target, verbId);
 
   if (target.type === 'character') {
@@ -120,6 +120,16 @@ export function dispatchVerbInteraction(
     }
   }
 
+  dispatchGlobalVerbTiers(bus, verbId, target, payload);
+}
+
+/** `verb:global:<verbId>` → `verb:global:fallback` → `verb:unhandled` (+ dev `console.warn`). */
+function dispatchGlobalVerbTiers(
+  bus: EventBus,
+  verbId: string,
+  target: VerbInteractTarget,
+  payload: Record<string, unknown>,
+): void {
   const globalVerb = globalVerbHandlerEventId(verbId);
   if (listenerCount(bus, globalVerb) > 0) {
     bus.emit(globalVerb, payload);
@@ -131,7 +141,7 @@ export function dispatchVerbInteraction(
     return;
   }
 
-  const fallbackLine = settings.defaultFallbackLine ?? "That doesn't work.";
+  const fallbackLine = getGameSettings().defaultFallbackLine ?? "That doesn't work.";
   const unhandled: VerbUnhandledPayload = {
     verbId,
     target,
@@ -145,4 +155,65 @@ export function dispatchVerbInteraction(
       target,
     );
   }
+}
+
+/** Rebuilds the click target from a room verb payload ({@link buildEmitPayload}). */
+function targetFromPayload(p: Record<string, unknown>): VerbInteractTarget | null {
+  const roomId = String(p.roomId ?? '');
+  const description = p.description as string | undefined;
+  if (typeof p.propId === 'string') {
+    return {
+      type: 'prop',
+      propId: p.propId,
+      tag: String(p.tag ?? ''),
+      roomId,
+      description,
+      walkToPoint: p.walkToPoint as Point2 | undefined,
+      lookAtPoint: p.lookAtPoint as Point2 | undefined,
+    };
+  }
+  if (typeof p.hotspotId === 'string') {
+    return {
+      type: 'hotspot',
+      hotspotId: p.hotspotId,
+      roomId,
+      description,
+      walkToPoint: p.walkToPoint as Point2 | undefined,
+      lookAtPoint: p.lookAtPoint as Point2 | undefined,
+    };
+  }
+  if (typeof p.characterId === 'string') {
+    return {
+      type: 'character',
+      characterId: p.characterId,
+      instanceId: String(p.instanceId ?? p.characterId),
+      roomId,
+      description,
+      walkToPoint: p.walkToPoint as Point2 | undefined,
+      talkPoint: p.talkPoint as Point2 | undefined,
+    };
+  }
+  return null;
+}
+
+/**
+ * BenneScript `unhandled()` in a room verb handler: hands the click to the next handler in the
+ * chain after the room's own (the character script, then the global verb handler and fallback).
+ * `payload` is the room verb event's payload.
+ */
+export function continueVerbDispatchAfterRoom(bus: EventBus, payload: unknown): void {
+  const p = payload as Record<string, unknown>;
+  const target = targetFromPayload(p);
+  const verbId = String(p.verbId ?? '');
+  if (!target || !verbId) {
+    return;
+  }
+  if (target.type === 'character') {
+    const globalCharacter = characterVerbEventId(target.characterId, verbId);
+    if (listenerCount(bus, globalCharacter) > 0) {
+      bus.emit(globalCharacter, p);
+      return;
+    }
+  }
+  dispatchGlobalVerbTiers(bus, verbId, target, p);
 }

@@ -246,7 +246,11 @@ import {
   tryGetRoomTransitionOrchestrator,
 } from './roomTransitionGlobals.js';
 import { clearPlayFromRegistrationsForRoom } from '../scripting/devPlayFromRegistry.js';
-import { currentInteraction, type InteractionActivity } from '../interaction/interactionActivity.js';
+import {
+  admitGameplayClick,
+  currentInteraction,
+  type InteractionActivity,
+} from '../interaction/interactionActivity.js';
 import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
 import { getAllGuiData } from '../../game/boot/loadGuiData';
 import {
@@ -4929,6 +4933,9 @@ export class RoomScene extends Phaser.Scene {
       return;
     }
 
+    if (!admitGameplayClick()) {
+      return;
+    }
     const { x: worldX, y: worldY } = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     this.movePlayerToward(worldX, worldY);
   };
@@ -4945,7 +4952,7 @@ export class RoomScene extends Phaser.Scene {
     this.currentPlayerPath = null;
     // Outside a cutscene a dropped walk never resolves, so whatever was waiting on it is abandoned.
     if (arriveCallback && !this.isCutsceneActive()) {
-      arriveInteraction?.end();
+      arriveInteraction?.abandon();
     }
     if (!this.playerMoveTween) {
       // During a cutscene the walk promise must still resolve so the interaction chain continues.
@@ -5628,6 +5635,10 @@ export class RoomScene extends Phaser.Scene {
         manager.clearActiveVerb();
         return;
       }
+      // One gameplay interaction at a time (BenneScript §5 rule 9).
+      if (!admitGameplayClick()) {
+        return;
+      }
       if (resolution.kind === 'walkToTarget') {
         void this.walkPlayerTo(spawn.id);
         return;
@@ -5752,6 +5763,10 @@ export class RoomScene extends Phaser.Scene {
       if (resolution.kind === 'clearActive') {
         manager.clearActiveInventoryItem();
         manager.clearActiveVerb();
+        return;
+      }
+      // One gameplay interaction at a time (BenneScript §5 rule 9).
+      if (!admitGameplayClick()) {
         return;
       }
       if (resolution.kind === 'walkToTarget') {
@@ -5975,6 +5990,10 @@ export class RoomScene extends Phaser.Scene {
       if (resolution.kind === 'clearActive') {
         manager.clearActiveInventoryItem();
         manager.clearActiveVerb();
+        return;
+      }
+      // One gameplay interaction at a time (BenneScript §5 rule 9).
+      if (!admitGameplayClick()) {
         return;
       }
       if (resolution.kind === 'walkToTarget') {

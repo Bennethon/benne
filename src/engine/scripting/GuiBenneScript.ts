@@ -171,6 +171,11 @@ export class GuiBenneScript extends BenneScriptCore {
    * Queues async work on this GUI script’s interaction tail (same lazy factory semantics as {@link BenneScriptCore}).
    * Used by {@link GuiRuntime} / {@link ControlFacade} tweens.
    */
+  /** GUI handlers don't block saving (BenneScript §4.16). */
+  protected override reportsGameplayInteractions(): boolean {
+    return false;
+  }
+
   queueInteraction(factory: () => Promise<unknown>): void {
     this.chain(factory);
   }

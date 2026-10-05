@@ -1,6 +1,5 @@
 import type { EventBus } from '../events/EventBus.js';
 import {
-  INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT,
   roomInventoryOnCharacterEventId,
   roomInventoryOnHotspotEventId,
   roomInventoryOnPropEventId,
@@ -13,7 +12,12 @@ import {
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
-import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerbTarget.js';
+import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
+import {
+  continueInventoryOnDispatchAfterRoom,
+  shouldDropActiveInventoryOnUse,
+} from '../verbs/dispatchInventoryOnVerbTarget.js';
+import { continueVerbDispatchAfterRoom } from '../verbs/dispatchVerb.js';
 import { runHandler, warnIfUntransformed } from './interactionContext.js';
 
 export type TargetKind = 'prop' | 'hotspot' | 'character';
@@ -132,7 +136,11 @@ export function attachRoomHandlers(roomId: string, scene: RoomScene, events: Eve
       case 'verb': {
         const label = `${roomId} ${reg.target.id} "${reg.verb}"`;
         listen(verbEventId(roomId, reg.target, reg.verb), (payload) => {
-          void runHandler(label, scene, payload, reg.handler);
+          void runHandler(label, scene, payload, reg.handler).then((outcome) => {
+            if (outcome === 'unhandled') {
+              continueVerbDispatchAfterRoom(events, payload);
+            }
+          });
         });
         break;
       }
@@ -162,17 +170,19 @@ export function attachRoomHandlers(roomId: string, scene: RoomScene, events: Eve
 
   for (const [eventId, regs] of byItemEvent) {
     listen(eventId, (payload) => {
-      const p = payload as { verbId?: string; itemId: string };
+      const p = payload as AnyInventoryUsedOnPayload;
       const reg = regs.find((r) => r.verb === p.verbId);
       if (!reg) {
         // Another item verb than the ones handled here: fall through like an unhandled item.
-        events.emit(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, payload);
+        continueInventoryOnDispatchAfterRoom(events, p);
         return;
       }
       const label = `${roomId} ${reg.itemId} "${reg.verb}" on ${reg.target.id}`;
       void runHandler(label, scene, payload, reg.handler).then((outcome) => {
         if (outcome === 'finished' || outcome === 'ended') {
           applyInventoryDropPolicy(reg.itemId);
+        } else if (outcome === 'unhandled') {
+          continueInventoryOnDispatchAfterRoom(events, p);
         }
       });
     });

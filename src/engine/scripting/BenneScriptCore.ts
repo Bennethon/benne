@@ -822,9 +822,17 @@ export abstract class BenneScriptCore {
     this.disposers.push(off);
   }
 
+  /**
+   * Whether this script's handlers are gameplay interactions (they block saving, §4.16). GUI
+   * scripts override this: menus stay usable between interactions.
+   */
+  protected reportsGameplayInteractions(): boolean {
+    return true;
+  }
+
   protected subscribe(eventId: string, run: (payload: unknown) => void): void {
     const wrapped = async (payload: unknown) => {
-      const activity = beginInteractionActivity();
+      const activity = beginInteractionActivity({ gameplay: this.reportsGameplayInteractions() });
       this.beginInteraction();
       try {
         this.pushVerbWalkContext(payload);
@@ -854,7 +862,7 @@ export abstract class BenneScriptCore {
     afterTail: () => void,
   ): void {
     const wrapped = async (payload: unknown) => {
-      const activity = beginInteractionActivity();
+      const activity = beginInteractionActivity({ gameplay: this.reportsGameplayInteractions() });
       this.beginInteraction();
       try {
         this.pushVerbWalkContext(payload);

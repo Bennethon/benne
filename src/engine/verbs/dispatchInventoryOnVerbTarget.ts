@@ -184,3 +184,45 @@ export function shouldDropActiveInventoryOnUse(itemId: string): boolean {
   }
   return getGameSettings().dropWhenInventoryUsed ?? false;
 }
+
+/**
+ * BenneScript `unhandled()` (or an item verb with no handler) in a room's item-on-target handler:
+ * hands the click to the next tier after the room's per-item handler (the room's any-item handler,
+ * the global handlers, then the unhandled fallback). `payload` is the room event's payload.
+ */
+export function continueInventoryOnDispatchAfterRoom(bus: EventBus, payload: AnyInventoryUsedOnPayload): void {
+  const p = payload;
+  const rest = (roomAny: string, globalScoped: string, globalAny: string): void => {
+    for (const eventId of [roomAny, globalScoped, globalAny, INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT]) {
+      if (listenerCount(bus, eventId) > 0) {
+        bus.emit(eventId, p);
+        return;
+      }
+    }
+  };
+  switch (p.targetType) {
+    case 'prop':
+      rest(
+        roomInventoryOnPropAnySourceEventId(p.roomId, p.propId),
+        globalInventoryOnPropEventId(p.propId, p.itemId),
+        globalInventoryOnPropAnySourceEventId(p.propId),
+      );
+      return;
+    case 'hotspot':
+      rest(
+        roomInventoryOnHotspotAnySourceEventId(p.roomId, p.hotspotId),
+        globalInventoryOnHotspotEventId(p.hotspotId, p.itemId),
+        globalInventoryOnHotspotAnySourceEventId(p.hotspotId),
+      );
+      return;
+    case 'character':
+      rest(
+        roomInventoryOnCharacterAnySourceEventId(p.roomId, p.characterId),
+        globalInventoryOnCharacterEventId(p.characterId, p.itemId),
+        globalInventoryOnCharacterAnySourceEventId(p.characterId),
+      );
+      return;
+    default:
+      bus.emit(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, p);
+  }
+}

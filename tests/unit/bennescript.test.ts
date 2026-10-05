@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { transformWithOxc } from 'vite';
 import {
   buildSpeakerTable,
@@ -7,14 +7,60 @@ import {
   transformBenneScript,
   usesNewBenneScriptApi,
 } from '../../scripts/lib/bennescriptTransform.mjs';
+
+// Dialog sessions: the real session bookkeeping, without building the choice GUI.
+vi.mock('../../src/engine/scripting/DialogBenneScript', async () => {
+  const session = await import('../../src/engine/scripting/dialogSession');
+  const { gameEvents } = await import('../../src/engine/events/EventBus');
+  const { DIALOG_STARTED_EVENT } = await import('../../src/engine/events/dialogEvents');
+  return {
+    openDialogSessionForId: (game: unknown, dialogId: string) => {
+      const prev = session.getActiveDialogBenneScript();
+      if (prev) session.endDialogSessionIfMatches(prev);
+      session.setActiveDialogBenneScript({
+        dialogId,
+        game: game as never,
+        dispose() {},
+        resetInteractionTailForEngine() {},
+      });
+      gameEvents.emit(DIALOG_STARTED_EVENT, { dialogId, guiId: 'dialog' });
+    },
+  };
+});
+
+import { background, cutscene, together, withInputDisabled } from '../../src/engine/bennescript/blocks';
+import { dialogStackForTesting } from '../../src/engine/bennescript/dialogs';
+import { DialogHandle, RoomHandle } from '../../src/engine/bennescript/handles';
 import {
   cancelAllInteractions,
   currentContext,
   runHandler,
+  unhandled,
   type HandlerOutcome,
 } from '../../src/engine/bennescript/interactionContext';
-import { Task } from '../../src/engine/bennescript/task';
-import { isInteractionActivityRunning } from '../../src/engine/interaction/interactionActivity';
+import { saves } from '../../src/engine/bennescript/saves';
+import { Task, timed, type TaskHooks } from '../../src/engine/bennescript/task';
+import { gameEvents } from '../../src/engine/events/EventBus';
+import { guiButtonClickEventId } from '../../src/engine/events/guiButtonEvents';
+import { setActiveBenneGame } from '../../src/engine/gameState/activeBenneGame';
+import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../src/engine/gameState/registryKey';
+import { setActiveGameStateManager } from '../../src/engine/gameState/resolveGameStateManager';
+import { BENNE_USER_INPUT_DISABLED_REGISTRY_KEY } from '../../src/engine/input/userInputDisabledRegistry';
+import {
+  admitGameplayClick,
+  beginInteractionActivity,
+  clearInteractionActivity,
+  currentInteraction,
+  isGameplayInteractionRunning,
+  isInteractionActivityRunning,
+  type InteractionActivity,
+} from '../../src/engine/interaction/interactionActivity';
+import {
+  endDialogSessionIfMatches,
+  getActiveDialogBenneScript,
+  setActiveDialogBenneScript,
+} from '../../src/engine/scripting/dialogSession';
+import { GAME_STATE_REPLACED_EVENT } from '../../src/types/gameState';
 
 const speakers = buildSpeakerTable([
   { id: 'hank', name: 'Hank' },
@@ -25,11 +71,80 @@ const speakers = buildSpeakerTable([
 const transform = (code: string) => transformBenneScript(code, { filename: 'test.room.ts', speakers });
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+/** A stand-in RoomScene: the cutscene stack, skip and input state the runtime touches. */
+function fakeScene() {
+  const finishers = new Set<() => void>();
+  let depth = 0;
+  let fastForward = false;
+  const registry = new Map<string, unknown>();
+  return {
+    registry,
+    get cutsceneDepth() {
+      return depth;
+    },
+    pushCutscene: () => {
+      depth += 1;
+    },
+    popCutscene: () => {
+      depth -= 1;
+      if (depth === 0) fastForward = false;
+    },
+    isCutsceneActive: () => depth > 0,
+    isCutsceneSkipFastForwarding: () => fastForward,
+    registerCutsceneSkipFinisher: (finish: () => void) => {
+      finishers.add(finish);
+      return () => finishers.delete(finish);
+    },
+    /** The skip key, as `RoomScene.requestCutsceneSkip`. */
+    skip: () => {
+      fastForward = true;
+      const pending = [...finishers];
+      finishers.clear();
+      pending.forEach((f) => f());
+    },
+    setUserInputDisabled: (disabled: boolean) => registry.set(BENNE_USER_INPUT_DISABLED_REGISTRY_KEY, disabled),
+    suppressDialogChoiceGuiForWhenChoice: () => {},
+    restoreDialogChoiceGuiAfterWhenChoiceDrain: () => {},
+  };
+}
+type FakeScene = ReturnType<typeof fakeScene>;
+
+/** Installs a fake running game whose room is `scene`, with a fake state manager. */
+function fakeGame(scene: FakeScene) {
+  const saved: Array<{ name: string; slot?: number }> = [];
+  const manager = {
+    saved,
+    setVariable: () => {},
+    clearVariable: () => {},
+    hasVariable: () => false,
+    getVariable: () => undefined,
+    save: (name: string, slot?: number) => saved.push({ name, slot }),
+    load: () => false,
+    getSaveList: () => [],
+  };
+  scene.registry.set(BENNE_GAME_STATE_REGISTRY_KEY, manager);
+  setActiveBenneGame({ scene: { getScene: () => scene }, registry: scene.registry } as never);
+  setActiveGameStateManager(manager as never);
+  return manager;
+}
+
+afterEach(() => {
+  cancelAllInteractions();
+  clearInteractionActivity();
+  const active = getActiveDialogBenneScript();
+  if (active) setActiveDialogBenneScript(null);
+  setActiveBenneGame(null);
+  setActiveGameStateManager(null);
+});
+
 /**
  * Compiles a script snippet the way the game does (transform, then strip types) and runs its
  * top-level registrations against fakes. `h.onLook(fn)` collects handlers.
+ *
+ * Timed fakes: `wait()`, `talk()` (any non-walk action) and `walk()` (a player walk) each start a
+ * task that stays open until `open()`. `probe()` logs the ambient payload when it starts.
  */
-async function load(source: string) {
+async function load(source: string, extra: Record<string, unknown> = {}) {
   const out = transform(source);
   if (!out) throw new Error('nothing transformed');
   const js = (await transformWithOxc(out.code, 'test.ts')).code.replace(
@@ -38,13 +153,24 @@ async function load(source: string) {
   );
   const log: string[] = [];
   const gates: Array<() => void> = [];
+  const finished: string[] = [];
   const flags: Record<string, boolean> = {};
   const handlers: Array<() => void> = [];
+  const activities: InteractionActivity[] = [];
+  const gate = (name: string, hooks: TaskHooks = {}) => {
+    let open!: () => void;
+    const p = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    gates.push(open);
+    activities.push(currentInteraction()!);
+    return new Task(p, { ...hooks, finishNow: () => finished.push(name) });
+  };
   const runtime = {
     ctx: currentContext,
     say: (id: string, text: string) => {
       log.push(`${id}: ${text}`);
-      return Task.resolved();
+      return Task.resolved().wait();
     },
   };
   const api = {
@@ -52,16 +178,30 @@ async function load(source: string) {
     log: (line: string) => {
       log.push(line);
     },
-    wait: () => new Task(new Promise<void>((resolve) => gates.push(resolve))),
+    wait: timed(() => gate('wait')),
+    talk: timed(() => gate('talk')),
+    walk: timed(() => gate('walk', { playerWalk: true })),
+    probe: timed(() => {
+      log.push(`probe ${String(currentContext().payload)}`);
+      return gate('probe');
+    }),
     clicked: () => {
       log.push(`clicked ${String(currentContext().payload)}`);
     },
     flags,
+    cutscene,
+    together,
+    background,
+    withInputDisabled,
+    unhandled,
+    saves,
+    rooms: { lab: new RoomHandle('lab') },
+    ...extra,
   };
   new Function('__bs', ...Object.keys(api), js)(runtime, ...Object.values(api));
-  const run = (payload: unknown = null) => {
+  const run = (payload: unknown = null, scene?: FakeScene, index = 0) => {
     let outcome: HandlerOutcome | null = null;
-    void runHandler('test', undefined, payload, handlers[0]!).then((o) => {
+    void runHandler('test', scene as never, payload, handlers[index]!).then((o) => {
       outcome = o;
     });
     return () => outcome;
@@ -70,7 +210,7 @@ async function load(source: string) {
     gates.shift()!();
     await flush();
   };
-  return { log, flags, run, open, js };
+  return { log, flags, run, open, finished, activities, gates, js };
 }
 
 describe('BenneScript transform', () => {
@@ -154,8 +294,8 @@ describe('BenneScript transform', () => {
   });
 });
 
-describe('BenneScript step runtime', () => {
-  it('runs lines in order: a line after a timed action waits for it', async () => {
+describe('BenneScript sequencing rules (§5)', () => {
+  it('rule 1: a handler body runs top to bottom, each line after the previous one', async () => {
     const g = await load('h.onLook(() => {\n  log("a")\n  wait()\n  log("b")\n  flags.x = true\n  Hank: "done"\n})\n');
     const outcome = g.run();
     await flush();
@@ -169,18 +309,70 @@ describe('BenneScript step runtime', () => {
     expect(isInteractionActivityRunning()).toBe(false);
   });
 
-  it('helpers join the calling handler: waits, return values and the clicked target', async () => {
+  it('rule 2: a timed action is finished when it completes; anything else, and helpers, as defined', async () => {
     const g = await load(
-      'function ready() {\n  clicked()\n  wait()\n  return true\n}\nh.onLook(() => {\n  if (ready()) log("ready")\n})\n',
+      'function helper() {\n  talk()\n  log("helper done")\n}\n' +
+        'h.onLook(() => {\n  log("instant")\n  helper()\n  log("after helper")\n})\n',
     );
-    g.run('door');
+    g.run();
     await flush();
-    expect(g.log).toEqual(['clicked door']);
+    expect(g.log).toEqual(['instant']);
     await g.open();
-    expect(g.log).toEqual(['clicked door', 'ready']);
+    expect(g.log).toEqual(['instant', 'helper done', 'after helper']);
   });
 
-  it('a cancelled handler stops at its current step', async () => {
+  it('rule 3: .now starts the action at its line and does not wait, in any position', async () => {
+    const g = await load(
+      'h.onLook(() => {\n  log("a")\n  probe.now()\n  log("b")\n  const t = probe.now()\n  log(String(t.done))\n})\n',
+    );
+    const outcome = g.run('door');
+    await flush();
+    // Both probes started where they are written, with the click as their context, and nothing waited.
+    expect(g.log).toEqual(['a', 'probe door', 'b', 'probe door', 'false']);
+    expect(outcome()).toBe('finished');
+    expect(g.gates).toHaveLength(2);
+    expect(g.js).toContain('const t = __$.run(() => probe.now())');
+  });
+
+  it('rule 4: Task.wait() waits for a .now task later in the handler', async () => {
+    const g = await load('h.onLook(() => {\n  const t = wait.now()\n  log("while waiting")\n  t.wait()\n  log("after")\n})\n');
+    g.run();
+    await flush();
+    expect(g.log).toEqual(['while waiting']);
+    await g.open();
+    expect(g.log).toEqual(['while waiting', 'after']);
+  });
+
+  it('rule 5: goTo, saves.load, unhandled and dialog.end end the handler', async () => {
+    const cases: Array<[string, HandlerOutcome]> = [
+      ['rooms.lab.goTo()', 'ended'],
+      ['saves.load(1)', 'ended'],
+      ['unhandled()', 'unhandled'],
+      ['d.end()', 'ended'],
+    ];
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const [call, expected] of cases) {
+      const g = await load(`h.onLook(() => {\n  log("before")\n  ${call}\n  log("after")\n})\n`, {
+        d: new DialogHandle('d', {}),
+      });
+      const outcome = g.run();
+      await flush();
+      expect(g.log, call).toEqual(['before']);
+      expect(outcome(), call).toBe(expected);
+    }
+  });
+
+  it('rule 6: reads see the world as it is at that line, not at click time', async () => {
+    const g = await load('h.onLook(() => {\n  log(`before ${flags.x}`)\n  wait()\n  log(`after ${flags.x}`)\n})\n');
+    g.flags.x = false;
+    g.run();
+    await flush();
+    g.flags.x = true; // changed by something else while the handler waits
+    await g.open();
+    expect(g.log).toEqual(['before false', 'after true']);
+  });
+
+  it('rule 7: a room change stops the handler at its current step', async () => {
     const g = await load('h.onLook(() => {\n  log("a")\n  wait()\n  log("b")\n})\n');
     const outcome = g.run();
     await flush();
@@ -190,5 +382,220 @@ describe('BenneScript step runtime', () => {
     expect(isInteractionActivityRunning()).toBe(false);
     await g.open();
     expect(g.log).toEqual(['a']);
+  });
+
+  it('rule 7: a save load stops running handlers and background blocks', async () => {
+    const g = await load(
+      'h.onLook(() => {\n  background(() => {\n    wait()\n    log("background")\n  })\n  wait()\n  log("handler")\n})\n',
+    );
+    const outcome = g.run();
+    await flush();
+    gameEvents.emit(GAME_STATE_REPLACED_EVENT, { snapshot: {} });
+    await flush();
+    await g.open();
+    await g.open();
+    expect(outcome()).toBe('cancelled');
+    expect(g.log).toEqual([]);
+  });
+
+  it('rule 8: skipping a cutscene finishes its timed steps at once, then the handler continues', async () => {
+    const scene = fakeScene();
+    const g = await load(
+      'h.onLook(() => {\n  cutscene(() => {\n    wait()\n    log("a")\n    talk()\n    log("b")\n  })\n  log("after")\n  wait()\n  log("end")\n})\n',
+    );
+    const outcome = g.run(null, scene);
+    await flush();
+    expect(scene.cutsceneDepth).toBe(1);
+    expect(g.log).toEqual([]);
+    scene.skip(); // in flight: the first wait is finished by the skip
+    await flush();
+    // The rest of the block ran without opening any gate; the step after it waits normally again.
+    expect(g.finished).toEqual(['wait', 'talk']);
+    expect(g.log).toEqual(['a', 'b', 'after']);
+    expect(scene.cutsceneDepth).toBe(0);
+    expect(outcome()).toBeNull();
+    g.gates.splice(0, 2);
+    await g.open();
+    expect(g.log).toEqual(['a', 'b', 'after', 'end']);
+    expect(outcome()).toBe('finished');
+  });
+});
+
+describe('BenneScript blocks', () => {
+  it('together starts every branch at once and waits for all of them', async () => {
+    const g = await load(
+      'h.onLook(() => {\n  together(\n    () => { wait(); log("one") },\n    () => { log("two starts"); talk(); log("two") },\n  )\n  log("both")\n})\n',
+    );
+    g.run();
+    await flush();
+    expect(g.log).toEqual(['two starts']);
+    await g.open();
+    expect(g.log).toEqual(['two starts', 'one']);
+    await g.open();
+    expect(g.log).toEqual(['two starts', 'one', 'two', 'both']);
+  });
+
+  it('background runs alongside and can be waited for later', async () => {
+    const g = await load(
+      'h.onLook(() => {\n  const bg = background(() => {\n    wait()\n    log("bg")\n  })\n  log("handler")\n  bg.wait()\n  log("joined")\n})\n',
+    );
+    g.run();
+    await flush();
+    expect(g.log).toEqual(['handler']);
+    await g.open();
+    expect(g.log).toEqual(['handler', 'bg', 'joined']);
+  });
+
+  it('withInputDisabled re-enables input afterwards, even when the handler is cancelled', async () => {
+    const scene = fakeScene();
+    fakeGame(scene);
+    const g = await load('h.onLook(() => {\n  withInputDisabled(() => {\n    wait()\n  })\n})\n');
+    g.run(null, scene);
+    await flush();
+    expect(scene.registry.get(BENNE_USER_INPUT_DISABLED_REGISTRY_KEY)).toBe(true);
+    cancelAllInteractions();
+    await flush();
+    expect(scene.registry.get(BENNE_USER_INPUT_DISABLED_REGISTRY_KEY)).toBe(false);
+  });
+});
+
+describe('BenneScript interrupt policy (§5 rule 9, decision 1)', () => {
+  it('a click during the opening walk cancels the handler', async () => {
+    const g = await load('h.onLook(() => {\n  walk()\n  log("arrived")\n})\n');
+    const outcome = g.run();
+    await flush();
+    expect(admitGameplayClick()).toBe(true);
+    await flush();
+    expect(outcome()).toBe('cancelled');
+    await g.open();
+    expect(g.log).toEqual([]);
+  });
+
+  it('once anything else has started, clicks are ignored until the handler ends', async () => {
+    const g = await load('h.onLook(() => {\n  walk()\n  talk()\n  walk()\n  log("done")\n})\n');
+    const outcome = g.run();
+    await flush();
+    await g.open(); // the opening walk arrives
+    expect(admitGameplayClick()).toBe(false); // speaking
+    await g.open();
+    expect(admitGameplayClick()).toBe(false); // a second walk is not an opening walk
+    await g.open();
+    expect(outcome()).toBe('finished');
+    expect(admitGameplayClick()).toBe(true);
+  });
+
+  it('a handler whose first timed step is not a walk ignores clicks from the start', async () => {
+    const g = await load('h.onLook(() => {\n  talk()\n})\n');
+    g.run();
+    await flush();
+    expect(admitGameplayClick()).toBe(false);
+  });
+
+  it('inside a cutscene, clicks are ignored even during a walk', async () => {
+    const g = await load('h.onLook(() => {\n  cutscene(() => {\n    walk()\n  })\n})\n');
+    const outcome = g.run(null, fakeScene());
+    await flush();
+    expect(admitGameplayClick()).toBe(false);
+    await g.open();
+    expect(outcome()).toBe('finished');
+  });
+
+  it('background blocks and old-API interactions do not take the lock', async () => {
+    const g = await load('h.onLook(() => {\n  background(() => {\n    talk()\n  })\n})\n');
+    g.run();
+    await flush();
+    expect(admitGameplayClick()).toBe(true);
+    const old = beginInteractionActivity();
+    expect(admitGameplayClick()).toBe(true);
+    old.end();
+  });
+
+  it('a dropped opening walk (abandoned by the room) cancels the handler', async () => {
+    const g = await load('h.onLook(() => {\n  walk()\n  log("arrived")\n})\n');
+    const outcome = g.run();
+    await flush();
+    g.activities[0]!.abandon();
+    await flush();
+    expect(outcome()).toBe('cancelled');
+    expect(isInteractionActivityRunning()).toBe(false);
+  });
+});
+
+describe('BenneScript save policy (decision 2)', () => {
+  it('refuses to save while a gameplay interaction runs', async () => {
+    const manager = fakeGame(fakeScene());
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const g = await load('h.onLook(() => {\n  log(String(saves.canSaveNow))\n  saves.save(1, "mid")\n  talk()\n})\n');
+    expect(saves.canSaveNow).toBe(true);
+    const outcome = g.run();
+    await flush();
+    expect(g.log).toEqual(['false']);
+    expect(manager.saved).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('saves.save(1): refused'));
+    await g.open();
+    expect(outcome()).toBe('finished');
+    expect(saves.canSaveNow).toBe(true);
+    saves.save(2, 'idle');
+    expect(manager.saved).toEqual([{ name: 'idle', slot: 2 }]);
+  });
+
+  it('GUI handlers do not block saving; an open dialog does', () => {
+    fakeGame(fakeScene());
+    const gui = beginInteractionActivity({ gameplay: false });
+    expect(saves.canSaveNow).toBe(true);
+    gui.end();
+    setActiveDialogBenneScript({ dialogId: 'd', game: null as never, dispose() {}, resetInteractionTailForEngine() {} });
+    expect(saves.canSaveNow).toBe(false);
+  });
+});
+
+describe('BenneScript dialogs (decision 3)', () => {
+  it('start() waits for the conversation; a sub-dialog returns to its parent', async () => {
+    const scene = fakeScene();
+    fakeGame(scene);
+    const parent = new DialogHandle('parent', { more: 'more' });
+    const child = new DialogHandle('child', { back: 'back' });
+    const g = await load(
+      'parent.options.more.onChoose(() => {\n  log("into child")\n  child.start()\n  log("back in parent")\n})\n' +
+        'child.options.back.onChoose(() => {\n  log("bye")\n  child.end()\n  log("never")\n})\n' +
+        'h.onLook(() => {\n  parent.start()\n  log("conversation over")\n})\n',
+      { parent, child },
+    );
+    const outcome = g.run();
+    await flush();
+    expect(getActiveDialogBenneScript()?.dialogId).toBe('parent');
+    // Waiting on the player is not "busy", but it is still an interaction for saving.
+    expect(isInteractionActivityRunning()).toBe(false);
+    expect(isGameplayInteractionRunning()).toBe(true);
+
+    gameEvents.emit(guiButtonClickEventId('dialog', 'dc__more'), {});
+    await flush();
+    expect(getActiveDialogBenneScript()?.dialogId).toBe('child');
+    expect(dialogStackForTesting()).toEqual(['parent (suspended)', 'child']);
+
+    gameEvents.emit(guiButtonClickEventId('dialog', 'dc__back'), {});
+    await flush();
+    expect(g.log).toEqual(['into child', 'bye', 'back in parent']);
+    expect(getActiveDialogBenneScript()?.dialogId).toBe('parent');
+    expect(dialogStackForTesting()).toEqual(['parent']);
+    expect(outcome()).toBeNull();
+
+    endDialogSessionIfMatches(getActiveDialogBenneScript()!);
+    await flush();
+    expect(g.log).toEqual(['into child', 'bye', 'back in parent', 'conversation over']);
+    expect(outcome()).toBe('finished');
+  });
+
+  it('starting a dialog that is already open is an error in DEV', async () => {
+    fakeGame(fakeScene());
+    const d = new DialogHandle('d', { again: 'again' });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const g = await load('d.options.again.onChoose(() => {\n  d.start()\n})\nh.onLook(() => {\n  d.start()\n})\n', { d });
+    g.run();
+    await flush();
+    gameEvents.emit(guiButtonClickEventId('dialog', 'dc__again'), {});
+    await flush();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('Error in dialog d option'), expect.any(Error));
+    expect(getActiveDialogBenneScript()?.dialogId).toBe('d');
   });
 });

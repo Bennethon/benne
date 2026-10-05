@@ -2,6 +2,7 @@
  * Composes GUI `BitmapText` overlays. Renderer settings (`pixelArt`, `roundPixels`, WebGL) come from
  * `getBenneRendererConfigFields` / `getBennePhaserGameConfigBase` — keep in sync with every preview surface.
  */
+import { admitGameplayClick } from '../interaction/interactionActivity.js';
 import * as Phaser from 'phaser';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
 import { getInternalHeight, getInternalWidth } from '../../game/boot/constants';
@@ -1870,6 +1871,10 @@ function fillInventoryPanelContent(
             return;
           }
           if (resolution.kind === 'walkToTarget') {
+            return;
+          }
+          // One gameplay interaction at a time (BenneScript §5 rule 9).
+          if (!admitGameplayClick()) {
             return;
           }
           if (resolution.kind === 'verb') {

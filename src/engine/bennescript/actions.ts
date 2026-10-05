@@ -1,5 +1,3 @@
-import { SCENE_ROOM } from '../../game/boot/constants.js';
-import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
@@ -11,8 +9,11 @@ import {
   resolveFaceLookWorldFromPayload,
   resolveWalkToClickedTargetFromPayload,
 } from '../scripting/verbClickTarget.js';
+import type { CharacterFacingLetter } from '../../types/character.js';
+import type { Point2 } from '../../types/room.js';
 import { currentContext } from './interactionContext.js';
-import { Task } from './task.js';
+import { liveRoomScene } from './scene.js';
+import { Task, timed } from './task.js';
 
 /** Speaker id the transform emits for `Player:` labels: the active player character. */
 export const PLAYER_SPEAKER = 'Player';
@@ -29,19 +30,7 @@ function warnOnce(key: string, message: string): void {
 
 /** The room the running handler belongs to, else the active room. */
 export function activeRoomScene(): RoomScene | undefined {
-  const fromHandler = currentContext().scene;
-  if (fromHandler) {
-    return fromHandler;
-  }
-  return tryGetActiveBenneGame()?.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
-}
-
-/**
- * Types the author sees for timed actions return `void` (§6.3): the transform waits on them, and
- * a bare call must type-check. At runtime they return the {@link Task}.
- */
-function blocking<A extends unknown[]>(fn: (...args: A) => Task): (...args: A) => void {
-  return fn as unknown as (...args: A) => void;
+  return currentContext().scene ?? liveRoomScene();
 }
 
 function clickedTarget(name: string) {
@@ -60,8 +49,13 @@ function clickedTarget(name: string) {
   return { scene, walkTarget, faceLookWorld };
 }
 
+/** A walk of the active player: the interrupt policy's opening walk (§5 rule 9). */
+function playerWalkTask(scene: RoomScene, walk: Promise<void>): Task {
+  return new Task(walk, { playerWalk: true, cancel: () => scene.interruptPlayerWalk() });
+}
+
 /** Walk the player to the clicked thing's walk-to point, then face it. Waits. */
-export const walkToClicked = blocking((): Task => {
+export const walkToClicked = timed((): Task => {
   const clicked = clickedTarget('walkToClicked');
   if (!clicked) {
     return Task.resolved();
@@ -71,13 +65,14 @@ export const walkToClicked = blocking((): Task => {
     warnOnce('walkToClicked:no-target', 'walkToClicked: this click has no room walk target — ignored.');
     return Task.resolved();
   }
-  return new Task(
+  return playerWalkTask(
+    scene,
     scene.walkPlayerTo(walkTarget).then(() => scene.facePlayerTowardClicked(faceLookWorld, walkTarget)),
   );
 });
 
 /** Turn the player toward the clicked thing. */
-export const faceClicked = blocking((): Task => {
+export const faceClicked = timed((): Task => {
   const clicked = clickedTarget('faceClicked');
   if (clicked && (clicked.walkTarget != null || clicked.faceLookWorld != null)) {
     clicked.scene.facePlayerTowardClicked(clicked.faceLookWorld, clicked.walkTarget);
@@ -85,25 +80,18 @@ export const faceClicked = blocking((): Task => {
   return Task.resolved();
 });
 
-/** Pause for `seconds`. Returns at once while a cutscene skip is fast-forwarding. */
-export const wait = blocking((seconds: number): Task => {
+/** Pause for `seconds`. Returns at once in skip mode. */
+export const wait = timed((seconds: number): Task => {
   const scene = activeRoomScene();
   if (!scene || scene.isCutsceneSkipFastForwarding()) {
     return Task.resolved();
   }
-  return new Task(
-    new Promise<void>((resolve) => {
-      let unregisterSkip: (() => void) | null = null;
-      const timer = scene.time.delayedCall(Math.max(0, seconds * 1000), () => {
-        unregisterSkip?.();
-        resolve();
-      });
-      unregisterSkip = scene.registerCutsceneSkipFinisher(() => {
-        timer.remove(false);
-        resolve();
-      });
-    }),
-  );
+  let timer: ReturnType<RoomScene['time']['delayedCall']> | null = null;
+  const elapsed = new Promise<void>((resolve) => {
+    timer = scene.time.delayedCall(Math.max(0, seconds * 1000), () => resolve());
+  });
+  const stop = () => timer?.remove(false);
+  return new Task(elapsed, { finishNow: stop, cancel: stop });
 });
 
 /**
@@ -123,6 +111,60 @@ export function sayTask(speakerId: string, text: unknown, options?: ScriptedSayL
   console.log(characterId === playerId ? `[Player] ${line.text}` : `[Character ${characterId}] ${line.text}`);
   return new Task(playScriptedSayLine(scene, line.text, characterId, options, line.voiceStem));
 }
+
+/** `say` as the transform emits it for labels: one line, waited for. */
+export function sayLine(speakerId: string, text: unknown): void {
+  return sayTask(speakerId, text).wait();
+}
+
+/** Where to walk: a named room point / thing id, raw room pixels, or a handle with an id. */
+export type WalkTarget = Point2 | string | { readonly id: string };
+
+function walkTargetOf(target: WalkTarget): Point2 | string {
+  return typeof target === 'object' && 'id' in target ? target.id : target;
+}
+
+function noRoom(what: string): Task {
+  warnOnce(`${what}:no-room`, `${what}: no active room — ignored.`);
+  return Task.resolved();
+}
+
+/** Walks a character; the active player's walk is a player walk (interrupt policy). */
+export function walkCharacterTask(characterId: string | null, target: WalkTarget): Task {
+  const scene = activeRoomScene();
+  if (!scene) {
+    return noRoom('walkTo');
+  }
+  const dest = walkTargetOf(target);
+  if (characterId == null || characterId === scene.getActivePlayerCharacterId()) {
+    return playerWalkTask(scene, scene.walkPlayerTo(dest));
+  }
+  return new Task(scene.walkCharacterTo(characterId, dest));
+}
+
+export function faceCharacter(characterId: string | null, direction: CharacterFacingLetter): void {
+  const scene = activeRoomScene();
+  if (!scene) {
+    noRoom('face');
+    return;
+  }
+  if (characterId == null || characterId === scene.getActivePlayerCharacterId()) {
+    scene.facePlayerScriptDirection(direction);
+  } else {
+    scene.faceCharacterScriptDirection(characterId, direction);
+  }
+}
+
+/** The active player character (§4.3). */
+export const player = {
+  /** Walks to a point, a named point or a thing's walk-to point. Waits. `.now` doesn't. */
+  walkTo: timed((target: WalkTarget): Task => walkCharacterTask(null, target)),
+  face(direction: CharacterFacingLetter): void {
+    faceCharacter(null, direction);
+  },
+  /** One speech line. Waits. Same as a `Player: "…"` label. */
+  say: timed((text: string, options?: ScriptedSayLineOptions): Task => sayTask(PLAYER_SPEAKER, text, options)),
+};
 
 export interface ItemRef {
   readonly id: string;

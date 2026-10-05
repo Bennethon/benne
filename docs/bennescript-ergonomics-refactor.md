@@ -422,6 +422,8 @@ battery.onClean(() => {
 })
 ```
 
+_As built (Phase 2, decision 22):_ after a room's verb handler, `unhandled()` continues with the character script's handler for that verb (characters only), then the global verb handler, then the global fallback. After a room's `on<Verb>Item` handler, it continues with the room's any-item handler, the global item handlers, then the "That doesn't work" fallback. In room lifecycle and dialog choice handlers there is nothing to fall through to, so it only ends the handler.
+
 **Hotspots** have the same handlers, plus:
 
 ```ts
@@ -689,6 +691,8 @@ options.bye.onChoose(() => {
 })
 ```
 
+_As built (Phase 2, decision 19):_ a choice handler is **not** a cutscene, unlike the old `whenChoice`. The choice list is hidden while it runs and the open conversation already blocks world clicks, so the only difference is the skip key: wrap long choices in `cutscene(…)` to make them skippable. The reason is sub-dialogs: a choice that starts one waits for it, and a cutscene held during that wait would block the sub-dialog's choice buttons. When a sub-dialog ends, its parent comes back after the choice handler that started it has finished, so lines after `start()` play before the parent's choices reappear.
+
 **Changing the room during a conversation** works as today (props, hotspots and regions of the room the conversation is in), but with typed names imported from that room's `.ids` module:
 
 ```ts
@@ -923,6 +927,8 @@ Jensen: "Why isn't this working?"
 
 Sounds and music `play()` never block, so they never need `.now`.
 
+_As built (Phase 2, decision 21):_ a `background` block runs on its own interaction context. It keeps the click it was started from (so `walkToClicked()` works inside it), it doesn't take the interaction lock or count as "busy" for idle detection, and it doesn't block saving. A room change or save load stops it. The handler that started it ending, or being interrupted, does not.
+
 ### 4.14 Regions and walkable areas
 
 ```ts
@@ -1106,6 +1112,8 @@ gui.onShow(() => {
 
 Snapshotting the last idle state instead (so saving is always available) may be revisited later; see §13.
 
+_As built (Phase 2, decision 20):_ `canSaveNow` is also false during a room transition. A handler waiting on a dialog it started still counts. `saves.load()` stops every other running handler before the snapshot replaces the state, and any snapshot load or new game (including from the old `B` API) does the same. `saves.list()` / `get()` cover numbered slots only.
+
 **Settings**
 
 ```ts
@@ -1234,6 +1242,8 @@ Ordinary `.ts` files (math utilities, data tables) are untouched. They can't use
 
    GUI handlers and `background` blocks run alongside and don't take the lock.
 
+   _As built (Phase 2, decision 18):_ "clicking the world" means a click that would start a walk or an interaction: a background walk, a verb or item on a prop, hotspot or character, and a verb on an inventory row. Clicks that only clear the armed verb or item are UI and always work. The opening walk is a first timed step that is a walk of the active player (`walkToClicked()`, `player.walkTo(…)`, or `x.walkTo(…)` where `x` is the player). If that walk is dropped for any other reason outside a cutscene, the handler is cancelled too. Handlers on the old `B` API keep their old behaviour (they never block clicks).
+
 **What blocks**
 
 | Waits (timed) | Doesn't wait (instant) |
@@ -1299,7 +1309,7 @@ The rules:
    - function declarations and `const f = () => …` at the top level of a script file;
    - functions exported from `*.script.ts`.
 2. **Statement-level calls** inside step functions become `await $.step(() => call)`. The call runs inside `$.step`, synchronously, with `$` as the *ambient* context: that is how `walkToClicked()` finds the clicked target, and how a player walk is attributed to the interaction (`runInInteraction`, decision 12), without passing `$` around. `$.step` waits only if the value is a `Task` (or the promise of a step function); otherwise it returns at once. `return call()` is wrapped the same way.
-3. **Calls to step functions in expression position** (e.g. `if (isReady())` where `isReady` is a local step function) become `(await $.step(() => isReady()))`. The transform knows which functions it converted in this file and which imports come from `*.script.ts`. A step-function call nested *inside* another statement-level call (`say(greeting())`) is a build error asking for a separate line, because the outer call runs inside a synchronous thunk.
+3. **Calls to step functions in expression position** (e.g. `if (isReady())` where `isReady` is a local step function) become `(await $.step(() => isReady()))`. Calls that start an action without waiting (`x.now(…)`, `background(…)`) in expression position become `$.run(() => call)`, so `const walk = jensen.walkTo.now(…)` starts with the handler's context (Phase 2). The transform knows which functions it converted in this file and which imports come from `*.script.ts`. A step-function call nested *inside* another statement-level call (`say(greeting())`) is a build error asking for a separate line, because the outer call runs inside a synchronous thunk.
 4. **Speech labels.** A labelled expression statement whose label resolves to `Player` or to exactly one character by ID or display name (normalised as in §4.2) becomes `say(<id>, <expression>)`. The expression is usually a string or template literal, but any expression works (`Jensen: pick(insults)`, §4.20). A label that does not resolve keeps its normal meaning (`outer: for …`), unless its body is a string or template literal: then the build fails with "Unknown speaker `Hnak`. Did you mean `Hank`?" or, for ambiguous labels, a list of the matching characters. A speech label outside any step function is also a build error, since it would never run.
 5. **Loops and branches** (`for`, `for…of`, `while`, `if`, `switch`, `try`) inside step functions are sequenced naturally, because each inner statement is transformed.
 6. **Not transformed:** callbacks passed to anything else (`array.forEach`, `map`, `setTimeout`, `onUpdate`, `Promise.then`). A step function passed into one of those as a value (e.g. `parts.forEach(handOver)`) is a **build error** with a hint: "use `for (const p of parts) handOver(p)`".
@@ -1324,15 +1334,21 @@ A small ESLint rule (shipped with the template) flags timed calls in non-script 
 async step(thunk) {
   if (this.cancelled) throw CANCELLED            // room changed / load / interrupt
   const value = this.run(thunk)                  // ambient context + runInInteraction
-  if (!isTask(value) && !isPromise(value)) return value
-  if (this.skipping) return value.finishNow()    // cutscene skip (Phase 2)
-  return await raceCancel(value, this.signal)
+  if (value instanceof TaskWait) {               // a blocking action: `task.wait()`
+    if (scene.isCutsceneSkipFastForwarding()) value.task.finishNow()   // skip mode
+    // + while in a cutscene, an ESC skip mid-step calls value.task.finishNow()
+    return await raceCancel(value.task.promise, this.signal)
+  }
+  if (isPromise(value)) return await raceCancel(value, this.signal)   // a step function
+  return value                                   // instant, or the bare Task of a `.now` call
 }
 ```
 
 Because the check comes before the thunk runs, a cancelled handler never starts its next statement, and a handler waiting on a step is released by `raceCancel` the moment it is cancelled.
 
 `CANCELLED` is swallowed by the handler dispatcher. Authors never see it.
+
+_As built (Phase 2):_ every timed action is built once by `timed(start)` (`src/engine/bennescript/task.ts`). `start` begins the action and returns its `Task`. The blocking form returns `task.wait()`, a `TaskWait` marker that `step` waits on; `.now` returns the `Task` itself, which `step` does not wait on. That is how `jensen.walkTo.now(…)` written as a statement doesn't wait, and how `walk.wait()` later does (decision 17).
 
 ---
 
@@ -1542,6 +1558,8 @@ Most of the ergonomics come from the build and type layers. The VS Code extensio
 
 None of this changes rendering, content JSON or the editor previews.
 
+_As built (Phase 2):_ the runtime is in `src/engine/bennescript/` (`task.ts`, `interactionContext.ts`, `blocks.ts`, `dialogs.ts`, `saves.ts`). The engine registry `interactionActivity.ts` gained what the policies need, without the engine importing BenneScript: a `gameplay` flag per activity (the save policy; old GUI handlers report `false`), a world-click policy the room asks before a click starts anything (`admitGameplayClick()`, called from the prop, hotspot, character, background and inventory-row click paths), `abandon()` for a dropped player walk, and `setWaitingForPlayer()` so a handler waiting on a dialog isn't "busy". `goTo`, `saves.load` and `dialog.end` throw `END_HANDLER`; `unhandled` throws its own marker so the dispatcher can fall through (decision 22). Cancellation reaches handlers through `cancelAllInteractions()` (room leave) and the game-state-replaced event (any load or new game). Cutscene skip uses the room's existing fast-forward: `$.step` calls `finishNow()` on the in-flight task when ESC is pressed and on every later task until the cutscene ends, and the room's own primitives (walks, speech) already finish themselves when skipped.
+
 ---
 
 ## 11. Migration
@@ -1636,7 +1654,7 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 | Prettier may change quote style | — | Fine either way; the transform accepts any string literal. |
 | `emitter.on('x', fn)` in a script file | The transform recognises registration APIs by method name, so `fn` becomes a step function (async) | Rare in script files. Wrap such callbacks in a plain function defined outside the call, or move the code to an ordinary `.ts` file. |
 | A handle named after a browser global (`window`, `close`, `open`) | Generated names follow the JSON IDs; `cafe-hotspot-window` → `window` | Legal (the import shadows the global inside the module), but confusing in the debugger. The generator could warn (Phase 3). |
-| `const t = jensen.walkTo.now(…)` | Only statement-level calls run with the ambient context; a call in a variable initialiser does not | Phase 1 has no `.now`. Phase 2 must give expression-position `.now` calls the context too (e.g. wrap call initialisers in `$.run(() => …)`). |
+| `const t = jensen.walkTo.now(…)` | Only statement-level calls run with the ambient context; a call in a variable initialiser does not | Handled (Phase 2): the transform wraps `x.now(…)` and `background(…)` calls in expression position in `$.run(() => …)`, so they start with the handler's context (decision 17). Other expression-position calls are reads and don't need it. |
 
 ---
 
@@ -1669,6 +1687,12 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 | 14 | Which files does the transform touch while both APIs coexist? (Phase 1) | **Only script files that import `@benne/script`, `@game` or a `.ids` module.** Old `register*Script` files must stay untransformed: their callbacks run synchronously at click time, and `B.onProp(…)` would otherwise be mistaken for a registration API. Phase 6 drops the import test along with the old API. | §6.1, §14 |
 | 15 | Where do the hand-written Phase 1 handles live? (Phase 1) | **`src/game/game.ids.ts` (aliased as `@game`) next to `rooms/cafe/cafe.ids.ts`**, so `cafe.room.ts` already imports from its final module names. Both files hold only what the café needs and are replaced by generated modules in Phase 3. Per-verb methods are added by `withVerbMethods(handle, verbs)`, so the engine stays free of verb names (§8.4). | §4.1, §7, §14 |
 | 16 | Can a speech label take a non-literal expression? (Phase 1) | **Yes**, if the label resolves to a speaker (`Jensen: pick(insults)`, as §4.20 already showed). Unresolved labels only fail the build when their body is a string or template literal, so ordinary labels such as `outer: for …` keep working. | §4.2, §6.2 |
+| 17 | How does `$.step` tell a blocking call from `.now`? (Phase 2) | **Blocking forms return `task.wait()`, a `TaskWait` marker; `.now` returns the bare `Task`.** `$.step` waits on the marker and on step-function promises only. Both forms come from one `timed(start)` helper, so every action is written once. `x.now(…)` and `background(…)` in expression position are wrapped in `$.run(() => …)` by the transform so they start with the handler's context. | §5, §6.2, §6.4, §12 |
+| 18 | Which clicks does the interrupt policy apply to, and what is an opening walk? (Phase 2) | **Clicks that would start a walk or an interaction** (background walk, verb or item on a prop / hotspot / character, verb on an inventory row). Clicks that only clear the armed verb or item always work. **The opening walk is a first timed step that walks the active player.** A dropped player walk outside a cutscene (`abandon()`) cancels the handler instead of leaving it suspended. Old-API handlers set no policy, so they keep their old click behaviour. | §5 rule 9, §10 |
+| 19 | How do new-API dialog choices and sub-dialogs work on the engine's single dialog session? (Phase 2) | **A stack in `bennescript/dialogs.ts` on top of the one engine session.** Starting a dialog from inside an open one suspends the parent; when the sub-dialog ends, the parent reopens once the choice handler that started it has finished. Starting a dialog already on the stack throws in DEV. **Choice handlers are not cutscenes** (unlike the old `whenChoice`): a cutscene held while a choice waits on a sub-dialog would block its buttons. A handler waiting on `start()` is marked "waiting for the player", so idle detection sees the dialog, not a busy script. | §4.8, §10 |
+| 20 | What exactly blocks saving, and how do loads stop handlers? (Phase 2) | **Any running gameplay activity (old or new API, including one waiting on a dialog), an open dialog, or a room transition.** GUI handlers report `gameplay: false`. Any snapshot load or new game (the game-state-replaced event) cancels every running handler, so old-API loads stop new-API handlers too. The handler that calls `saves.load()` ends (`ended`) rather than being cancelled. | §4.16, §10 |
+| 21 | What does a `background` block share with its handler? (Phase 2) | **Its own context, keeping the handler's click payload.** It doesn't take the lock, report to the activity registry (idle detection) or block saving. Room changes and loads stop it; the handler ending or being interrupted doesn't. | §4.13 |
+| 22 | Where does `unhandled()` continue? (Phase 2) | **After the room level:** verbs go on to the character script's handler, the global verb handler, then the global fallback (the target's own `onVerbFallback` channel is skipped, since the handler that fell through is already the target's). Item handlers go on to the room's any-item handler, the global item handlers, then the unhandled fallback. | §4.5 |
 
 **Revisit later**
 

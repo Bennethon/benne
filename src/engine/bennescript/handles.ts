@@ -4,12 +4,27 @@ import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManag
 import { getRoomVisitCount } from '../gameState/roomVisitState.js';
 import { tryGetRoomTransitionOrchestrator } from '../scenes/roomTransitionGlobals.js';
 import { createLazyBenneScriptInventoryNamespace } from '../scripting/benneScriptGameStateApi.js';
-import { createBenneScriptDialogAccessor, openDialogSessionForId } from '../scripting/DialogBenneScript.js';
 import type { ScriptedSayLineOptions } from '../scripting/scriptedSpeech.js';
+import type { CharacterFacingLetter } from '../../types/character.js';
 import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
 import type { MusicPlayOptions, SoundPlayOptions } from '../sound/benneSoundTypes.js';
-import { activeRoomScene, sayTask, type ItemRef } from './actions.js';
+import {
+  activeRoomScene,
+  faceCharacter,
+  sayTask,
+  walkCharacterTask,
+  type ItemRef,
+  type WalkTarget,
+} from './actions.js';
+import {
+  endDialog,
+  isDialogOptionEnabled,
+  registerChoiceHandler,
+  setDialogOptionEnabled,
+  startDialog,
+} from './dialogs.js';
 import { endHandler } from './interactionContext.js';
+import { timed, type Task } from './task.js';
 import {
   registerRoomLifecycleHandler,
   registerVerbHandler,
@@ -99,9 +114,14 @@ export class CharacterHandle extends ClickableHandle {
     super(roomId, 'character', id);
   }
 
-  /** One speech line from this character. Waits. Same as a `Name: "…"` label. */
-  say(text: string, options?: ScriptedSayLineOptions): void {
-    return sayTask(this.id, text, options) as unknown as void;
+  /** One speech line from this character. Waits; `.now` doesn't. Same as a `Name: "…"` label. */
+  readonly say = timed((text: string, options?: ScriptedSayLineOptions): Task => sayTask(this.id, text, options));
+
+  /** Walks to a point, a named point or a thing's walk-to point. Waits; `.now` doesn't. */
+  readonly walkTo = timed((target: WalkTarget): Task => walkCharacterTask(this.id, target));
+
+  face(direction: CharacterFacingLetter): void {
+    faceCharacter(this.id, direction);
   }
 }
 
@@ -207,15 +227,6 @@ export class ItemHandle<Anim extends string = string> implements ItemRef {
 
 // ─── Dialogs ─────────────────────────────────────────────────────────────────
 
-function dialogCommands(dialogId: string) {
-  const game = tryGetActiveBenneGame();
-  const manager = tryGetActiveGameStateManager();
-  if (!game || !manager) {
-    return null;
-  }
-  return createBenneScriptDialogAccessor(manager, game, () => {})(dialogId as never);
-}
-
 export class DialogOptionHandle {
   readonly dialogId: string;
   readonly id: string;
@@ -226,11 +237,25 @@ export class DialogOptionHandle {
   }
 
   on(): void {
-    dialogCommands(this.dialogId)?.optionOn.now(this.id);
+    setDialogOptionEnabled(this.dialogId, this.id, true);
   }
 
   off(): void {
-    dialogCommands(this.dialogId)?.optionOff.now(this.id);
+    setDialogOptionEnabled(this.dialogId, this.id, false);
+  }
+
+  get enabled(): boolean {
+    return isDialogOptionEnabled(this.dialogId, this.id);
+  }
+
+  /** Runs when the player chooses this option, after the player says its text. */
+  onChoose(handler: StepHandler): void {
+    registerChoiceHandler(this.dialogId, this.id, handler, false);
+  }
+
+  /** Same as {@link onChoose}, and turns the option off once chosen. */
+  onChooseOnce(handler: StepHandler): void {
+    registerChoiceHandler(this.dialogId, this.id, handler, true);
   }
 }
 
@@ -249,16 +274,14 @@ export class DialogHandle<Options extends Record<string, string> = Record<string
   }
 
   /**
-   * Opens the conversation. Phase 1 keeps today's behaviour (does not wait for it to end);
-   * waiting is decision 3, Phase 2.
+   * Opens the conversation and waits until it ends (decision 3). Started from a choice handler, it
+   * is a sub-dialog: its parent comes back when it ends. `.now` opens it without waiting.
    */
-  start(): void {
-    const game = tryGetActiveBenneGame();
-    if (!game) {
-      warnOnce('dialog:no-game', `dialogs.${this.id}.start(): the game is not running — ignored.`);
-      return;
-    }
-    openDialogSessionForId(game, this.id as never);
+  readonly start = timed((): Task => startDialog(this.id));
+
+  /** Ends this conversation (back to the parent, if it is a sub-dialog) and ends the handler. */
+  end(): never {
+    return endDialog(this.id);
   }
 }
 

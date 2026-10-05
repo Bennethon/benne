@@ -204,3 +204,66 @@ All are recorded in §6 and §12, and as decisions 13–16 in §13.
 - Add one runtime test per §5 rule to `tests/unit/bennescript.test.ts`. Its `load()` helper compiles and runs real snippets against the real runtime with fake actions.
 - Still to do from §10: `finishNow` / skip mode, `.now` (with ambient context in expression position), `Task.wait()` beyond statement level, `together`, `background`, `cutscene`, `withInputDisabled`, `unhandled()`, `dialog.end()`, `saves.load()`, dialog `start()` waiting, the interrupt policy and the save policy.
 - `goTo()` already throws `END_HANDLER` after scheduling the transition, and `runHandler` reports the outcome (`finished` / `ended` / `cancelled` / `failed`).
+
+---
+
+## Phase 2: Runtime (2026-10-05)
+
+### Done
+
+1. **`Task`** (`src/engine/bennescript/task.ts`): `done`, `wait()`, `finishNow()` (cutscene skip), `cancel()`. Hooks mark player walks (for the interrupt policy) and actions that wait on the player (dialogs). Every timed action is built once with `timed(start)`: the blocking form returns `task.wait()` (a `TaskWait` marker), `.now` returns the bare `Task`. `$.step` waits on the marker and on step-function promises only, so `.now` as a statement does not wait and `t.wait()` later does (decision 17).
+2. **`InteractionContext`** (`interactionContext.ts`), extended rather than rewritten:
+   - Phase tracking for the interrupt policy (`start` → `openingWalk` → `busy`) and a cutscene depth.
+   - Skip mode: in a skipped cutscene `$.step` calls `finishNow()` on each task; an ESC press mid-step finishes the in-flight one through the room's skip finishers. The room's own primitives already finish walks and speech when skipped.
+   - `runHandler` gives the activity registry the handler's world-click policy and an interrupt callback, and reports `finished` / `ended` / `unhandled` / `cancelled` / `failed`.
+   - `startBackground` (own context, keeps the click payload, no lock, no activity), `cancelAllInteractions(except?)` plus cancel hooks, `unhandled()`.
+3. **Blocks** (`blocks.ts`): `cutscene(fn, options?)` (pushes the room cutscene, which already ignores world clicks and keeps click-to-skip; doesn't pop after a cancel because the room change emptied the stack), `together(...fns)`, `background(fn)`, `withInputDisabled(fn)` (nested-safe, re-enables after cancellation), `input.disabled`.
+4. **Ending calls typed `never`:** `rooms.x.goTo()` (Phase 1), `saves.load(slot)`, `unhandled()`, `dialogs.x.end()`. `unhandled()` falls through after the room level: verbs → character script → global verb → global fallback; items → room any-item → global → unhandled fallback (decision 22; new helpers `continueVerbDispatchAfterRoom` and `continueInventoryOnDispatchAfterRoom`, the global tiers split out of `dispatchVerbInteraction` without changing its behaviour).
+5. **Cancellation (§5 rule 7):** room leave (Phase 1) and now any snapshot load or new game (`GAME_STATE_REPLACED_EVENT`, so old-API loads stop new-API handlers too). `saves.load()` stops every other handler before loading and ends its own.
+6. **Interrupt policy (decision 1, decision 18):** engine-level, in `interactionActivity.ts`: `admitGameplayClick()` asks each running activity's policy. `RoomScene` calls it on the prop, hotspot, character and background-walk click paths, and `buildGuiOverlay` on inventory-row verb clicks. Clicks that only clear the armed verb/item are not gated. A new-API handler on its opening walk is cancelled by the click; otherwise the click is dropped; inside `cutscene` it is always dropped. Old-API activities set no policy, so their behaviour is unchanged. `RoomScene`'s dropped-walk path now calls `activity.abandon()`, which cancels a new-API handler (fixes the Phase 1 known issue of a handler suspended forever on an interrupted opening walk); for the old API it is the same `end()` as before.
+7. **Save policy (decision 2, decision 20):** `saves` (`saves.ts`): `canSaveNow`, `list()`, `get()`, `save(slot, name)` (refused with a DEV warning while `canSaveNow` is false), `load()`, `delete()`. `canSaveNow` is false while any gameplay activity runs (old or new API, including one waiting on a dialog), a dialog is open, or a room transition is in progress. Activities now carry a `gameplay` flag; `GuiBenneScript` reports `false`. The old `B.state.save` is unchanged.
+8. **Dialogs (decision 3, decision 19)** (`dialogs.ts`): `dialogs.x.start()` waits until the conversation ends, `start.now()` doesn't. A stack on top of the engine's single dialog session gives sub-dialogs return-to-parent: the parent is suspended while the sub-dialog runs, and reopens once the choice handler that started the sub-dialog has finished. Starting a dialog already on the stack throws in DEV. New-API choice handlers: `options.x.onChoose(fn)` / `onChooseOnce(fn)` (the player says the option text first, as `whenChoice` does), `options.x.on()/off()/enabled` without the old facade, `dialog.end()`. A handler waiting on `start()` marks its activity "waiting for the player", so the test hooks see the `dialog` phase rather than `busy`. Sessions opened by `B.dialog(…).start()` are not on the stack and behave as before.
+9. **Handles**: `player` (`walkTo` / `walkTo.now`, `face`, `say` / `say.now`), `CharacterHandle.walkTo` / `face` / `say.now`. Still only what the tests and the café need; Phase 4 completes the API.
+10. **Transform:** `x.now(…)` and `background(…)` in expression position are wrapped in `__$.run(() => …)` (the §12 gotcha), so `const t = jensen.walkTo.now(…)` starts with the handler's context.
+11. **Tests** (`tests/unit/bennescript.test.ts`, 19 new runtime tests, 32 in the file):
+    - one per §5 rule: rule 1 order, rule 2 "finished" (instant vs timed vs helper), rule 3 `.now` (statement and expression position, ambient payload), rule 4 `Task.wait()`, rule 5 `goTo` / `saves.load` / `unhandled` / `dialog.end`, rule 6 reads at that line, rule 7 room change and save load (including a background block), rule 8 cutscene skip (ESC mid-step, rest of block instant, normal timing after);
+    - interrupt policy (rule 9): opening walk cancels; speech, a second walk and a non-walk first step ignore; cutscene ignores even during a walk; background and old-API activities don't take the lock; an abandoned walk cancels;
+    - save refusal: refused during a handler with a warning, allowed when idle; GUI activity doesn't block; open dialog does;
+    - blocks: `together`, `background` + `wait()`, `withInputDisabled` after cancellation;
+    - dialogs: `start()` waits, sub-dialog returns to the parent after the choice handler, "waiting for the player" is not busy but blocks saving; starting an open dialog errors.
+
+### Deviations from the spec
+
+All recorded as decisions 17–22 in §13, with "as built" notes in §4.5, §4.8, §4.13, §4.16, §5 rule 9, §6.2, §6.4, §10 and §12.
+
+- **17:** `TaskWait` marker vs bare `Task` (the spec's §6.4 sketch waited on every `Task`, which would make `.now` as a statement wait).
+- **18:** which clicks the interrupt policy covers, what counts as the opening walk, and abandon → cancel.
+- **19:** the dialog stack sits on the engine's single session, and **new-API choice handlers are not cutscenes** (the old `whenChoice` pushed one). A choice that waits on a sub-dialog would otherwise block the sub-dialog's buttons. Authors wrap long choices in `cutscene()` for ESC skip. Worth a look when porting the dialogs in Phase 4.
+- **20:** save policy details (transitions count, GUI flag, load cancellation through the state-replaced event).
+- **21:** `background` semantics.
+- **22:** `unhandled()` fall-through tiers; the target's own `onVerbFallback` channel is skipped.
+
+### Known issues
+
+- The café is the only new-API script, and it uses none of the Phase 2 features except waiting `start()` (its dialogs are old-API and end with `stop()`, after which the handler finishes). Sub-dialogs, `cutscene`, `together`, `background`, the interrupt policy and the save policy are exercised by unit tests only, against a fake room. They get real-room coverage when Phase 4 ports the plaza, lab and botti3 dialogs.
+- `cutscene`'s `finishNow` relies on the room's existing skip handling for walks and speech; new-API tasks with no finisher (none yet besides `wait`) simply stop being waited for when skipped.
+- `.now` speech or walks started in a cutscene and never waited for are fast-forwarded by the room's own skip handling, not by `$.step`.
+- `ItemHandle.animation` still goes through the old inventory facade (Phase 6 must move it). The dialog facade dependency is gone.
+- Module-level listeners in `dialogs.ts` / `saves.ts` would be registered twice if Vite hot-reloads those engine files. Dev only; a page reload fixes it.
+
+### Exit checks
+
+| Check | Result |
+|---|---|
+| New unit tests | ✅ 19 new runtime tests (one per §5 rule 1–8, six for rule 9 / the interrupt policy, two for save refusal, plus blocks and dialogs); `bennescript.test.ts` 32/32 |
+| `npm run test:unit` | ✅ 96/96 |
+| Café still works | ✅ `cafe.spec.ts` in BENNE Play (every handler, including the barista and customer dialogs, whose `start()` now waits) and the main playthrough's café step |
+| `npm run test:playthrough` | ✅ 13/13 (11.0 min; main playthrough 8.4 min) |
+| `npm run check` (typecheck, lint, content, generated ids) | ✅ |
+| `npm run test:e2e` (old-API fixture game; checks the click-path and dispatch changes) | ✅ 4/4 |
+| Extension bundle | Rebuilt (`npm run build:benne-play`). As in Phase 1, Rolldown reshuffled some deduplicated sprite names (`talk *2/3.gif`, `walk l*.webp`); the references follow. |
+
+### Notes for Phase 3
+
+- Generated handles should build on `timed()` for every timed action, so each gets `.now` for free, and on `DialogHandle` / `DialogOptionHandle` from `handles.ts` (`start`, `end`, `onChoose`, `onChooseOnce`, `on`/`off`/`enabled`).
+- `player` exists in `@benne/script` now; generated character handles for the player character should keep producing player walks (`walkCharacterTask` does this by id), since the interrupt policy depends on it.
