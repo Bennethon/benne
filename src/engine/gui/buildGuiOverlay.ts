@@ -103,6 +103,8 @@ import {
 } from './guiButtonVisualStateScript.js';
 import {
   BENNE_GUI_BUTTON_DATA_KEY,
+  BENNE_GUI_BUTTON_ID_DATA_KEY,
+  type BenneGuiButtonIdData,
   BENNE_GUI_BUTTON_READ_ENABLED_DATA_KEY,
   BENNE_GUI_BUTTON_SET_ENABLED_DATA_KEY,
   benneGuiButtonReadEnabled,
@@ -858,6 +860,7 @@ export function buildGuiButton(
   hitTarget.setDepth(d);
   hitTarget.setVisible(overlayVisible);
   hitTarget.setData(BENNE_GUI_BUTTON_DATA_KEY, true);
+  hitTarget.setData(BENNE_GUI_BUTTON_ID_DATA_KEY, { guiId: gui.id, controlId: c.id } satisfies BenneGuiButtonIdData);
 
   const guiTextureKey = getAsepriteTextureKey(gui.id);
   const defaultBgTag = c.backgroundTag.trim();

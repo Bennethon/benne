@@ -1527,6 +1527,7 @@ Most of the ergonomics come from the build and type layers. The VS Code extensio
 | Interrupt policy | The InteractionContext records whether it is still on its opening walk. The pointer handler cancels it in that state, and otherwise drops world clicks until it ends (§5, rule 9). |
 | `goTo`, `load`, `unhandled`, `end` | Throw an internal `END_HANDLER` after scheduling their effect; the dispatcher swallows it. |
 | Save policy | `saves.canSaveNow` is false while a gameplay interaction (including an open dialog) runs, and saving is refused (§4.16). |
+| Interaction activity | Every InteractionContext reports to the engine registry `src/engine/interaction/interactionActivity.ts` from start until it ends, finishes or is cancelled, and runs its steps inside `runInInteraction` so a player walk it starts is attributed to it. The dev/test hooks' idle check and the save policy read this registry; the old API already reports to it (decision 12). |
 | New primitives | `waitForClick`, control `fadeTo` / `tweenTo` returning `Task`, `pointer.sentence`, `together`, `background`, `withInputDisabled`. |
 
 None of this changes rendering, content JSON or the editor previews.
@@ -1650,6 +1651,7 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 | 9 | Keep `onCombine`? | **Keep**, as a readable alias of `onItem` on item handles. | §4.6, §8.2 |
 | 10 | Backwards compatibility with `register*Script`? | **None.** Old and new APIs coexist only on the working branch during the refactor; the old API is deleted in the final porting phase before merge. | §11.1, §14 |
 | 11 | What does the refactor build against? | **A copy of AI Apocalypse's `src/game`** (minus `boot/`) on a dedicated branch. The extra ~88 MB of assets is accepted on that branch. | §14 |
+| 12 | How do the test hooks know a script is still running without depending on BenneScript? | **An engine-level interaction activity registry** (`src/engine/interaction/interactionActivity.ts`). Script runtimes report each handler from start to end; the hooks read only the registry and scene state. An interaction whose player walk is interrupted outside a cutscene is treated as over, because the old runtime never resolves it. Added in Phase 0; the Phase 2 runtime must report to it too. | §10, §14 |
 
 **Revisit later**
 

@@ -27,6 +27,7 @@ On headless Linux, run extension and Electron tests through `xvfb-run -a`. Playw
 | `npm run test:coverage` | Unit coverage with minimums on critical modules; HTML and LCOV under `coverage/` |
 | `npm run test:extension` | Real VS Code extension-host integration tests |
 | `npm run test:e2e` | Real Phaser runtime and pointer input in Chromium |
+| `npm run test:playthrough` | Real game in `src/game` on the Vite dev server: scripted playthrough from title to credits through the dev/test hooks (`src/engine/testing/benneTestHooks.ts`), plus a smoke test for every Play From entry point in BENNE Play. Cutscene clips go to `test-results/playthrough/cutscenes/` (needs `ffmpeg` on PATH) |
 | `npm run test:artifacts -- --vsix` | Temporary production/template builds, web ZIP structure, extracted VSIX and plugin resolution |
 | `npm run test:nightly` | Local aggregate of fast, host, browser and artifact suites |
 | `npm run test:release` | Local aggregate including VSIX checks |

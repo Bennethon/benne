@@ -54,6 +54,11 @@ import {
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import { INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT } from '../events/inventoryOnVerbEvents.js';
 import { shouldDropActiveInventoryOnUse } from '../verbs/dispatchInventoryOnVerbTarget.js';
+import {
+  beginInteractionActivity,
+  currentInteraction,
+  runInInteraction,
+} from '../interaction/interactionActivity.js';
 import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
 import {
   createLazyBenneScriptCharacterInventoryNamespace,
@@ -935,7 +940,11 @@ export abstract class BenneScriptCore {
    * Subclasses (e.g. GUI Bennescript) use this for queued tweens.
    */
   protected chain(factory: () => Promise<unknown>): void {
-    this.interactionTail = this.interactionTail.then(factory).then(() => undefined);
+    // Steps run later, so carry the queuing interaction along (see `interactionActivity.ts`).
+    const activity = currentInteraction();
+    this.interactionTail = this.interactionTail
+      .then(() => runInInteraction(activity, factory))
+      .then(() => undefined);
   }
 
   /** Paired cleanup for listeners not registered via {@link subscribe} (dispose removes `events.off`/`TimerEvent`, etc.). */
@@ -945,17 +954,20 @@ export abstract class BenneScriptCore {
 
   protected subscribe(eventId: string, run: (payload: unknown) => void): void {
     const wrapped = async (payload: unknown) => {
+      const activity = beginInteractionActivity();
       this.beginInteraction();
       try {
         this.pushVerbWalkContext(payload);
         try {
-          run(payload);
+          runInInteraction(activity, () => run(payload));
         } finally {
           this.popVerbWalkContext();
         }
         await this.endInteraction();
       } catch (err) {
         console.error(`[Benne] Error in ${eventId} handler:`, err);
+      } finally {
+        activity.end();
       }
     };
     this.events.on(eventId, wrapped);
@@ -972,11 +984,12 @@ export abstract class BenneScriptCore {
     afterTail: () => void,
   ): void {
     const wrapped = async (payload: unknown) => {
+      const activity = beginInteractionActivity();
       this.beginInteraction();
       try {
         this.pushVerbWalkContext(payload);
         try {
-          run(payload);
+          runInInteraction(activity, () => run(payload));
         } finally {
           this.popVerbWalkContext();
         }
@@ -984,6 +997,8 @@ export abstract class BenneScriptCore {
         afterTail();
       } catch (err) {
         console.error(`[Benne] Error in ${eventId} handler:`, err);
+      } finally {
+        activity.end();
       }
     };
     this.events.on(eventId, wrapped);

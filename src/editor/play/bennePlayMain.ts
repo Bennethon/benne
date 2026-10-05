@@ -15,6 +15,9 @@ registerGameContent();
 const game = createBenneGame(parent);
 wireBenneGlobalScripts(game, gameEvents);
 setupBennePlayInventoryToolbar();
+if (import.meta.env.DEV || import.meta.env.VITE_BENNE_TEST_HOOKS === 'true') {
+  void import('../../engine/testing/benneTestHooks').then((m) => m.installBenneTestHooks(game));
+}
 
 function setupBennePlayInventoryToolbar(): void {
   const select = document.querySelector<HTMLSelectElement>('#benne-play-inventory-select');

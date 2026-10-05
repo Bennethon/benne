@@ -5,6 +5,7 @@ import type { EventBus } from '../events/EventBus.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { getAllGuiBenneScriptInstances } from '../scripting/registerGuiScript.js';
 import { tryGetGlobalBenneScriptForRoomTransitions, setRoomTransitionInProgress } from './roomTransitionGlobals.js';
+import { clearInteractionActivity } from '../interaction/interactionActivity.js';
 import { BENNE_SCREEN_FADE_DEFAULT_COLOR, BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC } from './roomScreenFadeConstants.js';
 import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from './roomSceneBootstrap.js';
 import type { RoomSceneStartData } from './BootScene';
@@ -505,5 +506,6 @@ export class RoomTransitionOrchestrator {
     for (const script of getAllGuiBenneScriptInstances().values()) {
       script.resetInteractionTailForEngine();
     }
+    clearInteractionActivity();
   }
 }

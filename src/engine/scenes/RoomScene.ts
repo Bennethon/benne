@@ -245,6 +245,7 @@ import {
   tryGetRoomTransitionOrchestrator,
 } from './roomTransitionGlobals.js';
 import { clearPlayFromRegistrationsForRoom } from '../scripting/devPlayFromRegistry.js';
+import { currentInteraction, type InteractionActivity } from '../interaction/interactionActivity.js';
 import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
 import { getAllGuiData } from '../../game/boot/loadGuiData';
 import {
@@ -399,6 +400,8 @@ export class RoomScene extends Phaser.Scene {
 
   /** Fired once when a walk tween completes successfully (instant walks may call it without a tween). */
   private walkArriveCallback: (() => void) | null = null;
+  /** Interaction waiting on {@link walkArriveCallback}; ended if the walk is dropped (see `interactionActivity.ts`). */
+  private walkArriveInteraction: InteractionActivity | null = null;
 
   /** Bennescript cores active for this `RoomScene` (reset interaction tails before leave / transition). */
   private benneCoresForTransitionReset: BenneScriptCore[] = [];
@@ -2408,6 +2411,57 @@ export class RoomScene extends Phaser.Scene {
     return true;
   }
 
+  /** True while a left click would be consumed by click-to-skip (a speech line, Display Text, or a scripted hook). */
+  hasScriptedDialogClickToSkip(): boolean {
+    return this.scriptedDialogClickToSkip != null;
+  }
+
+  /**
+   * Read-only view for dev/test hooks (`src/engine/testing`): the game object that receives
+   * pointer input for a click target id, resolved like scripts do (props → hotspots → characters).
+   */
+  getClickTargetObjectForTesting(
+    targetId: string,
+  ): { type: 'prop' | 'hotspot' | 'character'; object: Phaser.GameObjects.GameObject } | null {
+    const prop = this.propSpritesById.get(targetId);
+    if (prop) {
+      return { type: 'prop', object: prop };
+    }
+    for (const e of this.roomStackEntities) {
+      if (e.kind === 'hotspot' && e.zone.getData('benneHotspotId') === targetId) {
+        return { type: 'hotspot', object: e.zone };
+      }
+    }
+    const character = this.characterSpritesByDefId.get(targetId);
+    return character ? { type: 'character', object: character } : null;
+  }
+
+  /** Read-only view for dev/test hooks: what is currently holding up player input. */
+  getInputStateForTesting(): {
+    roomId: string;
+    pointerBlocked: boolean;
+    cutscene: boolean;
+    dialogChoice: { dialogId: string; guiId: string } | null;
+    modalGuiVisible: boolean;
+    playerWalking: boolean;
+  } {
+    return {
+      roomId: this.roomData.id,
+      pointerBlocked: this.isPlayerPointerBlocked(),
+      cutscene: this.isCutsceneActive(),
+      dialogChoice: this.activeDialogChoiceSession
+        ? { dialogId: this.activeDialogChoiceSession.dialogId, guiId: this.activeDialogChoiceSession.guiId }
+        : null,
+      modalGuiVisible: hasAnyVisibleModal(this.modalGuiEntries),
+      playerWalking: this.playerMoveTween != null,
+    };
+  }
+
+  /** Read-only view for dev/test hooks: authored room data (points, regions). */
+  getRoomDataForTesting(): RoomData {
+    return this.roomData;
+  }
+
   private tryConsumeRoomVideoClickToSkip(pointer: Phaser.Input.Pointer): boolean {
     if (!this.roomVideoClickToSkip || !this.isRoomVideoPlaying()) {
       return false;
@@ -3826,8 +3880,12 @@ export class RoomScene extends Phaser.Scene {
     if (!this.getCharacterScriptMovable(playerId)) {
       return Promise.resolve();
     }
+    const interaction = currentInteraction();
     return new Promise((resolve) => {
       this.movePlayerToward(worldX, worldY, resolve);
+      if (this.walkArriveCallback === resolve) {
+        this.walkArriveInteraction = interaction;
+      }
     });
   }
 
@@ -4877,8 +4935,14 @@ export class RoomScene extends Phaser.Scene {
    */
   private stopPlayerMoveTween(emitStop: boolean): void {
     const arriveCallback = this.walkArriveCallback;
+    const arriveInteraction = this.walkArriveInteraction;
     this.walkArriveCallback = null;
+    this.walkArriveInteraction = null;
     this.currentPlayerPath = null;
+    // Outside a cutscene a dropped walk never resolves, so whatever was waiting on it is abandoned.
+    if (arriveCallback && !this.isCutsceneActive()) {
+      arriveInteraction?.end();
+    }
     if (!this.playerMoveTween) {
       // During a cutscene the walk promise must still resolve so the interaction chain continues.
       if (this.isCutsceneActive() && arriveCallback) {
@@ -5103,6 +5167,7 @@ export class RoomScene extends Phaser.Scene {
     } satisfies PlayerWalkStopPayload);
     const arrive = this.walkArriveCallback;
     this.walkArriveCallback = null;
+    this.walkArriveInteraction = null;
     arrive?.();
   }
 

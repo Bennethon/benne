@@ -16,6 +16,9 @@ try {
   const game = createBenneGame(parent);
   graphicsRecovery.attach(game);
   wireBenneGlobalScripts(game, gameEvents);
+  if (import.meta.env.DEV || import.meta.env.VITE_BENNE_TEST_HOOKS === 'true') {
+    void import('./engine/testing/benneTestHooks').then((m) => m.installBenneTestHooks(game));
+  }
 } catch (error) {
   if (!graphicsRecovery.reportError(error)) throw error;
 }
