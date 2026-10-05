@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import { benneGenerateGameIdsPlugin } from './vite-plugin-bennegame-ids';
+import { benneScriptPlugin } from './vite-plugin-bennescript';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) as {
@@ -22,7 +23,8 @@ const iconExists = fs.existsSync(path.join(dir, 'src/game/assets/images/icon.png
 export default defineConfig({
   // Allow itch.io and other static hosts to serve a game under a generated subdirectory.
   base: './',
-  plugins: [benneGenerateGameIdsPlugin(), {
+  // BENNE Play and the editor previews merge this config, so they get the BenneScript transform too.
+  plugins: [benneGenerateGameIdsPlugin(), benneScriptPlugin(), {
     name: 'benne-game-page',
     transformIndexHtml(html: string) {
       return html.replace(/<title>[^<]*<\/title>/, `<title>${displayName.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</title>`)
@@ -35,6 +37,8 @@ export default defineConfig({
     alias: {
       phaser: path.join(dir, 'node_modules/phaser/dist/phaser.esm.js'),
       '@engine': path.join(dir, 'src/engine'),
+      '@benne/script': path.join(dir, 'src/engine/bennescript/index.ts'),
+      '@game': path.join(dir, 'src/game/game.ids.ts'),
     },
   },
   build: {

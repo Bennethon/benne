@@ -84,3 +84,123 @@ All of these are additive. They keep the old `register*Script` / `B` behaviour.
 - Run `npm run test:playthrough` early and often. It takes about 10 minutes (playthrough ≈ 8.5 min, Play From ≈ 1.5 min). `npx playwright test -c playwright.playthrough.config.ts play-from` runs just the smoke tests. `BENNE_HEADED=1` shows the browser.
 - The playthrough's cafe step (`café: work for the control relay` in `playthrough.spec.ts`) is the Phase 1 check that the ported `cafe.room.ts` still works.
 - Hooks live in `src/engine/testing/`; keep them free of scripting imports.
+
+---
+
+## Phase 1: Spike (2026-10-05)
+
+### Done
+
+1. **Build transform** (§6): `scripts/lib/bennescriptTransform.mjs`, wrapped by the Vite plugin `vite-plugin-bennescript.ts` (`enforce: 'pre'`).
+   - Step functions: callbacks of `.on…(…)` methods (except `onUpdate`) and of `playFrom` / `cutscene` / `background` / `together` / `withInputDisabled`, plus top-level functions and imports from `*.script.ts`. They become `async` and start with `const __$ = __bs.ctx();`.
+   - Statement-level calls (and `return call()`) become `await __$.step(() => call)`. Step-function calls in expression position become `(await __$.step(() => f()))`.
+   - Speech labels: `Hank: "…"` → `await __$.step(() => __bs.say("hank", "…"))`. Speakers are read from `src/game/characters/*/*.character.json` (ID or display name, normalised, case-insensitive; `Player` is the active player). Unknown speakers get a "Did you mean" hint; ambiguous ones list the candidates.
+   - Build errors (Vite overlay, with the source position): unknown or ambiguous speaker, a speech line outside a step function, a step function passed as a value to a non-BenneScript call (rule 6), and a step-function call nested in another statement's call (it would run inside a synchronous thunk).
+   - Source maps via `magic-string`. Edits are in place, so the transform's output keeps every source line on its line. The runtime import is appended at the end of the file.
+   - **Registered in `vite.config.ts`**. The four preview configs and `vite.benne-play.config.ts` merge it, so dev, production, BENNE Play and the previews all transform. `@benne/script` and `@game` are aliased in `vite.config.ts` and `tsconfig.json`. `tsconfig.json` sets `allowUnusedLabels: true`.
+   - Parser: Oxc through Vite's own `parseAst` export, so there is no extra parser dependency. `magic-string` is now a direct dev dependency (it only came through vitest before), and the scaffold's `package.json` and file list include it and the plugin.
+2. **Minimal runtime**, `src/engine/bennescript/` (`@benne/script`):
+   - `task.ts`: `Task` (promise + `done` + `wait()`). No `finishNow` / `cancel` yet.
+   - `interactionContext.ts`: `InteractionContext` with `step(thunk)`, `run(fn)` (ambient context + `runInInteraction`), cancellation (`raceCancel`); `runHandler` (one engine interaction activity per handler, decision 12); `cancelAllInteractions`; `endHandler()` for `never` calls; a DEV warning when a registered handler was not transformed (§12).
+   - `roomHandlers.ts`: top-level registrations go into a per-room table. `RoomScene.create` attaches it after the old room scripts (`attachRoomHandlers`), subscribing to the **same event IDs** as the old API. Dispatch is listener-first, so each click reaches whichever API registered it, and the dispatch code did not change. Item handlers subscribe to the per-item event (`…:inventoryOnHotspot:<id>:<item>`), so an item without a handler falls through to the global "That doesn't work." with no `return false`. The old drop policy is applied after the handler. Room lifecycle handlers go into the room hook registry, which awaits them.
+   - `actions.ts`: `walkToClicked`, `faceClicked`, `wait`, `say` (the label target), `inventory.add/remove/has/count`.
+   - `handles.ts`: `PropHandle` (visible/hide/show), `HotspotHandle`, `CharacterHandle` (`say`), generic `on(verb | verbs[])` / `onVerbItem`; `withVerbMethods(handle, verbs)` adds `on<Verb>` / `on<Verb>Item` from a verb list, so the engine has no verb names; `RoomHandle` (`onEnter`, `onEnterAfterFade`, `onLeave`, `onLoaded`, `visitCount`, `isFirstVisit`, `goTo(): never`); `ItemHandle` (`animation`); `DialogHandle` / `DialogOptionHandle` (`start`, `on`, `off`); `SfxHandle`, `MusicHandle`; `defineFlags`.
+   - `RoomTransitionOrchestrator.prepareForLeave` calls `cancelAllInteractions()` (§5 rule 7).
+3. **Hand-written handles**: `src/game/rooms/cafe/cafe.ids.ts` and `src/game/game.ids.ts` (`@game`: the café's rooms, items, dialogs with option-name maps, sfx, music, flags, and this game's verb list and `GameVerbMethods` type). Both hold only what the café needs (decision 15).
+4. **Ported `src/game/rooms/cafe/cafe.room.ts`.** Every other script is still on the old API.
+5. **Shared helpers moved out of `BenneScriptCore`** so both runtimes use the same code: `scripting/scriptedSpeech.ts` (`playScriptedSayLine`, voice markers) and `scripting/verbClickTarget.ts` (clicked walk / face targets). `BenneScriptCore` delegates to them; behaviour is unchanged.
+6. **Tests**:
+   - `tests/unit/bennescript.test.ts` (13 tests): transform rules and errors, line preservation on the real café file, and runtime semantics. Snippets are transformed, type-stripped and actually run against the real `InteractionContext`: line order across a timed step, a helper joining the caller's interaction (waits, return value, clicked target), cancellation stopping at the current step, and the activity registry.
+   - `tests/playthrough/cafe.spec.ts` (now part of `npm run test:playthrough`, about 1 minute): plays the café in **BENNE Play** through the hooks, covering every handler. It asserts the exact spoken lines and their order (from the console, where the old and new `say` both log), flags, inventory, prop visibility, the multi-verb handler, early returns, item fall-through to the global script, and `goTo()`.
+7. **Extension bundle** rebuilt (`npm run build:benne-play`), so the VS Code extension's BENNE Play runs the ported café.
+
+### Deviations from the spec
+
+All are recorded in §6 and §12, and as decisions 13–16 in §13.
+
+- **13: `$.step(() => call)` instead of `$.step(call)`, plus an ambient context.** The spec's form evaluates the call *before* `step` sees it, so actions can't find their interaction: `walkToClicked()` needs the clicked target, and a player walk must be attributed to the interaction for decision 12. Running the call inside `step` solves both without a `$` parameter, so step functions keep their own parameter lists (`onAnyItem((item) => …)`) and can be passed to registration APIs.
+- **14: transform only files that use the new API** (they import `@benne/script`, `@game` or a `.ids` module). Otherwise old scripts would break: `B.onProp(…)` matches the `.on…` registration rule.
+- **15: `@game` is hand-written at `src/game/game.ids.ts`** for the spike, so the café already imports from its final module names.
+- **16: speech labels accept any expression** when the label resolves to a speaker. §4.20's `Jensen: pick(insults)` contradicted §6.2 rule 4.
+
+### Timing judgements in the café (§11.3 checklist)
+
+| Handler | Old timing | New timing | Judgement |
+|---|---|---|---|
+| Coffee on customer: `deliveredOrder = true` | Set at click time, before the eight lines played | Set after the last line | Intended. Nothing reads it mid-conversation, and the playthrough checks it once idle. |
+| Coffee on customer: `coffee.animation` check, `tookOrder` check | Read at click time | Read at the top of the handler | Same moment. |
+| Clean dishes: `canWork` | Read at click time | Read after the walk | Nothing changes it during the walk. Same result. |
+| Talk to barista: `inventory.has(relay)` | Click time | Top of handler | Same. |
+| Use door: `doorBells`, then change room | `B.sound.play` waited until the sound had *started* | `sfx.play()` doesn't wait (§5) | Same outcome: the bell rings during the fade-out and is stopped on leave as before. |
+| `dialogs.x.start()` | Opened the dialog, didn't wait | Same (waiting is decision 3, Phase 2) | Every `start()` is the last line, so nothing changes. |
+| `Hank: "…"` (was `B.player.say`) | Active player | Character `hank` | Same in AI Apocalypse (Hank is always the player). `Player:` exists for the general case. |
+
+### Spike report
+
+**What worked**
+
+- **The label trick works end to end.** `Hank: "…"` type-checks (`allowUnusedLabels`), and plain TypeScript tooling doesn't complain. The café reads like a script: no `B.`, no `await`, no quoted IDs. The quoted strings that remain are almost all dialogue (98 → 44).
+- **Sequencing is right, and the old timing bug class is gone.** `flags.deliveredOrder = true` now runs after the conversation, where it's written. The runtime tests check this directly.
+- **Side-by-side routing cost almost nothing.** Dispatch is listener-first, so the new runtime subscribes to the same event IDs and needed no dispatch changes. The only engine changes are one call in `RoomScene` and one in the transition. Per-item event IDs already existed, which made `onUseItem(item, …)` free and removed every `return false` from the café.
+- **Debugging.** DevTools behaviour was checked over CDP, the way DevTools does it: breakpoints set on the generated script through the served source map, and each pause mapped back. A breakpoint on a café line pauses on that line. *Step over* walks 42 → 43 → 44 → 45 through `dishes.onClean`: across the walk, into the `if`, across a speech line. It moves to the next source line only once the timed action has finished. A breakpoint in an untriggered handler doesn't fire.
+- **Every bundle works:** dev server, production build (transformed code checked in `dist/`), BENNE Play from the dev server, and the prebuilt BENNE Play bundle (the café spec passes against a hooks-enabled copy served statically).
+- **Size:** `cafe.room.ts` went from 142 to 130 non-blank lines and from 3,760 to 2,762 non-whitespace characters (−27%). That includes five lines of imports the old file didn't need. The café is mostly dialogue, so it is a conservative sample for the §11.4 estimate of 35–45%.
+
+**What felt awkward to write**
+
+- **Imports.** The café imports ten names from `./cafe.ids`, six from `@game` and four from `@benne/script`. By hand that is the most tedious part of the file. It depends on auto-import working well (Phase 3 generation + Phase 5 editor), and the scaffolding should pre-fill it.
+- **A handle called `window`** (`cafe-hotspot-window`). It is legal and works, but it shadows the browser global in that module. The generator should probably warn on browser globals, not only reserved words (added to §12).
+- **`Hank:` vs `Player:`.** Writing the protagonist's name is natural in a one-protagonist game, but a template author has to choose. Both work.
+- **Early exits.** `if (!flags.tookOrder) { …; return }` reads fine. The old `return false` fall-through is unnecessary now that items route per item. `unhandled()` was not needed in the café.
+- **Lying return types.** Authors see `void` for timed actions (§6.3), but the runtime returns `Task`s, so the implementation needs casts (`blocking()` in `actions.ts`). It works, but the Phase 2 author-facing `.d.ts` should be separate from the implementation types.
+
+**Transform edge cases hit**
+
+1. **Breakpoints inside the thunk.** At first, `await __$.step(() => walkToClicked())` mapped the source column to `walkToClicked` *inside* the thunk. A breakpoint on the line was set in the thunk, and *Step over* on a handler's first line left the handler into `interactionActivity.ts`. Fixed by inserting the wrapper as an overwrite of the statement's first character, which maps the source position to the `await` (rule 7 in §6.2). Labels already behaved this way.
+2. **Concise arrows with parenthesised bodies** (`() => ({ … })`). The body's AST range excludes the parentheses, so the rewrite has to replace everything after `=>`.
+3. **Silent no-op labels.** `Hank: "…"` inside a non-step callback (`[].map(() => { Hank: "x" })`, `onUpdate`) would compile to a label that does nothing. It is now a build error. The first version missed files with no step functions at all; a unit test caught it.
+4. **Old-API files match the registration rule** (`B.onProp`, `B.onUpdate`), hence decision 14.
+5. **Step calls nested in a statement's call** (`say(greeting())`) can't be awaited inside the synchronous thunk, so they are a build error that asks for a separate line.
+6. **Oxc reprints the code after the transform**, so line preservation doesn't survive to the served file (the `const __$` moves to its own line). The composed source map is what carries positions. One cosmetic gap: after the last statement, the pause on the handler's closing `});` has no mapping.
+7. **Offsets.** Vite's `parseAst` returns UTF-16 offsets, which is what `magic-string` needs. Checked with the café's "café".
+8. **Naming.** The context is emitted as `__$`, not `$`, so it can't clash with an author's `$`.
+9. **`.now` in expression position** (`const t = x.walkTo.now()`) would run without the ambient context. The café doesn't use it; it is noted in §12 for Phase 2.
+10. **Bundle layout.** With `@benne/script` imported from a room chunk, Rolldown now emits the engine as a shared chunk (`chunks/interactionContext.js` in BENNE Play, `assets/interactionContext-*.js` in `dist/`) instead of keeping it in the entry. Nothing depends on chunk names, and the extension packages the whole folder. The two `walk l.webp` sprites (Hank and Jensen) swapped their deduplicated names (`walk l` / `walk l2`) in the BENNE Play bundle. This is harmless: the references follow the rename. The clash existed before Phase 1.
+
+**Recommendation: GO.** The three risks Phase 1 was meant to test all came out fine: the label syntax, the transform rules and the debugging experience. The transform is about 400 lines, and every unsafe pattern found so far fails the build instead of misbehaving. The main costs are import management (an editor/generator problem) and the rules in decisions 13–14. Before Phase 2, please read `cafe.room.ts` and play the café, as §14.4 asks.
+
+### Engine changes
+
+- New `src/engine/bennescript/` (runtime above).
+- `RoomScene.create`: `attachRoomHandlers(roomId, this, gameEvents)`, disposed on shutdown.
+- `RoomTransitionOrchestrator.prepareForLeave`: `cancelAllInteractions()`.
+- `BenneScriptCore`: speech-line and click-target helpers moved to `scripting/scriptedSpeech.ts` and `scripting/verbClickTarget.ts`. `parseBenneSayVoiceMarker` is still re-exported from `BenneScriptCore`.
+
+### Known issues
+
+- An interrupted opening walk leaves the new handler waiting forever on `walkToClicked()`, exactly like the old runtime. `RoomScene` still ends its activity, so idle detection is correct, and the suspended function is garbage-collected with its promise. Phase 2's interrupt policy (decision 1) should cancel the context instead.
+- `wait()` supports cutscene skip through `registerCutsceneSkipFinisher`. `Task` has no `finishNow()` yet.
+- The new handles reuse two old facades internally: `createBenneScriptDialogAccessor` (`option.on/off`) and the inventory item facade (`items.x.animation`). Phase 6 must move their internals before deleting the old API.
+- Like the old API, the new `say` logs each line to the console (`[Player] …` / `[Character id] …`). `cafe.spec.ts` relies on that.
+- The first full playthrough run this session failed in the 2027 lab because I edited the transform mid-run: Vite restarted for a config-dependency change and reloaded the page under the test. It was rerun with no edits (see exit checks). **Don't edit `vite*.ts` or `scripts/lib/*` while a playthrough is running.**
+
+### Exit checks
+
+| Check | Result |
+|---|---|
+| Café fully playable in dev | ✅ Main playthrough's café step, plus `cafe.spec.ts` during development |
+| Café fully playable in BENNE Play | ✅ `cafe.spec.ts` (every handler) on `benne-play.html` from the dev server, and against the rebuilt prebuilt bundle (hooks-enabled copy, served statically) |
+| Breakpoints in `cafe.room.ts` hit the right lines | ✅ Checked over CDP through the served source map: breakpoints pause on the source line, and *Step over* follows source lines through walks and speech (see the spike report) |
+| `npm run test:playthrough` | ✅ 13/13 (11.0 min; main playthrough 8.5 min). The earlier failure this session was caused by my edit (see Known issues) |
+| `npm run check` | ✅ |
+| `npm run test:unit` | ✅ 77/77 (13 new) |
+| `npm run test:e2e`, `test:extension`, `test:desktop`, `test:pathfinding` | ✅ 4/4, 21/21, 3/3, passed |
+| `npm run test:artifacts` (both templates, scaffold with the new plugin) | ✅ |
+| Production build transformed | ✅ `cafe.room-*.js` in `dist/` contains the `step(…)` / `say(…)` form |
+
+### Notes for Phase 2
+
+- Extend `src/engine/bennescript/interactionContext.ts`; don't start a new runtime. Handlers start synchronously in the dispatching event, as the old ones did.
+- Add one runtime test per §5 rule to `tests/unit/bennescript.test.ts`. Its `load()` helper compiles and runs real snippets against the real runtime with fake actions.
+- Still to do from §10: `finishNow` / skip mode, `.now` (with ambient context in expression position), `Task.wait()` beyond statement level, `together`, `background`, `cutscene`, `withInputDisabled`, `unhandled()`, `dialog.end()`, `saves.load()`, dialog `start()` waiting, the interrupt policy and the save policy.
+- `goTo()` already throws `END_HANDLER` after scheduling the transition, and `runHandler` reports the outcome (`finished` / `ended` / `cancelled` / `failed`).

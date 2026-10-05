@@ -11,14 +11,12 @@ import type {
   ResolvableTargetId,
 } from '../../types/generated/benne-game-ids.js';
 import { getStartingPlayerCharacterId, SCENE_ROOM } from '../../game/boot/constants.js';
-import { computeSpeechLineDurationMs, getSpeechSettings, getGameSettings } from '../ConfigManager.js';
+import { getGameSettings } from '../ConfigManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
-  applyCharacterEffectiveAnimation,
   applyPersistedCharacterFollowFromScript,
   clearSavedCharacterFollowState,
   clearSavedCharacterSpeechPosition,
-  getCharacterAnimationOverrideTag,
   readSavedCharacterFollowingTarget,
   readSavedCharacterClickable,
   readSavedCharacterDescription,
@@ -31,11 +29,6 @@ import {
   writeSavedCharacterSpeechPosition,
   writeSavedCharacterVisible,
 } from '../benneAnimationRuntime.js';
-import {
-  playDirectionalAnimation,
-  resolveInitialIdleFacing,
-  type CharacterFacing,
-} from '../directionalCharacterAnimation.js';
 import { getEffectiveVerbDefinitions, WALK_TO_VERB_ID } from '../verbs/verbConfig.js';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import type { InventoryItemDefinition, VerbDefinition, VerbHoverTarget } from '../../types/verbContext.js';
@@ -48,7 +41,6 @@ import {
   getBenneVerbContextHoverTarget,
 } from './benneVerbContextScriptSurface.js';
 import {
-  resolveGameStateManager,
   tryGetActiveGameStateManager,
 } from '../gameState/resolveGameStateManager.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
@@ -59,7 +51,6 @@ import {
   currentInteraction,
   runInInteraction,
 } from '../interaction/interactionActivity.js';
-import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
 import {
   createLazyBenneScriptCharacterInventoryNamespace,
   createLazyBenneScriptInventoryNamespace,
@@ -79,8 +70,6 @@ import { createBenneScriptSpeechSettingsFacade } from './benneScriptSpeechSettin
 import { createBenneScriptCameraFacade } from './benneScriptCameraApi.js';
 import { createBenneScriptSoundFacade } from './benneScriptSoundApi.js';
 import { createBenneScriptVideoFacade } from './benneScriptVideoApi.js';
-import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
-import { getCharacterWorldFeet } from '../characterFeet.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { BENNE_USER_INPUT_DISABLED_REGISTRY_KEY } from '../input/userInputDisabledRegistry.js';
 import {
@@ -89,6 +78,17 @@ import {
 } from '../scenes/roomScreenFadeConstants.js';
 import { bindRoomFacadeForBenneScriptCore } from './benneScriptRoomApi.js';
 import type { UpdateContext } from './types.js';
+import {
+  resolveFaceLookWorldFromPayload,
+  resolveWalkToClickedTargetFromPayload,
+} from './verbClickTarget.js';
+import {
+  playScriptedSayLine,
+  resolveBenneSayRuntimeLine,
+  type ScriptedSayLineOptions,
+} from './scriptedSpeech.js';
+
+export { parseBenneSayVoiceMarker, type BenneSayVoiceMarkerParseResult } from './scriptedSpeech.js';
 
 /**
  * Callable that participates in the interaction queue; **`fn.now`** runs the same action immediately
@@ -107,113 +107,11 @@ export function withNow<TArgs extends readonly unknown[]>(
   return fn;
 }
 
-/**
- * Resolves the string id (or explicit `{ x, y }`) to pass to {@link RoomScene.walkPlayerTo} for
- * **`walkToClicked`** / **`walkToClicked.now`**, from the event payload of a verb handler.
- *
- * Returns **`null`** when the interaction is not tied to a room hit target (e.g. inventory-row
- * verbs from {@link import('../events/inventoryVerbEvents.js').dispatchInventoryVerbInteraction},
- * or use-on-another-inventory-item).
- */
-function resolveWalkToClickedTargetFromPayload(payload: unknown): Point2 | ResolvableTargetId | null {
-  if (payload == null || typeof payload !== 'object') {
-    return null;
-  }
-  const p = payload as Record<string, unknown>;
-
-  if ('target' in p && p.target && typeof p.target === 'object' && 'type' in (p.target as object)) {
-    const t = p.target as VerbInteractTarget;
-    if (t.type === 'prop') return t.propId;
-    if (t.type === 'hotspot') return t.hotspotId;
-    if (t.type === 'character') return t.characterId;
-    if (t.type === 'inventoryItem') return null;
-  }
-
-  if (typeof p.propId === 'string') return p.propId;
-  if (typeof p.hotspotId === 'string') return p.hotspotId;
-  if (typeof p.characterId === 'string') return p.characterId;
-
-  if (p.targetType === 'inventoryItem') {
-    return null;
-  }
-
-  // `InventoryVerbInteractPayload` — look/use on a row in the inventory UI only.
-  if (
-    typeof p.itemId === 'string' &&
-    typeof p.roomId === 'string' &&
-    typeof p.verbId === 'string' &&
-    !('targetType' in p) &&
-    !('instanceId' in p) &&
-    !('propId' in p) &&
-    !('hotspotId' in p) &&
-    !('characterId' in p) &&
-    !('tag' in p)
-  ) {
-    return null;
-  }
-
-  return null;
-}
-
 /** Per-handler context for {@link BenneScriptCore.walkToClicked} / {@link BenneScriptCore.faceClicked}. */
 interface VerbClickScriptContext {
   walkTarget: Point2 | ResolvableTargetId | null;
   /** Room-space point for facing (payload `lookAtPoint`, or NPC feet for characters); `null` uses walk resolution only. */
   faceLookWorld: Point2 | null;
-}
-
-function readPayloadLookAtPoint(payload: Record<string, unknown>): Point2 | null {
-  const lp = payload.lookAtPoint;
-  if (lp && typeof lp === 'object' && typeof (lp as Point2).x === 'number' && typeof (lp as Point2).y === 'number') {
-    return { x: (lp as Point2).x, y: (lp as Point2).y };
-  }
-  return null;
-}
-
-/**
- * World / room pixel point the player should face for **`faceClicked`**: payload **`lookAtPoint`**
- * when present, else the clicked **character’s feet** (no `lookAtPoint` on characters in data).
- */
-function resolveFaceLookWorldFromPayload(payload: unknown, scene: RoomScene): Point2 | null {
-  if (payload == null || typeof payload !== 'object') {
-    return null;
-  }
-  const p = payload as Record<string, unknown>;
-
-  const fromLookAt = readPayloadLookAtPoint(p);
-  if (fromLookAt) {
-    return fromLookAt;
-  }
-
-  // Character verbs / inventory-on-character: face the NPC’s feet (not talkPoint).
-  if (typeof p.characterId === 'string' && typeof p.propId !== 'string') {
-    const sprite = scene.getCharacterSprite(p.characterId);
-    if (sprite) {
-      return getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
-    }
-    return null;
-  }
-
-  if ('target' in p && p.target && typeof p.target === 'object' && 'type' in (p.target as object)) {
-    const t = p.target as VerbInteractTarget;
-    if (t.type === 'prop' && t.lookAtPoint) {
-      return { x: t.lookAtPoint.x, y: t.lookAtPoint.y };
-    }
-    if (t.type === 'hotspot' && t.lookAtPoint) {
-      return { x: t.lookAtPoint.x, y: t.lookAtPoint.y };
-    }
-    if (t.type === 'character') {
-      const sprite = scene.getCharacterSprite(t.characterId);
-      if (sprite) {
-        return getCharacterWorldFeet(sprite as Phaser.GameObjects.Sprite);
-      }
-    }
-    if (t.type === 'inventoryItem') {
-      return null;
-    }
-  }
-
-  return null;
 }
 
 /** Internal keys for {@link BenneScriptCore.resolveVerbId}. */
@@ -241,9 +139,7 @@ const VERB_ALIAS_CANDIDATES: Record<VerbAlias, readonly string[]> = {
 };
 
 /** Optional flags for `say` / `.say.now` on character/player facades. */
-export interface BenneScriptSayLineOptions {
-  clickToSkip?: boolean;
-}
+export type BenneScriptSayLineOptions = ScriptedSayLineOptions;
 
 export type BenneScriptSayArgs = [line: string, options?: BenneScriptSayLineOptions];
 
@@ -297,32 +193,6 @@ function stripTrailingLineComment(line: string): string {
     return line;
   }
   return line.slice(0, idx).trimEnd();
-}
-
-export interface BenneSayVoiceMarkerParseResult {
-  readonly text: string;
-  readonly voiceNumber: string | null;
-}
-
-export function parseBenneSayVoiceMarker(line: string): BenneSayVoiceMarkerParseResult {
-  const m = /^\|(\d+)\|\s*/.exec(line);
-  if (!m) {
-    return { text: line, voiceNumber: null };
-  }
-  return { text: line.slice(m[0].length), voiceNumber: m[1] ?? null };
-}
-
-interface BenneSayRuntimeLine {
-  readonly text: string;
-  readonly voiceStem: string | null;
-}
-
-function resolveBenneSayRuntimeLine(line: string, talkCharacterDefinitionId: string): BenneSayRuntimeLine {
-  const parsed = parseBenneSayVoiceMarker(line);
-  return {
-    text: parsed.text,
-    voiceStem: parsed.voiceNumber == null ? null : `${talkCharacterDefinitionId}${parsed.voiceNumber}`,
-  };
 }
 
 /**
@@ -1130,27 +1000,6 @@ export abstract class BenneScriptCore {
     return alias;
   }
 
-  protected applySayLineDirectionalBase(
-    scene: RoomScene,
-    characterDefinitionId: string,
-    baseName: 'Talk' | 'Idle',
-  ): void {
-    const sprite = scene.getCharacterSprite(characterDefinitionId);
-    if (!sprite || !(sprite instanceof Phaser.GameObjects.Sprite) || !sprite.anims) {
-      return;
-    }
-    if (getCharacterAnimationOverrideTag(sprite)) {
-      if (baseName === 'Talk') {
-        return;
-      }
-      applyCharacterEffectiveAnimation(sprite);
-      return;
-    }
-    const facing: CharacterFacing =
-      (sprite.getData('facing') as CharacterFacing | undefined) ?? resolveInitialIdleFacing(sprite);
-    playDirectionalAnimation(sprite, baseName, facing);
-  }
-
   /**
    * One scripted dialog line through completion (overlay + input suppression), for **`say`** sequencing.
    */
@@ -1161,66 +1010,7 @@ export abstract class BenneScriptCore {
     options?: BenneScriptSayLineOptions,
     voiceStem?: string | null,
   ): Promise<void> {
-    // A skipped cutscene plays no lines: no overlay, no voice, no timer — the end state of a
-    // say line is simply "line finished".
-    if (scene.isCutsceneSkipFastForwarding()) {
-      return Promise.resolve();
-    }
-    const manager = resolveGameStateManager(scene.game);
-    const speech = getSpeechSettings(manager);
-    const voice = voiceStem ? tryGetBenneSoundManager(scene.game)?.playVoice(voiceStem) ?? null : null;
-    const textMs = computeSpeechLineDurationMs(line, manager);
-    const ms =
-      voice?.durationMs == null
-        ? textMs
-        : Math.round(Math.min(speech.maxDurationMs, Math.max(speech.minDurationMs, voice.durationMs)));
-    const lineOpt = options?.clickToSkip;
-    const allowClickToSkip =
-      lineOpt === true || (lineOpt !== false && speech.clickToSkip);
-
-    return new Promise<void>((resolve) => {
-      let completed = false;
-      let timer: Phaser.Time.TimerEvent | null = null;
-      let unregisterSkipFinisher: (() => void) | null = null;
-
-      const finish = (): void => {
-        if (completed) {
-          return;
-        }
-        completed = true;
-        unregisterSkipFinisher?.();
-        unregisterSkipFinisher = null;
-        voice?.stop();
-        timer?.remove(false);
-        timer = null;
-        scene.clearScriptedDialogClickToSkip();
-        this.applySayLineDirectionalBase(scene, talkCharacterDefinitionId, 'Idle');
-        scene.setDialogTextOverlay({ visible: false });
-        scene.popScriptedDialogInputSuppression();
-        resolve();
-      };
-
-      scene.interruptCharacterWalkForScriptedSpeech(talkCharacterDefinitionId);
-      scene.pushScriptedDialogInputSuppression();
-      scene.setDialogTextOverlay({
-        visible: true,
-        text: line,
-        talkCharacterDefinitionId,
-      });
-      this.applySayLineDirectionalBase(scene, talkCharacterDefinitionId, 'Talk');
-
-      timer = scene.time.delayedCall(ms, finish);
-      // ESC ends the line the same way its timer would, whatever the per-line click-to-skip setting.
-      unregisterSkipFinisher = scene.registerCutsceneSkipFinisher(finish);
-
-      if (allowClickToSkip) {
-        scene.setScriptedDialogClickToSkip(() => {
-          timer?.remove(false);
-          timer = null;
-          finish();
-        });
-      }
-    });
+    return playScriptedSayLine(scene, line, talkCharacterDefinitionId, options, voiceStem);
   }
 
   /**

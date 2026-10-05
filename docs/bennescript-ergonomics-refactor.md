@@ -1260,6 +1260,8 @@ The transform is a Vite plugin with `enforce: 'pre'`, so it runs before TypeScri
 
 Implementation: parse with `oxc-parser` (Vite 8 already ships Oxc) or the TypeScript compiler API, edit with `magic-string`, and emit source maps so breakpoints and stack traces point at the original lines.
 
+_As built (Phase 1):_ the transform is `scripts/lib/bennescriptTransform.mjs` (pure, unit-tested), wrapped by the Vite plugin in `vite-plugin-bennescript.ts`. It parses with Oxc through Vite's own `parseAst` export, edits with `magic-string`, and keeps every source line on the same line (the runtime import is appended at the end of the file). It is registered once in `vite.config.ts`; BENNE Play and the four editor previews merge that config. While the old API still exists, a script file is only transformed if it imports `@benne/script`, `@game` or a `.ids` module (decision 14).
+
 ### 6.2 What it does
 
 ```ts
@@ -1275,28 +1277,33 @@ battery.onUseItem(items.soda, () => {
 ```
 
 ```ts
-// Output (simplified)
-battery.onUseItem(items.soda, async ($) => {
-  if (!flags.askedAboutBattery) await $.step(unhandled())
-  await $.step(walkToClicked())
-  await $.step(say(characters.hank, "I hope this works."))
-  await $.step(inventory.remove(items.soda))
-  await $.step(wait(0.75))
+// Output (as built in Phase 1; same lines as the source)
+battery.onUseItem(items.soda, async () => { const __$ = __bs.ctx();
+  if (!flags.askedAboutBattery) await __$.step(() => unhandled())
+  await __$.step(() => walkToClicked())
+  await __$.step(() => __bs.say("hank", "I hope this works."))
+  await __$.step(() => inventory.remove(items.soda))
+  await __$.step(() => wait(0.75))
   flags.batteryClean = true
 })
+// …
+import { __runtime as __bs } from "@benne/script";
 ```
+
+The context is called `$` in the rest of this document; the emitted name is `__$` so it can't clash with an author's `$`.
 
 The rules:
 
-1. **Step functions.** These become `async` and receive the interaction context `$`:
-   - callbacks passed directly to BenneScript registration and block APIs (`on*`, `playFrom`, `cutscene`, `background`, `together`, `withInputDisabled`);
+1. **Step functions.** These become `async` and pick up the interaction context on entry (`const __$ = __bs.ctx()`). Their parameter lists are unchanged, so `onAnyItem((item) => …)` and `regions.x.onEnter((who) => …)` keep their arguments, and a step function can be passed to a registration API as a value (`door.onUse(openDoor)`). Step functions are:
+   - callbacks passed directly to BenneScript registration and block APIs: any method call `x.on(…)` / `x.on<Upper>…(…)` except `onUpdate`, and `playFrom`, `cutscene`, `background`, `together`, `withInputDisabled`. The test is on the method name only (decision 13);
    - function declarations and `const f = () => …` at the top level of a script file;
    - functions exported from `*.script.ts`.
-2. **Statement-level calls** inside step functions become `await $.step(call)`. `$.step` waits only if the value is a `Task`; otherwise it returns at once.
-3. **Calls to step functions in expression position** (e.g. `if (isReady())` where `isReady` is a local step function) also get `await`. The transform knows which functions it converted in this file and which imports come from `*.script.ts`.
-4. **Speech labels.** A labelled statement whose body is a string or template literal becomes `say(<speaker>, <text>)`. The label must resolve to `Player` or to exactly one character by ID or display name (normalised as in §4.2). Otherwise the build fails with "Unknown speaker `Hnak`. Did you mean `Hank`?" or, for ambiguous labels, a list of the matching characters.
+2. **Statement-level calls** inside step functions become `await $.step(() => call)`. The call runs inside `$.step`, synchronously, with `$` as the *ambient* context: that is how `walkToClicked()` finds the clicked target, and how a player walk is attributed to the interaction (`runInInteraction`, decision 12), without passing `$` around. `$.step` waits only if the value is a `Task` (or the promise of a step function); otherwise it returns at once. `return call()` is wrapped the same way.
+3. **Calls to step functions in expression position** (e.g. `if (isReady())` where `isReady` is a local step function) become `(await $.step(() => isReady()))`. The transform knows which functions it converted in this file and which imports come from `*.script.ts`. A step-function call nested *inside* another statement-level call (`say(greeting())`) is a build error asking for a separate line, because the outer call runs inside a synchronous thunk.
+4. **Speech labels.** A labelled expression statement whose label resolves to `Player` or to exactly one character by ID or display name (normalised as in §4.2) becomes `say(<id>, <expression>)`. The expression is usually a string or template literal, but any expression works (`Jensen: pick(insults)`, §4.20). A label that does not resolve keeps its normal meaning (`outer: for …`), unless its body is a string or template literal: then the build fails with "Unknown speaker `Hnak`. Did you mean `Hank`?" or, for ambiguous labels, a list of the matching characters. A speech label outside any step function is also a build error, since it would never run.
 5. **Loops and branches** (`for`, `for…of`, `while`, `if`, `switch`, `try`) inside step functions are sequenced naturally, because each inner statement is transformed.
 6. **Not transformed:** callbacks passed to anything else (`array.forEach`, `map`, `setTimeout`, `onUpdate`, `Promise.then`). A step function passed into one of those as a value (e.g. `parts.forEach(handOver)`) is a **build error** with a hint: "use `for (const p of parts) handOver(p)`".
+7. **Source maps.** The inserted `await $.step(() => ` is mapped to the start of the original statement. A DevTools breakpoint on a line therefore stops on the handler's statement, not inside the thunk, and *Step over* moves to the next source line once the timed action has finished.
 
 ### 6.3 Types
 
@@ -1314,13 +1321,16 @@ A small ESLint rule (shipped with the template) flags timed calls in non-script 
 `$.step` is also where the runtime enforces lifetimes:
 
 ```ts
-async step(value) {
+async step(thunk) {
   if (this.cancelled) throw CANCELLED            // room changed / load / interrupt
-  if (!isTask(value)) return value
-  if (this.skipping) return value.finishNow()    // cutscene skip
+  const value = this.run(thunk)                  // ambient context + runInInteraction
+  if (!isTask(value) && !isPromise(value)) return value
+  if (this.skipping) return value.finishNow()    // cutscene skip (Phase 2)
   return await raceCancel(value, this.signal)
 }
 ```
+
+Because the check comes before the thunk runs, a cancelled handler never starts its next statement, and a handler waiting on a step is released by `raceCancel` the moment it is cancelled.
 
 `CANCELLED` is swallowed by the handler dispatcher. Authors never see it.
 
@@ -1624,6 +1634,9 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 | `return` inside a handler | Works as normal: ends the handler early | — |
 | Heavy logic in step functions is a little slower | Each call awaits a microtask | Irrelevant at adventure-script scale; per-frame code goes in `onUpdate`. |
 | Prettier may change quote style | — | Fine either way; the transform accepts any string literal. |
+| `emitter.on('x', fn)` in a script file | The transform recognises registration APIs by method name, so `fn` becomes a step function (async) | Rare in script files. Wrap such callbacks in a plain function defined outside the call, or move the code to an ordinary `.ts` file. |
+| A handle named after a browser global (`window`, `close`, `open`) | Generated names follow the JSON IDs; `cafe-hotspot-window` → `window` | Legal (the import shadows the global inside the module), but confusing in the debugger. The generator could warn (Phase 3). |
+| `const t = jensen.walkTo.now(…)` | Only statement-level calls run with the ambient context; a call in a variable initialiser does not | Phase 1 has no `.now`. Phase 2 must give expression-position `.now` calls the context too (e.g. wrap call initialisers in `$.run(() => …)`). |
 
 ---
 
@@ -1652,6 +1665,10 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 | 10 | Backwards compatibility with `register*Script`? | **None.** Old and new APIs coexist only on the working branch during the refactor; the old API is deleted in the final porting phase before merge. | §11.1, §14 |
 | 11 | What does the refactor build against? | **A copy of AI Apocalypse's `src/game`** (minus `boot/`) on a dedicated branch. The extra ~88 MB of assets is accepted on that branch. | §14 |
 | 12 | How do the test hooks know a script is still running without depending on BenneScript? | **An engine-level interaction activity registry** (`src/engine/interaction/interactionActivity.ts`). Script runtimes report each handler from start to end; the hooks read only the registry and scene state. An interaction whose player walk is interrupted outside a cutscene is treated as over, because the old runtime never resolves it. Added in Phase 0; the Phase 2 runtime must report to it too. | §10, §14 |
+| 13 | How does a statement reach the interaction context, and how are step functions found? (Phase 1) | **Statements are wrapped as `await $.step(() => call)`, not `$.step(call)`.** The call runs inside `step`, with the context set as ambient state, so actions like `walkToClicked()` and player walks find their interaction without a `$` parameter. Step functions pick the context up on entry (`const __$ = __bs.ctx()`) and keep their own parameter lists. Registration callbacks are recognised by method name (`.on…`, except `onUpdate`). | §6.2, §6.4, §12 |
+| 14 | Which files does the transform touch while both APIs coexist? (Phase 1) | **Only script files that import `@benne/script`, `@game` or a `.ids` module.** Old `register*Script` files must stay untransformed: their callbacks run synchronously at click time, and `B.onProp(…)` would otherwise be mistaken for a registration API. Phase 6 drops the import test along with the old API. | §6.1, §14 |
+| 15 | Where do the hand-written Phase 1 handles live? (Phase 1) | **`src/game/game.ids.ts` (aliased as `@game`) next to `rooms/cafe/cafe.ids.ts`**, so `cafe.room.ts` already imports from its final module names. Both files hold only what the café needs and are replaced by generated modules in Phase 3. Per-verb methods are added by `withVerbMethods(handle, verbs)`, so the engine stays free of verb names (§8.4). | §4.1, §7, §14 |
+| 16 | Can a speech label take a non-literal expression? (Phase 1) | **Yes**, if the label resolves to a speaker (`Jensen: pick(insults)`, as §4.20 already showed). Unresolved labels only fail the build when their body is a string or template literal, so ordinary labels such as `outer: for …` keep working. | §4.2, §6.2 |
 
 **Revisit later**
 

@@ -152,6 +152,7 @@ async function bundleShared() {
     'vite.inventory-preview.config.ts',
     'vite.benne-play.config.ts',
     'vite-plugin-bennegame-ids.ts',
+    'vite-plugin-bennescript.ts',
     'tsconfig.json',
     'index.html',
     'room-editor.html',

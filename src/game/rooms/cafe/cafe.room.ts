@@ -1,164 +1,148 @@
-import { registerRoomScript } from '@engine/scripting';
+import { walkToClicked, faceClicked, wait, inventory } from '@benne/script';
+import { items, dialogs, rooms, sfx, music, flags } from '@game';
+import {
+  room, barista, customer, dishes, relay, window, coffeemaker, door, menu, cleaningStuff,
+} from './cafe.ids';
 
-registerRoomScript(({ B }) => {
+room.onEnterAfterFade(() => {
+  sfx.doorBells.play()
+  music.cafe.play()
+})
 
-  B.whenLookAt('customer', () => {
-    B.faceClicked();
-    B.player.say(`He looks happy to be here.`);
-  });
+customer.onLook(() => {
+  faceClicked()
+  Hank: "He looks happy to be here."
+})
 
-  B.whenLookAt('barista', () => {
-    B.faceClicked();
-    B.player.say(`Looks like the owner of the place.`);
-    B.player.say(`He isn't doing much.`);
-  });
+barista.onLook(() => {
+  faceClicked()
+  Hank: "Looks like the owner of the place."
+  Hank: "He isn't doing much."
+})
 
-  B.whenLookAt('dishes', () => {
-    B.faceClicked();
-    B.player.say(`Some previous customer's dishes.`);
-    B.player.say(`It looks like no one is bussing this table.`);
-    B.dialog(`barista`).optionOn(`dirty dishes`);
-  });
+dishes.onLook(() => {
+  faceClicked()
+  Hank: "Some previous customer's dishes."
+  Hank: "It looks like no one is bussing this table."
+  dialogs.barista.options.dirtyDishes.on()
+})
 
-  B.whenLookAt('relay', () => {
-    B.faceClicked();
-    B.player.say(`It looks like a fancy, high-tech gadget.`);
-    B.dialog(`barista`).optionOn(`high tech thing`);
-  });
+relay.onLook(() => {
+  faceClicked()
+  Hank: "It looks like a fancy, high-tech gadget."
+  dialogs.barista.options.highTechThing.on()
+})
 
-  B.onProp('dishes', 'clean', () => {
-    B.walkToClicked();
-    if (!B.state.getFlag(`canWork`)) {
-      B.player.say(`These need to be bussed, but it's not MY job.`);
-      B.dialog(`barista`).optionOn(`dirty dishes`);
-    } else {
-      B.player.say(`I guess SOMEONE has to work around here.`);
-      B.prop(`dishes`).hide();
-      B.sound.play('whip');
-      B.inventory.add(`coffee`);
-      B.inventory.add(`soda`);
-      B.dialog(`barista`).optionOff(`dirty dishes`);
-    }
-  });
+relay.onTake(() => {
+  walkToClicked()
+  Hank: "I can't reach it."
+})
 
-  B.whenTalkTo('barista', () => {
-    if (!B.inventory.has(`relay`)) {
-      B.walkToClicked();
-      B.dialog(`barista`).start();
-    } else {
-      B.player.say(`I don't want to talk to that guy anymore.`);
-    }
-  });
+dishes.onClean(() => {
+  walkToClicked()
+  if (!flags.canWork) {
+    Hank: "These need to be bussed, but it's not MY job."
+    dialogs.barista.options.dirtyDishes.on()
+  } else {
+    Hank: "I guess SOMEONE has to work around here."
+    dishes.hide()
+    sfx.whip.play()
+    inventory.add(items.coffee)
+    inventory.add(items.soda)
+    dialogs.barista.options.dirtyDishes.off()
+  }
+})
 
-  B.whenTalkTo('customer', () => {
-    if (!B.state.getFlag(`tookOrder`)) {
-      B.walkToClicked();
-      B.dialog(`customer`).start();
-    } else if (!B.state.getFlag(`deliveredOrder`)) {
-      B.faceClicked();
-      B.player.say(`I already took his order.`);
-    } else {
-      B.faceClicked();
-      B.player.say(`I'm gonna leave that guy alone now.`);
-    }
-  });
+barista.onTalkTo(() => {
+  if (inventory.has(items.relay)) {
+    Hank: "I don't want to talk to that guy anymore."
+    return
+  }
+  walkToClicked()
+  dialogs.barista.start()
+})
 
-  B.whenLookAt('cafe-hotspot-window', () => {
-    B.faceClicked();
-    B.player.say(`It looks like some AI-run café across the way.`);
-    B.player.say(`They seem to be doing good business.`);
-  });
+customer.onTalkTo(() => {
+  if (!flags.tookOrder) {
+    walkToClicked()
+    dialogs.customer.start()
+  } else if (!flags.deliveredOrder) {
+    faceClicked()
+    Hank: "I already took his order."
+  } else {
+    faceClicked()
+    Hank: "I'm gonna leave that guy alone now."
+  }
+})
 
-  B.whenLookAt('cafe-hotspot-coffeemaker', () => {
-    B.faceClicked();
-    B.player.say(`A fancy, industrial coffee maker.`);
-    B.player.say(`It doesn't look like it gets used much.`);
-  });
+customer.onUseItem(items.coffee, () => {
+  if (!flags.tookOrder) {
+    faceClicked()
+    Hank: "Why would I give him that?"
+    return
+  }
+  if (items.coffee.animation !== 'coffee-full') {
+    faceClicked()
+    Hank: "I'm not going to serve him an empty cup."
+    return
+  }
+  walkToClicked()
+  Hank: "Here you are, sir."
+  inventory.remove(items.coffee)
+  Customer: "I ordered decaf."
+  Hank: "You said black."
+  Customer: "Black decaf."
+  Hank: "You left out a pretty important word."
+  Customer: "Oh, this is fantastic."
+  Hank: "What?"
+  Customer: "The misunderstanding. The mild resentment. This is exactly like 2024!"
+  flags.deliveredOrder = true
+  dialogs.barista.options.helped.on()
+  dialogs.barista.options.waitingCustomer.off()
+})
 
+window.onLook(() => {
+  faceClicked()
+  Hank: "It looks like some AI-run café across the way."
+  Hank: "They seem to be doing good business."
+})
 
-  B.whenInventoryUsedOn('cafe-hotspot-coffeemaker', (payload) => {
-    if (payload.itemId === 'coffee') {
-      B.walkToClicked();
-      B.wait(1);
-      B.sound.play('pourCoffee');
-      B.inventory(`coffee`).animation = "coffee-full";
-      B.player.say(`The best part of waking up!`);
-      return;
-    }
-    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
-    return false;
-  });
+coffeemaker.onLook(() => {
+  faceClicked()
+  Hank: "A fancy, industrial coffee maker."
+  Hank: "It doesn't look like it gets used much."
+})
 
-  B.whenInventoryUsedOn('customer', (payload) => {
-    if (payload.itemId === 'coffee') {
-      if (B.state.getFlag(`tookOrder`)) {
-        if (B.inventory(`coffee`).animation === `coffee-full`) {
-          // full cup
-          B.walkToClicked();
-          B.player.say(`Here you are, sir.`);
-          B.inventory.remove(`coffee`);
-          B.character(`customer`).say(`I ordered decaf.`);
-          B.player.say(`You said black.`);
-          B.character(`customer`).say(`Black decaf.`);
-          B.player.say(`You left out a pretty important word.`);
-          B.character(`customer`).say(`Oh, this is fantastic.`);
-          B.player.say(`What?`);
-          B.character(`customer`).say(`The misunderstanding. The mild resentment. This is exactly like 2024!`);
-          B.state.setFlag(`deliveredOrder`,true);
-          B.dialog(`barista`).optionOn(`helped`);
-          B.dialog(`barista`).optionOff(`waiting customer`);
-        } else {
-          B.faceClicked();
-          B.player.say(`I'm not going to serve him an empty cup.`);
-        }
-      } else {
-        B.faceClicked();
-        B.player.say(`Why would I give him that?`);
-      }
-      
-      return;
-    }
-    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
-    return false;
-  });
+coffeemaker.onUseItem(items.coffee, () => {
+  walkToClicked()
+  wait(1)
+  sfx.pourCoffee.play()
+  items.coffee.animation = 'coffee-full'
+  Hank: "The best part of waking up!"
+})
 
-  B.whenLookAt('cafe-hotspot-door', () => {
-    B.faceClicked();
-    B.player.say(`The door out.`);
-  });
+door.onLook(() => {
+  faceClicked()
+  Hank: "The door out."
+})
 
-  B.whenUse('cafe-hotspot-door', () => {
-    B.walkToClicked();
-    B.sound.play('doorBells');
-    B.room.changeTo(`plaza`);
-  });
+door.onUse(() => {
+  walkToClicked()
+  sfx.doorBells.play()
+  rooms.plaza.goTo()
+})
 
-  B.whenLookAt('menu', () => {
-    B.walkToClicked();
-    B.say`Hank: The menu looks... meh.`
-  });
+menu.onLook(() => {
+  walkToClicked()
+  Hank: "The menu looks... meh."
+})
 
-  B.whenPickUp('relay', () => {
-    B.walkToClicked();
-    B.say`Hank: I can't reach it.`
-  });
+cleaningStuff.on(['use', 'take', 'clean'], () => {
+  faceClicked()
+  Hank: "I'm not on the job here."
+})
 
-  const notMyJob = () => {
-    B.faceClicked();
-    B.say`Hank: I'm not on the job here.`
-  };
-  B.whenUse('cleaning-stuff', notMyJob);
-  B.whenPickUp('cleaning-stuff', notMyJob);
-  B.whenVerb('clean', 'cleaning-stuff', notMyJob);
-
-
-  B.whenLookAt('cleaning-stuff', () => {
-    B.faceClicked();
-    B.say`Hank: These don't look like they get much use.`
-  });
-
-  B.whenEnterRoomAfterFade(() => {
-    B.sound.play('doorBells');
-    B.sound.playMusic('cafe');
-  });
-});
+cleaningStuff.onLook(() => {
+  faceClicked()
+  Hank: "These don't look like they get much use."
+})

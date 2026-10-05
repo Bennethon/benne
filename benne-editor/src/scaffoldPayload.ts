@@ -29,6 +29,7 @@ export type ScaffoldScanResult = {
 const PHASER_VERSION = '4.0.0-rc.7';
 const TYPESCRIPT_VERSION = '~5.9.3';
 const VITE_VERSION = '^8.0.1';
+const MAGIC_STRING_VERSION = '^1.4.2';
 const ELECTRON_VERSION = '^44.4.5';
 const ELECTRON_BUILDER_VERSION = '^26.15.3';
 
@@ -320,6 +321,7 @@ export function scaffoldPackageJsonTemplate(projectName: string): Record<string,
         devDependencies: {
             electron: ELECTRON_VERSION,
             'electron-builder': ELECTRON_BUILDER_VERSION,
+            'magic-string': MAGIC_STRING_VERSION,
             'png-to-ico': '^3.0.2',
             pngjs: '^7.0.0',
             typescript: TYPESCRIPT_VERSION,

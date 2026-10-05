@@ -177,6 +177,7 @@ import { createCharacterScriptContext } from '../scripting/CharacterScriptContex
 import { createInventoryScriptContext } from '../scripting/InventoryScriptContext.js';
 import type { CharacterScriptContext, InventoryScriptContext, UpdateContext } from '@engine/scripting/types.js';
 import { getCallbacksForRoom } from '../scripting/registerRoomScript.js';
+import { attachRoomHandlers } from '../bennescript/roomHandlers.js';
 import { runGlobalBenneScriptOnUpdateHandlers } from '../scripting/benneScriptOnUpdateRegistry.js';
 import {
   buildGuiOverlay,
@@ -999,6 +1000,9 @@ export class RoomScene extends Phaser.Scene {
         }
       }
     }
+
+    // New-style BenneScript handlers (`@benne/script`), registered at the room module's top level.
+    benneDisposers.push(attachRoomHandlers(data.room.id, this, gameEvents));
 
     const benneDispose = benneDisposers.length > 0 ? () => benneDisposers.forEach((d) => d()) : null;
 
