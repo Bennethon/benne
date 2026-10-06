@@ -1,129 +1,42 @@
 import * as vscode from 'vscode';
-import { insertIntoRegisterCharacterScriptBody } from './characterVerbScaffolding';
-import { saveDirtyTypeScriptBeforeWorkspaceFsRead } from './saveDirtyScriptBeforeFsRead';
-import { insertIntoRegisterInventoryScriptBody } from './inventoryVerbScaffolding';
-import { insertIntoBenneRegisterRoomScript } from './propVerbScaffolding';
+import type { VerbTarget } from './bennescript/handlerSpecs';
+import { addHandler, type AddHandlerResult } from './scriptHandlers';
 
-export type AddInventoryUsedOnResult = {
-    ok: boolean;
-    insertedStubRange?: { start: number; end: number };
-};
-
-function buildWhenInventoryUsedOnStub(targetId: string): string {
-    return (
-        `  B.whenInventoryUsedOn('${escapeTsString(targetId)}', (payload) => {\n` +
-        `    if (payload.itemId === '') {\n      // TODO\n      return;\n    }\n` +
-        `    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).\n` +
-        `    return false;\n` +
-        `  });\n`
-    );
-}
-
-function escapeTsString(s: string): string {
-    return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-}
+export type AddInventoryUsedOnResult = AddHandlerResult;
 
 /**
- * Inserts `B.whenInventoryUsedOn` into `*.room.ts` (no room JSON mutation).
+ * "Use an item on this" in the Inspector: `target.onAnyItem(() => { … })` (§4.6). Any item handler
+ * already there (`onUseItem(items.x, …)`, `onItem`, `onAnyItem`, …) counts as present.
  */
-export async function addRoomInventoryUsedOnStub(
+function addAnyItemHandler(scriptUri: vscode.Uri, target: VerbTarget, label: string): Promise<AddInventoryUsedOnResult> {
+    return addHandler(scriptUri, { kind: 'anyItem', target }, `item handler for ${label}`);
+}
+
+/** In `*.room.ts`, for a prop, hotspot or character of that room. */
+export function addRoomInventoryUsedOnStub(
     roomJsonUri: vscode.Uri,
     roomId: string,
     kind: 'prop' | 'hotspot' | 'character',
-    targetId: string,
+    targetId: string
 ): Promise<AddInventoryUsedOnResult> {
-    void kind;
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
-    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
-        return { ok: false };
-    }
-    let scriptText = '';
-    try {
-        scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
-    } catch {
-        void vscode.window.showErrorMessage(`${roomId}.room.ts not found. Create the room script first.`);
-        return { ok: false };
-    }
-
-    const snippet = buildWhenInventoryUsedOnStub(targetId);
-    const inserted = insertIntoBenneRegisterRoomScript(scriptText, snippet);
-    if (!inserted) {
-        void vscode.window.showErrorMessage(
-            `Could not find registerRoomScript((…) => { … }) in ${roomId}.room.ts — insert the stub manually.`,
-        );
-        return { ok: false };
-    }
-    await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(inserted.text));
-    void vscode.window.showInformationMessage(
-        `Added B.whenInventoryUsedOn('${targetId}', …) to ${roomId}.room.ts for inventory-on-target.`,
-    );
-    return { ok: true, insertedStubRange: { start: inserted.start, end: inserted.end } };
+    return addAnyItemHandler(scriptUri, { kind, roomId, id: targetId }, `${kind} "${targetId}"`);
 }
 
-/**
- * Inserts `B.whenInventoryUsedOn` into `*.character.ts` (target id must match the character definition id).
- */
-export async function addCharacterInventoryUsedOnStub(
+/** In `*.character.ts`: applies wherever the character is spawned. */
+export function addCharacterInventoryUsedOnStub(
     characterJsonUri: vscode.Uri,
-    characterId: string,
+    characterId: string
 ): Promise<AddInventoryUsedOnResult> {
     const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
-    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
-        return { ok: false };
-    }
-    let scriptText = '';
-    try {
-        scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
-    } catch {
-        void vscode.window.showErrorMessage(`${characterId}.character.ts not found.`);
-        return { ok: false };
-    }
-
-    const snippet = buildWhenInventoryUsedOnStub(characterId);
-    const next = insertIntoRegisterCharacterScriptBody(scriptText, characterId, snippet);
-    if (!next) {
-        void vscode.window.showErrorMessage(
-            `Could not find registerCharacterScript('${characterId}', …) in ${characterId}.character.ts.`,
-        );
-        return { ok: false };
-    }
-    await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(next));
-    void vscode.window.showInformationMessage(
-        `Added B.whenInventoryUsedOn('${characterId}', …) to ${characterId}.character.ts.`,
-    );
-    return { ok: true };
+    return addAnyItemHandler(scriptUri, { kind: 'character', roomId: null, id: characterId }, `"${characterId}"`);
 }
 
-/**
- * Inserts `B.whenInventoryUsedOn` into `*.inventory.ts` (target id must match the item id, like character definitions).
- */
-export async function addInventoryItemInventoryUsedOnStub(
+/** In `*.inventory.ts`: another item used on this one. */
+export function addInventoryItemInventoryUsedOnStub(
     inventoryJsonUri: vscode.Uri,
-    itemId: string,
+    itemId: string
 ): Promise<AddInventoryUsedOnResult> {
     const scriptUri = vscode.Uri.joinPath(inventoryJsonUri, '..', `${itemId}.inventory.ts`);
-    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
-        return { ok: false };
-    }
-    let scriptText = '';
-    try {
-        scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
-    } catch {
-        void vscode.window.showErrorMessage(`${itemId}.inventory.ts not found.`);
-        return { ok: false };
-    }
-
-    const snippet = buildWhenInventoryUsedOnStub(itemId);
-    const next = insertIntoRegisterInventoryScriptBody(scriptText, itemId, snippet);
-    if (!next) {
-        void vscode.window.showErrorMessage(
-            `Could not find registerInventoryScript('${itemId}', …) in ${itemId}.inventory.ts.`,
-        );
-        return { ok: false };
-    }
-    await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(next));
-    void vscode.window.showInformationMessage(
-        `Added B.whenInventoryUsedOn('${itemId}', …) to ${itemId}.inventory.ts.`,
-    );
-    return { ok: true };
+    return addAnyItemHandler(scriptUri, { kind: 'item', id: itemId }, `item "${itemId}"`);
 }

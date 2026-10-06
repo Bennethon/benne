@@ -1,12 +1,23 @@
 import * as path from 'node:path';
+import * as ts from 'typescript';
 import * as vscode from 'vscode';
+import type { IdsIndex } from './bennescript/idsIndex';
+import { buildSpeakerTable, readCharacterSpeakers, type SpeakerTable } from './bennescript/speakers';
+import { collectVoiceLines, VOICE_MARKER_RE, type VoiceLineFile } from './bennescript/voiceLines';
 import { findBenneGameFolders } from './gameDiscovery';
+import { runGenerateGameIds } from './gameIdsGenerator';
+import { idsIndexForGameRoot, invalidateGeneratedModules } from './scriptHandlers';
 
 type VoiceIdMode = 'preserve' | 'overwrite';
 
-export interface VoiceIdTextFileInput {
-    readonly path: string;
-    readonly text: string;
+/** A script file: `path` relative to the game folder; `fileName` absolute (resolves `./x.ids` imports). */
+export type VoiceIdTextFileInput = VoiceLineFile;
+
+/** How speech lines find their character (§4.2): speaker labels, generated handles, the starting player. */
+export interface VoiceIdScanOptions {
+    readonly startingPlayerCharacterId: string;
+    readonly speakers: SpeakerTable;
+    readonly index: IdsIndex;
 }
 
 export interface VoiceIdTextFileChange {
@@ -57,7 +68,6 @@ interface ScanResult {
 }
 
 const VOICE_ID_DIFF_SCHEME = 'benne-voice-id-preview';
-const VOICE_MARKER_RE = /^\|(\d+)\|\s*/;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8');
 const previewDocuments = new Map<string, string>();
@@ -103,299 +113,27 @@ function formatSidecar(data: Record<string, number>): string {
     return `${JSON.stringify(sorted, null, 2)}\n`;
 }
 
-function isIdentifierBoundary(text: string, index: number): boolean {
-    const ch = text[index];
-    return ch === undefined || !/[A-Za-z0-9_$]/.test(ch);
-}
-
-function skipWs(text: string, index: number): number {
-    while (index < text.length && /\s/.test(text[index])) {
-        index += 1;
+/** Speech lines of the files (labels, `say` blocks, `x.say(…)`), via the ScriptModel. */
+function scanFiles(files: readonly VoiceIdTextFileInput[], options: VoiceIdScanOptions): Map<string, ScanResult> {
+    const scan = collectVoiceLines(ts, files, options);
+    const out = new Map<string, ScanResult>();
+    for (const file of files) {
+        out.set(file.path, { parts: [], skippedCount: 0 });
     }
-    return index;
-}
-
-function parseSimpleStringLiteral(
-    text: string,
-    index: number,
-): { quote: string; contentStart: number; contentEnd: number; value: string; end: number } | null {
-    const quote = text[index];
-    if (quote !== '\'' && quote !== '"') {
-        return null;
+    for (const line of scan.lines) {
+        out.get(line.path)!.parts.push({
+            start: line.start,
+            end: line.end,
+            text: line.text,
+            characterId: line.characterId,
+            hasMarker: line.existingId !== null,
+            existingId: line.existingId,
+        });
     }
-    let value = '';
-    let i = index + 1;
-    while (i < text.length) {
-        const ch = text[i];
-        if (ch === '\\') {
-            if (i + 1 >= text.length) {
-                return null;
-            }
-            value += ch + text[i + 1];
-            i += 2;
-            continue;
-        }
-        if (ch === quote) {
-            return { quote, contentStart: index + 1, contentEnd: i, value, end: i + 1 };
-        }
-        value += ch;
-        i += 1;
+    for (const skipped of scan.skipped) {
+        (out.get(skipped.path) as { skippedCount: number }).skippedCount += 1;
     }
-    return null;
-}
-
-function parseTemplateLiteralBounds(text: string, index: number): { contentStart: number; contentEnd: number; end: number } | null {
-    if (text[index] !== '`') {
-        return null;
-    }
-    let i = index + 1;
-    while (i < text.length) {
-        const ch = text[i];
-        if (ch === '\\') {
-            i += 2;
-            continue;
-        }
-        if (ch === '`') {
-            return { contentStart: index + 1, contentEnd: i, end: i + 1 };
-        }
-        i += 1;
-    }
-    return null;
-}
-
-function parseSaySuffix(text: string, index: number): { callIndex: number; end: number } | null {
-    let i = index;
-    if (!text.startsWith('.say', i) || !isIdentifierBoundary(text, i + 4)) {
-        return null;
-    }
-    i += 4;
-    i = skipWs(text, i);
-    if (text.startsWith('.now', i) && isIdentifierBoundary(text, i + 4)) {
-        i += 4;
-        i = skipWs(text, i);
-    }
-    return { callIndex: i, end: i };
-}
-
-function directDialoguePart(
-    literal: ReturnType<typeof parseSimpleStringLiteral>,
-    characterId: string | null,
-): DialoguePart | null {
-    if (!literal) {
-        return null;
-    }
-    const marker = VOICE_MARKER_RE.exec(literal.value);
-    return {
-        start: literal.contentStart,
-        end: literal.contentEnd,
-        text: literal.value,
-        characterId,
-        hasMarker: marker !== null,
-        existingId: marker ? Number(marker[1]) : null,
-    };
-}
-
-function templateLineParts(
-    text: string,
-    contentStart: number,
-    contentEnd: number,
-    fixedCharacterId: string | null,
-    resolveSpeakerCharacterId: (speaker: string) => string,
-): { parts: DialoguePart[]; skippedCount: number } {
-    const parts: DialoguePart[] = [];
-    let skippedCount = 0;
-    let lineStart = contentStart;
-
-    while (lineStart <= contentEnd) {
-        const newline = text.indexOf('\n', lineStart);
-        const lineEnd = newline < 0 || newline > contentEnd ? contentEnd : newline;
-        const rawLine = text.slice(lineStart, lineEnd);
-        const leading = rawLine.match(/^\s*/)?.[0].length ?? 0;
-        const trimmed = rawLine.trim();
-        if (trimmed.length > 0 && !trimmed.startsWith('//')) {
-            const meaningfulStartInLine = leading;
-            if (fixedCharacterId) {
-                const textStart = lineStart + meaningfulStartInLine;
-                const spokenText = rawLine.slice(meaningfulStartInLine).trimEnd();
-                const marker = VOICE_MARKER_RE.exec(spokenText);
-                parts.push({
-                    start: textStart,
-                    end: lineStart + meaningfulStartInLine + spokenText.length,
-                    text: spokenText,
-                    characterId: fixedCharacterId,
-                    hasMarker: marker !== null,
-                    existingId: marker ? Number(marker[1]) : null,
-                });
-            } else {
-                const colon = trimmed.indexOf(':');
-                if (colon < 0) {
-                    skippedCount += 1;
-                } else {
-                    const speaker = trimmed.slice(0, colon).trim();
-                    const afterColon = trimmed.slice(colon + 1);
-                    const textLeading = afterColon.match(/^\s*/)?.[0].length ?? 0;
-                    const spokenText = afterColon.slice(textLeading).trimEnd();
-                    if (speaker.length > 0 && spokenText.length > 0) {
-                        const trimmedStart = rawLine.indexOf(trimmed);
-                        const textStart = lineStart + trimmedStart + colon + 1 + textLeading;
-                        const characterId = resolveSpeakerCharacterId(speaker);
-                        const marker = VOICE_MARKER_RE.exec(spokenText);
-                        parts.push({
-                            start: textStart,
-                            end: textStart + spokenText.length,
-                            text: spokenText,
-                            characterId,
-                            hasMarker: marker !== null,
-                            existingId: marker ? Number(marker[1]) : null,
-                        });
-                    } else {
-                        skippedCount += 1;
-                    }
-                }
-            }
-        }
-        if (newline < 0 || newline >= contentEnd) {
-            break;
-        }
-        lineStart = newline + 1;
-    }
-
-    return { parts, skippedCount };
-}
-
-function scanDialogueParts(
-    text: string,
-    startingPlayerCharacterId: string,
-    resolveSpeakerCharacterId: (speaker: string) => string,
-): ScanResult {
-    const parts: DialoguePart[] = [];
-    let skippedCount = 0;
-    let i = 0;
-
-    while (i < text.length) {
-        const ch = text[i];
-        const next = text[i + 1];
-        if (ch === '/' && next === '/') {
-            const lineEnd = text.indexOf('\n', i + 2);
-            i = lineEnd < 0 ? text.length : lineEnd + 1;
-            continue;
-        }
-        if (ch === '/' && next === '*') {
-            const commentEnd = text.indexOf('*/', i + 2);
-            i = commentEnd < 0 ? text.length : commentEnd + 2;
-            continue;
-        }
-        if (ch === '\'' || ch === '"') {
-            const literal = parseSimpleStringLiteral(text, i);
-            i = literal?.end ?? i + 1;
-            continue;
-        }
-        if (ch === '`') {
-            const template = parseTemplateLiteralBounds(text, i);
-            i = template?.end ?? i + 1;
-            continue;
-        }
-
-        if (text.startsWith('B.say', i) && isIdentifierBoundary(text, i + 5)) {
-            const suffix = parseSaySuffix(text, i + 1);
-            if (suffix) {
-                const callIndex = skipWs(text, suffix.callIndex);
-                const template = parseTemplateLiteralBounds(text, callIndex);
-                if (template) {
-                    const scanned = templateLineParts(
-                        text,
-                        template.contentStart,
-                        template.contentEnd,
-                        null,
-                        resolveSpeakerCharacterId,
-                    );
-                    parts.push(...scanned.parts);
-                    skippedCount += scanned.skippedCount;
-                    i = template.end;
-                    continue;
-                }
-            }
-        }
-
-        if (text.startsWith('B.player', i) && isIdentifierBoundary(text, i + 8)) {
-            let cursor = skipWs(text, i + 8);
-            const suffix = parseSaySuffix(text, cursor);
-            if (suffix) {
-                cursor = skipWs(text, suffix.callIndex);
-                if (text[cursor] === '(') {
-                    const literal = parseSimpleStringLiteral(text, skipWs(text, cursor + 1));
-                    const part = directDialoguePart(literal, startingPlayerCharacterId);
-                    if (part) {
-                        parts.push(part);
-                        i = literal!.end;
-                        continue;
-                    }
-                    skippedCount += 1;
-                } else {
-                    const template = parseTemplateLiteralBounds(text, cursor);
-                    if (template) {
-                        const scanned = templateLineParts(
-                            text,
-                            template.contentStart,
-                            template.contentEnd,
-                            startingPlayerCharacterId,
-                            resolveSpeakerCharacterId,
-                        );
-                        parts.push(...scanned.parts);
-                        skippedCount += scanned.skippedCount;
-                        i = template.end;
-                        continue;
-                    }
-                }
-            }
-        }
-
-        if (text.startsWith('B.character', i) && isIdentifierBoundary(text, i + 11)) {
-            let cursor = skipWs(text, i + 11);
-            if (text[cursor] === '(') {
-                const characterLiteral = parseSimpleStringLiteral(text, skipWs(text, cursor + 1));
-                if (characterLiteral) {
-                    cursor = skipWs(text, characterLiteral.end);
-                    if (text[cursor] === ')') {
-                        cursor = skipWs(text, cursor + 1);
-                        const suffix = parseSaySuffix(text, cursor);
-                        if (suffix) {
-                            cursor = skipWs(text, suffix.callIndex);
-                            if (text[cursor] === '(') {
-                                const literal = parseSimpleStringLiteral(text, skipWs(text, cursor + 1));
-                                const part = directDialoguePart(literal, characterLiteral.value);
-                                if (part) {
-                                    parts.push(part);
-                                    i = literal!.end;
-                                    continue;
-                                }
-                                skippedCount += 1;
-                            } else {
-                                const template = parseTemplateLiteralBounds(text, cursor);
-                                if (template) {
-                                    const scanned = templateLineParts(
-                                        text,
-                                        template.contentStart,
-                                        template.contentEnd,
-                                        characterLiteral.value,
-                                        resolveSpeakerCharacterId,
-                                    );
-                                    parts.push(...scanned.parts);
-                                    skippedCount += scanned.skippedCount;
-                                    i = template.end;
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        i += 1;
-    }
-
-    return { parts, skippedCount };
+    return out;
 }
 
 function applyReplacements(text: string, replacements: Replacement[]): string {
@@ -432,36 +170,13 @@ function nextUnused(used: Set<number>): number {
     return id;
 }
 
-function createSpeakerCharacterResolver(
-    startingPlayerCharacterId: string,
-    knownCharacterIds: readonly string[] = [],
-): (speaker: string) => string {
-    const knownByLower = new Map<string, string>();
-    for (const id of knownCharacterIds) {
-        const key = id.toLowerCase();
-        if (!knownByLower.has(key)) {
-            knownByLower.set(key, id);
-        }
-    }
-    return (speaker: string): string =>
-        speaker.toLowerCase() === 'player'
-            ? startingPlayerCharacterId
-            : (knownByLower.get(speaker.toLowerCase()) ?? speaker);
-}
-
 export function planVoiceIdsForFiles(
     files: readonly VoiceIdTextFileInput[],
     existingSidecar: Record<string, number>,
-    options: { mode: VoiceIdMode; startingPlayerCharacterId: string; knownCharacterIds?: readonly string[] },
+    options: VoiceIdScanOptions & { mode: VoiceIdMode },
 ): VoiceIdPlanResult {
-    const resolveSpeakerCharacterId = createSpeakerCharacterResolver(
-        options.startingPlayerCharacterId,
-        options.knownCharacterIds,
-    );
-    const scans = files.map((file) => ({
-        file,
-        scan: scanDialogueParts(file.text, options.startingPlayerCharacterId, resolveSpeakerCharacterId),
-    }));
+    const scanned = scanFiles(files, options);
+    const scans = files.map((file) => ({ file, scan: scanned.get(file.path)! }));
     const usedByCharacter = new Map<string, Set<number>>();
     const sidecar = options.mode === 'preserve' ? cloneSidecar(existingSidecar) : {};
     let assignedCount = 0;
@@ -541,17 +256,14 @@ export function planVoiceIdsForFiles(
 
 export function exportSpeakingTextRowsForFiles(
     files: readonly VoiceIdTextFileInput[],
-    options: { startingPlayerCharacterId: string; knownCharacterIds?: readonly string[] },
+    options: VoiceIdScanOptions,
 ): SpeakingTextExportResult {
-    const resolveSpeakerCharacterId = createSpeakerCharacterResolver(
-        options.startingPlayerCharacterId,
-        options.knownCharacterIds,
-    );
+    const scanned = scanFiles(files, options);
     const rows: SpeakingTextCsvRow[] = [];
     let skippedCount = 0;
 
     for (const file of files) {
-        const scan = scanDialogueParts(file.text, options.startingPlayerCharacterId, resolveSpeakerCharacterId);
+        const scan = scanned.get(file.path)!;
         skippedCount += scan.skippedCount;
         for (const part of scan.parts) {
             if (!part.characterId) {
@@ -677,17 +389,12 @@ async function readStartingPlayerCharacterId(gameFolder: vscode.WorkspaceFolder)
     return 'player';
 }
 
-async function readKnownCharacterIds(gameFolder: vscode.WorkspaceFolder): Promise<string[]> {
-    const charactersDir = vscode.Uri.joinPath(gameFolder.uri, 'src', 'game', 'characters');
-    try {
-        const entries = await vscode.workspace.fs.readDirectory(charactersDir);
-        return entries
-            .filter(([, type]) => type === vscode.FileType.Directory)
-            .map(([name]) => name)
-            .sort((a, b) => a.localeCompare(b));
-    } catch {
-        return [];
-    }
+/** Speaker table and handle index for the game's scripts; regenerates the handles first. */
+async function readScanContext(gameFolder: vscode.WorkspaceFolder): Promise<{ speakers: SpeakerTable; index: IdsIndex }> {
+    await runGenerateGameIds(gameFolder, { quiet: true });
+    invalidateGeneratedModules();
+    const gameRoot = path.join(gameFolder.uri.fsPath, 'src', 'game');
+    return { speakers: buildSpeakerTable(readCharacterSpeakers(gameRoot)), index: idsIndexForGameRoot(gameRoot) };
 }
 
 async function readSidecar(gameFolder: vscode.WorkspaceFolder): Promise<Record<string, number>> {
@@ -707,12 +414,12 @@ async function readSidecar(gameFolder: vscode.WorkspaceFolder): Promise<Record<s
 }
 
 async function readProcessableFiles(gameFolder: vscode.WorkspaceFolder): Promise<VoiceIdTextFileInput[]> {
-    const uris = await vscode.workspace.findFiles(new vscode.RelativePattern(gameFolder, 'src/game/**/*.ts'));
+    const uris = await vscode.workspace.findFiles(new vscode.RelativePattern(gameFolder, 'src/game/**/*.ts'), '**/*.ids.ts');
     uris.sort((a, b) => a.fsPath.localeCompare(b.fsPath));
     const files: VoiceIdTextFileInput[] = [];
     for (const uri of uris) {
         const relative = path.relative(gameFolder.uri.fsPath, uri.fsPath).replace(/\\/g, '/');
-        files.push({ path: relative, text: decoder.decode(await vscode.workspace.fs.readFile(uri)) });
+        files.push({ path: relative, fileName: uri.fsPath, text: decoder.decode(await vscode.workspace.fs.readFile(uri)) });
     }
     return files;
 }
@@ -828,9 +535,9 @@ export async function runProcessGameVoiceIdsCommand(context: vscode.ExtensionCon
         return;
     }
 
-    const [startingPlayerCharacterId, knownCharacterIds, sidecar, files] = await Promise.all([
+    const [startingPlayerCharacterId, scanContext, sidecar, files] = await Promise.all([
         readStartingPlayerCharacterId(gameFolder),
-        readKnownCharacterIds(gameFolder),
+        readScanContext(gameFolder),
         readSidecar(gameFolder),
         readProcessableFiles(gameFolder),
     ]);
@@ -838,7 +545,7 @@ export async function runProcessGameVoiceIdsCommand(context: vscode.ExtensionCon
     const plan = planVoiceIdsForFiles(files, sidecar, {
         mode: preserve ? 'preserve' : 'overwrite',
         startingPlayerCharacterId,
-        knownCharacterIds,
+        ...scanContext,
     });
 
     if (plan.changes.length === 0 && formatSidecar(plan.sidecar) === sidecarOriginal) {
@@ -885,14 +592,14 @@ export async function runExportSpeakingTextCsvCommand(): Promise<void> {
         return;
     }
 
-    const [startingPlayerCharacterId, knownCharacterIds, files] = await Promise.all([
+    const [startingPlayerCharacterId, scanContext, files] = await Promise.all([
         readStartingPlayerCharacterId(gameFolder),
-        readKnownCharacterIds(gameFolder),
+        readScanContext(gameFolder),
         readProcessableFiles(gameFolder),
     ]);
     const exportResult = exportSpeakingTextRowsForFiles(files, {
         startingPlayerCharacterId,
-        knownCharacterIds,
+        ...scanContext,
     });
 
     if (exportResult.rows.length === 0) {

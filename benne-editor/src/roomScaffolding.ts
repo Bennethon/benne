@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { runGenerateGameIds } from './gameIdsGenerator';
 import { computeAsepriteTagCandidateBases, tagsInHyphenFamily } from './asepriteTagFamily';
 import {
     findBenneGameFolders,
@@ -179,23 +180,15 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
         props: []
     };
 
-    const roomTs = `import { registerRoomScript } from '@engine/scripting';
+    const roomTs = `import { room } from './${id}.ids';
 
-/**
- * Room script for \`${id}\` — keep handlers for this room here.
- *
- * String ids must match your \`${id}.room.json\` (and character JSON where noted):
- * - \`whenLookAt\` / \`whenUse\` / \`whenTalkTo\` / \`whenPickUp\` / \`whenPush\` / \`whenPull\` / \`whenOpen\` / \`whenClose\`: work on props, hotspots, and characters — same string id, resolution order \`props[]\` → \`hotspots[]\` → \`CharacterData.id\` in this room.
- * - \`whenVerb(verbId, targetId, …)\`: any verb id from game config; same target resolution.
- * - \`whenGive\`: prop recipient only (for now); armed give/use on world targets → \`whenInventoryUsedOn\` (props, hotspots, characters) — filter \`payload.itemId\` / \`payload.verbId\`.
- * - \`B.prop('…')\` / \`onProp\`: \`props[].id\` only.
- * - \`B.character('…')\`: \`CharacterData.id\` for a character in this room.
- * - \`walkTo('…')\`: unified target — prop id → hotspot id → character id → \`points[].id\`, or \`{ x, y }\` in room pixels.
- */
-registerRoomScript(({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-});
+// Room script for \`${id}\` (docs/bennescript-ergonomics-refactor.md §4). Handlers for this room's
+// props, hotspots, characters and regions go here: \`door.onUse(() => { … })\`. The Inspector's
+// verb chips add them for you, with their imports.
+
+room.onEnter(() => {
+  // Set the room up before it fades in.
+})
 `;
 
     await vscode.workspace.fs.createDirectory(roomDir);
@@ -204,6 +197,8 @@ registerRoomScript(({ B }) => {
     await vscode.workspace.fs.writeFile(roomTsUri, new TextEncoder().encode(roomTs));
 
     await appendRoomsManifestEntry(folder.uri, id);
+    // The script imports the room's generated handles (`./<id>.ids`).
+    await runGenerateGameIds(folder, { quiet: true });
 
     void vscode.window.showInformationMessage(`Created room "${name}" (${id}).`);
     await vscode.window.showTextDocument(roomJsonUri, { preview: false });

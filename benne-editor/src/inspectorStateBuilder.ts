@@ -11,6 +11,7 @@ import {
     readCharacterHooks,
     type GameConfigVerbEntry,
     readGameConfigVerbs,
+    readGameDefaultVerb,
     resolveGuiAsepriteSheetForTags,
     resolvePerItemInventoryAsepriteSheet,
     resolveRoomAsepriteSheetForProps,
@@ -31,14 +32,7 @@ import {
     buildRoomCharacterVerbChips,
     type InspectorVerbChip
 } from './verbInspectorModel';
-import {
-    readConfiguredVerbIdSet,
-    roomScriptRegistersRegionWhenEnter,
-    roomScriptRegistersRegionWhenExit,
-    guiScriptRegistersGuiLifecycleHook,
-    roomScriptRegistersRoomLifecycleHook,
-    scriptRegistersWhenInventoryUsedOn
-} from './verbHandlerPresence';
+import { handlerQuery, readScriptText } from './scriptHandlers';
 
 export type InspectorWalkableRow = {
     kind: 'polygon' | 'hole';
@@ -77,7 +71,7 @@ export type InspectorPropCard = {
     defaultVerb: string;
     /** Game-config verbs (minus `walkTo`) available in the Default verb dropdown. */
     availableVerbs: GameConfigVerbEntry[];
-    /** Room script has `B.whenInventoryUsedOn` for this prop id (Inspector chip highlight). */
+    /** Room script has an item handler (`onUseItem` / `onAnyItem` / …) on this prop (Inspector chip highlight). */
     inventoryUsedOnDefined: boolean;
     /** Game cursor sheet tag while hovering this clickable prop; empty when unset in JSON. */
     activeCursorOverride: string;
@@ -93,7 +87,7 @@ export type InspectorHotspotCard = {
     verbs: InspectorVerbChip[];
     defaultVerb: string;
     availableVerbs: GameConfigVerbEntry[];
-    /** Room script has `B.whenInventoryUsedOn` for this hotspot id. */
+    /** Room script has an item handler on this hotspot. */
     inventoryUsedOnDefined: boolean;
     /** Game cursor sheet tag while hovering this hotspot; empty when unset in JSON. */
     activeCursorOverride: string;
@@ -118,7 +112,7 @@ export type InspectorCharacterCard = {
      */
     defaultVerb: string;
     availableVerbs: GameConfigVerbEntry[];
-    /** Room script has `B.whenInventoryUsedOn` for this character definition id. */
+    /** Room script has an item handler on this character. */
     inventoryUsedOnDefined: boolean;
 };
 
@@ -197,7 +191,7 @@ export type InspectorCharacterState = {
     verbs: InspectorVerbChip[];
     defaultVerb: string;
     availableVerbs: GameConfigVerbEntry[];
-    /** Character script has `B.whenInventoryUsedOn` for this definition id. */
+    /** Character script has an item handler on this character. */
     inventoryUsedOnDefined: boolean;
     /** Game cursor sheet tag while hovering this clickable character; empty when unset in JSON. */
     activeCursorOverride: string;
@@ -616,7 +610,7 @@ export type InspectorInventoryState = {
     availableVerbs: GameConfigVerbEntry[];
     animations: InspectorInventoryAnimationCard[];
     defaultVerb: string;
-    /** Item script has `B.whenInventoryUsedOn` for this item id. */
+    /** Item script has an item-on-item handler on this item. */
     inventoryUsedOnDefined: boolean;
 };
 
@@ -651,19 +645,20 @@ export type InspectorStatePayload =
 
 /** Built-in walk verb id (mirrors engine `WALK_TO_VERB_ID`); never surfaced in the Inspector. */
 const WALK_TO_VERB_ID = 'walkTo';
-/** Implicit per-clickable default verb when `defaultVerb` is omitted (mirrors engine fallback). */
+/** Default verb shown when JSON omits `defaultVerb` and the game config can't be read. */
 const DEFAULT_VERB_FALLBACK = 'look';
 
 function filterSelectableVerbs(gameVerbs: readonly GameConfigVerbEntry[]): GameConfigVerbEntry[] {
     return gameVerbs.filter((v) => v.id !== WALK_TO_VERB_ID);
 }
 
-function readDefaultVerbField(o: Record<string, unknown>): string {
+/** A clickable's own `defaultVerb`, else the game-level default (decision 8). */
+function readDefaultVerbField(o: Record<string, unknown>, gameDefaultVerb: string = DEFAULT_VERB_FALLBACK): string {
     const raw = o.defaultVerb;
     if (typeof raw === 'string' && raw.trim().length > 0) {
         return raw.trim();
     }
-    return DEFAULT_VERB_FALLBACK;
+    return gameDefaultVerb;
 }
 
 /** @see readInspectorJsonText — disk/buffer reconciliation for Inspector and tooling. */
@@ -903,17 +898,12 @@ async function buildRoomInspectorState(
     }
 
     const gameVerbs = await readGameConfigVerbs(folder.uri);
-    const configured = await readConfiguredVerbIdSet(folder.uri);
+    const gameDefaultVerb = await readGameDefaultVerb(folder.uri);
     const roomScriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
-    let roomScriptText = '';
-    try {
-        roomScriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(roomScriptUri));
-    } catch {
-        /* */
-    }
+    const roomScript = { uri: roomScriptUri, text: await readScriptText(roomScriptUri) };
+    const roomHas = handlerQuery(roomScript.uri, roomScript.text);
 
     const propsList = await readRoomProps(roomJsonUri);
-    const propIds = new Set(propsList.map((p) => p.id));
 
     const roomSheet = await resolveRoomAsepriteSheetForProps(folder.uri, roomId);
     const sheetTagList = roomSheet.frameTags ?? [];
@@ -942,7 +932,7 @@ async function buildRoomInspectorState(
             } as RoomPropEntry);
             const verbs =
                 entry.clickable === true
-                    ? buildPropVerbChips(roomId, entry, gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS, configured, roomScriptText)
+                    ? buildPropVerbChips(roomId, entry, gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS, roomScript)
                     : [];
             const tagStr = typeof o.tag === 'string' ? o.tag.trim() : '';
             const defaultAnimFromFile =
@@ -996,10 +986,12 @@ async function buildRoomInspectorState(
                 parallaxDepth: typeof o.parallaxDepth === 'number' ? o.parallaxDepth : 1,
                 alpha: typeof o.alpha === 'number' ? o.alpha : 1,
                 verbs,
-                defaultVerb: readDefaultVerbField(o),
+                defaultVerb: readDefaultVerbField(o, gameDefaultVerb),
                 availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS),
                 inventoryUsedOnDefined:
-                    entry.clickable === true ? scriptRegistersWhenInventoryUsedOn(roomScriptText, id) : false,
+                    entry.clickable === true
+                        ? roomHas({ kind: 'anyItem', target: { kind: 'prop', roomId, id } })
+                        : false,
                 activeCursorOverride:
                     typeof o.activeCursorOverride === 'string' ? o.activeCursorOverride.trim() : ''
             });
@@ -1032,9 +1024,7 @@ async function buildRoomInspectorState(
                 roomId,
                 entry,
                 gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS,
-                configured,
-                roomScriptText,
-                propIds
+                roomScript
             );
             hotspots.push({
                 id,
@@ -1043,10 +1033,12 @@ async function buildRoomInspectorState(
                 zIndex: typeof o.zIndex === 'number' ? o.zIndex : 0,
                 baseline: typeof o.baseline === 'number' && Number.isFinite(o.baseline) ? o.baseline : null,
                 verbs,
-                defaultVerb: readDefaultVerbField(o),
+                defaultVerb: readDefaultVerbField(o, gameDefaultVerb),
                 availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS),
                 inventoryUsedOnDefined:
-                    entry.active !== false ? scriptRegistersWhenInventoryUsedOn(roomScriptText, id) : false,
+                    entry.active !== false
+                        ? roomHas({ kind: 'anyItem', target: { kind: 'hotspot', roomId, id } })
+                        : false,
                 activeCursorOverride:
                     typeof o.activeCursorOverride === 'string' ? o.activeCursorOverride.trim() : ''
             });
@@ -1079,30 +1071,28 @@ async function buildRoomInspectorState(
                 clickable?: boolean;
             } = {};
             let charJsonText = '{}';
-            let charScriptText = '';
+            const charScriptUri = vscode.Uri.joinPath(charJsonUri, '..', `${characterId}.character.ts`);
             try {
                 hooks = await readCharacterHooks(charJsonUri);
                 charJsonText = await readRoomJsonText(charJsonUri);
-                const charScriptUri = vscode.Uri.joinPath(charJsonUri, '..', `${characterId}.character.ts`);
-                charScriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(charScriptUri));
             } catch {
                 /* missing definition */
             }
+            const characterScript = { uri: charScriptUri, text: await readScriptText(charScriptUri) };
             const verbs =
                 hooks.clickable === true
                     ? buildRoomCharacterVerbChips(
                           roomId,
                           characterId,
                           gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS,
-                          configured,
-                          roomScriptText,
-                          charScriptText
+                          roomScript,
+                          characterScript
                       )
                     : [];
-            let charDefaultVerb = DEFAULT_VERB_FALLBACK;
+            let charDefaultVerb = gameDefaultVerb;
             try {
                 const parsed = JSON.parse(charJsonText) as Record<string, unknown>;
-                charDefaultVerb = readDefaultVerbField(parsed);
+                charDefaultVerb = readDefaultVerbField(parsed, gameDefaultVerb);
             } catch {
                 /* fall back */
             }
@@ -1123,7 +1113,7 @@ async function buildRoomInspectorState(
                 availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS),
                 inventoryUsedOnDefined:
                     hooks.clickable === true
-                        ? scriptRegistersWhenInventoryUsedOn(roomScriptText, characterId)
+                        ? roomHas({ kind: 'anyItem', target: { kind: 'character', roomId, id: characterId } })
                         : false
             });
         }
@@ -1183,8 +1173,8 @@ async function buildRoomInspectorState(
                 tintEnabled,
                 tint,
                 tintAlpha,
-                whenEnterDefined: roomScriptRegistersRegionWhenEnter(roomScriptText, roomId, id),
-                whenExitDefined: roomScriptRegistersRegionWhenExit(roomScriptText, roomId, id)
+                whenEnterDefined: roomHas({ kind: 'region', roomId, regionId: id, hook: 'onEnter' }),
+                whenExitDefined: roomHas({ kind: 'region', roomId, regionId: id, hook: 'onExit' })
             });
         }
     }
@@ -1207,13 +1197,10 @@ async function buildRoomInspectorState(
         points,
         regions,
         expanded: expandedFromRoomPanel(roomPanel),
-        whenLoadedRoomDefined: roomScriptRegistersRoomLifecycleHook(roomScriptText, 'whenLoadedRoom'),
-        whenEnterRoomDefined: roomScriptRegistersRoomLifecycleHook(roomScriptText, 'whenEnterRoom'),
-        whenEnterRoomAfterFadeDefined: roomScriptRegistersRoomLifecycleHook(
-            roomScriptText,
-            'whenEnterRoomAfterFade'
-        ),
-        onUpdateDefined: roomScriptRegistersRoomLifecycleHook(roomScriptText, 'onUpdate')
+        whenLoadedRoomDefined: roomHas({ kind: 'room', roomId, hook: 'onLoaded' }),
+        whenEnterRoomDefined: roomHas({ kind: 'room', roomId, hook: 'onEnter' }),
+        whenEnterRoomAfterFadeDefined: roomHas({ kind: 'room', roomId, hook: 'onEnterAfterFade' }),
+        onUpdateDefined: roomHas({ kind: 'update', roomId })
     };
 }
 
@@ -1265,21 +1252,15 @@ async function buildCharacterInspectorState(
         }
     }
 
-    let scriptText = '';
     const scriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
-    try {
-        scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
-    } catch {
-        /* */
-    }
+    const characterScript = { uri: scriptUri, text: await readScriptText(scriptUri) };
     const folder = vscode.workspace.getWorkspaceFolder(characterJsonUri);
     const gameVerbs = folder ? await readGameConfigVerbs(folder.uri) : DEFAULT_GAME_VERBS;
-    const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
+    const gameDefaultVerb = folder ? await readGameDefaultVerb(folder.uri) : DEFAULT_VERB_FALLBACK;
     const verbs = buildCharacterVerbChips(
         characterId,
         gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS,
-        configured,
-        scriptText
+        characterScript
     );
 
     const invFolder = vscode.workspace.getWorkspaceFolder(characterJsonUri);
@@ -1301,9 +1282,14 @@ async function buildCharacterInspectorState(
         feet: toPoint(data.feet),
         animations: anims.sort((a, b) => a.id.localeCompare(b.id)),
         verbs,
-        defaultVerb: readDefaultVerbField(data),
+        defaultVerb: readDefaultVerbField(data, gameDefaultVerb),
         availableVerbs: filterSelectableVerbs(gameVerbs.length > 0 ? gameVerbs : DEFAULT_GAME_VERBS),
-        inventoryUsedOnDefined: clickable ? scriptRegistersWhenInventoryUsedOn(scriptText, characterId) : false,
+        inventoryUsedOnDefined: clickable
+            ? handlerQuery(characterScript.uri, characterScript.text)({
+                  kind: 'anyItem',
+                  target: { kind: 'character', roomId: null, id: characterId }
+              })
+            : false,
         activeCursorOverride:
             typeof data.activeCursorOverride === 'string' ? data.activeCursorOverride.trim() : '',
         speechColor: typeof data.speechColor === 'string' ? data.speechColor.trim() : ''
@@ -1857,12 +1843,8 @@ async function buildGuiInspectorState(
     }
 
     const guiScriptUri = vscode.Uri.joinPath(guiJsonUri, '..', `${guiId}.gui.ts`);
-    let guiScriptText = '';
-    try {
-        guiScriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(guiScriptUri));
-    } catch {
-        guiScriptText = '';
-    }
+    const guiHas = handlerQuery(guiScriptUri, await readScriptText(guiScriptUri));
+    const guiContentId = typeof data.id === 'string' && data.id.trim() ? data.id.trim() : guiId;
 
     return {
         kind: 'gui',
@@ -1879,9 +1861,9 @@ async function buildGuiInspectorState(
         fontIds,
         controls,
         expanded: expandedFromGuiPanel(guiJsonUri, guiPanel),
-        onGuiBuiltDefined: guiScriptRegistersGuiLifecycleHook(guiScriptText, 'onGuiBuilt'),
-        onGuiShowDefined: guiScriptRegistersGuiLifecycleHook(guiScriptText, 'onGuiShow'),
-        onGuiHideDefined: guiScriptRegistersGuiLifecycleHook(guiScriptText, 'onGuiHide')
+        onGuiBuiltDefined: guiHas({ kind: 'gui', guiId: guiContentId, hook: 'onBuilt' }),
+        onGuiShowDefined: guiHas({ kind: 'gui', guiId: guiContentId, hook: 'onShow' }),
+        onGuiHideDefined: guiHas({ kind: 'gui', guiId: guiContentId, hook: 'onHide' })
     };
 }
 
@@ -1959,16 +1941,11 @@ async function buildInventoryInspectorState(
     const availableVerbs = folder
         ? await readGameConfigVerbs(folder.uri)
         : DEFAULT_GAME_VERBS;
+    const gameDefaultVerb = folder ? await readGameDefaultVerb(folder.uri) : DEFAULT_VERB_FALLBACK;
     const effectiveVerbs = availableVerbs.length > 0 ? availableVerbs : DEFAULT_GAME_VERBS;
-    const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
     const scriptUri = vscode.Uri.joinPath(inventoryJsonUri, '..', `${inventoryId}.inventory.ts`);
-    let scriptText = '';
-    try {
-        scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
-    } catch {
-        /* */
-    }
-    const verbs = buildInventoryVerbChips(inventoryId, effectiveVerbs, configured, text, scriptText);
+    const inventoryScript = { uri: scriptUri, text: await readScriptText(scriptUri) };
+    const verbs = buildInventoryVerbChips(inventoryId, effectiveVerbs, text, inventoryScript);
 
     return {
         kind: 'inventory',
@@ -1984,7 +1961,10 @@ async function buildInventoryInspectorState(
         verbs,
         availableVerbs: filterSelectableVerbs(effectiveVerbs),
         animations,
-        defaultVerb: readDefaultVerbField(data),
-        inventoryUsedOnDefined: scriptRegistersWhenInventoryUsedOn(scriptText, inventoryId)
+        defaultVerb: readDefaultVerbField(data, gameDefaultVerb),
+        inventoryUsedOnDefined: handlerQuery(inventoryScript.uri, inventoryScript.text)({
+            kind: 'anyItem',
+            target: { kind: 'item', id: inventoryId }
+        })
     };
 }

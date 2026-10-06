@@ -314,14 +314,12 @@ export function updatePropAnimationFields(
 }
 
 /**
- * Implicit per-clickable default when `defaultVerb` is omitted in JSON — matches engine
- * `DEFAULT_VERB_FALLBACK`. Writing this value from the Inspector omits the field.
+ * An empty value omits `defaultVerb` (the clickable uses the game-level default, decision 8);
+ * any verb is written explicitly, since the game default may not be `look`.
  */
-const DEFAULT_VERB_FALLBACK_ID = 'look';
-
 function applyDefaultVerbPatch(target: Record<string, unknown>, verbId: string): void {
     const id = verbId.trim();
-    if (id.length === 0 || id === DEFAULT_VERB_FALLBACK_ID) {
+    if (id.length === 0) {
         delete target.defaultVerb;
     } else {
         target.defaultVerb = id;

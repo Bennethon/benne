@@ -94,15 +94,9 @@ export async function runCreateGuiWizard(preferredFolder?: vscode.WorkspaceFolde
         }
     };
 
-    const guiTs = `import { registerGuiScript } from '@engine/scripting';
-
-/**
- * GUI script for \`${id}\` — Bennescript entry (\`B.raw\`, future onShow/onHide/control hooks on \`B\`).
- */
-registerGuiScript('${id}', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
-});
+    const guiTs = `// GUI script for \`${id}\` (docs/bennescript-ergonomics-refactor.md §4.15): \`gui.onShow(() => { … })\`,
+// \`someButton.onClick(() => { … })\`. The Inspector's control "Script" buttons add them, with imports
+// from \`./${id}.ids\`.
 `;
 
     await vscode.workspace.fs.createDirectory(guiDir);
@@ -386,7 +380,7 @@ export async function runAddGuiControlWizard(
         validateInput: (v) => {
             const s = (v ?? '').trim();
             if (kind === 'button' && s.length === 0) {
-                return 'Button controls require an id (B.whenButtonClick, Inspector tree).';
+                return 'Button controls require an id (scripts use its handle: onClick).';
             }
             if (kind === 'textInput' && s.length === 0) {
                 return 'Text input controls require an id (B.gui(...).control(...)).';
@@ -395,13 +389,13 @@ export async function runAddGuiControlWizard(
                 return 'List box controls require an id (B.gui(...).control(...)).';
             }
             if (kind === 'checkbox' && s.length === 0) {
-                return 'Checkbox controls require an id (B.whenCheckboxCheck, Inspector tree).';
+                return 'Checkbox controls require an id (scripts use its handle: onChange).';
             }
             if (kind === 'slider' && s.length === 0) {
                 return 'Slider controls require an id (control().whenValueChanged, Inspector tree).';
             }
             if (kind === 'trigger' && s.length === 0) {
-                return 'Trigger controls require an id (B.whenMouseEnter / whenMouseLeave).';
+                return 'Trigger controls require an id (scripts use its handle: onMouseEnter / onMouseLeave).';
             }
             if (kind === 'grid' && s.length === 0) {
                 return 'Grid controls require an id (gridPlacement.gridControlId references it).';
@@ -518,12 +512,12 @@ export function getAddGuiControlQuickPickItems(): GuiControlQuickPickItem[] {
         },
         {
             label: 'Button',
-            description: 'Sheet-backed label + click target (B.whenButtonClick)',
+            description: 'Sheet-backed label + click target (onClick)',
             controlKind: 'button'
         },
         {
             label: 'Checkbox',
-            description: 'Sheet-backed toggle (B.whenCheckboxCheck / whenCheckboxUncheck)',
+            description: 'Sheet-backed toggle (onChange)',
             controlKind: 'checkbox'
         },
         {
@@ -533,7 +527,7 @@ export function getAddGuiControlQuickPickItems(): GuiControlQuickPickItem[] {
         },
         {
             label: 'Trigger',
-            description: 'Invisible hit zone for B.whenMouseEnter / whenMouseLeave',
+            description: 'Invisible hit zone for onMouseEnter / onMouseLeave',
             controlKind: 'trigger'
         },
         {

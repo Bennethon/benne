@@ -32,5 +32,5 @@ it('inactive/outside regions do not scale a character', () => {
   expect(computeRoomRegionCharacterScale(20, 20, [{ id: 'r', active: false, scaleEnabled: true, points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }] }])).toBe(1);
 });
 it('Play From ignores commented and quoted examples, deduplicates static names', () => {
-  expect(readRoomPlayFromNamesFromSource('// B.playFrom("bad", () => {});\nconst s = "B.playFrom(\\"bad2\\", () => {})";\nB.playFrom( "ok", () => {}); B.playFrom(`ok`, () => {}); B.playFrom(`dynamic-${id}`, () => {});')).toEqual(['ok']);
+  expect(readRoomPlayFromNamesFromSource('// playFrom("bad", () => {});\nconst s = "playFrom(\\"bad2\\", () => {})";\nplayFrom( "ok", () => {}); playFrom(`ok`, () => {}); playFrom(`dynamic-${id}`, () => {});')).toEqual(['ok']);
 });

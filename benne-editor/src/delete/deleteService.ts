@@ -1,6 +1,8 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { stripLineAndBlockComments } from '../verbHandlerPresence';
+import type { ContentRef } from '../bennescript/idsIndex';
+import { resolveReference } from '../bennescript/scriptModel';
+import { idsIndexFor, scriptModelOf } from '../scriptHandlers';
 import { formatJson } from '../roomScaffolding';
 import { listRoomDefinitions } from '../gameDiscovery';
 import { readRoomJsonText } from '../inspectorStateBuilder';
@@ -9,10 +11,6 @@ import type { DeleteTarget } from './deleteTarget';
 import type { EditorSelection } from '../editorSelection';
 
 const TRASH = { recursive: true, useTrash: true };
-
-function escapeRe(s: string): string {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 export type ScriptReferenceHit = {
     uri: vscode.Uri;
@@ -54,172 +52,91 @@ async function readUtf8(uri: vscode.Uri): Promise<string | undefined> {
 }
 
 async function findScriptScanUris(folder: vscode.WorkspaceFolder): Promise<vscode.Uri[]> {
-    const base = folder.uri;
-    const roomTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/**/*.room.ts'));
-    const charTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/**/*.character.ts'));
-    const invTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/**/*.inventory.ts'));
-    const dialogTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/**/*.dialog.ts'));
-    const globalTs = await vscode.workspace.findFiles(new vscode.RelativePattern(base, 'src/game/globalScript.ts'));
-    const seen = new Set<string>();
-    const out: vscode.Uri[] = [];
-    for (const u of [...roomTs, ...charTs, ...invTs, ...dialogTs, ...globalTs]) {
-        const k = u.toString();
-        if (!seen.has(k)) {
-            seen.add(k);
-            out.push(u);
-        }
-    }
-    return out;
+    const uris = await vscode.workspace.findFiles(
+        new vscode.RelativePattern(folder.uri, 'src/game/**/{*.room.ts,*.character.ts,*.inventory.ts,*.dialog.ts,*.gui.ts,*.script.ts,globalScript.ts}')
+    );
+    return uris.sort((a, b) => a.fsPath.localeCompare(b.fsPath));
 }
 
-function regexesForDeleteTarget(target: DeleteTarget): RegExp[] {
+/** Whether a resolved handle reference points at the content being deleted. */
+function refersToDeleteTarget(ref: ContentRef, target: DeleteTarget): boolean {
+    const r = ref as { kind: string; id?: string; roomId?: string | null; dialogId?: string; guiId?: string };
     switch (target.type) {
-        case 'room': {
-            const r = escapeRe(target.roomId);
-            return [new RegExp(`verb:room:${r}:`), new RegExp(`['\`]${r}['\`]\\s*[,\\)]`)];
-        }
-        case 'character': {
-            const c = escapeRe(target.characterId);
-            return [
-                new RegExp(`registerCharacterScript\\s*\\(\\s*['\`]${c}['\`]`),
-                new RegExp(`verb:character:${c}:`),
-                new RegExp(`verb:room:[^'"\`]+:character:${c}:`),
-                new RegExp(`B\\.character\\(\\s*['\`]${c}['\`]`)
-            ];
-        }
-        case 'gui': {
-            const g = escapeRe(target.guiId);
-            return [new RegExp(`registerGuiScript\\s*\\(\\s*['\`]${g}['\`]`)];
-        }
-        case 'inventory': {
-            const i = escapeRe(target.itemId);
-            return [
-                new RegExp(`registerInventoryScript\\s*\\(\\s*['\`]${i}['\`]`),
-                new RegExp(`verb:room:[^'"\`]+:inventory:${i}:`),
-                new RegExp(`verb:inventory:${i}:`)
-            ];
-        }
-        case 'dialog': {
-            const d = escapeRe(target.dialogId);
-            return [
-                new RegExp(`registerDialogScript\\s*\\(\\s*['\`]${d}['\`]`),
-                new RegExp(`B\\.dialog\\s*\\(\\s*['\`]${d}['\`]`)
-            ];
-        }
-        case 'pdc':
-            return [];
-        case 'prop': {
-            const rr = escapeRe(target.roomId);
-            const pr = escapeRe(target.prop.id);
-            return [
-                new RegExp(`verb:room:${rr}:prop:${pr}:`),
-                new RegExp(`verb:room:${rr}:prop:${pr}:fallback`),
-                new RegExp(`B\\.prop\\(\\s*['\`]${pr}['\`]`)
-            ];
-        }
-        case 'hotspot': {
-            const rr = escapeRe(target.roomId);
-            const hr = escapeRe(target.hotspotId);
-            return [
-                new RegExp(`verb:room:${rr}:hotspot:${hr}:`),
-                new RegExp(`verb:room:${rr}:hotspot:${hr}:fallback`)
-            ];
-        }
-        case 'point': {
-            const pid = escapeRe(target.pointId);
-            return [
-                new RegExp(`walkTo\\(\\s*['\`]${pid}['\`]`, 'm'),
-                new RegExp(`['\`]${pid}['\`]`)
-            ];
-        }
-        case 'region': {
-            const rid = escapeRe(target.regionId);
-            return [new RegExp(`['\`]${rid}['\`]`)];
-        }
-        case 'spawnedCharacter': {
-            const rr = escapeRe(target.roomId);
-            const cr = escapeRe(target.characterId);
-            const ir = escapeRe(target.instanceId);
-            return [
-                new RegExp(`verb:room:${rr}:character:${cr}:`),
-                new RegExp(`verb:room:${rr}:character:${cr}:fallback`),
-                new RegExp(`B\\.character\\(\\s*['\`]${cr}['\`]`),
-                new RegExp(`['\`]${ir}['\`]`)
-            ];
-        }
-        case 'guiControl': {
-            if (!target.controlId) {
-                return [];
-            }
-            const g = escapeRe(target.guiId);
-            const c = escapeRe(target.controlId);
-            return [
-                new RegExp(`B\\.whenButtonClick\\(\\s*['\`]${c}['\`]`),
-                new RegExp(`whenButtonClick\\(\\s*['\`]${c}['\`]`),
-                new RegExp(`B\\.whenCheckboxCheck\\(\\s*['\`]${c}['\`]`),
-                new RegExp(`whenCheckboxCheck\\(\\s*['\`]${c}['\`]`),
-                new RegExp(`B\\.whenCheckboxUncheck\\(\\s*['\`]${c}['\`]`),
-                new RegExp(`whenCheckboxUncheck\\(\\s*['\`]${c}['\`]`)
-            ];
-        }
-        case 'walkablePolygon':
-        case 'walkableHole':
-            return [];
+        case 'room':
+            return r.kind === 'room' && r.id === target.roomId;
+        case 'character':
+            return r.kind === 'character' && r.id === target.characterId;
+        case 'gui':
+            return (r.kind === 'gui' && r.id === target.guiId) || (r.kind === 'guiControl' && r.guiId === target.guiId);
+        case 'inventory':
+            return r.kind === 'item' && r.id === target.itemId;
+        case 'dialog':
+            return (r.kind === 'dialog' && r.id === target.dialogId) || (r.kind === 'dialogOption' && r.dialogId === target.dialogId);
+        case 'prop':
+            return r.kind === 'prop' && r.roomId === target.roomId && r.id === target.prop.id;
+        case 'hotspot':
+            return r.kind === 'hotspot' && r.roomId === target.roomId && r.id === target.hotspotId;
+        case 'point':
+            return r.kind === 'point' && r.roomId === target.roomId && r.id === target.pointId;
+        case 'region':
+            return r.kind === 'region' && r.roomId === target.roomId && r.id === target.regionId;
+        case 'spawnedCharacter':
+            return r.kind === 'character' && r.roomId === target.roomId && r.id === target.characterId;
+        case 'guiControl':
+            return target.controlId !== '' && r.kind === 'guiControl' && r.guiId === target.guiId && r.id === target.controlId;
         default:
-            return [];
+            return false;
     }
 }
 
-function collectHitsInSource(uri: vscode.Uri, source: string, patterns: RegExp[]): ScriptReferenceHit[] {
-    if (patterns.length === 0) {
-        return [];
-    }
-    const lines = source.split(/\r?\n/);
-    const hits: ScriptReferenceHit[] = [];
-    const seenLine = new Set<number>();
-    for (let i = 0; i < lines.length; i++) {
-        const rawLine = lines[i];
-        if (rawLine === undefined) {
-            continue;
-        }
-        const lineNo = i + 1;
-        const stripped = stripLineAndBlockComments(rawLine);
-        if (!stripped.trim()) {
-            continue;
-        }
-        let matched = false;
-        for (const re of patterns) {
-            re.lastIndex = 0;
-            if (re.test(stripped)) {
-                matched = true;
-                break;
-            }
-        }
-        if (matched && !seenLine.has(lineNo)) {
-            seenLine.add(lineNo);
-            hits.push({
-                uri,
-                line: lineNo,
-                excerpt: rawLine.trim().slice(0, 140)
-            });
-        }
-    }
-    return hits;
+/** Files deleted along with the target don't count as references to it. */
+function deletedWithTarget(uri: vscode.Uri, target: DeleteTarget): boolean {
+    const own =
+        target.type === 'room'
+            ? target.roomJsonUri
+            : target.type === 'character'
+              ? target.characterJsonUri
+              : target.type === 'gui'
+                ? target.guiJsonUri
+                : target.type === 'inventory'
+                  ? target.inventoryJsonUri
+                  : target.type === 'dialog'
+                    ? target.dialogJsonUri
+                    : undefined;
+    return own !== undefined && path.dirname(own.fsPath) === path.dirname(uri.fsPath);
 }
 
+/**
+ * Lines of BenneScript files that use the target's generated handle (`battery`, `items.soda`,
+ * `dialogs.driver.options.wrench`, …), found through the ScriptModel.
+ */
 export async function scanScriptReferences(target: DeleteTarget): Promise<ScriptReferenceHit[]> {
-    const patterns = regexesForDeleteTarget(target);
-    if (patterns.length === 0) {
-        return [];
-    }
     const uris = await findScriptScanUris(target.folder);
     const all: ScriptReferenceHit[] = [];
     for (const uri of uris) {
-        const text = await readUtf8(uri);
-        if (!text) {
+        if (deletedWithTarget(uri, target)) {
             continue;
         }
-        all.push(...collectHitsInSource(uri, text, patterns));
+        const text = await readUtf8(uri);
+        const index = idsIndexFor(uri);
+        if (!text || !index) {
+            continue;
+        }
+        const model = scriptModelOf(uri, text);
+        const lines = text.split(/\r?\n/);
+        const seen = new Set<number>();
+        for (const reference of model.references) {
+            const ref = resolveReference(model, index, reference.path);
+            if (!ref || !refersToDeleteTarget(ref, target)) {
+                continue;
+            }
+            const line = text.slice(0, reference.start).split('\n').length;
+            if (seen.has(line)) {
+                continue;
+            }
+            seen.add(line);
+            all.push({ uri, line, excerpt: (lines[line - 1] ?? '').trim().slice(0, 140) });
+        }
     }
     return all;
 }
@@ -488,7 +405,7 @@ export async function buildDeleteImpactSummary(target: DeleteTarget): Promise<De
             );
             if (target.controlId) {
                 detailLines.push(
-                    `• Script scan below covers *.gui.ts for B.whenButtonClick / whenCheckboxCheck / whenCheckboxUncheck('${target.controlId}') — review any matches before confirming.`
+                    `• Script scan below lists every use of the control's handle ('${target.controlId}') in BenneScript files — review any matches before confirming.`
                 );
             } else {
                 detailLines.push(

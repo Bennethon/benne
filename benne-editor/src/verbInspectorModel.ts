@@ -1,13 +1,14 @@
+import type * as vscode from 'vscode';
 import type { GameConfigVerbEntry, RoomHotspotListEntry, RoomPropEntry } from './gameDiscovery';
 import {
-    inventoryScriptRegistersVerb,
-    characterScriptRegistersVerb,
-    readConfiguredVerbIdSet,
-    roomScriptRegistersHotspotVerb,
-    roomScriptRegistersPropVerb,
-    roomScriptRegistersRoomCharacterVerb,
-    stripLineAndBlockComments
-} from './verbHandlerPresence';
+    characterVerbEventId,
+    inventoryVerbEventId,
+    roomCharacterVerbEventId,
+    roomHotspotVerbEventId,
+    roomPropVerbEventId,
+    verbSpec
+} from './bennescript/handlerEvents';
+import { handlerQuery } from './scriptHandlers';
 
 /**
  * Built-in universal walk verb id (mirrors `WALK_TO_VERB_ID` in the engine). Never shown as a
@@ -28,6 +29,9 @@ export type InspectorVerbChip = {
     isFallback?: boolean;
 };
 
+/** A script file and its current text (`''` when it doesn't exist). */
+export type ScriptSource = { uri: vscode.Uri; text: string };
+
 function roomPropFallbackEventId(roomId: string, propId: string): string {
     return `verb:room:${roomId}:prop:${propId}:fallback`;
 }
@@ -36,77 +40,34 @@ function roomHotspotFallbackEventId(roomId: string, hotspotId: string): string {
     return `verb:room:${roomId}:hotspot:${hotspotId}:fallback`;
 }
 
-function roomCharacterVerbEventId(roomId: string, characterId: string, verbId: string): string {
-    return `verb:room:${roomId}:character:${characterId}:${verbId}`;
+function chipLabel(v: GameConfigVerbEntry): string {
+    return v.label?.trim() ? v.label : v.id;
 }
 
-function characterVerbEventId(characterId: string, verbId: string): string {
-    return `verb:character:${characterId}:${verbId}`;
-}
-
-function inventoryVerbEventId(itemId: string, verbId: string): string {
-    return `verb:inventory:${itemId}:${verbId}`;
-}
-
-function roomPropVerbEventId(roomId: string, propId: string, verbId: string): string {
-    return `verb:room:${roomId}:prop:${propId}:${verbId}`;
-}
-
-function roomHotspotVerbEventId(roomId: string, hotspotId: string, verbId: string): string {
-    return `verb:room:${roomId}:hotspot:${hotspotId}:${verbId}`;
-}
-
-function scriptRegistersPropFallback(source: string, roomId: string, propId: string): boolean {
-    const ev = roomPropFallbackEventId(roomId, propId);
-    const stripped = stripLineAndBlockComments(source);
-    return (
-        stripped.includes(`'${ev}'`) ||
-        stripped.includes(`"${ev}"`) ||
-        stripped.includes('`' + ev + '`')
-    );
-}
-
-function scriptRegistersHotspotFallback(source: string, roomId: string, hotspotId: string): boolean {
-    const ev = roomHotspotFallbackEventId(roomId, hotspotId);
-    const stripped = stripLineAndBlockComments(source);
-    return (
-        stripped.includes(`'${ev}'`) ||
-        stripped.includes(`"${ev}"`) ||
-        stripped.includes('`' + ev + '`')
-    );
-}
-
+/** Chips for a prop: defined when the room script has `prop.on<Verb>(…)` (or `prop.on([...])`). */
 export function buildPropVerbChips(
     roomId: string,
     prop: RoomPropEntry,
     gameVerbs: readonly GameConfigVerbEntry[],
-    configured: ReadonlySet<string>,
-    roomScriptText: string
+    roomScript: ScriptSource
 ): InspectorVerbChip[] {
-    const authorable = filterAuthorableVerbs(gameVerbs);
-    const out: InspectorVerbChip[] = [];
-
-    for (const v of authorable) {
-        const inTs = roomScriptRegistersPropVerb(roomScriptText, roomId, prop.id, v.id, configured);
-        out.push({
-            verbId: v.id,
-            label: v.label?.trim() ? v.label : v.id,
-            defined: inTs,
-            eventId: roomPropVerbEventId(roomId, prop.id, v.id)
-        });
-    }
-
+    const has = handlerQuery(roomScript.uri, roomScript.text);
+    const target = { kind: 'prop', roomId, id: prop.id } as const;
+    const out: InspectorVerbChip[] = filterAuthorableVerbs(gameVerbs).map((v) => ({
+        verbId: v.id,
+        label: chipLabel(v),
+        defined: has(verbSpec(target, v.id)),
+        eventId: roomPropVerbEventId(roomId, prop.id, v.id)
+    }));
     if (prop.onVerbFallback === true) {
-        const inTs = scriptRegistersPropFallback(roomScriptText, roomId, prop.id);
         out.push({
             verbId: 'fallback',
             label: 'fallback',
-            defined: prop.onVerbFallback === true || inTs,
+            defined: true,
             eventId: roomPropFallbackEventId(roomId, prop.id),
             isFallback: true
         });
     }
-
     return out;
 }
 
@@ -114,102 +75,67 @@ export function buildHotspotVerbChips(
     roomId: string,
     hotspot: RoomHotspotListEntry,
     gameVerbs: readonly GameConfigVerbEntry[],
-    configured: ReadonlySet<string>,
-    roomScriptText: string,
-    roomPropIds: ReadonlySet<string>
+    roomScript: ScriptSource
 ): InspectorVerbChip[] {
-    const authorable = filterAuthorableVerbs(gameVerbs);
-    const out: InspectorVerbChip[] = [];
-
-    for (const v of authorable) {
-        const inTs = roomScriptRegistersHotspotVerb(
-            roomScriptText,
-            roomId,
-            hotspot.id,
-            v.id,
-            configured,
-            roomPropIds
-        );
-        out.push({
-            verbId: v.id,
-            label: v.label?.trim() ? v.label : v.id,
-            defined: inTs,
-            eventId: roomHotspotVerbEventId(roomId, hotspot.id, v.id)
-        });
-    }
-
+    const has = handlerQuery(roomScript.uri, roomScript.text);
+    const target = { kind: 'hotspot', roomId, id: hotspot.id } as const;
+    const out: InspectorVerbChip[] = filterAuthorableVerbs(gameVerbs).map((v) => ({
+        verbId: v.id,
+        label: chipLabel(v),
+        defined: has(verbSpec(target, v.id)),
+        eventId: roomHotspotVerbEventId(roomId, hotspot.id, v.id)
+    }));
     if (hotspot.onVerbFallback === true) {
-        const inTs = scriptRegistersHotspotFallback(roomScriptText, roomId, hotspot.id);
         out.push({
             verbId: 'fallback',
             label: 'fallback',
-            defined: hotspot.onVerbFallback === true || inTs,
+            defined: true,
             eventId: roomHotspotFallbackEventId(roomId, hotspot.id),
             isFallback: true
         });
     }
-
     return out;
 }
 
+/** A character in a room: handled in the room script or in the character's own script. */
 export function buildRoomCharacterVerbChips(
     roomId: string,
     characterId: string,
     gameVerbs: readonly GameConfigVerbEntry[],
-    configured: ReadonlySet<string>,
-    roomScriptText: string,
-    characterScriptText: string
+    roomScript: ScriptSource,
+    characterScript: ScriptSource
 ): InspectorVerbChip[] {
-    const authorable = filterAuthorableVerbs(gameVerbs);
-    const out: InspectorVerbChip[] = [];
-
-    for (const v of authorable) {
-        const inRoomTs = roomScriptRegistersRoomCharacterVerb(
-            roomScriptText,
-            roomId,
-            characterId,
-            v.id,
-            configured
-        );
-        const inCharTs = characterScriptRegistersVerb(characterScriptText, characterId, v.id, configured);
-        out.push({
-            verbId: v.id,
-            label: v.label?.trim() ? v.label : v.id,
-            defined: inRoomTs || inCharTs,
-            eventId: roomCharacterVerbEventId(roomId, characterId, v.id)
-        });
-    }
-
-    return out;
+    const inRoom = handlerQuery(roomScript.uri, roomScript.text);
+    const inCharacter = handlerQuery(characterScript.uri, characterScript.text);
+    return filterAuthorableVerbs(gameVerbs).map((v) => ({
+        verbId: v.id,
+        label: chipLabel(v),
+        defined:
+            inRoom(verbSpec({ kind: 'character', roomId, id: characterId }, v.id)) ||
+            inCharacter(verbSpec({ kind: 'character', roomId: null, id: characterId }, v.id)),
+        eventId: roomCharacterVerbEventId(roomId, characterId, v.id)
+    }));
 }
 
 export function buildCharacterVerbChips(
     characterId: string,
     gameVerbs: readonly GameConfigVerbEntry[],
-    configured: ReadonlySet<string>,
-    characterScriptText: string
+    characterScript: ScriptSource
 ): InspectorVerbChip[] {
-    const authorable = filterAuthorableVerbs(gameVerbs);
-    const out: InspectorVerbChip[] = [];
-
-    for (const v of authorable) {
-        const inTs = characterScriptRegistersVerb(characterScriptText, characterId, v.id, configured);
-        out.push({
-            verbId: v.id,
-            label: v.label?.trim() ? v.label : v.id,
-            defined: inTs,
-            eventId: characterVerbEventId(characterId, v.id)
-        });
-    }
-    return out;
+    const has = handlerQuery(characterScript.uri, characterScript.text);
+    return filterAuthorableVerbs(gameVerbs).map((v) => ({
+        verbId: v.id,
+        label: chipLabel(v),
+        defined: has(verbSpec({ kind: 'character', roomId: null, id: characterId }, v.id)),
+        eventId: characterVerbEventId(characterId, v.id)
+    }));
 }
 
 export function buildInventoryVerbChips(
     itemId: string,
     gameVerbs: readonly GameConfigVerbEntry[],
-    configured: ReadonlySet<string>,
     inventoryJsonText: string,
-    inventoryScriptText: string
+    inventoryScript: ScriptSource
 ): InspectorVerbChip[] {
     let data: Record<string, unknown>;
     try {
@@ -217,6 +143,8 @@ export function buildInventoryVerbChips(
     } catch {
         return [];
     }
+    const has = handlerQuery(inventoryScript.uri, inventoryScript.text);
+    const target = { kind: 'item', id: itemId } as const;
     const authorable = filterAuthorableVerbs(gameVerbs);
     const onVerbUnknown = data.onVerb;
     const onVerb =
@@ -224,28 +152,21 @@ export function buildInventoryVerbChips(
             ? (onVerbUnknown as Record<string, boolean>)
             : {};
     const gameVerbIds = new Set(authorable.map((v) => v.id));
-    const out: InspectorVerbChip[] = [];
-
-    for (const v of authorable) {
-        const inJson = onVerb[v.id] === true;
-        const inTs = inventoryScriptRegistersVerb(inventoryScriptText, itemId, v.id, configured);
-        out.push({
-            verbId: v.id,
-            label: v.label?.trim() ? v.label : v.id,
-            defined: inJson || inTs,
-            eventId: inventoryVerbEventId(itemId, v.id)
-        });
-    }
+    const out: InspectorVerbChip[] = authorable.map((v) => ({
+        verbId: v.id,
+        label: chipLabel(v),
+        defined: onVerb[v.id] === true || has(verbSpec(target, v.id)),
+        eventId: inventoryVerbEventId(itemId, v.id)
+    }));
 
     for (const verbId of Object.keys(onVerb).sort()) {
         if (gameVerbIds.has(verbId) || verbId === WALK_TO_VERB_ID || onVerb[verbId] !== true) {
             continue;
         }
-        const inTs = inventoryScriptRegistersVerb(inventoryScriptText, itemId, verbId, configured);
         out.push({
             verbId,
             label: verbId,
-            defined: onVerb[verbId] === true || inTs,
+            defined: true,
             eventId: inventoryVerbEventId(itemId, verbId)
         });
     }

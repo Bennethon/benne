@@ -9,21 +9,18 @@ import {
     readCharacterHooks,
     readGameConfigVerbs,
     readRoomHotspots,
-    readRoomProps,
     type RoomHotspotListEntry,
     type RoomPropEntry
 } from './gameDiscovery';
-import {
-    benneHandlerDescriptionForCharacter,
-    benneHandlerDescriptionForHotspot,
-    benneHandlerDescriptionForProp,
-    benneHandlerDescriptionForRoomCharacter,
-    characterScriptRegistersVerb,
-    readConfiguredVerbIdSet,
-    roomScriptRegistersHotspotVerb,
-    roomScriptRegistersPropVerb,
-    roomScriptRegistersRoomCharacterVerb
-} from './verbHandlerPresence';
+import { verbSpec } from './bennescript/handlerEvents';
+import type { HandlerSpec } from './bennescript/handlerSpecs';
+import { handlersInText, readScriptText } from './scriptHandlers';
+
+/** `battery.onLook` for the first handler of `spec` in a script, or `undefined` when there is none. */
+function handlerHint(scriptUri: vscode.Uri, text: string, spec: HandlerSpec): string | undefined {
+    const found = handlersInText(scriptUri, text, spec)[0];
+    return found ? text.slice(found.start, found.headEnd) : undefined;
+}
 import {
     getCharacterAssetsFolderUri,
     getGuiAssetsFolderUri,
@@ -733,7 +730,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                 },
                 {
                     kind: 'roomOpen',
-                    label: 'Go to registerRoomScript',
+                    label: 'Open room script',
                     target: 'registerFn',
                     roomJsonUri: main.uri,
                     roomId
@@ -919,26 +916,20 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
 
         const folder = vscode.workspace.getWorkspaceFolder(roomJsonUri);
         const gameVerbs = folder ? await readGameConfigVerbs(folder.uri) : DEFAULT_GAME_VERBS;
-        const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
 
         const roomScriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
-        let roomScriptText = '';
-        try {
-            roomScriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(roomScriptUri));
-        } catch {
-            /* no script yet */
-        }
+        const roomScriptText = await readScriptText(roomScriptUri);
 
         for (const v of gameVerbs) {
-            const hasTs = roomScriptRegistersPropVerb(roomScriptText, roomId, prop.id, v.id, configured);
-            if (hasTs) {
+            const hint = handlerHint(roomScriptUri, roomScriptText, verbSpec({ kind: 'prop', roomId, id: prop.id }, v.id));
+            if (hint) {
                 out.push({
                     kind: 'propVerb',
                     verbLabel: `${v.id} — ${title}`,
                     eventId: roomPropVerbEventId(roomId, prop.id, v.id),
                     roomJsonUri,
                     roomId,
-                    verbHandlerHint: benneHandlerDescriptionForProp(prop.id, v.id, configured)
+                    verbHandlerHint: hint
                 });
             } else {
                 out.push({
@@ -987,41 +978,24 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
 
         const folder = vscode.workspace.getWorkspaceFolder(roomJsonUri);
         const gameVerbs = folder ? await readGameConfigVerbs(folder.uri) : DEFAULT_GAME_VERBS;
-        const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
-
-        let roomPropIds = new Set<string>();
-        try {
-            const props = await readRoomProps(roomJsonUri);
-            roomPropIds = new Set(props.map((p) => p.id));
-        } catch {
-            /* ignore */
-        }
 
         const roomScriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
-        let roomScriptText = '';
-        try {
-            roomScriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(roomScriptUri));
-        } catch {
-            /* */
-        }
+        const roomScriptText = await readScriptText(roomScriptUri);
 
         for (const v of gameVerbs) {
-            const hasTs = roomScriptRegistersHotspotVerb(
+            const hint = handlerHint(
+                roomScriptUri,
                 roomScriptText,
-                roomId,
-                hotspot.id,
-                v.id,
-                configured,
-                roomPropIds
+                verbSpec({ kind: 'hotspot', roomId, id: hotspot.id }, v.id)
             );
-            if (hasTs) {
+            if (hint) {
                 out.push({
                     kind: 'hotspotVerb',
                     verbLabel: `${v.id} — ${title}`,
                     eventId: roomHotspotVerbEventId(roomId, hotspot.id, v.id),
                     roomJsonUri,
                     roomId,
-                    verbHandlerHint: benneHandlerDescriptionForHotspot(hotspot.id, v.id, configured)
+                    verbHandlerHint: hint
                 });
             } else {
                 out.push({
@@ -1113,32 +1087,24 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
         }
 
         const gameVerbs = await readGameConfigVerbs(folder.uri);
-        const configured = await readConfiguredVerbIdSet(folder.uri);
 
         const roomScriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
-        let roomScriptText = '';
-        try {
-            roomScriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(roomScriptUri));
-        } catch {
-            /* */
-        }
+        const roomScriptText = await readScriptText(roomScriptUri);
 
         for (const v of gameVerbs) {
-            const hasTs = roomScriptRegistersRoomCharacterVerb(
+            const hint = handlerHint(
+                roomScriptUri,
                 roomScriptText,
-                roomId,
-                characterId,
-                v.id,
-                configured
+                verbSpec({ kind: 'character', roomId, id: characterId }, v.id)
             );
-            if (hasTs) {
+            if (hint) {
                 out.push({
                     kind: 'roomCharVerb',
                     verbLabel: `${v.id} — ${title}`,
                     eventId: roomCharacterVerbEventId(roomId, characterId, v.id),
                     roomJsonUri,
                     roomId,
-                    verbHandlerHint: `${benneHandlerDescriptionForRoomCharacter(characterId, v.id, configured)} (in room script)`
+                    verbHandlerHint: `${hint} (in room script)`
                 });
             } else {
                 out.push({
@@ -1204,26 +1170,24 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
 
         const folder = vscode.workspace.getWorkspaceFolder(characterJsonUri);
         const gameVerbs = folder ? await readGameConfigVerbs(folder.uri) : DEFAULT_GAME_VERBS;
-        const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
 
         const charScriptUri = vscode.Uri.joinPath(characterJsonUri, '..', `${characterId}.character.ts`);
-        let charScriptText = '';
-        try {
-            charScriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(charScriptUri));
-        } catch {
-            /* */
-        }
+        const charScriptText = await readScriptText(charScriptUri);
 
         for (const v of gameVerbs) {
-            const hasTs = characterScriptRegistersVerb(charScriptText, characterId, v.id, configured);
-            if (hasTs) {
+            const hint = handlerHint(
+                charScriptUri,
+                charScriptText,
+                verbSpec({ kind: 'character', roomId: null, id: characterId }, v.id)
+            );
+            if (hint) {
                 out.push({
                     kind: 'charVerb',
                     verbLabel: `${v.id} — ${characterId}`,
                     eventId: characterVerbEventId(characterId, v.id),
                     characterJsonUri,
                     characterId,
-                    verbHandlerHint: benneHandlerDescriptionForCharacter(characterId, v.id, configured)
+                    verbHandlerHint: hint
                 });
             } else {
                 out.push({

@@ -448,3 +448,69 @@ Reported after playing (desktop build and BENNE Play): Look at, then left-click 
 
 - New syntax to recognise: `x.on<Verb>(…)`, `x.on<Verb>Item(items.y, …)`, `x.on([…], …)`, `items.x.onCombine(items.y, …)`, `regions.x.onEnter`, `options.x.onChoose` / `onChooseOnce`, `dialog.onStart`, GUI `x.onClick` / `onChange` / `onSelect`, `gui.onBuilt` / `onShow`, `fallbacks.on<Verb>`, `playFrom('name', …)`. Speech is `Name: "…"` labels and `` say`…` `` blocks.
 - `say` blocks keep speakers as written in JSON (hyphens, spaces), so the voice-ID export must resolve them with `benneSpeakers.mjs` like the transform does.
+
+---
+
+## Phase 5: Editor (2026-10-06)
+
+### Done
+
+1. **BenneScript layer for the editor**, `benne-editor/src/bennescript/` (no `vscode` imports, so the extension and the TS server plugin share it; details in §9 "as built"):
+   - `scriptModel.ts`: the **ScriptModel**, read from the TypeScript AST. Registrations (any `x.on…(…)` call, `x.onUse.doNotActivate(…)`, `playFrom`, `onUpdate`), speech lines (labels, `` say`…` `` block lines, `x.say(…)` with the exact range of each text), references to generated handles, and whether the file still uses `register*Script`.
+   - `idsIndex.ts`: reads the generated `.ids.ts` modules to map handle names ↔ content IDs (decision 38). `findBinding` answers "how does this script name `club-hotspot-battery`?" (`battery` from `./club.ids`, `items.soda` from `@game`, `options.fixBattery`); `refAtDeclaration` answers the reverse for go to definition.
+   - `handlerSpecs.ts` + `handlerEvents.ts`: one `HandlerSpec` per Inspector action (verb, any item, room hook, `onUpdate`, region, GUI hook, control event, dialog choice, Play From), the Inspector's `verb:room:…` event IDs mapped onto it, `findHandlers` and stub planning.
+   - `scriptEdits.ts`: merges named imports into the existing `import { … }` lines (keeping one-line / multi-line layout) and appends top-level statements.
+   - `speakers.ts`: mirror of `scripts/lib/benneSpeakers.mjs` (parity test), `voiceLines.ts`: speech lines with their character, `contentLocate.ts`: where a content ID is defined (JSON `"id"`, `game-config.json` verb, asset file), `tsPluginFeatures.ts`: the plugin features.
+2. **Regex scanning removed**: `verbHandlerPresence.ts` is deleted, and so are the four `gui*Scaffolding.ts` files (one `guiControlScaffolding.ts` replaces them) and the regex parts of `playFromDiscovery.ts`, `roomScriptNavigation.ts`, `voiceIdProcessor.ts` and `delete/deleteService.ts`. `src/scriptHandlers.ts` is the extension-side glue: handler presence (`handlerQuery`, one parse per script for all of an Inspector card's chips), `ensureHandler` (reveal, or add the stub + imports; regenerates the handles once when a target is new), `revealHandler`.
+3. **Consumers on the ScriptModel**: Inspector verb chips (props, hotspots, room characters, character definitions, items), "item used on" chips, region, room-lifecycle and GUI-lifecycle chips; every "add handler" / "reveal handler" command and Inspector action; the Actions tree (its hints now read `battery.onLook`); Play From discovery (Room preview dropdown); voice IDs and the speaking-text CSV; delete impact ("used in these scripts").
+4. **Scaffolding emits the new syntax**: verb, item, region, room-hook, GUI-hook, control, dialog-choice and Play From stubs (§9 as built); new room scripts start with `room.onEnter(() => { … })` (the generator now runs right after the room JSON is written); new character, item, GUI and dialog scripts are a comment with a new-style example. Command titles and Inspector texts no longer mention `B.when…` / `registerRoomScript`. Play From names may contain spaces.
+5. **TS server plugin** (`tsServerPlugin.ts`; `roomScriptIdTsPlugin.ts` is now only the bundle entry, so the plugin can be unit-tested): speaker diagnostics (codes 90001–90004, the transform's messages), `Hank: "$1"` speaker completions, string-union values first and matching without quotes, go to definition from handles to their JSON or asset. The old-API quoted-ID filter is kept for the templates.
+6. **Extension**: `stringUnionSuggest.ts` opens suggestions after `(` / `= ` in script files when the TS server has quoted values there (decision 41); BenneScript snippets `room-enter`, `cutscene`, `choice`, `use-item`; the Inspector shows the game-level default verb (decision 8) instead of a hard-coded `look`, and writes an explicitly chosen verb to JSON; `runGenerateGameIds` lets a caller wait for a run already in progress.
+7. **Tests**:
+   - `tests/unit/editorScriptModel.test.ts` (13): speaker parity with `benneSpeakers.mjs`; `IdsIndex` names and reverse lookup; every registration receiver in all 41 AI Apocalypse scripts resolves; club chips, multi-verb `on([…])`, `doNotActivate`; Play From names match the smoke tests' list (10); **every label the build transform turns into speech is found**; every literal line gets a character; stub and import insertion.
+   - `tests/unit/editorTsPlugin.test.ts` (6): the plugin on a real language service over AI Apocalypse (diagnostics, speaker completions, literal promotion, go to definition for a hotspot, item, region, dialog option and music track) and **every stub kind type-checks and builds** when added to `club.room.ts`.
+   - Extension tests (`npm run test:extension`): voice-ID tests rewritten for the new syntax (7); `authoring.test.ts` checks handler detection on a copy of the club room and runs **Inspector "add handler" on an AI Apocalypse prop** in the VS Code host.
+   - `scripts/lib/generateGameHandles.d.mts` added so TypeScript tests can import the generator.
+
+### Exit-check details
+
+- **Inspector "add handler" on a prop in AI Apocalypse** (`addPropVerbEvent`, what the Inspector's `+ Look at` chip runs) on the club's `bg` prop: appends `bg.onLook(() => {\n  // TODO: Look at\n})` and adds `bg` to the existing `import { … } from './club.ids'`; a second click reveals the handler instead of adding another. The same file then gets `outside.onTake`, `car.onAnyItem`, `room.onEnter` and the guarded `onUpdate`; all of them type-check against the real generated handles and pass the build transform (unit test).
+- **Voice-ID export** on the ported game: 579 lines (430 labels, 149 `say` block lines) for all ten characters (hank 276, jensen 135, botti3 46, driver 35, curator 29, barista 18, botti3-disembodied 17, customer 11, scientists 10, botti3-27 2). The build transform rewrites 431 labels and 149 block lines in the same files; the one line the export skips (and reports) is `Player: game.config.defaultFallbackLine ?? "…"` in `globalScript.ts`, which has no literal text to mark.
+- **Plugin through a real `tsserver`** (scratch script driving the protocol with the built bundle, as VS Code loads it): unknown-speaker diagnostic, definitions landing in `club.room.json` / `wrench.inventory.json`, the `Hank: "$1"` snippet entry, quoted `face(` values first.
+
+### Deviations from the spec
+
+Decisions 38–42 in §13, with the "as built" note in §9:
+
+- **38:** the editor reads the generated `.ids.ts` modules for names (no second copy of the naming rules); speaker rules are mirrored, with a parity test.
+- **39:** old-API scripts are left alone: no chips, no stubs (a new-style statement in an old-style file would get its old callbacks rewritten by the transform). Template games show no handlers until Phase 6 ports them.
+- **40:** the handler each Inspector action stands for (`onAnyItem` for "item used on", one checkbox `onChange`, no submit / per-object fallback handler, `onUpdate` guarded by the room, Play From names with spaces, stubs appended at the end).
+- **41:** string-union quotes come from TypeScript's own completions, promoted by the plugin; the extension opens the list after `(` / `= `.
+- **42:** TypeScript is bundled into the extension (packaged `dist/extension.js`: about 4 MB, minified); creation templates.
+
+### Known issues
+
+- **Templates are still old-API**, so a game created from them gets no Inspector chips or stubs until Phase 6 ports them (decision 39). `gameCreationScaffolding` copies the templates and emits nothing itself.
+- **Old-API editor support still in the extension** for Phase 6 to delete: `benneScriptIdCompletion.ts`, `dialogCompletion.ts` (quoted-ID completions after `B.…('`) and the quoted-ID filter in `tsServerPlugin.ts`. They only trigger on old-API call shapes.
+- Handles are found through the **generated modules**: until the generator has run (dev server, `npm run typecheck`, or the editor's own regeneration on JSON changes), a brand-new prop has no handle; "add handler" regenerates once itself.
+- Registrations whose receiver is a **local variable** (`for (const [verb, button] of buttons) button.onClick(…)` in `verbs.gui.ts`) can't be attributed to a control; top-level `const x = a.b` aliases can. Speech through a variable (`who.say(…)`) is reported as skipped by the voice tools.
+- The string-union trigger asks the TS server for completions on every `(` / `= ` typed in a script file; it's asynchronous and only opens the list when quoted values exist.
+
+### Exit checks
+
+| Check | Result |
+|---|---|
+| `npm run test:extension` | ✅ 21/21 (voice-ID tests rewritten; add-handler and detection tests on the real club room) |
+| Inspector "add handler" on a prop in AI Apocalypse inserts a correct new-style handler | ✅ `bg.onLook(() => { … })` + merged import, in the VS Code host; all stub kinds type-check and build (unit test) |
+| Voice-ID export finds all speech lines in the ported game | ✅ 579 lines, matching the transform's 431 labels + 149 block lines; the one skip is the non-literal fallback line, reported |
+| `npm run test:playthrough` | ✅ 14/14 (12.4 min) |
+| `npm run check` | ✅ |
+| `npm run test:unit` | ✅ 144/144 (19 new) |
+| `npm run test:artifacts` (VSIX with the new plugin/bundle, both templates, desktop, itch) | ✅ |
+| Plugin through a real `tsserver` | ✅ diagnostics, completions and go to JSON (scratch script, see above) |
+
+### Notes for Phase 6
+
+- Port the templates, then delete the old-API editor support listed under Known issues, and drop the `usesOldApi` branches in `scriptHandlers.ts` / `scriptModel.ts` (decision 39).
+- The Inspector webview still uses old hook names on the wire (`whenEnterRoom`, `onGuiBuilt`, `guiEnsureCheckboxCheckHandler`); only the labels changed. Renaming them is optional cleanup.
+- The `media/inspector/inspector.js` bundle was rebuilt by the extension build.
