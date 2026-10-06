@@ -1,4 +1,6 @@
+import { getCharacterWorldFeet } from '../characterFeet.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
+import { BENNE_SCREEN_FADE_DEFAULT_COLOR, BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC } from '../scenes/roomScreenFadeConstants.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import {
   playScriptedSayLine,
@@ -10,17 +12,20 @@ import {
   resolveWalkToClickedTargetFromPayload,
 } from '../scripting/verbClickTarget.js';
 import type { CharacterFacingLetter } from '../../types/character.js';
+import type { CharacterFollowOptions } from '../../types/characterFollow.js';
 import type { Point2 } from '../../types/room.js';
 import { currentContext } from './interactionContext.js';
+import { lookupItemHandle } from './registry.js';
 import { liveRoomScene } from './scene.js';
 import { Task, timed } from './task.js';
+import * as Phaser from 'phaser';
 
 /** Speaker id the transform emits for `Player:` labels: the active player character. */
 export const PLAYER_SPEAKER = 'Player';
 
 const warned = new Set<string>();
 
-function warnOnce(key: string, message: string): void {
+export function warnOnce(key: string, message: string): void {
   if (!import.meta.env.DEV || warned.has(key)) {
     return;
   }
@@ -31,6 +36,15 @@ function warnOnce(key: string, message: string): void {
 /** The room the running handler belongs to, else the active room. */
 export function activeRoomScene(): RoomScene | undefined {
   return currentContext().scene ?? liveRoomScene();
+}
+
+/** The active room, or a one-time DEV warning naming `what`. */
+export function roomFor(what: string): RoomScene | undefined {
+  const scene = activeRoomScene();
+  if (!scene) {
+    warnOnce(`${what}:no-room`, `${what}: no active room — ignored.`);
+  }
+  return scene;
 }
 
 function clickedTarget(name: string) {
@@ -95,6 +109,34 @@ export const wait = timed((seconds: number): Task => {
 });
 
 /**
+ * Waits for a left click (the same click that skips a speech line), or until `timeout` seconds
+ * have passed. Works inside cutscenes, where world clicks are otherwise ignored.
+ */
+export const waitForClick = timed((options: { timeout?: number } = {}): Task => {
+  const scene = activeRoomScene();
+  if (!scene || scene.isCutsceneSkipFastForwarding()) {
+    return Task.resolved();
+  }
+  let timer: ReturnType<RoomScene['time']['delayedCall']> | null = null;
+  let finish!: () => void;
+  const clicked = new Promise<void>((resolve) => {
+    finish = () => {
+      timer?.remove(false);
+      timer = null;
+      scene.clearScriptedDialogClickToSkipIf(finish);
+      resolve();
+    };
+  });
+  scene.setScriptedDialogClickToSkip(finish);
+  if (options.timeout != null) {
+    timer = scene.time.delayedCall(Math.max(0, options.timeout * 1000), finish);
+  }
+  return new Task(clicked, { finishNow: finish, cancel: finish });
+});
+
+// ─── Speech ──────────────────────────────────────────────────────────────────
+
+/**
  * One speech line. `speakerId` is a character id, or {@link PLAYER_SPEAKER}. The transform emits
  * this for `Hank: "…"` labels with the label already resolved to an id.
  */
@@ -117,54 +159,379 @@ export function sayLine(speakerId: string, text: unknown): void {
   return sayTask(speakerId, text).wait();
 }
 
+const normalizeLabel = (label: string): string => label.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+
+/** `Name: text` lines of a `say` block. `//` comments and blank lines are skipped. */
+function parseSayBlock(strings: TemplateStringsArray, values: readonly unknown[]): Array<{ label: string; text: string }> {
+  let body = strings[0] ?? '';
+  for (let i = 0; i < values.length; i++) {
+    body += String(values[i]) + (strings[i + 1] ?? '');
+  }
+  const out: Array<{ label: string; text: string }> = [];
+  for (const raw of body.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('//')) {
+      continue;
+    }
+    const colon = line.indexOf(':');
+    if (colon < 0) {
+      throw new Error(`[Benne] say: expected "Speaker: text" on each line — missing ":" in ${JSON.stringify(line)}.`);
+    }
+    const text = line.slice(colon + 1).trim();
+    if (text) {
+      out.push({ label: line.slice(0, colon).trim(), text });
+    }
+  }
+  return out;
+}
+
+/**
+ * Resolves a block label to a speaker id: the build transform passes the labels it resolved
+ * (`speakers`); without it, `Player` and the characters in the room match by normalised id.
+ */
+function resolveBlockSpeaker(label: string, speakers: Readonly<Record<string, string>> | undefined, scene: RoomScene): string {
+  const known = speakers?.[label];
+  if (known) {
+    return known;
+  }
+  const wanted = normalizeLabel(label);
+  if (wanted === 'player') {
+    return PLAYER_SPEAKER;
+  }
+  const id = scene.getSpawnedCharacterDefinitionIds().find((c) => normalizeLabel(c) === wanted);
+  if (!id) {
+    throw new Error(`[Benne] say: unknown speaker "${label}".`);
+  }
+  return id;
+}
+
+function sayBlockTask(
+  strings: TemplateStringsArray,
+  values: readonly unknown[],
+  speakers?: Readonly<Record<string, string>>,
+): Task {
+  const scene = activeRoomScene();
+  if (!scene) {
+    warnOnce('say:no-room', 'say: no active room — ignored.');
+    return Task.resolved();
+  }
+  const lines = parseSayBlock(strings, values).map((l) => ({ id: resolveBlockSpeaker(l.label, speakers, scene), text: l.text }));
+  let stopped = false;
+  const run = async () => {
+    for (const line of lines) {
+      if (stopped) {
+        return;
+      }
+      await sayTask(line.id, line.text).promise;
+    }
+  };
+  // Skip and cancel stop the block; the room dismisses the line on screen itself.
+  const stop = () => {
+    stopped = true;
+  };
+  return new Task(run(), { finishNow: stop, cancel: stop });
+}
+
+type SayBlock = ((strings: TemplateStringsArray, ...values: unknown[]) => void) & {
+  now(strings: TemplateStringsArray, ...values: unknown[]): Task;
+};
+
+const sayBlock = (speakers?: Readonly<Record<string, string>>): SayBlock =>
+  timed((strings: TemplateStringsArray, ...values: unknown[]) => sayBlockTask(strings, values, speakers)) as SayBlock;
+
+/**
+ * A multi-line exchange, one `Speaker: text` line each (§4.2). Speakers are written as in the
+ * character JSON (ID or display name, any case). Waits for the last line.
+ */
+export const say: SayBlock & {
+  /** @internal Emitted by the build transform with the speakers it resolved. */
+  __withSpeakers(speakers: Readonly<Record<string, string>>): SayBlock;
+} = Object.assign(sayBlock(), { __withSpeakers: sayBlock });
+
+/** Narration in the display-text overlay. Waits until clicked away (or skipped). */
+export const display = timed((text: string): Task => {
+  const scene = roomFor('display');
+  // A skipped cutscene shows no narration; the end state is simply "dismissed".
+  if (!scene || scene.isCutsceneSkipFastForwarding()) {
+    return Task.resolved();
+  }
+  let finish!: () => void;
+  const shown = new Promise<void>((resolve) => {
+    let completed = false;
+    let unregisterSkip: (() => void) | null = null;
+    finish = () => {
+      if (completed) {
+        return;
+      }
+      completed = true;
+      unregisterSkip?.();
+      scene.clearScriptedDialogClickToSkip();
+      scene.setDisplayTextOverlay({ visible: false });
+      scene.popScriptedDialogInputSuppression();
+      resolve();
+    };
+    scene.pushScriptedDialogInputSuppression();
+    scene.setDisplayTextOverlay({ visible: true, text });
+    scene.setScriptedDialogClickToSkip(finish);
+    unregisterSkip = scene.registerCutsceneSkipFinisher(finish);
+  });
+  return new Task(shown, { finishNow: finish, cancel: finish });
+});
+
+// ─── Screen fades ────────────────────────────────────────────────────────────
+
+function screenFade(toAlpha: number, seconds?: number, color?: number): Task {
+  const scene = roomFor(toAlpha > 0 ? 'fadeOut' : 'fadeIn');
+  if (!scene) {
+    return Task.resolved();
+  }
+  return new Task(
+    scene.queueScreenFadeToAlpha(
+      toAlpha,
+      seconds ?? BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
+      color ?? BENNE_SCREEN_FADE_DEFAULT_COLOR,
+    ),
+  );
+}
+
+/** Fades the screen to `color` (black by default) over `seconds`. Waits. */
+export const fadeOut = timed((seconds?: number, color?: number): Task => screenFade(1, seconds, color));
+
+/** Fades the screen back in over `seconds`. Waits. */
+export const fadeIn = timed((seconds?: number, color?: number): Task => screenFade(0, seconds, color));
+
+// ─── Characters ──────────────────────────────────────────────────────────────
+
 /** Where to walk: a named room point / thing id, raw room pixels, or a handle with an id. */
 export type WalkTarget = Point2 | string | { readonly id: string };
 
-function walkTargetOf(target: WalkTarget): Point2 | string {
+export function walkTargetOf(target: WalkTarget): Point2 | string {
   return typeof target === 'object' && 'id' in target ? target.id : target;
 }
 
-function noRoom(what: string): Task {
-  warnOnce(`${what}:no-room`, `${what}: no active room — ignored.`);
-  return Task.resolved();
+/** `characterId`, or the active player when it is `null`. */
+function characterIdIn(scene: RoomScene, characterId: string | null): string {
+  return characterId ?? scene.getActivePlayerCharacterId();
+}
+
+function isPlayerIn(scene: RoomScene, characterId: string | null): boolean {
+  return characterId == null || characterId === scene.getActivePlayerCharacterId();
 }
 
 /** Walks a character; the active player's walk is a player walk (interrupt policy). */
 export function walkCharacterTask(characterId: string | null, target: WalkTarget): Task {
-  const scene = activeRoomScene();
+  const scene = roomFor('walkTo');
   if (!scene) {
-    return noRoom('walkTo');
+    return Task.resolved();
   }
   const dest = walkTargetOf(target);
-  if (characterId == null || characterId === scene.getActivePlayerCharacterId()) {
+  if (isPlayerIn(scene, characterId)) {
     return playerWalkTask(scene, scene.walkPlayerTo(dest));
   }
-  return new Task(scene.walkCharacterTo(characterId, dest));
+  return new Task(scene.walkCharacterTo(characterId!, dest));
 }
 
 export function faceCharacter(characterId: string | null, direction: CharacterFacingLetter): void {
-  const scene = activeRoomScene();
+  const scene = roomFor('face');
   if (!scene) {
-    noRoom('face');
     return;
   }
-  if (characterId == null || characterId === scene.getActivePlayerCharacterId()) {
+  if (isPlayerIn(scene, characterId)) {
     scene.facePlayerScriptDirection(direction);
   } else {
-    scene.faceCharacterScriptDirection(characterId, direction);
+    scene.faceCharacterScriptDirection(characterId!, direction);
   }
 }
 
+/**
+ * The operations character handles and `player` share. `characterId` `null` is the active player.
+ * Everything here is instant except {@link characterOps.play} and {@link characterOps.fade}.
+ */
+export const characterOps = {
+  moveTo(characterId: string | null, target: WalkTarget): void {
+    const scene = roomFor('moveTo');
+    if (!scene) {
+      return;
+    }
+    if (isPlayerIn(scene, characterId)) {
+      scene.movePlayerToNow(walkTargetOf(target));
+    } else {
+      scene.moveCharacterToNow(characterId!, walkTargetOf(target));
+    }
+  },
+
+  stopWalking(characterId: string | null): void {
+    const scene = roomFor('stopWalking');
+    if (scene) {
+      scene.interruptCharacterWalkForScriptedSpeech(characterIdIn(scene, characterId));
+    }
+  },
+
+  /** Feet position in room pixels. */
+  position(characterId: string | null): Point2 {
+    const scene = activeRoomScene();
+    const sprite = scene ? scene.getCharacterSprite(characterIdIn(scene, characterId)) : undefined;
+    return sprite instanceof Phaser.GameObjects.Sprite ? getCharacterWorldFeet(sprite) : { x: 0, y: 0 };
+  },
+
+  play(characterId: string | null, tag: string): Task {
+    const scene = roomFor('play');
+    return scene ? new Task(scene.playCharacterScriptAnimationOneShot(characterIdIn(scene, characterId), tag)) : Task.resolved();
+  },
+
+  fade(characterId: string | null, toAlpha: number, seconds: number): Task {
+    const scene = roomFor('fade');
+    if (!scene) {
+      return Task.resolved();
+    }
+    const id = characterIdIn(scene, characterId);
+    const from = scene.getCharacterSprite(id)?.alpha ?? 1;
+    return new Task(scene.fadeCharacterScriptAlpha(id, from, toAlpha, seconds));
+  },
+
+  stopAnimation(characterId: string | null): void {
+    const scene = roomFor('stopAnimation');
+    if (scene) {
+      scene.stopCharacterScriptAnimation(characterIdIn(scene, characterId));
+    }
+  },
+
+  getAnimation(characterId: string | null): string {
+    const scene = activeRoomScene();
+    return scene ? scene.getCharacterScriptEffectiveAnimationTag(characterIdIn(scene, characterId)) : '';
+  },
+
+  setAnimation(characterId: string | null, tag: string | null): void {
+    const scene = roomFor('animation');
+    if (scene) {
+      scene.setCharacterScriptAnimationOverride(characterIdIn(scene, characterId), tag);
+    }
+  },
+
+  getVisible(characterId: string | null): boolean {
+    const scene = activeRoomScene();
+    return scene ? scene.getCharacterScriptVisible(characterIdIn(scene, characterId)) : false;
+  },
+
+  setVisible(characterId: string | null, visible: boolean): void {
+    const scene = roomFor('visible');
+    if (scene) {
+      scene.setCharacterScriptVisible(characterIdIn(scene, characterId), visible);
+    }
+  },
+
+  getMovable(characterId: string | null): boolean {
+    const scene = activeRoomScene();
+    return scene ? scene.getCharacterScriptMovable(characterIdIn(scene, characterId)) : true;
+  },
+
+  setMovable(characterId: string | null, movable: boolean): void {
+    const scene = roomFor('movable');
+    if (scene) {
+      scene.setCharacterScriptMovable(characterIdIn(scene, characterId), movable);
+    }
+  },
+
+  getClickable(characterId: string | null): boolean {
+    const scene = activeRoomScene();
+    return scene ? scene.getCharacterScriptClickable(characterIdIn(scene, characterId)) : false;
+  },
+
+  setClickable(characterId: string | null, clickable: boolean): void {
+    const scene = roomFor('clickable');
+    if (scene) {
+      scene.setCharacterScriptClickable(characterIdIn(scene, characterId), clickable);
+    }
+  },
+
+  getDescription(characterId: string | null): string {
+    const scene = activeRoomScene();
+    return scene ? scene.getCharacterScriptDescription(characterIdIn(scene, characterId)) : '';
+  },
+
+  setDescription(characterId: string | null, description: string): void {
+    const scene = roomFor('description');
+    if (scene) {
+      scene.setCharacterScriptDescription(characterIdIn(scene, characterId), description);
+    }
+  },
+
+  startFollowing(characterId: string | null, target: { readonly id: string } | null, options?: CharacterFollowOptions): void {
+    const scene = roomFor('startFollowing');
+    if (scene) {
+      scene.startCharacterFollowingCharacter(characterIdIn(scene, characterId), target?.id ?? 'player', options);
+    }
+  },
+
+  stopFollowing(characterId: string | null): void {
+    const scene = roomFor('stopFollowing');
+    if (scene) {
+      scene.stopCharacterFollowingCharacter(characterIdIn(scene, characterId));
+    }
+  },
+};
+
 /** The active player character (§4.3). */
 export const player = {
+  /** The active player's character id. */
+  get id(): string {
+    const scene = activeRoomScene();
+    return scene?.getActivePlayerCharacterId() ?? tryGetActiveGameStateManager()?.getActivePlayerCharacterId() ?? '';
+  },
   /** Walks to a point, a named point or a thing's walk-to point. Waits. `.now` doesn't. */
   walkTo: timed((target: WalkTarget): Task => walkCharacterTask(null, target)),
+  /** Teleports (instant). */
+  moveTo(target: WalkTarget): void {
+    characterOps.moveTo(null, target);
+  },
+  /** Stops a walk where the player is now. */
+  stopWalking(): void {
+    characterOps.stopWalking(null);
+  },
+  /** Feet position in room pixels. */
+  get position(): Point2 {
+    return characterOps.position(null);
+  },
   face(direction: CharacterFacingLetter): void {
     faceCharacter(null, direction);
   },
   /** One speech line. Waits. Same as a `Player: "…"` label. */
   say: timed((text: string, options?: ScriptedSayLineOptions): Task => sayTask(PLAYER_SPEAKER, text, options)),
+  /** One-shot animation; waits for it to finish, then returns to the base animation. */
+  play: timed((tag: string): Task => characterOps.play(null, tag)),
+  /** Back to directional idle. */
+  stopAnimation(): void {
+    characterOps.stopAnimation(null);
+  },
+  /** Animation override (instant, saved). */
+  get animation(): string {
+    return characterOps.getAnimation(null);
+  },
+  set animation(tag: string) {
+    characterOps.setAnimation(null, tag);
+  },
+  get visible(): boolean {
+    return characterOps.getVisible(null);
+  },
+  set visible(value: boolean) {
+    characterOps.setVisible(null, value);
+  },
+  show(): void {
+    characterOps.setVisible(null, true);
+  },
+  hide(): void {
+    characterOps.setVisible(null, false);
+  },
+  /** When false, walks (including click-to-walk) are ignored; `moveTo` still works. Saved. */
+  get movable(): boolean {
+    return characterOps.getMovable(null);
+  },
+  set movable(value: boolean) {
+    characterOps.setMovable(null, value);
+  },
 };
+
+// ─── Inventory ───────────────────────────────────────────────────────────────
 
 export interface ItemRef {
   readonly id: string;
@@ -178,18 +545,42 @@ function manager(what: string) {
   return m;
 }
 
-/** The active player's inventory. Changes are instant (§5): the script does not wait for the GUI. */
-export const inventory = {
-  add(item: ItemRef, quantity = 1): void {
-    void manager('add')?.addInventory(item.id, quantity);
-  },
-  remove(item: ItemRef, quantity = 1): void {
-    void manager('remove')?.removeFromInventory(item.id, quantity);
-  },
-  has(item: ItemRef): boolean {
-    return manager('has')?.hasInInventory(item.id) ?? false;
-  },
-  count(item: ItemRef): number {
-    return manager('count')?.quantityOf(item.id) ?? 0;
-  },
-};
+export interface Inventory {
+  add(item: ItemRef, quantity?: number): void;
+  remove(item: ItemRef, quantity?: number): void;
+  has(item: ItemRef): boolean;
+  count(item: ItemRef): number;
+  /** What is in the bag, in order. */
+  readonly items: Array<{ item: ItemRef; quantity: number }>;
+}
+
+/**
+ * A character's bag; `owner` `null` is the active player's (`inventory`). Changes are instant
+ * (§5): the script does not wait for the GUI.
+ */
+export function inventoryOf(owner: string | null): Inventory {
+  const who = owner ?? undefined;
+  return {
+    add(item, quantity = 1) {
+      void manager('add')?.addInventory(item.id, quantity, who);
+    },
+    remove(item, quantity = 1) {
+      void manager('remove')?.removeFromInventory(item.id, quantity, who);
+    },
+    has(item) {
+      return manager('has')?.hasInInventory(item.id, who) ?? false;
+    },
+    count(item) {
+      return manager('count')?.quantityOf(item.id, who) ?? 0;
+    },
+    get items() {
+      return (manager('items')?.getInventoryItems(who) ?? []).map((i) => ({
+        item: lookupItemHandle<ItemRef>(i.id) ?? { id: i.id },
+        quantity: i.quantity,
+      }));
+    },
+  };
+}
+
+/** The active player's inventory. */
+export const inventory: Inventory = inventoryOf(null);

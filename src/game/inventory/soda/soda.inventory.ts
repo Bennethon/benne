@@ -1,13 +1,6 @@
-import { registerInventoryScript } from '@engine/scripting';
+import { items } from '@game';
 
-registerInventoryScript('soda', ({ B }) => {
-  // "Use" / "Give" on this item will automatically make it active for combining with world targets.
-  // Add B.whenUse / B.whenGive only if you need extra behavior (sound, dialogue, consumption, etc.).
-  // Use B.whenUse.doNotActivate / B.whenGive.doNotActivate if this item should never become active.
-  void B; // keep this until you add real handlers
-
-  B.whenLookAt(() => {
-    B.say`Hank: Someone's unfinished soda.
-    Hank: It's still pretty fizzy.`
-  });
-});
+items.soda.onLook(() => {
+  Hank: "Someone's unfinished soda."
+  Hank: "It's still pretty fizzy."
+})

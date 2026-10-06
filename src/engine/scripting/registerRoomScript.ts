@@ -68,6 +68,14 @@ export function registerRoomScript(registerFn: RoomCallback): void {
 }
 
 /**
+ * The room whose `*.room.ts` module is being evaluated right now, or `null`. New-style top-level
+ * registrations that don't name their room (`playFrom(…)`) use it.
+ */
+export function getLoadingRoomScriptId(): string | null {
+  return _currentLoadingRoomId;
+}
+
+/**
  * Returns the registered callbacks for a room.
  * Will be empty until {@link ensureRoomScriptLoaded} has been awaited for that room.
  */

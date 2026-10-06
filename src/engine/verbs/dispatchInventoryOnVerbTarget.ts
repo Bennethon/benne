@@ -191,9 +191,23 @@ export function shouldDropActiveInventoryOnUse(itemId: string): boolean {
  * the global handlers, then the unhandled fallback). `payload` is the room event's payload.
  */
 export function continueInventoryOnDispatchAfterRoom(bus: EventBus, payload: AnyInventoryUsedOnPayload): void {
+  continueInventoryOnDispatch(bus, payload, 'room');
+}
+
+/**
+ * Like {@link continueInventoryOnDispatchAfterRoom}, from a handler on the global per-item tier
+ * (a character script's or an inventory item's item handler): continues with the target's global
+ * any-item handler, then the unhandled fallback.
+ */
+export function continueInventoryOnDispatchAfterGlobal(bus: EventBus, payload: AnyInventoryUsedOnPayload): void {
+  continueInventoryOnDispatch(bus, payload, 'global');
+}
+
+function continueInventoryOnDispatch(bus: EventBus, payload: AnyInventoryUsedOnPayload, from: 'room' | 'global'): void {
   const p = payload;
   const rest = (roomAny: string, globalScoped: string, globalAny: string): void => {
-    for (const eventId of [roomAny, globalScoped, globalAny, INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT]) {
+    const tiers = from === 'room' ? [roomAny, globalScoped, globalAny] : [globalAny];
+    for (const eventId of [...tiers, INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT]) {
       if (listenerCount(bus, eventId) > 0) {
         bus.emit(eventId, p);
         return;
@@ -222,7 +236,12 @@ export function continueInventoryOnDispatchAfterRoom(bus: EventBus, payload: Any
         globalInventoryOnCharacterAnySourceEventId(p.characterId),
       );
       return;
-    default:
-      bus.emit(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, p);
+    case 'inventoryItem':
+      rest(
+        roomInventoryOnInventoryRowEventId(p.roomId, p.targetItemId),
+        globalInventoryOnInventoryItemEventId(p.targetItemId, p.itemId),
+        globalInventoryOnInventoryRowEventId(p.targetItemId),
+      );
+      return;
   }
 }

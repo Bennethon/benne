@@ -1,16 +1,13 @@
-import { registerRoomScript } from '@engine/scripting';
+import { wait } from '@benne/script';
+import { guis, rooms } from '@game';
+import { room } from './credits.ids';
 
-registerRoomScript(({ B }) => {
+room.onEnter(() => {
+  guis.verbs.hide()
+})
 
-  B.whenEnterRoom(() => {
-    B.gui('verbs').hide();
-  });
-
-  B.whenEnterRoomAfterFade(() => {
-    B.gui('credits').show();
-
-    B.wait(24);
-
-    B.room.changeTo('title');
-  });
-});
+room.onEnterAfterFade(() => {
+  guis.credits.show()
+  wait(24)
+  rooms.title.goTo()
+})

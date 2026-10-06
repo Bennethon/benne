@@ -1,214 +1,208 @@
-import { registerRoomScript } from '@engine/scripting';
+import { faceClicked, fadeIn, fadeOut, inventory, player, playFrom, unhandled, wait, walkToClicked } from '@benne/script';
+import { dialogs, flags, items, music, rooms, sfx } from '@game';
+import {
+  room, antenna, battery, car, crash, driver, hank, outside, points, regions, regulator, toolChest,
+} from './club.ids';
 
-registerRoomScript(({ B }) => {
+playFrom('fix battery', () => {
+  flags.askedAboutBattery = true
+  flags.batteryClean = true
+  inventory.add(items.wrench)
+  battery.active = true
+})
 
-  B.playFrom('fix battery', () => {
-    B.state.setFlag(`askedAboutBattery`, true);
-    B.state.setFlag(`batteryClean`, true);
-    B.inventory.add('wrench');
-    B.hotspot('club-hotspot-battery').active = true;
-  });
+room.onEnterAfterFade(() => {
+  music.garage.play()
+})
 
-  B.whenLookAt('driver', () => {
-    B.faceClicked();
-    B.player.say(`He looks grizzly.`);
-  });
+regions.leave.onEnter(() => {
+  rooms.plaza.goTo()
+})
 
-  B.whenTalkTo('driver', () => {
-    B.walkToClicked();
-    B.dialog(`driver`).start();
-  });
-  
-  B.whenLookAt('club-hotspot-battery', () => {
-    B.walkToClicked();
-    if (B.state.getFlag(`batteryClean`)) {
-      B.player.say(`I cleaned off the corrosion. Now to fix the loose cable.`);
-      B.player.say(`I need a 10mm socket wrench.`);
-      B.dialog(`driver`).optionOn(`wrench`);
-    } else {
-      B.player.say(`Hmm...`);
-      B.player.say(`It looks like one terminal is horribly corroded and the cable is loose.`);
-      B.character(`driver`).say(`Huh?!`);
-      B.dialog(`driver`).optionOn(`fix battery`);
-    }
-  });
+outside.onLook(() => {
+  faceClicked()
+  Hank: "Nice day."
+})
 
-  B.whenVerb('clean', 'club-hotspot-battery', () => {
-    if (B.state.getFlag(`askedAboutBattery`)) {
-      B.walkToClicked();
-      if (B.state.getFlag(`batteryClean`)) {
-        B.player.say(`It's already clean.`);
-      } else {
-        B.player.say(`I don't think my raw cleaning abilities will work here.`);
-        B.player.say(`I need something with more punch.`);
-      }
-    } else {
-      B.faceClicked();
-      B.player.say(`Why would I do that?`);
-    }
-  });
+// ─── The driver ──────────────────────────────────────────────────────────────
 
-  B.whenLookAt('antenna', () => {
-    B.faceClicked();
-    B.player.say(`A broken off car antenna.`);
-  });
+driver.onLook(() => {
+  faceClicked()
+  Hank: "He looks grizzly."
+})
 
-  B.whenPickUp('antenna', () => {
-    B.walkToClicked();
-    B.character('hank').playAnimation('ReachR');
-    B.prop(`antenna`).hide();
-    B.sound.play('whip');
-    B.inventory.add(`antenna`);
-  });
+driver.onTalkTo(() => {
+  walkToClicked()
+  dialogs.driver.start()
+})
 
-  B.whenLookAt('regulator', () => {
-    B.walkToClicked();
-    B.player.say(`That's a high tech thing.`);
-    B.character(`driver`).say(`That's my ol' power regulator I got from the college over there.`);
-    B.character(`driver`).say(`I was havin' trouble with my battery, so I thought this might help.`);
-    B.player.say(`Is it helping?`);
-    B.character(`driver`).say(`I can't tell.`);
-    B.hotspot(`club-hotspot-battery`).active = true;
-  });
+// ─── The battery ─────────────────────────────────────────────────────────────
 
-  B.whenPickUp('regulator', () => {
-    B.walkToClicked();
-    B.character(`driver`).say(`Hey! Don't touch that!`);
-    B.player.say(`Why?`);
-    B.character(`driver`).say(`I need it!`);
-    B.player.say(`Why?`);
-    B.character(`driver`).say(`I don't know.`);
-  });
+battery.onLook(() => {
+  walkToClicked()
+  if (flags.batteryClean) {
+    Hank: "I cleaned off the corrosion. Now to fix the loose cable."
+    Hank: "I need a 10mm socket wrench."
+    dialogs.driver.options.wrench.on()
+  } else {
+    Hank: "Hmm..."
+    Hank: "It looks like one terminal is horribly corroded and the cable is loose."
+    Driver: "Huh?!"
+    dialogs.driver.options.fixBattery.on()
+  }
+})
 
-  B.whenInventoryUsedOn('club-hotspot-battery', (payload) => {
-    if (B.state.getFlag(`askedAboutBattery`)) {
-      if (payload.itemId === `soda`) {
-        B.walkToClicked();
-        B.player.say(`I hope this works.`);
-        B.inventory.remove(`soda`);
-        B.sound.play('sodaPour');
-        B.wait(.75);
-        B.player.say(`Hey! The corrosion is gone.`);
-        B.player.say(`Now I need to tighten that cable.`);
-        B.player.say(`Just need a 10mm socket wrench.`);
-        B.dialog(`driver`).optionOn(`wrench`);
-        B.state.setFlag(`batteryClean`, true);
-        return;
-      } 
-    }
+battery.onClean(() => {
+  if (!flags.askedAboutBattery) {
+    faceClicked()
+    Hank: "Why would I do that?"
+    return
+  }
+  walkToClicked()
+  if (flags.batteryClean) {
+    Hank: "It's already clean."
+  } else {
+    Hank: "I don't think my raw cleaning abilities will work here."
+    Hank: "I need something with more punch."
+  }
+})
 
-    if (B.state.getFlag(`askedAboutBattery`) && B.state.getFlag(`batteryClean`)) {
-      if (payload.itemId === `wrench`) {
-        B.walkToClicked();
-        B.player.say(`Ok I'll tighten 'er up here.`);
-        B.inventory.remove(`wrench`);
-        B.sound.play('tightening');
-        B.wait(.75);
-        B.player.say(`Done!`);
-        B.state.setFlag(`batteryFixed`, true);
-        B.player.say(`Hey man. I fixed your battery.`);
-        B.character(`driver`).say(`Well darn tootin'. It looks like you did!`);
-        B.character(`driver`).say(`Thanks son! I don't need that power regulator anymore.`);
-        B.character(`driver`).say(`You can have it.`);
-        B.prop(`regulator`).hide();
-        B.sound.play('whip');
-        B.inventory.add(`regulator`);
-        B.player.say(`Thanks!`);
-        B.state.setFlag('gotRegulator',true);
-        B.dialog('jensen-in-plaza').optionOn('found regulator');
+battery.onUseItem(items.soda, () => {
+  if (!flags.askedAboutBattery) unhandled()
+  walkToClicked()
+  Hank: "I hope this works."
+  inventory.remove(items.soda)
+  sfx.sodaPour.play()
+  wait(0.75)
+  Hank: "Hey! The corrosion is gone."
+  Hank: "Now I need to tighten that cable."
+  Hank: "Just need a 10mm socket wrench."
+  dialogs.driver.options.wrench.on()
+  flags.batteryClean = true
+})
 
-        B.sound.play('hoodClose');
-        B.prop(`car`).animation = `car-fixed`;
-        B.character(`driver`).say(`Now stand back. I'm gonna fire her up, and show this AI who can drive!`);
-        B.fadeOut();
-        B.player.moveTo(`club-point-standBack`);
-        B.player.face('D');
-        B.character(`driver`).hide();
-        B.prop(`car`).hide();
-        B.sound.play('crash');
-        B.prop(`crash`).animation = `crash-play`;
-        B.fadeIn();
-        B.wait(2);
-        B.player.say(`Ahh!`);
-        B.player.walkTo(`club-point-walkout`);
-        return;
-      } 
-    }
-    
-    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
-    return false;
-  });
+battery.onUseItem(items.wrench, () => {
+  if (!flags.askedAboutBattery || !flags.batteryClean) unhandled()
+  walkToClicked()
+  Hank: "Ok I'll tighten 'er up here."
+  inventory.remove(items.wrench)
+  sfx.tightening.play()
+  wait(0.75)
+  Hank: "Done!"
+  flags.batteryFixed = true
+  Hank: "Hey man. I fixed your battery."
+  Driver: "Well darn tootin'. It looks like you did!"
+  Driver: "Thanks son! I don't need that power regulator anymore."
+  Driver: "You can have it."
+  regulator.hide()
+  sfx.whip.play()
+  inventory.add(items.regulator)
+  Hank: "Thanks!"
+  flags.gotRegulator = true
+  dialogs.jensenInPlaza.options.foundRegulator.on()
 
-  B.whenLookAt('club-hotspot-toolChest', () => {
-    B.faceClicked();
-    if (B.state.getFlag(`askedAboutWrench`)) {
-      B.player.say(`Apparently the 10mm socket wrench fell under there.`);
-    } else {
-      B.player.say(`Nice tool chest.`);
-    }
-  });
+  sfx.hoodClose.play()
+  car.animation = 'car-fixed'
+  Driver: "Now stand back. I'm gonna fire her up, and show this AI who can drive!"
+  fadeOut()
+  player.moveTo(points.standBack)
+  player.face('D')
+  driver.hide()
+  car.hide()
+  sfx.crash.play()
+  crash.animation = 'crash-play'
+  fadeIn()
+  wait(2)
+  Hank: "Ahh!"
+  // Walks into the exit region, which leaves for the plaza.
+  player.walkTo(points.walkout)
+})
 
-  B.whenVerb('move', 'club-hotspot-toolChest', () => {
-    if (B.state.getFlag(`askedAboutWrench`)) {
-      B.walkToClicked();
-      // TODO: play grunting sound
-      B.wait(.5);
-      B.player.say(`Ugh, it's too heavy to move.`);
-    } else {
-      B.faceClicked();
-      B.player.say(`I don't need to move it.`);
-    }
-  });
+// ─── Antenna and regulator ───────────────────────────────────────────────────
 
-  B.whenInventoryUsedOn('club-hotspot-toolChest', (payload) => {
-    if (payload.itemId === 'magnetStick') {
+antenna.onLook(() => {
+  faceClicked()
+  Hank: "A broken off car antenna."
+})
 
-      if (B.state.getFlag(`askedAboutWrench`)) {
-        B.walkToClicked();
-        B.sound.play('metalScrape');
-        B.wait(.5);
-        B.inventory.remove(`magnetStick`);
-        B.sound.play('whip');
-        B.inventory.add(`wrench`);
-        B.player.say(`Ah, got it!`);
-      } else {
-        B.faceClicked();
-        B.player.say(`Why would I do that?`);
-      }
-      return;
-    }
-    if (payload.itemId === 'antenna') {
+antenna.onTake(() => {
+  walkToClicked()
+  hank.play('ReachR')
+  antenna.hide()
+  sfx.whip.play()
+  inventory.add(items.antenna)
+})
 
-      if (B.state.getFlag(`askedAboutWrench`)) {
-        B.walkToClicked();
-        B.sound.play('metalScrape');
-        B.wait(.5);
-        B.player.say(`Hmm. The antenna alone can't fish out the wrench.`);
-      } else {
-        B.faceClicked();
-        B.player.say(`Why would I do that?`);
-      }
-      return;
-    }
-    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
-    return false;
-  });
+regulator.onLook(() => {
+  walkToClicked()
+  Hank: "That's a high tech thing."
+  Driver: "That's my ol' power regulator I got from the college over there."
+  Driver: "I was havin' trouble with my battery, so I thought this might help."
+  Hank: "Is it helping?"
+  Driver: "I can't tell."
+  battery.active = true
+})
 
-  B.region("club-region-leave").whenEnter(() => {
-    B.room.changeTo(`plaza`);
-  });
+regulator.onTake(() => {
+  walkToClicked()
+  Driver: "Hey! Don't touch that!"
+  Hank: "Why?"
+  Driver: "I need it!"
+  Hank: "Why?"
+  Driver: "I don't know."
+})
 
-  B.whenUse('club-hotspot-toolChest', () => {
-    B.faceClicked();
-    B.player.say(`Not without asking.`);
-  });
+// ─── The tool chest ──────────────────────────────────────────────────────────
 
-  B.whenLookAt('outside', () => {
-    B.faceClicked();
-    B.say`Hank: Nice day.`
-  });
+toolChest.onLook(() => {
+  faceClicked()
+  if (flags.askedAboutWrench) {
+    Hank: "Apparently the 10mm socket wrench fell under there."
+  } else {
+    Hank: "Nice tool chest."
+  }
+})
 
-  B.whenEnterRoomAfterFade(() => {
-    B.sound.playMusic('garage');
-  });
-});
+toolChest.onUse(() => {
+  faceClicked()
+  Hank: "Not without asking."
+})
+
+toolChest.onMove(() => {
+  if (!flags.askedAboutWrench) {
+    faceClicked()
+    Hank: "I don't need to move it."
+    return
+  }
+  walkToClicked()
+  // TODO: play grunting sound
+  wait(0.5)
+  Hank: "Ugh, it's too heavy to move."
+})
+
+toolChest.onUseItem(items.magnetStick, () => {
+  if (!flags.askedAboutWrench) {
+    faceClicked()
+    Hank: "Why would I do that?"
+    return
+  }
+  walkToClicked()
+  sfx.metalScrape.play()
+  wait(0.5)
+  inventory.remove(items.magnetStick)
+  sfx.whip.play()
+  inventory.add(items.wrench)
+  Hank: "Ah, got it!"
+})
+
+toolChest.onUseItem(items.antenna, () => {
+  if (!flags.askedAboutWrench) {
+    faceClicked()
+    Hank: "Why would I do that?"
+    return
+  }
+  walkToClicked()
+  sfx.metalScrape.play()
+  wait(0.5)
+  Hank: "Hmm. The antenna alone can't fish out the wrench."
+})

@@ -12,6 +12,7 @@ import {
   type GuiRuntime,
 } from './GuiRuntime.js';
 import { getGuiBenneScript } from './registerGuiScript.js';
+import { notifyGuiVisibility } from '../bennescript/guis.js';
 
 type ChainFn = (factory: () => Promise<unknown>) => void;
 
@@ -53,6 +54,7 @@ function applyOverlayVisible(overlayGuiId: string, visible: boolean, room: RoomS
       targetScript.notifyGuiHidden(rt);
     }
   }
+  notifyGuiVisibility(overlayGuiId, visible);
 }
 
 function makeVisibilityAction(

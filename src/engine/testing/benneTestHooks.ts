@@ -54,6 +54,8 @@ export interface BenneTestHooks {
   useItem(itemId: string, targetId: string): void;
   /** Use inventory `itemId` on another inventory item (clicks that item's inventory slot). */
   combine(itemId: string, targetItemId: string): void;
+  /** Select `verbId` as the verb bar does, then click `itemId`'s inventory slot (e.g. Look at an item). */
+  inventoryVerb(verbId: string, itemId: string): void;
   /** Pick a dialog option by its id in `*.dialog.json`. */
   choose(optionId: string): void;
   /** Click a GUI button by GUI id and control id. */
@@ -344,6 +346,17 @@ export function installBenneTestHooks(game: Phaser.Game): BenneTestHooks {
       }
       armItem(itemId);
       clickObject(scene, slot, `inventory slot "${targetItemId}"`);
+    },
+
+    inventoryVerb(verbId, itemId) {
+      requirePhase('world', `inventoryVerb ${verbId} ${itemId}`);
+      const scene = requireRoom();
+      const slot = pageInventoryTo(scene, itemId);
+      if (!slot) {
+        throw new HookError(`inventoryVerb: "${itemId}" is not in the inventory panel.`);
+      }
+      resolveGameStateManager(game).setActiveVerb(verbId);
+      clickObject(scene, slot, `inventory slot "${itemId}"`);
     },
 
     choose(optionId) {

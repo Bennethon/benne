@@ -11,6 +11,7 @@ import {
   setRoomTransitionOrchestratorInstance,
 } from '../scenes/roomTransitionGlobals.js';
 import { clearGlobalBenneScriptOnUpdateHandlers } from './benneScriptOnUpdateRegistry.js';
+import { attachGlobalRoomHooks } from '../bennescript/globalHandlers.js';
 
 /**
  * Invokes all `registerGlobalScript` callbacks with a {@link GlobalBenneScript} bound to the live game.
@@ -20,6 +21,9 @@ export function wireBenneGlobalScripts(game: Phaser.Game, events: EventBus): voi
   const hookRegistry = new RoomTransitionHookRegistry();
   setGlobalRoomHookRegistry(hookRegistry);
   setRoomTransitionOrchestratorInstance(new RoomTransitionOrchestrator(game, events, hookRegistry));
+  // New-style `game.onEnterAnyRoom` & co. registered while the script modules loaded, before the
+  // hook registry existed.
+  attachGlobalRoomHooks();
 
   const registrations = getBenneGlobalScriptRegistrations();
   if (registrations.length === 0) {

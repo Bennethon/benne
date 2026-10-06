@@ -51,6 +51,14 @@ export function dispatchInventoryVerbInteraction(
   });
 }
 
+/** Items whose new-style BenneScript handlers arm them after the handler (`items.x.on…`). */
+const itemsArmedByNewScripts = new Set<string>();
+
+/** Called by the new BenneScript runtime for each item it handles; see {@link trySyncActiveInventoryAfterInventoryUseOrGiveRowDispatch}. */
+export function markInventoryItemArmedByScript(itemId: string): void {
+  itemsArmedByNewScripts.add(itemId);
+}
+
 /**
  * Inventory rows with a `*.inventory.ts` module get **use** / **give**→active from
  * {@link import('../scripting/InventoryBenneScript.js').InventoryBenneScript} after the interaction queue drains.
@@ -63,7 +71,7 @@ export function trySyncActiveInventoryAfterInventoryUseOrGiveRowDispatch(
   verbId: string,
   itemId: string,
 ): void {
-  if (getInventoryItemIdsWithBenneScripts().has(itemId)) {
+  if (getInventoryItemIdsWithBenneScripts().has(itemId) || itemsArmedByNewScripts.has(itemId)) {
     return;
   }
   const useId = resolveEffectiveUseVerbId(settings);

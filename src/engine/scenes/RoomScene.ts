@@ -178,6 +178,7 @@ import { createInventoryScriptContext } from '../scripting/InventoryScriptContex
 import type { CharacterScriptContext, InventoryScriptContext, UpdateContext } from '@engine/scripting/types.js';
 import { getCallbacksForRoom } from '../scripting/registerRoomScript.js';
 import { attachRoomHandlers } from '../bennescript/roomHandlers.js';
+import { notifyGuiBuilt as notifyNewGuiBuilt } from '../bennescript/guis.js';
 import { runGlobalBenneScriptOnUpdateHandlers } from '../scripting/benneScriptOnUpdateRegistry.js';
 import {
   buildGuiOverlay,
@@ -650,6 +651,12 @@ export class RoomScene extends Phaser.Scene {
 
   /** When set, a left-click should end the active scripted dialog line early (global or per-line `say` options). */
   private scriptedDialogClickToSkip: (() => void) | null = null;
+  /**
+   * `downTime` of the press that was in progress when the click-to-skip hook was armed, or null.
+   * That press must not skip it: a handler started by an inventory-slot click can show its line
+   * before the room's own `pointerdown` handler sees the same click.
+   */
+  private scriptedDialogClickToSkipArmedDuringDown: number | null = null;
 
   /** Screen-space sprite when `game-config.json` enables `cursor.display.aseprite`. */
   private customCursorSprite: Phaser.GameObjects.Sprite | null = null;
@@ -869,26 +876,27 @@ export class RoomScene extends Phaser.Scene {
       this.registerModalGuiOverlay(gui, guiDepth, built.handle, guiStartVisible);
       this.guiOverlayHandleByGuiId.set(gui.id, built.handle);
 
+      // A GUI with an old `registerGuiScript` queues control tweens on that script's tail. Every
+      // other GUI still gets a runtime, so new-style `guis.x.controls.y` handles can reach it
+      // (their timed actions are Tasks and don't use the queue).
+      const oldGuiScript = getGuiBenneScript(gui.id);
+      const createRuntime = (): GuiRuntime =>
+        built.createGuiRuntime((factory) =>
+          oldGuiScript ? oldGuiScript.queueInteraction(factory) : void factory().catch(() => {}),
+        );
+
       if (isSpeakingText) {
         this.dialogTextOverlay = built.handle;
-        const speakingTextScript = getGuiBenneScript(SPEAKING_TEXT_GUI_ID);
-        if (speakingTextScript) {
-          const rt = built.createGuiRuntime((factory) =>
-            speakingTextScript.queueInteraction(factory),
-          );
-          this.guiRuntimeByGuiId.set(SPEAKING_TEXT_GUI_ID, rt);
-          speakingTextScript.notifyGuiBuilt(rt);
-        }
+        const rt = createRuntime();
+        this.guiRuntimeByGuiId.set(SPEAKING_TEXT_GUI_ID, rt);
+        oldGuiScript?.notifyGuiBuilt(rt);
+        notifyNewGuiBuilt(gui.id);
       } else if (isDisplayText) {
         this.displayTextOverlay = built.handle;
-        const displayTextScript = getGuiBenneScript(DISPLAY_TEXT_GUI_ID);
-        if (displayTextScript) {
-          const rt = built.createGuiRuntime((factory) =>
-            displayTextScript.queueInteraction(factory),
-          );
-          this.guiRuntimeByGuiId.set(DISPLAY_TEXT_GUI_ID, rt);
-          displayTextScript.notifyGuiBuilt(rt);
-        }
+        const rt = createRuntime();
+        this.guiRuntimeByGuiId.set(DISPLAY_TEXT_GUI_ID, rt);
+        oldGuiScript?.notifyGuiBuilt(rt);
+        notifyNewGuiBuilt(gui.id);
       } else if (isChoiceDialog) {
         this.dialogChoiceInstallByGuiId.set(gui.id, {
           built,
@@ -902,15 +910,14 @@ export class RoomScene extends Phaser.Scene {
         this.dialogChoiceRuntimeByGuiId.set(gui.id, rt);
         this.guiRuntimeByGuiId.set(gui.id, rt);
         choiceScript?.notifyGuiBuilt(rt);
+        notifyNewGuiBuilt(gui.id);
       } else if (isGenericHud) {
         this.genericGuiOverlays.push(built.handle);
         this.genericGuiOverlayJsonVisible.push(gui.visible);
-        const guiScript = getGuiBenneScript(gui.id);
-        if (guiScript) {
-          const rt = built.createGuiRuntime((factory) => guiScript.queueInteraction(factory));
-          this.guiRuntimeByGuiId.set(gui.id, rt);
-          guiScript.notifyGuiBuilt(rt);
-        }
+        const rt = createRuntime();
+        this.guiRuntimeByGuiId.set(gui.id, rt);
+        oldGuiScript?.notifyGuiBuilt(rt);
+        notifyNewGuiBuilt(gui.id);
       }
     }
 
@@ -2397,10 +2404,19 @@ export class RoomScene extends Phaser.Scene {
    */
   setScriptedDialogClickToSkip(fn: (() => void) | null): void {
     this.scriptedDialogClickToSkip = fn;
+    const pointer = this.input?.activePointer;
+    this.scriptedDialogClickToSkipArmedDuringDown = fn && pointer?.isDown ? pointer.downTime : null;
   }
 
   clearScriptedDialogClickToSkip(): void {
     this.scriptedDialogClickToSkip = null;
+  }
+
+  /** Clears the click-to-skip hook only if it is still `fn` (another line may have replaced it). */
+  clearScriptedDialogClickToSkipIf(fn: () => void): void {
+    if (this.scriptedDialogClickToSkip === fn) {
+      this.scriptedDialogClickToSkip = null;
+    }
   }
 
   /**
@@ -2411,6 +2427,9 @@ export class RoomScene extends Phaser.Scene {
       return false;
     }
     if (!pointer.leftButtonDown()) {
+      return false;
+    }
+    if (this.scriptedDialogClickToSkipArmedDuringDown != null && pointer.downTime === this.scriptedDialogClickToSkipArmedDuringDown) {
       return false;
     }
     const fn = this.scriptedDialogClickToSkip;

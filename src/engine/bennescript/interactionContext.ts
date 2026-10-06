@@ -191,6 +191,28 @@ export function currentContext(): InteractionContext {
   return current ?? detached;
 }
 
+/**
+ * Calls a step function outside any handler: it gets the detached context, not whichever handler
+ * happens to be running (an event can fire synchronously inside another handler's step). Errors
+ * are logged; ending calls and `unhandled()` just stop it.
+ */
+export function runDetached(label: string, fn: (...args: never[]) => unknown, args: readonly unknown[] = []): void {
+  const previous = current;
+  current = null;
+  try {
+    const result = (fn as (...a: readonly unknown[]) => unknown)(...args);
+    if (isPromiseLike(result)) {
+      void Promise.resolve(result).catch((err: unknown) => {
+        outcomeOf(err, label);
+      });
+    }
+  } catch (err) {
+    outcomeOf(err, label);
+  } finally {
+    current = previous;
+  }
+}
+
 /** Ends the running handler. Used by calls typed `never` (`goTo`, `saves.load`, `dialog.end`). */
 export function endHandler(): never {
   throw END_HANDLER;

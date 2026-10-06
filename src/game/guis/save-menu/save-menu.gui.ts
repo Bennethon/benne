@@ -1,102 +1,57 @@
-import { registerGuiScript } from '@engine/scripting';
+import { saves } from '@benne/script';
+import { guis } from '@game';
+import { gui, backBtn, saveBtn, saveName, savedList } from './save-menu.ids';
 
-const MAX_SLOTS = 5;
+/** Five fixed slots (0–4). */
+const SLOTS = 5
+let selected = 0
 
-/**
- * GUI script for `save-menu`.
- * Five fixed slots (0–4); `B.state.save(name, slot)` writes the selected slot.
- */
-registerGuiScript('save-menu', ({ B }) => {
-  B.whenButtonClick('back-btn', () => {
-    B.gui('save-menu').hide();
-    B.gui('game-menu').show();
-  });
-
-  let selectedSlotIndex = 0;
-
-  /** Map manifest entries onto fixed slot indices (ignores unnamed / out-of-range saves). */
-  function getSavesBySlot() {
-    const bySlot: Array<{ name: string; slot?: number; timestamp: number } | undefined> =
-      Array(MAX_SLOTS);
-    for (const save of B.state.getSaveList()) {
-      const slot = save.slot;
-      if (typeof slot === 'number' && slot >= 0 && slot < MAX_SLOTS) {
-        bySlot[slot] = save;
-      }
-    }
-    return bySlot;
+function firstEmptySlot(): number {
+  for (let i = 0; i < SLOTS; i++) {
+    if (!saves.get(i)) return i
   }
+  return SLOTS - 1
+}
 
-  function firstEmptyOrLastSlot(savesBySlot: ReturnType<typeof getSavesBySlot>): number {
-    for (let i = 0; i < MAX_SLOTS; i++) {
-      if (!savesBySlot[i]) return i;
-    }
-    return MAX_SLOTS - 1;
+function syncSaveButton(name: string) {
+  saveBtn.enabled = saves.canSaveNow && name.trim() !== ''
+}
+
+/** Shows the slot's save name, ready to overwrite. */
+function showSlot(slot: number) {
+  saveName.text = saves.get(slot)?.name ?? ''
+  syncSaveButton(saveName.text)
+}
+
+/** Repaints the rows. `autoSelect` picks the first empty slot, or the last one when all are used. */
+function refresh(autoSelect: boolean) {
+  for (let i = 0; i < SLOTS; i++) {
+    savedList.setRowText(i, saves.get(i)?.name ?? `(Empty Slot ${i + 1})`)
   }
+  if (autoSelect) selected = firstEmptySlot()
+  savedList.selectedIndex = selected
+  showSlot(selected)
+}
 
-  function syncNameAndSaveButton(slotIndex: number) {
-    const gui = B.gui('save-menu');
-    const save = getSavesBySlot()[slotIndex];
-    const name = save ? save.name : '';
-    gui.control('save-name').textNow(name);
-    gui.control('save-btn').enabled = name.trim().length > 0;
-  }
+gui.onBuilt(() => refresh(true))
+gui.onShow(() => refresh(false))
 
-  /** Repaint list rows. When `autoSelect` is true, pick the first empty slot or the last slot if full. */
-  function refreshSaveList(autoSelect: boolean) {
-    const savesBySlot = getSavesBySlot();
-    const listBox = B.gui('save-menu').control('saved-list');
+savedList.onSelect((i) => {
+  selected = i
+  showSlot(i)
+})
 
-    for (let i = 0; i < MAX_SLOTS; i++) {
-      const existing = savesBySlot[i];
-      listBox.setRowText(i, existing ? existing.name : `(Empty Slot ${i + 1})`);
-    }
+saveName.onChange((text: string) => syncSaveButton(text))
 
-    if (autoSelect) {
-      selectedSlotIndex = firstEmptyOrLastSlot(savesBySlot);
-    }
+saveBtn.onClick(() => {
+  const name = saveName.text.trim()
+  if (!name) return
+  saves.save(selected, name)
+  gui.hide()
+  guis.gameMenu.show()
+})
 
-    listBox.selectedIndex = selectedSlotIndex;
-  }
-
-  B.onGuiBuilt(() => {
-    const gui = B.gui('save-menu');
-    const listBox = gui.control('saved-list');
-    const nameInput = gui.control('save-name');
-    const saveButton = gui.control('save-btn');
-
-    refreshSaveList(true);
-    syncNameAndSaveButton(selectedSlotIndex);
-
-    listBox.whenSelectionChanged((index: number) => {
-      selectedSlotIndex = index;
-      syncNameAndSaveButton(index);
-    });
-
-    nameInput.whenValueChanged((newValue) => {
-      const trimmed = String(newValue || '').trim();
-      saveButton.enabled = trimmed.length > 0;
-    });
-  });
-
-  B.onGuiShow(() => {
-    refreshSaveList(false);
-    syncNameAndSaveButton(selectedSlotIndex);
-  });
-
-  B.whenButtonClick('save-btn', () => {
-    const gui = B.gui('save-menu');
-    const nameInput = gui.control('save-name');
-    const name = String(nameInput.text || '').trim();
-    if (name.length === 0) return;
-
-    B.state.save.now(name, selectedSlotIndex);
-    B.state.flush();
-
-    refreshSaveList(false);
-    syncNameAndSaveButton(selectedSlotIndex);
-
-    B.gui('save-menu').hide();
-    B.gui('game-menu').show();
-  });
-});
+backBtn.onClick(() => {
+  gui.hide()
+  guis.gameMenu.show()
+})

@@ -1,71 +1,28 @@
-import { BENNE_VERB_CONTEXT_CHANGED_EVENT, registerGuiScript } from '@engine/scripting';
-import { DEFAULT_VERB_FALLBACK } from '@engine/verbs/verbConfig';
+import { pointer } from '@benne/script';
+import { guis, verbs } from '@game';
+import { gui, cleanBtn, lookAtBtn, menuBtn, moveBtn, takeBtn, talkToBtn, useBtn, verbLineText } from './verbs.ids';
 
-/**
- * GUI script for `verbs` — wires each verb button to `B.setActiveVerb(<id>)`. The pointer
- * resolver uses the active verb on the next left-click against a clickable target (and clears
- * it on consume), so clicking `OpenBtn` then a prop dispatches `open` on that prop.
- */
-registerGuiScript('verbs', ({ B }) => {
-  B.onGuiBuilt(() => {
-    const line = B.gui('verbs').control('verbLineText');
+const buttons = new Map([
+  [verbs.look, lookAtBtn],
+  [verbs.use, useBtn],
+  [verbs.take, takeBtn],
+  [verbs.talkTo, talkToBtn],
+  [verbs.move, moveBtn],
+  [verbs.clean, cleanBtn],
+])
 
-    const verbButtons = {
-      look: B.gui('verbs').control('LookAtBtn'),
-      use: B.gui('verbs').control('UseBtn'),
-      take: B.gui('verbs').control('TakeBtn'),
-      talkTo: B.gui('verbs').control('TalkToBtn'),
-      move: B.gui('verbs').control('MoveBtn'),
-      clean: B.gui('verbs').control('CleanBtn'),
-    } as const;
+for (const [verb, button] of buttons) button.onClick(() => verb.select())
 
-    function refresh(): void {
-      const verb = B.activeVerb;
-      const item = B.activeInventory;
-      const hoverDescription = B.currentHoverDescription;
+menuBtn.onClick(() => guis.gameMenu.show())
 
-      const hover = B.currentHoverTarget;
-      const effectiveDefaultVerb =
-        hover == null
-          ? undefined
-          : (hover.defaultVerb?.trim().length ? hover.defaultVerb.trim() : DEFAULT_VERB_FALLBACK);
+// The verb line ("Use Coffee with Coffee maker"), and the hovered thing's default verb lit up.
+function refresh() {
+  verbLineText.text = pointer.sentence
+  const highlighted = pointer.hover?.defaultVerb
+  for (const [verb, button] of buttons) {
+    button.visualState = verb === highlighted ? 'hover' : 'normal'
+  }
+}
 
-      // == Verb Line ==
-      let text = verb?.label ?? 'Walk to';
-      if (item) {
-        const itemName = item.description || item.name || item.id;
-        const prep = verb?.preposition ?? 'on';
-        text = `${text} ${itemName} ${prep}`;
-      }
-      if (hoverDescription) text += ` ${hoverDescription}`;
-
-      line.text = text.trim();
-
-      // == Default-verb button highlight ==
-      // First, reset everything to normal
-      Object.values(verbButtons).forEach(btn => {
-        btn.setVisualState('normal');
-      });
-
-      // Then highlight the matching button if we have a hover default verb
-      if ( effectiveDefaultVerb && verbButtons[effectiveDefaultVerb as keyof typeof verbButtons] ) {
-        verbButtons[effectiveDefaultVerb as keyof typeof verbButtons].setVisualState('hover');
-      }
-
-    }
-
-    refresh();
-    B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, refresh);
-  });
-
-  B.whenButtonClick('TakeBtn', () => B.setActiveVerb('take'));
-  B.whenButtonClick('TalkToBtn', () => B.setActiveVerb('talkTo'));
-  B.whenButtonClick('LookAtBtn', () => B.setActiveVerb('look'));
-  B.whenButtonClick('UseBtn',    () => B.setActiveVerb('use'));
-  B.whenButtonClick('MoveBtn',    () => B.setActiveVerb('move'));
-  B.whenButtonClick('CleanBtn',    () => B.setActiveVerb('clean'));
-
-  B.whenButtonClick("MenuBtn", () => {
-    B.gui('game-menu').show();
-  });
-});
+gui.onBuilt(refresh)
+pointer.onContextChange(refresh)

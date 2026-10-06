@@ -240,8 +240,39 @@ export function transformBenneScript(code, { filename, speakers }) {
   };
 
   const wrapStep = (expr) => {
+    resolveSayBlock(expr);
     insertMappedBefore(expr, 'await __$.step(() => ');
     s.prependRight(expr.end, ')');
+  };
+
+  /**
+   * `` say`Hank: …` `` blocks: speakers are checked here, like labels, and passed to the runtime:
+   * `` say.__withSpeakers({ "Hank": "hank" })`…` ``. Labels built from `${…}` are left to the runtime.
+   */
+  const resolveSayBlock = (expr) => {
+    const u = unwrap(expr);
+    if (u.type !== 'TaggedTemplateExpression') return;
+    const tag = unwrap(u.tag);
+    if (tag.type !== 'Identifier' || tag.name !== 'say') return;
+    const HOLE = '\u0000';
+    const body = u.quasi.quasis.map((q) => q.value.cooked ?? q.value.raw).join(HOLE);
+    /** @type {Record<string, string>} */
+    const resolved = {};
+    for (const raw of body.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith('//')) continue;
+      const colon = line.indexOf(':');
+      if (colon < 0) {
+        if (line.includes(HOLE)) continue;
+        fail(`Each line of a \`say\` block is \`Speaker: text\`; this one has no ":": ${JSON.stringify(line)}.`, u.quasi);
+      }
+      const label = line.slice(0, colon).trim();
+      if (label.includes(HOLE) || label in resolved) continue;
+      const speaker = resolveSpeaker(label, speakers);
+      if ('error' in speaker) fail(`In a \`say\` block: ${speaker.error}`, u.quasi);
+      resolved[label] = speaker.id;
+    }
+    s.appendLeft(u.tag.end, `.__withSpeakers(${JSON.stringify(resolved)})`);
   };
 
   /**
@@ -375,6 +406,7 @@ export function transformBenneScript(code, { filename, speakers }) {
       const bodyStart = arrow + 2;
       if (isCallLike(fn.body)) {
         assertNoNestedStepCalls(fn.body, 'another call on the same line');
+        resolveSayBlock(fn.body);
         s.appendLeft(bodyStart, ' { const __$ = __bs.ctx(); return await __$.step(() => (');
         s.prependRight(fn.end, ')); }');
       } else {

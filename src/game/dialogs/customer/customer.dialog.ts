@@ -1,34 +1,32 @@
-import { registerDialogScript } from '@engine/scripting';
+import { dialogs, flags } from '@game';
+import { dialog, options } from './customer.ids';
 
-registerDialogScript('customer', ({ B }) => {
+// Is this a nice place?
+options.nicePlace.onChoose(() => {
+  Customer: "Oh yeah! I love this place. Real authentic human experience."
+  Customer: "Slow service. Messed up orders. It has it all!"
+})
 
-  // Is this a nice place?
-  B.whenChoice("nice place", () => {
-    B.character(`customer`).say(`Oh yeah! I love this place. Real authentic human experience.`);
-    B.character(`customer`).say(`Slow service. Messed up orders. It has it all!`);
-  });
-  
-  // How long have you been waiting here?
-  B.whenChoice("how long", () => {
-    B.character(`customer`).say(`Oh about 45 minutes. Isn't it great?`);
-    B.player.say(`Sure...`);
-    B.dialog(`barista`).optionOn(`waiting customer`);
-  });
-  
-  // Uh, can I take your order?
-  B.whenChoice("take order", () => {
-    B.character(`customer`).say(`Oh, finally! Ha ha!`);
-    B.character(`customer`).say(`I'll have a black coffee, please.`);
-    B.player.say(`Uh, coming right up.`);
-    B.character(`customer`).say(`Take your time!`);
-    B.state.setFlag(`tookOrder`, true);
-    B.dialog(`barista`).optionOff(`waiting customer`);
-    B.dialog(`customer`).stop();
-  });
-  
-  // Later, man.
-  B.whenChoice("bye", () => {
-    B.character(`customer`).say(`Have a nice day!`);
-    B.dialog(`customer`).stop();
-  });
-});
+// How long have you been waiting here?
+options.howLong.onChoose(() => {
+  Customer: "Oh about 45 minutes. Isn't it great?"
+  Hank: "Sure..."
+  dialogs.barista.options.waitingCustomer.on()
+})
+
+// Uh, can I take your order?
+options.takeOrder.onChoose(() => {
+  Customer: "Oh, finally! Ha ha!"
+  Customer: "I'll have a black coffee, please."
+  Hank: "Uh, coming right up."
+  Customer: "Take your time!"
+  flags.tookOrder = true
+  dialogs.barista.options.waitingCustomer.off()
+  dialog.end()
+})
+
+// Later, man.
+options.bye.onChoose(() => {
+  Customer: "Have a nice day!"
+  dialog.end()
+})

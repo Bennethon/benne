@@ -1,196 +1,209 @@
-import { registerRoomScript } from '@engine/scripting';
+import { faceClicked, inventory, player, playFrom, say, wait, walkToClicked } from '@benne/script';
+import { dialogs, flags, items, music, rooms } from '@game';
+import { room, botti3, cafe, club, gallery, hank, jensen, mit, points, regions } from './plaza.ids';
 
+// ─── Play From ───────────────────────────────────────────────────────────────
 
-registerRoomScript(({ B }) => {
+function gotLens() {
+  inventory.add(items.lens)
+  flags.gotLens = true
+  dialogs.jensenInPlaza.options.foundLens.on()
+}
 
-  B.playFrom('firstVisit', () => {
-    B.state.setLastRoom('hallway');
-  });
+function gotRelay() {
+  inventory.add(items.relay)
+  flags.gotRelay = true
+  dialogs.jensenInPlaza.options.foundRelay.on()
+}
 
-  B.playFrom('got lens', () => {
-    B.state.setVisitCount(2);
-    B.inventory.add('lens');
-    B.state.setFlag('gotLens',true);
-    B.dialog('jensen-in-plaza').optionOn('found lens');
-  });
+function gotRegulator() {
+  inventory.add(items.regulator)
+  flags.gotRegulator = true
+  dialogs.jensenInPlaza.options.foundRegulator.on()
+}
 
-  B.playFrom('got lens and relay', () => {
-    B.state.setVisitCount(2);
+playFrom('firstVisit', () => {
+  room.last = rooms.hallway
+})
 
-    B.inventory.add('lens');
-    B.state.setFlag('gotLens',true);
-    B.dialog('jensen-in-plaza').optionOn('found lens');
+playFrom('got lens', () => {
+  room.visitCount = 2
+  gotLens()
+})
 
-    B.inventory.add('relay');
-    B.state.setFlag('gotRelay',true);
-    B.dialog('jensen-in-plaza').optionOn('found relay');
-  });
+playFrom('got lens and relay', () => {
+  room.visitCount = 2
+  gotLens()
+  gotRelay()
+})
 
-  B.playFrom('got everything', () => {
-    B.state.setVisitCount(2);
+playFrom('got everything', () => {
+  room.visitCount = 2
+  gotLens()
+  gotRelay()
+  gotRegulator()
+})
 
-    B.inventory.add('lens');
-    B.state.setFlag('gotLens',true);
-    B.dialog('jensen-in-plaza').optionOn('found lens');
+// ─── Entering ────────────────────────────────────────────────────────────────
 
-    B.inventory.add('relay');
-    B.state.setFlag('gotRelay',true);
-    B.dialog('jensen-in-plaza').optionOn('found relay');
-
-    B.inventory.add('regulator');
-    B.state.setFlag('gotRegulator',true);
-    B.dialog('jensen-in-plaza').optionOn('found regulator');
-  });
-
-  B.whenEnterRoom(() => {
-    if (B.room.last === 'hallway' && B.room.isFirstVisit) {
-      B.state.setFlag('left MIT first time', true);
-      B.character('hank').moveToNow('plaza-point-enter-from-hall');
-      B.character('jensen').moveToNow('plaza-point-enter-from-hall-jensen');
-    } else if (B.room.last === 'hallway') {
-      B.character('hank').moveToNow('plaza-point-enter-from-hall');
-    } else if (B.room.last === 'gallery') {
-      B.character('hank').moveTo('plaza-point-enter-from-gallery');
-      B.player.face('D');
-    } else if (B.room.last === 'cafe') {
-      B.character('hank').moveTo('plaza-point-enter-from-cafe');
-      B.player.face('D');
-    } else if (B.room.last === 'club') {
-      B.character('hank').moveTo('plaza-point-enter-from-garage');
-      B.player.face('L');
+room.onEnter(() => {
+  if (room.cameFrom(rooms.hallway)) {
+    hank.moveTo(points.enterFromHall)
+    if (room.isFirstVisit) {
+      flags.leftMitFirstTime = true
+      jensen.moveTo(points.enterFromHallJensen)
     }
-    B.character('jensen').show();
-  });
+  } else if (room.cameFrom(rooms.gallery)) {
+    hank.moveTo(points.enterFromGallery)
+    hank.face('D')
+  } else if (room.cameFrom(rooms.cafe)) {
+    hank.moveTo(points.enterFromCafe)
+    hank.face('D')
+  } else if (room.cameFrom(rooms.club)) {
+    hank.moveTo(points.enterFromGarage)
+    hank.face('L')
+  }
+  jensen.show()
+})
 
-  B.whenEnterRoomAfterFade(() => {
-    B.sound.playMusic('plaza');
-    if (B.room.isFirstVisit) {
-      B.player.walkTo(`plaza-point-first-visit`);
-      B.character(`jensen`).walkTo.now(`plaza-point-first-visit-jensen`);
-      B.wait(.5);
-      B.player.face('L');
-      B.player.say(`Hey, the future looks pretty nice!`);
-      B.character(`jensen`).say(`Nice? Are you kidding??`);
-      B.character(`jensen`).say(`Just look around! There's AI influencing everything!`);
-      B.player.face('R');
-      B.wait(.75);
-      B.player.face('L');
-      B.wait(.75);
-      B.player.face('R');
-      B.wait(.75);
-      B.player.face('D');
-      B.player.say(`Uh, whatever.`);
-    }
-  });
+room.onEnterAfterFade(() => {
+  music.plaza.play()
+  if (!room.isFirstVisit) {
+    return
+  }
+  // Jensen sets off with Hank; the scene goes on when Hank arrives.
+  jensen.walkTo.now(points.firstVisitJensen)
+  player.walkTo(points.firstVisit)
+  wait(0.5)
+  player.face('L')
+  Hank: "Hey, the future looks pretty nice!"
+  Jensen: "Nice? Are you kidding??"
+  Jensen: "Just look around! There's AI influencing everything!"
+  player.face('R')
+  wait(0.75)
+  player.face('L')
+  wait(0.75)
+  player.face('R')
+  wait(0.75)
+  player.face('D')
+  Hank: "Uh, whatever."
+})
 
+// ─── Looking around ──────────────────────────────────────────────────────────
 
-  B.whenLookAt('plaza-hotspot-gallery', () => {
-    B.faceClicked();
-    B.say`
+gallery.onLook(() => {
+  faceClicked()
+  say`
     Hank: Looks like a fancy futuristic museum or something.
     Jensen: It's an AI art gallery. All the art created by robots!
     Hank: Looks nice.
     Jensen: Of course it looks nice. That's how they get you.
-    `;
-  });
+  `
+})
 
-  B.whenLookAt('plaza-hotspot-mit', () => {
-    B.faceClicked();
-    B.say`
+mit.onLook(() => {
+  faceClicked()
+  say`
     Hank: The university where I work.
     Jensen: Worked.
     Hank: Right.
     Jensen: Now it's mostly archives, museums, and machines congratulating themselves.
-    `;
-  });
+  `
+})
 
-  B.whenLookAt('plaza-hotspot-cafe', () => {
-    B.faceClicked();
-    B.say`
+cafe.onLook(() => {
+  faceClicked()
+  say`
     Hank: "The Authentic Human Café"
     Hank: I remember when you could get this kind of service anywhere.
     Jensen: Now people pay for the privilege of waiting twenty minutes for the wrong sandwich.
     Hank: So basically nothing’s changed.
-    `;
-  });
+  `
+})
 
-  B.whenLookAt('plaza-hotspot-club', () => {
-    B.faceClicked();
-    B.say`
+club.onLook(() => {
+  faceClicked()
+  say`
     Hank: A dirty looking garage with a sign that says "Human Driver's Club".
     Jensen: One of the last places in the city where a human being will still operate a two-ton machine by himself.
     Hank: That sounded worse when you said it out loud.
-    `;
-  });
+  `
+})
 
-  B.region("plaza-region-gallery-exit").whenEnter(() => {
-    B.room.changeTo(`gallery`);
-  });
+// ─── Exits ───────────────────────────────────────────────────────────────────
 
-  B.region("plaza-region-cafe-exit").whenEnter(() => {
-    B.room.changeTo(`cafe`);
-  });
+regions.galleryExit.onEnter(() => {
+  rooms.gallery.goTo()
+})
 
-  B.region("plaza-region-garage-exit").whenEnter(() => {
-    if (B.state.getFlag('gotRegulator') ) {
-      B.say`Hank: I don't think I want to go back in there.`;
-    } else {
-      B.room.changeTo(`club`);
-    }
-  });
+regions.cafeExit.onEnter(() => {
+  rooms.cafe.goTo()
+})
 
-  B.region("plaza-region-mit-exit").whenEnter(() => {
-    B.room.changeTo(`hallway`);
-  });
+regions.garageExit.onEnter(() => {
+  if (flags.gotRegulator) {
+    Hank: "I don't think I want to go back in there."
+  } else {
+    rooms.club.goTo()
+  }
+})
 
-  B.whenLookAt('jensen', () => {
-    B.faceClicked();
-    B.say`
+regions.mitExit.onEnter(() => {
+  rooms.hallway.goTo()
+})
+
+// ─── Jensen ──────────────────────────────────────────────────────────────────
+
+jensen.onLook(() => {
+  faceClicked()
+  say`
     Hank: He looks agitated to be outside.
     Jensen: I can hear you, Hank.
     Hank: Still true.
-    `;
-  });
+  `
+})
 
-  B.whenTalkTo('jensen', () => {
-    B.walkToClicked();
-    B.character('jensen').say(`Well? Do you have the components yet??`);
-    B.dialog('jensen-in-plaza').start();
-  });
+jensen.onTalkTo(() => {
+  walkToClicked()
+  Jensen: "Well? Do you have the components yet??"
+  dialogs.jensenInPlaza.start()
+})
 
-  B.whenInventoryUsedOn('jensen', () => {
-    B.faceClicked();
-    B.player.say(`I don't want to give anything to him yet.`);
-  });
+jensen.onAnyItem(() => {
+  faceClicked()
+  Hank: "I don't want to give anything to him yet."
+})
 
-  B.whenLookAt('botti3', () => {
-    B.faceClicked();
-    B.say`
+// Jensen steps aside when Hank comes close. Hank doesn't wait for him.
+regions.jensenMoveRight.onEnter((who) => {
+  if (who === hank) {
+    jensen.walkTo.now(points.jensenRightSide)
+  }
+})
+
+regions.jensenMoveLeft.onEnter((who) => {
+  if (who === hank) {
+    jensen.walkTo.now(points.firstVisitJensen)
+  }
+})
+
+// ─── BOTT-i3 ─────────────────────────────────────────────────────────────────
+
+botti3.onLook(() => {
+  faceClicked()
+  say`
     Hank: A friendly looking robot kiosk.
     Jensen: Do not call it friendly.
     BOTTi3: Hello!
     Jensen: See?
     Hank: Not really.
-    `;
-  });
+  `
+})
 
-  B.region("jensen-move-right").whenEnter((ctx) => {
-    if (ctx.characterId === 'hank') {
-      B.character('jensen').walkTo('plaza-point-jensen-right-side');
-    }
-  });
-
-  B.region("jensen-move-left").whenEnter((ctx) => {
-    if (ctx.characterId === 'hank') {
-      B.character('jensen').walkTo('plaza-point-first-visit-jensen');
-    }
-  });
-
-  B.whenTalkTo('botti3', () => {
-    B.walkToClicked();
-
-    if (!B.state.getFlag('talkedWithBottieOnce')) {
-      B.say`
+botti3.onTalkTo(() => {
+  walkToClicked()
+  if (!flags.talkedWithBottieOnce) {
+    say`
       Hank: Hello, Mr. Robot!
       BOTTi3: Good morning! Welcome to Cambridge Civic Plaza.
       Jensen: DON'T TALK TO IT!
@@ -204,9 +217,7 @@ registerRoomScript(({ B }) => {
       BOTTi3: Ten years ago.
       Hank: I think I'd remember meeting a six-foot computer.
       BOTTi3: I was smaller.
-      `
-    }
-    B.dialog('botti3').start();
-    
-  });
-});
+    `
+  }
+  dialogs.botti3.start()
+})

@@ -1,168 +1,151 @@
-import { registerRoomScript } from '@engine/scripting';
+import { faceClicked, inventory, player, say, wait, walkToClicked } from '@benne/script';
+import { flags, items, music, rooms, sfx } from '@game';
+import { room, door, electricalBox, hank, jensen, mop, shelves } from './closet.ids';
 
-registerRoomScript(({ B }) => {
+room.onEnter(() => {
+  jensen.hide()
+})
 
-  B.whenEnterRoom(() => {
-    B.character('jensen').hide();
-  });
-  
-  B.whenEnterRoomAfterFade(() => {
+room.onEnterAfterFade(() => {
+  if (!room.isFirstVisit) {
+    return
+  }
+  music.trapped.play()
+  say`
+    Hank: JENSEN? WHAT THE HECK, MAN?
+    Hank: LET ME OUT!
+    Jensen: I'm sorry, Hank.
+    Jensen: But I can't let you stop me now.
+    Jensen: With the Timeonium you brought me, I can finally finish what we started ten years ago.
+    Jensen: I'm going back.
+    Jensen: I'm going to stop AI before any of this ever happens.
+    Hank: WHAT?!
+    Hank: But that's my way home!
+    Hank: I thought we were friends!
+  `
+  wait(1)
+  Jensen: "You really need to get better at reading people."
+  wait(0.5)
+  player.face('D')
+  say`
+    Hank: That jerk!
+    Hank: I have to get out of here.
+    Hank: And I have to stop him before he finishes that machine.
+  `
+})
 
-    if (B.room.isFirstVisit) {
-      B.sound.playMusic('trapped');
-      B.sound.playMusic('trapped');
-      B.say`
-      Hank: JENSEN? WHAT THE HECK, MAN?
-      Hank: LET ME OUT!
-      Jensen: I'm sorry, Hank.
-      Jensen: But I can't let you stop me now.
-      Jensen: With the Timeonium you brought me, I can finally finish what we started ten years ago.
-      Jensen: I'm going back.
-      Jensen: I'm going to stop AI before any of this ever happens.
-      Hank: WHAT?!
-      Hank: But that's my way home!
-      Hank: I thought we were friends!
-      `
-      B.wait(1);
-      B.say`Jensen: You really need to get better at reading people.`
-      B.wait(.5);
-      B.player.face('D');
-      B.say`
-      Hank: That jerk!
-      Hank: I have to get out of here.
-      Hank: And I have to stop him before he finishes that machine.
-      `
-    }
-  });
+door.onLook(() => {
+  faceClicked()
+  Hank: "Ugh, locked."
+})
 
-  B.whenLookAt('door', () => {
-    B.faceClicked();
-    B.say`Hank: Ugh, locked.`
-  });
+door.onUse(() => {
+  if (!flags.escapedCloset) {
+    faceClicked()
+    Hank: "Ugh, locked."
+    return
+  }
+  walkToClicked()
+  flags.leftClosetAgain = true
+  rooms.lab.goTo()
+})
 
-  B.whenUse('door', () => {
-    if (B.state.getFlag('escaped closet')){
-      B.walkToClicked();
-      B.state.setFlag('left closet again',true);
-      B.room.changeTo('lab');
-    } else {
-      B.faceClicked();
-      B.say`Hank: Ugh, locked.`
-    }
-  });
-
-  B.whenTalkTo('door', () => {
-    B.faceClicked();
-    B.say`
+door.onTalkTo(() => {
+  faceClicked()
+  say`
     Hank: JENSEN! LET ME OUT!
     Jensen: I'm ignoring you...
-    `
-  });
+  `
+})
 
-  B.whenLookAt('mop', () => {
-    B.faceClicked();
-    B.say`Hank: A mop.`
-  });
+mop.onLook(() => {
+  faceClicked()
+  Hank: "A mop."
+})
 
-  B.whenPickUp('mop', () => {
-    B.walkToClicked();
-    B.character('hank').playAnimation('ReachR');
-    B.prop('mop').hide();
-    B.sound.play('whip');
-    B.inventory.add('mop');
-    B.say`Hank: A janitor's work is never done.`
-  });
+mop.onTake(() => {
+  walkToClicked()
+  hank.play('ReachR')
+  mop.hide()
+  sfx.whip.play()
+  inventory.add(items.mop)
+  Hank: "A janitor's work is never done."
+})
 
-  B.whenLookAt('electricalBox', () => {
-    B.walkToClicked();
-    B.player.face('L');
-    if (B.prop('electricalBox').animation === 'electricalBox') {
-      B.say`
+electricalBox.onLook(() => {
+  walkToClicked()
+  player.face('L')
+  if (electricalBox.animation === 'electricalBox') {
+    say`
       Hank: There's a label on here. "Electrical Lock Control"
       HANK: Well, that seems unusually relevant.
       HANK: It's screwed shut.
-      `
-    } else {
-      B.say`
+    `
+  } else {
+    say`
       Hank: The cover is off. There are some wires in there.
       HANK: I might be able to short it out with something metal.
-      `
-    }
-    
-  });
+    `
+  }
+})
 
-  B.whenUse('electricalBox', () => {
-    B.walkToClicked();
-    B.player.face('L');
-    if (B.prop('electricalBox').animation === 'electricalBox') {
-      B.say`
+electricalBox.onUse(() => {
+  walkToClicked()
+  player.face('L')
+  if (electricalBox.animation === 'electricalBox') {
+    say`
       Hank: I can't get this cover off with my bare hands.
       HANK: It's screwed shut.
-      `
-    } else {
-      B.say`
-      Hank: I need something besides my bare hands!
-      `
-    }
-  });
-  B.whenInventoryUsedOn('electricalBox', (payload) => {
-    if (payload.itemId === 'coin') {
-      B.walkToClicked();
-      B.player.face('L');
-      if (B.prop('electricalBox').animation === 'electricalBox') {
-        B.say`HANK: Close enough to a screwdriver.`
-        B.character('hank').playAnimation('ReachL');
-        B.wait(.66);
-        B.prop('electricalBox').animation = 'electricalBox-open';
-        B.say`HANK: There we go!`
-      } else {
-        B.say`HANK: Let's see if this works...`
-        B.inventory.remove('coin');
-        B.character('hank').playAnimation('ReachL');
-        B.wait(.66);
-        B.sound.play('click');
-        B.say`
-        HANK: Got it!
-        `
-        B.player.walkTo('door');
-        B.say`
-        Hank: It's go time.
-        `
-        B.state.setFlag('escaped closet',true);
-        B.room.changeTo('lab');
-      }
+    `
+  } else {
+    Hank: "I need something besides my bare hands!"
+  }
+})
 
-      return;
-    }
-    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
-    return false;
-  });
+electricalBox.onUseItem(items.coin, () => {
+  walkToClicked()
+  player.face('L')
+  if (electricalBox.animation === 'electricalBox') {
+    Hank: "Close enough to a screwdriver."
+    hank.play('ReachL')
+    wait(0.66)
+    electricalBox.animation = 'electricalBox-open'
+    Hank: "There we go!"
+    return
+  }
+  Hank: "Let's see if this works..."
+  inventory.remove(items.coin)
+  hank.play('ReachL')
+  wait(0.66)
+  sfx.click.play()
+  Hank: "Got it!"
+  player.walkTo(door)
+  Hank: "It's go time."
+  flags.escapedCloset = true
+  rooms.lab.goTo()
+})
 
-  B.whenLookAt('shelves', () => {
-    B.faceClicked();
-    B.say`
+shelves.onLook(() => {
+  faceClicked()
+  say`
     Hank: There's so much JUNK in here!
     Hank: Who is responsible for cleaning up this place?
-    `
-  });
+  `
+})
 
-  const rummage = () => {
-    B.walkToClicked();
-    if ( B.state.getFlag('escaped closet') || B.inventory.has('coin') ) {
-      B.say`Hank: There's nothing else useful in there.`
-    } else {
-      B.say`Hank: Let's see...`
-      B.character('hank').playAnimation('ReachR');
-      B.wait(.75);
-      B.say`
-      HANK: A washer. Some batteries. Half a roll of tape...
-      HANK: Oh, hey. A dime.
-      `
-      B.sound.play('whip');
-      B.inventory.add('coin');
-    }
-  };
-
-  B.whenPickUp('shelves', rummage);
-  B.whenVerb('clean', 'shelves', rummage);
-});
+shelves.on(['take', 'clean'], () => {
+  walkToClicked()
+  if (flags.escapedCloset || inventory.has(items.coin)) {
+    Hank: "There's nothing else useful in there."
+    return
+  }
+  Hank: "Let's see..."
+  hank.play('ReachR')
+  wait(0.75)
+  say`
+    HANK: A washer. Some batteries. Half a roll of tape...
+    HANK: Oh, hey. A dime.
+  `
+  sfx.whip.play()
+  inventory.add(items.coin)
+})

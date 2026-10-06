@@ -217,3 +217,12 @@ export function continueVerbDispatchAfterRoom(bus: EventBus, payload: unknown): 
   }
   dispatchGlobalVerbTiers(bus, verbId, target, p);
 }
+
+/**
+ * BenneScript `unhandled()` in a character-script or inventory-item verb handler (and an item verb
+ * with no handler): hands the click to the global tiers, `verb:global:<verbId>` →
+ * `verb:global:fallback` → `verb:unhandled`.
+ */
+export function continueVerbDispatchToGlobal(bus: EventBus, verbId: string, target: VerbInteractTarget): void {
+  dispatchGlobalVerbTiers(bus, verbId, target, buildEmitPayload(target, verbId));
+}

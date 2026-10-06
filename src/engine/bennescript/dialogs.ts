@@ -284,10 +284,23 @@ function detach(): void {
   attached = null;
 }
 
+const startHandlers = new Map<string, Handler[]>();
+
+/** `dialog.onStart(…)`: runs each time the conversation opens (and when a sub-dialog returns to it). */
+export function registerDialogStartHandler(dialogId: string, handler: Handler): void {
+  warnIfUntransformed(`dialog ${dialogId} onStart`, handler);
+  const list = startHandlers.get(dialogId) ?? [];
+  list.push(handler);
+  startHandlers.set(dialogId, list);
+}
+
 gameEvents.on(DIALOG_STARTED_EVENT, (payload: unknown) => {
   const p = payload as DialogStartedPayload;
   detach();
   attach(p.dialogId, p.guiId);
+  for (const handler of startHandlers.get(p.dialogId) ?? []) {
+    void runHandler(`dialog ${p.dialogId} onStart`, liveRoomScene(), null, handler, [], { gameplay: false });
+  }
 });
 
 gameEvents.on(DIALOG_STOPPED_EVENT, (payload: unknown) => {

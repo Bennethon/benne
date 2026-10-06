@@ -1,43 +1,33 @@
-import { registerGuiScript } from '@engine/scripting';
+import { game } from '@benne/script';
+import { guis, rooms } from '@game';
+import { gui, load, quit, resume, save, settingsBtn, titleScreen } from './game-menu.ids';
 
-/**
- * GUI script for `game-menu` — Bennescript entry (`B.raw`, `onGuiBuilt`, `onGuiShow`, …).
- */
-registerGuiScript('game-menu', ({ B }) => {
-  const syncQuitButton = () => {
-    const isDesktop = B.getEnvironment() === 'electron';
-    const quitButton = B.gui('game-menu').control('quit');
-    quitButton.setVisible(isDesktop);
-    quitButton.enabled = isDesktop;
-  };
+// Quit only makes sense in the desktop app.
+function syncQuitButton() {
+  quit.visible = game.isDesktop
+  quit.enabled = game.isDesktop
+}
 
-  B.onGuiBuilt(syncQuitButton);
-  B.onGuiShow(syncQuitButton);
+gui.onBuilt(syncQuitButton)
+gui.onShow(syncQuitButton)
 
-  B.whenButtonClick('quit', () => {
-    B.quit();
-  });
+quit.onClick(() => game.quit())
 
-  B.whenButtonClick("resume", () => {
-    B.gui('game-menu').hide();
-  });
+resume.onClick(() => gui.hide())
 
-  B.whenButtonClick("settings", () => {
-    B.gui('settings-menu').show();
-    B.gui('game-menu').hide();
-  });
+settingsBtn.onClick(() => {
+  guis.settingsMenu.show()
+  gui.hide()
+})
 
-  B.whenButtonClick("save", () => {
-    B.gui('save-menu').show();
-    B.gui('game-menu').hide();
-  });
+save.onClick(() => {
+  guis.saveMenu.show()
+  gui.hide()
+})
 
-  B.whenButtonClick("load", () => {
-    B.gui('load-menu').show();
-    B.gui('game-menu').hide();
-  });
+load.onClick(() => {
+  guis.loadMenu.show()
+  gui.hide()
+})
 
-  B.whenButtonClick("title-screen", () => {
-    B.room.changeTo('title');
-  });
-});
+titleScreen.onClick(() => rooms.title.goTo())

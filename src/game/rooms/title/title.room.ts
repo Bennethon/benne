@@ -1,14 +1,11 @@
-import { registerRoomScript } from '@engine/scripting';
+import { guis, music } from '@game';
+import { room } from './title.ids';
 
-registerRoomScript(({ B }) => {
+room.onEnter(() => {
+  guis.verbs.hide()
+  guis.titleButtons.show()
+})
 
-  B.whenEnterRoom(() => {
-    B.gui('verbs').hide();
-    B.gui('title-buttons').show();
-  });
-
-
-  B.whenEnterRoomAfterFade(() => {
-    B.sound.playMusic('trapped');
-  });
-});
+room.onEnterAfterFade(() => {
+  music.trapped.play()
+})

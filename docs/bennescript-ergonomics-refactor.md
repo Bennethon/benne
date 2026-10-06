@@ -207,6 +207,8 @@ say`
 `
 ```
 
+_As built (Phase 4, decision 31):_ the transform resolves a block's speakers at build time, with the same rules and errors as labels, and passes them to the runtime (`` say.__withSpeakers({…})`…` ``). Speakers built from `${…}` are resolved at runtime against the characters in the room.
+
 **Method form** is still available when the speaker is a variable or you need options:
 
 ```ts
@@ -358,6 +360,8 @@ room.last                // RoomHandle | null
 room.cameFrom(rooms.x)   // boolean
 room.id                  // 'plaza'
 ```
+
+_As built (Phase 4, decision 29):_ `room.visitCount` and `room.last` are settable, for Play From setups (`room.last = rooms.plaza`); `room.hasVisited` exists too.
 
 ### 4.5 Verbs on props, hotspots and characters
 
@@ -572,7 +576,7 @@ if (vars.timesAskedJensen > 3) {
 
 Reads and writes go straight to `GameStateManager`, so they're saved, and they happen **at that line**. The sequencing bug class from today ("flag set after a `say` is visible while the line is still playing") disappears.
 
-_As built (Phase 3, decision 26):_ `state.ts` is an ordinary module, not a script file, so the transform leaves it alone; `@game` re-exports its `flags` and `vars`. A flag declared with `flag(default, { saveKey })` is stored under `saveKey`. An array or object default in `defineVars` is copied into the game state the first time it is read, so `vars.list.push(x)` is saved and the default itself never changes. AI Apocalypse's `state.ts` declares only the café's flags so far; Phase 4 moves the rest out of the global script.
+_As built (Phase 3, decision 26):_ `state.ts` is an ordinary module, not a script file, so the transform leaves it alone; `@game` re-exports its `flags` and `vars`. A flag declared with `flag(default, { saveKey })` is stored under `saveKey`. An array or object default in `defineVars` is copied into the game state the first time it is read, so `vars.list.push(x)` is saved and the default itself never changes. _As built (Phase 4, decision 37):_ AI Apocalypse's `state.ts` declares every flag. The flags whose old key had spaces (`'all done'`, `'escaped closet'`, …) keep it as their `saveKey`, because the baseline playthrough reads flags by key; the others kept their names. Two seeded flags nothing read (`cleanedDishes`, `servedMan`) were dropped.
 
 Flags stay booleans. Variables must be JSON-compatible values (numbers, strings, booleans, arrays and plain objects of those), which keeps saves safe (see codex-suggestions §3).
 
@@ -695,6 +699,8 @@ options.bye.onChoose(() => {
 
 _As built (Phase 2, decision 19):_ a choice handler is **not** a cutscene, unlike the old `whenChoice`. The choice list is hidden while it runs and the open conversation already blocks world clicks, so the only difference is the skip key: wrap long choices in `cutscene(…)` to make them skippable. The reason is sub-dialogs: a choice that starts one waits for it, and a cutscene held during that wait would block the sub-dialog's choice buttons. When a sub-dialog ends, its parent comes back after the choice handler that started it has finished, so lines after `start()` play before the parent's choices reappear.
 
+_As built (Phase 4, decisions 34 and 36):_ `dialog.onStart(…)` runs each time the conversation opens, before the player picks; AI Apocalypse's `jensen-in-plaza` uses it to swap the three "found" options for "found all". In the port, choices with six or more lines, a fade or a walk are wrapped in `cutscene(…)`, so ESC still skips them as it did with `whenChoice`.
+
 **Changing the room during a conversation** works as today (props, hotspots and regions of the room the conversation is in), but with typed names imported from that room's `.ids` module:
 
 ```ts
@@ -784,7 +790,7 @@ sfx.click.play({ volume: 0.5 })
 music.lab.play()                // crossfades per config; doesn't wait
 music.stop()
 if (!music.isPlaying) music.plaza.play()
-music.current                   // MusicHandle | null
+music.current                   // MusicHandle | null  (decision 35: `stop`, `isPlaying`, `current` are reserved music names)
 
 camera.focus(timeChamber)       // pans; waits
 camera.zoom(2, 1)               // zoom 2× over 1 s; waits
@@ -888,6 +894,8 @@ room.onEnterAfterFade(() => {
 })
 ```
 
+_As built (Phase 4):_ exactly this, in `opening.room.ts` (`fadeTo` / `tweenTo` take seconds). One visible difference from the old tween code: a click during a fade-in now only finishes that fade, so skipping a paragraph early takes two clicks instead of one.
+
 ### 4.13 Doing things at the same time
 
 By default everything waits. Every way to overlap work is built on one rule: **an action starts at the line where it's written.** `.now` and `background` only decide whether the script waits for it.
@@ -952,6 +960,8 @@ regions.darkness.onExit(() => { ... })
 regions.enterCloset.active = true
 walkables.upperLedge.active = false
 ```
+
+_As built (Phase 4, decision 30):_ `who` is the room module's own handle for that character (so `who === hank` works), or `characters.x`. Regions fire for every character, as before, so check `who.isPlayer` when only the player should trigger one. A region handler is a gameplay handler: one that only sends an NPC somewhere should use `jensen.walkTo.now(…)`, or it holds the interaction lock while the NPC walks. Characters and `player` also have `stopWalking()` and `position` (feet, in room pixels).
 
 Region IDs are camelCased, and the generator strips a leading room-ID prefix: `plaza-region-garage-exit` → `regions.garageExit`, `club-hotspot-battery` → `battery`. This mattered in practice: AI Apocalypse prefixes most hotspot, point and region IDs with the room name.
 
@@ -1023,6 +1033,8 @@ pointer.onContextChange(() => {
 
 `pointer.sentence` would be a new engine helper that builds the standard "Verb Item prep Target" line. Today every game re-implements it.
 
+_As built (Phase 4, decisions 32–33):_ `pointer.sentence` uses the engine's `composeVerbLineText`; `pointer.hover` is `{ kind, id, description, defaultVerb }` with `defaultVerb` a `verbs.x` handle (the target's own, else the game's), and `pointer.verb` / `pointer.item` are handles. `onContextChange` handlers register once and survive room changes. GUI handlers also register once, at module top level; every GUI overlay now gets a runtime, `gui.onBuilt` runs each time a room builds the GUI, and `onShow` / `onHide` run on any script show or hide (old API or new). Controls: `text`, `alpha`, `visible`, `x`, `y`, `enabled`, `value`, `checked`, `selectedIndex`, `setRowText()`, `visualState`, `fadeTo()` / `tweenTo()` (seconds, waits; `{ clickToSkip }`), `onClick` (sequenced, no gameplay lock), `onChange` (slider number, text input text or checkbox `checked`, immediate), `onSelect` (list boxes), `onMouseEnter` / `onMouseLeave`. `gui.root` is the GUI's packed content as one control; `gui.fadeIn()` / `fadeOut()` wait.
+
 **List boxes and text inputs** are covered in §4.16.
 
 **GUI handlers don't block gameplay.** GUI button handlers are sequenced like any other handler (so `guis.x.fadeIn()` then `wait(1)` works), but they don't take the gameplay interaction lock. Pausing the game menu doesn't fight a running cutscene. Hover handlers (`onMouseEnter` / `onMouseLeave`) stay immediate, as today.
@@ -1049,7 +1061,7 @@ saves.save(2, 'Before the lab')    // waits until written
 saves.load(2)                      // ends the handler; the game reloads
 saves.delete(2)
 saves.autosave()
-game.newGame()                     // was B.state.reset() + changeTo
+game.newGame(rooms.opening)        // was B.state.reset() + changeTo; ends the handler
 game.quit()                        // no-op in browsers
 game.isDesktop
 ```
@@ -1117,6 +1129,8 @@ gui.onShow(() => {
 Snapshotting the last idle state instead (so saving is always available) may be revisited later; see §13.
 
 _As built (Phase 2, decision 20):_ `canSaveNow` is also false during a room transition. A handler waiting on a dialog it started still counts. `saves.load()` stops every other running handler before the snapshot replaces the state, and any snapshot load or new game (including from the old `B` API) does the same. `saves.list()` / `get()` cover numbered slots only.
+
+_As built (Phase 4, decision 34):_ `game.newGame(startRoom?)` takes the room to start in (default: `startingRoomId` from the config), because AI Apocalypse's title screen starts in the opening, not in its starting room.
 
 **Settings**
 
@@ -1186,6 +1200,8 @@ playFrom('go time', () => {
   closetOpen.show()
 })
 ```
+
+_As built (Phase 4, decision 29):_ `playFrom` is a top-level call in a room script; it belongs to the room whose module is loading. It runs as a non-gameplay handler, so its lines are sequenced too.
 
 ### 4.20 Plain TypeScript and shared helpers
 
@@ -1464,7 +1480,7 @@ Two config additions (both read by the engine since Phase 3: `isItemVerb` and `r
 | `verbs` namespace | `verbs.<V>` with `id`, `label`, `preposition`, `usesItem`, `select()`, `isActive` | `verbs.clean.select()` |
 | Types | `VerbId` union and `ItemVerbId` union; JSON Schema enums for `defaultVerb`, item `verbs`, `inputProfile` | `cleaningStuff.on(['use', 'take', 'clean'], …)` |
 
-_As built (Phase 3):_ the repository has no JSON Schemas for content, so there are no schema enums; validate-content checks verb IDs instead (§8.3), and the Inspector dropdowns are Phase 5. The generated per-verb methods on item handles and on `fallbacks`, and `characters.x.on…` outside a room script, exist with their types, but their runtime (inventory, global and character-script dispatch) is Phase 4: until then they log a DEV warning and the handler doesn't run.
+_As built (Phase 3):_ the repository has no JSON Schemas for content, so there are no schema enums; validate-content checks verb IDs instead (§8.3), and the Inspector dropdowns are Phase 5. _As built (Phase 4, decisions 27–28):_ item, fallback and character-script handlers register once, at module top level, on the global dispatch channels and stay subscribed. An item with any new-style handler is armed by every `usesItem` verb on its row: after the verb's handler, or at once when it has none; `items.x.on<V>.doNotActivate(…)` opts out (the generator types it through `ItemVerbMethods`). JSON-only items keep the engine's click-time arming until Phase 6.
 
 Built-in item-verb helpers stay on top of the generated ones:
 
@@ -1582,6 +1598,8 @@ Most of the ergonomics come from the build and type layers. The VS Code extensio
 None of this changes rendering, content JSON or the editor previews.
 
 _As built (Phase 2):_ the runtime is in `src/engine/bennescript/` (`task.ts`, `interactionContext.ts`, `blocks.ts`, `dialogs.ts`, `saves.ts`). The engine registry `interactionActivity.ts` gained what the policies need, without the engine importing BenneScript: a `gameplay` flag per activity (the save policy; old GUI handlers report `false`), a world-click policy the room asks before a click starts anything (`admitGameplayClick()`, called from the prop, hotspot, character, background and inventory-row click paths), `abandon()` for a dropped player walk, and `setWaitingForPlayer()` so a handler waiting on a dialog isn't "busy". `goTo`, `saves.load` and `dialog.end` throw `END_HANDLER`; `unhandled` throws its own marker so the dispatcher can fall through (decision 22). Cancellation reaches handlers through `cancelAllInteractions()` (room leave) and the game-state-replaced event (any load or new game). Cutscene skip uses the room's existing fast-forward: `$.step` calls `finishNow()` on the in-flight task when ESC is pressed and on every later task until the cutscene ends, and the room's own primitives (walks, speech) already finish themselves when skipped.
+
+_As built (Phase 4):_ the handle API is in `src/engine/bennescript/` (`handles.ts`, `actions.ts`, `camera.ts`, `game.ts`, `guis.ts`, `itemHandlers.ts`, `globalHandlers.ts`, `roomHandlers.ts`, `registry.ts`). New primitives: `waitForClick`, control `fadeTo` / `tweenTo` (Tasks), `pointer.sentence`, `display`, `fadeOut` / `fadeIn`. AI Apocalypse runs entirely on the new API; the old one stays for the templates until Phase 6.
 
 ---
 
@@ -1720,6 +1738,17 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 | 24 | Exact naming rules (Phase 3) | **camelCase** lower-cases an all-capitals first word (`aiProblem`); **prefix stripping** removes only the room's own ID plus the thing's own kind word, and falls back to the whole ID when the rest doesn't start with a letter (`labPoint1`); **reserved names** (`_` + warning) apply only to flat scopes and include the generated module names; browser globals only warn; **`scriptName`** must be an identifier and not reserved, or generation fails; colliding audio/video file names must be renamed. AI Apocalypse needed three `scriptName`s (see the Phase 3 log). | §7.2, §4.15 |
 | 25 | Verb rules beyond §8.3 (Phase 3) | **`verbItem` is reserved** (`onVerbItem` is the generic method), verb IDs must start with a letter, and `verbs.<name>` keys are collision-checked. validate-content checks every verb reference in content JSON with the same shared rules (`scripts/lib/benneVerbs.mjs`). No JSON Schema enums: the repo has no content schemas. | §8.2, §8.3 |
 | 26 | `state.ts` details (Phase 3) | **An ordinary module, re-exported by `@game`.** `flag(default, { saveKey })` stores under `saveKey`; object/array var defaults are copied into the state on first read so in-place changes are saved. | §4.7 |
+| 27 | Where do handlers outside rooms register? (Phase 4) | **Once, at module top level, on the global dispatch channels, and they stay subscribed.** Inventory, character-script, fallback, GUI and dialog-start handlers; any-room hooks (`game.onEnterAnyRoom`) wait until the room hook registry exists (`attachGlobalRoomHooks()` in `wireBenneGlobalScripts`). Character-script handlers only fire for characters in the room, because only those can be clicked. `unhandled()` in a character or item handler goes on to the global tiers (`continueVerbDispatchToGlobal`, `continueInventoryOnDispatchAfterGlobal`). | §4.9, §4.17, §8.4 |
+| 28 | How does `usesItem` arming work? (Phase 4) | **An item with any new-style handler is armed by every `usesItem` verb on its row**: after that verb's handler (unless it was cancelled or registered with `doNotActivate`), or at once when it has none. The engine's click-time arming skips those items (`markInventoryItemArmedByScript`). JSON-only items keep the engine path until Phase 6. Item-on-item handlers apply the drop policy afterwards, like the old `whenInventoryUsedOn`. | §4.6, §8.4 |
+| 29 | How does Play From register, and how does it fake history? (Phase 4) | **A top-level `playFrom(name, fn)` belongs to the room whose module is loading** (`getLoadingRoomScriptId()`), is re-registered on every room create (the engine clears Play From per room), and runs as a non-gameplay handler. **`room.visitCount` and `room.last` are settable** for it. | §4.4, §4.19 |
+| 30 | What do region handlers get, and do they take the lock? (Phase 4) | **`who` is the room module's own character handle** (a handle registry), so `who === hank` works; regions still fire for every character. **They are gameplay handlers**, so a handler that only moves an NPC uses `.now`. Added `stopWalking()`, `position` and `isPlayer` on characters / `player` (the old code teleported the player to its own feet to stop a walk). | §4.14 |
+| 31 | How are `say` block speakers resolved? (Phase 4) | **At build time, like labels**, by ID or display name as written in JSON; unknown and ambiguous speakers are build errors. The transform passes the result as `` say.__withSpeakers({…})`…` ``; a speaker built from `${…}` is matched at runtime against the room's characters. | §4.2, §6.2 |
+| 32 | How do GUI scripts reach controls without an old `registerGuiScript`? (Phase 4) | **`RoomScene` builds a `GuiRuntime` for every GUI overlay**, not only for GUIs with an old script, and runs new-style `onBuilt` handlers after each build. Old and new `show()` / `hide()` both run new-style `onShow` / `onHide`. Value, selection and hover callbacks run at once outside any handler (`runDetached`); `onClick` is a sequenced non-gameplay handler. Timings are in seconds. | §4.15 |
+| 33 | `pointer` (Phase 4) | **`sentence` is the engine's `composeVerbLineText`**; `hover.defaultVerb`, `verb` and `item` are handles. `onContextChange` listens on a new persistent verb-context event, because `RoomScene` clears the old event's listeners on every room shutdown and new-style handlers register only once. | §4.15, §8.4 |
+| 34 | API additions the port needed (Phase 4) | **`dialog.onStart(fn)`** (jensen-in-plaza's per-session option setup), **`game.newGame(startRoom?)`** (the title screen starts in the opening, not the configured start room), **`player.stopWalking()`**, **`inventoryOf` / `jensen.inventory`** (the state manager already keeps per-character bags), **`gui.root`**. | §4.8, §4.16 |
+| 35 | Music controls next to generated tracks (Phase 4) | **`@game` builds `music` with `withMusicControls({…})`**, adding `stop()`, `isPlaying` and `current`; the generator reserves those three names in the music namespace (a track file with one of those names is a collision error asking for a rename). | §4.11, §7 |
+| 36 | Do ported dialog choices stay skippable? (Phase 4) | **Choices with six or more lines, a fade or a walk are wrapped in `cutscene(…)`**, so ESC still skips them as it did when every `whenChoice` was a cutscene (decision 19). Short choices aren't wrapped; their lines are still click-to-skip. | §4.8 |
+| 37 | Flag keys in the port (Phase 4) | **Flags whose old key had spaces keep it as `saveKey`** (`gotMission` → `'got mission'`, …): the baseline playthrough must pass unchanged and reads flags by key. Saves still don't need to load across the port (§11.2). | §4.7, §11.2 |
 
 **Revisit later**
 

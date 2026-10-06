@@ -1,34 +1,20 @@
-import { registerGuiScript } from '@engine/scripting';
+import { game } from '@benne/script';
+import { guis, rooms } from '@game';
+import { gui, loadGame, newGame, quit, settingsBtn } from './title-buttons.ids';
 
-/**
- * Title screen actions and desktop-only Quit button.
- */
-registerGuiScript('title-buttons', ({ B }) => {
-  const syncQuitButton = () => {
-    const isDesktop = B.getEnvironment() === 'electron';
-    const quitButton = B.gui('title-buttons').control('quit');
-    quitButton.setVisible(isDesktop);
-    quitButton.enabled = isDesktop;
-  };
+// Quit only makes sense in the desktop app.
+function syncQuitButton() {
+  quit.visible = game.isDesktop
+  quit.enabled = game.isDesktop
+}
 
-  B.onGuiBuilt(syncQuitButton);
-  B.onGuiShow(syncQuitButton);
+gui.onBuilt(syncQuitButton)
+gui.onShow(syncQuitButton)
 
-  B.whenButtonClick('quit', () => {
-    B.quit();
-  });
+quit.onClick(() => game.quit())
 
-  B.whenButtonClick("new-game", () => {
-    B.state.reset();
-    B.room.changeTo('opening');
-  });
+newGame.onClick(() => game.newGame(rooms.opening))
 
-  B.whenButtonClick("load-game", () => {
-    B.gui('load-menu').show();
-  });
+loadGame.onClick(() => guis.loadMenu.show())
 
-  B.whenButtonClick("settings", () => {
-    B.gui('settings-menu').show();
-  });
-
-});
+settingsBtn.onClick(() => guis.settingsMenu.show())

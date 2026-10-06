@@ -340,3 +340,111 @@ Recorded as decisions 23–26 in §13, with "as built" notes in §4.7, §4.15, �
 - The generator test fixture in `tests/unit/handleGenerator.test.mjs` is a quick way to see the output for new content shapes.
 - Port flags into `src/game/state.ts` as you port scripts; the old string keys still work for flags not yet declared (`saveKey` is there if a name must differ).
 - Run `node scripts/generate-game-ids.mjs` after content edits outside the dev server; `npm run typecheck` does it for you.
+
+---
+
+## Phase 4: Handle API and port (2026-10-05)
+
+### Done
+
+1. **Handle API** (`src/engine/bennescript/`), building on the Phase 2–3 classes:
+   - `handles.ts`: props (`clickable`, `description`, `play`, `fade`, `moveTo`, `slideTo`), hotspots (`active`, `description`), characters (`walkTo`, `moveTo`, `stopWalking`, `position`, `isPlayer`, `play`, `fade`, `animation`, `stopAnimation`, `visible`/`show`/`hide`, `movable`, `clickable`, `description`, `startFollowing`/`stopFollowing`, `inventory`), `onItem` / `onAnyItem` on clickables, regions (`onEnter((who) => …)`, `onExit`, `active`), walkables (`active`), rooms (`visitCount` and `last` settable, `hasVisited`, `cameFrom`), items (`name`, `animation`, `cursorAnimation`, `description`, verbs, `onUse.doNotActivate`, `onVerbItem` / `onItem` / `onCombine` / `onAnyItem`), `dialog.onStart`, GUIs (`show`/`hide`/`visible`, `fadeIn`/`fadeOut`, `onBuilt`/`onShow`/`onHide`, `root`) and controls (see §4.15 as-built), `sfx.x.playAndWait` / `stop`, `music.stop()` / `isPlaying` / `current` (`withMusicControls`), `video.x.play` / `playAndWait` / `stop`, real `fallbacks`.
+   - `actions.ts`: `` say`…` `` blocks, `display`, `fadeOut` / `fadeIn`, `waitForClick`, `player` (`id`, `moveTo`, `stopWalking`, `position`, `play`, `stopAnimation`, `animation`, `visible`, `movable`), `inventory.items`, `inventoryOf(owner)`.
+   - New modules: `camera.ts` (`focus`, `zoom`, `zoomTo`, `reset`, `resetZoom`, `shake`), `game.ts` (`game`, `settings`, `pointer` with `sentence`, `hover`, `verb`, `item`, `onContextChange`), `itemHandlers.ts` (item verbs, `usesItem` arming, item-on-item), `globalHandlers.ts` (fallbacks, character scripts, any-room hooks, `onUpdate`), `guis.ts` (GUI lifecycle, control events, tweens), `registry.ts` (handles by id). `roomHandlers.ts` gained regions, `playFrom` and room-level any-item handlers.
+   - `interactionContext.ts`: `runDetached` for callbacks that run outside any handler.
+2. **Engine changes** (old API unchanged):
+   - `RoomScene` builds a `GuiRuntime` for every GUI overlay (it used to need an old GUI script) and runs new `onBuilt` handlers; `clearScriptedDialogClickToSkipIf(fn)`.
+   - Old `B.gui(…).show/hide` also runs new `onShow` / `onHide` (`benneScriptGuiApi.ts`).
+   - `wireBenneGlobalScripts` calls `attachGlobalRoomHooks()` once the hook registry exists.
+   - Verb context: a persistent event that `RoomScene` doesn't clear on shutdown (`BENNE_VERB_CONTEXT_CHANGED_PERSISTENT_EVENT`).
+   - Dispatch: `continueVerbDispatchToGlobal`, `continueInventoryOnDispatchAfterGlobal` (fall-through from global-tier handlers), `markInventoryItemArmedByScript` (click-time arming skips items the new runtime arms).
+   - `getLoadingRoomScriptId()` in `registerRoomScript.ts`.
+3. **Generator**: `ItemVerbMethods` / `__withItemVerbs` (item verbs typed with `doNotActivate`), `music = withMusicControls({…})` with `stop` / `isPlaying` / `current` reserved.
+4. **Transform**: `` say`…` `` blocks resolve their speakers at build time (unknown / ambiguous speaker or a line without `:` is a build error) and emit `say.__withSpeakers({…})`.
+5. **Port of AI Apocalypse**, group by group, with `npm run test:playthrough` after each (results below): 11 rooms, 9 dialogs, 12 inventory scripts, 7 GUI scripts, `globalScript.ts`, `state.ts` (every flag). Deleted the 10 empty character scripts and the 4 empty GUI scripts (`dialog`, `display-text`, `opening-text`, `speaking-text`), as §4.9 allows; the editor only creates character scripts from its wizard.
+6. **Tests**: `tests/unit/bennescriptHandleApi.test.ts` (11): item arming and `doNotActivate`, `onCombine` and fall-through, fallbacks with `(item, target)`, character-script `unhandled()`, region `who`, GUI `onClick` (non-gameplay, doesn't block saving) and `onChange`, `pointer.sentence` / `hover.defaultVerb`, `waitForClick` (click and timeout), `say` block transform and playback. A throwaway Playwright check (deleted afterwards) covered what the playthrough doesn't: the BOTT-i3 sub-dialogs return to the parent (`around here` → `thats all`, `ai future` → `drive` → `thats all`), the game, settings, load and save menus, and the verb line text.
+7. **Extension bundle** rebuilt (`npm run build:benne-play`).
+
+### Size (§11.4)
+
+Against the original game (`76e7395`): rooms and dialogs 2,156 → 1,981 non-blank lines (−8%), 61,377 → 46,352 non-whitespace characters (**−24%**); all scripts 2,850 → 2,247 lines (−21%), 84,115 → 53,650 characters (**−36%**). Rooms and dialogs land below the §11.4 estimate of 35–45% because most of their text is dialogue, which doesn't shrink.
+
+### Timing judgements (§11.3)
+
+"Click time" is the old API running non-queued code when the handler was dispatched.
+
+| Where | Old timing | New timing | Judgement |
+|---|---|---|---|
+| Flag writes at the end of long handlers: hallway Timeonium on Jensen (`gotMission`, `jensenCrying`, `jensenBlockingDoor`), club wrench on battery (`batteryFixed`, `gotRegulator`), gallery paint (`canTakeLens`), statue (`gotLens`), closet coin (`escapedCloset`), lab27 guard region (`firstBanana`, `scientistRequest`), dialogs `time scientist` (`jensenCrying`), `bye` (`spokeWithJensenFirstTime`, `talkedWithBottieOnce`), `can have lens` (`canCleanPaint`), `high tech thing` (`canWork`), `helped` (`gotRelay`), `take order` (`tookOrder`), `fix battery`, `wrench`, `found all` (`allDone`) | Click time | Where written, after the lines | Intended. Nothing reads them while the handler runs, and the player can't click meanwhile. The playthrough checks them once idle. |
+| Flag and state reads at the top of handlers (`jensenCrying`, `gotMission`, `escapedCloset`, `inventory.has(coin)`, `electricalBox.animation`, …) | Click time | At that line, after the walk | Same result: nothing changes them during the walk. |
+| club `regulator.onLook`: `battery.active = true` | Click time (the hotspot setter wasn't queued) | After the driver's lines | Intended: the driver mentions the battery in those lines. |
+| lab27 `timeonium.onTake`: `bananaGuard.active = false` | Click time | **Moved to the top of the branch**, before `walkToClicked()` | Kept the old timing: the walks to the canister and the cord must not trip the scientists' guard region. |
+| lab `closetDoor.onUse`: `cantWalk.active = false` | Click time | **Moved above the walk** | Kept the old timing: the walk into the closet needs the region open. |
+| plaza first visit: `jensen.walkTo.now` | Fired with Hank's walk | **Moved above `player.walkTo`** | The §11.3 case: Jensen and Hank start together, the scene waits for Hank. |
+| plaza `jensenMoveRight` / `jensenMoveLeft` regions | Queued walk; old handlers never held a lock | `jensen.walkTo.now(…)` | Region handlers are gameplay handlers now; a blocking walk would ignore the player's clicks while Jensen steps aside. |
+| plaza `jensen.onAnyItem` (was `whenInventoryUsedOn('jensen')` with no `return false`) | Any item | `onAnyItem` | Same. |
+| lab27 guard region: `moveTo.now({feet})` + `stopAnimation()` | Instant teleport to the player's own feet | `player.stopWalking()` + `player.stopAnimation()` | Same effect; both abandon the walking handler (new API: it is cancelled). |
+| jensen-in-hallway `its the future`: `stop()` then `face('U')` | `face` ran after `stop()` | `jensen.face('U')` before `dialog.end()` | The §11.3 case. |
+| botti3 sub-dialogs `thats all`: `B.dialog('botti3').start()` | Restarted the parent | `dialog.end()` | The §11.3 case; the parent comes back (checked in the browser). |
+| `optionOff(self)` at the end of a choice | Turned off after the lines | `onChooseOnce` turns it off when chosen | No visible difference: the choices are hidden while the handler runs. |
+| jensen-in-plaza top-level code | Ran on every session open | `dialog.onStart(…)` | Same moment. |
+| Every `start()` (café, hallway, gallery, club, plaza) | Last line | Last line, now waits | Nothing after it changes. |
+| Dialog choices with ≥6 lines, a fade or a walk | Every `whenChoice` was a cutscene (ESC skip) | Wrapped in `cutscene(…)` | Keeps ESC skip where it matters (decision 36). |
+| `B.sound.play` / `playMusic` waited until playback started | Queued, waited for start | `play()` doesn't wait | As in Phase 1: no visible difference in the videos. |
+| closet first visit played `trapped` twice | Two `playMusic` calls | One | Duplicate call removed. |
+| Opening: click-to-advance | A click during a fade-in also skipped the hold | A click finishes the fade it lands in, or ends the hold | §4.12's code. Skipping a paragraph early now takes two clicks. |
+| Title "New Game": `B.state.reset()` + `changeTo('opening')` | | `game.newGame(rooms.opening)` | Same. |
+| Save menu | Save always enabled when a name is typed | Also needs `saves.canSaveNow` | §4.16; the button is disabled while an interaction or dialog runs. |
+
+### Cutscene videos vs Phase 0
+
+The Phase 0 recordings survived in that session's scratchpad (`…/4dcd6bab-…/scratchpad/run{1,2,3}/cutscenes/`); this phase's final run is in `test-results/playthrough/cutscenes/`. Durations (s):
+
+| Cutscene | Phase 0 runs 1/2/3 | After group 1 | Final |
+|---|---|---|---|
+| lab first visit (take Timeonium → slip → 2037 lab) | 78.7 / 78.6 / 80.0 | 81.7 | 79.5 |
+| plaza first visit | 20.5 / 20.6 / 20.9 | 21.0 | 20.6 |
+| finale | 50.1 / 50.4 / 49.8 | 49.8 | 49.7 |
+
+Frame sheets (every 6 s / 2 s / 4 s, Phase 0 run 1 against the final run) show the same shots in the same order, offset by at most a line. The group 1 run's extra lab time was run-to-run variation; the final run is inside the Phase 0 range. **One visible difference:** in the finale the verb line reads "Use mop with" for the whole cutscene, where Phase 0 showed "Walk to". The armed item is dropped (`dropWhenInventoryUsed`) when the handler ends, which is after its `cutscene(…)`. The old runtime dropped it when its *outer* queue drained, right after the walk, because the cutscene's inner steps were chained onto a newer queue. Only handlers that wrap their work in `cutscene()` show this. Left as is, since "after the interaction" is the documented policy; worth a look if it bothers you.
+
+### Deviations from the spec
+
+Decisions 27–37 in §13, with as-built notes in §4.2, §4.4, §4.7, §4.8, §4.12, §4.14, §4.15, §4.16, §4.19, §8.2 and §10. In short: top-level registration for non-room handlers (27), the arming rule (28), Play From and settable `visitCount` / `last` (29), region `who` and the lock (30), build-time `say` speakers (31), a runtime for every GUI (32), `pointer` details and its persistent event (33), API additions `dialog.onStart`, `game.newGame(startRoom?)`, `stopWalking`, `inventoryOf` (34), music controls (35), cutscene-wrapped long choices (36), flag keys kept via `saveKey` (37).
+
+### Known issues
+
+- **The armed-item drop in cutscene handlers** (above).
+- **JSON-only items** (no new-style handler) still arm through the engine's click-time path, which also plays the global `use` fallback line. AI Apocalypse has none. Phase 6 should make the new rule cover every item.
+- **Old facades still used inside new handles**: the inventory item facade (`ItemHandle.animation` / `cursorAnimation` / `description`) and `GuiRuntime` / `ControlFacade` for controls. Phase 6 must keep `GuiRuntime` (it isn't scripting API) and move the item facade's internals.
+- **Module-level subscriptions** (items, fallbacks, GUI controls, `pointer`) are registered twice if Vite hot-reloads an engine or script module; a page reload fixes it. Dev only, as in Phase 2.
+- **Editor**: Inspector handler chips, "add handler" and voice-ID export still read the old syntax, so they show nothing for the ported game (Phase 5).
+- `Phaser…Mask.setMask: This method is not supported in WebGL` was logged as a warning while the menus were open in the throwaway check. Not verified whether it predates the port (the Phase 0 list of known warnings doesn't mention it); the menus work.
+
+### Exit checks
+
+| Check | Result |
+|---|---|
+| No AI Apocalypse script uses the old API | ✅ 41 script files, all on `@benne/script` / `@game`; `grep` finds no `register*Script` or `B.` outside `boot/` |
+| `npm run check` | ✅ |
+| `npm run test:playthrough` after each group | ✅ 13/13 after rooms (11.8 min), dialogs (11.2), inventory + characters (11.1), GUIs (11.3, after one fix: the verb-line handler wrote to a GUI destroyed during a room change; destroyed controls now resolve to "not in the room"), global script + `state.ts` (11.2) |
+| Every Play From smoke test | ✅ 11/11 in each run (10 entries + discovery) |
+| Cutscene videos vs Phase 0 | ✅ same shots and timing; one difference noted above |
+| `npm run test:unit` | ✅ 125/125 (11 new) |
+| `npm run test:e2e` (old-API fixture game) | ✅ 4/4 |
+| `npm run test:extension` | ✅ 21/21 |
+| `npm run test:artifacts` (both old-API templates, desktop, itch package) | ✅ |
+| Extension bundle | Rebuilt (`npm run build:benne-play`) |
+
+### Fix after review: inventory Look lines skipped by the same click
+
+Reported after playing (desktop build and BENNE Play): Look at, then left-click the magnet or the mop, and Hank says nothing. The line was spoken (it was in the console log) but skipped in the same frame. An inventory slot's click starts the item's handler, and the new runtime runs a handler's first statement synchronously, so the speech line and its click-to-skip hook were set up *inside* the slot's `pointerdown`. The room's own `pointerdown` handler then saw the same click and used it to skip the line. The old runtime queued the line to a later tick. World handlers weren't affected, because they start with `faceClicked()` or `walkToClicked()`, and neither were right-clicks (they never skip). Timeonium seemed to work because a right-click looks at it (its default verb is the game's `look`; mop, magnet and coin default to `use`).
+
+- **Fix** (`RoomScene`): a click-to-skip hook armed while a press is in progress records that press's `downTime`, and that same press can't consume it. The next click skips as usual.
+- **Test**: `tests/playthrough/inventory-look.spec.ts` (now part of `npm run test:playthrough`) uses real mouse clicks in BENNE Play: Look at, then the magnet's slot. It checks that the line is still up 300 ms later and that the next click skips it. Without the fix it fails ("the line is still on screen"). The playthrough's hooks click objects directly, which is why they didn't catch this.
+- **New dev/test hook** `inventoryVerb(verbId, itemId)`: selects a verb and clicks the item's inventory slot.
+
+### Notes for Phase 5
+
+- New syntax to recognise: `x.on<Verb>(…)`, `x.on<Verb>Item(items.y, …)`, `x.on([…], …)`, `items.x.onCombine(items.y, …)`, `regions.x.onEnter`, `options.x.onChoose` / `onChooseOnce`, `dialog.onStart`, GUI `x.onClick` / `onChange` / `onSelect`, `gui.onBuilt` / `onShow`, `fallbacks.on<Verb>`, `playFrom('name', …)`. Speech is `Name: "…"` labels and `` say`…` `` blocks.
+- `say` blocks keep speakers as written in JSON (hyphens, spaces), so the voice-ID export must resolve them with `benneSpeakers.mjs` like the transform does.

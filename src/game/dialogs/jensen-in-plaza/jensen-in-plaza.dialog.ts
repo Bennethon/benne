@@ -1,92 +1,79 @@
-import { registerDialogScript } from '@engine/scripting';
+import { fadeOut, wait } from '@benne/script';
+import { flags, rooms } from '@game';
+import { dialog, options } from './jensen-in-plaza.ids';
 
-registerDialogScript('jensen-in-plaza', ({ B }) => {
-
-  if (
-    B.state.getFlag('gotLens') &&
-    B.state.getFlag('gotRegulator') &&
-    B.state.getFlag('gotRelay')
-  ) {
-    const dialog = B.dialog('jensen-in-plaza');
-    dialog.optionOff.now('found lens');
-    dialog.optionOff.now('found regulator');
-    dialog.optionOff.now('found relay');
-    dialog.optionOn.now('found all');
+// With all three parts, the "found" options give way to "found all".
+dialog.onStart(() => {
+  if (flags.gotLens && flags.gotRegulator && flags.gotRelay) {
+    options.foundLens.off()
+    options.foundRegulator.off()
+    options.foundRelay.off()
+    options.foundAll.on()
   }
+})
 
-  // What do we need to find again?
-  B.whenChoice("what do we need", () => {
-    B.character('jensen').say(`We need:`);
-    B.character('jensen').say(`A temporal focusing lens.`);
-    B.character('jensen').say(`A power regulator.`);
-    B.character('jensen').say(`And a control relay.`);
-    B.character('jensen').say(`Got it?`);
-    B.player.say(`Got it.`);
-    B.character('jensen').say(`A robot could do this faster than you!`);
-  });
-  
-  // Hey, I found the lens!
-  B.whenChoice("found lens", () => {
+// What do we need to find again?
+options.whatDoWeNeed.onChoose(() => {
+  Jensen: "We need:"
+  Jensen: "A temporal focusing lens."
+  Jensen: "A power regulator."
+  Jensen: "And a control relay."
+  Jensen: "Got it?"
+  Hank: "Got it."
+  Jensen: "A robot could do this faster than you!"
+})
 
-    B.character('jensen').say(`Excellent!`);
-    if ( B.state.getFlag('gotRegulator') ) {
-      B.character('jensen').say(`Now all we need is the control relay.`);
-    } else if ( B.state.getFlag('gotRelay') ) {
-      B.character('jensen').say(`Now all we need is the power regulator.`);
-    }  else {
-      B.character('jensen').say(`Now all we need is the power regulator and control relay.`);
-    }
-    B.character('jensen').say(`We don't have all day!`);
-    B.dialog('jensen-in-plaza').optionOff('found lens');
-    
-  });
+// Hey, I found the lens!
+options.foundLens.onChooseOnce(() => {
+  Jensen: "Excellent!"
+  if (flags.gotRegulator) {
+    Jensen: "Now all we need is the control relay."
+  } else if (flags.gotRelay) {
+    Jensen: "Now all we need is the power regulator."
+  } else {
+    Jensen: "Now all we need is the power regulator and control relay."
+  }
+  Jensen: "We don't have all day!"
+})
 
-  // Hey, I found the power regulator!
-  B.whenChoice("found regulator", () => {
+// Hey, I found the power regulator!
+options.foundRegulator.onChooseOnce(() => {
+  Jensen: "Excellent!"
+  if (flags.gotLens) {
+    Jensen: "Now all we need is the control relay."
+  } else if (flags.gotRelay) {
+    Jensen: "Now all we need is the temporal focusing lens."
+  } else {
+    Jensen: "Now all we need is the temporal focusing lens and control relay."
+  }
+  Jensen: "We don't have all day!"
+})
 
-    B.character('jensen').say(`Excellent!`);
-    if ( B.state.getFlag('gotLens') ) {
-      B.character('jensen').say(`Now all we need is the control relay.`);
-    } else if ( B.state.getFlag('gotRelay') ) {
-      B.character('jensen').say(`Now all we need is the temporal focusing lens.`);
-    }  else {
-      B.character('jensen').say(`Now all we need is the temporal focusing lens and control relay.`);
-    }
-    B.character('jensen').say(`We don't have all day!`);
-    B.dialog('jensen-in-plaza').optionOff('found regulator');
+// Hey, I found the control relay!
+options.foundRelay.onChooseOnce(() => {
+  Jensen: "Excellent!"
+  if (flags.gotLens) {
+    Jensen: "Now all we need is the power regulator."
+  } else if (flags.gotRegulator) {
+    Jensen: "Now all we need is the temporal focusing lens."
+  } else {
+    Jensen: "Now all we need is the temporal focusing lens and power regulator."
+  }
+  Jensen: "We don't have all day!"
+})
 
-  });
+// I think I got all the parts we need!
+options.foundAll.onChoose(() => {
+  Jensen: "Excellent! Give them to me. Let's go to my lab and repair the time chamber."
+  fadeOut()
+  wait(0.75)
+  flags.allDone = true
+  rooms.lab.goTo()
+})
 
-  // Hey, I found the control relay!
-  B.whenChoice("found relay", () => {
-
-    B.character('jensen').say(`Excellent!`);
-    if ( B.state.getFlag('gotLens') ) {
-      B.character('jensen').say(`Now all we need is the power regulator.`);
-    } else if ( B.state.getFlag('gotRegulator') ) {
-      B.character('jensen').say(`Now all we need is the temporal focusing lens.`);
-    }  else {
-      B.character('jensen').say(`Now all we need is the temporal focusing lens and power regulator.`);
-    }
-    B.character('jensen').say(`We don't have all day!`);
-    B.dialog('jensen-in-plaza').optionOff('found relay');
-
-  });
-
-  // I think I got all the parts we need!
-  B.whenChoice("found all", () => {
-    B.character('jensen').say(`Excellent! Give them to me. Let's go to my lab and repair the time chamber.`);
-    B.fadeOut();
-    B.wait(.75);
-    B.state.setFlag(`all done`, true);
-    B.room.changeTo('lab');
-  });
-
-  // Try to stay calm. I'll be back.
-  B.whenChoice("bye", () => {
-    B.character('jensen').say(`ARGH! Hurry up!`);
-    B.character('jensen').say(`I can feel the evil eyes of the computers boring into me!`);
-    B.dialog('jensen-in-plaza').stop();
-  });
-
-});
+// Try to stay calm. I'll be back.
+options.bye.onChoose(() => {
+  Jensen: "ARGH! Hurry up!"
+  Jensen: "I can feel the evil eyes of the computers boring into me!"
+  dialog.end()
+})

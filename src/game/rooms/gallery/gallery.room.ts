@@ -1,138 +1,140 @@
-import { registerRoomScript } from '@engine/scripting';
+import { faceClicked, inventory, player, wait, walkToClicked } from '@benne/script';
+import { dialogs, flags, items, music, rooms, sfx } from '@game';
+import {
+  room, art1, art2, canvas, curator, exit, hank, mopping, paintSpill, points, regions, statue,
+} from './gallery.ids';
 
-registerRoomScript(({ B }) => {
+room.onEnter(() => {
+  hank.moveTo(points.enter)
+})
 
-  B.whenVerb('clean', 'gallery-hotspot-paint-spill', () => {
-    B.walkToClicked();
-    if (B.state.getFlag('canTakeLens')) {
-      B.player.say(`I had better not touch it again.`);
-    } else if (!B.state.getFlag(`canCleanPaint`)) {
-      B.player.say(`Every janitorial bone in my body wants to clean this.`);
-      B.player.face('D');
-      B.player.say(`But I'm a guest here. I shouldn't touch it without being told.`);
-    } else {
-      B.player.say(`Well, she wants to see humans be productive.`);
-      B.player.say(`The least I can do is clean this up for her.`);
-      B.character('hank').hide();
-      B.sound.play('cleaningPaint');
-      B.prop('mopping').animation = 'mopping-action'; // after hide; does not wait for the clip
-      B.wait(1);
-      B.character(`curator`).face(`L`);
-      B.character('curator').say('WHAT ARE YOU DOING?!');
-      B.wait(.5);
-      B.character('hank').face('D');
-      B.character('hank').show();
-      B.prop('mopping').animation = 'mopping-end';
-      B.player.face('R');
-      B.player.say(`I...`);
-      B.player.face('L');
-      B.wait(.5);
-      B.player.face('R');
-      B.player.say(`I was just trying to clean this paint and-`);
-      B.player.face('L');
-      B.wait(.5);
-      B.player.face('R');
-      B.player.say(`you startled me and-`);
-      B.character('curator').say('STOP!');
-      B.character('curator').say('What have you done?');
-      B.player.face('L');
-      B.wait(1);
-      B.character('curator').say('I LOVE IT!');
-      B.character('curator').say(`It's so raw... so energetic... so...`);
-      B.character('curator').say(`HUMAN.`);
-      B.character('curator').say(`This is the first piece of human created art in years!`);
-      B.character('curator').say(`This changes everything!`);
-      B.character('curator').say(`Take the lens, I don't care anymore!`);
-      B.player.face('R');
-      B.player.say(`Thanks!`);
-      B.dialog(`curator`).optionOff(`can have lens`);
-      B.dialog(`curator`).optionOff(`paint spill`);
-      B.dialog(`curator`).optionOff(`greet curator`);
-      B.dialog(`curator`).optionOff(`hows it going curator`);
-      B.state.setFlag(`canTakeLens`, true);
-    }
-  });
+room.onEnterAfterFade(() => {
+  music.gallery.play()
+})
 
-  B.region("gallery-region-leave").whenEnter(() => {
-    B.room.changeTo(`plaza`);
-  });
+paintSpill.onClean(() => {
+  walkToClicked()
+  if (flags.canTakeLens) {
+    Hank: "I had better not touch it again."
+  } else if (!flags.canCleanPaint) {
+    Hank: "Every janitorial bone in my body wants to clean this."
+    player.face('D')
+    Hank: "But I'm a guest here. I shouldn't touch it without being told."
+  } else {
+    Hank: "Well, she wants to see humans be productive."
+    Hank: "The least I can do is clean this up for her."
+    hank.hide()
+    sfx.cleaningPaint.play()
+    mopping.animation = 'mopping-action' // after hide; does not wait for the clip
+    wait(1)
+    curator.face('L')
+    Curator: "WHAT ARE YOU DOING?!"
+    wait(0.5)
+    hank.face('D')
+    hank.show()
+    mopping.animation = 'mopping-end'
+    player.face('R')
+    Hank: "I..."
+    player.face('L')
+    wait(0.5)
+    player.face('R')
+    Hank: "I was just trying to clean this paint and-"
+    player.face('L')
+    wait(0.5)
+    player.face('R')
+    Hank: "you startled me and-"
+    Curator: "STOP!"
+    Curator: "What have you done?"
+    player.face('L')
+    wait(1)
+    Curator: "I LOVE IT!"
+    Curator: "It's so raw... so energetic... so..."
+    Curator: "HUMAN."
+    Curator: "This is the first piece of human created art in years!"
+    Curator: "This changes everything!"
+    Curator: "Take the lens, I don't care anymore!"
+    player.face('R')
+    Hank: "Thanks!"
+    const options = dialogs.curator.options
+    options.canHaveLens.off()
+    options.paintSpill.off()
+    options.greetCurator.off()
+    options.howsItGoingCurator.off()
+    flags.canTakeLens = true
+  }
+})
 
-  B.whenLookAt('statue', () => {
-    B.faceClicked();
-    if (B.prop(`statue`).animation === `statue`) {
-      B.player.say(`Nice looking glass lens thingie.`);
-    } else {
-      B.player.say(`Ehh I think it looks better now.`);
-    }
-  });
+paintSpill.onLook(() => {
+  walkToClicked()
+  if (flags.canTakeLens) {
+    Hank: "I had better not touch it again."
+  } else {
+    Hank: "Is it an accident, or modern art?"
+  }
+})
 
-  B.whenPickUp('statue', () => {
-    B.walkToClicked();
-    B.wait(.5);
-    if (!B.state.getFlag('canTakeLens')) {
-      B.character(`curator`).say(`PLEASE DO NOT TOUCH THE ART!`);
-    } else if (B.prop(`statue`).animation === `statue-noLens`) {
-      B.player.say('I already got what I need from it.');
-    } else {
-      B.character('hank').playAnimation('ReachL');
-      B.sound.play('whip');
-      B.inventory.add(`lens`);
-      B.prop(`statue`).animation = "statue-noLens";
-      B.player.face(`D`);
-      B.player.say('This might work to fix the time machine.');
-      B.state.setFlag('gotLens',true);
-    B.dialog('jensen-in-plaza').optionOn('found lens');
-    }
-  });
+regions.leave.onEnter(() => {
+  rooms.plaza.goTo()
+})
 
-  B.whenLookAt('curator', () => {
-    B.faceClicked();
-    B.player.say(`She looks nice.`);
-  });
+statue.onLook(() => {
+  faceClicked()
+  if (statue.animation === 'statue') {
+    Hank: "Nice looking glass lens thingie."
+  } else {
+    Hank: "Ehh I think it looks better now."
+  }
+})
 
-  B.whenLookAt('gallery-hotspot-paint-spill', () => {
-    B.walkToClicked();
-    if (B.state.getFlag('canTakeLens')) {
-      B.player.say(`I had better not touch it again.`);
-    } else {
-      B.player.say(`Is it an accident, or modern art?`);
-    }
-  });
+statue.onTake(() => {
+  walkToClicked()
+  wait(0.5)
+  if (!flags.canTakeLens) {
+    Curator: "PLEASE DO NOT TOUCH THE ART!"
+  } else if (statue.animation === 'statue-noLens') {
+    Hank: "I already got what I need from it."
+  } else {
+    hank.play('ReachL')
+    sfx.whip.play()
+    inventory.add(items.lens)
+    statue.animation = 'statue-noLens'
+    player.face('D')
+    Hank: "This might work to fix the time machine."
+    flags.gotLens = true
+    dialogs.jensenInPlaza.options.foundLens.on()
+  }
+})
 
-  B.whenTalkTo('curator', () => {
-    B.walkToClicked();
-    B.dialog(`curator`).start();
-  });
+curator.onLook(() => {
+  faceClicked()
+  Hank: "She looks nice."
+})
 
-  B.whenLookAt('gallery-hotspot-canvas', () => {
-    B.faceClicked();
-    if (B.state.getFlag('canTakeLens')) {
-      B.player.say(`I'm the next Jackson Pollock!`);
-    } else {
-      B.player.say(`The canvas is empty.`);
-    }
-  });
+curator.onTalkTo(() => {
+  walkToClicked()
+  dialogs.curator.start()
+})
 
-  B.whenLookAt('exit', () => {
-    B.faceClicked();
-    B.say`Hank: That's the way back outside.`
-  });
+canvas.onLook(() => {
+  faceClicked()
+  if (flags.canTakeLens) {
+    Hank: "I'm the next Jackson Pollock!"
+  } else {
+    Hank: "The canvas is empty."
+  }
+})
 
-  B.whenEnterRoom(() => {
-    B.character('hank').moveTo('gallery-point-enter');
-  });
+exit.onLook(() => {
+  faceClicked()
+  Hank: "That's the way back outside."
+})
 
-  B.whenLookAt('art-1', () => {
-    B.walkToClicked();
-    B.say`Hank: ooooh...`
-  });
+art1.onLook(() => {
+  walkToClicked()
+  Hank: "ooooh..."
+})
 
-  B.whenLookAt('art-2', () => {
-    B.walkToClicked();
-    B.say`Hank: ahhhh...`
-  });
-
-  B.whenEnterRoomAfterFade(() => {
-    B.sound.playMusic('gallery');
-  });
-});
+art2.onLook(() => {
+  walkToClicked()
+  Hank: "ahhhh..."
+})

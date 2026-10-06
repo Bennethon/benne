@@ -241,6 +241,8 @@ export function generateGameHandles(gameRoot) {
   const sfxScope = ns('sfx');
   const sfxNames = sfx.map((a) => [a.stem, assetName(sfxScope, a, 'sound')]);
   const musicScope = ns('music');
+  // `music` also has controls next to its tracks (withMusicControls, §4.11).
+  for (const control of ['stop', 'isPlaying', 'current']) musicScope.fixed(control);
   const musicNames = music.map((a) => [a.stem, assetName(musicScope, a, 'music track')]);
   const videoScope = ns('video');
   const videoNames = videos.map((a) => [a.stem, assetName(videoScope, a, 'video')]);
@@ -421,6 +423,7 @@ function emitGameModule(m) {
   if (m.guis.length) runtime.add('GuiHandle');
   if (m.sfx.length) runtime.add('SfxHandle');
   if (m.music.length) runtime.add('MusicHandle');
+  runtime.add('withMusicControls');
   if (m.videos.length) runtime.add('VideoHandle');
   if (!m.hasState) {
     runtime.add('defineFlags');
@@ -471,6 +474,24 @@ ${m.verbs
   .join('\n')}
 }
 
+/**
+ * Per-verb handler methods on inventory items. Item verbs arm the item for "use on target" after
+ * their handler; \`.doNotActivate(…)\` opts out (§4.6).
+ */
+export interface ItemVerbMethods {
+${m.verbs
+  .map((v) => {
+    let s = v.usesItem
+      ? `  ${doc(`${verbLabel(v)}: runs when the player uses "${v.id}" on this item, which then arms it.`)}\n  ${v.method}: {\n    (handler: StepHandler): void;\n    ${doc('Same, but the item is not armed afterwards.')}\n    doNotActivate(handler: StepHandler): void;\n  };`
+      : `  ${doc(`${verbLabel(v)}: runs when the player uses "${v.id}" on this item.`)}\n  ${v.method}(handler: StepHandler): void;`;
+    if (v.itemMethod) {
+      s += `\n  ${doc(`${verbLabel(v)}: runs when the player uses "${v.id}" with \`item\` on this item.`)}\n  ${v.itemMethod}(item: ItemRef, handler: StepHandler): void;`;
+    }
+    return s;
+  })
+  .join('\n')}
+}
+
 /** Global fallbacks: what happens when nothing else handles a verb (§4.17). */
 export interface FallbackVerbMethods {
 ${m.verbs
@@ -485,6 +506,11 @@ ${m.verbs
 /** Internal: adds this game's verb methods to a handle. The generated \`.ids\` modules use it. */
 export function __withVerbs<H extends ClickableHandle<VerbId> | ItemHandle<VerbId, string>>(handle: H): H & VerbMethods {
   return withVerbMethods<H, VerbMethods>(handle, verbSpecs);
+}
+
+/** Internal: adds this game's verb methods to an item handle. */
+export function __withItemVerbs<H extends ItemHandle<VerbId, string>>(handle: H): H & ItemVerbMethods {
+  return withVerbMethods<H, ItemVerbMethods>(handle, verbSpecs);
 }
 
 /** The game's verbs: \`verbs.${m.verbs[0]?.name ?? 'look'}.select()\`, \`verbs.${m.verbs[0]?.name ?? 'look'}.label\`. */
@@ -506,7 +532,7 @@ export const characters = ${objectLiteral(
     (c) => `__withVerbs(new CharacterHandle<VerbId, ${c.animation}>(null, ${str(c.id)}))`,
   )};
 
-${m.items.some((i) => i.animation === 'SharedItemAnimation') ? `/** Animation tags on the shared inventory sheet (assets/images/inventory/inventory.json). */\ntype SharedItemAnimation = ${m.sharedItemAnimation};\n\n` : ''}export const items = ${objectLiteral(m.items, (i) => `__withVerbs(new ItemHandle<VerbId, ${i.animation}>(${str(i.id)}))`)};
+${m.items.some((i) => i.animation === 'SharedItemAnimation') ? `/** Animation tags on the shared inventory sheet (assets/images/inventory/inventory.json). */\ntype SharedItemAnimation = ${m.sharedItemAnimation};\n\n` : ''}export const items = ${objectLiteral(m.items, (i) => `__withItemVerbs(new ItemHandle<VerbId, ${i.animation}>(${str(i.id)}))`)};
 
 export const dialogs = ${objectLiteral(
     m.dialogs,
@@ -520,7 +546,8 @@ export const guis = ${objectLiteral(
 
 export const sfx = ${objectLiteral(m.sfx, (a) => `new SfxHandle(${str(a.id)})`)};
 
-export const music = ${objectLiteral(m.music, (a) => `new MusicHandle(${str(a.id)})`)};
+/** Music tracks, plus \`music.stop()\`, \`music.isPlaying\` and \`music.current\`. */
+export const music = withMusicControls(${objectLiteral(m.music, (a) => `new MusicHandle(${str(a.id)})`)});
 
 export const video = ${objectLiteral(m.videos, (a) => `new VideoHandle(${str(a.id)})`)};
 `;

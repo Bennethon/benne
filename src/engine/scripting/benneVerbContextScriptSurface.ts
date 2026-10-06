@@ -8,6 +8,13 @@ import type { VerbHoverTarget } from '../../types/verbContext.js';
 /** Event id for **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, …)`**. */
 export const BENNE_VERB_CONTEXT_CHANGED_EVENT = 'benne:verbContextChanged' as const;
 
+/**
+ * Emitted together with {@link BENNE_VERB_CONTEXT_CHANGED_EVENT}, but `RoomScene` does not clear its
+ * listeners on room shutdown. New-style `pointer.onContextChange` handlers are registered once, at
+ * module top level, so they listen here.
+ */
+export const BENNE_VERB_CONTEXT_CHANGED_PERSISTENT_EVENT = 'benne:verbContextChanged:persistent' as const;
+
 /** Listeners subscribe with **`BENNE_VERB_CONTEXT_CHANGED_EVENT`**. The room scene clears them on shutdown so GUI **`onGuiBuilt`** can **`on`** each load without stacking. */
 const emitter = new Phaser.Events.EventEmitter();
 
@@ -32,6 +39,7 @@ function targetsEqual(a: VerbHoverTarget | null, b: VerbHoverTarget | null): boo
 
 export function emitBenneVerbContextChanged(): void {
   emitter.emit(BENNE_VERB_CONTEXT_CHANGED_EVENT);
+  emitter.emit(BENNE_VERB_CONTEXT_CHANGED_PERSISTENT_EVENT);
 }
 
 export function publishBenneVerbHoverContext(
@@ -44,6 +52,7 @@ export function publishBenneVerbHoverContext(
   hoverDescriptionScript = description;
   hoverTargetScript = target;
   emitter.emit(BENNE_VERB_CONTEXT_CHANGED_EVENT);
+  emitter.emit(BENNE_VERB_CONTEXT_CHANGED_PERSISTENT_EVENT);
 }
 
 export function clearBenneVerbHoverContext(): void {

@@ -1,193 +1,184 @@
-import { registerRoomScript } from '@engine/scripting';
+import { camera, cutscene, faceClicked, fadeOut, input, inventory, player, playFrom, wait, walkToClicked } from '@benne/script';
+import { flags, guis, items, music, rooms, sfx } from '@game';
+import {
+  room, banana, botti327, cord, door, hank, points, regions, scientists, slip, timeonium, timeTravelFinal,
+} from './lab27.ids';
 
-registerRoomScript(({ B }) => {
+playFrom('ending', () => {
+  flags.escapedCloset = true
+})
 
-  B.playFrom('ending', () => {
-    B.state.setFlag('escaped closet',true);
-  });
+room.onEnter(() => {
+  if (!flags.escapedCloset) {
+    return
+  }
+  // GAME END
+  hank.show()
+  timeonium.hide()
+  banana.hide()
+  cord.animation = 'cord'
+  botti327.face('D')
+  hank.moveTo(points.endingStartWalk)
+  hank.face('L')
+  camera.zoomTo(points.endingZoom, 1, 0)
+  regions.bananaGuard.active = false
+  guis.verbs.hide()
+})
 
-  B.whenEnterRoom(() => {
-    if (B.state.getFlag('escaped closet')) {
-      // GAME END
-      B.character('hank').show();
-      B.prop('timeonium').hide();
-      B.prop('banana').hide();
-      B.prop(`cord`).animation = `cord`;
-      B.character(`botti3-27`).face(`D`);
-      B.character('hank').moveTo('lab27-point-ending-startWalk');
-      B.character('hank').face('L');
-      B.camera.zoomTo('lab27-point-ending-zoom',1,0);
-      B.region('bananaGuard').active = false;
-      B.gui('verbs').hide();
-    }
-  });
+room.onEnterAfterFade(() => {
+  if (flags.escapedCloset) {
+    // GAME END
+    player.walkTo(banana)
+    player.face('U')
+    Hank: "*sigh*"
 
-  B.whenEnterRoomAfterFade(() => {
-    if (B.state.getFlag('escaped closet')) {
+    // Plug in BOTT-i3
+    player.walkTo(points.endingStopWalk)
+    Hank: "Oh how did this get unplugged again?"
+    player.walkTo(points.walkCord)
+    player.face('U')
+    wait(0.5)
+    hank.play('ReachU')
+    cord.animation = 'cord-plugged'
+    Hank: "There we go."
+    wait(0.5)
+    botti327.face('R')
+    Botti327: "Thanks Hank!"
+    Hank: "No problem, BOTT-i3!"
+    player.walkTo(door)
+    fadeOut(1.5)
+    wait(0.33)
+    Scientists: "Hey! Where's the Timeonium?"
+    rooms.credits.goTo()
+  }
 
-      // GAME END
-      B.player.walkTo('banana');
-      B.player.face('U');
-      B.say`Hank: *sigh*`;
+  // GAME START
+  player.walkTo(points.walkIn)
+  Hank: "Hey guys. Working late?"
+  wait(0.5)
+  Scientists: "*grunt*"
+  wait(0.75)
+  Hank: "Welp! I'll be out of your hair in a second."
+  wait(0.5)
+  Scientists: "Jensen, hold still!"
+  wait(0.25)
+  Scientists: "We're not done calibrating the sensors."
+  wait(0.5)
+})
 
-      // Plug in BOTT-i3
-      B.player.walkTo('lab27-point-ending-stopWalk');
-      B.player.say(`Oh how did this get unplugged again?`);
-      B.player.walkTo(`walk-cord`);
-      B.player.face(`U`);
-      B.wait(.5);
-      B.character('hank').playAnimation('ReachU');
-      B.prop(`cord`).animation = `cord-plugged`;
-      B.player.say(`There we go.`);
-      B.wait(.5);
-      B.character(`botti3-27`).face(`R`);
-      B.character(`botti3-27`).say(`Thanks Hank!`);
-      B.player.say(`No problem, BOTT-i3!`);
-      B.player.walkTo('lab27-hotspot-door');
-      B.fadeOut(1.5);
-      B.wait(.33);
-      B.say`Scientists: Hey! Where's the Timeonium?`
-      B.room.changeTo('credits');
+banana.onLook(() => {
+  faceClicked()
+  Hank: "Ugh, these scientists are slobs."
+})
 
-    } else {
+// Heading for the banana walks into the scientists' guard region.
+banana.on(['clean', 'take'], () => {
+  walkToClicked()
+})
 
-      // GAME START
-      B.player.walkTo('walk-in');
-      B.player.say(`Hey guys. Working late?`);
-      B.wait(.5);
-      B.character('scientists').say(`*grunt*`);
-      B.wait(.75);
-      B.player.say(`Welp! I'll be out of your hair in a second.`);
-      B.wait(.5);
-      B.character('scientists').say(`Jensen, hold still!`);
-      B.wait(.25);
-      B.character('scientists').say(`We're not done calibrating the sensors.`);
-      B.wait(.5);
-    }
-  });
+regions.bananaGuard.onEnter((who) => {
+  if (!who.isPlayer) {
+    return
+  }
+  player.stopWalking()
+  player.stopAnimation()
+  if (!flags.firstBanana) {
+    Scientists: "HEY BUDDY! CAN YOU GIVE US A HAND?"
+    player.face('U')
+    Hank: "Yeah, what's up?"
+    Scientists: "Go grab the Timeonium canister from the desk over there."
+    Scientists: "We're almost done here and we need it to power the machine."
+    Hank: "Uh, ok."
+    flags.firstBanana = true
+    flags.scientistRequest = true
+  } else {
+    Scientists: "HEY MAN! HOW ABOUT THAT CANISTER?"
+    player.face('U')
+    Hank: "Oh yeah."
+  }
+  player.walkTo(points.walkBack)
+})
 
-  B.whenLookAt('banana', () => {
-    B.faceClicked();
-    B.player.say(`Ugh, these scientists are slobs.`);
-  });
+timeonium.onLook(() => {
+  faceClicked()
+  Hank: "It's a high tech canister of some blue stuff."
+})
 
-  const bananaTakeOrClean = () => {
-    B.walkToClicked();
-  };
+timeonium.onTake(() => {
+  if (!flags.scientistRequest) {
+    faceClicked()
+    Hank: "I don't know what I'd do with that."
+    return
+  }
+  // Off before any walking: the walks below must not trip the scientists again.
+  regions.bananaGuard.active = false
+  walkToClicked()
 
-  B.onProp('banana', 'clean', bananaTakeOrClean);
-  B.whenPickUp('banana', bananaTakeOrClean);
+  input.disabled = true
+  wait(1)
 
-  B.region("bananaGuard").whenEnter((ctx) => {
-    if (!ctx.isPlayer) return;
+  // Pick up the Timeonium
+  player.face('R')
+  Hank: "HEY GUYS! WHERE DO YOU WANT THIS?"
+  Scientists: "PUT IT OVER BY THE TIME CHAMBER."
+  Hank: "k"
+  player.face('L')
+  hank.play('ReachL')
+  timeonium.hide()
+  sfx.whip.play()
+  inventory.add(items.timeonium)
 
-    if (!B.state.getFlag(`firstBanana`)) {
-      B.player.moveTo.now({ x: ctx.feetX, y: ctx.feetY });
-      B.player.stopAnimation();
-      B.character('scientists').say(`HEY BUDDY! CAN YOU GIVE US A HAND?`);
-      B.player.face(`U`);
-      B.player.say(`Yeah, what's up?`);
-      B.character('scientists').say(`Go grab the Timeonium canister from the desk over there.`);
-      B.character('scientists').say(`We're almost done here and we need it to power the machine.`);
-      B.player.say(`Uh, ok.`);
-      B.state.setFlag('firstBanana', true);
-      B.state.setFlag('scientistRequest', true);
-      B.player.walkTo(`walk-back`);
-    } else {
-      B.player.moveTo.now({ x: ctx.feetX, y: ctx.feetY });
-      B.player.stopAnimation();
-      B.character('scientists').say(`HEY MAN! HOW ABOUT THAT CANISTER?`);
-      B.player.face(`U`);
-      B.player.say(`Oh yeah.`);
-      B.player.walkTo(`walk-back`);
-    }
-    
-  });
+  // Plug in BOTT-i3
+  wait(0.5)
+  Hank: "Oh, huh. Did I unplug this?"
+  player.walkTo(points.walkCord)
+  player.face('U')
+  wait(0.5)
+  hank.play('ReachU')
+  cord.animation = 'cord-plugged'
+  Hank: "There we go."
+  wait(0.5)
+  botti327.face('R')
+  Botti327: "Thanks!"
+  Hank: "Uh, you're welcome."
 
-  B.whenLookAt('timeonium', () => {
-    B.faceClicked();
-    B.player.say(`It's a high tech canister of some blue stuff.`);
-  });
+  // Slip on peel
+  player.walkTo(banana)
+  cutscene(() => {
+    music.stop()
+    music.slip.play({ loop: false })
+    hank.hide()
+    banana.hide()
+    scientists.face('R')
+    camera.zoomTo.now(points.cameraPan, 1, 2)
+    slip.show()
+    sfx.timeTravel.play()
+    slip.play('slip')
+    timeTravelFinal.show()
+    slip.hide()
+    Scientists: "WHAT THE-"
+    fadeOut(2, 0xffffff)
+    input.disabled = false
+    rooms.lab.goTo()
+  })
+})
 
-  B.whenPickUp('timeonium', () => {
-    if ( !B.state.getFlag('scientistRequest') ) {
-      B.faceClicked();
-      B.player.say(`I don't know what I'd do with that.`);
-    }
-    else {
-      B.walkToClicked();
+botti327.onLook(() => {
+  faceClicked()
+  Hank: "Looks like some sort of computer box."
+})
 
-      B.disableUserInput = true;
-      B.wait(1);
-      
-      // Pick up the Timeonium
-      B.player.face(`R`);
-      B.player.say(`HEY GUYS! WHERE DO YOU WANT THIS?`);
-      B.character(`scientists`).say(`PUT IT OVER BY THE TIME CHAMBER.`);
-      B.player.say(`k`);
-      B.player.face(`L`);
-      B.character('hank').playAnimation('ReachL');
-      B.prop(`timeonium`).hide();
-      B.sound.play('whip');
-      B.inventory.add(`timeonium`);
-      
-      // Plug in BOTT-i3
-      B.wait(.5);
-      B.player.say(`Oh, huh. Did I unplug this?`);
-      B.player.walkTo(`walk-cord`);
-      B.player.face(`U`);
-      B.wait(.5);
-      B.character('hank').playAnimation('ReachU');
-      B.prop(`cord`).animation = `cord-plugged`;
-      B.player.say(`There we go.`);
-      B.wait(.5);
-      B.character(`botti3-27`).face(`R`);
-      B.character(`botti3-27`).say(`Thanks!`);
-      B.player.say(`Uh, you're welcome.`);
+botti327.onUse(() => {
+  faceClicked()
+  Hank: "I'm not into computers."
+})
 
-      // Slip on peel
-      B.region(`bananaGuard`).active = false;
-      B.player.walkTo(`banana`);
-      B.cutscene(() => {
-        B.sound.stopMusic();
-        B.sound.playMusic('slip', { loop: false });
-        B.character('hank').hide();
-        B.prop(`banana`).hide();
-        B.character(`scientists`).face(`R`);
-        B.camera.zoomTo.now(`camera-pan`,1, 2);
-        B.prop('slip').show();
-        B.sound.play('timeTravel');
-        B.prop('slip').playAnimation('slip');
-        B.prop(`time-travel-final`).show();
-        B.prop('slip').hide();
-        B.character(`scientists`).say(`WHAT THE-`);
-        B.fadeOut(2, 0xffffff);
-        B.disableUserInput = false;
-        B.cutscene(() => {
-          B.room.changeTo.now('lab');
-        });    
-      });
-    }
-  });
+door.onLook(() => {
+  faceClicked()
+  Hank: "The door back to the hallway."
+})
 
-  B.whenLookAt('botti3-27', () => {
-    B.faceClicked();
-    B.player.say(`Looks like some sort of computer box.`);
-  });
-
-  B.whenUse('botti3-27', () => {
-    B.faceClicked();
-    B.player.say(`I'm not into computers.`);
-  });
-
-
-  B.whenLookAt('lab27-hotspot-door', () => {
-    B.faceClicked();
-    B.player.say(`The door back to the hallway.`);
-  });
-
-  B.whenUse('lab27-hotspot-door', () => {
-    B.faceClicked();
-    B.player.say(`I'm done cleaning out there. I need to finish in here.`);
-  });
-});
+door.onUse(() => {
+  faceClicked()
+  Hank: "I'm done cleaning out there. I need to finish in here."
+})

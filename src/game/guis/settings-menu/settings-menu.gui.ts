@@ -1,49 +1,36 @@
-import { registerGuiScript } from '@engine/scripting';
+import { game, settings } from '@benne/script';
+import { guis, rooms } from '@game';
+import { gui, back, musicEnabled, musicVolume, sfxVolume, textSpeedSlider } from './settings-menu.ids';
 
-registerGuiScript('settings-menu', ({ B }) => {
+// The text speed slider runs from slow (0.1) to fast (2), the opposite way to the speech
+// duration multiplier, so it maps across the same range.
+const TEXT_SPEED_MIN = 0.1
+const TEXT_SPEED_MAX = 2
 
-  const TEXT_SPEED_MIN = 0.1;
-  const TEXT_SPEED_MAX = 2;
+gui.onBuilt(() => {
+  sfxVolume.value = settings.sfxVolume * 100
+  musicVolume.value = settings.musicVolume * 100
+  textSpeedSlider.value = TEXT_SPEED_MIN + TEXT_SPEED_MAX - settings.textSpeed
+})
 
-  function sliderToDurationMultiplier(sliderVal: number): number {
-    return TEXT_SPEED_MIN + TEXT_SPEED_MAX - sliderVal;
-  }
+sfxVolume.onChange((v: number) => {
+  settings.sfxVolume = v / 100
+})
 
-  function durationMultiplierToSlider(mult: number): number {
-    return TEXT_SPEED_MIN + TEXT_SPEED_MAX - mult;
-  }
+musicVolume.onChange((v: number) => {
+  settings.musicVolume = v / 100
+})
 
-  B.onGuiBuilt(() => {
-    B.gui('settings-menu').control('sfxVolume').value = B.sound.getSfxVolume() * 100;
-    B.gui('settings-menu').control('musicVolume').value = B.sound.getMusicVolume() * 100;
+textSpeedSlider.onChange((v: number) => {
+  settings.textSpeed = TEXT_SPEED_MIN + TEXT_SPEED_MAX - v
+})
 
-    B.gui('settings-menu').control('text-speed-slider').setValue(durationMultiplierToSlider(B.speechSettings.durationMultiplier));
-  });
+// The checkbox is called "musicEnabled" in the GUI, but it has always switched click-to-skip.
+musicEnabled.onChange((checked: boolean) => {
+  settings.clickToSkip = checked
+})
 
-  B.gui('settings-menu').control('sfxVolume').whenValueChanged((newVal) => {
-    B.sound.setSfxVolume(newVal / 100);
-  });
-
-  B.gui('settings-menu').control('musicVolume').whenValueChanged((newVal) => {
-    B.sound.setMusicVolume(newVal / 100);
-  });
-
-  B.whenCheckboxCheck("musicEnabled", () => {
-    B.speechSettings.clickToSkip = true;
-  });
-
-  B.whenCheckboxUncheck("musicEnabled", () => {
-    B.speechSettings.clickToSkip = false;
-  });
-
-  B.gui("settings-menu").control("text-speed-slider").whenValueChanged((newVal) => {
-    B.speechSettings.durationMultiplier = sliderToDurationMultiplier(newVal);
-  });
-
-  B.whenButtonClick("back", () => {
-    B.gui('settings-menu').hide();
-    if (B.room.current !== "title") {
-      B.gui('game-menu').show();
-    }
-  });
-});
+back.onClick(() => {
+  gui.hide()
+  if (game.currentRoom !== rooms.title) guis.gameMenu.show()
+})

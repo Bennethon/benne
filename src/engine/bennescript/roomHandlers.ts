@@ -1,24 +1,29 @@
 import type { EventBus } from '../events/EventBus.js';
 import {
+  roomInventoryOnCharacterAnySourceEventId,
   roomInventoryOnCharacterEventId,
+  roomInventoryOnHotspotAnySourceEventId,
   roomInventoryOnHotspotEventId,
+  roomInventoryOnPropAnySourceEventId,
   roomInventoryOnPropEventId,
 } from '../events/inventoryOnVerbEvents.js';
+import { roomRegionEnterEventId, roomRegionExitEventId } from '../events/regionEnterExitEvents.js';
 import {
   roomCharacterVerbEventId,
   roomHotspotVerbEventId,
   roomPropVerbEventId,
 } from '../events/verbInteractionEvents.js';
-import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
-import {
-  continueInventoryOnDispatchAfterRoom,
-  shouldDropActiveInventoryOnUse,
-} from '../verbs/dispatchInventoryOnVerbTarget.js';
+import { registerPlayFromForRoom } from '../scripting/devPlayFromRegistry.js';
+import { getLoadingRoomScriptId } from '../scripting/registerRoomScript.js';
+import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
+import { continueInventoryOnDispatchAfterRoom } from '../verbs/dispatchInventoryOnVerbTarget.js';
 import { continueVerbDispatchAfterRoom } from '../verbs/dispatchVerb.js';
+import { applyInventoryDropPolicy } from './globalHandlers.js';
 import { runHandler, warnIfUntransformed } from './interactionContext.js';
+import { lookupCharacterHandle, lookupItemHandle, lookupVerbHandle } from './registry.js';
 
 export type TargetKind = 'prop' | 'hotspot' | 'character';
 
@@ -33,7 +38,11 @@ type RoomLifecycle = 'enter' | 'enterAfterFade' | 'leave' | 'loaded';
 
 type Registration =
   | { kind: 'verb'; target: TargetRef; verb: string; handler: Handler }
-  | { kind: 'verbItem'; target: TargetRef; verb: string; itemId: string; handler: Handler }
+  /** `verb` `null`: any item verb (`onItem`). */
+  | { kind: 'verbItem'; target: TargetRef; verb: string | null; itemId: string; handler: Handler }
+  | { kind: 'anyItem'; target: TargetRef; handler: Handler }
+  | { kind: 'region'; regionId: string; exit: boolean; handler: Handler }
+  | { kind: 'playFrom'; name: string; handler: Handler }
   | { kind: RoomLifecycle; handler: Handler };
 
 /**
@@ -60,15 +69,38 @@ export function registerVerbHandler(roomId: string, target: TargetRef, verb: str
 export function registerVerbItemHandler(
   roomId: string,
   target: TargetRef,
-  verb: string,
+  verb: string | null,
   itemId: string,
   handler: Handler,
 ): void {
   register(
     roomId,
     { kind: 'verbItem', target, verb, itemId, handler },
-    `${roomId}: ${itemId} "${verb}" on ${target.id}`,
+    `${roomId}: ${itemId}${verb ? ` "${verb}"` : ''} on ${target.id}`,
   );
+}
+
+export function registerAnyItemHandler(roomId: string, target: TargetRef, handler: Handler): void {
+  register(roomId, { kind: 'anyItem', target, handler }, `${roomId}: any item on ${target.id}`);
+}
+
+export function registerRegionHandler(roomId: string, regionId: string, exit: boolean, handler: Handler): void {
+  register(roomId, { kind: 'region', regionId, exit, handler }, `${roomId}: region ${regionId} ${exit ? 'exit' : 'enter'}`);
+}
+
+/**
+ * A named starting state for BENNE Play's "Play From" (§4.19), written at the top level of a room
+ * script. It runs before the room's enter handlers, only when BENNE Play asks for it by name.
+ */
+export function playFrom(name: string, setup: () => void): void {
+  const roomId = getLoadingRoomScriptId();
+  if (roomId == null) {
+    if (import.meta.env.DEV) {
+      console.warn(`[Benne] playFrom("${name}") belongs at the top level of a *.room.ts file — ignored.`);
+    }
+    return;
+  }
+  register(roomId, { kind: 'playFrom', name, handler: setup }, `${roomId}: playFrom "${name}"`);
 }
 
 export function registerRoomLifecycleHandler(roomId: string, kind: RoomLifecycle, handler: Handler): void {
@@ -97,14 +129,15 @@ function verbItemEventId(roomId: string, target: TargetRef, itemId: string): str
   }
 }
 
-/** Same drop policy the old `whenInventoryUsedOn` applies once its queue drains. */
-function applyInventoryDropPolicy(itemId: string): void {
-  if (!shouldDropActiveInventoryOnUse(itemId)) {
-    return;
+function anyItemEventId(roomId: string, target: TargetRef): string {
+  switch (target.kind) {
+    case 'prop':
+      return roomInventoryOnPropAnySourceEventId(roomId, target.id);
+    case 'hotspot':
+      return roomInventoryOnHotspotAnySourceEventId(roomId, target.id);
+    case 'character':
+      return roomInventoryOnCharacterAnySourceEventId(roomId, target.id);
   }
-  const manager = tryGetActiveGameStateManager();
-  manager?.clearActiveInventoryItem();
-  manager?.clearActiveVerb();
 }
 
 /**
@@ -165,22 +198,53 @@ export function attachRoomHandlers(roomId: string, scene: RoomScene, events: Eve
       case 'loaded':
         hooks?.registerRoomLoadedRoom(roomId, () => runHandler(`${roomId} onLoaded`, scene, null, reg.handler).then(() => {}));
         break;
+      case 'anyItem': {
+        const label = `${roomId} any item on ${reg.target.id}`;
+        listen(anyItemEventId(roomId, reg.target), (payload) => {
+          const p = payload as AnyInventoryUsedOnPayload;
+          const item = lookupItemHandle<{ id: string }>(p.itemId) ?? { id: p.itemId };
+          const verb = lookupVerbHandle<{ id: string }>(p.verbId) ?? { id: p.verbId };
+          void runHandler(label, scene, payload, reg.handler, [item, verb]).then((outcome) => {
+            if (outcome === 'unhandled') {
+              continueInventoryOnDispatchAfterRoom(events, p);
+            } else if (outcome !== 'cancelled') {
+              applyInventoryDropPolicy(p.itemId);
+            }
+          });
+        });
+        break;
+      }
+      case 'region': {
+        const label = `${roomId} region ${reg.regionId} ${reg.exit ? 'exit' : 'enter'}`;
+        const eventId = reg.exit ? roomRegionExitEventId(roomId, reg.regionId) : roomRegionEnterEventId(roomId, reg.regionId);
+        listen(eventId, (payload) => {
+          const p = payload as RegionEnterExitContext;
+          const who = lookupCharacterHandle(roomId, p.characterId) ?? { id: p.characterId };
+          void runHandler(label, scene, null, reg.handler, [who]);
+        });
+        break;
+      }
+      case 'playFrom':
+        registerPlayFromForRoom(roomId, reg.name, () =>
+          runHandler(`${roomId} playFrom "${reg.name}"`, scene, null, reg.handler, [], { gameplay: false }).then(() => {}),
+        );
+        break;
     }
   }
 
   for (const [eventId, regs] of byItemEvent) {
     listen(eventId, (payload) => {
       const p = payload as AnyInventoryUsedOnPayload;
-      const reg = regs.find((r) => r.verb === p.verbId);
+      const reg = regs.find((r) => r.verb === p.verbId) ?? regs.find((r) => r.verb == null);
       if (!reg) {
         // Another item verb than the ones handled here: fall through like an unhandled item.
         continueInventoryOnDispatchAfterRoom(events, p);
         return;
       }
-      const label = `${roomId} ${reg.itemId} "${reg.verb}" on ${reg.target.id}`;
+      const label = `${roomId} ${reg.itemId} "${p.verbId}" on ${reg.target.id}`;
       void runHandler(label, scene, payload, reg.handler).then((outcome) => {
         if (outcome === 'finished' || outcome === 'ended') {
-          applyInventoryDropPolicy(reg.itemId);
+          applyInventoryDropPolicy(p.itemId);
         } else if (outcome === 'unhandled') {
           continueInventoryOnDispatchAfterRoom(events, p);
         }
