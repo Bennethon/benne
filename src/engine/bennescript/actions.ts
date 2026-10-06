@@ -577,6 +577,7 @@ export const player = {
   get position(): Point2 {
     return characterOps.position(null);
   },
+  /** Turns to `'U'`, `'D'`, `'L'` or `'R'`. Instant. */
   face(direction: CharacterFacingLetter): void {
     faceCharacter(null, direction);
   },
@@ -595,15 +596,18 @@ export const player = {
   set animation(tag: string) {
     characterOps.setAnimation(null, tag);
   },
+  /** Hidden, the player isn't drawn. Instant, saved. */
   get visible(): boolean {
     return characterOps.getVisible(null);
   },
   set visible(value: boolean) {
     characterOps.setVisible(null, value);
   },
+  /** Same as `visible = true`. */
   show(): void {
     characterOps.setVisible(null, true);
   },
+  /** Same as `visible = false`. */
   hide(): void {
     characterOps.setVisible(null, false);
   },
@@ -618,6 +622,7 @@ export const player = {
   startFollowing(target: { readonly id: string }, options?: CharacterFollowOptions): void {
     characterOps.startFollowing(null, target, options);
   },
+  /** Stops following (`startFollowing`). */
   stopFollowing(): void {
     characterOps.stopFollowing(null);
   },
@@ -671,6 +676,7 @@ export const player = {
 
 // ─── Inventory ───────────────────────────────────────────────────────────────
 
+/** Anything with an item ID: an `items.x` handle. */
 export interface ItemRef {
   readonly id: string;
 }
@@ -684,9 +690,13 @@ function manager(what: string) {
 }
 
 export interface Inventory {
+  /** Adds `quantity` (default 1) of the item. Instant. */
   add(item: ItemRef, quantity?: number): void;
+  /** Removes `quantity` (default 1) of the item. Instant. */
   remove(item: ItemRef, quantity?: number): void;
+  /** True when the bag holds the item. */
   has(item: ItemRef): boolean;
+  /** How many of the item the bag holds. */
   count(item: ItemRef): number;
   /** Empties the bag. */
   clear(): void;

@@ -31,6 +31,7 @@ import { setActiveBenneGame } from '../../src/engine/gameState/activeBenneGame';
 import { setActiveGameStateManager } from '../../src/engine/gameState/resolveGameStateManager';
 import { clearInteractionActivity, isInteractionActivityRunning } from '../../src/engine/interaction/interactionActivity';
 import { dispatchInventoryVerbInteraction } from '../../src/engine/verbs/dispatchInventoryVerb';
+import { dispatchInventoryOnVerbTargetInteraction } from '../../src/engine/verbs/dispatchInventoryOnVerbTarget';
 import { publishBenneVerbHoverContext } from '../../src/engine/verbs/verbContext';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -170,6 +171,39 @@ describe('fallbacks and character scripts (§4.9, §4.17)', () => {
       expect(log).toEqual(['penny', 'global']);
     } finally {
       gameEvents.off(globalVerbHandlerEventId('t4-look'), onGlobal);
+    }
+  });
+
+  it("a character script's onAnyItem catches items without their own handler; unhandled() reaches the fallback", async () => {
+    const m = fakeGame();
+    const log: string[] = [];
+    const jensen = new CharacterHandle(null, 't5-jensen');
+    jensen.onItem({ id: 't5-mop' }, async () => {
+      log.push('mop')
+    });
+    jensen.onAnyItem(async (item, verb) => {
+      log.push(`any ${item.id} ${verb.id}`)
+      if (item.id === 't5-soda') unhandled()
+    });
+    const onUnhandled = (p: { itemId: string }) => log.push(`fallback ${p.itemId}`);
+    gameEvents.on(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, onUnhandled);
+    try {
+      const use = (itemId: string) =>
+        dispatchInventoryOnVerbTargetInteraction(gameEvents, itemId, 'use', { type: 'character', roomId: 'r', characterId: 't5-jensen' } as never);
+      expect(use('t5-mop')).toBe(true);
+      await flush();
+      // A finished handler applies the drop policy (src/game's config drops the item after use)…
+      m.state.item = 't5-coin';
+      expect(use('t5-coin')).toBe(true);
+      await flush();
+      expect(m.state.item).toBeNull();
+      // …unhandled() hands the click to the fallback (which applies the drop policy itself).
+      use('t5-soda');
+      await flush();
+      await flush();
+      expect(log).toEqual(['mop', 'any t5-coin use', 'any t5-soda use', 'fallback t5-soda']);
+    } finally {
+      gameEvents.off(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, onUnhandled);
     }
   });
 });

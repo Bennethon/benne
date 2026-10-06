@@ -384,6 +384,7 @@ export const pointer = {
     }
   },
 
+  /** What the pointer is over (`{ kind, id, description, defaultVerb }`), or `null`. */
   get hover(): PointerHover | null {
     const target = getBenneVerbContextHoverTarget();
     if (!target) {

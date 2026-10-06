@@ -160,6 +160,11 @@ async function bundleShared() {
     'gui-editor.html',
     'inventory-editor.html',
     'benne-play.html',
+    // Teach AI assistants BenneScript in new games (and refresh it on Update Engine).
+    '.cursor/rules/bennescript.mdc',
+    '.cursor/skills/bennescript/SKILL.md',
+    '.agents/skills/bennescript/SKILL.md',
+    '.claude/skills/bennescript/SKILL.md',
   ];
   for (const rel of fileCopies) {
     const src = path.join(REPO_ROOT, rel);

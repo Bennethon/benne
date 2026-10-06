@@ -60,6 +60,7 @@ function setInputDisabled(disabled: boolean): void {
 
 /** Player input. `input.disabled = true` locks out clicks until set back (survives room changes). */
 export const input = {
+  /** True while player input is off. */
   get disabled(): boolean {
     return tryGetActiveBenneGame()?.registry.get(BENNE_USER_INPUT_DISABLED_REGISTRY_KEY) === true;
   },

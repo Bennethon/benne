@@ -4,7 +4,7 @@ export const DIALOG_STARTED_EVENT = 'benne:dialog:started';
 /** Emitted when a dialog session closes (`dialog.end()`, a room change, or a new session). */
 export const DIALOG_STOPPED_EVENT = 'benne:dialog:stopped';
 
-/** Emitted when an option’s enabled flag is written via scripting (`optionOn` / `optionOff`). */
+/** Emitted when an option’s enabled flag is written by a script (`options.x.on()` / `off()`). */
 export const DIALOG_OPTION_ENABLED_CHANGED_EVENT = 'benne:dialog:optionEnabledChanged';
 
 export interface DialogStartedPayload {

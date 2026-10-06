@@ -44,6 +44,7 @@ import {
   startDialog,
 } from './dialogs.js';
 import {
+  registerCharacterAnyItemHandler,
   registerCharacterVerbHandler,
   registerCharacterVerbItemHandler,
   registerFallbackAnyVerb,
@@ -116,6 +117,7 @@ function verbList<V extends string>(verbs: V | readonly V[]): readonly V[] {
 export class ClickableHandle<V extends string = string> {
   readonly roomId: string | null;
   readonly kind: TargetKind;
+  /** The content ID from the room or character JSON. */
   readonly id: string;
 
   constructor(roomId: string | null, kind: TargetKind, id: string) {
@@ -156,13 +158,16 @@ export class ClickableHandle<V extends string = string> {
     }
   }
 
-  /** Any item without a handler of its own, any item verb, on this target. */
+  /**
+   * Any item without a handler of its own, any item verb, on this target. On `characters.x` (a
+   * character script) it applies in every room, after the room's own item handlers.
+   */
   onAnyItem(handler: (item: ItemRef, verb: { readonly id: V }) => void, options?: ItemHandlerOptions): void {
     if (this.roomId == null) {
-      warnOnce(`anyItem:${this.id}`, `characters.${this.id}.onAnyItem only works in a room script — ignored.`);
-      return;
+      registerCharacterAnyItemHandler(this.id, handler, options);
+    } else {
+      registerAnyItemHandler(this.roomId, this, handler, options);
     }
-    registerAnyItemHandler(this.roomId, this, handler, options);
   }
 }
 
@@ -213,6 +218,7 @@ export class PropHandle<V extends string = string, Anim extends string = string>
     super(roomId, 'prop', id);
   }
 
+  /** Hidden props aren't drawn or clickable. Instant, saved. */
   get visible(): boolean {
     return activeRoomScene()?.getPropScriptVisible(this.id) ?? false;
   }
@@ -221,10 +227,12 @@ export class PropHandle<V extends string = string, Anim extends string = string>
     roomFor(`${this.id}.visible`)?.setPropScriptVisible(this.id, value);
   }
 
+  /** Same as `visible = false`. */
   hide(): void {
     this.visible = false;
   }
 
+  /** Same as `visible = true`. */
   show(): void {
     this.visible = true;
   }
@@ -348,6 +356,7 @@ export class CharacterHandle<V extends string = string, Anim extends string = st
     return characterOps.position(this.id);
   }
 
+  /** Turns to `'U'`, `'D'`, `'L'` or `'R'` (completions insert the quotes). Instant. */
   face(direction: CharacterFacingLetter): void {
     faceCharacter(this.id, direction);
   }
@@ -372,6 +381,7 @@ export class CharacterHandle<V extends string = string, Anim extends string = st
     characterOps.stopAnimation(this.id);
   }
 
+  /** Hidden characters aren't drawn or clickable. Instant, saved. */
   get visible(): boolean {
     return characterOps.getVisible(this.id);
   }
@@ -380,10 +390,12 @@ export class CharacterHandle<V extends string = string, Anim extends string = st
     characterOps.setVisible(this.id, value);
   }
 
+  /** Same as `visible = true`. */
   show(): void {
     this.visible = true;
   }
 
+  /** Same as `visible = false`. */
   hide(): void {
     this.visible = false;
   }
@@ -397,6 +409,7 @@ export class CharacterHandle<V extends string = string, Anim extends string = st
     characterOps.setMovable(this.id, value);
   }
 
+  /** When false, the character can't be hovered or clicked. Saved. */
   get clickable(): boolean {
     return characterOps.getClickable(this.id);
   }
@@ -419,6 +432,7 @@ export class CharacterHandle<V extends string = string, Anim extends string = st
     characterOps.startFollowing(this.id, target ?? null, options);
   }
 
+  /** Stops following (`startFollowing`). */
   stopFollowing(): void {
     characterOps.stopFollowing(this.id);
   }
@@ -431,6 +445,7 @@ export class CharacterHandle<V extends string = string, Anim extends string = st
     characterOps.startFacing(this.id, target ?? null, options);
   }
 
+  /** Stops turning toward its target (`startFacing`). */
   stopFacing(): void {
     characterOps.stopFacing(this.id);
   }
@@ -521,9 +536,13 @@ export function withVerbMethods<H, M>(handle: H, verbs: readonly VerbSpec[]): H 
 
 /** A verb, as `verbs.<id>` in `@game`. */
 export class VerbHandle<V extends string = string> {
+  /** The verb's ID in `game-config.json`. */
   readonly id: V;
+  /** The verb bar's text (`'Look at'`). */
   readonly label: string;
+  /** `'with'` in "Use coffee with coffee maker", or `null`. */
   readonly preposition: string | null;
+  /** True for verbs that use an inventory item on a target (`usesItem` in the config). */
   readonly usesItem: boolean;
 
   constructor(spec: VerbSpec<V>) {
@@ -544,6 +563,7 @@ export class VerbHandle<V extends string = string> {
     m.setActiveVerb(this.id);
   }
 
+  /** True while this is the armed verb. */
   get isActive(): boolean {
     return tryGetActiveGameStateManager()?.getActiveVerb() === this.id;
   }
@@ -551,10 +571,12 @@ export class VerbHandle<V extends string = string> {
 
 /** `fallbacks` in `@game`: global handlers for verbs nothing else handled (§4.17). */
 export class FallbacksHandle<V extends string = string> {
+  /** Fallback for one verb. The generated `fallbacks.on<Verb>` methods call this. */
   on(verb: V, handler: StepHandler): void {
     registerFallbackVerb(verb, handler);
   }
 
+  /** Fallback for one item verb. The generated `fallbacks.on<Verb>Item` methods call this. */
   onVerbItem(verb: V, handler: (item: ItemRef, target: FallbackTarget) => void): void {
     registerFallbackVerbItem(verb, handler);
   }
@@ -583,6 +605,7 @@ export class FallbacksHandle<V extends string = string> {
 /** A named point in a room (`points.x`): a walk target. */
 export class PointHandle {
   readonly roomId: string;
+  /** The point's ID in the room JSON. */
   readonly id: string;
 
   constructor(roomId: string, id: string) {
@@ -594,6 +617,7 @@ export class PointHandle {
 /** A region in a room (`regions.x`). */
 export class RegionHandle {
   readonly roomId: string;
+  /** The region's ID in the room JSON. */
   readonly id: string;
 
   constructor(roomId: string, id: string) {
@@ -624,6 +648,7 @@ export class RegionHandle {
 /** A walkable polygon in a room (`walkables.x`). */
 export class WalkableHandle {
   readonly roomId: string;
+  /** The walkable polygon's ID in the room JSON. */
   readonly id: string;
 
   constructor(roomId: string, id: string) {
@@ -644,6 +669,7 @@ export class WalkableHandle {
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 
 export class RoomHandle {
+  /** The room's ID (`'plaza'`). */
   readonly id: string;
 
   constructor(id: string) {
@@ -664,10 +690,12 @@ export class RoomHandle {
     registerRoomLifecycleHandler(this.id, 'enterAfterFade', handler, options);
   }
 
+  /** Each time the player leaves this room, before the next room loads. */
   onLeave(handler: StepHandler): void {
     registerRoomLifecycleHandler(this.id, 'leave', handler);
   }
 
+  /** When a save loads into this room. The enter hooks don't run on a load, so restore what they would have set up here. */
   onLoaded(handler: StepHandler): void {
     registerRoomLifecycleHandler(this.id, 'loaded', handler);
   }
@@ -685,10 +713,12 @@ export class RoomHandle {
     }
   }
 
+  /** True on the first visit (`visitCount === 1`). */
   get isFirstVisit(): boolean {
     return this.visitCount === 1;
   }
 
+  /** True once the player has been here. */
   get hasVisited(): boolean {
     return this.visitCount > 0;
   }
@@ -757,6 +787,7 @@ function setOrClearVariable(m: NonNullable<ReturnType<typeof tryGetActiveGameSta
 }
 
 export class ItemHandle<V extends string = string, Anim extends string = string> implements ItemRef {
+  /** The item's ID in its JSON. */
   readonly id: string;
 
   constructor(id: string) {
@@ -866,6 +897,7 @@ export class ItemHandle<V extends string = string, Anim extends string = string>
 
 export class DialogOptionHandle {
   readonly dialogId: string;
+  /** The option's ID in the dialog JSON. */
   readonly id: string;
 
   constructor(dialogId: string, id: string) {
@@ -873,14 +905,17 @@ export class DialogOptionHandle {
     this.id = id;
   }
 
+  /** Shows the option in the choice list. Saved. */
   on(): void {
     setDialogOptionEnabled(this.dialogId, this.id, true);
   }
 
+  /** Hides the option from the choice list. Saved. */
   off(): void {
     setDialogOptionEnabled(this.dialogId, this.id, false);
   }
 
+  /** True while the option is shown. */
   get enabled(): boolean {
     return isDialogOptionEnabled(this.dialogId, this.id);
   }
@@ -897,7 +932,9 @@ export class DialogOptionHandle {
 }
 
 export class DialogHandle<Options extends Record<string, string> = Record<string, string>> {
+  /** The dialog's ID. */
   readonly id: string;
+  /** This dialog's options by handle name (`dialogs.barista.options.dirtyDishes`). */
   readonly options: { readonly [K in keyof Options]: DialogOptionHandle };
 
   /** `options` maps handle names to option ids (`{ dirtyDishes: 'dirty dishes' }`). */
@@ -932,6 +969,7 @@ export class DialogHandle<Options extends Record<string, string> = Record<string
 /** A GUI control (`guis.x.controls.y`, or flat in the GUI's own `.ids` module). */
 export class GuiControlHandle {
   readonly guiId: string;
+  /** The control's ID in the GUI JSON. */
   readonly id: string;
   private readonly resolve: () => ControlFacade | null;
 
@@ -972,6 +1010,7 @@ export class GuiControlHandle {
     }
   }
 
+  /** Opacity, 0–1. Instant. */
   get alpha(): number {
     return (this.object?.alpha as number | undefined) ?? 1;
   }
@@ -980,6 +1019,7 @@ export class GuiControlHandle {
     this.control('alpha')?.setAlpha(value);
   }
 
+  /** Whether the control is shown. Instant. */
   get visible(): boolean {
     return (this.object?.visible as boolean | undefined) ?? false;
   }
@@ -988,6 +1028,7 @@ export class GuiControlHandle {
     this.control('visible')?.setVisible(value);
   }
 
+  /** Position in GUI pixels. Instant. */
   get x(): number {
     return (this.object?.x as number | undefined) ?? 0;
   }
@@ -996,6 +1037,7 @@ export class GuiControlHandle {
     this.control('x')?.setX(value);
   }
 
+  /** Position in GUI pixels. Instant. */
   get y(): number {
     return (this.object?.y as number | undefined) ?? 0;
   }
@@ -1115,17 +1157,21 @@ export class GuiControlHandle {
     registerGuiSubmit(this.guiId, this.id, handler);
   }
 
+  /** The pointer moved onto the control. Runs immediately, outside the gameplay lock. */
   onMouseEnter(handler: StepHandler): void {
     registerGuiHover(this.guiId, this.id, false, handler);
   }
 
+  /** The pointer left the control. Runs immediately, outside the gameplay lock. */
   onMouseLeave(handler: StepHandler): void {
     registerGuiHover(this.guiId, this.id, true, handler);
   }
 }
 
 export class GuiHandle<Controls extends Record<string, string> = Record<string, string>> {
+  /** The GUI's ID. */
   readonly id: string;
+  /** This GUI's controls by handle name (`guis.saveMenu.controls.saveBtn`). */
   readonly controls: { readonly [K in keyof Controls]: GuiControlHandle };
   /** The GUI's packed content as one control: move or tween it to move the whole GUI. */
   readonly root: GuiControlHandle;
@@ -1141,14 +1187,17 @@ export class GuiHandle<Controls extends Record<string, string> = Record<string, 
     this.root = new GuiControlHandle(id, null);
   }
 
+  /** Shows the GUI (instant) and runs its `onShow` handlers. */
   show(): void {
     setGuiVisible(this.id, true);
   }
 
+  /** Hides the GUI (instant) and runs its `onHide` handlers. */
   hide(): void {
     setGuiVisible(this.id, false);
   }
 
+  /** Whether the GUI is shown. Setting it is the same as `show()` / `hide()`. */
   get visible(): boolean {
     return this.root.visible;
   }
@@ -1181,10 +1230,12 @@ export class GuiHandle<Controls extends Record<string, string> = Record<string, 
     registerGuiLifecycleHandler(this.id, 'built', handler);
   }
 
+  /** Each time a script shows the GUI. */
   onShow(handler: StepHandler): void {
     registerGuiLifecycleHandler(this.id, 'show', handler);
   }
 
+  /** Each time a script hides the GUI. */
   onHide(handler: StepHandler): void {
     registerGuiLifecycleHandler(this.id, 'hide', handler);
   }
@@ -1221,6 +1272,7 @@ function warnPlaybackFailed(what: string) {
 }
 
 export class SfxHandle {
+  /** The sound's file name, without the extension. */
   readonly id: string;
 
   constructor(id: string) {
@@ -1248,6 +1300,7 @@ export class SfxHandle {
     });
   });
 
+  /** Stops this sound. */
   stop(): void {
     soundManager()?.stopSfx(this.id);
   }
@@ -1274,6 +1327,7 @@ export function withSfxControls<T extends Record<string, SfxHandle>>(sounds: T):
 }
 
 export class MusicHandle {
+  /** The track's file name, without the extension. */
   readonly id: string;
 
   constructor(id: string) {
@@ -1288,6 +1342,7 @@ export class MusicHandle {
       .catch(warnPlaybackFailed(`music.${this.id}.play()`));
   }
 
+  /** True while this track is the one playing. */
   get isPlaying(): boolean {
     const sm = soundManager();
     return sm != null && sm.isMusicPlaying() && sm.getCurrentMusicId() === this.id;
@@ -1324,6 +1379,7 @@ export function withMusicControls<T extends Record<string, MusicHandle>>(tracks:
 
 /** A video under `assets/videos/` (`video.x`). */
 export class VideoHandle {
+  /** The video's file name, without the extension. */
   readonly id: string;
 
   constructor(id: string) {
@@ -1345,6 +1401,7 @@ export class VideoHandle {
     return new Task(playing.whenComplete, { finishNow: () => scene.stopRoomVideo(), cancel: () => scene.stopRoomVideo() });
   });
 
+  /** Stops this video, if it is the one playing. */
   stop(): void {
     roomFor(`video.${this.id}.stop`)?.stopRoomVideo();
   }
@@ -1361,7 +1418,9 @@ export class VideoHandle {
  * whichever is playing. The generator reserves these names.
  */
 export interface VideoControls<T> {
+  /** Pauses the playing video. */
   pause(): void;
+  /** Resumes a paused video. */
   resume(): void;
   /** Jumps to `seconds` into the playing video. */
   seek(seconds: number): void;

@@ -1,6 +1,8 @@
 # BenneScript Ergonomics Refactor (Design Proposal)
 
-_Written 2026-10-05. Status: proposal, nothing implemented yet. Open design questions were resolved on 2026-10-05 (see §13)._
+_Written 2026-10-05. **Status: implemented** (Phases 0–7, 2026-10-05 to 2026-10-06, branch `bennescript-refactor`). Open design questions were resolved on 2026-10-05; every decision and deviation made while building it is in §13, and the sections carry "As built" notes where the result differs from the proposal._
+
+> **This is now the design record.** The "TODAY" examples show the old `register*Script` / `B` API, which no longer exists; read them as history. For writing scripts, use the guide (`docs/public/bennescript.md`), the API reference generated from the code (`docs/bennescript-api.md`), and the `bennescript` agent skill (`.agents/skills/bennescript/SKILL.md`). How the pieces fit inside the engine is in `docs/architecture.md` §7. Progress per phase: `docs/bennescript-refactor-log.md`.
 
 This document describes a redesign of BenneScript that **stays in TypeScript** but:
 
@@ -367,6 +369,8 @@ room.id                  // 'plaza'
 ```
 
 _As built (Phase 4, decision 29):_ `room.visitCount` and `room.last` are settable, for Play From setups (`room.last = rooms.plaza`); `room.hasVisited` exists too.
+
+_As built (Phase 7 audit, decision 52):_ `room.onLoaded` runs **only when a save loads into the room** (the `'load'` start kind), after `game.onLoadedAnyRoom`; the enter hooks don't run then. It does not run on ordinary room entry, so the "after assets load, before onEnter" comment above is wrong.
 
 _As built (Phase 6 follow-up, decision 50):_ the enter hooks run as a skippable cutscene; `room.onEnter(fn, { skippable: false })` (also on `onEnterAfterFade`, `game.onEnterAnyRoom` and `game.onEnterAnyRoomAfterFade`) keeps ESC from skipping that phase. `game.onLoadedAnyRoom(fn)` runs for every room a save loads into, before the room's own `onLoaded`.
 
@@ -750,6 +754,8 @@ penny.onUseItem(items.sandwich, () => {
 ```
 
 Empty character scripts (most of AI Apocalypse's ten) can simply be deleted. There's no `void B;` placeholder to keep.
+
+_As built (Phase 3 naming, recorded in decision 52):_ in a character script the handle is `characters.penny` (from `@game`), not a flat `penny`: flat character handles exist only in room modules, where they register room-scoped handlers. The templates' `penny.character.ts` is `characters.penny.onLook(() => { Player: "It's Penny." })`. `characters.penny.onAnyItem((item, verb) => …)` works in a character script (listening on the engine's character any-item tier, after the room's own item handlers); until the Phase 7 follow-up it was ignored with a DEV warning.
 
 ### 4.10 Props and animation
 
@@ -1154,6 +1160,8 @@ settings.clickToSkip
 
 _As built (Phase 6 follow-up, decision 50):_ every speech and dialog setting from `game-config.json` can be overridden at runtime, under the config's own names: `settings.speech.showText`, `msPerCharacter`, `durationMultiplier`, `minDurationMs`, `maxDurationMs`, `defaultTalkOffset`, `clickToSkip`, and `settings.dialog.choiceOptionsViewportHeightPx` / `usedColor` (`undefined` goes back to the config). `settings.onChange(fn)` runs after any setting changes. Saves take a slot or a name, as before the refactor: `saves.save('checkpoint')`, `saves.load('checkpoint')`, `saves.delete(…)`, `saves.get(…)`; `saves.list()` lists both (`slot: null` for a named save). `saves.rename(save, name)`, `saves.export()` (JSON) and `saves.import(json)` (loads it like `saves.load`, ending the handler) complete it.
 
+_As built (Phase 7 audit, decision 52):_ there is **no `saves.autosave()`**: nothing in AI Apocalypse or the templates autosaves, so it was never added. A game that wants one can write a named save (`saves.save('autosave')`) where `saves.canSaveNow` is true; that excludes enter hooks and gameplay handlers, where saving is refused (decision 2).
+
 ### 4.17 The global script and fallbacks
 
 Flag seeding moves to `state.ts` (§4.7), which leaves only behaviour here:
@@ -1193,6 +1201,8 @@ onUpdate((dt) => {
 ```
 
 `onUpdate` callbacks are **not** sequenced: they run synchronously every frame. Timed actions (`walkTo`, `say`, `wait`) inside them are an error, at build time where the transform can see them and at runtime otherwise. To start a sequence from a frame check, use `background(() => …)`.
+
+_As built (Phase 7 audit, decision 52):_ only speech labels are rejected there (a label outside a step function is a build error). Other timed calls build and run: the callback runs detached, so the action starts and nothing waits for it, every frame. No runtime check reports it. `onUpdate` is global (it runs in every room, decision 40) and receives the frame's seconds: `onUpdate((dt) => …)`. Props have no `alpha` property, so the example above would be `alarmLight.visible = …` or a GUI control's `alpha`; a prop's alpha changes through `fade(alpha, seconds)`.
 
 ### 4.19 Play From
 
@@ -1310,6 +1320,8 @@ Listeners run immediately with the event's arguments, and their own lines are se
 
 \* Turning takes a few frames when facing animations exist.
 
+_As built (Phase 7 audit, decision 52):_ `faceClicked()` is a timed action, but `player.face(…)` / `jensen.face(…)` are **instant** (they set the facing and return).
+
 ---
 
 ## 6. The build transform
@@ -1375,6 +1387,8 @@ The author-facing type declarations are designed so the source type-checks as wr
 - Step functions keep their declared return types. `function isReady(): boolean` is called as `if (isReady())`, and the transform supplies the `await`.
 
 A small ESLint rule (shipped with the template) flags timed calls in non-script files and inside `onUpdate`. The transform and runtime errors are the backstop.
+
+_As built (Phase 7 audit, decision 52):_ no ESLint rule was written, and the repository's ESLint config doesn't lint game scripts at all. The type checker, the transform's build errors and the editor's diagnostics are the checks.
 
 ### 6.4 Runtime checks
 
@@ -1603,7 +1617,7 @@ Most of the ergonomics come from the build and type layers. The VS Code extensio
 | Inspector "add handler" / "reveal handler" | ScriptModel on the TS AST (engine review §4.3) finds `battery.onUseItem(items.soda, …)` exactly, with no regex |
 | Voice-ID / localisation export | Labels and `say` calls are trivially found in the AST, replacing the parsing in `voiceIdProcessor.ts` |
 | Snippets | `room-enter`, `cutscene`, `choice`, `use-item` |
-| tsconfig for script files | `allowUnusedLabels: true`; ESLint `no-labels` off for script globs |
+| tsconfig for script files | `allowUnusedLabels: true`; ESLint `no-labels` off for script globs (_as built: no ESLint config for scripts at all, decision 52_) |
 
 _As built (Phase 5, decisions 38–42):_ the extension's BenneScript layer is `benne-editor/src/bennescript/`, free of `vscode` imports so the TS server plugin shares it:
 
@@ -1651,7 +1665,7 @@ _As built (Phase 6, decision 43):_ the old API is deleted with `src/engine/scrip
 The new BenneScript **replaces** the old API outright. There is no compatibility layer in any release. (While the refactor is in progress, both APIs run side by side on the working branch so AI Apocalypse stays playable. The old one is deleted before merge; see §14.1.)
 
 - `register*Script(({ B }) => …)`, the `B` object, the `BenneScriptCore` subclasses, `interactionTail` / `chain`, `BlockingWithNow` / `withNow`, the `when*` verb sugar and `VERB_ALIAS_CANDIDATES` are all **deleted**.
-- `docs/bennescript-api.md` and `docs/public/bennescript.md` are rewritten for the new API, not extended.
+- `docs/bennescript-api.md` and `docs/public/bennescript.md` are rewritten for the new API, not extended. _(Done in Phase 7; the reference half of `bennescript-api.md` is generated from the code, decision 51.)_
 - Editor scaffolding, the Inspector's "add handler" / "reveal handler" and Play From discovery emit and understand only the new syntax.
 
 This is affordable because AI Apocalypse is the only game built on BENNE, and it's small (54 script files, ~3,300 lines). Not carrying the old API keeps the runtime simple: one timing model, one way to register a handler, one API reference.
@@ -1728,7 +1742,7 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 
 | Gotcha | Why | Mitigation |
 |---|---|---|
-| `() => Hank: "Hi"` is a syntax error | Labels need statement position | Use a block: `() => { Hank: "Hi" }`. The snippet and code action insert braces. |
+| `() => Hank: "Hi"` is a syntax error | Labels need statement position | Use a block: `() => { Hank: "Hi" }`. The snippets insert braces (_as built: there is no code action, decision 52_). |
 | Speech must be quoted | `Hank: Hi there` isn't valid TS | The speaker completion inserts `""` with the cursor inside. Use `` say`…` `` for unquoted blocks. |
 | Hyphenated or spaced speaker names | Labels must be identifiers | Drop the punctuation (`BOTTi3Disembodied:` for `"BOTT-i3 Disembodied"`), or use a `` say`…` `` block, which accepts names verbatim. |
 | `parts.forEach(p => handOver(p))` | Callbacks to non-BenneScript APIs aren't sequenced | Build error with a hint to use `for…of`. |
@@ -1749,7 +1763,7 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 - **"Magic" TypeScript.** The code means something different from what plain JS would do. Accepted on purpose: script files are a dialect, documented as such, and only ever run through the plugin.
 - **Transform edge cases** around helpers used as values. Mitigated by making unsafe patterns build errors, never silent misbehaviour. Prototype first (§14).
 - **Generated-name churn.** Renaming an ID in JSON renames the handle, and every use becomes a type error. That is actually desirable, and the editor can offer "rename ID everywhere" via TS rename on the generated declaration.
-- **AI assistants** know TypeScript but not these conventions. Ship a concise `bennescript` agent skill and cursor rule with the template (the project already maintains these).
+- **AI assistants** know TypeScript but not these conventions. Ship a concise `bennescript` agent skill and cursor rule with the template (the project already maintains these). _Done in Phase 7 (decision 51)._
 
 **Decisions (resolved 2026-10-05)**
 
@@ -1805,6 +1819,8 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 | 48 | Old features without a BenneScript equivalent (Phase 6) | **Not added in Phase 6**, listed in the log; all ported in the follow-up (decision 50). Among them: video pause / resume / seek, speech settings beyond `textSpeed` and `clickToSkip`, dialog settings, per-character speech position and offset, follow-state getters, `whenAnyButtonClick`, list-box item activation and text-input submit, checkbox `disabled` and text-input focus, `whenLoadedAnyRoom`, `B.raw`, save rename / export / import, clearing a character's inventory. | §11.1 |
 | 49 | Testing the templates (Phase 6) | **`npm run test:templates`** runs each template in a throwaway workspace (`scripts/template-workspace.mjs`: this repo's engine with the template as `src/game`), so `src/game` stays untouched. The dev/test hooks record every speech line where it is shown (`speech()`), report the active player, take a verb for `useItem` / `combine`, and `inventoryVerb` drops the armed item first, as `verb` does. The e2e fixture game is ported too; its server now generates handles and loads the BenneScript plugin. | §14 |
 | 50 | Parity with the old `B` API (Phase 6 follow-up) | **Everything the old API could do, BenneScript can**, in its own style: properties for state (`speechPosition`, `focused`, `pointer.verb`), handlers on the thing they belong to (`gui.onAnyClick`, `input.onSubmit`, `list.onActivate`, `fallbacks.onUnhandled`, `game.onLoadedAnyRoom`), controls next to generated files where one slot is shared (`video.pause()`, `sfx.stopAll()`), and the config's own names for runtime settings (`settings.speech.*`, `settings.dialog.*`). **`B.raw` becomes `events`** (§4.21): engine events and script-to-script events, room-scoped in room scripts; `events.once` callbacks are step functions. **Saves take a slot or a name again.** Item handlers take `{ doNotClear: true }` (was `whenInventoryUsedOn.doNotClear`); the enter hooks take `{ skippable }`. `saves.import` reloads the imported room and ends the handler, like `load` (the old `importJson` only replaced the state). Not ported (confirmed after review): string-keyed flags and variables (`B.state.getFlag('x')` & co.), which typed `flags` / `vars` replace by design (§4.7); and `B.state.flush` / `setCurrentRoom`, which saves and room changes already do for you. | §4.3, §4.4, §4.6, §4.11, §4.15, §4.16, §4.17, §4.21 |
+| 51 | Docs (Phase 7) | **The reference half of `docs/bennescript-api.md` is generated from the code** by `scripts/generate-bennescript-api-docs.mjs` (`npm run docs:api`): every value export of `@benne/script` must be placed in its layout (or listed as internal), and every public member needs a JSDoc comment, whose first paragraph becomes the description; design-doc references (`§4.2`, `decision 9`) are stripped. **`npm run check` runs `check:docs`**, which fails when the page is out of date. The hand-written half covers what the code can't say (sequencing, naming, generated verb methods, dispatch order, engine events, build errors). **The `bennescript` agent skill** is `.agents/skills/bennescript/SKILL.md`, mirrored in `.cursor/skills/bennescript/` as the repo's other skills are, with the cursor rule `.cursor/rules/bennescript.mdc` (scoped to script files). **They ship in the extension scaffold's shared files** (`bundle-extension-scaffold.mjs`), not in `game-templates/`, so new games get them and Update Engine refreshes them. Docs written before the refactor (engine review, codex suggestions, feasibility study) keep their old-API examples under a "historical document" note. | §11.1, §13 risks, `docs/` |
+| 52 | Deviations found by the Phase 7 audit | Writing the docs from the code turned up promises in this spec that were never built or were built differently, recorded here and in as-built notes: **`room.onLoaded`** runs only when a save loads into the room, not before every `onEnter` (§4.4); **character scripts use `characters.x`**, flat character handles exist only in room modules (§4.9; `characters.x.onAnyItem` was ignored too, fixed in the Phase 7 follow-up); **no `saves.autosave()`** (§4.16); **timed calls inside `onUpdate` are not an error**: they start every frame and nothing waits; only speech labels fail the build (§4.18); **`face(…)` is instant**, only `faceClicked()` waits (§5); **no ESLint rule** for timed calls and no ESLint config for script files (§6.3, §9); **no brace-inserting code action**, only snippets (§12); **props have no `alpha` property** (§4.18's example): `fade(alpha, seconds)` sets it (and saves it). None of these blocked AI Apocalypse or the templates. | §4.4, §4.9, §4.16, §4.18, §5, §6.3, §9, §12 |
 
 **Revisit later**
 
@@ -1850,6 +1866,8 @@ Paste this into `CLAUDE.md` on the refactor branch so every session picks it up 
 ```
 
 ### 14.3 Phases at a glance
+
+_All eight phases are done (2026-10-06); see the progress log. What's left is the merge (Phase 6 log, "Merge preparation") and §14.5._
 
 | Phase | Scope | Exit criteria | Size |
 |---|---|---|---|

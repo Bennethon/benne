@@ -712,3 +712,96 @@ You asked for every feature in the Phase 6 table "Old `B` features without a Ben
 
 - **`src/types/generated/benne-game-ids.d.ts` retired.** Its quoted-ID unions (`PropId`, `GuiId`, …) typed the old `B.prop('Door')` calls. Nothing used them any more: `src/types` only re-exported them and one engine helper used `ResolvableTargetId` (now `string`). `generate-game-ids.mjs` writes only the handle modules, `check:generated` checks only that they generate, and `scripts/lib/scanGameContentIds.mjs` (which fed the file) and its unit test are gone. Merge step 4 ("regenerate and commit the ID types") no longer applies.
 - **Stopped** the stray `vite preview` on port 4181 left by an earlier session.
+
+---
+
+## Phase 7: Docs (2026-10-06)
+
+### Done
+
+1. **API reference generated from the code.** `scripts/generate-bennescript-api-docs.mjs` (`npm run docs:api`) reads `@benne/script` with the TypeScript compiler API and writes the reference half of `docs/bennescript-api.md` between `<!-- BEGIN GENERATED -->` / `<!-- END GENERATED -->` markers: actions, blocks, script-level registrations, the game-wide objects (`player`, `inventory`, `camera`, `game`, `settings`, `pointer`, `saves`, `events`), every handle class (with the `sfx` / `music` / `video` controls) and the public types. Each row is a signature, how it behaves in a handler (`waits · .now`, `waits`, `ends the handler`, `handler`, `instant`, `settable`, `read-only`) and the first paragraph of its JSDoc. The script fails when an export isn't placed in its layout or a public member has no JSDoc. **`npm run check` now runs `check:docs`**, which fails when the page is out of date.
+   - To make that work, **69 public members got one-line JSDoc comments** (`handles.ts`, `actions.ts`, `blocks.ts`, `game.ts`, `saves.ts`; `events` got an object comment). Two comments were reworded: `unhandled()` no longer says "replaces `return false`", and `Task.wait()` keeps the transform detail in a second paragraph. Comments only; no behaviour changed.
+2. **`docs/bennescript-api.md` rewritten.** The hand-written half covers what the code can't: reading the tables, where names come from, script files and handler scope, the sequencing rules, talking and voice ids, generated handles and naming, the generated verb methods and config, dispatch order, engine events with payloads, build errors and gotchas, and the source files.
+3. **`docs/public/bennescript.md` rewritten** as an author's guide built from AI Apocalypse scripts (the club battery, the plaza entrance, the jensen-in-hallway and botti3 dialogs, the opening crawl, the verb bar, the save menu, the global fallbacks), with the 2-click / 9-verb templates for what AI Apocalypse doesn't use. It is self-contained, since the public docs site can't link into `docs/`.
+4. **Other public pages**: `sound-voice-and-video.md` (`sfx` / `music` / `video` handles, voice markers on labels and `say` blocks, the reserved control names), `game-configuration.md` (`usesItem`, game-level `defaultVerb`, verb methods, reserved verb ids, `settings.speech`, `defaultFallbackLine` read by scripts), `benne-editor.md`, `core-concepts.md`, `publishing-games.md` (`game.isDesktop` / `game.quit()`), `introduction.md`. "Bennescript" is spelled "BenneScript" everywhere (decision 6's name).
+5. **`docs/architecture.md`**: §7 replaced (the three pieces, generated handles, the transform, the step runtime with the interrupt and save policies, the handler tables and dispatch, sprite animation and every persistence key, speech settings, `onUpdate`, cutscenes and skipping, the GUI runtime, events, editor support, core files). Every other old-API line in §2–§6 and §8–§10 was rewritten, including behaviour Phase 6 changed that the doc still described: `wireRoomTransitions` instead of `wireBenneGlobalScripts`, no queue drains after enter hooks, cancellation on room leave, the generated handle modules instead of `benne-game-ids.d.ts`, engine arming for item verbs without handlers, the scaffolders' new stubs.
+6. **`docs/testing.md`**: `check` now covers handle generation and the API doc; new rows for `test:templates` and the BenneScript and generator unit tests; the deleted `scripting/registerRoomScript.ts` row now names `scenes/roomScriptModules.ts`.
+7. **Agent skill and cursor rule.** `.agents/skills/bennescript/SKILL.md` (mirrored in `.cursor/skills/bennescript/`, as the repo's Phaser skills are), about 240 lines: the eight rules that matter, files and imports, rooms, verbs, talking, items / state / dialogs, cutscenes and overlap, GUIs / saves / global, a "mistakes to avoid" table, and how to check work. A third copy in `.claude/skills/bennescript/` lets Claude Code pick it up. `.cursor/rules/bennescript.mdc` (scoped to the script globs) is the short version and points at the skill; `benne.mdc` points at both. All three **ship in the extension scaffold's shared files** (`bundle-extension-scaffold.mjs`), so new games get them and Update Engine refreshes them (checked: `npm run bundle:scaffold` copies them and `vsce ls` lists them in the VSIX).
+8. **Design doc marked implemented**, with a note that it is now the design record (its "TODAY" examples are history) and pointers to the guide, the reference and the skill. Phase 7 is decision 51; **decision 52** records what an audit of the spec against the code found (below), with as-built notes in §4.4, §4.9, §4.16, §4.18, §5, §6.3, §9 and §12. §11.1, the §13 AI-assistant risk and §14.3 say what's done.
+9. **History docs marked.** `engine-review-2026-10.md`, `codex-suggestions.md` and `feasibility-custom-language-and-native-editor.md` keep their old-API examples under a "Historical document" note.
+10. **`benne-snapshot.md` regenerated** with Repomix (`npx repomix@latest --style xml`), with the same include and ignore patterns as before except `architecture.md` → `docs/architecture.md` (the old root-level pattern matched nothing). 316 files, ~553k tokens, 2.1 MB; the gitignored `*.ids.ts` modules are excluded. Like the old one, it covers `src/**/*.ts`, `src/**/*.json`, `docs/architecture.md`, `package.json` and `vite.config.ts` only: not `scripts/` (the transform and generator) or `benne-editor/`.
+11. One stale code comment fixed: `DIALOG_OPTION_ENABLED_CHANGED_EVENT` named `optionOn` / `optionOff`.
+
+### Spec audit (decision 52)
+
+Generating the reference from the code meant checking every promise in §4–§12 against it. Not built, or built differently (none of these mattered to AI Apocalypse or the templates):
+
+| Spec | As built |
+|---|---|
+| §4.4: `room.onLoaded` "after assets load, before onEnter" | Runs only when a save loads into the room |
+| §4.9: `penny.onLook(…)` in `penny.character.ts` | `characters.penny.onLook(…)`; flat character handles exist only in room modules. `onAnyItem` worked only on room handles (`characters.x.onAnyItem` was ignored with a DEV warning; fixed in the follow-up below) |
+| §4.16: `saves.autosave()` | Not built |
+| §4.18: timed actions in `onUpdate` are an error | Only speech labels fail the build; other timed calls start every frame and nothing waits |
+| §4.18: `alarmLight.alpha = …` on a prop | Props have no `alpha`; `fade(alpha, seconds)` sets it |
+| §5: `face(…)` waits | Instant; only `faceClicked()` waits |
+| §6.3, §9: an ESLint rule for timed calls; `no-labels` off for scripts | No rule; ESLint doesn't lint game scripts at all |
+| §12: a code action inserts braces around `() => Hank: "…"` | Only the snippets do |
+
+### Old-API search (exit check)
+
+The Phase 6 search, run over every Markdown and `.mdc` file:
+
+| File | Matches | Status |
+|---|---|---|
+| `benne-snapshot.md` | 1,353 → 0 | Regenerated |
+| `docs/bennescript-api.md`, `docs/public/*.md`, `docs/architecture.md`, `docs/testing.md` | 0 | Rewritten |
+| `docs/bennescript-ergonomics-refactor.md` | 113 | History: the design record's "TODAY" examples and translation guide, under the new status note |
+| `docs/bennescript-refactor-log.md` | 64 | History |
+| `docs/engine-review-2026-10.md`, `codex-suggestions.md`, `feasibility-…md` | 24, 3, 9 | History, under a "Historical document" note |
+| `.agents/skills/bennescript/SKILL.md` (and its mirror) | 1 | The "mistakes to avoid" row that says the old API was deleted |
+
+Code: still 0 matches (the Phase 6 search).
+
+### Deviations from the spec
+
+Decisions 51 (how the docs, skill and rule are built and shipped) and 52 (the audit above).
+
+### Known issues
+
+- **Inspector "item used on this" on a standalone character is broken.** For a character definition it writes `characters.jensen.onAnyItem(() => { … })` into `jensen.character.ts` (`inventoryUsedOnScaffolding.ts` → `handlerSpecs.ts`), and the runtime ignores `onAnyItem` on a handle without a room (DEV warning "only works in a room script"). Fix either side: give character scripts an any-item tier (the engine already has the global any-item channel per target, `continueInventoryOnDispatchAfterGlobal`), or have the Inspector write a per-item `onUseItem` stub there. Room-scoped targets work. **Fixed in the Phase 7 follow-up below.**
+- The decision-52 gaps are open if anyone wants them: a DEV warning for timed calls in `onUpdate` is the cheapest useful one.
+- The extension bundle wasn't rebuilt: this phase changed only comments in engine code.
+
+### Exit checks
+
+| Check | Result |
+|---|---|
+| No doc describes the old API except as history | ✅ (search above) |
+| `npm run test:ci` (check incl. new `check:docs`, unit, desktop, pathfinding) | ✅ unit 158/158 (159 in the Phase 6 follow-up included the since-removed `scanGameContentIds` test), desktop 3/3, pathfinding, content 0 new errors |
+| `npm run check:docs` | ✅ up to date |
+| `npm run test:playthrough` (AI Apocalypse) | ✅ 14/14 (11.2 min; main playthrough 8.6 min). A first run had the café spec fail at 47 s with `__BENNE_HOOKS__` undefined (the page reloaded), while I was running `test:ci` and `bundle:scaffold` (which deletes and rewrites `benne-editor/scaffold/`) alongside it; the café spec alone and then the full suite, run with nothing else, passed. |
+| Scaffold ships the skill and rule | ✅ `bundle:scaffold` + `vsce ls` |
+
+### Notes for the merge
+
+- Merge prep is unchanged (Phase 6 log). After the switch to the 9-verb template, the docs' AI Apocalypse examples stay valid as examples, but `docs/public/bennescript.md` and the skill name AI Apocalypse's verbs; both say a game's verb methods come from its own config.
+- `CLAUDE.md`'s refactor section can go at merge (merge step 7), and `benne-snapshot.md` should be regenerated again after the switch, since it will describe AI Apocalypse's content until then.
+
+---
+
+## Phase 7 follow-up: `characters.x.onAnyItem` (2026-10-06)
+
+The Phase 7 known issue: the Inspector's "item used on this" on a standalone character writes `characters.jensen.onAnyItem(…)` into the character script, which the runtime ignored. Fixed in the runtime, so the Inspector's output is now correct as it was.
+
+- **`registerCharacterAnyItemHandler`** (`bennescript/globalHandlers.ts`) listens on the character's global any-item channel (`verb:inventoryOnCharacterAny:<id>`). The engine already dispatched to that tier (room per-item → room any-item → character-script per-item → **character-script any-item** → unhandled fallback); nothing listened. The handler gets the item and verb handles, as the room version does; when it finishes, the drop policy applies (unless `{ doNotClear: true }`); `unhandled()` goes straight to the "item unhandled" fallback (continuing "after global" would emit the same channel again).
+- **`ClickableHandle.onAnyItem`** calls it for handles without a room, instead of warning.
+- Docs: decision 52 and the §4.9 as-built note, `architecture.md` (use-on-target), the skill (all three copies) and the regenerated API reference no longer say "room scripts only".
+- The skill is also in `.claude/skills/bennescript/` and the scaffold ships that copy too.
+
+### Checks
+
+| Check | Result |
+|---|---|
+| New unit test (`bennescriptHandleApi.test.ts`): a character-script per-item handler wins over `onAnyItem`; `onAnyItem` gets the item and verb; the drop policy applies; `unhandled()` reaches the fallback | ✅ |
+| `npm run test:ci` | ✅ unit 159/159, desktop 3/3, pathfinding, content, `check:docs` |
+| `npm run test:playthrough` | ✅ 14/14 (11.3 min) |

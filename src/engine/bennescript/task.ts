@@ -56,8 +56,10 @@ export class Task<T = void> {
   }
 
   /**
-   * Waits for this task. Written as a statement (`walk.wait()`), the transform turns it into
-   * `await $.step(() => walk.wait())`; the returned marker is what makes the step wait.
+   * Waits for this task, written as a statement: `walk.wait()`.
+   *
+   * The transform turns that line into `await $.step(() => walk.wait())`; the returned marker is
+   * what makes the step wait.
    */
   wait(): void {
     return new TaskWait(this) as unknown as void;

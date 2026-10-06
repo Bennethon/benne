@@ -18,7 +18,7 @@ A room typically contains:
 - Props, hotspots, characters, and regions
 - Its own dedicated script that runs when the room is loaded
 
-Moving the player from one room to another is done with `B.room.changeTo(...)`. The engine automatically handles screen fading, cleanup of the previous room, and running the appropriate enter/leave lifecycle hooks so you don’t have to manage transitions manually.
+Moving the player from one room to another is done with `rooms.hallway.goTo()`. The engine automatically handles screen fading, cleanup of the previous room, and running the appropriate enter/leave lifecycle hooks so you don’t have to manage transitions manually.
 
 Rooms are designed to be relatively self-contained. This makes it easier to reason about state, test individual areas, and keep your project organized as it grows.
 
@@ -46,32 +46,24 @@ When the player clicks in the world, the engine resolves which verb should be us
 - The `defaultVerb` defined on the target (prop, hotspot, or character)
 - The current input profile
 
-This resolution then triggers the appropriate handler in your scripts (`whenLookAt`, `whenUse`, `whenTalkTo`, `whenInventoryUsedOn`, etc.). The system is deliberately flexible — you define exactly which verbs exist and how they behave.
+This resolution then triggers the matching handler in your scripts (`door.onLook(…)`, `door.onUse(…)`, `penny.onTalkTo(…)`, `door.onUseItem(items.key, …)`, etc.), named after the verbs in your config. The system is deliberately flexible: you define exactly which verbs exist and how they behave.
 
-## Bennescript and the Interaction Queue
+## BenneScript: Lines Run in Order
 
-**Bennescript** is the scripting layer you use to write game logic. It provides different surfaces depending on context:
+**BenneScript** is the scripting layer you use to write game logic. It is TypeScript, with one script file per room, character, inventory item, dialog and GUI, plus a global script.
 
-- Room scripts
-- Character scripts
-- Inventory item scripts
-- Global scripts
-- GUI scripts
-- Dialog scripts
-
-One of the most important features of Bennescript is the **interaction queue**. Most actions you trigger — walking, speaking, waiting, playing sounds, changing rooms, etc. — are placed on a queue. The next line of your script does not execute until the previous action has finished.
-
-This design lets you write sequences that feel linear and natural:
+The most important thing about BenneScript is that **each line waits for the one above it**. Walking, speaking, waiting, animations and fades take time, and the next line starts when they have finished. You never write `await` or callbacks:
 
 ```ts
-// (example shown for illustration only)
-B.player.walkTo('door');
-B.player.say('I wonder where this leads...');
-B.wait(0.5);
-B.room.changeTo('hallway');
+door.onUse(() => {
+  player.walkTo(door)
+  Hank: "I wonder where this leads..."
+  wait(0.5)
+  rooms.hallway.goTo()
+})
 ```
 
-Without the queue, you would have to manually coordinate timing and callbacks. The queue handles that for you.
+Every name in that handler (`door`, `rooms.hallway`, even the speaker `Hank`) is generated from your content, so the editor completes them and catches typos before you run the game. When you want two things to happen at once, you say so explicitly (`jensen.walkTo.now(…)` starts Jensen walking without waiting). See [BenneScript](./bennescript).
 
 ## Game State
 
@@ -83,7 +75,7 @@ All important persistent information in a BENNE game flows through the **GameSta
 - Room visit counts and dialog option tracking
 - Player settings (volume levels, speech preferences, etc.)
 
-Because the GameStateManager is the single source of truth, changes you make through Bennescript are usually persisted automatically. When the player saves the game, a snapshot of this state is written. Loading a save restores the world to the exact state it was in when saved.
+Because the GameStateManager is the single source of truth, changes you make through BenneScript are usually persisted automatically. When the player saves the game, a snapshot of this state is written. Loading a save restores the world to the exact state it was in when saved.
 
 ## GUIs and Overlays
 
@@ -96,7 +88,7 @@ Because the GameStateManager is the single source of truth, changes you make thr
 
 GUIs are defined in JSON and can contain a wide variety of controls (buttons, sliders, checkboxes, list boxes, text inputs, etc.). Each GUI has its own script where you can respond to user interaction.
 
-GUIs can be shown or hidden at any time from Bennescript, and they support modal behavior when you need to pause gameplay input.
+GUIs can be shown or hidden at any time from BenneScript, and they support modal behavior when you need to pause gameplay input.
 
 ## The BENNE Editor
 
@@ -128,11 +120,11 @@ The engine loads and wires this content together at startup and during room tran
 These concepts work together to create a predictable, developer-friendly environment:
 
 - You define **what** exists in JSON.
-- You control **how** it behaves in focused Bennescript files.
+- You control **how** it behaves in focused BenneScript files.
 - The engine handles the complex coordination (queuing, state persistence, rendering, input resolution, transitions).
 - The BENNE Editor gives you fast feedback loops while you create.
 
-Once you internalize these ideas, the rest of the documentation — configuration options, editor features, and the full Bennescript API — will feel like natural extensions of this core model rather than a collection of unrelated features.
+Once you internalize these ideas, the rest of the documentation — configuration options, editor features, and the full BenneScript API — will feel like natural extensions of this core model rather than a collection of unrelated features.
 
 ---
 

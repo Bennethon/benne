@@ -9,81 +9,76 @@ BENNE supports four media paths for authored games:
 
 - **Sound effects** for short one-shot clips.
 - **Music** for the single background music slot.
-- **Voice** clips attached to `say` lines.
+- **Voice** clips attached to lines of dialogue.
 - **Video** for full-screen cinematics.
 
-All media files live under `src/game/assets/` and are discovered at build time. You reference files by their basename stem, not by a full path.
+All media files live under `src/game/assets/` and are discovered at build time. Each sound, music track and video gets a name in your scripts, made from its file name: `door-close.mp3` is `sfx.doorClose`, `apartment-theme.ogg` is `music.apartmentTheme`. The editor completes them, and a misspelt name is an error.
 
 ## File Locations
 
 Put files in these folders:
 
-| Media | Folder | Supported extensions | Example script id |
-|-------|--------|----------------------|-------------------|
-| SFX | `src/game/assets/audio/sfx/` | `.mp3`, `.ogg`, `.wav`, `.m4a` | `doorClose` |
-| Music | `src/game/assets/audio/music/` | `.mp3`, `.ogg`, `.wav`, `.m4a` | `apartment-theme` |
-| Voice | `src/game/assets/audio/voice/` | `.mp3`, `.ogg`, `.wav`, `.m4a` | `hank42` |
-| Video | `src/game/assets/videos/` | `.mp4`, `.webm` | `intro` |
+| Media | Folder | Supported extensions | Example file | In scripts |
+|-------|--------|----------------------|--------------|------------|
+| SFX | `src/game/assets/audio/sfx/` | `.mp3`, `.ogg`, `.wav`, `.m4a` | `doorClose.mp3` | `sfx.doorClose` |
+| Music | `src/game/assets/audio/music/` | `.mp3`, `.ogg`, `.wav`, `.m4a` | `apartment-theme.ogg` | `music.apartmentTheme` |
+| Voice | `src/game/assets/audio/voice/` | `.mp3`, `.ogg`, `.wav`, `.m4a` | `hank42.mp3` | `Hank: "\|42\| …"` |
+| Video | `src/game/assets/videos/` | `.mp4`, `.webm` | `intro.mp4` | `video.intro` |
 
-If you provide multiple formats with the same stem, BENNE groups them as fallbacks. For example, `doorClose.mp3` and `doorClose.ogg` are both referenced as `doorClose`.
+If you provide multiple formats with the same stem, BENNE groups them as fallbacks. For example, `doorClose.mp3` and `doorClose.ogg` are both `sfx.doorClose`.
+
+Two files whose names give the same script name (`door-close.mp3` and `doorClose.wav`) are an error; rename one. A few names are taken by the controls described below (`music.stop`, `music.isPlaying`, `music.current`, `sfx.stopAll`, and `pause`, `resume`, `seek`, `stop`, `isPlaying` and `current` on `video`), so a file with one of those names needs renaming too.
 
 ## Sound Effects
 
-Use `B.sound.play` for one-shot sound effects:
-
 ```ts
-B.sound.play('doorClose');
-B.sound.play('sparkle', { volume: 0.5 });
+sfx.doorClose.play()
+sfx.sparkle.play({ volume: 0.5 })
 ```
 
-The blocking form queues after prior Bennescript steps, so it respects sequences like walking, waiting, and speaking. Use `.now` when you want the sound to begin immediately:
+`play()` starts the sound and lets the script go on at once. Use `playAndWait()` when the next line should wait for the clip to finish:
 
 ```ts
-B.sound.play.now('click');
+sfx.doorClose.playAndWait()
+rooms.outside.goTo()
 ```
 
-Use `playAndWait` when the next scripted beat should wait for the clip to finish:
+Stop one sound, or every sound:
 
 ```ts
-B.sound.playAndWait('doorOpen');
-B.room.changeTo('outside');
+sfx.alarm.stop()
+sfx.stopAll()
+if (sfx.alarm.isPlaying) { … }
 ```
 
-You can stop all active SFX, or only instances with a specific stem:
-
-```ts
-B.sound.stop();
-B.sound.stop('alarm');
-```
+Inside a cutscene that the player skips, one-shot sounds don't play.
 
 ## Music
 
-Use `B.sound.playMusic` for background music:
-
 ```ts
-if (!B.sound.isMusicPlaying()) {
-  B.sound.playMusic('apartment-theme');
+if (!music.isPlaying) {
+  music.apartmentTheme.play()
 }
 ```
 
-There is one logical music slot. Starting a new track replaces the current one. Music continues across room changes unless you explicitly stop or replace it.
+There is one music slot. Starting a new track replaces the current one. Music continues across room changes unless you stop or replace it. `music.current` is the track playing now (or `null`), and `music.plaza.isPlaying` checks one track.
 
 Music can crossfade:
 
 ```ts
-B.sound.playMusic('outside-night', { fadeSeconds: 2 });
+music.outsideNight.play({ fadeSeconds: 2 })
 ```
 
 If two music tracks are alternate versions of the same cue, `sync: true` asks BENNE to align the incoming playback position with the outgoing track when the browser exposes that timing:
 
 ```ts
-B.sound.playMusic('battle-high', { fadeSeconds: 1.5, sync: true });
+music.battleHigh.play({ fadeSeconds: 1.5, sync: true })
 ```
 
 Stop music with:
 
 ```ts
-B.sound.stopMusic();
+music.stop()
 ```
 
 ## Volumes
@@ -99,11 +94,11 @@ Default volume levels come from `src/game/game-config.json`:
 }
 ```
 
-Effective volume is category volume multiplied by `masterVolume`, plus any per-call `volume` option. Runtime SFX and music slider changes are available through:
+Effective volume is category volume multiplied by `masterVolume`, plus any per-call `volume` option. A settings menu changes the player's own SFX and music volume (0–1) through `settings`:
 
 ```ts
-B.sound.setSfxVolume(0.8);
-B.sound.setMusicVolume(0.6);
+settings.sfxVolume = 0.8
+settings.musicVolume = 0.6
 ```
 
 Those session volume settings persist in save data. Voice uses `audio.dialogueVolume`.
@@ -113,8 +108,9 @@ Those session volume settings persist in save data. Voice uses `audio.dialogueVo
 A spoken line can start with a voice marker:
 
 ```ts
-B.player.say('|42| The old key fits perfectly.');
-B.character('hank').say('|17| This case just got a lot more complicated.');
+Player: "|42| The old key fits perfectly."
+Hank: "|17| This case just got a lot more complicated."
+jensen.say("|3| Humph!")
 ```
 
 The marker is not shown to the player. BENNE strips it from the text, resolves the speaking character id, and plays a voice file from:
@@ -125,29 +121,20 @@ src/game/assets/audio/voice/<characterId><number>.<ext>
 
 For example:
 
-- `B.character('hank').say('|17| ...')` looks for `src/game/assets/audio/voice/hank17.mp3`, `.ogg`, `.wav`, or `.m4a`.
-- `B.player.say('|42| ...')` uses the active player character id.
-- A tagged line like `Hank: |5| Hello.` uses the resolved `Hank` speaker.
+- `Hank: "|17| ..."` looks for `src/game/assets/audio/voice/hank17.mp3`, `.ogg`, `.wav`, or `.m4a`.
+- `Player: "|42| ..."` uses the character the player controls at that moment.
 
-Voice playback follows the normal `say` behavior: it participates in the interaction queue, uses the Speaking Text overlay, triggers talk animations, and stops when the line is skipped.
+Voice playback follows the normal speech behavior: the script waits for the line, the Speaking Text overlay shows it, the talk animation plays, and the clip stops when the line is skipped.
 
-### Tagged Templates
+### Conversation blocks
 
-For multi-speaker dialogue, put the marker after the speaker prefix:
+In a `say` block, put the marker after the speaker:
 
 ```ts
-B.say`
+say`
   Hank: |1| Hey Penny!
   Penny: |1| Hi!
-`;
-```
-
-For fixed-speaker tagged templates, put the marker at the start of the line:
-
-```ts
-B.character('penny').say`
-  |2| Make me a sandwich and I'll give you the key.
-`;
+`
 ```
 
 ## Process Game Voice IDs
@@ -163,7 +150,7 @@ Open the BENNE sidebar, make sure nothing is selected in the main tree, then run
    - **Yes** opens VS Code diffs for the planned edits before applying.
    - **No** writes the changes immediately.
 
-The command scans `src/game/**/*.ts`, updates direct `.say(...)` calls and tagged `B.say` templates, and stores per-character high-water marks in:
+The command scans `src/game/**/*.ts`, updates speech lines (`Hank: "…"`), `jensen.say(…)` calls and `say` blocks, and stores per-character high-water marks in:
 
 ```text
 .benne/voice-ids.json
@@ -192,42 +179,45 @@ Put cinematic files under:
 src/game/assets/videos/
 ```
 
-Then play them by basename:
+Then play them by name:
 
 ```ts
-B.video.play('intro');
+video.intro.play()
 ```
 
-`play` starts the video and lets the script continue. Use `playAndWait` when the following script should wait until the video ends:
+`play()` starts the video and lets the script continue. Use `playAndWait()` when the following script should wait until the video ends:
 
 ```ts
-B.video.playAndWait('intro');
-B.player.say('What was that?');
+video.intro.playAndWait()
+Hank: "What was that?"
 ```
 
-Video controls are also available:
+A room shows one video at a time, so the controls act on whichever is playing:
 
 ```ts
-B.video.pause();
-B.video.resume();
-B.video.seek(12);
-B.video.stop();
+video.pause()
+video.resume()
+video.seek(12)
+video.stop()
+if (video.isPlaying) { … }      // video.current is the playing video, or null
 ```
 
-During video playback, BENNE hides generic HUD overlays such as verbs, menus, inventory, and dialog choices. Speaking Text and Display Text stay above the video, so you can layer dialogue or narration over a cinematic. The video also blocks clicks and other gameplay input while it is visible; **ESC** stops the active video. If the video is playing inside a skippable cutscene, one ESC press skips the whole cutscene, video included (see [Bennescript → Cutscenes](./bennescript)).
+During video playback, BENNE hides generic HUD overlays such as verbs, menus, inventory, and dialog choices. Speaking Text and Display Text stay above the video, so you can layer dialogue or narration over a cinematic. The video also blocks clicks and other gameplay input while it is visible; **ESC** stops the active video. If the video is playing inside a skippable cutscene, one ESC press skips the whole cutscene, video included (see [BenneScript → Cutscenes](./bennescript#cutscenes-and-skipping)).
 
 ### Video Options
 
 ```ts
-B.video.play('intro', {
+video.intro.play({
   volume: 0.8,
   loop: false,
   clickToSkip: true,
   onComplete: () => {
-    B.state.setFlag('watchedIntro', true);
-  }
-});
+    flags.watchedIntro = true
+  },
+})
 ```
+
+`onComplete` is a plain callback: it runs when the video ends, outside the script's sequence, so keep it to instant work such as setting a flag. To run a scene after the video, use `playAndWait()` and write the scene below it.
 
 Video volume is `audio.masterVolume` multiplied by the per-playback `volume` option. `clickToSkip` defaults to `false`; when set to `true`, a primary click or tap stops the video. There is no separate video volume slider in the current engine.
 
@@ -244,9 +234,9 @@ ffmpeg -i Intro.mp4 -c:v copy -c:a libmp3lame -b:a 192k -movflags +faststart Int
 ## Practical Workflow
 
 1. Add SFX, music, voice, and video files under the correct `src/game/assets/` folders.
-2. Use `B.sound` and `B.video` in room, character, inventory, dialog, GUI, or global scripts.
+2. Use `sfx`, `music` and `video` (from `@game`) in room, character, inventory, dialog, GUI, or global scripts.
 3. Write dialogue normally, then run **Process Game Voice IDs** to insert voice markers.
 4. Record or export voice clips with stems that match the markers, such as `hank1.mp3` and `penny1.mp3`.
 5. Rebuild and test in BENNE Play.
 
-For the full scripting surface, see [Bennescript](./bennescript). For default volume settings, see [Game Configuration](./game-configuration#audio).
+For the full scripting surface, see [BenneScript](./bennescript). For default volume settings, see [Game Configuration](./game-configuration#audio).

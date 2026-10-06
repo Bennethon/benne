@@ -1,6 +1,7 @@
 import { gameEvents } from '../events/EventBus.js';
 import {
   INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT,
+  globalInventoryOnCharacterAnySourceEventId,
   globalInventoryOnCharacterEventId,
   type AnyInventoryUsedOnPayload,
 } from '../events/inventoryOnVerbEvents.js';
@@ -221,6 +222,28 @@ export function registerCharacterVerbItemHandler(
     });
   }
   regs.push({ verb, handler, options });
+}
+
+/**
+ * `characters.x.onAnyItem((item, verb) => …)` in a character script: any item without a handler of
+ * its own, on that character in any room. The room's own item handlers run first (dispatch tiers).
+ */
+export function registerCharacterAnyItemHandler(characterId: string, handler: Handler, options?: ItemHandlerOptions): void {
+  warnIfUntransformed(`characters.${characterId}.onAnyItem`, handler);
+  listen(globalInventoryOnCharacterAnySourceEventId(characterId), (payload) => {
+    const p = payload as AnyInventoryUsedOnPayload;
+    const item = lookupItemHandle<{ id: string }>(p.itemId) ?? { id: p.itemId };
+    const verb = lookupVerbHandle<{ id: string }>(p.verbId) ?? { id: p.verbId };
+    void runHandler(`characters.${characterId}.onAnyItem`, liveRoomScene(), payload, handler, [item, verb]).then((outcome) => {
+      if (outcome === 'unhandled') {
+        // This is the last per-target tier: straight to the fallback (continuing "after global"
+        // would emit this channel again).
+        gameEvents.emit(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, p);
+      } else if (outcome !== 'cancelled') {
+        applyInventoryDropPolicy(p.itemId, options);
+      }
+    });
+  });
 }
 
 // ─── Any-room hooks (§4.17) ──────────────────────────────────────────────────

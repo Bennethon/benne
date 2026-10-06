@@ -11,6 +11,7 @@ import { Task, timed } from './task.js';
 /** A save: a numbered slot, or a name (named saves have no slot). */
 export type SaveRef = number | string;
 
+/** One save, as `saves.list()` and `saves.get()` return it. */
 export interface SaveInfo {
   /** The slot, or `null` for a named save. */
   readonly slot: number | null;
@@ -102,6 +103,7 @@ export const saves = {
     return endHandler();
   },
 
+  /** Deletes a slot or a named save. */
   delete(save: SaveRef): void {
     manager('delete')?.deleteSave(save);
   },

@@ -39,7 +39,7 @@ The main **BENNE** tree is your map of the game. At the top is the workspace (yo
 Selecting a node populates the **Inspector** with its properties and (where relevant) opens or focuses the matching preview. Right-clicking a node offers context-appropriate actions, for example:
 
 - On a **room**: Play from here, Add Prop, Add Hotspot, Add Point, Add Region, Add Walkable Area, Add Hole, Add Spawned Character, Add Play From method, Import Props from Aseprite Tags, Delete.
-- On a **prop / hotspot / character**: add verb handlers (which edit both the JSON and the script), make it clickable, reveal or add `whenInventoryUsedOn` stubs, Delete.
+- On a **prop / hotspot / character**: add verb handlers (which edit both the JSON and the script), make it clickable, reveal or add an "item used on this" handler (`onAnyItem`), Delete.
 - On the **workspace root**: Update Engine.
 
 ### Creating content
@@ -72,7 +72,9 @@ What the Inspector shows depends on the selection. Examples:
 - **GUI control** — type-specific fields (text, font, colors, state tags, sizes, etc.).
 - **Inventory item** — name, description, enabled verbs, stackability, animations, cursor animation.
 
-A major convenience: from the Inspector and the tree, you can **scaffold script handlers** for an entity. For example, adding a "Use" handler to a prop edits the room JSON to mark the prop clickable *and* inserts a `whenUse('PropId', …)` stub into the room script, then reveals it so you can fill in behavior. You can also reveal an existing handler to jump straight to it.
+A major convenience: from the Inspector and the tree, you can **scaffold script handlers** for an entity. For example, adding a "Use" handler to a prop edits the room JSON to mark the prop clickable *and* adds a `door.onUse(() => { … })` stub (with its imports) to the end of the room script, then reveals it so you can fill in behavior. You can also reveal an existing handler to jump straight to it.
+
+The editor also helps while you write scripts: it completes every generated name (rooms, props, items, sounds, …), offers `Hank: ""` when you start a line with a character's name, completes animation tags and facing letters with their quotes, flags unknown speaker names as you type, and **Go to Definition** on a name like `battery` opens the JSON it came from.
 
 ## Rooms
 
@@ -84,7 +86,7 @@ Most of a room's interactive geometry is defined as **polygons**, and you edit t
 
 - **Walkable areas** — Polygons describing where the player can walk. Each walkable area can contain **holes** (e.g. a table the player must walk around). The example apartment room defines a single walkable polygon with one hole.
 - **Hotspots** — Clickable polygonal areas with no sprite of their own (a window, a sign, a patch of floor). Each can have a `walkToPoint` and `lookAtPoint`.
-- **Regions** — Polygonal zones used for triggers (`whenEnter` / `whenExit`), perspective scaling, and character tinting. A region can carry a `tint` and `tintAlpha` to darken or color characters standing in it.
+- **Regions** — Polygonal zones used for triggers (`regions.x.onEnter` / `onExit` in the room script), perspective scaling, and character tinting. A region can carry a `tint` and `tintAlpha` to darken or color characters standing in it.
 - **Prop colliders** — The clickable shape of a prop (only when the prop is clickable).
 - **Prop / hotspot baseline** — A horizontal line used for depth sorting against walking characters. Clickable props and hotspots show it alongside collider/polygon editing; **non-clickable props** still get this line so you can walk around scenery correctly.
 
@@ -115,7 +117,7 @@ A character definition (`*.character.json`) describes a person/creature the engi
 
 The **character preview** renders the character with its animations so you can verify tags, facing, and timing. Use **Import Animations from Aseprite Tags** to pull animation definitions directly from a tagged sheet.
 
-One character is designated the player at game start (via `startingPlayerCharacter` in `game-config.json`), but you can switch control between characters at runtime with `B.player.switchTo(...)`.
+One character is designated the player at game start (via `startingPlayerCharacter` in `game-config.json`), but you can switch control between characters at runtime with `player.switchTo(penny)`.
 
 ## GUIs
 
@@ -131,7 +133,7 @@ A GUI (`*.gui.json`) has an `id`, a `name`, a default `visible` state, a `displa
 
 The **GUI preview** renders the overlay live. You can add controls via **Add GUI Control** (from a GUI's context menu) and edit each control's properties in the Inspector.
 
-Behavior lives in the GUI's script (`*.gui.ts`), where you respond to interaction with handlers like `whenButtonClick`, `whenCheckboxCheck`, slider `whenValueChanged`, and text-input `whenSubmit`, and where you can show/hide overlays and drive controls. See [Bennescript → GUI script](./bennescript) for the full surface.
+Behavior lives in the GUI's script (`*.gui.ts`), where each control is a name you can use directly: `saveBtn.onClick(…)`, `musicVolume.onChange((v) => …)` for sliders and checkboxes, `saveName.onSubmit((text) => …)` for text inputs, `savedList.onSelect((i) => …)` for list boxes, and `gui.onShow(…)` for the GUI itself. See [BenneScript → GUIs](./bennescript#guis) for the full surface.
 
 ## Inventory
 
@@ -149,7 +151,7 @@ Behavior lives in the GUI's script (`*.gui.ts`), where you respond to interactio
 
 The **inventory preview** renders item icons as they'll appear in an inventory panel. **Import Inventory Items from Aseprite Tags** lets you create many items at once from a tagged sheet.
 
-Item behavior is written in the item's script (`*.inventory.ts`) using row verbs and the `whenUse` / `whenGive` registrars. Where an item is *used on a world target* (use the key on the door), that logic typically lives in the room or character script via `whenInventoryUsedOn`. See [Bennescript → Inventory script](./bennescript).
+Item behavior is written in the item's script (`*.inventory.ts`): verbs on its inventory row (`items.key.onLook(…)`) and other items used on it (`items.magnet.onCombine(items.antenna, …)`). Where an item is *used on a world target* (use the key on the door), that logic lives in the room or character script: `door.onUseItem(items.key, …)`. See [BenneScript → Inventory](./bennescript#inventory).
 
 ## Dialogs
 
@@ -167,9 +169,9 @@ Item behavior is written in the item's script (`*.inventory.ts`) using row verbs
 }
 ```
 
-The conversation logic lives in the dialog's script (`*.dialog.ts`), where each option gets a `whenChoice('optionId', …)` handler. Inside a handler you write the back-and-forth with tagged `B.say`, enable or disable other options with `optionOn` / `optionOff` to model conversation state, and end the conversation with `stop`. Options the player has already used are visually dimmed (color configurable via the `dialog.usedColor` setting).
+The conversation logic lives in the dialog's script (`*.dialog.ts`), where each option gets a handler: `options.greeting.onChoose(…)`, or `onChooseOnce(…)` to remove the option once chosen. Inside a handler you write the back-and-forth as lines of dialogue (`Penny: "Hi!"`), show or hide other options with `options.door.on()` / `off()` to model conversation state, and end the conversation with `dialog.end()`. Options the player has already used are visually dimmed (color configurable via the `dialog.usedColor` setting).
 
-You start a dialog from gameplay with `B.dialog('chatwithpenny').start()` — for example from a character's "Talk to" handler. The choice UI itself is a normal GUI, so its appearance (including how many choices are visible before scrolling) is configurable. See [Bennescript → Dialog script](./bennescript).
+You start a dialog from gameplay with `dialogs.chatwithpenny.start()`, for example from a character's "Talk to" handler; the handler waits there until the conversation ends. The choice UI itself is a normal GUI, so its appearance (including how many choices are visible before scrolling) is configurable. See [BenneScript → Dialogs](./bennescript#dialogs).
 
 ## Puzzle Dependency Charts
 
@@ -195,4 +197,4 @@ The Actions view also includes voice authoring helpers when nothing is selected 
 
 ---
 
-With your content created and inspected in the editor, the behavior that brings it to life is written in [Bennescript](./bennescript).
+With your content created and inspected in the editor, the behavior that brings it to life is written in [BenneScript](./bennescript).

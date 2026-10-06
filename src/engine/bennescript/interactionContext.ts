@@ -219,8 +219,8 @@ export function endHandler(): never {
 }
 
 /**
- * Ends the running handler and hands the interaction to the next handler in the chain (character
- * script, then the global fallback). Replaces `return false` (§4.5).
+ * Ends the running handler and hands the interaction to the next handler in the chain: the
+ * character script's handler, then the global handlers and fallbacks (§4.5).
  */
 export function unhandled(): never {
   throw UNHANDLED;

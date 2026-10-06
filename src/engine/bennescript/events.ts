@@ -89,6 +89,10 @@ function add(name: string, listener: Listener, once: boolean): void {
   }
 }
 
+/**
+ * The event bus: engine events (`'gameState:inventoryChanged'`, …) and events scripts send each
+ * other. Listeners are handlers: their lines are sequenced.
+ */
 export const events = {
   /**
    * Runs `listener` each time `name` is emitted. In a room script it listens only while that room
