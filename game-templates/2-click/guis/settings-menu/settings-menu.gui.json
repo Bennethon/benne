@@ -187,6 +187,7 @@
     {
       "type": "text",
       "id": "music-volume",
+      "scriptName": "musicVolumeLabel",
       "x": 0,
       "y": 0,
       "text": "music volume",

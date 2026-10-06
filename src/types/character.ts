@@ -49,6 +49,8 @@ export interface CharacterDisplayData {
 
 export interface CharacterData {
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   name: string;
   description: string;
   /**

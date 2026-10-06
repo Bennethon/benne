@@ -143,6 +143,12 @@ export interface GameVerbDefinition {
    * Optional short word between verb and object in composed UI copy (e.g. `"at"` → “Look at …”, `"to"` → “Give to …”).
    */
   preposition?: string;
+  /**
+   * Arms the selected inventory item and is then used on a target ("Use mop with Jensen"). Generates
+   * `on<Verb>Item` handler methods. Defaults to `true` when the verb has a `preposition`
+   * (docs/bennescript-ergonomics-refactor.md §8.2, decision 7).
+   */
+  usesItem?: boolean;
 }
 
 /**
@@ -199,6 +205,11 @@ export interface GameSettings {
    * {@link VerbInputProfile}.
    */
   inputProfile?: VerbInputProfile;
+  /**
+   * Verb used when a clicked prop / hotspot / character / item has no `defaultVerb` of its own.
+   * Defaults to `look` when the game has a `look` verb, else the first verb (decision 8).
+   */
+  defaultVerb?: string;
   /**
    * Suggested line when no handler handles the verb; emitted on the `verb:unhandled` bus event.
    */

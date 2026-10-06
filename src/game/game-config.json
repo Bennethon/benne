@@ -12,7 +12,8 @@
     {
       "id": "use",
       "label": "Use",
-      "preposition": "with"
+      "preposition": "with",
+      "usesItem": true
     },
     {
       "id": "look",
@@ -31,6 +32,7 @@
       "label": "Move"
     }
   ],
+  "defaultVerb": "look",
   "inputProfile": {
     "primaryButtonVerb": "walkTo",
     "secondaryButtonVerb": "defaultVerb"

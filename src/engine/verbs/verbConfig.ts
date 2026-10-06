@@ -109,11 +109,15 @@ export function composeVerbLineText(
 
 /**
  * Reserved literal for `inputProfile` slots: substitute with the clicked target's authored
- * `defaultVerb` (prop / hotspot / character / inventory item), falling back to `"look"`.
+ * `defaultVerb` (prop / hotspot / character / inventory item), falling back to the game-level
+ * default ({@link resolveGameDefaultVerbId}).
  */
 export const DEFAULT_VERB_TOKEN = 'defaultVerb';
 
-/** Per-clickable default-verb fallback when the target omits `defaultVerb` in its JSON. */
+/**
+ * The old hard-coded per-clickable fallback. The engine now uses {@link resolveGameDefaultVerbId};
+ * this stays only for old `verbs.gui.ts` scripts until they are ported.
+ */
 export const DEFAULT_VERB_FALLBACK = 'look';
 
 const DEFAULT_VERBS: GameVerbDefinition[] = [
@@ -127,6 +131,34 @@ export function getEffectiveVerbDefinitions(settings: GameSettings): GameVerbDef
     return settings.verbs;
   }
   return DEFAULT_VERBS;
+}
+
+/**
+ * Whether a verb arms the selected inventory item and is used on a target (`usesItem`, decision 7):
+ * explicit `usesItem`, else `true` for verbs with a `preposition`.
+ */
+export function isItemVerb(def: GameVerbDefinition): boolean {
+  if (typeof def.usesItem === 'boolean') {
+    return def.usesItem;
+  }
+  return (def.preposition?.trim().length ?? 0) > 0;
+}
+
+/**
+ * Game-level default verb (decision 8), used when a clicked target has no `defaultVerb`:
+ * `settings.defaultVerb` when it names a configured verb, else `look` when configured, else the
+ * first verb.
+ */
+export function resolveGameDefaultVerbId(settings: GameSettings): string {
+  const ids = getEffectiveVerbDefinitions(settings).map((v) => v.id);
+  const configured = settings.defaultVerb?.trim();
+  if (configured && ids.includes(configured)) {
+    return configured;
+  }
+  if (ids.includes('look')) {
+    return 'look';
+  }
+  return ids[0] ?? DEFAULT_VERB_FALLBACK;
 }
 
 /**

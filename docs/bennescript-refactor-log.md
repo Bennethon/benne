@@ -267,3 +267,76 @@ All recorded as decisions 17–22 in §13, with "as built" notes in §4.5, §4.8
 
 - Generated handles should build on `timed()` for every timed action, so each gets `.now` for free, and on `DialogHandle` / `DialogOptionHandle` from `handles.ts` (`start`, `end`, `onChoose`, `onChooseOnce`, `on`/`off`/`enabled`).
 - `player` exists in `@benne/script` now; generated character handles for the player character should keep producing player walks (`walkCharacterTask` does this by id), since the interrupt policy depends on it.
+
+---
+
+## Phase 3: Generator (2026-10-05)
+
+### Done
+
+1. **Handle generator** `scripts/lib/generateGameHandles.mjs`, run by `scripts/generate-game-ids.mjs` next to the old `benne-game-ids.d.ts`. From AI Apocalypse it writes 33 modules (238 top-level handles):
+   - `src/game/game.ids.ts` (`@game`): `rooms`, `characters`, `items`, `dialogs` (with `options`), `guis` (with `controls`), `sfx`, `music`, `video`, `verbs`, `fallbacks`, the `VerbId` / `ItemVerbId` types, the `VerbMethods` / `FallbackVerbMethods` interfaces, and `flags` / `vars` re-exported from `state.ts`;
+   - `rooms/<id>/<id>.ids.ts`: `room`, props, hotspots and spawned characters (flat), `points`, `regions`, `walkables`;
+   - `dialogs/<id>/<id>.ids.ts`: `dialog`, `options` (the same objects as `dialogs.x.options`);
+   - `guis/<id>/<id>.ids.ts`: `gui` and flat controls (the same objects as `guis.x.controls`).
+   - Animation tag unions for props (room sheet), characters (sheet + `animations` keys) and items (shared or own sheet), so `items.coffee.animation = 'coffe-full'` is a type error with a "Did you mean".
+2. **Naming** (`scripts/lib/benneNames.mjs`): camelCase, room-prefix and kind-word stripping with the whole-ID fallback (`lab-point-1` → `labPoint1`, as the spec's examples already used), `scriptName` overrides, collision errors per scope, reserved / BenneScript names → trailing `_` + warning in flat scopes, browser-global warnings. Exact rules: §7.2 "as built" and decision 24.
+3. **Verbs** (`scripts/lib/benneVerbs.mjs`, shared with validate-content): `on<V>` and, for `usesItem` verbs, `on<V>Item` on props, hotspots, characters and items; `fallbacks.on<V>` / `fallbacks.on<V>Item((item, target) => …)`; `verbs.<v>` (`VerbHandle`: `id`, `label`, `preposition`, `usesItem`, `select()`, `isActive`). `usesItem` defaults from the preposition (decision 7). Reserved verb IDs (`walkTo`, `defaultVerb`, `item`, `anyItem`, `combine`, plus `verbItem`) and generated-name collisions (`use` + `useItem`) stop generation. The method names travel in the generated verb list, so the engine still has no verb names.
+4. **Engine, decisions 7 and 8**: `GameVerbDefinition.usesItem`, `GameSettings.defaultVerb`; `isItemVerb()` and `resolveGameDefaultVerbId()` in `verbConfig.ts`. The pointer's `defaultVerb` fallback now uses the game-level default instead of the hard-coded `look` (same result in AI Apocalypse). `DEFAULT_VERB_FALLBACK` stays exported for the old `verbs.gui.ts`. AI Apocalypse's config now says `"usesItem": true` on `use` and `"defaultVerb": "look"` (§8.5). The use/give alias lists and item arming are unchanged (Phase 4).
+5. **Runtime handle classes** (`handles.ts`): `ClickableHandle` / `PropHandle` / `HotspotHandle` / `CharacterHandle` / `ItemHandle` are generic over the verb ID (and animation tags); `PropHandle.animation` and `CharacterHandle.animation` added (the type parameter needed a use). New: `VerbHandle`, `FallbacksHandle`, `PointHandle`, `RegionHandle`, `WalkableHandle`, `GuiHandle`, `GuiControlHandle`, `VideoHandle`, `flag()`, `defineVars()`. `CharacterHandle` takes a `null` room for `characters.x`.
+6. **`src/game/state.ts`** with `defineFlags` / `defineVars`; only the café's three flags for now (Phase 4 moves the rest out of `globalScript.ts`).
+7. **Speaker labels** (decision 4): resolution moved to `scripts/lib/benneSpeakers.mjs`, shared by the transform, its Vite plugin and the generator. The generator warns about names several characters normalise to and about characters named "player"; using such a label stays a build error. AI Apocalypse has none.
+8. **validate-content** checks every verb ID in content JSON: `game-config.json` (`verbs` reserved/collisions, `defaultVerb`, `inputProfile` slots, `usesItem` type), props' and hotspots' `defaultVerb`, characters' and items' `defaultVerb`, items' `onVerb` keys. AI Apocalypse and both templates: no new diagnostics.
+9. **Generated files are gitignored** (`src/game/**/*.ids.ts`; also in the `.gitignore` the extension writes for new games). The hand-written `game.ids.ts` and `cafe.ids.ts` are removed from git and replaced by generated ones. `cafe.room.ts` did not change: the generated names and imports match the hand-written ones. Regeneration: `predev` / `prebuild*` (as before), the Vite plugin's build start and dev watcher, the extension's existing `generate:game-ids` runs, and now `pretypecheck`. The writer only rewrites changed files and only deletes `.ids.ts` files with the generated marker. The dev watcher ignores `*.ids.ts`, also reacts to audio/video files, and shows generator errors in the overlay instead of crashing the dev server.
+10. **`npm run check`** now runs `check:generated` first (committed `.d.ts` is current and the handles generate without errors), then `typecheck` (which generates the gitignored modules), lint and validate-content.
+11. **Tests**: `tests/unit/handleGenerator.test.mjs` (13: naming, verbs and decisions 7/8, reserved verbs, validate-content verb checks, module output, `state.ts` re-export, collision → `scriptName`, audio collisions, reserved/browser names, bad `scriptName`s, ambiguous speakers) and `tests/unit/bennescriptHandles.test.ts` (5: verb mixin, `flag` saveKey, `defineVars` copies, `VerbHandle`, `isItemVerb` / `resolveGameDefaultVerbId`).
+
+### Collisions and warnings in AI Apocalypse
+
+| Where | What | Resolution |
+|---|---|---|
+| `guis/settings-menu` | **Collision:** slider `musicVolume` and its text label `music-volume` both become `musicVolume` | `"scriptName": "musicVolumeLabel"` on the label. Explained: a control and its caption named after the same setting. |
+| `guis/game-menu`, `guis/title-buttons` | Button `settings` would shadow the `settings` helper (→ `settings_`) | `"scriptName": "settingsBtn"` on both. §4.15's example updated. |
+| `rooms/cafe` (`cafe-hotspot-window`), `rooms/lab` (`window`) | Handle `window` shadows the browser global | Warning only, kept (the café has used it since Phase 1). |
+
+The **templates** (`game-templates/2-click`, `9-verb`) carry the same `settings-menu` and `game-menu` GUIs, so they hit the same collision, which failed their builds in `test:artifacts` (generation errors stop `prebuild`). They got the same two `scriptName`s, edited directly (no sync scripts). The 9-verb template's `window` hotspot (`apartment`) warns.
+
+No other collisions. Names match the spec's examples (`points.firstVisitJensen`, `regions.garageExit`, `regions.cantWalk`, `points.labPoint1`, `points.walkToCloset`, `toolChest`, `savedList`, `saveBtn`).
+
+### Deviations from the spec
+
+Recorded as decisions 23–26 in §13, with "as built" notes in §4.7, §4.15, §4.17, §7.1, §7.2, §8.2, §8.3 and §12.
+
+- **23:** generated files are real `.ts` modules next to the content, with a marker; `verbs` and `fallbacks` are in `@game`, not `@benne/script` (§4.17's import changed), because their methods come from config.
+- **24:** exact naming rules (camelCase of all-caps words, whole-ID fallback, which scopes reserve names, `scriptName` validation, audio collisions need a file rename).
+- **25:** `verbItem` reserved too; verb IDs must start with a letter; **no JSON Schema enums**, because the repo has no content schemas (the Inspector dropdowns are Phase 5).
+- **26:** `state.ts` is an ordinary module; `flag(default, { saveKey })`; object var defaults are copied on first read.
+
+### Known issues / left for Phase 4
+
+- **Generated API without a runtime yet:** per-verb methods on `items.x` (`onLook`, `onUseItem`, `onCombine`, `onItem`, `onAnyItem`), everything on `fallbacks`, and `characters.x.on…` outside a room script type-check, but log a DEV warning ("not implemented yet") and don't register. Room-scoped handles (`./<room>.ids`) work as in Phase 2.
+- `PointHandle`, `RegionHandle`, `WalkableHandle`, `GuiHandle`, `GuiControlHandle`, `VideoHandle` carry only their IDs; `RoomHandle` has no `cameFrom` / `last` yet. Points already work as walk targets (`WalkTarget` accepts any `{ id }`).
+- A room-scoped character handle (`hank` from `./plaza.ids`) and `characters.hank` are different objects, so `who === hank` in a region handler (§4.14) needs care in Phase 4.
+- The Inspector (`inspectorStateBuilder.ts`, `inspectorMutations.ts`) still treats `look` as the default verb (Phase 5). Editors that rewrite JSON should keep the new `scriptName` fields; the type definitions now declare them.
+- Generator warnings (`window`) print on every regeneration.
+
+### Exit checks
+
+| Check | Result |
+|---|---|
+| AI Apocalypse generates with no unexplained collisions | ✅ 33 modules; one collision, explained and fixed with a `scriptName` (table above); `window` warnings kept |
+| `npm run check` (check:generated, typecheck, lint, validate-content) | ✅ |
+| Café works on generated handles | ✅ `cafe.spec.ts` in BENNE Play (every handler); `cafe.room.ts` unchanged; generated types reject a wrong verb, item, animation tag and item-verb method (checked with a throwaway probe file) |
+| `npm run test:playthrough` | ✅ 13/13 (13.3 min; main playthrough 10.2 min, slower than Phase 2's 8.4 on this run, with no retries) |
+| `npm run test:unit` | ✅ 114/114 (18 new) |
+| `npm run test:e2e`, `test:extension`, `test:desktop`, `test:pathfinding` | ✅ 4/4, 21/21, 3/3, passed |
+| `npm run test:artifacts` (scaffold, both templates, prod build) | ✅ after the template `scriptName`s (see above) |
+| Fresh clone (no generated files) | ✅ `tsc` alone fails as expected; `npm run typecheck` generates first and passes |
+| Extension bundle | Rebuilt (`npm run build:benne-play`); Rolldown reshuffled the deduplicated `talk *` / `walk l*` sprite names again. `media/room-preview/room-preview.js` was rebuilt by the extension test run, picking up the `resolvePointerVerb` change. |
+
+### Notes for Phase 4
+
+- Every handle is created in generated code; add behaviour to the classes in `src/engine/bennescript/handles.ts`, not to the generator. Replace each `notYet(…)` with real registration.
+- The generator test fixture in `tests/unit/handleGenerator.test.mjs` is a quick way to see the output for new content shapes.
+- Port flags into `src/game/state.ts` as you port scripts; the old string keys still work for flags not yet declared (`saveKey` is there if a name must differ).
+- Run `node scripts/generate-game-ids.mjs` after content edits outside the dev server; `npm run typecheck` does it for you.

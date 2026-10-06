@@ -185,7 +185,7 @@ export async function runCreateGameWizard(extensionPath: string, extensionVersio
                 'utf8',
             );
             await writeFile(path.join(destPath, 'package.json'), buildPackageJson(projectName), 'utf8');
-            await writeFile(path.join(destPath, '.gitignore'), 'node_modules/\ndist/\n.benne/\nreleases/\n', 'utf8');
+            await writeFile(path.join(destPath, '.gitignore'), 'node_modules/\ndist/\n.benne/\nreleases/\n\n# BenneScript handles generated from src/game/ (npm run generate:game-ids)\nsrc/game/**/*.ids.ts\n', 'utf8');
             await writeFile(
                 path.join(destPath, 'README.md'),
                 buildReadme(projectName, templatePick.template.displayName),

@@ -1,8 +1,8 @@
 /**
  * `@benne/script`: the new BenneScript API (docs/bennescript-ergonomics-refactor.md).
  *
- * Runs next to the old `register*Script` / `B` API until Phase 6. Phase 2 adds the full step
- * runtime (§5, §10); the handle API is still only what the café needs (Phase 4 completes it).
+ * Runs next to the old `register*Script` / `B` API until Phase 6. The handle classes are created
+ * by the generated `@game` and `.ids` modules (§7); Phase 4 completes their API.
  */
 import { currentContext } from './interactionContext.js';
 import { sayLine } from './actions.js';
@@ -14,15 +14,28 @@ export {
   ClickableHandle,
   DialogHandle,
   DialogOptionHandle,
+  FallbacksHandle,
+  GuiControlHandle,
+  GuiHandle,
   HotspotHandle,
   ItemHandle,
   MusicHandle,
+  PointHandle,
   PropHandle,
+  RegionHandle,
   RoomHandle,
   SfxHandle,
+  VerbHandle,
+  VideoHandle,
+  WalkableHandle,
   defineFlags,
+  defineVars,
+  flag,
   withVerbMethods,
+  type FallbackTarget,
+  type FlagSpec,
   type StepHandler,
+  type VarValue,
   type VerbSpec,
 } from './handles.js';
 export { unhandled } from './interactionContext.js';

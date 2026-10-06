@@ -171,7 +171,7 @@ Where names come from:
 | Import from | Contains | Example |
 |---|---|---|
 | `@benne/script` | Engine verbs and helpers | `walkToClicked`, `faceClicked`, `wait`, `say`, `display`, `inventory`, `player`, `camera`, `fadeOut`, `cutscene`, `background`, `together`, `unhandled`, `saves`, `settings`, `game` |
-| `@game` (generated) | Game-wide content | `rooms`, `items`, `characters`, `dialogs`, `guis`, `sfx`, `music`, `flags`, `vars` |
+| `@game` (generated) | Game-wide content | `rooms`, `items`, `characters`, `dialogs`, `guis`, `sfx`, `music`, `video`, `verbs`, `fallbacks`, `flags`, `vars` |
 | `./<room>.ids` (generated, next to the script) | This room's things | `room`, props, hotspots and characters in the room as flat names, plus `points`, `regions`, `walkables` |
 | `./<dialog>.ids` / `./<gui>.ids` | This dialog's / GUI's things | `dialog`, `options` / `gui`, controls as flat names |
 
@@ -572,6 +572,8 @@ if (vars.timesAskedJensen > 3) {
 
 Reads and writes go straight to `GameStateManager`, so they're saved, and they happen **at that line**. The sequencing bug class from today ("flag set after a `say` is visible while the line is still playing") disappears.
 
+_As built (Phase 3, decision 26):_ `state.ts` is an ordinary module, not a script file, so the transform leaves it alone; `@game` re-exports its `flags` and `vars`. A flag declared with `flag(default, { saveKey })` is stored under `saveKey`. An array or object default in `defineVars` is copied into the game state the first time it is read, so `vars.list.push(x)` is saved and the default itself never changes. AI Apocalypse's `state.ts` declares only the café's flags so far; Phase 4 moves the rest out of the global script.
+
 Flags stay booleans. Variables must be JSON-compatible values (numbers, strings, booleans, arrays and plain objects of those), which keeps saves safe (see codex-suggestions §3).
 
 **Visits**
@@ -961,7 +963,7 @@ GUI controls become typed handles in the GUI's own `.ids` module. Events are met
 
 ```ts
 // PROPOSED
-import { gui, quit, resume, settings, save, load, titleScreen } from './game-menu.ids'
+import { gui, quit, resume, settingsBtn, save, load, titleScreen } from './game-menu.ids'
 
 gui.onShow(() => {
   quit.visible = game.isDesktop
@@ -970,11 +972,13 @@ gui.onShow(() => {
 
 quit.onClick(() => game.quit())
 resume.onClick(() => gui.hide())
-settings.onClick(() => { guis.settingsMenu.show(); gui.hide() })
+settingsBtn.onClick(() => { guis.settingsMenu.show(); gui.hide() })
 save.onClick(() => { guis.saveMenu.show(); gui.hide() })
 load.onClick(() => { guis.loadMenu.show(); gui.hide() })
 titleScreen.onClick(() => rooms.title.goTo())
 ```
+
+The `settings` button has `"scriptName": "settingsBtn"` in `game-menu.gui.json`: a control named `settings` would shadow the `settings` helper (§7.2).
 
 **Sliders and checkboxes** (from `settings-menu.gui.ts`):
 
@@ -1129,7 +1133,8 @@ Flag seeding moves to `state.ts` (§4.7), which leaves only behaviour here:
 
 ```ts
 // globalScript.ts
-import { fallbacks, game } from '@benne/script'
+import { game } from '@benne/script'
+import { fallbacks } from '@game'      // generated: one method per configured verb (§8.2)
 
 fallbacks.onLook(() => { Player: "Nothing special about that." })
 fallbacks.onUse(() => { Player: "That doesn't work." })
@@ -1369,12 +1374,27 @@ _As built (Phase 2):_ every timed action is built once by `timed(start)` (`src/e
 
 The generated files are gitignored, regenerated on `dev` / `build` and on every editor change, the same as `benne-game-ids.d.ts` today.
 
+_As built (Phase 3, decision 23):_ the generator is `scripts/lib/generateGameHandles.mjs`, run by `scripts/generate-game-ids.mjs` alongside the old `benne-game-ids.d.ts`. It writes real TypeScript modules (runtime objects and their types in one file) next to the content: `src/game/game.ids.ts` (aliased as `@game`), `rooms/<id>/<id>.ids.ts`, `dialogs/<id>/<id>.ids.ts` and `guis/<id>/<id>.ids.ts`. `.gitignore` covers `src/game/**/*.ids.ts`. Each file starts with a generated marker, and only files carrying it are deleted when their source goes away. Files are written only when their text changes, so the dev watcher (which ignores `*.ids.ts`) doesn't loop. `npm run typecheck` generates first (`pretypecheck`), and `npm run check:generated` fails on collisions, reserved verb IDs and bad `scriptName`s. In dev, a failed regeneration shows in Vite's error overlay and leaves the previous modules in place; a failed build start fails the build.
+
+- **Handles are generic over the game's verbs.** The engine classes (`PropHandle<VerbId, Anim>`, `HotspotHandle<VerbId>`, `CharacterHandle<VerbId, Anim>`, `ItemHandle<VerbId, Anim>`) contain no verb names; `@game` declares `VerbId`, `ItemVerbId`, the `VerbMethods` / `FallbackVerbMethods` interfaces and the verb list, and attaches the methods through an internal `__withVerbs` that the `.ids` modules call. So `x.on(['use', 'cleen'], …)` and `items.coffee.animation = 'coffe-full'` are type errors.
+- **One object per thing.** `dialogs.x.options.y` and `options.y` in the dialog's module are the same object, as are `guis.x.controls.y` and the flat control. Room-scoped character handles (registration in that room) are separate from `characters.x` (no room: character-script scope, §4.9).
+- **Animation tags.** Props: every tag on the room's Aseprite sheet. Characters: the character sheet's tags plus the keys of `animations` in the character JSON. Items: the shared inventory sheet (`display.aseprite: "shared"`) or the item's own sheet. With no tags the type is `string`.
+- **`flags` / `vars`** are re-exported from `src/game/state.ts` when it exists; otherwise `@game` declares empty ones.
+
 ### 7.2 Naming
 
 - IDs are converted to camelCase: `club-hotspot-toolChest` → `toolChest`, `what about AI` → `whatAboutAI`, `botti3-disembodied` → `botti3Disembodied`.
 - A leading `<roomId>-` and kind word (`hotspot-`, `point-`, `region-`) are stripped inside room modules: `plaza-point-first-visit-jensen` → `points.firstVisitJensen`.
 - If two IDs in the same scope produce the same name, the generator reports an error and asks for a `"scriptName"` on one of them in JSON. `scriptName` only overrides the generated handle name; it is not a speaker label. It never silently suffixes `_2`.
 - Reserved words and names that collide with BenneScript helpers (`wait`, `say`, `room`, …) get a trailing `_` and a warning.
+
+_As built (Phase 3, decision 24):_
+- **camelCase**: split on anything that isn't a letter or digit; the first word is lower-cased when it is all capitals (`AI problem` → `aiProblem`), otherwise only its first letter is (`TakeBtn` → `takeBtn`, `what about AI` → `whatAboutAI`). A name that would start with a digit gets a leading `_` and a warning.
+- **Prefix stripping** applies only to the room's own ID, followed by the thing's own kind word (`hotspot-`, `point-`, `region-`, `prop-`, `walk-`/`walkable-`): `cafe-walk` → `walkables.walk`. When what's left doesn't start with a letter, the whole ID is used: `lab-point-1` → `points.labPoint1`.
+- **Scopes**: each `@game` namespace; each room module's top level (props, hotspots, spawned characters, plus the fixed `room`, `points`, `regions`, `walkables`), and its `points`, `regions` and `walkables` separately; each dialog's `options`; each GUI module's top level (controls plus `gui`).
+- **Reserved names** (trailing `_`, warning) apply only to flat scopes, where a handle is an import binding: JavaScript reserved words, everything `@benne/script` and `@game` export, and the generated module names (`room`, `points`, `regions`, `walkables`, `gui`, `dialog`, `options`). Namespaced keys (`items.default`) need no renaming. Flat names that shadow a browser global (`window`, `close`, `open`, …) only warn.
+- **`scriptName`** is accepted on rooms, props, hotspots, points, regions, walkable polygons, characters (it names the character in `characters` and in every room that spawns it), items, dialogs, dialog options, GUIs and GUI controls. It must be a valid identifier, and in a flat scope not a reserved name; otherwise generation fails. Two sound, music or video files whose names collide can't take a `scriptName`; the error asks to rename one of the files.
+- **Speaker labels** (decision 4) are resolved by one shared module, `scripts/lib/benneSpeakers.mjs`, used by the transform and the generator. The generator warns about names that several characters normalise to, and about a character whose ID or name normalises to `player`; using such a label is still the build error from §6.2.
 
 ### 7.3 Why some names are namespaced
 
@@ -1428,7 +1448,7 @@ AI Apocalypse uses both styles side by side: 11 `whenPickUp` calls for its `take
 }
 ```
 
-Two config additions:
+Two config additions (both read by the engine since Phase 3: `isItemVerb` and `resolveGameDefaultVerbId` in `src/engine/verbs/verbConfig.ts`):
 
 - **`usesItem`** marks a verb that arms the selected inventory item and is then used on a target ("Use mop with Jensen", "Throw rock at window"). It replaces the hard-wired `use`/`give` alias lists. When omitted, it defaults to `true` for verbs that have a `preposition`, so existing `use` / `give` configs keep working unchanged.
 - **Game-level `defaultVerb`** replaces the hard-coded `look` fallback for clickables without their own `defaultVerb`.
@@ -1443,6 +1463,8 @@ Two config additions:
 | Global fallbacks | `fallbacks.on<V>(fn)`; if `usesItem`, `fallbacks.on<V>Item((item, target) => …)` | `fallbacks.onClean(…)` |
 | `verbs` namespace | `verbs.<V>` with `id`, `label`, `preposition`, `usesItem`, `select()`, `isActive` | `verbs.clean.select()` |
 | Types | `VerbId` union and `ItemVerbId` union; JSON Schema enums for `defaultVerb`, item `verbs`, `inputProfile` | `cleaningStuff.on(['use', 'take', 'clean'], …)` |
+
+_As built (Phase 3):_ the repository has no JSON Schemas for content, so there are no schema enums; validate-content checks verb IDs instead (§8.3), and the Inspector dropdowns are Phase 5. The generated per-verb methods on item handles and on `fallbacks`, and `characters.x.on…` outside a room script, exist with their types, but their runtime (inventory, global and character-script dispatch) is Phase 4: until then they log a DEV warning and the handler doesn't run.
 
 Built-in item-verb helpers stay on top of the generated ones:
 
@@ -1494,6 +1516,7 @@ fallbacks.onThrowItem((item, target) => {
   - the engine tokens `walkTo` and `defaultVerb`;
   - IDs whose generated names would collide with built-in handle members: `item`, `anyItem` and `combine` (`onItem`, `onAnyItem`, `onCombine`);
   - two verbs that generate the same name, e.g. a `usesItem` verb `use` (→ `onUseItem`) next to a verb called `useItem`.
+- _As built (Phase 3, decision 25):_ `verbItem` is reserved too (its method would be the generic `onVerbItem`), verb IDs must start with a letter, and the `verbs.<name>` keys are checked for collisions as well. validate-content reports the same problems, plus unknown verb IDs in `game-config.json` (`defaultVerb`, `inputProfile`), in props' and hotspots' `defaultVerb`, in characters' and items' `defaultVerb`, and in items' `onVerb`.
 - **Adding, renaming or removing a verb** regenerates the handles, as the editor already does on JSON changes. New methods appear in autocomplete immediately. Handlers for a removed or renamed verb become type errors instead of silently never firing.
 
 ### 8.4 Runtime changes
@@ -1653,7 +1676,7 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 | Heavy logic in step functions is a little slower | Each call awaits a microtask | Irrelevant at adventure-script scale; per-frame code goes in `onUpdate`. |
 | Prettier may change quote style | — | Fine either way; the transform accepts any string literal. |
 | `emitter.on('x', fn)` in a script file | The transform recognises registration APIs by method name, so `fn` becomes a step function (async) | Rare in script files. Wrap such callbacks in a plain function defined outside the call, or move the code to an ordinary `.ts` file. |
-| A handle named after a browser global (`window`, `close`, `open`) | Generated names follow the JSON IDs; `cafe-hotspot-window` → `window` | Legal (the import shadows the global inside the module), but confusing in the debugger. The generator could warn (Phase 3). |
+| A handle named after a browser global (`window`, `close`, `open`) | Generated names follow the JSON IDs; `cafe-hotspot-window` → `window` | Legal (the import shadows the global inside the module), but confusing in the debugger. The generator warns (Phase 3); add a `scriptName` to rename it. |
 | `const t = jensen.walkTo.now(…)` | Only statement-level calls run with the ambient context; a call in a variable initialiser does not | Handled (Phase 2): the transform wraps `x.now(…)` and `background(…)` calls in expression position in `$.run(() => …)`, so they start with the handler's context (decision 17). Other expression-position calls are reads and don't need it. |
 
 ---
@@ -1693,6 +1716,10 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 | 20 | What exactly blocks saving, and how do loads stop handlers? (Phase 2) | **Any running gameplay activity (old or new API, including one waiting on a dialog), an open dialog, or a room transition.** GUI handlers report `gameplay: false`. Any snapshot load or new game (the game-state-replaced event) cancels every running handler, so old-API loads stop new-API handlers too. The handler that calls `saves.load()` ends (`ended`) rather than being cancelled. | §4.16, §10 |
 | 21 | What does a `background` block share with its handler? (Phase 2) | **Its own context, keeping the handler's click payload.** It doesn't take the lock, report to the activity registry (idle detection) or block saving. Room changes and loads stop it; the handler ending or being interrupted doesn't. | §4.13 |
 | 22 | Where does `unhandled()` continue? (Phase 2) | **After the room level:** verbs go on to the character script's handler, the global verb handler, then the global fallback (the target's own `onVerbFallback` channel is skipped, since the handler that fell through is already the target's). Item handlers go on to the room's any-item handler, the global item handlers, then the unhandled fallback. | §4.5 |
+| 23 | What does the generator emit, and how does tooling find it? (Phase 3) | **Real `.ts` modules next to the content** (`src/game/game.ids.ts` as `@game`, `<kind>/<id>/<id>.ids.ts`), gitignored via `src/game/**/*.ids.ts` and marked as generated, so only marked files are ever deleted. Writes happen only on change. `typecheck` generates first; `check:generated` fails on generator errors. **`verbs` and `fallbacks` live in `@game`**, not `@benne/script` (§4.17's import), because their methods come from the config. Handle classes are generic over `VerbId`; `@game` attaches the per-verb methods with an internal `__withVerbs`. | §4.1, §4.17, §7.1 |
+| 24 | Exact naming rules (Phase 3) | **camelCase** lower-cases an all-capitals first word (`aiProblem`); **prefix stripping** removes only the room's own ID plus the thing's own kind word, and falls back to the whole ID when the rest doesn't start with a letter (`labPoint1`); **reserved names** (`_` + warning) apply only to flat scopes and include the generated module names; browser globals only warn; **`scriptName`** must be an identifier and not reserved, or generation fails; colliding audio/video file names must be renamed. AI Apocalypse needed three `scriptName`s (see the Phase 3 log). | §7.2, §4.15 |
+| 25 | Verb rules beyond §8.3 (Phase 3) | **`verbItem` is reserved** (`onVerbItem` is the generic method), verb IDs must start with a letter, and `verbs.<name>` keys are collision-checked. validate-content checks every verb reference in content JSON with the same shared rules (`scripts/lib/benneVerbs.mjs`). No JSON Schema enums: the repo has no content schemas. | §8.2, §8.3 |
+| 26 | `state.ts` details (Phase 3) | **An ordinary module, re-exported by `@game`.** `flag(default, { saveKey })` stores under `saveKey`; object/array var defaults are copied into the state on first read so in-place changes are saved. | §4.7 |
 
 **Revisit later**
 

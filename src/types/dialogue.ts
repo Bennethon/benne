@@ -20,6 +20,8 @@ export interface DialogueTree {
 /** One line in a SCUMM-style topic / reply list (see `*.dialog.json`). */
 export interface DialogOption {
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   text: string;
   /** When omitted in JSON, treated as `true`. */
   enabled?: boolean;
@@ -38,6 +40,8 @@ export interface DialogOption {
  */
 export interface Dialog {
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   displayName?: string;
   options: DialogOption[];
   /** GUI overlay id; defaults to `"dialog"` when omitted. */

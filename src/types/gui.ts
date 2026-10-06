@@ -91,6 +91,8 @@ export interface GuiTextControl {
   type: 'text';
   /** Prefer `line` for dialogue body; otherwise the first text control is the primary line. */
   id?: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   x: number;
   y: number;
   /** Draw order within the GUI overlay: added to the overlay’s base depth. */
@@ -126,6 +128,8 @@ export interface GuiInventoryPanelControl {
   type: 'inventoryPanel';
   /** Optional ID for Bennescript targeting, e.g. B.whenInventorySlotClick('mainInv', ...) */
   id?: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   /**
    * Character definition id whose bag fills this panel. Omitted = active player character
    * (`GameStateManager.getActivePlayerCharacterId()`).
@@ -190,6 +194,8 @@ export interface GuiInventoryPanelControl {
 export interface GuiGridControl {
   type: 'grid';
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   x: number;
   y: number;
   /** Pixel width of the grid content box; when omitted, derived from {@link colWidths} or a default cell size. */
@@ -234,6 +240,8 @@ export interface GuiNineSliceImageSliceNames {
 export interface GuiNineSliceImageControl {
   type: 'nineSliceImage';
   id?: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   x: number;
   y: number;
   zIndex?: number;
@@ -256,6 +264,8 @@ export interface GuiNineSliceImageControl {
 export interface GuiImageControl {
   type: 'image';
   id?: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   x: number;
   y: number;
   zIndex?: number;
@@ -315,6 +325,8 @@ export interface GuiButtonControl {
   type: 'button';
   /** Unique within this GUI (Inspector, Bennescript `whenButtonClick`, future compositor). */
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   x: number;
   y: number;
   zIndex?: number;
@@ -387,6 +399,8 @@ export interface GuiCheckboxControl {
   type: 'checkbox';
   /** Unique within this GUI (Inspector, Bennescript `whenCheckboxCheck` / `whenCheckboxUncheck`). */
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   x: number;
   y: number;
   zIndex?: number;
@@ -423,6 +437,8 @@ export interface GuiSliderControl {
   type: 'slider';
   /** Unique within this GUI (Inspector, Bennescript `control(…).whenValueChanged`). */
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   x: number;
   y: number;
   zIndex?: number;
@@ -459,6 +475,8 @@ export interface GuiSliderControl {
 export interface GuiTextInputControl {
   type: 'textInput';
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   x: number;
   y: number;
   width: number;
@@ -499,6 +517,8 @@ export interface GuiTextInputControl {
 export interface GuiListBoxControl {
   type: 'listBox';
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   x: number;
   y: number;
   width: number;
@@ -534,6 +554,8 @@ export interface GuiTriggerControl {
   type: 'trigger';
   /** Required — used by **`B.whenMouseEnter('id', …)`** and Inspector tree. */
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   /** Optional human label for the Inspector / editor tree. */
   name?: string;
   x: number;
@@ -565,6 +587,8 @@ export type GuiControl =
 
 export interface GuiData {
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   name: string;
   description?: string;
   /**

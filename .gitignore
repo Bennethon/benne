@@ -38,3 +38,6 @@ playwright-report/
 test-results/
 .vitest/
 benne-editor/.vscode-test/
+
+# BenneScript handles generated from src/game/ (npm run generate:game-ids)
+src/game/**/*.ids.ts

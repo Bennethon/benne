@@ -14,6 +14,7 @@
  */
 import MagicString from 'magic-string';
 import { parseAst } from 'vite';
+import { buildSpeakerTable, normalizeSpeakerLabel, resolveSpeaker } from './benneSpeakers.mjs';
 
 export const BENNESCRIPT_RUNTIME_MODULE = '@benne/script';
 
@@ -39,81 +40,8 @@ export function usesNewBenneScriptApi(code) {
 
 // ─── Speakers ────────────────────────────────────────────────────────────────
 
-/** Letters and digits only, lower case (§4.2). */
-export function normalizeSpeakerLabel(label) {
-  return String(label).replace(/[^A-Za-z0-9]/g, '').toLowerCase();
-}
-
-/**
- * Speaker table from character JSON: normalised ID and display name → character ids.
- * `Player` always means the active player.
- * @param {ReadonlyArray<{ id: string, name?: string }>} characters
- */
-export function buildSpeakerTable(characters) {
-  /** @type {Map<string, Set<string>>} */
-  const byLabel = new Map();
-  /** @type {Array<{ label: string, normalized: string }>} */
-  const labels = [];
-  const add = (label, id) => {
-    const normalized = normalizeSpeakerLabel(label);
-    if (!normalized) return;
-    let ids = byLabel.get(normalized);
-    if (!ids) {
-      ids = new Set();
-      byLabel.set(normalized, ids);
-    }
-    ids.add(id);
-    labels.push({ label: String(label).replace(/[^A-Za-z0-9]/g, ''), normalized });
-  };
-  for (const c of characters) {
-    // Names first, so "Did you mean" suggests the display name when both are equally close.
-    if (c.name) add(c.name, c.id);
-    add(c.id, c.id);
-  }
-  return { byLabel, labels };
-}
-
-const PLAYER_LABEL = 'player';
-const PLAYER_SPEAKER = 'Player';
-
-function levenshtein(a, b) {
-  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    let prev = row[0];
-    row[0] = i;
-    for (let j = 1; j <= b.length; j++) {
-      const tmp = row[j];
-      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
-      prev = tmp;
-    }
-  }
-  return row[b.length];
-}
-
-/** @returns {{ id: string } | { error: string }} */
-function resolveSpeaker(label, table) {
-  const normalized = normalizeSpeakerLabel(label);
-  if (normalized === PLAYER_LABEL) {
-    return { id: PLAYER_SPEAKER };
-  }
-  const ids = table.byLabel.get(normalized);
-  if (ids && ids.size === 1) {
-    return { id: [...ids][0] };
-  }
-  if (ids && ids.size > 1) {
-    return {
-      error:
-        `Speaker \`${label}\` matches more than one character: ${[...ids].sort().join(', ')}. ` +
-        'Use the other form of the name, or `characters.<id>.say(…)`.',
-    };
-  }
-  let best = null;
-  for (const candidate of [{ label: 'Player', normalized: PLAYER_LABEL }, ...table.labels]) {
-    const d = levenshtein(normalized, candidate.normalized);
-    if (d <= 2 && (best == null || d < best.d)) best = { d, label: candidate.label };
-  }
-  return { error: `Unknown speaker \`${label}\`.${best ? ` Did you mean \`${best.label}\`?` : ''}` };
-}
+// Speaker resolution is shared with the handle generator (scripts/lib/benneSpeakers.mjs).
+export { buildSpeakerTable, normalizeSpeakerLabel, resolveSpeaker };
 
 // ─── AST helpers ─────────────────────────────────────────────────────────────
 
