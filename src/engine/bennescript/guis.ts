@@ -1,11 +1,25 @@
 import * as Phaser from 'phaser';
 import { gameEvents } from '../events/EventBus.js';
-import { guiButtonClickEventId } from '../events/guiButtonEvents.js';
+import {
+  guiAllButtonsClickEventId,
+  guiButtonClickEventId,
+  type GuiAllButtonsClickPayload,
+} from '../events/guiButtonEvents.js';
 import { guiCheckboxCheckEventId, guiCheckboxUncheckEventId } from '../events/guiCheckboxEvents.js';
 import { guiControlMouseEnterEventId, guiControlMouseLeaveEventId } from '../events/guiControlHoverEvents.js';
-import { guiListBoxSelectionChangedEventId, type GuiListBoxSelectionChangedPayload } from '../events/guiListBoxEvents.js';
+import {
+  guiListBoxItemActivatedEventId,
+  guiListBoxSelectionChangedEventId,
+  type GuiListBoxItemActivatedPayload,
+  type GuiListBoxSelectionChangedPayload,
+} from '../events/guiListBoxEvents.js';
 import { guiSliderValueChangedEventId, type GuiSliderValueChangedPayload } from '../events/guiSliderEvents.js';
-import { guiTextInputValueChangedEventId, type GuiTextInputValueChangedPayload } from '../events/guiTextInputEvents.js';
+import {
+  guiTextInputSubmitEventId,
+  guiTextInputValueChangedEventId,
+  type GuiTextInputSubmitPayload,
+  type GuiTextInputValueChangedPayload,
+} from '../events/guiTextInputEvents.js';
 import type { ControlFacade, GuiRuntime } from '../gui/GuiRuntime.js';
 import { runDetached, runHandler, warnIfUntransformed } from './interactionContext.js';
 import { liveRoomScene } from './scene.js';
@@ -98,6 +112,39 @@ export function registerGuiChange(guiId: string, controlId: string, handler: Han
   );
   gameEvents.on(guiCheckboxCheckEventId(guiId, controlId), () => runDetached(label, handler, [true]));
   gameEvents.on(guiCheckboxUncheckEventId(guiId, controlId), () => runDetached(label, handler, [false]));
+}
+
+/** `input.onSubmit((text) => …)` on a text input (Enter): sequenced, like `onClick`. */
+export function registerGuiSubmit(guiId: string, controlId: string, handler: Handler): void {
+  warnIfUntransformed(`guis ${guiId} ${controlId} onSubmit`, handler);
+  gameEvents.on(guiTextInputSubmitEventId(guiId, controlId), (p: unknown) => {
+    const text = (p as GuiTextInputSubmitPayload).finalValue;
+    void runHandler(`gui ${guiId} ${controlId} submit`, liveRoomScene(), null, handler, [text], { gameplay: false });
+  });
+}
+
+/** `list.onActivate((index) => …)` on a list box (double-click, or Enter on the selected row): sequenced, like `onClick`. */
+export function registerGuiActivate(guiId: string, controlId: string, handler: Handler): void {
+  warnIfUntransformed(`guis ${guiId} ${controlId} onActivate`, handler);
+  gameEvents.on(guiListBoxItemActivatedEventId(guiId, controlId), (p: unknown) => {
+    const index = (p as GuiListBoxItemActivatedPayload).index;
+    void runHandler(`gui ${guiId} ${controlId} activate`, liveRoomScene(), null, handler, [index], { gameplay: false });
+  });
+}
+
+/**
+ * `gui.onAnyClick((button) => …)`: any button in the GUI, after its own `onClick`. `button` is the
+ * control's handle (`resolve` maps the clicked control id to it).
+ */
+export function registerGuiAnyClick(guiId: string, resolve: (controlId: string) => unknown, handler: Handler): void {
+  warnIfUntransformed(`guis ${guiId} onAnyClick`, handler);
+  gameEvents.on(guiAllButtonsClickEventId(guiId), (p: unknown) => {
+    const buttonId = (p as GuiAllButtonsClickPayload | undefined)?.buttonId;
+    if (typeof buttonId !== 'string') {
+      return;
+    }
+    void runHandler(`gui ${guiId} any click`, liveRoomScene(), null, handler, [resolve(buttonId)], { gameplay: false });
+  });
 }
 
 /** `list.onSelect((index) => …)` on a list box. */

@@ -20,6 +20,8 @@ export const BENNESCRIPT_RUNTIME_MODULE = '@benne/script';
 
 /** Callbacks passed directly to these are step functions (besides `x.on…(…)` methods). */
 const STEP_BLOCK_APIS = new Set(['playFrom', 'cutscene', 'background', 'together', 'withInputDisabled']);
+/** Methods besides `on…` whose callbacks are handlers (`events.once(name, fn)`). */
+const STEP_METHODS = new Set(['once']);
 /** `on…` methods whose callbacks run every frame and must stay synchronous (§4.18). */
 const NOT_STEP_ON_METHODS = new Set(['onUpdate']);
 
@@ -92,7 +94,7 @@ function isStepApiCall(call) {
   if (callee.type === 'Identifier') return STEP_BLOCK_APIS.has(callee.name);
   const name = propertyName(callee);
   if (name == null) return false;
-  if (STEP_BLOCK_APIS.has(name)) return true;
+  if (STEP_BLOCK_APIS.has(name) || STEP_METHODS.has(name)) return true;
   if (name === 'doNotActivate') return isOnMethod(propertyName(unwrap(callee.object)));
   return isOnMethod(name);
 }

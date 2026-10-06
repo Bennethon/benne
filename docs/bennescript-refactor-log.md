@@ -641,3 +641,69 @@ Decisions 43–49 in §13, with as-built notes in §4.3, §4.15, §6.1, §8.4, �
 - Docs to rewrite are in the search table above. `docs/public/bennescript.md` and `docs/bennescript-api.md` have the most; `benne-snapshot.md` is a stale Repomix dump.
 - Run Phase 7 before the merge switch: it should take its examples from AI Apocalypse while it is still in `src/game` (merge step 1).
 - The templates are short, complete examples of every common pattern (verbs, item on item, `doNotActivate`, dialogs, GUIs, `playFrom`, player switching), useful for the agent skill.
+
+---
+
+## Phase 6 follow-up: parity with the old `B` API (2026-10-06)
+
+You asked for every feature in the Phase 6 table "Old `B` features without a BenneScript equivalent" to be ported, with `B.raw` left open. A second, member-by-member audit of the deleted API (from `7fc0ab9`) found five more gaps; they are ported too. Spec: decision 50, §4.21 (new) and as-built notes in §4.3, §4.4, §4.6, §4.11, §4.15, §4.16, §4.17, §11.1.
+
+### Old → new
+
+| Old `B` | BenneScript |
+|---|---|
+| `B.raw.on` / `once` / `off` / `emit` | `events.on` / `once` / `off` / `emit` (§4.21). Engine event names are completed; in a room script a listener is live only while that room is active, as `B.raw` was |
+| `B.video.pause` / `resume` / `seek` / `stop` / `isPlaying()` | `video.pause()`, `resume()`, `seek(s)`, `stop()`, `isPlaying`, plus `video.current` and `video.x.isPlaying` |
+| `B.sound.isPlaying(id)`, `B.sound.stop()` (no id: every sound) | `sfx.x.isPlaying`, `sfx.stopAll()` |
+| `B.speechSettings.showText` / `msPerCharacter` / `minDurationMs` / `maxDurationMs` / `defaultTalkOffset` / `durationMultiplier` / `clickToSkip` | `settings.speech.*`, same names (`settings.textSpeed` / `clickToSkip` stay) |
+| `B.dialogSettings.choiceOptionsViewportHeightPx` / `usedColor` | `settings.dialog.*`, same names; `undefined` clears |
+| `B.onSpeechSettingsChanged` | `settings.onChange(fn)`, for any setting |
+| `setSpeechPosition(x, y)` / `setSpeechOffset(x, y)` / `resetSpeechPosition()` on characters and the player | `jensen.speechPosition = { x, y }`, `jensen.speechOffset = { x, y }` (`null` clears), `jensen.resetSpeechPosition()`; the same on `player` |
+| `isFollowing` / `followingTarget` | `isFollowing`, `followingTarget` (a handle, or `player`) on characters and `player` |
+| `B.player.startFollowingCharacter` / `stopFollowingCharacter` *(audit)* | `player.startFollowing(target)` / `stopFollowing()` |
+| `B.whenAnyButtonClick((id) => …)` | `gui.onAnyClick((button) => …)`, with the clicked control's handle |
+| `control.whenSubmit((text) => …)` | `input.onSubmit((text) => …)` |
+| `control.whenItemActivated((index) => …)` | `list.onActivate((index) => …)` |
+| checkbox `disabled`, text-input `focused`, list-box `rowCount` | `enabled` (now covers checkboxes), `focused`, `rowCount` |
+| `B.whenLoadedAnyRoom` | `game.onLoadedAnyRoom(fn)` |
+| `whenEnterRoom(fn, { skippable: false })` & co. *(audit)* | `room.onEnter(fn, { skippable: false })`, and on `onEnterAfterFade`, `game.onEnterAnyRoom`, `game.onEnterAnyRoomAfterFade` |
+| `B.whenVerbUnhandled` | `fallbacks.onUnhandled((verb, target) => …)` |
+| `B.state.isCutsceneActive` *(audit)* | `game.isCutsceneActive` |
+| `B.clearActiveVerb()` / `setActiveVerb` | `pointer.verb = null` / `pointer.verb = verbs.look` |
+| `B.state.save(name)` / `load(name)` / `deleteSave(name)`, named saves without a slot *(audit)* | `saves.save('checkpoint')`, `saves.load('checkpoint')`, `saves.delete('checkpoint')`, `saves.get('checkpoint')`; `saves.list()` includes them (`slot: null`) |
+| `B.state.renameSave` / `exportJson` / `importJson` | `saves.rename(save, name)`, `saves.export()`, `saves.import(json)` (reloads the imported room and ends the handler, like `saves.load`) |
+| character inventory `clearInventory()` | `inventory.clear()`, `jensen.inventory.clear()` |
+| `whenInventoryUsedOn.doNotClear(…)` *(audit)* | `{ doNotClear: true }` as the last argument of any item handler (`onUseItem`, `onItem`, `onAnyItem`, `onCombine`, …) |
+
+**On `B.raw`:** it was the old API's only way to react to engine events (the docs pointed scripts at `B.raw.on('gameState:inventoryChanged', …)`) and to send events between scripts. Nothing else in BenneScript covered either, so it is still needed. `events` keeps its four methods, but listeners are BenneScript handlers (their lines are sequenced), and the editor completes the engine's event names.
+
+### Changes outside the API
+
+- Generator: `sfx = withSfxControls({…})`, `video = withVideoControls({…})`; `stopAll` (sfx) and `pause` / `resume` / `seek` / `stop` / `isPlaying` / `current` (video) are reserved like the `music` controls; item-verb methods take the options argument. `events` is a reserved flat name.
+- Transform and editor: `x.once(fn)` callbacks are handlers (`events.once`), like `on…`.
+- `RoomScene.getRoomVideoKey()`; `ControlFacade.enabled` covers checkboxes.
+- The e2e fixture saves to a named save again (`'checkpoint'`), as before the port.
+
+### Not ported (confirmed after review)
+
+- **String-keyed flags and variables**: `B.state.getFlag('x')` / `setFlag` / `hasFlag` / `clearFlag` and the variable equivalents. Typed `flags` / `vars` declared in `state.ts` replace them by design (§4.7); a game that builds flag names at runtime would put an object in a var instead.
+- **`B.state.flush()`** (saves and room changes flush positions themselves) and **`B.state.setCurrentRoom()`** (room changes set it). Neither does anything a script needs now.
+
+### Tests
+
+- `tests/unit/bennescriptParity.test.ts` (13): every row above against the real runtime with a fake game: events (global, `once`, `off`, room-scoped attach/detach, transform), sound and video controls, settings and `onChange`, speech position and follow state, the three GUI events and handle mapping, any-room loaded and `skippable` reaching the hook registry, `onUnhandled`, `isCutsceneActive`, `pointer.verb`, `inventory.clear()`, named saves / rename / export / import, `doNotClear` on a room item handler and an item-on-item handler.
+- `handleGenerator.test.mjs`: the new generated signatures, and sound / video files named like their namespace's controls are collisions.
+- e2e: the fixture's named save round trip (save / load hooks test).
+
+### Checks
+
+| Check | Result |
+|---|---|
+| `npm run test:ci` | ✅ unit 159/159 (13 new parity tests, 2 new generator assertions), desktop 3/3, pathfinding, content |
+| `npm run test:playthrough` (AI Apocalypse) | ✅ 14/14 (11.3 min) |
+| `npm run test:templates` | ✅ 4/4 |
+| `npm run test:e2e` (named save round trip) | ✅ 4/4 |
+| `npm run test:extension` | ✅ 21/21 |
+| `npm run test:artifacts` (both templates built with the new `sfx` / `video`) | ✅ |
+| Old-API search (code) | ✅ still 0 matches |
+| Extension bundle | Rebuilt (`npm run build:benne-play`) |

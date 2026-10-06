@@ -37,6 +37,7 @@ It follows on from the feasibility study in `docs/feasibility-custom-language-an
    - 4.18 [Per-frame updates](#418-per-frame-updates)
    - 4.19 [Play From](#419-play-from)
    - 4.20 [Plain TypeScript and shared helpers](#420-plain-typescript-and-shared-helpers)
+   - 4.21 [The event bus](#421-the-event-bus)
 5. [Sequencing rules, precisely](#5-sequencing-rules-precisely)
 6. [The build transform](#6-the-build-transform)
 7. [Generated handles](#7-generated-handles)
@@ -258,6 +259,8 @@ jensen.stopFollowing()
 
 _As built (Phase 6, decision 45):_ the templates needed three more: `player.switchTo(penny)` hands control to another character in the room (instant, saved); `henry.startFacing(hank, { minWait, maxWait })` keeps a character turning toward another (the player by default) whenever either moves, and `stopFacing()` ends it.
 
+_As built (Phase 6 follow-up, decision 50):_ `player` has `startFollowing` / `stopFollowing` too, and characters and `player` report `isFollowing` and `followingTarget` (a handle, or `player`). Where speech lines appear is per character: `jensen.speechPosition = { x, y }` (room pixels, bottom centre, instead of above the talk point), `jensen.speechOffset = { x, y }` (canvas pixels), `null` to clear either, `jensen.resetSpeechPosition()` for both. All are saved.
+
 **Before / after: Hank and Jensen start walking at the same time** (from `plaza.room.ts`):
 
 ```ts
@@ -364,6 +367,8 @@ room.id                  // 'plaza'
 ```
 
 _As built (Phase 4, decision 29):_ `room.visitCount` and `room.last` are settable, for Play From setups (`room.last = rooms.plaza`); `room.hasVisited` exists too.
+
+_As built (Phase 6 follow-up, decision 50):_ the enter hooks run as a skippable cutscene; `room.onEnter(fn, { skippable: false })` (also on `onEnterAfterFade`, `game.onEnterAnyRoom` and `game.onEnterAnyRoomAfterFade`) keeps ESC from skipping that phase. `game.onLoadedAnyRoom(fn)` runs for every room a save loads into, before the room's own `onLoaded`.
 
 ### 4.5 Verbs on props, hotspots and characters
 
@@ -537,6 +542,8 @@ items.coffee.onLook(() => {
 ```
 
 `onUse` / `onGive` on an item still arm it for "use on target" by default, as today. Use `items.key.onUse.doNotActivate(…)` to opt out.
+
+_As built (Phase 6 follow-up, decision 50):_ every item handler takes `{ doNotClear: true }` as a last argument (`door.onUseItem(items.key, () => { … }, { doNotClear: true })`) to keep the item armed afterwards, whatever the drop policy says. `inventory.clear()` and `jensen.inventory.clear()` empty a bag.
 
 ### 4.7 Game state: flags, variables, visits
 
@@ -822,6 +829,8 @@ Jensen: "Good. Good. Yes this is exactly what I need."
 
 A plain `for` loop works because loops inside handlers are sequenced like any other statement. Today the loop would run at click time, so this has to be written out by hand.
 
+_As built (Phase 6 follow-up, decision 50):_ a room shows one video at a time, so `video` has controls for whichever plays, next to its videos: `video.pause()`, `resume()`, `seek(seconds)`, `stop()`, `isPlaying`, `current` (and `video.intro.isPlaying`). `sfx.door.isPlaying` and `sfx.stopAll()` complete the sound side. The generator reserves these names in their namespaces, as it does `music.stop` / `isPlaying` / `current`.
+
 ### 4.12 Cutscenes, skipping and input
 
 `cutscene(…)` marks a block as skippable. While it runs:
@@ -1035,7 +1044,7 @@ pointer.onContextChange(() => {
 
 `pointer.sentence` would be a new engine helper that builds the standard "Verb Item prep Target" line. Today every game re-implements it.
 
-_As built (Phase 4, decisions 32–33):_ `pointer.sentence` uses the engine's `composeVerbLineText`; `pointer.hover` is `{ kind, id, description, defaultVerb }` with `defaultVerb` a `verbs.x` handle (the target's own, else the game's), and `pointer.verb` / `pointer.item` are handles; `pointer.item` is settable (`pointer.item = null` drops the armed item, decision 45). `onContextChange` handlers register once and survive room changes. GUI handlers also register once, at module top level; every GUI overlay now gets a runtime, `gui.onBuilt` runs each time a room builds the GUI, and `onShow` / `onHide` run on any script show or hide (old API or new). Controls: `text`, `alpha`, `visible`, `x`, `y`, `enabled`, `value`, `checked`, `selectedIndex`, `setRowText()`, `visualState`, `fadeTo()` / `tweenTo()` (seconds, waits; `{ clickToSkip }`), `onClick` (sequenced, no gameplay lock), `onChange` (slider number, text input text or checkbox `checked`, immediate), `onSelect` (list boxes), `onMouseEnter` / `onMouseLeave`. `gui.root` is the GUI's packed content as one control; `gui.fadeIn()` / `fadeOut()` wait.
+_As built (Phase 4, decisions 32–33):_ `pointer.sentence` uses the engine's `composeVerbLineText`; `pointer.hover` is `{ kind, id, description, defaultVerb }` with `defaultVerb` a `verbs.x` handle (the target's own, else the game's), and `pointer.verb` / `pointer.item` are handles; `pointer.item` is settable (`pointer.item = null` drops the armed item, decision 45). `onContextChange` handlers register once and survive room changes. GUI handlers also register once, at module top level; every GUI overlay now gets a runtime, `gui.onBuilt` runs each time a room builds the GUI, and `onShow` / `onHide` run on any script show or hide (old API or new). Controls: `text`, `alpha`, `visible`, `x`, `y`, `enabled`, `value`, `checked`, `selectedIndex`, `setRowText()`, `visualState`, `fadeTo()` / `tweenTo()` (seconds, waits; `{ clickToSkip }`), `onClick` (sequenced, no gameplay lock), `onChange` (slider number, text input text or checkbox `checked`, immediate), `onSelect` (list boxes), `onMouseEnter` / `onMouseLeave`. `gui.root` is the GUI's packed content as one control; `gui.fadeIn()` / `fadeOut()` wait. _As built (Phase 6 follow-up, decision 50):_ `gui.onAnyClick((button) => …)` runs for any button in the GUI (after its own `onClick`); text inputs have `onSubmit((text) => …)` (Enter) and `focused`; list boxes `onActivate((index) => …)` (double-click, or Enter) and `rowCount`; `enabled` covers checkboxes too. The three new handlers are sequenced and non-gameplay, like `onClick`.
 
 **List boxes and text inputs** are covered in §4.16.
 
@@ -1143,6 +1152,8 @@ settings.textSpeed       // was B.speechSettings.durationMultiplier
 settings.clickToSkip
 ```
 
+_As built (Phase 6 follow-up, decision 50):_ every speech and dialog setting from `game-config.json` can be overridden at runtime, under the config's own names: `settings.speech.showText`, `msPerCharacter`, `durationMultiplier`, `minDurationMs`, `maxDurationMs`, `defaultTalkOffset`, `clickToSkip`, and `settings.dialog.choiceOptionsViewportHeightPx` / `usedColor` (`undefined` goes back to the config). `settings.onChange(fn)` runs after any setting changes. Saves take a slot or a name, as before the refactor: `saves.save('checkpoint')`, `saves.load('checkpoint')`, `saves.delete(…)`, `saves.get(…)`; `saves.list()` lists both (`slot: null` for a named save). `saves.rename(save, name)`, `saves.export()` (JSON) and `saves.import(json)` (loads it like `saves.load`, ending the handler) complete it.
+
 ### 4.17 The global script and fallbacks
 
 Flag seeding moves to `state.ts` (§4.7), which leaves only behaviour here:
@@ -1170,6 +1181,8 @@ game.onLeaveAnyRoom(() => { ... })
 AI Apocalypse's `globalScript.ts` goes from 111 lines to about 15.
 
 Note the braces: `() => { Player: "…" }`. A label needs statement position, so it can't be used as a concise arrow body (§12).
+
+_As built (Phase 6 follow-up, decision 50):_ `fallbacks.onUnhandled((verb, target) => …)` is the last tier: a verb nothing handled, not even `onAnyVerb` (the 9-verb template's old DEV diagnostic). `game.isCutsceneActive` is true while a cutscene or a room's enter hooks run.
 
 ### 4.18 Per-frame updates
 
@@ -1245,6 +1258,20 @@ export function openDoorTo(door: PropHandle, target: RoomHandle) {
 ```
 
 Ordinary `.ts` files (math utilities, data tables) are untouched. They can't use timed actions, and the type of the call tells you which is which (§6.3).
+
+### 4.21 The event bus
+
+`events` (from `@benne/script`, decision 50) is the game's event bus, the old `B.raw`. Scripts listen to engine events (state changes, dialogs, unhandled verbs) and send each other their own.
+
+```ts
+events.on('gameState:inventoryChanged', () => { coins.text = `${inventory.count(items.coin)}` })
+events.on('alarm', (level: number) => { Hank: `Alarm level ${level}!` })
+events.emit('alarm', 3)
+events.once('benne:dialog:stopped', () => { … })
+events.off('alarm', listener)
+```
+
+Listeners run immediately with the event's arguments, and their own lines are sequenced. In a room script a listener is live only while that room is active; anywhere else, for the whole game. The editor completes the engine's event names; any other string works too.
 
 ---
 
@@ -1629,7 +1656,7 @@ The new BenneScript **replaces** the old API outright. There is no compatibility
 
 This is affordable because AI Apocalypse is the only game built on BENNE, and it's small (54 script files, ~3,300 lines). Not carrying the old API keeps the runtime simple: one timing model, one way to register a handler, one API reference.
 
-_As built (Phase 6, decision 48):_ some old `B` features have no BenneScript equivalent yet, because neither AI Apocalypse nor the templates use them. The engine behind them is kept; only the script access is gone. The list is in the Phase 6 entry of `docs/bennescript-refactor-log.md`.
+_As built (Phase 6, decision 48):_ some old `B` features had no BenneScript equivalent at the end of Phase 6, because neither AI Apocalypse nor the templates use them. _Phase 6 follow-up (decision 50):_ all of them are ported, plus the gaps a second audit of the old API found; the log's Phase 6 follow-up entry maps each one.
 
 **What needs porting:**
 
@@ -1767,7 +1794,7 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 | 37 | Flag keys in the port (Phase 4) | **Flags whose old key had spaces keep it as `saveKey`** (`gotMission` → `'got mission'`, …): the baseline playthrough must pass unchanged and reads flags by key. Saves still don't need to load across the port (§11.2). | §4.7, §11.2 |
 | 38 | How does the editor map handle names to content IDs? (Phase 5) | **By reading the generated `.ids.ts` modules** (`IdsIndex`), not by re-implementing the naming rules: each handle is constructed from its content ID, and aliases (`export const room = rooms.club`) are followed. When a handle is missing (content added since the last generation), the editor runs `generate:game-ids` once and retries. Speaker resolution is mirrored in the extension (`speakers.ts`) because CommonJS bundles can't import `benneSpeakers.mjs`; a unit test compares the two. | §9 |
 | 39 | What does the editor do with scripts still on the old API? (Phase 5) | **Nothing:** it neither reads handlers from `register*Script` files nor adds new-style code to them (that would make the build transform rewrite the file's old callbacks, decision 14). Their chips show no handlers, and "add handler" asks to port the file first. Until Phase 6 ports the templates, games created from them get this behaviour. The old-API quoted-ID completion providers stay until Phase 6. | §9, §11.1 |
-| 40 | Which handler stands for each Inspector action? (Phase 5) | **"Item used on this" is `x.onAnyItem(…)`**, and any item handler on the target counts as present. **A checkbox has one `onChange`** (was check / uncheck). **Text-input submit and per-object verb fallbacks have no BenneScript handler**: those Inspector buttons explain it instead of writing code. **A room's `onUpdate` stub checks `game.currentRoom`**, since `onUpdate` is global. Play From names may be any single-line string (AI Apocalypse uses `'fix battery'`). New handlers go at the end of the file with their imports merged. | §4.15, §4.18, §4.19, §9 |
+| 40 | Which handler stands for each Inspector action? (Phase 5) | **"Item used on this" is `x.onAnyItem(…)`**, and any item handler on the target counts as present. **A checkbox has one `onChange`** (was check / uncheck). **Per-object verb fallbacks have no BenneScript handler**: that Inspector button explains it instead of writing code (text-input submit got `onSubmit` in decision 50). **A room's `onUpdate` stub checks `game.currentRoom`**, since `onUpdate` is global. Play From names may be any single-line string (AI Apocalypse uses `'fix battery'`). New handlers go at the end of the file with their imports merged. | §4.15, §4.18, §4.19, §9 |
 | 41 | How do string-union completions insert their quotes? (Phase 5) | **TypeScript already offers the quoted values** (`'U'`, `'coffee-full'`) wherever the expected type is a string-literal union; the plugin sorts them first and sets `filterText` so typing `U` matches `'U'`. VS Code doesn't ask for completions after `(` or `= `, so the extension opens the list there when the TS server has quoted values for that position. | §9 |
 | 42 | Packaging and scaffolding (Phase 5) | **The extension bundles TypeScript** for the ScriptModel (the TS server plugin uses tsserver's own copy): the packaged (minified) `dist/extension.js` is about 4 MB. New room scripts start with `room.onEnter(…)` (the generator runs right after the room JSON is written); new character, item, GUI and dialog scripts are a comment with a new-style example, since an unused import would fail `noUnusedLocals`. Game templates are still old-API until Phase 6. | §9, §14 |
 | 43 | What survives the deletion of the old API? (Phase 6) | **Engine services move out of `src/engine/scripting/`, which is deleted.** The dialog session becomes a plain engine module (`dialog/dialogSession.ts`: open, end, the active session); `GuiRuntime` keeps only immediate control operations (no queue, no `when*` bindings, no no-op facades); room-module loading, Play From setups and the transition wiring get their own scene modules; the per-frame registry moves into `bennescript/`. The transition orchestrator stops draining script queues after enter hooks, and the Inspector's message protocol uses the hook names (`onEnter`, `onBuilt`, …). | §10, §11.1 |
@@ -1775,8 +1802,9 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 | 45 | API additions the templates needed (Phase 6) | **`player.switchTo(character)`** (9-verb's Push on Penny / Hank), **`character.startFacing(target?, { minWait, maxWait })` / `stopFacing()`** (Henry watching Hank), and a **settable `pointer.item`** (2-click drops the knife after making the sandwich). | §4.3, §4.15 |
 | 46 | Transform scope once the old API is gone (Phase 6) | **Every script file is transformed** (decision 14's import test is gone), and **`x.onY.doNotActivate(fn)`** callbacks are step functions; before, `doNotActivate` handlers with speech failed the build because the method name doesn't start with `on`. AI Apocalypse never used `doNotActivate`. | §6.1, §6.2 |
 | 47 | Template ports (Phase 6) | **Behaviour-preserving, checked by `npm run test:templates`**, which plays each template through the hooks and compares every spoken line with a run on the old template. Intended differences: 9-verb's peanut butter now lets other items fall through to "That doesn't work." (the old handler lacked `return false`); the DEV `whenVerbUnhandled` log and empty `void B` scripts are gone; 9-verb's `window` hotspot is `windowHotspot` (`scriptName`), so new games don't warn about a browser global; the any-room hooks are comments; hover-slide tweens run at once instead of queueing behind each other. Both configs now set `usesItem` and `defaultVerb` (§8.5). | §8.5, §11 |
-| 48 | Old features without a BenneScript equivalent (Phase 6) | **Not added in this phase**; listed in the Phase 6 log for a decision. Among them: video pause / resume / seek, speech settings beyond `textSpeed` and `clickToSkip`, dialog settings, per-character speech position and offset, follow-state getters, `whenAnyButtonClick`, list-box item activation and text-input submit, checkbox `disabled` and text-input focus, `whenLoadedAnyRoom`, `B.raw`, save rename / export / import, clearing a character's inventory. | §11.1 |
+| 48 | Old features without a BenneScript equivalent (Phase 6) | **Not added in Phase 6**, listed in the log; all ported in the follow-up (decision 50). Among them: video pause / resume / seek, speech settings beyond `textSpeed` and `clickToSkip`, dialog settings, per-character speech position and offset, follow-state getters, `whenAnyButtonClick`, list-box item activation and text-input submit, checkbox `disabled` and text-input focus, `whenLoadedAnyRoom`, `B.raw`, save rename / export / import, clearing a character's inventory. | §11.1 |
 | 49 | Testing the templates (Phase 6) | **`npm run test:templates`** runs each template in a throwaway workspace (`scripts/template-workspace.mjs`: this repo's engine with the template as `src/game`), so `src/game` stays untouched. The dev/test hooks record every speech line where it is shown (`speech()`), report the active player, take a verb for `useItem` / `combine`, and `inventoryVerb` drops the armed item first, as `verb` does. The e2e fixture game is ported too; its server now generates handles and loads the BenneScript plugin. | §14 |
+| 50 | Parity with the old `B` API (Phase 6 follow-up) | **Everything the old API could do, BenneScript can**, in its own style: properties for state (`speechPosition`, `focused`, `pointer.verb`), handlers on the thing they belong to (`gui.onAnyClick`, `input.onSubmit`, `list.onActivate`, `fallbacks.onUnhandled`, `game.onLoadedAnyRoom`), controls next to generated files where one slot is shared (`video.pause()`, `sfx.stopAll()`), and the config's own names for runtime settings (`settings.speech.*`, `settings.dialog.*`). **`B.raw` becomes `events`** (§4.21): engine events and script-to-script events, room-scoped in room scripts; `events.once` callbacks are step functions. **Saves take a slot or a name again.** Item handlers take `{ doNotClear: true }` (was `whenInventoryUsedOn.doNotClear`); the enter hooks take `{ skippable }`. `saves.import` reloads the imported room and ends the handler, like `load` (the old `importJson` only replaced the state). Not ported (confirmed after review): string-keyed flags and variables (`B.state.getFlag('x')` & co.), which typed `flags` / `vars` replace by design (§4.7); and `B.state.flush` / `setCurrentRoom`, which saves and room changes already do for you. | §4.3, §4.4, §4.6, §4.11, §4.15, §4.16, §4.17, §4.21 |
 
 **Revisit later**
 

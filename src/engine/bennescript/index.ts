@@ -24,6 +24,7 @@ export {
 } from './actions.js';
 export { background, cutscene, input, together, withInputDisabled } from './blocks.js';
 export { camera } from './camera.js';
+export { events, type EngineEventName, type EventName } from './events.js';
 export { game, pointer, settings, type PointerHover } from './game.js';
 export { onUpdate } from './globalHandlers.js';
 export {
@@ -49,17 +50,22 @@ export {
   defineVars,
   flag,
   withMusicControls,
+  withSfxControls,
   withVerbMethods,
+  withVideoControls,
   type FallbackTarget,
+  type ItemHandlerOptions,
   type FlagSpec,
   type MusicControls,
+  type SfxControls,
   type StepHandler,
   type VarValue,
   type VerbSpec,
+  type VideoControls,
 } from './handles.js';
 export { unhandled } from './interactionContext.js';
 export { playFrom } from './roomHandlers.js';
-export { saves, type SaveInfo } from './saves.js';
+export { saves, type SaveInfo, type SaveRef } from './saves.js';
 export { Task, type Timed } from './task.js';
 
 /** Used only by code the build transform emits. Not part of the authoring API. */

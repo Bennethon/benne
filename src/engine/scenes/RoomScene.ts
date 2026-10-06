@@ -1753,6 +1753,11 @@ export class RoomScene extends Phaser.Scene {
     return this.roomVideoActiveKey !== null;
   }
 
+  /** Stem key of the loaded cinematic video, or `null` when none is playing. */
+  getRoomVideoKey(): string | null {
+    return this.roomVideoActiveKey;
+  }
+
   /** Stops playback and destroys the video layer game objects (called on transition + shutdown). */
   private teardownRoomVideoLayer(): void {
     // Resolve any waiters without re-emitting (teardown, not a natural end) before destroying objects.

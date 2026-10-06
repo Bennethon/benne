@@ -9,10 +9,10 @@ door.onUse(() => rooms.b.goTo())
 save.onUse(() => {
   background(() => {
     wait(0)
-    saves.save(0, 'checkpoint')
+    saves.save('checkpoint')
   })
 })
-load.onUse(() => saves.load(0))
+load.onUse(() => saves.load('checkpoint'))
 count.onUse(() => { vars.count += 1 })
 count.onLook(() => { flags.looked = true })
 reset.onUse(() => game.newGame(rooms.a))

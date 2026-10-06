@@ -239,12 +239,15 @@ export function generateGameHandles(gameRoot) {
   const guiScope = ns('guis');
   const guiNames = new Map(guis.map((g) => [g.id, nsName(guiScope, g, 'GUI')]));
   const sfxScope = ns('sfx');
+  // `sfx` and `video` also have controls next to their files (withSfxControls / withVideoControls).
+  sfxScope.fixed('stopAll');
   const sfxNames = sfx.map((a) => [a.stem, assetName(sfxScope, a, 'sound')]);
   const musicScope = ns('music');
   // `music` also has controls next to its tracks (withMusicControls, §4.11).
   for (const control of ['stop', 'isPlaying', 'current']) musicScope.fixed(control);
   const musicNames = music.map((a) => [a.stem, assetName(musicScope, a, 'music track')]);
   const videoScope = ns('video');
+  for (const control of ['pause', 'resume', 'seek', 'stop', 'isPlaying', 'current']) videoScope.fixed(control);
   const videoNames = videos.map((a) => [a.stem, assetName(videoScope, a, 'video')]);
 
   // Speaker labels (decision 4): ambiguous names are reported now; using one is a build error.
@@ -417,13 +420,15 @@ function objectLiteral(entries, value, indent = '') {
 }
 
 function emitGameModule(m) {
-  const runtime = new Set(['RoomHandle', 'withVerbMethods', 'FallbacksHandle', 'VerbHandle', 'type StepHandler', 'type VerbSpec', 'type ItemRef', 'type ClickableHandle', 'type FallbackTarget', 'ItemHandle']);
+  const runtime = new Set(['RoomHandle', 'withVerbMethods', 'FallbacksHandle', 'VerbHandle', 'type StepHandler', 'type VerbSpec', 'type ItemRef', 'type ClickableHandle', 'type FallbackTarget', 'type ItemHandlerOptions', 'ItemHandle']);
   if (m.characters.length) runtime.add('CharacterHandle');
   if (m.dialogs.length) runtime.add('DialogHandle');
   if (m.guis.length) runtime.add('GuiHandle');
   if (m.sfx.length) runtime.add('SfxHandle');
   if (m.music.length) runtime.add('MusicHandle');
   runtime.add('withMusicControls');
+  runtime.add('withSfxControls');
+  runtime.add('withVideoControls');
   if (m.videos.length) runtime.add('VideoHandle');
   if (!m.hasState) {
     runtime.add('defineFlags');
@@ -467,7 +472,7 @@ ${m.verbs
   .map((v) => {
     let s = `  ${doc(`${verbLabel(v)}: runs when the player uses "${v.id}" on this.`)}\n  ${v.method}(handler: StepHandler): void;`;
     if (v.itemMethod) {
-      s += `\n  ${doc(`${verbLabel(v)}: runs when the player uses "${v.id}" with \`item\` on this.`)}\n  ${v.itemMethod}(item: ItemRef, handler: StepHandler): void;`;
+      s += `\n  ${doc(`${verbLabel(v)}: runs when the player uses "${v.id}" with \`item\` on this.`)}\n  ${v.itemMethod}(item: ItemRef, handler: StepHandler, options?: ItemHandlerOptions): void;`;
     }
     return s;
   })
@@ -485,7 +490,7 @@ ${m.verbs
       ? `  ${doc(`${verbLabel(v)}: runs when the player uses "${v.id}" on this item, which then arms it.`)}\n  ${v.method}: {\n    (handler: StepHandler): void;\n    ${doc('Same, but the item is not armed afterwards.')}\n    doNotActivate(handler: StepHandler): void;\n  };`
       : `  ${doc(`${verbLabel(v)}: runs when the player uses "${v.id}" on this item.`)}\n  ${v.method}(handler: StepHandler): void;`;
     if (v.itemMethod) {
-      s += `\n  ${doc(`${verbLabel(v)}: runs when the player uses "${v.id}" with \`item\` on this item.`)}\n  ${v.itemMethod}(item: ItemRef, handler: StepHandler): void;`;
+      s += `\n  ${doc(`${verbLabel(v)}: runs when the player uses "${v.id}" with \`item\` on this item.`)}\n  ${v.itemMethod}(item: ItemRef, handler: StepHandler, options?: ItemHandlerOptions): void;`;
     }
     return s;
   })
@@ -544,12 +549,14 @@ export const guis = ${objectLiteral(
     (g) => `new GuiHandle(${str(g.id)}, ${objectLiteral(g.controls, (c) => str(c.id), '  ')})`,
   )};
 
-export const sfx = ${objectLiteral(m.sfx, (a) => `new SfxHandle(${str(a.id)})`)};
+/** Sound effects, plus \`sfx.stopAll()\`. */
+export const sfx = withSfxControls(${objectLiteral(m.sfx, (a) => `new SfxHandle(${str(a.id)})`)});
 
 /** Music tracks, plus \`music.stop()\`, \`music.isPlaying\` and \`music.current\`. */
 export const music = withMusicControls(${objectLiteral(m.music, (a) => `new MusicHandle(${str(a.id)})`)});
 
-export const video = ${objectLiteral(m.videos, (a) => `new VideoHandle(${str(a.id)})`)};
+/** Videos, plus \`video.pause()\`, \`resume()\`, \`seek()\`, \`stop()\`, \`isPlaying\` and \`current\` for the one playing. */
+export const video = withVideoControls(${objectLiteral(m.videos, (a) => `new VideoHandle(${str(a.id)})`)});
 `;
   return out;
 }

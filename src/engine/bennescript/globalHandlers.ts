@@ -6,9 +6,11 @@ import {
 } from '../events/inventoryOnVerbEvents.js';
 import {
   VERB_GLOBAL_FALLBACK_EVENT,
+  VERB_UNHANDLED_EVENT,
   characterVerbEventId,
   globalVerbHandlerEventId,
   type VerbInteractTarget,
+  type VerbUnhandledPayload,
 } from '../events/verbInteractionEvents.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
@@ -18,9 +20,10 @@ import {
   shouldDropActiveInventoryOnUse,
 } from '../verbs/dispatchInventoryOnVerbTarget.js';
 import { continueVerbDispatchToGlobal } from '../verbs/dispatchVerb.js';
+import type { CutsceneOptions } from '../../types/cutscene.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
 import { runDetached, runHandler, warnIfUntransformed, type HandlerOutcome } from './interactionContext.js';
-import { lookupItemHandle, lookupRoomHandle } from './registry.js';
+import { lookupItemHandle, lookupRoomHandle, lookupVerbHandle } from './registry.js';
 import { liveRoomScene } from './scene.js';
 
 /**
@@ -35,9 +38,15 @@ function listen(eventId: string, listener: (payload: unknown) => void): void {
   gameEvents.on(eventId, listener);
 }
 
+/** Options for item handlers (`door.onUseItem(items.key, fn, { doNotClear: true })`). */
+export interface ItemHandlerOptions {
+  /** Keep the item armed after this handler, whatever the drop policy says. */
+  readonly doNotClear?: boolean;
+}
+
 /** The armed item's drop policy (`dropWhenUsed` / `dropWhenInventoryUsed`), applied after an item handler. */
-export function applyInventoryDropPolicy(itemId: string): void {
-  if (!shouldDropActiveInventoryOnUse(itemId)) {
+export function applyInventoryDropPolicy(itemId: string, options?: ItemHandlerOptions): void {
+  if (options?.doNotClear || !shouldDropActiveInventoryOnUse(itemId)) {
     return;
   }
   const manager = tryGetActiveGameStateManager();
@@ -88,6 +97,33 @@ export function registerFallbackAnyVerb(handler: Handler): void {
   warnIfUntransformed('fallbacks.onAnyVerb', handler);
   listen(VERB_GLOBAL_FALLBACK_EVENT, (payload) => {
     void runHandler('fallback (any verb)', liveRoomScene(), payload, handler);
+  });
+}
+
+function fallbackTargetOfVerb(target: VerbInteractTarget): FallbackTarget {
+  const name = target.description ?? '';
+  switch (target.type) {
+    case 'prop':
+      return { kind: 'prop', id: target.propId, name };
+    case 'hotspot':
+      return { kind: 'hotspot', id: target.hotspotId, name };
+    case 'character':
+      return { kind: 'character', id: target.characterId, name };
+    case 'inventoryItem':
+      return { kind: 'item', id: target.itemId, name };
+  }
+}
+
+/**
+ * `fallbacks.onUnhandled((verb, target) => …)`: the last tier, a verb that nothing handled, not even
+ * `fallbacks.onAnyVerb` (useful as a DEV diagnostic). The engine also logs it in DEV.
+ */
+export function registerFallbackUnhandled(handler: Handler): void {
+  warnIfUntransformed('fallbacks.onUnhandled', handler);
+  listen(VERB_UNHANDLED_EVENT, (payload) => {
+    const p = payload as VerbUnhandledPayload;
+    const verb = lookupVerbHandle<{ id: string }>(p.verbId) ?? { id: p.verbId };
+    void runHandler(`fallback unhandled "${p.verbId}"`, liveRoomScene(), null, handler, [verb, fallbackTargetOfVerb(p.target)]);
   });
 }
 
@@ -153,10 +189,16 @@ export function registerCharacterVerbHandler(characterId: string, verb: string, 
 }
 
 /** `verb` `null`: any item verb (`onItem`). */
-const characterItemHandlers = new Map<string, Array<{ verb: string | null; handler: Handler }>>();
+const characterItemHandlers = new Map<string, Array<{ verb: string | null; handler: Handler; options?: ItemHandlerOptions }>>();
 
 /** `characters.x.on<Verb>Item(item, …)` / `onItem(item, …)` in a character script. */
-export function registerCharacterVerbItemHandler(characterId: string, verb: string | null, itemId: string, handler: Handler): void {
+export function registerCharacterVerbItemHandler(
+  characterId: string,
+  verb: string | null,
+  itemId: string,
+  handler: Handler,
+  options?: ItemHandlerOptions,
+): void {
   warnIfUntransformed(`character ${characterId}: ${itemId}${verb ? ` "${verb}"` : ''}`, handler);
   const eventId = globalInventoryOnCharacterEventId(characterId, itemId);
   let regs = characterItemHandlers.get(eventId);
@@ -173,22 +215,22 @@ export function registerCharacterVerbItemHandler(characterId: string, verb: stri
         if (outcome === 'unhandled') {
           continueInventoryOnDispatchAfterGlobal(gameEvents, p);
         } else {
-          applyInventoryDropPolicy(itemId);
+          applyInventoryDropPolicy(itemId, reg?.options);
         }
       });
     });
   }
-  regs.push({ verb, handler });
+  regs.push({ verb, handler, options });
 }
 
 // ─── Any-room hooks (§4.17) ──────────────────────────────────────────────────
 
-type AnyRoomKind = 'enter' | 'enterAfterFade' | 'leave';
+type AnyRoomKind = 'enter' | 'enterAfterFade' | 'leave' | 'loaded';
 
-const anyRoomHandlers: Array<{ kind: AnyRoomKind; handler: Handler }> = [];
+const anyRoomHandlers: Array<{ kind: AnyRoomKind; handler: Handler; options?: CutsceneOptions }> = [];
 let hooksAttached = false;
 
-function attachAnyRoomHandler(kind: AnyRoomKind, handler: Handler): void {
+function attachAnyRoomHandler(kind: AnyRoomKind, handler: Handler, options?: CutsceneOptions): void {
   const registry = tryGetGlobalRoomHookRegistry();
   if (!registry) {
     return;
@@ -197,31 +239,34 @@ function attachAnyRoomHandler(kind: AnyRoomKind, handler: Handler): void {
     runHandler(`any room ${kind}`, liveRoomScene(), null, handler, [lookupRoomHandle(ctx.lastRoom)]).then(() => {});
   switch (kind) {
     case 'enter':
-      registry.registerAnyEnterRoom(run);
+      registry.registerAnyEnterRoom(run, options);
       return;
     case 'enterAfterFade':
-      registry.registerAnyEnterRoomAfterFade(run);
+      registry.registerAnyEnterRoomAfterFade(run, options);
       return;
     case 'leave':
       registry.registerAnyLeaveRoom(run);
+      return;
+    case 'loaded':
+      registry.registerAnyLoadedRoom(run);
       return;
   }
 }
 
 /** `game.onEnterAnyRoom` and friends. Script modules load before the game exists, so these wait for it. */
-export function registerAnyRoomHandler(kind: AnyRoomKind, handler: Handler): void {
+export function registerAnyRoomHandler(kind: AnyRoomKind, handler: Handler, options?: CutsceneOptions): void {
   warnIfUntransformed(`game any-room ${kind}`, handler);
-  anyRoomHandlers.push({ kind, handler });
+  anyRoomHandlers.push({ kind, handler, options });
   if (hooksAttached) {
-    attachAnyRoomHandler(kind, handler);
+    attachAnyRoomHandler(kind, handler, options);
   }
 }
 
 /** Called once the room hook registry exists (`wireRoomTransitions`). */
 export function attachGlobalRoomHooks(): void {
   hooksAttached = true;
-  for (const { kind, handler } of anyRoomHandlers) {
-    attachAnyRoomHandler(kind, handler);
+  for (const { kind, handler, options } of anyRoomHandlers) {
+    attachAnyRoomHandler(kind, handler, options);
   }
 }
 

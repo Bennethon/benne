@@ -13,7 +13,7 @@ import { readEffectiveInventoryDescription } from '../inventory/inventoryScripti
 import { continueInventoryOnDispatchAfterGlobal } from '../verbs/dispatchInventoryOnVerbTarget.js';
 import { continueVerbDispatchToGlobal } from '../verbs/dispatchVerb.js';
 import { getEffectiveVerbDefinitions, isItemVerb } from '../verbs/verbConfig.js';
-import { applyInventoryDropPolicy } from './globalHandlers.js';
+import { applyInventoryDropPolicy, type ItemHandlerOptions } from './globalHandlers.js';
 import { runHandler, warnIfUntransformed } from './interactionContext.js';
 import { lookupItemHandle, lookupVerbHandle } from './registry.js';
 import { liveRoomScene } from './scene.js';
@@ -95,10 +95,16 @@ export function registerItemVerbHandler(itemId: string, verb: string, handler: H
 // ─── Other items used on this one ────────────────────────────────────────────
 
 /** `verb` `null` is any item verb (`onItem` / `onCombine`). */
-const comboHandlers = new Map<string, Array<{ verb: string | null; handler: Handler }>>();
+const comboHandlers = new Map<string, Array<{ verb: string | null; handler: Handler; options?: ItemHandlerOptions }>>();
 
 /** `items.x.on<Verb>Item(item, …)` / `onItem` / `onCombine`: `sourceItemId` used on `itemId`. */
-export function registerItemComboHandler(itemId: string, verb: string | null, sourceItemId: string, handler: Handler): void {
+export function registerItemComboHandler(
+  itemId: string,
+  verb: string | null,
+  sourceItemId: string,
+  handler: Handler,
+  options?: ItemHandlerOptions,
+): void {
   warnIfUntransformed(`items.${itemId}: ${sourceItemId}${verb ? ` "${verb}"` : ''}`, handler);
   const eventId = globalInventoryOnInventoryItemEventId(itemId, sourceItemId);
   let regs = comboHandlers.get(eventId);
@@ -117,16 +123,16 @@ export function registerItemComboHandler(itemId: string, verb: string | null, so
         if (outcome === 'unhandled') {
           continueInventoryOnDispatchAfterGlobal(gameEvents, p);
         } else if (outcome !== 'cancelled') {
-          applyInventoryDropPolicy(p.itemId);
+          applyInventoryDropPolicy(p.itemId, reg.options);
         }
       });
     });
   }
-  regs.push({ verb, handler });
+  regs.push({ verb, handler, options });
 }
 
 /** `items.x.onAnyItem((item, verb) => …)`: any other item, any item verb, on this one. */
-export function registerItemAnyComboHandler(itemId: string, handler: Handler): void {
+export function registerItemAnyComboHandler(itemId: string, handler: Handler, options?: ItemHandlerOptions): void {
   warnIfUntransformed(`items.${itemId}.onAnyItem`, handler);
   gameEvents.on(globalInventoryOnInventoryRowEventId(itemId), (payload: unknown) => {
     const p = payload as InventoryUsedOnInventoryItemPayload;
@@ -136,7 +142,7 @@ export function registerItemAnyComboHandler(itemId: string, handler: Handler): v
       if (outcome === 'unhandled') {
         gameEvents.emit(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, p);
       } else if (outcome !== 'cancelled') {
-        applyInventoryDropPolicy(p.itemId);
+        applyInventoryDropPolicy(p.itemId, options);
       }
     });
   });

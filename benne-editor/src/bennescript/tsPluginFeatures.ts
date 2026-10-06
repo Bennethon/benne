@@ -51,7 +51,7 @@ function isStepApiCall(ts: typeof TS, call: TS.CallExpression): boolean {
     if (STEP_BLOCK_APIS.has(name)) {
         return true;
     }
-    if (name === 'doNotActivate') {
+    if (name === 'doNotActivate' || name === 'once') {
         return true;
     }
     return /^on(?:[A-Z]|$)/.test(name) && name !== 'onUpdate';

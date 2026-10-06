@@ -15,6 +15,7 @@ import {
 import type { ControlFacade } from '../gui/GuiRuntime.js';
 import type { ScriptedSayLineOptions } from './speech.js';
 import type { CharacterFacingLetter } from '../../types/character.js';
+import type { CutsceneOptions } from '../../types/cutscene.js';
 import type { CharacterFollowOptions } from '../../types/characterFollow.js';
 import type { Point2 } from '../../types/room.js';
 import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
@@ -47,17 +48,22 @@ import {
   registerCharacterVerbItemHandler,
   registerFallbackAnyVerb,
   registerFallbackItemUnhandled,
+  registerFallbackUnhandled,
   registerFallbackVerb,
   registerFallbackVerbItem,
   type FallbackTarget,
+  type ItemHandlerOptions,
 } from './globalHandlers.js';
 import {
   guiRuntime,
   registerGuiChange,
+  registerGuiActivate,
+  registerGuiAnyClick,
   registerGuiClick,
   registerGuiHover,
   registerGuiLifecycleHandler,
   registerGuiSelect,
+  registerGuiSubmit,
   setGuiVisible,
   tweenControl,
 } from './guis.js';
@@ -94,7 +100,7 @@ import { Task, timed } from './task.js';
 /** A handler body as the author writes it. The transform makes it async. */
 export type StepHandler = () => void;
 
-export type { FallbackTarget };
+export type { FallbackTarget, ItemHandlerOptions };
 
 function verbList<V extends string>(verbs: V | readonly V[]): readonly V[] {
   return typeof verbs === 'string' ? [verbs] : verbs;
@@ -129,31 +135,34 @@ export class ClickableHandle<V extends string = string> {
     }
   }
 
-  /** `verb` with `item` on this target. Generated item-verb methods (`onUseItem`) call this. */
-  onVerbItem(verb: V, item: ItemRef, handler: StepHandler): void {
+  /**
+   * `verb` with `item` on this target. Generated item-verb methods (`onUseItem`) call this.
+   * `{ doNotClear: true }` keeps the item armed afterwards, whatever the drop policy says.
+   */
+  onVerbItem(verb: V, item: ItemRef, handler: StepHandler, options?: ItemHandlerOptions): void {
     if (this.roomId == null) {
-      registerCharacterVerbItemHandler(this.id, verb, item.id, handler);
+      registerCharacterVerbItemHandler(this.id, verb, item.id, handler, options);
     } else {
-      registerVerbItemHandler(this.roomId, this, verb, item.id, handler);
+      registerVerbItemHandler(this.roomId, this, verb, item.id, handler, options);
     }
   }
 
   /** `item` with any item verb on this target. */
-  onItem(item: ItemRef, handler: StepHandler): void {
+  onItem(item: ItemRef, handler: StepHandler, options?: ItemHandlerOptions): void {
     if (this.roomId == null) {
-      registerCharacterVerbItemHandler(this.id, null, item.id, handler);
+      registerCharacterVerbItemHandler(this.id, null, item.id, handler, options);
     } else {
-      registerVerbItemHandler(this.roomId, this, null, item.id, handler);
+      registerVerbItemHandler(this.roomId, this, null, item.id, handler, options);
     }
   }
 
   /** Any item without a handler of its own, any item verb, on this target. */
-  onAnyItem(handler: (item: ItemRef, verb: { readonly id: V }) => void): void {
+  onAnyItem(handler: (item: ItemRef, verb: { readonly id: V }) => void, options?: ItemHandlerOptions): void {
     if (this.roomId == null) {
       warnOnce(`anyItem:${this.id}`, `characters.${this.id}.onAnyItem only works in a room script — ignored.`);
       return;
     }
-    registerAnyItemHandler(this.roomId, this, handler);
+    registerAnyItemHandler(this.roomId, this, handler, options);
   }
 }
 
@@ -426,6 +435,42 @@ export class CharacterHandle<V extends string = string, Anim extends string = st
     characterOps.stopFacing(this.id);
   }
 
+  /** True while following someone (`startFollowing`). */
+  get isFollowing(): boolean {
+    return characterOps.followingTarget(this.id) != null;
+  }
+
+  /** The character (or `player`) being followed, or `null`. */
+  get followingTarget(): { readonly id: string } | null {
+    return characterOps.followingTarget(this.id);
+  }
+
+  /**
+   * Where this character's speech lines appear, in room pixels (bottom centre), instead of above
+   * its talk point. `null` goes back to the talk point. Saved.
+   */
+  get speechPosition(): Point2 | null {
+    return characterOps.getSpeechPoint(this.id, 'position');
+  }
+
+  set speechPosition(point: Point2 | null) {
+    characterOps.setSpeechPoint(this.id, 'position', point);
+  }
+
+  /** Extra offset of this character's speech lines, in game canvas pixels. `null` clears it. Saved. */
+  get speechOffset(): Point2 | null {
+    return characterOps.getSpeechPoint(this.id, 'offset');
+  }
+
+  set speechOffset(offset: Point2 | null) {
+    characterOps.setSpeechPoint(this.id, 'offset', offset);
+  }
+
+  /** Clears both {@link speechPosition} and {@link speechOffset}. */
+  resetSpeechPosition(): void {
+    characterOps.resetSpeechPosition(this.id);
+  }
+
   /** This character's own bag (§4.6). */
   get inventory(): Inventory {
     return inventoryOf(this.id);
@@ -523,6 +568,14 @@ export class FallbacksHandle<V extends string = string> {
   onItemUnhandled(handler: (item: ItemRef, target: FallbackTarget) => void): void {
     registerFallbackItemUnhandled(handler);
   }
+
+  /**
+   * The last tier: a verb nothing handled, not even {@link onAnyVerb}. Handy as a DEV diagnostic
+   * (`if (import.meta.env.DEV) console.info(…)`).
+   */
+  onUnhandled(handler: (verb: { readonly id: V }, target: FallbackTarget) => void): void {
+    registerFallbackUnhandled(handler);
+  }
 }
 
 // ─── Room places ─────────────────────────────────────────────────────────────
@@ -598,14 +651,17 @@ export class RoomHandle {
     registerRoomHandle(this);
   }
 
-  /** Before the fade-in: invisible setup. The fade-in waits for it. */
-  onEnter(handler: StepHandler): void {
-    registerRoomLifecycleHandler(this.id, 'enter', handler);
+  /**
+   * Before the fade-in: invisible setup. The fade-in waits for it. Like every enter hook it runs
+   * as a cutscene; `{ skippable: false }` keeps ESC from skipping it.
+   */
+  onEnter(handler: StepHandler, options?: CutsceneOptions): void {
+    registerRoomLifecycleHandler(this.id, 'enter', handler, options);
   }
 
-  /** After the fade-in: visible entrances, cutscenes. */
-  onEnterAfterFade(handler: StepHandler): void {
-    registerRoomLifecycleHandler(this.id, 'enterAfterFade', handler);
+  /** After the fade-in: visible entrances, cutscenes. `{ skippable: false }` keeps ESC from skipping it. */
+  onEnterAfterFade(handler: StepHandler, options?: CutsceneOptions): void {
+    registerRoomLifecycleHandler(this.id, 'enterAfterFade', handler, options);
   }
 
   onLeave(handler: StepHandler): void {
@@ -782,24 +838,27 @@ export class ItemHandle<V extends string = string, Anim extends string = string>
     registerItemVerbHandler(this.id, verb, handler, false);
   }
 
-  /** `verb` with another item on this one. Generated item-verb methods (`onUseItem`) call this. */
-  onVerbItem(verb: V, item: ItemRef, handler: StepHandler): void {
-    registerItemComboHandler(this.id, verb, item.id, handler);
+  /**
+   * `verb` with another item on this one. Generated item-verb methods (`onUseItem`) call this.
+   * `{ doNotClear: true }` keeps the other item armed afterwards, whatever the drop policy says.
+   */
+  onVerbItem(verb: V, item: ItemRef, handler: StepHandler, options?: ItemHandlerOptions): void {
+    registerItemComboHandler(this.id, verb, item.id, handler, options);
   }
 
   /** Any item verb with `item` on this one. */
-  onItem(item: ItemRef, handler: StepHandler): void {
-    registerItemComboHandler(this.id, null, item.id, handler);
+  onItem(item: ItemRef, handler: StepHandler, options?: ItemHandlerOptions): void {
+    registerItemComboHandler(this.id, null, item.id, handler, options);
   }
 
   /** Same as {@link onItem}; reads better for item-on-item (decision 9). */
-  onCombine(item: ItemRef, handler: StepHandler): void {
-    this.onItem(item, handler);
+  onCombine(item: ItemRef, handler: StepHandler, options?: ItemHandlerOptions): void {
+    this.onItem(item, handler, options);
   }
 
   /** Any other item without a handler of its own, any item verb, on this one. */
-  onAnyItem(handler: (item: ItemRef, verb: { readonly id: V }) => void): void {
-    registerItemAnyComboHandler(this.id, handler);
+  onAnyItem(handler: (item: ItemRef, verb: { readonly id: V }) => void, options?: ItemHandlerOptions): void {
+    registerItemAnyComboHandler(this.id, handler, options);
   }
 }
 
@@ -945,7 +1004,7 @@ export class GuiControlHandle {
     this.control('y')?.setY(value);
   }
 
-  /** Buttons and text inputs. */
+  /** Buttons, text inputs and checkboxes. A disabled control ignores the pointer and looks disabled. */
   get enabled(): boolean {
     return this.resolve()?.enabled ?? false;
   }
@@ -995,6 +1054,23 @@ export class GuiControlHandle {
     this.control('setRowText')?.setRowText(index, text);
   }
 
+  /** List boxes: how many rows the list has. */
+  get rowCount(): number {
+    return this.resolve()?.rowCount ?? 0;
+  }
+
+  /** Text inputs: whether the input has the keyboard. Setting it focuses or blurs it. */
+  get focused(): boolean {
+    return this.resolve()?.focused ?? false;
+  }
+
+  set focused(value: boolean) {
+    const c = this.control('focused');
+    if (c) {
+      c.focused = value;
+    }
+  }
+
   /** Buttons: force `'normal'`, `'hover'`, `'pressed'` or `'disabled'` looks. `'normal'` gives control back to the pointer. */
   set visualState(state: string) {
     this.control('visualState')?.setVisualState(state);
@@ -1027,6 +1103,16 @@ export class GuiControlHandle {
   /** List boxes: the selected row changed. Runs immediately. */
   onSelect(handler: (index: number) => void): void {
     registerGuiSelect(this.guiId, this.id, handler);
+  }
+
+  /** List boxes: a row was activated (double-click, or Enter on the selected row). Sequenced, like {@link onClick}. */
+  onActivate(handler: (index: number) => void): void {
+    registerGuiActivate(this.guiId, this.id, handler);
+  }
+
+  /** Text inputs: the player pressed Enter. `text` is the input's text. Sequenced, like {@link onClick}. */
+  onSubmit(handler: (text: string) => void): void {
+    registerGuiSubmit(this.guiId, this.id, handler);
   }
 
   onMouseEnter(handler: StepHandler): void {
@@ -1102,6 +1188,21 @@ export class GuiHandle<Controls extends Record<string, string> = Record<string, 
   onHide(handler: StepHandler): void {
     registerGuiLifecycleHandler(this.id, 'hide', handler);
   }
+
+  /** Any button in this GUI, after the button's own `onClick`. `button` is its control handle. */
+  onAnyClick(handler: (button: GuiControlHandle) => void): void {
+    registerGuiAnyClick(this.id, (controlId) => this.controlHandle(controlId), handler);
+  }
+
+  /** The handle for a control id: the generated one, or a new one for controls built at runtime (dialog rows). */
+  private controlHandle(controlId: string): GuiControlHandle {
+    for (const handle of Object.values(this.controls)) {
+      if (handle.id === controlId) {
+        return handle;
+      }
+    }
+    return new GuiControlHandle(this.id, controlId);
+  }
 }
 
 // ─── Sound and music ─────────────────────────────────────────────────────────
@@ -1150,6 +1251,26 @@ export class SfxHandle {
   stop(): void {
     soundManager()?.stopSfx(this.id);
   }
+
+  /** True while this sound plays. */
+  get isPlaying(): boolean {
+    return soundManager()?.isSfxPlaying(this.id) ?? false;
+  }
+}
+
+/** What `sfx` adds next to its sounds. The generator reserves this name. */
+export interface SfxControls {
+  /** Stops every playing sound effect. */
+  stopAll(): void;
+}
+
+/** `sfx` in `@game`: the sounds plus {@link SfxControls}. */
+export function withSfxControls<T extends Record<string, SfxHandle>>(sounds: T): T & SfxControls {
+  return Object.assign({ ...sounds }, {
+    stopAll(): void {
+      soundManager()?.stopSfx();
+    },
+  });
 }
 
 export class MusicHandle {
@@ -1227,6 +1348,57 @@ export class VideoHandle {
   stop(): void {
     roomFor(`video.${this.id}.stop`)?.stopRoomVideo();
   }
+
+  /** True while this video is the one playing. */
+  get isPlaying(): boolean {
+    const scene = activeRoomScene();
+    return scene != null && scene.isRoomVideoPlaying() && scene.getRoomVideoKey() === this.id;
+  }
+}
+
+/**
+ * What `video` adds next to its videos (§4.11). A room shows one video at a time, so these act on
+ * whichever is playing. The generator reserves these names.
+ */
+export interface VideoControls<T> {
+  pause(): void;
+  resume(): void;
+  /** Jumps to `seconds` into the playing video. */
+  seek(seconds: number): void;
+  /** Stops the playing video. */
+  stop(): void;
+  /** True while a video plays (paused counts as playing). */
+  readonly isPlaying: boolean;
+  /** The video playing now, or `null`. */
+  readonly current: T | null;
+}
+
+/** `video` in `@game`: the videos plus {@link VideoControls}. */
+export function withVideoControls<T extends Record<string, VideoHandle>>(videos: T): T & VideoControls<T[keyof T]> {
+  const controls = {
+    pause(): void {
+      roomFor('video.pause')?.pauseRoomVideo();
+    },
+    resume(): void {
+      roomFor('video.resume')?.resumeRoomVideo();
+    },
+    seek(seconds: number): void {
+      roomFor('video.seek')?.seekRoomVideo(seconds);
+    },
+    stop(): void {
+      roomFor('video.stop')?.stopRoomVideo();
+    },
+    get isPlaying(): boolean {
+      return activeRoomScene()?.isRoomVideoPlaying() ?? false;
+    },
+    get current(): T[keyof T] | null {
+      const scene = activeRoomScene();
+      const key = scene?.isRoomVideoPlaying() ? scene.getRoomVideoKey() : null;
+      return (Object.values(videos).find((v) => v.id === key) as T[keyof T] | undefined) ?? null;
+    },
+  };
+  return Object.defineProperties({ ...videos }, Object.getOwnPropertyDescriptors(controls)) as T &
+    VideoControls<T[keyof T]>;
 }
 
 // ─── Flags and variables ─────────────────────────────────────────────────────

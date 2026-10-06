@@ -205,9 +205,9 @@ export class ControlFacade {
   }
 
   /**
-   * Enabled state for **`button`** and **`textInput`** controls (matches JSON **`enabled`**; toggles
-   * hit-testing and disabled visuals at runtime). Does not emit button click or text-input events.
-   * @throws When this control is not a composable **`button`** or **`textInput`** hit target.
+   * Enabled state for **`button`**, **`textInput`** and **`checkbox`** controls (matches JSON
+   * **`enabled`**; toggles hit-testing and disabled visuals at runtime). Does not emit events.
+   * @throws When this control is not a composable **`button`**, **`textInput`** or **`checkbox`**.
    */
   get enabled(): boolean {
     const button = this.tryGetButtonContainer();
@@ -218,7 +218,10 @@ export class ControlFacade {
     if (input) {
       return benneGuiTextInputReadEnabled(input) ?? true;
     }
-    throw new Error('[Benne] GUI control `.enabled` is only supported on `button` and `textInput` controls.');
+    if (this.tryGetCheckboxContainer()) {
+      return !this.disabled;
+    }
+    throw new Error('[Benne] GUI control `.enabled` is only supported on `button`, `textInput` and `checkbox` controls.');
   }
 
   set enabled(value: boolean) {
@@ -240,7 +243,11 @@ export class ControlFacade {
       (setRaw as BenneGuiTextInputSetEnabledFn)(value);
       return;
     }
-    throw new Error('[Benne] GUI control `.enabled` is only supported on `button` and `textInput` controls.');
+    if (this.tryGetCheckboxContainer()) {
+      this.disabled = !value;
+      return;
+    }
+    throw new Error('[Benne] GUI control `.enabled` is only supported on `button`, `textInput` and `checkbox` controls.');
   }
 
   private tryGetListBoxContainer(): Phaser.GameObjects.Container | null {

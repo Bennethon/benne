@@ -18,10 +18,12 @@ import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleto
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
 import { registerPlayFromForRoom } from '../scenes/playFromRegistry.js';
 import { getLoadingRoomScriptId } from '../scenes/roomScriptModules.js';
+import type { CutsceneOptions } from '../../types/cutscene.js';
 import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
 import { continueInventoryOnDispatchAfterRoom } from '../verbs/dispatchInventoryOnVerbTarget.js';
 import { continueVerbDispatchAfterRoom } from '../verbs/dispatchVerb.js';
-import { applyInventoryDropPolicy } from './globalHandlers.js';
+import { applyInventoryDropPolicy, type ItemHandlerOptions } from './globalHandlers.js';
+import { subscribeEvent } from './events.js';
 import { runHandler, warnIfUntransformed } from './interactionContext.js';
 import { lookupCharacterHandle, lookupItemHandle, lookupVerbHandle } from './registry.js';
 
@@ -39,11 +41,13 @@ type RoomLifecycle = 'enter' | 'enterAfterFade' | 'leave' | 'loaded';
 type Registration =
   | { kind: 'verb'; target: TargetRef; verb: string; handler: Handler }
   /** `verb` `null`: any item verb (`onItem`). */
-  | { kind: 'verbItem'; target: TargetRef; verb: string | null; itemId: string; handler: Handler }
-  | { kind: 'anyItem'; target: TargetRef; handler: Handler }
+  | { kind: 'verbItem'; target: TargetRef; verb: string | null; itemId: string; handler: Handler; options?: ItemHandlerOptions }
+  | { kind: 'anyItem'; target: TargetRef; handler: Handler; options?: ItemHandlerOptions }
   | { kind: 'region'; regionId: string; exit: boolean; handler: Handler }
   | { kind: 'playFrom'; name: string; handler: Handler }
-  | { kind: RoomLifecycle; handler: Handler };
+  /** `events.on` / `once` in a room script: listens only while the room is active. */
+  | { kind: 'event'; name: string; once: boolean; handler: Handler }
+  | { kind: RoomLifecycle; handler: Handler; options?: CutsceneOptions };
 
 /**
  * Handlers registered at the top level of each room's script, per room id. A module evaluates
@@ -72,16 +76,17 @@ export function registerVerbItemHandler(
   verb: string | null,
   itemId: string,
   handler: Handler,
+  options?: ItemHandlerOptions,
 ): void {
   register(
     roomId,
-    { kind: 'verbItem', target, verb, itemId, handler },
+    { kind: 'verbItem', target, verb, itemId, handler, options },
     `${roomId}: ${itemId}${verb ? ` "${verb}"` : ''} on ${target.id}`,
   );
 }
 
-export function registerAnyItemHandler(roomId: string, target: TargetRef, handler: Handler): void {
-  register(roomId, { kind: 'anyItem', target, handler }, `${roomId}: any item on ${target.id}`);
+export function registerAnyItemHandler(roomId: string, target: TargetRef, handler: Handler, options?: ItemHandlerOptions): void {
+  register(roomId, { kind: 'anyItem', target, handler, options }, `${roomId}: any item on ${target.id}`);
 }
 
 export function registerRegionHandler(roomId: string, regionId: string, exit: boolean, handler: Handler): void {
@@ -103,8 +108,17 @@ export function playFrom(name: string, setup: () => void): void {
   register(roomId, { kind: 'playFrom', name, handler: setup }, `${roomId}: playFrom "${name}"`);
 }
 
-export function registerRoomLifecycleHandler(roomId: string, kind: RoomLifecycle, handler: Handler): void {
-  register(roomId, { kind, handler }, `${roomId}: ${kind}`);
+export function registerRoomEventHandler(roomId: string, name: string, once: boolean, handler: Handler): void {
+  register(roomId, { kind: 'event', name, once, handler }, `${roomId}: events.${once ? 'once' : 'on'}("${name}")`);
+}
+
+export function registerRoomLifecycleHandler(
+  roomId: string,
+  kind: RoomLifecycle,
+  handler: Handler,
+  options?: CutsceneOptions,
+): void {
+  register(roomId, { kind, handler, options }, `${roomId}: ${kind}`);
 }
 
 function verbEventId(roomId: string, target: TargetRef, verb: string): string {
@@ -185,11 +199,17 @@ export function attachRoomHandlers(roomId: string, scene: RoomScene, events: Eve
         break;
       }
       case 'enter':
-        hooks?.registerRoomEnterRoom(roomId, () => runHandler(`${roomId} onEnter`, scene, null, reg.handler).then(() => {}));
+        hooks?.registerRoomEnterRoom(
+          roomId,
+          () => runHandler(`${roomId} onEnter`, scene, null, reg.handler).then(() => {}),
+          reg.options,
+        );
         break;
       case 'enterAfterFade':
-        hooks?.registerRoomEnterRoomAfterFade(roomId, () =>
-          runHandler(`${roomId} onEnterAfterFade`, scene, null, reg.handler).then(() => {}),
+        hooks?.registerRoomEnterRoomAfterFade(
+          roomId,
+          () => runHandler(`${roomId} onEnterAfterFade`, scene, null, reg.handler).then(() => {}),
+          reg.options,
         );
         break;
       case 'leave':
@@ -208,7 +228,7 @@ export function attachRoomHandlers(roomId: string, scene: RoomScene, events: Eve
             if (outcome === 'unhandled') {
               continueInventoryOnDispatchAfterRoom(events, p);
             } else if (outcome !== 'cancelled') {
-              applyInventoryDropPolicy(p.itemId);
+              applyInventoryDropPolicy(p.itemId, reg.options);
             }
           });
         });
@@ -229,6 +249,9 @@ export function attachRoomHandlers(roomId: string, scene: RoomScene, events: Eve
           runHandler(`${roomId} playFrom "${reg.name}"`, scene, null, reg.handler, [], { gameplay: false }).then(() => {}),
         );
         break;
+      case 'event':
+        offs.push(subscribeEvent(reg.name, reg.handler, reg.once));
+        break;
     }
   }
 
@@ -244,7 +267,7 @@ export function attachRoomHandlers(roomId: string, scene: RoomScene, events: Eve
       const label = `${roomId} ${reg.itemId} "${p.verbId}" on ${reg.target.id}`;
       void runHandler(label, scene, payload, reg.handler).then((outcome) => {
         if (outcome === 'finished' || outcome === 'ended') {
-          applyInventoryDropPolicy(p.itemId);
+          applyInventoryDropPolicy(p.itemId, reg.options);
         } else if (outcome === 'unhandled') {
           continueInventoryOnDispatchAfterRoom(events, p);
         }

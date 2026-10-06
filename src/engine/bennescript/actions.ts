@@ -1,3 +1,11 @@
+import {
+  clearSavedCharacterSpeechPosition,
+  readSavedCharacterFollowingTarget,
+  readSavedCharacterSpeechOffset,
+  readSavedCharacterSpeechPosition,
+  writeSavedCharacterSpeechOffset,
+  writeSavedCharacterSpeechPosition,
+} from '../benneAnimationRuntime.js';
 import { getCharacterWorldFeet } from '../characterFeet.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { BENNE_SCREEN_FADE_DEFAULT_COLOR, BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC } from '../scenes/roomScreenFadeConstants.js';
@@ -15,7 +23,7 @@ import type { CharacterFacingLetter } from '../../types/character.js';
 import type { CharacterFollowOptions } from '../../types/characterFollow.js';
 import type { Point2 } from '../../types/room.js';
 import { currentContext } from './interactionContext.js';
-import { lookupItemHandle } from './registry.js';
+import { lookupCharacterHandle, lookupItemHandle } from './registry.js';
 import { liveRoomScene } from './scene.js';
 import { Task, timed } from './task.js';
 import * as Phaser from 'phaser';
@@ -489,6 +497,55 @@ export const characterOps = {
       scene.stopCharacterFacingCharacter(characterIdIn(scene, characterId));
     }
   },
+
+  /** `characterId` `null` is the active player; outside a room the game state's player. */
+  idOf(characterId: string | null): string {
+    return characterId ?? player.id;
+  },
+
+  /** The handle `characterId` follows: the room's (or `characters.x`), `player`, or `null`. */
+  followingTarget(characterId: string | null): { readonly id: string } | null {
+    const m = tryGetActiveGameStateManager();
+    const target = m ? readSavedCharacterFollowingTarget(m, characterOps.idOf(characterId)) : null;
+    if (target == null) {
+      return null;
+    }
+    if (target === 'player') {
+      return player;
+    }
+    const roomId = activeRoomScene()?.getCurrentRoomId() ?? null;
+    return lookupCharacterHandle<{ readonly id: string }>(roomId, target) ?? { id: target };
+  },
+
+  getSpeechPoint(characterId: string | null, which: 'position' | 'offset'): Point2 | null {
+    const m = tryGetActiveGameStateManager();
+    if (!m) {
+      return null;
+    }
+    const id = characterOps.idOf(characterId);
+    return which === 'position' ? readSavedCharacterSpeechPosition(m, id) : readSavedCharacterSpeechOffset(m, id);
+  },
+
+  setSpeechPoint(characterId: string | null, which: 'position' | 'offset', point: Point2 | null): void {
+    const m = tryGetActiveGameStateManager();
+    if (!m) {
+      warnOnce(`speech${which}:no-game`, `speech${which === 'position' ? 'Position' : 'Offset'}: the game is not running — ignored.`);
+      return;
+    }
+    const id = characterOps.idOf(characterId);
+    if (which === 'position') {
+      writeSavedCharacterSpeechPosition(m, id, point);
+    } else {
+      writeSavedCharacterSpeechOffset(m, id, point);
+    }
+  },
+
+  resetSpeechPosition(characterId: string | null): void {
+    const m = tryGetActiveGameStateManager();
+    if (m) {
+      clearSavedCharacterSpeechPosition(m, characterOps.idOf(characterId));
+    }
+  },
 };
 
 /** How quickly a character turns to keep facing another (`startFacing`). */
@@ -557,6 +614,42 @@ export const player = {
   set movable(value: boolean) {
     characterOps.setMovable(null, value);
   },
+  /** Follows `target` (another character) around the room. Saved. */
+  startFollowing(target: { readonly id: string }, options?: CharacterFollowOptions): void {
+    characterOps.startFollowing(null, target, options);
+  },
+  stopFollowing(): void {
+    characterOps.stopFollowing(null);
+  },
+  /** True while following someone (`startFollowing`). */
+  get isFollowing(): boolean {
+    return characterOps.followingTarget(null) != null;
+  },
+  /** The character being followed, or `null`. */
+  get followingTarget(): { readonly id: string } | null {
+    return characterOps.followingTarget(null);
+  },
+  /**
+   * Where the player's speech lines appear, in room pixels (bottom centre), instead of above the
+   * talk point. `null` goes back to the talk point. Saved.
+   */
+  get speechPosition(): Point2 | null {
+    return characterOps.getSpeechPoint(null, 'position');
+  },
+  set speechPosition(point: Point2 | null) {
+    characterOps.setSpeechPoint(null, 'position', point);
+  },
+  /** Extra offset of the player's speech lines, in game canvas pixels. `null` clears it. Saved. */
+  get speechOffset(): Point2 | null {
+    return characterOps.getSpeechPoint(null, 'offset');
+  },
+  set speechOffset(offset: Point2 | null) {
+    characterOps.setSpeechPoint(null, 'offset', offset);
+  },
+  /** Clears both {@link speechPosition} and {@link speechOffset}. */
+  resetSpeechPosition(): void {
+    characterOps.resetSpeechPosition(null);
+  },
   /**
    * Hands control to another character in the room (instant, saved): from the next line on,
    * `player` and `Player:` mean that character.
@@ -595,6 +688,8 @@ export interface Inventory {
   remove(item: ItemRef, quantity?: number): void;
   has(item: ItemRef): boolean;
   count(item: ItemRef): number;
+  /** Empties the bag. */
+  clear(): void;
   /** What is in the bag, in order. */
   readonly items: Array<{ item: ItemRef; quantity: number }>;
 }
@@ -617,6 +712,9 @@ export function inventoryOf(owner: string | null): Inventory {
     },
     count(item) {
       return manager('count')?.quantityOf(item.id, who) ?? 0;
+    },
+    clear() {
+      manager('clear')?.clearInventory(who);
     },
     get items() {
       return (manager('items')?.getInventoryItems(who) ?? []).map((i) => ({

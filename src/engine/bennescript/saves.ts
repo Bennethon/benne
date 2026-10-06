@@ -8,8 +8,12 @@ import { getActiveDialogSession } from '../dialog/dialogSession.js';
 import { cancelAllInteractions, currentContext, endHandler } from './interactionContext.js';
 import { Task, timed } from './task.js';
 
+/** A save: a numbered slot, or a name (named saves have no slot). */
+export type SaveRef = number | string;
+
 export interface SaveInfo {
-  readonly slot: number;
+  /** The slot, or `null` for a named save. */
+  readonly slot: number | null;
   readonly name: string;
   readonly timestamp: number;
 }
@@ -52,55 +56,93 @@ export const saves = {
     );
   },
 
-  /** Every numbered save slot, oldest slot first. */
+  /** Every save: numbered slots first, in slot order, then named saves, newest first. */
   list(): SaveInfo[] {
-    const out: SaveInfo[] = [];
-    for (const entry of manager('list')?.getSaveList() ?? []) {
-      if (entry.slot != null) {
-        out.push({ slot: entry.slot, name: entry.name, timestamp: entry.timestamp });
-      }
-    }
-    return out.sort((a, b) => a.slot - b.slot);
+    const all = (manager('list')?.getSaveList() ?? []).map((e) => ({ slot: e.slot ?? null, name: e.name, timestamp: e.timestamp }));
+    const slots = all.filter((s) => s.slot != null).sort((a, b) => a.slot! - b.slot!);
+    const named = all.filter((s) => s.slot == null).sort((a, b) => b.timestamp - a.timestamp);
+    return [...slots, ...named];
   },
 
-  get(slot: number): SaveInfo | undefined {
-    return saves.list().find((s) => s.slot === slot);
+  /** The save in `slot`, or the named save `name`. */
+  get(save: SaveRef): SaveInfo | undefined {
+    return saves.list().find((s) => (typeof save === 'number' ? s.slot === save : s.slot == null && s.name === save));
   },
 
   /**
-   * Writes the game to `slot`. Waits until written. While {@link canSaveNow} is false it does
-   * nothing and logs a DEV warning; it never throws, so a stray call can't break a GUI handler.
+   * Writes the game: `saves.save(2, 'Before the lab')` to a slot, or `saves.save('checkpoint')` as
+   * a named save. Waits until written. While {@link canSaveNow} is false it does nothing and logs
+   * a DEV warning; it never throws, so a stray call can't break a GUI handler.
    */
-  save: timed((slot: number, name: string): Task => {
+  save: timed((save: SaveRef, name?: string): Task => {
+    const label = typeof save === 'number' ? save : JSON.stringify(save);
     if (!saves.canSaveNow) {
-      devWarn(`saves.save(${slot}): refused while an interaction or dialog is running (saves.canSaveNow is false).`);
+      devWarn(`saves.save(${label}): refused while an interaction or dialog is running (saves.canSaveNow is false).`);
       return Task.resolved();
     }
-    manager('save')?.save(name, slot);
+    if (typeof save === 'number') {
+      manager('save')?.save(name ?? `Slot ${save + 1}`, save);
+    } else {
+      manager('save')?.save(save);
+    }
     return Task.resolved();
   }),
 
-  /** Loads `slot` and ends the handler; the game reloads into the saved room. */
-  load(slot: number): never {
+  /** Loads a slot or a named save and ends the handler; the game reloads into the saved room. */
+  load(save: SaveRef): never {
     const m = manager('load');
     // Stop every other handler before the snapshot replaces the state they would write to. This
     // one ends itself below.
-    const self = currentContext();
-    cancelAllInteractions(self);
-    if (m?.load(slot)) {
-      const orch = tryGetRoomTransitionOrchestrator();
-      if (orch) {
-        void orch.transitionToLoadedRoom(false);
-      } else {
-        devWarn('saves.load: no room transitions here (preview?) — snapshot loaded only.');
-      }
+    cancelAllInteractions(currentContext());
+    if (m?.load(save)) {
+      enterLoadedRoom('load');
     } else if (m) {
-      devWarn(`saves.load(${slot}): no save in that slot.`);
+      devWarn(`saves.load(${typeof save === 'number' ? save : JSON.stringify(save)}): no such save.`);
     }
     return endHandler();
   },
 
-  delete(slot: number): void {
-    manager('delete')?.deleteSave(slot);
+  delete(save: SaveRef): void {
+    manager('delete')?.deleteSave(save);
+  },
+
+  /** Renames a slot's or a named save's save name. */
+  rename(save: SaveRef, newName: string): void {
+    const m = manager('rename');
+    const existing = saves.get(save);
+    if (!m || !existing) {
+      if (m) {
+        devWarn(`saves.rename(${typeof save === 'number' ? save : JSON.stringify(save)}): no such save.`);
+      }
+      return;
+    }
+    m.renameSave(existing.name, newName);
+  },
+
+  /** The game as it is now, as JSON (for a "copy save" button, or a file download). */
+  export(): string {
+    return manager('export')?.exportSnapshotJson() ?? '{}';
+  },
+
+  /** Loads a game exported with {@link export} and ends the handler, like {@link load}. */
+  import(json: string): never {
+    const m = manager('import');
+    cancelAllInteractions(currentContext());
+    if (m?.importSnapshotJson(json)) {
+      enterLoadedRoom('import');
+    } else if (m) {
+      devWarn('saves.import: not a BENNE save — ignored.');
+    }
+    return endHandler();
   },
 };
+
+/** Reloads the room the loaded snapshot is in. */
+function enterLoadedRoom(what: string): void {
+  const orch = tryGetRoomTransitionOrchestrator();
+  if (orch) {
+    void orch.transitionToLoadedRoom(false);
+  } else {
+    devWarn(`saves.${what}: no room transitions here (preview?) — snapshot loaded only.`);
+  }
+}

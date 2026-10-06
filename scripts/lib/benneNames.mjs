@@ -44,7 +44,7 @@ export const BENNESCRIPT_NAMES = new Set([
   'walkToClicked', 'faceClicked', 'wait', 'waitForClick', 'say', 'display', 'inventory', 'player',
   'camera', 'fadeOut', 'fadeIn', 'cutscene', 'background', 'together', 'withInputDisabled', 'input',
   'unhandled', 'saves', 'settings', 'game', 'pointer', 'playFrom', 'onUpdate', 'defineFlags',
-  'defineVars', 'flag', 'Task',
+  'defineVars', 'flag', 'Task', 'events',
   // @game
   'rooms', 'characters', 'items', 'dialogs', 'guis', 'sfx', 'music', 'video', 'flags', 'vars',
   'verbs', 'fallbacks',

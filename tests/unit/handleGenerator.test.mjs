@@ -154,7 +154,9 @@ describe('generator', () => {
     const game = files.get('game.ids.ts');
     expect(game).toContain('export type VerbId = "look" | "use" | "clean";');
     expect(game).toContain('export type ItemVerbId = "use";');
-    expect(game).toContain('onUseItem(item: ItemRef, handler: StepHandler): void;');
+    expect(game).toContain('onUseItem(item: ItemRef, handler: StepHandler, options?: ItemHandlerOptions): void;');
+    expect(game).toContain('export const sfx = withSfxControls(');
+    expect(game).toContain('export const video = withVideoControls(');
     expect(game).not.toContain('onLookItem');
     expect(game).toContain('onUseItem(handler: (item: ItemRef, target: FallbackTarget) => void): void;');
     expect(game).toContain('type SharedItemAnimation = "soda" | "soda-empty";');
@@ -193,6 +195,13 @@ describe('generator', () => {
     expect(generateGameHandles(root).errors).toEqual([
       expect.stringMatching(/^sfx: sound "body-fall" .* and sound "bodyFall" .* both become `bodyFall`\. Rename one of the files\.$/),
     ]);
+  });
+
+  it('sound and video files named like their namespace controls must be renamed', async () => {
+    const { root } = await fixture({ 'assets/audio/sfx/stop-all.wav': '', 'assets/videos/pause.mp4': '' });
+    const errors = generateGameHandles(root).errors.join('\n');
+    expect(errors).toMatch(/sound "stop-all" .*`stopAll`/);
+    expect(errors).toMatch(/video "pause" .*`pause`/);
   });
 
   it('reserved and BenneScript names get a trailing _ and a warning; browser globals warn', async () => {
