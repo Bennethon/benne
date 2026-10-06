@@ -1,16 +1,5 @@
 ﻿import type { CharacterFacingLetter, CharacterAnimationsConfig } from './character';
 
-export type {
-  HotspotId,
-  PointId,
-  PropId,
-  RegionId,
-  ResolvableTargetId,
-  RoomId,
-  VerbTargetId,
-  WalkableId,
-} from './generated/benne-game-ids.js';
-
 export interface Point2 {
   x: number;
   y: number;

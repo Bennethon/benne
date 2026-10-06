@@ -1,5 +1,3 @@
-export type { DialogId, DialogOptionId } from './generated/benne-game-ids.js';
-
 export interface DialogueLine {
   speaker?: string;
   text: string;

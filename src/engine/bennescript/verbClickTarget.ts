@@ -1,5 +1,4 @@
 import * as Phaser from 'phaser';
-import type { ResolvableTargetId } from '../../types/generated/benne-game-ids.js';
 import type { Point2 } from '../../types/room.js';
 import { getCharacterWorldFeet } from '../characterFeet.js';
 import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
@@ -18,7 +17,7 @@ import type { RoomScene } from '../scenes/RoomScene.js';
  * verbs from {@link import('../events/inventoryVerbEvents.js').dispatchInventoryVerbInteraction},
  * or use-on-another-inventory-item).
  */
-export function resolveWalkToClickedTargetFromPayload(payload: unknown): Point2 | ResolvableTargetId | null {
+export function resolveWalkToClickedTargetFromPayload(payload: unknown): Point2 | string | null {
   if (payload == null || typeof payload !== 'object') {
     return null;
   }

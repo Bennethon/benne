@@ -37,7 +37,7 @@ function resolveGameFolder(hintUri?: vscode.Uri): vscode.WorkspaceFolder | undef
 }
 
 /**
- * Runs `npm run generate:game-ids` in the game folder (updates `benne-game-ids.d.ts` and the
+ * Runs `npm run generate:game-ids` in the game folder (updates the
  * BenneScript handle modules, the `.ids.ts` files under `src/game`). A call while a run is in progress waits for it.
  */
 export function runGenerateGameIds(

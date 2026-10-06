@@ -1,5 +1,3 @@
-export type { GuiId } from './generated/benne-game-ids.js';
-
 /**
  * GUI overlay definition from `src/game/guis/<id>/<id>.gui.json`.
  * Runtime composes optional `controls` in `RoomScene` (screen-space overlays); see `buildGuiOverlay` in `src/engine/gui/`.

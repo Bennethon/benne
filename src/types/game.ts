@@ -1,8 +1,6 @@
 import type { CharacterAnimationsConfig } from './character';
 import type { BenneGameStateFlagValue } from './gameState';
 
-export type { GameVerbId } from './generated/benne-game-ids.js';
-
 export interface RoomManifestEntry {
   id: string;
   definition: string;

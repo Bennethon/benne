@@ -1,7 +1,5 @@
 import type { Point2 } from './room';
 
-export type { CharacterId } from './generated/benne-game-ids.js';
-
 /**
  * Frame-synced marker from character JSON (footsteps, SFX hooks, dialogue beats, etc.).
  */

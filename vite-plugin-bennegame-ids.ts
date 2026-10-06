@@ -28,7 +28,7 @@ function runGenerateGameIds(): void {
 }
 
 /**
- * Regenerates `src/types/generated/benne-game-ids.d.ts` and the BenneScript handle modules
+ * Regenerates the BenneScript handle modules
  * (`src/game/game.ids.ts`, `src/game/<kind>/<id>/<id>.ids.ts`) during dev/build when game content
  * changes. A failed build start fails the build; in dev, a failure shows in the error overlay and
  * the previous modules stay in place.

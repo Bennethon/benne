@@ -707,3 +707,8 @@ You asked for every feature in the Phase 6 table "Old `B` features without a Ben
 | `npm run test:artifacts` (both templates built with the new `sfx` / `video`) | ✅ |
 | Old-API search (code) | ✅ still 0 matches |
 | Extension bundle | Rebuilt (`npm run build:benne-play`) |
+
+### Cleanup after review
+
+- **`src/types/generated/benne-game-ids.d.ts` retired.** Its quoted-ID unions (`PropId`, `GuiId`, …) typed the old `B.prop('Door')` calls. Nothing used them any more: `src/types` only re-exported them and one engine helper used `ResolvableTargetId` (now `string`). `generate-game-ids.mjs` writes only the handle modules, `check:generated` checks only that they generate, and `scripts/lib/scanGameContentIds.mjs` (which fed the file) and its unit test are gone. Merge step 4 ("regenerate and commit the ID types") no longer applies.
+- **Stopped** the stray `vite preview` on port 4181 left by an earlier session.
