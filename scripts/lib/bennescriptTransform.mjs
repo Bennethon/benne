@@ -24,18 +24,8 @@ const STEP_BLOCK_APIS = new Set(['playFrom', 'cutscene', 'background', 'together
 const NOT_STEP_ON_METHODS = new Set(['onUpdate']);
 
 const SCRIPT_FILE = /(?:^|[/\\])(?:[^/\\]+\.(?:room|character|inventory|dialog|gui|script)\.ts|globalScript\.ts)$/;
-/**
- * While both APIs coexist (until Phase 6), only files that use the new API are transformed:
- * old `register*Script` callbacks must keep running synchronously at click time.
- */
-const NEW_API_IMPORT = /\bfrom\s+['"](?:@benne\/script|@game|\.{1,2}\/[^'"]*\.ids(?:\.ts)?)['"]/;
-
 export function isBenneScriptFile(id) {
   return SCRIPT_FILE.test(id.replace(/[?#].*$/, ''));
-}
-
-export function usesNewBenneScriptApi(code) {
-  return NEW_API_IMPORT.test(code);
 }
 
 // ─── Speakers ────────────────────────────────────────────────────────────────
@@ -94,14 +84,17 @@ function propertyName(member) {
   return member.property.type === 'Identifier' ? member.property.name : null;
 }
 
-/** `x.onLook(…)`, `x.on([…], …)`, `cutscene(…)`, `playFrom(…)`, … */
+const isOnMethod = (name) => name != null && /^on(?:[A-Z]|$)/.test(name) && !NOT_STEP_ON_METHODS.has(name);
+
+/** `x.onLook(…)`, `x.on([…], …)`, `items.x.onUse.doNotActivate(…)`, `cutscene(…)`, `playFrom(…)`, … */
 function isStepApiCall(call) {
   const callee = unwrap(call.callee);
   if (callee.type === 'Identifier') return STEP_BLOCK_APIS.has(callee.name);
   const name = propertyName(callee);
   if (name == null) return false;
   if (STEP_BLOCK_APIS.has(name)) return true;
-  return /^on(?:[A-Z]|$)/.test(name) && !NOT_STEP_ON_METHODS.has(name);
+  if (name === 'doNotActivate') return isOnMethod(propertyName(unwrap(callee.object)));
+  return isOnMethod(name);
 }
 
 const isStringBody = (n) => n.type === 'TemplateLiteral' || (n.type === 'Literal' && typeof n.value === 'string');

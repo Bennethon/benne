@@ -12,7 +12,7 @@ import {
 } from '../events/verbInteractionEvents.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
-import { registerGlobalBenneScriptOnUpdateHandler } from '../scripting/benneScriptOnUpdateRegistry.js';
+import { registerOnUpdateHandler } from './onUpdateRegistry.js';
 import {
   continueInventoryOnDispatchAfterGlobal,
   shouldDropActiveInventoryOnUse,
@@ -35,7 +35,7 @@ function listen(eventId: string, listener: (payload: unknown) => void): void {
   gameEvents.on(eventId, listener);
 }
 
-/** Same drop policy as the old `whenInventoryUsedOn` / unhandled fallback, after the handler. */
+/** The armed item's drop policy (`dropWhenUsed` / `dropWhenInventoryUsed`), applied after an item handler. */
 export function applyInventoryDropPolicy(itemId: string): void {
   if (!shouldDropActiveInventoryOnUse(itemId)) {
     return;
@@ -197,13 +197,13 @@ function attachAnyRoomHandler(kind: AnyRoomKind, handler: Handler): void {
     runHandler(`any room ${kind}`, liveRoomScene(), null, handler, [lookupRoomHandle(ctx.lastRoom)]).then(() => {});
   switch (kind) {
     case 'enter':
-      registry.whenEnterAnyRoom(run);
+      registry.registerAnyEnterRoom(run);
       return;
     case 'enterAfterFade':
-      registry.whenEnterAnyRoomAfterFade(run);
+      registry.registerAnyEnterRoomAfterFade(run);
       return;
     case 'leave':
-      registry.whenLeaveAnyRoom(run);
+      registry.registerAnyLeaveRoom(run);
       return;
   }
 }
@@ -217,7 +217,7 @@ export function registerAnyRoomHandler(kind: AnyRoomKind, handler: Handler): voi
   }
 }
 
-/** Called once the room hook registry exists (`wireBenneGlobalScripts`). */
+/** Called once the room hook registry exists (`wireRoomTransitions`). */
 export function attachGlobalRoomHooks(): void {
   hooksAttached = true;
   for (const { kind, handler } of anyRoomHandlers) {
@@ -232,5 +232,5 @@ export function attachGlobalRoomHooks(): void {
  * belong here; start a `background(…)` block from a frame check instead.
  */
 export function onUpdate(fn: (deltaSeconds: number) => void): void {
-  registerGlobalBenneScriptOnUpdateHandler((ctx) => runDetached('onUpdate', fn as Handler, [ctx.deltaSeconds]));
+  registerOnUpdateHandler((ctx) => runDetached('onUpdate', fn as Handler, [ctx.deltaSeconds]));
 }

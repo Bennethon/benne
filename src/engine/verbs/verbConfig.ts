@@ -114,11 +114,8 @@ export function composeVerbLineText(
  */
 export const DEFAULT_VERB_TOKEN = 'defaultVerb';
 
-/**
- * The old hard-coded per-clickable fallback. The engine now uses {@link resolveGameDefaultVerbId};
- * this stays only for old `verbs.gui.ts` scripts until they are ported.
- */
-export const DEFAULT_VERB_FALLBACK = 'look';
+/** The last resort of {@link resolveGameDefaultVerbId}: a game with no verbs at all. */
+const DEFAULT_VERB_FALLBACK = 'look';
 
 const DEFAULT_VERBS: GameVerbDefinition[] = [
   { id: 'look', label: 'Look at' },
@@ -176,36 +173,21 @@ export function getEffectiveInputProfile(settings: GameSettings): VerbInputProfi
   };
 }
 
-/** Verb ids tried for the default **use** verb (aligned with Bennescript `resolveVerbId('use')` candidates). */
-const USE_VERB_ALIAS_CANDIDATES: readonly string[] = ['use', 'interact'];
-
 /**
- * First configured verb id matching the **use** aliases, or **`"use"`** if none match (same resolution idea as
- * Bennescript `resolveVerbId('use')`).
+ * The item verb used when an armed item meets a click that names no verb (a walk-to click while an
+ * item is armed): `use` when the game has it as an item verb, otherwise the first `usesItem` verb,
+ * otherwise `use`. The same shape of rule as {@link resolveGameDefaultVerbId}.
  */
-export function resolveEffectiveUseVerbId(settings: GameSettings): string {
-  const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
-  for (const id of USE_VERB_ALIAS_CANDIDATES) {
-    if (configured.has(id)) {
-      return id;
-    }
+export function resolveDefaultItemVerbId(settings: GameSettings): string {
+  const itemVerbs = getEffectiveVerbDefinitions(settings).filter(isItemVerb).map((v) => v.id);
+  if (itemVerbs.includes('use')) {
+    return 'use';
   }
-  return 'use';
+  return itemVerbs[0] ?? 'use';
 }
 
-/** Verb ids tried for the default **give** verb (aligned with Bennescript `resolveVerbId('give')`). */
-const GIVE_VERB_ALIAS_CANDIDATES: readonly string[] = ['give'];
-
-/**
- * First configured verb id matching the **give** aliases, or **`"give"`** if none match (same resolution idea as
- * Bennescript `resolveVerbId('give')`).
- */
-export function resolveEffectiveGiveVerbId(settings: GameSettings): string {
-  const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
-  for (const id of GIVE_VERB_ALIAS_CANDIDATES) {
-    if (configured.has(id)) {
-      return id;
-    }
-  }
-  return 'give';
+/** Whether `verbId` is one of the game's item verbs (`usesItem`, decision 7). */
+export function isItemVerbId(settings: GameSettings, verbId: string): boolean {
+  const def = getEffectiveVerbDefinitions(settings).find((v) => v.id === verbId);
+  return def != null && isItemVerb(def);
 }

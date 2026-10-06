@@ -1,8 +1,7 @@
 /**
  * `@benne/script`: the new BenneScript API (docs/bennescript-ergonomics-refactor.md).
  *
- * Runs next to the old `register*Script` / `B` API until Phase 6. The handle classes are created
- * by the generated `@game` and `.ids` modules (§7).
+ * The handle classes are created by the generated `@game` and `.ids` modules (§7).
  */
 import { currentContext } from './interactionContext.js';
 import { sayLine } from './actions.js';
@@ -18,6 +17,7 @@ export {
   wait,
   waitForClick,
   walkToClicked,
+  type FacingOptions,
   type Inventory,
   type ItemRef,
   type WalkTarget,

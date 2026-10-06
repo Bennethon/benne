@@ -6,8 +6,7 @@ import { guiControlMouseEnterEventId, guiControlMouseLeaveEventId } from '../eve
 import { guiListBoxSelectionChangedEventId, type GuiListBoxSelectionChangedPayload } from '../events/guiListBoxEvents.js';
 import { guiSliderValueChangedEventId, type GuiSliderValueChangedPayload } from '../events/guiSliderEvents.js';
 import { guiTextInputValueChangedEventId, type GuiTextInputValueChangedPayload } from '../events/guiTextInputEvents.js';
-import type { ControlFacade, GuiRuntime } from '../scripting/GuiRuntime.js';
-import { getGuiBenneScript } from '../scripting/registerGuiScript.js';
+import type { ControlFacade, GuiRuntime } from '../gui/GuiRuntime.js';
 import { runDetached, runHandler, warnIfUntransformed } from './interactionContext.js';
 import { liveRoomScene } from './scene.js';
 import { Task } from './task.js';
@@ -49,22 +48,17 @@ function runLifecycle(guiId: string, kind: Lifecycle): void {
   }
 }
 
-/** Does `guiId` have new-style lifecycle handlers? `RoomScene` then builds its runtime. */
-export function hasGuiHandlers(guiId: string): boolean {
-  return (['built', 'show', 'hide'] as const).some((k) => (lifecycle.get(`${guiId}:${k}`)?.length ?? 0) > 0);
-}
-
 /** `RoomScene`, after building a GUI overlay and its runtime. */
 export function notifyGuiBuilt(guiId: string): void {
   runLifecycle(guiId, 'built');
 }
 
-/** Any show / hide of a GUI by script, old or new API. */
+/** Any show / hide of a GUI by script. */
 export function notifyGuiVisibility(guiId: string, visible: boolean): void {
   runLifecycle(guiId, visible ? 'show' : 'hide');
 }
 
-/** Shows or hides a GUI in the active room and tells its scripts (old and new). */
+/** Shows or hides a GUI in the active room and runs its `onShow` / `onHide` handlers. */
 export function setGuiVisible(guiId: string, visible: boolean): void {
   const room = liveRoomScene();
   const handle = room?.tryGetGuiOverlayHandle(guiId);
@@ -73,15 +67,6 @@ export function setGuiVisible(guiId: string, visible: boolean): void {
     return;
   }
   handle.setVisible(visible);
-  const oldScript = getGuiBenneScript(guiId);
-  const rt = room?.tryGetGuiRuntime(guiId);
-  if (oldScript && rt) {
-    if (visible) {
-      oldScript.notifyGuiShown(rt);
-    } else {
-      oldScript.notifyGuiHidden(rt);
-    }
-  }
   notifyGuiVisibility(guiId, visible);
 }
 
@@ -122,7 +107,7 @@ export function registerGuiSelect(guiId: string, controlId: string, handler: Han
   );
 }
 
-/** `x.onMouseEnter` / `onMouseLeave`: immediate, as today. */
+/** `x.onMouseEnter` / `onMouseLeave`: immediate. */
 export function registerGuiHover(guiId: string, controlId: string, leave: boolean, handler: Handler): void {
   const eventId = leave ? guiControlMouseLeaveEventId(guiId, controlId) : guiControlMouseEnterEventId(guiId, controlId);
   gameEvents.on(eventId, () => runDetached(`gui ${guiId} ${controlId} hover`, handler));

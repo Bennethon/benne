@@ -80,6 +80,7 @@
   "hotspots": [
     {
       "id": "window",
+      "scriptName": "windowHotspot",
       "active": true,
       "description": "window",
       "zIndex": 0,

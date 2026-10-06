@@ -5,28 +5,7 @@ import {
   buildSpeakerTable,
   isBenneScriptFile,
   transformBenneScript,
-  usesNewBenneScriptApi,
 } from '../../scripts/lib/bennescriptTransform.mjs';
-
-// Dialog sessions: the real session bookkeeping, without building the choice GUI.
-vi.mock('../../src/engine/scripting/DialogBenneScript', async () => {
-  const session = await import('../../src/engine/scripting/dialogSession');
-  const { gameEvents } = await import('../../src/engine/events/EventBus');
-  const { DIALOG_STARTED_EVENT } = await import('../../src/engine/events/dialogEvents');
-  return {
-    openDialogSessionForId: (game: unknown, dialogId: string) => {
-      const prev = session.getActiveDialogBenneScript();
-      if (prev) session.endDialogSessionIfMatches(prev);
-      session.setActiveDialogBenneScript({
-        dialogId,
-        game: game as never,
-        dispose() {},
-        resetInteractionTailForEngine() {},
-      });
-      gameEvents.emit(DIALOG_STARTED_EVENT, { dialogId, guiId: 'dialog' });
-    },
-  };
-});
 
 import { background, cutscene, together, withInputDisabled } from '../../src/engine/bennescript/blocks';
 import { dialogStackForTesting } from '../../src/engine/bennescript/dialogs';
@@ -42,7 +21,7 @@ import { saves } from '../../src/engine/bennescript/saves';
 import { Task, timed, type TaskHooks } from '../../src/engine/bennescript/task';
 import { gameEvents } from '../../src/engine/events/EventBus';
 import { guiButtonClickEventId } from '../../src/engine/events/guiButtonEvents';
-import { setActiveBenneGame } from '../../src/engine/gameState/activeBenneGame';
+import { setActiveBenneGame, tryGetActiveBenneGame } from '../../src/engine/gameState/activeBenneGame';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../src/engine/gameState/registryKey';
 import { setActiveGameStateManager } from '../../src/engine/gameState/resolveGameStateManager';
 import { BENNE_USER_INPUT_DISABLED_REGISTRY_KEY } from '../../src/engine/input/userInputDisabledRegistry';
@@ -55,11 +34,8 @@ import {
   isInteractionActivityRunning,
   type InteractionActivity,
 } from '../../src/engine/interaction/interactionActivity';
-import {
-  endDialogSessionIfMatches,
-  getActiveDialogBenneScript,
-  setActiveDialogBenneScript,
-} from '../../src/engine/scripting/dialogSession';
+import { registerDialogDefinition } from '../../src/engine/dialog/dialogDefinitionRegistry';
+import { endDialogSessionIfMatches, getActiveDialogSession, openDialogSession } from '../../src/engine/dialog/dialogSession';
 import { GAME_STATE_REPLACED_EVENT } from '../../src/types/gameState';
 
 const speakers = buildSpeakerTable([
@@ -103,8 +79,8 @@ function fakeScene() {
       pending.forEach((f) => f());
     },
     setUserInputDisabled: (disabled: boolean) => registry.set(BENNE_USER_INPUT_DISABLED_REGISTRY_KEY, disabled),
-    suppressDialogChoiceGuiForWhenChoice: () => {},
-    restoreDialogChoiceGuiAfterWhenChoiceDrain: () => {},
+    hideDialogChoicesWhileChoiceRuns: () => {},
+    showDialogChoicesAfterChoice: () => {},
   };
 }
 type FakeScene = ReturnType<typeof fakeScene>;
@@ -131,8 +107,8 @@ function fakeGame(scene: FakeScene) {
 afterEach(() => {
   cancelAllInteractions();
   clearInteractionActivity();
-  const active = getActiveDialogBenneScript();
-  if (active) setActiveDialogBenneScript(null);
+  const active = getActiveDialogSession();
+  if (active) endDialogSessionIfMatches(active);
   setActiveBenneGame(null);
   setActiveGameStateManager(null);
 });
@@ -214,13 +190,12 @@ async function load(source: string, extra: Record<string, unknown> = {}) {
 }
 
 describe('BenneScript transform', () => {
-  it('applies only to script files that use the new API', () => {
+  it('applies to script files only', () => {
     expect(isBenneScriptFile('/g/src/game/rooms/cafe/cafe.room.ts')).toBe(true);
     expect(isBenneScriptFile('/g/src/game/globalScript.ts?v=1')).toBe(true);
+    expect(isBenneScriptFile('/g/src/game/scripts/doors.script.ts')).toBe(true);
     expect(isBenneScriptFile('/g/src/game/rooms/cafe/cafe.ids.ts')).toBe(false);
-    expect(usesNewBenneScriptApi(`import { wait } from '@benne/script';`)).toBe(true);
-    expect(usesNewBenneScriptApi(`import { door } from './cafe.ids';`)).toBe(true);
-    expect(usesNewBenneScriptApi(`import { registerRoomScript } from '@engine/scripting';`)).toBe(false);
+    expect(isBenneScriptFile('/g/src/game/state.ts')).toBe(false);
   });
 
   it('makes handlers async and waits on every statement-level call', () => {
@@ -240,6 +215,12 @@ describe('BenneScript transform', () => {
     expect(out.code).toContain('await __$.step(() => __bs.say("hank", `It is ${n}`))');
     expect(out.code).toContain('__bs.say("botti3-disembodied", "Denied.")');
     expect(out.code).toContain('__bs.say("Player", "Me")');
+  });
+
+  it('treats onX.doNotActivate(…) callbacks as handlers', () => {
+    const out = transform('items.key.onUse.doNotActivate(() => {\n  Hank: "Hi"\n})\nx.foo.doNotActivate(() => {})\n')!;
+    expect(out.code).toContain('items.key.onUse.doNotActivate(async () => { const __$ = __bs.ctx();');
+    expect(out.code).toContain('x.foo.doNotActivate(() => {})');
   });
 
   it('keeps ordinary labels', () => {
@@ -500,7 +481,7 @@ describe('BenneScript interrupt policy (§5 rule 9, decision 1)', () => {
     expect(outcome()).toBe('finished');
   });
 
-  it('background blocks and old-API interactions do not take the lock', async () => {
+  it('background blocks and activities without a click policy do not take the lock', async () => {
     const g = await load('h.onLook(() => {\n  background(() => {\n    talk()\n  })\n})\n');
     g.run();
     await flush();
@@ -544,12 +525,15 @@ describe('BenneScript save policy (decision 2)', () => {
     const gui = beginInteractionActivity({ gameplay: false });
     expect(saves.canSaveNow).toBe(true);
     gui.end();
-    setActiveDialogBenneScript({ dialogId: 'd', game: null as never, dispose() {}, resetInteractionTailForEngine() {} });
+    registerDialogDefinition({ id: 'd', options: [] } as never);
+    openDialogSession(tryGetActiveBenneGame()!, 'd');
     expect(saves.canSaveNow).toBe(false);
   });
 });
 
 describe('BenneScript dialogs (decision 3)', () => {
+  for (const id of ['parent', 'child', 'd']) registerDialogDefinition({ id, options: [] } as never);
+
   it('start() waits for the conversation; a sub-dialog returns to its parent', async () => {
     const scene = fakeScene();
     fakeGame(scene);
@@ -563,24 +547,24 @@ describe('BenneScript dialogs (decision 3)', () => {
     );
     const outcome = g.run();
     await flush();
-    expect(getActiveDialogBenneScript()?.dialogId).toBe('parent');
+    expect(getActiveDialogSession()?.dialogId).toBe('parent');
     // Waiting on the player is not "busy", but it is still an interaction for saving.
     expect(isInteractionActivityRunning()).toBe(false);
     expect(isGameplayInteractionRunning()).toBe(true);
 
     gameEvents.emit(guiButtonClickEventId('dialog', 'dc__more'), {});
     await flush();
-    expect(getActiveDialogBenneScript()?.dialogId).toBe('child');
+    expect(getActiveDialogSession()?.dialogId).toBe('child');
     expect(dialogStackForTesting()).toEqual(['parent (suspended)', 'child']);
 
     gameEvents.emit(guiButtonClickEventId('dialog', 'dc__back'), {});
     await flush();
     expect(g.log).toEqual(['into child', 'bye', 'back in parent']);
-    expect(getActiveDialogBenneScript()?.dialogId).toBe('parent');
+    expect(getActiveDialogSession()?.dialogId).toBe('parent');
     expect(dialogStackForTesting()).toEqual(['parent']);
     expect(outcome()).toBeNull();
 
-    endDialogSessionIfMatches(getActiveDialogBenneScript()!);
+    endDialogSessionIfMatches(getActiveDialogSession()!);
     await flush();
     expect(g.log).toEqual(['into child', 'bye', 'back in parent', 'conversation over']);
     expect(outcome()).toBe('finished');
@@ -596,6 +580,6 @@ describe('BenneScript dialogs (decision 3)', () => {
     gameEvents.emit(guiButtonClickEventId('dialog', 'dc__again'), {});
     await flush();
     expect(error).toHaveBeenCalledWith(expect.stringContaining('Error in dialog d option'), expect.any(Error));
-    expect(getActiveDialogBenneScript()?.dialogId).toBe('d');
+    expect(getActiveDialogSession()?.dialogId).toBe('d');
   });
 });

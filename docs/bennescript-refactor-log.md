@@ -514,3 +514,130 @@ Decisions 38–42 in §13, with the "as built" note in §9:
 - Port the templates, then delete the old-API editor support listed under Known issues, and drop the `usesOldApi` branches in `scriptHandlers.ts` / `scriptModel.ts` (decision 39).
 - The Inspector webview still uses old hook names on the wire (`whenEnterRoom`, `onGuiBuilt`, `guiEnsureCheckboxCheckHandler`); only the labels changed. Renaming them is optional cleanup.
 - The `media/inspector/inspector.js` bundle was rebuilt by the extension build.
+
+---
+
+## Phase 6: Templates, delete the old API, merge preparation (2026-10-06)
+
+### Done
+
+1. **Template test harness** (built first, so the ports could be checked against the old templates):
+   - `scripts/template-workspace.mjs <template> [--serve <port>]` builds a throwaway workspace in the OS temp dir: this repo's engine, scripts and root configs (as `test:artifacts` copies them), the template as `src/game`, `node_modules` symlinked. `src/game` is never touched.
+   - `npm run test:templates` (`playwright.templates.config.ts`, `tests/templates/`): one dev server per template (ports 4191 / 4192; 4181 was held by a stray `vite preview` from an earlier session, which I left alone) and one spec per template. Each spec plays the whole template through the dev/test hooks and checks every handler: the exact lines spoken, in order, plus flags, inventory, prop state, the active player and the game / settings / save / load menus. **Both specs passed against the templates on the old `B` API before any port** (9-verb 2.4 min, 2-click 1.7 min); they are unchanged since.
+   - Hooks (`src/engine/testing/benneTestHooks.ts`): `speech()` records every line where it is shown (wrapping the room's `setDialogTextOverlay`), the same for any scripting API (the old free-scope `` B.say`…` `` block never logged to the console); `state().player`; an optional verb on `useItem` / `combine` (Give); `inventoryVerb` drops the armed item first, as `verb` already did.
+2. **Templates ported** (`game-templates/9-verb`, `game-templates/2-click`), following the AI Apocalypse ports:
+   - Config (§8.5): `"usesItem": true` on `use` / `give`, `"defaultVerb": "look"`. 9-verb's `window` hotspot got `"scriptName": "windowHotspot"`, so new games don't print a browser-global warning on every regeneration.
+   - `state.ts` with the two flags; `globalScript.ts` keeps one fallback per verb, and the any-room hooks and `onUpdate` become a comment showing the syntax.
+   - Rooms, dialogs, items, characters and the GUIs (game, save, load and settings menus, the 9-verb verb bar, the 2-click hover text and sliding bars) on the new API. Empty `void B` scripts deleted (§4.9): 9-verb `hank.character.ts`, `Key` / `Knife` inventory scripts, the empty `dialog` / `display-text` / `speaking-text` GUI scripts in both; 2-click `penny.character.ts` and `hank.character.ts` (the player can't click himself). Empty `// TODO` handlers that change behaviour are kept (2-click Henry's and the Lantern's Look silence the global fallback).
+   - Size (non-blank lines / non-whitespace characters): 9-verb 872 → 536 / 26,169 → 13,166 (−50%), 2-click 774 → 476 / 21,511 → 11,682 (−46%), including the new `state.ts`.
+3. **API additions the templates needed** (decision 45): `player.switchTo(character)`, `character.startFacing(target?, { minWait, maxWait })` / `stopFacing()`, settable `pointer.item`.
+4. **Transform fix** (decision 46): `items.x.onUse.doNotActivate(() => { Hank: "…" })` failed the build ("speech line outside a handler"), because the callee's method name is `doNotActivate`, not `on…`. AI Apocalypse never used it; the templates do. The transform now treats `x.onY.doNotActivate(fn)` as a registration (unit test added). The editor's mirror of the rule already did.
+5. **Old API deleted**: `src/engine/scripting/` is gone (33 files: `register*Script`, `B`, `BenneScriptCore` and its subclasses, the facades, `interactionTail` / `chain`, `BlockingWithNow` / `withNow`, the `when*` sugar, the script contexts). What other code used moved to engine modules (decision 43): `dialog/dialogSession.ts`, `gui/GuiRuntime.ts` (immediate operations only), `scenes/roomScriptModules.ts`, `scenes/playFromRegistry.ts`, `scenes/wireRoomTransitions.ts` (replaces `wireBenneGlobalScripts`), `bennescript/onUpdateRegistry.ts`, `bennescript/speech.ts`, `bennescript/verbClickTarget.ts`, `verbs/verbContext.ts`, `dialog/speechSettingsEvents.ts`, `benneEnvironment.ts`. `ItemHandle` reads and writes item state directly instead of through the old inventory facade.
+   - **`VERB_ALIAS_CANDIDATES` and the use/give alias lists** are gone (decision 44). `resolveDefaultItemVerbId` picks `use` when it is an item verb, else the first `usesItem` verb; the engine arms an item whose item verb has no handler (no fallback line), so JSON-only items follow the same rule as scripted ones (the Phase 4 known issue).
+   - **Phase 1 side-by-side routing removed**: `RoomScene` no longer builds room / character / inventory script contexts or old GUI scripts (every GUI gets a runtime); the orchestrator no longer drains script queues after enter hooks or resets interaction tails on leave; the choice-list hide/show no longer pops a `whenChoice` cutscene (`hideDialogChoicesWhileChoiceRuns` / `showDialogChoicesAfterChoice`); the transform's import test (decision 14) is gone, so every script file is transformed; the hook registry's `when*AnyRoom` methods are `registerAny*Room`.
+   - **Boot** (`registerGameContent.ts`, all three copies, edited by hand): just imports the script modules (rooms lazily). Also fixed the Phase 0 known issue: blank GUI font ids (icon-only buttons) are no longer reported as unknown fonts (`loadGuiData.ts`), so the playthrough's ignored-error list is empty now.
+   - **Editor**: deleted `benneScriptIdCompletion.ts`, `dialogCompletion.ts` and the TS plugin's quoted-ID filter; dropped `usesOldApi` (decision 39); the Inspector's message protocol now uses the hook names (`onEnter`, `onLoaded`, `onEnterAfterFade`, `onBuilt`, `onShow`, `onHide`); the "Open room script" command is `benne-editor.revealRoomScript`.
+   - **e2e fixture game** (`tests/fixtures/game`) ported, with a `state.ts`; `scripts/serve-test-game.mjs` now generates its handles and loads the BenneScript plugin. Its "save" hotspot saves from a `background` block once the click's handler has ended, because saving is refused during an interaction (decision 2).
+   - Every comment and DEV warning that named `B.*` / `when*` now names the BenneScript call or the engine behaviour.
+6. **`switch-game-template.mjs`** skips generated `*.ids.ts` files when syncing a game into a template (it would have copied them into `game-templates/`, where they weren't gitignored); `.gitignore` also ignores `game-templates/**/*.ids.ts`.
+7. Extension bundle rebuilt (`npm run build:benne-play`).
+
+### Old-API search (exit check)
+
+The search below looks for `register*Script`, `BenneScriptCore` and the `*BenneScript` classes, `interactionTail`, `BlockingWithNow`, `withNow` / `withNowResult`, `*ALIAS_CANDIDATES`, `engine/scripting`, every `when*` sugar and binding name, `B.<anything>`, `({ B })`, `usesOldApi` and `onGuiBuilt/Show/Hide`.
+
+```bash
+PAT='\bregister(Room|Character|Inventory|Dialog|Gui|Global)Script\b|BenneScriptCore|\b(Global|Gui|Dialog|Inventory|Character)BenneScript\b|interactionTail|BlockingWithNow|\bwithNow(Result)?\b|ALIAS_CANDIDATES|engine/scripting|\bwhen(LookAt|Use|PickUp|Give|TalkTo|Push|Pull|Open|Close|Verb|GlobalVerb|GlobalFallback|InventoryUsedOn|InventoryOnVerbTargetUnhandled|Choice|ButtonClick|AnyButtonClick|EnterRoom|EnterRoomAfterFade|LeaveRoom|LoadedRoom|EnterAnyRoom|EnterAnyRoomAfterFade|LeaveAnyRoom|LoadedAnyRoom|EnterRegion|ExitRegion|MouseEnter|MouseLeave|CheckboxCheck|CheckboxUncheck|VerbUnhandled|ValueChanged|SelectionChanged|Submit|ItemActivated)\b|\bB\.[a-zA-Z]+|\(\{ ?B ?\}\)|usesOldApi|onGui(Built|Show|Hide)\b'
+git ls-files -co --exclude-standard | grep -vE '^benne-editor/media/|^benne-editor/scaffold/|\.ids\.ts$|package-lock' \
+  | grep -vE '\.md$' | grep -E '\.(ts|mjs|js|cjs|json|tsx|html|css)$' | xargs grep -nE "$PAT"
+```
+
+**Result: 0 matches in code** (engine, game, templates, editor, scripts, tests, configs). The built bundles in `benne-editor/media/` are regenerated output.
+
+Markdown still matches, and is Phase 7's to rewrite or keep as history:
+
+| File | Matches | Note |
+|---|---|---|
+| `benne-snapshot.md` | 1,328 | A Repomix dump of the codebase, already stale; regenerate it or delete it |
+| `docs/bennescript-api.md` | 394 | Phase 7: rewrite |
+| `docs/architecture.md` | 213 | Phase 7: scripting sections |
+| `docs/public/bennescript.md` | 148 | Phase 7: rewrite |
+| `docs/bennescript-ergonomics-refactor.md` | 108 | History: the "today" examples and the translation guide |
+| `docs/public/sound-voice-and-video.md` | 33 | Phase 7 |
+| `docs/engine-review-2026-10.md` | 23 | History |
+| `docs/bennescript-refactor-log.md` | 21 | History |
+| `docs/public/game-configuration.md` | 9 | Phase 7 |
+| `docs/feasibility-custom-language-and-native-editor.md` | 8 | History |
+| `docs/public/benne-editor.md` | 7 | Phase 7 |
+| `docs/public/core-concepts.md` | 6 | Phase 7 |
+| `docs/codex-suggestions.md` | 3 | History |
+| `docs/testing.md`, `docs/public/publishing-games.md`, `docs/public/introduction.md` | 1 each | Phase 7 |
+
+### Old `B` features without a BenneScript equivalent (decision 48)
+
+Nothing in AI Apocalypse or the templates uses these, so no handle was added; the engine code behind them stays. Decide which ones the new API needs before merging (or later):
+
+| Old | Engine support left |
+|---|---|
+| `B.video.pause` / `resume` / `seek` / `isPlaying` | `RoomScene` video layer |
+| `B.speechSettings.showText`, `msPerCharacter`, `minDurationMs`, `maxDurationMs`, `defaultTalkOffset` (only `textSpeed` and `clickToSkip` are in `settings`) | `speech:*` game-state variables |
+| `B.dialogSettings.choiceOptionsViewportHeightPx`, `usedColor` | `dialog:*` game-state variables |
+| `setSpeechPosition` / `setSpeechOffset` / `resetSpeechPosition` on characters and the player | saved per character; the room reads them |
+| `isFollowing` / `followingTarget` getters | follow state in the game state |
+| `B.whenAnyButtonClick`, list-box `whenItemActivated`, text-input `whenSubmit` (decision 40 already noted submit) | the GUI events still fire |
+| checkbox `disabled`, text-input `focused` | `ControlFacade.disabled` / `focused` |
+| `B.whenLoadedAnyRoom` (any-room `onLoaded`) | hook registry `registerAnyLoadedRoom` |
+| `B.whenVerbUnhandled` (the 9-verb DEV diagnostic used it) | `verb:unhandled` event |
+| `B.sound.isPlaying(id)`, `pointer.verb = null` (clear the verb), `B.onSpeechSettingsChanged` for GUIs | sound manager, game state, speech-settings event |
+| `B.state.renameSave` / `exportJson` / `importJson`, `clearInventory` on a character | `GameStateManager` |
+| `B.raw` (escape hatch to the scene) | — |
+
+### Merge preparation (not done; for when you decide to merge)
+
+The repository's main branch is **`master`** (not `main`). `master` has not moved since the branch point (`9d04db8`), and its `src/game` is exactly its `game-templates/9-verb` plus `boot/`, so the switch means: `src/game` becomes the ported 9-verb template.
+
+Order matters, because Phase 7 builds its docs, skill and cursor rule from the AI Apocalypse scripts:
+
+1. **Run Phase 7 first**, on this branch, while `src/game` is still AI Apocalypse.
+2. **Keep the ported AI Apocalypse.** Copy `src/game` (scripts, `state.ts`, configs) to the AI Apocalypse repository, or keep this branch, before switching (§14.5). It isn't recoverable from `master` after a squash merge.
+3. **Switch `src/game`**: `npm run set-template:9-verb -- --yes`. With `src/game` named `ai-apocalypse` (no template folder), it skips the sync-down, syncs `boot/` into both templates (identical already), wipes `src/game` and copies `game-templates/9-verb` in, `boot/` included. (Not run on this branch, per the standing instructions.)
+4. **Regenerate and commit** `src/types/generated/benne-game-ids.d.ts` (`npm run generate:game-ids`; `check:generated` fails until then).
+5. **Rebuild the extension bundles** in `benne-editor/media/` (`npm run build:benne-play`, and the previews via `npm --prefix benne-editor run build:previews`). Today they carry AI Apocalypse's assets.
+6. **Retarget the tests that read AI Apocalypse in `src/game`:**
+   - `tests/playthrough/playthrough.spec.ts` and `cafe.spec.ts`: replace with the 9-verb spec, run against `src/game` (move `tests/templates/9-verb.spec.ts` into `tests/playthrough/` and drop the 9-verb project from `playwright.templates.config.ts`, or keep both).
+   - `tests/playthrough/inventory-look.spec.ts`: uses the magnet and mop; point it at a 9-verb item with a Look line (the Broom: "The broom is a broom.").
+   - `tests/playthrough/play-from.spec.ts`: generic (scans the rooms); finds 9-verb's `gotKey` and `doorUnlocked`.
+   - `tests/unit/editorScriptModel.test.ts` (41 scripts, the club, 579 voice lines, 10 Play From names), `tests/unit/editorTsPlugin.test.ts` (club diagnostics and definitions) and `benne-editor/src/test/authoring.test.ts` (`clubGameCopy`): rewrite against the 9-verb rooms (the apartment has a prop, a hotspot, a region, a character and Play From).
+   - Not affected: `handleGenerator.test.mjs`, `bennescript*.test.ts`, `voiceIdProcessor.test.ts` (synthetic games), the e2e fixture game.
+7. **Docs and config**: `docs/testing.md` (the playthrough is no longer AI Apocalypse); remove the "BenneScript refactor" section from `CLAUDE.md`; consider adding `test:templates` to `test:nightly`.
+8. **Merge without the AI Apocalypse blobs.** Commit `76e7395` added ~88 MB of AI Apocalypse assets; a normal merge puts them in `master`'s history for good, even after step 3 deletes them (decision 11 only accepted them on this branch). Squash-merge (one commit, 9-verb in `src/game`) keeps them out; the cost is losing the per-phase commits on `master` (the branch keeps them). Alternatively rewrite the branch to drop the assets from `76e7395` before merging.
+
+### Deviations from the spec
+
+Decisions 43–49 in §13, with as-built notes in §4.3, §4.15, §6.1, §8.4, §10 and §11.1: what replaced `src/engine/scripting/` (43), engine arming and the default item verb (44), `player.switchTo`, `startFacing` and a settable `pointer.item` (45), every script file transformed plus the `doNotActivate` fix (46), the template ports' intended differences (47), old features left without a BenneScript equivalent (48), and `npm run test:templates` (49).
+
+### Known issues
+
+- **The old features in the table above** have no BenneScript access until someone adds it.
+- `src/types/generated/benne-game-ids.d.ts` (the quoted-ID unions the old API used) is still generated and committed; `src/types` re-exports its types and one engine helper uses `ResolvableTargetId`. It could be retired in a later cleanup.
+- Hover-slide tweens in 2-click's menu and inventory bars now run at once instead of queueing, so a quick enter → leave lets the leave tween take over mid-slide (it ends at the right place).
+- As in earlier phases, rebuilding the BENNE Play bundle reshuffled Rolldown's deduplicated sprite names (`talk D3.gif`, `talk d.gif` are new files in `benne-editor/media/benne-play/assets/`).
+
+### Exit checks
+
+| Check | Result |
+|---|---|
+| No references to the old API remain | ✅ 0 matches in code (search above); Markdown matches are listed for Phase 7 |
+| `npm run test:ci` (check, unit, desktop, pathfinding) | ✅ unit 145/145, desktop 3/3, pathfinding passed, content 0 new errors |
+| `npm run test:playthrough` on AI Apocalypse | ✅ 14/14 (12.0 min; main playthrough 9.0 min) |
+| `npm run test:templates` (new) | ✅ 4/4 (9-verb 2.4 min, 2-click 1.7 min), same results as on the old templates |
+| `npm run test:e2e` (ported fixture game) | ✅ 4/4 |
+| `npm run test:extension` | ✅ 21/21 |
+| `npm run test:artifacts` (VSIX package, scaffold, both ported templates built standalone, desktop, itch) | ✅ |
+| Boot parity (`src/game/boot` = both template `boot/` folders) | ✅ (edited by hand; no sync scripts run) |
+
+### Notes for Phase 7
+
+- Docs to rewrite are in the search table above. `docs/public/bennescript.md` and `docs/bennescript-api.md` have the most; `benne-snapshot.md` is a stale Repomix dump.
+- Run Phase 7 before the merge switch: it should take its examples from AI Apocalypse while it is still in `src/game` (merge step 1).
+- The templates are short, complete examples of every common pattern (verbs, item on item, `doNotActivate`, dialogs, GUIs, `playFrom`, player switching), useful for the agent skill.

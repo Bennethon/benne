@@ -1,7 +1,6 @@
 /**
  * ScriptModel: what a BenneScript file registers and says, read from the TypeScript AST
- * (docs/bennescript-ergonomics-refactor.md §9). Replaces the regex scanning the editor used for
- * the old `register*Script` / `B` API.
+ * (docs/bennescript-ergonomics-refactor.md §9).
  *
  * - **Registrations**: `battery.onUseItem(items.soda, …)`, `x.on(['use', 'take'], …)`,
  *   `items.key.onUse.doNotActivate(…)`, `regions.leave.onEnter(…)`, `options.bye.onChoose(…)`,
@@ -93,13 +92,10 @@ export interface ScriptModel {
     registrations: Registration[];
     speech: SpeechLine[];
     references: ScriptReference[];
-    /** Calls `registerRoomScript(…)` & co.: the old API, which the editor no longer edits (§11.1). */
-    usesOldApi: boolean;
     /** End of the last import declaration (where new imports go). */
     importsEnd: number;
 }
 
-const OLD_API_REGISTER = /^register(?:Room|Character|Inventory|Dialog|Gui|Global)Script$/;
 const TOP_LEVEL_APIS = new Set(['playFrom', 'onUpdate']);
 const ON_METHOD = /^on(?:[A-Z]|$)/;
 
@@ -145,7 +141,6 @@ export function parseScriptModel(ts: typeof TS, fileName: string, text: string):
         registrations: [],
         speech: [],
         references: [],
-        usesOldApi: false,
         importsEnd: 0,
     };
 
@@ -356,10 +351,6 @@ export function parseScriptModel(ts: typeof TS, fileName: string, text: string):
                 speechFromBlock(node);
             }
         } else if (ts.isCallExpression(node)) {
-            const callee = unwrap(ts, node.expression);
-            if (ts.isIdentifier(callee) && OLD_API_REGISTER.test(callee.text)) {
-                model.usesOldApi = true;
-            }
             const reg = registrationOf(node, topLevel);
             if (reg) {
                 model.registrations.push(reg);

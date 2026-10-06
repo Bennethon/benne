@@ -1,4 +1,4 @@
-/** Options for {@link import('../scripting/benneScriptVideoApi.js').createBenneScriptVideoFacade} `B.video.play` / `playAndWait`. */
+/** Options for `video.x.play()` / `video.x.playAndWait()`. */
 export interface VideoPlayOptions {
   /** Loop the video until explicitly stopped (default `false`). Looping videos never fire `onComplete`. */
   loop?: boolean;

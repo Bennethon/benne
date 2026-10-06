@@ -1,6 +1,6 @@
 import * as Phaser from 'phaser';
 
-/** Event id for **`B.onSpeechSettingsChanged.on(BENNE_SPEECH_SETTINGS_CHANGED_EVENT, …)`**. */
+/** Event id emitted when a speech setting changes (`settings.textSpeed`, `settings.clickToSkip`); `RoomScene` refreshes the speech overlay. */
 export const BENNE_SPEECH_SETTINGS_CHANGED_EVENT = 'benne:speechSettingsChanged' as const;
 
 /** Listeners subscribe with **`BENNE_SPEECH_SETTINGS_CHANGED_EVENT`**. Cleared on room shutdown like verb context. */

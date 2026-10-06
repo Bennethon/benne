@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Generates from src/game/ content:
- * - src/types/generated/benne-game-ids.d.ts: ID unions for the old `B` API (committed);
+ * - src/types/generated/benne-game-ids.d.ts: content ID unions, re-exported by `src/types` (committed);
  * - the BenneScript handle modules (gitignored): src/game/game.ids.ts (`@game`) and
  *   rooms/dialogs/guis `<id>/<id>.ids.ts` (docs/bennescript-ergonomics-refactor.md §7, §8).
  *
@@ -191,7 +191,7 @@ type LooseString<T extends string = string> = T | (string & {});
       'Video stem ids from src/game/assets/videos/<stem>.{mp4,webm} (basename without extension).',
       ids.videoIds,
     ),
-    `/** Prop, hotspot, or spawned character id for room verb handlers (whenLookAt, whenVerb, whenInventoryUsedOn). */\nexport type VerbTargetId = PropId | HotspotId | CharacterId;\n`,
+    `/** Prop, hotspot, or spawned character id: something a verb can target in a room. */\nexport type VerbTargetId = PropId | HotspotId | CharacterId;\n`,
     `/** Walk / teleport string target: prop → hotspot → character → room point (see RoomScene.resolveMovementTarget). */\nexport type ResolvableTargetId = PropId | HotspotId | CharacterId | PointId;\n`,
   ];
 

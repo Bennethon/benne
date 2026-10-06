@@ -6,11 +6,11 @@ import {
   playScriptedSayLine,
   resolveBenneSayRuntimeLine,
   type ScriptedSayLineOptions,
-} from '../scripting/scriptedSpeech.js';
+} from './speech.js';
 import {
   resolveFaceLookWorldFromPayload,
   resolveWalkToClickedTargetFromPayload,
-} from '../scripting/verbClickTarget.js';
+} from './verbClickTarget.js';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { CharacterFollowOptions } from '../../types/characterFollow.js';
 import type { Point2 } from '../../types/room.js';
@@ -149,7 +149,7 @@ export function sayTask(speakerId: string, text: unknown, options?: ScriptedSayL
   const playerId = scene.getActivePlayerCharacterId();
   const characterId = speakerId === PLAYER_SPEAKER ? playerId : speakerId;
   const line = resolveBenneSayRuntimeLine(String(text), characterId);
-  // Same console line as the old `B.player.say` / `B.character(id).say`.
+  // One console line per spoken line (the café playthrough reads them).
   console.log(characterId === playerId ? `[Player] ${line.text}` : `[Character ${characterId}] ${line.text}`);
   return new Task(playScriptedSayLine(scene, line.text, characterId, options, line.voiceStem));
 }
@@ -469,7 +469,35 @@ export const characterOps = {
       scene.stopCharacterFollowingCharacter(characterIdIn(scene, characterId));
     }
   },
+
+  /** `target` `null` is the active player. */
+  startFacing(characterId: string | null, target: { readonly id: string } | null, options: FacingOptions = {}): void {
+    const scene = roomFor('startFacing');
+    if (scene) {
+      scene.startCharacterFacingCharacter(
+        characterIdIn(scene, characterId),
+        target?.id ?? scene.getActivePlayerCharacterId(),
+        options.minWait,
+        options.maxWait,
+      );
+    }
+  },
+
+  stopFacing(characterId: string | null): void {
+    const scene = roomFor('stopFacing');
+    if (scene) {
+      scene.stopCharacterFacingCharacter(characterIdIn(scene, characterId));
+    }
+  },
 };
+
+/** How quickly a character turns to keep facing another (`startFacing`). */
+export interface FacingOptions {
+  /** Shortest delay, in seconds, before turning after either character moves. Default 0.2. */
+  readonly minWait?: number;
+  /** Longest delay, in seconds. Default 0.4. */
+  readonly maxWait?: number;
+}
 
 /** The active player character (§4.3). */
 export const player = {
@@ -528,6 +556,23 @@ export const player = {
   },
   set movable(value: boolean) {
     characterOps.setMovable(null, value);
+  },
+  /**
+   * Hands control to another character in the room (instant, saved): from the next line on,
+   * `player` and `Player:` mean that character.
+   */
+  switchTo(character: { readonly id: string }): void {
+    const scene = activeRoomScene();
+    if (scene) {
+      scene.switchPlayerCharacter(character.id);
+      return;
+    }
+    const m = tryGetActiveGameStateManager();
+    if (m) {
+      m.setActivePlayerCharacterId(character.id);
+    } else {
+      warnOnce('player.switchTo:no-game', 'player.switchTo: the game is not running — ignored.');
+    }
   },
 };
 

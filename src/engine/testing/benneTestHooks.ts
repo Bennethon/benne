@@ -19,7 +19,7 @@ import { isInteractionActivityRunning } from '../interaction/interactionActivity
 import { isRoomTransitionInProgress } from '../scenes/roomTransitionGlobals';
 import type { RoomScene } from '../scenes/RoomScene';
 import { dialogChoiceSyntheticButtonId } from '../events/dialogEvents';
-import { resolveEffectiveUseVerbId } from '../verbs/verbConfig';
+import { resolveDefaultItemVerbId } from '../verbs/verbConfig';
 import { getGameSettings } from '../ConfigManager';
 
 /**
@@ -42,6 +42,8 @@ export interface BenneTestState {
   inventory: string[];
   activeVerb: string | null;
   activeItem: string | null;
+  /** The character the player controls. */
+  player: string;
 }
 
 export interface BenneTestHooks {
@@ -50,11 +52,11 @@ export interface BenneTestHooks {
   verb(verbId: string, targetId: string): void;
   /** Walk to a prop/hotspot/character stand point, a room point id, a region (its centre), or room pixels. */
   walkTo(target: string | { x: number; y: number }): void;
-  /** Use inventory `itemId` on a prop, hotspot or character in the current room. */
-  useItem(itemId: string, targetId: string): void;
+  /** Use inventory `itemId` on a prop, hotspot or character in the current room (`verbId`: an item verb, default the use verb). */
+  useItem(itemId: string, targetId: string, verbId?: string): void;
   /** Use inventory `itemId` on another inventory item (clicks that item's inventory slot). */
-  combine(itemId: string, targetItemId: string): void;
-  /** Select `verbId` as the verb bar does, then click `itemId`'s inventory slot (e.g. Look at an item). */
+  combine(itemId: string, targetItemId: string, verbId?: string): void;
+  /** Select `verbId` as the verb bar does (dropping any armed item), then click `itemId`'s inventory slot (e.g. Look at an item). */
   inventoryVerb(verbId: string, itemId: string): void;
   /** Pick a dialog option by its id in `*.dialog.json`. */
   choose(optionId: string): void;
@@ -66,6 +68,12 @@ export interface BenneTestHooks {
   setAutoSkip(enabled: boolean, minShowMs?: number): void;
   /** Visible prop state for assertions. */
   prop(propId: string): { visible: boolean; animation: string | null } | null;
+  /**
+   * Every speech line shown so far, oldest first: `[Player] text` for the active player, else
+   * `[Character <id>] text`. Recorded where the line appears on screen, so it is the same for any
+   * scripting API.
+   */
+  speech(): string[];
 }
 
 class HookError extends Error {
@@ -137,6 +145,25 @@ export function installBenneTestHooks(game: Phaser.Game): BenneTestHooks {
   let autoSkip = false;
   let autoSkipMinShowMs = 250;
   let skipPendingSince: number | null = null;
+  const speechLog: string[] = [];
+  const speechWatched = new WeakSet<RoomScene>();
+
+  /** Records each line `scene` puts in its speaking-text overlay. The scene instance is reused across rooms. */
+  const watchSpeech = (scene: RoomScene): void => {
+    if (speechWatched.has(scene)) {
+      return;
+    }
+    speechWatched.add(scene);
+    const show = scene.setDialogTextOverlay.bind(scene);
+    scene.setDialogTextOverlay = (overlay) => {
+      const speaker = overlay.talkCharacterDefinitionId;
+      if (overlay.visible && overlay.text && speaker) {
+        const who = speaker === scene.getActivePlayerCharacterId() ? 'Player' : `Character ${speaker}`;
+        speechLog.push(`[${who}] ${overlay.text}`);
+      }
+      show(overlay);
+    };
+  };
 
   const room = (): RoomScene | null => {
     if (!game.scene.isActive(SCENE_ROOM)) {
@@ -256,13 +283,13 @@ export function installBenneTestHooks(game: Phaser.Game): BenneTestHooks {
     return findInventorySlot(scene, itemId);
   };
 
-  /** Selects the use verb and `itemId`, as clicking Use and then the item in the inventory panel does. */
-  const armItem = (itemId: string): void => {
+  /** Selects `verbId` (the default item verb) and `itemId`, as clicking Use and then the item in the inventory panel does. */
+  const armItem = (itemId: string, verbId?: string): void => {
     const manager = resolveGameStateManager(game);
     if (!manager.getInventoryItems().some((i) => i.id === itemId)) {
       throw new HookError(`"${itemId}" is not in the inventory.`);
     }
-    manager.setActiveVerb(resolveEffectiveUseVerbId(getGameSettings()));
+    manager.setActiveVerb(verbId ?? resolveDefaultItemVerbId(getGameSettings()));
     manager.setActiveInventoryItem(itemId);
   };
 
@@ -289,6 +316,7 @@ export function installBenneTestHooks(game: Phaser.Game): BenneTestHooks {
         inventory: manager.getInventoryItems().map((i) => i.id),
         activeVerb: manager.getActiveVerb(),
         activeItem: manager.getActiveInventoryItemId(),
+        player: manager.getActivePlayerCharacterId(),
       };
     },
 
@@ -330,21 +358,21 @@ export function installBenneTestHooks(game: Phaser.Game): BenneTestHooks {
       scene.input.emit('pointerdown', syntheticPointer(scene, sx, sy), []);
     },
 
-    useItem(itemId, targetId) {
+    useItem(itemId, targetId, verbId) {
       requirePhase('world', `useItem ${itemId} ${targetId}`);
       const scene = requireRoom();
-      armItem(itemId);
+      armItem(itemId, verbId);
       clickTarget(scene, targetId);
     },
 
-    combine(itemId, targetItemId) {
+    combine(itemId, targetItemId, verbId) {
       requirePhase('world', `combine ${itemId} ${targetItemId}`);
       const scene = requireRoom();
       const slot = pageInventoryTo(scene, targetItemId);
       if (!slot) {
         throw new HookError(`combine: "${targetItemId}" is not in the inventory panel.`);
       }
-      armItem(itemId);
+      armItem(itemId, verbId);
       clickObject(scene, slot, `inventory slot "${targetItemId}"`);
     },
 
@@ -355,7 +383,9 @@ export function installBenneTestHooks(game: Phaser.Game): BenneTestHooks {
       if (!slot) {
         throw new HookError(`inventoryVerb: "${itemId}" is not in the inventory panel.`);
       }
-      resolveGameStateManager(game).setActiveVerb(verbId);
+      const manager = resolveGameStateManager(game);
+      manager.clearActiveInventoryItem();
+      manager.setActiveVerb(verbId);
       clickObject(scene, slot, `inventory slot "${itemId}"`);
     },
 
@@ -421,12 +451,19 @@ export function installBenneTestHooks(game: Phaser.Game): BenneTestHooks {
       const sprite = target.object as Phaser.GameObjects.Sprite;
       return { visible: sprite.visible, animation: sprite.anims?.currentAnim?.key ?? null };
     },
+
+    speech() {
+      return [...speechLog];
+    },
   };
 
   game.events.on(Phaser.Core.Events.POST_STEP, () => {
     const now = performance.now();
     trackPhase();
     const scene = room();
+    if (scene) {
+      watchSpeech(scene);
+    }
     if (!autoSkip || !scene || !scene.hasScriptedDialogClickToSkip()) {
       skipPendingSince = null;
       return;

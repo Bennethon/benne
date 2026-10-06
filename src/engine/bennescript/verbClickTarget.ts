@@ -6,8 +6,8 @@ import type { VerbInteractTarget } from '../events/verbInteractionEvents.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 
 /*
- * Where "the clicked thing" is, read from a verb / inventory-on-target event payload. Shared by
- * the old `B.walkToClicked` / `B.faceClicked` and the new BenneScript runtime.
+ * Where "the clicked thing" is, read from a verb / inventory-on-target event payload, for
+ * `walkToClicked()` and `faceClicked()`.
  */
 
 /**

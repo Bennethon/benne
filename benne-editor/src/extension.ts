@@ -64,8 +64,6 @@ import {
     makeRoomPropClickable
 } from './propVerbScaffolding';
 import { addRoomRegionHandler } from './regionScriptScaffolding';
-import { registerDialogBenneScriptCompletion } from './dialogCompletion';
-import { registerBenneScriptIdCompletion } from './benneScriptIdCompletion';
 import { registerStringUnionSuggest } from './stringUnionSuggest';
 import { scheduleGenerateGameIds } from './gameIdsGenerator';
 import { openDialogScriptEditorOnly, runCreateDialogWizard } from './dialogScaffolding';
@@ -181,8 +179,6 @@ export function activate(context: vscode.ExtensionContext): void {
     const mainProvider = new MainTreeProvider(selection);
     const actionsProvider = new ActionsTreeProvider(selection);
 
-    registerDialogBenneScriptCompletion(context);
-    registerBenneScriptIdCompletion(context);
     registerStringUnionSuggest(context);
 
     const mainTreeView = vscode.window.createTreeView('benne-editor.main', {
@@ -1194,7 +1190,7 @@ export function activate(context: vscode.ExtensionContext): void {
             }
         ),
         vscode.commands.registerCommand(
-            'benne-editor.revealRegisterRoomScript',
+            'benne-editor.revealRoomScript',
             async (roomJsonUriStr?: string, roomId?: string) => {
                 if (typeof roomJsonUriStr !== 'string' || typeof roomId !== 'string') {
                     return;

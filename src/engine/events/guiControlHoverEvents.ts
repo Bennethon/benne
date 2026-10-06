@@ -1,8 +1,8 @@
 /**
  * Event names for **GUI control pointer hover** (enter / leave).
  * Emitted by `buildGuiOverlay` for any control with a stable **`id`** (`button`, `image`,
- * `inventoryPanel`, `trigger`, `text`); {@link import('../scripting/GuiBenneScript.js').GuiBenneScript}
- * subscribes here via **`B.whenMouseEnter`** / **`B.whenMouseLeave`**.
+ * `inventoryPanel`, `trigger`, `text`); BenneScript's **`x.onMouseEnter`** / **`x.onMouseLeave`**
+ * subscribe here.
  */
 
 const GUI_PREFIX = 'gui:';

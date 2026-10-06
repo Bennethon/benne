@@ -10,11 +10,7 @@ declare global {
 }
 
 /** Known console errors that are not regressions. Each needs a reason. */
-const IGNORED_CONSOLE_ERRORS: RegExp[] = [
-  // Icon-only GUI buttons use `"font": ""` (buildGuiButton treats it as "no label"), but the boot font
-  // loader still reports it. Pre-existing in the boot files and both templates; see the refactor log.
-  /GUI text references unknown font id ""/,
-];
+const IGNORED_CONSOLE_ERRORS: RegExp[] = [];
 
 /** Collects page errors, console errors, failed requests and HTTP errors for the whole test. */
 export function collectErrors(page: Page): string[] {
@@ -80,7 +76,7 @@ export async function waitIdle(
 }
 
 type Settled = Exclude<BenneTestPhase, 'busy'> | 'any';
-type Action = 'verb' | 'walkTo' | 'useItem' | 'combine' | 'choose' | 'clickGui';
+type Action = 'verb' | 'walkTo' | 'useItem' | 'combine' | 'inventoryVerb' | 'choose' | 'clickGui';
 
 /** Runs one hook action (a single player click) and waits for the game to settle. */
 export async function act(page: Page, action: Action, args: unknown[], expected: Settled): Promise<BenneTestState> {
@@ -95,10 +91,10 @@ export const verb = (page: Page, verbId: string, target: string, expected: Settl
   act(page, 'verb', [verbId, target], expected);
 export const walkTo = (page: Page, target: string | { x: number; y: number }, expected: Settled = 'world') =>
   act(page, 'walkTo', [target], expected);
-export const useItem = (page: Page, item: string, target: string, expected: Settled = 'world') =>
-  act(page, 'useItem', [item, target], expected);
-export const combine = (page: Page, item: string, targetItem: string, expected: Settled = 'world') =>
-  act(page, 'combine', [item, targetItem], expected);
+export const useItem = (page: Page, item: string, target: string, expected: Settled = 'world', verbId?: string) =>
+  act(page, 'useItem', [item, target, verbId], expected);
+export const combine = (page: Page, item: string, targetItem: string, expected: Settled = 'world', verbId?: string) =>
+  act(page, 'combine', [item, targetItem, verbId], expected);
 export const choose = (page: Page, option: string, expected: Settled = 'dialog') =>
   act(page, 'choose', [option], expected);
 export const clickGui = (page: Page, gui: string, control: string, expected: Settled = 'world') =>

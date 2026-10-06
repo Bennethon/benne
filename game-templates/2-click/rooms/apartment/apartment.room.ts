@@ -1,154 +1,128 @@
-import { registerRoomScript } from '@engine/scripting';
+import { display, faceClicked, inventory, player, wait, walkToClicked } from '@benne/script';
+import { dialogs, flags, items, music, rooms, sfx } from '@game';
+import { room, bread, couch, door, knife, peanutButter, penny, table } from './apartment.ids';
 
-/**
- * Room script for `apartment` — keep handlers for this room here.
- *
- * String ids must match your `apartment.room.json` (and character JSON where noted):
- * - `whenLookAt` / `whenUse` / `whenTalkTo` / `whenPickUp` / `whenPush` / `whenPull` / `whenOpen` / `whenClose`: work on props, hotspots, and characters — same string id, resolution order `props[]` → `hotspots[]` → `CharacterData.id` in this room.
- * - `whenVerb(verbId, targetId, …)`: any verb id from game config; same target resolution.
- * - `whenGive`: prop recipient only (for now).
- * - `B.prop('…')` / `onProp`: `props[].id` only.
- * - `B.character('…')`: `CharacterData.id` for a character in this room.
- * - `walkTo('…')`: unified target — prop id → hotspot id → character id → `points[].id`, or `{ x, y }` in room pixels.
- */
-registerRoomScript(({ B }) => {
+room.onEnter(() => {
+  if (!music.isPlaying) {
+    music.myCatIsCrazy.play()
+  } else {
+    music.myCatIsCrazy.play({ fadeSeconds: 5 })
+  }
+})
 
-  B.whenUse('Door', () => {
-    B.walkToClicked();
+room.onEnterAfterFade(() => {
+  if (room.cameFrom(rooms.outside)) {
+    wait(0.5)
+    sfx.doorClose.play()
+    door.animation = 'Door'
+  }
+})
 
-    if (B.state.getFlag('unlockedDoor')) {
-      B.prop('Door').animation = 'Door-open';
-      B.sound.playAndWait('doorOpen');
-      B.room.changeTo('outside');
-    } else {
-      B.say`Hank: The door is locked.`;
-      B.display('The door is locked. AHH! I can\'t get out! HELP ME! HELP ME! SOMEBODY HELP ME! PLEASE HELP ME!');
-      B.display('Ok calm down.');
-    }
-  });
+// ── The door ──
 
-  B.whenLookAt('Couch', () => {
-    B.faceClicked();
-    B.say`Hank: It's my weird, poorly drawn couch.`;
-  });
+door.onLook(() => {
+  Player: "It's the door to the outside."
+})
 
-  B.whenInventoryUsedOn('Couch', (payload) => {
-    if (payload.itemId === 'Broom') {
-      B.player.walkTo('Couch');
-      B.faceClicked();
-      B.player.say('I used the broom on the couch.');
-      return;
-    }
-    return false;
-  });
+door.onUse(() => {
+  walkToClicked()
+  if (flags.unlockedDoor) {
+    door.animation = 'Door-open'
+    sfx.doorOpen.playAndWait()
+    rooms.outside.goTo()
+  } else {
+    Hank: "The door is locked."
+    display("The door is locked. AHH! I can't get out! HELP ME! HELP ME! SOMEBODY HELP ME! PLEASE HELP ME!")
+    display("Ok calm down.")
+  }
+})
 
+// Any other item used on the door falls through to "That doesn't work." in globalScript.ts.
+door.onUseItem(items.key, () => {
+  walkToClicked()
+  flags.unlockedDoor = true
+  inventory.remove(items.key)
+  Player: "The door is unlocked."
+})
 
-  B.whenLookAt('Door', () => {
-    B.player.say('It\'s the door to the outside.');
-  });
+// ── Penny ──
 
-  B.whenInventoryUsedOn('Door', (payload) => {
-    if (payload.itemId === 'Key') {
-      B.walkToClicked();
-      B.state.setFlag('unlockedDoor', true);
-      B.inventory.remove('Key');
-      B.player.say('The door is unlocked.');
-      return;
-    }
-    
-    return false;
-  });
+penny.onLook(() => {
+  Player: "It's Penny."
+})
 
-  B.whenLookAt('penny', () => {
-    B.player.say('It\'s Penny.');
-  });
+penny.onUse(() => {
+  walkToClicked()
+  Player: "Hey Penny!"
+  dialogs.chatwithpenny.start()
+})
 
-  B.whenUse('penny', () => {
-    B.walkToClicked();
-    B.player.say('Hey Penny!');
-    B.dialog('chatwithpenny').start();
-  });
+penny.onUseItem(items.sammich, () => {
+  walkToClicked()
+  Hank: "Here, Penny! Have a sandwich."
+  inventory.remove(items.sammich)
+  Penny: "Thank you! Here's the key."
+  inventory.add(items.key)
+})
 
-  B.whenInventoryUsedOn('penny', (payload) => {
-    if (payload.itemId === 'Sammich') {
-      B.walkToClicked();
-      B.say`Hank: Here, Penny! Have a sandwich.`;
-      B.inventory.remove('Sammich');
-      B.character('penny').say`Thank you! Here's the key.`;
-      B.inventory.add('Key');
-      return;
-    }
-    return false;
-  });
+// ── Furniture ──
 
+couch.onLook(() => {
+  faceClicked()
+  Hank: "It's my weird, poorly drawn couch."
+})
 
-  B.whenLookAt('Table', () => {
-    B.player.say('I like to keep this table here so I can walk around it.');
-  });
+couch.onUseItem(items.broom, () => {
+  player.walkTo(couch)
+  faceClicked()
+  Player: "I used the broom on the couch."
+})
 
-  B.whenInventoryUsedOn('Table', (payload) => {
-    if (payload.itemId === 'Broom') {
-      B.walkToClicked();
-      B.sound.playAndWait('sweeping');
-      B.player.say('I cleaned the table.');
-      return;
-      return;
-    }
-    
-    return false;
-  });
+table.onLook(() => {
+  Player: "I like to keep this table here so I can walk around it."
+})
 
+table.onUse(() => {
+  walkToClicked()
+})
 
-  B.whenLookAt('PeanutButter', () => {
-    B.faceClicked();
-    B.say`Hank: It's some peanut butter.`;
-  });
+table.onUseItem(items.broom, () => {
+  walkToClicked()
+  sfx.sweeping.playAndWait()
+  Player: "I cleaned the table."
+})
 
-  B.whenUse('PeanutButter', () => {
-    B.walkToClicked();
-    B.inventory.add('PB');
-    B.prop('PeanutButter').hide();
-  });
+// ── Sandwich ingredients: Use picks them up ──
 
-  B.whenLookAt('Knife', () => {
-    B.faceClicked();
-    B.say`Hank: It's a knife.`;
-  });
+peanutButter.onLook(() => {
+  faceClicked()
+  Hank: "It's some peanut butter."
+})
 
-  B.whenUse('Knife', () => {
-    B.walkToClicked();
-    B.inventory.add('Knife');
-    B.prop('Knife').hide();
-  });
+peanutButter.onUse(() => {
+  walkToClicked()
+  inventory.add(items.pb)
+  peanutButter.hide()
+})
 
-  B.whenLookAt('Bread', () => {
-    B.faceClicked();
-    B.say`Hank: It's some bread.`;
-  });
+knife.onLook(() => {
+  faceClicked()
+  Hank: "It's a knife."
+})
 
-  B.whenUse('Bread', () => {
-    B.walkToClicked();
-    B.inventory.add('Bread');
-    B.prop('Bread').hide();
-  });
+knife.onUse(() => {
+  walkToClicked()
+  inventory.add(items.knife)
+  knife.hide()
+})
 
-  B.whenEnterRoom(() => {
-    if (!B.sound.isMusicPlaying()) {
-      B.sound.playMusic('my-cat-is-crazy');
-    } else {
-      B.sound.playMusic.now('my-cat-is-crazy', { fadeSeconds: 5.0 });
-    }
-  });
+bread.onLook(() => {
+  faceClicked()
+  Hank: "It's some bread."
+})
 
-  B.whenEnterRoomAfterFade(() => {
-    if (B.room.last === 'outside') {
-      B.wait(.5);
-      B.sound.play('doorClose');
-      B.prop('Door').animation = 'Door';
-    }
-  });
-
-  B.whenUse('Table', () => {
-    B.walkToClicked();
-  });
-});
+bread.onUse(() => {
+  walkToClicked()
+  inventory.add(items.bread)
+  bread.hide()
+})

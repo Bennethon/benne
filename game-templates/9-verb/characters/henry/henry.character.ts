@@ -1,21 +1,14 @@
-import { registerCharacterScript } from '@engine/scripting';
+import { faceClicked } from '@benne/script';
+import { characters } from '@game';
 
-/**
- * Character script for `henry` — self-only Bennescript (`B.whenLookAt(() => …)`).
- * Room-scoped handlers in `*.room.ts` still run first for the same verb.
- */
-registerCharacterScript('henry', ({ B }) => {
-  // Example: B.whenLookAt(() => { B.player.say('…'); });
-  // Delete this line when you add your first handler.
-  void B;
+// Henry's handlers in every room he is in. A room script's own `henry.onLook(…)` wins over these.
 
-  B.whenLookAt(() => {
-    B.faceClicked();
-    B.player.say('It looks like my buddy, Henry.');
-  });
+characters.henry.onLook(() => {
+  faceClicked()
+  Player: "It looks like my buddy, Henry."
+})
 
-  B.whenPickUp(() => {
-    B.faceClicked();
-    B.player.say("He's too heavy.");
-  });
-});
+characters.henry.onPickUp(() => {
+  faceClicked()
+  Player: "He's too heavy."
+})

@@ -1,6 +1,6 @@
 /**
  * Event names for GUI checkbox check / uncheck (GUI-scoped Bennescript).
- * The overlay compositor emits these on `gameEvents`; {@link GuiBenneScript} subscribes here.
+ * The overlay compositor emits these on `gameEvents`; BenneScript's `x.onChange(…)` subscribes here.
  */
 
 const GUI_PREFIX = 'gui:';

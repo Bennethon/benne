@@ -5,17 +5,17 @@ import {
 } from '../../types/gameState.js';
 import type { VerbHoverTarget } from '../../types/verbContext.js';
 
-/** Event id for **`B.onVerbContextChanged.on(BENNE_VERB_CONTEXT_CHANGED_EVENT, …)`**. */
+/** Event id emitted when the active verb, the armed item or the hover target changes (per room; see the persistent one below). */
 export const BENNE_VERB_CONTEXT_CHANGED_EVENT = 'benne:verbContextChanged' as const;
 
 /**
  * Emitted together with {@link BENNE_VERB_CONTEXT_CHANGED_EVENT}, but `RoomScene` does not clear its
- * listeners on room shutdown. New-style `pointer.onContextChange` handlers are registered once, at
+ * listeners on room shutdown. BenneScript's `pointer.onContextChange` handlers are registered once, at
  * module top level, so they listen here.
  */
 export const BENNE_VERB_CONTEXT_CHANGED_PERSISTENT_EVENT = 'benne:verbContextChanged:persistent' as const;
 
-/** Listeners subscribe with **`BENNE_VERB_CONTEXT_CHANGED_EVENT`**. The room scene clears them on shutdown so GUI **`onGuiBuilt`** can **`on`** each load without stacking. */
+/** Listeners subscribe with **`BENNE_VERB_CONTEXT_CHANGED_EVENT`** (cleared by the room scene on shutdown) or the persistent event (`pointer.onContextChange`). */
 const emitter = new Phaser.Events.EventEmitter();
 
 let hoverDescriptionScript: string | null = null;

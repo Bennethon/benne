@@ -1,121 +1,26 @@
-import { registerGlobalScript } from '@engine/scripting';
-import type {
-  VerbGlobalFallbackPayload,
-  VerbUnhandledPayload,
-} from '@engine/events/verbInteractionEvents';
-import { getGameSettings } from '@engine/ConfigManager';
+import { game } from '@benne/script';
+import { fallbacks } from '@game';
 
+// Global fallbacks: a verb used on something with no handler of its own (in the room script, the
+// character script or the item script). Put any code here: lines, animations, state changes.
+fallbacks.onLook(() => { Player: "Nothing special about that." })
+fallbacks.onUse(() => { Player: "That doesn't work." })
+fallbacks.onPickUp(() => { Player: "I can't take that." })
+fallbacks.onPush(() => { Player: "It won't move." })
+fallbacks.onPull(() => { Player: "It won't move." })
+fallbacks.onOpen(() => { Player: "I can't open that." })
+fallbacks.onClose(() => { Player: "That doesn't need closing." })
+fallbacks.onTalkTo(() => { Player: "I don't have anything to say to that." })
+fallbacks.onGive(() => { Player: "I can't give that." })
 
-registerGlobalScript(({ B }) => {
+// A verb added to game-config.json later, without a fallback above.
+fallbacks.onAnyVerb(() => { Player: game.config.defaultFallbackLine ?? "That doesn't work." })
 
-  /**
-   * Game state flags.
-   *
-   * These are used to store game state across room loads.
-   */
-  B.state.setFlag('unlockedDoor', false);
-  B.state.setFlag('turnedOnFountain', false);
+// An item used on something that has no handler for it.
+fallbacks.onItemUnhandled(() => { Player: "That doesn't work." })
 
-  /**
-   * Global update handler. Runs every frame while the game is running. Can also be used in room scripts.
-   * @param ctx - The update context.
-   * @returns void
-   */
-  B.onUpdate((_ctx) => { })
-
-  // ─────────────────────────────────────────────────────────────
-  // Room transitions (global hooks — optional)
-  // Runs for every room load, including the first from BootScene. See architecture.md
-  // (Room transitions) for hook order and RoomTransitionContext.
-  // ─────────────────────────────────────────────────────────────
-  B.whenLeaveAnyRoom(() => {
-    // Optional: extra leave effects (sound, music crossfade, etc.)
-  });
-
-  B.whenEnterAnyRoom((_ctx) => {
-    // Invisible setup — player placement, prop state, music, etc.
-    // Example using last room:
-    // if (_ctx.lastRoom === 'apartment') {
-    //   B.player.moveToNow('streetDoor');
-    // }
-  });
-
-  B.whenEnterAnyRoomAfterFade(() => {
-    // Visible entrance behavior (walk in, cutscene start, etc.)
-  });
-
-  /**
-   * Global fallbacks.
-   *
-   * These run when a verb is used on something that has no specific handler
-   * in the room script, character script, or inventory script.
-   *
-   * Feel free to put ANY code here — play animations, change game state,
-   * start cutscenes, etc. These are real global handlers.
-   */
-
-  // ─────────────────────────────────────────────────────────────
-  // Global per-verb fallbacks
-  // ─────────────────────────────────────────────────────────────
-
-  B.whenGlobalVerb('look', () => {
-    B.player.say("Nothing special about that.");
-  });
-
-  B.whenGlobalVerb('use', () => {
-    B.player.say("That doesn't work.");
-  });
-
-  B.whenGlobalVerb('pickUp', () => {
-    B.player.say("I can't take that.");
-  });
-
-  B.whenGlobalVerb('push', () => {
-    B.player.say("It won't move.");
-  });
-
-  B.whenGlobalVerb('pull', () => {
-    B.player.say("It won't move.");
-  });
-
-  B.whenGlobalVerb('open', () => {
-    B.player.say("I can't open that.");
-  });
-
-  B.whenGlobalVerb('close', () => {
-    B.player.say("That doesn't need closing.");
-  });
-
-  B.whenGlobalVerb('talkTo', () => {
-    B.player.say("I don't have anything to say to that.");
-  });
-
-  B.whenGlobalVerb('give', () => {
-    B.player.say("I can't give that.");
-  });
-
-
-  // ─────────────────────────────────────────────────────────────
-  // Ultimate safety net (for verbs added in game-config.json
-  // but not handled above)
-  // ─────────────────────────────────────────────────────────────
-  B.whenGlobalFallback((_payload: VerbGlobalFallbackPayload) => {
-    B.player.say(
-      getGameSettings().defaultFallbackLine ?? "That doesn't work."
-    );
-  });
-
-  // ─────────────────────────────────────────────────────────────
-  // Inventory "use X on Y" when nothing handled it
-  // ─────────────────────────────────────────────────────────────
-  B.whenInventoryOnVerbTargetUnhandled(() => {
-    B.player.say("That doesn't work.");
-  });
-
-  // DEV diagnostic
-  B.whenVerbUnhandled((p: VerbUnhandledPayload) => {
-    if (import.meta.env.DEV) {
-      console.info(`[Benne 9-verb] verb:unhandled → "${p.fallbackLine}"`, p.target);
-    }
-  });
-});
+// Optional hooks for every room change:
+//   game.onEnterAnyRoom((from) => { … })           before the fade-in: invisible setup
+//   game.onEnterAnyRoomAfterFade((from) => { … })  after the fade-in: visible entrances
+//   game.onLeaveAnyRoom(() => { … })
+// and for per-frame code (not sequenced): onUpdate((dt) => { … })

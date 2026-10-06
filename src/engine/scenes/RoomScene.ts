@@ -172,14 +172,9 @@ import type { VerbHoverTarget } from '../../types/verbContext';
 import type { Point2, RoomData, RoomHotspotData, RoomPropInstance, WalkablePolygon } from '../../types/room';
 import type { GuiButtonControl, GuiData, GuiGridControl } from '../../types/gui';
 import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './BootScene';
-import { createRoomScriptContext } from '../scripting/RoomScriptContext.js';
-import { createCharacterScriptContext } from '../scripting/CharacterScriptContext.js';
-import { createInventoryScriptContext } from '../scripting/InventoryScriptContext.js';
-import type { CharacterScriptContext, InventoryScriptContext, UpdateContext } from '@engine/scripting/types.js';
-import { getCallbacksForRoom } from '../scripting/registerRoomScript.js';
 import { attachRoomHandlers } from '../bennescript/roomHandlers.js';
-import { notifyGuiBuilt as notifyNewGuiBuilt } from '../bennescript/guis.js';
-import { runGlobalBenneScriptOnUpdateHandlers } from '../scripting/benneScriptOnUpdateRegistry.js';
+import { notifyGuiBuilt } from '../bennescript/guis.js';
+import { runOnUpdateHandlers } from '../bennescript/onUpdateRegistry.js';
 import {
   buildGuiOverlay,
   type BuildGuiOverlayOptions,
@@ -217,19 +212,19 @@ import {
   type DialogOptionEnabledChangedPayload,
 } from '../events/dialogEvents';
 import { guiAllButtonsClickEventId, guiButtonClickEventId, type GuiAllButtonsClickPayload } from '../events/guiButtonEvents';
-import { endDialogSessionIfMatches, getActiveDialogBenneScript } from '../scripting/dialogSession.js';
+import { endDialogSessionIfMatches, getActiveDialogSession } from '../dialog/dialogSession.js';
 import {
   BENNE_SPEECH_SETTINGS_CHANGED_EVENT,
   getBenneSpeechSettingsChangedEmitter,
-} from '../scripting/benneSpeechSettingsScriptSurface.js';
+} from '../dialog/speechSettingsEvents.js';
 import {
   BENNE_VERB_CONTEXT_CHANGED_EVENT,
   clearBenneVerbHoverContext,
   getBenneVerbContextChangedEmitter,
   publishBenneVerbHoverContext,
-} from '../scripting/benneVerbContextScriptSurface.js';
+} from '../verbs/verbContext.js';
 import { DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE } from '../dialog/dialogGameState.js';
-import type { GuiRuntime } from '../scripting/GuiRuntime.js';
+import type { GuiRuntime } from '../gui/GuiRuntime.js';
 import {
   BENNE_SCREEN_FADE_DEFAULT_COLOR,
   BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC,
@@ -240,13 +235,8 @@ import { ROOM_VIDEO_LAYER_DEPTH } from './roomVideoConstants';
 import { benneVideoCacheKey } from '../video/benneVideoCacheKeys.js';
 import { BENNE_VIDEO_ENDED_EVENT } from '../video/benneVideoEvents.js';
 import type { VideoPlayOptions } from '../video/benneVideoTypes.js';
-import { getGuiBenneScript } from '../scripting/registerGuiScript.js';
-import type { BenneScriptCore } from '../scripting/BenneScriptCore.js';
-import {
-  tryGetGlobalBenneScriptForRoomTransitions,
-  tryGetRoomTransitionOrchestrator,
-} from './roomTransitionGlobals.js';
-import { clearPlayFromRegistrationsForRoom } from '../scripting/devPlayFromRegistry.js';
+import { tryGetRoomTransitionOrchestrator } from './roomTransitionGlobals.js';
+import { clearPlayFromRegistrationsForRoom } from './playFromRegistry.js';
 import {
   admitGameplayClick,
   currentInteraction,
@@ -400,7 +390,7 @@ export class RoomScene extends Phaser.Scene {
   /** Debug graphics for the live player path (re-drawn each frame while walking). */
   private debugPathGraphics: Phaser.GameObjects.Graphics | null = null;
 
-  /** Walkable mesh strokes (`debug.showWalkable`). Cleared and restroked when `B.walkable(id).active` changes. */
+  /** Walkable mesh strokes (`debug.showWalkable`). Cleared and restroked when `walkables.x.active` changes. */
   private debugWalkableOuterGraphics: Phaser.GameObjects.Graphics | null = null;
   private debugWalkableHoleGraphics: Phaser.GameObjects.Graphics | null = null;
 
@@ -408,12 +398,6 @@ export class RoomScene extends Phaser.Scene {
   private walkArriveCallback: (() => void) | null = null;
   /** Interaction waiting on {@link walkArriveCallback}; ended if the walk is dropped (see `interactionActivity.ts`). */
   private walkArriveInteraction: InteractionActivity | null = null;
-
-  /** Bennescript cores active for this `RoomScene` (reset interaction tails before leave / transition). */
-  private benneCoresForTransitionReset: BenneScriptCore[] = [];
-
-  /** Room **`B.onUpdate`** handlers for this scene (cleared on shutdown). */
-  private benneScriptRoomOnUpdateHandlers: Array<(ctx: UpdateContext) => void> = [];
 
   /** Props that need per-frame position updates for parallax scrolling. */
   private parallaxProps: Array<{
@@ -458,7 +442,7 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * When false, the character-follow driver does not issue walks (used until enter-room hooks
-   * and their queued Bennescript have finished — see {@link setCharacterFollowBehaviorEnabled}).
+   * and their handlers have finished — see {@link setCharacterFollowBehaviorEnabled}).
    */
   private characterFollowBehaviorEnabled = false;
 
@@ -472,7 +456,7 @@ export class RoomScene extends Phaser.Scene {
   private characterFollowPrevDistToLeaderByFollowerId = new Map<string, number>();
 
   /**
-   * `B.character(observer).startFacingCharacter(target)` — observer keeps turning toward target’s
+   * `observer.startFacing(target)` — observer keeps turning toward target’s
    * feet after short random delays when either character’s feet move.
    */
   private characterFaceTowardCharacterLocks = new Map<
@@ -496,10 +480,10 @@ export class RoomScene extends Phaser.Scene {
 
   private unresolvedCameraTargetIdsWarned = new Set<string>();
 
-  /** `B.hotspot(id)` with an id not in `roomData.hotspots` — warn once per id per room load. */
+  /** A hotspot id not in `roomData.hotspots` — warn once per id per room load. */
   private unknownHotspotScriptIdsWarned = new Set<string>();
 
-  /** `B.walkable(id)` with an id not in `walkable.polygons` — warn once per id per room load. */
+  /** A walkable id not in `walkable.polygons` — warn once per id per room load. */
   private unknownWalkableScriptIdsWarned = new Set<string>();
 
   /** `activeCursorOverride` tags that are missing on the game cursor sheet — warn once per tag per room load. */
@@ -513,13 +497,13 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Full-screen fade (above HUD, choice, and display-text GUIs; below Speaking Text and the
-   * custom pointer). Tweened by {@link queueScreenFadeToAlpha} (`B.fadeOut` / `B.fadeIn`).
+   * custom pointer). Tweened by {@link queueScreenFadeToAlpha} (`fadeOut()` / `fadeIn()`).
    * Null only before `create` or after shutdown.
    */
   private screenFadeRect: Phaser.GameObjects.Rectangle | null = null;
 
   /**
-   * Single-slot cinematic video layer (`B.video`). Created hidden in {@link create} (no source) and
+   * Single-slot cinematic video layer (`video.x.play()`). Created hidden in {@link create} (no source) and
    * reused across `play` calls; renders at {@link ROOM_VIDEO_LAYER_DEPTH} (above room art, below all
    * GUIs). Null only before `create` or after shutdown.
    */
@@ -540,7 +524,7 @@ export class RoomScene extends Phaser.Scene {
   /** Resolvers for outstanding `playAndWait` promises on the current playback. */
   private roomVideoCompleteResolvers: Array<() => void> = [];
 
-  /** Dedupes missing-video-cache warnings for `B.video.play` (once per stem per room `create`). */
+  /** Dedupes missing-video-cache warnings for `video.x.play()` (once per stem per room `create`). */
   private missingVideoKeysWarned = new Set<string>();
 
   /** Screen-fixed Speaking Text overlay (`speaking-text` id): `guis/speaking-text/speaking-text.gui.json`. */
@@ -564,10 +548,10 @@ export class RoomScene extends Phaser.Scene {
    */
   private genericGuiOverlayJsonVisible: boolean[] = [];
 
-  /** Latest live overlay handle per `guiId` for whole-overlay visibility control (`B.gui('id').show()` / `.hide()`). */
+  /** Latest live overlay handle per `guiId` for whole-overlay visibility control (`guis.x.show()` / `.hide()`). */
   private guiOverlayHandleByGuiId = new Map<string, GuiOverlayHandle>();
 
-  /** Latest {@link GuiRuntime} per overlay id for **`B.gui(…)`** on GUI scripts (generic + speaking-text + choice GUIs). */
+  /** Latest {@link GuiRuntime} per overlay id, for `guis.x.controls.y` handles (generic + speaking-text + choice GUIs). */
   private guiRuntimeByGuiId = new Map<string, GuiRuntime>();
 
   /**
@@ -625,7 +609,7 @@ export class RoomScene extends Phaser.Scene {
   private readonly cutsceneStack: Array<{ skippable: boolean }> = [];
 
   /**
-   * True while an ESC skip is fast-forwarding the cutscene: every remaining queued Bennescript step
+   * True while an ESC skip is fast-forwarding the cutscene: every remaining BenneScript step
    * still runs, but timed steps (waits, say lines, walks, fades, camera transitions, sound, video)
    * complete instantly at their final value so the end state matches a cutscene that played out.
    * Cleared when the cutscene stack empties or on a room transition.
@@ -642,7 +626,7 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Character definition id → last frame’s winning `room.regions[].id` at world feet (`null` = outside all).
-   * Used with {@link syncCharacterRegionEnterExit} (Bennescript **`B.region`…`whenEnter` / `whenExit`**).
+   * Used with {@link syncCharacterRegionEnterExit} (BenneScript **`regions.x.onEnter` / `onExit`**).
    */
   private characterFeetWinningRegionId = new Map<string, string | null>();
 
@@ -662,7 +646,7 @@ export class RoomScene extends Phaser.Scene {
   private customCursorSprite: Phaser.GameObjects.Sprite | null = null;
   /** Dedupes {@link refreshCustomCursor} work when pointer + visual mode are unchanged. */
   private lastCustomCursorVisualKey: string | null = null;
-  /** Republish **`B.currentHoverDescription`** / hover target from the active pointer (e.g. after inventory reshuffle). */
+  /** Republish the hover description / target (`pointer.hover`) from the active pointer (e.g. after inventory reshuffle). */
   private readonly syncVerbHoverScriptSurfaceAtActivePointer = (): void => {
     this.syncVerbHoverScriptSurface(this.input.activePointer);
   };
@@ -758,11 +742,9 @@ export class RoomScene extends Phaser.Scene {
     this.genericGuiVisibilityBeforeDialog = null;
     this.genericGuiVisibilityBeforeVideo = null;
     this.modalGuiEntries = [];
-    this.benneCoresForTransitionReset.length = 0;
-    this.benneScriptRoomOnUpdateHandlers.length = 0;
 
     // Pull-up character/prop positions whenever a snapshot is taken, the room is left, or
-    // `B.state.flush()` is called. Eagerly-saved fields (visibility, alpha, animation override)
+    // a snapshot is flushed. Eagerly-saved fields (visibility, alpha, animation override)
     // are unaffected. The unregister fn fires on SHUTDOWN below.
     this.snapshotFlushHookUnregister?.();
     this.snapshotFlushHookUnregister = registerSnapshotFlushHook(() => {
@@ -840,9 +822,6 @@ export class RoomScene extends Phaser.Scene {
     };
     const isButtonClickSuppressed = (): boolean =>
       this.isCutsceneActive() || this.isRoomVideoPlaying() || this.isUserInputDisabled();
-    const noopDialogQueue = (factory: () => Promise<unknown>): void => {
-      void factory().catch((err) => console.error('[Benne] dialog choice GUI queued step failed:', err));
-    };
     for (const gui of guisForStack) {
       const isSpeakingText = gui.id === SPEAKING_TEXT_GUI_ID;
       const isDisplayText = gui.id === DISPLAY_TEXT_GUI_ID;
@@ -876,49 +855,25 @@ export class RoomScene extends Phaser.Scene {
       this.registerModalGuiOverlay(gui, guiDepth, built.handle, guiStartVisible);
       this.guiOverlayHandleByGuiId.set(gui.id, built.handle);
 
-      // A GUI with an old `registerGuiScript` queues control tweens on that script's tail. Every
-      // other GUI still gets a runtime, so new-style `guis.x.controls.y` handles can reach it
-      // (their timed actions are Tasks and don't use the queue).
-      const oldGuiScript = getGuiBenneScript(gui.id);
-      const createRuntime = (): GuiRuntime =>
-        built.createGuiRuntime((factory) =>
-          oldGuiScript ? oldGuiScript.queueInteraction(factory) : void factory().catch(() => {}),
-        );
-
+      // Every GUI gets a runtime, so `guis.x.controls.y` handles can reach its controls.
+      const rt = built.createGuiRuntime();
+      this.guiRuntimeByGuiId.set(gui.id, rt);
       if (isSpeakingText) {
         this.dialogTextOverlay = built.handle;
-        const rt = createRuntime();
-        this.guiRuntimeByGuiId.set(SPEAKING_TEXT_GUI_ID, rt);
-        oldGuiScript?.notifyGuiBuilt(rt);
-        notifyNewGuiBuilt(gui.id);
       } else if (isDisplayText) {
         this.displayTextOverlay = built.handle;
-        const rt = createRuntime();
-        this.guiRuntimeByGuiId.set(DISPLAY_TEXT_GUI_ID, rt);
-        oldGuiScript?.notifyGuiBuilt(rt);
-        notifyNewGuiBuilt(gui.id);
       } else if (isChoiceDialog) {
         this.dialogChoiceInstallByGuiId.set(gui.id, {
           built,
           guiData: gui,
           baseDepth: guiDepth,
         });
-        const choiceScript = getGuiBenneScript(gui.id);
-        const rt = built.createGuiRuntime((factory) =>
-          choiceScript ? choiceScript.queueInteraction(factory) : noopDialogQueue(factory),
-        );
         this.dialogChoiceRuntimeByGuiId.set(gui.id, rt);
-        this.guiRuntimeByGuiId.set(gui.id, rt);
-        choiceScript?.notifyGuiBuilt(rt);
-        notifyNewGuiBuilt(gui.id);
       } else if (isGenericHud) {
         this.genericGuiOverlays.push(built.handle);
         this.genericGuiOverlayJsonVisible.push(gui.visible);
-        const rt = createRuntime();
-        this.guiRuntimeByGuiId.set(gui.id, rt);
-        oldGuiScript?.notifyGuiBuilt(rt);
-        notifyNewGuiBuilt(gui.id);
       }
+      notifyGuiBuilt(gui.id);
     }
 
     this.wireDialogChoiceUi();
@@ -939,83 +894,16 @@ export class RoomScene extends Phaser.Scene {
     gameEvents.on(GAME_STATE_ACTIVE_PLAYER_CHARACTER_CHANGED_EVENT, this.onActivePlayerCharacterChanged);
 
     // ─────────────────────────────────────────────────────────────
-    // Bennescript: after props, characters, player, and camera exist
+    // BenneScript: after props, characters, player, and camera exist
     // ─────────────────────────────────────────────────────────────
     tryGetRoomTransitionOrchestrator()
       ?.getHookRegistry()
       .clearPerRoomScriptHooksForRoomId(data.room.id);
     clearPlayFromRegistrationsForRoom(data.room.id);
 
-    const roomScripts = getCallbacksForRoom(data.room.id);
-    const characterScripts = (
-      window as unknown as {
-        __benneCharacterScripts?: ReadonlyArray<{
-          characterId: string;
-          registerFn: (ctx: CharacterScriptContext) => void;
-        }>;
-      }
-    ).__benneCharacterScripts;
-    const inventoryScripts = (
-      window as unknown as {
-        __benneInventoryScripts?: ReadonlyArray<{
-          itemId: string;
-          registerFn: (ctx: InventoryScriptContext) => void;
-        }>;
-      }
-    ).__benneInventoryScripts;
+    // BenneScript handlers registered at the room module's top level (`@benne/script`).
+    const detachRoomHandlers = attachRoomHandlers(data.room.id, this, gameEvents);
 
-    const benneDisposers: Array<() => void> = [];
-    if (roomScripts.length > 0) {
-      const ctx = createRoomScriptContext(gameEvents, data.room.id, this);
-      this.registerBenneScriptCoreForReset(ctx.B);
-      benneDisposers.push(() => ctx.B.dispose());
-      for (const registerFn of roomScripts) {
-        try {
-          registerFn(ctx);
-        } catch (err) {
-          console.error(`[Benne] Error in room script for ${data.room.id}:`, err);
-        }
-      }
-    }
-
-    if (characterScripts && characterScripts.length > 0) {
-      const spawnedCharacterIds = new Set(data.characters.map((c) => c.data.id));
-      for (const { characterId, registerFn } of characterScripts) {
-        if (!spawnedCharacterIds.has(characterId)) {
-          continue;
-        }
-        const ctx = createCharacterScriptContext(gameEvents, characterId, data.room.id, this);
-        this.registerBenneScriptCoreForReset(ctx.B);
-        benneDisposers.push(() => ctx.B.dispose());
-        try {
-          registerFn(ctx);
-        } catch (err) {
-          console.error(
-            `[Benne] Error in character script for ${characterId} in room ${data.room.id}:`,
-            err,
-          );
-        }
-      }
-    }
-
-    if (inventoryScripts && inventoryScripts.length > 0) {
-      for (const { itemId, registerFn } of inventoryScripts) {
-        const ctx = createInventoryScriptContext(gameEvents, itemId, data.room.id, this);
-        this.registerBenneScriptCoreForReset(ctx.B);
-        benneDisposers.push(() => ctx.B.dispose());
-        try {
-          registerFn(ctx);
-          ctx.B.ensureDefaultInventoryUseAndGiveActivationAfterRegister();
-        } catch (err) {
-          console.error(`[Benne] Error in inventory script for ${itemId} in room ${data.room.id}:`, err);
-        }
-      }
-    }
-
-    // New-style BenneScript handlers (`@benne/script`), registered at the room module's top level.
-    benneDisposers.push(attachRoomHandlers(data.room.id, this, gameEvents));
-
-    const benneDispose = benneDisposers.length > 0 ? () => benneDisposers.forEach((d) => d()) : null;
 
     this.input.mouse?.disableContextMenu();
 
@@ -1039,8 +927,7 @@ export class RoomScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.snapshotFlushHookUnregister?.();
       this.snapshotFlushHookUnregister = null;
-      benneDispose?.();
-      this.benneScriptRoomOnUpdateHandlers.length = 0;
+      detachRoomHandlers();
       for (const d of this.dialogChoiceUiDisposers) {
         d();
       }
@@ -1101,7 +988,6 @@ export class RoomScene extends Phaser.Scene {
       this.debugPathGraphics = null;
       this.debugWalkableOuterGraphics = null;
       this.debugWalkableHoleGraphics = null;
-      this.benneCoresForTransitionReset.length = 0;
     });
   }
 
@@ -1164,14 +1050,14 @@ export class RoomScene extends Phaser.Scene {
     const id = characterId.trim();
     if (id.length === 0) {
       if (import.meta.env.DEV) {
-        console.warn('[Benne] B.player.switchTo: empty character id — ignored.');
+        console.warn('[Benne] player.switchTo: empty character id — ignored.');
       }
       return;
     }
     if (!this.characterSpritesByDefId.has(id)) {
       if (import.meta.env.DEV) {
         console.warn(
-          `[Benne] B.player.switchTo("${id}"): character is not spawned in room "${this.roomData.id}" — ignored.`,
+          `[Benne] player.switchTo(${id}): character is not spawned in room "${this.roomData.id}" — ignored.`,
         );
       }
       return;
@@ -1183,30 +1069,8 @@ export class RoomScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Registers a room-script **`B.onUpdate`** handler; returns unregister for {@link BenneScriptCore.dispose}.
-   */
-  registerBenneScriptOnUpdateHandler(handler: (ctx: UpdateContext) => void): () => void {
-    this.benneScriptRoomOnUpdateHandlers.push(handler);
-    return () => {
-      const i = this.benneScriptRoomOnUpdateHandlers.indexOf(handler);
-      if (i >= 0) {
-        this.benneScriptRoomOnUpdateHandlers.splice(i, 1);
-      }
-    };
-  }
-
-  private invokeBenneScriptOnUpdateHandlers(deltaSeconds: number): void {
-    const ctx: UpdateContext = { deltaSeconds, roomId: this.roomData.id };
-    const roomSnapshot = [...this.benneScriptRoomOnUpdateHandlers];
-    for (let i = 0; i < roomSnapshot.length; i += 1) {
-      try {
-        roomSnapshot[i]!(ctx);
-      } catch (e) {
-        console.error(`[Benne] B.onUpdate (room) handler #${i} failed:`, e);
-      }
-    }
-    runGlobalBenneScriptOnUpdateHandlers(ctx);
+  private invokeOnUpdateHandlers(deltaSeconds: number): void {
+    runOnUpdateHandlers({ deltaSeconds, roomId: this.roomData.id });
   }
 
   /** Resolves the live {@link GuiRuntime} for an overlay **`guiId`** while this room is active. */
@@ -1227,33 +1091,6 @@ export class RoomScene extends Phaser.Scene {
     return this.guiOverlayHandleByGuiId.get(id) ?? null;
   }
 
-  registerBenneScriptCoreForReset(core: BenneScriptCore): void {
-    this.benneCoresForTransitionReset.push(core);
-  }
-
-  getBenneScriptCoresForTransitionReset(): readonly BenneScriptCore[] {
-    return this.benneCoresForTransitionReset;
-  }
-
-  /**
-   * Await interaction tails for this room’s registered script surfaces plus global **`B`** (if any).
-   * Room-transition **enter** hooks and **playFrom** run outside the verb **`subscribe`** path, so they do
-   * not implicitly await {@link import('../scripting/BenneScriptCore.js').BenneScriptCore.prototype.waitForInteractionQueue};
-   * the orchestrator calls this after those callbacks so **`B.inventory.add`** (without **`.now`**) and
-   * similar queued steps apply before fade-in.
-   */
-  async waitForEnterPhaseBenneScriptQueues(): Promise<void> {
-    const cores: BenneScriptCore[] = [...this.benneCoresForTransitionReset];
-    const globalB = tryGetGlobalBenneScriptForRoomTransitions();
-    if (globalB) {
-      cores.push(globalB);
-    }
-    if (cores.length === 0) {
-      return;
-    }
-    await Promise.all(cores.map((c) => c.waitForInteractionQueue()));
-  }
-
   /**
    * Clears dialog, time-based script delays, and walk state before a room change (engine).
    */
@@ -1262,7 +1099,7 @@ export class RoomScene extends Phaser.Scene {
     this.setScriptedDialogClickToSkip(null);
     this.setDialogTextOverlay({ visible: false });
     this.setDisplayTextOverlay({ visible: false });
-    const activeDialog = getActiveDialogBenneScript();
+    const activeDialog = getActiveDialogSession();
     if (activeDialog) {
       endDialogSessionIfMatches(activeDialog);
     }
@@ -1283,7 +1120,7 @@ export class RoomScene extends Phaser.Scene {
    * registered in {@link create} — i.e. on room-transition leave (see
    * {@link import('./RoomTransitionOrchestrator.js').RoomTransitionOrchestrator.prepareForLeave}),
    * inside {@link import('../gameState/GameStateManager.js').GameStateManager.getSnapshot}, and
-   * on `B.state.flush()`.
+   * on any other snapshot flush.
    *
    * Position is **not** eagerly written on every walk tick — that is the whole point of this
    * method.
@@ -1402,7 +1239,7 @@ export class RoomScene extends Phaser.Scene {
       }
       this.endDialogChoiceInputSuppressionIfActive();
       this.activeDialogChoiceSession = null;
-      const orphan = getActiveDialogBenneScript();
+      const orphan = getActiveDialogSession();
       if (orphan) {
         endDialogSessionIfMatches(orphan);
       }
@@ -1665,11 +1502,11 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Called when a **`whenChoice`** handler starts: hides the choice overlay so queued lines / walks cannot be
-   * interrupted by activating another synthetic **`dc__*`** row. Paired with
-   * {@link restoreDialogChoiceGuiAfterWhenChoiceDrain} after the handler’s interaction tail completes.
+   * Called when a dialog choice handler starts: hides the choice overlay so its lines and walks can't
+   * be interrupted by activating another synthetic **`dc__*`** row. Paired with
+   * {@link showDialogChoicesAfterChoice} when the handler has finished.
    */
-  suppressDialogChoiceGuiForWhenChoice(guiId: string): void {
+  hideDialogChoicesWhileChoiceRuns(guiId: string): void {
     if (!this.activeDialogChoiceSession || this.activeDialogChoiceSession.guiId !== guiId) {
       return;
     }
@@ -1678,35 +1515,21 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Shows the dialog choice overlay again once **`whenChoice`** work finishes, unless the dialog session ended
+   * Shows the dialog choice overlay again once a choice handler finishes, unless the dialog session ended
    * or this room’s active choice session no longer matches **`dialogId`** / **`guiId`**.
-   *
-   * When `popWhenChoiceCutscene` is true, pops the cutscene {@link DialogBenneScript.whenChoice} pushed on
-   * **this** room. That pop waits until this method actually finishes (list shown, or the session already
-   * gone) so a skip click cannot walk while the list is still hidden. Pass false when the cutscene was
-   * pushed on a different room that has already been popped.
    */
-  restoreDialogChoiceGuiAfterWhenChoiceDrain(
-    guiId: string,
-    dialogId: string,
-    popWhenChoiceCutscene = true,
-  ): void {
-    // A click-to-skip finishes speech on pointerdown, while GUI buttons activate on
-    // pointerup. Keep the choices hidden — and the whenChoice cutscene up — until that same
-    // press is released so it cannot also walk or activate whichever option appears beneath
-    // the stationary pointer.
+  showDialogChoicesAfterChoice(guiId: string, dialogId: string): void {
+    // A click-to-skip finishes speech on pointerdown, while GUI buttons activate on pointerup. Keep
+    // the choices hidden until that same press is released so it cannot also walk or activate
+    // whichever option appears beneath the stationary pointer.
     if (this.input.activePointer.leftButtonDown()) {
       this.input.once('pointerup', () => {
-        this.restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId, dialogId, popWhenChoiceCutscene);
+        this.showDialogChoicesAfterChoice(guiId, dialogId);
       });
       return;
     }
 
-    if (popWhenChoiceCutscene) {
-      this.popCutscene();
-    }
-
-    const active = getActiveDialogBenneScript();
+    const active = getActiveDialogSession();
     if (!active || active.dialogId !== dialogId) {
       return;
     }
@@ -1805,7 +1628,7 @@ export class RoomScene extends Phaser.Scene {
   /**
    * Starts cinematic playback of the bundled video stem `key`. Single-slot: any video already playing
    * is stopped first. Returns a handle whose `whenComplete` resolves when the video ends or is stopped
-   * (used by `B.video.playAndWait`). Missing / disabled cache → DEV warn-once + already-resolved handle.
+   * (used by `video.x.playAndWait()`). Missing / disabled cache → DEV warn-once + already-resolved handle.
    */
   startRoomVideo(key: string, options?: VideoPlayOptions): { whenComplete: Promise<void> } {
     const video = this.roomVideo;
@@ -1814,7 +1637,7 @@ export class RoomScene extends Phaser.Scene {
       if (import.meta.env.DEV && !this.missingVideoKeysWarned.has(key)) {
         this.missingVideoKeysWarned.add(key);
         console.warn(
-          `[Benne] B.video.play('${key}'): no bundled video found (expected src/game/assets/videos/${key}.{mp4,webm}) — ignored.`,
+          `[Benne] video.${key}.play(): no bundled video found (expected src/game/assets/videos/${key}.{mp4,webm}) — ignored.`,
         );
       }
       return { whenComplete: Promise.resolve() };
@@ -1949,7 +1772,7 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Full-screen fade layer: same object tweened by {@link queueScreenFadeToAlpha} and Bennescript
-   * `B.fadeOut` / `B.fadeIn` — for a future room-transition orchestrator.
+   * `fadeOut()` / `fadeIn()` — for a future room-transition orchestrator.
    */
   get screenFadeLayer(): Phaser.GameObjects.Rectangle | null {
     return this.screenFadeRect;
@@ -2098,7 +1921,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Called when a timed Bennescript dialog line starts (including `say.now`). Paired with
+   * Called when a timed BenneScript speech line starts (including `say.now`). Paired with
    * {@link popScriptedDialogInputSuppression} when the line timer ends.
    */
   pushScriptedDialogInputSuppression(): void {
@@ -2131,13 +1954,13 @@ export class RoomScene extends Phaser.Scene {
     return (
       this.scriptedDialogInputSuppressionDepth > 0 ||
       this.activeDialogChoiceSession != null ||
-      getActiveDialogBenneScript() != null ||
+      getActiveDialogSession() != null ||
       this.isCutsceneActive() ||
       this.isRoomVideoPlaying()
     );
   }
 
-  /** True while `B.disableUserInput` is set. Survives room changes; not part of save snapshots. */
+  /** True while `input.disabled` is set. Survives room changes; not part of save snapshots. */
   private isUserInputDisabled(): boolean {
     return this.game.registry.get(BENNE_USER_INPUT_DISABLED_REGISTRY_KEY) === true;
   }
@@ -2151,7 +1974,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Applies `B.disableUserInput`. Writes the game registry (so the next room stays locked) and
+   * Applies `input.disabled`. Writes the game registry (so the next room stays locked) and
    * refreshes the cursor and hover line immediately.
    */
   setUserInputDisabled(disabled: boolean): void {
@@ -2183,7 +2006,7 @@ export class RoomScene extends Phaser.Scene {
   /**
    * Push a cutscene onto the stack. While the stack is non-empty, all input is suppressed and the
    * custom cursor switches to the busy animation (or hidden). Called automatically by
-   * {@link BenneScriptCore} `B.cutscene`, enter-room hooks, and `whenChoice` handlers.
+   * BenneScript `cutscene(…)` blocks and the room-transition enter hooks.
    *
    * @param options `skippable: false` opts this cutscene out of ESC skipping even when
    * `game-config.json` `cutscenesSkippable` is true. Defaults to skippable.
@@ -2603,7 +2426,7 @@ export class RoomScene extends Phaser.Scene {
     return Array.from(this.characterSpritesByDefId.keys());
   }
 
-  /** Persisted base Aseprite tag (`B.prop(id).animation`); falls back to room JSON `tag`. */
+  /** Persisted base Aseprite tag (`prop.animation`); falls back to room JSON `tag`. */
   getPropScriptBaseAnimationTag(propId: string): string {
     const inst = this.getRoomPropInstance(propId);
     if (!inst) {
@@ -2681,7 +2504,7 @@ export class RoomScene extends Phaser.Scene {
     );
   }
 
-  /** Persisted default GUI clip (`B.inventory(id).animation`); falls back to inventory JSON when unset. */
+  /** Persisted default GUI clip (`items.x.animation`); falls back to inventory JSON when unset. */
   getInventoryScriptDefaultAnimationTag(itemId: string): string {
     const def = getInventoryDefinition(itemId);
     if (!def) {
@@ -2750,7 +2573,7 @@ export class RoomScene extends Phaser.Scene {
     m.setVariable(inventoryCursorAnimationVariableKey(itemId), t);
   }
 
-  /** Effective `B.inventory(id).description` — saved override (including empty) wins, else JSON. */
+  /** Effective `items.x.description` — saved override (including empty) wins, else JSON. */
   getInventoryScriptDescription(itemId: string): string {
     const def = getInventoryDefinition(itemId);
     if (!def) {
@@ -2760,7 +2583,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Persist `B.inventory(id).description`. Survives room reloads and save/load. Unknown ids no-op
+   * Persist `items.x.description`. Survives room reloads and save/load. Unknown ids no-op
    * (DEV warns). Refreshes the verb hover line so the new text shows without a pointer move.
    */
   setInventoryScriptDescription(itemId: string, value: string): void {
@@ -2875,7 +2698,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Bennescript **`B.character(observer).startFacingCharacter(target, …)`** — keeps the observer’s
+   * BenneScript **`observer.startFacing(target, …)`** — keeps the observer’s
    * **Idle** facing toward the target’s feet; when either character’s feet move, a new random delay
    * in **[minWaitSeconds, maxWaitSeconds]** runs before the next turn (defaults **0.2** / **0.4**).
    */
@@ -2915,7 +2738,7 @@ export class RoomScene extends Phaser.Scene {
     this.armCharacterFaceTowardDelayedTurn(observerDefinitionId);
   }
 
-  /** Bennescript **`B.character(observer).stopFacingCharacter()`**. */
+  /** BenneScript **`observer.stopFacing()`**. */
   stopCharacterFacingCharacter(observerDefinitionId: string): void {
     const entry = this.characterFaceTowardCharacterLocks.get(observerDefinitionId);
     if (entry) {
@@ -3017,7 +2840,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Enables follow walks after `whenEnterRoom` / `whenEnterAnyRoom` (and queued steps) have run.
+   * Enables follow walks after the room's enter hooks (`room.onEnter`, `game.onEnterAnyRoom`) have run.
    * Called from {@link RoomTransitionOrchestrator.onRoomSceneCreateComplete} before room fade-in.
    */
   setCharacterFollowBehaviorEnabled(enabled: boolean): void {
@@ -3031,7 +2854,7 @@ export class RoomScene extends Phaser.Scene {
     sprite.setData(BENNE_FOLLOW_WALK_PURPOSE_KEY, undefined);
   }
 
-  /** Bennescript `B.character(id).startFollowingCharacter` / `B.player.startFollowingCharacter`. */
+  /** BenneScript `character.startFollowing(…)`. */
   startCharacterFollowingCharacter(
     followerDefinitionId: string,
     targetIdRaw: string,
@@ -3046,7 +2869,7 @@ export class RoomScene extends Phaser.Scene {
     this.characterFollowPrevDistToLeaderByFollowerId.delete(followerDefinitionId);
   }
 
-  /** Bennescript `B.character(id).stopFollowingCharacter` / `B.player.stopFollowingCharacter`. */
+  /** BenneScript `character.stopFollowing()`. */
   stopCharacterFollowingCharacter(followerDefinitionId: string): void {
     const manager = resolveGameStateManager(this.game);
     clearSavedCharacterFollowState(manager, followerDefinitionId);
@@ -3329,7 +3152,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Effective `B.prop(id).description` — saved override (including empty) wins, else room JSON.
+   * Effective `prop.description` — saved override (including empty) wins, else room JSON.
    */
   getPropScriptDescription(propId: string): string {
     const jsonDefault = this.getRoomPropInstance(propId)?.description ?? '';
@@ -3342,7 +3165,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Persist `B.prop(id).description`. Survives room reloads and save/load. Refreshes the verb hover
+   * Persist `prop.description`. Survives room reloads and save/load. Refreshes the verb hover
    * line so the new text shows without requiring a pointer move.
    */
   setPropScriptDescription(propId: string, value: string): void {
@@ -3351,7 +3174,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Effective `B.prop(id).visible` — saved override (set by **`setPropScriptVisible`**) wins, then
+   * Effective `prop.visible` — saved override (set by **`setPropScriptVisible`**) wins, then
    * the live sprite, then JSON `RoomPropInstance.visible`. Authors expect this to match what the
    * sprite is showing right now.
    */
@@ -3368,7 +3191,7 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Persist + apply visibility for one prop. The save survives room reloads; spawn re-applies it
-   * via {@link readSavedPropVisible}. Backs **`B.prop(id).hide` / `show` / `visible = …` /
+   * via {@link readSavedPropVisible}. Backs **`prop.hide` / `show` / `visible = …` /
    * `visibleNow(…)`**.
    */
   setPropScriptVisible(propId: string, visible: boolean): void {
@@ -3390,7 +3213,7 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Persist + apply clickability for one prop. Survives room reloads; spawn re-applies via
-   * {@link readSavedPropClickable}. Backs **`B.prop(id).clickable`**. Enabling needs an authored
+   * {@link readSavedPropClickable}. Backs **`prop.clickable`**. Enabling needs an authored
    * collider (≥3 points); missing collider is persisted but not attached (warn in attach).
    * **`walkTo('id')`** / movement resolution is **not** gated.
    */
@@ -3428,7 +3251,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Effective `B.region(id).active` — saved override wins; falls back to the JSON `active` field
+   * Effective `regions.x.active` — saved override wins; falls back to the JSON `active` field
    * (`undefined` / omitted = `true`, explicit `false` = inactive).
    */
   getRegionScriptActive(regionId: string): boolean {
@@ -3440,7 +3263,7 @@ export class RoomScene extends Phaser.Scene {
   /**
    * Persist + immediately apply the `active` state for a region. Mutates the live `roomData.regions`
    * entry so region overlap tests (`resolveWinningRoomRegionIdAtFeet`, perspective scale, enter/exit
-   * detection) pick it up without a room reload. Backs **`B.region(id).active = …`**.
+   * detection) pick it up without a room reload. Backs **`regions.x.active = …`**.
    */
   setRegionScriptActive(regionId: string, active: boolean): void {
     writeSavedRegionActive(resolveGameStateManager(this.game), this.roomData.id, regionId, active);
@@ -3451,7 +3274,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Re-apply saved `B.region(id).active` overrides to `roomData.regions` entries at room load.
+   * Re-apply saved `regions.x.active` overrides to `roomData.regions` entries at room load.
    * Called at the top of {@link create} so that the live region data reflects any persisted state
    * before the first `update` pass or walkable-mesh build.
    */
@@ -3469,7 +3292,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Effective `B.walkable(id).active` — saved override wins; falls back to the JSON `active` field
+   * Effective `walkables.x.active` — saved override wins; falls back to the JSON `active` field
    * (`undefined` / omitted = `true`, explicit `false` = inactive). Unknown ids return **`false`**
    * and log once in DEV with this room’s walkable polygon id list.
    */
@@ -3491,7 +3314,7 @@ export class RoomScene extends Phaser.Scene {
   /**
    * Persist + immediately apply the `active` state for a walkable polygon. Mutates the live
    * `roomData.walkable.polygons` entry so walk tests, clamping, and pathfinding pick it up
-   * without a room reload. Backs **`B.walkable(id).active = …`**. No-op when **`walkableId`**
+   * without a room reload. Backs **`walkables.x.active = …`**. No-op when **`walkableId`**
    * is not in this room’s **`walkable.polygons[]`** (DEV warns once per id per load).
    */
   setWalkableScriptActive(walkableId: string, active: boolean): void {
@@ -3506,7 +3329,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Re-apply saved `B.walkable(id).active` overrides to `roomData.walkable.polygons` at room load.
+   * Re-apply saved `walkables.x.active` overrides to `roomData.walkable.polygons` at room load.
    * Called at the top of {@link create} so the live mesh matches persisted state before the first
    * walk query or debug stroke.
    */
@@ -3533,12 +3356,12 @@ export class RoomScene extends Phaser.Scene {
     this.unknownWalkableScriptIdsWarned.add(walkableId);
     const ids = this.roomData.walkable.polygons.map((p) => p.id).join(', ');
     console.warn(
-      `[Benne] B.walkable('${walkableId}'): no walkable polygon with this id in room '${this.roomData.id}'. Known ids: ${ids || '(none)'} — ids are case-sensitive and must match *.room.json.`,
+      `[Benne] walkable "${walkableId}": no walkable polygon with this id in room '${this.roomData.id}'. Known ids: ${ids || '(none)'} — ids are case-sensitive and must match *.room.json.`,
     );
   }
 
   /**
-   * Re-apply saved `B.hotspot(id).active` overrides to `roomData.hotspots` entries at room load.
+   * Re-apply saved `hotspot.active` overrides to `roomData.hotspots` entries at room load.
    * Called in {@link create} before hotspot zones are spawned.
    */
   private restoreHotspotActiveOverrides(): void {
@@ -3555,7 +3378,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Effective `B.hotspot(id).active` — saved override wins; falls back to the JSON `active` field
+   * Effective `hotspot.active` — saved override wins; falls back to the JSON `active` field
    * (`undefined` / omitted = `true`, explicit `false` = inactive). Unknown ids return **`false`**
    * (no hotspot row) and log once in DEV with the room’s hotspot id list.
    */
@@ -3571,7 +3394,7 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Persist + immediately apply the `active` state for a hotspot. Mutates the live `roomData.hotspots`
-   * entry and mounts or removes the Phaser input zone. Backs **`B.hotspot(id).active = …`**.
+   * entry and mounts or removes the Phaser input zone. Backs **`hotspot.active = …`**.
    * No-op when **`hotspotId`** is not in this room’s **`hotspots[]`** (DEV warns once per id per load).
    */
   setHotspotScriptActive(hotspotId: string, active: boolean): void {
@@ -3602,7 +3425,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Effective `B.hotspot(id).description` — saved override (including empty) wins, else JSON.
+   * Effective `hotspot.description` — saved override (including empty) wins, else JSON.
    * Unknown ids return **`''`** and log once in DEV.
    */
   getHotspotScriptDescription(hotspotId: string): string {
@@ -3620,7 +3443,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Persist `B.hotspot(id).description`. Survives room reloads and save/load. Unknown ids no-op
+   * Persist `hotspot.description`. Survives room reloads and save/load. Unknown ids no-op
    * (DEV warns once). Refreshes the verb hover line so the new text shows without a pointer move.
    */
   setHotspotScriptDescription(hotspotId: string, value: string): void {
@@ -3648,7 +3471,7 @@ export class RoomScene extends Phaser.Scene {
     this.unknownHotspotScriptIdsWarned.add(hotspotId);
     const ids = this.roomData.hotspots.map((h) => h.id).join(', ');
     console.warn(
-      `[Benne] B.hotspot('${hotspotId}'): no hotspot with this id in room '${this.roomData.id}'. Known ids: ${ids || '(none)'} — ids are case-sensitive and must match *.room.json.`,
+      `[Benne] hotspot "${hotspotId}": no hotspot with this id in room '${this.roomData.id}'. Known ids: ${ids || '(none)'} — ids are case-sensitive and must match *.room.json.`,
     );
   }
 
@@ -3659,7 +3482,7 @@ export class RoomScene extends Phaser.Scene {
    * authoring origin and we set it directly.
    *
    * Position is **not** eagerly persisted here — it goes to game state on the next snapshot
-   * flush, matching how character positions are tracked. Backs **`B.prop(id).moveTo`** /
+   * flush, matching how character positions are tracked. Backs **`prop.moveTo`** /
    * **`moveTo.now`** / **`moveToNow`**.
    */
   movePropToNow(propId: string, point: { x: number; y: number }): void {
@@ -3691,7 +3514,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Effective `B.character(id).visible` — saved override wins, then the live sprite, then the
+   * Effective `character.visible` — saved override wins, then the live sprite, then the
    * first room JSON placement default for this definition id.
    */
   getCharacterScriptVisible(definitionId: string): boolean {
@@ -3706,7 +3529,7 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Persist + apply visibility for one spawned character definition id. Survives room reloads;
-   * spawn re-applies via {@link readSavedCharacterVisible}. Backs **`B.character(id).hide` / `show` /
+   * spawn re-applies via {@link readSavedCharacterVisible}. Backs **`character.hide` / `show` /
    * `visible = …` / `visibleNow(…)`**.
    */
   setCharacterScriptVisible(definitionId: string, visible: boolean): void {
@@ -3724,7 +3547,7 @@ export class RoomScene extends Phaser.Scene {
     return readSavedCharacterMovable(manager, definitionId, jsonDefault);
   }
 
-  /** Persist movability for one character definition id (backs **`B.character` / `B.player` `.movable`**). */
+  /** Persist movability for one character definition id (backs **`character.movable` / `player.movable`**). */
   setCharacterScriptMovable(definitionId: string, movable: boolean): void {
     writeSavedCharacterMovable(resolveGameStateManager(this.game), definitionId, movable);
   }
@@ -3741,7 +3564,7 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Persist + apply clickability for one character definition id. Survives room reloads;
-   * spawn re-applies via {@link readSavedCharacterClickable}. Backs **`B.character(id).clickable`**.
+   * spawn re-applies via {@link readSavedCharacterClickable}. Backs **`character.clickable`**.
    */
   setCharacterScriptClickable(definitionId: string, clickable: boolean): void {
     writeSavedCharacterClickable(resolveGameStateManager(this.game), definitionId, clickable);
@@ -3778,7 +3601,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Effective `B.character(id).description` — saved override (including empty) wins, else
+   * Effective `character.description` — saved override (including empty) wins, else
    * {@link CharacterData.description} from the spawned sprite, else `''`.
    */
   getCharacterScriptDescription(definitionId: string): string {
@@ -3793,7 +3616,7 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
-   * Persist `B.character(id).description`. Survives room reloads and save/load. Refreshes the verb
+   * Persist `character.description`. Survives room reloads and save/load. Refreshes the verb
    * hover line so the new text shows without requiring a pointer move.
    */
   setCharacterScriptDescription(definitionId: string, value: string): void {
@@ -3822,7 +3645,7 @@ export class RoomScene extends Phaser.Scene {
    * to `>= 0`. Resolves when the tween completes (or immediately if the prop is not in this room).
    * Persists **`toAlpha`** to {@link GameStateManager} at call time so a save mid-fade or a room
    * reload restores the **intended final** alpha; spawn re-applies it via {@link readSavedPropAlpha}.
-   * Backs **`B.prop(id).fade`** / **`fade.now`**.
+   * Backs **`prop.fade`** / **`fade.now`**.
    */
   fadePropScriptAlpha(
     propId: string,
@@ -3844,7 +3667,7 @@ export class RoomScene extends Phaser.Scene {
    * to `>= 0`. Resolves when the tween completes (or immediately if the character is not spawned).
    * Persists **`toAlpha`** to {@link GameStateManager} at call time (global key per character id) so
    * a save mid-fade or a room reload restores the **intended final** alpha; spawn re-applies it via
-   * {@link readSavedCharacterAlpha}. Backs **`B.character(id).fade`** / **`fade.now`**.
+   * {@link readSavedCharacterAlpha}. Backs **`character.fade`** / **`fade.now`**.
    */
   fadeCharacterScriptAlpha(
     definitionId: string,
@@ -3970,7 +3793,7 @@ export class RoomScene extends Phaser.Scene {
 
   /**
    * Detects feet crossing region boundaries (same polygon + overlap winner as perspective scale).
-   * Emits scoped bus ids consumed by **`B.region(id).whenEnter` / `whenExit`** in **`registerRoomScript`**.
+   * Emits scoped bus ids consumed by BenneScript **`regions.x.onEnter` / `onExit`** handlers.
    */
   private syncCharacterRegionEnterExit(): void {
     const roomId = this.roomData.id;
@@ -4560,7 +4383,7 @@ export class RoomScene extends Phaser.Scene {
     ]).then(() => undefined);
   }
 
-  /** Fire-and-forget screen shake; does not participate in the Bennescript interaction queue. */
+  /** Fire-and-forget screen shake; scripts don't wait for it. */
   cameraShake(intensity?: number, durationSeconds?: number, falloff?: boolean): void {
     const defaults = getCameraSettings().shake;
     const shakeIntensity = intensity ?? defaults.intensity;
@@ -4622,7 +4445,7 @@ export class RoomScene extends Phaser.Scene {
     this.updateParallaxProps();
     this.updateRoomStackDepths();
     this.updatePathDebug();
-    this.invokeBenneScriptOnUpdateHandlers(this.game.loop.delta / 1000);
+    this.invokeOnUpdateHandlers(this.game.loop.delta / 1000);
   }
 
   /** Round walk tween targets each frame so scroll + Canvas draw stay pixel-stable (tween runs before this). */
@@ -5455,7 +5278,7 @@ export class RoomScene extends Phaser.Scene {
   /**
    * Restroke active walkable outers and holes. No-op when `debug.showWalkable` did not create
    * the overlay graphics. Called from {@link drawRoomDebugOverlays} and when
-   * **`B.walkable(id).active`** changes.
+   * **`walkables.x.active`** changes.
    */
   private redrawWalkableDebugStrokes(): void {
     const gOuter = this.debugWalkableOuterGraphics;
@@ -5603,7 +5426,7 @@ export class RoomScene extends Phaser.Scene {
   /**
    * Registers collider hit-test + pointerdown for one prop. Caller ensures the prop should be
    * interactive (JSON/script clickable). Props may start hidden (`visible: false`) and be shown
-   * later via `B.prop(id).show()` / `setPropScriptVisible`. Interactive must still be registered:
+   * later via `prop.show()` / `setPropScriptVisible`. Interactive must still be registered:
    * Phaser's hit test skips objects that do not `willRender` (including invisible sprites), so
    * hidden props stay non-interactive until visibly shown.
    */
@@ -5933,7 +5756,7 @@ export class RoomScene extends Phaser.Scene {
 
     const feet = resolveCharacterFeetLocal(spawn.data, sprite);
     // Saved feet world position (from a prior flush) overrides room JSON `(x, y)`. Player
-    // rooms with a `whenEnterRoom` that calls `B.player.moveTo.now('entry-point')` still
+    // rooms whose `room.onEnter` calls `player.moveTo(points.entryPoint)` still
     // work — the spawn applies the saved position, then the enter hook teleports the player
     // to the entry, and the next flush records the new spot.
     const savedFeet = readSavedCharacterPosition(manager, roomId, spawn.data.id);
@@ -5963,7 +5786,7 @@ export class RoomScene extends Phaser.Scene {
     spawn: RoomCharacterSpawn,
     sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite,
   ): void {
-    // Same as clickable props starting hidden (`visible: false`) and `B.character(id).hide()`:
+    // Same as clickable props starting hidden (`visible: false`) and `character.hide()`:
     // register input anyway. Phaser only considers candidates that `willRender`, so invisible
     // spawns stay inert.
 
@@ -6171,7 +5994,7 @@ export class RoomScene extends Phaser.Scene {
     publishBenneVerbHoverContext(t?.description ?? null, t);
   }
 
-  /** Hover target + description under the pointer for **`B.currentHoverDescription`** (skips GUI buttons like the verb bar). */
+  /** Hover target + description under the pointer for **`pointer.hover`** (skips GUI buttons like the verb bar). */
   private resolveVerbHoverPointerContext(pointer: Phaser.Input.Pointer): VerbHoverTarget | null {
     if (this.isPlayerPointerBlocked() || hasAnyVisibleModal(this.modalGuiEntries)) {
       return null;
@@ -6303,7 +6126,7 @@ export class RoomScene extends Phaser.Scene {
     const idleKey = cursorPhaserAnimationKey(cfg.idleAnimation.trim());
     const defaultActiveAuthor = cfg.activeAnimation.trim();
 
-    // B.disableUserInput hides the pointer entirely (ahead of the cutscene busy cursor).
+    // `input.disabled` hides the pointer entirely (ahead of the cutscene busy cursor).
     if (this.isUserInputDisabled()) {
       const visualKey = 'input-lock|hide';
       if (this.lastCustomCursorVisualKey !== visualKey) {

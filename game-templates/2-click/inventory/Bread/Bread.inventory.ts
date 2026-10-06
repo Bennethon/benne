@@ -1,31 +1,20 @@
-import { registerInventoryScript } from '@engine/scripting';
+import { inventory, pointer } from '@benne/script';
+import { items } from '@game';
 
-registerInventoryScript('Bread', ({ B }) => {
+// Use arms an item for using it on something; that needs no handler here.
 
-  B.whenLookAt(() => {
-    B.say`Hank: It's some bread.`;
-  });
+items.bread.onLook(() => {
+  Hank: "It's some bread."
+})
 
-  B.whenUse(() => {
-    // TODO
-  });
-
-  B.whenInventoryUsedOn('Bread', (payload) => {
-    if (payload.itemId === 'Knife') {
-      
-      if (B.inventory('Knife').animation === 'Knife') {
-        B.say`Hank: It won't do any good without something to spread!`;
-      } else {
-        B.inventory.add('Sammich');
-        B.inventory.remove('Bread');
-        B.clearActiveInventory();
-        B.say`Hank: This looks delicious!`;
-      }
-      
-      return;
-    }
-    
-    return false;
-  });
-
-});
+items.bread.onUseItem(items.knife, () => {
+  if (items.knife.animation === 'Knife') {
+    Hank: "It won't do any good without something to spread!"
+  } else {
+    inventory.add(items.sammich)
+    inventory.remove(items.bread)
+    // This game keeps an item armed after it is used (`dropWhenInventoryUsed`); drop the knife.
+    pointer.item = null
+    Hank: "This looks delicious!"
+  }
+})

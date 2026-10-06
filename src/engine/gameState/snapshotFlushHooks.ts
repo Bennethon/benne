@@ -15,7 +15,6 @@
  *   {@link import('./GameStateManager.js').GameStateManager.exportSnapshotJson} and saves pick them up.
  *   {@link import('./GameStateManager.js').GameStateManager.applySnapshot} must **not** flush — the loaded
  *   JSON is authoritative while the old {@link import('../scenes/RoomScene.js').RoomScene} may still be active.
- * - **`B.state.flush()`** — explicit script-level save point.
  *
  * Hooks register on scene `create` and unregister on scene `shutdown` (or equivalent).
  * Failures in a single hook are logged but do not break other hooks or `getSnapshot` itself —

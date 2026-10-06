@@ -51,6 +51,7 @@
     "test:extension": "npm --prefix benne-editor test",
     "test:e2e": "playwright test",
     "test:playthrough": "playwright test -c playwright.playthrough.config.ts",
+    "test:templates": "playwright test -c playwright.templates.config.ts",
     "test:artifacts": "node scripts/test-artifacts.mjs",
     "test:ci": "npm run check && npm run test:unit && npm run test:desktop && npm run test:pathfinding",
     "test:nightly": "npm run test:ci && npm run test:extension && npm run test:e2e && npm run test:artifacts",

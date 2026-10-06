@@ -3,8 +3,7 @@ import { loadRoomDataById } from '../../game/boot/loadRoomData.js';
 import { SCENE_ROOM } from '../../game/boot/constants.js';
 import type { EventBus } from '../events/EventBus.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import { getAllGuiBenneScriptInstances } from '../scripting/registerGuiScript.js';
-import { tryGetGlobalBenneScriptForRoomTransitions, setRoomTransitionInProgress } from './roomTransitionGlobals.js';
+import { setRoomTransitionInProgress } from './roomTransitionGlobals.js';
 import { clearInteractionActivity } from '../interaction/interactionActivity.js';
 import { cancelAllInteractions } from '../bennescript/interactionContext.js';
 import { BENNE_SCREEN_FADE_DEFAULT_COLOR, BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC } from './roomScreenFadeConstants.js';
@@ -18,17 +17,16 @@ import {
   runRoomHandlersEachSafe,
   runRoomHandlersSeq,
 } from './RoomTransitionHookRegistry.js';
-import { getPlayFromSetupForRoom } from '../scripting/devPlayFromRegistry.js';
-import { ensureRoomScriptLoaded } from '../scripting/registerRoomScript.js';
+import { getPlayFromSetupForRoom } from './playFromRegistry.js';
+import { ensureRoomScriptLoaded } from './roomScriptModules.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
-import type { BenneScriptCore } from '../scripting/BenneScriptCore.js';
 import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
 import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
 import { getRoomVisitCount, incrementRoomVisitCount } from '../gameState/roomVisitState.js';
 import { syncBenneRuntimeHiDpiSceneMainCameras } from '../benneRuntimeHiDpiScale.js';
 
 /**
- * **Runtime** service for `B.room.changeTo` — leave → fade → load → create → enter → fade → after-fade.
+ * **Runtime** service for `rooms.x.goTo()` — leave → fade → load → create → enter → fade → after-fade.
  */
 export class RoomTransitionOrchestrator {
   private readonly game: Phaser.Game;
@@ -37,7 +35,7 @@ export class RoomTransitionOrchestrator {
   private deferredRunComplete: (() => void) | null = null;
   /** From the last `changeTo` call; the new `RoomScene` should fade in (unless this is `true`). */
   private lastChangeImmediate = false;
-  /** Set by `B.state.reset()`. The next `changeTo` treats the leave as a new game. */
+  /** Set by `game.newGame()`. The next `changeTo` treats the leave as a new game. */
   private pendingFreshStart = false;
   /** True while {@link runChangeToImpl} is still waiting on that room's enter / after-fade scripts. */
   private inRunChangeToImpl = false;
@@ -81,7 +79,7 @@ export class RoomTransitionOrchestrator {
   }
 
   /**
-   * Main transition; awaited on the Bennescript interaction chain when not immediate.
+   * Main transition.
    */
   async changeTo(targetRoomId: string, immediate: boolean): Promise<void> {
     const id = String(targetRoomId);
@@ -123,8 +121,8 @@ export class RoomTransitionOrchestrator {
   }
 
   /**
-   * Restart/transition into the room restored by `B.state.load(...)`.
-   * Uses a dedicated `'load'` start kind so room scripts can run `B.whenLoadedRoom(...)`.
+   * Restart/transition into the room restored by `saves.load(…)`.
+   * Uses a dedicated `'load'` start kind so room scripts can run `room.onLoaded(…)`.
    */
   async transitionToLoadedRoom(immediate: boolean): Promise<void> {
     const manager = resolveGameStateManager(this.game);
@@ -344,8 +342,8 @@ export class RoomTransitionOrchestrator {
         ...this.hooks.getAnyEnter(),
         ...this.hooks.getEnterHandlersForRoom(roomId),
       ];
-      // Enter handlers and the enter-phase queue drain run inside a cutscene block so the room
-      // is protected from player input during invisible setup (moveTo, music, etc.).
+      // Enter handlers run inside a cutscene block so the room is protected from player input
+      // during invisible setup (moveTo, music, etc.).
       roomScene.pushCutscene({ skippable: areHookEntriesSkippable(enterEntries) });
       let enterCtx = initialCtx;
       try {
@@ -376,10 +374,7 @@ export class RoomTransitionOrchestrator {
             }
           }
           if (didRunPlayFrom) {
-            // Play From establishes the simulated prior game state. Drain its queued setup before
-            // enter handlers so they observe inventory and other queued mutations as well as
-            // immediate flags/room context.
-            await roomScene.waitForEnterPhaseBenneScriptQueues();
+            // Play From establishes the simulated prior game state; enter handlers see it.
             enterCtx = {
               roomId,
               lastRoom: manager.getLastRoom(),
@@ -396,8 +391,6 @@ export class RoomTransitionOrchestrator {
             'onRoomSceneCreateComplete: room enter',
           );
         }
-
-        await roomScene.waitForEnterPhaseBenneScriptQueues();
       } finally {
         roomScene.popCutscene();
       }
@@ -438,10 +431,8 @@ export class RoomTransitionOrchestrator {
         visitCount: enterCtx.visitCount,
       };
       // After-fade handlers (walk-in animations, visible cutscenes) also run inside a cutscene
-      // block so input remains suppressed for their full duration.
-      // Handlers are typically synchronous (they queue B.* steps on the interaction tail without
-      // awaiting), so we must drain the tail with waitForEnterPhaseBenneScriptQueues() inside the
-      // cutscene block — otherwise popCutscene() fires before say/walk/wait steps execute.
+      // block so input remains suppressed for their full duration; each handler's promise
+      // resolves when its last step has finished.
       const afterFadeEntries = [
         ...this.hooks.getAnyAfterFade(),
         ...this.hooks.getAfterFadeHandlersForRoom(roomId),
@@ -454,7 +445,6 @@ export class RoomTransitionOrchestrator {
             afterCtx,
             'onRoomSceneCreateComplete: after-fade',
           );
-          await roomScene.waitForEnterPhaseBenneScriptQueues();
         }
       } finally {
         roomScene.popCutscene();
@@ -497,16 +487,6 @@ export class RoomTransitionOrchestrator {
       mgr.clearActiveInventoryItem();
     }
     roomScene.clearStateForRoomTransition();
-    for (const s of roomScene.getBenneScriptCoresForTransitionReset()) {
-      s.resetInteractionTailForEngine();
-    }
-    const g = tryGetGlobalBenneScriptForRoomTransitions() as
-      | (BenneScriptCore & { resetInteractionTailForEngine: () => void })
-      | null;
-    g?.resetInteractionTailForEngine();
-    for (const script of getAllGuiBenneScriptInstances().values()) {
-      script.resetInteractionTailForEngine();
-    }
     cancelAllInteractions();
     clearInteractionActivity();
   }

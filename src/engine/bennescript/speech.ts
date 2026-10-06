@@ -63,8 +63,7 @@ function applySayLineDirectionalBase(
 }
 
 /**
- * One scripted dialog line through completion (overlay + input suppression). Shared by the old
- * `B.say` queue and the new BenneScript `say` task.
+ * One scripted dialog line through completion (overlay + input suppression): BenneScript's `say`.
  */
 export function playScriptedSayLine(
   scene: RoomScene,

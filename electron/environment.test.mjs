@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getBenneEnvironment, quitBenneApplication } from '../src/engine/scripting/benneEnvironment.ts';
+import { getBenneEnvironment, quitBenneApplication } from '../src/engine/benneEnvironment.ts';
 
 test('environment detection uses the desktop bridge; browser quit never closes the page', () => {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'window');

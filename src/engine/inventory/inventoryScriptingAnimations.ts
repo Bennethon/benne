@@ -64,7 +64,7 @@ export function readEffectiveInventoryCursorAnimationTag(
 }
 
 /**
- * Effective `B.inventory(id).description` — saved override (string, including empty) when set,
+ * Effective `items.x.description` — saved override (string, including empty) when set,
  * else JSON `InventoryItemData.description`, else `''`.
  */
 export function readEffectiveInventoryDescription(
@@ -78,7 +78,7 @@ export function readEffectiveInventoryDescription(
   return def.description ?? '';
 }
 
-/** Persist `B.inventory(id).description = …` for this item id. */
+/** Persist `items.x.description = …` for this item id. */
 export function writeSavedInventoryDescription(
   manager: GameStateManager,
   itemId: string,

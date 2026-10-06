@@ -96,7 +96,7 @@ import {
   BENNE_GUI_TEXT_INPUT_SET_FOCUSED_DATA_KEY,
   benneGuiTextInputReadEnabled,
 } from './guiTextInputRuntime.js';
-import { GuiRuntime } from '../scripting/GuiRuntime.js';
+import { GuiRuntime } from './GuiRuntime.js';
 import {
   BENNE_GUI_BUTTON_APPLY_VISUAL_STATE_DATA_KEY,
   BENNE_GUI_BUTTON_VISUAL_SCRIPT_LOCK_DATA_KEY,
@@ -116,7 +116,6 @@ import {
   dispatchInventoryVerbInteraction,
   shouldDispatchInventoryUsedOnVerbForGame,
   shouldDropActiveInventoryOnUse,
-  trySyncActiveInventoryAfterInventoryUseOrGiveRowDispatch,
 } from '../verbs/dispatchInventoryVerb';
 import { getEffectiveInputProfile } from '../verbs/verbConfig';
 import { resolvePointerVerbForInventoryItem } from '../verbs/resolvePointerVerb';
@@ -276,7 +275,7 @@ export interface BuiltGuiOverlay {
    * Creates a {@link GuiRuntime} for this overlay (control facades, triggers). Call once per room load.
    * Disposal is chained into {@link GuiOverlayHandle.destroy}.
    */
-  createGuiRuntime(queueInteraction: (factory: () => Promise<unknown>) => void): GuiRuntime;
+  createGuiRuntime(): GuiRuntime;
   /**
    * Control array index → positioned root game object. Editor GUI preview uses this to live-move
    * a selected control; runtime ignores it.
@@ -778,8 +777,8 @@ function installGuiControlPointerHoverObserver(
 }
 
 /**
- * Installs pointer **mouseenter / mouseleave** forwarding on `target` so `B.whenMouseEnter(controlId, …)` /
- * `whenMouseLeave(controlId, …)` observe it. Safe for objects that are already interactive (e.g. buttons);
+ * Installs pointer **mouseenter / mouseleave** forwarding on `target` so BenneScript's `x.onMouseEnter(…)` /
+ * `x.onMouseLeave(…)` observe it. Safe for objects that are already interactive (e.g. buttons);
  * for non-interactive ones the caller must call `setInteractive` beforehand (triggers, inventory panels, images, text).
  * Returns a disposer that detaches listeners.
  */
@@ -1909,12 +1908,6 @@ function fillInventoryPanelContent(
             itemId,
             invPointerCtx.roomId,
           );
-          trySyncActiveInventoryAfterInventoryUseOrGiveRowDispatch(
-            manager,
-            getGameSettings(),
-            resolution.verbId,
-            itemId,
-          );
           if (resolution.consumeActive) {
             const clickedItemId = itemId;
             queueMicrotask(() => {
@@ -2699,7 +2692,7 @@ export function buildGuiOverlay(
    *   when the pointer is over the same overlay’s `inventoryPanel` or `button` hit targets so draw-order
    *   occlusion does not steal their input. Hover still uses {@link installGuiControlPointerHoverObserver}.
    * - **Triggers and the remaining types** (`inventoryPanel`, `text`) stay **non-interactive** for hits and
-   *   use pointer observers for `whenMouseEnter` / `whenMouseLeave` so the inventory bar and text lines do
+   *   use pointer observers for `onMouseEnter` / `onMouseLeave` so the inventory bar and text lines do
    *   not steal clicks from props / hotspots (`input.topOnly` would otherwise deliver to the GUI first).
    */
   for (const [id, target] of controlsById.entries()) {
@@ -2911,7 +2904,7 @@ export function buildGuiOverlay(
   return {
     handle,
     controlRootsByIndex,
-    createGuiRuntime(queueInteraction: (factory: () => Promise<unknown>) => void): GuiRuntime {
+    createGuiRuntime(): GuiRuntime {
       disposeGuiRuntime?.();
       disposeGuiRuntime = null;
       runtimeExtraGameObjects.length = 0;
@@ -2921,7 +2914,6 @@ export function buildGuiOverlay(
         baseDepth: depth,
         contentRoot: guiContentRoot,
         controlGameObjectsById: controlSnapshot,
-        queueInteraction,
       });
       disposeGuiRuntime = (): void => {
         runtime.dispose();

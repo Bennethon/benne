@@ -365,7 +365,7 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
                             ? 'benne-editor.openUriPreview'
                             : element.target === 'script'
                               ? 'benne-editor.openRoomScriptPreview'
-                              : 'benne-editor.revealRegisterRoomScript',
+                              : 'benne-editor.revealRoomScript',
                     title: element.label,
                     arguments:
                         element.target === 'json'

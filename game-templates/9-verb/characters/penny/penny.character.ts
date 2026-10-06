@@ -1,15 +1,7 @@
-import { registerCharacterScript } from '@engine/scripting';
+import { characters } from '@game';
 
-/**
- * Character script for `penny` — self-only Bennescript (`B.whenLookAt(() => …)`).
- * Room-scoped handlers in `*.room.ts` still run first for the same verb.
- */
-registerCharacterScript('penny', ({ B }) => {
-  // Example: B.whenLookAt(() => { B.player.say('…'); });
-  // Delete this line when you add your first handler.
-  void B;
+// Penny's handlers in every room she is in. The apartment's own `penny.onLook(…)` wins over this one.
 
-  B.whenLookAt(() => {
-    B.player.say("It's Penny.");
-  });
-});
+characters.penny.onLook(() => {
+  Player: "It's Penny."
+})

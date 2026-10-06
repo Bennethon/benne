@@ -1,12 +1,5 @@
-import { registerInventoryScript } from '@engine/scripting';
+import { items } from '@game';
 
-registerInventoryScript('Sammich', ({ B }) => {
-
-  B.whenLookAt(() => {
-    B.say`Hank: It looks delicious!`;
-  });
-
-  B.whenUse(() => {
-    // TODO
-  });
-});
+items.sammich.onLook(() => {
+  Hank: "It looks delicious!"
+})

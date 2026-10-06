@@ -47,7 +47,7 @@ export type GameVerbId = LooseString<'clean' | 'look' | 'move' | 'take' | 'talkT
 /** Video stem ids from src/game/assets/videos/<stem>.{mp4,webm} (basename without extension). */
 export type VideoId = LooseString;
 
-/** Prop, hotspot, or spawned character id for room verb handlers (whenLookAt, whenVerb, whenInventoryUsedOn). */
+/** Prop, hotspot, or spawned character id: something a verb can target in a room. */
 export type VerbTargetId = PropId | HotspotId | CharacterId;
 
 /** Walk / teleport string target: prop → hotspot → character → room point (see RoomScene.resolveMovementTarget). */

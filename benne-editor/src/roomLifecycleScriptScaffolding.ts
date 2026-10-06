@@ -2,12 +2,8 @@ import * as vscode from 'vscode';
 import type { HandlerSpec } from './bennescript/handlerSpecs';
 import { ensureHandler } from './scriptHandlers';
 
-/**
- * Room hooks as the Inspector names them (its message protocol predates BenneScript):
- * `whenLoadedRoom` → `room.onLoaded`, `whenEnterRoom` → `room.onEnter`,
- * `whenEnterRoomAfterFade` → `room.onEnterAfterFade`, `onUpdate` → `onUpdate`.
- */
-export type RoomLifecycleHookKind = 'whenLoadedRoom' | 'whenEnterRoom' | 'whenEnterRoomAfterFade' | 'onUpdate';
+/** Room hooks the Inspector offers: `room.onLoaded`, `room.onEnter`, `room.onEnterAfterFade`, and `onUpdate`. */
+export type RoomLifecycleHookKind = 'onLoaded' | 'onEnter' | 'onEnterAfterFade' | 'onUpdate';
 
 export type EnsureRoomLifecycleHookResult =
     | { outcome: 'reveal'; range: { start: number; end: number } }
@@ -15,16 +11,7 @@ export type EnsureRoomLifecycleHookResult =
     | { outcome: 'error' };
 
 export function roomLifecycleHandlerSpec(roomId: string, hook: RoomLifecycleHookKind): HandlerSpec {
-    switch (hook) {
-        case 'whenLoadedRoom':
-            return { kind: 'room', roomId, hook: 'onLoaded' };
-        case 'whenEnterRoom':
-            return { kind: 'room', roomId, hook: 'onEnter' };
-        case 'whenEnterRoomAfterFade':
-            return { kind: 'room', roomId, hook: 'onEnterAfterFade' };
-        case 'onUpdate':
-            return { kind: 'update', roomId };
-    }
+    return hook === 'onUpdate' ? { kind: 'update', roomId } : { kind: 'room', roomId, hook };
 }
 
 /** Reveals the room's handler for `hook`, or adds a stub (`room.onEnter(() => { … })`) to the room script. */

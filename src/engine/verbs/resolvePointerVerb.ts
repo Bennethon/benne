@@ -3,7 +3,7 @@ import type { VerbInputProfile } from '../../types/game';
 import { getGameSettings } from '../ConfigManager';
 import {
   DEFAULT_VERB_TOKEN,
-  resolveEffectiveUseVerbId,
+  resolveDefaultItemVerbId,
   resolveGameDefaultVerbId,
   WALK_TO_VERB_ID,
 } from './verbConfig';
@@ -99,7 +99,7 @@ export function resolvePointerVerbForTarget(
   ) {
     return {
       kind: 'verb',
-      verbId: resolveEffectiveUseVerbId(getGameSettings()),
+      verbId: resolveDefaultItemVerbId(getGameSettings()),
       consumeActive: false,
     };
   }

@@ -1,7 +1,7 @@
 import './style.css';
 import { createBenneGame } from './engine/Game';
 import { gameEvents } from './engine/events/EventBus';
-import { wireBenneGlobalScripts } from './engine/scripting/wireBenneGlobalScripts';
+import { wireRoomTransitions } from './engine/scenes/wireRoomTransitions';
 import { registerGameContent } from './game/boot/registerGameContent';
 import { installWebglRecovery } from './engine/webglRecovery';
 
@@ -15,7 +15,7 @@ try {
   registerGameContent();
   const game = createBenneGame(parent);
   graphicsRecovery.attach(game);
-  wireBenneGlobalScripts(game, gameEvents);
+  wireRoomTransitions(game, gameEvents);
   if (import.meta.env.DEV || import.meta.env.VITE_BENNE_TEST_HOOKS === 'true') {
     void import('./engine/testing/benneTestHooks').then((m) => m.installBenneTestHooks(game));
   }

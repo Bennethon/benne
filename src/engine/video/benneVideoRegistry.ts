@@ -1,7 +1,7 @@
 import type * as Phaser from 'phaser';
 
 /**
- * When true, scripted video playback (`B.video.*` / {@link import('../scenes/RoomScene.js').RoomScene})
+ * When true, scripted video playback (`video.x` / {@link import('../scenes/RoomScene.js').RoomScene})
  * no-ops and the boot loader skips video assets, so editor previews never play cinematics.
  * Set from preview `Phaser.Game` `callbacks.preBoot`; shipped runtime leaves unset/false.
  */

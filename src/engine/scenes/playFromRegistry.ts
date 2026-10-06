@@ -1,10 +1,10 @@
 /**
  * Named **Play From** setups keyed by **`roomId` → `name` → handler** (BENNE Play / editor).
- * Populated from {@link import('./BenneScript.js').BenneScript.prototype.playFrom}; consumed by
- * {@link import('../scenes/RoomTransitionOrchestrator.js').RoomTransitionOrchestrator}.
+ * Populated by BenneScript's top-level `playFrom(name, …)` calls; consumed by
+ * {@link import('./RoomTransitionOrchestrator.js').RoomTransitionOrchestrator}.
  *
- * Cleared per room when {@link import('../scenes/RoomScene.js').RoomScene} begins wiring scripts
- * for that room (same cadence as {@link import('../scenes/RoomTransitionHookRegistry.js').RoomTransitionHookRegistry.prototype.clearPerRoomScriptHooksForRoomId}).
+ * Cleared per room when {@link import('./RoomScene.js').RoomScene} begins wiring scripts for that
+ * room (same cadence as {@link import('./RoomTransitionHookRegistry.js').RoomTransitionHookRegistry.prototype.clearPerRoomScriptHooksForRoomId}).
  */
 
 export type PlayFromSetupFn = () => void | Promise<void>;

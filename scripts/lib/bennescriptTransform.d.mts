@@ -8,7 +8,6 @@ export type { SpeakerTable };
 export { buildSpeakerTable, normalizeSpeakerLabel, resolveSpeaker } from './benneSpeakers.mjs';
 
 export declare function isBenneScriptFile(id: string): boolean;
-export declare function usesNewBenneScriptApi(code: string): boolean;
 
 export declare class BenneScriptTransformError extends Error {
   /** UTF-16 offset in the source. */

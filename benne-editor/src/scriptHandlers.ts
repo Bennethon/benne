@@ -2,10 +2,6 @@
  * Editor access to BenneScript files through the TypeScript-AST ScriptModel
  * (`./bennescript/*`, docs/bennescript-ergonomics-refactor.md §9): handler presence for the
  * Inspector chips, "add handler" (stub + imports) and "reveal handler".
- *
- * Scripts still on the old `register*Script` API are left alone: the editor only writes the new
- * syntax (§11.1), and new-style code in an old-style file would change how that file is built
- * (decision 14). Those files report no handlers until they are ported.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -26,14 +22,6 @@ export type { HandlerSpec } from './bennescript/handlerSpecs';
 
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
-
-/** Message for scripts on the old API. */
-export function oldApiScriptMessage(scriptUri: vscode.Uri): string {
-    return (
-        `${path.basename(scriptUri.fsPath)} still uses the old register*Script API. The editor only adds and finds ` +
-        'BenneScript handlers (`x.onLook(() => { … })`); port the file first (docs/bennescript-ergonomics-refactor.md §11.2).'
-    );
-}
 
 /** `…/src/game` for a file inside a BENNE game. */
 export function gameRootOf(uri: vscode.Uri): string | undefined {
@@ -112,14 +100,14 @@ export function scriptModelOf(scriptUri: vscode.Uri, text: string): ScriptModel 
     return parseScriptModel(ts, scriptUri.fsPath, text);
 }
 
-/** Handlers for `spec` in a script's text (none for old-API scripts). */
+/** Handlers for `spec` in a script's text. */
 export function handlersInText(scriptUri: vscode.Uri, text: string, spec: HandlerSpec): Registration[] {
     const index = idsIndexFor(scriptUri);
     if (!index || !text) {
         return [];
     }
     const model = scriptModelOf(scriptUri, text);
-    return model.usesOldApi ? [] : findHandlers(model, index, spec);
+    return findHandlers(model, index, spec);
 }
 
 export function scriptHasHandler(scriptUri: vscode.Uri, text: string, spec: HandlerSpec): boolean {
@@ -133,9 +121,6 @@ export function handlerQuery(scriptUri: vscode.Uri, text: string): (spec: Handle
         return () => false;
     }
     const model = scriptModelOf(scriptUri, text);
-    if (model.usesOldApi) {
-        return () => false;
-    }
     return (spec) => findHandlers(model, index, spec).length > 0;
 }
 
@@ -161,10 +146,6 @@ export async function ensureHandler(scriptUri: vscode.Uri, spec: HandlerSpec): P
     const index = idsIndexForGameRoot(gameRoot);
     const text = await readScriptText(scriptUri);
     const model = scriptModelOf(scriptUri, text);
-    if (model.usesOldApi) {
-        void vscode.window.showErrorMessage(oldApiScriptMessage(scriptUri));
-        return { status: 'failed' };
-    }
     const existing = findHandlers(model, index, spec)[0];
     if (existing) {
         return { status: 'exists', range: { start: existing.start, end: existing.headEnd } };
@@ -213,16 +194,12 @@ export async function revealHandler(
     }
     const model = scriptModelOf(scriptUri, text);
     const index = idsIndexFor(scriptUri);
-    const found = index && !model.usesOldApi ? findHandlers(model, index, spec)[0] : undefined;
+    const found = index ? findHandlers(model, index, spec)[0] : undefined;
     if (found) {
         await revealRange(scriptUri, { start: found.start, end: found.headEnd }, viewColumn);
         return true;
     }
-    void vscode.window.showInformationMessage(
-        model.usesOldApi
-            ? oldApiScriptMessage(scriptUri)
-            : `No ${describeHandlerSpec(spec, index)} handler in ${path.basename(scriptUri.fsPath)}.`
-    );
+    void vscode.window.showInformationMessage(`No ${describeHandlerSpec(spec, index)} handler in ${path.basename(scriptUri.fsPath)}.`);
     await revealRange(scriptUri, { start: 0, end: 0 }, viewColumn);
     return false;
 }

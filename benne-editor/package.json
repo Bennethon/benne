@@ -133,7 +133,7 @@
         "category": "BENNE"
       },
       {
-        "command": "benne-editor.revealRegisterRoomScript",
+        "command": "benne-editor.revealRoomScript",
         "title": "Open room script",
         "category": "BENNE"
       },

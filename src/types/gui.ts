@@ -126,7 +126,7 @@ export type GuiInventoryPanelScrollDirection = 'horizontal' | 'vertical';
 
 export interface GuiInventoryPanelControl {
   type: 'inventoryPanel';
-  /** Optional ID for Bennescript targeting, e.g. B.whenInventorySlotClick('mainInv', ...) */
+  /** Optional ID (the panel's handle in `guis.x.controls`). */
   id?: string;
   /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
   scriptName?: string;
@@ -298,7 +298,7 @@ export interface GuiButtonStates {
   disabled?: string;
 }
 
-/** Argument to **`B.gui(…).control(…).setVisualState`** for `button` controls. */
+/** Value of a button handle's **`visualState`** (`guis.x.controls.y.visualState = …`). */
 export type BenneGuiScriptButtonVisualState = 'normal' | 'hover' | 'pressed' | 'disabled';
 
 /** Per-interaction text colours for button labels (hex strings like `#ffffff`). */
@@ -323,7 +323,7 @@ export interface GuiButtonBackgroundColorStates {
  */
 export interface GuiButtonControl {
   type: 'button';
-  /** Unique within this GUI (Inspector, Bennescript `whenButtonClick`, future compositor). */
+  /** Unique within this GUI (Inspector; BenneScript `x.onClick`). */
   id: string;
   /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
   scriptName?: string;
@@ -397,7 +397,7 @@ export interface GuiCheckboxStates {
  */
 export interface GuiCheckboxControl {
   type: 'checkbox';
-  /** Unique within this GUI (Inspector, Bennescript `whenCheckboxCheck` / `whenCheckboxUncheck`). */
+  /** Unique within this GUI (Inspector; BenneScript `x.onChange`). */
   id: string;
   /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
   scriptName?: string;
@@ -435,7 +435,7 @@ export interface GuiSliderStates {
  */
 export interface GuiSliderControl {
   type: 'slider';
-  /** Unique within this GUI (Inspector, Bennescript `control(…).whenValueChanged`). */
+  /** Unique within this GUI (Inspector; BenneScript `x.onChange`). */
   id: string;
   /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
   scriptName?: string;
@@ -512,7 +512,7 @@ export interface GuiTextInputControl {
 
 /**
  * Color-driven selectable list with fixed visible rows.
- * Row content is script-populated via `B.gui(...).control(...).setRowText(...)`.
+ * Row content is script-populated via `guis.x.controls.y.setRowText(...)`.
  */
 export interface GuiListBoxControl {
   type: 'listBox';
@@ -546,13 +546,13 @@ export interface GuiListBoxControl {
 
 /**
  * Invisible, rectangular hit zone with a stable **`id`**: pure behavior surface for
- * **`B.whenMouseEnter` / `B.whenMouseLeave`** in `*.gui.ts`. Never drawn (no art, no text).
+ * **`x.onMouseEnter` / `x.onMouseLeave`** in `*.gui.ts`. Never drawn (no art, no text).
  * Layout-only properties; no **`zIndex`** — triggers sit above all other controls in this GUI’s overlay
  * so they reliably catch pointer events even over inventory icons and button art.
  */
 export interface GuiTriggerControl {
   type: 'trigger';
-  /** Required — used by **`B.whenMouseEnter('id', …)`** and Inspector tree. */
+  /** Required — names the control's handle (`x.onMouseEnter(…)`) and its Inspector tree entry. */
   id: string;
   /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
   scriptName?: string;
@@ -601,7 +601,7 @@ export interface GuiData {
   /**
    * Initial screen-space **y** offset of the packed **`gui.root`** container at build time.
    * Typically used to park a HUD offscreen (e.g. **`y: -34`** for a dropdown bar) so a **`tweenTo({ y: 0 })`**
-   * in **`onGuiBuilt`** reveals it. See **`x`** for layering semantics; fixed controls are unaffected.
+   * in **`gui.onBuilt`** reveals it. See **`x`** for layering semantics; fixed controls are unaffected.
    */
   y?: number;
   /**

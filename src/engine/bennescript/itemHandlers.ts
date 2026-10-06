@@ -11,7 +11,6 @@ import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManag
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import { readEffectiveInventoryDescription } from '../inventory/inventoryScriptingAnimations.js';
 import { continueInventoryOnDispatchAfterGlobal } from '../verbs/dispatchInventoryOnVerbTarget.js';
-import { markInventoryItemArmedByScript } from '../verbs/dispatchInventoryVerb.js';
 import { continueVerbDispatchToGlobal } from '../verbs/dispatchVerb.js';
 import { getEffectiveVerbDefinitions, isItemVerb } from '../verbs/verbConfig.js';
 import { applyInventoryDropPolicy } from './globalHandlers.js';
@@ -24,7 +23,8 @@ import { liveRoomScene } from './scene.js';
  * at module top level, on the global inventory channels.
  *
  * Every `usesItem` verb on an item's row arms the item for "use on target" after its handler, or
- * at once when it has none (§8.4). `onUse.doNotActivate(…)` opts out for that verb.
+ * at once when it has none (§8.4; the engine arms items with no handler for that verb, decision 28).
+ * `onUse.doNotActivate(…)` opts out for that verb.
  */
 
 type Handler = (...args: never[]) => unknown;
@@ -65,8 +65,6 @@ function listenForVerb(itemId: string, verb: string): void {
     const p = payload as InventoryVerbInteractPayload;
     const reg = verbHandlers.get(itemId)?.get(verb);
     if (!reg) {
-      // Only item verbs listen without a handler: they arm the item.
-      arm(itemId);
       return;
     }
     void runHandler(`items.${itemId} "${verb}"`, liveRoomScene(), payload, reg.handler).then((outcome) => {
@@ -77,20 +75,6 @@ function listenForVerb(itemId: string, verb: string): void {
       }
     });
   });
-}
-
-const known = new Set<string>();
-
-/** First registration for an item: its item verbs arm it from now on. */
-function knowItem(itemId: string): void {
-  if (known.has(itemId)) {
-    return;
-  }
-  known.add(itemId);
-  markInventoryItemArmedByScript(itemId);
-  for (const verb of itemVerbIds()) {
-    listenForVerb(itemId, verb);
-  }
 }
 
 /** `items.x.on<Verb>(…)`: `verb` used on the item's inventory row. `arms: false` is `doNotActivate`. */
@@ -105,7 +89,6 @@ export function registerItemVerbHandler(itemId: string, verb: string, handler: H
     console.warn(`[Benne] items.${itemId}: "${verb}" already has a handler; the last one wins.`);
   }
   byVerb.set(verb, { handler, arms });
-  knowItem(itemId);
   listenForVerb(itemId, verb);
 }
 
@@ -117,7 +100,6 @@ const comboHandlers = new Map<string, Array<{ verb: string | null; handler: Hand
 /** `items.x.on<Verb>Item(item, …)` / `onItem` / `onCombine`: `sourceItemId` used on `itemId`. */
 export function registerItemComboHandler(itemId: string, verb: string | null, sourceItemId: string, handler: Handler): void {
   warnIfUntransformed(`items.${itemId}: ${sourceItemId}${verb ? ` "${verb}"` : ''}`, handler);
-  knowItem(itemId);
   const eventId = globalInventoryOnInventoryItemEventId(itemId, sourceItemId);
   let regs = comboHandlers.get(eventId);
   if (!regs) {
@@ -146,7 +128,6 @@ export function registerItemComboHandler(itemId: string, verb: string | null, so
 /** `items.x.onAnyItem((item, verb) => …)`: any other item, any item verb, on this one. */
 export function registerItemAnyComboHandler(itemId: string, handler: Handler): void {
   warnIfUntransformed(`items.${itemId}.onAnyItem`, handler);
-  knowItem(itemId);
   gameEvents.on(globalInventoryOnInventoryRowEventId(itemId), (payload: unknown) => {
     const p = payload as InventoryUsedOnInventoryItemPayload;
     const source = lookupItemHandle<{ id: string }>(p.itemId) ?? { id: p.itemId };

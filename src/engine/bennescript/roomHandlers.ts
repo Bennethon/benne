@@ -16,8 +16,8 @@ import {
 import type { RoomScene } from '../scenes/RoomScene.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
 import type { AnyInventoryUsedOnPayload } from '../events/inventoryOnVerbEvents.js';
-import { registerPlayFromForRoom } from '../scripting/devPlayFromRegistry.js';
-import { getLoadingRoomScriptId } from '../scripting/registerRoomScript.js';
+import { registerPlayFromForRoom } from '../scenes/playFromRegistry.js';
+import { getLoadingRoomScriptId } from '../scenes/roomScriptModules.js';
 import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
 import { continueInventoryOnDispatchAfterRoom } from '../verbs/dispatchInventoryOnVerbTarget.js';
 import { continueVerbDispatchAfterRoom } from '../verbs/dispatchVerb.js';
@@ -141,9 +141,9 @@ function anyItemEventId(roomId: string, target: TargetRef): string {
 }
 
 /**
- * Subscribes this room's new-style handlers. Old `register*Script` handlers for the same room are
- * subscribed by `RoomScene` as before; dispatch is listener-first, so each event reaches whichever
- * API registered it (Phase 1 side-by-side routing, deleted in Phase 6).
+ * Subscribes this room's handlers (`RoomScene.create`); the returned function unsubscribes them
+ * when the room shuts down. Dispatch is listener-first: a room handler for an event wins over the
+ * character script, item script and global tiers.
  */
 export function attachRoomHandlers(roomId: string, scene: RoomScene, events: EventBus): () => void {
   const table = tables.get(roomId);

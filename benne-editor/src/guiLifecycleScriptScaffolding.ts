@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
+import type { GuiHook } from './bennescript/handlerSpecs';
 import { ensureHandler } from './scriptHandlers';
 
-/** GUI hooks as the Inspector names them: `onGuiBuilt` → `gui.onBuilt`, … */
-export type GuiLifecycleHookKind = 'onGuiBuilt' | 'onGuiShow' | 'onGuiHide';
+/** GUI lifecycle hooks (`gui.onBuilt`, `gui.onShow`, `gui.onHide`). */
+export type GuiLifecycleHookKind = GuiHook;
 
 export type EnsureGuiLifecycleHookResult =
     | { outcome: 'reveal'; range: { start: number; end: number } }
@@ -21,8 +22,6 @@ export async function readGuiContentId(guiJsonUri: vscode.Uri, folderId: string)
     }
 }
 
-const HOOKS = { onGuiBuilt: 'onBuilt', onGuiShow: 'onShow', onGuiHide: 'onHide' } as const;
-
 /** Reveals the GUI's handler for `hook`, or adds a stub (`gui.onShow(() => { … })`) to the GUI script. */
 export async function ensureGuiLifecycleHookInGuiScript(
     guiJsonUri: vscode.Uri,
@@ -31,13 +30,13 @@ export async function ensureGuiLifecycleHookInGuiScript(
 ): Promise<EnsureGuiLifecycleHookResult> {
     const scriptUri = vscode.Uri.joinPath(guiJsonUri, '..', `${guiId}.gui.ts`);
     const contentId = await readGuiContentId(guiJsonUri, guiId);
-    const r = await ensureHandler(scriptUri, { kind: 'gui', guiId: contentId, hook: HOOKS[hook] });
+    const r = await ensureHandler(scriptUri, { kind: 'gui', guiId: contentId, hook });
     if (r.status === 'failed') {
         return { outcome: 'error' };
     }
     if (r.status === 'exists') {
         return { outcome: 'reveal', range: r.range };
     }
-    void vscode.window.showInformationMessage(`Added gui.${HOOKS[hook]} in ${guiId}.gui.ts.`);
+    void vscode.window.showInformationMessage(`Added gui.${hook} in ${guiId}.gui.ts.`);
     return { outcome: 'inserted', insertedStubRange: r.range };
 }

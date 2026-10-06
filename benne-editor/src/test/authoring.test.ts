@@ -78,11 +78,10 @@ suite('Authoring and update contracts', () => {
             assert.equal(scriptHasHandler(uri, `${text}\n// battery.onTake(() => {})\n`, { kind: 'verb', target: battery, verbId: 'take' }), false);
             assert.equal(scriptHasHandler(uri, text, { kind: 'anyItem', target: battery }), true);
             assert.equal(scriptHasHandler(uri, text, { kind: 'region', roomId: 'club', regionId: 'club-region-leave', hook: 'onEnter' }), true);
-            // Old-API scripts are not read (the editor only understands the new syntax).
-            assert.equal(scriptHasHandler(uri, "registerRoomScript(({ B }) => { B.whenLookAt('club-hotspot-battery', () => {}); });", { kind: 'verb', target: battery, verbId: 'look' }), false);
+            assert.equal(scriptHasHandler(uri, `${text}\nconst example = 'battery.onTake(() => {})'\n`, { kind: 'verb', target: battery, verbId: 'take' }), false);
         } finally { await fs.rm(root, { recursive: true, force: true }); }
     });
-    test('Inspector "add handler" on an AI Apocalypse prop inserts a new-style handler', async () => {
+    test('Inspector "add handler" on an AI Apocalypse prop inserts a BenneScript handler', async () => {
         const { root, game } = await clubGameCopy();
         try {
             const roomJson = vscode.Uri.file(path.join(game, 'rooms', 'club', 'club.room.json'));
@@ -103,7 +102,7 @@ suite('Authoring and update contracts', () => {
             // Other stubs use the same import and statement style.
             await addHotspotVerbEvent(roomJson, 'club', 'outside', 'take');
             await addRoomInventoryUsedOnStub(roomJson, 'club', 'prop', 'car');
-            await ensureRoomLifecycleHookInRoomScript(roomJson, 'club', 'whenEnterRoom');
+            await ensureRoomLifecycleHookInRoomScript(roomJson, 'club', 'onEnter');
             await ensureRoomLifecycleHookInRoomScript(roomJson, 'club', 'onUpdate');
             const final = await fs.readFile(script, 'utf8');
             assert.ok(final.includes('outside.onTake(() => {\n  // TODO: Take\n})'));

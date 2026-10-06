@@ -135,8 +135,8 @@ export type InspectorRegionCard = {
     tint: string;
     /** 0–1; effective default 1 when tint is set in JSON. */
     tintAlpha: number;
-    whenEnterDefined: boolean;
-    whenExitDefined: boolean;
+    onEnterDefined: boolean;
+    onExitDefined: boolean;
 };
 
 export type InspectorRoomState = {
@@ -158,9 +158,9 @@ export type InspectorRoomState = {
     points: InspectorPointCard[];
     regions: InspectorRegionCard[];
     expanded: { entity: string; id: string } | null;
-    whenLoadedRoomDefined: boolean;
-    whenEnterRoomDefined: boolean;
-    whenEnterRoomAfterFadeDefined: boolean;
+    roomOnLoadedDefined: boolean;
+    roomOnEnterDefined: boolean;
+    roomOnEnterAfterFadeDefined: boolean;
     onUpdateDefined: boolean;
 };
 
@@ -583,9 +583,9 @@ export type InspectorGuiState = {
     controls: InspectorGuiControlCard[];
     /** When set, the matching control card opens and scrolls into view (BENNE tree control selection). */
     expanded: { entity: string; id: string } | null;
-    onGuiBuiltDefined: boolean;
-    onGuiShowDefined: boolean;
-    onGuiHideDefined: boolean;
+    onBuiltDefined: boolean;
+    onShowDefined: boolean;
+    onHideDefined: boolean;
 };
 
 export type InspectorInventoryAnimationCard = {
@@ -1173,8 +1173,8 @@ async function buildRoomInspectorState(
                 tintEnabled,
                 tint,
                 tintAlpha,
-                whenEnterDefined: roomHas({ kind: 'region', roomId, regionId: id, hook: 'onEnter' }),
-                whenExitDefined: roomHas({ kind: 'region', roomId, regionId: id, hook: 'onExit' })
+                onEnterDefined: roomHas({ kind: 'region', roomId, regionId: id, hook: 'onEnter' }),
+                onExitDefined: roomHas({ kind: 'region', roomId, regionId: id, hook: 'onExit' })
             });
         }
     }
@@ -1197,9 +1197,9 @@ async function buildRoomInspectorState(
         points,
         regions,
         expanded: expandedFromRoomPanel(roomPanel),
-        whenLoadedRoomDefined: roomHas({ kind: 'room', roomId, hook: 'onLoaded' }),
-        whenEnterRoomDefined: roomHas({ kind: 'room', roomId, hook: 'onEnter' }),
-        whenEnterRoomAfterFadeDefined: roomHas({ kind: 'room', roomId, hook: 'onEnterAfterFade' }),
+        roomOnLoadedDefined: roomHas({ kind: 'room', roomId, hook: 'onLoaded' }),
+        roomOnEnterDefined: roomHas({ kind: 'room', roomId, hook: 'onEnter' }),
+        roomOnEnterAfterFadeDefined: roomHas({ kind: 'room', roomId, hook: 'onEnterAfterFade' }),
         onUpdateDefined: roomHas({ kind: 'update', roomId })
     };
 }
@@ -1861,9 +1861,9 @@ async function buildGuiInspectorState(
         fontIds,
         controls,
         expanded: expandedFromGuiPanel(guiJsonUri, guiPanel),
-        onGuiBuiltDefined: guiHas({ kind: 'gui', guiId: guiContentId, hook: 'onBuilt' }),
-        onGuiShowDefined: guiHas({ kind: 'gui', guiId: guiContentId, hook: 'onShow' }),
-        onGuiHideDefined: guiHas({ kind: 'gui', guiId: guiContentId, hook: 'onHide' })
+        onBuiltDefined: guiHas({ kind: 'gui', guiId: guiContentId, hook: 'onBuilt' }),
+        onShowDefined: guiHas({ kind: 'gui', guiId: guiContentId, hook: 'onShow' }),
+        onHideDefined: guiHas({ kind: 'gui', guiId: guiContentId, hook: 'onHide' })
     };
 }
 

@@ -25,13 +25,13 @@ import {
   INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT,
   globalInventoryOnInventoryItemEventId,
 } from '../../src/engine/events/inventoryOnVerbEvents';
-import { inventoryVerbEventId } from '../../src/engine/events/inventoryVerbEvents';
 import { roomRegionEnterEventId } from '../../src/engine/events/regionEnterExitEvents';
 import { characterVerbEventId, globalVerbHandlerEventId } from '../../src/engine/events/verbInteractionEvents';
 import { setActiveBenneGame } from '../../src/engine/gameState/activeBenneGame';
 import { setActiveGameStateManager } from '../../src/engine/gameState/resolveGameStateManager';
 import { clearInteractionActivity, isInteractionActivityRunning } from '../../src/engine/interaction/interactionActivity';
-import { publishBenneVerbHoverContext } from '../../src/engine/scripting/benneVerbContextScriptSurface';
+import { dispatchInventoryVerbInteraction } from '../../src/engine/verbs/dispatchInventoryVerb';
+import { publishBenneVerbHoverContext } from '../../src/engine/verbs/verbContext';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -57,7 +57,7 @@ function fakeGame(scene: Record<string, unknown> = {}) {
     getVariable: () => undefined,
     hasVariable: () => false,
   };
-  const room = { isCutsceneSkipFastForwarding: () => false, isCutsceneActive: () => false, ...scene };
+  const room = { isCutsceneSkipFastForwarding: () => false, isCutsceneActive: () => false, scene: { isActive: () => false }, ...scene };
   setActiveBenneGame({ scene: { getScene: () => room }, registry: new Map() } as never);
   setActiveGameStateManager(manager as never);
   return manager;
@@ -90,12 +90,12 @@ describe('inventory items (§4.6, §8.4)', () => {
       log.push('look');
     });
 
-    // No handler for "use": it just arms.
-    gameEvents.emit(inventoryVerbEventId('t1-coin', 'use'), { itemId: 't1-coin', roomId: 'r', verbId: 'use' });
+    // No handler for "use": the engine arms it (decision 28), as for an item with no script at all.
+    dispatchInventoryVerbInteraction(gameEvents, 'use', 't1-coin', 'r');
     expect(m.state.item).toBe('t1-coin');
 
     m.state.item = null;
-    gameEvents.emit(inventoryVerbEventId('t1-coin', 'look'), { itemId: 't1-coin', roomId: 'r', verbId: 'look' });
+    dispatchInventoryVerbInteraction(gameEvents, 'look', 't1-coin', 'r');
     await flush();
     expect(log).toEqual(['look']);
     expect(m.state.item).toBeNull();
@@ -104,7 +104,7 @@ describe('inventory items (§4.6, §8.4)', () => {
     key.onUse.doNotActivate(async () => {
       log.push('use key');
     });
-    gameEvents.emit(inventoryVerbEventId('t1-key', 'use'), { itemId: 't1-key', roomId: 'r', verbId: 'use' });
+    dispatchInventoryVerbInteraction(gameEvents, 'use', 't1-key', 'r');
     await flush();
     expect(log).toEqual(['look', 'use key']);
     expect(m.state.item).toBeNull();

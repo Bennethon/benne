@@ -16,7 +16,7 @@ export default defineConfig({
       // Ratchet critical pure logic independently; do not disguise untested renderer code.
       thresholds: {
         'src/engine/pathfinding.ts': { lines: 85, branches: 70, functions: 100 },
-        'src/engine/scripting/registerRoomScript.ts': { lines: 90, branches: 60, functions: 100 },
+        'src/engine/scenes/roomScriptModules.ts': { lines: 90, branches: 60, functions: 100 },
         'src/engine/gameState/characterInventory.ts': { lines: 90, branches: 85, functions: 85 },
         'src/engine/verbs/resolvePointerVerb.ts': { lines: 80, branches: 80, functions: 65 },
         'benne-editor/src/playFromDiscovery.ts': { lines: 85, branches: 80, functions: 100 },

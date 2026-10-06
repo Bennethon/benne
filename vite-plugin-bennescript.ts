@@ -6,7 +6,6 @@ import {
   buildSpeakerTable,
   isBenneScriptFile,
   transformBenneScript,
-  usesNewBenneScriptApi,
 } from './scripts/lib/bennescriptTransform.mjs';
 import { readCharacterSpeakers } from './scripts/lib/benneSpeakers.mjs';
 
@@ -34,7 +33,7 @@ export function benneScriptPlugin(): Plugin {
       });
     },
     transform(code, id) {
-      if (id.includes('/node_modules/') || !isBenneScriptFile(id) || !usesNewBenneScriptApi(code)) {
+      if (id.includes('/node_modules/') || !isBenneScriptFile(id)) {
         return null;
       }
       const filename = id.replace(/[?#].*$/, '');

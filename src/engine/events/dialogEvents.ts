@@ -1,7 +1,7 @@
-/** Emitted when a dialog session opens (after {@link registerDialogScript} callbacks begin). */
+/** Emitted when a dialog session opens (`dialog/dialogSession.ts`). */
 export const DIALOG_STARTED_EVENT = 'benne:dialog:started';
 
-/** Emitted when a dialog session closes ({@link DialogBenneScript.stop} / facade `stop`). */
+/** Emitted when a dialog session closes (`dialog.end()`, a room change, or a new session). */
 export const DIALOG_STOPPED_EVENT = 'benne:dialog:stopped';
 
 /** Emitted when an option’s enabled flag is written via scripting (`optionOn` / `optionOff`). */

@@ -59,7 +59,7 @@ export interface GameSettingsDebug {
 
 /**
  * Optional `game-config.json` `camera` block; see {@link getCameraSettings} for merged defaults.
- * Script camera overrides (`B.camera`) are runtime-only and do not persist.
+ * Script camera overrides (`camera`) are runtime-only and do not persist.
  */
 export interface GameSettingsCameraShake {
   /** Default shake intensity (small float; Phaser viewport fraction). */
@@ -71,9 +71,9 @@ export interface GameSettingsCameraShake {
 }
 
 export interface GameSettingsCamera {
-  /** Minimum gameplay zoom multiplier (`B.camera.setZoom`). */
+  /** Minimum gameplay zoom multiplier (`camera.zoom`). */
   minZoom: number;
-  /** Maximum gameplay zoom multiplier (`B.camera.setZoom`). */
+  /** Maximum gameplay zoom multiplier (`camera.zoom`). */
   maxZoom: number;
   /** Default transition duration in seconds when a camera method omits `transitionTime`. */
   defaultTransitionSeconds: number;
@@ -93,19 +93,19 @@ export interface GameSettingsPerspective {
 
 /**
  * Optional `game-config.json` `speech` block; see {@link getSpeechSettings} for merged defaults.
- * At runtime, `B.speechSettings` / `speech:*` game-state variables override these fields (see architecture.md).
+ * At runtime, `speech:*` game-state variables (`settings.textSpeed`, `settings.clickToSkip`) override these fields.
  */
 export interface GameSettingsSpeech {
   /**
    * Default for timed Bennescript `.say` / `.say.now` lines when the call omits **`clickToSkip`** in the options object.
    * When true, a **left**-click ends the line early (same cleanup as the timer). Per-line overrides:
    * `say('…', { clickToSkip: false })` always disables skip; `say('…', { clickToSkip: true })` always enables skip even
-   * when this global flag is false. Overridable at runtime via **`B.speechSettings.clickToSkip`**.
+   * when this global flag is false. Overridable at runtime via **`settings.clickToSkip`**.
    */
   clickToSkip: boolean;
-  /** When false, `.say()` timing still runs but no Speaking Text (`speaking-text`) GUI. Overridable via **`B.speechSettings.showText`**. */
+  /** When false, `.say()` timing still runs but no Speaking Text (`speaking-text`) GUI. Overridable via the `speech:showText` game-state variable. */
   showText: boolean;
-  /** Extra offset in **game canvas pixels** applied after projecting the character `talkPoint`. Overridable via **`B.speechSettings.defaultTalkOffset`**. */
+  /** Extra offset in **game canvas pixels** applied after projecting the character `talkPoint`. Overridable via the `speech:defaultTalkOffset` game-state variable. */
   defaultTalkOffset: { x: number; y: number };
   minDurationMs: number;
   msPerCharacter: number;
@@ -115,20 +115,20 @@ export interface GameSettingsSpeech {
 
 /**
  * Optional `game-config.json` `dialog` block; see {@link getDialogSettings} for merged defaults.
- * At runtime, `B.dialogSettings` / `dialog:*` game-state variables override these fields (see architecture.md).
+ * At runtime, `dialog:*` game-state variables override these fields.
  */
 export interface GameSettingsDialog {
   /**
    * When set, caps how many pixels of choice option rows may stack below **`Option-Grid`** (see
    * {@link getDialogChoiceAvailableHeightPx}). Omitted = extend to the bottom of the internal canvas.
-   * Overridable via **`B.dialogSettings.choiceOptionsViewportHeightPx`** (set **`undefined`** to clear override).
+   * Overridable via a `dialog:*` game-state variable.
    */
   choiceOptionsViewportHeightPx?: number;
   /**
    * Hex color (e.g. `"#888888"`) applied to dialog option rows the player has already picked.
    * When set, tints the bullet, label, label outlines, and background instead of alpha-dimming.
    * Omitted = legacy `setAlpha(0.45)` behavior.
-   * Overridable via **`B.dialogSettings.usedColor`** (`undefined` clears override).
+   * Overridable via a `dialog:*` game-state variable.
    */
   usedColor?: string;
 }
@@ -227,14 +227,13 @@ export interface GameSettings {
   dropWhenInventoryUsed?: boolean;
   /**
    * Global default policy for whether the player may press **ESC** to skip a cutscene
-   * (`B.cutscene`, enter-room hooks, `whenChoice` handlers). Defaults to **`true`**.
+   * (`cutscene(…)` blocks and the enter-room hooks). Defaults to **`true`**.
    *
    * A skipped cutscene is fast-forwarded, not aborted: every remaining queued step still runs, but
    * timed steps (waits, say lines, walks, fades, camera transitions, video) complete instantly at
    * their final value, so the resulting game state matches a cutscene that played out in full.
    *
-   * Individual cutscenes can opt out via **`B.cutscene(fn, { skippable: false })`** (and the same
-   * option on `whenEnterRoom` / `whenEnterRoomAfterFade` / `whenEnterAnyRoom*` / `whenChoice`).
+   * Individual cutscenes can opt out via **`cutscene(fn, { skippable: false })`**.
    */
   cutscenesSkippable?: boolean;
   /** Speech line timing, click-to-skip, and Speaking Text overlay placement (see `getSpeechSettings()`). */

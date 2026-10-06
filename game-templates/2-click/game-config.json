@@ -12,9 +12,11 @@
     {
       "id": "use",
       "label": "Use",
-      "preposition": "with"
+      "preposition": "with",
+      "usesItem": true
     }
   ],
+  "defaultVerb": "look",
   "inputProfile": {
     "primaryButtonVerb": "use",
     "secondaryButtonVerb": "look"

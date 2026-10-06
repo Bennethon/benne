@@ -28,7 +28,7 @@ import type { GameStateManager } from '../gameState/GameStateManager';
 import type { GameSettings } from '../../types/game';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import type { PointerVerbResolution } from './resolvePointerVerb';
-import { resolveEffectiveUseVerbId } from './verbConfig';
+import { resolveDefaultItemVerbId } from './verbConfig';
 
 function listenerCount(bus: EventBus, event: string): number {
   return bus.listeners(event).length;
@@ -67,7 +67,7 @@ function tryEmitInventoryUsedOnFiveTier(
 }
 
 /**
- * When an active inventory item is set and the pointer resolves to the effective **use** verb or the current
+ * When an active inventory item is set and the pointer resolves to the default item verb or the current
  * **active verb**, dispatch uses inventory-on-target channels instead of {@link dispatchVerbInteraction}.
  */
 export function shouldDispatchInventoryUsedOnVerb(
@@ -83,8 +83,7 @@ export function shouldDispatchInventoryUsedOnVerb(
   if (itemId == null) {
     return false;
   }
-  const useVerbId = resolveEffectiveUseVerbId(settings);
-  if (verbId === useVerbId) {
+  if (verbId === resolveDefaultItemVerbId(settings)) {
     return true;
   }
   const active = manager.getActiveVerb();

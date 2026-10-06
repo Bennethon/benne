@@ -39,5 +39,6 @@ test-results/
 .vitest/
 benne-editor/.vscode-test/
 
-# BenneScript handles generated from src/game/ (npm run generate:game-ids)
+# BenneScript handles generated from src/game/ (npm run generate:game-ids); never part of a template
 src/game/**/*.ids.ts
+game-templates/**/*.ids.ts

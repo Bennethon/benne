@@ -4,7 +4,7 @@ import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { isGameplayInteractionRunning } from '../interaction/interactionActivity.js';
 import { isRoomTransitionInProgress, tryGetRoomTransitionOrchestrator } from '../scenes/roomTransitionGlobals.js';
-import { getActiveDialogBenneScript } from '../scripting/dialogSession.js';
+import { getActiveDialogSession } from '../dialog/dialogSession.js';
 import { cancelAllInteractions, currentContext, endHandler } from './interactionContext.js';
 import { Task, timed } from './task.js';
 
@@ -29,8 +29,8 @@ function manager(what: string) {
 }
 
 // A loaded snapshot replaces the world every running handler was acting on (§5 rule 7). This also
-// covers loads and new games started from the old `B` API. The handler that is loading (if any)
-// ends itself.
+// covers new games and loads started by the engine (BENNE Play). The handler that is loading (if
+// any) ends itself.
 gameEvents.on(GAME_STATE_REPLACED_EVENT, () => cancelAllInteractions(currentContext()));
 
 /**
@@ -47,7 +47,7 @@ export const saves = {
     const game = tryGetActiveBenneGame();
     return (
       !isGameplayInteractionRunning() &&
-      getActiveDialogBenneScript() == null &&
+      getActiveDialogSession() == null &&
       !(game != null && isRoomTransitionInProgress(game))
     );
   },

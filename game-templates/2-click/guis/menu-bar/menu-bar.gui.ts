@@ -1,23 +1,13 @@
-import { registerGuiScript } from '@engine/scripting';
+import { guis } from '@game';
+import { gui, hideZone, hoverZone, menuBtn } from './menu-bar.ids';
 
-/**
- * GUI script for `menu-bar` — Bennescript entry (`B.raw`, future onShow/onHide/control hooks on `B`).
- */
-registerGuiScript('menu-bar', ({ B }) => {
+// The bar slides down when the pointer reaches the top of the screen, and back up when it leaves.
+hoverZone.onMouseEnter(() => {
+  gui.root.tweenTo({ y: 0 }, 0.3, 'Sine.easeOut')
+})
 
-  B.onGuiBuilt((gui) => {
-    const root = gui.root;
+hideZone.onMouseLeave(() => {
+  gui.root.tweenTo({ y: -17 }, 0.25, 'Sine.easeIn')
+})
 
-    B.whenMouseEnter('hoverZone', () => {
-      root.tweenTo({ y: 0 }, 300, 'Sine.easeOut');
-    });
-
-    B.whenMouseLeave('hideZone', () => {
-      root.tweenTo({ y: -17 }, 250, 'Sine.easeIn');
-    });
-  });
-
-  B.whenButtonClick("MenuBtn", () => {
-    B.gui('game-menu').show();
-  });
-});
+menuBtn.onClick(() => guis.gameMenu.show())

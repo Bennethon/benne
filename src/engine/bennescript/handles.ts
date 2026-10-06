@@ -4,9 +4,16 @@ import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManag
 import { getRoomVisitCount, setRoomVisitCount } from '../gameState/roomVisitState.js';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import { isRoomTransitionInProgress, tryGetRoomTransitionOrchestrator } from '../scenes/roomTransitionGlobals.js';
-import { createLazyBenneScriptInventoryNamespace } from '../scripting/benneScriptGameStateApi.js';
-import type { ControlFacade } from '../scripting/GuiRuntime.js';
-import type { ScriptedSayLineOptions } from '../scripting/scriptedSpeech.js';
+import {
+  inventoryCursorAnimationVariableKey,
+  inventoryDefaultAnimationVariableKey,
+  readEffectiveInventoryCursorAnimationTag,
+  readEffectiveInventoryDefaultAnimationTag,
+  readEffectiveInventoryDescription,
+  writeSavedInventoryDescription,
+} from '../inventory/inventoryScriptingAnimations.js';
+import type { ControlFacade } from '../gui/GuiRuntime.js';
+import type { ScriptedSayLineOptions } from './speech.js';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { CharacterFollowOptions } from '../../types/characterFollow.js';
 import type { Point2 } from '../../types/room.js';
@@ -22,6 +29,7 @@ import {
   sayTask,
   walkCharacterTask,
   warnOnce,
+  type FacingOptions,
   type Inventory,
   type ItemRef,
   type WalkTarget,
@@ -406,6 +414,18 @@ export class CharacterHandle<V extends string = string, Anim extends string = st
     characterOps.stopFollowing(this.id);
   }
 
+  /**
+   * Keeps turning to face `target` (the player by default) whenever either of them moves, after a
+   * short random delay. Not saved.
+   */
+  startFacing(target?: { readonly id: string }, options?: FacingOptions): void {
+    characterOps.startFacing(this.id, target ?? null, options);
+  }
+
+  stopFacing(): void {
+    characterOps.stopFacing(this.id);
+  }
+
   /** This character's own bag (§4.6). */
   get inventory(): Inventory {
     return inventoryOf(this.id);
@@ -648,10 +668,39 @@ export class RoomHandle {
 
 // ─── Inventory items ─────────────────────────────────────────────────────────
 
-export class ItemHandle<V extends string = string, Anim extends string = string> implements ItemRef {
-  private readonly facade = () =>
-    createLazyBenneScriptInventoryNamespace(() => tryGetActiveGameStateManager(), activeRoomScene)(this.id);
+/**
+ * Writes an item's saved animation / cursor / description: through the active room, which also
+ * refreshes the inventory GUI and cursor, else straight into the game state.
+ */
+function writeItemState(
+  itemId: string,
+  what: string,
+  viaRoom: (scene: NonNullable<ReturnType<typeof activeRoomScene>>) => void,
+  viaState: (m: NonNullable<ReturnType<typeof tryGetActiveGameStateManager>>) => void,
+): void {
+  const scene = activeRoomScene();
+  if (scene) {
+    viaRoom(scene);
+    return;
+  }
+  const m = tryGetActiveGameStateManager();
+  if (!getInventoryDefinition(itemId) || !m) {
+    warnOnce(`items.${itemId}.${what}`, `items.${itemId}.${what}: unknown item or the game is not running — ignored.`);
+    return;
+  }
+  viaState(m);
+}
 
+function setOrClearVariable(m: NonNullable<ReturnType<typeof tryGetActiveGameStateManager>>, key: string, tag: string): void {
+  const t = tag.trim();
+  if (t.length === 0) {
+    m.clearVariable(key);
+  } else {
+    m.setVariable(key, t);
+  }
+}
+
+export class ItemHandle<V extends string = string, Anim extends string = string> implements ItemRef {
   readonly id: string;
 
   constructor(id: string) {
@@ -666,29 +715,59 @@ export class ItemHandle<V extends string = string, Anim extends string = string>
 
   /** The item's icon animation. Setting it is instant and saved. */
   get animation(): Anim {
-    return this.facade().animation as Anim;
+    const def = getInventoryDefinition(this.id);
+    const m = tryGetActiveGameStateManager();
+    if (!def) {
+      return '' as Anim;
+    }
+    return (m ? readEffectiveInventoryDefaultAnimationTag(m, def) : (def.defaultAnimation ?? '')) as Anim;
   }
 
   set animation(tag: Anim) {
-    this.facade().animationNow(tag);
+    writeItemState(
+      this.id,
+      'animation',
+      (scene) => scene.setInventoryScriptDefaultAnimationTag(this.id, tag),
+      (m) => setOrClearVariable(m, inventoryDefaultAnimationVariableKey(this.id), tag),
+    );
   }
 
   /** The cursor animation while this item is armed. Setting it is instant and saved. */
   get cursorAnimation(): string {
-    return this.facade().cursorAnimation;
+    const def = getInventoryDefinition(this.id);
+    const m = tryGetActiveGameStateManager();
+    if (!def) {
+      return '';
+    }
+    return m ? (readEffectiveInventoryCursorAnimationTag(m, def) ?? '') : (def.cursorAnimation?.trim() ?? '');
   }
 
   set cursorAnimation(tag: string) {
-    this.facade().cursorAnimationNow(tag);
+    writeItemState(
+      this.id,
+      'cursorAnimation',
+      (scene) => scene.setInventoryScriptCursorAnimationTag(this.id, tag),
+      (m) => setOrClearVariable(m, inventoryCursorAnimationVariableKey(this.id), tag),
+    );
   }
 
   /** The hover / verb-line name. Saved. */
   get description(): string {
-    return this.facade().description;
+    const def = getInventoryDefinition(this.id);
+    const m = tryGetActiveGameStateManager();
+    if (!def) {
+      return '';
+    }
+    return m ? readEffectiveInventoryDescription(m, def) : (def.description ?? '');
   }
 
   set description(value: string) {
-    this.facade().description = value;
+    writeItemState(
+      this.id,
+      'description',
+      (scene) => scene.setInventoryScriptDescription(this.id, value),
+      (m) => writeSavedInventoryDescription(m, this.id, value),
+    );
   }
 
   /** `verb` used on this item's inventory row. Generated verb methods (`onLook`) call this. */
@@ -828,7 +907,10 @@ export class GuiControlHandle {
   }
 
   set text(value: string) {
-    this.control('text')?.textNow(value);
+    const c = this.control('text');
+    if (c) {
+      c.text = value;
+    }
   }
 
   get alpha(): number {
@@ -902,12 +984,15 @@ export class GuiControlHandle {
   }
 
   set selectedIndex(index: number) {
-    this.control('selectedIndex')?.selectedIndexNow(index);
+    const c = this.control('selectedIndex');
+    if (c) {
+      c.selectedIndex = index;
+    }
   }
 
   /** List boxes. */
   setRowText(index: number, text: string): void {
-    this.control('setRowText')?.setRowTextNow(index, text);
+    this.control('setRowText')?.setRowText(index, text);
   }
 
   /** Buttons: force `'normal'`, `'hover'`, `'pressed'` or `'disabled'` looks. `'normal'` gives control back to the pointer. */

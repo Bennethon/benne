@@ -3,7 +3,7 @@ import { gameEvents } from './events/EventBus.js';
 import {
   wireBenneVerbContextGameStateRelay,
   unwireBenneVerbContextGameStateRelay,
-} from './scripting/benneVerbContextScriptSurface.js';
+} from './verbs/verbContext.js';
 import { setActiveBenneGame } from './gameState/activeBenneGame.js';
 import { GameStateManager } from './gameState/GameStateManager.js';
 import { buildBootGameStateSlice } from './gameState/initialGameStateSlice.js';

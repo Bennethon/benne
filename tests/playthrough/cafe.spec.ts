@@ -9,7 +9,7 @@ import { choose, collectErrors, openGame, setAutoSkip, state, useItem, verb, wai
 const flags = async (page: Page) => (await state(page)).flags;
 const inventory = async (page: Page) => (await state(page)).inventory;
 
-/** Speech lines from the console, as `B.say` and the new `say` both log them. */
+/** Speech lines from the console, as `say` logs them. */
 function collectSpeech(page: Page): string[] {
   const lines: string[] = [];
   page.on('console', (m) => {

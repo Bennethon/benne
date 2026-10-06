@@ -1,35 +1,25 @@
-import { registerInventoryScript } from '@engine/scripting';
+import { items } from '@game';
 
-registerInventoryScript('PB', ({ B }) => {
+items.pb.onLook(() => {
+  Hank: "It's some peanut butter."
+})
 
-  B.whenLookAt(() => {
-    B.say`Hank: It's some peanut butter.`;
-  });
+// `doNotActivate`: Use opens the jar instead of arming it.
+items.pb.onUse.doNotActivate(() => {
+  if (items.pb.animation === 'PB') {
+    items.pb.animation = 'PB-open'
+    Hank: "I opened the jar."
+  } else {
+    Hank: "It's already open."
+  }
+})
 
-  B.whenUse.doNotActivate(() => {
-    if (B.inventory('PB').animation === 'PB') {
-      B.inventory('PB').animation = 'PB-open';
-      B.say`Hank: I opened the jar.`;
-    } else {
-      B.say`Hank: It's already open.`;
-    }
-  });
-
-  B.whenInventoryUsedOn('PB', (payload) => {
-    if (payload.itemId === 'Knife') {
-      
-      if (B.inventory('PB').animation === 'PB') {
-        B.say`Hank: I need to open the jar first.`;
-      } else {
-        B.inventory('Knife').animation = 'Knife-PB';
-        B.inventory('Knife').cursorAnimation = 'Knife-PB';
-        B.say`Hank: Mmmm... gooey peanut butter.`;
-      }
-      
-      return;
-    }
-    
-    return false;
-  });
-
-});
+items.pb.onUseItem(items.knife, () => {
+  if (items.pb.animation === 'PB') {
+    Hank: "I need to open the jar first."
+  } else {
+    items.knife.animation = 'Knife-PB'
+    items.knife.cursorAnimation = 'Knife-PB'
+    Hank: "Mmmm... gooey peanut butter."
+  }
+})

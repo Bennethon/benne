@@ -1,12 +1,19 @@
-import { registerRoomScript } from '@engine/scripting';
-registerRoomScript(({ B }) => {
-  B.whenEnterRoom(() => { B.state.setVariable('entered', Number(B.state.getVariable('entered') ?? 0) + 1); });
-  B.whenLoadedRoom(() => { B.state.setFlag('loaded', true); });
-  B.whenUse('door', () => { B.room.changeTo('b'); });
-  B.whenUse('save', () => { B.state.save('checkpoint'); });
-  B.whenUse('load', () => { B.state.load('checkpoint'); });
-  B.whenUse('count', () => { B.state.setVariable('count', Number(B.state.getVariable('count') ?? 0) + 1); });
-  B.whenLookAt('count', () => { B.state.setFlag('looked', true); });
-  B.whenUse('reset', () => { B.state.reset(); B.room.changeTo('a'); });
-  B.playFrom('seeded', () => { B.state.setFlag('seeded', true); });
-});
+import { background, game, playFrom, saves, wait } from '@benne/script';
+import { flags, rooms, vars } from '@game';
+import { room, count, door, load, reset, save } from './a.ids';
+
+room.onEnter(() => { vars.entered += 1 })
+room.onLoaded(() => { flags.loaded = true })
+door.onUse(() => rooms.b.goTo())
+// Saving is refused while an interaction runs (decision 2): save once this click's handler has ended.
+save.onUse(() => {
+  background(() => {
+    wait(0)
+    saves.save(0, 'checkpoint')
+  })
+})
+load.onUse(() => saves.load(0))
+count.onUse(() => { vars.count += 1 })
+count.onLook(() => { flags.looked = true })
+reset.onUse(() => game.newGame(rooms.a))
+playFrom('seeded', () => { flags.seeded = true })

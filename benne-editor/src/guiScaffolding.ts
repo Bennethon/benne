@@ -383,16 +383,16 @@ export async function runAddGuiControlWizard(
                 return 'Button controls require an id (scripts use its handle: onClick).';
             }
             if (kind === 'textInput' && s.length === 0) {
-                return 'Text input controls require an id (B.gui(...).control(...)).';
+                return 'Text input controls require an id (scripts reach them as `guis.x.controls.y`).';
             }
             if (kind === 'listBox' && s.length === 0) {
-                return 'List box controls require an id (B.gui(...).control(...)).';
+                return 'List box controls require an id (scripts reach them as `guis.x.controls.y`).';
             }
             if (kind === 'checkbox' && s.length === 0) {
                 return 'Checkbox controls require an id (scripts use its handle: onChange).';
             }
             if (kind === 'slider' && s.length === 0) {
-                return 'Slider controls require an id (control().whenValueChanged, Inspector tree).';
+                return 'Slider controls require an id (scripts reach them as `guis.x.controls.y`).';
             }
             if (kind === 'trigger' && s.length === 0) {
                 return 'Trigger controls require an id (scripts use its handle: onMouseEnter / onMouseLeave).';
@@ -487,12 +487,12 @@ export function getAddGuiControlQuickPickItems(): GuiControlQuickPickItem[] {
         },
         {
             label: 'Text Input',
-            description: 'BitmapText text field (B.gui(...).control(...).text)',
+            description: 'BitmapText text field (`guis.x.controls.y.text`)',
             controlKind: 'textInput'
         },
         {
             label: 'List Box',
-            description: 'Color-driven selectable list (B.gui(...).control(...).selectedIndex)',
+            description: 'Color-driven selectable list (`guis.x.controls.y.selectedIndex`)',
             controlKind: 'listBox'
         },
         {
@@ -522,7 +522,7 @@ export function getAddGuiControlQuickPickItems(): GuiControlQuickPickItem[] {
         },
         {
             label: 'Slider',
-            description: 'Sheet-backed range (control().whenValueChanged)',
+            description: 'Sheet-backed range (`guis.x.controls.y.onChange`)',
             controlKind: 'slider'
         },
         {

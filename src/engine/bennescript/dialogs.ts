@@ -13,8 +13,7 @@ import {
 import { guiButtonClickEventId } from '../events/guiButtonEvents.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import { openDialogSessionForId } from '../scripting/DialogBenneScript.js';
-import { endDialogSessionIfMatches, getActiveDialogBenneScript } from '../scripting/dialogSession.js';
+import { endDialogSessionIfMatches, getActiveDialogSession, openDialogSession } from '../dialog/dialogSession.js';
 import { PLAYER_SPEAKER, sayTask } from './actions.js';
 import {
   currentContext,
@@ -27,15 +26,14 @@ import { liveRoomScene } from './scene.js';
 import { Task } from './task.js';
 
 /**
- * Dialog sessions for the new API (§4.8, decision 3).
+ * BenneScript dialogs (§4.8, decision 3).
  *
  * `start()` waits until the conversation ends. Conversations started from a choice handler stack:
  * the parent session is suspended while the sub-dialog runs and comes back, choices and all, when
  * the sub-dialog ends (`dialog.end()`), once the parent's choice handler has finished.
  *
- * The engine still has one active session at a time (`dialogSession.ts`); this module keeps the
- * stack on top of it. Sessions opened by the old `B.dialog(…).start()` are not on the stack and
- * keep their old behaviour: opening one ends whatever was open.
+ * The engine has one active session at a time (`dialog/dialogSession.ts`); this module keeps the
+ * stack on top of it.
  */
 
 function devWarn(message: string): void {
@@ -52,7 +50,7 @@ interface StackEntry {
   readonly finish: () => void;
   /** A sub-dialog replaced this session; its end brings this one back. */
   suspended: boolean;
-  /** New-API choice handlers of this dialog still running. The parent comes back after them. */
+  /** Choice handlers of this dialog still running. The parent comes back after them. */
   busyChoices: number;
   resumePending: boolean;
 }
@@ -83,8 +81,8 @@ function openSession(dialogId: string): boolean {
   if (!game) {
     return false;
   }
-  openDialogSessionForId(game, dialogId as never);
-  return getActiveDialogBenneScript()?.dialogId === dialogId;
+  openDialogSession(game, dialogId);
+  return getActiveDialogSession()?.dialogId === dialogId;
 }
 
 function maybeResume(entry: StackEntry): void {
@@ -135,7 +133,7 @@ export function startDialog(dialogId: string): Task {
     return Task.resolved();
   }
   const top = stack[stack.length - 1];
-  const parentOpen = top != null && getActiveDialogBenneScript()?.dialogId === top.dialogId;
+  const parentOpen = top != null && getActiveDialogSession()?.dialogId === top.dialogId;
   if (parentOpen) {
     top.suspended = true;
   }
@@ -157,7 +155,7 @@ export function startDialog(dialogId: string): Task {
 
 /** Ends `dialogId` if it is the open conversation, then ends the handler (`dialog.end()`). */
 export function endDialog(dialogId: string): never {
-  const active = getActiveDialogBenneScript();
+  const active = getActiveDialogSession();
   if (active?.dialogId === dialogId) {
     endDialogSessionIfMatches(active);
   } else {
@@ -166,7 +164,7 @@ export function endDialog(dialogId: string): never {
   return endHandler();
 }
 
-/** Dialog ids on the new-API stack, innermost last. For tests and debugging. */
+/** Dialog ids on the stack, innermost last. For tests and debugging. */
 export function dialogStackForTesting(): string[] {
   return stack.map((e) => (e.suspended ? `${e.dialogId} (suspended)` : e.dialogId));
 }
@@ -229,8 +227,8 @@ function autoSayLine(dialogId: string, optionId: string): string {
 
 async function runChoice(dialogId: string, guiId: string, reg: ChoiceRegistration): Promise<void> {
   const scene = liveRoomScene();
-  // Hide the choices while the handler plays, as the old `whenChoice` does.
-  scene?.suppressDialogChoiceGuiForWhenChoice(guiId);
+  // Hide the choices while the handler plays.
+  scene?.hideDialogChoicesWhileChoiceRuns(guiId);
   const entry = findEntry(dialogId);
   if (entry) {
     entry.busyChoices += 1;
@@ -256,7 +254,7 @@ async function runChoice(dialogId: string, guiId: string, reg: ChoiceRegistratio
       maybeResume(entry);
     }
     // Shows the choices again, unless the dialog ended or a sub-dialog replaced it.
-    liveRoomScene()?.restoreDialogChoiceGuiAfterWhenChoiceDrain(guiId, dialogId, false);
+    liveRoomScene()?.showDialogChoicesAfterChoice(guiId, dialogId);
   }
 }
 

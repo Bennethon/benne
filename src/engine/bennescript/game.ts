@@ -5,14 +5,14 @@ import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManag
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import { readEffectiveInventoryDescription } from '../inventory/inventoryScriptingAnimations.js';
 import { tryGetRoomTransitionOrchestrator } from '../scenes/roomTransitionGlobals.js';
-import { getBenneEnvironment, quitBenneApplication } from '../scripting/benneEnvironment.js';
-import { emitBenneSpeechSettingsChanged } from '../scripting/benneSpeechSettingsScriptSurface.js';
+import { getBenneEnvironment, quitBenneApplication } from '../benneEnvironment.js';
+import { emitBenneSpeechSettingsChanged } from '../dialog/speechSettingsEvents.js';
 import {
   BENNE_VERB_CONTEXT_CHANGED_PERSISTENT_EVENT,
   getBenneVerbContextChangedEmitter,
   getBenneVerbContextHoverDescription,
   getBenneVerbContextHoverTarget,
-} from '../scripting/benneVerbContextScriptSurface.js';
+} from '../verbs/verbContext.js';
 import {
   readPersistedMusicSessionVolume,
   readPersistedSfxSessionVolume,
@@ -210,9 +210,23 @@ export const pointer = {
     return lookupVerbHandle(tryGetActiveGameStateManager()?.getActiveVerb());
   },
 
-  /** The armed inventory item (an `items.x` handle), or `null`. */
+  /**
+   * The armed inventory item (an `items.x` handle), or `null`. Set it to arm an item (`pointer.item =
+   * items.knife`) or to drop the armed one (`pointer.item = null`).
+   */
   get item(): ItemHandle | null {
     return lookupItemHandle(tryGetActiveGameStateManager()?.getActiveInventoryItemId());
+  },
+
+  set item(item: { readonly id: string } | null) {
+    const m = tryGetActiveGameStateManager();
+    if (!m) {
+      devWarn('pointer.item: the game is not running — ignored.');
+    } else if (item) {
+      m.setActiveInventoryItem(item.id);
+    } else {
+      m.clearActiveInventoryItem();
+    }
   },
 
   get hover(): PointerHover | null {

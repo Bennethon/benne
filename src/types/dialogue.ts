@@ -28,7 +28,7 @@ export interface DialogOption {
   /** When omitted in JSON, treated as `false` (runtime may persist via game state variables). */
   used?: boolean;
   /**
-   * When `true` (default), the player speaks {@link text} before the option’s `whenChoice` handler runs.
+   * When `true` (default), the player speaks {@link text} before the option’s `onChoose` handler runs.
    * Set to `false` to run the handler without an automatic player line.
    */
   say?: boolean;
@@ -36,7 +36,7 @@ export interface DialogOption {
 
 /**
  * First-class dialog definition (classic SCUMM / AGS-style topic UI).
- * Options may be toggled at runtime via {@link import('../engine/scripting/DialogBenneScript.js').DialogBenneScript}.
+ * Options may be toggled at runtime via BenneScript (`options.x.on()` / `off()`).
  */
 export interface Dialog {
   id: string;

@@ -8,7 +8,7 @@ import type { GameStateInitialSlice } from './GameStateManager.js';
 
 /**
  * The slice {@link import('../Game.js').createBenneGame} passes into {@link GameStateManager}
- * at boot. `B.state.reset()` uses the same helper so a new game cannot drift from startup.
+ * at boot. `game.newGame()` uses the same helper so a new game cannot drift from startup.
  * Returns `undefined` when `game-config.json` has no `initialGameState` (constructor defaults).
  */
 export function buildBootGameStateSlice(): GameStateInitialSlice | undefined {

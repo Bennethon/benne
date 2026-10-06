@@ -1068,9 +1068,9 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             }
             const hookRaw = typeof msg.hook === 'string' ? msg.hook : '';
             const hook: RoomLifecycleHookKind | null =
-                hookRaw === 'whenLoadedRoom' ||
-                hookRaw === 'whenEnterRoom' ||
-                hookRaw === 'whenEnterRoomAfterFade' ||
+                hookRaw === 'onLoaded' ||
+                hookRaw === 'onEnter' ||
+                hookRaw === 'onEnterAfterFade' ||
                 hookRaw === 'onUpdate'
                     ? hookRaw
                     : null;
@@ -1104,7 +1104,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             const guiJsonUriStr = typeof msg.guiJsonUri === 'string' ? msg.guiJsonUri : '';
             const hookRaw = typeof msg.hook === 'string' ? msg.hook : '';
             const hook: GuiLifecycleHookKind | null =
-                hookRaw === 'onGuiBuilt' || hookRaw === 'onGuiShow' || hookRaw === 'onGuiHide'
+                hookRaw === 'onBuilt' || hookRaw === 'onShow' || hookRaw === 'onHide'
                     ? hookRaw
                     : null;
             if (!hook || uri.toString() !== guiJsonUriStr) {

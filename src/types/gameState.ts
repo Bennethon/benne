@@ -21,7 +21,7 @@ export interface SerializableBenneGameStateV2 {
   /** Character definition id → item id → quantity. */
   inventoryByCharacter: Record<string, Record<string, number>>;
   /**
-   * Character definition id the player controls (`B.inventory`, default `inventoryPanel`).
+   * Character definition id the player controls (`player`, whose bag is `inventory`).
    * Omitted in JSON defaults to `game-config.json` `startingPlayerCharacter` at load.
    */
   activePlayerCharacterId?: string;
@@ -37,7 +37,7 @@ export interface SerializableBenneGameStateV2 {
 /** Union accepted by {@link import('../engine/gameState/GameStateManager.js').GameStateManager.applySnapshot}. */
 export type SerializableBenneGameState = SerializableBenneGameStateV1 | SerializableBenneGameStateV2;
 
-/** Public metadata returned by `B.state.getSaveList()`. */
+/** Public metadata of a save (`saves.list()`).*/
 export interface SaveMetadata {
   /** Player-facing save name. */
   name: string;

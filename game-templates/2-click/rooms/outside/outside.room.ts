@@ -1,119 +1,93 @@
-import { registerRoomScript } from '@engine/scripting';
+import { display, faceClicked, player, wait, walkToClicked } from '@benne/script';
+import { flags, music, rooms, sfx } from '@game';
+import { room, door, fountainOff, fountainOn, hank, henry, leverPulled, points, rock, rockMoved } from './outside.ids';
 
-/**
- * Room script for `outside` — keep handlers for this room here.
- *
- * String ids must match your `outside.room.json` (and character JSON where noted):
- * - `whenLookAt` / `whenUse` / `whenTalkTo` / `whenPickUp` / `whenPush` / `whenPull` / `whenOpen` / `whenClose`: work on props, hotspots, and characters — same string id, resolution order `props[]` → `hotspots[]` → `CharacterData.id` in this room.
- * - `whenVerb(verbId, targetId, …)`: any verb id from game config; same target resolution.
- * - `whenGive`: prop recipient only (for now).
- * - `B.prop('…')` / `onProp`: `props[].id` only.
- * - `B.character('…')`: `CharacterData.id` for a character in this room.
- * - `walkTo('…')`: unified target — prop id → hotspot id → character id → `points[].id`, or `{ x, y }` in room pixels.
- */
-registerRoomScript(({ B }) => {
+room.onEnter(() => {
+  if (room.cameFrom(rooms.apartment)) {
+    player.moveTo(points.enterFromDoor)
+    player.face('R')
+  }
+})
 
-  B.whenEnterRoom(() => {
-    if (B.state.getLastRoom() === 'apartment') {
-      B.player.moveTo.now('enter-from-door');
-      B.player.face('R');
-    }
-  });
+room.onEnterAfterFade(() => {
+  music.halloweenSpooky.play({ fadeSeconds: 5 })
+  sfx.doorClose.play()
+  if (room.isFirstVisit) {
+    Henry: "Hey, Hank!"
+    Henry: "Come here!"
+    player.walkTo(henry)
+    Player: "What's up?"
+    henry.walkTo(points.henryFountain)
+    henry.face('L')
+    Henry: "Check out this fountain!"
+    player.walkTo(fountainOff)
+    player.face('R')
+    wait(1)
+    Player: "What about it?"
+    Henry: "I need you to turn it on. It's really important."
+    Player: "Uh, ok."
+    henry.startFacing(hank)
+  }
+})
 
-  B.whenEnterRoomAfterFade(() => {
-    B.sound.playMusic.now('halloween-spooky', { fadeSeconds: 5.0 });
-    B.sound.play('doorClose');
-    if (B.room.isFirstVisit) {
-      B.character('henry').say('Hey, Hank!');
-      B.character('henry').say('Come here!');
-      B.player.walkTo('henry');
-      B.player.say('What\'s up?');
-      B.character('henry').walkTo('henry-fountain');
-      B.character('henry').face('L');
-      B.character('henry').say('Check out this fountain!');
-      B.player.walkTo('FountainOff');
-      B.player.face('R');
-      B.wait(1);
-      B.player.say('What about it?');
-      B.character('henry').say('I need you to turn it on. It\'s really important.');
-      B.player.say('Uh, ok.');
-      B.character('henry').startFacingCharacter('hank');
-    }
-  });
+door.onUse(() => {
+  walkToClicked()
+  rooms.apartment.goTo()
+})
 
-  B.whenUse('door', () => {
-    B.walkToClicked();
-    B.room.changeTo('apartment');
-  });
+door.onLook(() => {
+  faceClicked()
+  Hank: "It's the door."
+})
 
-  B.whenLookAt('door', () => {
-    B.faceClicked();
-    B.say`Hank: It's the door.`;
-  });
+fountainOff.onLook(() => {
+  faceClicked()
+  Hank: "It's a fountain."
+  Hank: "It's not running."
+})
 
-  B.whenLookAt('FountainOff', () => {
-    B.faceClicked();
-    B.say`
-    Hank: It's a fountain.
-    Hank: It's not running.
-    `;
-  });
+fountainOff.onUse(() => {
+  walkToClicked()
+  wait(0.5)
+  Player: "I don't see how to turn it on."
+})
 
-  B.whenUse('FountainOff', () => {
-    B.walkToClicked();
-    B.wait(.5);
-    B.player.say('I don\'t see how to turn it on.');
-  });
+fountainOn.onLook(() => {
+  faceClicked()
+  Hank: "I got it working!."
+})
 
-  B.whenLookAt('FountainOn', () => {
-    B.faceClicked();
-    B.say`
-    Hank: I got it working!.
-    `;
-  });
+fountainOn.onUse(() => {
+  faceClicked()
+  Hank: "Cool!."
+})
 
-  B.whenUse('FountainOn', () => {
-    B.faceClicked();
-    B.say`
-    Hank: Cool!.
-    `;
-  });
+rock.onLook(() => {
+  faceClicked()
+  Hank: "It's a weird looking, out of place rock."
+})
 
-  B.whenLookAt('Rock', () => {
-    B.faceClicked();
-    B.say`
-    Hank: It's a weird looking, out of place rock.
-    `;
-  });
+rock.onUse(() => {
+  walkToClicked()
+  Player: "I think I can move it."
+  rock.hide()
+  rockMoved.show()
+  Player: "Huh, some weird lever hidden under the rock."
+})
 
-  B.whenUse('Rock', () => {
-    B.walkToClicked();
-    B.player.say('I think I can move it.');
-    B.prop('Rock').hide();
-    B.prop('RockMoved').show();
-    B.player.say('Huh, some weird lever hidden under the rock.');
-  });
+rockMoved.onLook(() => {
+  faceClicked()
+  Hank: "I wonder what this lever does..."
+})
 
-
-
-  B.whenLookAt('RockMoved', () => {
-    B.faceClicked();
-    B.say`
-    Hank: I wonder what this lever does...
-    `;
-  });
-
-
-
-  B.whenUse('RockMoved', () => {
-    B.walkToClicked();
-    B.say`Hank: Let's see what this does...`;
-    B.prop('RockMoved').hide();
-    B.prop('LeverPulled').show();
-    B.prop('FountainOff').hide();
-    B.prop('FountainOn').show();
-    B.state.setFlag('turnedOnFountain', true);
-    B.character('henry').say('WOO HOO! IT\'S WORKING!');
-    B.display('You won!');
-  });
-});
+rockMoved.onUse(() => {
+  walkToClicked()
+  Hank: "Let's see what this does..."
+  rockMoved.hide()
+  leverPulled.show()
+  fountainOff.hide()
+  fountainOn.show()
+  flags.turnedOnFountain = true
+  Henry: "WOO HOO! IT'S WORKING!"
+  display("You won!")
+})

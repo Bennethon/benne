@@ -13,7 +13,7 @@
  *
  * Runtimes that enforce "one gameplay interaction at a time" (BenneScript §5 rule 9) also give the
  * registry a world-click policy; the room asks {@link admitGameplayClick} before a click starts a
- * walk or an interaction. Activities without a policy (the old `B` API) never block clicks.
+ * walk or an interaction. Activities without a policy never block clicks.
  */
 
 /** What a running interaction wants done with a world click: cancel itself, or drop the click. */

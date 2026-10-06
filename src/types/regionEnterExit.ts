@@ -1,6 +1,6 @@
 /**
- * Payload for {@link import('../engine/scripting/BenneScript.js').BenneScript}'s
- * **`B.region('…').whenEnter` / `whenExit`** (and flat **`whenEnterRegion` / `whenExitRegion`**).
+ * Payload of the room's region enter / exit events, which BenneScript's **`regions.x.onEnter` /
+ * `onExit`** handlers receive (as `who`, the character's handle).
  */
 export type RegionEnterExitContext = {
   /** This room’s id (same as `*.room.json` `id`). */

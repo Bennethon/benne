@@ -2,8 +2,7 @@
  * Play From smoke tests: start every Play From entry point in BENNE Play (dev server) and check
  * it runs without errors and reaches a point where the game waits for the player.
  *
- * Entry points are found by scanning room scripts for `playFrom('<name>'`, which is the same in
- * the old (`B.playFrom`) and new (`playFrom`) scripting APIs.
+ * Entry points are found by scanning room scripts for `playFrom('<name>'`.
  */
 import { test, expect } from '@playwright/test';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';

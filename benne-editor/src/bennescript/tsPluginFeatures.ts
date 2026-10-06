@@ -25,17 +25,10 @@ export const BENNESCRIPT_DIAGNOSTIC = {
 } as const;
 
 const SCRIPT_FILE = /(?:^|[/\\])(?:[^/\\]+\.(?:room|character|inventory|dialog|gui|script)\.ts|globalScript\.ts)$/;
-/** Same test as `usesNewBenneScriptApi` in scripts/lib/bennescriptTransform.mjs (decision 14). */
-const NEW_API_IMPORT = /\bfrom\s+['"](?:@benne\/script|@game|\.{1,2}\/[^'"]*\.ids(?:\.ts)?)['"]/;
 const STEP_BLOCK_APIS = new Set(['playFrom', 'cutscene', 'background', 'together', 'withInputDisabled']);
 
 export function isBenneScriptFile(fileName: string): boolean {
     return SCRIPT_FILE.test(fileName);
-}
-
-/** A script file the build transform rewrites (it uses the new API). */
-export function isTransformedScript(fileName: string, text: string): boolean {
-    return isBenneScriptFile(fileName) && NEW_API_IMPORT.test(text);
 }
 
 function unwrap(ts: typeof TS, e: TS.Expression): TS.Expression {

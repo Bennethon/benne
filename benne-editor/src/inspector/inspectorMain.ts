@@ -95,8 +95,8 @@ type InspectorRegionCard = {
     tintEnabled: boolean;
     tint: string;
     tintAlpha: number;
-    whenEnterDefined: boolean;
-    whenExitDefined: boolean;
+    onEnterDefined: boolean;
+    onExitDefined: boolean;
 };
 
 type InspectorRoomState = {
@@ -118,9 +118,9 @@ type InspectorRoomState = {
     points: InspectorPointCard[];
     regions: InspectorRegionCard[];
     expanded: { entity: string; id: string } | null;
-    whenLoadedRoomDefined: boolean;
-    whenEnterRoomDefined: boolean;
-    whenEnterRoomAfterFadeDefined: boolean;
+    roomOnLoadedDefined: boolean;
+    roomOnEnterDefined: boolean;
+    roomOnEnterAfterFadeDefined: boolean;
     onUpdateDefined: boolean;
 };
 
@@ -497,9 +497,9 @@ type InspectorGuiState = {
     fontIds: string[];
     controls: InspectorGuiControlCard[];
     expanded: { entity: string; id: string } | null;
-    onGuiBuiltDefined: boolean;
-    onGuiShowDefined: boolean;
-    onGuiHideDefined: boolean;
+    onBuiltDefined: boolean;
+    onShowDefined: boolean;
+    onHideDefined: boolean;
 };
 
 type InspectorInventoryAnimationCard = {
@@ -792,7 +792,7 @@ function inspectorItemExpanded(
 }
 
 function renderGuiLifecycleHookRow(state: InspectorGuiState): string {
-    const mk = (hook: 'onGuiBuilt' | 'onGuiShow' | 'onGuiHide', defined: boolean, label: string): string => {
+    const mk = (hook: 'onBuilt' | 'onShow' | 'onHide', defined: boolean, label: string): string => {
         const cls = defined ? 'verb-chip verb-defined' : 'verb-chip verb-add';
         const icon = defined ? '⚡' : '+';
         const title = defined
@@ -801,15 +801,15 @@ function renderGuiLifecycleHookRow(state: InspectorGuiState): string {
         return `<button type="button" class="${cls}" data-gui-lifecycle="${esc(hook)}" title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(label)}</span></button>`;
     };
     return `<div class="benne-gui-lifecycle row wrap" role="group" aria-label="GUI script lifecycle hooks" style="margin-bottom:10px;">
-${mk('onGuiBuilt', state.onGuiBuiltDefined, 'gui.onBuilt')}
-${mk('onGuiShow', state.onGuiShowDefined, 'gui.onShow')}
-${mk('onGuiHide', state.onGuiHideDefined, 'gui.onHide')}
+${mk('onBuilt', state.onBuiltDefined, 'gui.onBuilt')}
+${mk('onShow', state.onShowDefined, 'gui.onShow')}
+${mk('onHide', state.onHideDefined, 'gui.onHide')}
 </div>`;
 }
 
 function renderRoomLifecycleHookRow(state: InspectorRoomState): string {
     const mk = (
-        hook: 'whenLoadedRoom' | 'whenEnterRoom' | 'whenEnterRoomAfterFade' | 'onUpdate',
+        hook: 'onLoaded' | 'onEnter' | 'onEnterAfterFade' | 'onUpdate',
         defined: boolean,
         label: string
     ): string => {
@@ -821,9 +821,9 @@ function renderRoomLifecycleHookRow(state: InspectorRoomState): string {
         return `<button type="button" class="${cls}" data-room-lifecycle="${esc(hook)}" title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(label)}</span></button>`;
     };
     return `<div class="benne-room-lifecycle row wrap" role="group" aria-label="Room script lifecycle hooks" style="margin-bottom:10px;">
-${mk('whenLoadedRoom', state.whenLoadedRoomDefined, 'room.onLoaded')}
-${mk('whenEnterRoom', state.whenEnterRoomDefined, 'room.onEnter')}
-${mk('whenEnterRoomAfterFade', state.whenEnterRoomAfterFadeDefined, 'room.onEnterAfterFade')}
+${mk('onLoaded', state.roomOnLoadedDefined, 'room.onLoaded')}
+${mk('onEnter', state.roomOnEnterDefined, 'room.onEnter')}
+${mk('onEnterAfterFade', state.roomOnEnterAfterFadeDefined, 'room.onEnterAfterFade')}
 ${mk('onUpdate', state.onUpdateDefined, 'onUpdate')}
 </div>`;
 }
@@ -883,8 +883,8 @@ function renderRegionScriptHandlerChips(r: InspectorRegionCard): string {
     };
     return `<label class="benne-field-label muted small">Script</label>
 <div class="benne-verb-chips" role="group" aria-label="Region enter and exit handlers">
-${mk('enter', r.whenEnterDefined, 'onEnter', 'regions.….onEnter — reveal or add stub')}
-${mk('exit', r.whenExitDefined, 'onExit', 'regions.….onExit — reveal or add stub')}
+${mk('enter', r.onEnterDefined, 'onEnter', 'regions.….onEnter — reveal or add stub')}
+${mk('exit', r.onExitDefined, 'onExit', 'regions.….onExit — reveal or add stub')}
 </div>`;
 }
 
@@ -2834,9 +2834,9 @@ function mountHandlers(state: InspectorRoomState): void {
             const b = btn as HTMLButtonElement;
             const hook = b.dataset.roomLifecycle ?? '';
             if (
-                hook === 'whenLoadedRoom' ||
-                hook === 'whenEnterRoom' ||
-                hook === 'whenEnterRoomAfterFade' ||
+                hook === 'onLoaded' ||
+                hook === 'onEnter' ||
+                hook === 'onEnterAfterFade' ||
                 hook === 'onUpdate'
             ) {
                 post('roomLifecycleHook', {
@@ -3373,7 +3373,7 @@ function mountGuiHandlers(state: InspectorGuiState): void {
     document.querySelectorAll('.verb-chip[data-gui-lifecycle]').forEach((btn) => {
         btn.addEventListener('click', () => {
             const hook = (btn as HTMLButtonElement).dataset.guiLifecycle ?? '';
-            if (hook === 'onGuiBuilt' || hook === 'onGuiShow' || hook === 'onGuiHide') {
+            if (hook === 'onBuilt' || hook === 'onShow' || hook === 'onHide') {
                 post('guiLifecycleHook', {
                     guiJsonUri: state.guiJsonUri,
                     guiId: state.guiId,

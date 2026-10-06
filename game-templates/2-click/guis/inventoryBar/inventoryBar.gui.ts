@@ -1,23 +1,18 @@
-import { registerGuiScript } from '@engine/scripting';
+import { back, fwd, gui, hideZone, hoverZone } from './inventoryBar.ids';
 
-registerGuiScript('inventoryBar', ({ B }) => {
-  B.onGuiBuilt((gui) => {
-    const root = gui.root;
+// The bar slides down when the pointer reaches the top of the screen, and back up when it leaves.
+hoverZone.onMouseEnter(() => {
+  gui.root.tweenTo({ y: 0 }, 0.3, 'Sine.easeOut')
+})
 
-    B.whenMouseEnter('hoverZone', () => {
-      root.tweenTo({ y: 0 }, 300, 'Sine.easeOut');
-    });
+hideZone.onMouseLeave(() => {
+  gui.root.tweenTo({ y: -33 }, 0.25, 'Sine.easeIn')
+})
 
-    B.whenMouseLeave('hideZone', () => {
-      root.tweenTo({ y: -33 }, 250, 'Sine.easeIn');
-    });
-  });
+back.onClick(() => {
+  console.log('Back button clicked')
+})
 
-  B.whenButtonClick('back', () => {
-    console.log('Back button clicked');
-  });
-
-  B.whenButtonClick('Fwd', () => {
-    console.log('Forward button clicked');
-  });
-});
+fwd.onClick(() => {
+  console.log('Forward button clicked')
+})

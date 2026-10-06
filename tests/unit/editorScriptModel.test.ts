@@ -104,7 +104,6 @@ describe('ScriptModel on the ported game', () => {
     const unresolved: string[] = [];
     for (const file of scriptFiles()) {
       const m = model(file);
-      expect(m.usesOldApi, file).toBe(false);
       for (const r of m.registrations) {
         if (r.receiver === null || r.receiver.root === 'button' || r.receiver.root === 'game' || r.receiver.root === 'pointer') continue;
         if (!resolveScriptRef(m, index, r.receiver)) unresolved.push(`${path.basename(file)}: ${r.receiverText}.${r.method}`);
@@ -205,7 +204,7 @@ describe('speech lines', () => {
 });
 
 describe('stubs', () => {
-  it('adds a new-style prop handler with its import', () => {
+  it('adds a prop handler with its import', () => {
     const text = readFileSync(clubScript, 'utf8');
     const result = insertHandlerStub(ts, index, clubScript, text, {
       kind: 'verb', target: { kind: 'prop', roomId: 'club', id: 'bg' }, verbId: 'look',
