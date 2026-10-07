@@ -21,14 +21,14 @@ regions.leave.onEnter(() => {
 
 outside.onLook(() => {
   faceClicked()
-  Hank: "Nice day."
+  Hank: `Nice day.`
 })
 
 // ─── The driver ──────────────────────────────────────────────────────────────
 
 driver.onLook(() => {
   faceClicked()
-  Hank: "He looks grizzly."
+  Hank: `He looks grizzly.`
 })
 
 driver.onTalkTo(() => {
@@ -41,13 +41,13 @@ driver.onTalkTo(() => {
 battery.onLook(() => {
   walkToClicked()
   if (flags.batteryClean) {
-    Hank: "I cleaned off the corrosion. Now to fix the loose cable."
-    Hank: "I need a 10mm socket wrench."
+    Hank: `I cleaned off the corrosion. Now to fix the loose cable.`
+    Hank: `I need a 10mm socket wrench.`
     dialogs.driver.options.wrench.on()
   } else {
-    Hank: "Hmm..."
-    Hank: "It looks like one terminal is horribly corroded and the cable is loose."
-    Driver: "Huh?!"
+    Hank: `Hmm...`
+    Hank: `It looks like one terminal is horribly corroded and the cable is loose.`
+    Driver: `Huh?!`
     dialogs.driver.options.fixBattery.on()
   }
 })
@@ -55,28 +55,28 @@ battery.onLook(() => {
 battery.onClean(() => {
   if (!flags.askedAboutBattery) {
     faceClicked()
-    Hank: "Why would I do that?"
+    Hank: `Why would I do that?`
     return
   }
   walkToClicked()
   if (flags.batteryClean) {
-    Hank: "It's already clean."
+    Hank: `It's already clean.`
   } else {
-    Hank: "I don't think my raw cleaning abilities will work here."
-    Hank: "I need something with more punch."
+    Hank: `I don't think my raw cleaning abilities will work here.`
+    Hank: `I need something with more punch.`
   }
 })
 
 battery.onUseItem(items.soda, () => {
   if (!flags.askedAboutBattery) unhandled()
   walkToClicked()
-  Hank: "I hope this works."
+  Hank: `I hope this works.`
   inventory.remove(items.soda)
   sfx.sodaPour.play()
   wait(0.75)
-  Hank: "Hey! The corrosion is gone."
-  Hank: "Now I need to tighten that cable."
-  Hank: "Just need a 10mm socket wrench."
+  Hank: `Hey! The corrosion is gone.`
+  Hank: `Now I need to tighten that cable.`
+  Hank: `Just need a 10mm socket wrench.`
   dialogs.driver.options.wrench.on()
   flags.batteryClean = true
 })
@@ -84,26 +84,26 @@ battery.onUseItem(items.soda, () => {
 battery.onUseItem(items.wrench, () => {
   if (!flags.askedAboutBattery || !flags.batteryClean) unhandled()
   walkToClicked()
-  Hank: "Ok I'll tighten 'er up here."
+  Hank: `Ok I'll tighten 'er up here.`
   inventory.remove(items.wrench)
   sfx.tightening.play()
   wait(0.75)
-  Hank: "Done!"
+  Hank: `Done!`
   flags.batteryFixed = true
-  Hank: "Hey man. I fixed your battery."
-  Driver: "Well darn tootin'. It looks like you did!"
-  Driver: "Thanks son! I don't need that power regulator anymore."
-  Driver: "You can have it."
+  Hank: `Hey man. I fixed your battery.`
+  Driver: `Well darn tootin'. It looks like you did!`
+  Driver: `Thanks son! I don't need that power regulator anymore.`
+  Driver: `You can have it.`
   regulator.hide()
   sfx.whip.play()
   inventory.add(items.regulator)
-  Hank: "Thanks!"
+  Hank: `Thanks!`
   flags.gotRegulator = true
   dialogs.jensenInPlaza.options.foundRegulator.on()
 
   sfx.hoodClose.play()
   car.animation = 'car-fixed'
-  Driver: "Now stand back. I'm gonna fire her up, and show this AI who can drive!"
+  Driver: `Now stand back. I'm gonna fire her up, and show this AI who can drive!`
   fadeOut()
   player.moveTo(points.standBack)
   player.face('D')
@@ -113,7 +113,7 @@ battery.onUseItem(items.wrench, () => {
   crash.animation = 'crash-play'
   fadeIn()
   wait(2)
-  Hank: "Ahh!"
+  Hank: `Ahh!`
   // Walks into the exit region, which leaves for the plaza.
   player.walkTo(points.walkout)
 })
@@ -122,7 +122,7 @@ battery.onUseItem(items.wrench, () => {
 
 antenna.onLook(() => {
   faceClicked()
-  Hank: "A broken off car antenna."
+  Hank: `A broken off car antenna.`
 })
 
 antenna.onTake(() => {
@@ -135,21 +135,21 @@ antenna.onTake(() => {
 
 regulator.onLook(() => {
   walkToClicked()
-  Hank: "That's a high tech thing."
-  Driver: "That's my ol' power regulator I got from the college over there."
-  Driver: "I was havin' trouble with my battery, so I thought this might help."
-  Hank: "Is it helping?"
-  Driver: "I can't tell."
+  Hank: `That's a high tech thing.`
+  Driver: `That's my ol' power regulator I got from the college over there.`
+  Driver: `I was havin' trouble with my battery, so I thought this might help.`
+  Hank: `Is it helping?`
+  Driver: `I can't tell.`
   battery.active = true
 })
 
 regulator.onTake(() => {
   walkToClicked()
-  Driver: "Hey! Don't touch that!"
-  Hank: "Why?"
-  Driver: "I need it!"
-  Hank: "Why?"
-  Driver: "I don't know."
+  Driver: `Hey! Don't touch that!`
+  Hank: `Why?`
+  Driver: `I need it!`
+  Hank: `Why?`
+  Driver: `I don't know.`
 })
 
 // ─── The tool chest ──────────────────────────────────────────────────────────
@@ -157,33 +157,33 @@ regulator.onTake(() => {
 toolChest.onLook(() => {
   faceClicked()
   if (flags.askedAboutWrench) {
-    Hank: "Apparently the 10mm socket wrench fell under there."
+    Hank: `Apparently the 10mm socket wrench fell under there.`
   } else {
-    Hank: "Nice tool chest."
+    Hank: `Nice tool chest.`
   }
 })
 
 toolChest.onUse(() => {
   faceClicked()
-  Hank: "Not without asking."
+  Hank: `Not without asking.`
 })
 
 toolChest.onMove(() => {
   if (!flags.askedAboutWrench) {
     faceClicked()
-    Hank: "I don't need to move it."
+    Hank: `I don't need to move it.`
     return
   }
   walkToClicked()
   // TODO: play grunting sound
   wait(0.5)
-  Hank: "Ugh, it's too heavy to move."
+  Hank: `Ugh, it's too heavy to move.`
 })
 
 toolChest.onUseItem(items.magnetStick, () => {
   if (!flags.askedAboutWrench) {
     faceClicked()
-    Hank: "Why would I do that?"
+    Hank: `Why would I do that?`
     return
   }
   walkToClicked()
@@ -192,17 +192,17 @@ toolChest.onUseItem(items.magnetStick, () => {
   inventory.remove(items.magnetStick)
   sfx.whip.play()
   inventory.add(items.wrench)
-  Hank: "Ah, got it!"
+  Hank: `Ah, got it!`
 })
 
 toolChest.onUseItem(items.antenna, () => {
   if (!flags.askedAboutWrench) {
     faceClicked()
-    Hank: "Why would I do that?"
+    Hank: `Why would I do that?`
     return
   }
   walkToClicked()
   sfx.metalScrape.play()
   wait(0.5)
-  Hank: "Hmm. The antenna alone can't fish out the wrench."
+  Hank: `Hmm. The antenna alone can't fish out the wrench.`
 })

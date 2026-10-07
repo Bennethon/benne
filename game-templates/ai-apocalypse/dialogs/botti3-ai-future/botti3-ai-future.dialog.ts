@@ -50,6 +50,6 @@ options.drive.onChoose(() => {
 
 // That's enough about the future for now. (Back to the BOTT-i3 choices.)
 options.thatsAll.onChoose(() => {
-  Botti3: "Okay!"
+  Botti3: `Okay!`
   dialog.end()
 })

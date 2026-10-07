@@ -48,13 +48,13 @@ options.whatAreYou.onChoose(() => {
 
 // Tell me about the local area. (The sub-dialog returns here when it ends.)
 options.aroundHere.onChoose(() => {
-  Botti3: "Sure. What would you like to know?"
+  Botti3: `Sure. What would you like to know?`
   dialogs.botti3LocalArea.start()
 })
 
 // Tell me about this crazy AI future.
 options.aiFuture.onChoose(() => {
-  Botti3: "Sure. What would you like to know?"
+  Botti3: `Sure. What would you like to know?`
   dialogs.botti3AiFuture.start()
 })
 
@@ -68,9 +68,9 @@ options.bye.onChoose(() => {
     // Play magnet animation
     sfx.whip.play()
     inventory.add(items.magnet)
-    Hank: "Ah, thanks."
+    Hank: `Ah, thanks.`
     flags.talkedWithBottieOnce = true
   }
-  Botti3: "Have a swell day!"
+  Botti3: `Have a swell day!`
   dialog.end()
 })

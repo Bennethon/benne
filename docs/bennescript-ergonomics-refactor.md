@@ -105,13 +105,13 @@ B.whenInventoryUsedOn('club-hotspot-battery', (payload) => {
 battery.onUseItem(items.soda, () => {
   if (!flags.askedAboutBattery) unhandled()
   walkToClicked()
-  Hank: "I hope this works."
+  Hank: `I hope this works.`
   inventory.remove(items.soda)
   sfx.sodaPour.play()
   wait(0.75)
-  Hank: "Hey! The corrosion is gone."
-  Hank: "Now I need to tighten that cable."
-  Hank: "Just need a 10mm socket wrench."
+  Hank: `Hey! The corrosion is gone.`
+  Hank: `Now I need to tighten that cable.`
+  Hank: `Just need a 10mm socket wrench.`
   dialogs.driver.options.wrench.on()
   flags.batteryClean = true                  // runs here, after the lines above
 })
@@ -158,8 +158,8 @@ room.onEnterAfterFade(() => {
 
 barista.onLook(() => {
   faceClicked()
-  Hank: "Looks like the owner of the place."
-  Hank: "He isn't doing much."
+  Hank: `Looks like the owner of the place.`
+  Hank: `He isn't doing much.`
 })
 
 door.onUse(() => {
@@ -185,13 +185,15 @@ Why some names are flat and others are namespaced is explained in §7. In short:
 **One line from a character: label syntax.** A label followed by a string is a speech line. The label can be the character's **ID or display name** (`name` in the character JSON), matched case-insensitively. `Player:` always means the active player.
 
 ```ts
-Hank: "What the...?"
-Jensen: "HOW'S IT GOING?!"
-JENSEN: "NOT GREAT!"            // case doesn't matter
-Player: "I have to find a way home!"
-botti3: "Hello!"                // by ID
-BOTTi3: "Hello!"                // by display name "BOTT-i3"
+Hank: `What the...?`
+Jensen: `HOW'S IT GOING?!`
+JENSEN: `NOT GREAT!`            // case doesn't matter
+Player: `I have to find a way home!`
+botti3: `Hello!`                // by ID
+BOTTi3: `Hello!`                // by display name "BOTT-i3"
 ```
+
+Backticks are the house style: a line can contain `"` and `'` without escaping, and `${…}` interpolates. `"…"` and `'…'` strings work too. The editor inserts the backticks when you type `Hank:` at the start of a statement (§9).
 
 **Interpolation** uses backticks:
 
@@ -352,7 +354,7 @@ room.onEnter(() => {
 ```ts
 door.onUse(() => {
   walkToClicked()
-  Hank: "Last room of the night. Let's finish this up and I can go home."
+  Hank: `Last room of the night. Let's finish this up and I can go home.`
   wait(0.5)
   rooms.lab27.goTo()
 })
@@ -381,7 +383,7 @@ Handler methods are **generated from the verbs in `game-config.json`**. AI Apoca
 ```ts
 filingCabinet.onLook(() => {
   faceClicked()
-  Hank: "It's blocking the door."
+  Hank: `It's blocking the door.`
 })
 
 filingCabinet.onMove(() => {
@@ -394,12 +396,12 @@ filingCabinet.onMove(() => {
 exitDoor.onUse(() => {
   walkToClicked()
   if (flags.escapedCloset || flags.allDone) {
-    Hank: "I don't want to leave!"
-    Hank: "I have to get back to my home time!"
+    Hank: `I don't want to leave!`
+    Hank: `I have to get back to my home time!`
   } else if (filingCabinet.animation === 'filingCabinet-over') {
     rooms.hallway.goTo()
   } else {
-    Hank: "I can't squeeze past this filing cabinet."
+    Hank: `I can't squeeze past this filing cabinet.`
   }
 })
 ```
@@ -418,7 +420,7 @@ B.whenVerb('clean', 'cleaning-stuff', notMyJob);
 // PROPOSED
 cleaningStuff.on(['use', 'take', 'clean'], () => {
   faceClicked()
-  Hank: "I'm not on the job here."
+  Hank: `I'm not on the job here.`
 })
 ```
 
@@ -429,10 +431,10 @@ battery.onClean(() => {
   if (!flags.askedAboutBattery) unhandled()     // global "I don't need to clean that."
   walkToClicked()
   if (flags.batteryClean) {
-    Hank: "It's already clean."
+    Hank: `It's already clean.`
   } else {
-    Hank: "I don't think my raw cleaning abilities will work here."
-    Hank: "I need something with more punch."
+    Hank: `I don't think my raw cleaning abilities will work here.`
+    Hank: `I need something with more punch.`
   }
 })
 ```
@@ -487,7 +489,7 @@ coffeemaker.onUseItem(items.coffee, () => {
   wait(1)
   sfx.pourCoffee.play()
   items.coffee.animation = 'coffee-full'
-  Hank: "The best part of waking up!"
+  Hank: `The best part of waking up!`
 })
 ```
 
@@ -522,7 +524,7 @@ antenna.onTake(() => {
 ```ts
 // magnet.inventory.ts
 items.magnet.onLook(() => {
-  Hank: "A cute promotional magnet for the friendly AI overlord."
+  Hank: `A cute promotional magnet for the friendly AI overlord.`
 })
 
 items.magnet.onCombine(items.antenna, () => {     // was whenInventoryUsedOn('magnet', …)
@@ -530,7 +532,7 @@ items.magnet.onCombine(items.antenna, () => {     // was whenInventoryUsedOn('ma
   inventory.remove(items.magnet)
   sfx.whip.play()
   inventory.add(items.magnetStick)
-  Hank: "Cool!"
+  Hank: `Cool!`
 })
 ```
 
@@ -538,9 +540,9 @@ items.magnet.onCombine(items.antenna, () => {     // was whenInventoryUsedOn('ma
 // coffee.inventory.ts
 items.coffee.onLook(() => {
   if (items.coffee.animation === 'coffee-full') {
-    Hank: "A full cup of black coffee."
+    Hank: `A full cup of black coffee.`
   } else {
-    Hank: "An empty coffee cup."
+    Hank: `An empty coffee cup.`
   }
 })
 ```
@@ -583,7 +585,7 @@ flags.batteryClean = true
 if (flags.askedAboutBattery && !flags.batteryClean) { ... }
 vars.timesAskedJensen += 1
 if (vars.timesAskedJensen > 3) {
-  Jensen: "STOP ASKING ME THAT!"
+  Jensen: `STOP ASKING ME THAT!`
 }
 ```
 
@@ -623,7 +625,7 @@ Dialog JSON is unchanged (topics, options, text). Each option becomes a typed ha
 ```ts
 jensen.onTalkTo(() => {
   walkToClicked()
-  Jensen: "Well? Do you have the components yet??"
+  Jensen: `Well? Do you have the components yet??`
   dialogs.jensenInPlaza.start()
   // runs after the conversation closes
   if (flags.allDone) rooms.lab.goTo()
@@ -660,17 +662,17 @@ B.whenChoice("its the future", () => {
 import { dialog, options } from './jensen-in-hallway.ids'
 
 options.greeting.onChooseOnce(() => {          // "Once" turns the option off after choosing
-  Jensen: "HOW'S IT GOING?!"
-  Jensen: "The world has been taken over by an evil, totalitarian artificial intelligence and you ask me how's it going?!"
+  Jensen: `HOW'S IT GOING?!`
+  Jensen: `The world has been taken over by an evil, totalitarian artificial intelligence and you ask me how's it going?!`
   wait(0.75)
-  Jensen: "NOT GREAT!"
+  Jensen: `NOT GREAT!`
   options.whatAboutAI.on()
 })
 
 options.itsTheFuture.onChooseOnce(() => {
   wait(1)
-  Jensen: "WHAT ARE YOU TALKING ABOUT?!"
-  Jensen: "GO AWAY!"
+  Jensen: `WHAT ARE YOU TALKING ABOUT?!`
+  Jensen: `GO AWAY!`
   jensen.face('U')
   dialog.end()
 })
@@ -692,20 +694,20 @@ dialog.end()                      // was B.dialog('<self>').stop()
 
 ```ts
 options.aroundHere.onChoose(() => {
-  Botti3: "Sure. What would you like to know?"
+  Botti3: `Sure. What would you like to know?`
   dialogs.botti3LocalArea.start()      // when this ends, the botti3 choices reappear
 })
 
 options.bye.onChoose(() => {
   if (!flags.talkedWithBottieOnce) {
-    Botti3: "Thanks for stopping by, Hank! It was good to see you again."
-    Botti3: "Please accept this commemorative magnet that we offer to all first-time visitors."
+    Botti3: `Thanks for stopping by, Hank! It was good to see you again.`
+    Botti3: `Please accept this commemorative magnet that we offer to all first-time visitors.`
     sfx.whip.play()
     inventory.add(items.magnet)
-    Hank: "Ah, thanks."
+    Hank: `Ah, thanks.`
     flags.talkedWithBottieOnce = true
   }
-  Botti3: "Have a swell day!"
+  Botti3: `Have a swell day!`
   dialog.end()
 })
 ```
@@ -718,7 +720,7 @@ _As built (Phase 4, decisions 34 and 36):_ `dialog.onStart(…)` runs each time 
 
 ```ts
 options.door.onChoose(() => {
-  Penny: "Bring me a sandwich and I'll give you the key."
+  Penny: `Bring me a sandwich and I'll give you the key.`
   cabinet.show()
   inside.active = true
   options.door.off()
@@ -737,7 +739,7 @@ The room handler still wins when both exist.
 ```ts
 // penny.character.ts
 penny.onLook(() => {
-  Hank: "It's Penny."
+  Hank: `It's Penny.`
 })
 
 penny.onTalkTo(() => {
@@ -747,7 +749,7 @@ penny.onTalkTo(() => {
 
 penny.onUseItem(items.sandwich, () => {
   walkToClicked()
-  Penny: "Finally!"
+  Penny: `Finally!`
   inventory.remove(items.sandwich)
   inventory.add(items.key)
 })
@@ -782,14 +784,14 @@ Animation tag names are string-literal types generated from the Aseprite JSON, s
 jensen.onUseItem(items.mop, () => {
   walkToClicked()
   cutscene(() => {
-    Hank: "I'm going home."
+    Hank: `I'm going home.`
     sfx.smack.play()
     smack.play('smack-play')       // waits for the one-shot to finish
     jensen.hide()
     wait(0.9)
     music.stop()
     wait(0.75)
-    Hank: "Sorry, Jensen."
+    Hank: `Sorry, Jensen.`
     music.gallery.play()
     ...
   })
@@ -828,14 +830,14 @@ video.intro.play()
 **The lab's whip-whip-whip handover** (from `lab.room.ts`) shows sequencing paying off:
 
 ```ts
-Hank: "I guess I have no choice."
+Hank: `I guess I have no choice.`
 for (const part of [items.relay, items.regulator, items.lens, items.timeonium]) {
   wait(0.5)
   sfx.whip.play()
   inventory.remove(part)
 }
 wait(0.5)
-Jensen: "Good. Good. Yes this is exactly what I need."
+Jensen: `Good. Good. Yes this is exactly what I need.`
 ```
 
 A plain `for` loop works because loops inside handlers are sequenced like any other statement. Today the loop would run at click time, so this has to be written out by hand.
@@ -862,18 +864,18 @@ room.onEnterAfterFade(() => {
     doorOpen.hide()
     hank.show()
     wait(0.5)
-    Hank: "What the...?"
+    Hank: `What the...?`
     wait(0.25)
-    BOTTi3Disembodied: "Hello, Hank. Do not be alarmed."
+    BOTTi3Disembodied: `Hello, Hank. Do not be alarmed.`
     player.walkTo(points.labPoint1)
-    Hank: "Hello?"
+    Hank: `Hello?`
     wait(0.5)
     player.face('R')
-    Hank: "Who said that?"
-    BOTTi3Disembodied: "I am BOTT-i3, your friendly municipal control AI."
+    Hank: `Who said that?`
+    BOTTi3Disembodied: `I am BOTT-i3, your friendly municipal control AI.`
     player.face('L')
-    BOTTi3Disembodied: "You have inadvertently traveled ten years into the future."
-    Hank: "WHAT?!"
+    BOTTi3Disembodied: `You have inadvertently traveled ten years into the future.`
+    Hank: `WHAT?!`
     // …
   })
   camera.reset()
@@ -932,13 +934,13 @@ By default everything waits. Every way to overlap work is built on one rule: **a
 ```ts
 // 1. Start one action and keep going: .now
 jensen.walkTo.now(points.labPoint1)
-Hank: "Where's he going?"
+Hank: `Where's he going?`
 
 // 2. Start now, wait later: .now returns a Task
 const walk = jensen.walkTo.now(points.labPoint1)
-Hank: "Jensen, wait!"
+Hank: `Jensen, wait!`
 walk.wait()                  // statement-level, so it waits; no `await` needed
-Jensen: "What?"
+Jensen: `What?`
 
 // 3. Several things together; continues when all finish
 together(
@@ -954,7 +956,7 @@ background(() => {
     wait(0.33)
   }
 })
-Jensen: "Why isn't this working?"
+Jensen: `Why isn't this working?`
 ```
 
 Sounds and music `play()` never block, so they never need `.now`.
@@ -968,7 +970,7 @@ regions.enterCloset.onEnter(() => rooms.closet.goTo())
 
 regions.garageExit.onEnter(() => {
   if (flags.gotRegulator) {
-    Hank: "I don't think I want to go back in there."
+    Hank: `I don't think I want to go back in there.`
   } else {
     rooms.club.goTo()
   }
@@ -1176,15 +1178,15 @@ Flag seeding moves to `state.ts` (§4.7), which leaves only behaviour here:
 import { game } from '@benne/script'
 import { fallbacks } from '@game'      // generated: one method per configured verb (§8.2)
 
-fallbacks.onLook(() => { Player: "Nothing special about that." })
-fallbacks.onUse(() => { Player: "That doesn't work." })
-fallbacks.onTake(() => { Player: "I can't take that." })
-fallbacks.onTalkTo(() => { Player: "I don't have anything to say to that." })
-fallbacks.onClean(() => { Player: "I don't need to clean that." })
-fallbacks.onMove(() => { Player: "It doesn't move." })
+fallbacks.onLook(() => { Player: `Nothing special about that.` })
+fallbacks.onUse(() => { Player: `That doesn't work.` })
+fallbacks.onTake(() => { Player: `I can't take that.` })
+fallbacks.onTalkTo(() => { Player: `I don't have anything to say to that.` })
+fallbacks.onClean(() => { Player: `I don't need to clean that.` })
+fallbacks.onMove(() => { Player: `It doesn't move.` })
 
 fallbacks.onAnyVerb(() => { Player: game.config.defaultFallbackLine })
-fallbacks.onItemUnhandled(() => { Player: "That doesn't work." })
+fallbacks.onItemUnhandled(() => { Player: `That doesn't work.` })
 
 game.onEnterAnyRoom((from) => { ... })
 game.onEnterAnyRoomAfterFade(() => { ... })
@@ -1348,7 +1350,7 @@ _As built (Phase 1):_ the transform is `scripts/lib/bennescriptTransform.mjs` (p
 battery.onUseItem(items.soda, () => {
   if (!flags.askedAboutBattery) unhandled()
   walkToClicked()
-  Hank: "I hope this works."
+  Hank: `I hope this works.`
   inventory.remove(items.soda)
   wait(0.75)
   flags.batteryClean = true
@@ -1561,7 +1563,7 @@ B.whenGlobalVerb('clean', () => { B.player.say("I don't need to clean that."); }
 battery.onClean(() => { … })
 dishes.onClean(() => { … })
 filingCabinet.onMove(() => { … })
-fallbacks.onClean(() => { Player: "I don't need to clean that." })
+fallbacks.onClean(() => { Player: `I don't need to clean that.` })
 ```
 
 A hypothetical custom item verb, which isn't possible today:
@@ -1572,7 +1574,7 @@ window.onThrowItem(items.rock, () => {
   sfx.glassBreak.play()
   window.animation = 'window-broken'
   inventory.remove(items.rock)
-  Hank: "Oops."
+  Hank: `Oops.`
 })
 
 fallbacks.onThrowItem((item, target) => {
@@ -1623,7 +1625,7 @@ Most of the ergonomics come from the build and type layers. The VS Code extensio
 | Feature | How |
 |---|---|
 | Completions for every handle | Free: plain TypeScript over the generated modules, with auto-import |
-| Speaker completions | TS plugin: typing a capital letter at statement start offers `Hank: ""` with the cursor inside the quotes |
+| Speaker completions | TS plugin: typing a capital letter at statement start offers ``Hank: `` `` with the cursor inside the backticks; typing `Hank:` by hand inserts the backticks too (`dialogueAutoQuote.ts`, setting `benneEditor.dialogue.autoInsertBackticks`) |
 | Unknown speaker / bad label diagnostics | TS plugin, same rules as the transform |
 | String-union completions **with quotes** (`face(`, `animation =`, `play(`) | TS plugin: offers `'U'`, `'D'`, … at `(` or `=` and inserts the quotes |
 | Go to definition: `battery` → `club.room.json` hotspot | TS plugin redirects definition requests for generated handles to the JSON source |
@@ -1635,9 +1637,9 @@ Most of the ergonomics come from the build and type layers. The VS Code extensio
 _As built (Phase 5, decisions 38–42):_ the extension's BenneScript layer is `benne-editor/src/bennescript/`, free of `vscode` imports so the TS server plugin shares it:
 
 - **ScriptModel** (`scriptModel.ts`) parses a script with the TypeScript AST into registrations (any `x.on…(…)` call, `x.onUse.doNotActivate(…)`, `playFrom`, `onUpdate`), speech lines (labels, `` say`…` `` block lines, `x.say(…)`, each with the source range of its text) and references to generated handles. Receivers stay syntactic (`items.soda`) and are resolved by **`IdsIndex`** (`idsIndex.ts`), which reads the generated `.ids.ts` modules: every handle there is built from its content ID (`new HotspotHandle("club", "club-hotspot-battery")`), so the editor never re-implements the naming rules. A handle missing from the modules (new content) makes the editor run the generator once and retry. Speaker rules are mirrored from `scripts/lib/benneSpeakers.mjs` in `speakers.ts` (the CommonJS bundles can't import the ES module); a unit test keeps the two in step.
-- **Handlers** (`handlerSpecs.ts`): the Inspector chips, "add handler" and "reveal handler" all go through one `HandlerSpec` (verb on a prop / hotspot / character / item, any item on a target, room hook, `onUpdate`, region, GUI hook, control event, dialog choice, Play From). A new handler is appended at the end of the script, and its imports are merged into the existing `import { … }` lines (`@benne/script`, then `@game`, then `./x.ids`). Stubs: `battery.onLook(() => { // TODO: Look at })`; "item used on this" is `x.onAnyItem(() => { Player: "That doesn't work." })` (any `onUseItem` / `onItem` / `onCombine` / `onAnyItem` counts as present); a room's `onUpdate` stub starts with `if (game.currentRoom !== room) return`, because `onUpdate` runs in every room (§4.18); checkboxes get one `onChange`; dialog options get `onChoose` (either `onChoose` or `onChooseOnce` counts). Per-object verb fallbacks (`onVerbFallback` in JSON) and text-input "submit" have no BenneScript handler, so those Inspector buttons explain that instead.
+- **Handlers** (`handlerSpecs.ts`): the Inspector chips, "add handler" and "reveal handler" all go through one `HandlerSpec` (verb on a prop / hotspot / character / item, any item on a target, room hook, `onUpdate`, region, GUI hook, control event, dialog choice, Play From). A new handler is appended at the end of the script, and its imports are merged into the existing `import { … }` lines (`@benne/script`, then `@game`, then `./x.ids`). Stubs: `battery.onLook(() => { // TODO: Look at })`; "item used on this" is ``x.onAnyItem(() => { Player: `That doesn't work.` })`` (any `onUseItem` / `onItem` / `onCombine` / `onAnyItem` counts as present); a room's `onUpdate` stub starts with `if (game.currentRoom !== room) return`, because `onUpdate` runs in every room (§4.18); checkboxes get one `onChange`; dialog options get `onChoose` (either `onChoose` or `onChooseOnce` counts). Per-object verb fallbacks (`onVerbFallback` in JSON) and text-input "submit" have no BenneScript handler, so those Inspector buttons explain that instead.
 - **Old-API scripts** (`register*Script`) are neither read nor edited: their chips show no handlers and "add handler" says to port the file first (decision 39).
-- **TS server plugin** (`tsPluginFeatures.ts`, wired in `tsServerPlugin.ts`): speaker diagnostics with the transform's messages (unknown, ambiguous, a `say` line without `Speaker:`, a speech line outside a step function); `Hank: "$1"` snippet completions at the start of a statement once a capital letter is typed; TypeScript's own quoted string-union entries are sorted first and match without the quote (decision 41); a definition that lands in a generated module is redirected to the content: the `"id"` in the room / character / item / dialog / GUI JSON, the verb in `game-config.json`, or the sound / music / video file.
+- **TS server plugin** (`tsPluginFeatures.ts`, wired in `tsServerPlugin.ts`): speaker diagnostics with the transform's messages (unknown, ambiguous, a `say` line without `Speaker:`, a speech line outside a step function); ``Hank: `$1` `` snippet completions at the start of a statement once a capital letter is typed; TypeScript's own quoted string-union entries are sorted first and match without the quote (decision 41); a definition that lands in a generated module is redirected to the content: the `"id"` in the room / character / item / dialog / GUI JSON, the verb in `game-config.json`, or the sound / music / video file.
 - **Voice IDs and the speaking-text CSV** use the ScriptModel. In AI Apocalypse they find 579 lines (430 labels, 149 `say` block lines) for all ten characters; the one line they skip is `Player: game.config.defaultFallbackLine ?? "…"`, which has no literal text.
 - **Delete impact** lists every use of the deleted thing's handle (`resolveReference`).
 - **Inspector default verb** shows the game-level `defaultVerb` (decision 8) when a clickable has none.
@@ -1725,7 +1727,7 @@ The old API ran everything that wasn't queued at click time, and the new one run
 
   ```ts
   options.thatsAll.onChoose(() => {
-    Botti3: "Okay!"
+    Botti3: `Okay!`
     dialog.end()          // back to the botti3 choices
   })
   ```

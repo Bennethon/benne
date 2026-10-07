@@ -35,6 +35,6 @@ options.club.onChoose(() => {
 
 // That's all I want to know about the area for now. (Back to the BOTT-i3 choices.)
 options.thatsAll.onChoose(() => {
-  Botti3: "Okay!"
+  Botti3: `Okay!`
   dialog.end()
 })

@@ -24,7 +24,7 @@ door.on(['open', 'use'], () => {
     sfx.doorOpen.playAndWait()
     rooms.outside.goTo()
   } else {
-    Hank: "The door is locked."
+    Hank: `The door is locked.`
     display("The door is locked. AHH! I can't get out! HELP ME! HELP ME! SOMEBODY HELP ME! PLEASE HELP ME!")
     display("Ok calm down.")
   }
@@ -34,28 +34,28 @@ door.onUseItem(items.key, () => {
   walkToClicked()
   flags.unlockedDoor = true
   inventory.remove(items.key)
-  Player: "The door is unlocked."
+  Player: `The door is unlocked.`
 })
 
 // ── Penny ──
 
 penny.onLook(() => {
-  Player: "It's Penny."
+  Player: `It's Penny.`
 })
 
 penny.onTalkTo(() => {
   walkToClicked()
-  Hank: "Hey Penny!"
-  Penny: "Hi!"
+  Hank: `Hey Penny!`
+  Penny: `Hi!`
   dialogs.chatwithpenny.start()
 })
 
 // Any other item given to Penny falls through to "That doesn't work." in globalScript.ts.
 penny.onGiveItem(items.sammich, () => {
   walkToClicked()
-  Hank: "Here, Penny! Have a sandwich."
+  Hank: `Here, Penny! Have a sandwich.`
   inventory.remove(items.sammich)
-  Penny: "Thank you! Here's the key."
+  Penny: `Thank you! Here's the key.`
   inventory.add(items.key)
 })
 
@@ -84,12 +84,12 @@ hank.onPush(() => {
 
 couch.onLook(() => {
   faceClicked()
-  Hank: "It's my weird, magical, poorly drawn couch."
+  Hank: `It's my weird, magical, poorly drawn couch.`
 })
 
 couch.onPull(() => {
   walkToClicked()
-  Player: "It's too heavy."
+  Player: `It's too heavy.`
 })
 
 couch.onClose(() => {
@@ -109,23 +109,23 @@ couch.onTalkTo(() => {
 couch.onPush(() => {
   if (windowHotspot.active) {
     windowHotspot.active = false
-    Hank: "Goodbye window."
+    Hank: `Goodbye window.`
   } else {
     windowHotspot.active = true
-    Hank: "Hello window."
+    Hank: `Hello window.`
   }
 })
 
 couch.onUseItem(items.broom, () => {
   player.walkTo(couch)
   faceClicked()
-  Player: "I used the broom on the couch."
+  Player: `I used the broom on the couch.`
 })
 
 couch.onGiveItem(items.broom, () => {
   player.walkTo(couch)
   player.face('U')
-  Player: "Here, couch."
+  Player: `Here, couch.`
   inventory.remove(items.broom)
 })
 
@@ -133,7 +133,7 @@ couch.onGiveItem(items.broom, () => {
 
 table.onLook(() => {
   // `|1|` is a voice marker: the line's voice file (see the voice-ID export).
-  Player: "|1| I like to keep this table here so I can walk around it."
+  Player: `|1| I like to keep this table here so I can walk around it.`
 })
 
 table.onUse(() => {
@@ -143,14 +143,14 @@ table.onUse(() => {
 table.onUseItem(items.broom, () => {
   walkToClicked()
   sfx.sweeping.playAndWait()
-  Player: "I cleaned the table."
+  Player: `I cleaned the table.`
 })
 
 // ── Sandwich ingredients ──
 
 bread.onLook(() => {
   faceClicked()
-  Hank: "It's some bread."
+  Hank: `It's some bread.`
 })
 
 bread.onPickUp(() => {
@@ -160,16 +160,16 @@ bread.onPickUp(() => {
 })
 
 bread.onUseItem(items.broom, () => {
-  Hank: "I don't need to clean the bread."
+  Hank: `I don't need to clean the bread.`
 })
 
 bread.onGiveItem(items.broom, () => {
-  Hank: "I can't give something to bread."
+  Hank: `I can't give something to bread.`
 })
 
 knife.onLook(() => {
   faceClicked()
-  Hank: "It's a knife."
+  Hank: `It's a knife.`
 })
 
 knife.onPickUp(() => {
@@ -180,7 +180,7 @@ knife.onPickUp(() => {
 
 peanutButter.onLook(() => {
   faceClicked()
-  Hank: "It's some peanut butter."
+  Hank: `It's some peanut butter.`
 })
 
 peanutButter.onPickUp(() => {
@@ -192,7 +192,7 @@ peanutButter.onPickUp(() => {
 // ── Regions ──
 
 regions.darkness.onEnter(() => {
-  Hank: "It's dark over here."
+  Hank: `It's dark over here.`
 })
 
 // ── Play From: start the room in a later state (editor dropdown) ──

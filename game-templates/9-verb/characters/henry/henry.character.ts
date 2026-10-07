@@ -5,10 +5,10 @@ import { henry } from './henry.ids';
 
 henry.onLook(() => {
   faceClicked()
-  Player: "It looks like my buddy, Henry."
+  Player: `It looks like my buddy, Henry.`
 })
 
 henry.onPickUp(() => {
   faceClicked()
-  Player: "He's too heavy."
+  Player: `He's too heavy.`
 })

@@ -9,7 +9,7 @@ outline: deep
 
 - **Lines run in the order you write them.** A walk finishes before the next line of dialogue starts, and a flag set after a speech line is set after the line has been spoken. You never type `await`.
 - **Everything in your game has a name.** Rooms, props, characters, items, dialog options, GUI controls, sounds and verbs are typed names generated from your content (`battery`, `items.soda`, `sfx.sodaPour`), so a typo is a red squiggle, not a silent bug.
-- **Dialogue reads like a script.** `Hank: "I hope this works."` is a line of dialogue.
+- **Dialogue reads like a script.** ``Hank: `I hope this works.` `` is a line of dialogue. Backticks let a line contain `"` and `'` freely, and `${…}` drops in a value.
 
 Here is a real handler from the jam game *AI Apocalypse*. The player uses the soda on a corroded car battery:
 
@@ -17,12 +17,12 @@ Here is a real handler from the jam game *AI Apocalypse*. The player uses the so
 battery.onUseItem(items.soda, () => {
   if (!flags.askedAboutBattery) unhandled()   // not yet: "That doesn't work."
   walkToClicked()
-  Hank: "I hope this works."
+  Hank: `I hope this works.`
   inventory.remove(items.soda)
   sfx.sodaPour.play()
   wait(0.75)
-  Hank: "Hey! The corrosion is gone."
-  Hank: "Now I need to tighten that cable."
+  Hank: `Hey! The corrosion is gone.`
+  Hank: `Now I need to tighten that cable.`
   dialogs.driver.options.wrench.on()
   flags.batteryClean = true
 })
@@ -39,7 +39,7 @@ Inside a handler, each line starts when the line above it has finished. Some lin
 | Takes time (the script waits) | Instant |
 |---|---|
 | `walkToClicked()`, `player.walkTo(…)`, `jensen.walkTo(…)`, `face(…)` | `player.moveTo(…)` (teleport), `door.alpha = …` |
-| `Hank: "…"`, `` say`…` ``, `jensen.say(…)`, `display(…)` | `flags.x = …`, `vars.x = …`, any read |
+| ``Hank: `…` ``, `` say`…` ``, `jensen.say(…)`, `display(…)` | `flags.x = …`, `vars.x = …`, any read |
 | `wait(…)`, `waitForClick()` | `inventory.add(…)`, `inventory.remove(…)` |
 | `door.play('door-open')` (one-shot animation) | `door.animation = …`, `door.show()`, `door.hide()` |
 | `door.fade(…)`, `door.slideTo(…)`, `control.fadeTo(…)` | `sfx.x.play()`, `music.x.play()`, `music.stop()` |
@@ -165,7 +165,7 @@ Handlers are named after the verbs in your `game-config.json`. AI Apocalypse has
 ```ts
 antenna.onLook(() => {
   faceClicked()
-  Hank: "A broken off car antenna."
+  Hank: `A broken off car antenna.`
 })
 
 antenna.onTake(() => {
@@ -184,7 +184,7 @@ antenna.onTake(() => {
 ```ts
 cleaningStuff.on(['use', 'take', 'clean'], () => {
   faceClicked()
-  Hank: "I'm not on the job here."
+  Hank: `I'm not on the job here.`
 })
 ```
 
@@ -194,7 +194,7 @@ cleaningStuff.on(['use', 'take', 'clean'], () => {
 battery.onUseItem(items.wrench, () => {
   if (!flags.askedAboutBattery || !flags.batteryClean) unhandled()
   walkToClicked()
-  Hank: "Ok I'll tighten 'er up here."
+  Hank: `Ok I'll tighten 'er up here.`
   // …
 })
 ```
@@ -216,9 +216,9 @@ jensen.visible = false                 // or jensen.hide() / jensen.show()
 **A line of dialogue** is the speaker's name, a colon and the line in quotes. The name can be the character's ID or display name, in any case; `Player:` is whoever the player controls.
 
 ```ts
-Hank: "What the...?"
-JENSEN: "NOT GREAT!"
-Player: "I have to find a way home!"
+Hank: `What the...?`
+JENSEN: `NOT GREAT!`
+Player: `I have to find a way home!`
 ```
 
 Names with punctuation or spaces drop it: the character `BOTT-i3 Disembodied` is `BOTTi3Disembodied:`. If you mistype a name, the build stops with "Unknown speaker `Hnak`. Did you mean `Hank`?".
@@ -253,7 +253,7 @@ player.say("Uh, whatever.", { clickToSkip: false })
 
 **Narration** (no speaker) goes in the display-text box: `display("The door is locked.")`.
 
-**Voice files.** A line that starts with a number between bars plays a recording: `Hank: "|17| This case just got complicated."` plays `assets/audio/voice/hank17.mp3`. The editor numbers your lines for you; see [Sound, Voice & Video](./sound-voice-and-video#voiced-dialogue).
+**Voice files.** A line that starts with a number between bars plays a recording: ``Hank: `|17| This case just got complicated.` `` plays `assets/audio/voice/hank17.mp3`. The editor numbers your lines for you; see [Sound, Voice & Video](./sound-voice-and-video#voiced-dialogue).
 
 ## Inventory
 
@@ -278,7 +278,7 @@ toolChest.onUseItem(items.magnetStick, () => {
   inventory.remove(items.magnetStick)
   sfx.whip.play()
   inventory.add(items.wrench)
-  Hank: "Ah, got it!"
+  Hank: `Ah, got it!`
 })
 ```
 
@@ -287,7 +287,7 @@ Items with no handler on that target fall through to the global "That doesn't wo
 ```ts
 jensen.onAnyItem(() => {
   faceClicked()
-  Hank: "I don't want to give anything to him yet."
+  Hank: `I don't want to give anything to him yet.`
 })
 ```
 
@@ -302,7 +302,7 @@ An item's own script handles verbs on its inventory row, and other items used on
 ```ts
 // inventory/magnet/magnet.inventory.ts
 items.magnet.onLook(() => {
-  Hank: "A cute promotional magnet for the friendly AI overlord."
+  Hank: `A cute promotional magnet for the friendly AI overlord.`
 })
 
 items.magnet.onCombine(items.antenna, () => {
@@ -310,7 +310,7 @@ items.magnet.onCombine(items.antenna, () => {
   inventory.remove(items.magnet)
   sfx.whip.play()
   inventory.add(items.magnetStick)
-  Hank: "Cool!"
+  Hank: `Cool!`
 })
 ```
 
@@ -361,17 +361,17 @@ import { jensen } from '../../rooms/hallway/hallway.ids'
 import { dialog, options } from './jensen-in-hallway.ids'
 
 options.greeting.onChooseOnce(() => {
-  Jensen: "HOW'S IT GOING?!"
-  Jensen: "The world has been taken over by an evil, totalitarian artificial intelligence and you ask me how's it going?!"
+  Jensen: `HOW'S IT GOING?!`
+  Jensen: `The world has been taken over by an evil, totalitarian artificial intelligence and you ask me how's it going?!`
   wait(0.75)
-  Jensen: "NOT GREAT!"
+  Jensen: `NOT GREAT!`
   options.whatAboutAI.on()
 })
 
 options.itsTheFuture.onChooseOnce(() => {
   wait(1)
-  Jensen: "WHAT ARE YOU TALKING ABOUT?!"
-  Jensen: "GO AWAY!"
+  Jensen: `WHAT ARE YOU TALKING ABOUT?!`
+  Jensen: `GO AWAY!`
   jensen.face('U')
   dialog.end()
 })
@@ -397,13 +397,13 @@ driver.onTalkTo(() => {
 ```ts
 // botti3.dialog.ts
 options.aroundHere.onChoose(() => {
-  Botti3: "Sure. What would you like to know?"
+  Botti3: `Sure. What would you like to know?`
   dialogs.botti3LocalArea.start()     // back to these choices when it ends
 })
 
 // botti3-local-area.dialog.ts
 options.thatsAll.onChoose(() => {
-  Botti3: "Okay!"
+  Botti3: `Okay!`
   dialog.end()                        // back to the botti3 choices
 })
 ```
@@ -496,14 +496,14 @@ Wrap a scene in `cutscene(…)` to make it skippable:
 jensen.onUseItem(items.mop, () => {
   walkToClicked()
   cutscene(() => {
-    Hank: "I'm going home."
+    Hank: `I'm going home.`
     sfx.smack.play()
     smack.play('smack-play')
     jensen.hide()
     wait(0.9)
     music.stop()
     wait(0.75)
-    Hank: "Sorry, Jensen."
+    Hank: `Sorry, Jensen.`
     music.gallery.play()
   })
 })
@@ -566,7 +566,7 @@ background(() => {
     wait(0.33)
   }
 })
-Jensen: "Why isn't this working?"
+Jensen: `Why isn't this working?`
 ```
 
 Any action that takes time has a `.now` form. Sounds and music never wait, so they don't need one.
@@ -697,18 +697,18 @@ settings.speech.showText = false  // any `speech` setting from game-config.json
 import { game } from '@benne/script'
 import { fallbacks } from '@game'
 
-fallbacks.onLook(() => { Player: "Nothing special about that." })
-fallbacks.onUse(() => { Player: "That doesn't work." })
-fallbacks.onTake(() => { Player: "I can't take that." })
-fallbacks.onTalkTo(() => { Player: "I don't have anything to say to that." })
-fallbacks.onClean(() => { Player: "I don't need to clean that." })
-fallbacks.onMove(() => { Player: "It doesn't move." })
+fallbacks.onLook(() => { Player: `Nothing special about that.` })
+fallbacks.onUse(() => { Player: `That doesn't work.` })
+fallbacks.onTake(() => { Player: `I can't take that.` })
+fallbacks.onTalkTo(() => { Player: `I don't have anything to say to that.` })
+fallbacks.onClean(() => { Player: `I don't need to clean that.` })
+fallbacks.onMove(() => { Player: `It doesn't move.` })
 
 fallbacks.onAnyVerb(() => { Player: game.config.defaultFallbackLine ?? "That doesn't work." })
-fallbacks.onItemUnhandled(() => { Player: "That doesn't work." })
+fallbacks.onItemUnhandled(() => { Player: `That doesn't work.` })
 ```
 
-Note the braces in `() => { Player: "…" }`: a line of dialogue needs them.
+Note the braces in ``() => { Player: `…` }``: a line of dialogue needs them.
 
 Hooks for every room also go here: `game.onEnterAnyRoom((from) => { … })`, `game.onEnterAnyRoomAfterFade(…)`, `game.onLeaveAnyRoom(…)`, `game.onLoadedAnyRoom(…)`.
 
@@ -787,10 +787,10 @@ Callbacks passed to other functions (`array.forEach`, `setTimeout`) are **not** 
 
 | You wrote | Fix |
 |---|---|
-| `() => Hank: "Hi"` | Add braces: `() => { Hank: "Hi" }` |
+| ``() => Hank: `Hi` `` | Add braces: ``() => { Hank: `Hi` }`` |
 | `await jensen.walkTo(…)` | Drop the `await`: lines already wait, and `await` stops this one from waiting. |
 | `ready && jensen.walkTo(…)` | Only a call on its own line waits: `if (ready) jensen.walkTo(…)` |
-| `Hank: Hi there` | Quote it: `Hank: "Hi there"`, or use a `` say`…` `` block |
+| `Hank: Hi there` | Quote it: ``Hank: `Hi there` ``, or use a `` say`…` `` block |
 | Code after `rooms.x.goTo()` | It never runs. Move it above, or into the next room's `onEnter`. |
 | Code after `dialog.end()` | Same: move it above. |
 | `jensen.walkTo(…)` in a region handler | Use `jensen.walkTo.now(…)`, or the player is locked out while Jensen walks. |

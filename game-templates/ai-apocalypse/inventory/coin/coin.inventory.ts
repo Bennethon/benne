@@ -1,5 +1,5 @@
 import { items } from '@game';
 
 items.coin.onLook(() => {
-  Hank: "A coin."
+  Hank: `A coin.`
 })

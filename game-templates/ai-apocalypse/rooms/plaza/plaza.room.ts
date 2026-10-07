@@ -76,9 +76,9 @@ room.onEnterAfterFade(() => {
   player.walkTo(points.firstVisit)
   wait(0.5)
   player.face('L')
-  Hank: "Hey, the future looks pretty nice!"
-  Jensen: "Nice? Are you kidding??"
-  Jensen: "Just look around! There's AI influencing everything!"
+  Hank: `Hey, the future looks pretty nice!`
+  Jensen: `Nice? Are you kidding??`
+  Jensen: `Just look around! There's AI influencing everything!`
   player.face('R')
   wait(0.75)
   player.face('L')
@@ -86,7 +86,7 @@ room.onEnterAfterFade(() => {
   player.face('R')
   wait(0.75)
   player.face('D')
-  Hank: "Uh, whatever."
+  Hank: `Uh, whatever.`
 })
 
 // ─── Looking around ──────────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ regions.cafeExit.onEnter(() => {
 
 regions.garageExit.onEnter(() => {
   if (flags.gotRegulator) {
-    Hank: "I don't think I want to go back in there."
+    Hank: `I don't think I want to go back in there.`
   } else {
     rooms.club.goTo()
   }
@@ -165,13 +165,13 @@ jensen.onLook(() => {
 
 jensen.onTalkTo(() => {
   walkToClicked()
-  Jensen: "Well? Do you have the components yet??"
+  Jensen: `Well? Do you have the components yet??`
   dialogs.jensenInPlaza.start()
 })
 
 jensen.onAnyItem(() => {
   faceClicked()
-  Hank: "I don't want to give anything to him yet."
+  Hank: `I don't want to give anything to him yet.`
 })
 
 // Jensen steps aside when Hank comes close. Hank doesn't wait for him.

@@ -24,7 +24,7 @@ room.onEnterAfterFade(() => {
     Hank: I thought we were friends!
   `
   wait(1)
-  Jensen: "You really need to get better at reading people."
+  Jensen: `You really need to get better at reading people.`
   wait(0.5)
   player.face('D')
   say`
@@ -36,13 +36,13 @@ room.onEnterAfterFade(() => {
 
 door.onLook(() => {
   faceClicked()
-  Hank: "Ugh, locked."
+  Hank: `Ugh, locked.`
 })
 
 door.onUse(() => {
   if (!flags.escapedCloset) {
     faceClicked()
-    Hank: "Ugh, locked."
+    Hank: `Ugh, locked.`
     return
   }
   walkToClicked()
@@ -60,7 +60,7 @@ door.onTalkTo(() => {
 
 mop.onLook(() => {
   faceClicked()
-  Hank: "A mop."
+  Hank: `A mop.`
 })
 
 mop.onTake(() => {
@@ -69,7 +69,7 @@ mop.onTake(() => {
   mop.hide()
   sfx.whip.play()
   inventory.add(items.mop)
-  Hank: "A janitor's work is never done."
+  Hank: `A janitor's work is never done.`
 })
 
 electricalBox.onLook(() => {
@@ -98,7 +98,7 @@ electricalBox.onUse(() => {
       HANK: It's screwed shut.
     `
   } else {
-    Hank: "I need something besides my bare hands!"
+    Hank: `I need something besides my bare hands!`
   }
 })
 
@@ -106,21 +106,21 @@ electricalBox.onUseItem(items.coin, () => {
   walkToClicked()
   player.face('L')
   if (electricalBox.animation === 'electricalBox') {
-    Hank: "Close enough to a screwdriver."
+    Hank: `Close enough to a screwdriver.`
     hank.play('ReachL')
     wait(0.66)
     electricalBox.animation = 'electricalBox-open'
-    Hank: "There we go!"
+    Hank: `There we go!`
     return
   }
-  Hank: "Let's see if this works..."
+  Hank: `Let's see if this works...`
   inventory.remove(items.coin)
   hank.play('ReachL')
   wait(0.66)
   sfx.click.play()
-  Hank: "Got it!"
+  Hank: `Got it!`
   player.walkTo(door)
-  Hank: "It's go time."
+  Hank: `It's go time.`
   flags.escapedCloset = true
   rooms.lab.goTo()
 })
@@ -136,10 +136,10 @@ shelves.onLook(() => {
 shelves.on(['take', 'clean'], () => {
   walkToClicked()
   if (flags.escapedCloset || inventory.has(items.coin)) {
-    Hank: "There's nothing else useful in there."
+    Hank: `There's nothing else useful in there.`
     return
   }
-  Hank: "Let's see..."
+  Hank: `Let's see...`
   hank.play('ReachR')
   wait(0.75)
   say`

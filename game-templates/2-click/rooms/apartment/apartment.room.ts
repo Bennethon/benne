@@ -21,7 +21,7 @@ room.onEnterAfterFade(() => {
 // ── The door ──
 
 door.onLook(() => {
-  Player: "It's the door to the outside."
+  Player: `It's the door to the outside.`
 })
 
 door.onUse(() => {
@@ -31,7 +31,7 @@ door.onUse(() => {
     sfx.doorOpen.playAndWait()
     rooms.outside.goTo()
   } else {
-    Hank: "The door is locked."
+    Hank: `The door is locked.`
     display("The door is locked. AHH! I can't get out! HELP ME! HELP ME! SOMEBODY HELP ME! PLEASE HELP ME!")
     display("Ok calm down.")
   }
@@ -42,26 +42,26 @@ door.onUseItem(items.key, () => {
   walkToClicked()
   flags.unlockedDoor = true
   inventory.remove(items.key)
-  Player: "The door is unlocked."
+  Player: `The door is unlocked.`
 })
 
 // ── Penny ──
 
 penny.onLook(() => {
-  Player: "It's Penny."
+  Player: `It's Penny.`
 })
 
 penny.onUse(() => {
   walkToClicked()
-  Player: "Hey Penny!"
+  Player: `Hey Penny!`
   dialogs.chatwithpenny.start()
 })
 
 penny.onUseItem(items.sammich, () => {
   walkToClicked()
-  Hank: "Here, Penny! Have a sandwich."
+  Hank: `Here, Penny! Have a sandwich.`
   inventory.remove(items.sammich)
-  Penny: "Thank you! Here's the key."
+  Penny: `Thank you! Here's the key.`
   inventory.add(items.key)
 })
 
@@ -69,17 +69,17 @@ penny.onUseItem(items.sammich, () => {
 
 couch.onLook(() => {
   faceClicked()
-  Hank: "It's my weird, poorly drawn couch."
+  Hank: `It's my weird, poorly drawn couch.`
 })
 
 couch.onUseItem(items.broom, () => {
   player.walkTo(couch)
   faceClicked()
-  Player: "I used the broom on the couch."
+  Player: `I used the broom on the couch.`
 })
 
 table.onLook(() => {
-  Player: "I like to keep this table here so I can walk around it."
+  Player: `I like to keep this table here so I can walk around it.`
 })
 
 table.onUse(() => {
@@ -89,14 +89,14 @@ table.onUse(() => {
 table.onUseItem(items.broom, () => {
   walkToClicked()
   sfx.sweeping.playAndWait()
-  Player: "I cleaned the table."
+  Player: `I cleaned the table.`
 })
 
 // ── Sandwich ingredients: Use picks them up ──
 
 peanutButter.onLook(() => {
   faceClicked()
-  Hank: "It's some peanut butter."
+  Hank: `It's some peanut butter.`
 })
 
 peanutButter.onUse(() => {
@@ -107,7 +107,7 @@ peanutButter.onUse(() => {
 
 knife.onLook(() => {
   faceClicked()
-  Hank: "It's a knife."
+  Hank: `It's a knife.`
 })
 
 knife.onUse(() => {
@@ -118,7 +118,7 @@ knife.onUse(() => {
 
 bread.onLook(() => {
   faceClicked()
-  Hank: "It's some bread."
+  Hank: `It's some bread.`
 })
 
 bread.onUse(() => {

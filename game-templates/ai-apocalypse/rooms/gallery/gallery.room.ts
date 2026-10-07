@@ -15,46 +15,46 @@ room.onEnterAfterFade(() => {
 paintSpill.onClean(() => {
   walkToClicked()
   if (flags.canTakeLens) {
-    Hank: "I had better not touch it again."
+    Hank: `I had better not touch it again.`
   } else if (!flags.canCleanPaint) {
-    Hank: "Every janitorial bone in my body wants to clean this."
+    Hank: `Every janitorial bone in my body wants to clean this.`
     player.face('D')
-    Hank: "But I'm a guest here. I shouldn't touch it without being told."
+    Hank: `But I'm a guest here. I shouldn't touch it without being told.`
   } else {
-    Hank: "Well, she wants to see humans be productive."
-    Hank: "The least I can do is clean this up for her."
+    Hank: `Well, she wants to see humans be productive.`
+    Hank: `The least I can do is clean this up for her.`
     hank.hide()
     sfx.cleaningPaint.play()
     mopping.animation = 'mopping-action' // after hide; does not wait for the clip
     wait(1)
     curator.face('L')
-    Curator: "WHAT ARE YOU DOING?!"
+    Curator: `WHAT ARE YOU DOING?!`
     wait(0.5)
     hank.face('D')
     hank.show()
     mopping.animation = 'mopping-end'
     player.face('R')
-    Hank: "I..."
+    Hank: `I...`
     player.face('L')
     wait(0.5)
     player.face('R')
-    Hank: "I was just trying to clean this paint and-"
+    Hank: `I was just trying to clean this paint and-`
     player.face('L')
     wait(0.5)
     player.face('R')
-    Hank: "you startled me and-"
-    Curator: "STOP!"
-    Curator: "What have you done?"
+    Hank: `you startled me and-`
+    Curator: `STOP!`
+    Curator: `What have you done?`
     player.face('L')
     wait(1)
-    Curator: "I LOVE IT!"
-    Curator: "It's so raw... so energetic... so..."
-    Curator: "HUMAN."
-    Curator: "This is the first piece of human created art in years!"
-    Curator: "This changes everything!"
-    Curator: "Take the lens, I don't care anymore!"
+    Curator: `I LOVE IT!`
+    Curator: `It's so raw... so energetic... so...`
+    Curator: `HUMAN.`
+    Curator: `This is the first piece of human created art in years!`
+    Curator: `This changes everything!`
+    Curator: `Take the lens, I don't care anymore!`
     player.face('R')
-    Hank: "Thanks!"
+    Hank: `Thanks!`
     const options = dialogs.curator.options
     options.canHaveLens.off()
     options.paintSpill.off()
@@ -67,9 +67,9 @@ paintSpill.onClean(() => {
 paintSpill.onLook(() => {
   walkToClicked()
   if (flags.canTakeLens) {
-    Hank: "I had better not touch it again."
+    Hank: `I had better not touch it again.`
   } else {
-    Hank: "Is it an accident, or modern art?"
+    Hank: `Is it an accident, or modern art?`
   }
 })
 
@@ -80,9 +80,9 @@ regions.leave.onEnter(() => {
 statue.onLook(() => {
   faceClicked()
   if (statue.animation === 'statue') {
-    Hank: "Nice looking glass lens thingie."
+    Hank: `Nice looking glass lens thingie.`
   } else {
-    Hank: "Ehh I think it looks better now."
+    Hank: `Ehh I think it looks better now.`
   }
 })
 
@@ -90,16 +90,16 @@ statue.onTake(() => {
   walkToClicked()
   wait(0.5)
   if (!flags.canTakeLens) {
-    Curator: "PLEASE DO NOT TOUCH THE ART!"
+    Curator: `PLEASE DO NOT TOUCH THE ART!`
   } else if (statue.animation === 'statue-noLens') {
-    Hank: "I already got what I need from it."
+    Hank: `I already got what I need from it.`
   } else {
     hank.play('ReachL')
     sfx.whip.play()
     inventory.add(items.lens)
     statue.animation = 'statue-noLens'
     player.face('D')
-    Hank: "This might work to fix the time machine."
+    Hank: `This might work to fix the time machine.`
     flags.gotLens = true
     dialogs.jensenInPlaza.options.foundLens.on()
   }
@@ -107,7 +107,7 @@ statue.onTake(() => {
 
 curator.onLook(() => {
   faceClicked()
-  Hank: "She looks nice."
+  Hank: `She looks nice.`
 })
 
 curator.onTalkTo(() => {
@@ -118,23 +118,23 @@ curator.onTalkTo(() => {
 canvas.onLook(() => {
   faceClicked()
   if (flags.canTakeLens) {
-    Hank: "I'm the next Jackson Pollock!"
+    Hank: `I'm the next Jackson Pollock!`
   } else {
-    Hank: "The canvas is empty."
+    Hank: `The canvas is empty.`
   }
 })
 
 exit.onLook(() => {
   faceClicked()
-  Hank: "That's the way back outside."
+  Hank: `That's the way back outside.`
 })
 
 art1.onLook(() => {
   walkToClicked()
-  Hank: "ooooh..."
+  Hank: `ooooh...`
 })
 
 art2.onLook(() => {
   walkToClicked()
-  Hank: "ahhhh..."
+  Hank: `ahhhh...`
 })

@@ -74,7 +74,7 @@ describe('BENNE TS plugin', { timeout: 60000 }, () => {
     const ls = pluginService({ [apartmentScript]: text });
     const errors = ls.getSyntacticDiagnostics(apartmentScript);
     expect(errors.map((d) => [text[d.start], d.messageText])).toEqual([
-      [':', expect.stringContaining('Put it in braces: `() => { Hank: "…" }`')],
+      [':', expect.stringContaining('Put it in braces: () => { Hank: `…` }')],
     ]);
   });
 
@@ -111,13 +111,27 @@ describe('BENNE TS plugin', { timeout: 60000 }, () => {
     const ls = pluginService({ [apartmentScript]: text });
     const entries = ls.getCompletionsAtPosition(apartmentScript, at, {})!.entries;
     const hank = entries.find((e) => e.name === 'Hank:')!;
-    expect(hank).toMatchObject({ insertText: 'Hank: "$1"', isSnippet: true, replacementSpan: { start: at - 2, length: 2 } });
+    expect(hank).toMatchObject({ insertText: 'Hank: `$1`', isSnippet: true, replacementSpan: { start: at - 2, length: 2 } });
     expect(entries.some((e) => e.name === 'Penny:')).toBe(true);
     // Not after a dot, not in lower case, not at the top level.
     const member = withHandler('hank.Fa|');
     expect(pluginService({ [apartmentScript]: member.text }).getCompletionsAtPosition(apartmentScript, member.at, {})?.entries.some((e) => e.name === 'Hank:')).toBe(false);
     const lower = withHandler('ha|');
     expect(pluginService({ [apartmentScript]: lower.text }).getCompletionsAtPosition(apartmentScript, lower.at, {})?.entries.some((e) => e.name === 'Hank:')).toBe(false);
+  });
+
+  it('still offers the speaker once the colon is typed, for the auto-inserted backticks', () => {
+    expect(editorArrowSpeech.typedSpeakerLabel('  Hank:', 6)).toBe('Hank');
+    expect(editorArrowSpeech.typedSpeakerLabel('  Hank:  ', 6)).toBe('Hank');
+    expect(editorArrowSpeech.typedSpeakerLabel('  Hank: hi', 6)).toBeUndefined();
+    expect(editorArrowSpeech.typedSpeakerLabel('  case Hank:', 11)).toBeUndefined();
+    expect(editorArrowSpeech.typedSpeakerLabel('  { Hank:', 8)).toBeUndefined();
+    const speaker = (snippet: string) => {
+      const { text, at } = withHandler(snippet);
+      return pluginService({ [apartmentScript]: text }).getCompletionsAtPosition(apartmentScript, at, {})?.entries.some((e) => e.name === 'Hank:') ?? false;
+    };
+    expect(speaker('Hank|:')).toBe(true);
+    expect(speaker('const o = {\n    Hank|: 1,\n  }')).toBe(false);
   });
 
   it('puts string-union values first and lets them match without quotes', () => {

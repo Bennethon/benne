@@ -195,7 +195,7 @@ export function planHandlerStub(index: IdsIndex, scriptFile: string, spec: Handl
                 imports,
                 statement: block(`${expr}.onAnyItem(()`, [
                     '// Any item used on this. For one item: `.onUseItem(items.x, () => { … })`.',
-                    'Player: "That doesn\'t work."',
+                    'Player: `That doesn\'t work.`',
                 ]),
             };
         case 'room':

@@ -65,6 +65,7 @@ import {
 } from './propVerbScaffolding';
 import { addRoomRegionHandler } from './regionScriptScaffolding';
 import { registerStringUnionSuggest } from './stringUnionSuggest';
+import { registerDialogueAutoQuote } from './dialogueAutoQuote';
 import { scheduleGenerateGameIds } from './gameIdsGenerator';
 import { openDialogScriptEditorOnly, runCreateDialogWizard } from './dialogScaffolding';
 import { runCreatePdcWizard } from './pdcScaffolding';
@@ -180,6 +181,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const actionsProvider = new ActionsTreeProvider(selection);
 
     registerStringUnionSuggest(context);
+    registerDialogueAutoQuote(context);
 
     const mainTreeView = vscode.window.createTreeView('benne-editor.main', {
         treeDataProvider: mainProvider,

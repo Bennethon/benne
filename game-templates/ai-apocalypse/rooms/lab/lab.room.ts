@@ -63,35 +63,35 @@ room.onEnterAfterFade(() => {
     doorOpen.hide()
     hank.show()
     wait(0.5)
-    Hank: "What the...?"
+    Hank: `What the...?`
     wait(0.25)
-    BOTTi3Disembodied: "Hello, Hank. Do not be alarmed."
+    BOTTi3Disembodied: `Hello, Hank. Do not be alarmed.`
     player.walkTo(points.labPoint1)
-    Hank: "Hello?"
+    Hank: `Hello?`
     wait(0.5)
     player.face('R')
     wait(0.25)
-    Hank: "Who said that?"
+    Hank: `Who said that?`
     wait(0.25)
-    BOTTi3Disembodied: "I am BOTT-i3, your friendly municipal control AI."
+    BOTTi3Disembodied: `I am BOTT-i3, your friendly municipal control AI.`
     player.face('L')
-    BOTTi3Disembodied: "You have inadvertently traveled ten years into the future."
-    Hank: "WHAT?!"
-    BOTTi3Disembodied: "Yes, I imagine this might be discombobulating."
-    Hank: "DISCOMBOBULATING?!"
-    BOTTi3Disembodied: "If you stay calm, you will find this future to be rather pleasant."
-    Hank: "I don't care! I want to go back!"
+    BOTTi3Disembodied: `You have inadvertently traveled ten years into the future.`
+    Hank: `WHAT?!`
+    BOTTi3Disembodied: `Yes, I imagine this might be discombobulating.`
+    Hank: `DISCOMBOBULATING?!`
+    BOTTi3Disembodied: `If you stay calm, you will find this future to be rather pleasant.`
+    Hank: `I don't care! I want to go back!`
     player.walkTo(points.timeChamber)
     player.face('D')
-    Hank: "Send me back!"
+    Hank: `Send me back!`
     wait(0.25)
-    BOTTi3Disembodied: "I am sorry, Hank. The time travel device has been stripped for essential parts."
-    BOTTi3Disembodied: "It is no longer functional."
+    BOTTi3Disembodied: `I am sorry, Hank. The time travel device has been stripped for essential parts.`
+    BOTTi3Disembodied: `It is no longer functional.`
     player.walkTo(points.labPoint2)
-    Hank: "You've got to be kidding."
-    BOTTi3Disembodied: "Like I said, please stay calm and enjoy the future!"
+    Hank: `You've got to be kidding.`
+    BOTTi3Disembodied: `Like I said, please stay calm and enjoy the future!`
     wait(0.25)
-    Hank: "I have to find a way home!"
+    Hank: `I have to find a way home!`
     camera.reset()
     music.lab.play()
   } else if (flags.leftClosetAgain) {
@@ -107,7 +107,7 @@ room.onEnterAfterFade(() => {
     wait(0.5)
     sfx.click.play()
     wait(0.5)
-    Jensen: "What?"
+    Jensen: `What?`
     wait(0.5)
     sfx.click.play()
     wait(0.33)
@@ -132,7 +132,7 @@ room.onEnterAfterFade(() => {
     jensen.walkTo(points.jensen)
     jensen.face('U')
     jensen.animation = 'WorkingU'
-    BOTTi3Disembodied: "Hank? I would recommend stopping him."
+    BOTTi3Disembodied: `Hank? I would recommend stopping him.`
   } else if (flags.allDone) {
     // FIX TIME MACHINE
     music.lab.play()
@@ -144,14 +144,14 @@ room.onEnterAfterFade(() => {
       Jensen: Have I ever been wrong?
     `
     wait(0.75)
-    Hank: "I guess I have no choice."
+    Hank: `I guess I have no choice.`
     for (const part of [items.relay, items.regulator, items.lens, items.timeonium]) {
       wait(0.5)
       sfx.whip.play()
       inventory.remove(part)
     }
     wait(0.5)
-    Jensen: "Good. Good. Yes this is exactly what I need."
+    Jensen: `Good. Good. Yes this is exactly what I need.`
     jensen.face('U')
     jensen.animation = 'WorkingU'
     wait(1)
@@ -169,12 +169,12 @@ room.onEnterAfterFade(() => {
 
 filingCabinet.onLook(() => {
   faceClicked()
-  Hank: "It's blocking the door."
+  Hank: `It's blocking the door.`
 })
 
 filingCabinet.onUse(() => {
   faceClicked()
-  Hank: "I'm not interested in looking through old files."
+  Hank: `I'm not interested in looking through old files.`
 })
 
 filingCabinet.onMove(() => {
@@ -187,33 +187,33 @@ filingCabinet.onMove(() => {
 exitDoor.onLook(() => {
   faceClicked()
   if (filingCabinet.animation === 'filingCabinet-over') {
-    Hank: "It's the door to the hall."
+    Hank: `It's the door to the hall.`
   } else {
-    Hank: "It's the door to the hall, but I can't reach it with the filing cabinet in the way."
+    Hank: `It's the door to the hall, but I can't reach it with the filing cabinet in the way.`
   }
 })
 
 exitDoor.onUse(() => {
   walkToClicked()
   if (flags.escapedCloset || flags.allDone) {
-    Hank: "I don't want to leave!"
-    Hank: "I have to get back to my home time!"
+    Hank: `I don't want to leave!`
+    Hank: `I have to get back to my home time!`
   } else if (filingCabinet.animation === 'filingCabinet-over') {
     rooms.hallway.goTo()
   } else {
-    Hank: "I can't squeeze past this filing cabinet."
+    Hank: `I can't squeeze past this filing cabinet.`
   }
 })
 
 closetDoor.onLook(() => {
   faceClicked()
-  Hank: "That's an old broom closet."
+  Hank: `That's an old broom closet.`
 })
 
 closetDoor.onUse(() => {
   if (!flags.allDone) {
     faceClicked()
-    Hank: "The broom closet? I am DONE being a janitor right now. I have to find a way home!"
+    Hank: `The broom closet? I am DONE being a janitor right now. I have to find a way home!`
     return
   }
   // Open the way into the closet before walking over, as the old script did.
@@ -234,31 +234,31 @@ closetDoor.onUse(() => {
 jensen.onLook(() => {
   faceClicked()
   if (flags.escapedCloset) {
-    Hank: "What a jerk. I have to stop him!"
+    Hank: `What a jerk. I have to stop him!`
   } else {
-    Hank: "This guy better deliver."
+    Hank: `This guy better deliver.`
   }
 })
 
 jensen.onTalkTo(() => {
   walkToClicked()
-  Hank: "Jensen-"
+  Hank: `Jensen-`
   if (flags.escapedCloset) {
-    Jensen: "Go away, Hank!"
+    Jensen: `Go away, Hank!`
   } else {
-    Jensen: "Please get what I asked for in the closet."
+    Jensen: `Please get what I asked for in the closet.`
   }
 })
 
 jensen.onUse(() => {
   walkToClicked()
-  Jensen: "If you come near me, I have a taser and I'm not afraid to use it!"
+  Jensen: `If you come near me, I have a taser and I'm not afraid to use it!`
 })
 
 jensen.onUseItem(items.mop, () => {
   walkToClicked()
   cutscene(() => {
-    Hank: "I'm going home."
+    Hank: `I'm going home.`
     sfx.smack.play()
     smack.animation = 'smack-play'
     jensen.hide()
@@ -267,7 +267,7 @@ jensen.onUseItem(items.mop, () => {
     hank.show()
     music.stop()
     wait(0.75)
-    Hank: "Sorry, Jensen."
+    Hank: `Sorry, Jensen.`
     music.gallery.play()
     player.walkTo(points.labPoint1)
     say`
@@ -286,7 +286,7 @@ jensen.onUseItem(items.mop, () => {
     `
     player.walkTo(points.timeChamber)
     player.face('D')
-    BOTTi3Disembodied: "Safe travels!"
+    BOTTi3Disembodied: `Safe travels!`
     sfx.timeTravel2.play()
     hank.hide()
     travelHome.animation = 'travelHome-play'
@@ -302,5 +302,5 @@ regions.enterCloset.onEnter(() => {
 
 window.onLook(() => {
   faceClicked()
-  Hank: "Looks like a nice day."
+  Hank: `Looks like a nice day.`
 })

@@ -167,8 +167,8 @@ export function arrowSpeechLabelAt(text: string, pos: number): string | undefine
 /** Mirrors `arrowSpeechMessage` in scripts/lib/bennescriptTransform.mjs. */
 export function arrowSpeechMessage(label: string): string {
     return (
-        `A speech line can't be the whole body of an arrow function: \`() => ${label}: "…"\` doesn't parse. ` +
-        `Put it in braces: \`() => { ${label}: "…" }\`.`
+        `A speech line can't be the whole body of an arrow function: () => ${label}: \`…\` doesn't parse. ` +
+        `Put it in braces: () => { ${label}: \`…\` }.`
     );
 }
 
@@ -228,7 +228,19 @@ function findNodeAt(ts: typeof TS, sf: TS.SourceFile, position: number): TS.Node
 }
 
 /**
- * `Hank: "…"` entries when the cursor starts a statement in a handler and the word typed so far
+ * The label when the `:` at `colonCharacter` ends `Label:` on an otherwise empty line, the moment
+ * the editor auto-inserts `` `…` `` (dialogueAutoQuote.ts). Whether it is a speaker in statement
+ * position is then checked with {@link speakerCompletionEntries} at the label.
+ */
+export function typedSpeakerLabel(lineText: string, colonCharacter: number): string | undefined {
+    if (lineText[colonCharacter] !== ':' || lineText.slice(colonCharacter + 1).trim() !== '') {
+        return undefined;
+    }
+    return /^\s*([A-Za-z_]\w*)$/.exec(lineText.slice(0, colonCharacter))?.[1];
+}
+
+/**
+ * `` Hank: `…` `` entries when the cursor starts a statement in a handler and the word typed so far
  * starts with a capital letter (or completion was invoked on an empty line).
  */
 export function speakerCompletionEntries(
@@ -250,7 +262,7 @@ export function speakerCompletionEntries(
         kind: ts.ScriptElementKind.label,
         kindModifiers: '',
         sortText: `0${String(i).padStart(3, '0')}`,
-        insertText: `${s.label}: "$1"`,
+        insertText: `${s.label}: \`$1\``,
         isSnippet: true,
         filterText: s.label,
         replacementSpan: { start: at.start, length: position - at.start },

@@ -240,7 +240,7 @@ describe('BenneScript transform', () => {
     expect(() => transform('function f() {}\nconst g = [1].map(() => { Hank: "x" })')).toThrow(/outside a handler/);
     expect(() => transform('h.onUpdate(() => { Hank: "x" })')).toThrow(/outside a handler/);
     // `() => Hank: "…"` doesn't parse; the error says to add braces.
-    expect(() => transform('h.onLook(() => Hank: "Hi")')).toThrow(/Put it in braces: `\(\) => \{ Hank: "…" \}`/);
+    expect(() => transform('h.onLook(() => Hank: "Hi")')).toThrow(/Put it in braces: \(\) => \{ Hank: `…` \}/);
     expect(() => transform('h.onLook(() =>\n  Hank: `Hi`\n)')).toThrow(/whole body of an arrow function/);
     expect(() => transform('h.onLook(() => { Hank "Hi" })')).not.toThrow(/arrow function/);
   });

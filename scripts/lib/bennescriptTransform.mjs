@@ -70,8 +70,8 @@ export function arrowSpeechLabelAt(code, pos) {
 
 export function arrowSpeechMessage(label) {
   return (
-    `A speech line can't be the whole body of an arrow function: \`() => ${label}: "…"\` doesn't parse. ` +
-    `Put it in braces: \`() => { ${label}: "…" }\`.`
+    `A speech line can't be the whole body of an arrow function: () => ${label}: \`…\` doesn't parse. ` +
+    `Put it in braces: () => { ${label}: \`…\` }.`
   );
 }
 
@@ -330,7 +330,7 @@ export function transformBenneScript(code, { filename, speakers }) {
       return;
     }
     if (expr.type === 'SequenceExpression') {
-      fail(`A speech line takes one string: \`${stmt.label.name}: "…"\`.`, expr);
+      fail(`A speech line takes one string: ${stmt.label.name}: \`…\`.`, expr);
     }
     assertNoNestedStepCalls(body.expression, 'a speech line');
     handledLabels.add(stmt);
