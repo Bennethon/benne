@@ -422,7 +422,7 @@ A prop, hotspot or character: things the player clicks. Room `.ids` modules crea
 
 ### Props: `door`
 
-`PropHandle` in `src/engine/bennescript/handles.ts`. Also has everything on `ClickableHandle`.
+A prop. Its state lives in its own room: in that room, reads and writes go through the scene; from anywhere else they read and write the room's saved state, which the room applies when it loads. Actions that need the sprite (`play`) only work in the prop's room. `PropHandle` in `src/engine/bennescript/handles.ts`. Also has everything on `ClickableHandle`.
 
 | Member | | Description |
 |---|---|---|
@@ -431,16 +431,16 @@ A prop, hotspot or character: things the player clicks. Room `.ids` modules crea
 | `show()` | instant | Same as `visible = true`. |
 | `clickable: boolean` | settable | When false, the prop can't be hovered or clicked. Saved. |
 | `description: string` | settable | The hover / verb-line name. Saved. |
-| `animation: AnimTag` | settable | The prop's base (looping) animation tag. Setting it is instant and saved. |
-| `play(tag: AnimTag)` | waits · `.now` | One-shot animation; waits for it to finish, then returns to the base animation. |
-| `fade(alpha: number, seconds: number)` | waits · `.now` | Fades to `alpha` (0–1) over `seconds`. Waits. The end alpha is saved. |
+| `animation: AnimTag` | settable | The prop's base (looping) animation tag. Setting it is instant and saved. From another room the tag is saved without checking it (the room's sheet isn't loaded). |
+| `play(tag: AnimTag)` | waits · `.now` | One-shot animation; waits for it to finish, then returns to the base animation. Its room only. |
+| `fade(alpha: number, seconds: number)` | waits · `.now` | Fades to `alpha` (0–1) over `seconds`. Waits. The end alpha is saved; from another room, at once. |
 | `alpha: number` | settable | Opacity, 0–1. Setting it is instant (it stops a running `fade`) and saved. Outside the prop's room it reads and writes the saved value (the room JSON's when none is saved). |
-| `moveTo(point: Point2)` | instant | Teleports to room pixels (instant). |
-| `slideTo(point: Point2, seconds: number)` | waits · `.now` | Moves to room pixels over `seconds`. Waits. |
+| `moveTo(point: Point2)` | instant | Teleports to room pixels (instant). From another room, the position is saved for it. |
+| `slideTo(point: Point2, seconds: number)` | waits · `.now` | Moves to room pixels over `seconds`. Waits. From another room, it moves there at once. |
 
 ### Hotspots: `battery`
 
-`HotspotHandle` in `src/engine/bennescript/handles.ts`. Also has everything on `ClickableHandle`.
+A hotspot. Like a prop, its state lives in its own room: from another room, reads and writes go to that room's saved state. `HotspotHandle` in `src/engine/bennescript/handles.ts`. Also has everything on `ClickableHandle`.
 
 | Member | | Description |
 |---|---|---|

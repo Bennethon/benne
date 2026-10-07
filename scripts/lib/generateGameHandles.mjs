@@ -332,7 +332,7 @@ export function generateGameHandles(gameRoot) {
         what: `${kind} "${row.id}" (${r.file} ${field}[${i}])`,
         fix: scriptNameFix(r.file),
       });
-      return name ? { name, id: row.id, alpha: row.alpha } : null;
+      return name ? { name, id: row.id, row } : null;
     };
     const rows = (value) => (Array.isArray(value) ? [...value.entries()].filter(([, v]) => object(v) && typeof v.id === 'string' && v.id) : []);
     const props = rows(r.data.props).map(([i, p]) => entry('prop', p, i, 'props')).filter(Boolean);
@@ -615,10 +615,27 @@ function emitRoomModule(m, roomName, characterAnimations) {
     if (!rows.length) return '';
     return `\n// ${title}\n${rows.map((r) => `${doc(`\`${r.id}\``)}\nexport const ${r.name} = ${make(r)};`).join('\n')}\n`;
   };
-  // A prop authored see-through passes its alpha, so `prop.alpha` outside its room can report it.
-  const authoredAlpha = (p) => (typeof p.alpha === 'number' && Number.isFinite(p.alpha) && p.alpha !== 1 ? `, ${p.alpha}` : '');
-  out += section('Props', m.props, (p) => `__withVerbs(new PropHandle<VerbId, PropAnimation>(${str(id)}, ${str(p.id)}${authoredAlpha(p)}))`);
-  out += section('Hotspots', m.hotspots, (h) => `__withVerbs(new HotspotHandle<VerbId>(${str(id)}, ${str(h.id)}))`);
+  // What a prop or hotspot is in its room JSON, for reading it from another room (PropDefaults /
+  // HotspotDefaults): only the fields that differ from the defaults.
+  const defaultsArg = (fields) => {
+    const set = Object.entries(fields).filter(([, v]) => v !== undefined);
+    return set.length ? `, { ${set.map(([k, v]) => `${k}: ${str(v)}`).join(', ')} }` : '';
+  };
+  const propDefaults = ({ id: propId, row: p }) =>
+    defaultsArg({
+      visible: p.visible === false ? false : undefined,
+      clickable: p.clickable === true ? true : undefined,
+      alpha: typeof p.alpha === 'number' && Number.isFinite(p.alpha) && p.alpha !== 1 ? p.alpha : undefined,
+      description: typeof p.description === 'string' && p.description ? p.description : undefined,
+      tag: typeof p.tag === 'string' && p.tag && p.tag !== propId ? p.tag : undefined,
+    });
+  const hotspotDefaults = ({ row: h }) =>
+    defaultsArg({
+      active: h.active === false ? false : undefined,
+      description: typeof h.description === 'string' && h.description ? h.description : undefined,
+    });
+  out += section('Props', m.props, (p) => `__withVerbs(new PropHandle<VerbId, PropAnimation>(${str(id)}, ${str(p.id)}${propDefaults(p)}))`);
+  out += section('Hotspots', m.hotspots, (h) => `__withVerbs(new HotspotHandle<VerbId>(${str(id)}, ${str(h.id)}${hotspotDefaults(h)}))`);
   out += section(
     'Characters',
     m.characters,

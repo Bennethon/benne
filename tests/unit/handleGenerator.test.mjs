@@ -259,11 +259,24 @@ describe('generator', () => {
     expect(fixed.files.get('characters/cam/cam.ids.ts')).toContain('export const dialog_ = characters.dialog_;');
   });
 
-  it('a prop authored see-through passes its alpha to the handle', async () => {
-    const { root } = await fixture({ 'rooms/club/club.room.json': { id: 'club', props: [{ id: 'ghost', alpha: 0.4 }, { id: 'antenna', alpha: 1 }] } });
+  it('props and hotspots get their non-default room JSON fields, for reading them from another room', async () => {
+    const { root } = await fixture({
+      'rooms/club/club.room.json': {
+        id: 'club',
+        props: [
+          { id: 'ghost', tag: 'ghost-idle', alpha: 0.4, visible: false, clickable: true, description: 'a ghost' },
+          { id: 'antenna', tag: 'antenna', alpha: 1, visible: true, clickable: false },
+        ],
+        hotspots: [{ id: 'club-hotspot-door', active: false, description: 'door' }, { id: 'club-hotspot-wall' }],
+      },
+    });
     const room = generateGameHandles(root).files.get('rooms/club/club.ids.ts');
-    expect(room).toContain('new PropHandle<VerbId, PropAnimation>("club", "ghost", 0.4))');
+    expect(room).toContain(
+      'new PropHandle<VerbId, PropAnimation>("club", "ghost", { visible: false, clickable: true, alpha: 0.4, description: "a ghost", tag: "ghost-idle" }))',
+    );
     expect(room).toContain('new PropHandle<VerbId, PropAnimation>("club", "antenna"))');
+    expect(room).toContain('new HotspotHandle<VerbId>("club", "club-hotspot-door", { active: false, description: "door" }))');
+    expect(room).toContain('new HotspotHandle<VerbId>("club", "club-hotspot-wall"))');
   });
 
   it('reserved verb IDs stop generation', async () => {

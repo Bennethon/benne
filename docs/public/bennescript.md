@@ -461,6 +461,8 @@ player.switchTo(penny)               // the player now controls Penny
 | `door.moveTo({ x: 80, y: 90 })` | Move instantly. |
 | `door.slideTo({ x: 80, y: 90 }, 2)` | Move over 2 seconds, and wait. |
 
+A prop (or hotspot) can be changed from another room's script too: import it from its room's `.ids` module and set it. The change is saved for that room and shows when you go there. Fades and slides from another room happen at once, and `play` only works in the prop's own room.
+
 ## Sound, music, camera and video
 
 ```ts

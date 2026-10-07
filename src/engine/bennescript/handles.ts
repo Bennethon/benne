@@ -1,5 +1,21 @@
 import * as Phaser from 'phaser';
-import { readSavedPropAlpha, writeSavedPropAlpha } from '../benneAnimationRuntime.js';
+import {
+  readSavedHotspotActive,
+  readSavedHotspotDescription,
+  readSavedPropAlpha,
+  readSavedPropBaseAnimationTag,
+  readSavedPropClickable,
+  readSavedPropDescription,
+  readSavedPropVisible,
+  writeSavedHotspotActive,
+  writeSavedHotspotDescription,
+  writeSavedPropAlpha,
+  writeSavedPropBaseAnimationTag,
+  writeSavedPropClickable,
+  writeSavedPropDescription,
+  writeSavedPropPosition,
+  writeSavedPropVisible,
+} from '../benneAnimationRuntime.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { getRoomVisitCount, setRoomVisitCount } from '../gameState/roomVisitState.js';
@@ -28,12 +44,12 @@ import {
   characterOps,
   faceCharacterTask,
   inventoryOf,
-  readScriptAlpha,
+  readLiveOrSaved,
   roomFor,
   sayTask,
   walkCharacterTask,
   warnOnce,
-  writeScriptAlpha,
+  writeLiveOrSaved,
   type FacingOptions,
   type Inventory,
   type ItemRef,
@@ -217,22 +233,69 @@ function slidePropTask(propId: string, to: Point2, seconds: number): Task {
   });
 }
 
-export class PropHandle<V extends string = string, Anim extends string = string> extends ClickableHandle<V> {
-  /** The prop's `alpha` in the room JSON, for {@link alpha} outside its room. */
-  private readonly authoredAlpha: number;
+/**
+ * The active room scene when it is `roomId` (a prop's or hotspot's own room). With `warnAs`, warns
+ * (DEV, once) when it isn't.
+ */
+function ownRoomScene(roomId: string | null, warnAs?: string): RoomScene | undefined {
+  const scene = activeRoomScene();
+  if (scene && scene.getCurrentRoomId() === roomId) {
+    return scene;
+  }
+  if (warnAs) {
+    warnOnce(`${warnAs}:other-room`, `${warnAs}: only works in room "${roomId}" — ignored.`);
+  }
+  return undefined;
+}
 
-  constructor(roomId: string, id: string, authoredAlpha = 1) {
+/**
+ * What a prop is in its room JSON, for reading it from another room. The generator passes the
+ * fields that differ from the defaults (shown, not clickable, opaque, no description, tag = ID).
+ */
+export interface PropDefaults {
+  readonly visible?: boolean;
+  readonly clickable?: boolean;
+  readonly alpha?: number;
+  readonly description?: string;
+  readonly tag?: string;
+}
+
+/** What a hotspot is in its room JSON (see {@link PropDefaults}): active, no description by default. */
+export interface HotspotDefaults {
+  readonly active?: boolean;
+  readonly description?: string;
+}
+
+/**
+ * A prop. Its state lives in its own room: in that room, reads and writes go through the scene;
+ * from anywhere else they read and write the room's saved state, which the room applies when it
+ * loads. Actions that need the sprite (`play`) only work in the prop's room.
+ */
+export class PropHandle<V extends string = string, Anim extends string = string> extends ClickableHandle<V> {
+  private readonly authored: PropDefaults;
+
+  constructor(roomId: string, id: string, authored: PropDefaults = {}) {
     super(roomId, 'prop', id);
-    this.authoredAlpha = authoredAlpha;
+    this.authored = authored;
   }
 
   /** Hidden props aren't drawn or clickable. Instant, saved. */
   get visible(): boolean {
-    return activeRoomScene()?.getPropScriptVisible(this.id) ?? false;
+    const scene = this.ownRoom();
+    return readLiveOrSaved(
+      scene && (() => scene.getPropScriptVisible(this.id)),
+      (m) => readSavedPropVisible(m, this.roomId!, this.id, this.authored.visible !== false),
+      this.authored.visible !== false,
+    );
   }
 
   set visible(value: boolean) {
-    roomFor(`${this.id}.visible`)?.setPropScriptVisible(this.id, value);
+    const scene = this.ownRoom();
+    writeLiveOrSaved(
+      `${this.id}.visible`,
+      scene && (() => scene.setPropScriptVisible(this.id, value)),
+      (m) => writeSavedPropVisible(m, this.roomId!, this.id, value),
+    );
   }
 
   /** Same as `visible = false`. */
@@ -247,41 +310,76 @@ export class PropHandle<V extends string = string, Anim extends string = string>
 
   /** When false, the prop can't be hovered or clicked. Saved. */
   get clickable(): boolean {
-    return activeRoomScene()?.getPropScriptClickable(this.id) ?? false;
+    const scene = this.ownRoom();
+    return readLiveOrSaved(
+      scene && (() => scene.getPropScriptClickable(this.id)),
+      (m) => readSavedPropClickable(m, this.roomId!, this.id, this.authored.clickable === true),
+      this.authored.clickable === true,
+    );
   }
 
   set clickable(value: boolean) {
-    roomFor(`${this.id}.clickable`)?.setPropScriptClickable(this.id, value);
+    const scene = this.ownRoom();
+    writeLiveOrSaved(
+      `${this.id}.clickable`,
+      scene && (() => scene.setPropScriptClickable(this.id, value)),
+      (m) => writeSavedPropClickable(m, this.roomId!, this.id, value),
+    );
   }
 
   /** The hover / verb-line name. Saved. */
   get description(): string {
-    return activeRoomScene()?.getPropScriptDescription(this.id) ?? '';
+    const scene = this.ownRoom();
+    return readLiveOrSaved(
+      scene && (() => scene.getPropScriptDescription(this.id)),
+      (m) => readSavedPropDescription(m, this.roomId!, this.id, this.authored.description ?? ''),
+      this.authored.description ?? '',
+    );
   }
 
   set description(value: string) {
-    roomFor(`${this.id}.description`)?.setPropScriptDescription(this.id, value);
+    const scene = this.ownRoom();
+    writeLiveOrSaved(
+      `${this.id}.description`,
+      scene && (() => scene.setPropScriptDescription(this.id, value)),
+      (m) => writeSavedPropDescription(m, this.roomId!, this.id, value),
+    );
   }
 
-  /** The prop's base (looping) animation tag. Setting it is instant and saved (§4.10). */
+  /**
+   * The prop's base (looping) animation tag. Setting it is instant and saved (§4.10). From another
+   * room the tag is saved without checking it (the room's sheet isn't loaded).
+   */
   get animation(): Anim {
-    return (activeRoomScene()?.getPropScriptBaseAnimationTag(this.id) ?? '') as Anim;
+    const scene = this.ownRoom();
+    const authored = this.authored.tag ?? this.id;
+    return readLiveOrSaved(
+      scene && (() => scene.getPropScriptBaseAnimationTag(this.id)),
+      (m) => readSavedPropBaseAnimationTag(m, this.roomId!, this.id, authored),
+      authored,
+    ) as Anim;
   }
 
   set animation(tag: Anim) {
-    roomFor(`${this.id}.animation`)?.setPropScriptBaseAnimationTag(this.id, tag);
+    const scene = this.ownRoom();
+    writeLiveOrSaved(
+      `${this.id}.animation`,
+      scene && (() => scene.setPropScriptBaseAnimationTag(this.id, tag)),
+      (m) => writeSavedPropBaseAnimationTag(m, this.roomId!, this.id, tag),
+    );
   }
 
-  /** One-shot animation; waits for it to finish, then returns to the base animation. */
+  /** One-shot animation; waits for it to finish, then returns to the base animation. Its room only. */
   readonly play = timed((tag: Anim): Task => {
-    const scene = roomFor(`${this.id}.play`);
+    const scene = this.ownRoom(`${this.id}.play`);
     return scene ? new Task(scene.playPropScriptAnimationOneShot(this.id, tag)) : Task.resolved();
   });
 
-  /** Fades to `alpha` (0–1) over `seconds`. Waits. The end alpha is saved. */
+  /** Fades to `alpha` (0–1) over `seconds`. Waits. The end alpha is saved; from another room, at once. */
   readonly fade = timed((alpha: number, seconds: number): Task => {
-    const scene = roomFor(`${this.id}.fade`);
+    const scene = this.ownRoom();
     if (!scene) {
+      this.alpha = alpha;
       return Task.resolved();
     }
     const from = scene.getPropSprite(this.id)?.alpha ?? 1;
@@ -293,52 +391,81 @@ export class PropHandle<V extends string = string, Anim extends string = string>
    * room it reads and writes the saved value (the room JSON's when none is saved).
    */
   get alpha(): number {
-    const scene = this.sceneOfOwnRoom();
-    return readScriptAlpha(scene?.getPropSprite(this.id), (m) =>
-      this.roomId ? readSavedPropAlpha(m, this.roomId, this.id, this.authoredAlpha) : this.authoredAlpha,
+    const sprite = this.ownRoom()?.getPropSprite(this.id);
+    const authored = this.authored.alpha ?? 1;
+    return readLiveOrSaved(
+      sprite && (() => sprite.alpha),
+      (m) => readSavedPropAlpha(m, this.roomId!, this.id, authored),
+      authored,
     );
   }
 
   set alpha(value: number) {
-    const scene = this.sceneOfOwnRoom();
-    writeScriptAlpha(
+    const scene = this.ownRoom();
+    writeLiveOrSaved(
       `${this.id}.alpha`,
-      scene ? () => void scene.fadePropScriptAlpha(this.id, value, value, 0) : null,
-      (m) => {
-        if (this.roomId) {
-          writeSavedPropAlpha(m, this.roomId, this.id, value);
-        }
-      },
+      scene && (() => void scene.fadePropScriptAlpha(this.id, value, value, 0)),
+      (m) => writeSavedPropAlpha(m, this.roomId!, this.id, value),
     );
   }
 
-  /** The active room scene when it is this prop's room. */
-  private sceneOfOwnRoom(): RoomScene | undefined {
-    const scene = activeRoomScene();
-    return scene?.getCurrentRoomId() === this.roomId ? scene : undefined;
-  }
-
-  /** Teleports to room pixels (instant). */
+  /** Teleports to room pixels (instant). From another room, the position is saved for it. */
   moveTo(point: Point2): void {
-    roomFor(`${this.id}.moveTo`)?.movePropToNow(this.id, point);
+    const scene = this.ownRoom();
+    writeLiveOrSaved(
+      `${this.id}.moveTo`,
+      scene && (() => scene.movePropToNow(this.id, point)),
+      (m) => writeSavedPropPosition(m, this.roomId!, this.id, point),
+    );
   }
 
-  /** Moves to room pixels over `seconds`. Waits. */
-  readonly slideTo = timed((point: Point2, seconds: number): Task => slidePropTask(this.id, point, seconds));
+  /** Moves to room pixels over `seconds`. Waits. From another room, it moves there at once. */
+  readonly slideTo = timed((point: Point2, seconds: number): Task => {
+    if (!this.ownRoom()) {
+      this.moveTo(point);
+      return Task.resolved();
+    }
+    return slidePropTask(this.id, point, seconds);
+  });
+
+  /**
+   * The active room scene when it is this prop's room. With `warnAs`, warns (DEV, once) when it
+   * isn't, for actions that can't be saved for later.
+   */
+  private ownRoom(warnAs?: string): RoomScene | undefined {
+    return ownRoomScene(this.roomId, warnAs);
+  }
 }
 
+/**
+ * A hotspot. Like a prop, its state lives in its own room: from another room, reads and writes go
+ * to that room's saved state.
+ */
 export class HotspotHandle<V extends string = string> extends ClickableHandle<V> {
-  constructor(roomId: string, id: string) {
+  private readonly authored: HotspotDefaults;
+
+  constructor(roomId: string, id: string, authored: HotspotDefaults = {}) {
     super(roomId, 'hotspot', id);
+    this.authored = authored;
   }
 
   /** When false, the hotspot can't be hovered or clicked. Saved. */
   get active(): boolean {
-    return activeRoomScene()?.getHotspotScriptActive(this.id) ?? false;
+    const scene = ownRoomScene(this.roomId);
+    return readLiveOrSaved(
+      scene && (() => scene.getHotspotScriptActive(this.id)),
+      (m) => readSavedHotspotActive(m, this.roomId!, this.id, this.authored.active !== false),
+      this.authored.active !== false,
+    );
   }
 
   set active(value: boolean) {
-    roomFor(`${this.id}.active`)?.setHotspotScriptActive(this.id, value);
+    const scene = ownRoomScene(this.roomId);
+    writeLiveOrSaved(
+      `${this.id}.active`,
+      scene && (() => scene.setHotspotScriptActive(this.id, value)),
+      (m) => writeSavedHotspotActive(m, this.roomId!, this.id, value),
+    );
   }
 
   /** Same as {@link active}. */
@@ -352,11 +479,21 @@ export class HotspotHandle<V extends string = string> extends ClickableHandle<V>
 
   /** The hover / verb-line name. Saved. */
   get description(): string {
-    return activeRoomScene()?.getHotspotScriptDescription(this.id) ?? '';
+    const scene = ownRoomScene(this.roomId);
+    return readLiveOrSaved(
+      scene && (() => scene.getHotspotScriptDescription(this.id)),
+      (m) => readSavedHotspotDescription(m, this.roomId!, this.id, this.authored.description ?? ''),
+      this.authored.description ?? '',
+    );
   }
 
   set description(value: string) {
-    roomFor(`${this.id}.description`)?.setHotspotScriptDescription(this.id, value);
+    const scene = ownRoomScene(this.roomId);
+    writeLiveOrSaved(
+      `${this.id}.description`,
+      scene && (() => scene.setHotspotScriptDescription(this.id, value)),
+      (m) => writeSavedHotspotDescription(m, this.roomId!, this.id, value),
+    );
   }
 }
 

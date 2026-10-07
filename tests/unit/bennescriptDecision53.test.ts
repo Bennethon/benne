@@ -113,7 +113,7 @@ describe('alpha (§4.10)', () => {
 
   it("a prop outside its room reads its room JSON alpha when nothing is saved", () => {
     fakeGame({ getCurrentRoomId: () => 'elsewhere' });
-    expect(new PropHandle('r', 'ghost', 0.4).alpha).toBe(0.4);
+    expect(new PropHandle('r', 'ghost', { alpha: 0.4 }).alpha).toBe(0.4);
   });
 
   it('a character not in the room reads and writes its saved alpha', () => {

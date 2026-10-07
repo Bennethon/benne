@@ -882,3 +882,26 @@ Docs: spec (decision 54 and as-built notes), `docs/public/bennescript.md` (insta
 | `npm run test:extension` (after `bundle:scaffold`) | ✅ 22/22 |
 
 Not run this time: `test:templates`, `test:e2e`, `test:artifacts`. The extension's media bundles weren't rebuilt either; merge step 5 rebuilds them.
+
+---
+
+## Props and hotspots of another room (2026-10-06)
+
+Closes the decision 53 known issue "prop `visible` / `clickable` / `description` setters still write through the active room". Spec: decision 55 and an as-built note in §4.10.
+
+- The issue was worse than the log said. The setters called the active room's scene, which saved under the active room's ID. If that room had a prop with the same ID (most rooms have a `bg`), the setter changed that prop too. `animation`, `fade`, `play`, `moveTo`, `slideTo` and the hotspot `active` / `description` setters had the same problem.
+- **`PropHandle` and `HotspotHandle` use their own room** (`ownRoomScene` in `handles.ts`). In that room they go through the scene as before. From anywhere else, `visible`, `clickable`, `description`, `animation`, `alpha` and `moveTo` (props) and `active` and `description` (hotspots) read and write that room's saved keys, which the room applies when it loads. `fade` and `slideTo` jump to their end state; `play` warns (DEV) and does nothing.
+- **Reads fall back to the room JSON.** The generator passes the non-default fields as a third argument (`{ visible: false, clickable: true, alpha: 0.4, description: "…", tag: "…" }` for props, `{ active: false, description: "…" }` for hotspots). This replaces decision 54's alpha-only number. The editor's `IdsIndex` reads only the first two arguments, so it needs no change.
+- `readScriptAlpha` / `writeScriptAlpha` became the generic `readLiveOrSaved` / `writeLiveOrSaved` (`actions.ts`).
+
+### Checks
+
+| Check | Result |
+|---|---|
+| New `bennescriptOwnRoomState.test.ts`: a `cafe` `bg` set from the plaza saves under `cafe` and never calls the plaza scene; reads use saved state, then the JSON defaults; `play` warns; own-room props go through the scene; hotspots likewise. `handleGenerator.test.mjs`: the defaults argument | ✅ unit 186/186 |
+| `npm run test:ci` | ✅ unit 186/186, desktop 3/3, pathfinding, content 0 new errors, lint 0 |
+| `npm run test:playthrough` | ✅ 14/14 (11.3 min) |
+| `npm run test:templates` | ✅ 4/4 (4.3 min) |
+| `npm run test:e2e` | ✅ 4/4 |
+| `npm run test:extension` (after `bundle:scaffold`) | ✅ 22/22 |
+| `npm run test:artifacts` | ✅ |

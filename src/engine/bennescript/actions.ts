@@ -362,27 +362,25 @@ export function faceCharacterTask(characterId: string | null, direction: Charact
 }
 
 /**
- * `alpha` read (props, characters, `player`): the live sprite's when it is in the room, else the
- * saved value (`readSaved` supplies the default).
+ * Reads saved script state (`alpha`, a prop's `visible`, …): through the room when `live` is
+ * given (the thing is in the active room), else from the save (`readSaved` supplies the
+ * authored default), else `fallback` when no game is running.
  */
-export function readScriptAlpha(
-  sprite: { readonly alpha: number } | undefined,
-  readSaved: (m: GameStateManager) => number,
-): number {
-  if (sprite) {
-    return sprite.alpha;
+export function readLiveOrSaved<T>(live: (() => T) | undefined, readSaved: (m: GameStateManager) => T, fallback: T): T {
+  if (live) {
+    return live();
   }
   const m = tryGetActiveGameStateManager();
-  return m ? readSaved(m) : 1;
+  return m ? readSaved(m) : fallback;
 }
 
 /**
- * `alpha =` (props, characters, `player`): instant through the room when `setLive` is given (a
- * zero-length fade, which stops a running one and saves the value), else straight to the save.
+ * Writes saved script state: through the room when `setLive` is given (it applies and saves),
+ * else straight to the save, so a prop of another room is saved under its own room.
  */
-export function writeScriptAlpha(
+export function writeLiveOrSaved(
   label: string,
-  setLive: (() => void) | null,
+  setLive: (() => void) | undefined,
   writeSaved: (m: GameStateManager) => void,
 ): void {
   if (setLive) {
@@ -458,16 +456,17 @@ export const characterOps = {
   getAlpha(characterId: string | null): number {
     const scene = activeRoomScene();
     const id = scene ? characterIdIn(scene, characterId) : characterOps.idOf(characterId);
-    return readScriptAlpha(scene && id ? scene.getCharacterSprite(id) : undefined, (m) => (id ? readSavedCharacterAlpha(m, id) : 1));
+    const sprite = scene && id ? scene.getCharacterSprite(id) : undefined;
+    return readLiveOrSaved(sprite ? () => sprite.alpha : undefined, (m) => (id ? readSavedCharacterAlpha(m, id) : 1), 1);
   },
 
   /** Sets alpha at once (stopping a running fade) and saves it, spawned or not. */
   setAlpha(characterId: string | null, alpha: number): void {
     const scene = activeRoomScene();
     // The scene saves it under the character's id whether or not it is spawned in this room.
-    writeScriptAlpha(
+    writeLiveOrSaved(
       'alpha',
-      scene ? () => void scene.fadeCharacterScriptAlpha(characterIdIn(scene, characterId), alpha, alpha, 0) : null,
+      scene ? () => void scene.fadeCharacterScriptAlpha(characterIdIn(scene, characterId), alpha, alpha, 0) : undefined,
       (m) => writeSavedCharacterAlpha(m, characterId ?? m.getActivePlayerCharacterId(), alpha),
     );
   },
