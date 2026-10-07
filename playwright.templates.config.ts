@@ -1,15 +1,15 @@
 import { defineConfig, devices } from '@playwright/test';
+import { testedTemplates, testsDir } from './tests/playthrough/templates';
 
 /**
- * `npm run test:templates`: plays the game templates other than the one in `src/game` (9-verb,
- * played by `test:playthrough`) through the dev/test hooks. Each template runs in its own
- * workspace (`scripts/template-workspace.mjs`: this repo's engine with the template as `src/game`)
- * on its own dev server, so `src/game` is never touched.
+ * `npm run test:templates`: plays every game template that has tests (`tests/playthrough/<name>/`)
+ * through the dev/test hooks. Each template runs in its own workspace
+ * (`scripts/template-workspace.mjs`: this repo's engine with the template as `src/game`) on its own
+ * dev server, so `src/game` is never touched. `--project <name>` plays one template.
  */
-const templates = { '2-click': 4192 } as const;
+const templates = testedTemplates().map((name, i) => ({ name, port: 4191 + i }));
 
 export default defineConfig({
-  testDir: './tests/templates',
   outputDir: './test-results/templates',
   fullyParallel: false,
   workers: 1,
@@ -24,12 +24,12 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'] },
   },
-  projects: Object.entries(templates).map(([name, port]) => ({
+  projects: templates.map(({ name, port }) => ({
     name,
-    testMatch: `${name}.spec.ts`,
+    testDir: testsDir(name),
     use: { ...devices['Desktop Chrome'], viewport: { width: 1056, height: 594 }, baseURL: `http://127.0.0.1:${port}` },
   })),
-  webServer: Object.entries(templates).map(([name, port]) => ({
+  webServer: templates.map(({ name, port }) => ({
     command: `node scripts/template-workspace.mjs ${name} --serve ${port}`,
     url: `http://127.0.0.1:${port}`,
     reuseExistingServer: !process.env.CI,

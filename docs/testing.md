@@ -1,6 +1,8 @@
 # BENNE regression testing
 
-This suite tests the engine under `src/engine`, content under `src/game`, the two `game-templates`, editor host code under `benne-editor/src`, preview bundles under `src/editor`, and the shipped scaffold/VSIX. Tests use actual implementations. The browser fixture is a separate, small game; tests never switch the developer's active game template.
+This suite tests the engine under `src/engine`, content under `src/game`, the `game-templates`, editor host code under `benne-editor/src`, preview bundles under `src/editor`, and the shipped scaffold/VSIX. Tests use actual implementations. The browser fixture is a separate, small game; tests never switch the developer's active game template.
+
+Each game template's playthrough tests live in `tests/playthrough/<template>/` (shared helpers in `tests/playthrough/`). `npm run test:playthrough` plays whichever template is in `src/game`, so after `npm run set-template:<name>` it plays that template's tests; `npm run test:templates` plays every template. A template without a test folder is skipped by `test:templates`, and `test:playthrough` refuses to run while it is active.
 
 ## Running the suite
 
@@ -27,8 +29,8 @@ On headless Linux, run extension and Electron tests through `xvfb-run -a`. Playw
 | `npm run test:coverage` | Unit coverage with minimums on critical modules; HTML and LCOV under `coverage/` |
 | `npm run test:extension` | Real VS Code extension-host integration tests |
 | `npm run test:e2e` | Real Phaser runtime and pointer input in Chromium |
-| `npm run test:playthrough` | The game in `src/game` (the 9-verb template) on the Vite dev server, played start to finish through the dev/test hooks (`src/engine/testing/benneTestHooks.ts`): every spoken line in order, flags, inventory, prop state, the active player and the menus. Also real mouse clicks on an inventory slot, and a smoke test for every Play From entry point in BENNE Play |
-| `npm run test:templates` | The other game template (`game-templates/2-click`) in a throwaway workspace (`scripts/template-workspace.mjs`), played the same way |
+| `npm run test:playthrough` | The template in `src/game` (whichever `set-template` swapped in) on the Vite dev server, running its tests (`tests/playthrough/<template>/`). Each template is played start to finish through the dev/test hooks (`src/engine/testing/benneTestHooks.ts`): every spoken line in order, flags, inventory, prop state, the active player and the menus. `ai-apocalypse` also covers real mouse clicks on an inventory slot, and a smoke test for every Play From entry point in BENNE Play |
+| `npm run test:templates` | Every template with tests (`2-click`, `9-verb`, `ai-apocalypse`), each in a throwaway workspace (`scripts/template-workspace.mjs`) so `src/game` is untouched, played the same way. `-- --project <template>` plays one |
 | `npm run test:artifacts -- --vsix` | Temporary production/template builds, web ZIP structure, extracted VSIX and plugin resolution |
 | `npm run test:nightly` | Local aggregate of fast, host, browser and artifact suites |
 | `npm run test:release` | Local aggregate including VSIX checks |

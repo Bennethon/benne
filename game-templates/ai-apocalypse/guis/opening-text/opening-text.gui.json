@@ -1,0 +1,23 @@
+{
+  "id": "opening-text",
+  "name": "Opening Text",
+  "description": "",
+  "visible": false,
+  "display": {
+    "aseprite": false
+  },
+  "controls": [
+    {
+      "type": "text",
+      "id": "text",
+      "x": 176,
+      "y": 57,
+      "text": "In 1965, top scientists in MIT laboratories started working on \"Project Time Travel\". They discovered that time travel was possible, but it could only be achieved via the use of a special substance: \"Timeonium\".",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#ffffff",
+      "wordWrapWidth": 324,
+      "align": "center"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "id": "driver",
+  "displayName": "Driver",
+  "options": [
+    {
+      "id": "fix battery",
+      "text": "If I fix your battery, can I have the power regulator?",
+      "enabled": false
+    },
+    {
+      "id": "wrench",
+      "text": "Do you have a 10mm socket wrench?",
+      "enabled": false
+    },
+    {
+      "id": "greet driver",
+      "text": "Hello good sir!"
+    },
+    {
+      "id": "cant drive",
+      "text": "The AI in the future doesn't let you drive?",
+      "enabled": false
+    },
+    {
+      "id": "nice car",
+      "text": "That's a nice car you've got there."
+    },
+    {
+      "id": "why car broke",
+      "text": "Why doesn't it run?",
+      "enabled": false
+    },
+    {
+      "id": "nevermind",
+      "text": "Never mind. I'll see you later."
+    }
+  ]
+}

@@ -7,6 +7,7 @@
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RELEASE_TEMPLATES } from './lib/releaseTemplates.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, '..');
@@ -15,18 +16,6 @@ const SHARED_ROOT = path.join(SCAFFOLD_ROOT, 'shared');
 const TEMPLATES_ROOT = path.join(SCAFFOLD_ROOT, 'templates');
 const GAME_TEMPLATES = path.join(REPO_ROOT, 'game-templates');
 const EXTENSION_PKG = path.join(REPO_ROOT, 'benne-editor', 'package.json');
-
-/** @type {Record<string, { displayName: string; description: string }>} */
-const TEMPLATE_META = {
-  '2-click': {
-    displayName: '2-Click Adventure',
-    description: 'Two-button verb interface (look / use) with inventory bar and menu GUIs.',
-  },
-  '9-verb': {
-    displayName: '9-Verb SCUMM-style',
-    description: 'Classic verb wheel with give, pick up, use, open, and more.',
-  },
-};
 
 /**
  * @param {string} rel
@@ -199,13 +188,7 @@ async function writeManifest(templateNames) {
   const extPkg = /** @type {{ version?: string }} */ (JSON.parse(extPkgRaw));
   const version = typeof extPkg.version === 'string' ? extPkg.version : '0.0.0';
 
-  const templates = templateNames.map((id) => {
-    const meta = TEMPLATE_META[id] ?? {
-      displayName: id,
-      description: `BENNE game template "${id}".`,
-    };
-    return { id, displayName: meta.displayName, description: meta.description };
-  });
+  const templates = templateNames.map((id) => ({ id, ...RELEASE_TEMPLATES[id] }));
 
   // Files earlier engines shipped and this one doesn't: Update Engine deletes them from games.
   const removed = /** @type {{ groups: Array<{ files: string[] }> }} */ (
@@ -232,9 +215,14 @@ async function main() {
 
   await bundleShared();
 
-  const templateNames = await listTemplateNames();
-  if (templateNames.length === 0) {
-    throw new Error('No game templates found under game-templates/');
+  const available = await listTemplateNames();
+  const templateNames = Object.keys(RELEASE_TEMPLATES).sort();
+  const missing = templateNames.filter((name) => !available.includes(name));
+  if (missing.length > 0) {
+    throw new Error(`Release templates missing from game-templates/: ${missing.join(', ')}`);
+  }
+  for (const name of available.filter((n) => !templateNames.includes(n))) {
+    console.log(`  skipping template: ${name} (not in scripts/lib/releaseTemplates.mjs)`);
   }
 
   await mkdir(TEMPLATES_ROOT, { recursive: true });

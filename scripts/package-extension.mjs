@@ -13,6 +13,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RELEASE_TEMPLATES } from './lib/releaseTemplates.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, '..');
@@ -91,6 +92,17 @@ function run(cmd, args, cwd) {
 
 async function main() {
     const { doBump, bump } = parseArgs(process.argv);
+
+    // The BENNE Play bundle in media/ is built from src/game and ships in the VSIX, so only a
+    // release template may be active (never a development-only one such as ai-apocalypse).
+    const gameConfig = JSON.parse(await readFile(path.join(REPO_ROOT, 'src', 'game', 'game-config.json'), 'utf8'));
+    const active = /** @type {{ name?: string }} */ (gameConfig).name ?? '';
+    if (!Object.hasOwn(RELEASE_TEMPLATES, active)) {
+        const releases = Object.keys(RELEASE_TEMPLATES).join(', ');
+        console.error(`src/game is template "${active}", which does not ship (release templates: ${releases}).`);
+        console.error('Swap one in first, e.g. `npm run set-template:9-verb`, then package.');
+        process.exit(1);
+    }
 
     const raw = await readFile(EXTENSION_PKG, 'utf8');
     /** @type {{ version?: string; name?: string }} */

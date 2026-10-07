@@ -17,6 +17,10 @@ releases/
 benne-editor/out
 # Extension scaffold payload (built by `npm run bundle:scaffold`)
 benne-editor/scaffold
+# Extension webviews and preview bundles, rebuilt for every VSIX (`vscode:prepublish`). The
+# previews are built from whichever template is in src/game: `npm --prefix benne-editor run
+# build:previews`. The inspector and PDC editor come from the extension's webpack build.
+benne-editor/media/*/
 *.local
 
 # Editor directories and files

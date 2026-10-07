@@ -1,0 +1,443 @@
+{
+  "id": "gallery",
+  "name": "Gallery",
+  "size": {
+    "width": 352,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 352,
+    "height": 198
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "gallery-walk",
+        "active": true,
+        "points": [
+          {
+            "x": 113,
+            "y": 153
+          },
+          {
+            "x": 310,
+            "y": 153
+          },
+          {
+            "x": 304,
+            "y": 109
+          },
+          {
+            "x": 288,
+            "y": 108
+          },
+          {
+            "x": 259,
+            "y": 118
+          },
+          {
+            "x": 257,
+            "y": 135
+          },
+          {
+            "x": 193,
+            "y": 139
+          },
+          {
+            "x": 165,
+            "y": 134
+          },
+          {
+            "x": 165,
+            "y": 121
+          },
+          {
+            "x": 128,
+            "y": 121
+          },
+          {
+            "x": 125,
+            "y": 141
+          },
+          {
+            "x": 114,
+            "y": 144
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [
+    {
+      "id": "gallery-hotspot-paint-spill",
+      "active": true,
+      "description": "paint spill",
+      "zIndex": 0,
+      "points": [
+        {
+          "x": 60,
+          "y": 142
+        },
+        {
+          "x": 89,
+          "y": 142
+        },
+        {
+          "x": 111,
+          "y": 150
+        },
+        {
+          "x": 91,
+          "y": 156
+        },
+        {
+          "x": 41,
+          "y": 149
+        }
+      ],
+      "walkToPoint": {
+        "x": 122,
+        "y": 149
+      },
+      "lookAtPoint": {
+        "x": 87,
+        "y": 150
+      },
+      "baseline": 151
+    },
+    {
+      "id": "gallery-hotspot-canvas",
+      "active": true,
+      "description": "canvas",
+      "zIndex": 1,
+      "points": [
+        {
+          "x": 45,
+          "y": 72
+        },
+        {
+          "x": 83,
+          "y": 74
+        },
+        {
+          "x": 90,
+          "y": 120
+        },
+        {
+          "x": 50,
+          "y": 121
+        }
+      ],
+      "walkToPoint": {
+        "x": 122,
+        "y": 143
+      },
+      "lookAtPoint": {
+        "x": 73,
+        "y": 117
+      }
+    },
+    {
+      "id": "exit",
+      "active": true,
+      "description": "exit",
+      "zIndex": 2,
+      "points": [
+        {
+          "x": 300,
+          "y": 56
+        },
+        {
+          "x": 304,
+          "y": 60
+        },
+        {
+          "x": 305,
+          "y": 107
+        },
+        {
+          "x": 274,
+          "y": 107
+        },
+        {
+          "x": 274,
+          "y": 63
+        },
+        {
+          "x": 285,
+          "y": 56
+        }
+      ],
+      "walkToPoint": {
+        "x": 297,
+        "y": 103
+      },
+      "lookAtPoint": {
+        "x": 291,
+        "y": 102
+      }
+    },
+    {
+      "id": "art-1",
+      "active": true,
+      "description": "blobby art",
+      "zIndex": 3,
+      "points": [
+        {
+          "x": 323,
+          "y": 32
+        },
+        {
+          "x": 342,
+          "y": 32
+        },
+        {
+          "x": 347,
+          "y": 104
+        },
+        {
+          "x": 314,
+          "y": 104
+        }
+      ],
+      "walkToPoint": {
+        "x": 297,
+        "y": 120
+      },
+      "lookAtPoint": {
+        "x": 340,
+        "y": 102
+      }
+    },
+    {
+      "id": "art-2",
+      "active": true,
+      "description": "head art",
+      "zIndex": 4,
+      "points": [
+        {
+          "x": 137,
+          "y": 27
+        },
+        {
+          "x": 153,
+          "y": 28
+        },
+        {
+          "x": 156,
+          "y": 59
+        },
+        {
+          "x": 154,
+          "y": 97
+        },
+        {
+          "x": 131,
+          "y": 97
+        },
+        {
+          "x": 132,
+          "y": 60
+        }
+      ],
+      "walkToPoint": {
+        "x": 192,
+        "y": 135
+      },
+      "lookAtPoint": {
+        "x": 144,
+        "y": 94
+      },
+      "baseline": 64
+    }
+  ],
+  "points": [
+    {
+      "id": "gallery-point-enter",
+      "x": 297,
+      "y": 118
+    }
+  ],
+  "regions": [
+    {
+      "id": "distance",
+      "active": true,
+      "points": [
+        {
+          "x": 116,
+          "y": 108
+        },
+        {
+          "x": 271,
+          "y": 109
+        },
+        {
+          "x": 275,
+          "y": 108
+        },
+        {
+          "x": 313,
+          "y": 108
+        },
+        {
+          "x": 325,
+          "y": 125
+        },
+        {
+          "x": 117,
+          "y": 124
+        }
+      ],
+      "scaleWalkSpeed": true,
+      "scaleTop": 0.3,
+      "scaleBottom": 1,
+      "scaleEnabled": true
+    },
+    {
+      "id": "gallery-region-leave",
+      "active": true,
+      "points": [
+        {
+          "x": 287,
+          "y": 106
+        },
+        {
+          "x": 307,
+          "y": 105
+        },
+        {
+          "x": 306,
+          "y": 110
+        },
+        {
+          "x": 287,
+          "y": 110
+        }
+      ],
+      "scaleTop": 0.4,
+      "scaleBottom": 0.4
+    }
+  ],
+  "props": [
+    {
+      "id": "bg",
+      "tag": "bg",
+      "animations": {
+        "bg": {}
+      },
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "mopping",
+      "tag": "mopping",
+      "animations": {
+        "mopping": {},
+        "mopping-end": {}
+      },
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "statue",
+      "tag": "statue",
+      "animations": {
+        "statue": {},
+        "statue-noLens": {}
+      },
+      "zIndex": 1,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 206,
+            "y": 40
+          },
+          {
+            "x": 214,
+            "y": 51
+          },
+          {
+            "x": 230,
+            "y": 57
+          },
+          {
+            "x": 238,
+            "y": 54
+          },
+          {
+            "x": 240,
+            "y": 41
+          },
+          {
+            "x": 246,
+            "y": 43
+          },
+          {
+            "x": 255,
+            "y": 81
+          },
+          {
+            "x": 246,
+            "y": 101
+          },
+          {
+            "x": 237,
+            "y": 113
+          },
+          {
+            "x": 194,
+            "y": 113
+          },
+          {
+            "x": 186,
+            "y": 94
+          },
+          {
+            "x": 183,
+            "y": 64
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 249,
+        "y": 135
+      },
+      "lookAtPoint": {
+        "x": 220,
+        "y": 111
+      },
+      "x": 0,
+      "y": 0,
+      "baseline": 135
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 297,
+      "y": 113,
+      "initialFacing": "D",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 12
+    },
+    {
+      "instanceId": "curator-1",
+      "definition": "curator/curator.character.json",
+      "x": 160,
+      "y": 141,
+      "initialFacing": "R",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 5
+    }
+  ]
+}

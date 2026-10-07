@@ -1,0 +1,13 @@
+{
+  "id": "relay",
+  "name": "relay",
+  "description": "control relay",
+  "onVerb": {
+    "look": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}

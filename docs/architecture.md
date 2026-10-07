@@ -695,6 +695,7 @@ This subsection documents **what exists today** for the **BENNE Editor** (`benne
 - **`npm run build:benne-play`** → **`vite.benne-play.config.ts`**, **`benne-play.html`**, **`benne-editor/media/benne-play/benne-play.js`** (and emitted **`assets/`** files). Extension host loads that script from **`BennePlayPanelController`** HTML (**`benne-editor/src/bennePlayPanel.ts`**).
 - **Extension webpack** (**`npm run compile`** / **`npm run watch`** under **`benne-editor/`**) emits **`dist/extension.js`**, **`media/inspector/inspector.js`**, and **`media/pdc-editor/pdc-editor.js`** (three entries in **`benne-editor/webpack.config.js`**). The Inspector and **Puzzle Dependency Chart** bundles are **not** Vite apps under **`src/editor/preview/`**; **`pdc-editor.js`** bundles **Cytoscape.js** for the designer-only chart panel.
 - The BENNE extension exposes one-off rebuild commands (**`benne-editor.rebuildRoomPreview`**, **`benne-editor.rebuildCharacterPreview`**, **`benne-editor.rebuildGuiPreview`**, **`benne-editor.rebuildInventoryPreview`**, **`benne-editor.rebuildBennePlay`**) plus **`benne-editor.rebuildDialogPreview`** (extension **webpack** / Inspector bundle, not a Vite preview under **`src/editor/preview/`**) and **`benne-editor.rebuildEditorPreviewBundles`** to rebuild all **Vite** preview bundles (including **BENNE Play**) in order and then the extension webpack step (Inspector + **`pdc-editor`** + **`extension.js`**).
+- **All of `benne-editor/media/*/` is build output and is not tracked in git** (only `media/benne.svg` is). The previews are built from whichever template is in **`src/game`**, so committing them recorded every template switch; **`vscode:prepublish`** rebuilds them all for each VSIX. **`set-template`** rebuilds them; after a fresh clone, run **`npm --prefix benne-editor run build:previews`** (or the rebuild command above) before opening the previews; the debug launch's webpack task builds the Inspector and PDC editor.
 - These previews are **not** the same bundle as **`vite build`** for the playable game; they are **separate** clients. The room preview embeds Phaser with **`RoomScene`** and editor-only scenes; character, GUI, and inventory previews are smaller standalone Phaser apps.
 
 ### Inspector webview (`media/inspector/`)
@@ -890,7 +891,7 @@ The repo can hold **multiple authored game layouts** (e.g. a two-button verb gam
 | Path | Role |
 |------|------|
 | **`game-templates/<template-id>/boot/`** | Shared boot files (loaders, `registerGameContent`, asset URL helpers, Aseprite helpers, etc.) — identical across all templates. **`sync-boot-down`** mirrors **`src/game/boot/`** to every template's `boot/`. |
-| **`game-templates/<template-id>/`** | Complete template tree: `boot/`, `game-config.json`, `globalScript.ts`, `assets/`, `rooms/`, `characters/`, `guis/`, `inventory/`, etc. Each folder is one switchable template (e.g. **`2-click`**, **`9-verb`**). |
+| **`game-templates/<template-id>/`** | Complete template tree: `boot/`, `game-config.json`, `globalScript.ts`, `assets/`, `rooms/`, `characters/`, `guis/`, `inventory/`, etc. Each folder is one switchable template (**`2-click`**, **`9-verb`**, **`ai-apocalypse`**). |
 | **`src/game/`** | Whatever template is active right now. Boot/load logic lives under **`src/game/boot/`**; only `game-config.json` and `globalScript.ts` remain at the root alongside content folders — same shape as today’s shipped game folder. |
 
 **`game-config.json` → `name`**
@@ -905,9 +906,13 @@ Implementation: **[`scripts/switch-game-template.mjs`](../scripts/switch-game-te
 |---------|--------|
 | **`npm run sync-boot-down`** | Mirror boot files from **`src/game/boot/`** → every **`game-templates/<name>/boot/`**. |
 | **`npm run sync-template-down`** | Read **`name`** from **`src/game/game-config.json`**, then mirror **template** files (everything except `boot/`) from **`src/game/`** → **`game-templates/<name>/`**. |
-| **`npm run set-template -- <name>`** | Save the **current** live tree (boot sync to all templates + template sync-down), then **replace** **`src/game/`** with the contents of **`game-templates/<name>/`** (which includes `boot/`). Shorthands: **`npm run set-template:2-click`**, **`npm run set-template:9-verb`**. |
+| **`npm run set-template -- <name>`** | Save the **current** live tree (boot sync to all templates + template sync-down), then **replace** **`src/game/`** with the contents of **`game-templates/<name>/`** (which includes `boot/`). Shorthands: **`npm run set-template:2-click`**, **`npm run set-template:9-verb`**, **`npm run set-template:ai-apocalypse`**. It finishes by rebuilding the editor preview bundles (**`build:previews`**) from the new game. After switching, **`npm run test:playthrough`** plays the new template's tests (`tests/playthrough/<name>/`). |
 
 Each mirror builds a **plan** (new / modified / unchanged / orphan deletes), prints a summary, and asks for confirmation unless **`--yes`** / **`-y`** is passed (e.g. **`npm run set-template:9-verb -- --yes`**).
+
+**Release templates vs development templates**
+
+Only the templates listed in **[`scripts/lib/releaseTemplates.mjs`](../scripts/lib/releaseTemplates.mjs)** (**`2-click`**, **`9-verb`**) ship: **`bundle:scaffold`** bundles just those into the VSIX's New Game picker, and **`test:artifacts`** fails if the scaffold holds anything else. **`ai-apocalypse`** (a complete game, with only the art it loads) stays in this repo as a development baseline: it swaps in with **`set-template`**, gets boot syncs and content validation like the others, and is played by the template tests.
 
 **What counts as “bootstrap” vs “template”**
 

@@ -1,6 +1,7 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { validateGameContent } from './lib/validate-game-content.mjs';
-const roots = ['src/game', 'game-templates/2-click', 'game-templates/9-verb'];
+const templates = (await readdir('game-templates', { withFileTypes: true })).filter(e => e.isDirectory() && !/^[._]/.test(e.name)).map(e => `game-templates/${e.name}`).sort();
+const roots = ['src/game', ...templates];
 const all = [];
 for (const root of roots) for (const diagnostic of await validateGameContent(root)) all.push({ root, ...diagnostic });
 const baseline = JSON.parse(await readFile(new URL('../tests/fixtures/content-baseline.json', import.meta.url), 'utf8'));

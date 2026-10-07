@@ -1,0 +1,112 @@
+{
+  "id": "hank",
+  "name": "Hank",
+  "description": "",
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 55,
+    "y": 61
+  },
+  "talkPoint": {
+    "x": 32,
+    "y": -1
+  },
+  "clickable": false,
+  "display": {
+    "aseprite": true
+  },
+  "feet": {
+    "x": 32,
+    "y": 61
+  },
+  "animations": {
+    "IdleL": {
+      "loop": true
+    },
+    "IdleD": {
+      "loop": true
+    },
+    "IdleU": {
+      "loop": true
+    },
+    "WalkL": {
+      "loop": true,
+      "frameDuration": 80
+    },
+    "WalkD": {
+      "loop": true,
+      "frameDuration": 60
+    },
+    "WalkU": {
+      "loop": true,
+      "frameDuration": 60
+    },
+    "TalkL": {
+      "loop": true,
+      "frameDuration": 90
+    },
+    "TalkD": {
+      "loop": true,
+      "frameDuration": 90
+    },
+    "TalkU": {
+      "loop": true
+    },
+    "IdleR": {
+      "loop": true
+    },
+    "WalkR": {
+      "loop": true,
+      "frameDuration": 80
+    },
+    "TalkR": {
+      "loop": true,
+      "frameDuration": 70
+    },
+    "ReachD": {
+      "loop": false,
+      "frameDuration": 70
+    },
+    "ReachU": {
+      "loop": false,
+      "frameDuration": 70
+    },
+    "ReachL": {
+      "loop": false,
+      "frameDuration": 70
+    },
+    "ReachR": {
+      "loop": false,
+      "frameDuration": 70
+    }
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 47,
+        "y": 27
+      },
+      {
+        "x": 40,
+        "y": 0
+      },
+      {
+        "x": 23,
+        "y": 0
+      },
+      {
+        "x": 16,
+        "y": 28
+      },
+      {
+        "x": 20,
+        "y": 63
+      },
+      {
+        "x": 44,
+        "y": 63
+      }
+    ]
+  },
+  "speechColor": "#4bb49f"
+}

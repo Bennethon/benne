@@ -84,7 +84,7 @@ BENNE/
 ├── src/engine/          ← shared engine
 ├── src/editor/          ← preview / play entrypoints
 ├── src/game/            ← live dev game slot
-├── game-templates/      ← switchable templates (2-click, 9-verb, …)
+├── game-templates/      ← switchable templates (2-click, 9-verb, ai-apocalypse)
 ├── benne-editor/        ← VS Code extension source
 └── scripts/             ← template switcher, scaffold bundler, …
 ```
@@ -100,7 +100,7 @@ The **`npm run package:extension`** command above runs everything below automati
 From the repo root, a full extension release build runs:
 
 1. **`npm run sync-boot-down`** — mirrors `src/game/boot/` into every `game-templates/<name>/boot/` so templates carry the current boot layer. `npm run package:extension` runs this automatically (with `--yes`); when running steps by hand, do it **before** `bundle:scaffold`.
-2. **`npm run bundle:scaffold`** — copies engine, editor, types, Vite configs, scripts, and `game-templates/*` into `benne-editor/scaffold/`
+2. **`npm run bundle:scaffold`** — copies engine, editor, types, Vite configs, scripts, and the release templates (`scripts/lib/releaseTemplates.mjs`; not the development-only `ai-apocalypse`) into `benne-editor/scaffold/`
 3. **Preview builds** — `build:room-preview`, `build:character-preview`, `build:gui-preview`, `build:inventory-preview`, `build:benne-play` (outputs to `benne-editor/media/` in the monorepo)
 4. **Extension webpack** — `npm run compile` / `package` under `benne-editor/`
 5. **VSIX** — `npx @vscode/vsce package` (or `publish`) from `benne-editor/`

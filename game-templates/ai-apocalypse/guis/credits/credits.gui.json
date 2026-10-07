@@ -1,0 +1,23 @@
+{
+  "id": "credits",
+  "name": "Credits",
+  "description": "",
+  "visible": false,
+  "display": {
+    "aseprite": false
+  },
+  "controls": [
+    {
+      "type": "text",
+      "id": "text",
+      "x": 176,
+      "y": 33,
+      "text": "HANK STEELE\nAND THE AI APOCALYPSE\n\n\nA game by\nBENNETHON\n\n\nCreated for the $110 Adventure Game Challenge\nSeptember 2026\n\n\nPOWERED BY BENNE\nThe first game built with the experimental BENNE point-and-click adventure engine.\n\n\nPLAYTESTERS\nHenry Brown\nPenny Brown\n\n\nBUILT WITH THE COLLABORATION OF OUR AI OVERLORDS\nChatGPT\nCursor\nRetro Diffusion\nGrok\nSpriteCook\nPixel Engine\nElevenlabs\nACE-Step\n\n\nTHANKS FOR PLAYING!\nYour participation has been noted.\nBOTT-i3 appreciates your cooperation.\n",
+      "font": "lucasarts-scumm-solid",
+      "fontSize": 8,
+      "color": "#ffffff",
+      "wordWrapWidth": 324,
+      "align": "center"
+    }
+  ]
+}

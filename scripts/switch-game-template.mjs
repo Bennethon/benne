@@ -6,7 +6,8 @@
  * Subcommands:
  *   sync-boot-down               Mirror boot files from src/game/boot/ → every game-templates/<name>/boot/.
  *   sync-template-down           Mirror template files from src/game/ → game-templates/<active>/.
- *   set-template <name>          Save current (boot + template sync-down), then replace src/game/ with <name>.
+ *   set-template <name>          Save current (boot + template sync-down), replace src/game/ with <name>,
+ *                                then rebuild the editor preview bundles from it.
  *
  * Flags:
  *   --yes, -y                    Skip interactive confirmation.
@@ -25,6 +26,7 @@
  * folder when they appear as orphans.
  */
 
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import {
@@ -638,6 +640,7 @@ async function runSetTemplate(targetName) {
   console.log('\nThen:');
   console.log(`  - delete src/game/ (full recursive removal)`);
   console.log(`  - copy game-templates/${targetName}/** → src/game/`);
+  console.log('  - rebuild the editor preview bundles (npm --prefix benne-editor run build:previews)');
 
   const ok = await confirm('\nProceed with full template switch?');
   if (!ok) {
@@ -654,21 +657,21 @@ async function runSetTemplate(targetName) {
       bootSynced++;
     }
   }
-  console.log(`[1/4] Boot sync-down applied to ${bootSynced}/${allTemplates.length} template(s).`);
+  console.log(`[1/5] Boot sync-down applied to ${bootSynced}/${allTemplates.length} template(s).`);
 
   // 2. Apply template sync-down for current template.
   if (templatePlan && planHasChanges(templatePlan)) {
     await applyPlan(templatePlan);
-    console.log(`[2/4] Template "${currentName}" sync-down applied.`);
+    console.log(`[2/5] Template "${currentName}" sync-down applied.`);
   } else {
-    console.log('[2/4] Active template already in sync (or skipped).');
+    console.log('[2/5] Active template already in sync (or skipped).');
   }
 
   // 3. Wipe src/game/.
   assertInside(REPO_ROOT, SRC_GAME);
   await rm(SRC_GAME, { recursive: true, force: true });
   await mkdir(SRC_GAME, { recursive: true });
-  console.log('[3/4] src/game/ cleared.');
+  console.log('[3/5] src/game/ cleared.');
 
   // 4. Copy target template files in (includes boot/ and everything else).
   const templateFiles = (await listFilesRecursive(targetDir)).filter(
@@ -682,10 +685,33 @@ async function runSetTemplate(targetName) {
     await safeCopyFile(src, dst);
   }
   console.log(
-    `[4/4] Copied ${templateFiles.length} file(s) from game-templates/${targetName}/ into src/game/.`
+    `[4/5] Copied ${templateFiles.length} file(s) from game-templates/${targetName}/ into src/game/.`
   );
 
+  // 5. Rebuild the previews and BENNE Play (benne-editor/media/, untracked) from the new game, so
+  // the editor never shows the previous template.
+  console.log('[5/5] Rebuilding editor preview bundles…');
+  const build = spawnSync('npm', ['--prefix', 'benne-editor', 'run', 'build:previews'], {
+    cwd: REPO_ROOT,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+  if (build.status !== 0) {
+    console.error(
+      '\n[error] build:previews failed. src/game/ was switched; fix the error and rerun ' +
+        '`npm --prefix benne-editor run build:previews`.'
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   console.log(`\nDone. src/game/ is now running template "${targetName}".`);
+  const testsDir = `tests/playthrough/${targetName}`;
+  if (await stat(path.join(REPO_ROOT, testsDir)).catch(() => null)) {
+    console.log(`\`npm run test:playthrough\` now plays its tests (${testsDir}/).`);
+  } else {
+    console.warn(`[warn] "${targetName}" has no playthrough tests (${testsDir}/); \`npm run test:playthrough\` will refuse to run.`);
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,374 @@
+{
+  "id": "club",
+  "name": "Club",
+  "size": {
+    "width": 462,
+    "height": 198
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 462,
+    "height": 198
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "club-walk",
+        "active": true,
+        "points": [
+          {
+            "x": 38,
+            "y": 135
+          },
+          {
+            "x": 44,
+            "y": 141
+          },
+          {
+            "x": 46,
+            "y": 150
+          },
+          {
+            "x": 36,
+            "y": 156
+          },
+          {
+            "x": 409,
+            "y": 157
+          },
+          {
+            "x": 394,
+            "y": 149
+          },
+          {
+            "x": 395,
+            "y": 131
+          },
+          {
+            "x": 344,
+            "y": 126
+          },
+          {
+            "x": 312,
+            "y": 143
+          },
+          {
+            "x": 272,
+            "y": 148
+          },
+          {
+            "x": 194,
+            "y": 142
+          },
+          {
+            "x": 185,
+            "y": 132
+          },
+          {
+            "x": 183,
+            "y": 122
+          },
+          {
+            "x": 130,
+            "y": 123
+          },
+          {
+            "x": 91,
+            "y": 129
+          },
+          {
+            "x": 80,
+            "y": 124
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [
+    {
+      "id": "club-hotspot-battery",
+      "active": false,
+      "description": "car battery",
+      "zIndex": 1,
+      "points": [
+        {
+          "x": 257,
+          "y": 101
+        },
+        {
+          "x": 265,
+          "y": 106
+        },
+        {
+          "x": 258,
+          "y": 111
+        },
+        {
+          "x": 252,
+          "y": 112
+        },
+        {
+          "x": 252,
+          "y": 104
+        }
+      ],
+      "walkToPoint": {
+        "x": 278,
+        "y": 142
+      },
+      "lookAtPoint": {
+        "x": 257,
+        "y": 110
+      }
+    },
+    {
+      "id": "club-hotspot-toolChest",
+      "active": true,
+      "description": "tool chest",
+      "zIndex": 2,
+      "points": [
+        {
+          "x": 1,
+          "y": 107
+        },
+        {
+          "x": 28,
+          "y": 106
+        },
+        {
+          "x": 31,
+          "y": 156
+        },
+        {
+          "x": 2,
+          "y": 163
+        }
+      ],
+      "walkToPoint": {
+        "x": 38,
+        "y": 162
+      },
+      "lookAtPoint": {
+        "x": 19,
+        "y": 152
+      }
+    },
+    {
+      "id": "outside",
+      "active": true,
+      "description": "outside",
+      "zIndex": 3,
+      "points": [
+        {
+          "x": 12,
+          "y": 100
+        },
+        {
+          "x": 8,
+          "y": 17
+        },
+        {
+          "x": 89,
+          "y": 40
+        },
+        {
+          "x": 91,
+          "y": 123
+        },
+        {
+          "x": 35,
+          "y": 138
+        },
+        {
+          "x": 33,
+          "y": 109
+        }
+      ],
+      "walkToPoint": {
+        "x": 57,
+        "y": 128
+      },
+      "lookAtPoint": {
+        "x": 58,
+        "y": 130
+      }
+    }
+  ],
+  "points": [
+    {
+      "id": "club-point-standBack",
+      "x": 105,
+      "y": 126
+    },
+    {
+      "id": "club-point-walkout",
+      "x": 54,
+      "y": 130
+    }
+  ],
+  "regions": [
+    {
+      "id": "club-region-leave",
+      "active": true,
+      "points": [
+        {
+          "x": 78,
+          "y": 113
+        },
+        {
+          "x": 97,
+          "y": 123
+        },
+        {
+          "x": 31,
+          "y": 142
+        },
+        {
+          "x": 12,
+          "y": 132
+        }
+      ]
+    }
+  ],
+  "props": [
+    {
+      "id": "bg",
+      "tag": "bg",
+      "animations": {
+        "bg": {}
+      },
+      "zIndex": 0,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "car",
+      "tag": "car",
+      "animations": {
+        "car": {}
+      },
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1,
+      "baseline": 198,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "antenna",
+      "tag": "antenna",
+      "animations": {
+        "antenna": {}
+      },
+      "zIndex": 2,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 409,
+            "y": 119
+          },
+          {
+            "x": 422,
+            "y": 123
+          },
+          {
+            "x": 404,
+            "y": 157
+          },
+          {
+            "x": 388,
+            "y": 155
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 381,
+        "y": 155
+      },
+      "lookAtPoint": {
+        "x": 399,
+        "y": 154
+      },
+      "x": 0,
+      "y": 0,
+      "baseline": 157
+    },
+    {
+      "id": "crash",
+      "tag": "crash",
+      "animations": {
+        "crash": {},
+        "crash-play": {}
+      },
+      "zIndex": 30,
+      "visible": true,
+      "alpha": 1
+    },
+    {
+      "id": "regulator",
+      "tag": "regulator",
+      "animations": {
+        "regulator": {}
+      },
+      "zIndex": 4,
+      "visible": true,
+      "alpha": 1,
+      "clickable": true,
+      "collider": {
+        "points": [
+          {
+            "x": 234,
+            "y": 99
+          },
+          {
+            "x": 252,
+            "y": 99
+          },
+          {
+            "x": 251,
+            "y": 112
+          },
+          {
+            "x": 234,
+            "y": 112
+          }
+        ]
+      },
+      "walkToPoint": {
+        "x": 270,
+        "y": 142
+      },
+      "lookAtPoint": {
+        "x": 243,
+        "y": 111
+      },
+      "description": "high tech thing"
+    }
+  ],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 44,
+      "y": 136,
+      "initialFacing": "R",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 20
+    },
+    {
+      "instanceId": "driver-1",
+      "definition": "driver/driver.character.json",
+      "x": 195,
+      "y": 134,
+      "initialFacing": "D",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 1
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "id": "dialog",
+  "name": "Dialog",
+  "description": "",
+  "visible": false,
+  "display": {
+    "aseprite": true
+  },
+  "controls": [
+    {
+      "type": "image",
+      "id": "DialogBG",
+      "x": 0,
+      "y": 0,
+      "tag": "VerbsBG",
+      "zIndex": 1,
+      "backgroundAnchor": "screen",
+      "visible": true
+    },
+    {
+      "type": "button",
+      "id": "scrollUp",
+      "x": 2,
+      "y": 150,
+      "width": 7,
+      "height": 18,
+      "text": "Button",
+      "font": "",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "UpBtn",
+      "backgroundOffsetX": -3,
+      "backgroundOffsetY": -4,
+      "zIndex": 100,
+      "backgroundAnchor": "top-left"
+    },
+    {
+      "type": "button",
+      "id": "scrollDown",
+      "x": 2,
+      "y": 176,
+      "width": 7,
+      "height": 18,
+      "backgroundAnchor": "top-left",
+      "text": "Button",
+      "font": "",
+      "fontSize": 16,
+      "textColor": "#ffffff",
+      "textAlign": "center",
+      "textOffsetY": 0,
+      "backgroundTag": "DownBtn",
+      "backgroundOffsetX": -3,
+      "backgroundOffsetY": -14,
+      "zIndex": 100
+    },
+    {
+      "type": "image",
+      "id": "Bullet",
+      "x": 0,
+      "y": 0,
+      "tag": "Bullet",
+      "zIndex": 50,
+      "backgroundAnchor": "center",
+      "gridPlacement": {
+        "gridControlId": "Option-Grid",
+        "row": 0,
+        "col": 0,
+        "align": "center"
+      }
+    },
+    {
+      "type": "grid",
+      "id": "Option-Grid",
+      "x": 12,
+      "y": 148,
+      "width": 334,
+      "height": 14,
+      "rows": 1,
+      "columns": 2,
+      "colWidths": [
+        10,
+        324
+      ],
+      "zIndex": 10
+    },
+    {
+      "type": "button",
+      "id": "Dialog-Option",
+      "x": 0,
+      "y": 0,
+      "width": 324,
+      "height": 14,
+      "backgroundAnchor": "top-left",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+      "font": "lucasfont-alternate",
+      "fontSize": 8,
+      "textColor": "#ffffff",
+      "textAlign": "left",
+      "textOffsetX": 0,
+      "textOffsetY": 0,
+      "backgroundTag": "",
+      "gridPlacement": {
+        "gridControlId": "Option-Grid",
+        "row": 0,
+        "col": 1
+      }
+    }
+  ]
+}

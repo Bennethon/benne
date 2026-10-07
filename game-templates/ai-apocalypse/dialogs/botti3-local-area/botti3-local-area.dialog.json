@@ -1,0 +1,22 @@
+{
+  "id": "botti3-local-area",
+  "displayName": "BOTT-i3 Local Area",
+  "options": [
+    {
+      "id": "gallery",
+      "text": "What’s that fancy looking museum?"
+    },
+    {
+      "id": "cafe",
+      "text": "What’s with the Authentic Human Café?"
+    },
+    {
+      "id": "club",
+      "text": "What's going on in that garage over there?"
+    },
+    {
+      "id": "thats all",
+      "text": "That's all I want to know about the area for now."
+    }
+  ]
+}

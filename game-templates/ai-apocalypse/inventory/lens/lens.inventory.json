@@ -1,0 +1,13 @@
+{
+  "id": "lens",
+  "name": "lens",
+  "description": "fancy lens thing",
+  "onVerb": {
+    "look": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  }
+}

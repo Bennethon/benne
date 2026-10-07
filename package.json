@@ -34,6 +34,7 @@
     "set-template": "node scripts/switch-game-template.mjs set-template",
     "set-template:2-click": "node scripts/switch-game-template.mjs set-template 2-click",
     "set-template:9-verb": "node scripts/switch-game-template.mjs set-template 9-verb",
+    "set-template:ai-apocalypse": "node scripts/switch-game-template.mjs set-template ai-apocalypse",
     "bundle:scaffold": "node scripts/bundle-extension-scaffold.mjs",
     "package:extension": "node scripts/package-extension.mjs",
     "package:extension:minor": "node scripts/package-extension.mjs minor",

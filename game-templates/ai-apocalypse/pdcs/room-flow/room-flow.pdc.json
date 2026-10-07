@@ -1,0 +1,134 @@
+{
+  "id": "room-flow",
+  "name": "Room Flow",
+  "elements": [
+    {
+      "data": {
+        "id": "n_1789430469598_x1jmlvi",
+        "label": "Hallway outside lab",
+        "width": 88,
+        "height": 53,
+        "textMaxWidth": 76
+      },
+      "position": {
+        "x": 311,
+        "y": 78
+      }
+    },
+    {
+      "data": {
+        "id": "n_1789430493932_yiguo06",
+        "label": "Time Lab",
+        "width": 88,
+        "height": 44,
+        "textMaxWidth": 76
+      },
+      "position": {
+        "x": 452.89313852328837,
+        "y": 79.01335768458895
+      }
+    },
+    {
+      "data": {
+        "id": "n_1789430523143_5v33s1k",
+        "label": "Cambridge Civic Plaza",
+        "width": 88,
+        "height": 53,
+        "textMaxWidth": 76
+      },
+      "position": {
+        "x": 311.19122364505114,
+        "y": 212.22316150352094
+      }
+    },
+    {
+      "data": {
+        "id": "n_1789442088774_8yas5v3",
+        "label": "Art Pavilion",
+        "width": 88,
+        "height": 44,
+        "textMaxWidth": 76
+      },
+      "position": {
+        "x": 482.0186465204769,
+        "y": 213.17535012686713
+      }
+    },
+    {
+      "data": {
+        "id": "n_1789442098730_2hu09bi",
+        "label": "Human Driver's Club",
+        "width": 88,
+        "height": 53,
+        "textMaxWidth": 76
+      },
+      "position": {
+        "x": 134.83345116982815,
+        "y": 211.44331997603467
+      }
+    },
+    {
+      "data": {
+        "id": "n_1789442107953_ziziv6u",
+        "label": "Authentic Human Café",
+        "width": 88,
+        "height": 53,
+        "textMaxWidth": 76
+      },
+      "position": {
+        "x": 313.90544579372556,
+        "y": 337.929286819404
+      }
+    },
+    {
+      "data": {
+        "id": "e_n_1789430469598_x1jmlvi_n_1789430493932_yiguo06_re05avz",
+        "source": "n_1789430469598_x1jmlvi",
+        "target": "n_1789430493932_yiguo06",
+        "curveStyle": "bezier",
+        "lineStyle": "solid",
+        "direction": "both"
+      }
+    },
+    {
+      "data": {
+        "id": "e_n_1789430469598_x1jmlvi_n_1789430523143_5v33s1k_k84df5p",
+        "source": "n_1789430469598_x1jmlvi",
+        "target": "n_1789430523143_5v33s1k",
+        "curveStyle": "bezier",
+        "lineStyle": "solid",
+        "direction": "both"
+      }
+    },
+    {
+      "data": {
+        "id": "e_n_1789430523143_5v33s1k_n_1789442107953_ziziv6u_z8p9a8p",
+        "source": "n_1789430523143_5v33s1k",
+        "target": "n_1789442107953_ziziv6u",
+        "curveStyle": "bezier",
+        "lineStyle": "solid",
+        "direction": "both"
+      }
+    },
+    {
+      "data": {
+        "id": "e_n_1789442098730_2hu09bi_n_1789430523143_5v33s1k_kw2z7z3",
+        "source": "n_1789442098730_2hu09bi",
+        "target": "n_1789430523143_5v33s1k",
+        "curveStyle": "bezier",
+        "lineStyle": "solid",
+        "direction": "both"
+      }
+    },
+    {
+      "data": {
+        "id": "e_n_1789430523143_5v33s1k_n_1789442088774_8yas5v3_2dcy2cx",
+        "source": "n_1789430523143_5v33s1k",
+        "target": "n_1789442088774_8yas5v3",
+        "curveStyle": "bezier",
+        "lineStyle": "solid",
+        "direction": "both"
+      }
+    }
+  ]
+}

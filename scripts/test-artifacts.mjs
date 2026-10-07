@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import ts from 'typescript';
+import { RELEASE_TEMPLATES } from './lib/releaseTemplates.mjs';
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const root = await mkdtemp(path.join(tmpdir(), 'benne-artifacts-'));
 const logs = path.join(repo, 'test-results', 'artifacts');
@@ -36,7 +37,8 @@ try {
   await cp(path.join(repo, 'benne-editor/node_modules'), path.join(root, 'benne-editor/node_modules'), { recursive: true, verbatimSymlinks: true });
   // Check consistency before any packaging command can synchronize templates.
   const boot = await readdir(path.join(root, 'src/game/boot'));
-  for (const template of ['2-click', '9-verb']) for (const file of boot) {
+  const templates = (await readdir(path.join(root, 'game-templates'), { withFileTypes: true })).filter(e => e.isDirectory() && !/^[._]/.test(e.name)).map(e => e.name);
+  for (const template of templates) for (const file of boot) {
     assert.equal(await readFile(path.join(root, 'game-templates', template, 'boot', file), 'utf8'), await readFile(path.join(root, 'src/game/boot', file), 'utf8'), `Stale ${template}/boot/${file}; run sync-boot-down explicitly.`);
   }
   await run('npm', ['run', 'build'], root);
@@ -52,7 +54,9 @@ try {
   const module = { exports: {} };
   const require = createRequire(import.meta.url);
   new Function('require', 'module', 'exports', compiled)(id => id === 'vscode' ? {} : require(id), module, module.exports);
-  for (const template of ['2-click', '9-verb']) {
+  // Development-only templates (e.g. ai-apocalypse) must never reach the VSIX.
+  assert.deepEqual((await readdir(path.join(scaffold, 'templates'))).sort(), Object.keys(RELEASE_TEMPLATES).sort(), 'Scaffold must bundle exactly the release templates');
+  for (const template of Object.keys(RELEASE_TEMPLATES)) {
     const game = path.join(root, `standalone-${template}`);
     await cp(path.join(scaffold, 'shared'), game, { recursive: true });
     await cp(path.join(scaffold, 'templates', template), path.join(game, 'src/game'), { recursive: true });
@@ -79,5 +83,5 @@ try {
     const installedRequire = createRequire(path.join(installed, 'extension/package.json'));
     assert.equal(typeof installedRequire('benne-room-id-completions'), 'function', 'Installed TypeScript plugin must resolve without development dependencies');
   }
-  console.log('Isolated artifact and both-template builds passed.');
+  console.log('Isolated artifact and release-template builds passed.');
 } finally { await rm(root, { recursive: true, force: true }); }
