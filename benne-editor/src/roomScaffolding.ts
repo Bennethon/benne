@@ -14,7 +14,7 @@ import type { EditorSelection } from './editorSelection';
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import type { MainTreeNode } from './mainTreeProvider';
 import { openBenneRoomTypeScript } from './roomScriptNavigation';
-import { promptForNameAndId } from './nameAndIdPrompt';
+import { promptForNameAndId, proposeIdFromName } from './nameAndIdPrompt';
 
 const SLUG_RE = /^[a-z0-9_-]+$/i;
 
@@ -358,11 +358,9 @@ export async function runAddRoomPropWizard(
     }
     const tagTrimmed = tag.trim();
 
-    const defaultPropId = `${target.roomId}-prop-${tagTrimmed.toLowerCase().replace(/[^a-z0-9]+/gi, '-')}`;
-
     const propId = await vscode.window.showInputBox({
         prompt: 'Prop id (unique within this room JSON)',
-        value: defaultPropId,
+        value: proposeIdFromName(tagTrimmed, 'prop'),
         validateInput: (v) => validateSlug(v?.trim() ?? '', 'Prop id')
     });
     if (!propId) {
@@ -447,17 +445,8 @@ export async function runAddRoomPropWizard(
     await openBenneRoomTypeScript(target.roomJsonUri, target.roomId);
 }
 
-function defaultPropIdForImportedTag(roomId: string, tag: string): string {
-    const slug = tag
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/gi, '-')
-        .replace(/^-+|-+$/g, '');
-    const safe = slug.length > 0 ? slug : 'tag';
-    return `${roomId}-prop-${safe}`;
-}
-
-function allocateUniquePropId(roomId: string, tag: string, usedIds: Set<string>): string {
-    let base = defaultPropIdForImportedTag(roomId, tag);
+function allocateUniquePropId(tag: string, usedIds: Set<string>): string {
+    const base = proposeIdFromName(tag, 'tag');
     let id = base;
     let n = 2;
     while (usedIds.has(id)) {
@@ -684,7 +673,7 @@ export async function runImportPropsFromAsepriteTags(
 
         let z = nextPropZIndexFromProps(props);
         for (const tag of toImport) {
-            const id = allocateUniquePropId(roomRef.roomId, tag, usedIds);
+            const id = allocateUniquePropId(tag, usedIds);
             const newProp: Record<string, unknown> = {
                 id,
                 tag,
@@ -803,7 +792,7 @@ export async function runImportPropsFromAsepriteTags(
             propId = base;
             usedIds.add(base);
         } else {
-            propId = allocateUniquePropId(roomRef.roomId, base, usedIds);
+            propId = allocateUniquePropId(base, usedIds);
             defaultAnimation = base;
         }
         const displayTag = members.includes(base) ? base : members[0]!;
@@ -863,10 +852,9 @@ export async function runAddRoomHotspotWizard(
         return;
     }
 
-    const defaultId = `${target.roomId}-hotspot`;
     const hotspotId = await vscode.window.showInputBox({
         prompt: 'Hotspot id (unique in this room JSON)',
-        value: defaultId,
+        placeHolder: 'door',
         validateInput: (v) => validateSlug(v?.trim() ?? '', 'Hotspot id')
     });
     if (!hotspotId) {
@@ -933,10 +921,9 @@ export async function runAddRoomPointWizard(
         return;
     }
 
-    const defaultId = `${target.roomId}-point`;
     const pointId = await vscode.window.showInputBox({
         prompt: 'Point id (unique in this room JSON)',
-        value: defaultId,
+        placeHolder: 'door-front',
         validateInput: (v) => validateSlug(v?.trim() ?? '', 'Point id')
     });
     if (!pointId) {
@@ -989,10 +976,9 @@ export async function runAddRoomRegionWizard(
         return;
     }
 
-    const defaultId = `${target.roomId}-region`;
     const regionId = await vscode.window.showInputBox({
         prompt: 'Region id (unique in this room JSON)',
-        value: defaultId,
+        placeHolder: 'doorway',
         validateInput: (v) => validateSlug(v?.trim() ?? '', 'Region id')
     });
     if (!regionId) {
@@ -1112,10 +1098,9 @@ export async function runAddRoomWalkableAreaWizard(
         return;
     }
 
-    const defaultId = `${target.roomId}-walk`;
     const polygonId = await vscode.window.showInputBox({
         prompt: 'Walkable area id (unique among walkable polygons and holes in this room)',
-        value: defaultId,
+        placeHolder: 'floor',
         validateInput: (v) => validateSlug(v?.trim() ?? '', 'Walkable area id')
     });
     if (!polygonId) {
@@ -1177,10 +1162,9 @@ export async function runAddRoomWalkableHoleWizard(
         return;
     }
 
-    const defaultId = `${parentPolygonId}-hole`;
     const holeId = await vscode.window.showInputBox({
         prompt: `Hole id (unique among walkable polygons and holes; parent: ${parentPolygonId})`,
-        value: defaultId,
+        placeHolder: 'table',
         validateInput: (v) => validateSlug(v?.trim() ?? '', 'Hole id')
     });
     if (!holeId) {
