@@ -72,13 +72,13 @@ export function roomPropPositionVariableKey(roomId: string, propId: string): str
   return `room:${roomId}:prop:${propId}:position`;
 }
 
-/** Persistence key for `B.region(id).active` overrides. */
+/** Persistence key for `regions.x.active` overrides. */
 export function roomRegionActiveVariableKey(roomId: string, regionId: string): string {
   return `room:${roomId}:region:${regionId}:active`;
 }
 
 /**
- * Effective `B.region(id).active` — saved override (boolean) when set, else `jsonDefault`
+ * Effective `regions.x.active` — saved override (boolean) when set, else `jsonDefault`
  * (`true` when the JSON field is omitted or anything other than `false`).
  */
 export function readSavedRegionActive(
@@ -91,7 +91,7 @@ export function readSavedRegionActive(
   return typeof v === 'boolean' ? v : jsonDefault;
 }
 
-/** Persist `B.region(id).active = …` for this room+region pair. */
+/** Persist `regions.x.active = …` for this room+region pair. */
 export function writeSavedRegionActive(
   manager: GameStateManager,
   roomId: string,
@@ -101,13 +101,13 @@ export function writeSavedRegionActive(
   manager.setVariable(roomRegionActiveVariableKey(roomId, regionId), active);
 }
 
-/** Persistence key for `B.walkable(id).active` overrides. */
+/** Persistence key for `walkables.x.active` overrides. */
 export function roomWalkableActiveVariableKey(roomId: string, walkableId: string): string {
   return `room:${roomId}:walkable:${walkableId}:active`;
 }
 
 /**
- * Effective `B.walkable(id).active` — saved override (boolean) when set, else `jsonDefault`
+ * Effective `walkables.x.active` — saved override (boolean) when set, else `jsonDefault`
  * (`true` when the JSON field is omitted or anything other than `false`).
  */
 export function readSavedWalkableActive(
@@ -120,7 +120,7 @@ export function readSavedWalkableActive(
   return typeof v === 'boolean' ? v : jsonDefault;
 }
 
-/** Persist `B.walkable(id).active = …` for this room+walkable polygon pair. */
+/** Persist `walkables.x.active = …` for this room+walkable polygon pair. */
 export function writeSavedWalkableActive(
   manager: GameStateManager,
   roomId: string,
@@ -130,13 +130,13 @@ export function writeSavedWalkableActive(
   manager.setVariable(roomWalkableActiveVariableKey(roomId, walkableId), active);
 }
 
-/** Persistence key for `B.hotspot(id).active` overrides. */
+/** Persistence key for `hotspot.active` overrides. */
 export function roomHotspotActiveVariableKey(roomId: string, hotspotId: string): string {
   return `room:${roomId}:hotspot:${hotspotId}:active`;
 }
 
 /**
- * Effective `B.hotspot(id).active` — saved override (boolean) when set, else `jsonDefault`
+ * Effective `hotspot.active` — saved override (boolean) when set, else `jsonDefault`
  * (`true` when the JSON field is omitted or anything other than `false`).
  */
 export function readSavedHotspotActive(
@@ -149,7 +149,7 @@ export function readSavedHotspotActive(
   return typeof v === 'boolean' ? v : jsonDefault;
 }
 
-/** Persist `B.hotspot(id).active = …` for this room+hotspot pair. */
+/** Persist `hotspot.active = …` for this room+hotspot pair. */
 export function writeSavedHotspotActive(
   manager: GameStateManager,
   roomId: string,
@@ -159,13 +159,13 @@ export function writeSavedHotspotActive(
   manager.setVariable(roomHotspotActiveVariableKey(roomId, hotspotId), active);
 }
 
-/** Persistence key for `B.hotspot(id).description` overrides. */
+/** Persistence key for `hotspot.description` overrides. */
 export function roomHotspotDescriptionVariableKey(roomId: string, hotspotId: string): string {
   return `room:${roomId}:hotspot:${hotspotId}:description`;
 }
 
 /**
- * Effective `B.hotspot(id).description` — saved override (string, including empty) when set,
+ * Effective `hotspot.description` — saved override (string, including empty) when set,
  * else `jsonDefault`.
  */
 export function readSavedHotspotDescription(
@@ -178,7 +178,7 @@ export function readSavedHotspotDescription(
   return typeof v === 'string' ? v : jsonDefault;
 }
 
-/** Persist `B.hotspot(id).description = …` for this room+hotspot pair. */
+/** Persist `hotspot.description = …` for this room+hotspot pair. */
 export function writeSavedHotspotDescription(
   manager: GameStateManager,
   roomId: string,
@@ -243,7 +243,7 @@ export function writeSavedPropBaseAnimationTag(
   manager.setVariable(roomPropAnimationVariableKey(roomId, propId), tag);
 }
 
-/** Effective `B.prop(id).visible` — saved override (boolean) when set, else `jsonDefault`. */
+/** Effective `prop.visible` — saved override (boolean) when set, else `jsonDefault`. */
 export function readSavedPropVisible(
   manager: GameStateManager,
   roomId: string,
@@ -254,7 +254,7 @@ export function readSavedPropVisible(
   return typeof v === 'boolean' ? v : jsonDefault;
 }
 
-/** Persist `B.prop(id).visible` for this room+prop pair (booleans only). */
+/** Persist `prop.visible` for this room+prop pair (booleans only). */
 export function writeSavedPropVisible(
   manager: GameStateManager,
   roomId: string,
@@ -265,7 +265,7 @@ export function writeSavedPropVisible(
 }
 
 /**
- * Effective `B.prop(id).clickable` — saved override (boolean) when set, else `jsonDefault`
+ * Effective `prop.clickable` — saved override (boolean) when set, else `jsonDefault`
  * from `RoomPropInstance.clickable` (`true` only when the JSON field is explicitly `true`).
  */
 export function readSavedPropClickable(
@@ -278,7 +278,7 @@ export function readSavedPropClickable(
   return typeof v === 'boolean' ? v : jsonDefault;
 }
 
-/** Persist `B.prop(id).clickable` for this room+prop pair (booleans only). */
+/** Persist `prop.clickable` for this room+prop pair (booleans only). */
 export function writeSavedPropClickable(
   manager: GameStateManager,
   roomId: string,
@@ -289,7 +289,7 @@ export function writeSavedPropClickable(
 }
 
 /**
- * Effective `B.prop(id).description` — saved override (string, including empty) when set,
+ * Effective `prop.description` — saved override (string, including empty) when set,
  * else `jsonDefault`.
  */
 export function readSavedPropDescription(
@@ -302,7 +302,7 @@ export function readSavedPropDescription(
   return typeof v === 'string' ? v : jsonDefault;
 }
 
-/** Persist `B.prop(id).description = …` for this room+prop pair. */
+/** Persist `prop.description = …` for this room+prop pair. */
 export function writeSavedPropDescription(
   manager: GameStateManager,
   roomId: string,
@@ -312,7 +312,7 @@ export function writeSavedPropDescription(
   manager.setVariable(roomPropDescriptionVariableKey(roomId, propId), description);
 }
 
-/** Effective `B.prop(id)` alpha — saved override when set in `[0, 1]`, else `jsonDefault`. */
+/** Effective `prop` alpha — saved override when set in `[0, 1]`, else `jsonDefault`. */
 export function readSavedPropAlpha(
   manager: GameStateManager,
   roomId: string,
@@ -326,7 +326,7 @@ export function readSavedPropAlpha(
   return jsonDefault;
 }
 
-/** Persist the **final** alpha (`toAlpha`) after a `B.prop(id).fade(...)` call (clamped to `[0, 1]`). */
+/** Persist the **final** alpha (`toAlpha`) after a `prop.fade(...)` call (clamped to `[0, 1]`). */
 export function writeSavedPropAlpha(
   manager: GameStateManager,
   roomId: string,
@@ -337,7 +337,7 @@ export function writeSavedPropAlpha(
   manager.setVariable(roomPropAlphaVariableKey(roomId, propId), clamped);
 }
 
-/** Effective `B.character(id)` alpha — saved override when set in `[0, 1]`, else `jsonDefault` (typically `1`). */
+/** Effective `character` alpha — saved override when set in `[0, 1]`, else `jsonDefault` (typically `1`). */
 export function readSavedCharacterAlpha(
   manager: GameStateManager,
   characterId: string,
@@ -350,7 +350,7 @@ export function readSavedCharacterAlpha(
   return jsonDefault;
 }
 
-/** Persist the **final** alpha (`toAlpha`) after a `B.character(id).fade(...)` call (clamped to `[0, 1]`). */
+/** Persist the **final** alpha (`toAlpha`) after a `character.fade(...)` call (clamped to `[0, 1]`). */
 export function writeSavedCharacterAlpha(
   manager: GameStateManager,
   characterId: string,
@@ -360,7 +360,7 @@ export function writeSavedCharacterAlpha(
   manager.setVariable(characterAlphaVariableKey(characterId), clamped);
 }
 
-/** Effective `B.character(id).visible` — saved override (boolean) when set, else `jsonDefault`. */
+/** Effective `character.visible` — saved override (boolean) when set, else `jsonDefault`. */
 export function readSavedCharacterVisible(
   manager: GameStateManager,
   characterId: string,
@@ -370,7 +370,7 @@ export function readSavedCharacterVisible(
   return typeof v === 'boolean' ? v : jsonDefault;
 }
 
-/** Persist `B.character(id).hide` / `show` / `visible = …` / `visibleNow(…)` for this character id. */
+/** Persist `character.hide()` / `show()` / `visible = …` for this character id. */
 export function writeSavedCharacterVisible(
   manager: GameStateManager,
   characterId: string,
@@ -380,7 +380,7 @@ export function writeSavedCharacterVisible(
 }
 
 /**
- * Effective `B.character(id).movable` / `B.player.movable` — saved override (boolean) when set,
+ * Effective `character.movable` / `player.movable` — saved override (boolean) when set,
  * else `jsonDefault` (`true` when the JSON field is omitted or anything other than `false`).
  */
 export function readSavedCharacterMovable(
@@ -402,7 +402,7 @@ export function writeSavedCharacterMovable(
 }
 
 /**
- * Effective `B.character(id).clickable` — saved override (boolean) when set,
+ * Effective `character.clickable` — saved override (boolean) when set,
  * else `jsonDefault` from `CharacterData.clickable` on `*.character.json`.
  */
 export function readSavedCharacterClickable(
@@ -424,7 +424,7 @@ export function writeSavedCharacterClickable(
 }
 
 /**
- * Effective `B.character(id).description` — saved override (string, including empty) when set,
+ * Effective `character.description` — saved override (string, including empty) when set,
  * else `jsonDefault` from `CharacterData.description`.
  */
 export function readSavedCharacterDescription(
@@ -436,7 +436,7 @@ export function readSavedCharacterDescription(
   return typeof v === 'string' ? v : jsonDefault;
 }
 
-/** Persist `B.character(id).description = …` for this character definition id. */
+/** Persist `character.description = …` for this character definition id. */
 export function writeSavedCharacterDescription(
   manager: GameStateManager,
   characterId: string,
@@ -453,7 +453,7 @@ export function readSavedCharacterSpeechPosition(
   return readSavedXY(manager, characterSpeechPositionVariableKey(characterId));
 }
 
-/** Persist `B.character(id).setSpeechPosition` / `B.player.setSpeechPosition` for this character id. */
+/** Persist a character's speech-line position override (room pixels), or clear it with `null`. */
 export function writeSavedCharacterSpeechPosition(
   manager: GameStateManager,
   characterId: string,
@@ -478,7 +478,7 @@ export function readSavedCharacterSpeechOffset(
   return readSavedXY(manager, characterSpeechOffsetVariableKey(characterId));
 }
 
-/** Persist `B.character(id).setSpeechOffset` / `B.player.setSpeechOffset` for this character id. */
+/** Persist a character's speech-line offset override (canvas pixels), or clear it with `null`. */
 export function writeSavedCharacterSpeechOffset(
   manager: GameStateManager,
   characterId: string,
@@ -668,7 +668,7 @@ function coerceFinitePositive(n: unknown, fallback: number): number {
 }
 
 /**
- * Merges author input into effective follow options (defaults match the Bennescript API contract).
+ * Merges author input into effective follow options (the defaults `startFollowing` documents).
  */
 export function mergeCharacterFollowOptions(input?: CharacterFollowOptions | null): CharacterFollowEffectiveOptions {
   const minDistance = coerceFinitePositive(input?.minDistance, 48);
@@ -759,8 +759,8 @@ export function clearSavedCharacterFollowState(manager: GameStateManager, follow
 }
 
 /**
- * Validates and persists follow state for **`B.character(…).startFollowingCharacter`** /
- * **`B.player.startFollowingCharacter`** (also used from {@link RoomScene} when a room is active).
+ * Validates and persists follow state for **`character.startFollowing(…)`** (also used from
+ * {@link RoomScene} when a room is active).
  * Returns **`false`** when the call is a no-op (self-follow, empty target).
  */
 export function applyPersistedCharacterFollowFromScript(

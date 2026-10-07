@@ -59,26 +59,16 @@ import {
     runAddRoomSpawnedCharacterWizard
 } from './roomScaffolding';
 import { pickGuiControlKindToAdd, runAddGuiControlWizard } from './guiScaffolding';
-import { ensureGuiButtonClickHandlerAndReveal } from './guiButtonClickScaffolding';
 import {
-    ensureGuiCheckboxCheckHandlerAndReveal,
-    ensureGuiCheckboxUncheckHandlerAndReveal
-} from './guiCheckboxScaffolding';
-import { ensureGuiSliderValueChangedHandlerAndReveal } from './guiSliderValueChangedScaffolding';
-import {
-    ensureGuiTextInputSubmitHandlerAndReveal,
+    ensureGuiButtonClickHandlerAndReveal,
+    ensureGuiCheckboxHandlerAndReveal,
+    ensureGuiSliderValueChangedHandlerAndReveal,
     ensureGuiTextInputValueChangedHandlerAndReveal
-} from './guiTextInputScaffolding';
-import { ensureGuiLifecycleHookInGuiScript } from './guiLifecycleScriptScaffolding';
-import { ensureRoomLifecycleHookInRoomScript } from './roomLifecycleScriptScaffolding';
-import type { GuiLifecycleHookKind, RoomLifecycleHookKind } from './verbHandlerPresence';
-import {
-    BENNE_SCRIPT_VIEW_COLUMN,
-    revealGuiLifecycleHookInDocument,
-    revealRoomLifecycleHookInDocument,
-    revealSourceRangeInDocument
-} from './roomScriptNavigation';
-import { ensureDialogWhenChoiceHandlerAndReveal } from './dialogChoiceScaffolding';
+} from './guiControlScaffolding';
+import { ensureGuiLifecycleHookInGuiScript, type GuiLifecycleHookKind } from './guiLifecycleScriptScaffolding';
+import { ensureRoomLifecycleHookInRoomScript, type RoomLifecycleHookKind } from './roomLifecycleScriptScaffolding';
+import { BENNE_SCRIPT_VIEW_COLUMN, revealSourceRangeInDocument } from './roomScriptNavigation';
+import { ensureDialogChoiceHandlerAndReveal } from './dialogChoiceScaffolding';
 
 function resolveInspectorJsonUri(selection: EditorSelection): vscode.Uri | undefined {
     const focus = selection.focus;
@@ -862,21 +852,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 return;
             }
             const guiId = getGuiIdFromGuiJsonUri(uri);
-            await ensureGuiCheckboxCheckHandlerAndReveal(uri, guiId, checkboxId);
-            return;
-        }
-
-        if (msg.action === 'guiEnsureCheckboxUncheckHandler') {
-            if (focusKind !== 'gui') {
-                return;
-            }
-            const guiJsonUriStr = typeof msg.guiJsonUri === 'string' ? msg.guiJsonUri : '';
-            const checkboxId = typeof msg.checkboxId === 'string' ? msg.checkboxId.trim() : '';
-            if (!checkboxId || uri.toString() !== guiJsonUriStr) {
-                return;
-            }
-            const guiId = getGuiIdFromGuiJsonUri(uri);
-            await ensureGuiCheckboxUncheckHandlerAndReveal(uri, guiId, checkboxId);
+            await ensureGuiCheckboxHandlerAndReveal(uri, guiId, checkboxId);
             return;
         }
 
@@ -908,20 +884,6 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             return;
         }
 
-        if (msg.action === 'guiEnsureTextInputSubmitHandler') {
-            if (focusKind !== 'gui') {
-                return;
-            }
-            const guiJsonUriStr = typeof msg.guiJsonUri === 'string' ? msg.guiJsonUri : '';
-            const textInputId = typeof msg.textInputId === 'string' ? msg.textInputId.trim() : '';
-            if (!textInputId || uri.toString() !== guiJsonUriStr) {
-                return;
-            }
-            const guiId = getGuiIdFromGuiJsonUri(uri);
-            await ensureGuiTextInputSubmitHandlerAndReveal(uri, guiId, textInputId);
-            return;
-        }
-
         if (msg.action === 'dialogEnsureWhenChoice') {
             if (focusKind !== 'dialog') {
                 return;
@@ -933,7 +895,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             }
             const optionText = typeof msg.optionText === 'string' ? msg.optionText : '';
             const dialogFolderId = getDialogIdFromDialogJsonUri(uri);
-            await ensureDialogWhenChoiceHandlerAndReveal(uri, dialogFolderId, optionId, optionText);
+            await ensureDialogChoiceHandlerAndReveal(uri, dialogFolderId, optionId, optionText);
             return;
         }
 
@@ -1106,9 +1068,9 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             }
             const hookRaw = typeof msg.hook === 'string' ? msg.hook : '';
             const hook: RoomLifecycleHookKind | null =
-                hookRaw === 'whenLoadedRoom' ||
-                hookRaw === 'whenEnterRoom' ||
-                hookRaw === 'whenEnterRoomAfterFade' ||
+                hookRaw === 'onLoaded' ||
+                hookRaw === 'onEnter' ||
+                hookRaw === 'onEnterAfterFade' ||
                 hookRaw === 'onUpdate'
                     ? hookRaw
                     : null;
@@ -1131,7 +1093,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 await this.pushState();
                 return;
             }
-            await revealRoomLifecycleHookInDocument(scriptUri, hook, BENNE_SCRIPT_VIEW_COLUMN);
+            await revealSourceRangeInDocument(scriptUri, r.range.start, r.range.end, BENNE_SCRIPT_VIEW_COLUMN);
             return;
         }
 
@@ -1142,7 +1104,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
             const guiJsonUriStr = typeof msg.guiJsonUri === 'string' ? msg.guiJsonUri : '';
             const hookRaw = typeof msg.hook === 'string' ? msg.hook : '';
             const hook: GuiLifecycleHookKind | null =
-                hookRaw === 'onGuiBuilt' || hookRaw === 'onGuiShow' || hookRaw === 'onGuiHide'
+                hookRaw === 'onBuilt' || hookRaw === 'onShow' || hookRaw === 'onHide'
                     ? hookRaw
                     : null;
             if (!hook || uri.toString() !== guiJsonUriStr) {
@@ -1168,7 +1130,7 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 await this.pushState();
                 return;
             }
-            await revealGuiLifecycleHookInDocument(scriptUri, hook, BENNE_SCRIPT_VIEW_COLUMN);
+            await revealSourceRangeInDocument(scriptUri, r.range.start, r.range.end, BENNE_SCRIPT_VIEW_COLUMN);
             return;
         }
 

@@ -7,9 +7,9 @@ import type { RoomScene } from './RoomScene.js';
  * scripted `walkToClicked` do not overlap a prior empty-space or walk-to-target move.
  *
  * Also pushes one frame of {@link RoomScene.pushScriptedDialogInputSuppression} for the same pointer
- * tick: `B.say` queues on the Bennescript interaction tail (microtask), while `createSayLinePromise`
- * only suppresses room background input when that promise runs — **after** Phaser dispatches
- * `pointerdown` on the scene. Without this brace, {@link RoomScene.handleRoomPointerDown} can still
+ * tick: a handler's steps after its first one start on later microtasks, and a speech line only
+ * suppresses room background input once it starts — **after** Phaser dispatches `pointerdown` on
+ * the scene. Without this brace, {@link RoomScene.handleRoomPointerDown} can still
  * treat the click as empty space and start a walk toward the cursor while a verb-only `say` line
  * is showing (common with **Look at** + no scripted `walkToClicked`).
  */

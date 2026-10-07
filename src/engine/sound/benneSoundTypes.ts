@@ -1,4 +1,4 @@
-/** Options for `B.sound.play` / `B.sound.playAndWait`. */
+/** Options for `sfx.x.play()` / `sfx.x.playAndWait()`. */
 export interface SoundPlayOptions {
   /** Extra multiplier (0–1) on top of effective SFX volume. Default 1. */
   volume?: number;
@@ -6,7 +6,7 @@ export interface SoundPlayOptions {
   loop?: boolean;
 }
 
-/** Options for `B.sound.playMusic`. */
+/** Options for `music.x.play()`. */
 export interface MusicPlayOptions {
   volume?: number;
   /** Default true for background music. */

@@ -1,31 +1,22 @@
-import { registerDialogScript } from '@engine/scripting';
+import { wait } from '@benne/script';
+import { dialog, options } from './chatwithpenny.ids';
 
-registerDialogScript('chatwithpenny', ({ B }) => {
-  // Player picks are handled with B.whenChoice('optionId', () => { … }) — use the Inspector "Script" button per option.
-  void B;
+// The player says the option's text first, then the handler runs.
 
+options.greeting.onChoose(() => {
+  Penny: "Fine."
+})
 
-  B.whenChoice("door", () => {
-    B.say`
-      Player: I want to go outside.
-      Penny: I want a sandwich.
-      `;
-      B.wait(0.5);
-      B.player.say`Uhh...`;
-      B.wait(0.5);
-      B.character('penny').say`Make me a sandwich and I'll give you the key.`;
-  });
+options.door.onChoose(() => {
+  Player: "I want to go outside."
+  Penny: "I want a sandwich."
+  wait(0.5)
+  Player: "Uhh..."
+  wait(0.5)
+  Penny: "Make me a sandwich and I'll give you the key."
+})
 
-  B.whenChoice("bye", () => {
-    B.say`
-      Penny: Bye!
-    `;
-    B.dialog("chatwithpenny").stop();
-  });
-
-  B.whenChoice("greeting", () => {
-    B.say`
-      Penny: Fine.
-    `;
-  });
-});
+options.bye.onChoose(() => {
+  Penny: "Bye!"
+  dialog.end()
+})

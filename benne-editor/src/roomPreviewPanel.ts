@@ -868,8 +868,8 @@ function buildRoomPreviewHtml(
     <div id="benne-preview-play-toolbar" style="display:none;flex-shrink:0;flex-direction:column;align-items:flex-start;gap:6px;margin-top:1px;">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <label for="benne-preview-play-from" style="color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;white-space:nowrap;">Play from</label>
-        <select id="benne-preview-play-from" title="Optional B.playFrom starting state for BENNE Play" aria-label="Play from starting state" style="font-size:12px;min-width:120px;max-width:200px;padding:3px 6px;border-radius:4px;border:1px solid #5a5a70;background:#1a1a28;color:#e8ecff;"></select>
-        <button type="button" id="benne-preview-play" title="Open BENNE Play in this room (runs selected Play From after whenEnterRoom)" style="flex-shrink:0;background:#2d6a4f;color:#e8ffef;border:1px solid #40916c;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:system-ui,sans-serif;">Play</button>
+        <select id="benne-preview-play-from" title="Optional playFrom(…) starting state for BENNE Play" aria-label="Play from starting state" style="font-size:12px;min-width:120px;max-width:200px;padding:3px 6px;border-radius:4px;border:1px solid #5a5a70;background:#1a1a28;color:#e8ecff;"></select>
+        <button type="button" id="benne-preview-play" title="Open BENNE Play in this room (runs the selected Play From setup, then room.onEnter)" style="flex-shrink:0;background:#2d6a4f;color:#e8ffef;border:1px solid #40916c;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:system-ui,sans-serif;">Play</button>
       </div>
     </div>
     <div id="benne-polygon-toolbar" style="flex:1;min-width:0;"></div>

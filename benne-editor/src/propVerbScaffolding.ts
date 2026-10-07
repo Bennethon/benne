@@ -1,105 +1,10 @@
 import * as vscode from 'vscode';
-import { saveDirtyTypeScriptBeforeWorkspaceFsRead } from './saveDirtyScriptBeforeFsRead';
 import { formatJson, gameRootContaining, resolveRoomWidthHeight, defaultClickablePropInteractionFields } from './roomScaffolding';
-import { readRoomProps } from './gameDiscovery';
-import {
-    benneRoomScriptQualifier,
-    benneStubCallLine,
-    findRoomScriptVerbRangeForEventIdRobust,
-    readConfiguredVerbIdSet,
-    roomScriptRegistersHotspotVerb,
-    roomScriptRegistersPropVerb,
-    roomScriptRegistersRoomCharacterVerb
-} from './verbHandlerPresence';
+import { handlerSpecFromEventId } from './bennescript/handlerEvents';
+import { addHandler, ensureHandler, type AddHandlerResult } from './scriptHandlers';
 
-const BENNE_ROOM_SCRIPT_HINT =
-    'Use Bennescript: registerRoomScript(({ B }) => { ... }) or registerRoomScript((ctx) => { ... }) so the editor can insert verb stubs.';
-
-/** Result of adding or repairing a room-scoped verb handler in `*.room.ts`. */
-export type AddRoomVerbHandlerResult = {
-    ok: boolean;
-    /** UTF-16 range of a newly inserted stub in `*.room.ts` when a stub was written. */
-    insertedStubRange?: { start: number; end: number };
-};
-
-export type BenneRegisterInsertResult = {
-    text: string;
-    /** UTF-16 offset where `indentedSnippet` starts in `text`. */
-    start: number;
-    /** UTF-16 offset past the inserted snippet in `text`. */
-    end: number;
-};
-
-/** Inserts lines before the closing `}` of the `registerRoomScript((…) => { … })` callback body. */
-export function insertIntoBenneRegisterRoomScript(source: string, indentedSnippet: string): BenneRegisterInsertResult | null {
-    const needle = 'registerRoomScript(';
-    let searchFrom = 0;
-    let callIdx = -1;
-    while (true) {
-        const i = source.indexOf(needle, searchFrom);
-        if (i < 0) {
-            return null;
-        }
-        const lineStart = source.lastIndexOf('\n', i) + 1;
-        const lineEnd = source.indexOf('\n', i);
-        const line = source.slice(lineStart, lineEnd < 0 ? undefined : lineEnd);
-        if (!/^\s*import\s/.test(line)) {
-            callIdx = i;
-            break;
-        }
-        searchFrom = i + needle.length;
-    }
-    const arrowIdx = source.indexOf('=>', callIdx);
-    if (arrowIdx < 0) {
-        return null;
-    }
-    const bodyOpen = source.indexOf('{', arrowIdx);
-    if (bodyOpen < 0) {
-        return null;
-    }
-    let depth = 0;
-    for (let i = bodyOpen; i < source.length; i++) {
-        const c = source[i];
-        if (c === '{') {
-            depth++;
-        } else if (c === '}') {
-            depth--;
-            if (depth === 0) {
-                const insertAt = i;
-                const text = source.slice(0, insertAt) + indentedSnippet + source.slice(insertAt);
-                return {
-                    text,
-                    start: insertAt,
-                    end: insertAt + indentedSnippet.length
-                };
-            }
-        }
-    }
-    return null;
-}
-
-/** Writes a `benneStubCallLine` into `registerRoomScript`; fails if the file is not Bennescript-shaped. */
-async function writeBenneRoomVerbStub(
-    scriptUri: vscode.Uri,
-    scriptText: string,
-    kind: 'prop' | 'hotspot',
-    targetId: string,
-    verbId: string,
-    configured: ReadonlySet<string>,
-    roomId: string
-): Promise<{ start: number; end: number } | null> {
-    const qualifier = benneRoomScriptQualifier(scriptText);
-    const stub = benneStubCallLine(kind, targetId, verbId, configured, qualifier);
-    const inserted = insertIntoBenneRegisterRoomScript(scriptText, `\n  ${stub}\n`);
-    if (inserted === null) {
-        void vscode.window.showErrorMessage(
-            `Could not add a handler to ${roomId}.room.ts. ${BENNE_ROOM_SCRIPT_HINT}`
-        );
-        return null;
-    }
-    await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(inserted.text));
-    return { start: inserted.start, end: inserted.end };
-}
+/** Result of adding (or finding) a room-scoped verb handler in `*.room.ts`. */
+export type AddRoomVerbHandlerResult = AddHandlerResult;
 
 function propNeedsDefaultCollider(prop: Record<string, unknown>): boolean {
     const collider = prop.collider as { points?: unknown } | undefined;
@@ -167,255 +72,70 @@ export async function makeRoomPropClickable(
     return true;
 }
 
-/**
- * Ensures a Bennescript stub for `verbId` on the prop exists in `*.room.ts`.
- * The room script must use `registerRoomScript((…) => { … })`.
- */
+async function roomJsonHas(roomJsonUri: vscode.Uri, list: 'props' | 'hotspots', id: string): Promise<boolean> {
+    try {
+        const data = JSON.parse(new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(roomJsonUri))) as Record<
+            string,
+            unknown
+        >;
+        const items = data[list];
+        return Array.isArray(items) && items.some((p) => (p as { id?: unknown })?.id === id);
+    } catch {
+        return false;
+    }
+}
+
+/** Adds `prop.on<Verb>(() => { … })` to the room script (or finds the existing one). */
 export async function addPropVerbEvent(
     roomJsonUri: vscode.Uri,
     roomId: string,
     propId: string,
     verbId: string
 ): Promise<AddRoomVerbHandlerResult> {
-    let raw: Uint8Array;
-    try {
-        raw = await vscode.workspace.fs.readFile(roomJsonUri);
-    } catch {
-        void vscode.window.showErrorMessage('Could not read room JSON.');
-        return { ok: false };
-    }
-    let data: Record<string, unknown>;
-    try {
-        data = JSON.parse(new TextDecoder('utf-8').decode(raw)) as Record<string, unknown>;
-    } catch {
-        void vscode.window.showErrorMessage('Room JSON is not valid.');
-        return { ok: false };
-    }
-    const propsUnknown = data.props;
-    if (!Array.isArray(propsUnknown)) {
-        void vscode.window.showErrorMessage('Room JSON has no props array.');
-        return { ok: false };
-    }
-    const props = propsUnknown as Record<string, unknown>[];
-    if (!props.some((p) => typeof p.id === 'string' && p.id === propId)) {
+    if (!(await roomJsonHas(roomJsonUri, 'props', propId))) {
         void vscode.window.showErrorMessage(`Prop "${propId}" not found in room JSON.`);
         return { ok: false };
     }
-
-    const folder = vscode.workspace.getWorkspaceFolder(roomJsonUri);
-    const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
-
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
-    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
-        return { ok: false };
-    }
-    let scriptText = '';
-    try {
-        scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
-    } catch {
-        /* missing script */
-    }
-    if (scriptText && roomScriptRegistersPropVerb(scriptText, roomId, propId, verbId, configured)) {
-        void vscode.window.showInformationMessage(
-            `A ${verbId} handler for prop "${propId}" is already registered in ${roomId}.room.ts.`
-        );
-        return { ok: false };
-    }
-
-    if (!scriptText) {
-        void vscode.window.showErrorMessage(
-            `${roomId}.room.ts not found. Create the room script, then ${BENNE_ROOM_SCRIPT_HINT}`
-        );
-        return { ok: false };
-    }
-
-    const stubRange = await writeBenneRoomVerbStub(
+    return addHandler(
         scriptUri,
-        scriptText,
-        'prop',
-        propId,
-        verbId,
-        configured,
-        roomId
+        { kind: 'verb', target: { kind: 'prop', roomId, id: propId }, verbId },
+        `${verbId} handler for prop "${propId}"`
     );
-    if (!stubRange) {
-        return { ok: false };
-    }
-
-    void vscode.window.showInformationMessage(`Added ${verbId} handler for prop "${propId}" in ${roomId}.room.ts.`);
-    return { ok: true, insertedStubRange: stubRange };
 }
 
-/**
- * Ensures a Bennescript stub for `verbId` on the hotspot exists in `*.room.ts`.
- * The room script must use `registerRoomScript((…) => { … })`.
- */
+/** Adds `hotspot.on<Verb>(() => { … })` to the room script (or finds the existing one). */
 export async function addHotspotVerbEvent(
     roomJsonUri: vscode.Uri,
     roomId: string,
     hotspotId: string,
     verbId: string
 ): Promise<AddRoomVerbHandlerResult> {
-    let raw: Uint8Array;
-    try {
-        raw = await vscode.workspace.fs.readFile(roomJsonUri);
-    } catch {
-        void vscode.window.showErrorMessage('Could not read room JSON.');
-        return { ok: false };
-    }
-    let data: Record<string, unknown>;
-    try {
-        data = JSON.parse(new TextDecoder('utf-8').decode(raw)) as Record<string, unknown>;
-    } catch {
-        void vscode.window.showErrorMessage('Room JSON is not valid.');
-        return { ok: false };
-    }
-    const listUnknown = data.hotspots;
-    if (!Array.isArray(listUnknown)) {
-        void vscode.window.showErrorMessage('Room JSON has no hotspots array.');
-        return { ok: false };
-    }
-    const hotspots = listUnknown as Record<string, unknown>[];
-    if (!hotspots.some((h) => typeof h.id === 'string' && h.id === hotspotId)) {
+    if (!(await roomJsonHas(roomJsonUri, 'hotspots', hotspotId))) {
         void vscode.window.showErrorMessage(`Hotspot "${hotspotId}" not found in room JSON.`);
         return { ok: false };
     }
-
-    const folder = vscode.workspace.getWorkspaceFolder(roomJsonUri);
-    const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
-    let roomPropIds = new Set<string>();
-    try {
-        const pr = await readRoomProps(roomJsonUri);
-        roomPropIds = new Set(pr.map((p) => p.id));
-    } catch {
-        /* ignore */
-    }
-
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
-    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
-        return { ok: false };
-    }
-    let scriptText = '';
-    try {
-        scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
-    } catch {
-        /* */
-    }
-    if (
-        scriptText &&
-        roomScriptRegistersHotspotVerb(scriptText, roomId, hotspotId, verbId, configured, roomPropIds)
-    ) {
-        void vscode.window.showInformationMessage(
-            `A ${verbId} handler for hotspot "${hotspotId}" is already registered in ${roomId}.room.ts.`
-        );
-        return { ok: false };
-    }
-
-    if (!scriptText) {
-        void vscode.window.showErrorMessage(
-            `${roomId}.room.ts not found. Create the room script, then ${BENNE_ROOM_SCRIPT_HINT}`
-        );
-        return { ok: false };
-    }
-
-    const stubRange = await writeBenneRoomVerbStub(
+    return addHandler(
         scriptUri,
-        scriptText,
-        'hotspot',
-        hotspotId,
-        verbId,
-        configured,
-        roomId
+        { kind: 'verb', target: { kind: 'hotspot', roomId, id: hotspotId }, verbId },
+        `${verbId} handler for hotspot "${hotspotId}"`
     );
-    if (!stubRange) {
-        return { ok: false };
-    }
-
-    void vscode.window.showInformationMessage(
-        `Added ${verbId} handler for hotspot "${hotspotId}" in ${roomId}.room.ts.`
-    );
-    return { ok: true, insertedStubRange: stubRange };
 }
 
-const ROOM_VERB_EVENT_RX = /^verb:room:([^:]+):(prop|hotspot|character):([^:]+):([^:]+)$/;
-
 /**
- * When reveal cannot find a `verb:room:…` handler in `*.room.ts`, inserts a Bennescript stub.
- * Skips if any registration pattern already matches.
+ * Reveal on a room verb chip with no handler yet: inserts the stub (`verb:room:…` event IDs only).
  */
 export async function ensureRoomVerbHandlerStubForReveal(
     roomJsonUri: vscode.Uri,
     roomId: string,
     eventId: string
 ): Promise<{ stubInserted: boolean; insertedStubRange?: { start: number; end: number } }> {
-    const m = eventId.match(ROOM_VERB_EVENT_RX);
-    if (!m || m[1] !== roomId) {
+    const spec = handlerSpecFromEventId(eventId);
+    if (!spec || spec.kind !== 'verb' || spec.target.kind === 'item' || spec.target.roomId !== roomId) {
         return { stubInserted: false };
     }
-    const kind = m[2] as 'prop' | 'hotspot' | 'character';
-    const targetId = m[3];
-    const verbId = m[4];
-    if (verbId === 'fallback') {
-        return { stubInserted: false };
-    }
-
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
-    if (!(await saveDirtyTypeScriptBeforeWorkspaceFsRead(scriptUri))) {
-        return { stubInserted: false };
-    }
-    let scriptText: string;
-    try {
-        scriptText = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(scriptUri));
-    } catch {
-        return { stubInserted: false };
-    }
-
-    const folder = vscode.workspace.getWorkspaceFolder(roomJsonUri);
-    const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
-    let roomPropIds = new Set<string>();
-    try {
-        const pr = await readRoomProps(roomJsonUri);
-        roomPropIds = new Set(pr.map((p) => p.id));
-    } catch {
-        /* */
-    }
-
-    if (findRoomScriptVerbRangeForEventIdRobust(scriptText, eventId, configured, roomPropIds)) {
-        return { stubInserted: false };
-    }
-    if (kind === 'prop' && roomScriptRegistersPropVerb(scriptText, roomId, targetId, verbId, configured)) {
-        return { stubInserted: false };
-    }
-    if (
-        kind === 'hotspot' &&
-        roomScriptRegistersHotspotVerb(scriptText, roomId, targetId, verbId, configured, roomPropIds)
-    ) {
-        return { stubInserted: false };
-    }
-    if (
-        kind === 'character' &&
-        roomScriptRegistersRoomCharacterVerb(scriptText, roomId, targetId, verbId, configured)
-    ) {
-        return { stubInserted: false };
-    }
-
-    if (kind === 'prop' || kind === 'hotspot') {
-        const range = await writeBenneRoomVerbStub(scriptUri, scriptText, kind, targetId, verbId, configured, roomId);
-        if (!range) {
-            return { stubInserted: false };
-        }
-        return { stubInserted: true, insertedStubRange: range };
-    }
-
-    const qualifier = benneRoomScriptQualifier(scriptText);
-    const stub = benneStubCallLine('character', targetId, verbId, configured, qualifier);
-    const inserted = insertIntoBenneRegisterRoomScript(scriptText, `\n  ${stub}\n`);
-    if (inserted === null) {
-        void vscode.window.showErrorMessage(
-            `Could not add a handler to ${roomId}.room.ts. ${BENNE_ROOM_SCRIPT_HINT}`
-        );
-        return { stubInserted: false };
-    }
-    await vscode.workspace.fs.writeFile(scriptUri, new TextEncoder().encode(inserted.text));
-    return { stubInserted: true, insertedStubRange: { start: inserted.start, end: inserted.end } };
+    const r = await ensureHandler(scriptUri, spec);
+    return r.status === 'inserted' ? { stubInserted: true, insertedStubRange: r.range } : { stubInserted: false };
 }

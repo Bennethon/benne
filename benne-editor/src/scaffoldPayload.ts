@@ -29,8 +29,11 @@ export type ScaffoldScanResult = {
 const PHASER_VERSION = '4.0.0-rc.7';
 const TYPESCRIPT_VERSION = '~5.9.3';
 const VITE_VERSION = '^8.0.1';
+const MAGIC_STRING_VERSION = '^1.4.2';
 const ELECTRON_VERSION = '^44.4.5';
 const ELECTRON_BUILDER_VERSION = '^26.15.3';
+const ESLINT_VERSION = '^10.12.0';
+const TYPESCRIPT_ESLINT_VERSION = '^8.71.0';
 
 export function scaffoldRoot(extensionPath: string): string {
     return path.join(extensionPath, 'scaffold');
@@ -316,13 +319,17 @@ export function scaffoldPackageJsonTemplate(projectName: string): Record<string,
             'build:benne-play': 'tsc && vite build --config vite.benne-play.config.ts',
             'watch:benne-play': 'vite build --watch --config vite.benne-play.config.ts',
             preview: 'vite preview',
+            lint: 'eslint src/game',
         },
         devDependencies: {
             electron: ELECTRON_VERSION,
             'electron-builder': ELECTRON_BUILDER_VERSION,
+            eslint: ESLINT_VERSION,
+            'magic-string': MAGIC_STRING_VERSION,
             'png-to-ico': '^3.0.2',
             pngjs: '^7.0.0',
             typescript: TYPESCRIPT_VERSION,
+            'typescript-eslint': TYPESCRIPT_ESLINT_VERSION,
             vite: VITE_VERSION,
         },
         dependencies: {
@@ -334,6 +341,32 @@ export function scaffoldPackageJsonTemplate(projectName: string): Record<string,
 export function buildPackageJson(projectName: string): string {
     return `${JSON.stringify(scaffoldPackageJsonTemplate(projectName), null, 2)}\n`;
 }
+
+/** A new game's `eslint.config.mjs`: the BenneScript rules, which Update Engine refreshes in `scripts/lib/`. */
+export const GAME_ESLINT_CONFIG = `// ESLint for this game (npm run lint). The BenneScript rules live in
+// scripts/lib/eslint-plugin-bennescript.mjs, which Update Engine refreshes; add your own blocks below.
+import tseslint from 'typescript-eslint';
+import { gameScriptsConfig } from './scripts/lib/eslint-plugin-bennescript.mjs';
+
+export default [gameScriptsConfig({ parser: tseslint.parser, tsconfigRootDir: import.meta.dirname })];
+`;
+
+/** Writes {@link GAME_ESLINT_CONFIG} unless the game already has an ESLint config (it may be the user's own). */
+export async function ensureGameEslintConfig(gameRoot: vscode.Uri): Promise<boolean> {
+    for (const name of ['eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs', 'eslint.config.ts', 'eslint.config.mts']) {
+        try {
+            await vscode.workspace.fs.stat(vscode.Uri.joinPath(gameRoot, name));
+            return false;
+        } catch {
+            /* not there */
+        }
+    }
+    await writeFile(path.join(gameRoot.fsPath, 'eslint.config.mjs'), GAME_ESLINT_CONFIG, 'utf8');
+    return true;
+}
+
+/** Template scripts a game may have its own version of: Update Engine adds them only when missing. */
+const GAME_OWNED_SCRIPTS = new Set(['lint']);
 
 export async function mergeGamePackageJson(gameRoot: vscode.Uri): Promise<void> {
     const pkgPath = path.join(gameRoot.fsPath, 'package.json');
@@ -361,7 +394,14 @@ export async function mergeGamePackageJson(gameRoot: vscode.Uri): Promise<void> 
         private: existing.private ?? template.private,
         version: existing.version ?? template.version,
         type: existing.type ?? template.type,
-        scripts: { ...record(existing.scripts), ...record(template.scripts) },
+        scripts: {
+            ...record(existing.scripts),
+            ...Object.fromEntries(
+                Object.entries(record(template.scripts)).filter(
+                    ([name]) => !(GAME_OWNED_SCRIPTS.has(name) && name in record(existing.scripts)),
+                ),
+            ),
+        },
         devDependencies: { ...record(existing.devDependencies), ...record(template.devDependencies) },
         dependencies: { ...record(existing.dependencies), ...record(template.dependencies) },
     };

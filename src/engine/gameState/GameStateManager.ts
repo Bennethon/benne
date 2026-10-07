@@ -62,7 +62,7 @@ export { normalizeSerializedInventory } from './characterInventory.js';
 /** Options for {@link GameStateManager.resetToInitial}. */
 export type ResetToInitialOptions = {
   /**
-   * Keep `currentRoom` / `lastRoom`. `B.state.reset()` uses this while the current scene is still up;
+   * Keep `currentRoom` / `lastRoom`. `game.newGame()` uses this while the current scene is still up;
    * the following fresh-start room change writes the destination afterward.
    */
   preserveRoomContext?: boolean;
@@ -929,7 +929,7 @@ export class GameStateManager {
     const normalized = normalizeSaveName(name);
     if (normalized.length === 0) {
       if (import.meta.env.DEV) {
-        console.warn('[Benne] B.state.save(name): empty save name — ignored.');
+        console.warn('[Benne] save: empty save name — ignored.');
       }
       return;
     }

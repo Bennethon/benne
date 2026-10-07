@@ -1,440 +1,800 @@
 ---
-title: Bennescript
+title: BenneScript
 outline: deep
 ---
 
-# Bennescript
+# BenneScript
 
-**Bennescript** is the scripting layer you use to bring a BENNE game to life. It's plain TypeScript, but you rarely touch raw Phaser: instead you work against a clean, queue-aware facade conventionally named **`B`**. Through `B` you move characters, speak lines, play sounds and music, change rooms, run cutscenes, read and write game state, drive GUIs, and respond to player interaction.
+**BenneScript** is how you bring a BENNE game to life: what happens when the player looks at the door, talks to the barista or uses the soda on the battery. It is TypeScript, so you get autocomplete, type checking, the debugger and AI assistants, with three conveniences on top:
 
-This page covers **how scripts are organized** (the different script types and when each runs) and then a **reference of the methods and properties** available on `B`.
+- **Lines run in the order you write them.** A walk finishes before the next line of dialogue starts, and a flag set after a speech line is set after the line has been spoken. You never type `await`.
+- **Everything in your game has a name.** Rooms, props, characters, items, dialog options, GUI controls, sounds and verbs are typed names generated from your content (`battery`, `items.soda`, `sfx.sodaPour`), so a typo is a red squiggle, not a silent bug.
+- **Dialogue reads like a script.** `Hank: "I hope this works."` is a line of dialogue.
 
-## The interaction queue
-
-The single most important idea in Bennescript is the **interaction queue**. Most actions you trigger from an interaction handler — walking, speaking, waiting, playing sounds, changing rooms — are *queued*. The next line of your script does not start until the previous queued action has finished.
-
-This lets you write narrative sequences that read top-to-bottom and just work:
+Here is a real handler from the jam game *AI Apocalypse*. The player uses the soda on a corroded car battery:
 
 ```ts
-B.player.walkTo('door');     // walk, and wait until arrival
-B.player.say('Locked.');     // then speak, and wait until the line finishes
-B.wait(0.5);                 // then pause half a second
-B.room.changeTo('hallway');  // then change rooms
+battery.onUseItem(items.soda, () => {
+  if (!flags.askedAboutBattery) unhandled()   // not yet: "That doesn't work."
+  walkToClicked()
+  Hank: "I hope this works."
+  inventory.remove(items.soda)
+  sfx.sodaPour.play()
+  wait(0.75)
+  Hank: "Hey! The corrosion is gone."
+  Hank: "Now I need to tighten that cable."
+  dialogs.driver.options.wrench.on()
+  flags.batteryClean = true
+})
 ```
 
-Without the queue you'd be juggling timers and callbacks. With it, ordering is automatic.
+Hank walks over, says his line, the soda leaves the inventory, the sound plays, the script waits three quarters of a second, Hank speaks again, a new dialog option appears and the flag is set, each step after the one before.
 
-### Blocking vs `.now`
+## How a script runs
 
-Many methods come in two forms:
+### Lines wait for each other
 
-- **Blocking** (the plain call, e.g. `B.player.say('Hi')`) — queues on the interaction tail; later lines wait for it.
-- **`.now`** (e.g. `B.player.say.now('Hi')`) — performs the same work **without** extending the queue, so following lines run immediately rather than waiting.
+Inside a handler, each line starts when the line above it has finished. Some lines take time: a walk, a speech line, `wait(…)`, a one-shot animation, a fade, a camera move. Others are instant: setting a flag, adding an item, showing a prop, starting a sound. You don't have to know which is which to get the right order; it only matters when you want things to **overlap** (see [Doing things at the same time](#doing-things-at-the-same-time)).
 
-Use the blocking form for sequential beats; use `.now` for things you intentionally want to overlap (for example, start a sound and keep going).
+| Takes time (the script waits) | Instant |
+|---|---|
+| `walkToClicked()`, `player.walkTo(…)`, `jensen.walkTo(…)`, `face(…)` | `player.moveTo(…)` (teleport), `door.alpha = …` |
+| `Hank: "…"`, `` say`…` ``, `jensen.say(…)`, `display(…)` | `flags.x = …`, `vars.x = …`, any read |
+| `wait(…)`, `waitForClick()` | `inventory.add(…)`, `inventory.remove(…)` |
+| `door.play('door-open')` (one-shot animation) | `door.animation = …`, `door.show()`, `door.hide()` |
+| `door.fade(…)`, `door.slideTo(…)`, `control.fadeTo(…)` | `sfx.x.play()`, `music.x.play()`, `music.stop()` |
+| `fadeOut()`, `fadeIn()`, `camera.focus(…)`, `camera.zoom(…)` | `camera.shake()` |
+| `sfx.x.playAndWait()`, `video.x.playAndWait()` | `options.x.on()`, `guis.x.show()` |
+| `dialogs.x.start()` (until the conversation ends), `saves.save(…)` | `background(…)` |
+| `cutscene(…)`, `together(…)`, your own helper functions | anything ending in `.now(…)` |
 
-## Script types (General Use)
+### Some lines end the handler
 
-Behavior is split across several script files, each registered with a `register*Script` function and each exposing a `B` tailored to its context. You register handlers once (at load) and the engine dispatches to them as the player interacts.
+`rooms.x.goTo()` starts the transition to another room, and nothing after it in the handler runs: there is no "after" in a room you've left. The same goes for `unhandled()`, `dialog.end()`, `saves.load(…)` and `game.newGame()`. The editor greys out any code below them.
 
-### Global script
+### One interaction at a time
 
-`src/game/globalScript.ts` runs once when the game boots. It's the right place for game-wide setup and **fallbacks** — what happens when a verb is used on something no specific handler covers.
+While a handler runs, the player can't start another one by clicking the world, with one exception: while the player character is still walking over (`walkToClicked()` as the first thing in the handler), a click elsewhere cancels the handler and starts the new action. Players can change their mind on the way, as in classic SCUMM games. Once Hank starts talking, clicks on the world are ignored until he's done. A click still skips the current speech line (if click-to-skip is on).
+
+GUI buttons keep working during an interaction, so the player can always open the game menu.
+
+## Script files
+
+Each kind of content has its own script file, next to its JSON. You write handlers at the top level of the file; there's nothing to register.
+
+| File | What goes in it |
+|---|---|
+| `rooms/club/club.room.ts` | The room: what happens on entering and leaving, and verbs on its props, hotspots and characters |
+| `characters/jensen/jensen.character.ts` | Handlers for Jensen in every room he appears in |
+| `inventory/magnet/magnet.inventory.ts` | The magnet: verbs on its inventory row, and other items used on it |
+| `dialogs/botti3/botti3.dialog.ts` | What each choice in the conversation does |
+| `guis/save-menu/save-menu.gui.ts` | The GUI's buttons, sliders and lists |
+| `globalScript.ts` | Fallback lines for verbs nothing else handles, and hooks for every room |
+| `state.ts` | Your game's flags and variables |
+| `scripts/*.script.ts` | Helpers shared by several scripts |
+
+The editor creates these files for you when you add content, and the Inspector can add handlers to them (see [BENNE Editor](./benne-editor)).
+
+### Names and imports
+
+Names come from three places. The editor's auto-import adds the import lines as you type a name.
 
 ```ts
-import { registerGlobalScript } from '@engine/scripting';
-
-registerGlobalScript(({ B }) => {
-  // Seed flags used across rooms
-  B.state.setFlag('unlockedDoor', false);
-
-  // Per-verb fallbacks
-  B.whenGlobalVerb('look',   () => B.player.say('Nothing special about that.'));
-  B.whenGlobalVerb('talkTo', () => B.player.say("I don't have anything to say to that."));
-
-  // Catch-all when an inventory item is used on an unhandled target
-  B.whenInventoryOnVerbTargetUnhandled(() => B.player.say("That doesn't work."));
-
-  // Hooks for every room load
-  B.whenEnterAnyRoom((ctx) => { /* invisible setup */ });
-  B.whenEnterAnyRoomAfterFade(() => { /* visible entrance */ });
-
-  // Per-frame logic, if you need it
-  B.onUpdate((ctx) => { /* runs every frame */ });
-});
+// src/game/rooms/club/club.room.ts
+import { faceClicked, inventory, player, unhandled, wait, walkToClicked } from '@benne/script'
+import { dialogs, flags, items, music, rooms, sfx } from '@game'
+import { room, antenna, battery, driver, hank, points, regions } from './club.ids'
 ```
 
-The global script also exposes `whenLeaveAnyRoom`, `whenLoadedAnyRoom`, `whenGlobalFallback` (the ultimate safety net for any verb), and `whenVerbUnhandled` (a diagnostic hook).
+- **`@benne/script`**: the engine's actions and objects: `walkToClicked`, `wait`, `say`, `inventory`, `player`, `camera`, `cutscene`, `saves`, `settings`, `game`, …
+- **`@game`**: everything in your game, by kind: `rooms`, `characters`, `items`, `dialogs`, `guis`, `sfx`, `music`, `video`, `verbs`, `fallbacks`, `flags`, `vars`.
+- **`./club.ids`**: this room's own things, as plain names: `room`, its props (`antenna`), hotspots (`battery`), characters (`driver`, `hank`), plus `points`, `regions` and `walkables`. A dialog script imports `dialog` and `options` from its `.ids` module; a GUI script imports `gui` and its controls.
 
-### Room script
+The `.ids` modules and `@game` are **generated** from your JSON whenever it changes. Names are your IDs in camelCase, with the room's prefix dropped: the hotspot `club-hotspot-battery` is `battery`, the point `plaza-point-first-visit-jensen` is `points.firstVisitJensen`, the dialog option `what about AI` is `options.whatAboutAI`. If two things would get the same name, or a name clashes with a BenneScript name, give one of them a `"scriptName"` in its JSON (a character can't take a BenneScript name such as `camera` or `dialog` as its `scriptName` at all, because its name is used on its own in room scripts) (AI Apocalypse's game menu has a button with `"scriptName": "settingsBtn"`, because `settings` is taken).
 
-Each room has a `*.room.ts` that runs when that room loads. This is where most gameplay lives: per-target verb handlers, "use item on target" logic, region triggers, and room transition hooks.
+Things in a room are plain names because you use them constantly. Everything else is grouped (`items.antenna`), because an item, a prop and a dialog can easily share a name: in AI Apocalypse, `antenna` is both a prop in the garage and an inventory item.
+
+## Rooms
+
+### Entering and leaving
 
 ```ts
-import { registerRoomScript } from '@engine/scripting';
+room.onEnter(() => {            // before the fade-in: set the scene up, invisibly
+  guis.verbs.hide()
+})
 
-registerRoomScript(({ B }) => {
-  B.whenLookAt('Couch', () => {
-    B.faceClicked();
-    B.player.say("It's my weird, magical, poorly drawn couch.");
-  });
+room.onEnterAfterFade(() => {   // after the fade-in: music, entrances, cutscenes
+  music.garage.play()
+})
 
-  B.whenPickUp('Bread', () => {
-    B.walkToClicked();
-    B.inventory.add('Bread');
-    B.prop('Bread').hide();
-  });
+room.onLeave(() => { … })       // before the next room loads
+room.onLoaded(() => { … })      // only when a save loads into this room, instead of the enter hooks
+```
 
-  B.whenInventoryUsedOn('Door', (payload) => {
-    if (payload.itemId === 'Key' && payload.verbId === 'use') {
-      B.walkToClicked();
-      B.state.setFlag('unlockedDoor', true);
-      B.inventory.remove('Key');
-      B.player.say('The door is unlocked.');
-      return;
+`onEnter` is for entering the room; `onLoaded` is for restoring it from a save (the enter hooks don't run then). The fade-in waits for `onEnter`, so keep it to instant setup: positions, visibility, flags. Put anything the player should see in `onEnterAfterFade`. Both run as cutscenes, so ESC skips them; pass `{ skippable: false }` as a second argument to prevent that.
+
+Where the player came from, and how often they've been here:
+
+```ts
+room.onEnter(() => {
+  if (room.cameFrom(rooms.hallway)) {
+    hank.moveTo(points.enterFromHall)
+    if (room.isFirstVisit) {
+      flags.leftMitFirstTime = true
+      jensen.moveTo(points.enterFromHallJensen)
     }
-    return false; // let the global unhandled fallback respond
-  });
-
-  B.whenEnterRoom(() => {
-    if (!B.sound.isMusicPlaying()) B.sound.playMusic('apartment-theme');
-  });
-
-  B.region('darkness').whenEnter(() => B.player.say("It's dark over here."));
-});
+  } else if (room.cameFrom(rooms.gallery)) {
+    hank.moveTo(points.enterFromGallery)
+    hank.face('D')
+  }
+  jensen.show()
+})
 ```
 
-String ids passed to room handlers resolve in order: **props → hotspots → characters in this room → room points**. The same id you click is the id you handle.
+`room.visitCount`, `room.hasVisited`, `room.last` (the previous room) and `rooms.plaza.visitCount` (any room) are there too.
 
-Room scripts also support: `whenVerb(verbId, target, …)` for any configured verb, `whenGive(itemId, propId, …)`, `B.prop('id')`, `B.region('id')`, `B.walkable('id').active`, `B.hotspot('id').active` / `.clickable` / `.description`, `B.gui('id').show()` / `.hide()` (queued on the room interaction tail; `.now` is immediate) and `B.gui('id').control('id')` to drive a built overlay, per-room transition hooks (`whenEnterRoom`, `whenEnterRoomAfterFade`, `whenLeaveRoom`, `whenLoadedRoom`), `B.onUpdate`, and `B.playFrom('name', …)` entry points for the editor's "Play from here".
-
-### Character script
-
-A character's `*.character.ts` runs when that character is spawned in the active room. It holds verb handlers that belong to the character itself, written without a target id (the target *is* this character):
+### Changing rooms
 
 ```ts
-import { registerCharacterScript } from '@engine/scripting';
-
-registerCharacterScript('penny', ({ B }) => {
-  B.whenLookAt(() => B.player.say("It's Penny."));
-  B.whenTalkTo(() => B.dialog('chatwithpenny').start());
-});
+door.onUse(() => {
+  walkToClicked()
+  sfx.doorBells.play()
+  rooms.plaza.goTo()
+})
 ```
 
-When both a room script and a character script handle the same verb on a character, the room handler wins. Character scripts can also handle `whenInventoryUsedOn` when the target id equals the character's own id.
+### Play From
 
-### Inventory script
-
-An inventory item's `*.inventory.ts` runs each room load and defines what the item's verb rows do, plus the special `whenUse` / `whenGive` registrars that arm the item for "use on target":
+**Play From** in BENNE Play starts a room in a prepared state, so you can test the end of a puzzle without playing up to it. Write the setup at the top level of the room script:
 
 ```ts
-import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('Key', ({ B }) => {
-  B.whenLookAt(() => B.player.say("It's the key to the front door."));
-  B.whenUse(() => { /* runs, then the engine arms the item by default */ });
-});
+playFrom('fix battery', () => {
+  flags.askedAboutBattery = true
+  flags.batteryClean = true
+  inventory.add(items.wrench)
+  battery.active = true
+})
 ```
 
-Even an empty inventory script works — the engine still arms `use` / `give` so the item can be used on world targets.
+The name is what appears in the Play From menu. `room.visitCount` and `room.last` can be set here, to pretend the player has been before or came from somewhere.
 
-### GUI script
+## Verbs on things
 
-A GUI's `*.gui.ts` wires up the controls in a `*.gui.json` overlay. Register handlers at the top level; use `onGuiBuilt` for first-time setup once the overlay is constructed:
+Handlers are named after the verbs in your `game-config.json`. AI Apocalypse has `take`, `use`, `look`, `clean`, `talkTo` and `move`, so its props, hotspots and characters have `onTake`, `onUse`, `onLook`, `onClean`, `onTalkTo` and `onMove`. A 9-verb game gets `onOpen`, `onClose`, `onPush`, `onPull`, `onPickUp`, `onGive` and the rest. Custom verbs work the same way: add a verb to the config and its method appears. A verb your game doesn't have is a type error.
 
 ```ts
-import { registerGuiScript } from '@engine/scripting';
+antenna.onLook(() => {
+  faceClicked()
+  Hank: "A broken off car antenna."
+})
 
-registerGuiScript('game-menu', ({ B }) => {
-  B.whenButtonClick('saveBtn', () => B.gui('save-menu').show());
-  B.whenButtonClick('resumeBtn', () => B.gui('game-menu').hide());
-
-  B.onGuiBuilt((gui) => {
-    // initial paint / sync from game state
-  });
-});
+antenna.onTake(() => {
+  walkToClicked()
+  hank.play('ReachR')        // one-shot animation; waits for it
+  antenna.hide()
+  sfx.whip.play()
+  inventory.add(items.antenna)
+})
 ```
 
-GUI scripts can respond to `whenButtonClick`, `whenAnyButtonClick`, `whenCheckboxCheck` / `whenCheckboxUncheck`, slider `whenValueChanged`, text-input `whenSubmit`, and hover (`whenMouseEnter` / `whenMouseLeave`). They can read and drive any control via `B.gui('overlayId').control('controlId')`, and show or hide whole overlays. A common use is building a verb bar that reflects the active verb and the hover description.
+`walkToClicked()` walks the player to the clicked thing's walk-to point and turns to face it. `faceClicked()` only turns toward it. Most handlers start with one of the two.
 
-### Dialog script
-
-A dialog's `*.dialog.ts` runs when that dialog opens. Each option gets a `whenChoice` handler:
+**One handler for several verbs:**
 
 ```ts
-import { registerDialogScript } from '@engine/scripting';
-
-registerDialogScript('chatwithpenny', ({ B }) => {
-  B.whenChoice('greeting', () => {
-    B.say`
-      Hank: How's it goin?
-      Penny: Oh, you know. Locked in, as usual.
-    `;
-  });
-
-  B.whenChoice('door', () => {
-    B.say`Penny: Bring me a sandwich and I'll give you the key.`;
-    B.prop('cabinet').show();
-    B.hotspot('inside').active = true;
-    B.dialog('chatwithpenny').optionOff('door');
-  });
-
-  B.whenChoice('bye', () => B.dialog('chatwithpenny').stop());
-});
+cleaningStuff.on(['use', 'take', 'clean'], () => {
+  faceClicked()
+  Hank: "I'm not on the job here."
+})
 ```
 
-You open a dialog from gameplay with `B.dialog('id').start()`, and toggle which topics are available with `optionOn` / `optionOff` to model conversation state. Inside a choice handler you can also change the room the conversation is happening in: `B.prop(id)` (show, hide, clickable, animation, fade, move), `B.hotspot(id).active`, `B.region(id).active`, and `B.walkable(id).active`. Those ids are the current room’s. Region enter/exit hooks stay in the room script.
-
-## Speaking lines
-
-Two ways to put words on screen:
-
-- **`B.player.say('A line')`** (and `B.character('id').say(...)`) — one line from a specific speaker.
-- **Tagged `B.say`** — a multi-speaker block, one `Speaker: text` per line. The speaker `Player` maps to the active player character; other names must match spawned character ids (case-insensitive).
+**Falling through.** `unhandled()` ends the handler and passes the click on, as if this handler didn't exist: to the character's own script, then to the global fallback ("That doesn't work."). Use it when a handler only applies sometimes:
 
 ```ts
-B.say`
-  Hank: Hey Penny!
-  Penny: Hi!
-`;
+battery.onUseItem(items.wrench, () => {
+  if (!flags.askedAboutBattery || !flags.batteryClean) unhandled()
+  walkToClicked()
+  Hank: "Ok I'll tighten 'er up here."
+  // …
+})
 ```
 
-`B.display('...')` shows narration in a dedicated overlay (click to dismiss) for descriptive text that isn't spoken by a character.
+A plain `return` ends the handler without falling through.
 
-## Cutscenes
-
-Wrap a sequence in `B.cutscene(() => { … })` to suppress player input (clicks on props, hotspots, characters, GUI buttons, and background walks) for the duration, so a scripted beat plays out uninterrupted. Enter-room hooks and `whenChoice` handlers are wrapped in a cutscene automatically.
+**Changing things.** Props, hotspots and characters have properties you can set at any time. They take effect at once and are saved:
 
 ```ts
-B.cutscene(() => {
-  B.camera.zoomTo('villain', 1.5, 0.6);
-  B.player.say('Look out!');
-  B.camera.shake();
-  B.camera.reset();
-});
+battery.active = true                  // hotspots: can be hovered and clicked
+door.clickable = false                 // props and characters
+door.description = 'A broken door'     // the name shown when hovering
+filingCabinet.animation = 'filingCabinet-over'
+jensen.visible = false                 // or jensen.hide() / jensen.show()
 ```
 
-### Skipping
+## Talking
 
-Players can press **ESC** to skip a cutscene. Skipping fast-forwards it rather than cancelling it: every step still runs, but waits, lines, walks, fades, camera moves, and video finish instantly, so the game ends up in exactly the state the cutscene would have produced.
-
-Turn skipping off for the whole game with `"cutscenesSkippable": false` in `game-config.json`, or for one cutscene with `{ skippable: false }`:
+**A line of dialogue** is the speaker's name, a colon and the line in quotes. The name can be the character's ID or display name, in any case; `Player:` is whoever the player controls.
 
 ```ts
-B.cutscene(() => {
-  B.player.say('You cannot skip this.');
-}, { skippable: false });
+Hank: "What the...?"
+JENSEN: "NOT GREAT!"
+Player: "I have to find a way home!"
 ```
 
-The same option works on `whenEnterRoom`, `whenEnterRoomAfterFade`, `whenEnterAnyRoom`, `whenEnterAnyRoomAfterFade`, and `whenChoice`.
+Names with punctuation or spaces drop it: the character `BOTT-i3 Disembodied` is `BOTTi3Disembodied:`. If you mistype a name, the build stops with "Unknown speaker `Hnak`. Did you mean `Hank`?".
 
----
-
-# Methods and Properties
-
-The `B` facade exposes several namespaces. The exact set available depends on the script type (for example, room verb sugar exists only in room scripts; `B.prop(...)`, `B.hotspot(...)`, `B.region(...).active`, and `B.walkable(...).active` are on room scripts and dialog sessions), but the core members below are available almost everywhere.
-
-## Core (`B`)
-
-| Member | Description |
-|--------|-------------|
-| `B.wait(seconds)` | Pause the queue for the given time. |
-| `B.say\`…\`` | Tagged multi-speaker dialogue (queued per line). |
-| `B.display(text)` | Show narration in the display-text overlay (click to dismiss). |
-| `B.fadeOut(seconds?, color?)` / `B.fadeIn(...)` | Full-screen fade to/from a color (default black, ~0.35s). |
-| `B.disableUserInput = true / false` | Hide the cursor and block player input across room changes; this lock is not saved. |
-| `B.getEnvironment()` | Return \`'browser'\` or \`'electron'\` for platform-specific GUI controls. |
-| `B.quit()` / `B.quit.now()` | Close the Electron game after queued actions, or immediately; browser calls do nothing. |
-| `B.cutscene(fn, options?)` | Run `fn` with player input suppressed. `{ skippable: false }` blocks ESC skipping. |
-| `B.walkToClicked()` / `B.faceClicked()` | Walk the player to / face toward the target the player just clicked (inside a verb handler). |
-| `B.setActiveVerb(id)` / `B.getActiveVerb()` / `B.clearActiveVerb()` | Read/write the active verb. |
-| `B.setActiveInventory(id)` / `B.clearActiveInventory()` | Arm/disarm an inventory item for "use on target". |
-| `B.activeVerb` / `B.activeInventory` | The current verb / armed item definitions (or `null`). |
-| `B.currentHoverDescription` | The hover label under the pointer (`null` when none). |
-| `B.onUpdate(fn)` | Per-frame callback (room and global scripts only). |
-| `B.raw` | Low-level event bus (`on` / `once` / `off` / `emit`) for advanced use. |
-
-Most time- or order-sensitive members also offer a `.now` variant.
-
-## `B.room`
-
-| Member | Description |
-|--------|-------------|
-| `B.room.current` / `B.room.last` | Current and previous room ids. |
-| `B.room.visitCount` / `B.room.isFirstVisit` | Persisted number of times the player has entered this room, and whether this is the first. |
-| `B.room.changeTo(roomId)` | Transition to another room (queued; handles fade, cleanup, and lifecycle hooks). |
-
-## `B.player`
-
-Controls the active player character.
-
-| Member | Description |
-|--------|-------------|
-| `B.player.id` | The active player character id. |
-| `B.player.switchTo(id)` | Hand player control to another spawned character (rebinds camera, input, inventory panel). |
-| `B.player.walkTo(target)` | Pathfind and walk to a point `{x, y}` or a target id. |
-| `B.player.moveTo(target)` | Teleport (no walk). |
-| `B.player.say(line, { clickToSkip? })` | Speak a line as the player. |
-| `B.player.face('L' \| 'R' \| 'U' \| 'D' \| …)` | Face a direction. |
-| `B.player.animation` / `playAnimation(tag)` / `stopAnimation()` | Override the current clip, play a one-shot, or return to idle. |
-| `B.player.movable` | When `false`, walks are ignored (teleports still work). |
-| `B.player.startFollowingCharacter(id, opts?)` / `stopFollowingCharacter()` | Follow another character. |
-| `B.player.inventory` | The active player's inventory bag (same as `B.inventory`). |
-| `B.player.setSpeechOffset(x, y)` / `setSpeechPosition(x, y)` / `resetSpeechPosition()` | Fine-tune where the player's speech text appears. |
-
-Movement targets are either `{ x, y }` in room pixels or a string id resolving **prop → hotspot → character → room point**.
-
-## `B.character(id)`
-
-Same movement / speech / animation / follow pattern as `B.player`, for any character spawned in the room. Additional members:
-
-| Member | Description |
-|--------|-------------|
-| `.hide()` / `.show()` / `.visible` | Visibility (persisted across room changes and saves). |
-| `.clickable` | Whether the character is hit-tested for interaction. |
-| `.description` | Hover / verb-line label (persisted). |
-| `.movable` | Whether the character can pathfind-walk. |
-| `.fade(from, to, seconds)` | Tween the sprite's alpha (final alpha persists). |
-| `.inventory` | This character's own item bag. |
-| `.startFacingCharacter(id, min?, max?)` / `stopFacingCharacter()` | Keep this character's idle facing toward another. |
-| `.say(...)` | Speak a line (uses the character's `speechColor`). |
+Use backticks to put values in a line:
 
 ```ts
-B.character('penny').say('Thank you!');
-B.character('penny').startFollowingCharacter('hank', { minDistance: 60 });
-B.character('penny').fade(0, 1, 0.5);
+Hank: `I've got ${inventory.count(items.coin)} coins.`
 ```
 
-## `B.prop(id)`  <Badge type="info" text="room and dialog scripts" />
-
-Controls a room prop (its sprite, animation, visibility, position).
-
-| Member | Description |
-|--------|-------------|
-| `.hide()` / `.show()` / `.visible` | Visibility (persisted). |
-| `.clickable` | Whether the prop is hit-tested for interaction (persisted). |
-| `.description` | Hover / verb-line label (persisted). |
-| `.animation` / `animationNow(tag)` / `playAnimation(tag)` | Set the base clip, set it immediately, or play a one-shot then restore. |
-| `.fade(from, to, seconds)` | Tween alpha (final alpha persists). |
-| `.moveTo(point)` | Teleport the prop's authoring origin in room space. |
+**A conversation** reads well as a `say` block. Inside one, names can be written exactly as in the JSON, and lines need no quotes:
 
 ```ts
-B.prop('Door').animation = 'Door-open';
-B.prop('Knife').hide();
-B.prop('FountainOff').clickable = false;
+gallery.onLook(() => {
+  faceClicked()
+  say`
+    Hank: Looks like a fancy futuristic museum or something.
+    Jensen: It's an AI art gallery. All the art created by robots!
+    Hank: Looks nice.
+    Jensen: Of course it looks nice. That's how they get you.
+  `
+})
 ```
 
-## `B.walkable(id)`  <Badge type="info" text="room and dialog scripts" />
+**The method form** is for a speaker you pick at runtime, or for options:
 
 ```ts
-B.walkable('bridge').active = false; // drop this polygon from the nav mesh (persisted)
+const speaker = flags.metBotti ? characters.botti3 : characters.botti3Disembodied
+speaker.say("Hello, Hank.")
+player.say("Uh, whatever.", { clickToSkip: false })
 ```
 
-Setting `.active` is immediate and persisted. An inactive polygon (and its holes) is ignored by walking, clamping, and pathfinding. A walk that has already started keeps its current path. The id is `walkable.polygons[].id` in the current room. Hole rings are not separate script ids.
+**Narration** (no speaker) goes in the display-text box: `display("The door is locked.")`.
 
-## `B.region(id)` and `B.hotspot(id)`  <Badge type="info" text="room and dialog scripts" />
+**Voice files.** A line that starts with a number between bars plays a recording: `Hank: "|17| This case just got complicated."` plays `assets/audio/voice/hank17.mp3`. The editor numbers your lines for you; see [Sound, Voice & Video](./sound-voice-and-video#voiced-dialogue).
+
+## Inventory
 
 ```ts
-B.region('stage-front').whenEnter((ctx) => {
-  if (ctx.isPlayer) B.player.say('Stepping into the light.');
-});
-B.region('darkness').active = false; // deactivate (persisted)
-
-B.hotspot('secret-door').active = true; // mount/unmount its input zone (persisted)
-B.hotspot('window').clickable = false; // alias of .active
-B.hotspot('secret-door').description = 'A door that used to be locked.'; // persisted hover label
+inventory.add(items.wrench)
+inventory.remove(items.soda)
+inventory.add(items.coin, 3)
+if (inventory.has(items.relay)) { … }
+inventory.count(items.coin)
+jensen.inventory.add(items.timeonium)   // another character's bag
 ```
 
-Region enter/exit handlers (`whenEnter` / `whenExit`) are room scripts only — they run on the interaction queue. Dialog sessions can set `B.region(id).active` and the hotspot members below, but not those enter/exit hooks. Setting `.active` on a region or hotspot is immediate and persisted; deactivating disables triggers and interaction (movement resolution still works). **`B.hotspot(id).clickable`** is an alias of **`.active`**. **`B.hotspot(id).description`** is the hover / verb-line label (immediate and persisted).
+### Using an item on something
 
-## `B.inventory`
-
-The active player's item bag, plus a callable accessor for per-item control.
-
-| Member | Description |
-|--------|-------------|
-| `B.inventory.add(id, qty?)` / `remove(id, qty?)` | Add/remove items (queued; `.now` for immediate). |
-| `B.inventory.has(id)` / `quantityOf(id)` | Query the bag. |
-| `B.inventory.items` | The current list of `{ id, quantity }`. |
-| `B.inventory(id).animation` | The item's icon clip (with a runtime override option). |
-| `B.inventory(id).cursorAnimation` | The cursor clip shown when the item is armed. |
-| `B.inventory(id).description` | Hover / verb-line label (persisted). |
+When the player uses an item on a prop, hotspot or character, the matching `on<Verb>Item` handler runs:
 
 ```ts
-B.inventory.add('Key');
-if (B.inventory.has('Broom')) { /* … */ }
+toolChest.onUseItem(items.magnetStick, () => {
+  walkToClicked()
+  sfx.metalScrape.play()
+  wait(0.5)
+  inventory.remove(items.magnetStick)
+  sfx.whip.play()
+  inventory.add(items.wrench)
+  Hank: "Ah, got it!"
+})
 ```
 
-## `B.state`
-
-Mirrors the [GameStateManager](./core-concepts#game-state): flags, variables, room context, and saves. All synchronous.
-
-| Member | Description |
-|--------|-------------|
-| `setFlag(id, value)` / `getFlag(id)` / `hasFlag(id)` / `clearFlag(id)` | Boolean/value flags. |
-| `setVariable(id, value)` / `getVariable(id)` / `hasVariable(id)` / `clearVariable(id)` | Arbitrary persisted values. |
-| `save(name, slot?)` / `load(nameOrSlot)` / `deleteSave(...)` / `renameSave(...)` / `getSaveList()` | Named save slots. |
-| `exportJson()` / `importJson(json)` | Serialize/restore the whole state. |
-| `getCurrentRoom()` / `getLastRoom()` | Room context. |
+Items with no handler on that target fall through to the global "That doesn't work." line. For one line covering every other item on a target, use `onAnyItem`:
 
 ```ts
-B.state.setFlag('metPenny', true);
-if (!B.state.getFlag('unlockedDoor')) B.player.say("It's locked.");
+jensen.onAnyItem(() => {
+  faceClicked()
+  Hank: "I don't want to give anything to him yet."
+})
 ```
 
-## `B.dialog(id)`
+`onUseItem` exists because `use` is an **item verb** in the config (`"usesItem": true`). A 9-verb game's `give` gets `onGiveItem`, and a custom "Throw … at" verb would get `onThrowItem`. `onItem(item, …)` handles an item with any item verb.
 
-| Member | Description |
-|--------|-------------|
-| `.start()` | Open the dialog session. |
-| `.stop()` | End the active session. |
-| `.optionOn(optionId)` / `.optionOff(optionId)` | Enable/disable a choice. |
+After an item is used, it stays selected or is put back depending on the item's `dropWhenUsed` (or the game's `dropWhenInventoryUsed`). Pass `{ doNotClear: true }` as the last argument to keep it selected after that handler.
 
-## `B.sound`
+### Item scripts
 
-Available everywhere (also as `B.player.sound`, `B.prop('id').sound`, etc.). Reference SFX by filename from `assets/audio/sfx/` and music from `assets/audio/music/`. For asset folders, voice markers, and video workflow details, see [Sound, Voice, and Video](./sound-voice-and-video).
-
-| Member | Description |
-|--------|-------------|
-| `play(key, opts?)` | Play a one-shot SFX (queued so it runs after prior steps). |
-| `playAndWait(key, opts?)` | Play and wait until it finishes before continuing. |
-| `playMusic(key, { fadeSeconds?, sync?, loop? })` | Play looping music in the single music slot (replaces current; can crossfade). Persists for save/load. |
-| `stop(key?)` / `stopMusic()` | Stop SFX (all, or by key) / stop music. |
-| `setSfxVolume(v)` / `setMusicVolume(v)` / `getSfxVolume()` / `getMusicVolume()` | Session volume multipliers (persisted). |
-| `isPlaying(key)` / `isMusicPlaying()` | Query playback. |
+An item's own script handles verbs on its inventory row, and other items used on it:
 
 ```ts
-B.sound.play('doorClose');
-B.sound.playMusic('outside-ambient', { fadeSeconds: 2 });
+// inventory/magnet/magnet.inventory.ts
+items.magnet.onLook(() => {
+  Hank: "A cute promotional magnet for the friendly AI overlord."
+})
+
+items.magnet.onCombine(items.antenna, () => {
+  inventory.remove(items.antenna)
+  inventory.remove(items.magnet)
+  sfx.whip.play()
+  inventory.add(items.magnetStick)
+  Hank: "Cool!"
+})
 ```
 
-## `B.video`
+Using an item verb on an inventory row (`Use` on the magnet) selects the item, so the player can then click a target. That happens after the item's `onUse` handler, if it has one. To handle `Use` on the row without selecting the item, register the handler with `items.magnet.onUse.doNotActivate(() => { … })`.
 
-Full-screen cinematics from `assets/videos/`. The HUD hides during playback; speech and display text remain on top. See [Sound, Voice, and Video](./sound-voice-and-video#video) for file placement, options, and VS Code codec notes.
+An item's icon, cursor and name can change: `items.coffee.animation = 'coffee-full'`, `items.key.cursorAnimation = 'key-alt'`, `items.key.description = 'A bent key'`.
 
-| Member | Description |
-|--------|-------------|
-| `play(key, opts?)` | Start a cinematic (queued, then runs concurrently). |
-| `playAndWait(key, opts?)` | Play and wait for it to finish. |
-| `pause()` / `resume()` / `stop()` / `seek(seconds)` | Playback control. |
-| `isPlaying()` | Query state. |
+## Flags, variables and visits
 
-## `B.camera`
+Declare your game's state once, with defaults, in `src/game/state.ts`:
 
-Scriptable camera; state resets on room change and load. Limits come from the `camera` block in `game-config.json`.
+```ts
+import { defineFlags, defineVars } from '@benne/script'
 
-| Member | Description |
-|--------|-------------|
-| `focus(target, seconds?)` | Center on a target (suspends player follow). |
-| `reset(seconds?)` | Restore default player follow and zoom. |
-| `setZoom(zoom, seconds?)` / `resetZoom(seconds?)` | Gameplay zoom (clamped to config). |
-| `zoomTo(target, zoom, seconds?)` | Focus + zoom together. |
-| `shake(intensity?, seconds?, falloff?)` | Screen shake (fire-and-forget). |
+export const flags = defineFlags({
+  askedAboutBattery: false,
+  batteryClean: false,
+  batteryFixed: false,
+  gotRegulator: false,
+})
 
-## `B.speechSettings` and `B.dialogSettings`
+export const vars = defineVars({
+  coins: 0,
+  timesAskedJensen: 0,
+})
+```
 
-Getter/setter properties (synchronous, persisted) that mirror the `speech` and `dialog` blocks in `game-config.json` — e.g. `B.speechSettings.clickToSkip`, `showText`, `msPerCharacter`, and `B.dialogSettings.usedColor`. Setting them at runtime (typically from a settings GUI) overrides the config defaults and is included in save data.
+Then use them anywhere (`@game` exports them):
 
----
+```ts
+flags.batteryClean = true
+if (flags.askedAboutBattery && !flags.batteryClean) { … }
+vars.timesAskedJensen += 1
+```
 
-This page is an approachable tour of Bennescript. Combined with the example scripts in a new project (the room, global, dialog, and GUI scripts shipped with each template), it should be enough to build a complete game. The next page covers [updating BENNE](./updating-benne).
+Flags are true or false. Variables hold numbers, strings, booleans, and arrays or objects of those. Both are saved. A misspelt flag is a type error, so you can't set `flags.batteryClaen` by accident.
+
+If you rename a flag after players have saves, keep the old name for the save with `flag(false, { saveKey: 'old name' })`.
+
+## Dialogs
+
+A dialog's options are written in its JSON; its script says what each choice does. The player says the option's text first, then the handler runs.
+
+```ts
+// dialogs/jensen-in-hallway/jensen-in-hallway.dialog.ts
+import { wait } from '@benne/script'
+import { jensen } from '../../rooms/hallway/hallway.ids'
+import { dialog, options } from './jensen-in-hallway.ids'
+
+options.greeting.onChooseOnce(() => {
+  Jensen: "HOW'S IT GOING?!"
+  Jensen: "The world has been taken over by an evil, totalitarian artificial intelligence and you ask me how's it going?!"
+  wait(0.75)
+  Jensen: "NOT GREAT!"
+  options.whatAboutAI.on()
+})
+
+options.itsTheFuture.onChooseOnce(() => {
+  wait(1)
+  Jensen: "WHAT ARE YOU TALKING ABOUT?!"
+  Jensen: "GO AWAY!"
+  jensen.face('U')
+  dialog.end()
+})
+```
+
+- `onChoose` runs each time the option is chosen; `onChooseOnce` also removes the option afterwards.
+- `options.x.on()` / `off()` show and hide options. From another script: `dialogs.driver.options.wrench.on()`.
+- `dialog.end()` closes the conversation and ends the handler, so put anything that should still happen above it.
+- `dialog.onStart(() => { … })` runs each time the conversation opens, to decide which options to show.
+
+**Starting a conversation** waits until it ends:
+
+```ts
+driver.onTalkTo(() => {
+  walkToClicked()
+  dialogs.driver.start()
+  // anything here runs after the player leaves the conversation
+})
+```
+
+**Sub-conversations.** Starting a dialog from a choice opens it on top; when it ends, the first one comes back:
+
+```ts
+// botti3.dialog.ts
+options.aroundHere.onChoose(() => {
+  Botti3: "Sure. What would you like to know?"
+  dialogs.botti3LocalArea.start()     // back to these choices when it ends
+})
+
+// botti3-local-area.dialog.ts
+options.thatsAll.onChoose(() => {
+  Botti3: "Okay!"
+  dialog.end()                        // back to the botti3 choices
+})
+```
+
+A long choice can be wrapped in `cutscene(() => { … })` so ESC skips it (click-to-skip works line by line either way).
+
+## Characters
+
+A character's handlers in a **room script** apply in that room. In the character's **own script** they apply in every room the character appears in, unless the room has its own handler for that verb.
+
+```ts
+// characters/penny/penny.character.ts
+import { walkToClicked } from '@benne/script'
+import { dialogs } from '@game'
+import { penny } from './penny.ids'
+
+penny.onTalkTo(() => {
+  walkToClicked()
+  dialogs.chatwithpenny.start()
+})
+```
+
+In its own script a character is imported from its `.ids` file, like a room's things in a room script. Any other character is `characters.x` there (from `@game`).
+
+**Moving and facing:**
+
+```ts
+player.walkTo(points.timeChamber)    // a point in the room
+player.walkTo(couch)                 // a prop, hotspot or character's walk-to point
+player.walkTo({ x: 120, y: 160 })    // room pixels
+player.face('L')                     // 'U', 'D', 'L' or 'R'; waits for the turn
+player.moveTo(points.standBack)      // teleport
+jensen.walkTo(points.hallwayPoint2)
+jensen.startFollowing(player, { minDistance: 60 })
+jensen.stopFollowing()
+henry.startFacing(hank)              // keep turning toward Hank as he moves
+player.switchTo(penny)               // the player now controls Penny
+```
+
+`player` is whoever the player controls; `hank` (from the room) is Hank specifically.
+
+**Opacity:** `jensen.alpha = 0.5` sets it at once (and is saved); `jensen.fade(0, 1)` fades over a second and waits.
+
+**Animation:** `jensen.animation = 'WorkingU'` sets an animation that stays (and is saved) until `jensen.stopAnimation()`. `jensen.play('Wave')` plays one once and waits for it. Animation names come from the Aseprite file, so the editor completes them.
+
+## Props
+
+| | |
+|---|---|
+| `door.animation = 'door-open'` | Change the looping animation. Instant, saved. |
+| `door.play('door-opening')` | Play an animation once and wait for it, then go back to the looping one. |
+| `door.show()` / `door.hide()` | Instant, saved. |
+| `door.fade(0, 1.5)` | Fade to invisible over 1.5 seconds, and wait. |
+| `door.alpha = 0.5` | Set the opacity (0 to 1) instantly. Saved. |
+| `door.moveTo({ x: 80, y: 90 })` | Move instantly. |
+| `door.slideTo({ x: 80, y: 90 }, 2)` | Move over 2 seconds, and wait. |
+
+A prop (or hotspot) can be changed from another room's script too: import it from its room's `.ids` module and set it. The change is saved for that room and shows when you go there. Fades and slides from another room happen at once, and `play` only works in the prop's own room.
+
+## Sound, music, camera and video
+
+```ts
+sfx.doorOpen.play()             // starts the sound and goes on
+sfx.doorClose.playAndWait()     // waits until it ends
+sfx.click.play({ volume: 0.5 })
+
+music.lab.play()                // crossfades as set in the config
+music.stop()
+if (!music.isPlaying) music.plaza.play()
+
+camera.focus(timeChamber)       // pan; waits
+camera.zoom(2, 1)               // 2× over 1 second; waits
+camera.zoomTo(points.endingZoom, 1.5, 2)
+camera.shake(0.3)
+camera.reset()
+
+fadeOut()                       // fade the screen to black; waits
+fadeIn()
+
+video.intro.playAndWait()
+```
+
+Sound and music names come from the files in `assets/audio/sfx/` and `assets/audio/music/`. See [Sound, Voice & Video](./sound-voice-and-video).
+
+## Cutscenes and skipping
+
+Wrap a scene in `cutscene(…)` to make it skippable:
+
+```ts
+jensen.onUseItem(items.mop, () => {
+  walkToClicked()
+  cutscene(() => {
+    Hank: "I'm going home."
+    sfx.smack.play()
+    smack.play('smack-play')
+    jensen.hide()
+    wait(0.9)
+    music.stop()
+    wait(0.75)
+    Hank: "Sorry, Jensen."
+    music.gallery.play()
+  })
+})
+```
+
+While a cutscene runs, clicks on the world do nothing, a click still skips the current line, and **ESC** skips to the end of the block: lines are dismissed, waits end, walks and animations jump to where they would have ended. The script then carries on after the block, so whatever the cutscene set up is in place either way.
+
+To turn off skipping for one cutscene, pass `{ skippable: false }`: `cutscene(() => { … }, { skippable: false })`. For the whole game, set `"cutscenesSkippable": false` in `game-config.json`.
+
+**Locking out the player** without a cutscene: `input.disabled = true` … `input.disabled = false`, or `withInputDisabled(() => { … })`, which turns input back on when the block ends, even if the room changes.
+
+**Waiting for a click:** `waitForClick({ timeout: 10 })` waits for a click, or ten seconds. AI Apocalypse's opening crawl:
+
+```ts
+room.onEnterAfterFade(() => {
+  music.intro.play()
+  const text = guis.openingText.controls.text
+  text.alpha = 0
+  guis.openingText.show()
+
+  cutscene(() => {
+    for (const paragraph of paragraphs) {
+      text.text = paragraph
+      text.fadeTo(1, 1.2, { clickToSkip: true })
+      waitForClick({ timeout: 10 })
+      text.fadeTo(0, 1.2, { clickToSkip: true })
+    }
+  })
+  rooms.hallway27.goTo()
+})
+```
+
+## Doing things at the same time
+
+By default each line waits. To overlap actions, start the one you don't want to wait for with `.now`, **before** the one you do:
+
+```ts
+// Jensen and Hank set off together; the scene goes on when Hank arrives.
+jensen.walkTo.now(points.firstVisitJensen)
+player.walkTo(points.firstVisit)
+wait(0.5)
+```
+
+| You want | Write |
+|---|---|
+| A and B to start together, then go on when B finishes | `a.now(…)`, then `b(…)` |
+| A and B to start together, then go on when both finish | `together(() => a(…), () => b(…))` |
+| A to start now, and wait for it later | `const walk = jensen.walkTo.now(…)` … `walk.wait()` |
+| A sequence running alongside the scene | `background(() => { … })` |
+
+```ts
+together(
+  () => player.walkTo(points.timeChamber),
+  () => camera.focus(timeChamber),
+)
+
+background(() => {
+  for (let i = 0; i < 3; i++) {
+    sfx.click.play()
+    wait(0.33)
+  }
+})
+Jensen: "Why isn't this working?"
+```
+
+Any action that takes time has a `.now` form. Sounds and music never wait, so they don't need one.
+
+## Regions and walkable areas
+
+Regions are areas of the floor that react when someone walks in or out:
+
+```ts
+regions.leave.onEnter(() => {
+  rooms.plaza.goTo()
+})
+
+// Jensen steps aside when Hank comes close. Hank doesn't wait for him.
+regions.jensenMoveRight.onEnter((who) => {
+  if (who === hank) {
+    jensen.walkTo.now(points.jensenRightSide)
+  }
+})
+```
+
+Regions fire for every character, so check `who` (or `who.isPlayer`). A region handler counts as an interaction, which is why the example uses `.now`: without it, the player couldn't click anything while Jensen walks.
+
+`regions.enterCloset.active = false` switches a region off; `walkables.upperLedge.active = false` makes an area of floor unwalkable. Both are saved.
+
+## GUIs
+
+A GUI's script handles its controls, which are plain names in the script:
+
+```ts
+// guis/game-menu/game-menu.gui.ts
+import { game } from '@benne/script'
+import { guis, rooms } from '@game'
+import { gui, load, quit, resume, save, settingsBtn, titleScreen } from './game-menu.ids'
+
+gui.onShow(() => {
+  quit.visible = game.isDesktop   // Quit only makes sense in the desktop app
+})
+
+quit.onClick(() => game.quit())
+resume.onClick(() => gui.hide())
+
+save.onClick(() => {
+  guis.saveMenu.show()
+  gui.hide()
+})
+
+titleScreen.onClick(() => rooms.title.goTo())
+```
+
+| Control | Read and set | Handlers |
+|---|---|---|
+| Any | `visible`, `alpha`, `x`, `y`, `fadeTo(…)`, `tweenTo(…)` | `onMouseEnter`, `onMouseLeave` |
+| Text | `text` | |
+| Button | `enabled`, `visualState` | `onClick` |
+| Slider | `value` | `onChange((value) => …)` |
+| Checkbox | `checked`, `enabled` | `onChange((checked) => …)` |
+| Text input | `text`, `enabled`, `focused` | `onChange((text) => …)`, `onSubmit((text) => …)` |
+| List box | `selectedIndex`, `setRowText(i, text)`, `rowCount` | `onSelect((i) => …)`, `onActivate((i) => …)` |
+
+The GUI itself has `show()`, `hide()`, `fadeIn()`, `fadeOut()`, `onBuilt` (each time a room builds it), `onShow`, `onHide` and `onAnyClick`. From other scripts, reach a GUI through `guis`: `guis.verbs.hide()`, `guis.openingText.controls.text`.
+
+**A verb bar.** `pointer` tells a GUI what the player is pointing at, and `pointer.sentence` is the ready-made "Use Coffee with Coffee maker" line:
+
+```ts
+// guis/verbs/verbs.gui.ts
+const buttons = new Map([
+  [verbs.look, lookAtBtn], [verbs.use, useBtn], [verbs.take, takeBtn],
+  [verbs.talkTo, talkToBtn], [verbs.move, moveBtn], [verbs.clean, cleanBtn],
+])
+
+for (const [verb, button] of buttons) button.onClick(() => verb.select())
+menuBtn.onClick(() => guis.gameMenu.show())
+
+function refresh() {
+  verbLineText.text = pointer.sentence
+  const highlighted = pointer.hover?.defaultVerb
+  for (const [verb, button] of buttons) {
+    button.visualState = verb === highlighted ? 'hover' : 'normal'
+  }
+}
+
+gui.onBuilt(refresh)
+pointer.onContextChange(refresh)
+```
+
+GUI handlers don't take the interaction lock, so menus work during a cutscene.
+
+## Saving, loading and settings
+
+```ts
+saves.save(2, 'Before the lab')    // slot 2, with a name
+saves.save('checkpoint')           // a named save
+saves.load(2)                      // ends the handler; the game reloads
+saves.get(2)?.name
+saves.list()                       // [{ slot, name, timestamp }]
+saves.delete(2)
+saves.autosave()                   // saves 'Autosave' as soon as saving is allowed
+game.newGame(rooms.opening)        // fresh state; ends the handler
+game.quit()                        // desktop only
+```
+
+Saving isn't possible while an interaction or a conversation is running. `saves.canSaveNow` says whether it is, so a save menu can disable its button:
+
+```ts
+function syncSaveButton(name: string) {
+  saveBtn.enabled = saves.canSaveNow && name.trim() !== ''
+}
+```
+
+`saves.autosave()` works anywhere, even in `onEnter` or a cutscene: it saves straight away if it can, and otherwise as soon as the interaction is over. Pass a name or a slot to save somewhere other than `'Autosave'`: `saves.autosave('Chapter 2')`.
+
+**Settings** are the player's own and are kept outside save slots:
+
+```ts
+settings.sfxVolume = 0.8          // 0–1
+settings.musicVolume = 0.6
+settings.textSpeed = 1.5          // speech stays up 1.5× as long
+settings.clickToSkip = true
+settings.speech.showText = false  // any `speech` setting from game-config.json
+```
+
+## The global script
+
+`globalScript.ts` holds the lines for verbs nothing else handles, one per verb:
+
+```ts
+import { game } from '@benne/script'
+import { fallbacks } from '@game'
+
+fallbacks.onLook(() => { Player: "Nothing special about that." })
+fallbacks.onUse(() => { Player: "That doesn't work." })
+fallbacks.onTake(() => { Player: "I can't take that." })
+fallbacks.onTalkTo(() => { Player: "I don't have anything to say to that." })
+fallbacks.onClean(() => { Player: "I don't need to clean that." })
+fallbacks.onMove(() => { Player: "It doesn't move." })
+
+fallbacks.onAnyVerb(() => { Player: game.config.defaultFallbackLine ?? "That doesn't work." })
+fallbacks.onItemUnhandled(() => { Player: "That doesn't work." })
+```
+
+Note the braces in `() => { Player: "…" }`: a line of dialogue needs them.
+
+Hooks for every room also go here: `game.onEnterAnyRoom((from) => { … })`, `game.onEnterAnyRoomAfterFade(…)`, `game.onLeaveAnyRoom(…)`, `game.onLoadedAnyRoom(…)`.
+
+## Every frame
+
+`onUpdate` runs a function every frame, for things like a blinking light:
+
+```ts
+onUpdate(() => {
+  if (game.currentRoom !== room) return
+  alarmLight.visible = flags.alarmOn && Math.sin(game.time * 6) > 0
+})
+```
+
+It runs in every room, so check `game.currentRoom` in a room script. Nothing inside `onUpdate` can wait, so anything that takes time (a `wait`, a walk, a line, `face`, a fade) is an error there. To start a sequence from it, use `background(() => { … })`, and guard it with a flag so it starts once.
+
+Most things that take time have an instant form you can use there instead:
+
+```ts
+onUpdate(() => {
+  lamp.alpha = 0.5 + 0.5 * Math.sin(game.time * 6)  // not lamp.fade(…)
+})
+henry.startFacing(hank)  // once, not in onUpdate: Henry keeps turning toward Hank
+```
+
+To turn a character from a frame check, read `facing` and turn in a `background` block only when it needs to change: `if (jensen.facing !== 'L') background(() => jensen.face('L'))`. To save from one, use `saves.autosave()`, guarded like a `background` block so it runs once.
+
+## Events
+
+`events` lets scripts react to things happening in the engine, and send each other messages:
+
+```ts
+events.on('gameState:inventoryChanged', () => {
+  coins.text = `${inventory.count(items.coin)}`
+})
+
+events.on('alarm', (level: number) => { Hank: `Alarm level ${level}!` })
+events.emit('alarm', 3)
+```
+
+In a room script, a listener is active only while the player is in that room.
+
+## Your own helpers
+
+Scripts are TypeScript: constants, functions, loops and npm packages all work. Functions you write in a script file are sequenced like handlers, so calling one waits for it:
+
+```ts
+function gotLens() {
+  inventory.add(items.lens)
+  flags.gotLens = true
+  dialogs.jensenInPlaza.options.foundLens.on()
+}
+
+playFrom('got lens', () => {
+  gotLens()
+})
+```
+
+Loops are sequenced too:
+
+```ts
+for (const part of [items.relay, items.regulator, items.lens, items.timeonium]) {
+  wait(0.5)
+  sfx.whip.play()
+  inventory.remove(part)
+}
+```
+
+Helpers used by several scripts go in a `*.script.ts` file, which is sequenced the same way. Ordinary `.ts` files (data tables, maths) are left alone and can't use actions that take time.
+
+Callbacks passed to other functions (`array.forEach`, `setTimeout`) are **not** sequenced. Use a `for … of` loop instead; the build tells you when you've passed a sequenced function to one.
+
+`npm run lint` checks for these mistakes and the ones below: anything that takes time where nothing waits for it (in a callback, in `onUpdate`, inside an expression, in an ordinary `.ts` file), and `await` in a handler.
+
+## Common mistakes
+
+| You wrote | Fix |
+|---|---|
+| `() => Hank: "Hi"` | Add braces: `() => { Hank: "Hi" }` |
+| `await jensen.walkTo(…)` | Drop the `await`: lines already wait, and `await` stops this one from waiting. |
+| `ready && jensen.walkTo(…)` | Only a call on its own line waits: `if (ready) jensen.walkTo(…)` |
+| `Hank: Hi there` | Quote it: `Hank: "Hi there"`, or use a `` say`…` `` block |
+| Code after `rooms.x.goTo()` | It never runs. Move it above, or into the next room's `onEnter`. |
+| Code after `dialog.end()` | Same: move it above. |
+| `jensen.walkTo(…)` in a region handler | Use `jensen.walkTo.now(…)`, or the player is locked out while Jensen walks. |
+| `parts.forEach(p => handOver(p))` | `for (const p of parts) handOver(p)` |
+| A name ends in `_` (a prop called `wait` becomes `wait_`) | It clashes with a BenneScript name. Give it a `"scriptName"` in its JSON. |
+
+The full list of every name and property, with what waits and what doesn't, is the **BenneScript API reference** (`docs/bennescript-api.md` in the BENNE repository).

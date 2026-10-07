@@ -1,42 +1,31 @@
-import { registerInventoryScript } from '@engine/scripting';
+import { items } from '@game';
 
-registerInventoryScript('Broom', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
+// Use and Give still arm the broom for using it on something: no handler needed for that.
 
-  B.whenLookAt(() => {
-    B.player.say('The broom is a broom.');
-  });
+items.broom.onLook(() => {
+  Player: "The broom is a broom."
+})
 
-  B.whenUse(() => {
-    
-  });
+items.broom.onPickUp(() => {
+  Player: "I already have the broom."
+})
 
-  B.whenVerb("give", () => {
-    B.setActiveInventory('Broom');
-  });
+items.broom.onTalkTo(() => {
+  Player: "I can't talk to the broom."
+})
 
-  B.whenVerb("pickUp", () => {
-    B.player.say("I already have the broom.");
-  });
+items.broom.onOpen(() => {
+  Player: "I can't open the broom."
+})
 
-  B.whenVerb("talkTo", () => {
-    B.player.say("I can't talk to the broom.");
-  });
+items.broom.onClose(() => {
+  Player: "I can't close the broom."
+})
 
-  B.whenVerb("open", () => {
-    B.player.say("I can't open the broom.");
-  });
+items.broom.onPush(() => {
+  Player: "I can't push the broom."
+})
 
-  B.whenVerb("close", () => {
-    B.player.say("I can't close the broom.");
-  });
-
-  B.whenVerb("push", () => {
-    B.player.say("I can't push the broom.");
-  });
-
-  B.whenVerb("pull", () => {
-    B.player.say("I can't pull the broom.");
-  });
-});
+items.broom.onPull(() => {
+  Player: "I can't pull the broom."
+})

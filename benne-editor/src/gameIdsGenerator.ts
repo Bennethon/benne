@@ -6,7 +6,7 @@ const DEBOUNCE_MS = 500;
 
 let outputChannel: vscode.OutputChannel | undefined;
 const debounceByFolder = new Map<string, ReturnType<typeof setTimeout>>();
-const runningByFolder = new Set<string>();
+const runningByFolder = new Map<string, Promise<boolean>>();
 
 function getOutputChannel(): vscode.OutputChannel {
     if (!outputChannel) {
@@ -36,21 +36,32 @@ function resolveGameFolder(hintUri?: vscode.Uri): vscode.WorkspaceFolder | undef
     return undefined;
 }
 
-/** Runs `npm run generate:game-ids` in the BENNE repo root (updates `src/types/generated/benne-game-ids.d.ts`). */
-export async function runGenerateGameIds(
+/**
+ * Runs `npm run generate:game-ids` in the game folder (updates the
+ * BenneScript handle modules, the `.ids.ts` files under `src/game`). A call while a run is in progress waits for it.
+ */
+export function runGenerateGameIds(
     gameFolder: vscode.WorkspaceFolder,
     opts?: { quiet?: boolean },
 ): Promise<boolean> {
     const key = gameFolder.uri.fsPath;
-    if (runningByFolder.has(key)) {
-        return true;
+    const running = runningByFolder.get(key);
+    if (running) {
+        return running;
     }
-    runningByFolder.add(key);
+    const run = runGenerateGameIdsNow(gameFolder, opts).finally(() => runningByFolder.delete(key));
+    runningByFolder.set(key, run);
+    return run;
+}
+
+async function runGenerateGameIdsNow(
+    gameFolder: vscode.WorkspaceFolder,
+    opts?: { quiet?: boolean },
+): Promise<boolean> {
 
     const cwd = gameFolder.uri.fsPath;
     const script = await readGenerateGameIdsScript(gameFolder.uri);
     if (!script) {
-        runningByFolder.delete(key);
         if (!opts?.quiet) {
             void vscode.window.showErrorMessage(
                 'No npm script "generate:game-ids" in this folder\'s package.json.',
@@ -99,8 +110,6 @@ export async function runGenerateGameIds(
         });
         proc.on('close', (code) => resolve(code ?? 1));
     });
-
-    runningByFolder.delete(key);
 
     if (exitCode !== 0 && !opts?.quiet) {
         channel.show(true);

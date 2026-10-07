@@ -63,12 +63,13 @@ A few important points:
 
 ```json
 "verbs": [
-  { "id": "give",    "label": "Give",    "preposition": "to" },
+  { "id": "give",    "label": "Give",    "preposition": "to",   "usesItem": true },
   { "id": "pickUp",  "label": "Pick up" },
-  { "id": "use",     "label": "Use",     "preposition": "with" },
+  { "id": "use",     "label": "Use",     "preposition": "with", "usesItem": true },
   { "id": "look",    "label": "Look at" },
   { "id": "talkTo",  "label": "Talk to" }
-]
+],
+"defaultVerb": "look"
 ```
 
 The `verbs` array defines **which verbs exist in your game**. This is where BENNE's flexibility shines: you can build a full 9-verb SCUMM bar, a minimalist two-verb scheme, or anything in between, simply by editing this list.
@@ -77,15 +78,27 @@ Each verb has:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `id` | ✅ | The internal verb identifier used in scripts (e.g. `B.whenVerb('use', …)`, `B.setActiveVerb('use')`). |
+| `id` | ✅ | The verb's identifier. Scripts get a handler method named after it: `look` → `onLook`, `talkTo` → `onTalkTo`, `pickUp` → `onPickUp`. |
 | `label` | ✅ | The display text shown in the GUI verb bar and hover line (e.g. “Use”). |
 | `preposition` | optional | Connector word for “use X **with** Y” / “give X **to** Y” style hover lines. |
+| `usesItem` | optional | `true` for verbs that use an inventory item on a target (“Use key with door”, “Give coffee to Penny”). Defaults to `true` when the verb has a `preposition`. |
+
+The top-level **`defaultVerb`** is what a plain click on a prop, hotspot or character uses when it has no `defaultVerb` of its own. When omitted, it is `look` if your game has a `look` verb, otherwise the first verb in the list.
 
 ### Verb ids and script handlers
 
-Bennescript provides convenience handlers (`whenUse`, `whenLookAt`, `whenTalkTo`, `whenPickUp`, `whenOpen`, `whenClose`, `whenPush`, `whenPull`, `whenGive`) that resolve to common verb ids through a built-in alias system. For example, `whenLookAt` matches a verb whose id is `look` or `examine`; `whenPickUp` matches `pickUp`, `pickup`, or `take`.
+Your verbs are the only verbs BENNE knows. Each one becomes a handler method on everything the player can click, named after its `id`:
 
-For any verb id that isn't one of those built-ins, use `whenVerb(verbId, target, handler)` with the exact `id` from your config. See the [Bennescript](./bennescript) page for details.
+```ts
+door.onLook(() => { … })
+door.onPickUp(() => { … })
+door.onUseItem(items.key, () => { … })     // `use` has usesItem, so it gets onUseItem too
+fallbacks.onLook(() => { Player: "Nothing special about that." })
+```
+
+Custom verbs work the same way: add `{ "id": "clean", "label": "Clean" }` and every prop gets `onClean`. Renaming or removing a verb turns every handler that used it into a type error, so nothing silently stops working.
+
+A few ids are reserved because their methods would clash with built-in ones: `walkTo`, `defaultVerb`, `item`, `anyItem`, `combine` and `verbItem`. Verb ids must start with a letter. See the [BenneScript](./bennescript#verbs-on-things) page for details.
 
 ### The input profile
 
@@ -107,7 +120,7 @@ This is how you tune the game between LucasArts-style direct control, Sierra-sty
 ### Related verb settings
 
 - **`dropWhenInventoryUsed`** — When `true`, the armed inventory item is automatically unarmed after the player clicks a target with it (“use X on Y”).
-- **`defaultFallbackLine`** — The line the player character says when a verb is used on something with no matching handler anywhere. Your `globalScript.ts` typically also defines per-verb fallbacks (see [Bennescript → Global script](./bennescript)).
+- **`defaultFallbackLine`** — A catch-all line for a verb used on something with no matching handler anywhere. Scripts read it as `game.config.defaultFallbackLine`; the templates' `globalScript.ts` says it from `fallbacks.onAnyVerb`, next to per-verb fallbacks (see [BenneScript → The global script](./bennescript#the-global-script)).
 
 ## Cursor Setup
 
@@ -134,7 +147,7 @@ BENNE replaces the system cursor with a custom, animated, sprite-based cursor au
 | `animations` | Per-tag options such as `loop`, matching the Aseprite tags on your cursor sheet. |
 | `display.aseprite` | Marks the cursor as an Aseprite-sourced sprite sheet. |
 
-Individual inventory items can also override the cursor when armed (via their `cursorAnimation`), so “using the key on the door” can show a key-shaped cursor. See [Inventory](./benne-editor#inventory) and the inventory facade in [Bennescript](./bennescript).
+Individual inventory items can also override the cursor when armed (via their `cursorAnimation`), so “using the key on the door” can show a key-shaped cursor. See [Inventory](./benne-editor#inventory) and `items.key.cursorAnimation` in [BenneScript](./bennescript#item-scripts).
 
 ## Starting State
 
@@ -153,7 +166,7 @@ These fields define where a brand-new game begins:
 - **`startingPlayerCharacter`** — The `id` of the character the player controls at game start. This is also the default owner of the inventory bag.
 - **`startingRoomId`** — The `id` of the first room loaded.
 - **`initialGameState`** — Seeds the [GameStateManager](./core-concepts#game-state) at the start of a new game:
-  - `flags` — boolean/value flags available everywhere via `B.state`.
+  - `flags` — initial flag values. Scripts read flags through the names declared in `src/game/state.ts` (see [BenneScript → Flags](./bennescript#flags-variables-and-visits)), whose defaults usually make this unnecessary.
   - `variables` — arbitrary persisted values.
   - `inventory` — item ids the player starts carrying.
 
@@ -179,7 +192,7 @@ These fields define where a brand-new game begins:
 }
 ```
 
-The `speech` block controls how spoken lines (`B.player.say(...)`, `B.say\`…\``) are timed and displayed:
+The `speech` block controls how spoken lines (`Hank: "…"`, `` say`…` ``, `jensen.say(…)`) are timed and displayed:
 
 | Field | Description |
 |-------|-------------|
@@ -190,7 +203,7 @@ The `speech` block controls how spoken lines (`B.player.say(...)`, `B.say\`…\`
 | `minDurationMs` / `maxDurationMs` | Clamp the shortest and longest a line can be displayed. |
 | `defaultTalkOffset` | A default `{ x, y }` pixel offset for where speech text appears relative to a speaking character. |
 
-All of these can be overridden at runtime through `B.speechSettings` and persist in save data. Individual `say` calls can also override `clickToSkip` per line.
+All of these can be overridden at runtime under the same names, through `settings.speech` (`settings.speech.showText = false`), and the player's choice is kept with their settings. Individual `say` calls can also override `clickToSkip` per line: `player.say("…", { clickToSkip: false })`.
 
 ## Cutscenes
 
@@ -200,7 +213,7 @@ All of these can be overridden at runtime through `B.speechSettings` and persist
 
 When `true` (the default), the player can press **ESC** during a cutscene to skip it. Skipping fast-forwards the cutscene instead of cancelling it: every scripted step still runs, but waits, speech lines, walks, fades, camera moves, and video finish instantly, so the game ends in exactly the state the cutscene would have produced.
 
-Set it to `false` to make every cutscene in the game unskippable. For a single cutscene, pass `{ skippable: false }` to `B.cutscene(...)` (or to `whenEnterRoom` / `whenEnterRoomAfterFade` / `whenEnterAnyRoom` / `whenEnterAnyRoomAfterFade` / `whenChoice`) — the same idea as `say('...', { clickToSkip: false })`. See [Bennescript → Cutscenes](./bennescript).
+Set it to `false` to make every cutscene in the game unskippable. For a single cutscene, pass `{ skippable: false }` to `cutscene(…)` (or to `room.onEnter` / `room.onEnterAfterFade` / `game.onEnterAnyRoom` / `game.onEnterAnyRoomAfterFade`), the same idea as `player.say('…', { clickToSkip: false })`. See [BenneScript → Cutscenes](./bennescript#cutscenes-and-skipping).
 
 ## Dialog
 
@@ -237,13 +250,13 @@ Per-room regions define where and how strongly perspective applies; this block s
 }
 ```
 
-Defaults and limits for the scriptable camera (`B.camera.focus`, `setZoom`, `shake`, etc.):
+Defaults and limits for the scriptable camera (`camera.focus`, `camera.zoom`, `camera.shake`, etc.):
 
 | Field | Description |
 |-------|-------------|
 | `minZoom` / `maxZoom` | Clamp the gameplay zoom range. `1.0` is the room default. |
 | `defaultTransitionSeconds` | Default tween time for camera moves when a call omits an explicit duration. |
-| `shake.intensity` / `shake.durationSeconds` / `shake.falloff` | Defaults used by `B.camera.shake()` when called without arguments. |
+| `shake.intensity` / `shake.durationSeconds` / `shake.falloff` | Defaults used by `camera.shake()` when called without arguments. |
 
 ## Debug
 

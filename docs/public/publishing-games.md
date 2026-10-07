@@ -24,6 +24,6 @@ Upload the Windows ZIP as a separate itch.io file marked **Windows**. The browse
 
 ## Script controls for desktop menus
 
-`B.getEnvironment()` returns `'electron'` in desktop builds and `'browser'` on the web or in editor previews. `B.quit()` closes only the Electron app and runs after preceding queued actions; `B.quit.now()` closes immediately. A browser call does nothing. For example, a game can show a Quit button only when `B.getEnvironment() === 'electron'`.
+`game.isDesktop` is `true` in desktop builds and `false` on the web or in editor previews. `game.quit()` closes the Electron app at that line of the script; in a browser it does nothing. For example, a game menu can show its Quit button only on desktop: `quit.visible = game.isDesktop`.
 
 If WebGL cannot start or the graphics context is lost, the built game displays a readable message and offers a restart. Saved games remain available; restarting discards unsaved progress.

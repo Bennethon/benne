@@ -2,6 +2,8 @@
 
 Review date: 2026-10-03.
 
+> **Historical document.** Written before the BenneScript refactor (October 2026). Its scripting examples and file references use the old `register*Script` / `B` API, which no longer exists. For the current API see `docs/public/bennescript.md` and `docs/bennescript-api.md`.
+
 This is a source inspection of the engine, game boot layer, authoring extension, previews, scaffolding/update tools, tests, CI configuration, and documentation. Only this report was added. No application code, configuration, dependencies, or game content was changed. Tests, builds, performance benchmarks, and interactive editor sessions were not run. Concrete source observations are distinguished below from risks that need reproduction and performance hypotheses that need measurement. References are relative to the repository root; line numbers describe this checkout.
 
 ## Overall assessment

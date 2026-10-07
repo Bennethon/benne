@@ -3,7 +3,7 @@ import { createBenneGame } from '../../engine/Game';
 import { gameEvents } from '../../engine/events/EventBus';
 import { tryGetActiveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
 import { getRegisteredInventoryDefinitionIds } from '../../engine/inventory/inventoryDefinitionRegistry';
-import { wireBenneGlobalScripts } from '../../engine/scripting/wireBenneGlobalScripts';
+import { wireRoomTransitions } from '../../engine/scenes/wireRoomTransitions';
 import { registerGameContent } from '../../game/boot/registerGameContent';
 
 const parent = document.querySelector<HTMLElement>('#game-container');
@@ -13,8 +13,11 @@ if (!parent) {
 
 registerGameContent();
 const game = createBenneGame(parent);
-wireBenneGlobalScripts(game, gameEvents);
+wireRoomTransitions(game, gameEvents);
 setupBennePlayInventoryToolbar();
+if (import.meta.env.DEV || import.meta.env.VITE_BENNE_TEST_HOOKS === 'true') {
+  void import('../../engine/testing/benneTestHooks').then((m) => m.installBenneTestHooks(game));
+}
 
 function setupBennePlayInventoryToolbar(): void {
   const select = document.querySelector<HTMLSelectElement>('#benne-play-inventory-select');

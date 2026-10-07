@@ -46,7 +46,7 @@ import { resolveGameStateManager, setActiveGameStateManager } from '../../engine
 import {
   wireBenneVerbContextGameStateRelay,
   unwireBenneVerbContextGameStateRelay,
-} from '../../engine/scripting/benneVerbContextScriptSurface';
+} from '../../engine/verbs/verbContext';
 
 const BOOT = 'BenneGuiPreviewBoot';
 const PREVIEW = 'BenneGuiPreview';

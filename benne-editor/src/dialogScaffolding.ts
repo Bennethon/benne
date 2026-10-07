@@ -76,12 +76,9 @@ export async function runCreateDialogWizard(preferredFolder?: vscode.WorkspaceFo
         ]
     };
 
-    const dialogTs = `import { registerDialogScript } from '@engine/scripting';
-
-registerDialogScript('${id}', ({ B }) => {
-  // Player picks are handled with B.whenChoice('optionId', () => { … }) — use the Inspector "Script" button per option.
-  void B;
-});
+    const dialogTs = `// Dialog script for \`${id}\` (docs/bennescript-ergonomics-refactor.md §4.8): what happens when the
+// player picks an option, \`options.greeting.onChoose(() => { … })\`. The Inspector's option "Script…"
+// buttons add them, with imports from \`./${id}.ids\`.
 `;
 
     await vscode.workspace.fs.createDirectory(dialogDir);

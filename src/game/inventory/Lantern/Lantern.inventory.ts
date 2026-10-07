@@ -1,21 +1,19 @@
-import { registerInventoryScript } from '@engine/scripting';
+import { wait } from '@benne/script';
+import { items } from '@game';
 
-registerInventoryScript('Lantern', ({ B }) => {
-
-  B.whenUse.doNotActivate(() => {
-    if (B.inventory('Lantern').animation === 'Lantern') {
-      B.say`Hank: I will turn on the Lantern.`;
-      B.wait(.5);
-      B.inventory('Lantern').animation = 'Lantern-glowing';
-      B.wait(.5);
-      B.say`Hank: There we go!`;
-    } else if (B.inventory('Lantern').animation === 'Lantern-glowing') {
-      B.say`Hank: I will turn off the Lantern.`;
-      B.wait(.5);
-      B.inventory('Lantern').animation = 'Lantern';
-      B.wait(.5);
-      B.say`Hank: There we go!`;
-    }
-    
-  });
-});
+// `doNotActivate`: Use switches the lantern on or off instead of arming it.
+items.lantern.onUse.doNotActivate(() => {
+  if (items.lantern.animation === 'Lantern') {
+    Hank: "I will turn on the Lantern."
+    wait(0.5)
+    items.lantern.animation = 'Lantern-glowing'
+    wait(0.5)
+    Hank: "There we go!"
+  } else if (items.lantern.animation === 'Lantern-glowing') {
+    Hank: "I will turn off the Lantern."
+    wait(0.5)
+    items.lantern.animation = 'Lantern'
+    wait(0.5)
+    Hank: "There we go!"
+  }
+})

@@ -1,5 +1,7 @@
 # BENNE — Feasibility: Custom BenneScript Language & Native Authoring App
 
+> **Historical document.** Written before the BenneScript refactor (October 2026). Its scripting examples and file references use the old `register*Script` / `B` API, which no longer exists. For the current API see `docs/public/bennescript.md` and `docs/bennescript-api.md`.
+
 _Written 2026-10-05. Covers two proposed large refactors:_
 
 1. **A custom scripting language for BenneScript** to replace the TypeScript-based scripting layer.

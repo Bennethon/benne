@@ -1,7 +1,5 @@
 import type { Point2 } from './room';
 
-export type { CharacterId } from './generated/benne-game-ids.js';
-
 /**
  * Frame-synced marker from character JSON (footsteps, SFX hooks, dialogue beats, etc.).
  */
@@ -49,6 +47,8 @@ export interface CharacterDisplayData {
 
 export interface CharacterData {
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   name: string;
   description: string;
   /**

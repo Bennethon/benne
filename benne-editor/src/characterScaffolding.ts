@@ -87,17 +87,10 @@ export async function runCreateCharacterWizard(preferredFolder?: vscode.Workspac
         }
     };
 
-    const charTs = `import { registerCharacterScript } from '@engine/scripting';
-
-/**
- * Character script for \`${id}\` — self-only Bennescript (\`B.whenLookAt(() => …)\`).
- * Room-scoped handlers in \`*.room.ts\` still run first for the same verb.
- */
-registerCharacterScript('${id}', ({ B }) => {
-  // Example: B.whenLookAt(() => { B.player.say('…'); });
-  // Delete this line when you add your first handler.
-  void B;
-});
+    const charTs = `// Character script for \`${id}\` (docs/bennescript-ergonomics-refactor.md §4.9): handlers here apply
+// in every room the character is spawned in; a room script's own handler for the same verb wins.
+// The character's handle comes from \`./${id}.ids\`. The Inspector's verb chips add handlers, e.g.
+// \`onLook(() => { Player: "…" })\` on that handle.
 `;
 
     await vscode.workspace.fs.createDirectory(charDir);

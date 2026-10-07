@@ -18,7 +18,8 @@ export function collectFontIdsReferencedByGuiControls(): string[] {
   const ids = new Set<string>();
   for (const gui of getAllGuiData()) {
     for (const c of gui.controls ?? []) {
-      if (c.type === 'text' || c.type === 'button' || c.type === 'textInput') {
+      // A blank font means "no label" (icon-only buttons), not a font to load.
+      if ((c.type === 'text' || c.type === 'button' || c.type === 'textInput') && c.font?.trim()) {
         ids.add(c.font);
       }
     }

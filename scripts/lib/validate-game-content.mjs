@@ -1,5 +1,6 @@
 import { readdir, readFile, access } from 'node:fs/promises';
 import path from 'node:path';
+import { effectiveVerbs, verbConfigProblems } from './benneVerbs.mjs';
 
 const kinds = ['room', 'character', 'gui', 'inventory', 'dialog'];
 const controls = new Set(['text', 'inventoryPanel', 'grid', 'nineSliceImage', 'image', 'button', 'checkbox', 'slider', 'textInput', 'listBox', 'trigger']);
@@ -71,6 +72,7 @@ export async function validateGameContent(root) {
     if (!entities.character.has(config.startingPlayerCharacter)) add('game-config.json', 'startingPlayerCharacter', `Unknown character: ${config.startingPlayerCharacter}`);
     if (config.startingRoomId && !entities.room.has(config.startingRoomId)) add('game-config.json', 'startingRoomId', `Unknown room: ${config.startingRoomId}`);
     ids('game-config.json', 'verbs', config.verbs);
+    for (const p of verbConfigProblems(config)) add('game-config.json', p.field, p.message);
     const inventory = config.initialGameState?.inventory;
     for (const id of Array.isArray(inventory) ? inventory : Object.keys(inventory ?? {})) if (!entities.inventory.has(id)) add('game-config.json', 'initialGameState.inventory', `Unknown inventory item: ${id}`);
   }
@@ -86,8 +88,17 @@ export async function validateGameContent(root) {
     }
     if (!entities.room.has(config?.startingRoomId ?? manifest.startRoomId)) add('rooms/rooms.manifest.json', 'startRoomId', 'Starting room does not exist');
   }
+  // Every verb ID in content JSON must be a configured verb (§8.4).
+  const verbIds = new Set(effectiveVerbs(object(config) ? config : {}).map(v => v.id));
+  const verb = (file, field, id) => {
+    if (id === undefined) return;
+    if (typeof id !== 'string' || !verbIds.has(id)) add(file, field, `Unknown verb: ${id} (game-config.json verbs: ${[...verbIds].join(', ')})`);
+  };
   for (const kind of kinds) for (const { file, value } of entities[kind].values()) {
     geometry(file, value);
+    if (kind === 'room') for (const field of ['props', 'hotspots']) for (const [i, row] of entries(value[field])) verb(file, `${field}[${i}].defaultVerb`, row.defaultVerb);
+    if (kind === 'character' || kind === 'inventory') verb(file, 'defaultVerb', value.defaultVerb);
+    if (kind === 'inventory' && object(value.onVerb)) for (const id of Object.keys(value.onVerb)) verb(file, `onVerb.${id}`, id);
     if (kind === 'room') {
       for (const field of ['props', 'hotspots', 'points', 'regions']) ids(file, field, value[field]);
       ids(file, 'characters', value.characters, 'instanceId');

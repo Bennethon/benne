@@ -17,7 +17,7 @@ BENNE makes deliberate choices that keep the experience focused and the visual o
 - **Bitmap fonts only** — Text is rendered exclusively with bitmap fonts for perfect pixel alignment and authentic retro feel. No TrueType or system fonts appear in gameplay.
 - **Low internal resolution focus** — Games are designed around classic resolutions (typically 320×240 up to 640×480) with crisp integer or near-integer scaling. Pixel-perfect rendering is a core priority.
 - **Polygon-based world geometry** — Walkable areas, hotspots, regions, and prop colliders are defined with polygons rather than tile maps or grids.
-- **Bennescript facade + interaction queue** — Game logic is written against a clean, queue-aware scripting surface that automatically handles ordering of walks, speech, tweens, and sound so common narrative sequences “just work.”
+- **BenneScript, in order** — Game logic is TypeScript whose lines run one after another: walks, speech, waits and animations finish before the next line starts, so narrative sequences read top to bottom and “just work.”
 - **Editor-first authoring** — Deep VS Code extension support (live room previews, polygon editing, GUI/character/inventory inspectors, scaffolding commands) is a first-class part of the intended workflow.
 
 These constraints exist so the engine can deliver reliable retro aesthetics and predictable behavior with minimal configuration.
@@ -28,9 +28,9 @@ Within those boundaries, BENNE is deliberately open and adaptable:
 
 - **Any verb set you want** — Define verbs in `game-config.json`. Classic 9-verb SCUMM bars, two-button minimalist schemes, context-sensitive verbs, or anything in between are all supported.
 - **Multiple point-and-click styles** — The same engine comfortably supports LucasArts-style direct control, Sierra-like verb-first interaction, and hybrid approaches through configurable input profiles and GUI layouts.
-- **Powerful, fully scriptable GUI system** — Build complex interfaces using a JSON-driven layout system with 9-slice images, grids, buttons, sliders, checkboxes, list boxes, text inputs, and custom controls. Every GUI element can be shown, hidden, animated, and driven from Bennescript.
+- **Powerful, fully scriptable GUI system** — Build complex interfaces using a JSON-driven layout system with 9-slice images, grids, buttons, sliders, checkboxes, list boxes, text inputs, and custom controls. Every GUI element can be shown, hidden, animated, and driven from BenneScript.
 - **TypeScript at the core** — The entire engine is written in TypeScript. You can extend or replace subsystems, add new control types, custom shaders, or post-processing effects without fighting an opaque black box.
-- **Layered scripting model** — Bennescript gives you high-level, safe facades for everyday work while still exposing raw event buses, per-frame `B.onUpdate` hooks, and full access to the underlying Phaser scene when you need more power.
+- **Scripts that read like a screenplay** — BenneScript is TypeScript in which lines run in the order you write them (no `await`), dialogue is written as `Hank: "Hello!"`, and every room, prop, item and sound is a typed, autocompleted name generated from your content. The event bus (`events`), per-frame `onUpdate` hooks and plain TypeScript are there when you need more.
 - **Rich narrative and gameplay features** — Built-in support for dialog trees with state tracking, character following, region-based perspective scaling and tinting, dynamic visibility/animation overrides, inventory use-on-target, cutscenes, screen fades, and persistent speech/audio settings.
 - **Rapid iteration tooling** — Live room, character, GUI, and inventory previews inside VS Code, polygon editing with real-time feedback, “Play from this room” workflows, and a full-runtime BENNE Play mode let you test ideas without leaving the editor.
 

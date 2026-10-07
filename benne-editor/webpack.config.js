@@ -21,6 +21,8 @@ const extensionConfig = {
   externals: {
     vscode: 'commonjs vscode'
   },
+  // The bundled TypeScript (ScriptModel) loads optional modules with a computed require; harmless here.
+  ignoreWarnings: [{ module: /node_modules[\\/]typescript[\\/]lib[\\/]typescript\.js$/ }],
   resolve: {
     extensions: ['.ts', '.js']
   },

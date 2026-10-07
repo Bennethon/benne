@@ -109,12 +109,13 @@ export function composeVerbLineText(
 
 /**
  * Reserved literal for `inputProfile` slots: substitute with the clicked target's authored
- * `defaultVerb` (prop / hotspot / character / inventory item), falling back to `"look"`.
+ * `defaultVerb` (prop / hotspot / character / inventory item), falling back to the game-level
+ * default ({@link resolveGameDefaultVerbId}).
  */
 export const DEFAULT_VERB_TOKEN = 'defaultVerb';
 
-/** Per-clickable default-verb fallback when the target omits `defaultVerb` in its JSON. */
-export const DEFAULT_VERB_FALLBACK = 'look';
+/** The last resort of {@link resolveGameDefaultVerbId}: a game with no verbs at all. */
+const DEFAULT_VERB_FALLBACK = 'look';
 
 const DEFAULT_VERBS: GameVerbDefinition[] = [
   { id: 'look', label: 'Look at' },
@@ -127,6 +128,34 @@ export function getEffectiveVerbDefinitions(settings: GameSettings): GameVerbDef
     return settings.verbs;
   }
   return DEFAULT_VERBS;
+}
+
+/**
+ * Whether a verb arms the selected inventory item and is used on a target (`usesItem`, decision 7):
+ * explicit `usesItem`, else `true` for verbs with a `preposition`.
+ */
+export function isItemVerb(def: GameVerbDefinition): boolean {
+  if (typeof def.usesItem === 'boolean') {
+    return def.usesItem;
+  }
+  return (def.preposition?.trim().length ?? 0) > 0;
+}
+
+/**
+ * Game-level default verb (decision 8), used when a clicked target has no `defaultVerb`:
+ * `settings.defaultVerb` when it names a configured verb, else `look` when configured, else the
+ * first verb.
+ */
+export function resolveGameDefaultVerbId(settings: GameSettings): string {
+  const ids = getEffectiveVerbDefinitions(settings).map((v) => v.id);
+  const configured = settings.defaultVerb?.trim();
+  if (configured && ids.includes(configured)) {
+    return configured;
+  }
+  if (ids.includes('look')) {
+    return 'look';
+  }
+  return ids[0] ?? DEFAULT_VERB_FALLBACK;
 }
 
 /**
@@ -144,36 +173,21 @@ export function getEffectiveInputProfile(settings: GameSettings): VerbInputProfi
   };
 }
 
-/** Verb ids tried for the default **use** verb (aligned with Bennescript `resolveVerbId('use')` candidates). */
-const USE_VERB_ALIAS_CANDIDATES: readonly string[] = ['use', 'interact'];
-
 /**
- * First configured verb id matching the **use** aliases, or **`"use"`** if none match (same resolution idea as
- * Bennescript `resolveVerbId('use')`).
+ * The item verb used when an armed item meets a click that names no verb (a walk-to click while an
+ * item is armed): `use` when the game has it as an item verb, otherwise the first `usesItem` verb,
+ * otherwise `use`. The same shape of rule as {@link resolveGameDefaultVerbId}.
  */
-export function resolveEffectiveUseVerbId(settings: GameSettings): string {
-  const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
-  for (const id of USE_VERB_ALIAS_CANDIDATES) {
-    if (configured.has(id)) {
-      return id;
-    }
+export function resolveDefaultItemVerbId(settings: GameSettings): string {
+  const itemVerbs = getEffectiveVerbDefinitions(settings).filter(isItemVerb).map((v) => v.id);
+  if (itemVerbs.includes('use')) {
+    return 'use';
   }
-  return 'use';
+  return itemVerbs[0] ?? 'use';
 }
 
-/** Verb ids tried for the default **give** verb (aligned with Bennescript `resolveVerbId('give')`). */
-const GIVE_VERB_ALIAS_CANDIDATES: readonly string[] = ['give'];
-
-/**
- * First configured verb id matching the **give** aliases, or **`"give"`** if none match (same resolution idea as
- * Bennescript `resolveVerbId('give')`).
- */
-export function resolveEffectiveGiveVerbId(settings: GameSettings): string {
-  const configured = new Set(getEffectiveVerbDefinitions(settings).map((v) => v.id));
-  for (const id of GIVE_VERB_ALIAS_CANDIDATES) {
-    if (configured.has(id)) {
-      return id;
-    }
-  }
-  return 'give';
+/** Whether `verbId` is one of the game's item verbs (`usesItem`, decision 7). */
+export function isItemVerbId(settings: GameSettings, verbId: string): boolean {
+  const def = getEffectiveVerbDefinitions(settings).find((v) => v.id === verbId);
+  return def != null && isItemVerb(def);
 }

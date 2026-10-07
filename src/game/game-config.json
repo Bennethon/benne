@@ -8,7 +8,8 @@
     {
       "id": "give",
       "label": "Give",
-      "preposition": "to"
+      "preposition": "to",
+      "usesItem": true
     },
     {
       "id": "pickUp",
@@ -17,7 +18,8 @@
     {
       "id": "use",
       "label": "Use",
-      "preposition": "with"
+      "preposition": "with",
+      "usesItem": true
     },
     {
       "id": "open",
@@ -44,6 +46,7 @@
       "label": "Pull"
     }
   ],
+  "defaultVerb": "look",
   "inputProfile": {
     "primaryButtonVerb": "walkTo",
     "secondaryButtonVerb": "defaultVerb"

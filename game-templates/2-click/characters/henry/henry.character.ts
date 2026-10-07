@@ -1,10 +1,7 @@
-import { registerCharacterScript } from '@engine/scripting';
+import { henry } from './henry.ids';
 
-/**
- * Character script for `henry` — Bennescript on this character’s global verb channel (room-scoped handlers win first).
- */
-registerCharacterScript('henry', ({ B }) => {
-  B.whenLookAt(() => {
-    // TODO
-  });
-});
+// Henry's handlers in every room he is in. A room script's own `henry.onLook(…)` wins over this.
+
+henry.onLook(() => {
+  // TODO
+})

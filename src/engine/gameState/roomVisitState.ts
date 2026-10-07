@@ -2,7 +2,7 @@ import type { GameStateManager } from './GameStateManager.js';
 
 /**
  * Persisted count of how many times the player has **entered** this room (incremented by the engine
- * at the start of each room load, before `whenEnterRoom` / `whenEnterAnyRoom`). Survives saves via
+ * at the start of each room load, before `room.onEnter` / `game.onEnterAnyRoom`). Survives saves via
  * {@link GameStateManager.variables}.
  */
 export function roomVisitCountVariableKey(roomId: string): string {

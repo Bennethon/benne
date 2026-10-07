@@ -2,9 +2,9 @@ import type * as Phaser from 'phaser';
 import type { VerbInputProfile } from '../../types/game';
 import { getGameSettings } from '../ConfigManager';
 import {
-  DEFAULT_VERB_FALLBACK,
   DEFAULT_VERB_TOKEN,
-  resolveEffectiveUseVerbId,
+  resolveDefaultItemVerbId,
+  resolveGameDefaultVerbId,
   WALK_TO_VERB_ID,
 } from './verbConfig';
 
@@ -99,7 +99,7 @@ export function resolvePointerVerbForTarget(
   ) {
     return {
       kind: 'verb',
-      verbId: resolveEffectiveUseVerbId(getGameSettings()),
+      verbId: resolveDefaultItemVerbId(getGameSettings()),
       consumeActive: false,
     };
   }
@@ -110,7 +110,7 @@ export function resolvePointerVerbForTarget(
   if (slotValue === DEFAULT_VERB_TOKEN) {
     const effective = target.defaultVerb && target.defaultVerb.length > 0
       ? target.defaultVerb
-      : DEFAULT_VERB_FALLBACK;
+      : resolveGameDefaultVerbId(getGameSettings());
     return { kind: 'verb', verbId: effective, consumeActive: false };
   }
   return { kind: 'verb', verbId: slotValue, consumeActive: false };
@@ -119,7 +119,7 @@ export function resolvePointerVerbForTarget(
 /**
  * Same rules as {@link resolvePointerVerbForTarget}, but inventory items have no stand point: when
  * the resolved `inputProfile` slot is the built-in `walkTo`, substitute the item's authored
- * `defaultVerb` (fallback {@link DEFAULT_VERB_FALLBACK}) instead of returning `walkToTarget`.
+ * `defaultVerb` (fallback: the game-level default verb) instead of returning `walkToTarget`.
  *
  * When **no** inventory item is armed for use-on-target, **`consumeActive`** matches
  * {@link resolvePointerVerbForTarget}: an **active verb** left-click applies to the row and the
@@ -153,7 +153,9 @@ export function resolvePointerVerbForInventoryItem(
     return base;
   }
   const effective =
-    target.defaultVerb && target.defaultVerb.length > 0 ? target.defaultVerb : DEFAULT_VERB_FALLBACK;
+    target.defaultVerb && target.defaultVerb.length > 0
+      ? target.defaultVerb
+      : resolveGameDefaultVerbId(getGameSettings());
   return { kind: 'verb', verbId: effective, consumeActive: false };
 }
 

@@ -4,8 +4,8 @@ import { BENNE_GAME_STATE_REGISTRY_KEY } from './registryKey.js';
 
 /**
  * Module-level reference set by {@link setActiveGameStateManager} in `createBenneGame`.
- * Allows facades without a `Phaser.Game` handle (e.g. `GuiBenneScript` constructed before the
- * game exists) to lazily resolve the manager at call time.
+ * Lets code without a `Phaser.Game` handle (BenneScript handles, created when script modules load,
+ * before the game exists) resolve the manager at call time.
  */
 let activeManager: GameStateManager | null = null;
 
@@ -19,15 +19,14 @@ export function resolveGameStateManager(game: Phaser.Game): GameStateManager {
   return manager;
 }
 
-/** Published by `createBenneGame`; consumed by facades without a `Phaser.Game` handle. */
+/** Published by `createBenneGame`; consumed by code without a `Phaser.Game` handle. */
 export function setActiveGameStateManager(manager: GameStateManager | null): void {
   activeManager = manager;
 }
 
 /**
  * Returns the active {@link GameStateManager} if one has been published (post-`createBenneGame`),
- * otherwise `null`. Use this from facades like `GuiBenneScript` that are constructed before the
- * Phaser game exists.
+ * otherwise `null`. Use this from code (BenneScript handles) created before the Phaser game exists.
  */
 export function tryGetActiveGameStateManager(): GameStateManager | null {
   return activeManager;

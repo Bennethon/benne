@@ -1,6 +1,6 @@
 /**
  * Event names for GUI button clicks (GUI-scoped Bennescript + future compositor input).
- * The overlay compositor should emit these on `gameEvents`; {@link GuiBenneScript} subscribes here.
+ * The overlay compositor emits these on `gameEvents`; BenneScript's `x.onClick(…)` subscribes here.
  */
 
 /** Payload for {@link guiAllButtonsClickEventId} (catch-all within one GUI). */

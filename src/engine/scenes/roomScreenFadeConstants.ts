@@ -1,4 +1,4 @@
-/** Default full-screen fade duration when the duration argument is omitted (`BenneScriptCore` fade API). */
+/** Default full-screen fade duration when the duration argument is omitted (BenneScript `fadeOut()` / `fadeIn()`). */
 export const BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC = 0.35;
 
 export const BENNE_SCREEN_FADE_DEFAULT_COLOR = 0x000000;
@@ -12,6 +12,6 @@ export const BENNE_SCREEN_FADE_OVERLAY_DEPTH = 450_000;
 
 /**
  * Speaking Text (`speaking-text`, Bennescript `say`) draws above the screen fade so lines
- * stay readable during `B.fadeOut`, and below the custom cursor (`CUSTOM_CURSOR_DEPTH`).
+ * stay readable during `fadeOut()`, and below the custom cursor (`CUSTOM_CURSOR_DEPTH`).
  */
 export const SPEAKING_TEXT_OVERLAY_DEPTH = 460_000;

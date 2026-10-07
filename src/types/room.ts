@@ -1,16 +1,5 @@
 ﻿import type { CharacterFacingLetter, CharacterAnimationsConfig } from './character';
 
-export type {
-  HotspotId,
-  PointId,
-  PropId,
-  RegionId,
-  ResolvableTargetId,
-  RoomId,
-  VerbTargetId,
-  WalkableId,
-} from './generated/benne-game-ids.js';
-
 export interface Point2 {
   x: number;
   y: number;
@@ -26,6 +15,8 @@ export interface WalkableHole {
 
 export interface WalkablePolygon {
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   /** When false, this polygon is ignored for walking and debug overlays. Omitted = active. */
   active?: boolean;
   points: Point2[];
@@ -39,6 +30,8 @@ export interface WalkablePolygon {
  */
 export interface RoomHotspotData {
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   /** When false, ignored for interaction. Omitted = active. */
   active?: boolean;
   description?: string;
@@ -73,6 +66,8 @@ export interface RoomHotspotData {
 /** Named marker in room space (spawns, triggers, script anchors). */
 export interface RoomPointData {
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   x: number;
   y: number;
 }
@@ -80,6 +75,8 @@ export interface RoomPointData {
 /** Logical area (perspective scale, tint, walk blocking, triggers) as a closed polygon in room space. */
 export interface RoomRegionData {
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   /** When false, ignored by tooling/runtime that respects regions. Omitted = active. */
   active?: boolean;
   /**
@@ -155,6 +152,8 @@ export interface RoomPropCollider {
  */
 export interface RoomPropInstance {
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   /**
    * Aseprite frame-tag name for this prop. Must appear in `meta.frameTags` on the room sheet
    * (see `getAsepriteFrameTagNames('room', roomId)`); cels with no tag are not props.
@@ -231,6 +230,8 @@ export interface RoomPropInstance {
 
 export interface RoomData {
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   name: string;
   /**
    * Optional static backdrop under props. When omitted, only props (and game backgroundColor) show.

@@ -43,7 +43,7 @@ import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from '.
 import { BENNE_ROOM_START_KIND_KEY } from './roomStartKindConstants';
 import { tryGetRoomTransitionOrchestrator } from './roomTransitionGlobals';
 import { syncBenneRuntimeHiDpiSceneMainCameras } from '../benneRuntimeHiDpiScale.js';
-import { ensureRoomScriptLoaded } from '../scripting/registerRoomScript';
+import { ensureRoomScriptLoaded } from './roomScriptModules';
 
 export type CharacterSpawnLoadKind = 'aseprite' | 'image';
 

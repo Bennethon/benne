@@ -148,6 +148,26 @@ export const DEFAULT_GAME_VERBS: GameConfigVerbEntry[] = [
  * Verb ids (and optional labels / prepositions) from `src/game/game-config.json`, in file order.
  * Falls back to {@link DEFAULT_GAME_VERBS} when the file is missing or has no valid `verbs`.
  */
+/**
+ * The game-level default verb (decision 8): `defaultVerb` in game-config.json when it names a
+ * configured verb, else `look` when the game has it, else the first verb. Mirrors
+ * `resolveGameDefaultVerbId` in src/engine/verbs/verbConfig.ts.
+ */
+export async function readGameDefaultVerb(gameRoot: vscode.Uri): Promise<string> {
+    const verbs = await readGameConfigVerbs(gameRoot);
+    let configured: unknown;
+    try {
+        const raw = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(gameRoot, 'src', 'game', 'game-config.json'));
+        configured = (JSON.parse(new TextDecoder('utf-8').decode(raw)) as { defaultVerb?: unknown }).defaultVerb;
+    } catch {
+        configured = undefined;
+    }
+    if (typeof configured === 'string' && verbs.some((v) => v.id === configured)) {
+        return configured;
+    }
+    return verbs.some((v) => v.id === 'look') ? 'look' : (verbs[0]?.id ?? 'look');
+}
+
 export async function readGameConfigVerbs(gameRoot: vscode.Uri): Promise<GameConfigVerbEntry[]> {
     const uri = vscode.Uri.joinPath(gameRoot, 'src', 'game', 'game-config.json');
     try {

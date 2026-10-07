@@ -64,8 +64,7 @@ import {
     makeRoomPropClickable
 } from './propVerbScaffolding';
 import { addRoomRegionHandler } from './regionScriptScaffolding';
-import { registerDialogBenneScriptCompletion } from './dialogCompletion';
-import { registerBenneScriptIdCompletion } from './benneScriptIdCompletion';
+import { registerStringUnionSuggest } from './stringUnionSuggest';
 import { scheduleGenerateGameIds } from './gameIdsGenerator';
 import { openDialogScriptEditorOnly, runCreateDialogWizard } from './dialogScaffolding';
 import { runCreatePdcWizard } from './pdcScaffolding';
@@ -84,7 +83,7 @@ import {
     revealEventInDocument,
     revealRoomRegionHandlerInDocument,
     revealSourceRangeInDocument,
-    revealWhenInventoryUsedOnHandlerInDocument
+    revealInventoryUsedOnHandlerInDocument
 } from './roomScriptNavigation';
 import { InspectorWebviewViewProvider } from './inspectorWebviewViewProvider';
 import { resolveDeleteTargetFromMainTreeNode } from './delete/deleteTarget';
@@ -180,8 +179,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const mainProvider = new MainTreeProvider(selection);
     const actionsProvider = new ActionsTreeProvider(selection);
 
-    registerDialogBenneScriptCompletion(context);
-    registerBenneScriptIdCompletion(context);
+    registerStringUnionSuggest(context);
 
     const mainTreeView = vscode.window.createTreeView('benne-editor.main', {
         treeDataProvider: mainProvider,
@@ -1192,14 +1190,14 @@ export function activate(context: vscode.ExtensionContext): void {
             }
         ),
         vscode.commands.registerCommand(
-            'benne-editor.revealRegisterRoomScript',
+            'benne-editor.revealRoomScript',
             async (roomJsonUriStr?: string, roomId?: string) => {
                 if (typeof roomJsonUriStr !== 'string' || typeof roomId !== 'string') {
                     return;
                 }
                 const jsonUri = vscode.Uri.parse(roomJsonUriStr);
                 const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomId}.room.ts`);
-                await revealEventInDocument(scriptUri, 'registerRoomScript', BENNE_SCRIPT_VIEW_COLUMN);
+                await openDocumentPinned(scriptUri, BENNE_SCRIPT_VIEW_COLUMN);
             }
         ),
         vscode.commands.registerCommand(
@@ -1422,14 +1420,10 @@ export function activate(context: vscode.ExtensionContext): void {
                 const jsonUri = vscode.Uri.parse(roomJsonUriStr);
                 const r = await addRoomInventoryUsedOnStub(jsonUri, roomIdArg, kindArg, targetIdArg);
                 refreshTrees();
-                if (r.ok && r.insertedStubRange) {
+                const range = r.insertedStubRange ?? r.existingRange;
+                if (r.ok && range) {
                     const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomIdArg}.room.ts`);
-                    await revealSourceRangeInDocument(
-                        scriptUri,
-                        r.insertedStubRange.start,
-                        r.insertedStubRange.end,
-                        BENNE_SCRIPT_VIEW_COLUMN
-                    );
+                    await revealSourceRangeInDocument(scriptUri, range.start, range.end, BENNE_SCRIPT_VIEW_COLUMN);
                 }
             }
         ),
@@ -1444,7 +1438,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 refreshTrees();
                 if (r.ok) {
                     const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${characterIdArg}.character.ts`);
-                    await revealEventInDocument(scriptUri, 'whenInventoryUsedOn', BENNE_SCRIPT_VIEW_COLUMN);
+                    await revealInventoryUsedOnHandlerInDocument(scriptUri, characterIdArg, BENNE_SCRIPT_VIEW_COLUMN);
                 }
             }
         ),
@@ -1459,7 +1453,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 refreshTrees();
                 if (r.ok) {
                     const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${itemIdArg}.inventory.ts`);
-                    await revealEventInDocument(scriptUri, 'whenInventoryUsedOn', BENNE_SCRIPT_VIEW_COLUMN);
+                    await revealInventoryUsedOnHandlerInDocument(scriptUri, itemIdArg, BENNE_SCRIPT_VIEW_COLUMN);
                 }
             }
         ),
@@ -1476,7 +1470,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 }
                 const jsonUri = vscode.Uri.parse(roomJsonUriStr);
                 const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${roomIdArg}.room.ts`);
-                await revealWhenInventoryUsedOnHandlerInDocument(scriptUri, targetIdArg, BENNE_SCRIPT_VIEW_COLUMN);
+                await revealInventoryUsedOnHandlerInDocument(scriptUri, targetIdArg, BENNE_SCRIPT_VIEW_COLUMN);
             }
         ),
         vscode.commands.registerCommand(
@@ -1487,7 +1481,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 }
                 const jsonUri = vscode.Uri.parse(characterJsonUriStr);
                 const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${characterIdArg}.character.ts`);
-                await revealWhenInventoryUsedOnHandlerInDocument(scriptUri, characterIdArg, BENNE_SCRIPT_VIEW_COLUMN);
+                await revealInventoryUsedOnHandlerInDocument(scriptUri, characterIdArg, BENNE_SCRIPT_VIEW_COLUMN);
             }
         ),
         vscode.commands.registerCommand(
@@ -1498,7 +1492,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 }
                 const jsonUri = vscode.Uri.parse(inventoryJsonUriStr);
                 const scriptUri = vscode.Uri.joinPath(jsonUri, '..', `${itemIdArg}.inventory.ts`);
-                await revealWhenInventoryUsedOnHandlerInDocument(scriptUri, itemIdArg, BENNE_SCRIPT_VIEW_COLUMN);
+                await revealInventoryUsedOnHandlerInDocument(scriptUri, itemIdArg, BENNE_SCRIPT_VIEW_COLUMN);
             }
         ),
         vscode.commands.registerCommand(

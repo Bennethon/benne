@@ -2,7 +2,7 @@
 import './style.css';
 import { createBenneGame } from './engine/Game';
 import { registerGameContent } from './game/boot/registerGameContent';
-import { wireBenneGlobalScripts } from './engine/scripting/wireBenneGlobalScripts';
+import { wireRoomTransitions } from './engine/scenes/wireRoomTransitions';
 import { gameEvents } from './engine/events/EventBus';
 import { resolveGameStateManager } from './engine/gameState/resolveGameStateManager';
 import { isRoomTransitionInProgress } from './engine/scenes/roomTransitionGlobals';
@@ -13,7 +13,7 @@ const recovery = installWebglRecovery(parent);
 registerGameContent();
 const game = createBenneGame(parent);
 recovery.attach(game);
-wireBenneGlobalScripts(game, gameEvents);
+wireRoomTransitions(game, gameEvents);
 Object.assign(window, { __BENNE_TEST__: {
   layout: () => { const camera = game.scene.getScene('Room').cameras.main; return { width: game.canvas.width, zoom: camera.zoom, viewportWidth: camera.width, inputScale: game.scale.displayScale.x }; },
   snapshot: () => resolveGameStateManager(game).getSnapshot(),

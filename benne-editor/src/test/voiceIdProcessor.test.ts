@@ -1,34 +1,86 @@
 import * as assert from 'assert';
+import * as path from 'node:path';
+import * as ts from 'typescript';
+import { IdsIndex } from '../bennescript/idsIndex';
+import { buildSpeakerTable } from '../bennescript/speakers';
 import {
     exportSpeakingTextRowsForFiles,
     planVoiceIdsForFiles,
     serializeSpeakingTextRowsAsCsv,
+    type VoiceIdTextFileInput,
 } from '../voiceIdProcessor';
 
-suite('Voice ID Processor', () => {
-    test('preserve mode assigns missing direct say markers after sidecar high water mark', () => {
-        const plan = planVoiceIdsForFiles(
-            [
-                {
-                    path: 'src/game/rooms/apartment/apartment.room.ts',
-                    text: [
-                        "B.player.say('Hello there.');",
-                        'B.character("penny").say("Hi Hank.");',
-                    ].join('\n'),
-                },
-            ],
-            { hank: 3 },
-            { mode: 'preserve', startingPlayerCharacterId: 'hank', knownCharacterIds: ['hank', 'penny'] },
-        );
+/** A tiny game: Hank (player), Penny ("Penny Lane"), BOTT-i3 in the apartment. */
+const gameRoot = path.resolve('/tmp/voice-game/src/game');
+const generated = new Map<string, string>([
+    [
+        path.join(gameRoot, 'game.ids.ts'),
+        [
+            "import { CharacterHandle, RoomHandle } from '@benne/script';",
+            'export const rooms = { apartment: new RoomHandle("apartment") };',
+            'export const characters = {',
+            '  hank: new CharacterHandle(null, "hank"),',
+            '  penny: new CharacterHandle(null, "penny"),',
+            '  botti3: new CharacterHandle(null, "botti3"),',
+            '};',
+        ].join('\n'),
+    ],
+    [
+        path.join(gameRoot, 'rooms/apartment/apartment.ids.ts'),
+        [
+            "import { CharacterHandle } from '@benne/script';",
+            "import { rooms } from '@game';",
+            'export const room = rooms.apartment;',
+            'export const penny = new CharacterHandle("apartment", "penny");',
+        ].join('\n'),
+    ],
+]);
+const scan = {
+    startingPlayerCharacterId: 'hank',
+    speakers: buildSpeakerTable([
+        { id: 'hank', name: 'Hank' },
+        { id: 'penny', name: 'Penny Lane' },
+        { id: 'botti3', name: 'BOTT-i3' },
+    ]),
+    index: new IdsIndex(ts, gameRoot, (file) => generated.get(path.resolve(file))),
+};
 
-        assert.strictEqual(plan.assignedCount, 2);
-        assert.deepStrictEqual(plan.sidecar, { hank: 4, penny: 1 });
+const roomFile = (lines: string[]): VoiceIdTextFileInput => ({
+    path: 'src/game/rooms/apartment/apartment.room.ts',
+    fileName: path.join(gameRoot, 'rooms/apartment/apartment.room.ts'),
+    text: lines.join('\n'),
+});
+
+const HEADER = [
+    "import { player, say } from '@benne/script';",
+    "import { characters } from '@game';",
+    "import { room, penny } from './apartment.ids';",
+];
+
+suite('Voice ID Processor', () => {
+    test('preserve mode assigns missing markers after the sidecar high water mark', () => {
+        const file = roomFile([
+            ...HEADER,
+            'room.onEnter(() => {',
+            '  Hank: "Hello there."',
+            "  penny.say('Hi Hank.')",
+            '  PennyLane: `Nice ${1 + 1} see you.`',
+            '})',
+        ]);
+        const plan = planVoiceIdsForFiles([file], { hank: 3 }, { mode: 'preserve', ...scan });
+
+        assert.strictEqual(plan.assignedCount, 3);
+        assert.deepStrictEqual(plan.sidecar, { hank: 4, penny: 2 });
         assert.strictEqual(
             plan.changes[0].proposedText,
-            [
-                "B.player.say('|4| Hello there.');",
-                'B.character("penny").say("|1| Hi Hank.");',
-            ].join('\n'),
+            roomFile([
+                ...HEADER,
+                'room.onEnter(() => {',
+                '  Hank: "|4| Hello there."',
+                "  penny.say('|1| Hi Hank.')",
+                '  PennyLane: `|2| Nice ${1 + 1} see you.`',
+                '})',
+            ]).text,
         );
     });
 
@@ -37,11 +89,12 @@ suite('Voice ID Processor', () => {
             [
                 {
                     path: 'src/game/globalScript.ts',
-                    text: 'B.player.say("|7| That doesn\\\'t work.");',
+                    fileName: path.join(gameRoot, 'globalScript.ts'),
+                    text: "import { fallbacks } from '@game';\nfallbacks.onUse(() => { Player: \"|7| That doesn't work.\" })\n",
                 },
             ],
             {},
-            { mode: 'preserve', startingPlayerCharacterId: 'hank', knownCharacterIds: ['hank'] },
+            { mode: 'preserve', ...scan },
         );
 
         assert.strictEqual(plan.assignedCount, 0);
@@ -51,145 +104,74 @@ suite('Voice ID Processor', () => {
     });
 
     test('overwrite mode strips existing markers and restarts sequential numbers', () => {
-        const plan = planVoiceIdsForFiles(
-            [
-                {
-                    path: 'src/game/rooms/outside/outside.room.ts',
-                    text: [
-                        "B.player.say('|9| First.');",
-                        "B.player.say('Second.');",
-                    ].join('\n'),
-                },
-            ],
-            { hank: 99 },
-            { mode: 'overwrite', startingPlayerCharacterId: 'hank', knownCharacterIds: ['hank'] },
-        );
+        const file = roomFile([
+            ...HEADER,
+            'room.onEnter(() => {',
+            "  player.say('|9| First.')",
+            '  Player: "Second."',
+            '})',
+        ]);
+        const plan = planVoiceIdsForFiles([file], { hank: 20 }, { mode: 'overwrite', ...scan });
 
         assert.strictEqual(plan.assignedCount, 2);
         assert.strictEqual(plan.strippedCount, 1);
         assert.deepStrictEqual(plan.sidecar, { hank: 2 });
-        assert.strictEqual(
-            plan.changes[0].proposedText,
-            ["B.player.say('|1| First.');", "B.player.say('|2| Second.');"].join('\n'),
-        );
+        assert.ok(plan.changes[0].proposedText.includes("player.say('|1| First.')"));
+        assert.ok(plan.changes[0].proposedText.includes('Player: "|2| Second."'));
     });
 
-    test('processes free and fixed tagged templates', () => {
-        const plan = planVoiceIdsForFiles(
-            [
-                {
-                    path: 'src/game/dialogs/chat/chat.dialog.ts',
-                    text: [
-                        'B.say`',
-                        '  Player: Hello.',
-                        '  Penny: Hi!',
-                        '`;',
-                        "B.character('penny').say`",
-                        '  Thanks.',
-                        '`;',
-                    ].join('\n'),
-                },
-            ],
-            {},
-            { mode: 'preserve', startingPlayerCharacterId: 'hank', knownCharacterIds: ['hank', 'penny'] },
-        );
-
-        assert.deepStrictEqual(plan.sidecar, { hank: 1, penny: 2 });
-        assert.strictEqual(
-            plan.changes[0].proposedText,
-            [
-                'B.say`',
-                '  Player: |1| Hello.',
-                '  Penny: |1| Hi!',
-                '`;',
-                "B.character('penny').say`",
-                '  |2| Thanks.',
-                '`;',
-            ].join('\n'),
-        );
-    });
-
-    test('ignores comments and unrelated string contents', () => {
-        const plan = planVoiceIdsForFiles(
-            [
-                {
-                    path: 'src/game/rooms/apartment/apartment.room.ts',
-                    text: [
-                        "// B.player.say('Nope.');",
-                        "const sample = \"B.player.say('Nope.')\";",
-                        "B.player.say('Yes.');",
-                    ].join('\n'),
-                },
-            ],
-            {},
-            { mode: 'preserve', startingPlayerCharacterId: 'hank', knownCharacterIds: ['hank'] },
-        );
-
-        assert.strictEqual(plan.assignedCount, 1);
-        assert.strictEqual(
-            plan.changes[0].proposedText,
-            [
-                "// B.player.say('Nope.');",
-                "const sample = \"B.player.say('Nope.')\";",
-                "B.player.say('|1| Yes.');",
-            ].join('\n'),
-        );
-    });
-
-    test('exports direct say rows with optional voice ids', () => {
-        const result = exportSpeakingTextRowsForFiles(
-            [
-                {
-                    path: 'src/game/rooms/apartment/apartment.room.ts',
-                    text: [
-                        "B.player.say('|4| Hello there.');",
-                        'B.character("penny").say("Hi Hank.");',
-                    ].join('\n'),
-                },
-            ],
-            { startingPlayerCharacterId: 'hank', knownCharacterIds: ['hank', 'penny'] },
-        );
-
-        assert.deepStrictEqual(result.rows, [
-            {
-                character: 'hank',
-                id: '4',
-                script: 'apartment.room.ts',
-                line: 'Hello there.',
-            },
-            {
-                character: 'penny',
-                id: '',
-                script: 'apartment.room.ts',
-                line: 'Hi Hank.',
-            },
+    test('processes say blocks with speakers written as in JSON', () => {
+        const file = roomFile([
+            ...HEADER,
+            'room.onEnter(() => {',
+            '  say`',
+            '    Hank: Hello.',
+            '    BOTT-i3: |5| Greetings.',
+            '    Penny Lane: Hi!',
+            '  `',
+            '})',
         ]);
-        assert.strictEqual(result.skippedCount, 0);
+        const plan = planVoiceIdsForFiles([file], {}, { mode: 'preserve', ...scan });
+
+        assert.strictEqual(plan.assignedCount, 2);
+        assert.strictEqual(plan.preservedCount, 1);
+        assert.ok(plan.changes[0].proposedText.includes('    Hank: |1| Hello.\n'));
+        assert.ok(plan.changes[0].proposedText.includes('    Penny Lane: |1| Hi!\n'));
     });
 
-    test('exports free and fixed tagged template rows', () => {
-        const result = exportSpeakingTextRowsForFiles(
-            [
-                {
-                    path: 'src/game/dialogs/chat/chat.dialog.ts',
-                    text: [
-                        'B.say`',
-                        '  Player: |1| Hello.',
-                        '  Penny: |2| Hi!',
-                        '`;',
-                        "B.character('penny').say`",
-                        '  |3| Thanks.',
-                        '`;',
-                    ].join('\n'),
-                },
-            ],
-            { startingPlayerCharacterId: 'hank', knownCharacterIds: ['hank', 'penny'] },
-        );
+    test('ignores comments, plain strings and ordinary labels; skips lines it cannot attribute', () => {
+        const file = roomFile([
+            ...HEADER,
+            '// Hank: "commented"',
+            'const s = "Hank: not speech"',
+            'const who = characters.penny',
+            'room.onEnter(() => {',
+            '  outer: for (;;) break outer',
+            "  who.say('Through a variable.')",
+            '  Hank: s',
+            '})',
+        ]);
+        const result = exportSpeakingTextRowsForFiles([file], scan);
 
         assert.deepStrictEqual(result.rows, [
-            { character: 'hank', id: '1', script: 'chat.dialog.ts', line: 'Hello.' },
-            { character: 'penny', id: '2', script: 'chat.dialog.ts', line: 'Hi!' },
-            { character: 'penny', id: '3', script: 'chat.dialog.ts', line: 'Thanks.' },
+            { character: 'penny', id: '', script: 'apartment.room.ts', line: 'Through a variable.' },
+        ]);
+        assert.strictEqual(result.skippedCount, 1);
+    });
+
+    test('exports rows with optional voice ids', () => {
+        const file = roomFile([
+            ...HEADER,
+            'room.onEnter(() => {',
+            '  Hank: "|1| Hello."',
+            '  characters.botti3.say("Hi.")',
+            '})',
+        ]);
+        const result = exportSpeakingTextRowsForFiles([file], scan);
+
+        assert.deepStrictEqual(result.rows, [
+            { character: 'hank', id: '1', script: 'apartment.room.ts', line: 'Hello.' },
+            { character: 'botti3', id: '', script: 'apartment.room.ts', line: 'Hi.' },
         ]);
         assert.strictEqual(result.skippedCount, 0);
     });
@@ -204,6 +186,6 @@ suite('Voice ID Processor', () => {
             },
         ]);
 
-        assert.strictEqual(csv, '\uFEFFCharacter,ID,Script,Line\r\nhank,7,room.ts,"Hello, ""pal""\nNext"\r\n');
+        assert.strictEqual(csv, '﻿Character,ID,Script,Line\r\nhank,7,room.ts,"Hello, ""pal""\nNext"\r\n');
     });
 });

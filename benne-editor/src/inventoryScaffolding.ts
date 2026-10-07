@@ -82,14 +82,9 @@ export async function runCreateInventoryItemWizard(preferredFolder?: vscode.Work
         }
     };
 
-    const invTs = `import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('${id}', ({ B }) => {
-  // "Use" / "Give" on this item will automatically make it active for combining with world targets.
-  // Add B.whenUse / B.whenGive only if you need extra behavior (sound, dialogue, consumption, etc.).
-  // Use B.whenUse.doNotActivate / B.whenGive.doNotActivate if this item should never become active.
-  void B; // keep this until you add real handlers
-});
+    const invTs = `// Inventory script for \`${id}\` (docs/bennescript-ergonomics-refactor.md §4.6). Using a \`usesItem\` verb
+// (e.g. "Use") on the item arms it for "use on target" without any script. Add handlers for extra
+// behaviour: \`items.${id}.onLook(() => { … })\`, \`items.${id}.onCombine(items.other, () => { … })\`.
 `;
 
     await vscode.workspace.fs.createDirectory(invDir);
@@ -187,14 +182,9 @@ export async function runImportInventoryItemsFromAsepriteTags(
         await vscode.workspace.fs.writeFile(invJsonUri, formatJson(inventoryJson));
 
         if (writeScripts) {
-            const invTs = `import { registerInventoryScript } from '@engine/scripting';
-
-registerInventoryScript('${id}', ({ B }) => {
-  // "Use" / "Give" on this item will automatically make it active for combining with world targets.
-  // Add B.whenUse / B.whenGive only if you need extra behavior (sound, dialogue, consumption, etc.).
-  // Use B.whenUse.doNotActivate / B.whenGive.doNotActivate if this item should never become active.
-  void B; // keep this until you add real handlers
-});
+            const invTs = `// Inventory script for \`${id}\` (docs/bennescript-ergonomics-refactor.md §4.6). Using a \`usesItem\` verb
+// (e.g. "Use") on the item arms it for "use on target" without any script. Add handlers for extra
+// behaviour: \`items.${id}.onLook(() => { … })\`, \`items.${id}.onCombine(items.other, () => { … })\`.
 `;
             await vscode.workspace.fs.writeFile(invTsUri, new TextEncoder().encode(invTs));
         }

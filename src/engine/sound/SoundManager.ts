@@ -112,7 +112,7 @@ export class SoundManager {
   private musicSound: Phaser.Sound.BaseSound | null = null;
   /** Outgoing music instance during an active crossfade only. */
   private musicFadeOutSound: Phaser.Sound.BaseSound | null = null;
-  /** Completes the queued Bennescript step for the active crossfade (single slot). */
+  /** Resolves the waiting crossfade promise for the active crossfade (single slot). */
   private musicFadeInteractionResolve: (() => void) | null = null;
   /** Non-zero while a volume ramp uses {@link requestAnimationFrame}. */
   private musicFadeRafId = 0;
@@ -252,7 +252,7 @@ export class SoundManager {
           }
         } finally {
           // A throw while arming the keep-alive must not leave this promise pending.
-          // Callers such as B.sound.play sit on the interaction queue ahead of B.room.changeTo.
+          // A script waiting on a sound (`sfx.x.playAndWait()`) may be about to change rooms.
           resolve();
         }
       };
@@ -578,8 +578,8 @@ export class SoundManager {
     const start = (): void => {
       this.spawnSfx(id, options);
     };
-    // Do not hold the interaction queue on a device that is not running. The next step is
-    // often B.room.changeTo, and that transition never starts if this promise stays pending.
+    // Do not hold a waiting script on a device that is not running. The next step is often a
+    // room change (`rooms.x.goTo()`), and that transition never starts if this promise stays pending.
     // The clip is deferred until the device wakes; the entrance fade already waits separately.
     if (!this.isAudioRunning()) {
       const ctx = this.audioContext();
@@ -613,7 +613,7 @@ export class SoundManager {
     if (!this.game.cache.audio.has(key)) {
       if (import.meta.env.DEV) {
         console.warn(
-          `[Benne] B.sound.${api}: missing audio "${id}" (expected assets/audio/sfx/${id}.*).`,
+          `[Benne] sfx.${id}.${api}(): missing audio "${id}" (expected assets/audio/sfx/${id}.*).`,
         );
       }
       return false;
@@ -658,7 +658,7 @@ export class SoundManager {
     } catch (err) {
       cleanup();
       if (import.meta.env.DEV) {
-        console.warn(`[Benne] B.sound.play("${id}") failed.`, err);
+        console.warn(`[Benne] sfx.${id}.play() failed.`, err);
       }
       return null;
     }
@@ -749,7 +749,7 @@ export class SoundManager {
 
   /**
    * Plays music. Resolves immediately for instant playback; when **`fadeSeconds`** > 0, resolves
-   * after the crossfade duration so Bennescript **`interactionTail`** steps stay ordered.
+   * after the crossfade duration.
    */
   playMusic(id: string, options?: MusicPlayOptions): Promise<void> {
     return this.playMusicAsync(id, options);
@@ -762,7 +762,7 @@ export class SoundManager {
     const key = benneMusicCacheKey(id);
     if (!this.game.cache.audio.has(key)) {
       console.warn(
-        `[Benne] B.sound.playMusic: missing audio "${id}" (expected assets/audio/music/${id}.*).`,
+        `[Benne] music.${id}.play(): missing audio "${id}" (expected assets/audio/music/${id}.*).`,
       );
       return;
     }
@@ -796,7 +796,7 @@ export class SoundManager {
         this.musicSound = null;
         const ctx = (this.game.sound as { context?: AudioContext }).context;
         console.warn(
-          `[Benne] B.sound.playMusic: failed to start "${id}" (audio context ${ctx?.state ?? 'none'}).`,
+          `[Benne] music.${id}.play(): failed to start "${id}" (audio context ${ctx?.state ?? 'none'}).`,
           err,
         );
       }
@@ -935,7 +935,7 @@ export class SoundManager {
         }
       }
       this.musicFadeOutSound = null;
-      console.warn(`[Benne] B.sound.playMusic: failed to start crossfade for "${key}".`);
+      console.warn(`[Benne] music.play(): failed to start crossfade for "${key}".`);
       return Promise.resolve();
     }
 

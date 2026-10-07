@@ -1,7 +1,7 @@
 /**
- * Per-cutscene options for **`B.cutscene(fn, options)`** and the hooks the engine wraps in a
- * cutscene automatically (**`whenEnterRoom`**, **`whenEnterRoomAfterFade`**, **`whenEnterAnyRoom`**,
- * **`whenEnterAnyRoomAfterFade`**, **`whenChoice`**).
+ * Per-cutscene options for **`cutscene(fn, options)`** and the room-transition hooks the engine
+ * wraps in a cutscene automatically (**`room.onEnter`**, **`room.onEnterAfterFade`**,
+ * **`game.onEnterAnyRoom`**, **`game.onEnterAnyRoomAfterFade`**).
  */
 export interface CutsceneOptions {
   /**

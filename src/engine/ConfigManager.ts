@@ -578,7 +578,7 @@ export function getSpeechSettingsFromConfig(): GameSettingsSpeech {
 
 /**
  * Merged `speech` values: when `manager` is set, overlays runtime `speech:*` variables
- * (see `B.speechSettings`); otherwise returns config defaults only.
+ * (see `settings.textSpeed` / `settings.clickToSkip`); otherwise returns config defaults only.
  */
 export function getSpeechSettings(manager?: GameStateManager | null): GameSettingsSpeech {
   if (manager) {
@@ -594,7 +594,7 @@ export function getDialogSettingsFromConfig(): GameSettingsDialog {
 
 /**
  * Merged `dialog` values: when `manager` is set, overlays runtime `dialog:*` variables
- * (see `B.dialogSettings`); otherwise returns config defaults only.
+ * (the `dialog:*` game-state variables); otherwise returns config defaults only.
  */
 export function getDialogSettings(manager?: GameStateManager | null): GameSettingsDialog {
   if (manager) {

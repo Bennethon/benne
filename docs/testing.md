@@ -22,11 +22,13 @@ On headless Linux, run extension and Electron tests through `xvfb-run -a`. Playw
 | Command | Contract |
 | --- | --- |
 | `npm test` | Fast deterministic Vitest logic tests |
-| `npm run check` | Engine, tests and extension type checking; correctness lint; content validation; generated-ID freshness |
+| `npm run check` | Engine, tests and extension type checking; correctness lint (including the BenneScript rules on `src/game`, design doc §6.3); content validation; BenneScript handle generation (`check:generated`); the generated half of `docs/bennescript-api.md` is up to date with the JSDoc (`check:docs`) |
 | `npm run test:ci` | Checks, unit tests, existing desktop logic and blocker/pathfinding regressions |
 | `npm run test:coverage` | Unit coverage with minimums on critical modules; HTML and LCOV under `coverage/` |
 | `npm run test:extension` | Real VS Code extension-host integration tests |
 | `npm run test:e2e` | Real Phaser runtime and pointer input in Chromium |
+| `npm run test:playthrough` | The game in `src/game` (the 9-verb template) on the Vite dev server, played start to finish through the dev/test hooks (`src/engine/testing/benneTestHooks.ts`): every spoken line in order, flags, inventory, prop state, the active player and the menus. Also real mouse clicks on an inventory slot, and a smoke test for every Play From entry point in BENNE Play |
+| `npm run test:templates` | The other game template (`game-templates/2-click`) in a throwaway workspace (`scripts/template-workspace.mjs`), played the same way |
 | `npm run test:artifacts -- --vsix` | Temporary production/template builds, web ZIP structure, extracted VSIX and plugin resolution |
 | `npm run test:nightly` | Local aggregate of fast, host, browser and artifact suites |
 | `npm run test:release` | Local aggregate including VSIX checks |
@@ -42,7 +44,9 @@ On headless Linux, run extension and Electron tests through `xvfb-run -a`. Playw
 | `pathfinding.ts`, `walkable.ts` | Deterministic seeded polygon/hole routes, safe segments, unreachable partitions and partial paths, existing blocker regressions |
 | `verbs/resolvePointerVerb.ts`, `dispatchVerb.ts` | Pointer profiles, selected verb/inventory, walking/cancellation, handler precedence and disabled fallback |
 | `gameState/GameStateManager.ts`, `characterInventory.ts` | Historical v1/v2 snapshots, per-character inventory, snapshot flush hooks, named saves, malformed input, storage failures |
-| `scripting/registerRoomScript.ts`, `RoomTransitionHookRegistry.ts` | Ordering, clearing, thrown callbacks, load deduplication, concurrent room isolation, retry after failure |
+| `scenes/roomScriptModules.ts`, `RoomTransitionHookRegistry.ts` | Ordering, clearing, thrown callbacks, load deduplication, concurrent room isolation, retry after failure |
+| `scripts/lib/bennescriptTransform.mjs`, `src/engine/bennescript/` | The transform's output and build errors; one test per sequencing rule (design doc §5), blocks, the interrupt and save policies, dialogs and sub-dialogs; the handle API against a fake game; parity with every feature of the old API (`bennescript*.test.ts`) |
+| `scripts/lib/generateGameHandles.mjs`, `benneSpeakers.mjs`, `benneVerbs.mjs` | Generated modules for synthetic games, naming, collisions, reserved names and verbs, speaker resolution (`handleGenerator.test.mjs`) |
 | `gui/guiGridLayout.ts`, character/animation helpers | Grid allocation/spans/placement, Aseprite tag families, facing/mirroring, feet and trimmed-frame transforms, region defaults, follow normalization |
 | `inspectorJsonDocument.ts`, `roomPolygonPatch.ts` | Actual VS Code dirty-document edits, disk persistence, unrelated-field preservation, missing-target no-op, finite coordinates, queue overlap/nesting/failure |
 | `scaffoldPayload.ts`, `playFromDiscovery.ts`, script and voice helpers | Non-destructive creation/update, custom package settings, semver, handler and launch-target discovery, existing voice-ID contracts |

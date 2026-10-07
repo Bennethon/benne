@@ -1,0 +1,49 @@
+{
+  "BenneScript: room enter": {
+    "scope": "typescript",
+    "prefix": "room-enter",
+    "description": "room.onEnterAfterFade(() => { … }) with a first-visit branch (docs/bennescript-ergonomics-refactor.md §4.4)",
+    "body": [
+      "room.onEnterAfterFade(() => {",
+      "  if (room.isFirstVisit) {",
+      "    ${1:Player}: \"${2:What is this place?}\"",
+      "  }",
+      "  $0",
+      "})"
+    ]
+  },
+  "BenneScript: cutscene": {
+    "scope": "typescript",
+    "prefix": "cutscene",
+    "description": "cutscene(() => { … }): world clicks ignored, the skip key fast-forwards the block (§4.12)",
+    "body": [
+      "cutscene(() => {",
+      "  ${1:Player}: \"${2:…}\"",
+      "  $0",
+      "})"
+    ]
+  },
+  "BenneScript: dialog choice": {
+    "scope": "typescript",
+    "prefix": "choice",
+    "description": "options.x.onChoose(() => { … }) in a dialog script (§4.8)",
+    "body": [
+      "options.${1:option}.onChoose${2|,Once|}(() => {",
+      "  ${3:Player}: \"${4:…}\"",
+      "  $0",
+      "})"
+    ]
+  },
+  "BenneScript: use item": {
+    "scope": "typescript",
+    "prefix": "use-item",
+    "description": "target.onUseItem(items.x, () => { … }) (§4.6)",
+    "body": [
+      "${1:target}.onUseItem(items.${2:item}, () => {",
+      "  walkToClicked()",
+      "  ${3:Player}: \"${4:…}\"",
+      "  $0",
+      "})"
+    ]
+  }
+}

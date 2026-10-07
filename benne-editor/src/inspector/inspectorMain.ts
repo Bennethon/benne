@@ -95,8 +95,8 @@ type InspectorRegionCard = {
     tintEnabled: boolean;
     tint: string;
     tintAlpha: number;
-    whenEnterDefined: boolean;
-    whenExitDefined: boolean;
+    onEnterDefined: boolean;
+    onExitDefined: boolean;
 };
 
 type InspectorRoomState = {
@@ -118,9 +118,9 @@ type InspectorRoomState = {
     points: InspectorPointCard[];
     regions: InspectorRegionCard[];
     expanded: { entity: string; id: string } | null;
-    whenLoadedRoomDefined: boolean;
-    whenEnterRoomDefined: boolean;
-    whenEnterRoomAfterFadeDefined: boolean;
+    roomOnLoadedDefined: boolean;
+    roomOnEnterDefined: boolean;
+    roomOnEnterAfterFadeDefined: boolean;
     onUpdateDefined: boolean;
 };
 
@@ -497,9 +497,9 @@ type InspectorGuiState = {
     fontIds: string[];
     controls: InspectorGuiControlCard[];
     expanded: { entity: string; id: string } | null;
-    onGuiBuiltDefined: boolean;
-    onGuiShowDefined: boolean;
-    onGuiHideDefined: boolean;
+    onBuiltDefined: boolean;
+    onShowDefined: boolean;
+    onHideDefined: boolean;
 };
 
 type InspectorInventoryAnimationCard = {
@@ -792,7 +792,7 @@ function inspectorItemExpanded(
 }
 
 function renderGuiLifecycleHookRow(state: InspectorGuiState): string {
-    const mk = (hook: 'onGuiBuilt' | 'onGuiShow' | 'onGuiHide', defined: boolean, label: string): string => {
+    const mk = (hook: 'onBuilt' | 'onShow' | 'onHide', defined: boolean, label: string): string => {
         const cls = defined ? 'verb-chip verb-defined' : 'verb-chip verb-add';
         const icon = defined ? '⚡' : '+';
         const title = defined
@@ -801,15 +801,15 @@ function renderGuiLifecycleHookRow(state: InspectorGuiState): string {
         return `<button type="button" class="${cls}" data-gui-lifecycle="${esc(hook)}" title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(label)}</span></button>`;
     };
     return `<div class="benne-gui-lifecycle row wrap" role="group" aria-label="GUI script lifecycle hooks" style="margin-bottom:10px;">
-${mk('onGuiBuilt', state.onGuiBuiltDefined, 'onGuiBuilt')}
-${mk('onGuiShow', state.onGuiShowDefined, 'onGuiShow')}
-${mk('onGuiHide', state.onGuiHideDefined, 'onGuiHide')}
+${mk('onBuilt', state.onBuiltDefined, 'gui.onBuilt')}
+${mk('onShow', state.onShowDefined, 'gui.onShow')}
+${mk('onHide', state.onHideDefined, 'gui.onHide')}
 </div>`;
 }
 
 function renderRoomLifecycleHookRow(state: InspectorRoomState): string {
     const mk = (
-        hook: 'whenLoadedRoom' | 'whenEnterRoom' | 'whenEnterRoomAfterFade' | 'onUpdate',
+        hook: 'onLoaded' | 'onEnter' | 'onEnterAfterFade' | 'onUpdate',
         defined: boolean,
         label: string
     ): string => {
@@ -821,9 +821,9 @@ function renderRoomLifecycleHookRow(state: InspectorRoomState): string {
         return `<button type="button" class="${cls}" data-room-lifecycle="${esc(hook)}" title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">${esc(label)}</span></button>`;
     };
     return `<div class="benne-room-lifecycle row wrap" role="group" aria-label="Room script lifecycle hooks" style="margin-bottom:10px;">
-${mk('whenLoadedRoom', state.whenLoadedRoomDefined, 'whenLoadedRoom')}
-${mk('whenEnterRoom', state.whenEnterRoomDefined, 'whenEnterRoom')}
-${mk('whenEnterRoomAfterFade', state.whenEnterRoomAfterFadeDefined, 'whenEnterRoomAfterFade')}
+${mk('onLoaded', state.roomOnLoadedDefined, 'room.onLoaded')}
+${mk('onEnter', state.roomOnEnterDefined, 'room.onEnter')}
+${mk('onEnterAfterFade', state.roomOnEnterAfterFadeDefined, 'room.onEnterAfterFade')}
 ${mk('onUpdate', state.onUpdateDefined, 'onUpdate')}
 </div>`;
 }
@@ -883,8 +883,8 @@ function renderRegionScriptHandlerChips(r: InspectorRegionCard): string {
     };
     return `<label class="benne-field-label muted small">Script</label>
 <div class="benne-verb-chips" role="group" aria-label="Region enter and exit handlers">
-${mk('enter', r.whenEnterDefined, 'When Enter', 'B.region(…).whenEnter — reveal or add stub')}
-${mk('exit', r.whenExitDefined, 'When Exit', 'B.region(…).whenExit — reveal or add stub')}
+${mk('enter', r.onEnterDefined, 'onEnter', 'regions.….onEnter — reveal or add stub')}
+${mk('exit', r.onExitDefined, 'onExit', 'regions.….onExit — reveal or add stub')}
 </div>`;
 }
 
@@ -898,8 +898,8 @@ function renderRoomInvUsedOnChipInner(
     const dataReveal = defined ? 'data-inv-reveal="1"' : '';
     const dataAdd = !defined ? 'data-inv-add="1"' : '';
     const title = defined
-        ? `Reveal B.whenInventoryUsedOn('${targetId}', …) in room script`
-        : `Insert B.whenInventoryUsedOn('${targetId}', …) stub in room script`;
+        ? `Reveal the item handler (onUseItem / onAnyItem …) for "${targetId}" in the room script`
+        : `Add ${targetId}.onAnyItem(() => { … }) to the room script`;
     return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} data-inv-target="${esc(target)}" data-inv-target-id="${esc(targetId)}" title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">Inv</span></button>`;
 }
 
@@ -909,8 +909,8 @@ function renderCharacterDefInvUsedOnChipInner(defined: boolean, characterId: str
     const dataReveal = defined ? 'data-inv-reveal="1"' : '';
     const dataAdd = !defined ? 'data-inv-add="1"' : '';
     const title = defined
-        ? `Reveal B.whenInventoryUsedOn('${characterId}', …) in character script`
-        : `Insert B.whenInventoryUsedOn('${characterId}', …) stub in character script`;
+        ? `Reveal the item handler (onUseItem / onAnyItem …) in the character script`
+        : `Add characters.${characterId}.onAnyItem(() => { … }) to the character script`;
     return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">Inv</span></button>`;
 }
 
@@ -922,14 +922,14 @@ function renderInventoryItemInvUsedOnChipInner(defined: boolean, itemId: string)
     const dataReveal = defined ? 'data-inv-reveal="1"' : '';
     const dataAdd = !defined ? 'data-inv-add="1"' : '';
     const title = defined
-        ? `Reveal B.whenInventoryUsedOn('${itemId}', …) in inventory script`
-        : `Insert B.whenInventoryUsedOn('${itemId}', …) stub in inventory script`;
+        ? `Reveal the item-on-item handler (onCombine / onAnyItem …) in the inventory script`
+        : `Add items.${itemId}.onAnyItem(() => { … }) to the inventory script`;
     return `<button type="button" class="${cls}" ${dataReveal} ${dataAdd} title="${esc(title)}"><span class="verb-chip-glyph" aria-hidden="true">${icon}</span><span class="verb-chip-txt">Inv</span></button>`;
 }
 
 /**
  * Renders the per-clickable "Default verb" dropdown. The selected value is the currently-authored
- * verb (falling back to `"look"` when JSON omits `defaultVerb`). Classes below drive the change
+ * verb (the game-level default verb when JSON omits `defaultVerb`). Classes below drive the change
  * handlers installed in each panel's mount function.
  */
 function renderDefaultVerbSelect(
@@ -1780,8 +1780,8 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
               ? `<div style="margin:8px 0 0;">
         <button type="button" class="btn-secondary gui-on-click-btn" data-button-id="${esc(c.controlId)}">On Click</button>
       </div>
-      <p class="muted small" style="margin:8px 0 0;">Runtime: <code>control(…).enabled</code>, <code>setVisualState</code>.</p>`
-              : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> in raw JSON for <code>B.whenButtonClick</code>.</p>`
+      <p class="muted small" style="margin:8px 0 0;">Script: <code>${esc(c.controlId)}</code> handle — <code>onClick</code>, <code>enabled</code>, <code>visualState</code>.</p>`
+              : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> in raw JSON to script this button (<code>onClick</code>).</p>`
       }`;
     }
 
@@ -1829,10 +1829,9 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       ${
           c.controlId
               ? `<div style="margin:8px 0 0;display:flex;gap:8px;flex-wrap:wrap;">
-        <button type="button" class="btn-secondary gui-on-check-btn" data-checkbox-id="${esc(c.controlId)}">On Check</button>
-        <button type="button" class="btn-secondary gui-on-uncheck-btn" data-checkbox-id="${esc(c.controlId)}">On Uncheck</button>
+        <button type="button" class="btn-secondary gui-on-check-btn" data-checkbox-id="${esc(c.controlId)}">On Change</button>
       </div>`
-              : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> in raw JSON for <code>B.whenCheckboxCheck</code> / <code>whenCheckboxUncheck</code>.</p>`
+              : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> in raw JSON to script this checkbox (<code>onChange((checked) =&gt; …)</code>).</p>`
       }`;
     }
 
@@ -1884,9 +1883,9 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       ${
           c.controlId
               ? `<div style="margin:8px 0 0;">
-        <button type="button" class="btn-secondary gui-on-value-changed-btn" data-slider-id="${esc(c.controlId)}">When Value Changed</button>
+        <button type="button" class="btn-secondary gui-on-value-changed-btn" data-slider-id="${esc(c.controlId)}">On Change</button>
       </div>`
-              : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> for <code>control(…).whenValueChanged</code>.</p>`
+              : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> to script this slider (<code>onChange</code>).</p>`
       }`;
     }
 
@@ -1944,10 +1943,9 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       ${
           c.controlId
               ? `<div style="margin:8px 0 0; display:flex; flex-wrap:wrap; gap:8px;">
-        <button type="button" class="btn-secondary gui-text-input-value-changed-btn" data-text-input-id="${esc(c.controlId)}">When Value Changed</button>
-        <button type="button" class="btn-secondary gui-text-input-submit-btn" data-text-input-id="${esc(c.controlId)}">On Submit</button>
+        <button type="button" class="btn-secondary gui-text-input-value-changed-btn" data-text-input-id="${esc(c.controlId)}">On Change</button>
       </div>`
-              : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> for <code>control(…).whenValueChanged</code> / <code>whenSubmit</code>.</p>`
+              : `<p class="muted small" style="margin:8px 0 0;">Add a unique <code>id</code> to script this text input (<code>onChange</code>).</p>`
       }`;
     }
 
@@ -1995,7 +1993,7 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
       ${colorsBlock}
       ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
-      <p class="muted small" style="margin:8px 0 0;">Runtime scripting: <code>control(…).selectedIndex</code>, <code>setRowText</code>, <code>whenSelectionChanged</code>, <code>whenItemActivated</code>.</p>`;
+      <p class="muted small" style="margin:8px 0 0;">Script: <code>selectedIndex</code>, <code>setRowText()</code>, <code>onSelect((index) =&gt; …)</code>.</p>`;
     }
 
     if (c.controlKind === 'nineSliceImage') {
@@ -2092,7 +2090,7 @@ function renderGuiControlCardBody(state: InspectorGuiState, c: InspectorGuiContr
       <div class="benne-scroll-bounds-label muted small">Position &amp; size</div>
       ${guiDimInputsForControl(idx, c.x, c.y, { width: c.width, height: c.height })}
       ${renderGuiGridPlacementAccordion(state, c.key, idx, c.gridPlacement)}
-      <p class="muted small" style="margin:8px 0 0;">Invisible hit zone. Wire <code>B.whenMouseEnter('${esc(c.controlId || 'id')}', …)</code> and <code>B.whenMouseLeave</code> in <code>*.gui.ts</code>.</p>`;
+      <p class="muted small" style="margin:8px 0 0;">Invisible hit zone. Script it with <code>onMouseEnter</code> / <code>onMouseLeave</code> on its handle in <code>*.gui.ts</code>.</p>`;
     }
 
     if (c.controlKind === 'grid') {
@@ -2277,7 +2275,7 @@ function renderDialogOptionCard(state: InspectorDialogState, opt: InspectorDialo
         <span class="benne-pg-lbl">used (JSON)</span>
         <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-used" data-idx="${opt.index}" ${opt.used ? 'checked' : ''} title="Authoring default; runtime may persist picks via game state." /></label>
         <span class="benne-pg-lbl">say line</span>
-        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-say" data-idx="${opt.index}" ${opt.say ? 'checked' : ''} title="When checked, the player speaks the option text before the whenChoice script runs." /></label>
+        <label class="benne-pg-check benne-inline-check"><input type="checkbox" class="dlg-opt-say" data-idx="${opt.index}" ${opt.say ? 'checked' : ''} title="When checked, the player speaks the option text before its onChoose handler runs." /></label>
         <span class="benne-pg-lbl">script</span>
         <button type="button" class="btn-secondary dlg-opt-script" data-idx="${opt.index}">Script…</button>
         <span class="benne-pg-lbl"></span>
@@ -2301,7 +2299,7 @@ function renderDialog(state: InspectorDialogState): string {
           <span class="benne-pg-lbl">guiId</span>
           <input type="text" id="dlg-gui-id" value="${esc(state.guiId)}" placeholder="dialog (default)" title="Choice GUI overlay id; omit or use dialog for the default choice overlay." />
         </div>
-        <p class="muted small" style="margin-top:8px;">Topic lines are edited as <strong>options</strong> below (SCUMM-style list). The companion <code>.dialog.ts</code> is open in the editor — use <strong>Script…</strong> to add <code>B.whenChoice</code> handlers.</p>
+        <p class="muted small" style="margin-top:8px;">Topic lines are edited as <strong>options</strong> below (SCUMM-style list). The companion <code>.dialog.ts</code> is open in the editor — use <strong>Script…</strong> to add <code>options.x.onChoose</code> handlers.</p>
       </div>
     </details>
     <details class="section" open>
@@ -2836,9 +2834,9 @@ function mountHandlers(state: InspectorRoomState): void {
             const b = btn as HTMLButtonElement;
             const hook = b.dataset.roomLifecycle ?? '';
             if (
-                hook === 'whenLoadedRoom' ||
-                hook === 'whenEnterRoom' ||
-                hook === 'whenEnterRoomAfterFade' ||
+                hook === 'onLoaded' ||
+                hook === 'onEnter' ||
+                hook === 'onEnterAfterFade' ||
                 hook === 'onUpdate'
             ) {
                 post('roomLifecycleHook', {
@@ -3375,7 +3373,7 @@ function mountGuiHandlers(state: InspectorGuiState): void {
     document.querySelectorAll('.verb-chip[data-gui-lifecycle]').forEach((btn) => {
         btn.addEventListener('click', () => {
             const hook = (btn as HTMLButtonElement).dataset.guiLifecycle ?? '';
-            if (hook === 'onGuiBuilt' || hook === 'onGuiShow' || hook === 'onGuiHide') {
+            if (hook === 'onBuilt' || hook === 'onShow' || hook === 'onHide') {
                 post('guiLifecycleHook', {
                     guiJsonUri: state.guiJsonUri,
                     guiId: state.guiId,
@@ -3534,16 +3532,6 @@ function mountGuiHandlers(state: InspectorGuiState): void {
             post('guiEnsureCheckboxCheckHandler', { guiJsonUri: state.guiJsonUri, checkboxId });
         });
     });
-    document.querySelectorAll('.gui-on-uncheck-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            const b = btn as HTMLButtonElement;
-            const checkboxId = b.dataset.checkboxId ?? '';
-            if (!checkboxId) {
-                return;
-            }
-            post('guiEnsureCheckboxUncheckHandler', { guiJsonUri: state.guiJsonUri, checkboxId });
-        });
-    });
     document.querySelectorAll('.gui-on-value-changed-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
             const b = btn as HTMLButtonElement;
@@ -3565,16 +3553,6 @@ function mountGuiHandlers(state: InspectorGuiState): void {
                 guiJsonUri: state.guiJsonUri,
                 textInputId
             });
-        });
-    });
-    document.querySelectorAll('.gui-text-input-submit-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            const b = btn as HTMLButtonElement;
-            const textInputId = b.dataset.textInputId ?? '';
-            if (!textInputId) {
-                return;
-            }
-            post('guiEnsureTextInputSubmitHandler', { guiJsonUri: state.guiJsonUri, textInputId });
         });
     });
 }

@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { validateGameContent } from '../../scripts/lib/validate-game-content.mjs';
-import { scanGameContentIds } from '../../scripts/lib/scanGameContentIds.mjs';
 const roots = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 async function fixture() {
@@ -35,15 +34,6 @@ it('rejects missing manifest entries and path traversal assets', async () => {
   const diagnostics = await validateGameContent(root);
   expect(diagnostics.some(d => d.message.includes('escapes'))).toBe(true);
   expect(diagnostics.some(d => d.message.includes('Missing room definition'))).toBe(true);
-});
-it('scanner sorts IDs, tolerates unfinished JSON and updates on deletion', async () => {
-  const { root, write } = await fixture();
-  await write('rooms/z/z.room.json', { id: 'z' });
-  const first = await scanGameContentIds(root);
-  expect(first.ids.roomIds).toEqual(['hall', 'z']);
-  expect(await scanGameContentIds(root)).toEqual(first);
-  await rm(path.join(root, 'rooms/z'), { recursive: true });
-  expect((await scanGameContentIds(root)).ids.roomIds).toEqual(['hall']);
 });
 it('reports malformed collection shapes without crashing validation', async () => {
   const { root, write } = await fixture();

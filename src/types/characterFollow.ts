@@ -1,8 +1,7 @@
 import type { Point2 } from './room.js';
 
 /**
- * Options for {@link import('../engine/scripting/benneScriptFacades.js').BenneScriptCharacterFacade.startFollowingCharacter}
- * / {@link import('../engine/scripting/benneScriptFacades.js').BenneScriptPlayerFacade} (same API).
+ * Options for BenneScript's `character.startFollowing(target, options)`.
  */
 export interface CharacterFollowOptions {
   /**

@@ -1,87 +1,45 @@
-import { registerGuiScript } from '@engine/scripting';
+import { saves } from '@benne/script';
+import { guis } from '@game';
+import { gui, backBtn, loadBtn, loadList } from './load-menu.ids';
 
-const MAX_SLOTS = 5;
+/** Five fixed slots (0–4). */
+const SLOTS = 5
+let selected = 0
 
-/**
- * GUI script for `load-menu`.
- * Five fixed slots (0–4); `B.state.load(slot)` restores the selected slot.
- */
-registerGuiScript('load-menu', ({ B }) => {
-  B.whenButtonClick('back-btn', () => {
-    B.gui('load-menu').hide();
-    B.gui('game-menu').show();
-  });
-
-  let selectedSlotIndex = 0;
-
-  /** Map manifest entries onto fixed slot indices (ignores unnamed / out-of-range saves). */
-  function getSavesBySlot() {
-    const bySlot: Array<{ name: string; slot?: number; timestamp: number } | undefined> =
-      Array(MAX_SLOTS);
-    for (const save of B.state.getSaveList()) {
-      const slot = save.slot;
-      if (typeof slot === 'number' && slot >= 0 && slot < MAX_SLOTS) {
-        bySlot[slot] = save;
-      }
-    }
-    return bySlot;
+function firstUsedSlot(): number {
+  for (let i = 0; i < SLOTS; i++) {
+    if (saves.get(i)) return i
   }
+  return 0
+}
 
-  function firstOccupiedOrZero(savesBySlot: ReturnType<typeof getSavesBySlot>): number {
-    for (let i = 0; i < MAX_SLOTS; i++) {
-      if (savesBySlot[i]) return i;
-    }
-    return 0;
+/** Repaints the rows. `autoSelect` picks the first used slot (or 0 if none). */
+function refresh(autoSelect: boolean) {
+  for (let i = 0; i < SLOTS; i++) {
+    loadList.setRowText(i, saves.get(i)?.name ?? `(Empty Slot ${i + 1})`)
   }
+  if (autoSelect) selected = firstUsedSlot()
+  loadList.selectedIndex = selected
+  loadBtn.enabled = saves.get(selected) != null
+}
 
-  function syncLoadButton(slotIndex: number) {
-    const save = getSavesBySlot()[slotIndex];
-    B.gui('load-menu').control('load-btn').enabled = !!save;
-  }
+// Built once per room; the saves can change in between, so re-read them whenever it opens.
+gui.onBuilt(() => refresh(true))
+gui.onShow(() => refresh(false))
 
-  /** Repaint list rows. When `autoSelect` is true, pick the first occupied slot (or 0 if none). */
-  function refreshLoadList(autoSelect: boolean) {
-    const savesBySlot = getSavesBySlot();
-    const listBox = B.gui('load-menu').control('load-list');
+loadList.onSelect((i) => {
+  selected = i
+  loadBtn.enabled = saves.get(i) != null
+})
 
-    for (let i = 0; i < MAX_SLOTS; i++) {
-      const existing = savesBySlot[i];
-      listBox.setRowText(i, existing ? existing.name : `(Empty Slot ${i + 1})`);
-    }
+loadBtn.onClick(() => {
+  if (!saves.get(selected)) return
+  gui.hide()
+  guis.gameMenu.hide()
+  saves.load(selected)
+})
 
-    if (autoSelect) {
-      selectedSlotIndex = firstOccupiedOrZero(savesBySlot);
-    }
-
-    listBox.selectedIndex = selectedSlotIndex;
-  }
-
-  B.onGuiBuilt(() => {
-    const gui = B.gui('load-menu');
-    const listBox = gui.control('load-list');
-
-    refreshLoadList(true);
-    syncLoadButton(selectedSlotIndex);
-
-    listBox.whenSelectionChanged((index: number) => {
-      selectedSlotIndex = index;
-      syncLoadButton(index);
-    });
-  });
-
-  /** `onGuiBuilt` runs once per room load; re-read the manifest whenever the menu is opened. */
-  B.onGuiShow(() => {
-    refreshLoadList(false);
-    syncLoadButton(selectedSlotIndex);
-  });
-
-  B.whenButtonClick('load-btn', () => {
-    if (!getSavesBySlot()[selectedSlotIndex]) return;
-
-    const loaded = B.state.load.now(selectedSlotIndex);
-    if (!loaded) return;
-
-    B.gui('load-menu').hide();
-    B.gui('game-menu').hide();
-  });
-});
+backBtn.onClick(() => {
+  gui.hide()
+  guis.gameMenu.show()
+})

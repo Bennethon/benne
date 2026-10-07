@@ -1,16 +1,10 @@
-import { registerInventoryScript } from '@engine/scripting';
+import { items } from '@game';
 
-registerInventoryScript('Sammich', ({ B }) => {
-  // "Use" / "Give" on this item will automatically make it active for combining with world targets.
-  // Add B.whenUse / B.whenGive only if you need extra behavior (sound, dialogue, consumption, etc.).
-  // Use B.whenUse.doNotActivate / B.whenGive.doNotActivate if this item should never become active.
-  void B; // keep this until you add real handlers
+items.sammich.onLook(() => {
+  Player: "It looks delicious!"
+})
 
-  B.whenLookAt(() => {
-    B.player.say('It looks delicious!');
-  });
-
-  B.whenUse.doNotActivate(() => {
-    B.player.say('I am not hungry right now.');
-  });
-});
+// `doNotActivate`: Use says a line instead of arming the sandwich. Give still arms it.
+items.sammich.onUse.doNotActivate(() => {
+  Player: "I am not hungry right now."
+})

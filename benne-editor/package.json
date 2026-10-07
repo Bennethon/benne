@@ -64,6 +64,12 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "snippets": [
+      {
+        "language": "typescript",
+        "path": "./snippets/bennescript.code-snippets"
+      }
+    ],
     "typescriptServerPlugins": [
       {
         "name": "benne-room-id-completions",
@@ -127,8 +133,8 @@
         "category": "BENNE"
       },
       {
-        "command": "benne-editor.revealRegisterRoomScript",
-        "title": "Go to registerRoomScript",
+        "command": "benne-editor.revealRoomScript",
+        "title": "Open room script",
         "category": "BENNE"
       },
       {
@@ -138,12 +144,12 @@
       },
       {
         "command": "benne-editor.revealRoomRegionHandler",
-        "title": "Reveal room region whenEnter / whenExit handler",
+        "title": "Reveal room region onEnter / onExit handler",
         "category": "BENNE"
       },
       {
         "command": "benne-editor.addRoomRegionHandler",
-        "title": "Add room region whenEnter / whenExit stub",
+        "title": "Add room region onEnter / onExit stub",
         "category": "BENNE",
         "icon": "$(add)"
       },
@@ -183,32 +189,32 @@
       },
       {
         "command": "benne-editor.addRoomInventoryUsedOnStub",
-        "title": "Add B.whenInventoryUsedOn stub (room script)",
+        "title": "Add item handler stub (room script)",
         "category": "BENNE"
       },
       {
         "command": "benne-editor.addCharacterInventoryUsedOnStub",
-        "title": "Add B.whenInventoryUsedOn stub (character script)",
+        "title": "Add item handler stub (character script)",
         "category": "BENNE"
       },
       {
         "command": "benne-editor.addInventoryItemInventoryUsedOnStub",
-        "title": "Add B.whenInventoryUsedOn stub (inventory item script)",
+        "title": "Add item handler stub (inventory item script)",
         "category": "BENNE"
       },
       {
         "command": "benne-editor.revealRoomInventoryUsedOn",
-        "title": "Reveal B.whenInventoryUsedOn handler (room script)",
+        "title": "Reveal item handler (room script)",
         "category": "BENNE"
       },
       {
         "command": "benne-editor.revealCharacterInventoryUsedOn",
-        "title": "Reveal B.whenInventoryUsedOn handler (character script)",
+        "title": "Reveal item handler (character script)",
         "category": "BENNE"
       },
       {
         "command": "benne-editor.revealInventoryItemInventoryUsedOn",
-        "title": "Reveal B.whenInventoryUsedOn handler (inventory item script)",
+        "title": "Reveal item handler (inventory item script)",
         "category": "BENNE"
       },
       {

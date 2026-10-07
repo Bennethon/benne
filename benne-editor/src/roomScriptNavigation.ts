@@ -1,20 +1,10 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
-import { readRoomProps } from './gameDiscovery';
+import { handlerSpecFromEventId, isFallbackEventId } from './bennescript/handlerEvents';
+import type { HandlerSpec, VerbTarget } from './bennescript/handlerSpecs';
 import { ensureRoomVerbHandlerStubForReveal } from './propVerbScaffolding';
-import {
-    findCharacterScriptVerbRangeForEventId,
-    findGuiScriptGuiLifecycleHookRangeRobust,
-    findInventoryScriptVerbRangeForEventId,
-    findRoomScriptRegionHandlerRangeRobust,
-    findRoomScriptRoomLifecycleHookRangeRobust,
-    findRoomScriptVerbRangeForEventIdRobust,
-    findWhenInventoryUsedOnHandlerRangeRobust,
-    readConfiguredVerbIdSet,
-    type GuiLifecycleHookKind,
-    type RoomLifecycleHookKind
-} from './verbHandlerPresence';
+import { gameRootOf, handlersInText, readScriptText, revealHandler, revealRange } from './scriptHandlers';
 
 /**
  * Helpers for the Benne editor two-row layout: they open the **companion `*.ts`** next to a definition
@@ -113,57 +103,7 @@ export async function openDocumentUri(uri: vscode.Uri, preview: boolean, viewCol
     });
 }
 
-/** Scroll to `B.onGuiBuilt` / `onGuiShow` / `onGuiHide` (or `ctx.` / other qualifier) in `*.gui.ts`. */
-export async function revealGuiLifecycleHookInDocument(
-    scriptUri: vscode.Uri,
-    hook: GuiLifecycleHookKind,
-    viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active
-): Promise<boolean> {
-    try {
-        await vscode.workspace.fs.stat(scriptUri);
-    } catch {
-        void vscode.window.showWarningMessage(`Script not found: ${scriptUri.fsPath}`);
-        return false;
-    }
-    const doc = await vscode.workspace.openTextDocument(scriptUri);
-    const text = doc.getText();
-    const br = findGuiScriptGuiLifecycleHookRangeRobust(text, hook);
-    if (br) {
-        return revealSourceRangeInDocument(scriptUri, br.start, br.end, viewColumn);
-    }
-    void vscode.window.showInformationMessage(
-        `Could not find ${hook} in ${path.basename(scriptUri.fsPath)}.`
-    );
-    await revealSourceRangeInDocument(scriptUri, 0, 0, viewColumn);
-    return false;
-}
-
-/** Scroll to `B.whenLoadedRoom` / `whenEnterRoom` / `whenEnterRoomAfterFade` / `onUpdate` (or `ctx.` / other qualifier) in `*.room.ts`. */
-export async function revealRoomLifecycleHookInDocument(
-    scriptUri: vscode.Uri,
-    hook: RoomLifecycleHookKind,
-    viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active
-): Promise<boolean> {
-    try {
-        await vscode.workspace.fs.stat(scriptUri);
-    } catch {
-        void vscode.window.showWarningMessage(`Script not found: ${scriptUri.fsPath}`);
-        return false;
-    }
-    const doc = await vscode.workspace.openTextDocument(scriptUri);
-    const text = doc.getText();
-    const br = findRoomScriptRoomLifecycleHookRangeRobust(text, hook);
-    if (br) {
-        return revealSourceRangeInDocument(scriptUri, br.start, br.end, viewColumn);
-    }
-    void vscode.window.showInformationMessage(
-        `Could not find ${hook} in ${path.basename(scriptUri.fsPath)}.`
-    );
-    await revealSourceRangeInDocument(scriptUri, 0, 0, viewColumn);
-    return false;
-}
-
-/** Scroll to `B.region(…).whenEnter` / `whenExit` (or flat sugar / `roomRegion*EventId`) in `*.room.ts`. */
+/** Reveals `regions.x.onEnter` / `onExit` in `*.room.ts`. */
 export async function revealRoomRegionHandlerInDocument(
     scriptUri: vscode.Uri,
     roomId: string,
@@ -171,23 +111,11 @@ export async function revealRoomRegionHandlerInDocument(
     kind: 'enter' | 'exit',
     viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active
 ): Promise<boolean> {
-    try {
-        await vscode.workspace.fs.stat(scriptUri);
-    } catch {
-        void vscode.window.showWarningMessage(`Script not found: ${scriptUri.fsPath}`);
-        return false;
-    }
-    const doc = await vscode.workspace.openTextDocument(scriptUri);
-    const text = doc.getText();
-    const br = findRoomScriptRegionHandlerRangeRobust(text, roomId, regionId, kind);
-    if (br) {
-        return revealSourceRangeInDocument(scriptUri, br.start, br.end, viewColumn);
-    }
-    void vscode.window.showInformationMessage(
-        `Could not find a region ${kind === 'enter' ? 'whenEnter' : 'whenExit'} handler for "${regionId}" in ${path.basename(scriptUri.fsPath)}.`
+    return revealHandler(
+        scriptUri,
+        { kind: 'region', roomId, regionId, hook: kind === 'enter' ? 'onEnter' : 'onExit' },
+        viewColumn
     );
-    await revealSourceRangeInDocument(scriptUri, 0, 0, viewColumn);
-    return false;
 }
 
 /** Select `[start, end)` UTF-16 offsets in `scriptUri` and scroll the range into view. */
@@ -218,227 +146,79 @@ export async function revealSourceRangeInDocument(
     return true;
 }
 
+/**
+ * Reveals the handler behind an Inspector / Actions event ID (`verb:room:club:prop:antenna:look`) in
+ * `scriptUri`. A room verb with no handler gets a stub, as clicking an empty chip always did.
+ */
 export async function revealEventInDocument(
     scriptUri: vscode.Uri,
     eventId: string,
     viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active
 ): Promise<boolean> {
-    try {
-        await vscode.workspace.fs.stat(scriptUri);
-    } catch {
-        void vscode.window.showWarningMessage(`Script not found: ${scriptUri.fsPath}`);
+    if (isFallbackEventId(eventId)) {
+        void vscode.window.showInformationMessage(
+            'Per-object verb fallbacks (`onVerbFallback` in JSON) have no BenneScript handler. Use `x.on([...verbs], …)` on the object, or `fallbacks.on<Verb>` in globalScript.ts (docs/bennescript-ergonomics-refactor.md §4.17).'
+        );
         return false;
     }
-
-    const doc = await vscode.workspace.openTextDocument(scriptUri);
-    const editor = await vscode.window.showTextDocument(doc, {
-        preview: false,
-        viewColumn
-    });
-
-    const text = doc.getText();
-    let selStart = text.indexOf(eventId);
-    let selEnd = selStart >= 0 ? selStart + eventId.length : -1;
-
-    if (selStart < 0) {
-        const helper = findCanonicalHelperRange(text, eventId);
-        if (helper) {
-            selStart = helper.start;
-            selEnd = helper.end;
-        }
-    }
-
-    if (selStart < 0) {
-        const folder = vscode.workspace.getWorkspaceFolder(scriptUri);
-        const configured = folder ? await readConfiguredVerbIdSet(folder.uri) : new Set<string>();
-        const baseName = path.basename(scriptUri.fsPath);
-        if (baseName.endsWith('.room.ts')) {
-            const roomId = path.basename(scriptUri.fsPath, '.room.ts');
-            const roomJsonUri = vscode.Uri.joinPath(scriptUri, '..', `${roomId}.room.json`);
-            let roomPropIds = new Set<string>();
-            try {
-                const props = await readRoomProps(roomJsonUri);
-                roomPropIds = new Set(props.map((p) => p.id));
-            } catch {
-                /* room JSON missing — still try Bennescript patterns that do not need prop ids */
-            }
-            const br = findRoomScriptVerbRangeForEventIdRobust(text, eventId, configured, roomPropIds);
-            if (br) {
-                selStart = br.start;
-                selEnd = br.end;
-            }
-        } else if (baseName.endsWith('.character.ts')) {
-            const cr = findCharacterScriptVerbRangeForEventId(text, eventId, configured);
-            if (cr) {
-                selStart = cr.start;
-                selEnd = cr.end;
-            }
-        } else if (baseName.endsWith('.inventory.ts')) {
-            const ir = findInventoryScriptVerbRangeForEventId(text, eventId, configured);
-            if (ir) {
-                selStart = ir.start;
-                selEnd = ir.end;
-            }
-        }
-    }
-
-    if (selStart < 0 || selEnd < 0) {
-        const baseName = path.basename(scriptUri.fsPath);
-        if (baseName.endsWith('.room.ts')) {
-            const roomId = path.basename(scriptUri.fsPath, '.room.ts');
-            const roomJsonUri = vscode.Uri.joinPath(scriptUri, '..', `${roomId}.room.json`);
-            const stubResult = await ensureRoomVerbHandlerStubForReveal(roomJsonUri, roomId, eventId);
-            if (stubResult.stubInserted && stubResult.insertedStubRange) {
-                const { start: rs, end: re } = stubResult.insertedStubRange;
-                await revealSourceRangeInDocument(scriptUri, rs, re, viewColumn);
-                void vscode.window.showInformationMessage(
-                    `Added a stub handler for this verb in ${baseName}.`
-                );
-                return true;
-            }
-        }
-        void vscode.window.showInformationMessage(`Could not find "${eventId}" in ${scriptUri.path.split('/').pop()}`);
-        const start = doc.positionAt(0);
-        editor.selection = new vscode.Selection(start, start);
-        editor.revealRange(new vscode.Range(start, start));
+    const spec = handlerSpecFromEventId(eventId);
+    if (!spec) {
+        await openDocumentPinned(scriptUri, viewColumn);
         return false;
     }
-
-    const pos = doc.positionAt(selStart);
-    const endPos = doc.positionAt(selEnd);
-    editor.selection = new vscode.Selection(pos, endPos);
-    editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-    return true;
-}
-
-function canonicalRoomVerbRegex(
-    roomId: string,
-    targetType: 'prop' | 'hotspot' | 'character',
-    targetId: string,
-    verbId: string
-): RegExp {
-    const fn =
-        targetType === 'prop'
-            ? 'roomPropVerbEventId'
-            : targetType === 'hotspot'
-              ? 'roomHotspotVerbEventId'
-              : 'roomCharacterVerbEventId';
-    return new RegExp(
-        `${fn}\\s*\\(\\s*['"\`]${escapeRegex(roomId)}['"\`]\\s*,\\s*['"\`]${escapeRegex(targetId)}['"\`]\\s*,\\s*['"\`]${escapeRegex(verbId)}['"\`]\\s*\\)`,
-        'm'
-    );
-}
-
-function canonicalRoomFallbackRegex(
-    roomId: string,
-    targetType: 'prop' | 'hotspot' | 'character',
-    targetId: string
-): RegExp {
-    const fn =
-        targetType === 'prop'
-            ? 'roomPropVerbFallbackEventId'
-            : targetType === 'hotspot'
-              ? 'roomHotspotVerbFallbackEventId'
-              : 'roomCharacterVerbFallbackEventId';
-    return new RegExp(
-        `${fn}\\s*\\(\\s*['"\`]${escapeRegex(roomId)}['"\`]\\s*,\\s*['"\`]${escapeRegex(targetId)}['"\`]\\s*\\)`,
-        'm'
-    );
-}
-
-function canonicalCharacterVerbRegex(characterId: string, verbId: string): RegExp {
-    return new RegExp(
-        `characterVerbEventId\\s*\\(\\s*['"\`]${escapeRegex(characterId)}['"\`]\\s*,\\s*['"\`]${escapeRegex(verbId)}['"\`]\\s*\\)`,
-        'm'
-    );
-}
-
-function canonicalCharacterFallbackRegex(characterId: string): RegExp {
-    return new RegExp(
-        `characterVerbFallbackEventId\\s*\\(\\s*['"\`]${escapeRegex(characterId)}['"\`]\\s*\\)`,
-        'm'
-    );
-}
-
-function findCanonicalHelperRange(source: string, eventId: string): { start: number; end: number } | null {
-    const roomVerb = eventId.match(/^verb:room:([^:]+):(prop|hotspot|character):([^:]+):([^:]+)$/);
-    if (roomVerb) {
-        const rx = canonicalRoomVerbRegex(
-            roomVerb[1],
-            roomVerb[2] as 'prop' | 'hotspot' | 'character',
-            roomVerb[3],
-            roomVerb[4]
-        );
-        const m = rx.exec(source);
-        if (m?.index !== undefined) {
-            return { start: m.index, end: m.index + m[0].length };
-        }
-        return null;
+    const text = await readScriptText(scriptUri);
+    if (text && handlersInText(scriptUri, text, spec).length > 0) {
+        return revealHandler(scriptUri, spec, viewColumn);
     }
-    const roomFallback = eventId.match(/^verb:room:([^:]+):(prop|hotspot|character):([^:]+):fallback$/);
-    if (roomFallback) {
-        const rx = canonicalRoomFallbackRegex(
-            roomFallback[1],
-            roomFallback[2] as 'prop' | 'hotspot' | 'character',
-            roomFallback[3]
-        );
-        const m = rx.exec(source);
-        if (m?.index !== undefined) {
-            return { start: m.index, end: m.index + m[0].length };
+    const baseName = path.basename(scriptUri.fsPath);
+    // A character's verb in a room can be handled by the character's own script (§4.9).
+    if (spec.kind === 'verb' && spec.target.kind === 'character' && spec.target.roomId !== null) {
+        const gameRoot = gameRootOf(scriptUri);
+        if (gameRoot) {
+            const id = spec.target.id;
+            const characterScript = vscode.Uri.file(path.join(gameRoot, 'characters', id, `${id}.character.ts`));
+            const characterSpec: HandlerSpec = { ...spec, target: { kind: 'character', roomId: null, id } };
+            const characterText = await readScriptText(characterScript);
+            if (characterText && handlersInText(characterScript, characterText, characterSpec).length > 0) {
+                return revealHandler(characterScript, characterSpec, viewColumn);
+            }
         }
-        return null;
     }
-    const charVerb = eventId.match(/^verb:character:([^:]+):([^:]+)$/);
-    if (charVerb) {
-        const rx = canonicalCharacterVerbRegex(charVerb[1], charVerb[2]);
-        const m = rx.exec(source);
-        if (m?.index !== undefined) {
-            return { start: m.index, end: m.index + m[0].length };
+    if (baseName.endsWith('.room.ts')) {
+        const roomId = path.basename(scriptUri.fsPath, '.room.ts');
+        const roomJsonUri = vscode.Uri.joinPath(scriptUri, '..', `${roomId}.room.json`);
+        const stubResult = await ensureRoomVerbHandlerStubForReveal(roomJsonUri, roomId, eventId);
+        if (stubResult.stubInserted && stubResult.insertedStubRange) {
+            await revealRange(scriptUri, stubResult.insertedStubRange, viewColumn);
+            void vscode.window.showInformationMessage(`Added a stub handler for this verb in ${baseName}.`);
+            return true;
         }
-        return null;
     }
-    const charFallback = eventId.match(/^verb:character:([^:]+):fallback$/);
-    if (charFallback) {
-        const rx = canonicalCharacterFallbackRegex(charFallback[1]);
-        const m = rx.exec(source);
-        if (m?.index !== undefined) {
-            return { start: m.index, end: m.index + m[0].length };
-        }
-        return null;
-    }
-    return null;
+    return revealHandler(scriptUri, spec, viewColumn);
 }
 
-function escapeRegex(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-export async function revealWhenInventoryUsedOnHandlerInDocument(
+/**
+ * Reveals the first item handler (`onUseItem`, `onItem`, `onAnyItem`, …) on `targetId` in a room,
+ * character or inventory script.
+ */
+export async function revealInventoryUsedOnHandlerInDocument(
     scriptUri: vscode.Uri,
     targetId: string,
     viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active
 ): Promise<boolean> {
-    try {
-        await vscode.workspace.fs.stat(scriptUri);
-    } catch {
-        void vscode.window.showWarningMessage(`Script not found: ${scriptUri.fsPath}`);
-        return false;
-    }
-    const doc = await vscode.workspace.openTextDocument(scriptUri);
-    const text = doc.getText();
-    const br = findWhenInventoryUsedOnHandlerRangeRobust(text, targetId);
-    if (!br) {
-        void vscode.window.showInformationMessage(
-            `Could not find B.whenInventoryUsedOn('${targetId}', …) in ${path.basename(scriptUri.fsPath)}.`
-        );
-        const editor = await vscode.window.showTextDocument(doc, {
-            preview: false,
-            viewColumn
-        });
-        const start = doc.positionAt(0);
-        editor.selection = new vscode.Selection(start, start);
-        editor.revealRange(new vscode.Range(start, start));
-        return false;
-    }
-    return revealSourceRangeInDocument(scriptUri, br.start, br.end, viewColumn);
+    const base = path.basename(scriptUri.fsPath);
+    const roomId = base.endsWith('.room.ts') ? path.basename(base, '.room.ts') : undefined;
+    const targets: VerbTarget[] = roomId
+        ? [
+              { kind: 'prop', roomId, id: targetId },
+              { kind: 'hotspot', roomId, id: targetId },
+              { kind: 'character', roomId, id: targetId }
+          ]
+        : base.endsWith('.inventory.ts')
+          ? [{ kind: 'item', id: targetId }]
+          : [{ kind: 'character', roomId: null, id: targetId }];
+    const text = await readScriptText(scriptUri);
+    const specs: HandlerSpec[] = targets.map((target) => ({ kind: 'anyItem', target }));
+    const found = specs.find((spec) => handlersInText(scriptUri, text, spec).length > 0);
+    return revealHandler(scriptUri, found ?? specs[0], viewColumn);
 }

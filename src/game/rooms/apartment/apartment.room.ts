@@ -1,238 +1,206 @@
-import { registerRoomScript } from '@engine/scripting';
+import { display, faceClicked, fadeIn, fadeOut, inventory, player, playFrom, wait, walkToClicked } from '@benne/script';
+import { dialogs, flags, items, music, rooms, sfx } from '@game';
+import { room, bread, couch, door, hank, knife, peanutButter, penny, regions, table, windowHotspot } from './apartment.ids';
 
-/**
- * Room script for `apartment` — keep handlers for this room here.
- *
- * String ids must match your `apartment.room.json` (and character JSON where noted):
- * - `whenLookAt` / `whenUse` / `whenTalkTo` / `whenPickUp` / `whenPush` / `whenPull` / `whenOpen` / `whenClose`: work on props, hotspots, and characters — same string id, resolution order `props[]` → `hotspots[]` → `CharacterData.id` in this room.
- * - `whenVerb(verbId, targetId, …)`: any verb id from game config; same target resolution.
- * - `whenGive`: prop recipient only (for now).
- * - `B.prop('…')` / `onProp`: `props[].id` only.
- * - `B.character('…')`: `CharacterData.id` for a character in this room.
- * - `walkTo('…')`: unified target — prop id → hotspot id → character id → `points[].id`, or `{ x, y }` in room pixels.
- */
-registerRoomScript(({ B }) => {
+room.onEnter(() => {
+  if (!music.isPlaying) music.myCatIsCrazy.play()
+})
 
-  B.whenEnterRoom(() => {
+room.onEnterAfterFade(() => {
+  if (room.cameFrom(rooms.outside)) {
+    wait(0.5)
+    sfx.doorClose.play()
+    door.animation = 'Door'
+  }
+})
 
-    if (!B.sound.isMusicPlaying()) {
-      B.sound.playMusic('my-cat-is-crazy');
-    }
+// ── The door ──
 
-  });
+// One handler for two verbs.
+door.on(['open', 'use'], () => {
+  walkToClicked()
+  if (flags.unlockedDoor) {
+    door.animation = 'Door-open'
+    sfx.doorOpen.playAndWait()
+    rooms.outside.goTo()
+  } else {
+    Hank: "The door is locked."
+    display("The door is locked. AHH! I can't get out! HELP ME! HELP ME! SOMEBODY HELP ME! PLEASE HELP ME!")
+    display("Ok calm down.")
+  }
+})
 
-  B.whenEnterRoomAfterFade(() => {
+door.onUseItem(items.key, () => {
+  walkToClicked()
+  flags.unlockedDoor = true
+  inventory.remove(items.key)
+  Player: "The door is unlocked."
+})
 
-    if (B.room.last === 'outside') {
-      B.wait(.5);
-      B.sound.play('doorClose');
-      B.prop('Door').animation = 'Door';
-    }
+// ── Penny ──
 
-  });
+penny.onLook(() => {
+  Player: "It's Penny."
+})
 
-  B.whenInventoryUsedOn('Couch', (payload) => {
-    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
-      B.player.walkTo('Couch');
-      B.faceClicked();
-      B.player.say('I used the broom on the couch.');
-      return;
-    }
-    if (payload.itemId === 'Broom' && payload.verbId === 'give') {
-      B.player.walkTo('Couch');
-      B.player.face('U');
-      B.player.say('Here, couch.');
-      B.inventory.remove('Broom');
-      return;
-    }
-    return false;
-  });
+penny.onTalkTo(() => {
+  walkToClicked()
+  Hank: "Hey Penny!"
+  Penny: "Hi!"
+  dialogs.chatwithpenny.start()
+})
 
-  B.whenLookAt('penny', () => {
-    B.player.say("It's Penny.");
-  });
+// Any other item given to Penny falls through to "That doesn't work." in globalScript.ts.
+penny.onGiveItem(items.sammich, () => {
+  walkToClicked()
+  Hank: "Here, Penny! Have a sandwich."
+  inventory.remove(items.sammich)
+  Penny: "Thank you! Here's the key."
+  inventory.add(items.key)
+})
 
-  B.whenTalkTo('penny', () => {
-    B.walkToClicked();
-    B.say`
-      Hank: Hey Penny!
-      Penny: Hi!
-      `;
-    B.dialog("chatwithpenny").start();
-  });
+penny.onOpen(() => {
+  penny.fade(0.5, 1)
+})
 
-  B.whenLookAt('Couch', () => {
-    B.faceClicked();
-    B.say`Hank: It's my weird, magical, poorly drawn couch.`;
-  });
+penny.onClose(() => {
+  penny.hide()
+})
 
-  const handleOpenOrUseDoor = () => {
-    B.walkToClicked();
+// Switching who the player controls.
+penny.onPush(() => {
+  player.switchTo(penny)
+  penny.clickable = false
+  hank.clickable = true
+})
 
-    if (B.state.getFlag('unlockedDoor')) {
-      B.prop('Door').animation = 'Door-open';
-      B.sound.playAndWait('doorOpen');
-      B.room.changeTo('outside');
-    } else {
-      B.say`Hank: The door is locked.`;
-      B.display('The door is locked. AHH! I can\'t get out! HELP ME! HELP ME! SOMEBODY HELP ME! PLEASE HELP ME!');
-      B.display('Ok calm down.');
-    }
-  };
-  
-  B.whenOpen('Door', handleOpenOrUseDoor); 
-  B.whenUse('Door', handleOpenOrUseDoor);
+hank.onPush(() => {
+  player.switchTo(hank)
+  penny.clickable = true
+  hank.clickable = false
+})
 
-  B.whenPull('Couch', () => {
-    B.walkToClicked();
-    B.player.say('It\'s too heavy.');
-  });
+// ── The couch ──
 
-  B.whenClose('Couch', () => {
-    B.fadeOut(2, 0x00ff00);
-    B.wait(1);
-    B.fadeIn(2, 0x00ff00);
-  });
-  
-  B.whenInventoryUsedOn('Bread', (payload) => {
-    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
-      B.say`Hank: I don't need to clean the bread.`;
-      return;
-    }
-    if (payload.itemId === 'Broom' && payload.verbId === 'give') {
-      B.say`Hank: I can't give something to bread.`;
-      return;
-    }
-    return false;
-  });
+couch.onLook(() => {
+  faceClicked()
+  Hank: "It's my weird, magical, poorly drawn couch."
+})
 
-  B.whenLookAt('Bread', () => {
-    B.faceClicked();
-    B.say`Hank: It's some bread.`;
-  });
+couch.onPull(() => {
+  walkToClicked()
+  Player: "It's too heavy."
+})
 
-  B.whenPickUp('Bread', () => {
-    B.walkToClicked();
-    B.inventory.add('Bread');
-    B.prop('Bread').hide();
-  });
+couch.onClose(() => {
+  fadeOut(2, 0x00ff00)
+  wait(1)
+  fadeIn(2, 0x00ff00)
+})
 
-  B.whenLookAt('Knife', () => {
-    B.faceClicked();
-    B.say`Hank: It's a knife.`;
-  });
+couch.onOpen(() => {
+  couch.fade(0.5, 1)
+})
 
-  B.whenPickUp('Knife', () => {
-    B.walkToClicked();
-    B.inventory.add('Knife');
-    B.prop('Knife').hide();
-  });
+couch.onTalkTo(() => {
+  couch.moveTo({ x: 5, y: 5 })
+})
 
-  B.whenLookAt('PeanutButter', () => {
-    B.faceClicked();
-    B.say`Hank: It's some peanut butter.`;
-  });
+couch.onPush(() => {
+  if (windowHotspot.active) {
+    windowHotspot.active = false
+    Hank: "Goodbye window."
+  } else {
+    windowHotspot.active = true
+    Hank: "Hello window."
+  }
+})
 
-  B.whenPickUp('PeanutButter', () => {
-    B.walkToClicked();
-    B.inventory.add('PB');
-    B.prop('PeanutButter').hide();
-  });
+couch.onUseItem(items.broom, () => {
+  player.walkTo(couch)
+  faceClicked()
+  Player: "I used the broom on the couch."
+})
 
-  B.whenLookAt('Table', () => {
-    B.player.say('|1| I like to keep this table here so I can walk around it.');
-  });
+couch.onGiveItem(items.broom, () => {
+  player.walkTo(couch)
+  player.face('U')
+  Player: "Here, couch."
+  inventory.remove(items.broom)
+})
 
-  B.whenInventoryUsedOn('penny', (payload) => {
-    if (payload.itemId === 'Sammich' && payload.verbId === 'give') {
-      B.walkToClicked();
-      B.say`Hank: Here, Penny! Have a sandwich.`;
-      B.inventory.remove('Sammich');
-      B.character('penny').say`Thank you! Here's the key.`;
-      B.inventory.add('Key');
-      return;
-    }
-    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
-    return false;
-  });
-  B.whenInventoryUsedOn('Door', (payload) => {
-    if (payload.itemId === 'Key' && payload.verbId === 'use') {
-      B.walkToClicked();
-      B.state.setFlag('unlockedDoor', true);
-      B.inventory.remove('Key');
-      B.player.say('The door is unlocked.');
-      return;
-    }
-    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
-    return false;
-  });
+// ── The table ──
 
-  B.playFrom("gotKey", () => {
-    B.inventory.add('Key');
-  });
+table.onLook(() => {
+  // `|1|` is a voice marker: the line's voice file (see the voice-ID export).
+  Player: "|1| I like to keep this table here so I can walk around it."
+})
 
-  B.playFrom("doorUnlocked", () => {
-    B.state.setFlag('unlockedDoor', true);
-  });
+table.onUse(() => {
+  walkToClicked()
+})
 
+table.onUseItem(items.broom, () => {
+  walkToClicked()
+  sfx.sweeping.playAndWait()
+  Player: "I cleaned the table."
+})
 
-  B.whenInventoryUsedOn('Table', (payload) => {
-    if (payload.itemId === 'Broom' && payload.verbId === 'use') {
-      B.walkToClicked();
-      B.sound.playAndWait('sweeping');
-      B.player.say('I cleaned the table.');
-      return;
-    }
-    // No branch matched → global B.whenInventoryOnVerbTargetUnhandled (see globalScript.ts).
-    return false;
-  });
+// ── Sandwich ingredients ──
 
-  B.whenUse('Table', () => {
-    B.walkToClicked();
-  });
+bread.onLook(() => {
+  faceClicked()
+  Hank: "It's some bread."
+})
 
-  B.whenOpen('Couch', () => {
-    B.prop('Couch').fade(1, 0.5, 1);
-  });
+bread.onPickUp(() => {
+  walkToClicked()
+  inventory.add(items.bread)
+  bread.hide()
+})
 
-  B.whenOpen('penny', () => {
-    B.character('penny').fade(1, 0.5, 1);
-  });
+bread.onUseItem(items.broom, () => {
+  Hank: "I don't need to clean the bread."
+})
 
-  B.whenClose('penny', () => {
-    B.character('penny').hide();
-  });
+bread.onGiveItem(items.broom, () => {
+  Hank: "I can't give something to bread."
+})
 
-  B.whenTalkTo('Couch', () => {
-    B.prop('Couch').moveTo({ x: 5, y: 5 });
-  });
+knife.onLook(() => {
+  faceClicked()
+  Hank: "It's a knife."
+})
 
-  B.region("darkness").whenEnter(() => {
-    B.say`Hank: It's dark over here.`;
-  });
+knife.onPickUp(() => {
+  walkToClicked()
+  inventory.add(items.knife)
+  knife.hide()
+})
 
-  B.whenPush('Couch', () => {
-    // Hotspot id matches `hotspots[].id` in apartment.room.json (`window`, not `Window`).
-    if (B.hotspot('window').active) {
-      B.hotspot('window').active = false;
-      B.say`Hank: Goodbye window.`;
-    } else {
-      B.hotspot('window').active = true;
-      B.say`Hank: Hello window.`;
-    }
-  });
+peanutButter.onLook(() => {
+  faceClicked()
+  Hank: "It's some peanut butter."
+})
 
+peanutButter.onPickUp(() => {
+  walkToClicked()
+  inventory.add(items.pb)
+  peanutButter.hide()
+})
 
-  B.whenPush('penny', () => {
-    B.player.switchTo('penny');
-    B.character('penny').clickable = false;
-    B.character('hank').clickable = true;
-  });
+// ── Regions ──
 
-  B.whenPush('hank', () => {
-    B.player.switchTo('hank');
-    B.character('penny').clickable = true;
-    B.character('hank').clickable = false;
-  });
+regions.darkness.onEnter(() => {
+  Hank: "It's dark over here."
+})
 
-});
+// ── Play From: start the room in a later state (editor dropdown) ──
+
+playFrom('gotKey', () => {
+  inventory.add(items.key)
+})
+
+playFrom('doorUnlocked', () => {
+  flags.unlockedDoor = true
+})

@@ -1,7 +1,7 @@
-export type { InventoryItemId } from './generated/benne-game-ids.js';
-
 export interface InventoryItemData {
   id: string;
+  /** BenneScript handle name, when the generated one doesn't fit (docs/bennescript-ergonomics-refactor.md §7.2). */
+  scriptName?: string;
   name: string;
   description: string;
   /** Supported interaction verbs for this item (`game-config.json` ids). */

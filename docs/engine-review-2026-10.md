@@ -1,5 +1,7 @@
 # BENNE — Codebase Review & Long-Term Roadmap
 
+> **Historical document.** Written before the BenneScript refactor (October 2026). Its scripting examples and file references use the old `register*Script` / `B` API, which no longer exists. For the current API see `docs/public/bennescript.md` and `docs/bennescript-api.md`.
+
 *Review date: 2026-10-03 · Scope: engine (`src/engine`), game/boot layer (`src/game`, `game-templates/`), editor previews (`src/editor`), VS Code extension (`benne-editor/`), build/test tooling, docs, and repo hygiene. No code was changed as part of this review.*
 
 ---

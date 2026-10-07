@@ -398,6 +398,8 @@ function isBootFile(rel) {
 function isTemplateFile(rel) {
   if (path.basename(rel) === '.gitkeep') return false;
   if (isBootFile(rel)) return false;
+  // BenneScript handle modules are generated from the content (`npm run generate:game-ids`).
+  if (rel.endsWith('.ids.ts')) return false;
   return true;
 }
 

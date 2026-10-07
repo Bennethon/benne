@@ -61,19 +61,19 @@ export class RoomTransitionHookRegistry {
     this.pushByRoom(this.byRoomAfterFade, roomId, toEntry(handler, options));
   }
 
-  whenLeaveAnyRoom(handler: AnyHandler): void {
+  registerAnyLeaveRoom(handler: AnyHandler): void {
     this.anyLeave.push(toEntry(handler));
   }
 
-  whenLoadedAnyRoom(handler: AnyHandler): void {
+  registerAnyLoadedRoom(handler: AnyHandler): void {
     this.anyLoaded.push(toEntry(handler));
   }
 
-  whenEnterAnyRoom(handler: AnyHandler, options?: CutsceneOptions): void {
+  registerAnyEnterRoom(handler: AnyHandler, options?: CutsceneOptions): void {
     this.anyEnter.push(toEntry(handler, options));
   }
 
-  whenEnterAnyRoomAfterFade(handler: AnyHandler, options?: CutsceneOptions): void {
+  registerAnyEnterRoomAfterFade(handler: AnyHandler, options?: CutsceneOptions): void {
     this.anyAfterFade.push(toEntry(handler, options));
   }
 
@@ -121,8 +121,8 @@ export class RoomTransitionHookRegistry {
   }
 
   /**
-   * Clears per-room hooks so `registerRoomScript` can re-register (each `RoomScene` `create` runs
-   * the same `*.room.ts` again).
+   * Clears per-room hooks so the room's handlers can re-register (each `RoomScene` `create`
+   * attaches the room module's handlers again).
    */
   clearPerRoomScriptHooksForRoomId(roomId: string): void {
     const k = String(roomId);

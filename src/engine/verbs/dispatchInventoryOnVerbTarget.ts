@@ -28,7 +28,7 @@ import type { GameStateManager } from '../gameState/GameStateManager';
 import type { GameSettings } from '../../types/game';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import type { PointerVerbResolution } from './resolvePointerVerb';
-import { resolveEffectiveUseVerbId } from './verbConfig';
+import { resolveDefaultItemVerbId } from './verbConfig';
 
 function listenerCount(bus: EventBus, event: string): number {
   return bus.listeners(event).length;
@@ -67,7 +67,7 @@ function tryEmitInventoryUsedOnFiveTier(
 }
 
 /**
- * When an active inventory item is set and the pointer resolves to the effective **use** verb or the current
+ * When an active inventory item is set and the pointer resolves to the default item verb or the current
  * **active verb**, dispatch uses inventory-on-target channels instead of {@link dispatchVerbInteraction}.
  */
 export function shouldDispatchInventoryUsedOnVerb(
@@ -83,8 +83,7 @@ export function shouldDispatchInventoryUsedOnVerb(
   if (itemId == null) {
     return false;
   }
-  const useVerbId = resolveEffectiveUseVerbId(settings);
-  if (verbId === useVerbId) {
+  if (verbId === resolveDefaultItemVerbId(settings)) {
     return true;
   }
   const active = manager.getActiveVerb();
@@ -183,4 +182,65 @@ export function shouldDropActiveInventoryOnUse(itemId: string): boolean {
     return def.dropWhenUsed;
   }
   return getGameSettings().dropWhenInventoryUsed ?? false;
+}
+
+/**
+ * BenneScript `unhandled()` (or an item verb with no handler) in a room's item-on-target handler:
+ * hands the click to the next tier after the room's per-item handler (the room's any-item handler,
+ * the global handlers, then the unhandled fallback). `payload` is the room event's payload.
+ */
+export function continueInventoryOnDispatchAfterRoom(bus: EventBus, payload: AnyInventoryUsedOnPayload): void {
+  continueInventoryOnDispatch(bus, payload, 'room');
+}
+
+/**
+ * Like {@link continueInventoryOnDispatchAfterRoom}, from a handler on the global per-item tier
+ * (a character script's or an inventory item's item handler): continues with the target's global
+ * any-item handler, then the unhandled fallback.
+ */
+export function continueInventoryOnDispatchAfterGlobal(bus: EventBus, payload: AnyInventoryUsedOnPayload): void {
+  continueInventoryOnDispatch(bus, payload, 'global');
+}
+
+function continueInventoryOnDispatch(bus: EventBus, payload: AnyInventoryUsedOnPayload, from: 'room' | 'global'): void {
+  const p = payload;
+  const rest = (roomAny: string, globalScoped: string, globalAny: string): void => {
+    const tiers = from === 'room' ? [roomAny, globalScoped, globalAny] : [globalAny];
+    for (const eventId of [...tiers, INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT]) {
+      if (listenerCount(bus, eventId) > 0) {
+        bus.emit(eventId, p);
+        return;
+      }
+    }
+  };
+  switch (p.targetType) {
+    case 'prop':
+      rest(
+        roomInventoryOnPropAnySourceEventId(p.roomId, p.propId),
+        globalInventoryOnPropEventId(p.propId, p.itemId),
+        globalInventoryOnPropAnySourceEventId(p.propId),
+      );
+      return;
+    case 'hotspot':
+      rest(
+        roomInventoryOnHotspotAnySourceEventId(p.roomId, p.hotspotId),
+        globalInventoryOnHotspotEventId(p.hotspotId, p.itemId),
+        globalInventoryOnHotspotAnySourceEventId(p.hotspotId),
+      );
+      return;
+    case 'character':
+      rest(
+        roomInventoryOnCharacterAnySourceEventId(p.roomId, p.characterId),
+        globalInventoryOnCharacterEventId(p.characterId, p.itemId),
+        globalInventoryOnCharacterAnySourceEventId(p.characterId),
+      );
+      return;
+    case 'inventoryItem':
+      rest(
+        roomInventoryOnInventoryRowEventId(p.roomId, p.targetItemId),
+        globalInventoryOnInventoryItemEventId(p.targetItemId, p.itemId),
+        globalInventoryOnInventoryRowEventId(p.targetItemId),
+      );
+      return;
+  }
 }

@@ -9,7 +9,7 @@ import type {
   GuiGridControl,
   GuiImageControl,
 } from '../../types/gui.js';
-import type { GuiRuntime } from '../scripting/GuiRuntime.js';
+import type { GuiRuntime } from '../gui/GuiRuntime.js';
 import {
   addGuiImageSprite,
   buildGuiButton,

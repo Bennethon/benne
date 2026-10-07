@@ -3,7 +3,7 @@ import { RoomTransitionHookRegistry, areHookEntriesSkippable, runRoomHandlersEac
 const ctx = { roomId: 'a', lastRoom: null, visitCount: 1, isFirstEnter: true };
 it('room hook clearing preserves global hooks and other rooms', () => {
   const hooks = new RoomTransitionHookRegistry();
-  hooks.whenEnterAnyRoom(() => {});
+  hooks.registerAnyEnterRoom(() => {});
   for (const id of ['a', 'b']) {
     hooks.registerRoomEnterRoom(id, () => {}, { skippable: false });
     hooks.registerRoomLeaveRoom(id, () => {});
@@ -32,40 +32,41 @@ it('safe enter execution logs a failed hook and continues', async () => {
   expect(error).toHaveBeenCalledOnce();
   expect(next).toHaveBeenCalledWith(ctx);
 });
-it('lazy room registration is isolated and reused', async () => {
+it('room script modules load once, with their room as the loading room', async () => {
   vi.resetModules();
-  const registry = await import('../../src/engine/scripting/registerRoomScript');
-  const callback = vi.fn();
-  const load = vi.fn(async () => { registry.registerRoomScript(callback); });
-  registry.registerRoomScriptModuleLoaders(new Map([['a', load]]));
-  await registry.ensureRoomScriptLoaded('a');
-  await registry.ensureRoomScriptLoaded('a');
+  const modules = await import('../../src/engine/scenes/roomScriptModules');
+  const seen: Array<string | null> = [];
+  const load = vi.fn(async () => { seen.push(modules.getLoadingRoomScriptId()); });
+  modules.registerRoomModuleLoaders(new Map([['a', load]]));
+  await modules.ensureRoomScriptLoaded('a');
+  await modules.ensureRoomScriptLoaded('a');
+  await modules.ensureRoomScriptLoaded('b');
   expect(load).toHaveBeenCalledOnce();
-  expect(registry.getCallbacksForRoom('a')).toEqual([callback]);
-  expect(registry.getCallbacksForRoom('b')).toEqual([]);
+  expect(seen).toEqual(['a']);
+  expect(modules.getLoadingRoomScriptId()).toBeNull();
 });
-it('concurrent room imports retain their own registration context', async () => {
+it('concurrent room imports keep their own loading room', async () => {
   vi.resetModules();
-  const registry = await import('../../src/engine/scripting/registerRoomScript');
-  const a = vi.fn(), b = vi.fn();
-  registry.registerRoomScriptModuleLoaders(new Map([
-    ['a', async () => { await new Promise(r => setTimeout(r, 5)); registry.registerRoomScript(a); }],
-    ['b', async () => { await Promise.resolve(); registry.registerRoomScript(b); }],
+  const modules = await import('../../src/engine/scenes/roomScriptModules');
+  const seen: Record<string, Array<string | null>> = { a: [], b: [] };
+  modules.registerRoomModuleLoaders(new Map([
+    ['a', async () => { seen.a!.push(modules.getLoadingRoomScriptId()); await new Promise(r => setTimeout(r, 5)); seen.a!.push(modules.getLoadingRoomScriptId()); }],
+    ['b', async () => { await Promise.resolve(); seen.b!.push(modules.getLoadingRoomScriptId()); }],
   ]));
-  await Promise.all([registry.ensureRoomScriptLoaded('a'), registry.ensureRoomScriptLoaded('b')]);
-  expect(registry.getCallbacksForRoom('a')).toEqual([a]);
-  expect(registry.getCallbacksForRoom('b')).toEqual([b]);
+  await Promise.all([modules.ensureRoomScriptLoaded('a'), modules.ensureRoomScriptLoaded('b')]);
+  expect(seen).toEqual({ a: ['a', 'a'], b: ['b'] });
 });
 it('deduplicates in-flight imports and permits a clean retry after failure', async () => {
   vi.resetModules();
-  const registry = await import('../../src/engine/scripting/registerRoomScript');
+  const modules = await import('../../src/engine/scenes/roomScriptModules');
   let attempts = 0;
-  const callback = vi.fn();
-  const loader = vi.fn(async () => { attempts++; await Promise.resolve(); registry.registerRoomScript(callback); if (attempts === 1) throw Error('load'); });
-  registry.registerRoomScriptModuleLoaders(new Map([['a', loader]]));
-  const results = await Promise.allSettled([registry.ensureRoomScriptLoaded('a'), registry.ensureRoomScriptLoaded('a')]);
+  const loader = vi.fn(async () => { attempts++; await Promise.resolve(); if (attempts === 1) throw Error('load'); });
+  modules.registerRoomModuleLoaders(new Map([['a', loader]]));
+  const results = await Promise.allSettled([modules.ensureRoomScriptLoaded('a'), modules.ensureRoomScriptLoaded('a')]);
   expect(results.map(r => r.status)).toEqual(['rejected', 'rejected']);
   expect(loader).toHaveBeenCalledOnce();
-  await registry.ensureRoomScriptLoaded('a');
-  expect(registry.getCallbacksForRoom('a')).toEqual([callback]);
+  await modules.ensureRoomScriptLoaded('a');
+  expect(loader).toHaveBeenCalledTimes(2);
+  await modules.ensureRoomScriptLoaded('a');
+  expect(loader).toHaveBeenCalledTimes(2);
 });

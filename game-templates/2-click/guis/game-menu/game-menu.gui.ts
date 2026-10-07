@@ -1,28 +1,19 @@
-import { registerGuiScript } from '@engine/scripting';
+import { guis } from '@game';
+import { gui, load, resume, save, settingsBtn } from './game-menu.ids';
 
-/**
- * GUI script for `game-menu` — Bennescript entry (`B.raw`, `onGuiBuilt`, `onGuiShow`, …).
- */
-registerGuiScript('game-menu', ({ B }) => {
-  // Delete this line when you add your first handler.
-  void B;
+resume.onClick(() => gui.hide())
 
-  B.whenButtonClick("resume", () => {
-    B.gui('game-menu').hide();
-  });
+settingsBtn.onClick(() => {
+  guis.settingsMenu.show()
+  gui.hide()
+})
 
-  B.whenButtonClick("settings", () => {
-    B.gui('settings-menu').show();
-    B.gui('game-menu').hide();
-  });
+save.onClick(() => {
+  guis.saveMenu.show()
+  gui.hide()
+})
 
-  B.whenButtonClick("save", () => {
-    B.gui('save-menu').show();
-    B.gui('game-menu').hide();
-  });
-
-  B.whenButtonClick("load", () => {
-    B.gui('load-menu').show();
-    B.gui('game-menu').hide();
-  });
-});
+load.onClick(() => {
+  guis.loadMenu.show()
+  gui.hide()
+})
