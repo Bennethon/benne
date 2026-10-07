@@ -6,9 +6,11 @@ import {
     copySharedScaffold,
     copyTemplateBoot,
     ensureGameEslintConfig,
+    findObsoleteEngineFiles,
     mergeGamePackageJson,
     readBenneProject,
     readScaffoldManifest,
+    removeObsoleteEngineFiles,
     runNpmScript,
     scanScaffoldUpdate,
     writeBenneProject,
@@ -50,13 +52,15 @@ function formatScanSummary(
     fromVersion: string,
     toVersion: string,
     scan: Awaited<ReturnType<typeof scanScaffoldUpdate>>,
+    obsolete: readonly string[],
 ): string {
     return (
         `Update engine ${fromVersion} → ${toVersion}: ` +
         `${scan.unchangedFiles.length} unchanged, ` +
         `${scan.overwriteFiles.length} overwritten, ` +
-        `${scan.newFiles.length} new. ` +
-        `src/game/ is preserved (except src/game/boot/).`
+        `${scan.newFiles.length} new` +
+        (obsolete.length > 0 ? `, ${obsolete.length} removed (no longer part of the engine)` : '') +
+        `. src/game/ is preserved (except src/game/boot/).`
     );
 }
 
@@ -136,7 +140,9 @@ export async function runUpdateEngineWizard(
         return;
     }
 
-    const summary = formatScanSummary(currentVersion, targetVersion, scan);
+    // Engine files earlier versions shipped and this one doesn't (e.g. the old scripting API).
+    const obsolete = await findObsoleteEngineFiles(gameFolder.uri, manifest.removedFiles ?? []);
+    const summary = formatScanSummary(currentVersion, targetVersion, scan, obsolete);
     channel.appendLine(summary);
     if (scan.overwriteFiles.length > 0) {
         channel.appendLine('');
@@ -156,6 +162,17 @@ export async function runUpdateEngineWizard(
         }
         if (scan.newFiles.length > 30) {
             channel.appendLine(`  … and ${scan.newFiles.length - 30} more`);
+        }
+    }
+
+    if (obsolete.length > 0) {
+        channel.appendLine('');
+        channel.appendLine('Files to remove (no longer part of the engine):');
+        for (const rel of obsolete.slice(0, 50)) {
+            channel.appendLine(`  ${rel}`);
+        }
+        if (obsolete.length > 50) {
+            channel.appendLine(`  … and ${obsolete.length - 50} more`);
         }
     }
 
@@ -179,6 +196,10 @@ export async function runUpdateEngineWizard(
             try {
                 await copySharedScaffold(gameFolder.uri, extensionPath);
                 channel.appendLine('Copied scaffold/shared/ into project root.');
+                if (obsolete.length > 0) {
+                    await removeObsoleteEngineFiles(gameFolder.uri, obsolete);
+                    channel.appendLine(`Removed ${obsolete.length} file(s) that are no longer part of the engine.`);
+                }
             } catch (e) {
                 channel.appendLine(
                     `Copy failed: ${e instanceof Error ? e.message : String(e)}`,

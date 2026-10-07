@@ -52,7 +52,7 @@ A typical workflow:
 1. Install a newer extension build.
 2. Open your game's workspace in VS Code.
 3. Run **BENNE: Update Engine**.
-4. Review the summary (counts of unchanged, overwritten, and new files) and confirm.
+4. Review the summary (counts of unchanged, overwritten, new and removed files; the output channel lists them) and confirm.
 5. If editor previews look stale afterward, run **Rebuild Editor Preview Bundles**.
 
 After copying files, the command automatically runs `npm install` and rebuilds the BENNE Play bundle so your project is immediately ready.
@@ -68,6 +68,7 @@ The update is careful to refresh only engine-managed code and leave your authore
 | Vite configs, HTML entrypoints, `scripts/` | `README.md`, `.vscode/settings.json` |
 | `package.json` scripts and the `phaser` / `typescript` / `vite` versions | `package.json` `name`, `private`, `version` |
 | `.benne-project` version stamps | `templateId`, `projectName`, `createdAt` |
+| Engine files the new engine no longer has are **removed** (for example the old scripting API in `src/engine/scripting/`, gone since 0.1.0), along with folders they leave empty | Any other file you added, including your own files in engine folders |
 
 ::: info Why `src/game/boot/` is the one exception
 The `boot/` folder is a thin layer of shared engine glue (for example, the asset-URL resolver) that engine modules import. New engine features can require new boot exports, so the update overwrites and adds boot files to keep them in lockstep with the engine. It's the **only** part of `src/game/` an update touches — your rooms, characters, assets, scripts, and configuration are never overwritten.

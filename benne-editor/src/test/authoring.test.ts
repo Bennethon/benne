@@ -3,7 +3,16 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { compareSemver, mergeGamePackageJson, copyTreeNonDestructive, buildPackageJson } from '../scaffoldPayload';
+import {
+    buildPackageJson,
+    compareSemver,
+    copyTreeNonDestructive,
+    findObsoleteEngineFiles,
+    isRemovableEngineFile,
+    mergeGamePackageJson,
+    readScaffoldManifest,
+    removeObsoleteEngineFiles,
+} from '../scaffoldPayload';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readRoomPlayFromNamesFromSource } from '../playFromDiscovery';
@@ -65,6 +74,46 @@ suite('Authoring and update contracts', () => {
             await mergeGamePackageJson(vscode.Uri.file(root));
             assert.equal(JSON.parse(await fs.readFile(pkg, 'utf8')).scripts.lint, JSON.parse(buildPackageJson('g')).scripts.lint);
         } finally { await fs.rm(root, { recursive: true, force: true }); }
+    });
+    test('engine update removes files the engine no longer ships, and only those', async () => {
+        const root = await fs.mkdtemp(path.join(os.tmpdir(), 'benne-obsolete-'));
+        try {
+            const write = async (rel: string) => {
+                await fs.mkdir(path.dirname(path.join(root, rel)), { recursive: true });
+                await fs.writeFile(path.join(root, rel), 'x');
+            };
+            await write('src/engine/scripting/index.ts');
+            await write('src/engine/scripting/types.ts');
+            await write('src/types/generated/benne-game-ids.d.ts');
+            await write('src/types/generated/mine.d.ts');
+            await write('src/game/rooms/x/x.room.ts');
+            const listed = [
+                'src/engine/scripting/index.ts',
+                'src/engine/scripting/types.ts',
+                'src/engine/scripting/missing.ts',
+                'src/types/generated/benne-game-ids.d.ts',
+                'src/game/rooms/x/x.room.ts',
+                '../outside.ts',
+            ];
+            const found = await findObsoleteEngineFiles(vscode.Uri.file(root), listed);
+            assert.deepEqual(found, [
+                'src/engine/scripting/index.ts',
+                'src/engine/scripting/types.ts',
+                'src/types/generated/benne-game-ids.d.ts',
+            ]);
+            await removeObsoleteEngineFiles(vscode.Uri.file(root), found);
+            assert.equal(existsSync(path.join(root, 'src/engine/scripting')), false, 'emptied folder removed');
+            assert.equal(existsSync(path.join(root, 'src/engine')), false, 'emptied parent removed');
+            assert.equal(existsSync(path.join(root, 'src/types/generated/mine.d.ts')), true, "the game's own file stays");
+            assert.equal(existsSync(path.join(root, 'src/game/rooms/x/x.room.ts')), true);
+            assert.equal(isRemovableEngineFile('src/game/boot/main.ts'), false);
+            assert.equal(isRemovableEngineFile('src/engine/../game/a.ts'), false);
+        } finally { await fs.rm(root, { recursive: true, force: true }); }
+    });
+    test('the bundled scaffold lists the old scripting API as removed', async () => {
+        const extensionPath = path.resolve(__dirname, '../..');
+        const manifest = await readScaffoldManifest(extensionPath);
+        assert.ok(manifest.removedFiles?.includes('src/engine/scripting/registerRoomScript.ts'));
     });
     test('non-destructive scaffolding preserves existing authored bytes', async () => {
         const root = await fs.mkdtemp(path.join(os.tmpdir(), 'benne-copy-'));

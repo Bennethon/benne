@@ -207,9 +207,14 @@ async function writeManifest(templateNames) {
     return { id, displayName: meta.displayName, description: meta.description };
   });
 
+  // Files earlier engines shipped and this one doesn't: Update Engine deletes them from games.
+  const removed = /** @type {{ groups: Array<{ files: string[] }> }} */ (
+    JSON.parse(await readFile(path.join(REPO_ROOT, 'scripts', 'removed-engine-files.json'), 'utf8'))
+  );
   const manifest = {
     scaffoldVersion: version,
     templates,
+    removedFiles: [...new Set(removed.groups.flatMap((g) => g.files))].sort(),
     builtAt: new Date().toISOString(),
   };
 

@@ -1,0 +1,50 @@
+{
+  "_doc": "Engine files that earlier BENNE versions shipped to games and this one no longer does. bundle:scaffold copies the list into the scaffold manifest, and Update Engine deletes these files from a game when it finds them (never anything under src/game/). Add a group when a release removes or renames a shipped file; tests/unit/removedEngineFiles.test.ts checks the list.",
+  "groups": [
+    {
+      "version": "0.1.0",
+      "why": "BenneScript refactor: the old register*Script / B API (src/engine/scripting/), the quoted-ID unions it used and their scanner.",
+      "files": [
+        "scripts/lib/scanGameContentIds.mjs",
+        "src/engine/scripting/BenneScript.ts",
+        "src/engine/scripting/BenneScriptCore.ts",
+        "src/engine/scripting/CharacterBenneScript.ts",
+        "src/engine/scripting/CharacterScriptContext.ts",
+        "src/engine/scripting/DialogBenneScript.ts",
+        "src/engine/scripting/GlobalBenneScript.ts",
+        "src/engine/scripting/GuiBenneScript.ts",
+        "src/engine/scripting/GuiRuntime.ts",
+        "src/engine/scripting/InventoryBenneScript.ts",
+        "src/engine/scripting/InventoryScriptContext.ts",
+        "src/engine/scripting/RoomScriptContext.ts",
+        "src/engine/scripting/benneEnvironment.ts",
+        "src/engine/scripting/benneScriptCameraApi.ts",
+        "src/engine/scripting/benneScriptDialogSettingsApi.ts",
+        "src/engine/scripting/benneScriptFacades.ts",
+        "src/engine/scripting/benneScriptGameStateApi.ts",
+        "src/engine/scripting/benneScriptGuiApi.ts",
+        "src/engine/scripting/benneScriptOnUpdateRegistry.ts",
+        "src/engine/scripting/benneScriptPayloads.ts",
+        "src/engine/scripting/benneScriptRoomApi.ts",
+        "src/engine/scripting/benneScriptRoomEntityApi.ts",
+        "src/engine/scripting/benneScriptSoundApi.ts",
+        "src/engine/scripting/benneScriptSpeechSettingsApi.ts",
+        "src/engine/scripting/benneScriptVideoApi.ts",
+        "src/engine/scripting/benneSpeechSettingsScriptSurface.ts",
+        "src/engine/scripting/benneVerbContextScriptSurface.ts",
+        "src/engine/scripting/devPlayFromRegistry.ts",
+        "src/engine/scripting/dialogSession.ts",
+        "src/engine/scripting/index.ts",
+        "src/engine/scripting/registerCharacterScript.ts",
+        "src/engine/scripting/registerDialogScript.ts",
+        "src/engine/scripting/registerGlobalScript.ts",
+        "src/engine/scripting/registerGuiScript.ts",
+        "src/engine/scripting/registerInventoryScript.ts",
+        "src/engine/scripting/registerRoomScript.ts",
+        "src/engine/scripting/types.ts",
+        "src/engine/scripting/wireBenneGlobalScripts.ts",
+        "src/types/generated/benne-game-ids.d.ts"
+      ]
+    }
+  ]
+}

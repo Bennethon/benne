@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { cp, writeFile } from 'node:fs/promises';
+import { cp, readdir, rm, rmdir, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
@@ -10,6 +10,8 @@ export type ScaffoldManifest = {
         displayName: string;
         description: string;
     }>;
+    /** Engine files earlier versions shipped and this one doesn't (`scripts/removed-engine-files.json`). */
+    removedFiles?: string[];
 };
 
 export type BenneProjectFile = {
@@ -259,6 +261,67 @@ export async function scanScaffoldUpdate(
     result.unchangedFiles.sort();
     result.overwriteFiles.sort();
     return result;
+}
+
+/**
+ * Whether Update Engine may delete `rel` as an obsolete engine file: a plain relative path,
+ * outside `src/game/` (author content, and the boot layer, which is overwritten instead).
+ */
+export function isRemovableEngineFile(rel: string): boolean {
+    const norm = rel.replace(/\\/g, '/');
+    return (
+        norm.length > 0 &&
+        !path.isAbsolute(norm) &&
+        !norm.split('/').some((part) => part === '..' || part === '.' || part === '') &&
+        !norm.startsWith('src/game/')
+    );
+}
+
+/** The obsolete engine files from `removedFiles` that exist in the game. */
+export async function findObsoleteEngineFiles(gameRoot: vscode.Uri, removedFiles: readonly string[]): Promise<string[]> {
+    const found: string[] = [];
+    for (const rel of removedFiles) {
+        if (!isRemovableEngineFile(rel)) {
+            continue;
+        }
+        try {
+            const st = await vscode.workspace.fs.stat(vscode.Uri.joinPath(gameRoot, ...rel.split('/')));
+            if (st.type === vscode.FileType.File) {
+                found.push(rel);
+            }
+        } catch {
+            /* not there */
+        }
+    }
+    return found.sort();
+}
+
+/**
+ * Deletes obsolete engine files (see {@link findObsoleteEngineFiles}) and then any folders they
+ * leave empty, up to the game root. A folder that still has other files (the game's own) stays.
+ */
+export async function removeObsoleteEngineFiles(gameRoot: vscode.Uri, files: readonly string[]): Promise<void> {
+    const dirs = new Set<string>();
+    for (const rel of files) {
+        if (!isRemovableEngineFile(rel)) {
+            continue;
+        }
+        await rm(path.join(gameRoot.fsPath, ...rel.split('/')), { force: true });
+        for (let dir = path.posix.dirname(rel); dir !== '.'; dir = path.posix.dirname(dir)) {
+            dirs.add(dir);
+        }
+    }
+    // Deepest first, so a parent is only checked once its children are gone.
+    for (const dir of [...dirs].sort((a, b) => b.split('/').length - a.split('/').length)) {
+        const abs = path.join(gameRoot.fsPath, ...dir.split('/'));
+        try {
+            if ((await readdir(abs)).length === 0) {
+                await rmdir(abs);
+            }
+        } catch {
+            /* already gone */
+        }
+    }
 }
 
 export async function copySharedScaffold(
