@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
-import { activeTemplate, testsDir } from './tests/playthrough/templates';
+import { activeTemplate, testsDir } from './tests/support/templates';
 
 /**
  * `npm run test:playthrough`: the game template in `src/game` (whichever `set-template` swapped

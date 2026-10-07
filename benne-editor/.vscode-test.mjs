@@ -1,6 +1,6 @@
 import { defineConfig } from '@vscode/test-cli';
 import { downloadAndUnzipVSCode } from '@vscode/test-electron';
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const version = process.env.VSCODE_TEST_VERSION || '1.140.0';
@@ -17,8 +17,12 @@ if (process.platform === 'darwin') {
   useInstallation = { fromPath: executable };
 }
 
+// Shared tests, plus the tests of the template in ../src/game (its game-config.json `name`); see
+// tests/support/templates.ts.
+const gameConfig = JSON.parse(await readFile(new URL('../src/game/game-config.json', import.meta.url), 'utf8'));
+
 export default defineConfig({
-  files: 'out/test/**/*.test.js',
+  files: ['out/test/*.test.js', `out/test/${gameConfig.name}/**/*.test.js`],
   version,
   useInstallation,
   launchArgs: ['--disable-extensions', '--skip-welcome', '--skip-release-notes', '--disable-workspace-trust'],

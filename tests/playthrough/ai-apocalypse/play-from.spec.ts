@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { collectErrors, openGame, setAutoSkip, waitIdle } from '../support';
-import { gameDir } from '../templates';
+import { gameDir } from '../../support/templates';
 
 const roomsDir = path.join(gameDir('ai-apocalypse'), 'rooms');
 const entries: Array<{ room: string; name: string }> = [];

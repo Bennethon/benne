@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { testedTemplates, testsDir } from './tests/playthrough/templates';
+import { testedTemplates, testsDir } from './tests/support/templates';
 
 /**
  * `npm run test:templates`: plays every game template that has tests (`tests/playthrough/<name>/`)

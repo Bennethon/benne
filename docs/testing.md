@@ -2,7 +2,7 @@
 
 This suite tests the engine under `src/engine`, content under `src/game`, the `game-templates`, editor host code under `benne-editor/src`, preview bundles under `src/editor`, and the shipped scaffold/VSIX. Tests use actual implementations. The browser fixture is a separate, small game; tests never switch the developer's active game template.
 
-Each game template's playthrough tests live in `tests/playthrough/<template>/` (shared helpers in `tests/playthrough/`). `npm run test:playthrough` plays whichever template is in `src/game`, so after `npm run set-template:<name>` it plays that template's tests; `npm run test:templates` plays every template. A template without a test folder is skipped by `test:templates`, and `test:playthrough` refuses to run while it is active.
+Template-specific tests follow the template in `src/game`. Each suite keeps them in a folder per template, next to its shared tests: `tests/unit/<template>/` (Vitest), `benne-editor/src/test/<template>/` (extension host) and `tests/playthrough/<template>/` (Playwright). `npm test`, `npm run test:extension` and `npm run test:playthrough` run their shared tests plus the active template's, so after `npm run set-template:<name>` they test that template; `npm run test:templates` plays every template. Shared tests must hold for any template (pin any game setting they depend on); a check of one game's rooms, lines or IDs goes in that template's folder. `test:playthrough` refuses to run while a template without playthrough tests is active. The folders are chosen in `tests/support/templates.ts`, `vitest.config.ts` and `benne-editor/.vscode-test.mjs`.
 
 ## Running the suite
 

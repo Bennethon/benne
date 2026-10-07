@@ -1,9 +1,11 @@
 import { defineConfig } from 'vitest/config';
+import { activeTemplate } from './tests/support/templates';
 
 // Deliberately independent of vite.config.ts: tests must never regenerate game content.
 export default defineConfig({
   test: {
-    include: ['tests/unit/**/*.test.{ts,mjs}'],
+    // Shared tests, plus the tests of the template in src/game (tests/support/templates.ts).
+    include: ['tests/unit/*.test.{ts,mjs}', `tests/unit/${activeTemplate()}/**/*.test.{ts,mjs}`],
     setupFiles: ['tests/support/setup.ts'],
     restoreMocks: true,
     unstubGlobals: true,

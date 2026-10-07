@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildSpeakerTable, transformBenneScript } from '../../scripts/lib/bennescriptTransform.mjs';
 import { say, waitForClick } from '../../src/engine/bennescript/actions';
+import { getGameSettings } from '../../src/engine/ConfigManager';
 import { pointer } from '../../src/engine/bennescript/game';
 import {
   CharacterHandle,
@@ -187,12 +188,16 @@ describe('fallbacks and character scripts (§4.9, §4.17)', () => {
     });
     const onUnhandled = (p: { itemId: string }) => log.push(`fallback ${p.itemId}`);
     gameEvents.on(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, onUnhandled);
+    // Drop items after use, whatever the template in src/game configures.
+    const settings = getGameSettings();
+    const dropWhenInventoryUsed = settings.dropWhenInventoryUsed;
+    settings.dropWhenInventoryUsed = true;
     try {
       const use = (itemId: string) =>
         dispatchInventoryOnVerbTargetInteraction(gameEvents, itemId, 'use', { type: 'character', roomId: 'r', characterId: 't5-jensen' } as never);
       expect(use('t5-mop')).toBe(true);
       await flush();
-      // A finished handler applies the drop policy (src/game's config drops the item after use)…
+      // A finished handler applies the drop policy (set to drop the item after use above)…
       m.state.item = 't5-coin';
       expect(use('t5-coin')).toBe(true);
       await flush();
@@ -204,6 +209,7 @@ describe('fallbacks and character scripts (§4.9, §4.17)', () => {
       expect(log).toEqual(['mop', 'any t5-coin use', 'any t5-soda use', 'fallback t5-soda']);
     } finally {
       gameEvents.off(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, onUnhandled);
+      settings.dropWhenInventoryUsed = dropWhenInventoryUsed;
     }
   });
 });

@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { transformWithOxc } from 'vite';
 import {
@@ -6,6 +7,7 @@ import {
   isBenneScriptFile,
   transformBenneScript,
 } from '../../scripts/lib/bennescriptTransform.mjs';
+import { readCharacterSpeakers } from '../../scripts/lib/benneSpeakers.mjs';
 
 import { background, cutscene, together, withInputDisabled } from '../../src/engine/bennescript/blocks';
 import { dialogStackForTesting } from '../../src/engine/bennescript/dialogs';
@@ -264,19 +266,23 @@ describe('BenneScript transform', () => {
     );
   });
 
-  it('keeps every source line on the same line (the apartment)', () => {
-    const source = readFileSync('src/game/rooms/apartment/apartment.room.ts', 'utf8');
-    const out = transformBenneScript(source, {
-      filename: 'apartment.room.ts',
-      speakers: buildSpeakerTable([{ id: 'hank', name: 'Hank' }, { id: 'penny', name: 'Penny' }]),
-    })!;
-    const before = source.split('\n');
-    const after = out.code.split('\n');
-    expect(after.length).toBe(before.length + 2); // + the runtime import at the end
-    before.forEach((line, i) => {
-      const text = /"([^"]+)"/.exec(line)?.[1];
-      if (text) expect(after[i]).toContain(text);
-    });
+  it('keeps every source line on the same line (every room script in src/game)', () => {
+    const rooms = path.resolve('src/game/rooms');
+    const roomSpeakers = buildSpeakerTable(readCharacterSpeakers(path.resolve('src/game')));
+    const scripts = readdirSync(rooms, { recursive: true, encoding: 'utf8' }).filter((f) => f.endsWith('.room.ts'));
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const file of scripts) {
+      const source = readFileSync(path.join(rooms, file), 'utf8');
+      const out = transformBenneScript(source, { filename: path.basename(file), speakers: roomSpeakers });
+      if (!out) continue;
+      const before = source.split('\n');
+      const after = out.code.split('\n');
+      expect(after.length, file).toBe(before.length + 2); // + the runtime import at the end
+      before.forEach((line, i) => {
+        const text = /"([^"]+)"/.exec(line)?.[1];
+        if (text) expect(after[i], `${file}:${i + 1}`).toContain(text);
+      });
+    }
   });
 });
 

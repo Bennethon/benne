@@ -1,16 +1,19 @@
 /**
- * Which game the playthrough tests play. Each game template's tests live in
- * `tests/playthrough/<template>/`:
- * - `npm run test:playthrough` plays the template in `src/game` (whatever `set-template` last
- *   swapped in), on a dev server over `src/game`;
- * - `npm run test:templates` plays every template that has tests, each in its own workspace
- *   (`scripts/template-workspace.mjs`), so `src/game` is never touched.
+ * Template-specific tests follow the template in `src/game` (whatever `set-template` last swapped
+ * in). Each suite keeps them in a folder per template:
+ * - unit tests, `tests/unit/<template>/`: `npm test` runs the shared tests plus the active
+ *   template's (`vitest.config.ts`);
+ * - extension tests, `benne-editor/src/test/<template>/`: likewise (`benne-editor/.vscode-test.mjs`);
+ * - playthroughs, `tests/playthrough/<template>/`: `npm run test:playthrough` plays the active
+ *   template on a dev server over `src/game`, and `npm run test:templates` plays every template
+ *   that has tests, each in its own workspace (`scripts/template-workspace.mjs`).
  *
- * Paths are relative to the repo root, where Playwright runs.
+ * Paths are relative to the repo root, where the runners start.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
+/** A template's playthrough tests. */
 export const testsDir = (template: string): string => path.join('tests/playthrough', template);
 
 /** The template in `src/game`: `name` in its `game-config.json`. */
