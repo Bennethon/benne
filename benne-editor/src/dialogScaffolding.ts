@@ -1,19 +1,11 @@
 import * as vscode from 'vscode';
 import { applyBenneSingleColumnEditorLayout } from './benneEditorLayout';
 import { openBenneDialogTypeScript } from './roomScriptNavigation';
-import { pickWorkspaceFolder, validateSlug } from './roomScaffolding';
+import { promptForNameAndId } from './nameAndIdPrompt';
+import { pickWorkspaceFolder } from './roomScaffolding';
 
 function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
-}
-
-function defaultDialogIdFromDisplayName(displayName: string): string {
-    const slug = displayName
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-    return slug.length > 0 ? slug : 'dialog';
 }
 
 /**
@@ -25,32 +17,17 @@ export async function runCreateDialogWizard(preferredFolder?: vscode.WorkspaceFo
         return;
     }
 
-    const displayName = await vscode.window.showInputBox({
-        prompt: 'Dialog display name (shown in the BENNE tree; stored as `displayName` in JSON)',
-        placeHolder: 'Clerk — small talk',
-        validateInput: (v) => {
-            if (!v || !v.trim()) {
-                return 'Name is required';
-            }
-            return null;
-        }
+    const named = await promptForNameAndId({
+        namePrompt: 'Dialog display name (shown in the BENNE tree; stored as `displayName` in JSON)',
+        namePlaceHolder: 'Clerk — small talk',
+        idPrompt: 'Dialog id (folder name and file prefix; must match `id` in JSON)',
+        idLabel: 'Dialog id',
+        fallbackId: 'dialog'
     });
-    if (!displayName) {
+    if (!named) {
         return;
     }
-    const name = displayName.trim();
-
-    const defaultId = defaultDialogIdFromDisplayName(name);
-
-    const dialogId = await vscode.window.showInputBox({
-        prompt: 'Dialog id (folder name and file prefix; must match `id` in JSON)',
-        value: defaultId,
-        validateInput: (v) => validateSlug(v?.trim() ?? '', 'Dialog id')
-    });
-    if (!dialogId) {
-        return;
-    }
-    const id = dialogId.trim();
+    const { name, id } = named;
 
     const dialogDir = vscode.Uri.joinPath(folder.uri, 'src', 'game', 'dialogs', id);
     const dialogJsonUri = vscode.Uri.joinPath(dialogDir, `${id}.dialog.json`);

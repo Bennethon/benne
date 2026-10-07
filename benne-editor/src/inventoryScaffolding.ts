@@ -7,19 +7,11 @@ import {
     sharedInventorySheetFilesComplete
 } from './gameDiscovery';
 import type { MainTreeNode } from './mainTreeProvider';
-import { pickWorkspaceFolder, validateSlug } from './roomScaffolding';
+import { promptForNameAndId } from './nameAndIdPrompt';
+import { pickWorkspaceFolder } from './roomScaffolding';
 
 function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
-}
-
-function defaultInventoryIdFromDisplayName(displayName: string): string {
-    const slug = displayName
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-    return slug.length > 0 ? slug : 'item';
 }
 
 /**
@@ -31,32 +23,17 @@ export async function runCreateInventoryItemWizard(preferredFolder?: vscode.Work
         return;
     }
 
-    const displayName = await vscode.window.showInputBox({
-        prompt: 'Item display name (shown in the BENNE tree and in `name` in JSON)',
-        placeHolder: 'Rusty bucket',
-        validateInput: (v) => {
-            if (!v || !v.trim()) {
-                return 'Name is required';
-            }
-            return null;
-        }
+    const named = await promptForNameAndId({
+        namePrompt: 'Item display name (shown in the BENNE tree and in `name` in JSON)',
+        namePlaceHolder: 'Rusty bucket',
+        idPrompt: 'Item id (folder name and file prefix)',
+        idLabel: 'Item id',
+        fallbackId: 'item'
     });
-    if (!displayName) {
+    if (!named) {
         return;
     }
-    const name = displayName.trim();
-
-    const defaultId = defaultInventoryIdFromDisplayName(name);
-
-    const itemId = await vscode.window.showInputBox({
-        prompt: 'Item id (folder name and file prefix)',
-        value: defaultId,
-        validateInput: (v) => validateSlug(v?.trim() ?? '', 'Item id')
-    });
-    if (!itemId) {
-        return;
-    }
-    const id = itemId.trim();
+    const { name, id } = named;
 
     const invDir = vscode.Uri.joinPath(folder.uri, 'src', 'game', 'inventory', id);
     const invJsonUri = vscode.Uri.joinPath(invDir, `${id}.inventory.json`);

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { EditorSelection } from './editorSelection';
 import type { MainTreeNode } from './mainTreeProvider';
+import { promptForNameAndId } from './nameAndIdPrompt';
 import { pickWorkspaceFolder, validateSlug } from './roomScaffolding';
 import { openBenneGuiTypeScript } from './roomScriptNavigation';
 import {
@@ -26,15 +27,6 @@ function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
 }
 
-function defaultGuiIdFromDisplayName(displayName: string): string {
-    const slug = displayName
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-    return slug.length > 0 ? slug : 'gui';
-}
-
 /**
  * Create `src/game/guis/<id>/`, `<id>.gui.json`, `<id>.gui.ts`, and asset folder under `images/guis/<id>/`.
  */
@@ -44,32 +36,17 @@ export async function runCreateGuiWizard(preferredFolder?: vscode.WorkspaceFolde
         return;
     }
 
-    const displayName = await vscode.window.showInputBox({
-        prompt: 'GUI display name (shown in the BENNE tree and in `name` in JSON)',
-        placeHolder: 'Inventory bar',
-        validateInput: (v) => {
-            if (!v || !v.trim()) {
-                return 'Name is required';
-            }
-            return null;
-        }
+    const named = await promptForNameAndId({
+        namePrompt: 'GUI display name (shown in the BENNE tree and in `name` in JSON)',
+        namePlaceHolder: 'Inventory bar',
+        idPrompt: 'GUI id (folder name and file prefix)',
+        idLabel: 'GUI id',
+        fallbackId: 'gui'
     });
-    if (!displayName) {
+    if (!named) {
         return;
     }
-    const name = displayName.trim();
-
-    const defaultId = defaultGuiIdFromDisplayName(name);
-
-    const guiId = await vscode.window.showInputBox({
-        prompt: 'GUI id (folder name and file prefix)',
-        value: defaultId,
-        validateInput: (v) => validateSlug(v?.trim() ?? '', 'GUI id')
-    });
-    if (!guiId) {
-        return;
-    }
-    const id = guiId.trim();
+    const { name, id } = named;
 
     const guiDir = vscode.Uri.joinPath(folder.uri, 'src', 'game', 'guis', id);
     const guiJsonUri = vscode.Uri.joinPath(guiDir, `${id}.gui.json`);

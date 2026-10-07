@@ -14,6 +14,7 @@ import type { EditorSelection } from './editorSelection';
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import type { MainTreeNode } from './mainTreeProvider';
 import { openBenneRoomTypeScript } from './roomScriptNavigation';
+import { promptForNameAndId } from './nameAndIdPrompt';
 
 const SLUG_RE = /^[a-z0-9_-]+$/i;
 
@@ -128,30 +129,17 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
         return;
     }
 
-    const roomId = await vscode.window.showInputBox({
-        prompt: 'Room id (folder name and file prefix, e.g. kitchen)',
-        placeHolder: 'kitchen',
-        validateInput: (v) => validateSlug(v?.trim() ?? '', 'Room id')
+    const named = await promptForNameAndId({
+        namePrompt: 'Room display name (shown in the BENNE tree and in `name` in JSON)',
+        namePlaceHolder: 'Kitchen',
+        idPrompt: 'Room id (folder name and file prefix)',
+        idLabel: 'Room id',
+        fallbackId: 'room'
     });
-    if (!roomId) {
+    if (!named) {
         return;
     }
-    const id = roomId.trim();
-
-    const displayName = await vscode.window.showInputBox({
-        prompt: 'Display name (shown in the BENNE tree and room JSON `name`)',
-        placeHolder: id.charAt(0).toUpperCase() + id.slice(1),
-        validateInput: (v) => {
-            if (!v || !v.trim()) {
-                return 'Display name is required';
-            }
-            return null;
-        }
-    });
-    if (!displayName) {
-        return;
-    }
-    const name = displayName.trim();
+    const { name, id } = named;
 
     const roomDir = vscode.Uri.joinPath(folder.uri, 'src', 'game', 'rooms', id);
     const roomJsonUri = vscode.Uri.joinPath(roomDir, `${id}.room.json`);

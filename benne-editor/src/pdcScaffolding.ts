@@ -1,17 +1,9 @@
 import * as vscode from 'vscode';
-import { pickWorkspaceFolder, validateSlug } from './roomScaffolding';
+import { promptForNameAndId } from './nameAndIdPrompt';
+import { pickWorkspaceFolder } from './roomScaffolding';
 
 function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
-}
-
-function defaultPdcIdFromName(displayName: string): string {
-    const slug = displayName
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-    return slug.length > 0 ? slug : 'puzzle-chart';
 }
 
 /**
@@ -23,33 +15,18 @@ export async function runCreatePdcWizard(preferredFolder?: vscode.WorkspaceFolde
         return;
     }
 
-    const displayName = await vscode.window.showInputBox({
-        prompt:
+    const named = await promptForNameAndId({
+        namePrompt:
             'Chart title (shown in the BENNE tree; stored as `name` in JSON — designer reference only)',
-        placeHolder: 'Chapter 1 puzzle flow',
-        validateInput: (v) => {
-            if (!v || !v.trim()) {
-                return 'Name is required';
-            }
-            return null;
-        }
+        namePlaceHolder: 'Chapter 1 puzzle flow',
+        idPrompt: 'Chart id (folder name; must match `id` in JSON)',
+        idLabel: 'Chart id',
+        fallbackId: 'puzzle-chart'
     });
-    if (!displayName) {
+    if (!named) {
         return;
     }
-    const name = displayName.trim();
-
-    const defaultId = defaultPdcIdFromName(name);
-
-    const pdcId = await vscode.window.showInputBox({
-        prompt: 'Chart id (folder name; must match `id` in JSON)',
-        value: defaultId,
-        validateInput: (v) => validateSlug(v?.trim() ?? '', 'Chart id')
-    });
-    if (!pdcId) {
-        return;
-    }
-    const id = pdcId.trim();
+    const { name, id } = named;
 
     const pdcDir = vscode.Uri.joinPath(folder.uri, 'src', 'game', 'pdcs', id);
     const pdcJsonUri = vscode.Uri.joinPath(pdcDir, `${id}.pdc.json`);

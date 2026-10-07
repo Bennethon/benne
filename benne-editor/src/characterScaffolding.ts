@@ -9,20 +9,12 @@ import {
 } from './gameDiscovery';
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
 import type { MainTreeNode } from './mainTreeProvider';
-import { pickWorkspaceFolder, validateSlug } from './roomScaffolding';
+import { promptForNameAndId } from './nameAndIdPrompt';
+import { pickWorkspaceFolder } from './roomScaffolding';
 import { openBenneCharacterTypeScript } from './roomScriptNavigation';
 
 function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
-}
-
-function defaultCharacterIdFromDisplayName(displayName: string): string {
-    const slug = displayName
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-    return slug.length > 0 ? slug : 'character';
 }
 
 /**
@@ -34,32 +26,17 @@ export async function runCreateCharacterWizard(preferredFolder?: vscode.Workspac
         return;
     }
 
-    const displayName = await vscode.window.showInputBox({
-        prompt: 'Character display name (shown in the BENNE tree and in `name` in JSON)',
-        placeHolder: 'Shopkeeper',
-        validateInput: (v) => {
-            if (!v || !v.trim()) {
-                return 'Name is required';
-            }
-            return null;
-        }
+    const named = await promptForNameAndId({
+        namePrompt: 'Character display name (shown in the BENNE tree and in `name` in JSON)',
+        namePlaceHolder: 'Shopkeeper',
+        idPrompt: 'Character id (folder name and file prefix)',
+        idLabel: 'Character id',
+        fallbackId: 'character'
     });
-    if (!displayName) {
+    if (!named) {
         return;
     }
-    const name = displayName.trim();
-
-    const defaultId = defaultCharacterIdFromDisplayName(name);
-
-    const characterId = await vscode.window.showInputBox({
-        prompt: 'Character id (folder name and file prefix)',
-        value: defaultId,
-        validateInput: (v) => validateSlug(v?.trim() ?? '', 'Character id')
-    });
-    if (!characterId) {
-        return;
-    }
-    const id = characterId.trim();
+    const { name, id } = named;
 
     const charDir = vscode.Uri.joinPath(folder.uri, 'src', 'game', 'characters', id);
     const charJsonUri = vscode.Uri.joinPath(charDir, `${id}.character.json`);
