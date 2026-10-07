@@ -6,13 +6,16 @@
  * - speaker completions: `Hank: "|"` at the start of a statement;
  * - string-union completions: TypeScript already offers `'U'`, `'D'`, … at `face(` or
  *   `animation =`; they are moved to the top and match without the quote;
- * - go to definition from a generated handle (`battery`, `items.soda`, `options.bye`) to its JSON.
+ * - go to definition from a generated handle (`battery`, `items.soda`, `options.bye`) to its JSON;
+ * - another room's handle whose name the script already uses (`door`) as `outside.door`, adding
+ *   `import * as outside from '../outside/outside.ids'`. TypeScript doesn't offer it at all.
  *
  * Pure functions over the `typescript` module tsserver passes in; no `vscode` import.
  */
+import * as path from 'node:path';
 import type * as TS from 'typescript';
 import { locateContent } from './contentLocate';
-import { GENERATED_IDS_MARKER, IdsIndex } from './idsIndex';
+import { GENERATED_IDS_MARKER, IdsIndex, siblingIdsModulePath } from './idsIndex';
 import { parseScriptModel } from './scriptModel';
 import { resolveSpeaker, speakerLabelSuggestions, type SpeakerTable } from './speakers';
 
@@ -299,6 +302,175 @@ export function inStringLiteral(ts: typeof TS, sf: TS.SourceFile, position: numb
         (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateLiteralToken(node)) &&
         position > node.getStart(sf)
     );
+}
+
+/** `source` of the entries from {@link otherRoomCompletionEntries}: `benne-other-room/<roomId>/<namespace>`. */
+const OTHER_ROOM_SOURCE = 'benne-other-room/';
+
+type RoomModule = ReturnType<IdsIndex['roomModules']>[number];
+
+interface RoomNamespace {
+    name: string;
+    specifier: string;
+    /** The import to add when the script doesn't import the module as a namespace yet. */
+    insert?: TS.TextChange;
+}
+
+/** `../outside/outside.ids` from `rooms/apartment/apartment.room.ts`. */
+function relativeSpecifier(fromFile: string, modulePath: string): string {
+    const rel = path.relative(path.dirname(fromFile), modulePath).split(path.sep).join('/').replace(/\.ts$/, '');
+    return rel.startsWith('.') ? rel : `./${rel}`;
+}
+
+function importsModule(index: IdsIndex, sf: TS.SourceFile, decl: TS.ImportDeclaration, modulePath: string): boolean {
+    const spec = (decl.moduleSpecifier as TS.StringLiteral).text;
+    const resolved = index.resolveSpecifier(sf.fileName, spec);
+    return resolved !== undefined && path.resolve(resolved) === path.resolve(modulePath);
+}
+
+/** How the script refers to a room's module as a whole: its `import * as x` of it, or one to add as `preferred`. */
+function roomNamespace(ts: typeof TS, sf: TS.SourceFile, index: IdsIndex, room: RoomModule, preferred: string): RoomNamespace {
+    const specifier = relativeSpecifier(sf.fileName, room.modulePath);
+    let lastImport: TS.ImportDeclaration | undefined;
+    for (const stmt of sf.statements) {
+        if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteral(stmt.moduleSpecifier)) {
+            continue;
+        }
+        lastImport = stmt;
+        const bindings = stmt.importClause?.namedBindings;
+        if (bindings && ts.isNamespaceImport(bindings) && !stmt.importClause!.isTypeOnly && importsModule(index, sf, stmt, room.modulePath)) {
+            return { name: bindings.name.text, specifier };
+        }
+    }
+    const newLine = sf.text.includes('\r\n') ? '\r\n' : '\n';
+    const line = `import * as ${preferred} from '${specifier}';`;
+    const insert = lastImport
+        ? { span: { start: lastImport.getEnd(), length: 0 }, newText: `${newLine}${line}` }
+        : { span: { start: 0, length: 0 }, newText: `${line}${newLine}` };
+    return { name: preferred, specifier, insert };
+}
+
+/** Exports of a room module the script imports by name (`import { rock } from '../outside/outside.ids'`). */
+function namedImportsFrom(ts: typeof TS, sf: TS.SourceFile, index: IdsIndex, modulePath: string): Set<string> {
+    const out = new Set<string>();
+    for (const stmt of sf.statements) {
+        if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteral(stmt.moduleSpecifier) || !importsModule(index, sf, stmt, modulePath)) {
+            continue;
+        }
+        const bindings = stmt.importClause?.namedBindings;
+        if (bindings && ts.isNamedImports(bindings)) {
+            for (const el of bindings.elements) {
+                out.add((el.propertyName ?? el.name).text);
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * Handles of other rooms that TypeScript leaves out because their name is already taken in the
+ * script (the room's own `door`, say): `door` inserts `outside.door`, and accepting it adds the
+ * namespace import through {@link otherRoomEntryDetails}. `info` is TypeScript's result here;
+ * its entries without a `source` are the names in scope.
+ */
+export function otherRoomCompletionEntries(
+    ts: typeof TS,
+    sf: TS.SourceFile,
+    position: number,
+    info: TS.CompletionInfo,
+    index: IdsIndex,
+): TS.CompletionEntry[] {
+    if (info.isMemberCompletion) {
+        return [];
+    }
+    for (let n: TS.Node | undefined = findNodeAt(ts, sf, Math.max(0, position - 1)); n; n = n.parent) {
+        if (ts.isImportDeclaration(n)) {
+            return [];
+        }
+    }
+    const inScope = new Set(info.entries.filter((e) => !e.source).map((e) => e.name));
+    const own = siblingIdsModulePath(sf.fileName);
+    let start = position;
+    while (start > 0 && /[\w$]/.test(sf.text[start - 1])) {
+        start--;
+    }
+    const out: TS.CompletionEntry[] = [];
+    for (const room of index.roomModules()) {
+        if (own && path.resolve(own) === path.resolve(room.modulePath)) {
+            continue;
+        }
+        const imported = namedImportsFrom(ts, sf, index, room.modulePath);
+        // `room` is `rooms.<key>`, which every script already has.
+        const names = [...index.exportsOf(room.modulePath).keys()].filter((n) => n !== 'room' && inScope.has(n) && !imported.has(n));
+        if (names.length === 0) {
+            continue;
+        }
+        const ns = roomNamespace(ts, sf, index, room, inScope.has(room.key) ? `${room.key}Room` : room.key);
+        for (const name of names) {
+            out.push({
+                name,
+                kind: ts.ScriptElementKind.constElement,
+                kindModifiers: 'export',
+                sortText: '16',
+                insertText: `${ns.name}.${name}`,
+                filterText: name,
+                replacementSpan: { start, length: position - start },
+                source: `${OTHER_ROOM_SOURCE}${room.roomId}/${ns.name}`,
+                labelDetails: { description: `${room.roomId} room` },
+                hasAction: ns.insert ? true : undefined,
+            });
+        }
+    }
+    return out;
+}
+
+/** Details of an entry from {@link otherRoomCompletionEntries}, with the import to add; undefined for others. */
+export function otherRoomEntryDetails(
+    ts: typeof TS,
+    languageService: TS.LanguageService,
+    sf: TS.SourceFile,
+    name: string,
+    source: string | undefined,
+    index: IdsIndex,
+): TS.CompletionEntryDetails | undefined {
+    if (!source?.startsWith(OTHER_ROOM_SOURCE)) {
+        return undefined;
+    }
+    const [roomId, preferred] = source.slice(OTHER_ROOM_SOURCE.length).split('/');
+    const room = index.roomModules().find((r) => r.roomId === roomId);
+    if (!room || !preferred) {
+        return undefined;
+    }
+    const ns = roomNamespace(ts, sf, index, room, preferred);
+    // The handle's own hover text: `const door: PropHandle<…>` and its doc comment.
+    const moduleSf = languageService.getProgram()?.getSourceFile(room.modulePath);
+    let quick: TS.QuickInfo | undefined;
+    for (const stmt of moduleSf?.statements ?? []) {
+        const decl = ts.isVariableStatement(stmt)
+            ? stmt.declarationList.declarations.find((d) => ts.isIdentifier(d.name) && d.name.text === name)
+            : undefined;
+        if (decl) {
+            quick = languageService.getQuickInfoAtPosition(room.modulePath, decl.name.getStart(moduleSf));
+            break;
+        }
+    }
+    return {
+        name,
+        kind: ts.ScriptElementKind.constElement,
+        kindModifiers: 'export',
+        displayParts: quick?.displayParts ?? [{ text: `${ns.name}.${name}`, kind: 'text' }],
+        documentation: quick?.documentation ?? [],
+        tags: quick?.tags ?? [],
+        codeActions: ns.insert
+            ? [
+                  {
+                      description: `Add import * as ${ns.name} from '${ns.specifier}'`,
+                      changes: [{ fileName: sf.fileName, textChanges: [ns.insert] }],
+                  },
+              ]
+            : undefined,
+        source: [{ text: ns.specifier, kind: 'text' }],
+    };
 }
 
 /**

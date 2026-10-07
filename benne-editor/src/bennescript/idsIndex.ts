@@ -230,6 +230,23 @@ export class IdsIndex {
         return out;
     }
 
+    /** Each room's generated module, with its key in `rooms` (`rooms.club` → `club`). */
+    roomModules(): Array<{ roomId: string; key: string; modulePath: string }> {
+        const out: Array<{ roomId: string; key: string; modulePath: string }> = [];
+        const rooms = this.resolveExport(this.gameModulePath, 'rooms');
+        for (const key of rooms?.members.keys() ?? []) {
+            const ref = this.resolveExport(this.gameModulePath, 'rooms', [key])?.ref;
+            if (ref?.kind !== 'room') {
+                continue;
+            }
+            const modulePath = path.join(this.gameRoot, 'rooms', ref.id, `${ref.id}.ids.ts`);
+            if (this.hasModule(modulePath)) {
+                out.push({ roomId: ref.id, key, modulePath });
+            }
+        }
+        return out;
+    }
+
     /**
      * The content behind a declaration in a generated module: the `const` or object property at
      * `position` (for go-to-definition from a handle to its JSON).

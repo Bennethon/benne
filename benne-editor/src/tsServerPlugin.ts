@@ -5,6 +5,8 @@ import {
     explainArrowSpeechErrors,
     inStringLiteral,
     isBenneScriptFile,
+    otherRoomCompletionEntries,
+    otherRoomEntryDetails,
     promoteStringLiteralEntries,
     redirectDefinitionsToContent,
     speakerCompletionEntries,
@@ -22,7 +24,8 @@ import {
  * TypeScript server plugin for BENNE games (docs/bennescript-ergonomics-refactor.md §9).
  *
  * BenneScript: speaker completions and diagnostics, string-union completions that insert their
- * quotes, and go to definition from generated handles to their JSON (`./bennescript/tsPluginFeatures`).
+ * quotes, other rooms' handles whose names are taken (`outside.door`), and go to definition from
+ * generated handles to their JSON (`./bennescript/tsPluginFeatures`).
  */
 
 export function init(modules: { typescript: typeof ts }): { create(info: ts.server.PluginCreateInfo): ts.LanguageService } {
@@ -141,17 +144,34 @@ export function init(modules: { typescript: typeof ts }): { create(info: ts.serv
                 }
                 const invoked = options?.triggerKind === 1 /* CompletionTriggerKind.Invoked */;
                 const speakers = speakerCompletionEntries(typescript, sf, position, speakerTable(gameRoot), invoked);
+                const otherRooms = result ? otherRoomCompletionEntries(typescript, sf, position, result, idsIndex(gameRoot)) : [];
                 const base = result ? promoteStringLiteralEntries(typescript, result) : undefined;
-                if (speakers.length === 0) {
+                if (speakers.length === 0 && otherRooms.length === 0) {
                     return base;
                 }
                 return base
-                    ? { ...base, entries: [...speakers, ...base.entries] }
+                    ? { ...base, entries: [...speakers, ...base.entries, ...otherRooms] }
                     : { isGlobalCompletion: false, isMemberCompletion: false, isNewIdentifierLocation: true, entries: speakers };
             } catch (err) {
                 log(`[benne] completions failed: ${String(err)}`);
                 return result;
             }
+        };
+
+        proxy.getCompletionEntryDetails = (fileName, position, entryName, formatOptions, source, preferences, data) => {
+            const sf = scriptSource(fileName);
+            const gameRoot = gameRootOfFile(fileName);
+            if (sf && gameRoot) {
+                try {
+                    const ours = otherRoomEntryDetails(typescript, info.languageService, sf, entryName, source, idsIndex(gameRoot));
+                    if (ours) {
+                        return ours;
+                    }
+                } catch (err) {
+                    log(`[benne] completion details failed: ${String(err)}`);
+                }
+            }
+            return info.languageService.getCompletionEntryDetails(fileName, position, entryName, formatOptions, source, preferences, data);
         };
 
         return proxy;

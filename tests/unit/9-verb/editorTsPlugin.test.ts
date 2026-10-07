@@ -148,6 +148,39 @@ describe('BENNE TS plugin', { timeout: 60000 }, () => {
     expect(faces.map((e) => e.name)).toEqual(expect.arrayContaining(["'U'", "'D'", "'L'", "'R'"]));
   });
 
+  it("offers another room's handle whose name the script already uses", () => {
+    const apply = (text: string, changes: readonly ts.TextChange[]) =>
+      [...changes]
+        .sort((a, b) => b.span.start - a.span.start)
+        .reduce((t, c) => t.slice(0, c.span.start) + c.newText + t.slice(c.span.start + c.span.length), text);
+    const ours = (e: ts.CompletionEntry) => e.source?.startsWith('benne-other-room/') === true;
+    const { text, at } = withHandler('doo|');
+    const ls = pluginService({ [apartmentScript]: text });
+    const entries = ls.getCompletionsAtPosition(apartmentScript, at, {})!.entries;
+    // The room's own `door`, then the outside one; only names that clash.
+    expect(entries.filter((e) => e.name === 'door').map((e) => e.insertText ?? e.name)).toEqual(['door', 'outside.door']);
+    expect(entries.filter(ours).some((e) => e.name === 'fountainOff' || e.name === 'room')).toBe(false);
+    const outsideDoor = entries.find((e) => ours(e) && e.name === 'door')!;
+    expect(outsideDoor).toMatchObject({ labelDetails: { description: 'outside room' }, replacementSpan: { start: at - 3, length: 3 }, hasAction: true });
+    const details = ls.getCompletionEntryDetails(apartmentScript, at, 'door', {}, outsideDoor.source, {}, outsideDoor.data)!;
+    expect(ts.displayPartsToString(details.displayParts)).toContain('HotspotHandle');
+    const imports = details.codeActions![0]!.changes[0]!.textChanges;
+    expect(imports.map((c) => c.newText.trim())).toEqual(["import * as outside from '../outside/outside.ids';"]);
+    // Accepted, it type-checks; the next one reuses the import.
+    const accepted = apply(text, [...imports, { span: outsideDoor.replacementSpan!, newText: outsideDoor.insertText! }]);
+    const checked = pluginService({ [apartmentScript]: accepted });
+    const errors = [...checked.getSyntacticDiagnostics(apartmentScript), ...checked.getSemanticDiagnostics(apartmentScript)];
+    expect(errors.map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'))).toEqual([]);
+    const next = `${accepted}room.onEnter(() => {\n  doo`;
+    const ls2 = pluginService({ [apartmentScript]: next });
+    const again = ls2.getCompletionsAtPosition(apartmentScript, next.length, {})!.entries.find((e) => ours(e) && e.name === 'door')!;
+    expect(again).toMatchObject({ insertText: 'outside.door', hasAction: undefined });
+    expect(ls2.getCompletionEntryDetails(apartmentScript, next.length, 'door', {}, again.source, {}, again.data)!.codeActions).toBeUndefined();
+    // Not after a dot.
+    const member = withHandler('hank.doo|');
+    expect(pluginService({ [apartmentScript]: member.text }).getCompletionsAtPosition(apartmentScript, member.at, {})?.entries.some(ours)).toBe(false);
+  });
+
   it('goes from a generated handle to its JSON', () => {
     const ls = pluginService({});
     const def = (needle: string, offset = 0) => {

@@ -463,6 +463,17 @@ player.switchTo(penny)               // the player now controls Penny
 
 A prop (or hotspot) can be changed from another room's script too: import it from its room's `.ids` module and set it. The change is saved for that room and shows when you go there. Fades and slides from another room happen at once, and `play` only works in the prop's own room.
 
+If both rooms have a `door`, import the other room's module under its name and write `outside.door`:
+
+```ts
+import * as outside from '../outside/outside.ids';
+
+door.hide()           // this room's door
+outside.door.show()   // the one outside
+```
+
+The editor suggests `outside.door` when you type `door`, and adds the import when you pick it.
+
 ## Sound, music, camera and video
 
 ```ts
