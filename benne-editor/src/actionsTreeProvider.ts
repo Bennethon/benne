@@ -837,7 +837,6 @@ export class ActionsTreeProvider implements vscode.TreeDataProvider<ActionTreeNo
             const dialogId = getDialogIdFromDialogJsonUri(dialogJsonUri);
             const scriptUri = vscode.Uri.joinPath(dialogJsonUri, '..', `${dialogId}.dialog.ts`);
             return [
-                { kind: 'rebuildDialogPreviewBundle' },
                 { kind: 'guiOpen', label: 'Open dialog JSON', targetUri: dialogJsonUri },
                 { kind: 'guiOpen', label: 'Open dialog script', targetUri: scriptUri }
             ];
