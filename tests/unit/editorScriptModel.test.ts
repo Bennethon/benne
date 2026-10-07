@@ -71,7 +71,12 @@ describe('IdsIndex', () => {
     const guiScript = path.join(gameRoot, 'guis/game-menu/game-menu.gui.ts');
     expect(index.findBinding(guiScript, { kind: 'guiControl', guiId: 'game-menu', id: 'settings' })?.expr).toBe('settingsBtn');
     const charScript = path.join(gameRoot, 'characters/jensen/jensen.character.ts');
-    expect(index.findBinding(charScript, { kind: 'character', roomId: null, id: 'jensen' }, { preferGame: true })?.expr).toBe('characters.jensen');
+    // A character script's own character is flat; other characters, and `characters.x` in a room script, are in @game.
+    expect(index.findBinding(charScript, { kind: 'character', roomId: null, id: 'jensen' })).toEqual({
+      module: './jensen.ids', name: 'jensen', expr: 'jensen',
+    });
+    expect(index.findBinding(charScript, { kind: 'character', roomId: null, id: 'hank' })?.expr).toBe('characters.hank');
+    expect(index.findBinding(clubScript, { kind: 'character', roomId: null, id: 'jensen' })?.expr).toBe('characters.jensen');
   });
 
   it('reads the verbs from verbSpecs', () => {

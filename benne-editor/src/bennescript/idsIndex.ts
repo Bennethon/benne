@@ -104,7 +104,7 @@ export function pascalCaseId(id: string): string {
 
 /** Script file → its generated sibling module: `rooms/club/club.room.ts` → `rooms/club/club.ids.ts`. */
 export function siblingIdsModulePath(scriptFile: string): string | undefined {
-    const m = /^(.*[/\\])([^/\\]+)\.(room|dialog|gui)\.ts$/.exec(scriptFile);
+    const m = /^(.*[/\\])([^/\\]+)\.(room|character|dialog|gui)\.ts$/.exec(scriptFile);
     return m ? `${m[1]}${m[2]}.ids.ts` : undefined;
 }
 
@@ -183,17 +183,14 @@ export class IdsIndex {
 
     /**
      * How a script refers to `ref`: a flat export of its sibling `.ids` module (`battery`,
-     * `regions.leave`, `options.bye`, `room`) when it has one, else a path into `@game`
-     * (`items.soda`, `characters.jensen`, `dialogs.driver.options.wrench`).
+     * `regions.leave`, `options.bye`, `room`, a character script's own `jensen`) when it has one,
+     * else a path into `@game` (`items.soda`, `characters.jensen`, `dialogs.driver.options.wrench`).
+     * A room's flat character is room-scoped, so it never stands in for `characters.x`.
      */
-    findBinding(
-        scriptFile: string,
-        ref: ContentRef,
-        opts?: { preferGame?: boolean },
-    ): { module: string; name: string; expr: string } | undefined {
+    findBinding(scriptFile: string, ref: ContentRef): { module: string; name: string; expr: string } | undefined {
         const candidates: Array<{ spec: string; modulePath: string }> = [];
         const sibling = siblingIdsModulePath(scriptFile);
-        if (sibling && !opts?.preferGame) {
+        if (sibling) {
             candidates.push({ spec: `./${path.basename(sibling, '.ts')}`, modulePath: sibling });
         }
         candidates.push({ spec: '@game', modulePath: this.gameModulePath });

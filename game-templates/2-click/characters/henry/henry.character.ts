@@ -1,7 +1,7 @@
-import { characters } from '@game';
+import { henry } from './henry.ids';
 
 // Henry's handlers in every room he is in. A room script's own `henry.onLook(…)` wins over this.
 
-characters.henry.onLook(() => {
+henry.onLook(() => {
   // TODO
 })

@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { readSavedPropAlpha, writeSavedPropAlpha } from '../benneAnimationRuntime.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { getRoomVisitCount, setRoomVisitCount } from '../gameState/roomVisitState.js';
@@ -24,7 +25,7 @@ import type { VideoPlayOptions } from '../video/benneVideoTypes.js';
 import {
   activeRoomScene,
   characterOps,
-  faceCharacter,
+  faceCharacterTask,
   inventoryOf,
   roomFor,
   sayTask,
@@ -280,6 +281,34 @@ export class PropHandle<V extends string = string, Anim extends string = string>
     return new Task(scene.fadePropScriptAlpha(this.id, from, alpha, seconds));
   });
 
+  /**
+   * Opacity, 0–1. Setting it is instant (it stops a running `fade`) and saved. Outside the prop's
+   * room it reads and writes the saved value (1 when none is saved).
+   */
+  get alpha(): number {
+    const scene = activeRoomScene();
+    const sprite = scene?.getCurrentRoomId() === this.roomId ? scene?.getPropSprite(this.id) : undefined;
+    if (sprite) {
+      return sprite.alpha;
+    }
+    const m = tryGetActiveGameStateManager();
+    return m && this.roomId ? readSavedPropAlpha(m, this.roomId, this.id, 1) : 1;
+  }
+
+  set alpha(value: number) {
+    const scene = activeRoomScene();
+    if (scene && scene.getCurrentRoomId() === this.roomId) {
+      void scene.fadePropScriptAlpha(this.id, value, value, 0);
+      return;
+    }
+    const m = tryGetActiveGameStateManager();
+    if (m && this.roomId) {
+      writeSavedPropAlpha(m, this.roomId, this.id, value);
+    } else {
+      warnOnce(`${this.id}.alpha:no-game`, `${this.id}.alpha: the game is not running — ignored.`);
+    }
+  }
+
   /** Teleports to room pixels (instant). */
   moveTo(point: Point2): void {
     roomFor(`${this.id}.moveTo`)?.movePropToNow(this.id, point);
@@ -356,16 +385,23 @@ export class CharacterHandle<V extends string = string, Anim extends string = st
     return characterOps.position(this.id);
   }
 
-  /** Turns to `'U'`, `'D'`, `'L'` or `'R'` (completions insert the quotes). Instant. */
-  face(direction: CharacterFacingLetter): void {
-    faceCharacter(this.id, direction);
-  }
+  /** Turns to `'U'`, `'D'`, `'L'` or `'R'` (completions insert the quotes). Waits for the turn; `.now` doesn't. */
+  readonly face = timed((direction: CharacterFacingLetter): Task => faceCharacterTask(this.id, direction));
 
   /** One-shot animation; waits for it to finish, then returns to the base animation. */
   readonly play = timed((tag: Anim): Task => characterOps.play(this.id, tag));
 
   /** Fades to `alpha` (0–1) over `seconds`. Waits. */
   readonly fade = timed((alpha: number, seconds: number): Task => characterOps.fade(this.id, alpha, seconds));
+
+  /** Opacity, 0–1. Setting it is instant (it stops a running `fade`) and saved. */
+  get alpha(): number {
+    return characterOps.getAlpha(this.id);
+  }
+
+  set alpha(value: number) {
+    characterOps.setAlpha(this.id, value);
+  }
 
   /** Animation override (instant, saved); the effective animation when read (§4.10). */
   get animation(): Anim {

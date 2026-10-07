@@ -15,20 +15,11 @@
 import MagicString from 'magic-string';
 import { parseAst } from 'vite';
 import { buildSpeakerTable, normalizeSpeakerLabel, resolveSpeaker } from './benneSpeakers.mjs';
+import { isBenneScriptFile, isFunction, isStepApiCall, propertyName, topLevelStepFunctions, unwrap } from './bennescriptSteps.mjs';
 
 export const BENNESCRIPT_RUNTIME_MODULE = '@benne/script';
 
-/** Callbacks passed directly to these are step functions (besides `x.on…(…)` methods). */
-const STEP_BLOCK_APIS = new Set(['playFrom', 'cutscene', 'background', 'together', 'withInputDisabled']);
-/** Methods besides `on…` whose callbacks are handlers (`events.once(name, fn)`). */
-const STEP_METHODS = new Set(['once']);
-/** `on…` methods whose callbacks run every frame and must stay synchronous (§4.18). */
-const NOT_STEP_ON_METHODS = new Set(['onUpdate']);
-
-const SCRIPT_FILE = /(?:^|[/\\])(?:[^/\\]+\.(?:room|character|inventory|dialog|gui|script)\.ts|globalScript\.ts)$/;
-export function isBenneScriptFile(id) {
-  return SCRIPT_FILE.test(id.replace(/[?#].*$/, ''));
-}
+export { isBenneScriptFile };
 
 // ─── Speakers ────────────────────────────────────────────────────────────────
 
@@ -58,50 +49,31 @@ function walk(node, visit) {
   for (const child of children(node)) walk(child, visit);
 }
 
-const isFunction = (n) =>
-  n.type === 'ArrowFunctionExpression' || n.type === 'FunctionExpression' || n.type === 'FunctionDeclaration';
-
-/** Strips parentheses / `!` / `as` wrappers that don't change what an expression is. */
-function unwrap(n) {
-  while (
-    n &&
-    (n.type === 'ParenthesizedExpression' ||
-      n.type === 'TSNonNullExpression' ||
-      n.type === 'TSAsExpression' ||
-      n.type === 'TSSatisfiesExpression' ||
-      n.type === 'ChainExpression')
-  ) {
-    n = n.expression;
-  }
-  return n;
-}
-
 const isCallLike = (n) => {
   const u = unwrap(n);
   return u != null && (u.type === 'CallExpression' || u.type === 'TaggedTemplateExpression');
 };
 
-function propertyName(member) {
-  if (member.type !== 'MemberExpression' || member.computed) return null;
-  return member.property.type === 'Identifier' ? member.property.name : null;
-}
-
-const isOnMethod = (name) => name != null && /^on(?:[A-Z]|$)/.test(name) && !NOT_STEP_ON_METHODS.has(name);
-
-/** `x.onLook(…)`, `x.on([…], …)`, `items.x.onUse.doNotActivate(…)`, `cutscene(…)`, `playFrom(…)`, … */
-function isStepApiCall(call) {
-  const callee = unwrap(call.callee);
-  if (callee.type === 'Identifier') return STEP_BLOCK_APIS.has(callee.name);
-  const name = propertyName(callee);
-  if (name == null) return false;
-  if (STEP_BLOCK_APIS.has(name) || STEP_METHODS.has(name)) return true;
-  if (name === 'doNotActivate') return isOnMethod(propertyName(unwrap(callee.object)));
-  return isOnMethod(name);
-}
-
 const isStringBody = (n) => n.type === 'TemplateLiteral' || (n.type === 'Literal' && typeof n.value === 'string');
 
 // ─── Transform ───────────────────────────────────────────────────────────────
+
+/**
+ * `() => Hank: "Hi"` is a syntax error (a label needs statement position), which the parser
+ * reports as "expected `,`" at the colon. When the colon at `pos` follows `=> Label`, returns the
+ * label, so the error can say what to do instead.
+ */
+export function arrowSpeechLabelAt(code, pos) {
+  if (code[pos] !== ':') return undefined;
+  return /=>\s*([A-Za-z_$][\w$]*)\s*$/.exec(code.slice(0, pos))?.[1];
+}
+
+export function arrowSpeechMessage(label) {
+  return (
+    `A speech line can't be the whole body of an arrow function: \`() => ${label}: "…"\` doesn't parse. ` +
+    `Put it in braces: \`() => { ${label}: "…" }\`.`
+  );
+}
 
 export class BenneScriptTransformError extends Error {
   /** @param {string} message @param {number} pos UTF-16 offset in the source */
@@ -118,43 +90,21 @@ export class BenneScriptTransformError extends Error {
  * @returns {{ code: string, map: import('magic-string').SourceMap } | null} `null` when nothing changed
  */
 export function transformBenneScript(code, { filename, speakers }) {
-  const ast = parseAst(code, { lang: 'ts' }, filename);
+  let ast;
+  try {
+    ast = parseAst(code, { lang: 'ts' }, filename);
+  } catch (err) {
+    const label = typeof err?.pos === 'number' ? arrowSpeechLabelAt(code, err.pos) : undefined;
+    if (label) throw new BenneScriptTransformError(arrowSpeechMessage(label), code.lastIndexOf(label, err.pos));
+    throw err;
+  }
   const s = new MagicString(code);
   const fail = (message, node) => {
     throw new BenneScriptTransformError(message, node.start);
   };
 
   // 1. Step functions: top-level functions, imports from *.script.ts, and callbacks of step APIs.
-  /** @type {Set<string>} names that call a step function when called */
-  const stepNames = new Set();
-  /** @type {Set<object>} */
-  const stepFunctions = new Set();
-
-  for (let stmt of ast.body) {
-    if (stmt.type === 'ImportDeclaration') {
-      if (/\.script(?:\.ts)?$/.test(stmt.source.value)) {
-        for (const spec of stmt.specifiers) {
-          if (spec.type !== 'ImportNamespaceSpecifier') stepNames.add(spec.local.name);
-        }
-      }
-      continue;
-    }
-    if ((stmt.type === 'ExportNamedDeclaration' || stmt.type === 'ExportDefaultDeclaration') && stmt.declaration) {
-      stmt = stmt.declaration;
-    }
-    if (stmt.type === 'FunctionDeclaration' && stmt.id) {
-      stepNames.add(stmt.id.name);
-      stepFunctions.add(stmt);
-    } else if (stmt.type === 'VariableDeclaration') {
-      for (const d of stmt.declarations) {
-        const init = d.init && unwrap(d.init);
-        if (init && isFunction(init) && d.id.type === 'Identifier') {
-          stepNames.add(d.id.name);
-          stepFunctions.add(init);
-        }
-      }
-    }
-  }
+  const { stepNames, stepFunctions } = topLevelStepFunctions(ast);
 
   walk(ast, (node) => {
     if (node.type !== 'CallExpression') return;

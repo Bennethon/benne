@@ -15,12 +15,12 @@ globs:
 
 These files are BenneScript: TypeScript that a build transform sequences. Read the `bennescript` skill (`.cursor/skills/bennescript/SKILL.md`) before writing more than a line or two.
 
-- **Lines in a handler run in order.** Timed actions (walks, speech, `wait`, one-shot `play`, fades, camera moves, `playAndWait`, `dialogs.x.start()`, `cutscene`, your own top-level functions) wait; the rest is instant. Never add `await`, `async`, `.then` or timers for sequencing.
+- **Lines in a handler run in order.** Timed actions (walks, speech, `wait`, `face`, one-shot `play`, fades, camera moves, `playAndWait`, `dialogs.x.start()`, `cutscene`, your own top-level functions) wait when they are a line of their own; the rest is instant. Never add `await`, `async`, `.then` or timers for sequencing, and never put a timed action in `onUpdate` (start a `background(() => …)` from it).
 - **Register handlers at the top level**: `battery.onUseItem(items.soda, () => { … })`. There is no `B` object and no `register*Script` wrapper (that API was deleted).
-- **No quoted content IDs.** Use generated handles: this room's things from `./<room>.ids` (`battery`, `points.x`, `regions.x`), everything else from `@game` (`items`, `dialogs`, `rooms`, `characters`, `guis`, `sfx`, `music`, `video`, `verbs`, `fallbacks`, `flags`, `vars`), engine helpers from `@benne/script`.
+- **No quoted content IDs.** Use generated handles: this room's things from `./<room>.ids` (`battery`, `points.x`, `regions.x`), a character script's own character from `./<character>.ids` (`penny`), everything else from `@game` (`items`, `dialogs`, `rooms`, `characters`, `guis`, `sfx`, `music`, `video`, `verbs`, `fallbacks`, `flags`, `vars`), engine helpers from `@benne/script`.
 - **Dialogue**: `Hank: "Line."` (ID or display name; `Player:` = the controlled character). In an arrow function use braces: `() => { Player: "…" }`. Multi-line: `` say`Hank: …` ``.
 - **Verb methods come from `game-config.json`** (`onLook`, `onTake`, `onUseItem` for `usesItem` verbs). Don't invent verbs.
 - **`.now` starts without waiting**: `jensen.walkTo.now(points.x)` then `player.walkTo(points.y)`.
 - **`goTo()`, `unhandled()`, `dialog.end()`, `saves.load()`, `game.newGame()` end the handler**; put anything else above them. `unhandled()` replaces `return false`.
 - **Flags and variables** are declared in `src/game/state.ts` (`defineFlags`, `defineVars`) and used as `flags.x = true`.
-- **Never edit `*.ids.ts` / `game.ids.ts`** (generated). After JSON changes run `npm run generate:game-ids`; verify with `npm run typecheck`.
+- **Never edit `*.ids.ts` / `game.ids.ts`** (generated). After JSON changes run `npm run generate:game-ids`; verify with `npm run typecheck` and `npm run lint`.

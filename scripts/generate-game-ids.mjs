@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Generates the BenneScript handle modules (gitignored) from src/game/ content:
- * src/game/game.ids.ts (`@game`) and rooms/dialogs/guis `<id>/<id>.ids.ts`
+ * src/game/game.ids.ts (`@game`) and rooms/characters/dialogs/guis `<id>/<id>.ids.ts`
  * (docs/bennescript-ergonomics-refactor.md §7, §8).
  *
  * `--check` writes nothing: it fails when the handles can't be generated (name collisions,
@@ -31,7 +31,7 @@ async function writeIfChanged(file, content) {
 /** Generated `.ids.ts` files currently on disk (only ones carrying the generated marker). */
 async function existingGeneratedModules() {
   const candidates = [path.join(gameRoot, 'game.ids.ts')];
-  for (const kind of ['rooms', 'dialogs', 'guis']) {
+  for (const kind of ['rooms', 'characters', 'dialogs', 'guis']) {
     const dir = path.join(gameRoot, kind);
     const folders = await readdir(dir, { withFileTypes: true }).catch(() => []);
     for (const folder of folders) {

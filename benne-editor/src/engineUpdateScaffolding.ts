@@ -5,6 +5,7 @@ import {
     compareSemver,
     copySharedScaffold,
     copyTemplateBoot,
+    ensureGameEslintConfig,
     mergeGamePackageJson,
     readBenneProject,
     readScaffoldManifest,
@@ -206,6 +207,9 @@ export async function runUpdateEngineWizard(
             try {
                 await mergeGamePackageJson(gameFolder.uri);
                 channel.appendLine('Merged package.json scripts and dependencies.');
+                if (await ensureGameEslintConfig(gameFolder.uri)) {
+                    channel.appendLine('Added eslint.config.mjs (BenneScript lint rules; run npm run lint).');
+                }
             } catch (e) {
                 channel.appendLine(
                     `package.json merge failed: ${e instanceof Error ? e.message : String(e)}`,

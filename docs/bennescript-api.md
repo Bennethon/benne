@@ -45,7 +45,7 @@ A dialog or GUI script that changes a room imports that room's module too (`impo
 | File | Runs | Its handlers apply |
 |---|---|---|
 | `rooms/<id>/<id>.room.ts` | When the room first loads (lazily) | In that room. A room's handler wins over a character script's for the same verb. |
-| `characters/<id>/<id>.character.ts` | At game start | To that character (`characters.jensen.onLook(…)`) in every room that spawns it |
+| `characters/<id>/<id>.character.ts` | At game start | To that character (`jensen.onLook(…)`, `jensen` from `./jensen.ids`) in every room that spawns it |
 | `inventory/<id>/<id>.inventory.ts` | At game start | To that item's inventory row (`items.magnet.onLook(…)`), and item-on-item (`onCombine`) |
 | `dialogs/<id>/<id>.dialog.ts` | At game start | To that dialog's options (`options.greeting.onChoose(…)`) |
 | `guis/<id>/<id>.gui.ts` | At game start | To that GUI's controls, in every room that shows it |
@@ -123,7 +123,7 @@ display("The door is locked.")                 // narration
 - A flat name that is a JavaScript reserved word or shadows a BenneScript name (`wait`, `room`, `settings`, …) gets a trailing `_` and a warning; a `scriptName` is the cleaner fix (AI Apocalypse's game menu names its `settings` button `settingsBtn`). A name that shadows a browser global (`window`, `close`) only warns.
 - `stop`, `isPlaying` and `current` are reserved in `music`; `stopAll` in `sfx`; `pause`, `resume`, `seek`, `stop`, `isPlaying` and `current` in `video`.
 
-**One object per thing.** `dialogs.botti3.options.bye` and `options.bye` in `botti3.dialog.ts` are the same object, as are `guis.saveMenu.controls.saveBtn` and `saveBtn` in `save-menu.gui.ts`. A room's `jensen` and `characters.jensen` differ only in scope: handlers on the room's handle apply in that room, handlers on `characters.jensen` wherever Jensen is.
+**One object per thing.** `dialogs.botti3.options.bye` and `options.bye` in `botti3.dialog.ts` are the same object, as are `guis.saveMenu.controls.saveBtn` and `saveBtn` in `save-menu.gui.ts`. A room's `jensen` and `characters.jensen` differ only in scope: handlers on the room's handle apply in that room, handlers on `characters.jensen` wherever Jensen is. In `jensen.character.ts`, `jensen` from `./jensen.ids` *is* `characters.jensen`.
 
 ### Generated verb methods
 
@@ -174,13 +174,15 @@ In a room script a listener is live only while that room is active; anywhere els
 
 | You wrote | What happens | Do this |
 |---|---|---|
-| `() => Hank: "Hi"` | Syntax error: a label needs statement position | `() => { Hank: "Hi" }` |
+| `() => Hank: "Hi"` | Syntax error: a label needs statement position (the build and the editor say to add braces) | `() => { Hank: "Hi" }` |
 | `Hank: Hi there` | Not valid TypeScript | Quote it, or use a `` say`…` `` block |
 | `Hnak: "Hi"` | Build error: unknown speaker, with a suggestion | Fix the name |
 | `Hank: "Hi"` outside any handler | Build error: it would never run | Put it in a handler |
 | `parts.forEach(handOver)` (a step function) | Build error: `forEach` doesn't wait | `for (const p of parts) handOver(p)` |
 | `jensen.say(greet())` (a step function called inside another call) | Build error | Call it on its own line first: `const g = greet()` |
-| `wait(1)` or a walk inside `onUpdate` | Nothing waits: `onUpdate` isn't sequenced, so the action starts again every frame (no error) | Start a `background(() => …)` block from it, once (guard with a flag) |
+| `wait(1)`, a walk, `face` or a fade inside `onUpdate` | Runtime error `TimedActionInUpdateError` (logged once); lint error | Start a `background(() => …)` block from it, once (guard with a flag) |
+| `await jensen.walkTo(p)` | Doesn't wait (the blocking form isn't a promise); lint error | Drop the `await` |
+| `ready && jensen.walkTo(p)`, `setTimeout(() => wait(1))` | Starts without waiting: only a call on its own line in a handler waits; lint error | `if (ready) jensen.walkTo(p)`, or `.now(…)` when not waiting is what you want |
 | Code after `rooms.x.goTo()` | Never runs (greyed out) | Put it before, or in the next room's `onEnter` |
 | `jensen.walkTo(…)` in a region handler | Holds the gameplay lock while Jensen walks | `jensen.walkTo.now(…)` |
 | A handle named `window` | Works, but shadows the browser global (warning) | Add a `scriptName` |
@@ -234,7 +236,7 @@ Written at the top level of a script file.
 | Member | | Description |
 |---|---|---|
 | `playFrom(name: string, setup: () => void)` | handler | A named starting state for BENNE Play's "Play From", written at the top level of a room script. It runs before the room's enter handlers, only when BENNE Play asks for it by name. |
-| `onUpdate(fn: (deltaSeconds: number) => void)` | handler | Runs `fn` every frame with the seconds since the last one. Not sequenced: timed actions don't belong here; start a `background(…)` block from a frame check instead. |
+| `onUpdate(fn: (deltaSeconds: number) => void)` | handler | Runs `fn` every frame with the seconds since the last one. Not sequenced: a timed action started here throws (`TimedActionInUpdateError`); start a `background(…)` block from a frame check instead. |
 | `defineFlags(defaults: T)` | instant | Declares the game's flags with defaults, in `src/game/state.ts`. Reads and writes go straight to the game state at that line. Each flag is stored under its name, or its `saveKey`. |
 | `defineVars(defaults: T)` | instant | Declares the game's variables with defaults, in `src/game/state.ts`. Reads and writes go straight to the game state. An array or object default is copied into the state the first time it is read, so changing it in place is saved too. |
 | `flag(defaultValue: boolean, options?: { saveKey?: string })` | instant | `escapedCloset: flag(false, { saveKey: 'escaped closet' })` |
@@ -254,9 +256,11 @@ The active player character. In `src/engine/bennescript/actions.ts`.
 | `player.moveTo(target: WalkTarget)` | instant | Teleports (instant). |
 | `player.stopWalking()` | instant | Stops a walk where the player is now. |
 | `player.position: Point2` | read-only | Feet position in room pixels. |
-| `player.face(direction: CharacterFacingLetter)` | instant | Turns to `'U'`, `'D'`, `'L'` or `'R'`. Instant. |
+| `player.face(direction: CharacterFacingLetter)` | waits · `.now` | Turns to `'U'`, `'D'`, `'L'` or `'R'`. Waits for the turn; `.now` doesn't. |
 | `player.say(text: string, options?: ScriptedSayLineOptions)` | waits · `.now` | One speech line. Waits. Same as a `Player: "…"` label. |
 | `player.play(tag: string)` | waits · `.now` | One-shot animation; waits for it to finish, then returns to the base animation. |
+| `player.fade(alpha: number, seconds: number)` | waits · `.now` | Fades to `alpha` (0–1) over `seconds`. Waits. |
+| `player.alpha: number` | settable | Opacity, 0–1. Setting it is instant (it stops a running `fade`) and saved. |
 | `player.stopAnimation()` | instant | Back to directional idle. |
 | `player.animation: string` | settable | Animation override (instant, saved). |
 | `player.visible: boolean` | settable | Hidden, the player isn't drawn. Instant, saved. |
@@ -361,6 +365,7 @@ Save slots. Saving is refused while a gameplay interaction or a dialog is runnin
 | `saves.list()` | instant | Every save: numbered slots first, in slot order, then named saves, newest first. |
 | `saves.get(save: SaveRef)` | instant | The save in `slot`, or the named save `name`. |
 | `saves.save(save: SaveRef, name?: string)` | waits · `.now` | Writes the game: `saves.save(2, 'Before the lab')` to a slot, or `saves.save('checkpoint')` as a named save. Waits until written. While `canSaveNow` is false it does nothing and logs a DEV warning; it never throws, so a stray call can't break a GUI handler. |
+| `saves.autosave(save = 'Autosave')` | instant | Saves the game as soon as saving is allowed: at once when `canSaveNow` is true, else when the running interaction, dialog or room transition is over. Works anywhere, including in `onEnter` and cutscenes, where `save` is refused. Doesn't wait. A later call replaces one still pending, and loading a game drops it. `saves.autosave()` writes the named save `'Autosave'`; pass a name or a slot to use another. |
 | `saves.load(save: SaveRef)` | ends the handler | Loads a slot or a named save and ends the handler; the game reloads into the saved room. |
 | `saves.delete(save: SaveRef)` | instant | Deletes a slot or a named save. |
 | `saves.rename(save: SaveRef, newName: string)` | instant | Renames a slot's or a named save's save name. |
@@ -426,6 +431,7 @@ A prop, hotspot or character: things the player clicks. Room `.ids` modules crea
 | `animation: AnimTag` | settable | The prop's base (looping) animation tag. Setting it is instant and saved. |
 | `play(tag: AnimTag)` | waits · `.now` | One-shot animation; waits for it to finish, then returns to the base animation. |
 | `fade(alpha: number, seconds: number)` | waits · `.now` | Fades to `alpha` (0–1) over `seconds`. Waits. The end alpha is saved. |
+| `alpha: number` | settable | Opacity, 0–1. Setting it is instant (it stops a running `fade`) and saved. |
 | `moveTo(point: Point2)` | instant | Teleports to room pixels (instant). |
 | `slideTo(point: Point2, seconds: number)` | waits · `.now` | Moves to room pixels over `seconds`. Waits. |
 
@@ -451,9 +457,10 @@ A prop, hotspot or character: things the player clicks. Room `.ids` modules crea
 | `moveTo(target: WalkTarget)` | instant | Teleports (instant). |
 | `stopWalking()` | instant | Stops a walk where the character is now. |
 | `position: Point2` | read-only | Feet position in room pixels. |
-| `face(direction: CharacterFacingLetter)` | instant | Turns to `'U'`, `'D'`, `'L'` or `'R'` (completions insert the quotes). Instant. |
+| `face(direction: CharacterFacingLetter)` | waits · `.now` | Turns to `'U'`, `'D'`, `'L'` or `'R'` (completions insert the quotes). Waits for the turn; `.now` doesn't. |
 | `play(tag: AnimTag)` | waits · `.now` | One-shot animation; waits for it to finish, then returns to the base animation. |
 | `fade(alpha: number, seconds: number)` | waits · `.now` | Fades to `alpha` (0–1) over `seconds`. Waits. |
+| `alpha: number` | settable | Opacity, 0–1. Setting it is instant (it stops a running `fade`) and saved. |
 | `animation: AnimTag` | settable | Animation override (instant, saved); the effective animation when read. |
 | `stopAnimation()` | instant | Back to directional idle. |
 | `visible: boolean` | settable | Hidden characters aren't drawn or clickable. Instant, saved. |

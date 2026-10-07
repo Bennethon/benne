@@ -157,6 +157,7 @@ async function load(source: string, extra: Record<string, unknown> = {}) {
     wait: timed(() => gate('wait')),
     talk: timed(() => gate('talk')),
     walk: timed(() => gate('walk', { playerWalk: true })),
+    turn: timed(() => Task.resolved({ turn: true })),
     probe: timed(() => {
       log.push(`probe ${String(currentContext().payload)}`);
       return gate('probe');
@@ -236,6 +237,10 @@ describe('BenneScript transform', () => {
   it('rejects speech lines that would never run', () => {
     expect(() => transform('function f() {}\nconst g = [1].map(() => { Hank: "x" })')).toThrow(/outside a handler/);
     expect(() => transform('h.onUpdate(() => { Hank: "x" })')).toThrow(/outside a handler/);
+    // `() => Hank: "…"` doesn't parse; the error says to add braces.
+    expect(() => transform('h.onLook(() => Hank: "Hi")')).toThrow(/Put it in braces: `\(\) => \{ Hank: "…" \}`/);
+    expect(() => transform('h.onLook(() =>\n  Hank: `Hi`\n)')).toThrow(/whole body of an arrow function/);
+    expect(() => transform('h.onLook(() => { Hank "Hi" })')).not.toThrow(/arrow function/);
   });
 
   it('rejects a step function passed as a value to a non-BenneScript call', () => {
@@ -463,6 +468,15 @@ describe('BenneScript interrupt policy (§5 rule 9, decision 1)', () => {
     await g.open();
     expect(outcome()).toBe('finished');
     expect(admitGameplayClick()).toBe(true);
+  });
+
+  it('a turn before the walk keeps it the opening walk (decision 53)', async () => {
+    const g = await load('h.onLook(() => {\n  turn()\n  walk()\n  log("arrived")\n})\n');
+    const outcome = g.run();
+    await flush();
+    expect(admitGameplayClick()).toBe(true);
+    await flush();
+    expect(outcome()).toBe('cancelled');
   });
 
   it('a handler whose first timed step is not a walk ignores clicks from the start', async () => {

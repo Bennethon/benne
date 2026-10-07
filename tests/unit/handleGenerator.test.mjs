@@ -128,12 +128,13 @@ describe('verbs (§8)', () => {
 });
 
 describe('generator', () => {
-  it('generates @game and the room, dialog and GUI modules', async () => {
+  it('generates @game and the room, character, dialog and GUI modules', async () => {
     const { root } = await fixture();
     const { files, errors, warnings } = generateGameHandles(root);
     expect(errors).toEqual([]);
     expect(warnings).toEqual([]);
     expect([...files.keys()].sort()).toEqual([
+      'characters/hank/hank.ids.ts',
       'dialogs/driver/driver.ids.ts',
       'game.ids.ts',
       'guis/game-menu/game-menu.ids.ts',
@@ -165,6 +166,7 @@ describe('generator', () => {
     expect(game).toContain('bodyFall: new SfxHandle("body-fall"),');
     expect(game).toContain('export const flags = defineFlags({});');
 
+    expect(files.get('characters/hank/hank.ids.ts')).toContain('export const hank = characters.hank;');
     expect(files.get('dialogs/driver/driver.ids.ts')).toContain('export const dialog = dialogs.driver;');
     expect(files.get('guis/game-menu/game-menu.ids.ts')).toContain('export const titleScreen = gui.controls.titleScreen;');
   });

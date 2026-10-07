@@ -23,7 +23,7 @@ import {
 import { continueVerbDispatchToGlobal } from '../verbs/dispatchVerb.js';
 import type { CutsceneOptions } from '../../types/cutscene.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
-import { runDetached, runHandler, warnIfUntransformed, type HandlerOutcome } from './interactionContext.js';
+import { runFrameHandler, runHandler, warnIfUntransformed, type HandlerOutcome } from './interactionContext.js';
 import { lookupItemHandle, lookupRoomHandle, lookupVerbHandle } from './registry.js';
 import { liveRoomScene } from './scene.js';
 
@@ -177,7 +177,7 @@ function characterTargetOf(p: Record<string, unknown>): VerbInteractTarget {
   };
 }
 
-/** `characters.x.on<Verb>` in a character script: wherever the character is spawned. */
+/** `penny.on<Verb>` in `penny.character.ts` (or `characters.penny.on<Verb>` anywhere): wherever the character is spawned. */
 export function registerCharacterVerbHandler(characterId: string, verb: string, handler: Handler): void {
   warnIfUntransformed(`character ${characterId} "${verb}"`, handler);
   listen(characterVerbEventId(characterId, verb), (payload) => {
@@ -192,7 +192,7 @@ export function registerCharacterVerbHandler(characterId: string, verb: string, 
 /** `verb` `null`: any item verb (`onItem`). */
 const characterItemHandlers = new Map<string, Array<{ verb: string | null; handler: Handler; options?: ItemHandlerOptions }>>();
 
-/** `characters.x.on<Verb>Item(item, …)` / `onItem(item, …)` in a character script. */
+/** `penny.on<Verb>Item(item, …)` / `onItem(item, …)` in a character script (or on `characters.penny`). */
 export function registerCharacterVerbItemHandler(
   characterId: string,
   verb: string | null,
@@ -296,9 +296,9 @@ export function attachGlobalRoomHooks(): void {
 // ─── Per-frame updates (§4.18) ───────────────────────────────────────────────
 
 /**
- * Runs `fn` every frame with the seconds since the last one. Not sequenced: timed actions don't
- * belong here; start a `background(…)` block from a frame check instead.
+ * Runs `fn` every frame with the seconds since the last one. Not sequenced: a timed action started
+ * here throws (`TimedActionInUpdateError`); start a `background(…)` block from a frame check instead.
  */
 export function onUpdate(fn: (deltaSeconds: number) => void): void {
-  registerOnUpdateHandler((ctx) => runDetached('onUpdate', fn as Handler, [ctx.deltaSeconds]));
+  registerOnUpdateHandler((ctx) => runFrameHandler(fn as Handler, [ctx.deltaSeconds]));
 }

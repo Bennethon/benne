@@ -7,6 +7,7 @@
  *   `video`, `verbs`, `fallbacks`, the verb types, and `flags` / `vars` from `state.ts`;
  * - `rooms/<id>/<id>.ids.ts`: `room`, the room's props, hotspots and characters (flat), `points`,
  *   `regions`, `walkables`;
+ * - `characters/<id>/<id>.ids.ts`: the character, flat (the same object as `characters.<name>`);
  * - `dialogs/<id>/<id>.ids.ts`: `dialog`, `options`;
  * - `guis/<id>/<id>.ids.ts`: `gui`, the GUI's controls (flat).
  *
@@ -369,6 +370,19 @@ export function generateGameHandles(gameRoot) {
     });
   }
 
+  // ─── Character modules: the character script's own character, flat (§4.9) ─
+  const characterModules = [];
+  for (const c of characters) {
+    const file = `characters/${c.folder}/${c.folder}.ids.ts`;
+    const name = new Scope(file, { flat: true, report }).add({
+      derived: camelCaseId(c.id),
+      scriptName: c.data.scriptName,
+      what: `character "${c.id}" (${c.file})`,
+      fix: '',
+    });
+    if (name) characterModules.push({ file, character: c, name });
+  }
+
   if (errors.length > 0) {
     return { files, errors, warnings };
   }
@@ -393,6 +407,9 @@ export function generateGameHandles(gameRoot) {
   );
   for (const m of roomModules) {
     files.set(m.file, emitRoomModule(m, roomNames.get(m.room.id), characterAnimations));
+  }
+  for (const m of characterModules) {
+    files.set(m.file, emitCharacterModule(m, characterNames.get(m.character.id)));
   }
   for (const d of dialogs) {
     files.set(`dialogs/${d.folder}/${d.folder}.ids.ts`, emitDialogModule(d, dialogNames.get(d.id)));
@@ -597,6 +614,15 @@ function emitRoomModule(m, roomName, characterAnimations) {
   out += `\nexport const regions = ${objectLiteral(m.regions, (r) => `new RegionHandle(${str(id)}, ${str(r.id)})`)};\n`;
   out += `\nexport const walkables = ${objectLiteral(m.walkables, (w) => `new WalkableHandle(${str(id)}, ${str(w.id)})`)};\n`;
   return out;
+}
+
+function emitCharacterModule(m, characterName) {
+  const id = m.character.id;
+  return (
+    header(
+      `Handle for character "${id}" (${m.character.file}): \`${m.name}\`, the same object as \`characters.${characterName}\`.\n * Its handlers apply wherever the character is (docs/bennescript-ergonomics-refactor.md §4.9).`,
+    ) + `import { characters } from '@game';\n\nexport const ${m.name} = characters.${characterName};\n`
+  );
 }
 
 function emitDialogModule(d, dialogName) {

@@ -6,7 +6,7 @@ import {
 } from '../interaction/interactionActivity.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
 import { liveRoomScene } from './scene.js';
-import { isTaskWait, Task } from './task.js';
+import { isTaskWait, setTimedStartGuard, Task } from './task.js';
 
 /** Thrown out of `$.step` when the interaction was cancelled. Swallowed by {@link runHandler}. */
 const CANCELLED: unique symbol = Symbol('bennescript.cancelled');
@@ -146,7 +146,9 @@ export class InteractionContext {
 
   private async waitFor(task: Task<unknown>): Promise<void> {
     const isOpeningWalk = this.phase === 'start' && task.isPlayerWalk;
-    this.phase = isOpeningWalk ? 'openingWalk' : 'busy';
+    if (!task.isTurn) {
+      this.phase = isOpeningWalk ? 'openingWalk' : 'busy';
+    }
 
     const scene = this.roomScene();
     // Skip mode (§5 rule 8): a skipped cutscene finishes every timed step at once.
@@ -182,6 +184,40 @@ export class InteractionContext {
 
 /** Context for code that runs outside any handler (module top level, untracked callbacks). */
 const detached = new InteractionContext(null, null, undefined, { gameplay: false });
+
+/** Context `onUpdate` callbacks run in: nothing waits there, so timed actions refuse to start (§4.18). */
+const frame = new InteractionContext(null, null, undefined, { gameplay: false });
+
+/**
+ * Runs an `onUpdate` callback in the frame context. An ending call (`goTo`) just stops it; any other
+ * error, including {@link TimedActionInUpdateError}, is thrown to the per-frame registry.
+ */
+export function runFrameHandler(fn: (...args: never[]) => unknown, args: readonly unknown[]): void {
+  try {
+    frame.run(() => (fn as (...a: readonly unknown[]) => unknown)(...args));
+  } catch (err) {
+    if (err !== END_HANDLER) {
+      throw err;
+    }
+  }
+}
+
+/** Thrown when a timed action starts inside `onUpdate`. */
+export class TimedActionInUpdateError extends Error {
+  constructor() {
+    super(
+      'A timed action (walkTo, say, wait, face, fade, …) was started inside onUpdate, which runs every frame and ' +
+        "can't wait. To start a sequence from a frame check, use background(() => { … }) and guard it so it starts once.",
+    );
+    this.name = 'TimedActionInUpdateError';
+  }
+}
+
+setTimedStartGuard(() => {
+  if (current === frame) {
+    throw new TimedActionInUpdateError();
+  }
+});
 
 /**
  * The context of the handler whose statement is running right now. Transformed step functions

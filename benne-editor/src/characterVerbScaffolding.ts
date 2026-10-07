@@ -30,7 +30,7 @@ export async function makeCharacterClickable(characterJsonUri: vscode.Uri): Prom
 }
 
 /**
- * Adds `characters.<id>.on<Verb>(() => { … })` to the character script (`<id>.character.ts`), which
+ * Adds `<name>.on<Verb>(() => { … })` (imported from `./<id>.ids`) to the character script (`<id>.character.ts`), which
  * applies wherever the character is spawned (§4.9). Creates the script when it doesn't exist.
  */
 export async function addCharacterVerbEvent(

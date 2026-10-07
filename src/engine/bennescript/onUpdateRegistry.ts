@@ -9,6 +9,8 @@ export interface UpdateContext {
 export type OnUpdateHandler = (ctx: UpdateContext) => void;
 
 const handlers: OnUpdateHandler[] = [];
+/** Handlers whose failure has been logged: a failing handler fails every frame, so it's logged once per message. */
+const reported = new WeakMap<OnUpdateHandler, Set<string>>();
 
 /** Registers a per-frame handler for the lifetime of the game (`onUpdate`, §4.18). Returns unregister. */
 export function registerOnUpdateHandler(handler: OnUpdateHandler): () => void {
@@ -25,10 +27,17 @@ export function registerOnUpdateHandler(handler: OnUpdateHandler): () => void {
 export function runOnUpdateHandlers(ctx: UpdateContext): void {
   const snapshot = [...handlers];
   for (let i = 0; i < snapshot.length; i += 1) {
+    const handler = snapshot[i]!;
     try {
-      snapshot[i]!(ctx);
+      handler(ctx);
     } catch (e) {
-      console.error(`[Benne] onUpdate handler #${i} failed:`, e);
+      const message = e instanceof Error ? e.message : String(e);
+      const seen = reported.get(handler) ?? new Set<string>();
+      reported.set(handler, seen);
+      if (!seen.has(message)) {
+        seen.add(message);
+        console.error(`[Benne] onUpdate handler #${i} failed (logged once):`, e);
+      }
     }
   }
 }

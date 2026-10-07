@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import type * as ts from 'typescript/lib/tsserverlibrary';
 import { IdsIndex } from './bennescript/idsIndex';
 import {
+    explainArrowSpeechErrors,
     inStringLiteral,
     isBenneScriptFile,
     promoteStringLiteralEntries,
@@ -75,6 +76,12 @@ export function init(modules: { typescript: typeof ts }): { create(info: ts.serv
                 return undefined;
             }
             return info.languageService.getProgram()?.getSourceFile(fileName);
+        };
+
+        proxy.getSyntacticDiagnostics = (fileName) => {
+            const prior = info.languageService.getSyntacticDiagnostics(fileName);
+            const sf = scriptSource(fileName);
+            return sf && prior.length ? explainArrowSpeechErrors(sf, prior) : prior;
         };
 
         proxy.getSemanticDiagnostics = (fileName) => {

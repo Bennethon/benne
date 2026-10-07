@@ -67,6 +67,15 @@ describe('BENNE TS plugin', { timeout: 60000 }, () => {
     ]);
   });
 
+  it('explains a speech line used as an arrow body', () => {
+    const text = `${clubText}\nbattery.onLook(() => Hank: "Hi")\n`;
+    const ls = pluginService({ [clubScript]: text });
+    const errors = ls.getSyntacticDiagnostics(clubScript);
+    expect(errors.map((d) => [text[d.start], d.messageText])).toEqual([
+      [':', expect.stringContaining('Put it in braces: `() => { Hank: "…" }`')],
+    ]);
+  });
+
   it('checks say block speakers', () => {
     const text = `${clubText}\nroom.onEnter(() => {\n  say\`\n    Hank: ok\n    Nobody: hm\n    no colon here\n  \`\n})\n`;
     const ls = pluginService({ [clubScript]: text });

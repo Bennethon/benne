@@ -151,6 +151,32 @@ export function speakerDiagnostics(ts: typeof TS, sf: TS.SourceFile, table: Spea
     return out;
 }
 
+/**
+ * `() => Hank: "Hi"` doesn't parse (a label needs statement position); TypeScript reports "',' expected"
+ * at the colon. Rewrites that error to say to add braces (mirrors `arrowSpeechLabelAt` in
+ * scripts/lib/bennescriptTransform.mjs, which does the same for the build).
+ */
+export function explainArrowSpeechErrors(
+    sf: TS.SourceFile,
+    diagnostics: readonly TS.DiagnosticWithLocation[],
+): TS.DiagnosticWithLocation[] {
+    return diagnostics.map((d) => {
+        if (sf.text[d.start] !== ':') {
+            return d;
+        }
+        const label = /=>\s*([A-Za-z_$][\w$]*)\s*$/.exec(sf.text.slice(0, d.start))?.[1];
+        if (!label) {
+            return d;
+        }
+        return {
+            ...d,
+            messageText:
+                `A speech line can't be the whole body of an arrow function: \`() => ${label}: "…"\` doesn't parse. ` +
+                `Put it in braces: \`() => { ${label}: "…" }\`.`,
+        };
+    });
+}
+
 /** The word being typed at `position` when it starts a statement inside a function body. */
 function statementStartWord(ts: typeof TS, sf: TS.SourceFile, position: number): { start: number; word: string } | undefined {
     const lineStart = sf.text.lastIndexOf('\n', position - 1) + 1;

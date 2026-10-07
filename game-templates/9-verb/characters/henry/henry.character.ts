@@ -1,14 +1,14 @@
 import { faceClicked } from '@benne/script';
-import { characters } from '@game';
+import { henry } from './henry.ids';
 
 // Henry's handlers in every room he is in. A room script's own `henry.onLook(…)` wins over these.
 
-characters.henry.onLook(() => {
+henry.onLook(() => {
   faceClicked()
   Player: "It looks like my buddy, Henry."
 })
 
-characters.henry.onPickUp(() => {
+henry.onPickUp(() => {
   faceClicked()
   Player: "He's too heavy."
 })

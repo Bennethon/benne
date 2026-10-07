@@ -21,6 +21,11 @@ export interface TaskHooks {
   playerWalk?: boolean;
   /** The action waits on the player (an open dialog), not on time passing. */
   waitsForPlayer?: boolean;
+  /**
+   * A turn (`face`, `faceClicked`): it doesn't count as a timed step for the interrupt policy, so a
+   * player walk after it is still the opening walk (§5 rule 9, decision 53).
+   */
+  turn?: boolean;
 }
 
 export class Task<T = void> {
@@ -53,6 +58,10 @@ export class Task<T = void> {
 
   get waitsForPlayer(): boolean {
     return this.hooks.waitsForPlayer === true;
+  }
+
+  get isTurn(): boolean {
+    return this.hooks.turn === true;
   }
 
   /**
@@ -89,8 +98,8 @@ export class Task<T = void> {
     }
   }
 
-  static resolved(): Task {
-    return new Task(Promise.resolve());
+  static resolved(hooks: TaskHooks = {}): Task {
+    return new Task(Promise.resolve(), hooks);
   }
 }
 
@@ -111,6 +120,13 @@ export function isTaskWait(value: unknown): value is TaskWait {
   return value instanceof TaskWait;
 }
 
+let startGuard: (() => void) | null = null;
+
+/** Lets the runtime refuse to start timed actions where nothing could wait for them (`onUpdate`, §4.18). */
+export function setTimedStartGuard(guard: () => void): void {
+  startGuard = guard;
+}
+
 /** A timed action as the author sees it: blocking call, plus `.now` (§5 rules 2–4, §6.3). */
 export interface Timed<A extends unknown[]> {
   (...args: A): void;
@@ -122,7 +138,11 @@ export interface Timed<A extends unknown[]> {
  * returns its Task. The action starts at the line where it is written either way.
  */
 export function timed<A extends unknown[]>(start: (...args: A) => Task): Timed<A> {
-  const blocking = ((...args: A) => start(...args).wait()) as Timed<A>;
-  blocking.now = (...args: A) => start(...args);
+  const begin = (...args: A): Task => {
+    startGuard?.();
+    return start(...args);
+  };
+  const blocking = ((...args: A) => begin(...args).wait()) as Timed<A>;
+  blocking.now = begin;
   return blocking;
 }

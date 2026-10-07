@@ -805,3 +805,48 @@ The Phase 7 known issue: the Inspector's "item used on this" on a standalone cha
 | New unit test (`bennescriptHandleApi.test.ts`): a character-script per-item handler wins over `onAnyItem`; `onAnyItem` gets the item and verb; the drop policy applies; `unhandled()` reaches the fallback | ✅ |
 | `npm run test:ci` | ✅ unit 159/159, desktop 3/3, pathfinding, content, `check:docs` |
 | `npm run test:playthrough` | ✅ 14/14 (11.3 min) |
+
+---
+
+## Post-Phase 7: closing the decision 52 gaps (2026-10-06)
+
+You asked for the decision 52 gaps to be fixed before the merge, and chose a flat handle for a character script's own character (a question asked during the session). Spec: decision 53 and as-built notes in §4.4, §4.9, §4.10, §4.16, §4.18, §5, §6.3, §7.1, §7.2, §9 and §12; decision 52 now says which items 53 resolves.
+
+### Done
+
+1. **`room.onLoaded` runs only when a save loads into the room, by design.** No code change: the spec's example comment ("after assets load, before onEnter") was the wrong part. The public guide, spec and skill now say `onEnter` is for entering and `onLoaded` replaces the enter hooks on a load.
+2. **Character scripts have their own character flat.** The generator writes `characters/<id>/<id>.ids.ts` exporting e.g. `penny` (the same object as `characters.penny`), named with the same rules as other flat scopes (`scriptName`, reserved-name `_`). `generate-game-ids.mjs` cleans stale ones up. In the editor, `siblingIdsModulePath` now covers `*.character.ts`, so the Inspector writes `penny.onLook(…)` with `import { penny } from './penny.ids'`; the `preferGame` workaround in `findBinding` is gone (`sameContent` already tells a room's `penny` from `characters.penny`). The new-character scaffold comment and the three template character scripts use the flat handle. AI Apocalypse has no character scripts.
+3. **`saves.autosave(save = 'Autosave')`**: saves at once when `saves.canSaveNow`, otherwise on the first frame where it is (a per-frame handler in `saves.ts`). A later call replaces a pending one; `gameState:replaced` (load, new game) drops it. Takes a name or a slot; doesn't wait.
+4. **Timed actions in `onUpdate` throw.** `onUpdate` callbacks run through `runFrameHandler` in a dedicated frame context (they ran through `runDetached` before); `timed()` calls a start guard (`setTimedStartGuard`, set by `interactionContext.ts`) that throws `TimedActionInUpdateError` there, for the blocking form and `.now`. `background` blocks get their own context, so they're allowed. An ending call (`goTo`) just stops the callback. `runOnUpdateHandlers` now logs a failing handler once per message instead of every frame.
+5. **`face(…)` waits.** `jensen.face` and `player.face` are timed actions (`faceCharacterTask`, with `.now`), still instant. Found during review: a timed `face` before `walkToClicked()` would have become the handler's first timed step and made the walk uninterruptible, so tasks now carry a `turn` hook (`face` and `faceClicked`) that leaves the interrupt policy's phase alone (§5 rule 9). Unit test added.
+6. **ESLint rules** (`scripts/lib/eslint-plugin-bennescript.mjs`, typed): `bennescript/no-unwaited-timed-call` (a timed action or step function inside `onUpdate`, in a non-handler callback or nested function, at the top level, in a plain `.ts` file, or inside an expression; `.now` is fine outside `onUpdate`) and `bennescript/no-await-in-step`. Timed actions are found by type (callable, with a `.now()` returning a `Task`), not by a name list. The transform's step-function detection moved to `scripts/lib/bennescriptSteps.mjs` so both use it. `gameScriptsConfig(…)` is the flat-config block for `src/game/**/*.ts` (minus `*.ids.ts`):
+   - this repository's `eslint.config.mjs` uses it, so `npm run lint` (and `check`, `test:ci`) now lint AI Apocalypse: **0 findings**;
+   - new games get `eslint.config.mjs`, a `lint` script and `eslint` / `typescript-eslint` dev dependencies (`scaffoldPayload.ts`); Update Engine adds the config only when a game has none.
+7. **`() => Hank: "…"`**: still no code action, but the error says what to do. The transform catches the parse error at the colon after `=> Label` and rethrows "A speech line can't be the whole body of an arrow function … Put it in braces: `() => { Hank: "…" }`"; the TS plugin rewrites TypeScript's "',' expected." the same way (`explainArrowSpeechErrors`, on `getSyntacticDiagnostics`).
+8. **`alpha`** on props, characters and `player` (and `player.fade`, which was missing): settable, instant, saved, and it stops a running `fade` (a zero-length fade through the existing saved-alpha path). A prop outside its room, or a character not spawned, reads and writes the saved value.
+
+Docs: spec (above), `docs/public/bennescript.md`, `docs/bennescript-api.md` (regenerated, plus the hand-written gotchas), `docs/architecture.md` §7, `docs/testing.md`, the skill (three copies) and the cursor rule.
+
+### Deviations from the spec
+
+None beyond decision 53 itself. Two judgement calls recorded there: `.now` is also an error in `onUpdate` (anything that starts a timed action there would start every frame), and turns don't count for the interrupt policy.
+
+### Known issues
+
+- Prop `visible` / `clickable` / `description` setters still write through the active room (pre-existing): setting another room's prop from elsewhere saves it under the active room's key. `alpha` does it right; the others could follow.
+- The lint rules need typed linting, so they run on `src/game` here and in games, but not on `game-templates/` in this repository (its handles aren't generated in place). Checked by hand instead: each template in a `template-workspace.mjs` workspace, with the exact `eslint.config.mjs` new games get, lints clean (exit 0). No automated check covers this; `test:templates` or `test:artifacts` could run it.
+- The BENNE Play / preview bundles in `benne-editor/media/` were not rebuilt, so the extension's embedded engine lacks these changes until the next rebuild (merge step 5 rebuilds them anyway).
+- A prop's `alpha` outside its room reads 1 when nothing is saved, not its JSON `alpha`.
+
+### Checks
+
+| Check | Result |
+|---|---|
+| New unit tests (`bennescriptDecision53.test.ts`, `eslintBennescript.test.ts`; additions to `bennescript.test.ts`, `editorTsPlugin.test.ts`, `editorScriptModel.test.ts`, `handleGenerator.test.mjs`) | ✅ |
+| `npm run test:ci` (check incl. lint with the new rules, unit, desktop, pathfinding) | ✅ unit 171/171, desktop 3/3, pathfinding, content 0 new errors, AI Apocalypse 0 lint findings |
+| `npm run test:playthrough` (AI Apocalypse) | ✅ 14/14 (11.4 min), run alone |
+| `npm run test:templates` | ✅ 4/4 (4.3 min) |
+| `npm run test:e2e` | ✅ 4/4 |
+| `npm run test:extension` (after `bundle:scaffold`) | ✅ 21/21 |
+| `npm run test:artifacts` | ✅ |
+| Templates linted as new games (see Known issues) | ✅ 9-verb and 2-click, 0 findings |

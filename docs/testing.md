@@ -22,7 +22,7 @@ On headless Linux, run extension and Electron tests through `xvfb-run -a`. Playw
 | Command | Contract |
 | --- | --- |
 | `npm test` | Fast deterministic Vitest logic tests |
-| `npm run check` | Engine, tests and extension type checking; correctness lint; content validation; BenneScript handle generation (`check:generated`); the generated half of `docs/bennescript-api.md` is up to date with the JSDoc (`check:docs`) |
+| `npm run check` | Engine, tests and extension type checking; correctness lint (including the BenneScript rules on `src/game`, design doc §6.3); content validation; BenneScript handle generation (`check:generated`); the generated half of `docs/bennescript-api.md` is up to date with the JSDoc (`check:docs`) |
 | `npm run test:ci` | Checks, unit tests, existing desktop logic and blocker/pathfinding regressions |
 | `npm run test:coverage` | Unit coverage with minimums on critical modules; HTML and LCOV under `coverage/` |
 | `npm run test:extension` | Real VS Code extension-host integration tests |

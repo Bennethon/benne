@@ -38,7 +38,7 @@ Inside a handler, each line starts when the line above it has finished. Some lin
 
 | Takes time (the script waits) | Instant |
 |---|---|
-| `walkToClicked()`, `player.walkTo(…)`, `jensen.walkTo(…)` | `player.moveTo(…)` (teleport), `face(…)` |
+| `walkToClicked()`, `player.walkTo(…)`, `jensen.walkTo(…)`, `face(…)` | `player.moveTo(…)` (teleport), `door.alpha = …` |
 | `Hank: "…"`, `` say`…` ``, `jensen.say(…)`, `display(…)` | `flags.x = …`, `vars.x = …`, any read |
 | `wait(…)`, `waitForClick()` | `inventory.add(…)`, `inventory.remove(…)` |
 | `door.play('door-open')` (one-shot animation) | `door.animation = …`, `door.show()`, `door.hide()` |
@@ -108,10 +108,10 @@ room.onEnterAfterFade(() => {   // after the fade-in: music, entrances, cutscene
 })
 
 room.onLeave(() => { … })       // before the next room loads
-room.onLoaded(() => { … })      // when a save loads into this room (the enter hooks don't run then)
+room.onLoaded(() => { … })      // only when a save loads into this room, instead of the enter hooks
 ```
 
-The fade-in waits for `onEnter`, so keep it to instant setup: positions, visibility, flags. Put anything the player should see in `onEnterAfterFade`. Both run as cutscenes, so ESC skips them; pass `{ skippable: false }` as a second argument to prevent that.
+`onEnter` is for entering the room; `onLoaded` is for restoring it from a save (the enter hooks don't run then). The fade-in waits for `onEnter`, so keep it to instant setup: positions, visibility, flags. Put anything the player should see in `onEnterAfterFade`. Both run as cutscenes, so ESC skips them; pass `{ skippable: false }` as a second argument to prevent that.
 
 Where the player came from, and how often they've been here:
 
@@ -417,13 +417,16 @@ A character's handlers in a **room script** apply in that room. In the character
 ```ts
 // characters/penny/penny.character.ts
 import { walkToClicked } from '@benne/script'
-import { characters, dialogs } from '@game'
+import { dialogs } from '@game'
+import { penny } from './penny.ids'
 
-characters.penny.onTalkTo(() => {
+penny.onTalkTo(() => {
   walkToClicked()
   dialogs.chatwithpenny.start()
 })
 ```
+
+In its own script a character is imported from its `.ids` file, like a room's things in a room script. Any other character is `characters.x` there (from `@game`).
 
 **Moving and facing:**
 
@@ -431,7 +434,7 @@ characters.penny.onTalkTo(() => {
 player.walkTo(points.timeChamber)    // a point in the room
 player.walkTo(couch)                 // a prop, hotspot or character's walk-to point
 player.walkTo({ x: 120, y: 160 })    // room pixels
-player.face('L')                     // 'U', 'D', 'L' or 'R'
+player.face('L')                     // 'U', 'D', 'L' or 'R'; waits for the turn
 player.moveTo(points.standBack)      // teleport
 jensen.walkTo(points.hallwayPoint2)
 jensen.startFollowing(player, { minDistance: 60 })
@@ -441,6 +444,8 @@ player.switchTo(penny)               // the player now controls Penny
 ```
 
 `player` is whoever the player controls; `hank` (from the room) is Hank specifically.
+
+**Opacity:** `jensen.alpha = 0.5` sets it at once (and is saved); `jensen.fade(0, 1)` fades over a second and waits.
 
 **Animation:** `jensen.animation = 'WorkingU'` sets an animation that stays (and is saved) until `jensen.stopAnimation()`. `jensen.play('Wave')` plays one once and waits for it. Animation names come from the Aseprite file, so the editor completes them.
 
@@ -452,6 +457,7 @@ player.switchTo(penny)               // the player now controls Penny
 | `door.play('door-opening')` | Play an animation once and wait for it, then go back to the looping one. |
 | `door.show()` / `door.hide()` | Instant, saved. |
 | `door.fade(0, 1.5)` | Fade to invisible over 1.5 seconds, and wait. |
+| `door.alpha = 0.5` | Set the opacity (0 to 1) instantly. Saved. |
 | `door.moveTo({ x: 80, y: 90 })` | Move instantly. |
 | `door.slideTo({ x: 80, y: 90 }, 2)` | Move over 2 seconds, and wait. |
 
@@ -656,6 +662,7 @@ saves.load(2)                      // ends the handler; the game reloads
 saves.get(2)?.name
 saves.list()                       // [{ slot, name, timestamp }]
 saves.delete(2)
+saves.autosave()                   // saves 'Autosave' as soon as saving is allowed
 game.newGame(rooms.opening)        // fresh state; ends the handler
 game.quit()                        // desktop only
 ```
@@ -667,6 +674,8 @@ function syncSaveButton(name: string) {
   saveBtn.enabled = saves.canSaveNow && name.trim() !== ''
 }
 ```
+
+`saves.autosave()` works anywhere, even in `onEnter` or a cutscene: it saves straight away if it can, and otherwise as soon as the interaction is over. Pass a name or a slot to save somewhere other than `'Autosave'`: `saves.autosave('Chapter 2')`.
 
 **Settings** are the player's own and are kept outside save slots:
 
@@ -712,7 +721,7 @@ onUpdate(() => {
 })
 ```
 
-It runs in every room, so check `game.currentRoom` in a room script. Lines inside `onUpdate` don't wait for each other: a `wait` or a walk there would just start again every frame. To start a sequence from it, use `background(() => { … })`, and guard it with a flag so it starts once.
+It runs in every room, so check `game.currentRoom` in a room script. Nothing inside `onUpdate` can wait, so anything that takes time (a `wait`, a walk, a line, `face`, a fade) is an error there. To start a sequence from it, use `background(() => { … })`, and guard it with a flag so it starts once.
 
 ## Events
 
@@ -759,11 +768,15 @@ Helpers used by several scripts go in a `*.script.ts` file, which is sequenced t
 
 Callbacks passed to other functions (`array.forEach`, `setTimeout`) are **not** sequenced. Use a `for … of` loop instead; the build tells you when you've passed a sequenced function to one.
 
+`npm run lint` checks for these mistakes and the ones below: anything that takes time where nothing waits for it (in a callback, in `onUpdate`, inside an expression, in an ordinary `.ts` file), and `await` in a handler.
+
 ## Common mistakes
 
 | You wrote | Fix |
 |---|---|
 | `() => Hank: "Hi"` | Add braces: `() => { Hank: "Hi" }` |
+| `await jensen.walkTo(…)` | Drop the `await`: lines already wait, and `await` stops this one from waiting. |
+| `ready && jensen.walkTo(…)` | Only a call on its own line waits: `if (ready) jensen.walkTo(…)` |
 | `Hank: Hi there` | Quote it: `Hank: "Hi there"`, or use a `` say`…` `` block |
 | Code after `rooms.x.goTo()` | It never runs. Move it above, or into the next room's `onEnter`. |
 | Code after `dialog.end()` | Same: move it above. |

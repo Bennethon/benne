@@ -6,6 +6,7 @@ import { isGameplayInteractionRunning } from '../interaction/interactionActivity
 import { isRoomTransitionInProgress, tryGetRoomTransitionOrchestrator } from '../scenes/roomTransitionGlobals.js';
 import { getActiveDialogSession } from '../dialog/dialogSession.js';
 import { cancelAllInteractions, currentContext, endHandler } from './interactionContext.js';
+import { registerOnUpdateHandler } from './onUpdateRegistry.js';
 import { Task, timed } from './task.js';
 
 /** A save: a numbered slot, or a name (named saves have no slot). */
@@ -36,7 +37,30 @@ function manager(what: string) {
 // A loaded snapshot replaces the world every running handler was acting on (§5 rule 7). This also
 // covers new games and loads started by the engine (BENNE Play). The handler that is loading (if
 // any) ends itself.
-gameEvents.on(GAME_STATE_REPLACED_EVENT, () => cancelAllInteractions(currentContext()));
+gameEvents.on(GAME_STATE_REPLACED_EVENT, () => {
+  cancelAllInteractions(currentContext());
+  // An autosave asked for before the load would save the loaded game under the old moment's name.
+  pendingAutosave = null;
+});
+
+/** The save `saves.autosave` is waiting to write, once saving is allowed. */
+let pendingAutosave: SaveRef | null = null;
+
+registerOnUpdateHandler(() => {
+  if (pendingAutosave != null && saves.canSaveNow) {
+    const save = pendingAutosave;
+    pendingAutosave = null;
+    writeSave(save);
+  }
+});
+
+function writeSave(save: SaveRef, name?: string): void {
+  if (typeof save === 'number') {
+    manager('save')?.save(name ?? `Slot ${save + 1}`, save);
+  } else {
+    manager('save')?.save(save);
+  }
+}
 
 /**
  * Save slots (§4.16). Saving is refused while a gameplay interaction or a dialog is running
@@ -81,13 +105,25 @@ export const saves = {
       devWarn(`saves.save(${label}): refused while an interaction or dialog is running (saves.canSaveNow is false).`);
       return Task.resolved();
     }
-    if (typeof save === 'number') {
-      manager('save')?.save(name ?? `Slot ${save + 1}`, save);
-    } else {
-      manager('save')?.save(save);
-    }
+    writeSave(save, name);
     return Task.resolved();
   }),
+
+  /**
+   * Saves the game as soon as saving is allowed: at once when {@link canSaveNow} is true, else
+   * when the running interaction, dialog or room transition is over. Works anywhere, including in
+   * `onEnter` and cutscenes, where {@link save} is refused. Doesn't wait. A later call replaces one
+   * still pending, and loading a game drops it. `saves.autosave()` writes the named save
+   * `'Autosave'`; pass a name or a slot to use another.
+   */
+  autosave(save: SaveRef = 'Autosave'): void {
+    if (saves.canSaveNow) {
+      pendingAutosave = null;
+      writeSave(save);
+    } else {
+      pendingAutosave = save;
+    }
+  },
 
   /** Loads a slot or a named save and ends the handler; the game reloads into the saved room. */
   load(save: SaveRef): never {

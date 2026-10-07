@@ -1,8 +1,10 @@
 import {
   clearSavedCharacterSpeechPosition,
+  readSavedCharacterAlpha,
   readSavedCharacterFollowingTarget,
   readSavedCharacterSpeechOffset,
   readSavedCharacterSpeechPosition,
+  writeSavedCharacterAlpha,
   writeSavedCharacterSpeechOffset,
   writeSavedCharacterSpeechPosition,
 } from '../benneAnimationRuntime.js';
@@ -99,7 +101,7 @@ export const faceClicked = timed((): Task => {
   if (clicked && (clicked.walkTarget != null || clicked.faceLookWorld != null)) {
     clicked.scene.facePlayerTowardClicked(clicked.faceLookWorld, clicked.walkTarget);
   }
-  return Task.resolved();
+  return Task.resolved({ turn: true });
 });
 
 /** Pause for `seconds`. Returns at once in skip mode. */
@@ -339,21 +341,27 @@ export function walkCharacterTask(characterId: string | null, target: WalkTarget
   return new Task(scene.walkCharacterTo(characterId!, dest));
 }
 
-export function faceCharacter(characterId: string | null, direction: CharacterFacingLetter): void {
+/**
+ * Turns a character. A timed action: turning is instant today, so the task is already done, but
+ * scripts wait on it, so a turning animation can be added without changing them (decision 53). A
+ * turn leaves the interrupt policy's phase alone (`TaskHooks.turn`).
+ */
+export function faceCharacterTask(characterId: string | null, direction: CharacterFacingLetter): Task {
   const scene = roomFor('face');
-  if (!scene) {
-    return;
+  if (scene) {
+    if (isPlayerIn(scene, characterId)) {
+      scene.facePlayerScriptDirection(direction);
+    } else {
+      scene.faceCharacterScriptDirection(characterId!, direction);
+    }
   }
-  if (isPlayerIn(scene, characterId)) {
-    scene.facePlayerScriptDirection(direction);
-  } else {
-    scene.faceCharacterScriptDirection(characterId!, direction);
-  }
+  return Task.resolved({ turn: true });
 }
 
 /**
  * The operations character handles and `player` share. `characterId` `null` is the active player.
- * Everything here is instant except {@link characterOps.play} and {@link characterOps.fade}.
+ * Everything here is instant except {@link characterOps.play} and {@link characterOps.fade}, which
+ * return their {@link Task}.
  */
 export const characterOps = {
   moveTo(characterId: string | null, target: WalkTarget): void {
@@ -395,6 +403,35 @@ export const characterOps = {
     const id = characterIdIn(scene, characterId);
     const from = scene.getCharacterSprite(id)?.alpha ?? 1;
     return new Task(scene.fadeCharacterScriptAlpha(id, from, toAlpha, seconds));
+  },
+
+  /** The sprite's alpha when spawned, else the saved one (1 by default). */
+  getAlpha(characterId: string | null): number {
+    const scene = activeRoomScene();
+    const id = scene ? characterIdIn(scene, characterId) : (characterId ?? tryGetActiveGameStateManager()?.getActivePlayerCharacterId());
+    const sprite = scene && id ? scene.getCharacterSprite(id) : undefined;
+    if (sprite) {
+      return sprite.alpha;
+    }
+    const m = tryGetActiveGameStateManager();
+    return m && id ? readSavedCharacterAlpha(m, id) : 1;
+  },
+
+  /** Sets alpha at once (stopping a running fade) and saves it, spawned or not. */
+  setAlpha(characterId: string | null, alpha: number): void {
+    const scene = activeRoomScene();
+    if (scene) {
+      const id = characterIdIn(scene, characterId);
+      void scene.fadeCharacterScriptAlpha(id, alpha, alpha, 0);
+      return;
+    }
+    const m = tryGetActiveGameStateManager();
+    const id = characterId ?? m?.getActivePlayerCharacterId();
+    if (m && id) {
+      writeSavedCharacterAlpha(m, id, alpha);
+    } else {
+      warnOnce('alpha:no-game', 'alpha: the game is not running — ignored.');
+    }
   },
 
   stopAnimation(characterId: string | null): void {
@@ -577,14 +614,21 @@ export const player = {
   get position(): Point2 {
     return characterOps.position(null);
   },
-  /** Turns to `'U'`, `'D'`, `'L'` or `'R'`. Instant. */
-  face(direction: CharacterFacingLetter): void {
-    faceCharacter(null, direction);
-  },
+  /** Turns to `'U'`, `'D'`, `'L'` or `'R'`. Waits for the turn; `.now` doesn't. */
+  face: timed((direction: CharacterFacingLetter): Task => faceCharacterTask(null, direction)),
   /** One speech line. Waits. Same as a `Player: "…"` label. */
   say: timed((text: string, options?: ScriptedSayLineOptions): Task => sayTask(PLAYER_SPEAKER, text, options)),
   /** One-shot animation; waits for it to finish, then returns to the base animation. */
   play: timed((tag: string): Task => characterOps.play(null, tag)),
+  /** Fades to `alpha` (0–1) over `seconds`. Waits. */
+  fade: timed((alpha: number, seconds: number): Task => characterOps.fade(null, alpha, seconds)),
+  /** Opacity, 0–1. Setting it is instant (it stops a running `fade`) and saved. */
+  get alpha(): number {
+    return characterOps.getAlpha(null);
+  },
+  set alpha(value: number) {
+    characterOps.setAlpha(null, value);
+  },
   /** Back to directional idle. */
   stopAnimation(): void {
     characterOps.stopAnimation(null);

@@ -11,7 +11,7 @@ description: "Use this skill when reading or writing BENNE game scripts: *.room.
 
 ## Rules that matter
 
-1. **Lines run in order.** Each statement in a handler starts after the previous one finishes. Timed actions (walks, speech, `wait`, one-shot `play`, fades, camera moves, `playAndWait`, `dialogs.x.start()`, blocks, your own top-level functions) wait; everything else is instant. Never write `await`, `.then`, or `setTimeout` for sequencing.
+1. **Lines run in order.** Each statement in a handler starts after the previous one finishes. Timed actions (walks, speech, `wait`, `face`, one-shot `play`, fades, camera moves, `playAndWait`, `dialogs.x.start()`, blocks, your own top-level functions) wait, but only as a line of their own (not inside `&&`, `?:` or a callback); everything else is instant. Never write `await`, `.then`, or `setTimeout` for sequencing.
 2. **Handlers are registered at the top level of the file**, not inside a wrapper: `battery.onLook(() => { … })`.
 3. **Every content reference is a generated handle**: `battery`, `items.soda`, `dialogs.driver`, `rooms.plaza`, `sfx.sodaPour`, `music.garage`, `points.standBack`, `regions.leave`, `flags.batteryClean`. A typo is a type error. Never pass ID strings (`'club-hotspot-battery'`).
 4. **Dialogue is a label**: `Hank: "Hello."` (character ID or display name, letters and digits only, any case; `Player:` = whoever is controlled). A label needs statement position, so an arrow body needs braces: `() => { Player: "…" }`.
@@ -25,7 +25,7 @@ description: "Use this skill when reading or writing BENNE game scripts: *.room.
 | File | Contains |
 |---|---|
 | `rooms/<id>/<id>.room.ts` | `room` hooks, verbs on that room's props / hotspots / characters, regions, `playFrom` |
-| `characters/<id>/<id>.character.ts` | `characters.<id>.onLook(…)` etc.: applies in every room (a room's own handler wins) |
+| `characters/<id>/<id>.character.ts` | `penny.onLook(…)` etc., with `import { penny } from './penny.ids'`: applies in every room (a room's own handler wins). Other characters are `characters.x` |
 | `inventory/<id>/<id>.inventory.ts` | `items.<id>.onLook(…)`, `items.<id>.onCombine(items.other, …)` |
 | `dialogs/<id>/<id>.dialog.ts` | `options.x.onChoose(…)` / `onChooseOnce(…)`, `dialog.onStart(…)` |
 | `guis/<id>/<id>.gui.ts` | Control events (`saveBtn.onClick`), `gui.onBuilt` / `onShow` / `onHide` |
@@ -213,6 +213,10 @@ saveBtn.onClick(() => {
   guis.gameMenu.show()
 })
 
+// rooms/lab/lab.room.ts — a checkpoint: autosave works even in onEnter (it waits until saving is allowed)
+room.onEnter(() => { saves.autosave() })                     // or saves.autosave('Chapter 2')
+room.onLoaded(() => { … })                                   // only when a save loads into this room
+
 // globalScript.ts
 fallbacks.onLook(() => { Player: "Nothing special about that." })
 fallbacks.onItemUnhandled(() => { Player: "That doesn't work." })
@@ -225,17 +229,19 @@ fallbacks.onItemUnhandled(() => { Player: "That doesn't work." })
 | Don't | Do |
 |---|---|
 | `B.player.say('Hi')`, `registerRoomScript(({ B }) => …)`, `whenLookAt('door', …)` | `Player: "Hi"`, top-level `door.onLook(…)` (that API was deleted) |
-| `await wait(1)` / `async () => …` | `wait(1)`: the build adds the awaits |
+| `await wait(1)` / `async () => …` | `wait(1)`: the build adds the awaits (and `await walkTo(…)` does *not* wait) |
+| `ready && jensen.walkTo(…)` | `if (ready) jensen.walkTo(…)`: only a call on its own line waits |
 | `() => Hank: "Hi"` | `() => { Hank: "Hi" }` |
 | `rooms.x.goTo(); flags.left = true` | Set the flag first: nothing runs after `goTo()` |
 | `return false` to fall through | `unhandled()` |
 | `parts.forEach((p) => handOver(p))` with a step function | `for (const p of parts) handOver(p)` |
 | `jensen.walkTo(…)` in a region handler | `jensen.walkTo.now(…)` (else the player is locked out while Jensen walks) |
-| `wait`/walks inside `onUpdate` | Start `background(() => …)` from it |
+| `wait`/walks/`face`/fades inside `onUpdate` | Start `background(() => …)` from it (a timed action there throws) |
+| `characters.penny.onLook(…)` in `penny.character.ts` | `penny.onLook(…)` from `./penny.ids` (both work; the flat one is the convention) |
 | `flags['all done']`, a flag missing from `state.ts` | Add it to `defineFlags` in `state.ts` |
 | Inventing a verb method (`onExamine`) | Use the game's verbs from `game-config.json`, or add the verb there |
 | Editing `*.ids.ts` or renaming a handle | Change the JSON (`"scriptName"` renames a handle) and regenerate |
 
-**Check your work** with `npm run typecheck` (regenerates handles first): unknown handles, verbs and animation tags are type errors. Speaker labels are plain TypeScript labels to `tsc`; the build transform (`npm run build`, the dev server) rejects unknown speakers ("Unknown speaker `Hnak`. Did you mean `Hank`?"), speech outside a handler and step functions passed to `forEach`, and the editor shows the speaker errors as you type.
+**Check your work** with `npm run typecheck` (regenerates handles first): unknown handles, verbs and animation tags are type errors. `npm run lint` reports timed actions where nothing waits for them (callbacks, `onUpdate`, expressions, plain `.ts` files) and `await` in handlers. Speaker labels are plain TypeScript labels to `tsc`; the build transform (`npm run build`, the dev server) rejects unknown speakers ("Unknown speaker `Hnak`. Did you mean `Hank`?"), speech outside a handler and step functions passed to `forEach`, and the editor shows the speaker errors as you type.
 
 Full reference: `docs/bennescript-api.md`; guide: `docs/public/bennescript.md` (in the BENNE repository).

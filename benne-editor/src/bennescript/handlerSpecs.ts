@@ -134,8 +134,7 @@ function bindingOrError(
     ref: ContentRef,
     what: string,
 ): { imports: ImportNeed[]; expr: string } | { error: string } {
-    const preferGame = ref.kind === 'character' && ref.roomId === null;
-    const binding = index.findBinding(scriptFile, ref, { preferGame });
+    const binding = index.findBinding(scriptFile, ref);
     if (!binding) {
         return {
             error:

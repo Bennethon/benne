@@ -302,7 +302,7 @@ room.onEnterAfterFade(() => {      // after the fade-in: visible entrances, cuts
   ...
 })
 room.onLeave(() => { ... })
-room.onLoaded(() => { ... })       // after assets load, before onEnter
+room.onLoaded(() => { ... })       // when a save loads into this room (instead of the enter hooks)
 ```
 
 **`onEnter` is setup.** It runs before the fade-in, and the fade-in waits for it to finish. Timed actions like `walkTo` or a `say` line are allowed but rare there; that's what `onEnterAfterFade` is for.
@@ -370,7 +370,7 @@ room.id                  // 'plaza'
 
 _As built (Phase 4, decision 29):_ `room.visitCount` and `room.last` are settable, for Play From setups (`room.last = rooms.plaza`); `room.hasVisited` exists too.
 
-_As built (Phase 7 audit, decision 52):_ `room.onLoaded` runs **only when a save loads into the room** (the `'load'` start kind), after `game.onLoadedAnyRoom`; the enter hooks don't run then. It does not run on ordinary room entry, so the "after assets load, before onEnter" comment above is wrong.
+_As built (Phase 7 audit, decision 52):_ `room.onLoaded` runs **only when a save loads into the room** (the `'load'` start kind), after `game.onLoadedAnyRoom`; the enter hooks don't run then. It does not run on ordinary room entry. _Decision 53:_ that is its purpose, so the example comment above now says so; per-visit setup goes in `onEnter`.
 
 _As built (Phase 6 follow-up, decision 50):_ the enter hooks run as a skippable cutscene; `room.onEnter(fn, { skippable: false })` (also on `onEnterAfterFade`, `game.onEnterAnyRoom` and `game.onEnterAnyRoomAfterFade`) keeps ESC from skipping that phase. `game.onLoadedAnyRoom(fn)` runs for every room a save loads into, before the room's own `onLoaded`.
 
@@ -757,6 +757,8 @@ Empty character scripts (most of AI Apocalypse's ten) can simply be deleted. The
 
 _As built (Phase 3 naming, recorded in decision 52):_ in a character script the handle is `characters.penny` (from `@game`), not a flat `penny`: flat character handles exist only in room modules, where they register room-scoped handlers. The templates' `penny.character.ts` is `characters.penny.onLook(() => { Player: "It's Penny." })`. `characters.penny.onAnyItem((item, verb) => …)` works in a character script (listening on the engine's character any-item tier, after the room's own item handlers); until the Phase 7 follow-up it was ignored with a DEV warning.
 
+_As built (decision 53):_ as specified above, a character script has its own character **flat**: the generator writes `characters/<id>/<id>.ids.ts` exporting `penny` (the same object as `characters.penny`), so `penny.character.ts` is `import { penny } from './penny.ids'` and then `penny.onLook(…)`. Other characters are still `characters.x` there. The rule across script files: each file gets its own thing flat (`room` and the room's contents, `dialog` / `options`, `gui` / controls, the character), and everything else through `@game`. Flat names are not available everywhere, because a flat character in a room script is the room-scoped one (§7.1), so a flat `penny` in another room or in `globalScript.ts` would have no clear scope. The Inspector writes `penny.onLook(…)` into character scripts.
+
 ### 4.10 Props and animation
 
 | Call | Behaviour |
@@ -768,6 +770,7 @@ _As built (Phase 3 naming, recorded in decision 52):_ in a character script the 
 | `jensen.stopAnimation()` | Back to directional idle. |
 | `door.show()` / `door.hide()` / `door.visible` | Instant, saved. |
 | `door.fade(0, 1.5)` | Fade to alpha 0 over 1.5 s, **waits**. `fade.now` to continue. |
+| `door.alpha = 0.5` | Set opacity (0–1) at once; stops a running `fade`. Saved. Characters and `player` too (_decision 53_). |
 | `door.moveTo({ x: 80, y: 90 })` | Teleport (instant). |
 | `door.slideTo({ x: 80, y: 90 }, 2)` | Tween over 2 s, **waits**. |
 
@@ -1160,7 +1163,7 @@ settings.clickToSkip
 
 _As built (Phase 6 follow-up, decision 50):_ every speech and dialog setting from `game-config.json` can be overridden at runtime, under the config's own names: `settings.speech.showText`, `msPerCharacter`, `durationMultiplier`, `minDurationMs`, `maxDurationMs`, `defaultTalkOffset`, `clickToSkip`, and `settings.dialog.choiceOptionsViewportHeightPx` / `usedColor` (`undefined` goes back to the config). `settings.onChange(fn)` runs after any setting changes. Saves take a slot or a name, as before the refactor: `saves.save('checkpoint')`, `saves.load('checkpoint')`, `saves.delete(…)`, `saves.get(…)`; `saves.list()` lists both (`slot: null` for a named save). `saves.rename(save, name)`, `saves.export()` (JSON) and `saves.import(json)` (loads it like `saves.load`, ending the handler) complete it.
 
-_As built (Phase 7 audit, decision 52):_ there is **no `saves.autosave()`**: nothing in AI Apocalypse or the templates autosaves, so it was never added. A game that wants one can write a named save (`saves.save('autosave')`) where `saves.canSaveNow` is true; that excludes enter hooks and gameplay handlers, where saving is refused (decision 2).
+_As built (decision 53):_ **`saves.autosave(save = 'Autosave')`** saves as soon as saving is allowed: at once when `saves.canSaveNow` is true, otherwise at the first frame after the running interaction, dialog or room transition ends. So it works where `saves.save` is refused (decision 2), such as `room.onEnter` and cutscenes: `room.onEnter(() => { saves.autosave() })` saves once the room has settled. It takes a name or a slot (`saves.autosave('Chapter 2')`, `saves.autosave(0)`), doesn't wait, and a later call replaces one still pending; loading a save or starting a new game drops a pending one. (Until decision 53 there was no `autosave`, decision 52.)
 
 ### 4.17 The global script and fallbacks
 
@@ -1202,7 +1205,7 @@ onUpdate((dt) => {
 
 `onUpdate` callbacks are **not** sequenced: they run synchronously every frame. Timed actions (`walkTo`, `say`, `wait`) inside them are an error, at build time where the transform can see them and at runtime otherwise. To start a sequence from a frame check, use `background(() => …)`.
 
-_As built (Phase 7 audit, decision 52):_ only speech labels are rejected there (a label outside a step function is a build error). Other timed calls build and run: the callback runs detached, so the action starts and nothing waits for it, every frame. No runtime check reports it. `onUpdate` is global (it runs in every room, decision 40) and receives the frame's seconds: `onUpdate((dt) => …)`. Props have no `alpha` property, so the example above would be `alarmLight.visible = …` or a GUI control's `alpha`; a prop's alpha changes through `fade(alpha, seconds)`.
+_As built (decision 53):_ `onUpdate` callbacks run in a frame context, and **any timed action started there throws `TimedActionInUpdateError`** (the blocking form and `.now` alike), logged once per callback, not every frame; the rest of that callback doesn't run. A `background(() => …)` block started from the callback gets its own context, so timed actions inside it work. At build time, a speech label there fails the build (it is outside a step function), and the ESLint rule `bennescript/no-unwaited-timed-call` (§6.3) reports other timed calls by type. An ending call (`goTo`) just stops the callback. `onUpdate` is global (it runs in every room, decision 40) and receives the frame's seconds: `onUpdate((dt) => …)`. Props and characters have a settable **`alpha`** (instant, saved, and it stops a running `fade`), so the example above works as written. (Decision 52 recorded the earlier gaps: no runtime check, and no `alpha` property.)
 
 ### 4.19 Play From
 
@@ -1309,7 +1312,7 @@ Listeners run immediately with the event's arguments, and their own lines are se
 | Waits (timed) | Doesn't wait (instant) |
 |---|---|
 | `walkTo`, `walkToClicked`, `faceClicked`*, `face`* | `moveTo` (teleport), `show`, `hide`, `visible =` |
-| `say`, `Speaker: "…"`, `` say`…` ``, `display` | `animation =`, `clickable =`, `active =`, `description =` |
+| `say`, `Speaker: "…"`, `` say`…` ``, `display` | `animation =`, `alpha =`, `clickable =`, `active =`, `description =` |
 | `wait`, `waitForClick` | `flags.x =`, `vars.x =`, all reads |
 | `play` (one-shot anim), `fade`, `slideTo`, `fadeTo` | `sfx.x.play()`, `music.x.play()`, `music.stop()` |
 | `sfx.x.playAndWait()`, `video.x.playAndWait()` | `camera.shake()` |
@@ -1320,7 +1323,7 @@ Listeners run immediately with the event's arguments, and their own lines are se
 
 \* Turning takes a few frames when facing animations exist.
 
-_As built (Phase 7 audit, decision 52):_ `faceClicked()` is a timed action, but `player.face(…)` / `jensen.face(…)` are **instant** (they set the facing and return).
+_As built (decision 53):_ `player.face(…)` and `jensen.face(…)` are timed actions like `faceClicked()`, with a `.now` form. Turning is still instant, so the wait ends at once, but scripts are already written to wait for it, so turning animations can be added later without changing them. A turn (`face` or `faceClicked`) doesn't end a handler's opening-walk phase (rule 9): a player walk after it still counts as the opening walk, so a click can still interrupt it. (Decision 52 recorded that `face` was instant and didn't wait.)
 
 ---
 
@@ -1388,7 +1391,12 @@ The author-facing type declarations are designed so the source type-checks as wr
 
 A small ESLint rule (shipped with the template) flags timed calls in non-script files and inside `onUpdate`. The transform and runtime errors are the backstop.
 
-_As built (Phase 7 audit, decision 52):_ no ESLint rule was written, and the repository's ESLint config doesn't lint game scripts at all. The type checker, the transform's build errors and the editor's diagnostics are the checks.
+_As built (decision 53):_ two rules, in `scripts/lib/eslint-plugin-bennescript.mjs`, with the transform's step-function rules shared through `scripts/lib/bennescriptSteps.mjs`:
+
+- **`bennescript/no-unwaited-timed-call`**: a timed action (anything callable with a `.now()` returning a `Task`, found by type) or a step function, called where nothing waits for it: inside `onUpdate` (both forms; `background` blocks inside it are fine), in a callback or nested function that isn't a handler (`setTimeout(() => wait(1))`, `list.map(() => helper())`), at the top level, in a plain `.ts` file, or inside an expression in a handler (`cond && walkTo(p)`: only a call on its own line waits). `.now(…)` is allowed everywhere except `onUpdate`.
+- **`bennescript/no-await-in-step`**: `await` in a handler or helper. Lines already wait, and `await walkTo(p)` doesn't (the blocking form returns a wait marker, not a promise).
+
+They need typed linting (`parserOptions.projectService`); without types they still check step functions and `await`. `gameScriptsConfig({ parser, tsconfigRootDir })` is the flat-config block for `src/game/**/*.ts` (minus `*.ids.ts`): the repository's `eslint.config.mjs` uses it, so `npm run lint` checks AI Apocalypse, and new games get an `eslint.config.mjs` that uses it, with `npm run lint` and `eslint` / `typescript-eslint` dev dependencies (Update Engine adds the config only when a game has none). (Decision 52 recorded that no rule existed.)
 
 ### 6.4 Runtime checks
 
@@ -1423,7 +1431,7 @@ _As built (Phase 2):_ every timed action is built once by `timed(start)` (`src/e
 | Source | Handle(s) | Where |
 |---|---|---|
 | `rooms/*/*.room.json` | `rooms.<id>`; in that room's `.ids`: `room`, props, hotspots, spawned characters (flat), `points.*`, `regions.*`, `walkables.*` | `@game`, `./<room>.ids` |
-| `characters/*/*.json` | `characters.<id>`, speaker labels (from ID and display name), animation tag unions | `@game` |
+| `characters/*/*.json` | `characters.<id>`, speaker labels (from ID and display name), animation tag unions; in the character's `.ids`: the character, flat (_decision 53_) | `@game`, `./<character>.ids` |
 | `inventory/*/*.inventory.json` | `items.<id>` with animation tag unions | `@game` |
 | `dialogs/*/*.dialog.json` | `dialogs.<id>.options.*`; in the dialog's `.ids`: `dialog`, `options` | `@game`, `./<dialog>.ids` |
 | `guis/*/*.gui.json` | `guis.<id>.controls.*`; in the GUI's `.ids`: `gui`, controls (flat) | `@game`, `./<gui>.ids` |
@@ -1450,7 +1458,7 @@ _As built (Phase 3, decision 23):_ the generator is `scripts/lib/generateGameHan
 _As built (Phase 3, decision 24):_
 - **camelCase**: split on anything that isn't a letter or digit; the first word is lower-cased when it is all capitals (`AI problem` → `aiProblem`), otherwise only its first letter is (`TakeBtn` → `takeBtn`, `what about AI` → `whatAboutAI`). A name that would start with a digit gets a leading `_` and a warning.
 - **Prefix stripping** applies only to the room's own ID, followed by the thing's own kind word (`hotspot-`, `point-`, `region-`, `prop-`, `walk-`/`walkable-`): `cafe-walk` → `walkables.walk`. When what's left doesn't start with a letter, the whole ID is used: `lab-point-1` → `points.labPoint1`.
-- **Scopes**: each `@game` namespace; each room module's top level (props, hotspots, spawned characters, plus the fixed `room`, `points`, `regions`, `walkables`), and its `points`, `regions` and `walkables` separately; each dialog's `options`; each GUI module's top level (controls plus `gui`).
+- **Scopes**: each `@game` namespace; each room module's top level (props, hotspots, spawned characters, plus the fixed `room`, `points`, `regions`, `walkables`), and its `points`, `regions` and `walkables` separately; each dialog's `options`; each GUI module's top level (controls plus `gui`); each character module (the character alone, decision 53).
 - **Reserved names** (trailing `_`, warning) apply only to flat scopes, where a handle is an import binding: JavaScript reserved words, everything `@benne/script` and `@game` export, and the generated module names (`room`, `points`, `regions`, `walkables`, `gui`, `dialog`, `options`). Namespaced keys (`items.default`) need no renaming. Flat names that shadow a browser global (`window`, `close`, `open`, …) only warn.
 - **`scriptName`** is accepted on rooms, props, hotspots, points, regions, walkable polygons, characters (it names the character in `characters` and in every room that spawns it), items, dialogs, dialog options, GUIs and GUI controls. It must be a valid identifier, and in a flat scope not a reserved name; otherwise generation fails. Two sound, music or video files whose names collide can't take a `scriptName`; the error asks to rename one of the files.
 - **Speaker labels** (decision 4) are resolved by one shared module, `scripts/lib/benneSpeakers.mjs`, used by the transform and the generator. The generator warns about names that several characters normalise to, and about a character whose ID or name normalises to `player`; using such a label is still the build error from §6.2.
@@ -1617,7 +1625,7 @@ Most of the ergonomics come from the build and type layers. The VS Code extensio
 | Inspector "add handler" / "reveal handler" | ScriptModel on the TS AST (engine review §4.3) finds `battery.onUseItem(items.soda, …)` exactly, with no regex |
 | Voice-ID / localisation export | Labels and `say` calls are trivially found in the AST, replacing the parsing in `voiceIdProcessor.ts` |
 | Snippets | `room-enter`, `cutscene`, `choice`, `use-item` |
-| tsconfig for script files | `allowUnusedLabels: true`; ESLint `no-labels` off for script globs (_as built: no ESLint config for scripts at all, decision 52_) |
+| tsconfig for script files | `allowUnusedLabels: true`; ESLint `no-labels` off for script globs (_as built: the game ESLint config enables only the BenneScript rules, §6.3, decision 53_) |
 
 _As built (Phase 5, decisions 38–42):_ the extension's BenneScript layer is `benne-editor/src/bennescript/`, free of `vscode` imports so the TS server plugin shares it:
 
@@ -1742,7 +1750,7 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 
 | Gotcha | Why | Mitigation |
 |---|---|---|
-| `() => Hank: "Hi"` is a syntax error | Labels need statement position | Use a block: `() => { Hank: "Hi" }`. The snippets insert braces (_as built: there is no code action, decision 52_). |
+| `() => Hank: "Hi"` is a syntax error | Labels need statement position | Use a block: `() => { Hank: "Hi" }`. The snippets insert braces (_as built: there is no code action, decision 52; the build error and the editor's syntax error say "Put it in braces: `() => { Hank: "…" }`", decision 53_). |
 | Speech must be quoted | `Hank: Hi there` isn't valid TS | The speaker completion inserts `""` with the cursor inside. Use `` say`…` `` for unquoted blocks. |
 | Hyphenated or spaced speaker names | Labels must be identifiers | Drop the punctuation (`BOTTi3Disembodied:` for `"BOTT-i3 Disembodied"`), or use a `` say`…` `` block, which accepts names verbatim. |
 | `parts.forEach(p => handOver(p))` | Callbacks to non-BenneScript APIs aren't sequenced | Build error with a hint to use `for…of`. |
@@ -1820,7 +1828,8 @@ AI Apocalypse is the acceptance test for the new API, transform and runtime:
 | 49 | Testing the templates (Phase 6) | **`npm run test:templates`** runs each template in a throwaway workspace (`scripts/template-workspace.mjs`: this repo's engine with the template as `src/game`), so `src/game` stays untouched. The dev/test hooks record every speech line where it is shown (`speech()`), report the active player, take a verb for `useItem` / `combine`, and `inventoryVerb` drops the armed item first, as `verb` does. The e2e fixture game is ported too; its server now generates handles and loads the BenneScript plugin. | §14 |
 | 50 | Parity with the old `B` API (Phase 6 follow-up) | **Everything the old API could do, BenneScript can**, in its own style: properties for state (`speechPosition`, `focused`, `pointer.verb`), handlers on the thing they belong to (`gui.onAnyClick`, `input.onSubmit`, `list.onActivate`, `fallbacks.onUnhandled`, `game.onLoadedAnyRoom`), controls next to generated files where one slot is shared (`video.pause()`, `sfx.stopAll()`), and the config's own names for runtime settings (`settings.speech.*`, `settings.dialog.*`). **`B.raw` becomes `events`** (§4.21): engine events and script-to-script events, room-scoped in room scripts; `events.once` callbacks are step functions. **Saves take a slot or a name again.** Item handlers take `{ doNotClear: true }` (was `whenInventoryUsedOn.doNotClear`); the enter hooks take `{ skippable }`. `saves.import` reloads the imported room and ends the handler, like `load` (the old `importJson` only replaced the state). Not ported (confirmed after review): string-keyed flags and variables (`B.state.getFlag('x')` & co.), which typed `flags` / `vars` replace by design (§4.7); and `B.state.flush` / `setCurrentRoom`, which saves and room changes already do for you. | §4.3, §4.4, §4.6, §4.11, §4.15, §4.16, §4.17, §4.21 |
 | 51 | Docs (Phase 7) | **The reference half of `docs/bennescript-api.md` is generated from the code** by `scripts/generate-bennescript-api-docs.mjs` (`npm run docs:api`): every value export of `@benne/script` must be placed in its layout (or listed as internal), and every public member needs a JSDoc comment, whose first paragraph becomes the description; design-doc references (`§4.2`, `decision 9`) are stripped. **`npm run check` runs `check:docs`**, which fails when the page is out of date. The hand-written half covers what the code can't say (sequencing, naming, generated verb methods, dispatch order, engine events, build errors). **The `bennescript` agent skill** is `.agents/skills/bennescript/SKILL.md`, mirrored in `.cursor/skills/bennescript/` as the repo's other skills are, with the cursor rule `.cursor/rules/bennescript.mdc` (scoped to script files). **They ship in the extension scaffold's shared files** (`bundle-extension-scaffold.mjs`), not in `game-templates/`, so new games get them and Update Engine refreshes them. Docs written before the refactor (engine review, codex suggestions, feasibility study) keep their old-API examples under a "historical document" note. | §11.1, §13 risks, `docs/` |
-| 52 | Deviations found by the Phase 7 audit | Writing the docs from the code turned up promises in this spec that were never built or were built differently, recorded here and in as-built notes: **`room.onLoaded`** runs only when a save loads into the room, not before every `onEnter` (§4.4); **character scripts use `characters.x`**, flat character handles exist only in room modules (§4.9; `characters.x.onAnyItem` was ignored too, fixed in the Phase 7 follow-up); **no `saves.autosave()`** (§4.16); **timed calls inside `onUpdate` are not an error**: they start every frame and nothing waits; only speech labels fail the build (§4.18); **`face(…)` is instant**, only `faceClicked()` waits (§5); **no ESLint rule** for timed calls and no ESLint config for script files (§6.3, §9); **no brace-inserting code action**, only snippets (§12); **props have no `alpha` property** (§4.18's example): `fade(alpha, seconds)` sets it (and saves it). None of these blocked AI Apocalypse or the templates. | §4.4, §4.9, §4.16, §4.18, §5, §6.3, §9, §12 |
+| 52 | Deviations found by the Phase 7 audit | Writing the docs from the code turned up promises in this spec that were never built or were built differently, recorded here and in as-built notes: **`room.onLoaded`** runs only when a save loads into the room, not before every `onEnter` (§4.4); **character scripts use `characters.x`**, flat character handles exist only in room modules (§4.9; `characters.x.onAnyItem` was ignored too, fixed in the Phase 7 follow-up); **no `saves.autosave()`** (§4.16); **timed calls inside `onUpdate` are not an error**: they start every frame and nothing waits; only speech labels fail the build (§4.18); **`face(…)` is instant**, only `faceClicked()` waits (§5); **no ESLint rule** for timed calls and no ESLint config for script files (§6.3, §9); **no brace-inserting code action**, only snippets (§12); **props have no `alpha` property** (§4.18's example): `fade(alpha, seconds)` sets it (and saves it). None of these blocked AI Apocalypse or the templates. **Decision 53 resolves all of them except the code action** (which gets a clearer error instead). | §4.4, §4.9, §4.16, §4.18, §5, §6.3, §9, §12 |
+| 53 | Closing the decision 52 gaps (post-Phase 7) | **`room.onLoaded` runs only when a save loads into the room, by design**: it replaces the enter hooks on a load; `onEnter` is for entering. **A character script has its own character flat** (`characters/<id>/<id>.ids.ts` exports `penny`, the same object as `characters.penny`), like `room`, `dialog` and `gui` in their scripts; other characters stay `characters.x`, and flat names are not global, because a room's flat character is room-scoped. **`saves.autosave(save = 'Autosave')`** saves at once when allowed, else at the first frame where `saves.canSaveNow` is true, so it works in `onEnter` and cutscenes. **A timed action started in `onUpdate` throws `TimedActionInUpdateError`** (the frame context; `background` blocks get their own), logged once per callback. **`face(…)` is a timed action** with `.now`, instant for now, so turning animations can be added without changing scripts; a turn (`face`, `faceClicked`) doesn't count as a handler's first timed step for the interrupt policy, so `player.face('L')` then `walkToClicked()` keeps the walk interruptible (§5 rule 9). **ESLint rules** `bennescript/no-unwaited-timed-call` and `bennescript/no-await-in-step` (typed), in the repository's lint and in new games (`eslint.config.mjs`, `npm run lint`). **`() => Hank: "…"`** keeps failing to parse (no code action), but the build and the editor now say to add braces. **`alpha`** on props, characters and `player`: settable, instant, saved, stops a running `fade`. | §4.4, §4.9, §4.10, §4.16, §4.18, §5, §6.3, §7.1, §9, §12 |
 
 **Revisit later**
 
