@@ -84,7 +84,6 @@ import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry
 import {
   isPersistedInventoryAnimationVariableKey,
   readEffectiveInventoryDefaultAnimationTag,
-  readEffectiveInventoryDescription,
 } from '../inventory/inventoryScriptingAnimations.js';
 import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
@@ -119,6 +118,7 @@ import {
 } from '../verbs/dispatchInventoryVerb';
 import { getEffectiveInputProfile } from '../verbs/verbConfig';
 import { resolvePointerVerbForInventoryItem } from '../verbs/resolvePointerVerb';
+import { inventoryItemLabel } from '../verbs/targetLabel';
 import {
   getAsepriteSpriteSourceInset,
   getAsepriteVisibleFrameSize,
@@ -1890,9 +1890,7 @@ function fillInventoryPanelContent(
                   resolution.verbId,
                   itemId,
                   invPointerCtx.roomId,
-                  invDef
-                    ? readEffectiveInventoryDescription(manager, invDef)
-                    : undefined,
+                  inventoryItemLabel(itemId),
                 );
                 if (!handled && shouldDrop) {
                   manager.clearActiveInventoryItem();

@@ -8,10 +8,9 @@ import {
 } from '../events/inventoryOnVerbEvents.js';
 import { inventoryVerbEventId, type InventoryVerbInteractPayload } from '../events/inventoryVerbEvents.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
-import { readEffectiveInventoryDescription } from '../inventory/inventoryScriptingAnimations.js';
 import { continueInventoryOnDispatchAfterGlobal } from '../verbs/dispatchInventoryOnVerbTarget.js';
 import { continueVerbDispatchToGlobal } from '../verbs/dispatchVerb.js';
+import { inventoryItemLabel } from '../verbs/targetLabel.js';
 import { getEffectiveVerbDefinitions, isItemVerb } from '../verbs/verbConfig.js';
 import { applyInventoryDropPolicy, type ItemHandlerOptions } from './globalHandlers.js';
 import { runHandler, warnIfUntransformed } from './interactionContext.js';
@@ -43,14 +42,11 @@ const verbHandlers = new Map<string, Map<string, { handler: Handler; arms: boole
 const listening = new Set<string>();
 
 function rowTarget(p: InventoryVerbInteractPayload) {
-  const def = getInventoryDefinition(p.itemId);
-  const manager = tryGetActiveGameStateManager();
-  const description = def && manager ? readEffectiveInventoryDescription(manager, def) : def?.description;
   return {
     type: 'inventoryItem' as const,
     itemId: p.itemId,
     roomId: p.roomId,
-    ...(description ? { description } : {}),
+    description: inventoryItemLabel(p.itemId),
   };
 }
 

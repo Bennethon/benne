@@ -162,7 +162,7 @@
     {
       "id": "door-to-lab",
       "active": true,
-      "description": "",
+      "description": "lab door",
       "zIndex": 3,
       "points": [
         {

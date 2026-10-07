@@ -21,6 +21,7 @@ import {
   shouldDropActiveInventoryOnUse,
 } from '../verbs/dispatchInventoryOnVerbTarget.js';
 import { continueVerbDispatchToGlobal } from '../verbs/dispatchVerb.js';
+import { targetLabel } from '../verbs/targetLabel.js';
 import type { CutsceneOptions } from '../../types/cutscene.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
 import { createFrameRunner, runHandler, warnIfUntransformed, type HandlerOutcome } from './interactionContext.js';
@@ -59,21 +60,21 @@ export function applyInventoryDropPolicy(itemId: string, options?: ItemHandlerOp
 export interface FallbackTarget {
   readonly kind: 'prop' | 'hotspot' | 'character' | 'item';
   readonly id: string;
-  /** The hover description shown in the verb line. */
+  /** Its verb-line label: description, else name, else id. */
   readonly name: string;
 }
 
 function fallbackTargetOf(p: AnyInventoryUsedOnPayload): FallbackTarget {
-  const name = p.description ?? '';
+  const name = (id: string) => targetLabel(p.description, null, id);
   switch (p.targetType) {
     case 'prop':
-      return { kind: 'prop', id: p.propId, name };
+      return { kind: 'prop', id: p.propId, name: name(p.propId) };
     case 'hotspot':
-      return { kind: 'hotspot', id: p.hotspotId, name };
+      return { kind: 'hotspot', id: p.hotspotId, name: name(p.hotspotId) };
     case 'character':
-      return { kind: 'character', id: p.characterId, name };
+      return { kind: 'character', id: p.characterId, name: name(p.characterId) };
     case 'inventoryItem':
-      return { kind: 'item', id: p.targetItemId, name };
+      return { kind: 'item', id: p.targetItemId, name: name(p.targetItemId) };
   }
 }
 
@@ -102,16 +103,16 @@ export function registerFallbackAnyVerb(handler: Handler): void {
 }
 
 function fallbackTargetOfVerb(target: VerbInteractTarget): FallbackTarget {
-  const name = target.description ?? '';
+  const name = (id: string) => targetLabel(target.description, null, id);
   switch (target.type) {
     case 'prop':
-      return { kind: 'prop', id: target.propId, name };
+      return { kind: 'prop', id: target.propId, name: name(target.propId) };
     case 'hotspot':
-      return { kind: 'hotspot', id: target.hotspotId, name };
+      return { kind: 'hotspot', id: target.hotspotId, name: name(target.hotspotId) };
     case 'character':
-      return { kind: 'character', id: target.characterId, name };
+      return { kind: 'character', id: target.characterId, name: name(target.characterId) };
     case 'inventoryItem':
-      return { kind: 'item', id: target.itemId, name };
+      return { kind: 'item', id: target.itemId, name: name(target.itemId) };
   }
 }
 

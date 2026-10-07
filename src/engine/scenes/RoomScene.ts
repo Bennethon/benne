@@ -223,6 +223,7 @@ import {
   getBenneVerbContextChangedEmitter,
   publishBenneVerbHoverContext,
 } from '../verbs/verbContext.js';
+import { inventoryItemLabel, targetLabel } from '../verbs/targetLabel.js';
 import { DIALOG_CHOICE_OPTIONS_VIEWPORT_HEIGHT_PX_VARIABLE } from '../dialog/dialogGameState.js';
 import type { GuiRuntime } from '../gui/GuiRuntime.js';
 import {
@@ -3175,6 +3176,11 @@ export class RoomScene extends Phaser.Scene {
     );
   }
 
+  /** What the verb line calls this prop: its effective description, else its id. */
+  private getPropLabel(propId: string): string {
+    return targetLabel(this.getPropScriptDescription(propId), null, propId);
+  }
+
   /**
    * Persist `prop.description`. Survives room reloads and save/load. Refreshes the verb hover
    * line so the new text shows without requiring a pointer move.
@@ -3453,6 +3459,11 @@ export class RoomScene extends Phaser.Scene {
     );
   }
 
+  /** What the verb line calls this hotspot: its effective description, else its id. */
+  private getHotspotLabel(hotspotId: string): string {
+    return targetLabel(this.getHotspotScriptDescription(hotspotId), null, hotspotId);
+  }
+
   /**
    * Persist `hotspot.description`. Survives room reloads and save/load. Unknown ids no-op
    * (DEV warns once). Refreshes the verb hover line so the new text shows without a pointer move.
@@ -3624,6 +3635,11 @@ export class RoomScene extends Phaser.Scene {
       definitionId,
       jsonDefault,
     );
+  }
+
+  /** What the verb line calls this character: its effective description, else its name, else its id. */
+  private getCharacterLabel(character: CharacterData): string {
+    return targetLabel(this.getCharacterScriptDescription(character.id), character.name, character.id);
   }
 
   /**
@@ -5526,7 +5542,7 @@ export class RoomScene extends Phaser.Scene {
             propId: spawn.id,
             tag: spawn.tag,
             roomId,
-            description: this.resolvePropDescriptionForDispatch(spawn),
+            description: this.getPropLabel(spawn.id),
             walkToPoint: spawn.data.walkToPoint,
             lookAtPoint: spawn.data.lookAtPoint,
           });
@@ -5552,10 +5568,6 @@ export class RoomScene extends Phaser.Scene {
     this.emitPropVerbInteraction(roomId, spawn, 'look');
   }
 
-  private resolvePropDescriptionForDispatch(spawn: RoomPropSpawn): string | undefined {
-    return this.getPropScriptDescription(spawn.id);
-  }
-
   private emitPropVerbInteraction(roomId: string, spawn: RoomPropSpawn, verbId: string): void {
     if (this.isInputSuppressed()) {
       return;
@@ -5566,7 +5578,7 @@ export class RoomScene extends Phaser.Scene {
       propId: spawn.id,
       tag: spawn.tag,
       roomId,
-      description: this.resolvePropDescriptionForDispatch(spawn),
+      description: this.getPropLabel(spawn.id),
       walkToPoint: spawn.data.walkToPoint,
       lookAtPoint: spawn.data.lookAtPoint,
     });
@@ -5655,7 +5667,7 @@ export class RoomScene extends Phaser.Scene {
             type: 'hotspot',
             hotspotId: hotspot.id,
             roomId,
-            description: this.getHotspotScriptDescription(hotspot.id),
+            description: this.getHotspotLabel(hotspot.id),
             walkToPoint: hotspot.walkToPoint,
             lookAtPoint: hotspot.lookAtPoint,
           });
@@ -5671,7 +5683,7 @@ export class RoomScene extends Phaser.Scene {
         type: 'hotspot',
         hotspotId: hotspot.id,
         roomId,
-        description: this.getHotspotScriptDescription(hotspot.id),
+        description: this.getHotspotLabel(hotspot.id),
         walkToPoint: hotspot.walkToPoint,
         lookAtPoint: hotspot.lookAtPoint,
       });
@@ -5886,7 +5898,7 @@ export class RoomScene extends Phaser.Scene {
             characterId: d.id,
             instanceId: spawn.instanceId,
             roomId,
-            description: this.getCharacterScriptDescription(d.id),
+            description: this.getCharacterLabel(d),
             ...(d.walkToPoint !== undefined
               ? { walkToPoint: { x: sx + d.walkToPoint.x, y: sy + d.walkToPoint.y } }
               : {}),
@@ -5910,7 +5922,7 @@ export class RoomScene extends Phaser.Scene {
         characterId: d.id,
         instanceId: spawn.instanceId,
         roomId,
-        description: this.getCharacterScriptDescription(d.id),
+        description: this.getCharacterLabel(d),
         ...(d.walkToPoint !== undefined
           ? { walkToPoint: { x: sx + d.walkToPoint.x, y: sy + d.walkToPoint.y } }
           : {}),
@@ -6046,15 +6058,7 @@ export class RoomScene extends Phaser.Scene {
         if (!inv) {
           return null;
         }
-        const fromDesc = this.getInventoryScriptDescription(itemId).trim();
-        let description: string | null = null;
-        if (fromDesc.length > 0) {
-          description = fromDesc;
-        } else {
-          const fromName = inv.name?.trim();
-          description = fromName && fromName.length > 0 ? fromName : null;
-        }
-        return { description, targetType: 'inventoryRow', itemId, ...verbHoverDefaultVerbPatch(inv) };
+        return { description: inventoryItemLabel(itemId), targetType: 'inventoryRow', itemId, ...verbHoverDefaultVerbPatch(inv) };
       }
       if (go.getData('benneHotspot') === true) {
         const hid = go.getData('benneHotspotId') as string | undefined;
@@ -6062,10 +6066,8 @@ export class RoomScene extends Phaser.Scene {
           return null;
         }
         const hs = this.roomData.hotspots.find((h) => h.id === hid);
-        const d = this.getHotspotScriptDescription(hid).trim();
-        const description = d.length > 0 ? d : null;
         return {
-          description,
+          description: this.getHotspotLabel(hid),
           targetType: 'hotspot',
           targetId: hid,
           ...verbHoverDefaultVerbPatch(hs ?? {}),
@@ -6079,16 +6081,8 @@ export class RoomScene extends Phaser.Scene {
         if (!this.getCharacterScriptClickable(charData.id)) {
           continue;
         }
-        const chDesc = this.getCharacterScriptDescription(charData.id).trim();
-        let description: string | null = null;
-        if (chDesc.length > 0) {
-          description = chDesc;
-        } else {
-          const nm = charData.name?.trim();
-          description = nm && nm.length > 0 ? nm : null;
-        }
         return {
-          description,
+          description: this.getCharacterLabel(charData),
           targetType: 'character',
           targetId: charData.id,
           ...verbHoverDefaultVerbPatch(charData),
@@ -6096,16 +6090,9 @@ export class RoomScene extends Phaser.Scene {
       }
       for (const [propId, propSprite] of this.propSpritesById) {
         if (propSprite === o) {
-          const trimmedOverride = this.getPropScriptDescription(propId).trim();
           const p = this.roomData.props?.find((rp) => rp.id === propId);
-          let description: string;
-          if (trimmedOverride.length > 0) {
-            description = trimmedOverride;
-          } else {
-            description = propId;
-          }
           return {
-            description,
+            description: this.getPropLabel(propId),
             targetType: 'prop',
             targetId: propId,
             ...verbHoverDefaultVerbPatch(p ?? {}),

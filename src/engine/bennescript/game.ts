@@ -18,8 +18,6 @@ import {
 } from '../dialog/speechGameState.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
-import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
-import { readEffectiveInventoryDescription } from '../inventory/inventoryScriptingAnimations.js';
 import { tryGetRoomTransitionOrchestrator } from '../scenes/roomTransitionGlobals.js';
 import { getBenneEnvironment, quitBenneApplication } from '../benneEnvironment.js';
 import { emitBenneSpeechSettingsChanged } from '../dialog/speechSettingsEvents.js';
@@ -36,6 +34,7 @@ import {
   writePersistedSfxSessionVolume,
 } from '../sound/audioGameState.js';
 import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
+import { inventoryItemLabel } from '../verbs/targetLabel.js';
 import { composeVerbLineText, resolveGameDefaultVerbId } from '../verbs/verbConfig.js';
 import type { CutsceneOptions } from '../../types/cutscene.js';
 import type { GameSettings } from '../../types/game.js';
@@ -333,13 +332,6 @@ export interface PointerHover {
   readonly defaultVerb: VerbHandle | null;
 }
 
-function activeItemName(itemId: string): string {
-  const def = getInventoryDefinition(itemId);
-  const m = tryGetActiveGameStateManager();
-  const description = def && m ? readEffectiveInventoryDescription(m, def) : def?.description;
-  return description || def?.name || itemId;
-}
-
 const KIND: Record<string, PointerHover['kind']> = {
   prop: 'prop',
   hotspot: 'hotspot',
@@ -407,7 +399,7 @@ export const pointer = {
       getGameSettings(),
       m?.getActiveVerb() ?? null,
       getBenneVerbContextHoverDescription(),
-      itemId ? activeItemName(itemId) : null,
+      itemId ? inventoryItemLabel(itemId) : null,
     ).trim();
   },
 
