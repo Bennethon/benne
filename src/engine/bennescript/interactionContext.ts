@@ -37,6 +37,12 @@ export interface ContextOptions {
    * and GUI handlers don't. Default `true`.
    */
   gameplay?: boolean;
+  /**
+   * Marks an `onUpdate` frame context (§4.18) and receives its errors. A step that throws there
+   * (a timed action in a helper) is reported here, and the helper stops at that step instead of
+   * rejecting: helpers called from a callback with a block body drop their promise.
+   */
+  onFrameError?: (err: unknown) => void;
 }
 
 let current: InteractionContext | null = null;
@@ -66,6 +72,7 @@ export class InteractionContext {
   readonly payload: unknown;
   readonly scene: RoomScene | undefined;
   readonly gameplay: boolean;
+  readonly onFrameError: ((err: unknown) => void) | undefined;
 
   constructor(
     activity: InteractionActivity | null,
@@ -77,6 +84,7 @@ export class InteractionContext {
     this.payload = payload;
     this.scene = scene;
     this.gameplay = options.gameplay !== false;
+    this.onFrameError = options.onFrameError;
     this.cancelSignal = new Promise<never>((_, reject) => {
       this.rejectCancel = reject;
     });
@@ -108,7 +116,16 @@ export class InteractionContext {
     if (this.isCancelled) {
       throw CANCELLED;
     }
-    const value = this.run(thunk);
+    let value: unknown;
+    try {
+      value = this.run(thunk);
+    } catch (err) {
+      if (this.onFrameError) {
+        this.onFrameError(err);
+        return new Promise<never>(() => {});
+      }
+      throw err;
+    }
     if (isTaskWait(value)) {
       await this.waitFor(value.task);
       return undefined;
@@ -185,36 +202,53 @@ export class InteractionContext {
 /** Context for code that runs outside any handler (module top level, untracked callbacks). */
 const detached = new InteractionContext(null, null, undefined, { gameplay: false });
 
-/** Context `onUpdate` callbacks run in: nothing waits there, so timed actions refuse to start (§4.18). */
-const frame = new InteractionContext(null, null, undefined, { gameplay: false });
+/** Ending calls, `unhandled()` and cancellation: ways a handler stops that aren't errors. */
+function isQuietOutcome(err: unknown): boolean {
+  return err === END_HANDLER || err === UNHANDLED || err === CANCELLED;
+}
 
 /**
- * Runs an `onUpdate` callback in the frame context. An ending call (`goTo`) just stops it; any other
- * error, including {@link TimedActionInUpdateError}, is thrown to the per-frame registry.
+ * Makes the runner for one `onUpdate` callback, with its own frame context, where timed actions
+ * refuse to start (§4.18). Ending calls (`goTo`), `unhandled()` and cancellation just stop the
+ * callback; any other error, including {@link TimedActionInUpdateError}, goes to `report`, also
+ * when it surfaces later: in a step-function helper's step, or from an async callback's promise.
  */
-export function runFrameHandler(fn: (...args: never[]) => unknown, args: readonly unknown[]): void {
-  try {
-    frame.run(() => (fn as (...a: readonly unknown[]) => unknown)(...args));
-  } catch (err) {
-    if (err !== END_HANDLER) {
-      throw err;
+export function createFrameRunner(
+  report: (err: unknown) => void,
+): (fn: (...args: never[]) => unknown, args: readonly unknown[]) => void {
+  const fail = (err: unknown): void => {
+    if (!isQuietOutcome(err)) {
+      report(err);
     }
-  }
+  };
+  const frame = new InteractionContext(null, null, undefined, { gameplay: false, onFrameError: fail });
+  return (fn, args) => {
+    try {
+      const result = frame.run(() => (fn as (...a: readonly unknown[]) => unknown)(...args));
+      if (isPromiseLike(result)) {
+        void Promise.resolve(result).catch(fail);
+      }
+    } catch (err) {
+      fail(err);
+    }
+  };
 }
 
 /** Thrown when a timed action starts inside `onUpdate`. */
 export class TimedActionInUpdateError extends Error {
   constructor() {
     super(
-      'A timed action (walkTo, say, wait, face, fade, …) was started inside onUpdate, which runs every frame and ' +
-        "can't wait. To start a sequence from a frame check, use background(() => { … }) and guard it so it starts once.",
+      'A timed action (walkTo, say, wait, face, fade, save, …) was started inside onUpdate, which runs every frame and ' +
+        "can't wait. To start a sequence from a frame check, use background(() => { … }) and guard it so it starts once. " +
+        'Instant forms work there: x.startFacing(target) to keep a character turned toward another (or check x.facing ' +
+        'first), x.alpha = … instead of fade, saves.autosave() instead of saves.save.',
     );
     this.name = 'TimedActionInUpdateError';
   }
 }
 
 setTimedStartGuard(() => {
-  if (current === frame) {
+  if (current?.onFrameError) {
     throw new TimedActionInUpdateError();
   }
 });

@@ -5,10 +5,12 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { init } from '../../benne-editor/src/tsServerPlugin';
+import * as editorArrowSpeech from '../../benne-editor/src/bennescript/tsPluginFeatures';
 import { BENNESCRIPT_DIAGNOSTIC } from '../../benne-editor/src/bennescript/tsPluginFeatures';
 import { IdsIndex } from '../../benne-editor/src/bennescript/idsIndex';
 import { insertHandlerStub, type HandlerSpec } from '../../benne-editor/src/bennescript/handlerSpecs';
 import { buildSpeakerTable, readCharacterSpeakers } from '../../scripts/lib/benneSpeakers.mjs';
+import * as buildArrowSpeech from '../../scripts/lib/bennescriptTransform.mjs';
 import { transformBenneScript } from '../../scripts/lib/bennescriptTransform.mjs';
 import { generateGameHandles } from '../../scripts/lib/generateGameHandles.mjs';
 
@@ -74,6 +76,24 @@ describe('BENNE TS plugin', { timeout: 60000 }, () => {
     expect(errors.map((d) => [text[d.start], d.messageText])).toEqual([
       [':', expect.stringContaining('Put it in braces: `() => { Hank: "…" }`')],
     ]);
+  });
+
+  it('detects and words an arrow-body speech line like the build', () => {
+    const cases: Array<[string, number]> = [
+      ['x.onLook(() => Hank: "Hi")', 19],
+      ['x.onLook(() =>\n  Player: "Hi")', 23],
+      ['const o = { a: 1 }', 13],
+      ['f(() => a ? b : c)', 14],
+    ];
+    for (const [code, pos] of cases) {
+      const label = buildArrowSpeech.arrowSpeechLabelAt(code, pos);
+      expect(editorArrowSpeech.arrowSpeechLabelAt(code, pos)).toBe(label);
+      if (label) {
+        expect(editorArrowSpeech.arrowSpeechMessage(label)).toBe(buildArrowSpeech.arrowSpeechMessage(label));
+      }
+    }
+    expect(buildArrowSpeech.arrowSpeechLabelAt(cases[0]![0], cases[0]![1])).toBe('Hank');
+    expect(buildArrowSpeech.arrowSpeechLabelAt(cases[1]![0], cases[1]![1])).toBe('Player');
   });
 
   it('checks say block speakers', () => {

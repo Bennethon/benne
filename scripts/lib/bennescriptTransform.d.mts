@@ -9,6 +9,12 @@ export { buildSpeakerTable, normalizeSpeakerLabel, resolveSpeaker } from './benn
 
 export declare function isBenneScriptFile(id: string): boolean;
 
+/** The label of `() => Label: …` when `pos` is its colon (the parse error's position), else `undefined`. */
+export declare function arrowSpeechLabelAt(code: string, pos: number): string | undefined;
+
+/** The error that says to put an arrow-body speech line in braces. */
+export declare function arrowSpeechMessage(label: string): string;
+
 export declare class BenneScriptTransformError extends Error {
   /** UTF-16 offset in the source. */
   readonly pos: number;

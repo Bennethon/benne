@@ -9,6 +9,8 @@ import {
   writeSavedCharacterSpeechPosition,
 } from '../benneAnimationRuntime.js';
 import { getCharacterWorldFeet } from '../characterFeet.js';
+import { resolveInitialIdleFacing } from '../directionalCharacterAnimation.js';
+import type { GameStateManager } from '../gameState/GameStateManager.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { BENNE_SCREEN_FADE_DEFAULT_COLOR, BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC } from '../scenes/roomScreenFadeConstants.js';
 import type { RoomScene } from '../scenes/RoomScene.js';
@@ -164,10 +166,11 @@ export function sayTask(speakerId: string, text: unknown, options?: ScriptedSayL
   return new Task(playScriptedSayLine(scene, line.text, characterId, options, line.voiceStem));
 }
 
-/** `say` as the transform emits it for labels: one line, waited for. */
-export function sayLine(speakerId: string, text: unknown): void {
-  return sayTask(speakerId, text).wait();
-}
+/**
+ * `say` as the transform emits it for labels: one line, waited for. A timed action like any other,
+ * so a label reached from `onUpdate` (through a helper) throws there too.
+ */
+export const sayLine = timed((speakerId: string, text: unknown): Task => sayTask(speakerId, text));
 
 const normalizeLabel = (label: string): string => label.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
 
@@ -359,6 +362,42 @@ export function faceCharacterTask(characterId: string | null, direction: Charact
 }
 
 /**
+ * `alpha` read (props, characters, `player`): the live sprite's when it is in the room, else the
+ * saved value (`readSaved` supplies the default).
+ */
+export function readScriptAlpha(
+  sprite: { readonly alpha: number } | undefined,
+  readSaved: (m: GameStateManager) => number,
+): number {
+  if (sprite) {
+    return sprite.alpha;
+  }
+  const m = tryGetActiveGameStateManager();
+  return m ? readSaved(m) : 1;
+}
+
+/**
+ * `alpha =` (props, characters, `player`): instant through the room when `setLive` is given (a
+ * zero-length fade, which stops a running one and saves the value), else straight to the save.
+ */
+export function writeScriptAlpha(
+  label: string,
+  setLive: (() => void) | null,
+  writeSaved: (m: GameStateManager) => void,
+): void {
+  if (setLive) {
+    setLive();
+    return;
+  }
+  const m = tryGetActiveGameStateManager();
+  if (m) {
+    writeSaved(m);
+  } else {
+    warnOnce(`${label}:no-game`, `${label}: the game is not running — ignored.`);
+  }
+}
+
+/**
  * The operations character handles and `player` share. `characterId` `null` is the active player.
  * Everything here is instant except {@link characterOps.play} and {@link characterOps.fade}, which
  * return their {@link Task}.
@@ -390,6 +429,16 @@ export const characterOps = {
     return sprite instanceof Phaser.GameObjects.Sprite ? getCharacterWorldFeet(sprite) : { x: 0, y: 0 };
   },
 
+  /** The direction the character faces (`'D'` when it isn't in the room). */
+  facing(characterId: string | null): CharacterFacingLetter {
+    const scene = activeRoomScene();
+    const sprite = scene ? scene.getCharacterSprite(characterIdIn(scene, characterId)) : undefined;
+    if (!(sprite instanceof Phaser.GameObjects.Sprite)) {
+      return 'D';
+    }
+    return (sprite.getData('facing') as CharacterFacingLetter | undefined) ?? resolveInitialIdleFacing(sprite);
+  },
+
   play(characterId: string | null, tag: string): Task {
     const scene = roomFor('play');
     return scene ? new Task(scene.playCharacterScriptAnimationOneShot(characterIdIn(scene, characterId), tag)) : Task.resolved();
@@ -408,30 +457,19 @@ export const characterOps = {
   /** The sprite's alpha when spawned, else the saved one (1 by default). */
   getAlpha(characterId: string | null): number {
     const scene = activeRoomScene();
-    const id = scene ? characterIdIn(scene, characterId) : (characterId ?? tryGetActiveGameStateManager()?.getActivePlayerCharacterId());
-    const sprite = scene && id ? scene.getCharacterSprite(id) : undefined;
-    if (sprite) {
-      return sprite.alpha;
-    }
-    const m = tryGetActiveGameStateManager();
-    return m && id ? readSavedCharacterAlpha(m, id) : 1;
+    const id = scene ? characterIdIn(scene, characterId) : characterOps.idOf(characterId);
+    return readScriptAlpha(scene && id ? scene.getCharacterSprite(id) : undefined, (m) => (id ? readSavedCharacterAlpha(m, id) : 1));
   },
 
   /** Sets alpha at once (stopping a running fade) and saves it, spawned or not. */
   setAlpha(characterId: string | null, alpha: number): void {
     const scene = activeRoomScene();
-    if (scene) {
-      const id = characterIdIn(scene, characterId);
-      void scene.fadeCharacterScriptAlpha(id, alpha, alpha, 0);
-      return;
-    }
-    const m = tryGetActiveGameStateManager();
-    const id = characterId ?? m?.getActivePlayerCharacterId();
-    if (m && id) {
-      writeSavedCharacterAlpha(m, id, alpha);
-    } else {
-      warnOnce('alpha:no-game', 'alpha: the game is not running — ignored.');
-    }
+    // The scene saves it under the character's id whether or not it is spawned in this room.
+    writeScriptAlpha(
+      'alpha',
+      scene ? () => void scene.fadeCharacterScriptAlpha(characterIdIn(scene, characterId), alpha, alpha, 0) : null,
+      (m) => writeSavedCharacterAlpha(m, characterId ?? m.getActivePlayerCharacterId(), alpha),
+    );
   },
 
   stopAnimation(characterId: string | null): void {
@@ -616,6 +654,10 @@ export const player = {
   },
   /** Turns to `'U'`, `'D'`, `'L'` or `'R'`. Waits for the turn; `.now` doesn't. */
   face: timed((direction: CharacterFacingLetter): Task => faceCharacterTask(null, direction)),
+  /** The direction the player faces. Read it in `onUpdate`, where `face` can't start (§4.18). */
+  get facing(): CharacterFacingLetter {
+    return characterOps.facing(null);
+  },
   /** One speech line. Waits. Same as a `Player: "…"` label. */
   say: timed((text: string, options?: ScriptedSayLineOptions): Task => sayTask(PLAYER_SPEAKER, text, options)),
   /** One-shot animation; waits for it to finish, then returns to the base animation. */
@@ -677,6 +719,17 @@ export const player = {
   /** The character being followed, or `null`. */
   get followingTarget(): { readonly id: string } | null {
     return characterOps.followingTarget(null);
+  },
+  /**
+   * Keeps turning to face `target` whenever either of them moves, after a short random delay. Not
+   * saved. Use it for "keep looking at", which `face` in `onUpdate` can't do.
+   */
+  startFacing(target: { readonly id: string }, options?: FacingOptions): void {
+    characterOps.startFacing(null, target, options);
+  },
+  /** Stops turning toward its target (`startFacing`). */
+  stopFacing(): void {
+    characterOps.stopFacing(null);
   },
   /**
    * Where the player's speech lines appear, in room pixels (bottom centre), instead of above the

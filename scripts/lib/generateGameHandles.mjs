@@ -116,12 +116,15 @@ function doc(text) {
 class Scope {
   /**
    * @param {string} label e.g. `rooms/cafe/cafe.ids.ts` or `items`
-   * @param {{ flat: boolean, report: { errors: string[], warnings: string[] } }} options
+   * @param {{ flat: boolean, report: { errors: string[], warnings: string[] }, reservedWhy?: string }} options
+   *   `flat`: names are top-level in some module, so reserved words and BenneScript names are refused
+   *   (or renamed); `reservedWhy` explains that in the error, e.g. for `characters`.
    */
-  constructor(label, { flat, report }) {
+  constructor(label, { flat, report, reservedWhy }) {
     this.label = label;
     this.flat = flat;
     this.report = report;
+    this.reservedWhy = reservedWhy ?? `in ${label}`;
     /** @type {Map<string, { what: string, fix: string }>} */
     this.names = new Map();
   }
@@ -146,7 +149,7 @@ class Scope {
         return null;
       }
       if (this.flat && (RESERVED_WORDS.has(scriptName) || BENNESCRIPT_NAMES.has(scriptName))) {
-        errors.push(`${what}: "scriptName" \`${scriptName}\` is reserved in ${this.label}. Choose another name.`);
+        errors.push(`${what}: "scriptName" \`${scriptName}\` is reserved ${this.reservedWhy}. Choose another name.`);
         return null;
       }
       name = scriptName;
@@ -231,7 +234,13 @@ export function generateGameHandles(gameRoot) {
   const ns = (label) => new Scope(label, { flat: false, report });
   const roomScope = ns('rooms');
   const roomNames = new Map(rooms.map((r) => [r.id, nsName(roomScope, r, 'room')]));
-  const characterScope = ns('characters');
+  // A character's name is also top-level (in its own script and in rooms that spawn it), so the
+  // namespace follows flat rules: one name everywhere, and reserved names are refused here, once.
+  const characterScope = new Scope('characters', {
+    flat: true,
+    report,
+    reservedWhy: "for characters: a character's name is also used on its own in room and character scripts",
+  });
   const characterNames = new Map(characters.map((c) => [c.id, nsName(characterScope, c, 'character')]));
   const itemScope = ns('items');
   const itemNames = new Map(items.map((i) => [i.id, nsName(itemScope, i, 'item')]));
@@ -323,7 +332,7 @@ export function generateGameHandles(gameRoot) {
         what: `${kind} "${row.id}" (${r.file} ${field}[${i}])`,
         fix: scriptNameFix(r.file),
       });
-      return name ? { name, id: row.id } : null;
+      return name ? { name, id: row.id, alpha: row.alpha } : null;
     };
     const rows = (value) => (Array.isArray(value) ? [...value.entries()].filter(([, v]) => object(v) && typeof v.id === 'string' && v.id) : []);
     const props = rows(r.data.props).map(([i, p]) => entry('prop', p, i, 'props')).filter(Boolean);
@@ -333,11 +342,13 @@ export function generateGameHandles(gameRoot) {
     for (const [i, spawn] of (Array.isArray(r.data.characters) ? r.data.characters : []).entries()) {
       const folder = typeof spawn?.definition === 'string' ? spawn.definition.split('/')[0]?.trim() : '';
       const character = folder ? charactersByFolder.get(folder) : undefined;
-      if (!character || seen.has(character.id)) continue;
+      // A character whose name failed in `characters` was reported there.
+      if (!character || seen.has(character.id) || !characterNames.get(character.id)) continue;
       seen.add(character.id);
+      // The name `characters` settled on (scriptName or derived, already checked and renamed there).
       const name = flat.add({
         derived: camelCaseId(character.id),
-        scriptName: character.data.scriptName,
+        scriptName: characterNames.get(character.id),
         what: `character "${character.id}" (${r.file} characters[${i}])`,
         fix: `Add a "scriptName" to the prop or hotspot in ${r.file}, or to ${character.file}.`,
       });
@@ -373,10 +384,11 @@ export function generateGameHandles(gameRoot) {
   // ─── Character modules: the character script's own character, flat (§4.9) ─
   const characterModules = [];
   for (const c of characters) {
+    if (!characterNames.get(c.id)) continue;
     const file = `characters/${c.folder}/${c.folder}.ids.ts`;
     const name = new Scope(file, { flat: true, report }).add({
       derived: camelCaseId(c.id),
-      scriptName: c.data.scriptName,
+      scriptName: characterNames.get(c.id),
       what: `character "${c.id}" (${c.file})`,
       fix: '',
     });
@@ -603,7 +615,9 @@ function emitRoomModule(m, roomName, characterAnimations) {
     if (!rows.length) return '';
     return `\n// ${title}\n${rows.map((r) => `${doc(`\`${r.id}\``)}\nexport const ${r.name} = ${make(r)};`).join('\n')}\n`;
   };
-  out += section('Props', m.props, (p) => `__withVerbs(new PropHandle<VerbId, PropAnimation>(${str(id)}, ${str(p.id)}))`);
+  // A prop authored see-through passes its alpha, so `prop.alpha` outside its room can report it.
+  const authoredAlpha = (p) => (typeof p.alpha === 'number' && Number.isFinite(p.alpha) && p.alpha !== 1 ? `, ${p.alpha}` : '');
+  out += section('Props', m.props, (p) => `__withVerbs(new PropHandle<VerbId, PropAnimation>(${str(id)}, ${str(p.id)}${authoredAlpha(p)}))`);
   out += section('Hotspots', m.hotspots, (h) => `__withVerbs(new HotspotHandle<VerbId>(${str(id)}, ${str(h.id)}))`);
   out += section(
     'Characters',

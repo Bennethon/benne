@@ -850,3 +850,35 @@ None beyond decision 53 itself. Two judgement calls recorded there: `.now` is al
 | `npm run test:extension` (after `bundle:scaffold`) | ✅ 21/21 |
 | `npm run test:artifacts` | ✅ |
 | Templates linted as new games (see Known issues) | ✅ 9-verb and 2-click, 0 findings |
+
+---
+
+## Decision 53 review fixes (2026-10-06)
+
+A `/code-review high` of the decision 53 work found ten problems; all are fixed. You chose to keep `face` timed and to reserve names for characters (decision 54 in the spec, with as-built notes in §4.18, §5 and §7.2).
+
+### Done
+
+1. **Speech labels hit the `onUpdate` guard.** `sayLine` (what the transform emits for `Hank: "…"`) is built with `timed()`, so a label reached from `onUpdate` through a helper throws `TimedActionInUpdateError` like any other timed action.
+2. **Frame errors reach the log, not an unhandled rejection.** Each `onUpdate` callback gets its own frame context (`createFrameRunner` replaces `runFrameHandler`). A step that throws there is reported, and the helper stops at that step: its promise never settles. So `onUpdate(() => { if (x) helper() })`, where the block body drops the promise, no longer rejects every frame. An async callback's returned promise is caught too.
+3. **`unhandled()`, ending calls and cancellation are quiet in `onUpdate`**, as they were under `runDetached`.
+4. **Logging is bounded.** `reportOnUpdateFailure` logs each distinct message once per callback. After five different messages it logs "keeps failing … not logging it any more" and stops, so the set stops growing.
+5. **A replaced fade settles.** `RoomScene` tracks each sprite's running alpha fade (`spriteAlphaFades`). A new fade or `alpha =` stops only that tween and settles its promise, so a handler waiting on `door.fade(0, 2)` carries on. It used to be `killTweensOf(sprite)`, which also killed a running `slideTo` tween and left both promises pending.
+6. **`face` stays timed.** For frame code there are three instant alternatives: `startFacing(target)` (now on `player` too, with `stopFacing`), a new read-only `facing` on characters and `player`, and the `TimedActionInUpdateError` message, which names the instant forms (`startFacing`, `facing`, `alpha =`, `saves.autosave()`).
+7. **Reserved names are reserved for characters.** The `characters` namespace now follows flat naming rules, so a character has one name everywhere: a character with the ID `dialog` is `characters.dialog_` and `dialog_`. A reserved `scriptName` (e.g. `camera`) is one error at the character ("reserved for characters: …"), whether or not a room spawns it, not one error per module. Room and character modules reuse the name `characters` settled on, so rename warnings aren't repeated. AI Apocalypse's generated output is unchanged.
+8. **Update Engine keeps a game's own `lint` script** (`GAME_OWNED_SCRIPTS` in `scaffoldPayload.ts`) and adds the template one only when it's missing.
+9. **Arrow-speech detection is shared in the same way as the speaker rules.** The editor's `arrowSpeechLabelAt` / `arrowSpeechMessage` mirror the transform's exports (the CommonJS bundle can't import the `.mjs`), and a unit test checks that the two agree. The `.d.mts` declares the transform's exports.
+10. **One alpha path.** `readScriptAlpha` / `writeScriptAlpha` (`actions.ts`) serve props, characters and `player`. A prop handle carries its authored JSON alpha: the generator emits it as a third constructor argument when it isn't 1. Outside its room, `alpha` reads that value instead of 1, which closes the decision 53 known issue.
+
+Docs: spec (decision 54 and as-built notes), `docs/public/bennescript.md` (instant forms in `onUpdate`, the character `scriptName` rule), the skill (three copies), and `docs/bennescript-api.md` (regenerated; `Task.isTurn` got its missing JSDoc).
+
+### Checks
+
+| Check | Result |
+|---|---|
+| New unit tests: `bennescriptDecision53.test.ts` (label guard, dropped and returned helper promises reported with no unhandled rejection, quiet `unhandled()`, log cap, authored prop alpha), `roomSceneAlphaFade.test.ts` (replaced fades settle; with its own Phaser stub), `handleGenerator.test.mjs` (reserved character names, authored alpha), `editorTsPlugin.test.ts` (arrow-speech parity), extension `authoring.test.ts` (`lint` kept) | ✅ |
+| `npm run test:ci` | ✅ unit 181/181, desktop 3/3, pathfinding, content 0 new errors, lint 0 |
+| `npm run test:playthrough` (AI Apocalypse) | ✅ 14/14 (11.3 min), run alone |
+| `npm run test:extension` (after `bundle:scaffold`) | ✅ 22/22 |
+
+Not run this time: `test:templates`, `test:e2e`, `test:artifacts`. The extension's media bundles weren't rebuilt either; merge step 5 rebuilds them.

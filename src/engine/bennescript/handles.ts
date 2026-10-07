@@ -14,6 +14,7 @@ import {
   writeSavedInventoryDescription,
 } from '../inventory/inventoryScriptingAnimations.js';
 import type { ControlFacade } from '../gui/GuiRuntime.js';
+import type { RoomScene } from '../scenes/RoomScene.js';
 import type { ScriptedSayLineOptions } from './speech.js';
 import type { CharacterFacingLetter } from '../../types/character.js';
 import type { CutsceneOptions } from '../../types/cutscene.js';
@@ -27,10 +28,12 @@ import {
   characterOps,
   faceCharacterTask,
   inventoryOf,
+  readScriptAlpha,
   roomFor,
   sayTask,
   walkCharacterTask,
   warnOnce,
+  writeScriptAlpha,
   type FacingOptions,
   type Inventory,
   type ItemRef,
@@ -215,8 +218,12 @@ function slidePropTask(propId: string, to: Point2, seconds: number): Task {
 }
 
 export class PropHandle<V extends string = string, Anim extends string = string> extends ClickableHandle<V> {
-  constructor(roomId: string, id: string) {
+  /** The prop's `alpha` in the room JSON, for {@link alpha} outside its room. */
+  private readonly authoredAlpha: number;
+
+  constructor(roomId: string, id: string, authoredAlpha = 1) {
     super(roomId, 'prop', id);
+    this.authoredAlpha = authoredAlpha;
   }
 
   /** Hidden props aren't drawn or clickable. Instant, saved. */
@@ -283,30 +290,32 @@ export class PropHandle<V extends string = string, Anim extends string = string>
 
   /**
    * Opacity, 0–1. Setting it is instant (it stops a running `fade`) and saved. Outside the prop's
-   * room it reads and writes the saved value (1 when none is saved).
+   * room it reads and writes the saved value (the room JSON's when none is saved).
    */
   get alpha(): number {
-    const scene = activeRoomScene();
-    const sprite = scene?.getCurrentRoomId() === this.roomId ? scene?.getPropSprite(this.id) : undefined;
-    if (sprite) {
-      return sprite.alpha;
-    }
-    const m = tryGetActiveGameStateManager();
-    return m && this.roomId ? readSavedPropAlpha(m, this.roomId, this.id, 1) : 1;
+    const scene = this.sceneOfOwnRoom();
+    return readScriptAlpha(scene?.getPropSprite(this.id), (m) =>
+      this.roomId ? readSavedPropAlpha(m, this.roomId, this.id, this.authoredAlpha) : this.authoredAlpha,
+    );
   }
 
   set alpha(value: number) {
+    const scene = this.sceneOfOwnRoom();
+    writeScriptAlpha(
+      `${this.id}.alpha`,
+      scene ? () => void scene.fadePropScriptAlpha(this.id, value, value, 0) : null,
+      (m) => {
+        if (this.roomId) {
+          writeSavedPropAlpha(m, this.roomId, this.id, value);
+        }
+      },
+    );
+  }
+
+  /** The active room scene when it is this prop's room. */
+  private sceneOfOwnRoom(): RoomScene | undefined {
     const scene = activeRoomScene();
-    if (scene && scene.getCurrentRoomId() === this.roomId) {
-      void scene.fadePropScriptAlpha(this.id, value, value, 0);
-      return;
-    }
-    const m = tryGetActiveGameStateManager();
-    if (m && this.roomId) {
-      writeSavedPropAlpha(m, this.roomId, this.id, value);
-    } else {
-      warnOnce(`${this.id}.alpha:no-game`, `${this.id}.alpha: the game is not running — ignored.`);
-    }
+    return scene?.getCurrentRoomId() === this.roomId ? scene : undefined;
   }
 
   /** Teleports to room pixels (instant). */
@@ -387,6 +396,11 @@ export class CharacterHandle<V extends string = string, Anim extends string = st
 
   /** Turns to `'U'`, `'D'`, `'L'` or `'R'` (completions insert the quotes). Waits for the turn; `.now` doesn't. */
   readonly face = timed((direction: CharacterFacingLetter): Task => faceCharacterTask(this.id, direction));
+
+  /** The direction the character faces. Read it in `onUpdate`, where `face` can't start (§4.18). */
+  get facing(): CharacterFacingLetter {
+    return characterOps.facing(this.id);
+  }
 
   /** One-shot animation; waits for it to finish, then returns to the base animation. */
   readonly play = timed((tag: Anim): Task => characterOps.play(this.id, tag));
@@ -475,7 +489,7 @@ export class CharacterHandle<V extends string = string, Anim extends string = st
 
   /**
    * Keeps turning to face `target` (the player by default) whenever either of them moves, after a
-   * short random delay. Not saved.
+   * short random delay. Not saved. Use it for "keep looking at", which `face` in `onUpdate` can't do.
    */
   startFacing(target?: { readonly id: string }, options?: FacingOptions): void {
     characterOps.startFacing(this.id, target ?? null, options);

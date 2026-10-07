@@ -237,6 +237,35 @@ describe('generator', () => {
     ]);
   });
 
+  it('reserved names are reserved for characters, wherever they are used', async () => {
+    const { root, write } = await fixture({
+      'characters/hank/hank.character.json': { id: 'hank', scriptName: 'camera', display: { aseprite: true } },
+      'characters/cam/cam.character.json': { id: 'dialog', display: { aseprite: true } },
+    });
+    const { files, errors } = generateGameHandles(root);
+    // One error at the character, not one per module that would use the name.
+    expect(errors).toEqual([
+      'character "hank" (characters/hank/hank.character.json): "scriptName" `camera` is reserved for characters: ' +
+        "a character's name is also used on its own in room and character scripts. Choose another name.",
+    ]);
+    expect(files.size).toBe(0);
+
+    await write('characters/hank/hank.character.json', { id: 'hank', display: { aseprite: true } });
+    const fixed = generateGameHandles(root);
+    expect(fixed.errors).toEqual([]);
+    // A derived reserved name is renamed once, and that name is used everywhere.
+    expect(fixed.warnings).toEqual([expect.stringContaining('`dialog` is a BenneScript name, so it is `dialog_`')]);
+    expect(fixed.files.get('game.ids.ts')).toContain('dialog_: __withVerbs(new CharacterHandle');
+    expect(fixed.files.get('characters/cam/cam.ids.ts')).toContain('export const dialog_ = characters.dialog_;');
+  });
+
+  it('a prop authored see-through passes its alpha to the handle', async () => {
+    const { root } = await fixture({ 'rooms/club/club.room.json': { id: 'club', props: [{ id: 'ghost', alpha: 0.4 }, { id: 'antenna', alpha: 1 }] } });
+    const room = generateGameHandles(root).files.get('rooms/club/club.ids.ts');
+    expect(room).toContain('new PropHandle<VerbId, PropAnimation>("club", "ghost", 0.4))');
+    expect(room).toContain('new PropHandle<VerbId, PropAnimation>("club", "antenna"))');
+  });
+
   it('reserved verb IDs stop generation', async () => {
     const { root } = await fixture({
       'game-config.json': { resolution: { width: 1, height: 1 }, startingPlayerCharacter: 'hank', verbs: [{ id: 'look' }, { id: 'anyItem' }] },

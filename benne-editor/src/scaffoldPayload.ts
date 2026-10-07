@@ -365,6 +365,9 @@ export async function ensureGameEslintConfig(gameRoot: vscode.Uri): Promise<bool
     return true;
 }
 
+/** Template scripts a game may have its own version of: Update Engine adds them only when missing. */
+const GAME_OWNED_SCRIPTS = new Set(['lint']);
+
 export async function mergeGamePackageJson(gameRoot: vscode.Uri): Promise<void> {
     const pkgPath = path.join(gameRoot.fsPath, 'package.json');
     let existing: Record<string, unknown> = {};
@@ -391,7 +394,14 @@ export async function mergeGamePackageJson(gameRoot: vscode.Uri): Promise<void> 
         private: existing.private ?? template.private,
         version: existing.version ?? template.version,
         type: existing.type ?? template.type,
-        scripts: { ...record(existing.scripts), ...record(template.scripts) },
+        scripts: {
+            ...record(existing.scripts),
+            ...Object.fromEntries(
+                Object.entries(record(template.scripts)).filter(
+                    ([name]) => !(GAME_OWNED_SCRIPTS.has(name) && name in record(existing.scripts)),
+                ),
+            ),
+        },
         devDependencies: { ...record(existing.devDependencies), ...record(template.devDependencies) },
         dependencies: { ...record(existing.dependencies), ...record(template.dependencies) },
     };

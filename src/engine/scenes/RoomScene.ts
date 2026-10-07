@@ -623,6 +623,11 @@ export class RoomScene extends Phaser.Scene {
    * by {@link requestCutsceneSkip}.
    */
   private readonly cutsceneSkipFinishers = new Set<() => void>();
+  /** Running script alpha fades (`fade`), so a later fade or `alpha =` can stop one and settle it. */
+  private readonly spriteAlphaFades = new Map<
+    Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+    { tween: Phaser.Tweens.Tween; settle: () => void }
+  >();
 
   /**
    * Character definition id → last frame’s winning `room.regions[].id` at world feet (`null` = outside all).
@@ -721,6 +726,7 @@ export class RoomScene extends Phaser.Scene {
     this.characterJsonClickableByDefId.clear();
     this.characterSpeechColorByDefId.clear();
     this.npcWalkTweens.clear();
+    this.spriteAlphaFades.clear();
     this.cutsceneSkipFinishers.clear();
     this.characterFollowBehaviorEnabled = false;
     this.characterFollowLastGoalByFollowerId.clear();
@@ -3694,7 +3700,9 @@ export class RoomScene extends Phaser.Scene {
     toAlpha: number,
     durationSeconds: number,
   ): Promise<void> {
-    this.tweens.killTweensOf(sprite);
+    // A new fade (or an `alpha =` set) replaces a running one, which settles where it stopped, so
+    // a handler waiting on it carries on instead of waiting forever.
+    this.stopSpriteAlphaFade(sprite);
     const from = Phaser.Math.Clamp(fromAlpha, 0, 1);
     const to = Phaser.Math.Clamp(toAlpha, 0, 1);
     sprite.setAlpha(from);
@@ -3705,21 +3713,37 @@ export class RoomScene extends Phaser.Scene {
     }
     return this.runSkippableStep(
       (done) => {
-        this.tweens.add({
+        const tween = this.tweens.add({
           targets: sprite,
           alpha: to,
           duration: durMs,
           ease: 'Linear',
-          onComplete: done,
+          onComplete: () => {
+            this.spriteAlphaFades.delete(sprite);
+            done();
+          },
         });
+        this.spriteAlphaFades.set(sprite, { tween, settle: done });
       },
       (done) => {
-        this.tweens.killTweensOf(sprite);
+        this.stopSpriteAlphaFade(sprite);
         sprite.setAlpha(to);
         done();
       },
     );
   }
+
+  /** Stops the running alpha fade on `sprite`, if any, and settles its promise. */
+  private stopSpriteAlphaFade(sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image): void {
+    const running = this.spriteAlphaFades.get(sprite);
+    if (!running) {
+      return;
+    }
+    this.spriteAlphaFades.delete(sprite);
+    running.tween.stop();
+    running.settle();
+  }
+
 
   /**
    * Walk the player’s feet to a point in walkable space, routing around holes and concavities.

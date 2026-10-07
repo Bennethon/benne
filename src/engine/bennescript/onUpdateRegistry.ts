@@ -9,8 +9,13 @@ export interface UpdateContext {
 export type OnUpdateHandler = (ctx: UpdateContext) => void;
 
 const handlers: OnUpdateHandler[] = [];
-/** Handlers whose failure has been logged: a failing handler fails every frame, so it's logged once per message. */
+/**
+ * Failures logged per handler. A failing handler fails every frame, so each distinct message is
+ * logged once, and after {@link MAX_REPORTED_MESSAGES} of them (a message with a changing value in
+ * it) the handler is logged as silenced and nothing more is.
+ */
 const reported = new WeakMap<OnUpdateHandler, Set<string>>();
+const MAX_REPORTED_MESSAGES = 5;
 
 /** Registers a per-frame handler for the lifetime of the game (`onUpdate`, §4.18). Returns unregister. */
 export function registerOnUpdateHandler(handler: OnUpdateHandler): () => void {
@@ -23,21 +28,36 @@ export function registerOnUpdateHandler(handler: OnUpdateHandler): () => void {
   };
 }
 
+/**
+ * Logs a failure of `handler`, once per message (see {@link reported}). Also for failures that
+ * surface after the frame, such as a rejected step-function helper called from `onUpdate`.
+ */
+export function reportOnUpdateFailure(handler: OnUpdateHandler, error: unknown): void {
+  const seen = reported.get(handler) ?? new Set<string>();
+  reported.set(handler, seen);
+  if (seen.size > MAX_REPORTED_MESSAGES) {
+    return;
+  }
+  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  if (seen.has(message)) {
+    return;
+  }
+  seen.add(message);
+  const label = `[Benne] onUpdate handler #${handlers.indexOf(handler)}`;
+  if (seen.size > MAX_REPORTED_MESSAGES) {
+    console.error(`${label} keeps failing with different errors; not logging it any more.`);
+    return;
+  }
+  console.error(`${label} failed (logged once):`, error);
+}
+
 /** Runs every per-frame handler; called by `RoomScene.update`. One failing handler doesn't stop the others. */
 export function runOnUpdateHandlers(ctx: UpdateContext): void {
-  const snapshot = [...handlers];
-  for (let i = 0; i < snapshot.length; i += 1) {
-    const handler = snapshot[i]!;
+  for (const handler of [...handlers]) {
     try {
       handler(ctx);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      const seen = reported.get(handler) ?? new Set<string>();
-      reported.set(handler, seen);
-      if (!seen.has(message)) {
-        seen.add(message);
-        console.error(`[Benne] onUpdate handler #${i} failed (logged once):`, e);
-      }
+      reportOnUpdateFailure(handler, e);
     }
   }
 }

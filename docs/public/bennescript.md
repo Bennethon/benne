@@ -90,7 +90,7 @@ import { room, antenna, battery, driver, hank, points, regions } from './club.id
 - **`@game`**: everything in your game, by kind: `rooms`, `characters`, `items`, `dialogs`, `guis`, `sfx`, `music`, `video`, `verbs`, `fallbacks`, `flags`, `vars`.
 - **`./club.ids`**: this room's own things, as plain names: `room`, its props (`antenna`), hotspots (`battery`), characters (`driver`, `hank`), plus `points`, `regions` and `walkables`. A dialog script imports `dialog` and `options` from its `.ids` module; a GUI script imports `gui` and its controls.
 
-The `.ids` modules and `@game` are **generated** from your JSON whenever it changes. Names are your IDs in camelCase, with the room's prefix dropped: the hotspot `club-hotspot-battery` is `battery`, the point `plaza-point-first-visit-jensen` is `points.firstVisitJensen`, the dialog option `what about AI` is `options.whatAboutAI`. If two things would get the same name, or a name clashes with a BenneScript name, give one of them a `"scriptName"` in its JSON (AI Apocalypse's game menu has a button with `"scriptName": "settingsBtn"`, because `settings` is taken).
+The `.ids` modules and `@game` are **generated** from your JSON whenever it changes. Names are your IDs in camelCase, with the room's prefix dropped: the hotspot `club-hotspot-battery` is `battery`, the point `plaza-point-first-visit-jensen` is `points.firstVisitJensen`, the dialog option `what about AI` is `options.whatAboutAI`. If two things would get the same name, or a name clashes with a BenneScript name, give one of them a `"scriptName"` in its JSON (a character can't take a BenneScript name such as `camera` or `dialog` as its `scriptName` at all, because its name is used on its own in room scripts) (AI Apocalypse's game menu has a button with `"scriptName": "settingsBtn"`, because `settings` is taken).
 
 Things in a room are plain names because you use them constantly. Everything else is grouped (`items.antenna`), because an item, a prop and a dialog can easily share a name: in AI Apocalypse, `antenna` is both a prop in the garage and an inventory item.
 
@@ -722,6 +722,17 @@ onUpdate(() => {
 ```
 
 It runs in every room, so check `game.currentRoom` in a room script. Nothing inside `onUpdate` can wait, so anything that takes time (a `wait`, a walk, a line, `face`, a fade) is an error there. To start a sequence from it, use `background(() => { … })`, and guard it with a flag so it starts once.
+
+Most things that take time have an instant form you can use there instead:
+
+```ts
+onUpdate(() => {
+  lamp.alpha = 0.5 + 0.5 * Math.sin(game.time * 6)  // not lamp.fade(…)
+})
+henry.startFacing(hank)  // once, not in onUpdate: Henry keeps turning toward Hank
+```
+
+To turn a character from a frame check, read `facing` and turn in a `background` block only when it needs to change: `if (jensen.facing !== 'L') background(() => jensen.face('L'))`. To save from one, use `saves.autosave()`, guarded like a `background` block so it runs once.
 
 ## Events
 

@@ -15,7 +15,7 @@ import {
 } from '../events/verbInteractionEvents.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { tryGetGlobalRoomHookRegistry } from '../scenes/roomHookRegistrySingleton.js';
-import { registerOnUpdateHandler } from './onUpdateRegistry.js';
+import { registerOnUpdateHandler, reportOnUpdateFailure, type OnUpdateHandler } from './onUpdateRegistry.js';
 import {
   continueInventoryOnDispatchAfterGlobal,
   shouldDropActiveInventoryOnUse,
@@ -23,7 +23,7 @@ import {
 import { continueVerbDispatchToGlobal } from '../verbs/dispatchVerb.js';
 import type { CutsceneOptions } from '../../types/cutscene.js';
 import type { RoomTransitionContext } from '../../types/roomTransition.js';
-import { runFrameHandler, runHandler, warnIfUntransformed, type HandlerOutcome } from './interactionContext.js';
+import { createFrameRunner, runHandler, warnIfUntransformed, type HandlerOutcome } from './interactionContext.js';
 import { lookupItemHandle, lookupRoomHandle, lookupVerbHandle } from './registry.js';
 import { liveRoomScene } from './scene.js';
 
@@ -300,5 +300,7 @@ export function attachGlobalRoomHooks(): void {
  * here throws (`TimedActionInUpdateError`); start a `background(…)` block from a frame check instead.
  */
 export function onUpdate(fn: (deltaSeconds: number) => void): void {
-  registerOnUpdateHandler((ctx) => runFrameHandler(fn as Handler, [ctx.deltaSeconds]));
+  const handler: OnUpdateHandler = (ctx) => run(fn as Handler, [ctx.deltaSeconds]);
+  const run = createFrameRunner((err) => reportOnUpdateFailure(handler, err));
+  registerOnUpdateHandler(handler);
 }

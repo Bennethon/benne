@@ -153,27 +153,33 @@ export function speakerDiagnostics(ts: typeof TS, sf: TS.SourceFile, table: Spea
 
 /**
  * `() => Hank: "Hi"` doesn't parse (a label needs statement position); TypeScript reports "',' expected"
- * at the colon. Rewrites that error to say to add braces (mirrors `arrowSpeechLabelAt` in
- * scripts/lib/bennescriptTransform.mjs, which does the same for the build).
+ * at the colon. When the colon at `pos` follows `=> Label`, returns the label. Mirrors
+ * `arrowSpeechLabelAt` in scripts/lib/bennescriptTransform.mjs (the bundle can't import it); a unit
+ * test keeps the two in step.
  */
+export function arrowSpeechLabelAt(text: string, pos: number): string | undefined {
+    if (text[pos] !== ':') {
+        return undefined;
+    }
+    return /=>\s*([A-Za-z_$][\w$]*)\s*$/.exec(text.slice(0, pos))?.[1];
+}
+
+/** Mirrors `arrowSpeechMessage` in scripts/lib/bennescriptTransform.mjs. */
+export function arrowSpeechMessage(label: string): string {
+    return (
+        `A speech line can't be the whole body of an arrow function: \`() => ${label}: "…"\` doesn't parse. ` +
+        `Put it in braces: \`() => { ${label}: "…" }\`.`
+    );
+}
+
+/** Rewrites the parse error of `() => Hank: "Hi"` to say to add braces, as the build does. */
 export function explainArrowSpeechErrors(
     sf: TS.SourceFile,
     diagnostics: readonly TS.DiagnosticWithLocation[],
 ): TS.DiagnosticWithLocation[] {
     return diagnostics.map((d) => {
-        if (sf.text[d.start] !== ':') {
-            return d;
-        }
-        const label = /=>\s*([A-Za-z_$][\w$]*)\s*$/.exec(sf.text.slice(0, d.start))?.[1];
-        if (!label) {
-            return d;
-        }
-        return {
-            ...d,
-            messageText:
-                `A speech line can't be the whole body of an arrow function: \`() => ${label}: "…"\` doesn't parse. ` +
-                `Put it in braces: \`() => { ${label}: "…" }\`.`,
-        };
+        const label = arrowSpeechLabelAt(sf.text, d.start);
+        return label ? { ...d, messageText: arrowSpeechMessage(label) } : d;
     });
 }
 

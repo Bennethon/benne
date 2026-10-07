@@ -54,6 +54,18 @@ suite('Authoring and update contracts', () => {
             assert.equal(actual.devDependencies.helper, '2.0.0');
         } finally { await fs.rm(root, { recursive: true, force: true }); }
     });
+    test('engine update keeps a game\'s own lint script and adds the template one when missing', async () => {
+        const root = await fs.mkdtemp(path.join(os.tmpdir(), 'benne-update-'));
+        try {
+            const pkg = path.join(root, 'package.json');
+            await fs.writeFile(pkg, JSON.stringify({ name: 'g', scripts: { lint: 'eslint . && prettier --check .' } }));
+            await mergeGamePackageJson(vscode.Uri.file(root));
+            assert.equal(JSON.parse(await fs.readFile(pkg, 'utf8')).scripts.lint, 'eslint . && prettier --check .');
+            await fs.writeFile(pkg, JSON.stringify({ name: 'g', scripts: {} }));
+            await mergeGamePackageJson(vscode.Uri.file(root));
+            assert.equal(JSON.parse(await fs.readFile(pkg, 'utf8')).scripts.lint, JSON.parse(buildPackageJson('g')).scripts.lint);
+        } finally { await fs.rm(root, { recursive: true, force: true }); }
+    });
     test('non-destructive scaffolding preserves existing authored bytes', async () => {
         const root = await fs.mkdtemp(path.join(os.tmpdir(), 'benne-copy-'));
         try {

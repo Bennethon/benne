@@ -236,7 +236,7 @@ fallbacks.onItemUnhandled(() => { Player: "That doesn't work." })
 | `return false` to fall through | `unhandled()` |
 | `parts.forEach((p) => handOver(p))` with a step function | `for (const p of parts) handOver(p)` |
 | `jensen.walkTo(…)` in a region handler | `jensen.walkTo.now(…)` (else the player is locked out while Jensen walks) |
-| `wait`/walks/`face`/fades inside `onUpdate` | Start `background(() => …)` from it (a timed action there throws) |
+| `wait`/walks/`face`/fades/`saves.save` inside `onUpdate` | Instant forms: `x.alpha = …`, `x.startFacing(target)` (once, outside), `x.facing` to check, `saves.autosave()`; else a guarded `background(() => …)` (a timed action there throws) |
 | `characters.penny.onLook(…)` in `penny.character.ts` | `penny.onLook(…)` from `./penny.ids` (both work; the flat one is the convention) |
 | `flags['all done']`, a flag missing from `state.ts` | Add it to `defineFlags` in `state.ts` |
 | Inventing a verb method (`onExamine`) | Use the game's verbs from `game-config.json`, or add the verb there |

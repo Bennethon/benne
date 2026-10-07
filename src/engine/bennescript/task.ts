@@ -60,6 +60,7 @@ export class Task<T = void> {
     return this.hooks.waitsForPlayer === true;
   }
 
+  /** A turn (`face`, `faceClicked`), which the interrupt policy doesn't count as a timed step. */
   get isTurn(): boolean {
     return this.hooks.turn === true;
   }

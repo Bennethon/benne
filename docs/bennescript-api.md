@@ -257,6 +257,7 @@ The active player character. In `src/engine/bennescript/actions.ts`.
 | `player.stopWalking()` | instant | Stops a walk where the player is now. |
 | `player.position: Point2` | read-only | Feet position in room pixels. |
 | `player.face(direction: CharacterFacingLetter)` | waits · `.now` | Turns to `'U'`, `'D'`, `'L'` or `'R'`. Waits for the turn; `.now` doesn't. |
+| `player.facing: CharacterFacingLetter` | read-only | The direction the player faces. Read it in `onUpdate`, where `face` can't start. |
 | `player.say(text: string, options?: ScriptedSayLineOptions)` | waits · `.now` | One speech line. Waits. Same as a `Player: "…"` label. |
 | `player.play(tag: string)` | waits · `.now` | One-shot animation; waits for it to finish, then returns to the base animation. |
 | `player.fade(alpha: number, seconds: number)` | waits · `.now` | Fades to `alpha` (0–1) over `seconds`. Waits. |
@@ -271,6 +272,8 @@ The active player character. In `src/engine/bennescript/actions.ts`.
 | `player.stopFollowing()` | instant | Stops following (`startFollowing`). |
 | `player.isFollowing: boolean` | read-only | True while following someone (`startFollowing`). |
 | `player.followingTarget: { readonly id: string } \| null` | read-only | The character being followed, or `null`. |
+| `player.startFacing(target: { readonly id: string }, options?: FacingOptions)` | instant | Keeps turning to face `target` whenever either of them moves, after a short random delay. Not saved. Use it for "keep looking at", which `face` in `onUpdate` can't do. |
+| `player.stopFacing()` | instant | Stops turning toward its target (`startFacing`). |
 | `player.speechPosition: Point2 \| null` | settable | Where the player's speech lines appear, in room pixels (bottom centre), instead of above the talk point. `null` goes back to the talk point. Saved. |
 | `player.speechOffset: Point2 \| null` | settable | Extra offset of the player's speech lines, in game canvas pixels. `null` clears it. Saved. |
 | `player.resetSpeechPosition()` | instant | Clears both `speechPosition` and `speechOffset`. |
@@ -431,7 +434,7 @@ A prop, hotspot or character: things the player clicks. Room `.ids` modules crea
 | `animation: AnimTag` | settable | The prop's base (looping) animation tag. Setting it is instant and saved. |
 | `play(tag: AnimTag)` | waits · `.now` | One-shot animation; waits for it to finish, then returns to the base animation. |
 | `fade(alpha: number, seconds: number)` | waits · `.now` | Fades to `alpha` (0–1) over `seconds`. Waits. The end alpha is saved. |
-| `alpha: number` | settable | Opacity, 0–1. Setting it is instant (it stops a running `fade`) and saved. |
+| `alpha: number` | settable | Opacity, 0–1. Setting it is instant (it stops a running `fade`) and saved. Outside the prop's room it reads and writes the saved value (the room JSON's when none is saved). |
 | `moveTo(point: Point2)` | instant | Teleports to room pixels (instant). |
 | `slideTo(point: Point2, seconds: number)` | waits · `.now` | Moves to room pixels over `seconds`. Waits. |
 
@@ -458,6 +461,7 @@ A prop, hotspot or character: things the player clicks. Room `.ids` modules crea
 | `stopWalking()` | instant | Stops a walk where the character is now. |
 | `position: Point2` | read-only | Feet position in room pixels. |
 | `face(direction: CharacterFacingLetter)` | waits · `.now` | Turns to `'U'`, `'D'`, `'L'` or `'R'` (completions insert the quotes). Waits for the turn; `.now` doesn't. |
+| `facing: CharacterFacingLetter` | read-only | The direction the character faces. Read it in `onUpdate`, where `face` can't start. |
 | `play(tag: AnimTag)` | waits · `.now` | One-shot animation; waits for it to finish, then returns to the base animation. |
 | `fade(alpha: number, seconds: number)` | waits · `.now` | Fades to `alpha` (0–1) over `seconds`. Waits. |
 | `alpha: number` | settable | Opacity, 0–1. Setting it is instant (it stops a running `fade`) and saved. |
@@ -471,7 +475,7 @@ A prop, hotspot or character: things the player clicks. Room `.ids` modules crea
 | `description: string` | settable | The hover / verb-line name. Saved. |
 | `startFollowing(target?: { readonly id: string }, options?: CharacterFollowOptions)` | instant | Follows `target` (another character, or the player by default) around the room. Saved. |
 | `stopFollowing()` | instant | Stops following (`startFollowing`). |
-| `startFacing(target?: { readonly id: string }, options?: FacingOptions)` | instant | Keeps turning to face `target` (the player by default) whenever either of them moves, after a short random delay. Not saved. |
+| `startFacing(target?: { readonly id: string }, options?: FacingOptions)` | instant | Keeps turning to face `target` (the player by default) whenever either of them moves, after a short random delay. Not saved. Use it for "keep looking at", which `face` in `onUpdate` can't do. |
 | `stopFacing()` | instant | Stops turning toward its target (`startFacing`). |
 | `isFollowing: boolean` | read-only | True while following someone (`startFollowing`). |
 | `followingTarget: { readonly id: string } \| null` | read-only | The character (or `player`) being followed, or `null`. |
@@ -690,6 +694,7 @@ A video under `assets/videos/` (`video.x`). `VideoHandle` in `src/engine/bennesc
 | Member | | Description |
 |---|---|---|
 | `done: boolean` | read-only | True once the action has finished. |
+| `isTurn: boolean` | read-only | A turn (`face`, `faceClicked`), which the interrupt policy doesn't count as a timed step. |
 | `wait()` | waits | Waits for this task, written as a statement: `walk.wait()`. |
 | `finishNow()` | instant | Completes the action at its end state now (cutscene skip). |
 | `cancel()` | instant | Stops the action. A later `wait()` returns at once. |
