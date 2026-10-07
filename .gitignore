@@ -46,3 +46,9 @@ benne-editor/.vscode-test/
 # BenneScript handles generated from src/game/ (npm run generate:game-ids); never part of a template
 src/game/**/*.ids.ts
 game-templates/**/*.ids.ts
+
+# Release builds: attached to GitHub releases, not committed (docs/publishing.md)
+*.vsix
+
+# LLM context pack, regenerated with `npm run snapshot`
+benne-snapshot.md

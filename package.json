@@ -6,6 +6,7 @@
   "main": "electron/main.cjs",
   "scripts": {
     "generate:game-ids": "node scripts/generate-game-ids.mjs",
+    "snapshot": "npx --yes repomix@1.18.1",
     "predev": "npm run generate:game-ids",
     "dev": "vite",
     "prebuild": "npm run generate:game-ids",

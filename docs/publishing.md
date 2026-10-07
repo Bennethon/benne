@@ -40,6 +40,17 @@ code --install-extension benne-editor\benne-editor-<version>.vsix
 
 Replace `<version>` with the number printed at the end of the packaging run (e.g. `0.0.2`).
 
+### Attach the VSIX to a GitHub release
+
+VSIX files are not tracked in git (`*.vsix` is ignored). Each one is kept as an asset on the [GitHub release](https://github.com/Bennethon/benne/releases) for its version tag. After packaging, commit the version bump, then tag and release:
+
+```bash
+git tag v<version>
+git push github master v<version>
+git push gitlab master v<version>
+gh release create v<version> benne-editor/benne-editor-<version>.vsix --verify-tag --title "v<version>" --generate-notes
+```
+
 ### Publish to the Marketplace
 
 After packaging, from `benne-editor/` (requires a [publisher token](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)):

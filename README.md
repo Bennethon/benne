@@ -10,6 +10,7 @@ Web-based point-and-click adventure engine (Phaser 4 + TypeScript + Vite). Inter
 npm run dev      # Vite dev server
 npm run build    # Typecheck + production bundle
 npm run preview  # Serve production build locally
+npm run snapshot # Pack the engine source into benne-snapshot.md (Repomix) for LLM chats; not tracked
 ```
 
 ## Testing
