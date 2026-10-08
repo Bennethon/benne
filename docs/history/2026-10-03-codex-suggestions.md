@@ -1,5 +1,7 @@
 # BENNE: long-term engineering suggestions
 
+> **Archived 2026-10-07.** Recommendation 2 (script lifetimes and cancellation) and the syntax-aware part of 12 were carried out by the BenneScript refactor. The rest are still open and tracked in [`docs/roadmap.md`](../roadmap.md). Paths and line numbers below are as they were when this was written.
+
 Review date: 2026-10-03.
 
 > **Historical document.** Written before the BenneScript refactor (October 2026). Its scripting examples and file references use the old `register*Script` / `B` API, which no longer exists. For the current API see `docs/public/bennescript.md` and `docs/bennescript-api.md`.

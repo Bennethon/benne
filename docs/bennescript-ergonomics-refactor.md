@@ -2,14 +2,14 @@
 
 _Written 2026-10-05. **Status: implemented** (Phases 0–7, 2026-10-05 to 2026-10-06, branch `bennescript-refactor`). Open design questions were resolved on 2026-10-05; every decision and deviation made while building it is in §13, and the sections carry "As built" notes where the result differs from the proposal._
 
-> **This is now the design record.** The "TODAY" examples show the old `register*Script` / `B` API, which no longer exists; read them as history. For writing scripts, use the guide (`docs/public/bennescript.md`), the API reference generated from the code (`docs/bennescript-api.md`), and the `bennescript` agent skill (`.agents/skills/bennescript/SKILL.md`). How the pieces fit inside the engine is in `docs/architecture.md` §7. Progress per phase: `docs/bennescript-refactor-log.md`.
+> **This is now the design record.** The "TODAY" examples show the old `register*Script` / `B` API, which no longer exists; read them as history. For writing scripts, use the guide (`docs/public/bennescript.md`), the API reference generated from the code (`docs/bennescript-api.md`), and the `bennescript` agent skill (`.agents/skills/bennescript/SKILL.md`). How the pieces fit inside the engine is in `docs/architecture.md` §7. Progress per phase: `docs/history/2026-10-05-bennescript-refactor-log.md`.
 
 This document describes a redesign of BenneScript that **stays in TypeScript** but:
 
 1. **fixes the sequencing problem**: script lines run in the order they're written, without typing `await`;
 2. **cuts the typing friction**: no `B.character('…')`, no quoted IDs for game content, and dialogue written as `Hank: "Hello!"`.
 
-It follows on from the feasibility study in `docs/feasibility-custom-language-and-native-editor.md`. The examples below are mostly rewrites of real scripts from the jam game **AI Apocalypse** (`~/Projects/ai-apocalypse`, 54 script files, ~3,300 lines). They show what that game would look like under the new design.
+It follows on from the feasibility study in `docs/history/2026-10-05-feasibility-custom-language-and-native-editor.md`. The examples below are mostly rewrites of real scripts from the jam game **AI Apocalypse** (`~/Projects/ai-apocalypse`, 54 script files, ~3,300 lines). They show what that game would look like under the new design.
 
 ---
 
@@ -593,7 +593,7 @@ Reads and writes go straight to `GameStateManager`, so they're saved, and they h
 
 _As built (Phase 3, decision 26):_ `state.ts` is an ordinary module, not a script file, so the transform leaves it alone; `@game` re-exports its `flags` and `vars`. A flag declared with `flag(default, { saveKey })` is stored under `saveKey`. An array or object default in `defineVars` is copied into the game state the first time it is read, so `vars.list.push(x)` is saved and the default itself never changes. _As built (Phase 4, decision 37):_ AI Apocalypse's `state.ts` declares every flag. The flags whose old key had spaces (`'all done'`, `'escaped closet'`, …) keep it as their `saveKey`, because the baseline playthrough reads flags by key; the others kept their names. Two seeded flags nothing read (`cleanedDishes`, `servedMan`) were dropped.
 
-Flags stay booleans. Variables must be JSON-compatible values (numbers, strings, booleans, arrays and plain objects of those), which keeps saves safe (see codex-suggestions §3).
+Flags stay booleans. Variables must be JSON-compatible values (numbers, strings, booleans, arrays and plain objects of those), which keeps saves safe (see `docs/history/2026-10-03-codex-suggestions.md` §3).
 
 **Visits**
 
@@ -1337,7 +1337,7 @@ _As built (decision 53):_ `player.face(…)` and `jensen.face(…)` are timed ac
 
 ### 6.1 Where it runs
 
-The transform is a Vite plugin with `enforce: 'pre'`, so it runs before TypeScript is stripped. It applies to `*.room.ts`, `*.character.ts`, `*.inventory.ts`, `*.dialog.ts`, `*.gui.ts`, `*.script.ts` and `globalScript.ts`. Every bundle (game, previews, BENNE Play, desktop) uses the same plugin. This is one more reason for the single multi-entry Vite config recommended in `docs/engine-review-2026-10.md` §4.1.
+The transform is a Vite plugin with `enforce: 'pre'`, so it runs before TypeScript is stripped. It applies to `*.room.ts`, `*.character.ts`, `*.inventory.ts`, `*.dialog.ts`, `*.gui.ts`, `*.script.ts` and `globalScript.ts`. Every bundle (game, previews, BENNE Play, desktop) uses the same plugin. This is one more reason for the single multi-entry Vite config recommended in `docs/history/2026-10-03-engine-review.md` §4.1.
 
 Implementation: parse with `oxc-parser` (Vite 8 already ships Oxc) or the TypeScript compiler API, edit with `magic-string`, and emit source maps so breakpoints and stack traces point at the original lines.
 
@@ -1860,7 +1860,7 @@ Sizes are rough relative estimates for one full-time developer, not schedules (s
 - **Old API deleted last.** The old `register*Script` / `B` API keeps working on the branch until every script has been ported (Phase 6). Until then both APIs run side by side, so AI Apocalypse stays playable and testable after every phase. This is temporary scaffolding, never merged or shipped (decision 10).
 - **The baseline playthrough is the safety net.** Phase 0 records an automated playthrough of AI Apocalypse on the *current* engine. Every later phase must keep it passing. The test drives the game through engine-level hooks (verb on target, item on target, dialog choice), never through BenneScript, so the same test runs unchanged before and after the port.
 - **The spec stays true.** When implementation has to deviate from this doc, Claude updates the relevant section and adds a row to the §13 decisions table, rather than letting code and doc diverge.
-- **Progress log.** Each phase appends a short entry to `docs/bennescript-refactor-log.md`: what was done, deviations from the spec, known issues, and anything the next phase needs to know.
+- **Progress log.** Each phase appends a short entry to `docs/history/2026-10-05-bennescript-refactor-log.md`: what was done, deviations from the spec, known issues, and anything the next phase needs to know.
 - **Claude stops at the exit criteria** and reports. It doesn't commit and doesn't start the next phase.
 
 ### 14.2 Standing instructions (add to `CLAUDE.md` on the branch)
@@ -1872,7 +1872,7 @@ Paste this into `CLAUDE.md` on the refactor branch so every session picks it up 
 
 - The spec is `docs/bennescript-ergonomics-refactor.md`. Read §1–§11 and the
   §13 decisions table before changing scripting code. §14 is the phase plan.
-- Progress so far is in `docs/bennescript-refactor-log.md`. Read it first.
+- Progress so far is in `docs/history/2026-10-05-bennescript-refactor-log.md`. Read it first.
 - `src/game/` is a copy of the AI Apocalypse jam game, used as the test game.
   Do NOT run `set-template`, `sync-template-down` or `sync-boot-down`.
 - The old `register*Script` / `B` API must keep working until Phase 6 deletes it.
@@ -1915,7 +1915,7 @@ Each prompt assumes the standing instructions in §14.2 are in `CLAUDE.md`.
 - Write `npm run test:playthrough`: a Playwright test that plays AI Apocalypse from the title screen to the credits through the hooks, asserting key state along the way. Record video for the long cutscenes (lab first visit, plaza first visit, finale) as a visual reference for later phases.
 - Write Play From smoke tests: start each Play From entry point and assert no errors.
 - Expected breakage: `tests/e2e/gameplay.spec.ts` (clicks coordinates in the old sample game), `tests/fixtures/content-baseline.json`, the prebuilt BENNE Play chunks. Fix, replace or explicitly skip each one, and note it in the log.
-- Create `docs/bennescript-refactor-log.md`.
+- Create `docs/history/2026-10-05-bennescript-refactor-log.md`.
 
 ```text
 We're starting the BenneScript refactor described in
@@ -1933,7 +1933,7 @@ docs/bennescript-ergonomics-refactor.md. Run Phase 0 (Setup & baseline) from §1
    screen to the credits via those hooks, asserting key state, with video for
    the major cutscenes. Add Play From smoke tests.
 6. Fix, replace or skip tests broken by the content swap, and explain each one.
-7. Create docs/bennescript-refactor-log.md with a Phase 0 entry.
+7. Create docs/history/2026-10-05-bennescript-refactor-log.md with a Phase 0 entry.
 
 Do not change any scripting APIs in this phase. Stop when the exit criteria
 in §14.3 are met: the playthrough must pass 3 runs in a row.

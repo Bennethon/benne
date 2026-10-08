@@ -17,6 +17,14 @@ npm run snapshot # Pack the engine source into benne-snapshot.md (Repomix) for L
 
 See [the regression testing guide](docs/testing.md) for setup, suite commands, CI gates, coverage and remaining test priorities. Start with `npm run test:ci`; run browser, extension-host and artifact suites before releases.
 
+## Documentation
+
+- [`docs/architecture.md`](docs/architecture.md): how the engine and editor fit together.
+- [`docs/public/`](docs/public/) and [`docs/bennescript-api.md`](docs/bennescript-api.md): user guides and the scripting API.
+- [`docs/bennescript-ergonomics-refactor.md`](docs/bennescript-ergonomics-refactor.md): the BenneScript design record and its decisions.
+- [`docs/roadmap.md`](docs/roadmap.md): open work and ideas.
+- [`docs/history/`](docs/history/README.md): dated reviews and logs, kept for background only.
+
 ## Conventions
 
 - **TypeScript**: `strict` mode; prefer explicit types for public engine APIs and JSON-backed shapes under `src/types/`.
@@ -30,6 +38,6 @@ See [the regression testing guide](docs/testing.md) for setup, suite commands, C
 - `src/engine/` reusable systems and scenes
 - `src/types/` JSON and engine contract types
 
-## Cursor rules
+## AI guidance
 
-See `.cursor/rules/benne.mdc` for project-wide AI guidance.
+See `AGENTS.md` for which docs are current, and `.cursor/rules/benne.mdc` for project-wide conventions.

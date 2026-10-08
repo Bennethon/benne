@@ -1,5 +1,7 @@
 # BenneScript refactor: progress log
 
+> **Archived 2026-10-07.** The refactor is complete: it was squash-merged into `master` as `b5ea9fc` on 2026-10-07. Its decisions are recorded in the decision table of `docs/bennescript-ergonomics-refactor.md`, which remains the design record. Paths below are as they were at the time.
+
 One entry per phase (see §14 of `docs/bennescript-ergonomics-refactor.md`). Newest last.
 
 ---

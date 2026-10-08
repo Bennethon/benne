@@ -1,5 +1,7 @@
 # BENNE — Feasibility: Custom BenneScript Language & Native Authoring App
 
+> **Archived 2026-10-07.** Its first recommendation, fixing script semantics inside TypeScript before considering a new language, became the BenneScript refactor (`docs/bennescript-ergonomics-refactor.md`). The custom language, narrative DSL and native authoring app were not pursued; they are listed as ideas in [`docs/roadmap.md`](../roadmap.md).
+
 > **Historical document.** Written before the BenneScript refactor (October 2026). Its scripting examples and file references use the old `register*Script` / `B` API, which no longer exists. For the current API see `docs/public/bennescript.md` and `docs/bennescript-api.md`.
 
 _Written 2026-10-05. Covers two proposed large refactors:_
