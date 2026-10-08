@@ -1,0 +1,68 @@
+{
+  "id": "customer",
+  "name": "customer",
+  "description": "",
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 21,
+    "y": 38
+  },
+  "talkPoint": {
+    "x": 45,
+    "y": 0
+  },
+  "clickable": true,
+  "display": {
+    "aseprite": true
+  },
+  "animations": {
+    "IdleD": {
+      "loop": true
+    },
+    "TalkD": {
+      "loop": true
+    }
+  },
+  "feet": {
+    "x": 42,
+    "y": 60
+  },
+  "collider": {
+    "points": [
+      {
+        "x": 32,
+        "y": 28
+      },
+      {
+        "x": 30,
+        "y": 52
+      },
+      {
+        "x": 32,
+        "y": 62
+      },
+      {
+        "x": 48,
+        "y": 62
+      },
+      {
+        "x": 53,
+        "y": 46
+      },
+      {
+        "x": 56,
+        "y": 26
+      },
+      {
+        "x": 50,
+        "y": 4
+      },
+      {
+        "x": 40,
+        "y": 3
+      }
+    ]
+  },
+  "speechColor": "#8fffba",
+  "movable": false
+}

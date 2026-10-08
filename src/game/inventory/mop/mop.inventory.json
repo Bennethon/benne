@@ -1,0 +1,14 @@
+{
+  "id": "mop",
+  "name": "mop",
+  "description": "mop",
+  "onVerb": {
+    "look": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "defaultVerb": "use"
+}

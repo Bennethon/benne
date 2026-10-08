@@ -1,0 +1,68 @@
+{ "frames": {
+   "closet 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "closet 1.aseprite": {
+    "frame": { "x": 352, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "closet 2.aseprite": {
+    "frame": { "x": 704, "y": 0, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "closet 3.aseprite": {
+    "frame": { "x": 0, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   },
+   "closet 4.aseprite": {
+    "frame": { "x": 352, "y": 198, "w": 352, "h": 198 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 352, "h": 198 },
+    "sourceSize": { "w": 352, "h": 198 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "http://www.aseprite.org/",
+  "version": "1.3.18.5-x64",
+  "image": "closet.png",
+  "format": "RGBA8888",
+  "size": { "w": 1056, "h": 396 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "bg", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "mop", "from": 2, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "electricalBox", "from": 3, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "electricalBox-open", "from": 4, "to": 4, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "black", "opacity": 255, "blendMode": "normal" },
+   { "name": "Light off", "opacity": 255, "blendMode": "normal" },
+   { "name": "Mop", "opacity": 255, "blendMode": "normal" },
+   { "name": "electricalBox", "opacity": 255, "blendMode": "normal" },
+   { "name": "Darkness", "opacity": 128, "blendMode": "normal" },
+   { "name": "Darkness Mop", "opacity": 128, "blendMode": "normal" },
+   { "name": "ui", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}

@@ -2,12 +2,52 @@
   "startRoomId": "office",
   "rooms": [
     {
-      "id": "apartment",
-      "definition": "apartment/apartment.room.json"
+      "id": "cafe",
+      "definition": "cafe/cafe.room.json"
     },
     {
-      "id": "outside",
-      "definition": "outside/outside.room.json"
+      "id": "closet",
+      "definition": "closet/closet.room.json"
+    },
+    {
+      "id": "club",
+      "definition": "club/club.room.json"
+    },
+    {
+      "id": "credits",
+      "definition": "credits/credits.room.json"
+    },
+    {
+      "id": "gallery",
+      "definition": "gallery/gallery.room.json"
+    },
+    {
+      "id": "hallway",
+      "definition": "hallway/hallway.room.json"
+    },
+    {
+      "id": "hallway27",
+      "definition": "hallway27/hallway27.room.json"
+    },
+    {
+      "id": "lab",
+      "definition": "lab/lab.room.json"
+    },
+    {
+      "id": "lab27",
+      "definition": "lab27/lab27.room.json"
+    },
+    {
+      "id": "opening",
+      "definition": "opening/opening.room.json"
+    },
+    {
+      "id": "plaza",
+      "definition": "plaza/plaza.room.json"
+    },
+    {
+      "id": "title",
+      "definition": "title/title.room.json"
     }
   ]
 }

@@ -175,7 +175,8 @@
         "hover": "#1a466b",
         "pressed": "#10908e",
         "disabled": "#636363"
-      }
+      },
+      "enabled": true
     },
     {
       "type": "button",

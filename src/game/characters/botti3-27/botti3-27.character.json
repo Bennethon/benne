@@ -1,0 +1,23 @@
+{
+  "id": "botti3-27",
+  "name": "BOTT-i3 2027",
+  "description": "computer thing",
+  "walkSpeed": 88,
+  "walkToPoint": {
+    "x": 9,
+    "y": 47
+  },
+  "talkPoint": {
+    "x": 16,
+    "y": -5
+  },
+  "clickable": true,
+  "display": {
+    "aseprite": true
+  },
+  "movable": false,
+  "feet": {
+    "x": 10,
+    "y": 16
+  }
+}

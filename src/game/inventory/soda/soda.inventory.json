@@ -1,0 +1,14 @@
+{
+  "id": "soda",
+  "name": "soda",
+  "description": "soda",
+  "onVerb": {
+    "look": true
+  },
+  "stackable": false,
+  "animations": {},
+  "display": {
+    "aseprite": "shared"
+  },
+  "defaultVerb": "use"
+}

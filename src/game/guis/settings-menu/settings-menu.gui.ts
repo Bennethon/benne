@@ -1,5 +1,5 @@
-import { settings } from '@benne/script';
-import { guis } from '@game';
+import { game, settings } from '@benne/script';
+import { guis, rooms } from '@game';
 import { gui, back, musicEnabled, musicVolume, sfxVolume, textSpeedSlider } from './settings-menu.ids';
 
 // The text speed slider runs from slow (0.1) to fast (2), the opposite way to the speech
@@ -25,12 +25,12 @@ textSpeedSlider.onChange((v: number) => {
   settings.textSpeed = TEXT_SPEED_MIN + TEXT_SPEED_MAX - v
 })
 
-// The checkbox is called "musicEnabled" in the GUI, but it switches click-to-skip.
+// The checkbox is called "musicEnabled" in the GUI, but it has always switched click-to-skip.
 musicEnabled.onChange((checked: boolean) => {
   settings.clickToSkip = checked
 })
 
 back.onClick(() => {
   gui.hide()
-  guis.gameMenu.show()
+  if (game.currentRoom !== rooms.title) guis.gameMenu.show()
 })

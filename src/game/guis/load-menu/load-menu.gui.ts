@@ -1,5 +1,5 @@
-import { saves } from '@benne/script';
-import { guis } from '@game';
+import { game, saves } from '@benne/script';
+import { guis, rooms } from '@game';
 import { gui, backBtn, loadBtn, loadList } from './load-menu.ids';
 
 /** Five fixed slots (0–4). */
@@ -41,5 +41,5 @@ loadBtn.onClick(() => {
 
 backBtn.onClick(() => {
   gui.hide()
-  guis.gameMenu.show()
+  if (game.currentRoom !== rooms.title) guis.gameMenu.show()
 })

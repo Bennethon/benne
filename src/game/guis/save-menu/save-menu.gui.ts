@@ -13,7 +13,6 @@ function firstEmptySlot(): number {
   return SLOTS - 1
 }
 
-// Saving is refused while a scene or a conversation is running (`saves.canSaveNow`).
 function syncSaveButton(name: string) {
   saveBtn.enabled = saves.canSaveNow && name.trim() !== ''
 }
