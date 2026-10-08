@@ -1,8 +1,8 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import type { ContentRef } from '../bennescript/idsIndex';
-import { resolveReference } from '../bennescript/scriptModel';
+import { buildSpeakerTable, readCharacterSpeakers } from '../bennescript/speakers';
 import { idsIndexFor, scriptModelOf } from '../scriptHandlers';
+import { dependencyQuery, scriptDependencyOffsets } from './scriptDependencies';
 import { formatJson } from '../roomScaffolding';
 import { listRoomDefinitions } from '../gameDiscovery';
 import { readRoomJsonText } from '../inspectorStateBuilder';
@@ -58,37 +58,6 @@ async function findScriptScanUris(folder: vscode.WorkspaceFolder): Promise<vscod
     return uris.sort((a, b) => a.fsPath.localeCompare(b.fsPath));
 }
 
-/** Whether a resolved handle reference points at the content being deleted. */
-function refersToDeleteTarget(ref: ContentRef, target: DeleteTarget): boolean {
-    const r = ref as { kind: string; id?: string; roomId?: string | null; dialogId?: string; guiId?: string };
-    switch (target.type) {
-        case 'room':
-            return r.kind === 'room' && r.id === target.roomId;
-        case 'character':
-            return r.kind === 'character' && r.id === target.characterId;
-        case 'gui':
-            return (r.kind === 'gui' && r.id === target.guiId) || (r.kind === 'guiControl' && r.guiId === target.guiId);
-        case 'inventory':
-            return r.kind === 'item' && r.id === target.itemId;
-        case 'dialog':
-            return (r.kind === 'dialog' && r.id === target.dialogId) || (r.kind === 'dialogOption' && r.dialogId === target.dialogId);
-        case 'prop':
-            return r.kind === 'prop' && r.roomId === target.roomId && r.id === target.prop.id;
-        case 'hotspot':
-            return r.kind === 'hotspot' && r.roomId === target.roomId && r.id === target.hotspotId;
-        case 'point':
-            return r.kind === 'point' && r.roomId === target.roomId && r.id === target.pointId;
-        case 'region':
-            return r.kind === 'region' && r.roomId === target.roomId && r.id === target.regionId;
-        case 'spawnedCharacter':
-            return r.kind === 'character' && r.roomId === target.roomId && r.id === target.characterId;
-        case 'guiControl':
-            return target.controlId !== '' && r.kind === 'guiControl' && r.guiId === target.guiId && r.id === target.controlId;
-        default:
-            return false;
-    }
-}
-
 /** Files deleted along with the target don't count as references to it. */
 function deletedWithTarget(uri: vscode.Uri, target: DeleteTarget): boolean {
     const own =
@@ -107,11 +76,17 @@ function deletedWithTarget(uri: vscode.Uri, target: DeleteTarget): boolean {
 }
 
 /**
- * Lines of BenneScript files that use the target's generated handle (`battery`, `items.soda`,
- * `dialogs.driver.options.wrench`, …), found through the ScriptModel.
+ * Lines of BenneScript files that depend on the target: uses of its generated handle (`battery`,
+ * `items.soda`, `dialogs.driver.options.wrench`, …), imports of a module deleted with it, and
+ * speech lines whose speaker it is. Found through the ScriptModel.
  */
 export async function scanScriptReferences(target: DeleteTarget): Promise<ScriptReferenceHit[]> {
     const uris = await findScriptScanUris(target.folder);
+    const speakers =
+        target.type === 'character'
+            ? buildSpeakerTable(readCharacterSpeakers(path.join(target.folder.uri.fsPath, 'src', 'game')))
+            : undefined;
+    const query = dependencyQuery(target, speakers);
     const all: ScriptReferenceHit[] = [];
     for (const uri of uris) {
         if (deletedWithTarget(uri, target)) {
@@ -125,12 +100,8 @@ export async function scanScriptReferences(target: DeleteTarget): Promise<Script
         const model = scriptModelOf(uri, text);
         const lines = text.split(/\r?\n/);
         const seen = new Set<number>();
-        for (const reference of model.references) {
-            const ref = resolveReference(model, index, reference.path);
-            if (!ref || !refersToDeleteTarget(ref, target)) {
-                continue;
-            }
-            const line = text.slice(0, reference.start).split('\n').length;
+        for (const offset of scriptDependencyOffsets(model, index, query)) {
+            const line = text.slice(0, offset).split('\n').length;
             if (seen.has(line)) {
                 continue;
             }

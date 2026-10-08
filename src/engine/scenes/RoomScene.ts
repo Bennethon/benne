@@ -441,6 +441,9 @@ export class RoomScene extends Phaser.Scene {
     Phaser.Tweens.Tween
   >();
 
+  /** Finishes a non-player character's current walk at its destination ({@link finishCharacterWalkNow}). */
+  private npcWalkFinishers = new Map<Phaser.GameObjects.Sprite | Phaser.GameObjects.Image, () => void>();
+
   /**
    * When false, the character-follow driver does not issue walks (used until enter-room hooks
    * and their handlers have finished — see {@link setCharacterFollowBehaviorEnabled}).
@@ -727,6 +730,7 @@ export class RoomScene extends Phaser.Scene {
     this.characterJsonClickableByDefId.clear();
     this.characterSpeechColorByDefId.clear();
     this.npcWalkTweens.clear();
+    this.npcWalkFinishers.clear();
     this.spriteAlphaFades.clear();
     this.cutsceneSkipFinishers.clear();
     this.characterFollowBehaviorEnabled = false;
@@ -991,6 +995,7 @@ export class RoomScene extends Phaser.Scene {
         t.stop();
       }
       this.npcWalkTweens.clear();
+      this.npcWalkFinishers.clear();
       this.clearCharacterFaceTowardCharacterLocks();
       this.debugPathGraphics = null;
       this.debugWalkableOuterGraphics = null;
@@ -3928,6 +3933,24 @@ export class RoomScene extends Phaser.Scene {
   }
 
   /**
+   * Finishes the player's walk now: the player arrives at the end of the path and the walk
+   * resolves, as on a cutscene skip. Backs a player walk task's `finishNow()`.
+   */
+  finishPlayerWalkNow(): void {
+    this.fastForwardPlayerWalkForSkip();
+  }
+
+  /**
+   * {@link finishPlayerWalkNow} for a room character (by definition id): it arrives at the end of
+   * its current scripted walk. Backs an NPC walk task's `finishNow()`.
+   */
+  finishCharacterWalkNow(definitionId: string): void {
+    const sprite = this.characterSpritesByDefId.get(definitionId);
+    const finish = sprite ? this.npcWalkFinishers.get(sprite) : undefined;
+    finish?.();
+  }
+
+  /**
    * Stops click-to-walk / script walk for the character who is about to speak a **`say`** line so
    * movement does not overlap speech and the **Talk** directional clip can replace **Walk**.
    * Region / timer handlers do not go through verb dispatch (which already interrupts the player walk).
@@ -5105,24 +5128,29 @@ export class RoomScene extends Phaser.Scene {
       this.npcWalkTweens.delete(sprite);
     }
 
-    // Every terminal branch of the walk (arrived, interrupted, skipped) runs `arrive` exactly once,
-    // so the skip finisher is always unregistered with it.
+    // Every terminal branch of the walk (arrived, interrupted, skipped, finished now) runs `arrive`
+    // exactly once, so the skip finisher and the finish-now entry are always dropped with it.
     let unregisterSkipFinisher: (() => void) | null = null;
+    const finishNow = (): void => this.fastForwardNpcWalkForSkip(sprite, path, arrive);
     const arrive = (): void => {
       unregisterSkipFinisher?.();
       unregisterSkipFinisher = null;
+      if (this.npcWalkFinishers.get(sprite) === finishNow) {
+        this.npcWalkFinishers.delete(sprite);
+      }
       onArrive?.();
     };
     unregisterSkipFinisher = this.registerCutsceneSkipFinisher(() => {
       unregisterSkipFinisher = null;
-      this.fastForwardNpcWalkForSkip(sprite, path, arrive);
+      finishNow();
     });
 
     if (this.cutsceneSkipFastForwardActive) {
-      this.fastForwardNpcWalkForSkip(sprite, path, arrive);
+      finishNow();
       return;
     }
 
+    this.npcWalkFinishers.set(sprite, finishNow);
     this.beginNpcWalkLeg(sprite, path, 0, arrive);
   }
 

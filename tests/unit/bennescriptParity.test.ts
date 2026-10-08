@@ -21,14 +21,20 @@ import {
   withSfxControls,
   withVideoControls,
 } from '../../src/engine/bennescript/handles';
-import { cancelAllInteractions } from '../../src/engine/bennescript/interactionContext';
+import { cancelAllInteractions, unhandled } from '../../src/engine/bennescript/interactionContext';
 import { attachRoomHandlers } from '../../src/engine/bennescript/roomHandlers';
 import { saves } from '../../src/engine/bennescript/saves';
 import { gameEvents } from '../../src/engine/events/EventBus';
 import { guiAllButtonsClickEventId, guiButtonClickEventId } from '../../src/engine/events/guiButtonEvents';
 import { guiListBoxItemActivatedEventId } from '../../src/engine/events/guiListBoxEvents';
 import { guiTextInputSubmitEventId } from '../../src/engine/events/guiTextInputEvents';
-import { globalInventoryOnInventoryItemEventId, roomInventoryOnPropEventId } from '../../src/engine/events/inventoryOnVerbEvents';
+import {
+  globalInventoryOnInventoryItemEventId,
+  INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT,
+  roomInventoryOnCharacterAnySourceEventId,
+  roomInventoryOnCharacterEventId,
+  roomInventoryOnPropEventId,
+} from '../../src/engine/events/inventoryOnVerbEvents';
 import { VERB_UNHANDLED_EVENT } from '../../src/engine/events/verbInteractionEvents';
 import { setActiveBenneGame } from '../../src/engine/gameState/activeBenneGame';
 import { setActiveGameStateManager } from '../../src/engine/gameState/resolveGameStateManager';
@@ -36,7 +42,11 @@ import { clearInteractionActivity } from '../../src/engine/interaction/interacti
 import { registerRoomModuleLoaders, ensureRoomScriptLoaded } from '../../src/engine/scenes/roomScriptModules';
 import { RoomTransitionHookRegistry } from '../../src/engine/scenes/RoomTransitionHookRegistry';
 import { setGlobalRoomHookRegistry } from '../../src/engine/scenes/roomHookRegistrySingleton';
-import { attachGlobalRoomHooks } from '../../src/engine/bennescript/globalHandlers';
+import {
+  attachGlobalRoomHooks,
+  registerCharacterAnyItemHandler,
+  registerCharacterVerbItemHandler,
+} from '../../src/engine/bennescript/globalHandlers';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -358,5 +368,40 @@ describe('doNotClear on item handlers', () => {
     gameEvents.emit(globalInventoryOnInventoryItemEventId(bread.id, knife.id), { itemId: knife.id, verbId: 'use' });
     await flush();
     expect(m.state.item).toBe(knife.id);
+  });
+});
+
+describe('item dispatch tiers', () => {
+  it('unhandled() in each tier hands the item to the next tier, each tier once', async () => {
+    fakeGame();
+    const knife = new ItemHandle('tier-knife');
+    const guard = { kind: 'character' as const, id: 'tier-guard', roomId: 'tierroom' };
+    const log: string[] = [];
+    const pass = (tier: string) => async () => {
+      log.push(tier);
+      unhandled();
+    };
+    const { registerVerbItemHandler, registerAnyItemHandler } = await import('../../src/engine/bennescript/roomHandlers');
+    registerVerbItemHandler('tierroom', guard, null, knife.id, pass('room item'));
+    registerAnyItemHandler('tierroom', guard, pass('room any'));
+    registerCharacterVerbItemHandler('tier-guard', null, knife.id, pass('character item'));
+    registerCharacterAnyItemHandler('tier-guard', pass('character any'));
+    const fallback = () => log.push('fallback');
+    gameEvents.on(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, fallback);
+    const detach = attachRoomHandlers('tierroom', {} as never, gameEvents);
+
+    const payload = { targetType: 'character', roomId: 'tierroom', characterId: 'tier-guard', itemId: knife.id, verbId: 'use' };
+    gameEvents.emit(roomInventoryOnCharacterEventId('tierroom', 'tier-guard', knife.id), payload);
+    await flush();
+    expect(log).toEqual(['room item', 'room any', 'character item', 'character any', 'fallback']);
+
+    // Without a per-item handler, the room's any-item tier is the first one.
+    log.length = 0;
+    gameEvents.emit(roomInventoryOnCharacterAnySourceEventId('tierroom', 'tier-guard'), { ...payload, itemId: 'tier-other' });
+    await flush();
+    expect(log).toEqual(['room any', 'character any', 'fallback']);
+
+    detach();
+    gameEvents.off(INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT, fallback);
   });
 });

@@ -20,7 +20,10 @@ import { registerPlayFromForRoom } from '../scenes/playFromRegistry.js';
 import { getLoadingRoomScriptId } from '../scenes/roomScriptModules.js';
 import type { CutsceneOptions } from '../../types/cutscene.js';
 import type { RegionEnterExitContext } from '../../types/regionEnterExit.js';
-import { continueInventoryOnDispatchAfterRoom } from '../verbs/dispatchInventoryOnVerbTarget.js';
+import {
+  continueInventoryOnDispatchAfterRoom,
+  continueInventoryOnDispatchAfterRoomAny,
+} from '../verbs/dispatchInventoryOnVerbTarget.js';
 import { continueVerbDispatchAfterRoom } from '../verbs/dispatchVerb.js';
 import { applyInventoryDropPolicy, type ItemHandlerOptions } from './globalHandlers.js';
 import { subscribeEvent } from './events.js';
@@ -226,7 +229,7 @@ export function attachRoomHandlers(roomId: string, scene: RoomScene, events: Eve
           const verb = lookupVerbHandle<{ id: string }>(p.verbId) ?? { id: p.verbId };
           void runHandler(label, scene, payload, reg.handler, [item, verb]).then((outcome) => {
             if (outcome === 'unhandled') {
-              continueInventoryOnDispatchAfterRoom(events, p);
+              continueInventoryOnDispatchAfterRoomAny(events, p);
             } else if (outcome !== 'cancelled') {
               applyInventoryDropPolicy(p.itemId, reg.options);
             }

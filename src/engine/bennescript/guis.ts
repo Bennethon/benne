@@ -21,7 +21,13 @@ import {
   type GuiTextInputValueChangedPayload,
 } from '../events/guiTextInputEvents.js';
 import type { ControlFacade, GuiRuntime } from '../gui/GuiRuntime.js';
-import { runDetached, runHandler, warnIfUntransformed } from './interactionContext.js';
+import {
+  onCancelAllInteractions,
+  runDetached,
+  runHandler,
+  warnIfUntransformed,
+  type HandlerOutcome,
+} from './interactionContext.js';
 import { liveRoomScene } from './scene.js';
 import { Task } from './task.js';
 
@@ -31,7 +37,8 @@ import { Task } from './task.js';
  * {@link notifyGuiBuilt} runs `gui.onBuilt` each time.
  *
  * Button handlers are sequenced like any handler but don't take the gameplay interaction lock or
- * block saving. Value, selection and hover callbacks run immediately, outside any handler.
+ * block saving. Value, selection and hover callbacks run immediately, outside any handler; like
+ * every handler, they stop on a room change or save load if they are still running.
  */
 
 type Handler = (...args: never[]) => unknown;
@@ -90,12 +97,41 @@ export function guiRuntime(guiId: string): GuiRuntime | null {
 
 // ─── Control events ──────────────────────────────────────────────────────────
 
+/** Each button's `onClick` handlers, keyed `guiId:controlId`. */
+const clickHandlers = new Map<string, Handler[]>();
+/** The `onClick` handlers of a button's latest click while they run, for `gui.onAnyClick` to wait for. */
+const runningClicks = new Map<string, { generation: number; done: Promise<HandlerOutcome[]> }>();
+// Pending any-click continuations haven't started a handler context yet. Invalidate them too,
+// even when the specific handler already finished or a later click replaced its map entry.
+let clickGeneration = 0;
+onCancelAllInteractions(() => {
+  clickGeneration += 1;
+});
+
 /** `x.onClick(…)`: a sequenced handler that doesn't take the gameplay lock (§4.15). */
 export function registerGuiClick(guiId: string, controlId: string, handler: Handler): void {
   warnIfUntransformed(`guis ${guiId} ${controlId} onClick`, handler);
-  gameEvents.on(guiButtonClickEventId(guiId, controlId), () => {
-    void runHandler(`gui ${guiId} ${controlId} click`, liveRoomScene(), null, handler, [], { gameplay: false });
-  });
+  const key = `${guiId}:${controlId}`;
+  let handlers = clickHandlers.get(key);
+  if (!handlers) {
+    handlers = [];
+    clickHandlers.set(key, handlers);
+    const forButton = handlers;
+    gameEvents.on(guiButtonClickEventId(guiId, controlId), () => {
+      const label = `gui ${guiId} ${controlId} click`;
+      const running = {
+        generation: clickGeneration,
+        done: Promise.all(forButton.map((h) => runHandler(label, liveRoomScene(), null, h, [], { gameplay: false }))),
+      };
+      runningClicks.set(key, running);
+      void running.done.finally(() => {
+        if (runningClicks.get(key) === running) {
+          runningClicks.delete(key);
+        }
+      });
+    });
+  }
+  handlers.push(handler);
 }
 
 /**
@@ -133,8 +169,10 @@ export function registerGuiActivate(guiId: string, controlId: string, handler: H
 }
 
 /**
- * `gui.onAnyClick((button) => …)`: any button in the GUI, after its own `onClick`. `button` is the
- * control's handle (`resolve` maps the clicked control id to it).
+ * `gui.onAnyClick((button) => …)`: any button in the GUI, after its own `onClick` is over. It
+ * doesn't run when that handler ended the interaction (`goTo`, `saves.load`, `dialog.end`) or was
+ * stopped by a room change or load. `button` is the control's handle (`resolve` maps the clicked
+ * control id to it).
  */
 export function registerGuiAnyClick(guiId: string, resolve: (controlId: string) => unknown, handler: Handler): void {
   warnIfUntransformed(`guis ${guiId} onAnyClick`, handler);
@@ -143,7 +181,23 @@ export function registerGuiAnyClick(guiId: string, resolve: (controlId: string) 
     if (typeof buttonId !== 'string') {
       return;
     }
-    void runHandler(`gui ${guiId} any click`, liveRoomScene(), null, handler, [resolve(buttonId)], { gameplay: false });
+    const button = runningClicks.get(`${guiId}:${buttonId}`);
+    const generation = button?.generation ?? clickGeneration;
+    const start = (): void => {
+      if (generation !== clickGeneration) {
+        return;
+      }
+      void runHandler(`gui ${guiId} any click`, liveRoomScene(), null, handler, [resolve(buttonId)], { gameplay: false });
+    };
+    if (!button) {
+      start();
+      return;
+    }
+    void button.done.then((outcomes) => {
+      if (!outcomes.some((o) => o === 'ended' || o === 'cancelled')) {
+        start();
+      }
+    });
   });
 }
 

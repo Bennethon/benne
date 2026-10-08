@@ -77,7 +77,11 @@ function clickedTarget(name: string) {
 
 /** A walk of the active player: the interrupt policy's opening walk (§5 rule 9). */
 function playerWalkTask(scene: RoomScene, walk: Promise<void>): Task {
-  return new Task(walk, { playerWalk: true, cancel: () => scene.interruptPlayerWalk() });
+  return new Task(walk, {
+    playerWalk: true,
+    cancel: () => scene.interruptPlayerWalk(),
+    finishNow: () => scene.finishPlayerWalkNow(),
+  });
 }
 
 /** Walk the player to the clicked thing's walk-to point, then face it. Waits. */
@@ -341,7 +345,11 @@ export function walkCharacterTask(characterId: string | null, target: WalkTarget
   if (isPlayerIn(scene, characterId)) {
     return playerWalkTask(scene, scene.walkPlayerTo(dest));
   }
-  return new Task(scene.walkCharacterTo(characterId!, dest));
+  const id = characterId!;
+  return new Task(scene.walkCharacterTo(id, dest), {
+    cancel: () => scene.interruptCharacterWalkForScriptedSpeech(id),
+    finishNow: () => scene.finishCharacterWalkNow(id),
+  });
 }
 
 /**

@@ -234,6 +234,38 @@ describe('regions (§4.14)', () => {
   });
 });
 
+describe('walk tasks', () => {
+  it("cancel() stops the walker and finishNow() puts it at the destination, for NPCs and the player", () => {
+    const calls: string[] = [];
+    const never = new Promise<void>(() => {});
+    fakeGame({
+      getActivePlayerCharacterId: () => 'hank',
+      walkCharacterTo: (id: string) => (calls.push(`walk ${id}`), never),
+      walkPlayerTo: () => (calls.push('walk player'), never),
+      interruptCharacterWalkForScriptedSpeech: (id: string) => calls.push(`stop ${id}`),
+      finishCharacterWalkNow: (id: string) => calls.push(`finish ${id}`),
+      interruptPlayerWalk: () => calls.push('stop player'),
+      finishPlayerWalkNow: () => calls.push('finish player'),
+    });
+    const jensen = new CharacterHandle('r', 'jensen');
+    jensen.walkTo.now('exit').cancel();
+    jensen.walkTo.now('exit').finishNow();
+    const hank = new CharacterHandle('r', 'hank');
+    hank.walkTo.now('exit').cancel();
+    hank.walkTo.now('exit').finishNow();
+    expect(calls).toEqual([
+      'walk jensen',
+      'stop jensen',
+      'walk jensen',
+      'finish jensen',
+      'walk player',
+      'stop player',
+      'walk player',
+      'finish player',
+    ]);
+  });
+});
+
 describe('GUI controls (§4.15)', () => {
   it('onClick runs as a non-gameplay handler; onChange gets a slider value immediately', async () => {
     fakeGame();

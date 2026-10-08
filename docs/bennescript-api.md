@@ -166,7 +166,7 @@ Built-in methods next to the generated ones: `x.on(['use', 'take'], fn)` (severa
 | `'benne:dialog:optionEnabledChanged'` | the dialog, option and new state |
 | `'verb:unhandled'` | a verb nothing handled (`fallbacks.onUnhandled` is the friendlier way) |
 
-In a room script a listener is live only while that room is active; anywhere else, for the whole game.
+In a room script a listener is live only while that room is active; anywhere else, for the whole game. Either way, a listener whose lines are still running (a `wait`, a line of speech) stops at that step on a room change or save load, like any handler. Listeners don't take the interaction lock.
 
 ---
 
@@ -377,7 +377,7 @@ Save slots. Saving is refused while a gameplay interaction or a dialog is runnin
 
 ### `events`
 
-The event bus: engine events (`'gameState:inventoryChanged'`, …) and events scripts send each other. Listeners are handlers: their lines are sequenced. In `src/engine/bennescript/events.ts`.
+The event bus: engine events (`'gameState:inventoryChanged'`, …) and events scripts send each other. Listeners are handlers: their lines are sequenced, and a room change or save load stops one that is still running. In `src/engine/bennescript/events.ts`.
 
 | Member | | Description |
 |---|---|---|
@@ -494,7 +494,7 @@ A named point in a room (`points.x`): a walk target. `PointHandle` in `src/engin
 
 ### Regions: `regions.x`
 
-A region in a room (`regions.x`). `RegionHandle` in `src/engine/bennescript/handles.ts`.
+A region in a room (`regions.x`). Like a prop, its state lives in its own room: from another room, `active` reads and writes that room's saved state. `RegionHandle` in `src/engine/bennescript/handles.ts`.
 
 | Member | | Description |
 |---|---|---|
@@ -505,7 +505,7 @@ A region in a room (`regions.x`). `RegionHandle` in `src/engine/bennescript/hand
 
 ### Walkable areas: `walkables.x`
 
-A walkable polygon in a room (`walkables.x`). `WalkableHandle` in `src/engine/bennescript/handles.ts`.
+A walkable polygon in a room (`walkables.x`). Like a region, its state lives in its own room: from another room, `active` reads and writes that room's saved state. `WalkableHandle` in `src/engine/bennescript/handles.ts`.
 
 | Member | | Description |
 |---|---|---|
@@ -571,7 +571,7 @@ A walkable polygon in a room (`walkables.x`). `WalkableHandle` in `src/engine/be
 | `onBuilt(handler: StepHandler)` | handler | Each time the GUI is built (once per room). |
 | `onShow(handler: StepHandler)` | handler | Each time a script shows the GUI. |
 | `onHide(handler: StepHandler)` | handler | Each time a script hides the GUI. |
-| `onAnyClick(handler: (button: GuiControlHandle) => void)` | handler | Any button in this GUI, after the button's own `onClick`. `button` is its control handle. |
+| `onAnyClick(handler: (button: GuiControlHandle) => void)` | handler | Any button in this GUI, once the button's own `onClick` is over (not when that handler ended with `goTo`, `saves.load` or `dialog.end`). `button` is its control handle. |
 
 ### GUI controls: `saveBtn`, `guis.x.controls.y`
 
@@ -731,7 +731,7 @@ interface ItemHandlerOptions {
 interface FallbackTarget {
   readonly kind: 'prop' | 'hotspot' | 'character' | 'item'
   readonly id: string
-  readonly name: string  // The hover description shown in the verb line.
+  readonly name: string  // Its verb-line label: description, else name, else id.
 }
 ```
 

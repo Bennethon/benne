@@ -194,6 +194,15 @@ export function continueInventoryOnDispatchAfterRoom(bus: EventBus, payload: Any
 }
 
 /**
+ * Like {@link continueInventoryOnDispatchAfterRoom}, from the room's any-item handler: skips both
+ * room tiers (continuing "after room" would emit the any-item channel again) and continues with
+ * the global handlers, then the unhandled fallback.
+ */
+export function continueInventoryOnDispatchAfterRoomAny(bus: EventBus, payload: AnyInventoryUsedOnPayload): void {
+  continueInventoryOnDispatch(bus, payload, 'roomAny');
+}
+
+/**
  * Like {@link continueInventoryOnDispatchAfterRoom}, from a handler on the global per-item tier
  * (a character script's or an inventory item's item handler): continues with the target's global
  * any-item handler, then the unhandled fallback.
@@ -202,10 +211,15 @@ export function continueInventoryOnDispatchAfterGlobal(bus: EventBus, payload: A
   continueInventoryOnDispatch(bus, payload, 'global');
 }
 
-function continueInventoryOnDispatch(bus: EventBus, payload: AnyInventoryUsedOnPayload, from: 'room' | 'global'): void {
+function continueInventoryOnDispatch(
+  bus: EventBus,
+  payload: AnyInventoryUsedOnPayload,
+  from: 'room' | 'roomAny' | 'global',
+): void {
   const p = payload;
   const rest = (roomAny: string, globalScoped: string, globalAny: string): void => {
-    const tiers = from === 'room' ? [roomAny, globalScoped, globalAny] : [globalAny];
+    const tiers =
+      from === 'room' ? [roomAny, globalScoped, globalAny] : from === 'roomAny' ? [globalScoped, globalAny] : [globalAny];
     for (const eventId of [...tiers, INVENTORY_ON_VERB_TARGET_UNHANDLED_EVENT]) {
       if (listenerCount(bus, eventId) > 0) {
         bus.emit(eventId, p);

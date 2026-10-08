@@ -27,6 +27,23 @@ export const RESERVED_VERB_IDS = new Map([
   ['verbItem', 'its method `onVerbItem` is a built-in handle method'],
 ]);
 
+/**
+ * Built-in methods of the handles that get generated verb methods (props, hotspots, characters,
+ * items and `fallbacks`). A verb whose `on<Verb>` or `on<Verb>Item` is one of these would replace
+ * it, whatever the verb ID's spelling (`verb-item`, `AnyItem`, an item verb `any`).
+ */
+export const BUILT_IN_HANDLE_METHODS = new Set([
+  'on',
+  'onVerbItem',
+  'onItem',
+  'onAnyItem',
+  'onCombine',
+  'onWithoutArming',
+  'onAnyVerb',
+  'onItemUnhandled',
+  'onUnhandled',
+]);
+
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const nonEmpty = (value) => (typeof value === 'string' && value.trim().length > 0 ? value.trim() : null);
 
@@ -108,6 +125,13 @@ export function verbConfigProblems(config) {
     }
     if (row.usesItem !== undefined && typeof row.usesItem !== 'boolean') add(`${at}.usesItem`, 'Expected true or false');
     const [verb] = effectiveVerbs({ verbs: [row] });
+    if (!reason) {
+      for (const method of [verb.method, verb.itemMethod]) {
+        if (method && BUILT_IN_HANDLE_METHODS.has(method)) {
+          add(`${at}.id`, `Verb "${id}" generates \`${method}\`, a built-in handle method. Rename the verb.`);
+        }
+      }
+    }
     claim(verb.method, id, `${at}.id`);
     if (verb.itemMethod) claim(verb.itemMethod, id, `${at}.id`);
     claim(`verbs.${verb.name}`, id, `${at}.id`);

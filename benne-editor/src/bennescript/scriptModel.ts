@@ -85,7 +85,7 @@ export interface ScriptModel {
     fileName: string;
     text: string;
     imports: ScriptImportDecl[];
-    /** Local binding → module + imported name. */
+    /** Local binding → module + imported name; `*` for a namespace import (`import * as club from …`). */
     bindings: Map<string, { module: string; imported: string }>;
     /** Top-level `const x = a.b` aliases (`const penny = characters.penny`). */
     aliases: Map<string, ScriptPath>;
@@ -95,6 +95,9 @@ export interface ScriptModel {
     /** End of the last import declaration (where new imports go). */
     importsEnd: number;
 }
+
+/** {@link ScriptModel.bindings} `imported` of a namespace import. */
+const NAMESPACE = '*';
 
 const TOP_LEVEL_APIS = new Set(['playFrom', 'onUpdate']);
 const ON_METHOD = /^on(?:[A-Z]|$)/;
@@ -164,6 +167,9 @@ export function parseScriptModel(ts: typeof TS, fileName: string, text: string):
                         model.bindings.set(local, { module: decl.module, imported });
                     }
                 }
+            } else if (bindings && ts.isNamespaceImport(bindings) && !decl.typeOnly) {
+                // Other-room completion writes these (`import * as outside from '../outside/outside.ids'`).
+                model.bindings.set(bindings.name.text, { module: decl.module, imported: NAMESPACE });
             }
             model.imports.push(decl);
             model.importsEnd = Math.max(model.importsEnd, decl.end);
@@ -397,6 +403,11 @@ export function resolveScriptPath(model: ScriptModel, index: IdsIndex, p: Script
     const binding = model.bindings.get(root);
     if (!binding) {
         return undefined;
+    }
+    if (binding.imported === NAMESPACE) {
+        // `club.battery.x`: the first member is the module's export.
+        const [name, ...rest] = memberPath;
+        return name === undefined ? undefined : index.resolveImport(model.fileName, binding.module, name, rest);
     }
     return index.resolveImport(model.fileName, binding.module, binding.imported, memberPath);
 }

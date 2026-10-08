@@ -109,6 +109,19 @@ function doc(text) {
   return `/** ${String(text).replace(/\*\//g, '*\\/').replace(/\s+/g, ' ').trim()} */`;
 }
 
+/** What a room module imports or declares besides its handles ({@link emitRoomModule}). */
+const ROOM_MODULE_BINDINGS = [
+  'PropHandle',
+  'HotspotHandle',
+  'CharacterHandle',
+  'PointHandle',
+  'RegionHandle',
+  'WalkableHandle',
+  '__withVerbs',
+  'VerbId',
+  'PropAnimation',
+];
+
 /**
  * One naming scope (a namespace object or a module's top level). Assigns each ID a handle name,
  * applying `scriptName`, reserved-name renames and collision checks (§7.2).
@@ -116,15 +129,18 @@ function doc(text) {
 class Scope {
   /**
    * @param {string} label e.g. `rooms/cafe/cafe.ids.ts` or `items`
-   * @param {{ flat: boolean, report: { errors: string[], warnings: string[] }, reservedWhy?: string }} options
+   * @param {{ flat: boolean, report: { errors: string[], warnings: string[] }, reservedWhy?: string, internal?: Iterable<string> }} options
    *   `flat`: names are top-level in some module, so reserved words and BenneScript names are refused
-   *   (or renamed); `reservedWhy` explains that in the error, e.g. for `characters`.
+   *   (or renamed); `reservedWhy` explains that in the error, e.g. for `characters`. `internal`:
+   *   the module's own bindings, refused as names.
    */
-  constructor(label, { flat, report, reservedWhy }) {
+  constructor(label, { flat, report, reservedWhy, internal = [] }) {
     this.label = label;
     this.flat = flat;
     this.report = report;
     this.reservedWhy = reservedWhy ?? `in ${label}`;
+    /** Bindings the module imports or declares for itself (`PropHandle`, `__withVerbs`, …). */
+    this.internal = new Set(internal);
     /** @type {Map<string, { what: string, fix: string }>} */
     this.names = new Map();
   }
@@ -168,6 +184,10 @@ class Scope {
         warnings.push(`${what}: \`${name}\` is ${why}, so it is \`${name}_\`. Add a "scriptName" to choose another.`);
         name = `${name}_`;
       }
+    }
+    if (this.internal.has(name)) {
+      errors.push(`${what}: \`${name}\` is a name ${this.label} uses itself. Choose another "scriptName".`);
+      return null;
     }
     if (this.flat && BROWSER_GLOBALS.has(name)) {
       warnings.push(`${what}: \`${name}\` shadows the browser global \`${name}\` in scripts that import it.`);
@@ -323,7 +343,7 @@ export function generateGameHandles(gameRoot) {
   const roomModules = [];
   for (const r of rooms) {
     const file = `rooms/${r.folder}/${r.folder}.ids.ts`;
-    const flat = new Scope(file, { flat: true, report });
+    const flat = new Scope(file, { flat: true, report, internal: ROOM_MODULE_BINDINGS });
     for (const fixed of ['room', 'points', 'regions', 'walkables']) flat.fixed(fixed);
     const entry = (kind, row, i, field) => {
       const name = flat.add({
@@ -364,7 +384,7 @@ export function generateGameHandles(gameRoot) {
             what: `${kind} "${row.id}" (${r.file} ${field === 'walkables' ? 'walkable.polygons' : field}[${i}])`,
             fix: scriptNameFix(r.file),
           });
-          return name ? { name, id: row.id } : null;
+          return name ? { name, id: row.id, row } : null;
         })
         .filter(Boolean);
     };
@@ -642,8 +662,10 @@ function emitRoomModule(m, roomName, characterAnimations) {
     (c) => `__withVerbs(new CharacterHandle<VerbId, ${characterAnimations.get(c.id)}>(${str(id)}, ${str(c.id)}))`,
   );
   out += `\nexport const points = ${objectLiteral(m.points, (p) => `new PointHandle(${str(id)}, ${str(p.id)})`)};\n`;
-  out += `\nexport const regions = ${objectLiteral(m.regions, (r) => `new RegionHandle(${str(id)}, ${str(r.id)})`)};\n`;
-  out += `\nexport const walkables = ${objectLiteral(m.walkables, (w) => `new WalkableHandle(${str(id)}, ${str(w.id)})`)};\n`;
+  // Regions and walkable polygons are active unless their room JSON says otherwise (PlaceDefaults).
+  const placeDefaults = ({ row }) => defaultsArg({ active: row.active === false ? false : undefined });
+  out += `\nexport const regions = ${objectLiteral(m.regions, (r) => `new RegionHandle(${str(id)}, ${str(r.id)}${placeDefaults(r)})`)};\n`;
+  out += `\nexport const walkables = ${objectLiteral(m.walkables, (w) => `new WalkableHandle(${str(id)}, ${str(w.id)}${placeDefaults(w)})`)};\n`;
   return out;
 }
 

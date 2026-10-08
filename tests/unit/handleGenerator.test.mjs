@@ -112,6 +112,29 @@ describe('verbs (§8)', () => {
     expect(messages.some((m) => m.startsWith('inputProfile.primaryButtonVerb'))).toBe(false);
   });
 
+  it('reports verbs whose generated methods are built-in handle methods, however the ID is spelled', () => {
+    const problems = verbConfigProblems({
+      verbs: [
+        { id: 'use', preposition: 'with' },
+        { id: 'verb-item' },
+        { id: 'AnyItem' },
+        { id: 'any', preposition: 'with' },
+        { id: 'unhandled' },
+        { id: 'without-arming' },
+      ],
+    });
+    expect(problems.map((p) => `${p.field}: ${p.message}`)).toEqual([
+      'verbs[1].id: Verb "verb-item" generates `onVerbItem`, a built-in handle method. Rename the verb.',
+      'verbs[2].id: Verb "AnyItem" generates `onAnyItem`, a built-in handle method. Rename the verb.',
+      'verbs[3].id: Verb "any" generates `onAnyItem`, a built-in handle method. Rename the verb.',
+      'verbs[3].id: Verbs "AnyItem" and "any" both generate `onAnyItem`. Rename one of them.',
+      'verbs[4].id: Verb "unhandled" generates `onUnhandled`, a built-in handle method. Rename the verb.',
+      'verbs[5].id: Verb "without-arming" generates `onWithoutArming`, a built-in handle method. Rename the verb.',
+    ]);
+    // A reserved raw ID gets its own message, not a second one for its method.
+    expect(verbConfigProblems({ verbs: [{ id: 'combine' }] })).toHaveLength(1);
+  });
+
   it('validate-content checks every verb ID in content JSON', async () => {
     const { root } = await fixture({
       'rooms/club/club.room.json': { id: 'club', props: [{ id: 'antenna', defaultVerb: 'take' }], hotspots: [{ id: 'h', defaultVerb: 'clean' }] },
@@ -277,6 +300,36 @@ describe('generator', () => {
     expect(room).toContain('new PropHandle<VerbId, PropAnimation>("club", "antenna"))');
     expect(room).toContain('new HotspotHandle<VerbId>("club", "club-hotspot-door", { active: false, description: "door" }))');
     expect(room).toContain('new HotspotHandle<VerbId>("club", "club-hotspot-wall"))');
+  });
+
+  it('regions and walkable polygons say when their room JSON makes them inactive', async () => {
+    const { root } = await fixture({
+      'rooms/club/club.room.json': {
+        id: 'club',
+        regions: [{ id: 'club-region-trap', active: false }, { id: 'club-region-leave' }],
+        walkable: { polygons: [{ id: 'club-walk-bridge', active: false, points: [] }, { id: 'club-walk', points: [] }] },
+      },
+    });
+    const room = generateGameHandles(root).files.get('rooms/club/club.ids.ts');
+    expect(room).toContain('trap: new RegionHandle("club", "club-region-trap", { active: false })');
+    expect(room).toContain('leave: new RegionHandle("club", "club-region-leave")');
+    expect(room).toContain('bridge: new WalkableHandle("club", "club-walk-bridge", { active: false })');
+    expect(room).toContain('walk: new WalkableHandle("club", "club-walk")');
+  });
+
+  it("rejects a scriptName that is one of the room module's own bindings", async () => {
+    const { root } = await fixture({
+      'rooms/club/club.room.json': {
+        id: 'club',
+        props: [{ id: 'a', scriptName: 'PropHandle' }],
+        hotspots: [{ id: 'b', scriptName: '__withVerbs' }, { id: 'c', scriptName: 'VerbId' }],
+      },
+    });
+    expect(generateGameHandles(root).errors).toEqual([
+      expect.stringContaining('`PropHandle` is a name rooms/club/club.ids.ts uses itself'),
+      expect.stringContaining('`__withVerbs` is a name rooms/club/club.ids.ts uses itself'),
+      expect.stringContaining('`VerbId` is a name rooms/club/club.ids.ts uses itself'),
+    ]);
   });
 
   it('reserved verb IDs stop generation', async () => {

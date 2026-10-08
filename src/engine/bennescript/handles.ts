@@ -7,6 +7,8 @@ import {
   readSavedPropClickable,
   readSavedPropDescription,
   readSavedPropVisible,
+  readSavedRegionActive,
+  readSavedWalkableActive,
   writeSavedHotspotActive,
   writeSavedHotspotDescription,
   writeSavedPropAlpha,
@@ -15,6 +17,8 @@ import {
   writeSavedPropDescription,
   writeSavedPropPosition,
   writeSavedPropVisible,
+  writeSavedRegionActive,
+  writeSavedWalkableActive,
 } from '../benneAnimationRuntime.js';
 import { tryGetActiveBenneGame } from '../gameState/activeBenneGame.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
@@ -801,15 +805,25 @@ export class PointHandle {
   }
 }
 
-/** A region in a room (`regions.x`). */
+/** What a region or walkable polygon is in its room JSON (see {@link PropDefaults}): active by default. */
+export interface PlaceDefaults {
+  readonly active?: boolean;
+}
+
+/**
+ * A region in a room (`regions.x`). Like a prop, its state lives in its own room: from another
+ * room, `active` reads and writes that room's saved state.
+ */
 export class RegionHandle {
   readonly roomId: string;
   /** The region's ID in the room JSON. */
   readonly id: string;
+  private readonly authored: PlaceDefaults;
 
-  constructor(roomId: string, id: string) {
+  constructor(roomId: string, id: string, authored: PlaceDefaults = {}) {
     this.roomId = roomId;
     this.id = id;
+    this.authored = authored;
   }
 
   /** Runs when a character's feet enter the region. `who` is that character's handle. */
@@ -824,32 +838,57 @@ export class RegionHandle {
 
   /** Inactive regions don't fire and don't block walking. Saved. */
   get active(): boolean {
-    return activeRoomScene()?.getRegionScriptActive(this.id) ?? false;
+    const scene = ownRoomScene(this.roomId);
+    return readLiveOrSaved(
+      scene && (() => scene.getRegionScriptActive(this.id)),
+      (m) => readSavedRegionActive(m, this.roomId, this.id, this.authored.active !== false),
+      this.authored.active !== false,
+    );
   }
 
   set active(value: boolean) {
-    roomFor(`regions.${this.id}.active`)?.setRegionScriptActive(this.id, value);
+    const scene = ownRoomScene(this.roomId);
+    writeLiveOrSaved(
+      `regions.${this.id}.active`,
+      scene && (() => scene.setRegionScriptActive(this.id, value)),
+      (m) => writeSavedRegionActive(m, this.roomId, this.id, value),
+    );
   }
 }
 
-/** A walkable polygon in a room (`walkables.x`). */
+/**
+ * A walkable polygon in a room (`walkables.x`). Like a region, its state lives in its own room:
+ * from another room, `active` reads and writes that room's saved state.
+ */
 export class WalkableHandle {
   readonly roomId: string;
   /** The walkable polygon's ID in the room JSON. */
   readonly id: string;
+  private readonly authored: PlaceDefaults;
 
-  constructor(roomId: string, id: string) {
+  constructor(roomId: string, id: string, authored: PlaceDefaults = {}) {
     this.roomId = roomId;
     this.id = id;
+    this.authored = authored;
   }
 
   /** Inactive walkable polygons can't be walked on. Saved. */
   get active(): boolean {
-    return activeRoomScene()?.getWalkableScriptActive(this.id) ?? false;
+    const scene = ownRoomScene(this.roomId);
+    return readLiveOrSaved(
+      scene && (() => scene.getWalkableScriptActive(this.id)),
+      (m) => readSavedWalkableActive(m, this.roomId, this.id, this.authored.active !== false),
+      this.authored.active !== false,
+    );
   }
 
   set active(value: boolean) {
-    roomFor(`walkables.${this.id}.active`)?.setWalkableScriptActive(this.id, value);
+    const scene = ownRoomScene(this.roomId);
+    writeLiveOrSaved(
+      `walkables.${this.id}.active`,
+      scene && (() => scene.setWalkableScriptActive(this.id, value)),
+      (m) => writeSavedWalkableActive(m, this.roomId, this.id, value),
+    );
   }
 }
 
@@ -1427,7 +1466,10 @@ export class GuiHandle<Controls extends Record<string, string> = Record<string, 
     registerGuiLifecycleHandler(this.id, 'hide', handler);
   }
 
-  /** Any button in this GUI, after the button's own `onClick`. `button` is its control handle. */
+  /**
+   * Any button in this GUI, once the button's own `onClick` is over (not when that handler ended
+   * with `goTo`, `saves.load` or `dialog.end`). `button` is its control handle.
+   */
   onAnyClick(handler: (button: GuiControlHandle) => void): void {
     registerGuiAnyClick(this.id, (controlId) => this.controlHandle(controlId), handler);
   }

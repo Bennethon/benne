@@ -7,9 +7,10 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import type { ContentRef } from '../../../benne-editor/src/bennescript/idsIndex';
 import { findHandlers, insertHandlerStub, type HandlerSpec } from '../../../benne-editor/src/bennescript/handlerSpecs';
-import { parseScriptModel } from '../../../benne-editor/src/bennescript/scriptModel';
+import { parseScriptModel, resolveReference } from '../../../benne-editor/src/bennescript/scriptModel';
 import * as editorSpeakers from '../../../benne-editor/src/bennescript/speakers';
 import { collectVoiceLines } from '../../../benne-editor/src/bennescript/voiceLines';
+import { dependencyQuery, scriptDependencyOffsets, type DeletedContent } from '../../../benne-editor/src/delete/scriptDependencies';
 import { readRoomPlayFromNamesFromSource } from '../../../benne-editor/src/playFromDiscovery';
 import * as buildSpeakers from '../../../scripts/lib/benneSpeakers.mjs';
 import { transformBenneScript } from '../../../scripts/lib/bennescriptTransform.mjs';
@@ -108,6 +109,30 @@ describe('ScriptModel on the ported game', () => {
     expect(m.registrations[0]).toMatchObject({ method: 'onUse', doNotActivate: true, receiverText: 'items.mop' });
   });
 
+  it('resolves namespace imports of another room, as other-room completion writes them', () => {
+    const cafeScript = path.join(gameRoot, 'rooms/cafe/cafe.room.ts');
+    const battery = { kind: 'hotspot', roomId: 'club', id: 'club-hotspot-battery' } as const;
+    const named = parseScriptModel(ts, cafeScript, "import { battery } from '../club/club.ids';\nbattery.hide()\n");
+    const ns = parseScriptModel(
+      ts,
+      cafeScript,
+      "import * as club from '../club/club.ids';\nclub.battery.hide()\nclub.battery.onLook(() => {})\nclub.driver.say('Hi')\n",
+    );
+    expect(resolveReference(named, index, named.references[0]!.path)).toEqual(battery);
+    expect(ns.references.map((r) => resolveReference(ns, index, r.path))).toEqual([
+      battery,
+      battery,
+      { kind: 'character', roomId: 'club', id: 'driver' },
+    ]);
+    expect(findHandlers(ns, index, { kind: 'verb', target: battery, verbId: 'look' })).toHaveLength(1);
+    const voice = collectVoiceLines(ts, [{ path: cafeScript, text: ns.text }], {
+      index,
+      speakers: editorSpeakers.buildSpeakerTable(editorSpeakers.readCharacterSpeakers(gameRoot)),
+      startingPlayerCharacterId: 'hank',
+    });
+    expect(voice.lines.map((l) => l.characterId)).toEqual(['driver']);
+  });
+
   it('finds every Play From entry the smoke tests find', () => {
     let count = 0;
     for (const file of scriptFiles().filter((f) => f.endsWith('.room.ts'))) {
@@ -155,6 +180,50 @@ describe('speech lines', () => {
     const byCharacter = new Map<string, number>();
     for (const line of result.lines) byCharacter.set(line.characterId, (byCharacter.get(line.characterId) ?? 0) + 1);
     expect([...byCharacter.keys()].sort()).toEqual(expect.arrayContaining(['hank', 'jensen', 'botti3']));
+  });
+});
+
+describe('delete dependencies', () => {
+  const cafeScript = path.join(gameRoot, 'rooms/cafe/cafe.room.ts');
+  const lines = (text: string, offsets: number[]) => offsets.map((o) => text.slice(0, o).split('\n').length);
+  const uri = (file: string) => ({ fsPath: path.join(gameRoot, file) });
+
+  it("deleting a room finds every import of its module and every use of its content", () => {
+    const text = [
+      "import { battery, regions } from '../club/club.ids';",
+      "import type { PropHandle } from '../club/club.ids';",
+      "import * as club from '../club/club.ids';",
+      "import { rooms } from '@game';",
+      'battery.hide()',
+      'regions.leave.active = false',
+      'club.driver.say("Hi")',
+      'rooms.club.goTo()',
+      'rooms.cafe.goTo()',
+    ].join('\n');
+    const target: DeletedContent = { type: 'room', roomId: 'club', roomJsonUri: uri('rooms/club/club.room.json') };
+    const m = parseScriptModel(ts, cafeScript, text);
+    expect(lines(text, scriptDependencyOffsets(m, index, dependencyQuery(target)))).toEqual([1, 2, 3, 5, 6, 7, 8]);
+  });
+
+  it('deleting a character finds its speaker labels and say-block lines, not Player or other speakers', () => {
+    const text = [
+      "import { characters } from '@game';",
+      'room.onEnter(() => {',
+      '  Jensen: "Hi"',
+      '  JENSEN: `Again`',
+      '  Hank: "Hello"',
+      '  Player: "Me"',
+      '  say`',
+      '    Hank: one',
+      '    jensen: two',
+      '  `',
+      '  characters.jensen.say("three")',
+      '})',
+    ].join('\n');
+    const target: DeletedContent = { type: 'character', characterId: 'jensen', characterJsonUri: uri('characters/jensen/jensen.character.json') };
+    const speakers = editorSpeakers.buildSpeakerTable(editorSpeakers.readCharacterSpeakers(gameRoot));
+    const m = parseScriptModel(ts, cafeScript, text);
+    expect(lines(text, scriptDependencyOffsets(m, index, dependencyQuery(target, speakers)))).toEqual([3, 4, 9, 11]);
   });
 });
 

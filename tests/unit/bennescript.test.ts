@@ -11,6 +11,8 @@ import { readCharacterSpeakers } from '../../scripts/lib/benneSpeakers.mjs';
 
 import { background, cutscene, together, withInputDisabled } from '../../src/engine/bennescript/blocks';
 import { dialogStackForTesting } from '../../src/engine/bennescript/dialogs';
+import { events } from '../../src/engine/bennescript/events';
+import { registerGuiAnyClick, registerGuiClick } from '../../src/engine/bennescript/guis';
 import { DialogHandle, RoomHandle } from '../../src/engine/bennescript/handles';
 import {
   cancelAllInteractions,
@@ -22,7 +24,7 @@ import {
 import { saves } from '../../src/engine/bennescript/saves';
 import { Task, timed, type TaskHooks } from '../../src/engine/bennescript/task';
 import { gameEvents } from '../../src/engine/events/EventBus';
-import { guiButtonClickEventId } from '../../src/engine/events/guiButtonEvents';
+import { guiAllButtonsClickEventId, guiButtonClickEventId } from '../../src/engine/events/guiButtonEvents';
 import { setActiveBenneGame, tryGetActiveBenneGame } from '../../src/engine/gameState/activeBenneGame';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../src/engine/gameState/registryKey';
 import { setActiveGameStateManager } from '../../src/engine/gameState/resolveGameStateManager';
@@ -48,6 +50,7 @@ const speakers = buildSpeakerTable([
 ]);
 const transform = (code: string) => transformBenneScript(code, { filename: 'test.room.ts', speakers });
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+type Handler = (...args: never[]) => unknown;
 
 /** A stand-in RoomScene: the cutscene stack, skip and input state the runtime touches. */
 function fakeScene() {
@@ -390,6 +393,23 @@ describe('BenneScript sequencing rules (§5)', () => {
     expect(g.log).toEqual([]);
   });
 
+  it('rule 7: a room change or load also stops event listeners, which take no lock', async () => {
+    const g = await load('events.on("test:alarm", () => {\n  wait()\n  flags.finished = true\n})\n', { events });
+    events.emit('test:alarm');
+    await flush();
+    expect(isInteractionActivityRunning()).toBe(false);
+    expect(admitGameplayClick()).toBe(true);
+    cancelAllInteractions();
+    await g.open();
+    expect(g.flags.finished).toBeUndefined();
+
+    events.emit('test:alarm');
+    await flush();
+    await g.open();
+    expect(g.flags.finished).toBe(true);
+    events.off('test:alarm');
+  });
+
   it('rule 8: skipping a cutscene finishes its timed steps at once, then the handler continues', async () => {
     const scene = fakeScene();
     const g = await load(
@@ -448,6 +468,113 @@ describe('BenneScript blocks', () => {
     cancelAllInteractions();
     await flush();
     expect(scene.registry.get(BENNE_USER_INPUT_DISABLED_REGISTRY_KEY)).toBe(false);
+  });
+});
+
+describe('BenneScript GUI handlers', () => {
+  const button = (controlId: string) => ({ onClick: (fn: Handler) => registerGuiClick('tmenu', controlId, fn) });
+  const click = (controlId: string) => {
+    gameEvents.emit(guiButtonClickEventId('tmenu', controlId));
+    gameEvents.emit(guiAllButtonsClickEventId('tmenu'), { buttonId: controlId });
+  };
+
+  it("gui.onAnyClick runs once the button's onClick is over, and not after an ending call", async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const g = await load(
+      'ok.onClick(() => {\n  wait()\n  flags.ready = true\n})\n' +
+        'quit.onClick(() => {\n  rooms.lab.goTo()\n})\n' +
+        'menu.onAnyClick((b) => {\n  log(`any ${b} ${flags.ready}`)\n})\n',
+      {
+        ok: button('ok'),
+        quit: button('quit'),
+        menu: { onAnyClick: (fn: Handler) => registerGuiAnyClick('tmenu', (id) => id, fn) },
+      },
+    );
+    click('ok');
+    await flush();
+    expect(g.log).toEqual([]);
+    await g.open();
+    expect(g.log).toEqual(['any ok true']);
+
+    click('quit');
+    await flush();
+    expect(g.log).toEqual(['any ok true']);
+
+    click('plain'); // no onClick of its own
+    await flush();
+    expect(g.log).toEqual(['any ok true', 'any plain true']);
+  });
+
+  it('gui.onAnyClick does not run when a room change stops the button handler', async () => {
+    const g = await load('ok.onClick(() => {\n  wait()\n})\nmenu.onAnyClick((b) => {\n  log(`any ${b}`)\n})\n', {
+      ok: { onClick: (fn: Handler) => registerGuiClick('tmenu2', 'ok', fn) },
+      menu: { onAnyClick: (fn: Handler) => registerGuiAnyClick('tmenu2', (id) => id, fn) },
+    });
+    gameEvents.emit(guiButtonClickEventId('tmenu2', 'ok'));
+    gameEvents.emit(guiAllButtonsClickEventId('tmenu2'), { buttonId: 'ok' });
+    await flush();
+    cancelAllInteractions();
+    await g.open();
+    expect(g.log).toEqual([]);
+  });
+
+  it('a same-room save load invalidates an any-click queued behind a completed button handler', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const state = { value: 'before load' };
+    const manager = fakeGame(fakeScene());
+    vi.spyOn(manager, 'load').mockImplementation(() => {
+      state.value = 'loaded';
+      return true;
+    });
+    const guiId = 'tmenu-load-race';
+    const eventId = guiAllButtonsClickEventId(guiId);
+    await load(
+      'button.onClick(() => {})\n' +
+        "menu.onAnyClick(() => { state.value = 'overwritten' })\n" +
+        `events.once('${eventId}', () => { saves.load(0) })\n`,
+      {
+        state,
+        events,
+        button: { onClick: (fn: Handler) => registerGuiClick(guiId, 'ok', fn) },
+        menu: { onAnyClick: (fn: Handler) => registerGuiAnyClick(guiId, (id) => id, fn) },
+      },
+    );
+    const emitClick = () => {
+      gameEvents.emit(guiButtonClickEventId(guiId, 'ok'));
+      gameEvents.emit(eventId, { buttonId: 'ok' });
+    };
+
+    emitClick();
+    await flush();
+    expect(manager.load).toHaveBeenCalledWith(0);
+    expect(state.value).toBe('loaded');
+
+    // Loading cancels old clicks without disabling this GUI's future clicks.
+    emitClick();
+    await flush();
+    expect(state.value).toBe('overwritten');
+  });
+
+  it('cancellation invalidates all queued any-clicks, including earlier clicks of the same button', async () => {
+    const guiId = 'tmenu-queued-clicks';
+    const g = await load('button.onClick(() => {})\nmenu.onAnyClick(() => { log("any") })\n', {
+      button: { onClick: (fn: Handler) => registerGuiClick(guiId, 'ok', fn) },
+      menu: { onAnyClick: (fn: Handler) => registerGuiAnyClick(guiId, (id) => id, fn) },
+    });
+    const emitClick = () => {
+      gameEvents.emit(guiButtonClickEventId(guiId, 'ok'));
+      gameEvents.emit(guiAllButtonsClickEventId(guiId), { buttonId: 'ok' });
+    };
+
+    emitClick();
+    emitClick();
+    cancelAllInteractions();
+    await flush();
+    expect(g.log).toEqual([]);
+
+    emitClick();
+    await flush();
+    expect(g.log).toEqual(['any']);
   });
 });
 

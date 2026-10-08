@@ -199,7 +199,7 @@ export class InteractionContext {
   }
 }
 
-/** Context for code that runs outside any handler (module top level, untracked callbacks). */
+/** Context for code that runs outside any handler (module top level). */
 const detached = new InteractionContext(null, null, undefined, { gameplay: false });
 
 /** Ending calls, `unhandled()` and cancellation: ways a handler stops that aren't errors. */
@@ -262,25 +262,35 @@ export function currentContext(): InteractionContext {
 }
 
 /**
- * Calls a step function outside any handler: it gets the detached context, not whichever handler
- * happens to be running (an event can fire synchronously inside another handler's step). Errors
- * are logged; ending calls and `unhandled()` just stop it.
+ * Calls a step function outside any handler (event listeners, GUI lifecycle and value callbacks):
+ * it gets a context of its own, not whichever handler happens to be running (an event can fire
+ * synchronously inside another handler's step). It doesn't take the interaction lock or block
+ * saving, but a sequence still running stops on a room change or save load like any handler
+ * (§5 rule 7). Errors are logged; ending calls and `unhandled()` just stop it.
  */
 export function runDetached(label: string, fn: (...args: never[]) => unknown, args: readonly unknown[] = []): void {
-  const previous = current;
-  current = null;
+  const ctx = new InteractionContext(null, null, liveRoomScene(), { gameplay: false });
+  live.add(ctx);
+  let result: unknown;
   try {
-    const result = (fn as (...a: readonly unknown[]) => unknown)(...args);
-    if (isPromiseLike(result)) {
-      void Promise.resolve(result).catch((err: unknown) => {
-        outcomeOf(err, label);
-      });
-    }
+    result = ctx.run(() => (fn as (...a: readonly unknown[]) => unknown)(...args));
   } catch (err) {
+    live.delete(ctx);
     outcomeOf(err, label);
-  } finally {
-    current = previous;
+    return;
   }
+  if (!isPromiseLike(result)) {
+    live.delete(ctx);
+    return;
+  }
+  void Promise.resolve(result)
+    .then(
+      () => undefined,
+      (err: unknown) => {
+        outcomeOf(err, label);
+      },
+    )
+    .finally(() => live.delete(ctx));
 }
 
 /** Ends the running handler. Used by calls typed `never` (`goTo`, `saves.load`, `dialog.end`). */
