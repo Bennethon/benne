@@ -19,7 +19,11 @@ const realGame = path.join(repoRoot, 'src', 'game');
 /** Copies the apartment room, its generated handles and `@game` into a temporary `src/game`. */
 async function apartmentGameCopy(): Promise<{ root: string; game: string }> {
     if (!existsSync(path.join(realGame, 'rooms', 'apartment', 'apartment.ids.ts'))) {
-        execFileSync(process.execPath, [path.join(repoRoot, 'scripts', 'generate-game-ids.mjs')], { cwd: repoRoot });
+        // In the extension host, process.execPath is VS Code's Electron binary: run it as Node.
+        execFileSync(process.execPath, [path.join(repoRoot, 'scripts', 'generate-game-ids.mjs')], {
+            cwd: repoRoot,
+            env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+        });
     }
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'benne-apartment-'));
     const game = path.join(root, 'src', 'game');

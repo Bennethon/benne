@@ -19,7 +19,11 @@ const realGame = path.join(repoRoot, 'src', 'game');
 /** Copies the club room, its generated handles and `@game` into a temporary `src/game`. */
 async function clubGameCopy(): Promise<{ root: string; game: string }> {
     if (!existsSync(path.join(realGame, 'rooms', 'club', 'club.ids.ts'))) {
-        execFileSync(process.execPath, [path.join(repoRoot, 'scripts', 'generate-game-ids.mjs')], { cwd: repoRoot });
+        // In the extension host, process.execPath is VS Code's Electron binary: run it as Node.
+        execFileSync(process.execPath, [path.join(repoRoot, 'scripts', 'generate-game-ids.mjs')], {
+            cwd: repoRoot,
+            env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+        });
     }
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'benne-club-'));
     const game = path.join(root, 'src', 'game');
@@ -56,9 +60,10 @@ suite('Authoring contracts on the AI Apocalypse template', () => {
             assert.equal(r.ok, true);
             const after = await fs.readFile(script, 'utf8');
             assert.equal(after.slice(r.insertedStubRange!.start, r.insertedStubRange!.end), 'bg.onLook(() => {\n  // TODO: Look at\n})');
-            assert.match(after, /toolChest, bg,\n\} from '\.\/club\.ids';/);
+            // The template may be checked out with CRLF line endings (Windows), which the import edit keeps.
+            assert.match(after, /toolChest, bg,\r?\n\} from '\.\/club\.ids';/);
             assert.equal(after.endsWith('bg.onLook(() => {\n  // TODO: Look at\n})\n'), true);
-            assert.equal(after.replace('toolChest, bg,\n}', 'toolChest,\n}').startsWith(before.trimEnd()), true);
+            assert.equal(after.replace(/toolChest, bg,(\r?\n)\}/, 'toolChest,$1}').startsWith(before.trimEnd()), true);
             // A second "add" finds the handler instead of adding another.
             const again = await addPropVerbEvent(roomJson, 'club', 'bg', 'look');
             assert.equal(again.insertedStubRange, undefined);
