@@ -3,7 +3,7 @@
   "displayName": "BENNE Editor",
   "description": "Visual editor for the BENNE point-and-click adventure game engine.",
   "publisher": "bennethon",
-  "version": "0.0.11",
+  "version": "0.1.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -101,13 +101,13 @@
         {
           "id": "benne-editor.actions",
           "name": "Actions",
-          "contextualTitle": "BENNE \u2014 Actions"
+          "contextualTitle": "BENNE — Actions"
         },
         {
           "id": "benne-editor.inspector",
           "type": "webview",
           "name": "Inspector",
-          "contextualTitle": "BENNE \u2014 Inspector"
+          "contextualTitle": "BENNE — Inspector"
         }
       ]
     },
@@ -422,7 +422,7 @@
       },
       {
         "command": "benne-editor.deleteGameEntity",
-        "title": "Delete\u2026",
+        "title": "Delete…",
         "category": "BENNE",
         "icon": "$(trash)"
       }
