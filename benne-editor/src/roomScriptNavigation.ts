@@ -157,7 +157,7 @@ export async function revealEventInDocument(
 ): Promise<boolean> {
     if (isFallbackEventId(eventId)) {
         void vscode.window.showInformationMessage(
-            'Per-object verb fallbacks (`onVerbFallback` in JSON) have no BenneScript handler. Use `x.on([...verbs], …)` on the object, or `fallbacks.on<Verb>` in globalScript.ts (docs/bennescript-ergonomics-refactor.md §4.17).'
+            'Per-object verb fallbacks (`onVerbFallback` in JSON) have no BenneScript handler. Use `x.on([...verbs], …)` on the object, or `fallbacks.on<Verb>` in globalScript.ts.'
         );
         return false;
     }

@@ -785,8 +785,12 @@ export function activate(context: vscode.ExtensionContext): void {
                 const node = firstTreeContextArg(arg);
                 const preferredFolder =
                     node?.kind === 'roomsGroup' || node?.kind === 'workspace' ? node.folder : undefined;
-                await runCreateRoomWizard(preferredFolder);
+                const created = await runCreateRoomWizard(preferredFolder);
                 refreshTrees();
+                if (created) {
+                    // Same path as clicking the room in the tree: two-row layout, preview, script.
+                    await onMainTreeSelection(created);
+                }
             }
         ),
         vscode.commands.registerCommand(
@@ -851,8 +855,11 @@ export function activate(context: vscode.ExtensionContext): void {
                 const node = firstTreeContextArg(arg);
                 const preferredFolder =
                     node?.kind === 'charsGroup' || node?.kind === 'workspace' ? node.folder : undefined;
-                await runCreateCharacterWizard(preferredFolder);
+                const created = await runCreateCharacterWizard(preferredFolder);
                 refreshTrees();
+                if (created) {
+                    await onMainTreeSelection(created);
+                }
             }
         ),
         vscode.commands.registerCommand(
@@ -861,8 +868,11 @@ export function activate(context: vscode.ExtensionContext): void {
                 const node = firstTreeContextArg(arg);
                 const preferredFolder =
                     node?.kind === 'guisGroup' || node?.kind === 'workspace' ? node.folder : undefined;
-                await runCreateGuiWizard(preferredFolder);
+                const created = await runCreateGuiWizard(preferredFolder);
                 refreshTrees();
+                if (created) {
+                    await onMainTreeSelection(created);
+                }
             }
         ),
         vscode.commands.registerCommand(
@@ -879,8 +889,11 @@ export function activate(context: vscode.ExtensionContext): void {
                 const node = firstTreeContextArg(arg);
                 const preferredFolder =
                     node?.kind === 'inventoryGroup' || node?.kind === 'workspace' ? node.folder : undefined;
-                await runCreateInventoryItemWizard(preferredFolder);
+                const created = await runCreateInventoryItemWizard(preferredFolder);
                 refreshTrees();
+                if (created) {
+                    await onMainTreeSelection(created);
+                }
             }
         ),
         vscode.commands.registerCommand(
@@ -889,8 +902,11 @@ export function activate(context: vscode.ExtensionContext): void {
                 const node = firstTreeContextArg(arg);
                 const preferredFolder =
                     node?.kind === 'dialogsGroup' || node?.kind === 'workspace' ? node.folder : undefined;
-                await runCreateDialogWizard(preferredFolder);
+                const created = await runCreateDialogWizard(preferredFolder);
                 refreshTrees();
+                if (created) {
+                    await onMainTreeSelection(created);
+                }
             }
         ),
         vscode.commands.registerCommand(
@@ -899,8 +915,11 @@ export function activate(context: vscode.ExtensionContext): void {
                 const node = firstTreeContextArg(arg);
                 const preferredFolder =
                     node?.kind === 'pdcsGroup' || node?.kind === 'workspace' ? node.folder : undefined;
-                await runCreatePdcWizard(preferredFolder);
+                const created = await runCreatePdcWizard(preferredFolder);
                 refreshTrees();
+                if (created) {
+                    await onMainTreeSelection(created);
+                }
             }
         ),
         vscode.commands.registerCommand(

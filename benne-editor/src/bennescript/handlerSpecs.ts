@@ -172,7 +172,7 @@ export function planHandlerStub(index: IdsIndex, scriptFile: string, spec: Handl
                 ],
                 statement: block('onUpdate(()', [
                     `if (game.currentRoom !== ${room.expr}) return`,
-                    '// Runs every frame (§4.18): no timed actions here.',
+                    '// Runs every frame. Nothing that takes time (wait, walks, speech) can go here.',
                 ]),
             };
         }

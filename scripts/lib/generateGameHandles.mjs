@@ -489,13 +489,13 @@ function emitGameModule(m) {
   const verbLabel = (v) => `${v.label}${v.preposition ? ` … ${v.preposition}` : ''}`;
 
   let out = header(
-    '`@game`: game-wide BenneScript handles, generated from the content JSON, assets and\n * `game-config.json` (docs/bennescript-ergonomics-refactor.md §7, §8).',
+    '`@game`: everything in your game by kind (`rooms`, `characters`, `items`, `dialogs`, `guis`, `sfx`,\n * `music`, `verbs`, `flags`, …), generated from your content JSON, assets and `game-config.json`.',
   );
   out += importLine(runtime, '@benne/script');
   out += '\n';
   out += m.hasState
-    ? "// Flags and variables are declared in src/game/state.ts (§4.7).\nexport { flags, vars } from './state';\n"
-    : '/** No src/game/state.ts yet: declare flags and variables there with `defineFlags` / `defineVars` (§4.7). */\nexport const flags = defineFlags({});\nexport const vars = defineVars({});\n';
+    ? "// Flags and variables are declared in src/game/state.ts.\nexport { flags, vars } from './state';\n"
+    : '/** No src/game/state.ts yet: declare flags and variables there with `defineFlags` / `defineVars`. */\nexport const flags = defineFlags({});\nexport const vars = defineVars({});\n';
 
   out += `
 // ─── Verbs (game-config.json) ────────────────────────────────────────────────
@@ -515,7 +515,7 @@ ${m.verbs
   .join('\n')}
 ];
 
-/** Per-verb handler methods on props, hotspots, characters and items (§8.2). */
+/** One handler method per verb (\`onLook\`, \`onUse\`, …) on props, hotspots, characters and items. */
 export interface VerbMethods {
 ${m.verbs
   .map((v) => {
@@ -529,8 +529,8 @@ ${m.verbs
 }
 
 /**
- * Per-verb handler methods on inventory items. Item verbs arm the item for "use on target" after
- * their handler; \`.doNotActivate(…)\` opts out (§4.6).
+ * One handler method per verb on inventory items. An item verb such as Use selects the item after its
+ * handler, so the player can click what to use it on; \`.doNotActivate(…)\` skips that.
  */
 export interface ItemVerbMethods {
 ${m.verbs
@@ -546,7 +546,7 @@ ${m.verbs
   .join('\n')}
 }
 
-/** Global fallbacks: what happens when nothing else handles a verb (§4.17). */
+/** Fallbacks (in globalScript.ts): what happens when nothing else handles a verb. */
 export interface FallbackVerbMethods {
 ${m.verbs
   .map((v) => {
@@ -625,7 +625,7 @@ function emitRoomModule(m, roomName, characterAnimations) {
     game.add('type VerbId');
   }
   let out = header(
-    `Handles for room "${id}" (${m.room.file}): \`room\`, its props, hotspots and characters, plus\n * \`points\`, \`regions\` and \`walkables\` (docs/bennescript-ergonomics-refactor.md §7).`,
+    `Handles for room "${id}" (${m.room.file}): \`room\`, its props, hotspots and characters, plus\n * \`points\`, \`regions\` and \`walkables\`.`,
   );
   out += importLine(runtime, '@benne/script');
   out += importLine(game, '@game');
@@ -673,21 +673,21 @@ function emitCharacterModule(m, characterName) {
   const id = m.character.id;
   return (
     header(
-      `Handle for character "${id}" (${m.character.file}): \`${m.name}\`, the same object as \`characters.${characterName}\`.\n * Its handlers apply wherever the character is (docs/bennescript-ergonomics-refactor.md §4.9).`,
+      `Handle for character "${id}" (${m.character.file}): \`${m.name}\`, the same object as \`characters.${characterName}\`.\n * Its handlers apply in every room the character is in, unless that room's script handles the same verb.`,
     ) + `import { characters } from '@game';\n\nexport const ${m.name} = characters.${characterName};\n`
   );
 }
 
 function emitDialogModule(d, dialogName) {
   return (
-    header(`Handles for dialog "${d.id}" (${d.file}): \`dialog\` and its \`options\` (docs/bennescript-ergonomics-refactor.md §4.8).`) +
+    header(`Handles for dialog "${d.id}" (${d.file}): \`dialog\` and its \`options\`.`) +
     `import { dialogs } from '@game';\n\nexport const dialog = dialogs.${dialogName};\nexport const options = dialog.options;\n`
   );
 }
 
 function emitGuiModule(g, guiName, controls) {
   let out =
-    header(`Handles for GUI "${g.id}" (${g.file}): \`gui\` and its controls (docs/bennescript-ergonomics-refactor.md §4.15).`) +
+    header(`Handles for GUI "${g.id}" (${g.file}): \`gui\` and its controls.`) +
     `import { guis } from '@game';\n\nexport const gui = guis.${guiName};\n`;
   if (controls.length) {
     out += `\n${controls.map((c) => `${doc(`${c.type ? `${c.type} ` : ''}\`${c.id}\``)}\nexport const ${c.name} = gui.controls.${c.name};`).join('\n')}\n`;

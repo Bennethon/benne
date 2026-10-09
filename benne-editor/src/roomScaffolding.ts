@@ -122,11 +122,15 @@ export function defaultClickablePropInteractionFields(roomW: number, roomH: numb
 
 /**
  * Create `src/game/rooms/<id>/`, `<id>.room.json`, `<id>.room.ts`, asset folder, and manifest entry.
+ * Returns the new room's tree node so the caller can open it as if it were clicked in the tree
+ * (preview on top, script below).
  */
-export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFolder): Promise<void> {
+export async function runCreateRoomWizard(
+    preferredFolder?: vscode.WorkspaceFolder
+): Promise<Extract<MainTreeNode, { kind: 'room' }> | undefined> {
     const folder = await pickWorkspaceFolder(preferredFolder);
     if (!folder) {
-        return;
+        return undefined;
     }
 
     const named = await promptForNameAndId({
@@ -137,7 +141,7 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
         fallbackId: 'room'
     });
     if (!named) {
-        return;
+        return undefined;
     }
     const { name, id } = named;
 
@@ -149,7 +153,7 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
     try {
         await vscode.workspace.fs.stat(roomDir);
         void vscode.window.showErrorMessage(`Room folder already exists: ${id}`);
-        return;
+        return undefined;
     } catch {
         /* create */
     }
@@ -170,12 +174,21 @@ export async function runCreateRoomWizard(preferredFolder?: vscode.WorkspaceFold
 
     const roomTs = `import { room } from './${id}.ids';
 
-// Room script for \`${id}\` (docs/bennescript-ergonomics-refactor.md §4). Handlers for this room's
-// props, hotspots, characters and regions go here: \`door.onUse(() => { … })\`. The Inspector's
-// verb chips add them for you, with their imports.
+// ${name}: what happens in this room. Handlers for its props, hotspots, characters and regions go
+// here. Select one in the room preview and click a verb in the Inspector to add a handler, or
+// write one yourself:
+//
+//   door.onUse(() => {
+//     walkToClicked()
+//     rooms.hallway.goTo()
+//   })
+//
+// Things in this room are plain names (\`door\`, \`points.x\`, \`regions.x\`) imported from
+// './${id}.ids'; everything else comes from '@game'. Auto-import adds the import lines as you type.
 
 room.onEnter(() => {
-  // Set the room up before it fades in.
+  // Runs before the room fades in: set up positions, visibility and flags here.
+  // Music, entrances and cutscenes go in room.onEnterAfterFade(() => { … }).
 })
 `;
 
@@ -189,8 +202,7 @@ room.onEnter(() => {
     await runGenerateGameIds(folder, { quiet: true });
 
     void vscode.window.showInformationMessage(`Created room "${name}" (${id}).`);
-    await vscode.window.showTextDocument(roomJsonUri, { preview: false });
-    await vscode.window.showTextDocument(roomTsUri, { preview: false });
+    return { kind: 'room', folder, id, name, uri: roomJsonUri };
 }
 
 async function appendRoomsManifestEntry(gameRoot: vscode.Uri, roomId: string): Promise<void> {

@@ -6,6 +6,7 @@ import {
     sharedInventoryJsonUri,
     sharedInventorySheetFilesComplete
 } from './gameDiscovery';
+import { camelCaseId } from './bennescript/idsIndex';
 import type { MainTreeNode } from './mainTreeProvider';
 import { promptForNameAndId } from './nameAndIdPrompt';
 import { pickWorkspaceFolder } from './roomScaffolding';
@@ -14,13 +15,32 @@ function formatJson(value: unknown): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
 }
 
+/** The starting `<id>.inventory.ts`: a comment telling the game author what goes in it. */
+function inventoryScriptTemplate(id: string, name: string): string {
+    const handle = `items.${camelCaseId(id)}`;
+    return `// ${name}: what happens when the player uses a verb on this item in the inventory, or uses
+// another item on it. Click a verb in the Inspector to add a handler, or write one yourself:
+//
+//   ${handle}.onLook(() => {
+//     Player: \`That could come in handy.\`
+//   })
+//
+//   ${handle}.onCombine(items.otherItem, () => { … })
+//
+// You don't need a handler for Use: using the item selects it, so the player can then click
+// what to use it on. Put what happens then in the target's script, e.g. door.onUseItem(${handle}, …).
+`;
+}
+
 /**
  * Create `src/game/inventory/<id>/`, `<id>.inventory.json`, `<id>.inventory.ts` (shared sheet by default).
  */
-export async function runCreateInventoryItemWizard(preferredFolder?: vscode.WorkspaceFolder): Promise<void> {
+export async function runCreateInventoryItemWizard(
+    preferredFolder?: vscode.WorkspaceFolder
+): Promise<Extract<MainTreeNode, { kind: 'inventoryItem' }> | undefined> {
     const folder = await pickWorkspaceFolder(preferredFolder);
     if (!folder) {
-        return;
+        return undefined;
     }
 
     const named = await promptForNameAndId({
@@ -31,7 +51,7 @@ export async function runCreateInventoryItemWizard(preferredFolder?: vscode.Work
         fallbackId: 'item'
     });
     if (!named) {
-        return;
+        return undefined;
     }
     const { name, id } = named;
 
@@ -42,7 +62,7 @@ export async function runCreateInventoryItemWizard(preferredFolder?: vscode.Work
     try {
         await vscode.workspace.fs.stat(invDir);
         void vscode.window.showErrorMessage(`Inventory folder already exists: ${id}`);
-        return;
+        return undefined;
     } catch {
         /* create */
     }
@@ -59,20 +79,14 @@ export async function runCreateInventoryItemWizard(preferredFolder?: vscode.Work
         }
     };
 
-    const invTs = `// Inventory script for \`${id}\` (docs/bennescript-ergonomics-refactor.md §4.6). Using a \`usesItem\` verb
-// (e.g. "Use") on the item arms it for "use on target" without any script. Add handlers for extra
-// behaviour: \`items.${id}.onLook(() => { … })\`, \`items.${id}.onCombine(items.other, () => { … })\`.
-`;
-
     await vscode.workspace.fs.createDirectory(invDir);
     await vscode.workspace.fs.writeFile(invJsonUri, formatJson(inventoryJson));
-    await vscode.workspace.fs.writeFile(invTsUri, new TextEncoder().encode(invTs));
+    await vscode.workspace.fs.writeFile(invTsUri, new TextEncoder().encode(inventoryScriptTemplate(id, name)));
 
     void vscode.window.showInformationMessage(
         `Created inventory entry "${name}" (${id}). Frame tags live in assets/images/inventory/inventory.json (tag name = inventory id unless defaultAnimation is set).`
     );
-    await vscode.window.showTextDocument(invJsonUri, { preview: false });
-    await vscode.window.showTextDocument(invTsUri, { preview: false });
+    return { kind: 'inventoryItem', folder, id, name, uri: invJsonUri };
 }
 
 async function resolveFolderForInventoryImport(
@@ -159,11 +173,10 @@ export async function runImportInventoryItemsFromAsepriteTags(
         await vscode.workspace.fs.writeFile(invJsonUri, formatJson(inventoryJson));
 
         if (writeScripts) {
-            const invTs = `// Inventory script for \`${id}\` (docs/bennescript-ergonomics-refactor.md §4.6). Using a \`usesItem\` verb
-// (e.g. "Use") on the item arms it for "use on target" without any script. Add handlers for extra
-// behaviour: \`items.${id}.onLook(() => { … })\`, \`items.${id}.onCombine(items.other, () => { … })\`.
-`;
-            await vscode.workspace.fs.writeFile(invTsUri, new TextEncoder().encode(invTs));
+            await vscode.workspace.fs.writeFile(
+                invTsUri,
+                new TextEncoder().encode(inventoryScriptTemplate(id, inventoryJson.name))
+            );
         }
     }
 

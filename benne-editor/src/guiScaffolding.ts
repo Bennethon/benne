@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { camelCaseId } from './bennescript/idsIndex';
 import type { EditorSelection } from './editorSelection';
 import type { MainTreeNode } from './mainTreeProvider';
 import { promptForNameAndId } from './nameAndIdPrompt';
@@ -30,10 +31,12 @@ function formatJson(value: unknown): Uint8Array {
 /**
  * Create `src/game/guis/<id>/`, `<id>.gui.json`, `<id>.gui.ts`, and asset folder under `images/guis/<id>/`.
  */
-export async function runCreateGuiWizard(preferredFolder?: vscode.WorkspaceFolder): Promise<void> {
+export async function runCreateGuiWizard(
+    preferredFolder?: vscode.WorkspaceFolder
+): Promise<Extract<MainTreeNode, { kind: 'gui' }> | undefined> {
     const folder = await pickWorkspaceFolder(preferredFolder);
     if (!folder) {
-        return;
+        return undefined;
     }
 
     const named = await promptForNameAndId({
@@ -44,7 +47,7 @@ export async function runCreateGuiWizard(preferredFolder?: vscode.WorkspaceFolde
         fallbackId: 'gui'
     });
     if (!named) {
-        return;
+        return undefined;
     }
     const { name, id } = named;
 
@@ -56,7 +59,7 @@ export async function runCreateGuiWizard(preferredFolder?: vscode.WorkspaceFolde
     try {
         await vscode.workspace.fs.stat(guiDir);
         void vscode.window.showErrorMessage(`GUI folder already exists: ${id}`);
-        return;
+        return undefined;
     } catch {
         /* create */
     }
@@ -71,9 +74,17 @@ export async function runCreateGuiWizard(preferredFolder?: vscode.WorkspaceFolde
         }
     };
 
-    const guiTs = `// GUI script for \`${id}\` (docs/bennescript-ergonomics-refactor.md §4.15): \`gui.onShow(() => { … })\`,
-// \`someButton.onClick(() => { … })\`. The Inspector's control "Script" buttons add them, with imports
-// from \`./${id}.ids\`.
+    const guiTs = `// ${name}: what this GUI's buttons, sliders and other controls do. Select a control and add
+// a handler from the Inspector, or write one yourself. Each control is a plain name, by its id:
+//
+//   close.onClick(() => gui.hide())
+//
+//   gui.onShow(() => {
+//     // Runs each time the GUI appears: update its text, enable or disable buttons.
+//   })
+//
+// \`gui\` and the controls are imported from './${id}.ids'. Show or hide this GUI from another
+// script with guis.${camelCaseId(id)}.show() and guis.${camelCaseId(id)}.hide().
 `;
 
     await vscode.workspace.fs.createDirectory(guiDir);
@@ -84,7 +95,7 @@ export async function runCreateGuiWizard(preferredFolder?: vscode.WorkspaceFolde
     void vscode.window.showInformationMessage(
         `Created GUI "${name}" (${id}). Export Aseprite to assets/images/guis/${id}/ when ready.`
     );
-    await openBenneGuiTypeScript(guiJsonUri, id);
+    return { kind: 'gui', folder, id, name, uri: guiJsonUri };
 }
 
 function guiControlKindLabel(kind: GuiControlKind): string {

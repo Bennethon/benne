@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { applyBenneSingleColumnEditorLayout } from './benneEditorLayout';
+import { camelCaseId } from './bennescript/idsIndex';
+import type { MainTreeNode } from './mainTreeProvider';
 import { openBenneDialogTypeScript } from './roomScriptNavigation';
 import { promptForNameAndId } from './nameAndIdPrompt';
 import { pickWorkspaceFolder } from './roomScaffolding';
@@ -11,10 +13,12 @@ function formatJson(value: unknown): Uint8Array {
 /**
  * Create `src/game/dialogs/<id>/`, `<id>.dialog.json`, and `<id>.dialog.ts`.
  */
-export async function runCreateDialogWizard(preferredFolder?: vscode.WorkspaceFolder): Promise<void> {
+export async function runCreateDialogWizard(
+    preferredFolder?: vscode.WorkspaceFolder
+): Promise<Extract<MainTreeNode, { kind: 'dialog' }> | undefined> {
     const folder = await pickWorkspaceFolder(preferredFolder);
     if (!folder) {
-        return;
+        return undefined;
     }
 
     const named = await promptForNameAndId({
@@ -25,7 +29,7 @@ export async function runCreateDialogWizard(preferredFolder?: vscode.WorkspaceFo
         fallbackId: 'dialog'
     });
     if (!named) {
-        return;
+        return undefined;
     }
     const { name, id } = named;
 
@@ -36,7 +40,7 @@ export async function runCreateDialogWizard(preferredFolder?: vscode.WorkspaceFo
     try {
         await vscode.workspace.fs.stat(dialogDir);
         void vscode.window.showErrorMessage(`Dialog folder already exists: ${id}`);
-        return;
+        return undefined;
     } catch {
         /* create */
     }
@@ -53,9 +57,19 @@ export async function runCreateDialogWizard(preferredFolder?: vscode.WorkspaceFo
         ]
     };
 
-    const dialogTs = `// Dialog script for \`${id}\` (docs/bennescript-ergonomics-refactor.md §4.8): what happens when the
-// player picks an option, \`options.greeting.onChoose(() => { … })\`. The Inspector's option "Script…"
-// buttons add them, with imports from \`./${id}.ids\`.
+    const dialogTs = `// ${name}: what happens when the player picks each option. The options themselves (their
+// text, and whether they start switched on) are edited in the Inspector; its Script… button
+// next to an option adds a handler here. The player says the option's text, then the handler runs:
+//
+//   options.greeting.onChoose(() => {
+//     Player: \`Nice to meet you.\`
+//     options.askAboutKey.on()   // show another option
+//     dialog.end()               // close the conversation (nothing after this runs)
+//   })
+//
+// onChooseOnce(…) works the same way but removes the option once it's been picked.
+// \`dialog\` and \`options\` are imported from './${id}.ids'. Start the conversation from another
+// script with dialogs.${camelCaseId(id)}.start().
 `;
 
     await vscode.workspace.fs.createDirectory(dialogDir);
@@ -63,8 +77,9 @@ export async function runCreateDialogWizard(preferredFolder?: vscode.WorkspaceFo
     await vscode.workspace.fs.writeFile(dialogTsUri, new TextEncoder().encode(dialogTs));
 
     void vscode.window.showInformationMessage(
-        `Created dialog "${name}" (${id}). Open it from the BENNE tree → Dialogs to edit options in the Inspector.`
+        `Created dialog "${name}" (${id}). Edit its options in the Inspector.`
     );
+    return { kind: 'dialog', folder, id, name, uri: dialogJsonUri };
 }
 
 /** Single-column layout, then open the dialog TypeScript companion (Inspector edits JSON). */

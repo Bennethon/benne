@@ -93,6 +93,17 @@ export function sameContent(a: ContentRef, b: ContentRef, opts?: { anyCharacterR
     return x.roomId === y.roomId && x.dialogId === y.dialogId && x.guiId === y.guiId;
 }
 
+/** `rusty-bucket` → `rustyBucket`, `AI problem` → `aiProblem` (mirrors `camelCaseId` in scripts/lib/benneNames.mjs). */
+export function camelCaseId(id: string): string {
+    const parts = String(id).split(/[^A-Za-z0-9]+/).filter(Boolean);
+    if (parts.length === 0) {
+        return '';
+    }
+    const [first, ...rest] = parts;
+    const head = /^[A-Z0-9]+$/.test(first) ? first.toLowerCase() : first[0].toLowerCase() + first.slice(1);
+    return head + rest.map((p) => p[0].toUpperCase() + p.slice(1)).join('');
+}
+
 /** `talkTo` → `TalkTo` (mirrors `pascalCaseId` in scripts/lib/benneNames.mjs). */
 export function pascalCaseId(id: string): string {
     return String(id)

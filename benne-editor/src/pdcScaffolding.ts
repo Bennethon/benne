@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { MainTreeNode } from './mainTreeProvider';
 import { promptForNameAndId } from './nameAndIdPrompt';
 import { pickWorkspaceFolder } from './roomScaffolding';
 
@@ -9,10 +10,12 @@ function formatJson(value: unknown): Uint8Array {
 /**
  * Create `src/game/pdcs/<id>/` and `<id>.pdc.json` (editor-only; not loaded by the shipped game).
  */
-export async function runCreatePdcWizard(preferredFolder?: vscode.WorkspaceFolder): Promise<void> {
+export async function runCreatePdcWizard(
+    preferredFolder?: vscode.WorkspaceFolder
+): Promise<Extract<MainTreeNode, { kind: 'pdc' }> | undefined> {
     const folder = await pickWorkspaceFolder(preferredFolder);
     if (!folder) {
-        return;
+        return undefined;
     }
 
     const named = await promptForNameAndId({
@@ -24,7 +27,7 @@ export async function runCreatePdcWizard(preferredFolder?: vscode.WorkspaceFolde
         fallbackId: 'puzzle-chart'
     });
     if (!named) {
-        return;
+        return undefined;
     }
     const { name, id } = named;
 
@@ -34,7 +37,7 @@ export async function runCreatePdcWizard(preferredFolder?: vscode.WorkspaceFolde
     try {
         await vscode.workspace.fs.stat(pdcDir);
         void vscode.window.showErrorMessage(`Puzzle chart folder already exists: ${id}`);
-        return;
+        return undefined;
     } catch {
         /* create */
     }
@@ -48,7 +51,6 @@ export async function runCreatePdcWizard(preferredFolder?: vscode.WorkspaceFolde
     await vscode.workspace.fs.createDirectory(pdcDir);
     await vscode.workspace.fs.writeFile(pdcJsonUri, formatJson(pdcJson));
 
-    void vscode.window.showInformationMessage(
-        `Created puzzle dependency chart "${name}" (${id}). Select it in the BENNE tree to open the PDC Editor.`
-    );
+    void vscode.window.showInformationMessage(`Created puzzle dependency chart "${name}" (${id}).`);
+    return { kind: 'pdc', folder, id, name, uri: pdcJsonUri };
 }

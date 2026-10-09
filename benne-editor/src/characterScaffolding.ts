@@ -8,6 +8,7 @@ import {
     resolveCharacterAsepriteSheetForAnimations
 } from './gameDiscovery';
 import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
+import { camelCaseId } from './bennescript/idsIndex';
 import type { MainTreeNode } from './mainTreeProvider';
 import { promptForNameAndId } from './nameAndIdPrompt';
 import { pickWorkspaceFolder } from './roomScaffolding';
@@ -20,10 +21,12 @@ function formatJson(value: unknown): Uint8Array {
 /**
  * Create `src/game/characters/<id>/`, `<id>.character.json`, optional `<id>.character.ts`, and asset folder.
  */
-export async function runCreateCharacterWizard(preferredFolder?: vscode.WorkspaceFolder): Promise<void> {
+export async function runCreateCharacterWizard(
+    preferredFolder?: vscode.WorkspaceFolder
+): Promise<Extract<MainTreeNode, { kind: 'character' }> | undefined> {
     const folder = await pickWorkspaceFolder(preferredFolder);
     if (!folder) {
-        return;
+        return undefined;
     }
 
     const named = await promptForNameAndId({
@@ -34,7 +37,7 @@ export async function runCreateCharacterWizard(preferredFolder?: vscode.Workspac
         fallbackId: 'character'
     });
     if (!named) {
-        return;
+        return undefined;
     }
     const { name, id } = named;
 
@@ -46,7 +49,7 @@ export async function runCreateCharacterWizard(preferredFolder?: vscode.Workspac
     try {
         await vscode.workspace.fs.stat(charDir);
         void vscode.window.showErrorMessage(`Character folder already exists: ${id}`);
-        return;
+        return undefined;
     } catch {
         /* create */
     }
@@ -64,10 +67,17 @@ export async function runCreateCharacterWizard(preferredFolder?: vscode.Workspac
         }
     };
 
-    const charTs = `// Character script for \`${id}\` (docs/bennescript-ergonomics-refactor.md §4.9): handlers here apply
-// in every room the character is spawned in; a room script's own handler for the same verb wins.
-// The character's handle comes from \`./${id}.ids\`. The Inspector's verb chips add handlers, e.g.
-// \`onLook(() => { Player: \`…\` })\` on that handle.
+    const handle = camelCaseId(id);
+    const charTs = `// ${name}: handlers here apply in every room ${name} appears in. If a room's script handles
+// the same verb on ${name}, the room's handler wins there. Click a verb in the Inspector to add
+// a handler, or write one yourself:
+//
+//   ${handle}.onTalkTo(() => {
+//     walkToClicked()
+//     Player: \`Hello!\`
+//   })
+//
+// \`${handle}\` is imported from './${id}.ids'; other characters are \`characters.x\` from '@game'.
 `;
 
     await vscode.workspace.fs.createDirectory(charDir);
@@ -76,8 +86,7 @@ export async function runCreateCharacterWizard(preferredFolder?: vscode.Workspac
     await vscode.workspace.fs.writeFile(charTsUri, new TextEncoder().encode(charTs));
 
     void vscode.window.showInformationMessage(`Created character "${name}" (${id}). Export Aseprite to assets/images/characters/${id}/ when ready.`);
-    await vscode.window.showTextDocument(charJsonUri, { preview: false });
-    await vscode.window.showTextDocument(charTsUri, { preview: false });
+    return { kind: 'character', folder, id, name, uri: charJsonUri };
 }
 
 type CharacterNodeRef = { folder: vscode.WorkspaceFolder; characterJsonUri: vscode.Uri; characterId: string };
