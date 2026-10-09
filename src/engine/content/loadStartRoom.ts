@@ -45,5 +45,6 @@ export function loadStartRoomData(): RoomData {
     );
   }
 
-  return mod.default;
+  // A copy per load, as in {@link import('./loadRoomData.js').loadRoomDataById}.
+  return structuredClone(mod.default);
 }

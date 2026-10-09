@@ -29,7 +29,9 @@ export function loadRoomDataById(roomId: string): RoomData {
     );
   }
 
-  const data = mod.default;
+  // A copy per load: RoomScene writes runtime state (e.g. `regions.x.active`) into its room data,
+  // and the imported JSON must stay the authored default for the next load.
+  const data = structuredClone(mod.default);
   if (data.id !== roomId) {
     console.warn(
       `[Benne] loadRoomDataById: manifest id '${roomId}' but room JSON has id '${data.id}' — engine uses JSON id at runtime; fix manifest/JSON to match.`,
