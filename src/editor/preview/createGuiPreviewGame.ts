@@ -30,7 +30,7 @@ import {
   normalizeSerializedInventory,
 } from '../../engine/gameState/characterInventory';
 import { GameStateManager } from '../../engine/gameState/GameStateManager';
-import { getStartingPlayerCharacterId } from '../../game/boot/constants';
+import { getStartingPlayerCharacterId } from '../../engine/content/constants';
 import { BENNE_GAME_STATE_REGISTRY_KEY } from '../../engine/gameState/registryKey';
 import {
   guiHasButtonControls,
@@ -40,7 +40,7 @@ import {
   guiHasTextControls,
   guiHasTriggerControls,
   type GuiFontLoadRequest,
-} from '../../game/boot/collectFontLoadsForGui';
+} from '../../engine/content/collectFontLoadsForGui';
 import type { GameSettingsInitialGameState } from '../../types/game';
 import { resolveGameStateManager, setActiveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
 import {

@@ -14,4 +14,4 @@ Current docs:
 
 ## The game in `src/game/`
 
-`src/game/` holds whichever game template is loaded (`npm run set-template:<name>`). Git tracks only `src/game/boot/`; the rest is gitignored, and each template's committed source is `game-templates/<name>/`. Edits to game content in `src/game/` reach git only after `npm run sync-template-down` (`npm run template:status` shows what is unsynced). Don't run `git clean -x` there.
+`src/game/` holds whichever game template is loaded (`npm run set-template:<name>`). Git tracks nothing in `src/game/`; each template's committed source is `game-templates/<name>/`. The engine reads game content only through `src/engine/content/` (an ESLint rule enforces it). Edits to game content in `src/game/` reach git only after `npm run sync-template-down` (`npm run template:status` shows what is unsynced). Don't run `git clean -x` there.

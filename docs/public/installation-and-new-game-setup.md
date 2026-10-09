@@ -60,7 +60,6 @@ my-adventure/
 │   ├── game/              ← YOUR game lives here
 │   │   ├── game-config.json   ← resolution, verbs, cursor, audio, starting state…
 │   │   ├── globalScript.ts    ← global game logic and fallbacks
-│   │   ├── boot/              ← shared loader glue (managed by Update Engine)
 │   │   ├── rooms/             ← *.room.json + *.room.ts per room
 │   │   ├── characters/        ← *.character.json + *.character.ts
 │   │   ├── guis/              ← *.gui.json + *.gui.ts
@@ -75,7 +74,7 @@ my-adventure/
 └── vite configs / HTML entrypoints
 ```
 
-The key idea: **everything you author lives under `src/game/`**, while `src/engine/`, `src/editor/`, and `src/types/` are managed by the editor and refreshed when you update the engine. The one exception is `src/game/boot/`, a small layer of shared loader glue that the **Update Engine** command keeps in sync. Your rooms, characters, assets, scripts, and `game-config.json` are never overwritten by an engine update.
+The key idea: **everything you author lives under `src/game/`**, while `src/engine/`, `src/editor/`, and `src/types/` are managed by the editor and refreshed when you update the engine. Your rooms, characters, assets, scripts, and `game-config.json` are never overwritten by an engine update.
 
 ::: tip Data-driven by design
 Most of your content is described in JSON definition files (`*.room.json`, `*.character.json`, etc.), with light TypeScript files (`*.room.ts`, `globalScript.ts`, …) providing behavior. This separation keeps projects organized and lets the editor safely read and write your content.

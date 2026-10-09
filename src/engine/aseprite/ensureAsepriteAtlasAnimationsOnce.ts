@@ -6,7 +6,7 @@ import {
   inventoryPhaserAnimationKeyForTag,
   usesPerItemInventoryAseprite,
   usesSharedInventoryAseprite,
-} from '../../game/boot/inventoryAseprite.js';
+} from '../content/inventoryAseprite.js';
 import {
   getInventoryDefinition,
   getRegisteredInventoryDefinitionIds,

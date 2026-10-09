@@ -34,8 +34,8 @@ See [the regression testing guide](docs/testing.md) for setup, suite commands, C
 ## Project structure
 
 - `src/game/assets/` game media (`images/backgrounds`, `images/characters`, `audio`, …) — bundled via Vite
-- `src/game/` game logic and data: `game-config.json`, `globalScript.ts`, `boot/` (loaders and registration), `rooms/`, `characters/`, …
-- `src/engine/` reusable systems and scenes
+- `src/game/` game logic and data: `game-config.json`, `globalScript.ts`, `rooms/`, `characters/`, …
+- `src/engine/` reusable systems and scenes; `src/engine/content/` finds and loads the game's content
 - `src/types/` JSON and engine contract types
 
 ## AI guidance

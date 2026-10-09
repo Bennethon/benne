@@ -1,4 +1,4 @@
-import { getStartingPlayerCharacterId } from '../../game/boot/constants.js';
+import { getStartingPlayerCharacterId } from '../content/constants.js';
 
 /** Accepts v1 map, legacy string[], or empty. */
 export function normalizeSerializedInventory(raw: unknown): Record<string, number> {

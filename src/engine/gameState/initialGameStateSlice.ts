@@ -1,4 +1,4 @@
-import { getStartingPlayerCharacterId } from '../../game/boot/constants.js';
+import { getStartingPlayerCharacterId } from '../content/constants.js';
 import { getGameSettings } from '../ConfigManager.js';
 import {
   buildInitialInventoryByCharacter,

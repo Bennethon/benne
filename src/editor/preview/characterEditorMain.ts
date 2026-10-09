@@ -1,8 +1,8 @@
 import type { Game } from 'phaser';
-import { getAsepriteAssetPaths, getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/boot/characterAseprite';
-import { pickCharacterPreviewIdleTag } from '../../game/boot/characterPreviewIdleTag';
-import { readAsepriteFrameTagNamesFromRawJson } from '../../game/boot/loadAsepriteAtlasData';
-import { normalizeAsepriteJsonForPhaser } from '../../game/boot/normalizeAsepriteJson';
+import { getAsepriteAssetPaths, getAsepriteTextureKey, usesAsepriteDisplay } from '../../engine/content/characterAseprite';
+import { pickCharacterPreviewIdleTag } from '../../engine/content/characterPreviewIdleTag';
+import { readAsepriteFrameTagNamesFromRawJson } from '../../engine/content/loadAsepriteAtlasData';
+import { normalizeAsepriteJsonForPhaser } from '../../engine/content/normalizeAsepriteJson';
 import type { CharacterData } from '../../types/character';
 import {
   createCharacterPreviewPhaserGame,

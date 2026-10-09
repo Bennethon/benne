@@ -4,9 +4,8 @@
  * BENNE game-template switcher.
  *
  * Subcommands:
- *   sync-boot-down               Mirror boot files from src/game/boot/ → every game-templates/<name>/boot/.
  *   sync-template-down           Mirror template files from src/game/ → game-templates/<active>/.
- *   set-template <name>          Save current (boot + template sync-down), replace src/game/ with <name>,
+ *   set-template <name>          Save current (template sync-down), replace src/game/ with <name>,
  *                                then rebuild the editor preview bundles from it.
  *   ensure-template [name]       If no template is loaded, copy <name> (default ai-apocalypse) into
  *                                src/game/. Run by `npm install` (postinstall), so fresh clones and CI
@@ -19,14 +18,11 @@
  *
  * Active template name is read from src/game/game-config.json → `name`.
  *
- * Git tracks only src/game/boot/; the rest of src/game/ is gitignored, so switching templates
- * leaves the working tree clean. Template edits reach git when they are synced down.
+ * src/game/ is gitignored, so switching templates leaves the working tree clean. Template edits
+ * reach git when they are synced down.
  *
- * Boot files live under `src/game/boot/` and are shared across all templates.
- * `sync-boot-down` fans them out to every `game-templates/<name>/boot/`.
- *
- * Template files are everything else in `src/game/` (game-config.json,
- * globalScript.ts, and all content subdirectories except `boot/`).
+ * Template files are everything in `src/game/` (game-config.json, globalScript.ts, and all
+ * content subdirectories) except generated `*.ids.ts` handles.
  *
  * Template sync ignores editor / OS duplicate filenames (e.g. macOS
  * `game-config copy.json`, Windows `foo - Copy.json`, `foo (1).json`) so they
@@ -57,11 +53,9 @@ import { fileURLToPath } from 'node:url';
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, '..');
 const SRC_GAME = path.join(REPO_ROOT, 'src', 'game');
-const SRC_GAME_BOOT = path.join(SRC_GAME, 'boot');
 const GAME_TEMPLATES = path.join(REPO_ROOT, 'game-templates');
 const GAME_CONFIG_JSON = 'game-config.json';
 const GLOBAL_SCRIPT_TS = 'globalScript.ts';
-const BOOT_DIR_NAME = 'boot';
 /** Loaded by `ensure-template` when src/game/ has no template: what CI tests. */
 const DEFAULT_TEMPLATE = 'ai-apocalypse';
 
@@ -393,24 +387,13 @@ function isUnmanagedEditorArtifact(rel) {
 }
 
 /**
- * True for files under `boot/` (shared across all templates).
- *
- * @param {string} rel Posix-style relative path from `src/game/`.
- * @returns {boolean}
- */
-function isBootFile(rel) {
-  return rel === BOOT_DIR_NAME || rel.startsWith(`${BOOT_DIR_NAME}/`);
-}
-
-/**
- * Template-side files under src/game/: everything except `boot/` and `.gitkeep`.
+ * Template-side files under src/game/: everything except `.gitkeep`.
  *
  * @param {string} rel
  * @returns {boolean}
  */
 function isTemplateFile(rel) {
   if (path.basename(rel) === '.gitkeep') return false;
-  if (isBootFile(rel)) return false;
   // BenneScript handle modules are generated from the content (`npm run generate:game-ids`).
   if (rel.endsWith('.ids.ts')) return false;
   return true;
@@ -432,31 +415,7 @@ function isManagedTemplateFile(rel) {
  * @returns {boolean}
  */
 function isTemplateMirrorDestFile(rel) {
-  if (isBootFile(rel)) return false;
   return isManagedTemplateFile(rel) || isUnmanagedEditorArtifact(rel);
-}
-
-/**
- * Lists all template folder names under game-templates/ (directories that are
- * not `_bootstrap` and contain a `game-config.json`).
- *
- * @returns {Promise<string[]>}
- */
-async function listAllTemplateNames() {
-  const entries = await readdir(GAME_TEMPLATES, { withFileTypes: true });
-  /** @type {string[]} */
-  const names = [];
-  for (const e of entries) {
-    if (!e.isDirectory()) continue;
-    if (e.name.startsWith('_') || e.name.startsWith('.')) continue;
-    const configPath = path.join(GAME_TEMPLATES, e.name, GAME_CONFIG_JSON);
-    const configStat = await stat(configPath).catch(() => null);
-    if (configStat?.isFile()) {
-      names.push(e.name);
-    }
-  }
-  names.sort();
-  return names;
 }
 
 // ---------------------------------------------------------------------------
@@ -481,21 +440,6 @@ async function preflightRepoRoot() {
 // ---------------------------------------------------------------------------
 
 /**
- * Build a plan to mirror src/game/boot/ → game-templates/<name>/boot/.
- *
- * @param {string} templateName
- * @returns {Promise<MirrorPlan>}
- */
-async function buildBootDownPlanForTemplate(templateName) {
-  const destRoot = path.join(GAME_TEMPLATES, templateName, BOOT_DIR_NAME);
-  return planMirror({
-    sourceRoot: SRC_GAME_BOOT,
-    destRoot,
-    label: `Sync boot files (src/game/boot → game-templates/${templateName}/boot)`,
-  });
-}
-
-/**
  * @param {string} templateName
  * @returns {Promise<MirrorPlan>}
  */
@@ -517,50 +461,6 @@ async function buildTemplateDownPlan(templateName) {
   });
 }
 
-async function runSyncBootDown() {
-  const templateNames = await listAllTemplateNames();
-  if (templateNames.length === 0) {
-    console.log('No template folders found under game-templates/. Nothing to do.');
-    return;
-  }
-
-  const bootStat = await stat(SRC_GAME_BOOT).catch(() => null);
-  if (!bootStat?.isDirectory()) {
-    throw new Error('src/game/boot/ does not exist. Nothing to sync.');
-  }
-
-  /** @type {MirrorPlan[]} */
-  const plans = [];
-  for (const name of templateNames) {
-    plans.push(await buildBootDownPlanForTemplate(name));
-  }
-
-  let anyChanges = false;
-  for (const plan of plans) {
-    renderPlan(plan);
-    if (planHasChanges(plan)) anyChanges = true;
-  }
-
-  if (!anyChanges) {
-    console.log('\nAll templates already in sync. Nothing to do.');
-    return;
-  }
-
-  const ok = await confirm('\nApply boot sync to all templates?');
-  if (!ok) {
-    console.log('Aborted. No changes written.');
-    process.exitCode = 1;
-    return;
-  }
-
-  for (const plan of plans) {
-    if (planHasChanges(plan)) {
-      await applyPlan(plan);
-    }
-  }
-  console.log(`Boot sync applied to ${templateNames.length} template(s).`);
-}
-
 async function runSyncTemplateDown() {
   const activeName = await readTemplateName(path.join(SRC_GAME, GAME_CONFIG_JSON));
   const plan = await buildTemplateDownPlan(activeName);
@@ -579,19 +479,17 @@ async function runSyncTemplateDown() {
   console.log(`Template "${activeName}" sync applied.`);
 }
 
-/** Delete everything in src/game/ except boot/, which git tracks. */
-async function clearSrcGameExceptBoot() {
+/** Delete everything in src/game/. */
+async function clearSrcGame() {
   assertInside(REPO_ROOT, SRC_GAME);
   await mkdir(SRC_GAME, { recursive: true });
   for (const entry of await readdir(SRC_GAME)) {
-    if (entry === BOOT_DIR_NAME) continue;
     await rm(path.join(SRC_GAME, entry), { recursive: true, force: true });
   }
 }
 
 /**
- * Copy game-templates/<name>/ into src/game/, except boot/ (src/game/boot/ is the source the
- * templates' copies are synced from).
+ * Copy game-templates/<name>/ into src/game/.
  *
  * @param {string} templateName
  * @returns {Promise<number>} Files copied.
@@ -599,7 +497,7 @@ async function clearSrcGameExceptBoot() {
 async function copyTemplateIntoSrcGame(templateName) {
   const templateDir = path.join(GAME_TEMPLATES, templateName);
   const templateFiles = (await listFilesRecursive(templateDir)).filter(
-    (rel) => path.basename(rel) !== '.gitkeep' && !isBootFile(rel) && !isUnmanagedEditorArtifact(rel)
+    (rel) => path.basename(rel) !== '.gitkeep' && !isUnmanagedEditorArtifact(rel)
   );
   for (const rel of templateFiles) {
     const src = path.join(templateDir, rel);
@@ -623,7 +521,7 @@ async function runEnsureTemplate(templateName) {
   if (configName !== templateName) {
     throw new Error(`game-templates/${templateName}/game-config.json has "name": "${configName}".`);
   }
-  await clearSrcGameExceptBoot();
+  await clearSrcGame();
   const copied = await copyTemplateIntoSrcGame(templateName);
   console.log(`src/game/ had no template; loaded "${templateName}" (${copied} files).`);
 }
@@ -678,20 +576,7 @@ async function runSetTemplate(targetName) {
     );
   }
 
-  // Build sync-down plans.
-  const allTemplates = await listAllTemplateNames();
-
-  // Boot sync: src/game/boot/ → every template's boot/.
-  /** @type {MirrorPlan[]} */
-  const bootPlans = [];
-  const bootStat = await stat(SRC_GAME_BOOT).catch(() => null);
-  if (bootStat?.isDirectory()) {
-    for (const name of allTemplates) {
-      bootPlans.push(await buildBootDownPlanForTemplate(name));
-    }
-  }
-
-  // Template sync: src/game/ (non-boot) → active template.
+  // Template sync: src/game/ → active template.
   /** @type {MirrorPlan | null} */
   let templatePlan = null;
   if (currentName) {
@@ -708,13 +593,10 @@ async function runSetTemplate(targetName) {
 
   // Preview everything up-front.
   console.log(`\n=== set-template: ${currentName ?? '(unknown)'} → ${targetName} ===`);
-  for (const plan of bootPlans) {
-    if (planHasChanges(plan)) renderPlan(plan);
-  }
   if (templatePlan) renderPlan(templatePlan);
   console.log('\nThen:');
-  console.log(`  - delete src/game/ except boot/`);
-  console.log(`  - copy game-templates/${targetName}/** (except boot/) → src/game/`);
+  console.log(`  - delete src/game/`);
+  console.log(`  - copy game-templates/${targetName}/** → src/game/`);
   console.log('  - rebuild the editor preview bundles (npm --prefix benne-editor run build:previews)');
 
   const ok = await confirm('\nProceed with full template switch?');
@@ -724,35 +606,25 @@ async function runSetTemplate(targetName) {
     return;
   }
 
-  // 1. Apply boot sync-down to all templates.
-  let bootSynced = 0;
-  for (const plan of bootPlans) {
-    if (planHasChanges(plan)) {
-      await applyPlan(plan);
-      bootSynced++;
-    }
-  }
-  console.log(`[1/5] Boot sync-down applied to ${bootSynced}/${allTemplates.length} template(s).`);
-
-  // 2. Apply template sync-down for current template.
+  // 1. Apply template sync-down for current template.
   if (templatePlan && planHasChanges(templatePlan)) {
     await applyPlan(templatePlan);
-    console.log(`[2/5] Template "${currentName}" sync-down applied.`);
+    console.log(`[1/4] Template "${currentName}" sync-down applied.`);
   } else {
-    console.log('[2/5] Active template already in sync (or skipped).');
+    console.log('[1/4] Active template already in sync (or skipped).');
   }
 
-  // 3. Wipe src/game/, keeping the tracked boot/ (step 1 already fanned it out to the templates).
-  await clearSrcGameExceptBoot();
-  console.log('[3/5] src/game/ cleared (boot/ kept).');
+  // 2. Wipe src/game/.
+  await clearSrcGame();
+  console.log('[2/4] src/game/ cleared.');
 
-  // 4. Copy target template files in (everything but boot/).
+  // 3. Copy target template files in.
   const copied = await copyTemplateIntoSrcGame(targetName);
-  console.log(`[4/5] Copied ${copied} file(s) from game-templates/${targetName}/ into src/game/.`);
+  console.log(`[3/4] Copied ${copied} file(s) from game-templates/${targetName}/ into src/game/.`);
 
-  // 5. Rebuild the previews and BENNE Play (benne-editor/media/, untracked) from the new game, so
+  // 4. Rebuild the previews and BENNE Play (benne-editor/media/, untracked) from the new game, so
   // the editor never shows the previous template.
-  console.log('[5/5] Rebuilding editor preview bundles…');
+  console.log('[4/4] Rebuilding editor preview bundles…');
   const build = spawnSync('npm', ['--prefix', 'benne-editor', 'run', 'build:previews'], {
     cwd: REPO_ROOT,
     stdio: 'inherit',
@@ -782,7 +654,6 @@ async function runSetTemplate(targetName) {
 
 function printUsage() {
   console.log(`Usage:
-  node scripts/switch-game-template.mjs sync-boot-down      [--yes]
   node scripts/switch-game-template.mjs sync-template-down   [--yes]
   node scripts/switch-game-template.mjs set-template <name>  [--yes]
   node scripts/switch-game-template.mjs ensure-template [name]
@@ -800,9 +671,6 @@ async function main() {
   await preflightRepoRoot();
 
   switch (subcommand) {
-    case 'sync-boot-down':
-      await runSyncBootDown();
-      break;
     case 'sync-template-down':
       await runSyncTemplateDown();
       break;

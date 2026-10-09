@@ -31,7 +31,6 @@
     "watch:benne-play": "vite build --watch --config vite.benne-play.config.ts",
     "test:pathfinding": "node scripts/pathfinding-regression.mjs",
     "preview": "vite preview",
-    "sync-boot-down": "node scripts/switch-game-template.mjs sync-boot-down",
     "sync-template-down": "node scripts/switch-game-template.mjs sync-template-down",
     "set-template": "node scripts/switch-game-template.mjs set-template",
     "template:status": "node scripts/switch-game-template.mjs status",

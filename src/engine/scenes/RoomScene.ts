@@ -20,12 +20,12 @@ import {
   type GameStateActivePlayerCharacterChangedPayload,
   type GameStateVariableChangedPayload,
 } from '../../types/gameState';
-import { cursorPhaserAnimationKey, roomPropPhaserAnimationKey } from '../../game/boot/asepritePhaserAnimationKeys';
+import { cursorPhaserAnimationKey, roomPropPhaserAnimationKey } from '../content/asepritePhaserAnimationKeys';
 import {
   getPerItemInventoryTextureKey,
   inventoryPhaserAnimationKeyForTag,
   sharedInventoryTextureKey,
-} from '../../game/boot/inventoryAseprite';
+} from '../content/inventoryAseprite';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
 import {
   inventoryCursorAnimationVariableKey,
@@ -114,7 +114,7 @@ import {
   applyGameCursorSpriteHotspot,
   CURSOR_TEXTURE_KEY,
   isBenneGameCursorAsepriteEnabled,
-} from '../../game/boot/cursorAseprite';
+} from '../content/cursorAseprite';
 import {
   syncBenneRoomPropTightWorldPosition,
   warnDevIfAsepriteJsonMissingSpriteSourceSize,
@@ -162,7 +162,7 @@ import { resolvePointerVerbForTarget, type PointerVerbTarget } from '../verbs/re
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { BENNE_USER_INPUT_DISABLED_REGISTRY_KEY } from '../input/userInputDisabledRegistry';
 import { incrementRoomVisitCount } from '../gameState/roomVisitState';
-import { getInternalHeight, getInternalWidth, SCENE_ROOM } from '../../game/boot/constants';
+import { getInternalHeight, getInternalWidth, SCENE_ROOM } from '../content/constants';
 import type { CharacterAnimationsConfig } from '../../types/character';
 import type { CharacterData } from '../../types/character';
 import type { CharacterFollowOptions } from '../../types/characterFollow';
@@ -244,7 +244,7 @@ import {
   type InteractionActivity,
 } from '../interaction/interactionActivity.js';
 import { BENNE_ROOM_START_KIND_KEY, type BenneRoomStartKind } from './roomStartKindConstants.js';
-import { getAllGuiData } from '../../game/boot/loadGuiData';
+import { getAllGuiData } from '../content/loadGuiData';
 import {
   applyRoomStackDepths,
   sortRoomStackEntities,

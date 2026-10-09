@@ -1,4 +1,4 @@
-import { setBenneWebviewPlayAssetBase } from '../../game/boot/resolveGameAssetUrl';
+import { setBenneWebviewPlayAssetBase } from '../../engine/content/resolveGameAssetUrl';
 
 const g = globalThis as { __BENNE_PLAY_MEDIA_BASE__?: string };
 const raw = typeof g.__BENNE_PLAY_MEDIA_BASE__ === 'string' ? g.__BENNE_PLAY_MEDIA_BASE__ : undefined;

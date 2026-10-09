@@ -1,4 +1,4 @@
-import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from '../game/boot/cursorAseprite';
+import { CURSOR_HOTSPOT_PRESETS, isValidGameSettingsCursorHotspot } from './content/cursorAseprite';
 import type {
   GameSettings,
   GameSettingsCamera,
@@ -10,7 +10,7 @@ import { readEffectiveDialogSettings } from './dialog/dialogGameState.js';
 import { readEffectiveSpeechSettings } from './dialog/speechGameState.js';
 import type { GameStateManager } from './gameState/GameStateManager.js';
 import { DEFAULT_VERB_TOKEN, WALK_TO_VERB_ID } from './verbs/verbConfig';
-import rawSettings from '../game/game-config.json';
+import rawSettings from './content/gameConfigJson';
 
 const SPEECH_DEFAULTS: GameSettingsSpeech = {
   clickToSkip: false,

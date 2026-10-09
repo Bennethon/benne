@@ -4,7 +4,7 @@ import { gameEvents } from '../../engine/events/EventBus';
 import { tryGetActiveGameStateManager } from '../../engine/gameState/resolveGameStateManager';
 import { getRegisteredInventoryDefinitionIds } from '../../engine/inventory/inventoryDefinitionRegistry';
 import { wireRoomTransitions } from '../../engine/scenes/wireRoomTransitions';
-import { registerGameContent } from '../../game/boot/registerGameContent';
+import { registerGameContent } from '../../engine/content/registerGameContent';
 
 const parent = document.querySelector<HTMLElement>('#game-container');
 if (!parent) {

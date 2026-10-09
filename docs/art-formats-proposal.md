@@ -30,12 +30,12 @@ Art is found by convention under `src/game/assets/images/`, and each content typ
 | Cursor | `cursor/cursor.{png,json}` | `game-config.json` `cursor.display.aseprite` | `CURSOR_TEXTURE_KEY` | `cursor:<tag>` | scene-global |
 | Room background | any image path | `room.background.image` | `bg:<roomId>` | (none) | (none) |
 
-Path and key helpers: [characterAseprite.ts](../src/game/boot/characterAseprite.ts), [roomAseprite.ts](../src/game/boot/roomAseprite.ts), [guiAseprite.ts](../src/game/boot/guiAseprite.ts), [inventoryAseprite.ts](../src/game/boot/inventoryAseprite.ts), [cursorAseprite.ts](../src/game/boot/cursorAseprite.ts), [asepritePhaserAnimationKeys.ts](../src/game/boot/asepritePhaserAnimationKeys.ts).
+Path and key helpers: [characterAseprite.ts](../src/engine/content/characterAseprite.ts), [roomAseprite.ts](../src/engine/content/roomAseprite.ts), [guiAseprite.ts](../src/engine/content/guiAseprite.ts), [inventoryAseprite.ts](../src/engine/content/inventoryAseprite.ts), [cursorAseprite.ts](../src/engine/content/cursorAseprite.ts), [asepritePhaserAnimationKeys.ts](../src/engine/content/asepritePhaserAnimationKeys.ts).
 
 ### 1.2 The load pipeline
 
-1. **Discover.** [loadAsepriteAtlasData.ts](../src/game/boot/loadAsepriteAtlasData.ts) eagerly globs every sheet JSON with `import.meta.glob`, one glob per content kind.
-2. **Normalise.** [normalizeAsepriteJson.ts](../src/game/boot/normalizeAsepriteJson.ts) renumbers hash-export frame keys (`"hank 0.aseprite"`) to `"0"`, `"1"`, … so that `createFromAseprite` can resolve tag `from`/`to` ranges.
+1. **Discover.** [loadAsepriteAtlasData.ts](../src/engine/content/loadAsepriteAtlasData.ts) eagerly globs every sheet JSON with `import.meta.glob`, one glob per content kind.
+2. **Normalise.** [normalizeAsepriteJson.ts](../src/engine/content/normalizeAsepriteJson.ts) renumbers hash-export frame keys (`"hank 0.aseprite"`) to `"0"`, `"1"`, … so that `createFromAseprite` can resolve tag `from`/`to` ranges.
 3. **Namespace.** Five near-identical `prefix…AsepriteFrameTags` functions rewrite `meta.frameTags[].name` so that animations on the scene-global `AnimationManager` don't collide.
 4. **Queue.** [BootScene.ts](../src/engine/scenes/BootScene.ts) (GUI, inventory, cursor) and `queueRoomSceneAssetLoads` in [roomSceneBootstrap.ts](../src/engine/scenes/roomSceneBootstrap.ts) (room sheet, characters) call `load.aseprite({ textureURL, atlasURL: <normalised object> })`.
 5. **Create animations.** `createFromAseprite` registers one Phaser animation per frame tag. For characters this happens on the sprite (`spawnAsepriteCharacter` in [RoomScene.ts](../src/engine/scenes/RoomScene.ts)). Props register on the scene in `spawnRoomProps`. GUI and inventory sheets register once per game through [ensureAsepriteAtlasAnimationsOnce.ts](../src/engine/aseprite/ensureAsepriteAtlasAnimationsOnce.ts), and the cursor registers on the scene.
@@ -68,7 +68,7 @@ A character can already avoid Aseprite with `display.defaultImage`, but then it 
   - GUI and inventory scaffolding and both tree providers also read Aseprite JSON.
 - **Previews.** [buildPreviewManifest.ts](../src/editor/preview/buildPreviewManifest.ts) fetches the JSON from disk, normalises and prefixes it again, and emits `kind: 'aseprite'` load entries. The character, GUI and inventory preview games each call `createFromAseprite` themselves.
 
-Outside `src/game/boot/` and `src/engine/aseprite/`, over 500 lines in about 30 files mention Aseprite. Once animations exist, playback has nothing Aseprite-specific in it. The coupling is in finding the files, loading them, building animations, trim and slice metadata, and the tooling above.
+Outside `src/engine/content/` and `src/engine/aseprite/`, over 500 lines in about 30 files mention Aseprite. Once animations exist, playback has nothing Aseprite-specific in it. The coupling is in finding the files, loading them, building animations, trim and slice metadata, and the tooling above.
 
 ## 2. What BENNE needs from any art source
 
@@ -412,7 +412,7 @@ The images importer then treats a decoded file as a one-animation grid strip wit
 ## 6. What changes in the code
 
 **Engine.**
-- `src/engine/art/` holds the model, the importer registry and the Phaser adapter. `src/game/boot/` keeps only the Vite globs, a step towards the roadmap item "Remove the engine's dependency on `src/game/boot/`".
+- `src/engine/art/` holds the model, the importer registry and the Phaser adapter. `src/engine/content/` keeps only the Vite globs.
 - `BootScene` and `queueRoomSceneAssetLoads` call `queueArtLoad` instead of `load.aseprite`.
 - `ensureAsepriteAtlasAnimationsOnce`, `spawnRoomProps`, the cursor setup and `spawnAsepriteCharacter` call `createAnimationsFromModel`.
 - `display.defaultImage` becomes a one-frame model, so characters have one spawn path instead of two.

@@ -123,32 +123,11 @@ async function main() {
 
     console.log('');
     console.log('Packaging VSIX…');
-    console.log('  1. sync-boot-down    (src/game/boot → game-templates/*/boot)');
-    console.log('  2. bundle:scaffold   (engine + templates → benne-editor/scaffold/)');
-    console.log('  3. build:previews    (room, character, GUI, inventory, BENNE Play → media/)');
-    console.log('  4. webpack package   (extension + Inspector + PDC editor → dist/)');
-    console.log('  5. vsce package      (write .vsix)');
+    console.log('  1. bundle:scaffold   (engine + templates → benne-editor/scaffold/)');
+    console.log('  2. build:previews    (room, character, GUI, inventory, BENNE Play → media/)');
+    console.log('  3. webpack package   (extension + Inspector + PDC editor → dist/)');
+    console.log('  4. vsce package      (write .vsix)');
     console.log('');
-
-    // Fan the shared boot layer (src/game/boot) out to every game-templates/<name>/boot
-    // BEFORE bundling, so the scaffold never ships a stale boot file. Without this, a new
-    // boot export (e.g. video loader glue) added to the dev slot would be missing from the
-    // templates the VSIX bundles, breaking both freshly created games and engine updates.
-    const syncCode = run(
-        'node',
-        ['scripts/switch-game-template.mjs', 'sync-boot-down', '--yes'],
-        REPO_ROOT,
-    );
-    if (syncCode !== 0) {
-        console.error('');
-        console.error(
-            'sync-boot-down failed; aborting before packaging so the VSIX cannot ship a stale boot layer.',
-        );
-        if (doBump) {
-            console.error('Fix the error and retry with: npm run package:extension:no-bump');
-        }
-        process.exit(syncCode);
-    }
 
     const exitCode = run('npm', ['exec', '--', '@vscode/vsce', 'package'], EXTENSION_DIR);
     if (exitCode !== 0) {

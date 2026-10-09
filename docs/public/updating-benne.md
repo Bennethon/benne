@@ -63,15 +63,14 @@ The update is careful to refresh only engine-managed code and leave your authore
 
 | Updated | Preserved |
 |---------|-----------|
-| `src/engine/`, `src/editor/`, `src/types/` | `src/game/` (rooms, characters, GUIs, inventory, dialogs, assets, scripts) |
-| `src/game/boot/` — shared loader glue | `game-config.json`, `globalScript.ts`, and all your `*.room.ts` / `*.ts` scripts |
+| `src/engine/`, `src/editor/`, `src/types/` | All of `src/game/`: rooms, characters, GUIs, inventory, dialogs, assets, `game-config.json`, `globalScript.ts` and your scripts |
 | Vite configs, HTML entrypoints, `scripts/` | `README.md`, `.vscode/settings.json` |
 | `package.json` scripts and the `phaser` / `typescript` / `vite` versions | `package.json` `name`, `private`, `version` |
 | `.benne-project` version stamps | `templateId`, `projectName`, `createdAt` |
 | Engine files the new engine no longer has are **removed** (for example the old scripting API in `src/engine/scripting/`, gone since 0.1.0), along with folders they leave empty | Any other file you added, including your own files in engine folders |
 
-::: info Why `src/game/boot/` is the one exception
-The `boot/` folder is a thin layer of shared engine glue (for example, the asset-URL resolver) that engine modules import. New engine features can require new boot exports, so the update overwrites and adds boot files to keep them in lockstep with the engine. It's the **only** part of `src/game/` an update touches — your rooms, characters, assets, scripts, and configuration are never overwritten.
+::: info Games made before 0.1.0 have a `src/game/boot/` folder
+Earlier versions kept the engine's content loaders in `src/game/boot/`. They now live in the engine (`src/engine/content/`), so updating to 0.1.0 or later deletes `src/game/boot/`. It's the only thing under `src/game/` an update ever removes, and it was never yours to edit: your rooms, characters, assets, scripts and configuration are untouched.
 :::
 
 ### Version checks
@@ -107,5 +106,5 @@ In a standalone game, rebuilt previews are written into the project (under `.ben
 - BENNE has a single version: the extension's semver.
 - Updating the extension upgrades your tooling and the engine used for new games.
 - Existing games adopt a new engine only when you run **BENNE: Update Engine**.
-- Updates replace engine code and the small `boot/` glue layer but never touch your authored content or configuration.
+- Updates replace engine code but never touch your authored content or configuration.
 - Rebuild preview bundles if previews look stale after an update.

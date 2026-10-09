@@ -1,5 +1,5 @@
 import type * as Phaser from 'phaser';
-import { getBenneVideoBootEntries } from '../../game/boot/resolveGameAssetUrl.js';
+import { getBenneVideoBootEntries } from '../content/resolveGameAssetUrl.js';
 
 /**
  * Queues every bundled `assets/videos` file for the boot loader. Phaser only registers the URLs in

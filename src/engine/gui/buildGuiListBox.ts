@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import gameFontsManifest from '../../game/assets/fonts/fonts.json';
+import gameFontsManifest from '../content/gameFontsManifest';
 import type { GameBitmapFontDefinition, GameFontsManifest } from '../../types/fonts';
 import type { GuiData, GuiListBoxControl, GuiTextOutline } from '../../types/gui';
 import { gameEvents } from '../events/EventBus';

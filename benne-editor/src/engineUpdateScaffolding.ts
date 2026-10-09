@@ -4,7 +4,6 @@ import { findBenneGameFolders } from './gameDiscovery';
 import {
     compareSemver,
     copySharedScaffold,
-    copyTemplateBoot,
     ensureGameEslintConfig,
     findObsoleteEngineFiles,
     mergeGamePackageJson,
@@ -60,7 +59,7 @@ function formatScanSummary(
         `${scan.overwriteFiles.length} overwritten, ` +
         `${scan.newFiles.length} new` +
         (obsolete.length > 0 ? `, ${obsolete.length} removed (no longer part of the engine)` : '') +
-        `. src/game/ is preserved (except src/game/boot/).`
+        `. src/game/ is preserved.`
     );
 }
 
@@ -134,7 +133,7 @@ export async function runUpdateEngineWizard(
 
     let scan;
     try {
-        scan = await scanScaffoldUpdate(gameFolder.uri, extensionPath, existingProject?.templateId);
+        scan = await scanScaffoldUpdate(gameFolder.uri, extensionPath);
     } catch (e) {
         void vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e));
         return;
@@ -203,24 +202,6 @@ export async function runUpdateEngineWizard(
             } catch (e) {
                 channel.appendLine(
                     `Copy failed: ${e instanceof Error ? e.message : String(e)}`,
-                );
-                return false;
-            }
-
-            try {
-                const bootUpdated = await copyTemplateBoot(
-                    gameFolder.uri,
-                    extensionPath,
-                    existingProject?.templateId,
-                );
-                channel.appendLine(
-                    bootUpdated
-                        ? 'Updated src/game/boot/ from the engine scaffold (rest of src/game/ preserved).'
-                        : 'No scaffold boot files found; left src/game/boot/ unchanged.',
-                );
-            } catch (e) {
-                channel.appendLine(
-                    `Boot update failed: ${e instanceof Error ? e.message : String(e)}`,
                 );
                 return false;
             }

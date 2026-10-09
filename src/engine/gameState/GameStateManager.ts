@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { getStartingPlayerCharacterId } from '../../game/boot/constants.js';
+import { getStartingPlayerCharacterId } from '../content/constants.js';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry.js';
 import type {
   BenneGameStateFlagValue,

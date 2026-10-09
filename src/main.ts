@@ -2,7 +2,7 @@ import './style.css';
 import { createBenneGame } from './engine/Game';
 import { gameEvents } from './engine/events/EventBus';
 import { wireRoomTransitions } from './engine/scenes/wireRoomTransitions';
-import { registerGameContent } from './game/boot/registerGameContent';
+import { registerGameContent } from './engine/content/registerGameContent';
 import { installWebglRecovery } from './engine/webglRecovery';
 
 const parent = document.querySelector<HTMLElement>('#game-container');

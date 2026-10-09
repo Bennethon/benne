@@ -1,5 +1,5 @@
 {
-  "_doc": "Engine files that earlier BENNE versions shipped to games and this one no longer does. bundle:scaffold copies the list into the scaffold manifest, and Update Engine deletes these files from a game when it finds them (never anything under src/game/). Add a group when a release removes or renames a shipped file; tests/unit/removedEngineFiles.test.ts checks the list.",
+  "_doc": "Engine files that earlier BENNE versions shipped to games and this one no longer does. bundle:scaffold copies the list into the scaffold manifest, and Update Engine deletes these files from a game when it finds them (never anything under src/game/ except the old src/game/boot/ engine layer). Add a group when a release removes or renames a shipped file; tests/unit/removedEngineFiles.test.ts checks the list.",
   "groups": [
     {
       "version": "0.1.0",
@@ -44,6 +44,32 @@
         "src/engine/scripting/types.ts",
         "src/engine/scripting/wireBenneGlobalScripts.ts",
         "src/types/generated/benne-game-ids.d.ts"
+      ]
+    },
+    {
+      "version": "0.1.0",
+      "why": "Content loading moved from src/game/boot/ into the engine (src/engine/content/), so games no longer carry engine code.",
+      "files": [
+        "src/game/boot/asepritePhaserAnimationKeys.ts",
+        "src/game/boot/characterAseprite.ts",
+        "src/game/boot/characterPreviewIdleTag.ts",
+        "src/game/boot/collectFontLoadsForGui.ts",
+        "src/game/boot/constants.ts",
+        "src/game/boot/cursorAseprite.ts",
+        "src/game/boot/guiAseprite.ts",
+        "src/game/boot/inventoryAseprite.ts",
+        "src/game/boot/loadAsepriteAtlasData.ts",
+        "src/game/boot/loadCharacterData.ts",
+        "src/game/boot/loadGuiData.ts",
+        "src/game/boot/loadRoomData.ts",
+        "src/game/boot/loadStartRoom.ts",
+        "src/game/boot/normalizeAsepriteJson.ts",
+        "src/game/boot/queueGuiFontsForBootLoader.ts",
+        "src/game/boot/registerDialogDefinitions.ts",
+        "src/game/boot/registerGameContent.ts",
+        "src/game/boot/registerInventoryDefinitions.ts",
+        "src/game/boot/resolveGameAssetUrl.ts",
+        "src/game/boot/roomAseprite.ts"
       ]
     }
   ]

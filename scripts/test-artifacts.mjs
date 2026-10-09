@@ -35,18 +35,12 @@ try {
   // npm/vsce must inspect a real installation rooted in this temporary extension.
   // A directory symlink makes npm resolve dependencies against the source checkout.
   await cp(path.join(repo, 'benne-editor/node_modules'), path.join(root, 'benne-editor/node_modules'), { recursive: true, verbatimSymlinks: true });
-  // Check consistency before any packaging command can synchronize templates.
-  const boot = await readdir(path.join(root, 'src/game/boot'));
-  const templates = (await readdir(path.join(root, 'game-templates'), { withFileTypes: true })).filter(e => e.isDirectory() && !/^[._]/.test(e.name)).map(e => e.name);
-  for (const template of templates) for (const file of boot) {
-    assert.equal(await readFile(path.join(root, 'game-templates', template, 'boot', file), 'utf8'), await readFile(path.join(root, 'src/game/boot', file), 'utf8'), `Stale ${template}/boot/${file}; run sync-boot-down explicitly.`);
-  }
   await run('npm', ['run', 'build'], root);
   await run('npm', ['run', 'bundle:scaffold'], root);
   await run('npm', ['run', 'build:previews'], path.join(root, 'benne-editor'));
   await run('npm', ['run', 'package'], path.join(root, 'benne-editor'));
   for (const name of ['room-preview', 'character-preview', 'gui-preview', 'inventory-preview', 'benne-play']) await exists(path.join(root, 'benne-editor/media', name, `${name}.js`));
-  for (const file of ['dist/extension.js', 'dist/room-script-id-ts-plugin.js', 'media/inspector/inspector.js', 'media/pdc-editor/pdc-editor.js', 'scaffold/shared/src/engine/Game.ts']) await exists(path.join(root, 'benne-editor', file));
+  for (const file of ['dist/extension.js', 'dist/room-script-id-ts-plugin.js', 'media/inspector/inspector.js', 'media/pdc-editor/pdc-editor.js', 'scaffold/shared/src/engine/Game.ts', 'scaffold/shared/src/engine/content/registerGameContent.ts']) await exists(path.join(root, 'benne-editor', file));
   const scaffold = path.join(root, 'benne-editor/scaffold');
   // Execute the actual package factory, without importing VS Code into the artifact process.
   const source = await readFile(path.join(repo, 'benne-editor/src/scaffoldPayload.ts'), 'utf8');
@@ -56,6 +50,8 @@ try {
   new Function('require', 'module', 'exports', compiled)(id => id === 'vscode' ? {} : require(id), module, module.exports);
   // Development-only templates (e.g. ai-apocalypse) must never reach the VSIX.
   assert.deepEqual((await readdir(path.join(scaffold, 'templates'))).sort(), Object.keys(RELEASE_TEMPLATES).sort(), 'Scaffold must bundle exactly the release templates');
+  // Content loading is engine code (src/engine/content/); a game's src/game/ holds only its own content.
+  for (const template of Object.keys(RELEASE_TEMPLATES)) assert.ok(!(await readdir(path.join(scaffold, 'templates', template))).includes('boot'), `Template ${template} must not ship a boot/ folder`);
   for (const template of Object.keys(RELEASE_TEMPLATES)) {
     const game = path.join(root, `standalone-${template}`);
     await cp(path.join(scaffold, 'shared'), game, { recursive: true });

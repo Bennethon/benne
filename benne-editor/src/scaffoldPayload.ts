@@ -49,14 +49,6 @@ export function templatesScaffoldPath(extensionPath: string): string {
     return path.join(scaffoldRoot(extensionPath), 'templates');
 }
 
-/**
- * The boot layer is the only part of `src/game/` that engine updates may overwrite.
- * It holds shared loader glue (e.g. `resolveGameAssetUrl.ts`) that engine modules import,
- * so a new engine feature can require a new boot export that an existing game would
- * otherwise never receive (the rest of `src/game/` is author content and stays untouched).
- */
-const GAME_BOOT_REL = 'src/game/boot';
-
 export async function readScaffoldManifest(extensionPath: string): Promise<ScaffoldManifest> {
     const manifestPath = path.join(scaffoldRoot(extensionPath), 'manifest.json');
     try {
@@ -169,44 +161,6 @@ function buffersEqual(a: Uint8Array, b: Uint8Array): boolean {
     return true;
 }
 
-/**
- * Resolves the boot directory inside the scaffold payload to use as the update source.
- *
- * Boot files are identical across templates (kept in sync by `sync-boot-down` at package
- * time), so we prefer the project's own `templateId` and fall back to the first template
- * present in the payload when the id is `unknown` or that template was dropped.
- */
-export async function resolveScaffoldBootDir(
-    extensionPath: string,
-    templateId: string | undefined,
-): Promise<string | undefined> {
-    const templatesRoot = templatesScaffoldPath(extensionPath);
-    const candidateIds: string[] = [];
-    if (templateId && templateId !== 'unknown') {
-        candidateIds.push(templateId);
-    }
-    try {
-        const manifest = await readScaffoldManifest(extensionPath);
-        for (const t of manifest.templates) {
-            if (!candidateIds.includes(t.id)) {
-                candidateIds.push(t.id);
-            }
-        }
-    } catch {
-        /* manifest only needed for the fallback ids */
-    }
-    for (const id of candidateIds) {
-        const bootDir = path.join(templatesRoot, id, 'boot');
-        try {
-            await vscode.workspace.fs.stat(vscode.Uri.file(bootDir));
-            return bootDir;
-        } catch {
-            /* try the next candidate */
-        }
-    }
-    return undefined;
-}
-
 async function scanSourceTree(
     files: string[],
     srcRootFs: string,
@@ -235,12 +189,11 @@ async function scanSourceTree(
 
 /**
  * Scans everything an engine update will write: the shared scaffold (engine/editor/types,
- * configs, …) plus `src/game/boot/`. The rest of `src/game/` (author content) is excluded.
+ * configs, …). `src/game/` (author content) is never written.
  */
 export async function scanScaffoldUpdate(
     gameRoot: vscode.Uri,
     extensionPath: string,
-    templateId: string | undefined,
 ): Promise<ScaffoldScanResult> {
     const result: ScaffoldScanResult = {
         newFiles: [],
@@ -251,12 +204,6 @@ export async function scanScaffoldUpdate(
     const sharedFiles = await listScaffoldSharedFiles(extensionPath);
     await scanSourceTree(sharedFiles, sharedScaffoldPath(extensionPath), gameRoot, '', result);
 
-    const bootDir = await resolveScaffoldBootDir(extensionPath, templateId);
-    if (bootDir) {
-        const bootFiles = await listFilesRecursive(vscode.Uri.file(bootDir));
-        await scanSourceTree(bootFiles, bootDir, gameRoot, GAME_BOOT_REL, result);
-    }
-
     result.newFiles.sort();
     result.unchangedFiles.sort();
     result.overwriteFiles.sort();
@@ -265,15 +212,18 @@ export async function scanScaffoldUpdate(
 
 /**
  * Whether Update Engine may delete `rel` as an obsolete engine file: a plain relative path,
- * outside `src/game/` (author content, and the boot layer, which is overwritten instead).
+ * outside `src/game/` (author content). The one exception is `src/game/boot/`, engine code that
+ * earlier versions kept there and that now lives in `src/engine/content/`.
  */
+const LEGACY_GAME_BOOT_PREFIX = 'src/game/boot/';
+
 export function isRemovableEngineFile(rel: string): boolean {
     const norm = rel.replace(/\\/g, '/');
     return (
         norm.length > 0 &&
         !path.isAbsolute(norm) &&
         !norm.split('/').some((part) => part === '..' || part === '.' || part === '') &&
-        !norm.startsWith('src/game/')
+        (!norm.startsWith('src/game/') || norm.startsWith(LEGACY_GAME_BOOT_PREFIX))
     );
 }
 
@@ -330,25 +280,6 @@ export async function copySharedScaffold(
 ): Promise<void> {
     const src = sharedScaffoldPath(extensionPath);
     await cp(src, gameRoot.fsPath, { recursive: true, force: true });
-}
-
-/**
- * Overwrites `src/game/boot/` with the scaffold's boot layer, leaving the rest of
- * `src/game/` (rooms, characters, assets, scripts) untouched. Returns `false` when the
- * payload has no boot files to copy (older scaffold), so callers can report that.
- */
-export async function copyTemplateBoot(
-    gameRoot: vscode.Uri,
-    extensionPath: string,
-    templateId: string | undefined,
-): Promise<boolean> {
-    const bootDir = await resolveScaffoldBootDir(extensionPath, templateId);
-    if (!bootDir) {
-        return false;
-    }
-    const dest = path.join(gameRoot.fsPath, 'src', 'game', 'boot');
-    await cp(bootDir, dest, { recursive: true, force: true });
-    return true;
 }
 
 export function scaffoldPackageJsonTemplate(projectName: string): Record<string, unknown> {

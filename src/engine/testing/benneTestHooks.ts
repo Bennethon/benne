@@ -11,8 +11,8 @@
  * Nothing here calls the scripting API, so the same tests run before and after the scripting port.
  */
 import * as Phaser from 'phaser';
-import { SCENE_ROOM } from '../../game/boot/constants';
-import { getAllGuiData } from '../../game/boot/loadGuiData';
+import { SCENE_ROOM } from '../content/constants';
+import { getAllGuiData } from '../content/loadGuiData';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager';
 import { BENNE_GUI_BUTTON_ID_DATA_KEY, benneGuiButtonReadEnabled, type BenneGuiButtonIdData } from '../gui/guiButtonRuntime';
 import { isInteractionActivityRunning } from '../interaction/interactionActivity';

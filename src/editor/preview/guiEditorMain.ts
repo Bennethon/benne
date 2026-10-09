@@ -4,25 +4,25 @@ import {
   guiHasGridControls,
   guiHasImageControls,
   guiHasTextControls,
-} from '../../game/boot/collectFontLoadsForGui';
+} from '../../engine/content/collectFontLoadsForGui';
 import gameFontsManifest from '../../game/assets/fonts/fonts.json';
 import {
   getAsepriteAssetPaths,
   getAsepriteTextureKey,
   usesAsepriteDisplay,
-} from '../../game/boot/guiAseprite';
+} from '../../engine/content/guiAseprite';
 import {
   sharedInventoryAssetPaths,
   sharedInventoryTextureKey,
-} from '../../game/boot/inventoryAseprite';
-import { prefixGuiAsepriteFrameTags } from '../../game/boot/loadAsepriteAtlasData';
-import { normalizeAsepriteJsonForPhaser } from '../../game/boot/normalizeAsepriteJson';
+} from '../../engine/content/inventoryAseprite';
+import { prefixGuiAsepriteFrameTags } from '../../engine/content/loadAsepriteAtlasData';
+import { normalizeAsepriteJsonForPhaser } from '../../engine/content/normalizeAsepriteJson';
 import type { GameFontsManifest } from '../../types/fonts';
 import type { GameSettingsInitialGameState } from '../../types/game';
 import type { GuiData, GuiInventoryPanelControl } from '../../types/gui';
 import { createGuiPreviewPhaserGame, type GuiPreviewGamePayload } from './createGuiPreviewGame';
 import { guiPreviewSelectBridge } from './guiPreviewSelectBridge';
-import { registerInventoryDefinitionsFromGame } from '../../game/boot/registerInventoryDefinitions';
+import { registerInventoryDefinitionsFromGame } from '../../engine/content/registerInventoryDefinitions';
 import { joinGameWebviewUri } from './previewUrls';
 
 registerInventoryDefinitionsFromGame();

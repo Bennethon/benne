@@ -10,7 +10,7 @@ import { getGameSettings } from './ConfigManager';
  *
  * **Keep this module side-effect free** — previews import `getBenneRendererConfigFields` from
  * here, and if this file pulls in `BootScene` / `RoomScene` at the top level, Vite's eager
- * `import.meta.glob` calls in the shipped-game boot path (e.g. `boot/resolveGameAssetUrl.ts`) would
+ * `import.meta.glob` calls in the shipped-game boot path (e.g. `content/resolveGameAssetUrl.ts`) would
  * copy every room / character / inventory PNG into all three preview bundles. Scene imports live
  * in `Game.ts` instead, where they're only pulled in by the shipped runtime entry.
  *

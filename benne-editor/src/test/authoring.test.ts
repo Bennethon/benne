@@ -63,18 +63,21 @@ suite('Authoring and update contracts', () => {
             await write('src/types/generated/benne-game-ids.d.ts');
             await write('src/types/generated/mine.d.ts');
             await write('src/game/rooms/x/x.room.ts');
+            await write('src/game/boot/constants.ts');
             const listed = [
                 'src/engine/scripting/index.ts',
                 'src/engine/scripting/types.ts',
                 'src/engine/scripting/missing.ts',
                 'src/types/generated/benne-game-ids.d.ts',
                 'src/game/rooms/x/x.room.ts',
+                'src/game/boot/constants.ts',
                 '../outside.ts',
             ];
             const found = await findObsoleteEngineFiles(vscode.Uri.file(root), listed);
             assert.deepEqual(found, [
                 'src/engine/scripting/index.ts',
                 'src/engine/scripting/types.ts',
+                'src/game/boot/constants.ts',
                 'src/types/generated/benne-game-ids.d.ts',
             ]);
             await removeObsoleteEngineFiles(vscode.Uri.file(root), found);
@@ -82,7 +85,10 @@ suite('Authoring and update contracts', () => {
             assert.equal(existsSync(path.join(root, 'src/engine')), false, 'emptied parent removed');
             assert.equal(existsSync(path.join(root, 'src/types/generated/mine.d.ts')), true, "the game's own file stays");
             assert.equal(existsSync(path.join(root, 'src/game/rooms/x/x.room.ts')), true);
-            assert.equal(isRemovableEngineFile('src/game/boot/main.ts'), false);
+            assert.equal(existsSync(path.join(root, 'src/game/boot')), false, 'the old boot layer is removed');
+            assert.equal(isRemovableEngineFile('src/game/boot/main.ts'), true);
+            assert.equal(isRemovableEngineFile('src/game/rooms/x/x.room.ts'), false);
+            assert.equal(isRemovableEngineFile('src/game/boot/../rooms/x/x.room.ts'), false);
             assert.equal(isRemovableEngineFile('src/engine/../game/a.ts'), false);
         } finally { await fs.rm(root, { recursive: true, force: true }); }
     });

@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { getInternalHeight, getInternalWidth } from '../game/boot/constants.js';
+import { getInternalHeight, getInternalWidth } from './content/constants.js';
 
 /**
  * PixUI-style hi-DPI canvas sizing (see `https://github.com/skhoroshavin/phaser-pixui/blob/main/example/src/main.ts`):

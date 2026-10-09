@@ -44,9 +44,7 @@ test-results/
 benne-editor/.vscode-test/
 
 # The loaded game template (npm run set-template:<name>); its source is game-templates/<name>/.
-# boot/ is shared engine glue maintained here and fanned out by sync-boot-down.
-/src/game/*
-!/src/game/boot/
+/src/game/
 
 # BenneScript handles generated from src/game/ (npm run generate:game-ids); never part of a template
 src/game/**/*.ids.ts

@@ -23,7 +23,6 @@ Sources: **ER** = [engine review](history/2026-10-03-engine-review.md), **CS** =
 ## Architecture
 
 - **Distribute the engine as a versioned package** instead of copying source into each game. (ER 2.1, CS 4)
-- **Remove the engine's dependency on `src/game/boot/`**: 19 engine files import it. A Vite virtual module or a content provider would point dependencies one way. (ER 2.2, CS 7)
 - **Break up `RoomScene.ts`** (about 6,400 lines) into systems with their own lifecycles, one at a time. (ER 2.3, CS 9)
 - **Replace module-level singletons with a per-game runtime context** (`gameEvents`, active game, state manager, registries). (ER 2.4, CS 8)
 - **Typed event bus.** `EventBus` is an untyped `Phaser.Events.EventEmitter` with string-built names. BenneScript's `events` already has an `EventName` union for engine events. (ER 2.5)

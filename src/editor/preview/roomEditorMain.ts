@@ -1,13 +1,13 @@
 import type { Game } from 'phaser';
 import type { RoomScene } from '../../engine/scenes/RoomScene';
 import type { RoomData } from '../../types/room';
-import { SCENE_ROOM } from '../../game/boot/constants';
+import { SCENE_ROOM } from '../../engine/content/constants';
 import { buildPreviewManifest } from './buildPreviewManifest';
 import { createRoomPreviewPhaserGame } from './createRoomPreviewGame';
 import { polygonEditBridge } from './polygonEditBridge';
 import { previewVisibilityBridge, type PreviewVisibilityKey } from './previewVisibilityBridge';
 import type { RoomPolygonPatch } from './polygonPatchTypes';
-import { registerInventoryDefinitionsFromGame } from '../../game/boot/registerInventoryDefinitions';
+import { registerInventoryDefinitionsFromGame } from '../../engine/content/registerInventoryDefinitions';
 
 // Mirror the GUI preview bundle: populate the engine's inventory registry so the room preview can
 // queue `inventoryPanel` Aseprite sheets and honour `stackable` semantics for any Bennescript code

@@ -1,7 +1,7 @@
 // Copied only into an isolated test workspace; never referenced by production entries.
 import './style.css';
 import { createBenneGame } from './engine/Game';
-import { registerGameContent } from './game/boot/registerGameContent';
+import { registerGameContent } from './engine/content/registerGameContent';
 import { wireRoomTransitions } from './engine/scenes/wireRoomTransitions';
 import { gameEvents } from './engine/events/EventBus';
 import { resolveGameStateManager } from './engine/gameState/resolveGameStateManager';

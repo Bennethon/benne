@@ -12,7 +12,6 @@ try {
   for (const dir of ['src/engine', 'src/types', 'scripts']) await cp(path.join(repo, dir), path.join(root, dir), { recursive: true });
   await cp(path.join(repo, 'vite-plugin-bennescript.ts'), path.join(root, 'vite-plugin-bennescript.ts'));
   await cp(path.join(repo, 'tests/fixtures/game'), path.join(root, 'src/game'), { recursive: true });
-  await cp(path.join(repo, 'src/game/boot'), path.join(root, 'src/game/boot'), { recursive: true });
   await cp(path.join(repo, 'src/style.css'), path.join(root, 'src/style.css'));
   await cp(path.join(repo, 'tests/support/browser-entry.ts'), path.join(root, 'src/main.ts'));
   await symlink(path.join(repo, 'node_modules'), path.join(root, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');

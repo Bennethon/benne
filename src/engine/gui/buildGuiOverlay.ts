@@ -4,19 +4,19 @@
  */
 import { admitGameplayClick } from '../interaction/interactionActivity.js';
 import * as Phaser from 'phaser';
-import gameFontsManifest from '../../game/assets/fonts/fonts.json';
-import { getInternalHeight, getInternalWidth } from '../../game/boot/constants';
-import { isBenneGameCursorAsepriteEnabled } from '../../game/boot/cursorAseprite';
-import { guiPhaserAnimationKey } from '../../game/boot/asepritePhaserAnimationKeys';
+import gameFontsManifest from '../content/gameFontsManifest';
+import { getInternalHeight, getInternalWidth } from '../content/constants';
+import { isBenneGameCursorAsepriteEnabled } from '../content/cursorAseprite';
+import { guiPhaserAnimationKey } from '../content/asepritePhaserAnimationKeys';
 import { getGameSettings } from '../ConfigManager';
-import { getAsepriteTextureKey, usesAsepriteDisplay } from '../../game/boot/guiAseprite';
+import { getAsepriteTextureKey, usesAsepriteDisplay } from '../content/guiAseprite';
 import {
   getPerItemInventoryTextureKey,
   inventoryPhaserAnimationKeyForTag,
   sharedInventoryTextureKey,
   usesPerItemInventoryAseprite,
   usesSharedInventoryAseprite,
-} from '../../game/boot/inventoryAseprite';
+} from '../content/inventoryAseprite';
 import type { GameBitmapFontDefinition, GameFontsManifest } from '../../types/fonts';
 import { gameEvents } from '../events/EventBus';
 import { guiAllButtonsClickEventId, guiButtonClickEventId, type GuiAllButtonsClickPayload } from '../events/guiButtonEvents';
