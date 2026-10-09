@@ -4,6 +4,12 @@
   "description": "Visual editor for the BENNE point-and-click adventure game engine.",
   "publisher": "bennethon",
   "version": "0.0.11",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bennethon/benne.git",
+    "directory": "benne-editor"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
