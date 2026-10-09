@@ -892,7 +892,7 @@ The repo can hold **multiple authored game layouts** (e.g. a two-button verb gam
 |------|------|
 | **`game-templates/<template-id>/boot/`** | Shared boot files (loaders, `registerGameContent`, asset URL helpers, Aseprite helpers, etc.) — identical across all templates. **`sync-boot-down`** mirrors **`src/game/boot/`** to every template's `boot/`. |
 | **`game-templates/<template-id>/`** | Complete template tree: `boot/`, `game-config.json`, `globalScript.ts`, `assets/`, `rooms/`, `characters/`, `guis/`, `inventory/`, etc. Each folder is one switchable template (**`2-click`**, **`9-verb`**, **`ai-apocalypse`**). |
-| **`src/game/`** | Whatever template is active right now. Boot/load logic lives under **`src/game/boot/`**; only `game-config.json` and `globalScript.ts` remain at the root alongside content folders — same shape as today’s shipped game folder. |
+| **`src/game/`** | Whatever template is active right now. Boot/load logic lives under **`src/game/boot/`**; only `game-config.json` and `globalScript.ts` remain at the root alongside content folders — same shape as today’s shipped game folder. **Git tracks only `src/game/boot/`**: the rest is gitignored, so switching templates leaves the working tree clean, and template edits reach git when **`sync-template-down`** (or **`set-template`**) copies them into **`game-templates/<name>/`**. **`git clean -x`** deletes unsynced edits there. |
 
 **`game-config.json` → `name`**
 
@@ -906,7 +906,9 @@ Implementation: **[`scripts/switch-game-template.mjs`](../scripts/switch-game-te
 |---------|--------|
 | **`npm run sync-boot-down`** | Mirror boot files from **`src/game/boot/`** → every **`game-templates/<name>/boot/`**. |
 | **`npm run sync-template-down`** | Read **`name`** from **`src/game/game-config.json`**, then mirror **template** files (everything except `boot/`) from **`src/game/`** → **`game-templates/<name>/`**. |
-| **`npm run set-template -- <name>`** | Save the **current** live tree (boot sync to all templates + template sync-down), then **replace** **`src/game/`** with the contents of **`game-templates/<name>/`** (which includes `boot/`). Shorthands: **`npm run set-template:2-click`**, **`npm run set-template:9-verb`**, **`npm run set-template:ai-apocalypse`**. It finishes by rebuilding the editor preview bundles (**`build:previews`**) from the new game. After switching, **`npm run test:playthrough`** plays the new template's tests (`tests/playthrough/<name>/`). |
+| **`npm run set-template -- <name>`** | Save the **current** live tree (boot sync to all templates + template sync-down), then **replace** everything in **`src/game/`** except `boot/` with the contents of **`game-templates/<name>/`** (minus its `boot/` copy). Shorthands: **`npm run set-template:2-click`**, **`npm run set-template:9-verb`**, **`npm run set-template:ai-apocalypse`**. It finishes by rebuilding the editor preview bundles (**`build:previews`**) from the new game. After switching, **`npm run test:playthrough`** plays the new template's tests (`tests/playthrough/<name>/`). |
+| **`npm run template:status`** | Show whether **`src/game/`** has edits not yet in **`game-templates/<name>/`** (exits 1 if so). **`npm run check`** runs it as a warning (**`check:template-sync`**). |
+| **`ensure-template [name]`** | Run by **`npm install`** (**`postinstall`**): when **`src/game/`** holds no template (a fresh clone, CI), copy in **`ai-apocalypse`** (or **`name`**). Does nothing when one is loaded. |
 
 Each mirror builds a **plan** (new / modified / unchanged / orphan deletes), prints a summary, and asks for confirmation unless **`--yes`** / **`-y`** is passed (e.g. **`npm run set-template:9-verb -- --yes`**).
 

@@ -11,3 +11,7 @@ Current docs:
 - `docs/testing.md`, `docs/publishing.md`.
 
 `docs/history/` holds dated reviews, studies and work logs. **They are not current guidance**: they describe the code as it was, and several use the old `register*Script` / `B` API, which no longer exists. Read them only for background on why something was done. See `docs/history/README.md` for what each one was and the conventions for adding to it.
+
+## The game in `src/game/`
+
+`src/game/` holds whichever game template is loaded (`npm run set-template:<name>`). Git tracks only `src/game/boot/`; the rest is gitignored, and each template's committed source is `game-templates/<name>/`. Edits to game content in `src/game/` reach git only after `npm run sync-template-down` (`npm run template:status` shows what is unsynced). Don't run `git clean -x` there.

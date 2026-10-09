@@ -94,7 +94,7 @@ Day-to-day engine and template work still happens in the BENNE monorepo:
 BENNE/
 ├── src/engine/          ← shared engine
 ├── src/editor/          ← preview / play entrypoints
-├── src/game/            ← live dev game slot
+├── src/game/            ← live dev game slot (gitignored except boot/)
 ├── game-templates/      ← switchable templates (2-click, 9-verb, ai-apocalypse)
 ├── benne-editor/        ← VS Code extension source
 └── scripts/             ← template switcher, scaffold bundler, …
