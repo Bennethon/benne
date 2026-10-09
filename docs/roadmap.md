@@ -8,11 +8,9 @@ Sources: **ER** = [engine review](history/2026-10-03-engine-review.md), **CS** =
 
 ## Correctness and data safety
 
-- **Authored room data is changed at runtime.** `RoomScene` keeps the room JSON object that `loadRoomData` returns, and `setRegionScriptActive` / `setWalkableScriptActive` write `active` into it. A later load of that room (new game, or a save without the override) can read the changed value as the authored default. Clone the definition per scene, or keep runtime state separate. (CS 1)
 - **Save files aren't tied to a game.** Keys are `benne-save-<slot>`, so two BENNE games on one origin share saves. `cloneSnapshot` copies `variables` shallowly, so nested values are shared between a snapshot and live state. Game-content migrations are separate from the engine's save version. (CS 3)
 - **Generated-ID requests during a run are dropped.** `runGenerateGameIds` returns the running promise without queuing another run, so an edit that lands mid-run can leave handles stale until the next edit. (CS 5)
 - **Engine updates can't tell an author's edit from an old engine file.** No record of installed file hashes; no staged or recoverable update. (CS 4)
-- **The 2-click template has four missing room definitions** (`bathroom`, `diningRoom`, `garage`, `outsideOffice`), allowed by the content baseline. Fix or remove them. (CS 15)
 
 ## BenneScript follow-ups
 
