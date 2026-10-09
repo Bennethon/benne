@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { applyBootAudioSettings } from '../../engine/applyAudioFromSettings';
+import { applyCharacterAnimationClips } from '../../engine/characterAnimationPlayback';
 import {
   placeSpriteByFeet,
   resolveCharacterFeetLocal,
@@ -135,7 +136,8 @@ export type CharacterPreviewGamePayload = {
   textureURL: string;
   atlasURL: string;
   character: CharacterData;
-  idleTag: string;
+  /** Aseprite tag to play first (the toolbar's Animation selection). */
+  animationTag: string;
   revokeObjectUrls: string[];
 };
 
@@ -177,7 +179,7 @@ class BenneCharacterPreviewBoot extends Phaser.Scene {
     this.scene.start(PREVIEW, {
       textureKey: this.payload.textureKey,
       character: this.payload.character,
-      idleTag: this.payload.idleTag,
+      animationTag: this.payload.animationTag,
     });
     for (const u of this.payload.revokeObjectUrls) {
       URL.revokeObjectURL(u);
@@ -188,7 +190,7 @@ class BenneCharacterPreviewBoot extends Phaser.Scene {
 class CharacterPreviewScene extends Phaser.Scene {
   private textureKey!: string;
   private character!: CharacterData;
-  private idleTag!: string;
+  private animationTag!: string;
   private sprite!: Phaser.GameObjects.Sprite;
   private feetLocal!: CharacterFeetLocal;
   private walkLocal!: Point2;
@@ -308,11 +310,11 @@ class CharacterPreviewScene extends Phaser.Scene {
   init(data: {
     textureKey: string;
     character: CharacterData;
-    idleTag: string;
+    animationTag: string;
   }): void {
     this.textureKey = data.textureKey;
     this.character = data.character;
-    this.idleTag = data.idleTag;
+    this.animationTag = data.animationTag;
   }
 
   create(): void {
@@ -323,10 +325,20 @@ class CharacterPreviewScene extends Phaser.Scene {
         : [];
 
     this.sprite = this.add.sprite(0, 0, this.textureKey).setOrigin(0, 0);
-    if (!this.anims.exists(this.idleTag)) {
-      this.anims.createFromAseprite(this.textureKey);
+    if (!this.anims.exists(this.animationTag)) {
+      const created = this.anims.createFromAseprite(this.textureKey);
+      // The game's frame timing, but every clip loops so one-shots stay watchable in the preview.
+      applyCharacterAnimationClips(created, this.character.animations);
+      for (const anim of created) {
+        anim.repeat = -1;
+      }
     }
-    this.sprite.play(this.idleTag);
+    this.sprite.play(this.animationTag);
+    this.game.registry.set('benneCharacterPreviewPlayAnimation', (tag: string) => {
+      if (this.anims.exists(tag)) {
+        this.sprite.play(tag);
+      }
+    });
 
     this.feetLocal = { ...resolveCharacterFeetLocal(this.character, this.sprite) };
     const wtp = this.character.walkToPoint;
