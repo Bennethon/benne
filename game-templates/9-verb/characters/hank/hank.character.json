@@ -79,5 +79,6 @@
       }
     ]
   },
-  "speechColor": "#4bb49f"
+  "speechColor": "#4bb49f",
+  "defaultVerb": "look"
 }

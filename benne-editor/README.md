@@ -40,6 +40,8 @@ Open a folder that contains `src/game/rooms/`. The **BENNE** activity bar view l
 |--------|---------|-------------|
 | `benneEditor.roomPreview.autoRebuildOnGameConfigChange` | `true` | Rebuild the room preview bundle when `src/game/game-config.json` changes. |
 | `benneEditor.roomPreview.autoRebuildDebounceMs` | `1500` | Debounce (ms) before starting that automatic rebuild. |
+| `benneEditor.dialogue.autoInsertBackticks` | `true` | In BenneScript files, typing `Hank:` at the start of a statement inserts `` `…` `` for the line of dialogue. |
+| `benneEditor.layout.closePanelOnOpen` | `false` | Close the bottom Panel (Terminal, Output, Problems) when a room, character, GUI or inventory item opens in the two-row preview/source layout. |
 
 ## Preview rebuilds
 
@@ -51,7 +53,7 @@ The extension ships prebuilt preview bundles. After changing engine or preview e
 - `npm run build:inventory-preview`
 - `npm run build:benne-play`
 
-Standalone projects (created via **Create New Game**) write output to `.benne/preview-bundles/`. Use the **Rebuild …** commands in the BENNE Actions view when needed.
+Standalone projects (created via **Create New Game**) write output to `.benne/preview-bundles/`. Use the **Rebuild …** commands in the BENNE Actions view when needed. Build logs go to the **BENNE room preview build** output channel; the Panel only opens if a build fails and you choose **Show Output**.
 
 ## Documentation
 

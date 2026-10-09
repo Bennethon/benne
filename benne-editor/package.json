@@ -446,6 +446,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "In BenneScript files, typing a speaker name and `:` at the start of a statement (`Hank:`) inserts `` `…` `` and puts the cursor inside, ready for the line of dialogue."
+        },
+        "benneEditor.layout.closePanelOnOpen": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "When a BENNE item opens in the two-row preview/source layout, close the bottom Panel (Terminal, Output, Problems) so both rows get the full height. You can reopen it at any time with **View: Toggle Panel Visibility**."
         }
       }
     },

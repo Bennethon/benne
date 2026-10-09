@@ -86,22 +86,25 @@ export async function getWatchBennePlayNpmScript(gameRoot: vscode.Uri): Promise<
     return readPackageNpmScript(gameRoot, 'watch:benne-play');
 }
 
-export async function runRoomPreviewBuild(
-    gameFolder: vscode.WorkspaceFolder,
+type PreviewNpmScript =
+    | 'build:room-preview'
+    | 'build:character-preview'
+    | 'build:gui-preview'
+    | 'build:inventory-preview'
+    | 'build:benne-play';
+
+/**
+ * Runs `npm run <script>` with progress in a notification. Output goes to `channel` but the Panel is only
+ * revealed when the build fails (via the error message's **Show Output** button), so routine rebuilds don't
+ * shrink the two-row preview/source layout.
+ */
+async function runNpmBuild(
+    cwd: string,
     channel: vscode.OutputChannel,
-    opts?: { title?: string }
+    args: string[],
+    title: string,
+    failureMessage: string,
 ): Promise<boolean> {
-    const cwd = gameFolder.uri.fsPath;
-    const script = await readPackageNpmScript(gameFolder.uri, 'build:room-preview');
-    if (!script) {
-        void vscode.window.showErrorMessage(
-            'No npm script "build:room-preview" in this folder\'s package.json. Open the BENNE game repo root (with Vite + src/game).'
-        );
-        return false;
-    }
-
-    const title = opts?.title ?? 'Rebuilding room preview bundle';
-
     const exitCode = await vscode.window.withProgress(
         {
             location: vscode.ProgressLocation.Notification,
@@ -110,12 +113,11 @@ export async function runRoomPreviewBuild(
         },
         () =>
             new Promise<number>((resolve) => {
-                channel.show(true);
                 channel.appendLine('');
-                channel.appendLine(`$ npm run build:room-preview`);
+                channel.appendLine(`$ npm ${args.join(' ')}`);
                 channel.appendLine(`  (cwd: ${cwd})`);
 
-                const proc = spawn('npm', ['run', 'build:room-preview'], {
+                const proc = spawn('npm', args, {
                     cwd,
                     shell: true,
                     env: process.env,
@@ -138,16 +140,49 @@ export async function runRoomPreviewBuild(
                     resolve(1);
                 });
                 proc.on('close', (code) => resolve(code ?? 1));
-            })
+            }),
     );
 
     if (exitCode !== 0) {
-        void vscode.window.showErrorMessage(
-            'Room preview rebuild failed (non-zero exit). See the "BENNE room preview build" output channel.'
-        );
+        void vscode.window.showErrorMessage(failureMessage, 'Show Output').then((choice) => {
+            if (choice === 'Show Output') {
+                channel.show(true);
+            }
+        });
         return false;
     }
     return true;
+}
+
+async function runPreviewNpmBuild(
+    gameFolder: vscode.WorkspaceFolder,
+    channel: vscode.OutputChannel,
+    scriptName: PreviewNpmScript,
+    title: string,
+    failureMessage: string,
+    missingScriptMessage = `No npm script "${scriptName}" in this folder's package.json.`,
+): Promise<boolean> {
+    const script = await readPackageNpmScript(gameFolder.uri, scriptName);
+    if (!script) {
+        void vscode.window.showErrorMessage(missingScriptMessage);
+        return false;
+    }
+    return runNpmBuild(gameFolder.uri.fsPath, channel, ['run', scriptName], title, failureMessage);
+}
+
+export async function runRoomPreviewBuild(
+    gameFolder: vscode.WorkspaceFolder,
+    channel: vscode.OutputChannel,
+    opts?: { title?: string }
+): Promise<boolean> {
+    return runPreviewNpmBuild(
+        gameFolder,
+        channel,
+        'build:room-preview',
+        opts?.title ?? 'Rebuilding room preview bundle',
+        'Room preview rebuild failed (non-zero exit).',
+        'No npm script "build:room-preview" in this folder\'s package.json. Open the BENNE game repo root (with Vite + src/game).',
+    );
 }
 
 export async function runCharacterPreviewBuild(
@@ -155,63 +190,13 @@ export async function runCharacterPreviewBuild(
     channel: vscode.OutputChannel,
     opts?: { title?: string },
 ): Promise<boolean> {
-    const cwd = gameFolder.uri.fsPath;
-    const script = await readPackageNpmScript(gameFolder.uri, 'build:character-preview');
-    if (!script) {
-        void vscode.window.showErrorMessage(
-            'No npm script "build:character-preview" in this folder\'s package.json.',
-        );
-        return false;
-    }
-
-    const title = opts?.title ?? 'Rebuilding character preview bundle';
-
-    const exitCode = await vscode.window.withProgress(
-        {
-            location: vscode.ProgressLocation.Notification,
-            title,
-            cancellable: false,
-        },
-        () =>
-            new Promise<number>((resolve) => {
-                channel.show(true);
-                channel.appendLine('');
-                channel.appendLine(`$ npm run build:character-preview`);
-                channel.appendLine(`  (cwd: ${cwd})`);
-
-                const proc = spawn('npm', ['run', 'build:character-preview'], {
-                    cwd,
-                    shell: true,
-                    env: process.env,
-                });
-
-                proc.stdout?.on('data', (d: Buffer) => {
-                    const s = d.toString();
-                    if (s.trim()) {
-                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
-                    }
-                });
-                proc.stderr?.on('data', (d: Buffer) => {
-                    const s = d.toString();
-                    if (s.trim()) {
-                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
-                    }
-                });
-                proc.on('error', (e) => {
-                    channel.appendLine(e instanceof Error ? e.message : String(e));
-                    resolve(1);
-                });
-                proc.on('close', (code) => resolve(code ?? 1));
-            }),
+    return runPreviewNpmBuild(
+        gameFolder,
+        channel,
+        'build:character-preview',
+        opts?.title ?? 'Rebuilding character preview bundle',
+        'Character preview rebuild failed (non-zero exit).',
     );
-
-    if (exitCode !== 0) {
-        void vscode.window.showErrorMessage(
-            'Character preview rebuild failed (non-zero exit). See the "BENNE room preview build" output channel.',
-        );
-        return false;
-    }
-    return true;
 }
 
 export async function runGuiPreviewBuild(
@@ -219,63 +204,13 @@ export async function runGuiPreviewBuild(
     channel: vscode.OutputChannel,
     opts?: { title?: string },
 ): Promise<boolean> {
-    const cwd = gameFolder.uri.fsPath;
-    const script = await readPackageNpmScript(gameFolder.uri, 'build:gui-preview');
-    if (!script) {
-        void vscode.window.showErrorMessage(
-            'No npm script "build:gui-preview" in this folder\'s package.json.',
-        );
-        return false;
-    }
-
-    const title = opts?.title ?? 'Rebuilding GUI preview bundle';
-
-    const exitCode = await vscode.window.withProgress(
-        {
-            location: vscode.ProgressLocation.Notification,
-            title,
-            cancellable: false,
-        },
-        () =>
-            new Promise<number>((resolve) => {
-                channel.show(true);
-                channel.appendLine('');
-                channel.appendLine(`$ npm run build:gui-preview`);
-                channel.appendLine(`  (cwd: ${cwd})`);
-
-                const proc = spawn('npm', ['run', 'build:gui-preview'], {
-                    cwd,
-                    shell: true,
-                    env: process.env,
-                });
-
-                proc.stdout?.on('data', (d: Buffer) => {
-                    const s = d.toString();
-                    if (s.trim()) {
-                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
-                    }
-                });
-                proc.stderr?.on('data', (d: Buffer) => {
-                    const s = d.toString();
-                    if (s.trim()) {
-                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
-                    }
-                });
-                proc.on('error', (e) => {
-                    channel.appendLine(e instanceof Error ? e.message : String(e));
-                    resolve(1);
-                });
-                proc.on('close', (code) => resolve(code ?? 1));
-            }),
+    return runPreviewNpmBuild(
+        gameFolder,
+        channel,
+        'build:gui-preview',
+        opts?.title ?? 'Rebuilding GUI preview bundle',
+        'GUI preview rebuild failed (non-zero exit).',
     );
-
-    if (exitCode !== 0) {
-        void vscode.window.showErrorMessage(
-            'GUI preview rebuild failed (non-zero exit). See the "BENNE room preview build" output channel.',
-        );
-        return false;
-    }
-    return true;
 }
 
 export async function runInventoryPreviewBuild(
@@ -283,63 +218,13 @@ export async function runInventoryPreviewBuild(
     channel: vscode.OutputChannel,
     opts?: { title?: string },
 ): Promise<boolean> {
-    const cwd = gameFolder.uri.fsPath;
-    const script = await readPackageNpmScript(gameFolder.uri, 'build:inventory-preview');
-    if (!script) {
-        void vscode.window.showErrorMessage(
-            'No npm script "build:inventory-preview" in this folder\'s package.json.',
-        );
-        return false;
-    }
-
-    const title = opts?.title ?? 'Rebuilding inventory preview bundle';
-
-    const exitCode = await vscode.window.withProgress(
-        {
-            location: vscode.ProgressLocation.Notification,
-            title,
-            cancellable: false,
-        },
-        () =>
-            new Promise<number>((resolve) => {
-                channel.show(true);
-                channel.appendLine('');
-                channel.appendLine(`$ npm run build:inventory-preview`);
-                channel.appendLine(`  (cwd: ${cwd})`);
-
-                const proc = spawn('npm', ['run', 'build:inventory-preview'], {
-                    cwd,
-                    shell: true,
-                    env: process.env,
-                });
-
-                proc.stdout?.on('data', (d: Buffer) => {
-                    const s = d.toString();
-                    if (s.trim()) {
-                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
-                    }
-                });
-                proc.stderr?.on('data', (d: Buffer) => {
-                    const s = d.toString();
-                    if (s.trim()) {
-                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
-                    }
-                });
-                proc.on('error', (e) => {
-                    channel.appendLine(e instanceof Error ? e.message : String(e));
-                    resolve(1);
-                });
-                proc.on('close', (code) => resolve(code ?? 1));
-            }),
+    return runPreviewNpmBuild(
+        gameFolder,
+        channel,
+        'build:inventory-preview',
+        opts?.title ?? 'Rebuilding inventory preview bundle',
+        'Inventory preview rebuild failed (non-zero exit).',
     );
-
-    if (exitCode !== 0) {
-        void vscode.window.showErrorMessage(
-            'Inventory preview rebuild failed (non-zero exit). See the "BENNE room preview build" output channel.',
-        );
-        return false;
-    }
-    return true;
 }
 
 export async function runBennePlayBuild(
@@ -347,63 +232,13 @@ export async function runBennePlayBuild(
     channel: vscode.OutputChannel,
     opts?: { title?: string },
 ): Promise<boolean> {
-    const cwd = gameFolder.uri.fsPath;
-    const script = await readPackageNpmScript(gameFolder.uri, 'build:benne-play');
-    if (!script) {
-        void vscode.window.showErrorMessage(
-            'No npm script "build:benne-play" in this folder\'s package.json.',
-        );
-        return false;
-    }
-
-    const title = opts?.title ?? 'Rebuilding BENNE Play bundle';
-
-    const exitCode = await vscode.window.withProgress(
-        {
-            location: vscode.ProgressLocation.Notification,
-            title,
-            cancellable: false,
-        },
-        () =>
-            new Promise<number>((resolve) => {
-                channel.show(true);
-                channel.appendLine('');
-                channel.appendLine(`$ npm run build:benne-play`);
-                channel.appendLine(`  (cwd: ${cwd})`);
-
-                const proc = spawn('npm', ['run', 'build:benne-play'], {
-                    cwd,
-                    shell: true,
-                    env: process.env,
-                });
-
-                proc.stdout?.on('data', (d: Buffer) => {
-                    const s = d.toString();
-                    if (s.trim()) {
-                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
-                    }
-                });
-                proc.stderr?.on('data', (d: Buffer) => {
-                    const s = d.toString();
-                    if (s.trim()) {
-                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
-                    }
-                });
-                proc.on('error', (e) => {
-                    channel.appendLine(e instanceof Error ? e.message : String(e));
-                    resolve(1);
-                });
-                proc.on('close', (code) => resolve(code ?? 1));
-            }),
+    return runPreviewNpmBuild(
+        gameFolder,
+        channel,
+        'build:benne-play',
+        opts?.title ?? 'Rebuilding BENNE Play bundle',
+        'BENNE Play rebuild failed (non-zero exit).',
     );
-
-    if (exitCode !== 0) {
-        void vscode.window.showErrorMessage(
-            'BENNE Play rebuild failed (non-zero exit). See the "BENNE room preview build" output channel.',
-        );
-        return false;
-    }
-    return true;
 }
 
 /** True when `npm run compile` can run (monorepo / Extension Development Host with node_modules). */
@@ -455,55 +290,13 @@ export async function runBenneEditorWebpackCompile(
         );
         return true;
     }
-    const cwd = extensionRoot.fsPath;
-    const title = opts?.title ?? 'Rebuilding BENNE editor (webpack)';
-
-    const exitCode = await vscode.window.withProgress(
-        {
-            location: vscode.ProgressLocation.Notification,
-            title,
-            cancellable: false,
-        },
-        () =>
-            new Promise<number>((resolve) => {
-                channel.show(true);
-                channel.appendLine('');
-                channel.appendLine(`$ npm run compile`);
-                channel.appendLine(`  (cwd: ${cwd})`);
-
-                const proc = spawn('npm', ['run', 'compile'], {
-                    cwd,
-                    shell: true,
-                    env: process.env,
-                });
-
-                proc.stdout?.on('data', (d: Buffer) => {
-                    const s = d.toString();
-                    if (s.trim()) {
-                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
-                    }
-                });
-                proc.stderr?.on('data', (d: Buffer) => {
-                    const s = d.toString();
-                    if (s.trim()) {
-                        channel.append(s.endsWith('\n') ? s : `${s}\n`);
-                    }
-                });
-                proc.on('error', (e) => {
-                    channel.appendLine(e instanceof Error ? e.message : String(e));
-                    resolve(1);
-                });
-                proc.on('close', (code) => resolve(code ?? 1));
-            }),
+    return runNpmBuild(
+        extensionRoot.fsPath,
+        channel,
+        ['run', 'compile'],
+        opts?.title ?? 'Rebuilding BENNE editor (webpack)',
+        'BENNE editor compile failed (non-zero exit).',
     );
-
-    if (exitCode !== 0) {
-        void vscode.window.showErrorMessage(
-            'BENNE editor compile failed (non-zero exit). See the "BENNE room preview build" output channel.',
-        );
-        return false;
-    }
-    return true;
 }
 
 let cachedOutputChannel: vscode.OutputChannel | undefined;

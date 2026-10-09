@@ -80,7 +80,6 @@ export class BennePlayWatchManager implements vscode.Disposable {
         }
 
         const cwd = gameFolder.uri.fsPath;
-        channel.show(true);
         channel.appendLine('');
         channel.appendLine(`$ npm run watch:benne-play`);
         channel.appendLine(`  (cwd: ${cwd})`);
