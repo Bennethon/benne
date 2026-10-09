@@ -90,7 +90,7 @@ Most of a room's interactive geometry is defined as **polygons**, and you edit t
 - **Prop colliders** — The clickable shape of a prop (only when the prop is clickable).
 - **Prop / hotspot baseline** — A horizontal line used for depth sorting against walking characters. Clickable props and hotspots show it alongside collider/polygon editing; **non-clickable props** still get this line so you can walk around scenery correctly.
 
-You draw and reshape these polygons by dragging vertices in the preview, with real-time feedback. Debug overlays (configurable in `game-config.json`) can show walkable areas, prop outlines, and region outlines while you work.
+You draw and reshape these polygons by dragging vertices in the preview, with real-time feedback. The preview's top bar always has **Play from** and **Play** at the left, whatever you have selected, so you can launch BENNE Play from any editing mode. Tick **Mute** beside **Play** to playtest without audio. At the right, the **GUIs**, **Characters** and **Outlines** checkboxes show or hide the HUD, the room's characters, and the walkable / region / prop collider outlines. They only change the preview, never the room.
 
 ### Props
 
@@ -102,7 +102,7 @@ You can add props one at a time (**Add Prop**) or **Import Props from Aseprite T
 
 - **Points** are named room coordinates you can walk or move characters to by id.
 - **Spawned characters** place character instances into the room (with position, initial facing, initial animation, visibility, and z-index).
-- **Play From methods** let you define named entry points with setup code (e.g. "start here with the key already in inventory"), then launch the game from that state using **Play from here**.
+- **Play From methods** let you define named entry points with setup code (e.g. "start here with the key already in inventory"), then launch the game from that state using **Play from here** or the preview's **Play from** menu. In the Inspector, the room's hook row has a **+ playFrom** button to add one and a button per existing setup to jump to it.
 
 ## Characters
 

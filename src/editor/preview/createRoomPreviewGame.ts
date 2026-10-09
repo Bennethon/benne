@@ -22,6 +22,13 @@ export type RoomPreviewGameOptions = {
      * toolbar state without a first-frame flash.
      */
     initialShowGuis: boolean;
+    /** Initial **Characters** toggle; `false` hides every spawned character (`benneRoomPreviewCharactersVisible`). */
+    initialShowCharacters: boolean;
+    /**
+     * Initial **Outlines** toggle: walkable, region and prop collider strokes, whatever `game-config.json`
+     * `debug.*` says (`benneRoomPreviewDebugOutlinesVisible`).
+     */
+    initialShowOutlines: boolean;
 };
 
 export function createRoomPreviewPhaserGame(
@@ -85,6 +92,8 @@ export function createRoomPreviewPhaserGame(
                  * GUI overlay's initial visibility (preview "Show GUIs" toolbar toggle).
                  */
                 game.registry.set('benneRoomSceneGenericGuisVisible', options.initialShowGuis);
+                game.registry.set('benneRoomPreviewCharactersVisible', options.initialShowCharacters);
+                game.registry.set('benneRoomPreviewDebugOutlinesVisible', options.initialShowOutlines);
             },
         },
         scene: [BennePreviewLoader, RoomScene, RoomPolygonEditScene],

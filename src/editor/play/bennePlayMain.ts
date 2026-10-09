@@ -13,6 +13,10 @@ if (!parent) {
 
 registerGameContent();
 const game = createBenneGame(parent);
+// Room preview **Mute** beside **Play**. The sound manager's global mute also mutes video.
+if ((globalThis as { __BENNE_PLAY_MUTED?: unknown }).__BENNE_PLAY_MUTED === true) {
+  game.sound.mute = true;
+}
 wireRoomTransitions(game, gameEvents);
 setupBennePlayInventoryToolbar();
 if (import.meta.env.DEV || import.meta.env.VITE_BENNE_TEST_HOOKS === 'true') {

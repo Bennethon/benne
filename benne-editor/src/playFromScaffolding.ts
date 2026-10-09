@@ -6,10 +6,14 @@ import { resolveRoomTarget } from './roomScaffolding';
 import { ensureAndRevealHandler } from './scriptHandlers';
 
 /** Adds `playFrom('name', () => { … })` to the room script (§4.19) and reveals it. */
-export async function addRoomPlayFromStub(roomJsonUri: vscode.Uri, name: string): Promise<boolean> {
+export async function addRoomPlayFromStub(
+    roomJsonUri: vscode.Uri,
+    name: string,
+    viewColumn?: vscode.ViewColumn,
+): Promise<boolean> {
     const roomId = getRoomIdFromRoomJsonUri(roomJsonUri);
     const scriptUri = vscode.Uri.joinPath(roomJsonUri, '..', `${roomId}.room.ts`);
-    const r = await ensureAndRevealHandler(scriptUri, { kind: 'playFrom', name: name.trim() });
+    const r = await ensureAndRevealHandler(scriptUri, { kind: 'playFrom', name: name.trim() }, viewColumn);
     if (r.status === 'exists') {
         void vscode.window.showInformationMessage(`${roomId}.room.ts already has playFrom('${name.trim()}', …).`);
     } else if (r.status === 'inserted') {
@@ -29,7 +33,10 @@ export async function runAddRoomPlayFromWizard(
     await runAddRoomPlayFromWizardForRoom(target.roomJsonUri);
 }
 
-export async function runAddRoomPlayFromWizardForRoom(roomJsonUri: vscode.Uri): Promise<void> {
+export async function runAddRoomPlayFromWizardForRoom(
+    roomJsonUri: vscode.Uri,
+    viewColumn?: vscode.ViewColumn,
+): Promise<void> {
     const name = await vscode.window.showInputBox({
         title: 'Play From name',
         prompt: 'Name of this starting state (e.g. "fix battery"). Used in playFrom(…) and the Play From dropdown.',
@@ -47,5 +54,5 @@ export async function runAddRoomPlayFromWizardForRoom(roomJsonUri: vscode.Uri): 
     if (!name) {
         return;
     }
-    await addRoomPlayFromStub(roomJsonUri, name.trim());
+    await addRoomPlayFromStub(roomJsonUri, name.trim(), viewColumn);
 }

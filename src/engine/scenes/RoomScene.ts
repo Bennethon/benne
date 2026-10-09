@@ -265,6 +265,21 @@ const DISPLAY_TEXT_GUI_ID = 'display-text';
  */
 const GENERIC_GUIS_INITIAL_VISIBILITY_REGISTRY_KEY = 'benneRoomSceneGenericGuisVisible';
 
+/**
+ * Optional `Phaser.Game.registry` key: when set to a boolean, the BENNE room preview **Characters** toggle.
+ * `false` hides every spawned character at load (see {@link setPreviewCharactersVisible}). Unset in the
+ * shipped game.
+ */
+const PREVIEW_CHARACTERS_VISIBLE_REGISTRY_KEY = 'benneRoomPreviewCharactersVisible';
+
+/**
+ * Optional `Phaser.Game.registry` key: when set to a boolean, the BENNE room preview **Outlines** toggle.
+ * Overrides `game-config.json` `debug.showWalkable` / `showRegionOutlines` / `showPropOutlines`: all three
+ * overlays are built and shown or hidden together (see {@link setDebugOutlinesVisible}). Unset in the
+ * shipped game, which follows `debug.*` only.
+ */
+const PREVIEW_DEBUG_OUTLINES_VISIBLE_REGISTRY_KEY = 'benneRoomPreviewDebugOutlinesVisible';
+
 /** Ignore walk clicks when already within this many pixels of the target. */
 const MIN_WALK_DISTANCE_PX = 6;
 
@@ -394,6 +409,19 @@ export class RoomScene extends Phaser.Scene {
   /** Walkable mesh strokes (`debug.showWalkable`). Cleared and restroked when `walkables.x.active` changes. */
   private debugWalkableOuterGraphics: Phaser.GameObjects.Graphics | null = null;
   private debugWalkableHoleGraphics: Phaser.GameObjects.Graphics | null = null;
+  /** Region strokes (`debug.showRegionOutlines`). */
+  private debugRegionGraphics: Phaser.GameObjects.Graphics | null = null;
+  /** Prop collider strokes (`debug.showPropOutlines`). */
+  private debugPropGraphics: Phaser.GameObjects.Graphics | null = null;
+
+  /**
+   * Room preview **Characters** toggle: while hidden, each character sprite's visibility before hiding,
+   * restored on show so JSON / script `visible: false` characters stay hidden.
+   */
+  private previewHiddenCharacterVisibility: Map<
+    Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+    boolean
+  > | null = null;
 
   /** Fired once when a walk tween completes successfully (instant walks may call it without a tween). */
   private walkArriveCallback: (() => void) | null = null;
@@ -721,6 +749,9 @@ export class RoomScene extends Phaser.Scene {
     this.debugPathGraphics = null;
     this.debugWalkableOuterGraphics = null;
     this.debugWalkableHoleGraphics = null;
+    this.debugRegionGraphics = null;
+    this.debugPropGraphics = null;
+    this.previewHiddenCharacterVisibility = null;
     this.parallaxProps = [];
     this.roomStackEntities = [];
     this.propSpritesById.clear();
@@ -807,6 +838,9 @@ export class RoomScene extends Phaser.Scene {
     this.setupRoomCamera(roomW, roomH);
     this.applyPlayerCameraFollow(roomW, roomH);
     this.drawRoomDebugOverlays(data);
+    if (this.game.registry.get(PREVIEW_CHARACTERS_VISIBLE_REGISTRY_KEY) === false) {
+      this.setPreviewCharactersVisible(false);
+    }
 
     const dialogChoiceGuiIds = new Set(getRegisteredDialogChoiceGuiIds());
     const guisForStack = sortGuisForOverlayStack(getAllGuiData());
@@ -1000,6 +1034,9 @@ export class RoomScene extends Phaser.Scene {
       this.debugPathGraphics = null;
       this.debugWalkableOuterGraphics = null;
       this.debugWalkableHoleGraphics = null;
+      this.debugRegionGraphics = null;
+      this.debugPropGraphics = null;
+      this.previewHiddenCharacterVisibility = null;
     });
   }
 
@@ -5298,14 +5335,18 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private drawRoomDebugOverlays(data: RoomSceneStartData): void {
+    const previewOutlines = this.game.registry.get(PREVIEW_DEBUG_OUTLINES_VISIBLE_REGISTRY_KEY);
+    const hasPreviewOutlines = typeof previewOutlines === 'boolean';
     const debug = getGameSettings().debug;
-    if (!debug?.showWalkable && !debug?.showPropOutlines && !debug?.showRegionOutlines) {
+    // The preview builds every overlay so its Outlines toggle can flip them without a reload.
+    const showWalkable = hasPreviewOutlines || debug?.showWalkable === true;
+    const showRegions = hasPreviewOutlines || debug?.showRegionOutlines === true;
+    const showProps = hasPreviewOutlines || debug?.showPropOutlines === true;
+    if (!showWalkable && !showRegions && !showProps) {
       return;
     }
 
-    const lineWidth = 1;
-
-    if (debug.showWalkable) {
+    if (showWalkable) {
       this.debugWalkableOuterGraphics = this.add.graphics();
       this.debugWalkableHoleGraphics = this.add.graphics();
       this.debugWalkableOuterGraphics.setDepth(DEBUG_OVERLAY_DEPTH);
@@ -5313,38 +5354,111 @@ export class RoomScene extends Phaser.Scene {
       this.redrawWalkableDebugStrokes();
     }
 
-    if (debug.showRegionOutlines) {
-      const g = this.add.graphics();
-      g.lineStyle(lineWidth, DEBUG_REGION_STROKE, 1);
-      for (const region of this.roomData.regions ?? []) {
-        if (region.active === false || region.points.length < 3) {
-          continue;
-        }
-        const vecs = region.points.map((p) => new Phaser.Math.Vector2(p.x, p.y));
-        g.strokePoints(vecs, true);
-      }
-      g.setDepth(DEBUG_OVERLAY_DEPTH + 1);
+    if (showRegions) {
+      this.debugRegionGraphics = this.add.graphics();
+      this.debugRegionGraphics.setDepth(DEBUG_OVERLAY_DEPTH + 1);
+      this.redrawRegionDebugStrokes();
     }
 
-    if (debug.showPropOutlines) {
-      const g = this.add.graphics();
-      g.lineStyle(lineWidth, DEBUG_PROP_COLLIDER_STROKE, 1);
-      for (const spawn of data.props) {
-        const pts = spawn.data.collider?.points;
-        if (!pts || pts.length < 3) {
-          continue;
-        }
-        const vecs = pts.map((p) => new Phaser.Math.Vector2(p.x, p.y));
-        g.strokePoints(vecs, true);
-      }
-      g.setDepth(DEBUG_OVERLAY_DEPTH + 2);
+    if (showProps) {
+      this.debugPropGraphics = this.add.graphics();
+      this.debugPropGraphics.setDepth(DEBUG_OVERLAY_DEPTH + 2);
+      this.redrawPropDebugStrokes(data.props.map((spawn) => spawn.data));
     }
 
-    if (debug.showWalkable) {
+    if (showWalkable && !hasPreviewOutlines) {
       // Shared Graphics reused every frame by updatePathDebug() — authoring-time visual feedback
-      // for the pathfinding route around holes / concavities.
+      // for the pathfinding route around holes / concavities. Nothing walks in the preview.
       this.debugPathGraphics = this.add.graphics();
       this.debugPathGraphics.setDepth(DEBUG_OVERLAY_DEPTH + 3);
+    }
+
+    if (hasPreviewOutlines) {
+      this.setDebugOutlinesVisible(previewOutlines);
+    }
+  }
+
+  /** Room preview **Outlines** toggle: shows or hides the walkable, region and prop collider strokes. */
+  setDebugOutlinesVisible(visible: boolean): void {
+    this.debugWalkableOuterGraphics?.setVisible(visible);
+    this.debugWalkableHoleGraphics?.setVisible(visible);
+    this.debugRegionGraphics?.setVisible(visible);
+    this.debugPropGraphics?.setVisible(visible);
+  }
+
+  /**
+   * Restroke the walkable, region and prop collider outlines from the live room data. The room preview
+   * calls it after saving a polygon edit.
+   */
+  refreshDebugOutlines(): void {
+    this.redrawWalkableDebugStrokes();
+    this.redrawRegionDebugStrokes();
+    this.redrawPropDebugStrokes(
+      (this.roomData.props ?? []).filter((p) => this.propSpritesById.has(p.id)),
+    );
+  }
+
+  /**
+   * Room preview **Characters** toggle: hides every spawned character, or restores each one's
+   * visibility from before it was hidden.
+   */
+  setPreviewCharactersVisible(visible: boolean): void {
+    if (!visible) {
+      if (this.previewHiddenCharacterVisibility) {
+        return;
+      }
+      const before = new Map<Phaser.GameObjects.Sprite | Phaser.GameObjects.Image, boolean>();
+      for (const e of this.roomStackEntities) {
+        if (e.kind === 'character') {
+          before.set(e.sprite, e.sprite.visible);
+          e.sprite.setVisible(false);
+        }
+      }
+      this.previewHiddenCharacterVisibility = before;
+      return;
+    }
+    const before = this.previewHiddenCharacterVisibility;
+    if (!before) {
+      return;
+    }
+    this.previewHiddenCharacterVisibility = null;
+    for (const [sprite, wasVisible] of before) {
+      if (sprite.active) {
+        sprite.setVisible(wasVisible);
+      }
+    }
+  }
+
+  private redrawRegionDebugStrokes(): void {
+    const g = this.debugRegionGraphics;
+    if (!g) {
+      return;
+    }
+    g.clear();
+    g.lineStyle(1, DEBUG_REGION_STROKE, 1);
+    for (const region of this.roomData.regions ?? []) {
+      if (region.active === false || region.points.length < 3) {
+        continue;
+      }
+      const vecs = region.points.map((p) => new Phaser.Math.Vector2(p.x, p.y));
+      g.strokePoints(vecs, true);
+    }
+  }
+
+  private redrawPropDebugStrokes(props: readonly RoomPropInstance[]): void {
+    const g = this.debugPropGraphics;
+    if (!g) {
+      return;
+    }
+    g.clear();
+    g.lineStyle(1, DEBUG_PROP_COLLIDER_STROKE, 1);
+    for (const prop of props) {
+      const pts = prop.collider?.points;
+      if (!pts || pts.length < 3) {
+        continue;
+      }
+      const vecs = pts.map((p) => new Phaser.Math.Vector2(p.x, p.y));
+      g.strokePoints(vecs, true);
     }
   }
 

@@ -4,8 +4,8 @@ import type { RoomData } from '../../types/room';
 import { SCENE_ROOM } from '../../game/boot/constants';
 import { buildPreviewManifest } from './buildPreviewManifest';
 import { createRoomPreviewPhaserGame } from './createRoomPreviewGame';
-import { guiVisibilityBridge } from './guiVisibilityBridge';
 import { polygonEditBridge } from './polygonEditBridge';
+import { previewVisibilityBridge, type PreviewVisibilityKey } from './previewVisibilityBridge';
 import type { RoomPolygonPatch } from './polygonPatchTypes';
 import { registerInventoryDefinitionsFromGame } from '../../game/boot/registerInventoryDefinitions';
 
@@ -22,6 +22,9 @@ declare function acquireVsCodeApi(): {
 
 type PreviewWebviewState = {
     showGuis?: boolean;
+    showCharacters?: boolean;
+    showOutlines?: boolean;
+    playMuted?: boolean;
 };
 
 const MIN_POLY_POINTS = 3;
@@ -131,6 +134,9 @@ function isPropColliderEditable(room: RoomData, propId: string): boolean {
     return p?.clickable === true;
 }
 
+/** **Mute** beside **Play**: BENNE Play starts with all audio muted. Remembered in webview state. */
+let playMuted = false;
+
 /** Bumps on each `loadRoom` so stale `buildPreviewManifest` completions (e.g. double save) cannot create a game after a newer load cleared the DOM. */
 let loadRoomGeneration = 0;
 
@@ -141,15 +147,24 @@ try {
 }
 
 /**
- * Rehydrate the "Show GUIs" toggle from webview state (`vscode.getState()`) on first load. Default
- * off: polygon / walkable authoring usually wants a clean view, and authors opt in per the confirmed
- * UX (`docs/architecture.md` room preview spec).
+ * Rehydrate the visibility toggles (GUIs, Characters, Outlines) from webview state (`vscode.getState()`)
+ * on first load. These are preview view state only, never written to room JSON. Defaults live in
+ * {@link previewVisibilityBridge}.
  */
-(function loadPersistedGuiVisibility(): void {
+(function loadPersistedPreviewVisibility(): void {
     try {
         const s = vscodeApi?.getState<PreviewWebviewState>();
         if (s && typeof s.showGuis === 'boolean') {
-            guiVisibilityBridge.setVisible(s.showGuis);
+            previewVisibilityBridge.setVisible('guis', s.showGuis);
+        }
+        if (s && typeof s.showCharacters === 'boolean') {
+            previewVisibilityBridge.setVisible('characters', s.showCharacters);
+        }
+        if (s && typeof s.showOutlines === 'boolean') {
+            previewVisibilityBridge.setVisible('outlines', s.showOutlines);
+        }
+        if (s && typeof s.playMuted === 'boolean') {
+            playMuted = s.playMuted;
         }
     } catch {
         /* ignore — first ever load or unavailable state */
@@ -157,43 +172,62 @@ try {
 })();
 
 function persistWebviewState(): void {
+    const v = previewVisibilityBridge.state;
     try {
-        vscodeApi?.setState<PreviewWebviewState>({ showGuis: guiVisibilityBridge.visible });
+        vscodeApi?.setState<PreviewWebviewState>({
+            showGuis: v.guis,
+            showCharacters: v.characters,
+            showOutlines: v.outlines,
+            playMuted,
+        });
     } catch {
         /* ignore */
     }
 }
 
-function wireShowGuisToggle(): void {
-    const input = document.getElementById('benne-show-guis-toggle') as HTMLInputElement | null;
-    if (!input || input.dataset.benneShowGuisWired === '1') {
+function wireVisibilityToggle(inputId: string, key: PreviewVisibilityKey): void {
+    const input = document.getElementById(inputId) as HTMLInputElement | null;
+    if (!input || input.dataset.benneVisibilityWired === '1') {
         return;
     }
-    input.dataset.benneShowGuisWired = '1';
-    input.checked = guiVisibilityBridge.visible;
+    input.dataset.benneVisibilityWired = '1';
+    input.checked = previewVisibilityBridge.state[key];
     input.addEventListener('change', () => {
-        const next = !!input.checked;
-        guiVisibilityBridge.setVisible(next);
+        previewVisibilityBridge.setVisible(key, !!input.checked);
         persistWebviewState();
-        applyGuiVisibilityToRunningScene(next);
+        applyVisibilityToRunningScene(key, !!input.checked);
     });
-    // Keep the checkbox in sync when other code flips the bridge (e.g. future programmatic toggles).
-    guiVisibilityBridge.subscribe((visible) => {
-        if (input.checked !== visible) {
+    // Keep the checkbox in sync when other code flips the bridge.
+    previewVisibilityBridge.subscribe((changed, visible) => {
+        if (changed === key && input.checked !== visible) {
             input.checked = visible;
         }
     });
 }
 
-function applyGuiVisibilityToRunningScene(visible: boolean): void {
+function getRunningRoomScene(): RoomScene | null {
     if (!game) {
-        return;
+        return null;
     }
     const scene = game.scene.getScene(SCENE_ROOM) as RoomScene | undefined;
     if (!scene || !scene.scene.isActive()) {
+        return null;
+    }
+    return scene;
+}
+
+function applyVisibilityToRunningScene(key: PreviewVisibilityKey, visible: boolean): void {
+    const scene = getRunningRoomScene();
+    if (!scene) {
         return;
     }
-    scene.setGenericGuisVisible(visible);
+    if (key === 'guis') {
+        scene.setGenericGuisVisible(visible);
+    } else if (key === 'characters') {
+        scene.setPreviewCharactersVisible(visible);
+    } else {
+        scene.setDebugOutlinesVisible(visible);
+    }
 }
 
 function setStatus(text: string): void {
@@ -273,16 +307,21 @@ function clearToolbar(): void {
     polygonEditBridge.setCharacterInstanceId('');
     polygonEditBridge.setWalkableEditTarget('', '');
     clearPlayFromSelect();
-    setPlayFromHereButtonVisible(false);
+    setPlayEnabled(false);
 }
 
-/** Shown only in browse/navigate authoring mode (see {@link wireRoomNavigateToolbar}). */
-function setPlayFromHereButtonVisible(visible: boolean): void {
-    const wrap = document.getElementById('benne-preview-play-toolbar') as HTMLElement | null;
-    if (!wrap) {
+/**
+ * The Play from / Play controls are always visible at the left of the toolbar, whatever is selected;
+ * they are only disabled while no room is loaded.
+ */
+function setPlayEnabled(enabled: boolean): void {
+    const btn = document.getElementById('benne-preview-play') as HTMLButtonElement | null;
+    if (!btn) {
         return;
     }
-    wrap.style.display = visible ? 'flex' : 'none';
+    btn.disabled = !enabled;
+    btn.style.opacity = enabled ? '' : '0.5';
+    btn.style.cursor = enabled ? 'pointer' : 'default';
 }
 
 function buildRoomNavigateToolbarHtml(): string {
@@ -442,11 +481,9 @@ function wireRoomNavigateToolbar(_room: RoomData): void {
     polygonEditBridge.setCharacterInstanceId('');
     polygonEditBridge.setWalkableEditTarget('', '');
     polygonEditBridge.setMode('navigate');
-    setPlayFromHereButtonVisible(true);
 }
 
 function wireWalkableEditToolbar(room: RoomData, polygonId: string, holeId: string): void {
-    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -483,7 +520,6 @@ function wireWalkableEditToolbar(room: RoomData, polygonId: string, holeId: stri
 }
 
 function wireRoomSizeToolbar(_room: RoomData): void {
-    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -504,7 +540,6 @@ function wireRoomSizeToolbar(_room: RoomData): void {
 }
 
 function wireScrollBoundsToolbar(_room: RoomData): void {
-    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -525,7 +560,6 @@ function wireScrollBoundsToolbar(_room: RoomData): void {
 }
 
 function wirePropTreeToolbarNonClickable(room: RoomData, propColliderId: string): void {
-    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -546,7 +580,6 @@ function wirePropTreeToolbarNonClickable(room: RoomData, propColliderId: string)
 }
 
 function wireHotspotToolbar(room: RoomData, hotspotId: string): void {
-    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -567,7 +600,6 @@ function wireHotspotToolbar(room: RoomData, hotspotId: string): void {
 }
 
 function wireRegionToolbar(_room: RoomData, regionId: string): void {
-    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -588,7 +620,6 @@ function wireRegionToolbar(_room: RoomData, regionId: string): void {
 }
 
 function wireRoomPointToolbar(_room: RoomData, roomPointId: string): void {
-    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -609,7 +640,6 @@ function wireRoomPointToolbar(_room: RoomData, roomPointId: string): void {
 }
 
 function wireRoomCharacterToolbar(_room: RoomData, characterInstanceId: string): void {
-    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -634,7 +664,6 @@ function wirePropTreeToolbar(room: RoomData, propColliderId: string): void {
         wirePropTreeToolbarNonClickable(room, propColliderId);
         return;
     }
-    setPlayFromHereButtonVisible(false);
     const bar = document.getElementById('benne-polygon-toolbar');
     if (!bar) {
         return;
@@ -947,6 +976,7 @@ async function runLoadRoom(msg: HostPreviewMessage): Promise<void> {
     currentRoomJsonUri = msg.roomJsonUri;
     lastLoadedRoom = room;
     populatePlayFromFromHost(msg);
+    setPlayEnabled(true);
 
     try {
         wireToolbarFromPreviewState(room, parsePreviewToolbarPayload(msg));
@@ -969,7 +999,9 @@ async function runLoadRoom(msg: HostPreviewMessage): Promise<void> {
         game = createRoomPreviewPhaserGame(phaserMount, manifest, {
             roomJsonUri: currentRoomJsonUri,
             onPolygonPatch,
-            initialShowGuis: guiVisibilityBridge.visible,
+            initialShowGuis: previewVisibilityBridge.state.guis,
+            initialShowCharacters: previewVisibilityBridge.state.characters,
+            initialShowOutlines: previewVisibilityBridge.state.outlines,
         });
         vscodeApi?.postMessage({ type: 'benne/preview/roomLoadComplete', roomJsonUri: currentRoomJsonUri });
     } catch (e) {
@@ -983,6 +1015,7 @@ window.addEventListener('message', (event: MessageEvent) => {
     if (msg?.type === 'benne/preview/polygonPatchResult') {
         if (msg.ok && msg.appliedPatch) {
             applyAppliedPatchToPreviewRoom(msg.appliedPatch);
+            getRunningRoomScene()?.refreshDebugOutlines();
         }
         setStatus(msg.ok ? 'Saved.' : `Error: ${msg.message ?? ''}`);
         return;
@@ -1060,11 +1093,27 @@ function wirePlayFromHereButton(): void {
             roomId: room.id,
             roomName: room.name,
             ...(playFromName ? { playFromName } : {}),
+            muted: playMuted,
         });
+    });
+}
+
+function wirePlayMuteToggle(): void {
+    const input = document.getElementById('benne-preview-play-mute') as HTMLInputElement | null;
+    if (!input) {
+        return;
+    }
+    input.checked = playMuted;
+    input.addEventListener('change', () => {
+        playMuted = input.checked;
+        persistWebviewState();
     });
 }
 
 wireRefreshPreviewButton();
 wirePlayFromHereButton();
-wireShowGuisToggle();
+wirePlayMuteToggle();
+wireVisibilityToggle('benne-show-guis-toggle', 'guis');
+wireVisibilityToggle('benne-show-characters-toggle', 'characters');
+wireVisibilityToggle('benne-show-outlines-toggle', 'outlines');
 vscodeApi?.postMessage({ type: 'benne/preview/ready' });

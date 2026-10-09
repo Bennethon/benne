@@ -11,6 +11,7 @@ export class BennePlayPanelController implements vscode.Disposable {
     private lastStartRoomId: string | undefined;
     private lastRoomName: string | undefined;
     private lastPlayFromName: string | undefined;
+    private lastMuted = false;
     private lastGameRootUri: vscode.Uri | undefined;
     private panelDisposeSideEffect: (() => void) | undefined;
 
@@ -44,10 +45,12 @@ export class BennePlayPanelController implements vscode.Disposable {
         roomName?: string,
         playFromName?: string,
         gameRoot?: vscode.Uri,
+        muted = false,
     ): void {
         this.lastStartRoomId = roomId;
         this.lastRoomName = roomName;
         this.lastPlayFromName = playFromName;
+        this.lastMuted = muted;
         if (gameRoot) {
             this.lastGameRootUri = gameRoot;
         }
@@ -90,6 +93,7 @@ export class BennePlayPanelController implements vscode.Disposable {
             this.lastGameRootUri,
             this.lastStartRoomId,
             this.lastPlayFromName,
+            this.lastMuted,
         );
     }
 
@@ -97,6 +101,7 @@ export class BennePlayPanelController implements vscode.Disposable {
         this.lastStartRoomId = undefined;
         this.lastRoomName = undefined;
         this.lastPlayFromName = undefined;
+        this.lastMuted = false;
     }
 }
 
@@ -106,6 +111,7 @@ function buildBennePlayHtml(
     gameRoot: vscode.Uri | undefined,
     startRoomId: string,
     playFromName?: string,
+    muted = false,
 ): Promise<string> {
     return resolveBennePlayMediaRootUri(extensionUri, gameRoot).then(async (playRoot) => {
     const baseHrefRaw = webview.asWebviewUri(playRoot).toString();
@@ -195,6 +201,7 @@ function buildBennePlayHtml(
     globalThis.__BENNE_PLAY_MEDIA_BASE__ = ${JSON.stringify(baseHref)};
     globalThis.__BENNE_START_ROOM_ID = ${JSON.stringify(startRoomId)};
     globalThis.__BENNE_PLAY_FROM_NAME = ${JSON.stringify(playFromName ?? '')};
+    globalThis.__BENNE_PLAY_MUTED = ${JSON.stringify(muted)};
   </script>
   <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>

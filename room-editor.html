@@ -15,57 +15,21 @@
       flex-direction: column;
     "
   >
-    <div
-      id="benne-preview-topbar"
-      style="
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        flex-shrink: 0;
-        padding: 6px 10px;
-        border-bottom: 1px solid #2e2e44;
-        background: #222230;
-      "
-    >
-      <div id="benne-polygon-toolbar" style="flex: 1; min-width: 0"></div>
-      <label
-        id="benne-preview-options"
-        title="Show generic GUIs with visible: true in *.gui.json (excludes speaking-text, display-text, and choice-dialog GUIs)"
-        style="
-          flex-shrink: 0;
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          color: #c8d0e0;
-          font-size: 12px;
-          font-family: system-ui, sans-serif;
-          margin-top: 3px;
-          cursor: pointer;
-          user-select: none;
-        "
-      >
-        <input type="checkbox" id="benne-show-guis-toggle" style="margin: 0; cursor: pointer" />
-        <span>Show GUIs</span>
-      </label>
-      <button
-        type="button"
-        id="benne-refresh-preview"
-        title="Reload room JSON from disk"
-        style="
-          flex-shrink: 0;
-          margin-top: 1px;
-          background: #3a3a52;
-          color: #e8ecff;
-          border: 1px solid #5a5a70;
-          padding: 4px 12px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 12px;
-          font-family: system-ui, sans-serif;
-        "
-      >
-        Refresh
-      </button>
+    <div id="benne-preview-topbar" style="display:flex;align-items:flex-start;gap:10px;flex-shrink:0;padding:6px 10px;border-bottom:1px solid #2e2e44;background:#222230;">
+      <div id="benne-preview-play-toolbar" style="display:flex;flex-shrink:0;align-items:center;gap:8px;margin-top:1px;">
+        <label for="benne-preview-play-from" style="color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;white-space:nowrap;">Play from</label>
+        <select id="benne-preview-play-from" title="Optional playFrom(…) starting state for BENNE Play" aria-label="Play from starting state" style="font-size:12px;min-width:120px;max-width:200px;padding:3px 6px;border-radius:4px;border:1px solid #5a5a70;background:#1a1a28;color:#e8ecff;"></select>
+        <button type="button" id="benne-preview-play" disabled title="Open BENNE Play in this room (runs the selected Play From setup, then room.onEnter)" style="flex-shrink:0;background:#2d6a4f;color:#e8ffef;border:1px solid #40916c;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:system-ui,sans-serif;">Play</button>
+        <label title="Start BENNE Play with all audio muted (music, sound effects, voices and video)" style="display:inline-flex;align-items:center;gap:5px;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;cursor:pointer;user-select:none;"><input type="checkbox" id="benne-preview-play-mute" style="margin:0;cursor:pointer;" /><span>Mute</span></label>
+      </div>
+      <div id="benne-preview-toolbar-divider" aria-hidden="true" style="flex-shrink:0;align-self:stretch;width:1px;background:#3a3a52;"></div>
+      <div id="benne-polygon-toolbar" style="flex:1;min-width:0;"></div>
+      <div id="benne-preview-options" role="group" aria-label="Preview visibility" style="flex-shrink:0;display:inline-flex;align-items:center;gap:10px;color:#c8d0e0;font-size:12px;font-family:system-ui,sans-serif;margin-top:3px;user-select:none;">
+        <label title="Show generic GUIs with visible: true in *.gui.json (excludes speaking-text, display-text, and choice-dialog GUIs)" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" id="benne-show-guis-toggle" style="margin:0;cursor:pointer;" /><span>GUIs</span></label>
+        <label title="Show the room's spawned characters (preview only; not saved to the room)" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" id="benne-show-characters-toggle" style="margin:0;cursor:pointer;" /><span>Characters</span></label>
+        <label title="Outline walkable areas and holes, regions and prop colliders (preview only)" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" id="benne-show-outlines-toggle" style="margin:0;cursor:pointer;" /><span>Outlines</span></label>
+      </div>
+      <button type="button" id="benne-refresh-preview" title="Reload room JSON from disk" style="flex-shrink:0;margin-top:1px;background:#3a3a52;color:#e8ecff;border:1px solid #5a5a70;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:system-ui,sans-serif;">Refresh</button>
     </div>
     <div id="benne-preview-root" style="flex: 1; min-height: 0; width: 100%"></div>
     <script type="module" src="/src/editor/preview/roomEditorMain.ts"></script>

@@ -795,7 +795,8 @@ export function activate(context: vscode.ExtensionContext): void {
                 arg?: MainTreeNode | MainTreeNode[] | string,
                 roomIdArg?: string,
                 roomNameArg?: string,
-                playFromNameArg?: string
+                playFromNameArg?: string,
+                mutedArg?: boolean
             ) => {
                 const target = resolvePlayRoom(arg, roomIdArg, roomNameArg, playFromNameArg);
                 if (!target) {
@@ -832,6 +833,7 @@ export function activate(context: vscode.ExtensionContext): void {
                     target.roomName,
                     target.playFromName,
                     gameFolder?.uri,
+                    mutedArg === true,
                 );
             }
         ),

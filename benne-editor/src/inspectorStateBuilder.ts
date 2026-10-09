@@ -32,6 +32,7 @@ import {
     buildRoomCharacterVerbChips,
     type InspectorVerbChip
 } from './verbInspectorModel';
+import { readRoomPlayFromNamesFromSource } from './playFromDiscovery';
 import { handlerQuery, readScriptText } from './scriptHandlers';
 
 export type InspectorWalkableRow = {
@@ -162,6 +163,8 @@ export type InspectorRoomState = {
     roomOnEnterDefined: boolean;
     roomOnEnterAfterFadeDefined: boolean;
     onUpdateDefined: boolean;
+    /** `playFrom('name', …)` names in the room script, in source order. */
+    roomPlayFromNames: string[];
 };
 
 export type InspectorEmptyState = { kind: 'empty'; message: string };
@@ -1200,7 +1203,8 @@ async function buildRoomInspectorState(
         roomOnLoadedDefined: roomHas({ kind: 'room', roomId, hook: 'onLoaded' }),
         roomOnEnterDefined: roomHas({ kind: 'room', roomId, hook: 'onEnter' }),
         roomOnEnterAfterFadeDefined: roomHas({ kind: 'room', roomId, hook: 'onEnterAfterFade' }),
-        onUpdateDefined: roomHas({ kind: 'update', roomId })
+        onUpdateDefined: roomHas({ kind: 'update', roomId }),
+        roomPlayFromNames: readRoomPlayFromNamesFromSource(roomScript.text, `${roomId}.room.ts`)
     };
 }
 

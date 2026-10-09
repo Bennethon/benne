@@ -122,6 +122,7 @@ type InspectorRoomState = {
     roomOnEnterDefined: boolean;
     roomOnEnterAfterFadeDefined: boolean;
     onUpdateDefined: boolean;
+    roomPlayFromNames: string[];
 };
 
 type InspectorEmptyState = { kind: 'empty'; message: string };
@@ -825,6 +826,13 @@ ${mk('onLoaded', state.roomOnLoadedDefined, 'room.onLoaded')}
 ${mk('onEnter', state.roomOnEnterDefined, 'room.onEnter')}
 ${mk('onEnterAfterFade', state.roomOnEnterAfterFadeDefined, 'room.onEnterAfterFade')}
 ${mk('onUpdate', state.onUpdateDefined, 'onUpdate')}
+${state.roomPlayFromNames
+    .map(
+        (name) =>
+            `<button type="button" class="verb-chip verb-defined" data-room-play-from="${esc(name)}" title="${esc(`Reveal playFrom('${name}') in room script`)}"><span class="verb-chip-glyph" aria-hidden="true">⚡</span><span class="verb-chip-txt">${esc(`playFrom('${name}')`)}</span></button>`
+    )
+    .join('\n')}
+<button type="button" class="verb-chip verb-add" data-room-play-from-add="1" title="Add a Play From starting state (playFrom(…)) to the room script"><span class="verb-chip-glyph" aria-hidden="true">+</span><span class="verb-chip-txt">playFrom</span></button>
 </div>`;
 }
 
@@ -2832,6 +2840,15 @@ function mountHandlers(state: InspectorRoomState): void {
     root.querySelectorAll('.verb-chip').forEach((btn) => {
         btn.addEventListener('click', () => {
             const b = btn as HTMLButtonElement;
+            const playFromName = b.dataset.roomPlayFrom;
+            if (typeof playFromName === 'string' || b.dataset.roomPlayFromAdd === '1') {
+                post('roomPlayFrom', {
+                    roomJsonUri: state.roomJsonUri,
+                    roomId: state.roomId,
+                    ...(typeof playFromName === 'string' ? { name: playFromName } : {})
+                });
+                return;
+            }
             const hook = b.dataset.roomLifecycle ?? '';
             if (
                 hook === 'onLoaded' ||

@@ -67,6 +67,8 @@ import {
 } from './guiControlScaffolding';
 import { ensureGuiLifecycleHookInGuiScript, type GuiLifecycleHookKind } from './guiLifecycleScriptScaffolding';
 import { ensureRoomLifecycleHookInRoomScript, type RoomLifecycleHookKind } from './roomLifecycleScriptScaffolding';
+import { runAddRoomPlayFromWizardForRoom } from './playFromScaffolding';
+import { ensureAndRevealHandler } from './scriptHandlers';
 import { BENNE_SCRIPT_VIEW_COLUMN, revealSourceRangeInDocument } from './roomScriptNavigation';
 import { ensureDialogChoiceHandlerAndReveal } from './dialogChoiceScaffolding';
 
@@ -1094,6 +1096,22 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 return;
             }
             await revealSourceRangeInDocument(scriptUri, r.range.start, r.range.end, BENNE_SCRIPT_VIEW_COLUMN);
+            return;
+        }
+
+        if (msg.action === 'roomPlayFrom') {
+            if (focusKind !== 'room') {
+                return;
+            }
+            const name = typeof msg.name === 'string' ? msg.name.trim() : '';
+            if (name) {
+                const scriptUri = vscode.Uri.joinPath(uri, '..', `${roomId}.room.ts`);
+                await ensureAndRevealHandler(scriptUri, { kind: 'playFrom', name }, BENNE_SCRIPT_VIEW_COLUMN);
+                return;
+            }
+            await runAddRoomPlayFromWizardForRoom(uri, BENNE_SCRIPT_VIEW_COLUMN);
+            this.refreshMainAndActions();
+            await this.pushState();
             return;
         }
 
