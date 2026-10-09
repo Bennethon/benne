@@ -423,14 +423,15 @@ function isTemplateMirrorDestFile(rel) {
 // ---------------------------------------------------------------------------
 
 async function preflightRepoRoot() {
+  // Git tracks nothing in src/game/, so a fresh clone has no src/game/ until ensure-template runs.
   const [srcGameStat, gameTemplatesStat] = await Promise.all([
     stat(SRC_GAME).catch(() => null),
     stat(GAME_TEMPLATES).catch(() => null),
   ]);
-  if (!srcGameStat?.isDirectory() || !gameTemplatesStat?.isDirectory()) {
+  if ((srcGameStat && !srcGameStat.isDirectory()) || !gameTemplatesStat?.isDirectory()) {
     throw new Error(
       `This script must run from the BENNE repo root (cwd is "${process.cwd()}"). ` +
-        `Expected src/game/ and game-templates/ relative to ${REPO_ROOT}.`
+        `Expected game-templates/ (and src/game/, if present, to be a directory) relative to ${REPO_ROOT}.`
     );
   }
 }
