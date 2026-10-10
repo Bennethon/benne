@@ -34,6 +34,7 @@ import {
   writePersistedSfxSessionVolume,
 } from '../sound/audioGameState.js';
 import { tryGetBenneSoundManager } from '../sound/benneSoundRegistry.js';
+import { getActionSentence } from '../verbs/actionSentence.js';
 import { inventoryItemLabel } from '../verbs/targetLabel.js';
 import { composeVerbLineText, resolveGameDefaultVerbId } from '../verbs/verbConfig.js';
 import type { CutsceneOptions } from '../../types/cutscene.js';
@@ -391,8 +392,16 @@ export const pointer = {
     };
   },
 
-  /** The standard verb line: "Walk to", "Look at Door", "Use Coffee with Coffee maker" (§8.4). */
+  /**
+   * The standard verb line: "Walk to", "Look at Door", "Use Coffee with Coffee maker" (§8.4). While a
+   * clicked verb runs (an armed verb, or a right-click's default verb), it is that action's line until
+   * its handler finishes, whatever the pointer is over.
+   */
   get sentence(): string {
+    const running = getActionSentence();
+    if (running !== null) {
+      return running;
+    }
     const m = tryGetActiveGameStateManager();
     const itemId = m?.getActiveInventoryItemId();
     return composeVerbLineText(
@@ -403,7 +412,7 @@ export const pointer = {
     ).trim();
   },
 
-  /** Runs `handler` whenever the armed verb, the armed item or the hover target changes. */
+  /** Runs `handler` whenever the armed verb, the armed item or the hover target changes, or a clicked action starts or finishes. */
   onContextChange(handler: () => void): void {
     warnIfUntransformed('pointer.onContextChange', handler);
     getBenneVerbContextChangedEmitter().on(BENNE_VERB_CONTEXT_CHANGED_PERSISTENT_EVENT, () =>

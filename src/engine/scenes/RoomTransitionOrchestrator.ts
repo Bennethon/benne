@@ -5,6 +5,7 @@ import type { EventBus } from '../events/EventBus.js';
 import { resolveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { setRoomTransitionInProgress } from './roomTransitionGlobals.js';
 import { clearInteractionActivity } from '../interaction/interactionActivity.js';
+import { clearActionSentence } from '../verbs/actionSentence.js';
 import { cancelAllInteractions } from '../bennescript/interactionContext.js';
 import { BENNE_SCREEN_FADE_DEFAULT_COLOR, BENNE_SCREEN_FADE_DEFAULT_DURATION_SEC } from './roomScreenFadeConstants.js';
 import { buildRoomSceneStartDataFromRoomData, queueRoomSceneAssetLoads } from './roomSceneBootstrap.js';
@@ -489,5 +490,6 @@ export class RoomTransitionOrchestrator {
     roomScene.clearStateForRoomTransition();
     cancelAllInteractions();
     clearInteractionActivity();
+    clearActionSentence();
   }
 }

@@ -27,6 +27,7 @@ import type { VerbInteractTarget } from '../events/verbInteractionEvents';
 import type { GameStateManager } from '../gameState/GameStateManager';
 import type { GameSettings } from '../../types/game';
 import { getInventoryDefinition } from '../inventory/inventoryDefinitionRegistry';
+import { beginActionSentence } from './actionSentence.js';
 import type { PointerVerbResolution } from './resolvePointerVerb';
 import { resolveDefaultItemVerbId } from './verbConfig';
 
@@ -104,6 +105,7 @@ export function dispatchInventoryOnVerbTargetInteraction(
   if (target.type === 'inventoryItem') {
     return false;
   }
+  beginActionSentence(verbId, target.description, itemId);
   const payload = buildInventoryUsedOnPayload(target, itemId, verbId);
 
   switch (target.type) {
@@ -144,6 +146,7 @@ export function dispatchInventoryOnInventoryItemInteraction(
   description: string | undefined,
 ): boolean {
   interruptPlayerWalkForVerbInteraction();
+  beginActionSentence(verbId, description, sourceItemId);
   const payload = buildInventoryUsedOnInventoryItemPayload(
     roomId,
     sourceItemId,

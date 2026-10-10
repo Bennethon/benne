@@ -222,7 +222,7 @@ worldY = parallaxDepth * baseY + (1 − parallaxDepth) * camera.worldView.y
 
 ### GUI verb status line (BenneScript)
 
-LucasArts-style copy (**Walk to**, **Push pillar**, **Use item with …**) is authored as a normal **`text`** control set from the GUI's script: **`pointer.onContextChange(refresh)`** (the persistent **`BENNE_VERB_CONTEXT_CHANGED_PERSISTENT_EVENT`**, so the handler survives room changes) and **`gui.onBuilt(refresh)`**, where `refresh` sets **`verbLineText.text = pointer.sentence`**, matching **`src/game/guis/verbs/verbs.gui.ts`**. **`pointer.sentence`** is the engine's **`composeVerbLineText`** (`verbConfig.ts`) over the armed verb, the armed item and the hover description; **`resolveVerbLineDisplayLabel`** and **`resolveVerbLineLeadingVerbWord`** remain available for a custom line.
+LucasArts-style copy (**Walk to**, **Push pillar**, **Use item with …**) is authored as a normal **`text`** control set from the GUI's script: **`pointer.onContextChange(refresh)`** (the persistent **`BENNE_VERB_CONTEXT_CHANGED_PERSISTENT_EVENT`**, so the handler survives room changes) and **`gui.onBuilt(refresh)`**, where `refresh` sets **`verbLineText.text = pointer.sentence`**, matching **`src/game/guis/verbs/verbs.gui.ts`**. **`pointer.sentence`** is the engine's **`composeVerbLineText`** (`verbConfig.ts`) over the armed verb, the armed item and the hover description, except while a clicked verb runs: the verb dispatchers record that action's line (**`verbs/actionSentence.ts`**), and it stays until no gameplay interaction is running (decision 57); **`resolveVerbLineDisplayLabel`** and **`resolveVerbLineLeadingVerbWord`** remain available for a custom line.
 
 **Hover context for `pointer.hover`** — **`RoomScene`** walks Phaser **`hitTestPointer`** (sorted like dispatch) each **`pointermove`** and after **`gameState:inventoryChanged`**, skips GUI **`button`** hits, and publishes the short label plus a structured hover target (including optional authored **`defaultVerb`** when non-empty) through **`publishBenneVerbHoverContext`** (props/hotspots/clickable characters/occupied **`inventoryPanel`** rows). Scripts read it as **`pointer.hover`** (`{ kind, id, description, defaultVerb }`, with `defaultVerb` a `verbs.x` handle). During **scripted dialog** input suppression (the speech-line lock), the hover description is cleared so HUD lines do not advertise room targets behind a blocking line.
 
@@ -593,7 +593,7 @@ A cutscene ignores world clicks for its duration and is **skippable with ESC** (
 | Prop / hotspot / character clicks | ✗ | ✗ |
 | Inventory row clicks | ✗ | ✗ |
 | GUI button clicks | ✗ | **✓ live** |
-| Hover descriptions (`pointer.hover`, `pointer.sentence`) | suppressed | suppressed |
+| Hover descriptions (`pointer.hover`, `pointer.sentence`; a running clicked action's line still shows) | suppressed | suppressed |
 | Click-to-skip on speech lines | **✓ always live** | ✓ live |
 
 (Outside cutscenes, the interaction lock in **The step runtime** decides which world clicks a running handler admits.)

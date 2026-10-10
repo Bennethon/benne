@@ -33,6 +33,7 @@ import { setActiveGameStateManager } from '../../src/engine/gameState/resolveGam
 import { clearInteractionActivity, isInteractionActivityRunning } from '../../src/engine/interaction/interactionActivity';
 import { dispatchInventoryVerbInteraction } from '../../src/engine/verbs/dispatchInventoryVerb';
 import { dispatchInventoryOnVerbTargetInteraction } from '../../src/engine/verbs/dispatchInventoryOnVerbTarget';
+import { inventoryItemLabel } from '../../src/engine/verbs/targetLabel';
 import { publishBenneVerbHoverContext } from '../../src/engine/verbs/verbContext';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -301,6 +302,25 @@ describe('pointer (§4.15, §8.4)', () => {
     m.state.verb = 'use';
     expect(pointer.sentence).toBe('Use Door');
     expect(pointer.hover?.defaultVerb).toBe(look);
+    publishBenneVerbHoverContext(null, null);
+  });
+
+  it('shows a clicked verb, not the hover, until its handler finishes (decision 57)', async () => {
+    fakeGame();
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => (finish = resolve));
+    const mug = withVerbMethods<ItemHandle, ItemMethods>(new ItemHandle('t9-mug'), verbSpecs);
+    mug.onLook(async () => {
+      await gate;
+    });
+    dispatchInventoryVerbInteraction(gameEvents, 'look', 't9-mug', 'r');
+    publishBenneVerbHoverContext('Door', { description: 'Door', targetType: 'hotspot', targetId: 'door' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(pointer.sentence).toBe(`Look at ${inventoryItemLabel('t9-mug')}`);
+    finish();
+    await flush();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(pointer.sentence).toBe('Walk to Door');
     publishBenneVerbHoverContext(null, null);
   });
 });

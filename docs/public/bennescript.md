@@ -664,6 +664,8 @@ gui.onBuilt(refresh)
 pointer.onContextChange(refresh)
 ```
 
+Once the player clicks, `pointer.sentence` is that action ("Use Door", even from a right-click's default verb) until its handler finishes, wherever the pointer moves. `pointer.hover` keeps following the pointer.
+
 GUI handlers don't take the interaction lock, so menus work during a cutscene.
 
 ## Saving, loading and settings

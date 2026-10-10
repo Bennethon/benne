@@ -1,6 +1,7 @@
 import { getGameSettings } from '../ConfigManager';
 import type { EventBus } from '../events/EventBus';
 import { interruptPlayerWalkForVerbInteraction } from '../scenes/interruptPlayerWalkForVerbInteraction.js';
+import { beginActionSentence } from './actionSentence.js';
 import type { VerbInteractTarget, VerbUnhandledPayload } from '../events/verbInteractionEvents';
 import type { Point2 } from '../../types/room';
 import {
@@ -78,6 +79,7 @@ export function dispatchVerbInteraction(
   target: VerbInteractTarget,
 ): void {
   interruptPlayerWalkForVerbInteraction();
+  beginActionSentence(verbId, target.description);
   const payload = buildEmitPayload(target, verbId);
 
   if (target.type === 'character') {

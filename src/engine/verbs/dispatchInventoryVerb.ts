@@ -1,6 +1,7 @@
 import type { EventBus } from '../events/EventBus';
 import { inventoryVerbEventId, roomInventoryVerbEventId } from '../events/inventoryVerbEvents.js';
 import { interruptPlayerWalkForVerbInteraction } from '../scenes/interruptPlayerWalkForVerbInteraction.js';
+import { beginActionSentence } from './actionSentence.js';
 import { dispatchVerbInteraction } from './dispatchVerb.js';
 import { tryGetActiveGameStateManager } from '../gameState/resolveGameStateManager.js';
 import { getGameSettings } from '../ConfigManager.js';
@@ -24,6 +25,7 @@ export function dispatchInventoryVerbInteraction(
   roomId: string,
 ): void {
   interruptPlayerWalkForVerbInteraction();
+  beginActionSentence(verbId, inventoryItemLabel(itemId));
   const payload = { itemId, roomId, verbId };
   const roomScoped = roomInventoryVerbEventId(roomId, itemId, verbId);
   if (listenerCount(bus, roomScoped) > 0) {

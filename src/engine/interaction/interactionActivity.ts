@@ -55,13 +55,23 @@ interface Entry {
 const running = new Map<number, Entry>();
 let nextId = 0;
 let current: InteractionActivity | null = null;
+const endListeners = new Set<() => void>();
+
+/** Runs `listener` each time an interaction ends (finished, cancelled or abandoned). */
+export function onInteractionActivityEnded(listener: () => void): void {
+  endListeners.add(listener);
+}
 
 export function beginInteractionActivity(options: InteractionActivityOptions = {}): InteractionActivity {
   const id = ++nextId;
   const entry: Entry = { gameplay: options.gameplay !== false, waitingForPlayer: false, options };
   running.set(id, entry);
   const end = (): void => {
-    running.delete(id);
+    if (running.delete(id)) {
+      for (const listener of endListeners) {
+        listener();
+      }
+    }
   };
   return {
     end,

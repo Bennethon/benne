@@ -355,8 +355,8 @@ The verb / item / hover context of the pointer. In `src/engine/bennescript/game.
 | `pointer.verb: VerbHandle \| null` | settable | The armed verb (a `verbs.x` handle), or `null` in walk mode. Set it to arm a verb, or `null` to clear it. |
 | `pointer.item: ItemHandle \| null` | settable | The armed inventory item (an `items.x` handle), or `null`. Set it to arm an item (`pointer.item = items.knife`) or to drop the armed one (`pointer.item = null`). |
 | `pointer.hover: PointerHover \| null` | read-only | What the pointer is over (`{ kind, id, description, defaultVerb }`), or `null`. |
-| `pointer.sentence: string` | read-only | The standard verb line: "Walk to", "Look at Door", "Use Coffee with Coffee maker". |
-| `pointer.onContextChange(handler: () => void)` | handler | Runs `handler` whenever the armed verb, the armed item or the hover target changes. |
+| `pointer.sentence: string` | read-only | The standard verb line: "Walk to", "Look at Door", "Use Coffee with Coffee maker". While a clicked verb runs (an armed verb, or a right-click's default verb), it is that action's line until its handler finishes, whatever the pointer is over. |
+| `pointer.onContextChange(handler: () => void)` | handler | Runs `handler` whenever the armed verb, the armed item or the hover target changes, or a clicked action starts or finishes. |
 
 ### `saves`
 
