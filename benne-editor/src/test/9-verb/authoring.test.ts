@@ -48,7 +48,7 @@ suite('Authoring contracts on the 9-verb template', () => {
             assert.equal(scriptHasHandler(uri, text, { kind: 'anyItem', target: couch }), true);
             assert.equal(scriptHasHandler(uri, text, { kind: 'region', roomId: 'apartment', regionId: 'darkness', hook: 'onEnter' }), true);
             assert.equal(scriptHasHandler(uri, `${text}\nconst example = 'couch.onPickUp(() => {})'\n`, { kind: 'verb', target: couch, verbId: 'pickUp' }), false);
-        } finally { await fs.rm(root, { recursive: true, force: true }); }
+        } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
     });
     test('Inspector "add handler" on a prop inserts a BenneScript handler', async () => {
         const { root, game } = await apartmentGameCopy();
@@ -81,6 +81,6 @@ suite('Authoring contracts on the 9-verb template', () => {
             assert.ok(final.includes('room.onLoaded(() => {\n  // TODO\n})'));
             assert.ok(final.includes('onUpdate(() => {\n  if (game.currentRoom !== room) return'));
             assert.match(final, /^import \{ [^}]*\bgame\b[^}]*\bonUpdate\b[^}]*\} from '@benne\/script';/);
-        } finally { await fs.rm(root, { recursive: true, force: true }); }
+        } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
     });
 });

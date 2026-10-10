@@ -37,7 +37,7 @@ suite('Authoring and update contracts', () => {
             assert.equal(actual.dependencies.custom, '1.0.0');
             assert.equal(actual.dependencies.phaser, expected.dependencies.phaser);
             assert.equal(actual.devDependencies.helper, '2.0.0');
-        } finally { await fs.rm(root, { recursive: true, force: true }); }
+        } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
     });
     test('engine update keeps a game\'s own lint script and adds the template one when missing', async () => {
         const root = await fs.mkdtemp(path.join(os.tmpdir(), 'benne-update-'));
@@ -49,7 +49,7 @@ suite('Authoring and update contracts', () => {
             await fs.writeFile(pkg, JSON.stringify({ name: 'g', scripts: {} }));
             await mergeGamePackageJson(vscode.Uri.file(root));
             assert.equal(JSON.parse(await fs.readFile(pkg, 'utf8')).scripts.lint, JSON.parse(buildPackageJson('g')).scripts.lint);
-        } finally { await fs.rm(root, { recursive: true, force: true }); }
+        } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
     });
     test('engine update removes files the engine no longer ships, and only those', async () => {
         const root = await fs.mkdtemp(path.join(os.tmpdir(), 'benne-obsolete-'));
@@ -90,7 +90,7 @@ suite('Authoring and update contracts', () => {
             assert.equal(isRemovableEngineFile('src/game/rooms/x/x.room.ts'), false);
             assert.equal(isRemovableEngineFile('src/game/boot/../rooms/x/x.room.ts'), false);
             assert.equal(isRemovableEngineFile('src/engine/../game/a.ts'), false);
-        } finally { await fs.rm(root, { recursive: true, force: true }); }
+        } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
     });
     test('the bundled scaffold lists the old scripting API as removed', async () => {
         const extensionPath = path.resolve(__dirname, '../..');
@@ -108,7 +108,7 @@ suite('Authoring and update contracts', () => {
             await copyTreeNonDestructive(source, target);
             assert.equal(await fs.readFile(path.join(target, 'existing.txt'), 'utf8'), 'authored');
             assert.equal(await fs.readFile(path.join(target, 'new.txt'), 'utf8'), 'new');
-        } finally { await fs.rm(root, { recursive: true, force: true }); }
+        } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
     });
     test('Play From discovery excludes comments and deduplicates names', () => {
         const names = readRoomPlayFromNamesFromSource("import { playFrom } from '@benne/script';\n// playFrom('ignored', () => {})\nplayFrom('start', () => {})\nplayFrom('start', () => {})\nplayFrom('fix battery', () => {})");

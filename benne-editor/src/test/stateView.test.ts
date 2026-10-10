@@ -76,7 +76,7 @@ suite('State view', () => {
             d.dispose();
         }
         for (const root of roots.splice(0)) {
-            await fs.rm(root, { recursive: true, force: true });
+            await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
         }
     });
 

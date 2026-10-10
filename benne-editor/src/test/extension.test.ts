@@ -18,7 +18,7 @@ suite('BENNE extension integration', () => {
     });
     teardown(async () => {
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-        await fs.rm(root, { recursive: true, force: true });
+        await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     });
     test('activates and registers every contributed command', async () => {
         const extension = vscode.extensions.getExtension('bennethon.benne-editor');

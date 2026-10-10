@@ -48,7 +48,7 @@ suite('Authoring contracts on the AI Apocalypse template', () => {
             assert.equal(scriptHasHandler(uri, text, { kind: 'anyItem', target: battery }), true);
             assert.equal(scriptHasHandler(uri, text, { kind: 'region', roomId: 'club', regionId: 'club-region-leave', hook: 'onEnter' }), true);
             assert.equal(scriptHasHandler(uri, `${text}\nconst example = 'battery.onTake(() => {})'\n`, { kind: 'verb', target: battery, verbId: 'take' }), false);
-        } finally { await fs.rm(root, { recursive: true, force: true }); }
+        } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
     });
     test('Inspector "add handler" on an AI Apocalypse prop inserts a BenneScript handler', async () => {
         const { root, game } = await clubGameCopy();
@@ -80,6 +80,6 @@ suite('Authoring contracts on the AI Apocalypse template', () => {
             assert.ok(final.includes('room.onEnter(() => {\n  // TODO\n})'));
             assert.ok(final.includes('onUpdate(() => {\n  if (game.currentRoom !== room) return'));
             assert.match(final, /^import \{ [^}]*\bgame\b[^}]*\bonUpdate\b[^}]*\} from '@benne\/script';/);
-        } finally { await fs.rm(root, { recursive: true, force: true }); }
+        } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
     });
 });
