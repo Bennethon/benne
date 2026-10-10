@@ -72,7 +72,7 @@ import { runCreatePdcWizard } from './pdcScaffolding';
 import { runCreateGameWizard } from './gameCreationScaffolding';
 import { runUpdateEngineWizard } from './engineUpdateScaffolding';
 import { PdcEditorPanelController } from './pdcPreviewPanel';
-import { applyBenneTwoRowJsonScriptLayout } from './benneEditorLayout';
+import { applyBenneTwoRowJsonScriptLayout, setBenneInspectorRevealer } from './benneEditorLayout';
 import {
     BENNE_SCRIPT_VIEW_COLUMN,
     openBenneCharacterTypeScript,
@@ -641,6 +641,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     const stateProvider = new StateWebviewViewProvider(context.extensionUri);
+    setBenneInspectorRevealer(() => inspectorProvider.reveal());
+    context.subscriptions.push({ dispose: () => setBenneInspectorRevealer(undefined) });
 
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider('benne-editor.inspector', inspectorProvider, {

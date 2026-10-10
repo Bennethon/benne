@@ -17,7 +17,7 @@ When the extension is installed, a **BENNE** icon appears in the VS Code Activit
 - **Actions** — Buttons for rebuilding preview bundles (room, character, GUI, inventory, dialog/inspector, and BENNE Play), plus workspace-level helpers such as **Process Game Voice IDs**.
 - **State** — Your game's flags and variables, with their defaults (see [State](#state)).
 
-The **Inspector**, which shows editable properties for whatever you've selected in the tree, sits on the other side of the window in the **Secondary Side Bar** (**View → Appearance → Secondary Side Bar** if it's hidden). **BENNE: Show BENNE Sidebar** opens both. Like any VS Code view, you can drag any of them somewhere else.
+The **Inspector**, which shows editable properties for whatever you've selected in the tree, sits on the other side of the window in the **Secondary Side Bar**. Selecting something in the tree opens the Secondary Side Bar on the Inspector if it's closed or showing another view, such as Chat. Turn that off with the `benneEditor.layout.revealInspector` setting. **BENNE: Show BENNE Sidebar** opens both. Like any VS Code view, you can drag any of them somewhere else.
 
 From the sidebar title bars and right-click context menus you can create new content, add elements to a room, scaffold script handlers, import from Aseprite tags, play from a room, update the engine, and delete entities.
 

@@ -44,6 +44,7 @@ Open a folder that contains `src/game/rooms/`. The **BENNE** activity bar view l
 | `benneEditor.roomPreview.autoRebuildDebounceMs` | `1500` | Debounce (ms) before starting that automatic rebuild. |
 | `benneEditor.dialogue.autoInsertBackticks` | `true` | In BenneScript files, typing `Hank:` at the start of a statement inserts `` `…` `` for the line of dialogue. |
 | `benneEditor.layout.closePanelOnOpen` | `false` | Close the bottom Panel (Terminal, Output, Problems) when a room, character, GUI or inventory item opens in the two-row preview/source layout. |
+| `benneEditor.layout.revealInspector` | `true` | Open the Secondary Side Bar on the BENNE Inspector when a BENNE item opens in its editor layout, without moving focus. |
 
 ## Preview rebuilds
 

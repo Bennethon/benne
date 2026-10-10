@@ -34,7 +34,7 @@ The `register*Script` / `B.` scripting API is gone. Game scripts are now **Benne
 - When something has no description, the verb line shows its name, then its id, instead of just the verb ("Look at").
 - Both game templates (2-click and 9-verb) are written in BenneScript, with dialogue in backticks.
 - Once the player clicks, the verb line shows that action ("Use Door", even from a right-click's default verb) until its handler finishes, instead of following the pointer. `pointer.hover` still follows the pointer.
-- **The Inspector moved to the Secondary Side Bar**, on the other side of the window from the BENNE tree, so the sidebar has room for the State view. **BENNE: Show BENNE Sidebar** opens both.
+- **The Inspector moved to the Secondary Side Bar**, on the other side of the window from the BENNE tree, so the sidebar has room for the State view. Selecting something in the BENNE tree opens the Secondary Side Bar on the Inspector if it's closed or showing another view, without moving focus (setting `benneEditor.layout.revealInspector`). **BENNE: Show BENNE Sidebar** opens both.
 - **The BENNE Editor needs VS Code 1.106 or newer** (was 1.85), the first release that lets extensions add views to the Secondary Side Bar.
 
 ### Fixed

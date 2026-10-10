@@ -473,6 +473,11 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "When a BENNE item opens in the two-row preview/source layout, close the bottom Panel (Terminal, Output, Problems) so both rows get the full height. You can reopen it at any time with **View: Toggle Panel Visibility**."
+        },
+        "benneEditor.layout.revealInspector": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When a BENNE item opens in its editor layout, open the Secondary Side Bar on the **BENNE Inspector** if it's closed or showing another view. Focus stays where it was."
         }
       }
     },

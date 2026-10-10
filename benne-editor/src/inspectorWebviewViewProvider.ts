@@ -788,6 +788,20 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
         void this.pushState();
     }
 
+    /**
+     * Shows the Inspector (opening the Secondary Side Bar and selecting its tab) without moving
+     * focus. Before the view has been shown once there is no `WebviewView` to call, so this opens
+     * its container, which focuses it, and gives focus back to the editor.
+     */
+    async reveal(): Promise<void> {
+        if (this.view) {
+            this.view.show(true);
+            return;
+        }
+        await vscode.commands.executeCommand('workbench.view.extension.benne-inspector');
+        await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+    }
+
     private postState(state: InspectorStatePayload): void {
         void this.view?.webview.postMessage({ type: 'benne/inspector/state', state });
     }
