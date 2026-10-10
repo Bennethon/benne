@@ -2,17 +2,6 @@
 
 All notable changes to BENNE. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). BENNE has one version number, the extension's: it covers the editor, the engine and the game templates. Releases before 0.1.0 have their builds on the [GitHub releases page](https://github.com/Bennethon/benne/releases).
 
-## [Unreleased]
-
-### Added
-
-- **State view** in the BENNE sidebar: your game's flags and vars, from `src/game/state.ts`, in two tables. Add one, change its default, rename it or delete it there and the editor writes `state.ts` for you. A rename changes every script that uses the name, and deleting one that scripts still use asks first.
-
-### Changed
-
-- **The Inspector moved to the Secondary Side Bar**, on the other side of the window from the BENNE tree, so the sidebar has room for the State view. **BENNE: Show BENNE Sidebar** opens both.
-- **The BENNE Editor needs VS Code 1.106 or newer** (was 1.85), the first release that lets extensions add views to the Secondary Side Bar.
-
 ## [0.1.0] - 2026-10-09
 
 ### Breaking: game scripts are BenneScript
@@ -35,6 +24,7 @@ The `register*Script` / `B.` scripting API is gone. Game scripts are now **Benne
 - **Character preview:** an **Animation** dropdown plays any tag on the character's sheet. Clips that don't loop in the game are marked "(once)".
 - **Inspector:** a **+ playFrom** chip on a room starts the Play From wizard, and each existing `playFrom` has a chip that jumps to it.
 - **New rooms, characters, items, GUIs, dialogs and puzzle charts** open in their editor layout straight away, and new scripts start with comments that explain what goes in the file.
+- **State view** in the BENNE sidebar: your game's flags and vars, from `src/game/state.ts`, in two tables. Add one, change its default, rename it or delete it there and the editor writes `state.ts` for you. A rename changes every script that uses the name, and deleting one that scripts still use asks first.
 - The extension is now MIT licensed.
 
 ### Changed
@@ -43,6 +33,9 @@ The `register*Script` / `B.` scripting API is gone. Game scripts are now **Benne
 - Ids proposed for room content are shorter: a prop is `desk`, not `<room>-prop-desk`, and hotspots, points, regions and walkable areas start empty with an example. They only need to be unique within their room.
 - When something has no description, the verb line shows its name, then its id, instead of just the verb ("Look at").
 - Both game templates (2-click and 9-verb) are written in BenneScript, with dialogue in backticks.
+- Once the player clicks, the verb line shows that action ("Use Door", even from a right-click's default verb) until its handler finishes, instead of following the pointer. `pointer.hover` still follows the pointer.
+- **The Inspector moved to the Secondary Side Bar**, on the other side of the window from the BENNE tree, so the sidebar has room for the State view. **BENNE: Show BENNE Sidebar** opens both.
+- **The BENNE Editor needs VS Code 1.106 or newer** (was 1.85), the first release that lets extensions add views to the Secondary Side Bar.
 
 ### Fixed
 
