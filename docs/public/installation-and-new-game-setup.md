@@ -13,7 +13,7 @@ This page walks you through everything you need to go from a clean machine to a 
 
 Before you begin, make sure you have:
 
-- **Visual Studio Code** (version 1.85 or newer).
+- **Visual Studio Code** (version 1.106 or newer).
 - **Node.js** (a current LTS release is recommended). New games run on [Vite](https://vitejs.dev/) and Phaser 4, both installed through npm.
 - **Aseprite** (recommended) for authoring sprite sheets. BENNE's art pipeline is built around Aseprite-exported sheets and tagged animations. You can technically supply compatible sheets another way, but Aseprite is the supported workflow.
 

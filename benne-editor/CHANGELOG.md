@@ -2,6 +2,17 @@
 
 All notable changes to BENNE. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). BENNE has one version number, the extension's: it covers the editor, the engine and the game templates. Releases before 0.1.0 have their builds on the [GitHub releases page](https://github.com/Bennethon/benne/releases).
 
+## [Unreleased]
+
+### Added
+
+- **State view** in the BENNE sidebar: your game's flags and vars, from `src/game/state.ts`, in two tables. Add one, change its default, rename it or delete it there and the editor writes `state.ts` for you. A rename changes every script that uses the name, and deleting one that scripts still use asks first.
+
+### Changed
+
+- **The Inspector moved to the Secondary Side Bar**, on the other side of the window from the BENNE tree, so the sidebar has room for the State view. **BENNE: Show BENNE Sidebar** opens both.
+- **The BENNE Editor needs VS Code 1.106 or newer** (was 1.85), the first release that lets extensions add views to the Secondary Side Bar.
+
 ## [0.1.0] - 2026-10-09
 
 ### Breaking: game scripts are BenneScript

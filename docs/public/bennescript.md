@@ -348,6 +348,8 @@ vars.timesAskedJensen += 1
 
 Flags are true or false. Variables hold numbers, strings, booleans, and arrays or objects of those. Both are saved. A misspelt flag is a type error, so you can't set `flags.batteryClaen` by accident.
 
+The BENNE Editor's **State** view adds, renames and changes flags and variables without opening `state.ts` (see [BENNE Editor → State](./benne-editor#state)).
+
 If you rename a flag after players have saves, keep the old name for the save with `flag(false, { saveKey: 'old name' })`.
 
 ## Dialogs

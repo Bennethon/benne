@@ -23,7 +23,8 @@ Open a folder that contains `src/game/rooms/`. The **BENNE** activity bar view l
 ## Features
 
 - **Main tree** — browse and select game content; scaffold new rooms, characters, GUIs, inventory items, dialogs, and puzzle charts.
-- **Inspector** — edit JSON metadata for the selected entity; auto-saves on blur.
+- **Inspector** (in the Secondary Side Bar) — edit JSON metadata for the selected entity; auto-saves on blur.
+- **State** — the game's flags and vars from `src/game/state.ts` as two tables: add, rename (in every script that uses them), change defaults and delete without opening the file.
 - **Room preview** — live Phaser preview with walkable polygons, prop colliders, hotspots, regions, and points.
 - **Character / GUI / inventory previews** — focused previews for authoring geometry and layout.
 - **BENNE Play** — full runtime in a webview panel (same boot path as the shipped game).
@@ -31,6 +32,7 @@ Open a folder that contains `src/game/rooms/`. The **BENNE** activity bar view l
 
 ## Requirements
 
+- **VS Code 1.106** or newer.
 - **Node.js** and **npm** on your PATH (used when creating a new game and when rebuilding preview bundles).
 - A BENNE game workspace layout: `src/game/` with at least `src/game/rooms/`.
 

@@ -11,7 +11,7 @@
     "directory": "benne-editor"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.106.0"
   },
   "categories": [
     "Other"
@@ -19,6 +19,7 @@
   "activationEvents": [
     "onView:benne-editor.main",
     "onView:benne-editor.actions",
+    "onView:benne-editor.state",
     "onView:benne-editor.inspector",
     "onCommand:benne-editor.openEditor",
     "onCommand:benne-editor.showSidebar",
@@ -89,6 +90,13 @@
           "title": "BENNE",
           "icon": "media/benne.svg"
         }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "benne-inspector",
+          "title": "BENNE Inspector",
+          "icon": "media/benne.svg"
+        }
       ]
     },
     "views": {
@@ -104,6 +112,14 @@
           "contextualTitle": "BENNE — Actions"
         },
         {
+          "id": "benne-editor.state",
+          "type": "webview",
+          "name": "State",
+          "contextualTitle": "BENNE — State"
+        }
+      ],
+      "benne-inspector": [
+        {
           "id": "benne-editor.inspector",
           "type": "webview",
           "name": "Inspector",
@@ -112,6 +128,12 @@
       ]
     },
     "commands": [
+      {
+        "command": "benne-editor.openStateFile",
+        "title": "Open state.ts",
+        "category": "BENNE",
+        "icon": "$(go-to-file)"
+      },
       {
         "command": "benne-editor.openEditor",
         "title": "Open Editor",
@@ -456,6 +478,11 @@
     },
     "menus": {
       "view/title": [
+        {
+          "command": "benne-editor.openStateFile",
+          "when": "view == benne-editor.state",
+          "group": "navigation@0"
+        },
         {
           "command": "benne-editor.filterMainTree",
           "when": "view == benne-editor.main",
@@ -878,7 +905,7 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.106.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "eslint": "^9.39.3",

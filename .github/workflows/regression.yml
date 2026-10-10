@@ -101,7 +101,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        vscode: ['1.85.2', '1.140.0']
+        vscode: ['1.106.0', '1.140.0']
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:

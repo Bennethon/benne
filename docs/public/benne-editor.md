@@ -15,7 +15,9 @@ When the extension is installed, a **BENNE** icon appears in the VS Code Activit
 
 - **BENNE** (the main tree) — A structured outline of your whole game: rooms, characters, GUIs, inventory, dialogs, and puzzle charts, each expandable down to individual props, hotspots, regions, points, walkable areas, and controls.
 - **Actions** — Buttons for rebuilding preview bundles (room, character, GUI, inventory, dialog/inspector, and BENNE Play), plus workspace-level helpers such as **Process Game Voice IDs**.
-- **Inspector** — A webview panel that shows editable properties for whatever you've selected in the tree.
+- **State** — Your game's flags and variables, with their defaults (see [State](#state)).
+
+The **Inspector**, which shows editable properties for whatever you've selected in the tree, sits on the other side of the window in the **Secondary Side Bar** (**View → Appearance → Secondary Side Bar** if it's hidden). **BENNE: Show BENNE Sidebar** opens both. Like any VS Code view, you can drag any of them somewhere else.
 
 From the sidebar title bars and right-click context menus you can create new content, add elements to a room, scaffold script handlers, import from Aseprite tags, play from a room, update the engine, and delete entities.
 
@@ -75,6 +77,18 @@ What the Inspector shows depends on the selection. Examples:
 A major convenience: from the Inspector and the tree, you can **scaffold script handlers** for an entity. For example, adding a "Use" handler to a prop edits the room JSON to mark the prop clickable *and* adds a `door.onUse(() => { … })` stub (with its imports) to the end of the room script, then reveals it so you can fill in behavior. You can also reveal an existing handler to jump straight to it.
 
 The editor also helps while you write scripts: it completes every generated name (rooms, props, items, sounds, …), offers `Hank: ""` when you start a line with a character's name, completes animation tags and facing letters with their quotes, flags unknown speaker names as you type, and **Go to Definition** on a name like `battery` opens the JSON it came from.
+
+## State
+
+The **State** view lists the flags and variables declared in `src/game/state.ts` (see [BenneScript → Flags, variables and visits](./bennescript#flags-variables-and-visits)) in two tables, **Flags** and **Vars**, each with a name and a default value. Whatever you do in the tables is written to `state.ts` for you:
+
+- **Add** a flag or var in the last row of its table: type a name and press Enter. A var also takes a type (`text`, `num`, `bool`, or `json` for a list or object) and a default. If the game has no `state.ts` yet, the first one you add creates it.
+- **Change a default** with the checkbox or field next to it.
+- **Rename** by clicking a name. The rename goes through TypeScript, so every `flags.oldName` in your scripts changes with it. A flag is saved under its name, so renaming one that players already have in their saves also needs `flag(…, { saveKey: 'oldName' })` in `state.ts` to keep those saves.
+- **Delete** with the ✕ that appears when you point at a row. If scripts still use it, the editor tells you where before deleting it.
+- **↗** opens `state.ts` at that entry, and the button in the view's title bar opens the file.
+
+Comments and the order of entries in `state.ts` are kept. An entry whose value isn't a plain value (a function call, say) is shown greyed out; edit it in `state.ts`.
 
 ## Rooms
 

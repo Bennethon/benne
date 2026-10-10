@@ -87,6 +87,7 @@ import {
     revealInventoryUsedOnHandlerInDocument
 } from './roomScriptNavigation';
 import { InspectorWebviewViewProvider } from './inspectorWebviewViewProvider';
+import { StateWebviewViewProvider } from './stateWebviewViewProvider';
 import { resolveDeleteTargetFromMainTreeNode } from './delete/deleteTarget';
 import {
     applySelectionAfterDelete,
@@ -639,11 +640,16 @@ export function activate(context: vscode.ExtensionContext): void {
         return undefined;
     }
 
+    const stateProvider = new StateWebviewViewProvider(context.extensionUri);
+
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider('benne-editor.inspector', inspectorProvider, {
             webviewOptions: { retainContextWhenHidden: true }
         }),
         inspectorProvider,
+        vscode.window.registerWebviewViewProvider('benne-editor.state', stateProvider),
+        stateProvider,
+        vscode.commands.registerCommand('benne-editor.openStateFile', () => stateProvider.handleMessage({ action: 'reveal' })),
         vscode.commands.registerCommand('benne-editor.filterMainTree', async () => {
             const value = await vscode.window.showInputBox({
                 title: 'Filter BENNE tree',
@@ -1675,6 +1681,7 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('benne-editor.showSidebar', async () => {
             await vscode.commands.executeCommand('workbench.view.extension.benne-editor');
+            await vscode.commands.executeCommand('workbench.view.extension.benne-inspector');
         })
     );
 

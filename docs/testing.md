@@ -37,7 +37,7 @@ On headless Linux, run extension and Electron tests through `xvfb-run -a`. Playw
 | `npm run test:desktop:smoke` | Existing Electron startup smoke test; requires a production build |
 | `npm run test:webgl` | Existing Electron graphics loss/restoration and startup-failure tests |
 
-`BENNE_BROWSER_MATRIX=1 npm run test:e2e` also runs Firefox and WebKit (install those browsers first). `BENNE_SOAK=1 npm run test:e2e` extends the lifecycle test to 100 transitions. `VSCODE_TEST_VERSION=1.85.2 npm run test:extension` checks the minimum supported VS Code release line. Environment-variable examples use POSIX shell syntax.
+`BENNE_BROWSER_MATRIX=1 npm run test:e2e` also runs Firefox and WebKit (install those browsers first). `BENNE_SOAK=1 npm run test:e2e` extends the lifecycle test to 100 transitions. `VSCODE_TEST_VERSION=1.106.0 npm run test:extension` checks the minimum supported VS Code release line. Environment-variable examples use POSIX shell syntax.
 
 ## Implemented coverage
 

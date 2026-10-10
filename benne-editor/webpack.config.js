@@ -73,6 +73,17 @@ const inspectorWebviewConfig = {
   },
 };
 
+/** State view webview (flags and vars tables). */
+/** @type WebpackConfig */
+const stateWebviewConfig = {
+  ...inspectorWebviewConfig,
+  entry: './src/state/stateMain.ts',
+  output: {
+    path: path.resolve(__dirname, 'media', 'state'),
+    filename: 'state.js',
+  },
+};
+
 /** PDC editor webview (Cytoscape.js). */
 /** @type WebpackConfig */
 const pdcEditorWebviewConfig = {
@@ -131,4 +142,4 @@ const roomScriptIdTsPluginConfig = {
   },
 };
 
-module.exports = [extensionConfig, inspectorWebviewConfig, pdcEditorWebviewConfig, roomScriptIdTsPluginConfig];
+module.exports = [extensionConfig, inspectorWebviewConfig, stateWebviewConfig, pdcEditorWebviewConfig, roomScriptIdTsPluginConfig];
