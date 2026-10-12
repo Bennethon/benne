@@ -63,86 +63,71 @@ onBeforeUnmount(() => clearTimeout(timer));
 </script>
 
 <template>
-  <h1 class="acronym" aria-label="BENNE">
-    <button
-      type="button"
-      class="line b-line"
-      :class="{ spinning }"
-      title="Click to spin again"
-      @click="spin([word])"
-    >
+  <p class="acronym">
+    <button type="button" class="word b-word" :class="{ spinning }" title="Click to spin again" @click="spin([word])">
       <span class="initial">B</span><span class="rest" aria-live="polite">{{ word.slice(1) }}</span>
     </button>
-    <span class="line"><span class="initial">E</span><span class="rest">ngine</span></span>
-    <span class="line small">for</span>
-    <span class="line"><span class="initial">N</span><span class="rest">ifty</span></span>
-    <span class="line"><span class="initial">N</span><span class="rest">arrative</span></span>
-    <span class="line"><span class="initial">E</span><span class="rest">xperiences</span></span>
-  </h1>
+    <span class="word"><span class="initial">E</span>ngine</span>
+    <span class="word for">for</span>
+    <span class="word"><span class="initial">N</span>ifty</span>
+    <span class="word"><span class="initial">N</span>arrative</span>
+    <span class="word"><span class="initial">E</span>xperiences</span>
+  </p>
 </template>
 
 <style scoped>
 .acronym {
   display: flex;
-  flex-direction: column;
-  gap: 0.1em;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.15em 0.4em;
   margin: 0;
   font-family: var(--benne-font-pixel);
-  font-size: clamp(2rem, 7vw, 3.25rem);
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0;
+  font-size: clamp(1.35rem, 3.6vw, 2.25rem);
+  line-height: 1.2;
+  color: var(--vp-c-text-1);
 }
 
-.line {
-  display: flex;
-  align-items: baseline;
+.word {
   white-space: nowrap;
 }
 
 .initial {
-  display: inline-block;
-  min-width: 0.78em;
-  color: var(--vp-c-brand-1);
-  text-shadow: 0.08em 0.08em 0 var(--benne-shadow);
+  /* Room on the left for the extrusion. */
+  margin-left: 3px;
+  color: var(--benne-green);
+  text-shadow: -1px 0 0 var(--benne-teal), -2px 0 0 var(--benne-teal), -3px 0 0 var(--benne-teal);
 }
 
-.rest {
-  color: var(--vp-c-text-1);
-}
-
-.small {
-  padding-left: 0.78em;
-  font-size: 0.5em;
-  font-weight: 400;
+.for {
   color: var(--vp-c-text-2);
 }
 
-.b-line {
+.b-word {
   font: inherit;
-  text-align: left;
   cursor: pointer;
   border-radius: 6px;
-  margin-left: -0.15em;
   padding: 0 0.15em;
+  margin: 0 -0.15em;
   transition: background-color 0.2s;
 }
 
-.b-line .initial,
-.b-line .rest {
-  color: var(--benne-amber);
+.b-word .rest {
+  color: var(--benne-accent-text);
 }
 
-.b-line:hover {
+.b-word:hover {
   background: var(--vp-c-default-soft);
 }
 
-.b-line:focus-visible {
+.b-word:focus-visible {
   outline: 2px solid var(--vp-c-brand-1);
   outline-offset: 2px;
 }
 
-.b-line.spinning .rest {
+.b-word.spinning .rest {
+  display: inline-block;
   animation: flick 60ms steps(2) infinite;
 }
 

@@ -5,6 +5,7 @@ import { withBase } from 'vitepress';
 // The homepage game is a separate BENNE project. Its web build (`npm run build:itch`, unzipped)
 // goes in website/public/play/. Until it is there, the monitor shows a "coming soon" screen.
 const GAME_URL = withBase('/play/index.html');
+const MONITOR_URL = withBase('/images/crt-monitor.webp');
 
 const state = ref<'checking' | 'missing' | 'ready' | 'playing'>('checking');
 const frame = ref<HTMLIFrameElement | null>(null);
@@ -19,7 +20,7 @@ onMounted(async () => {
 });
 
 function play() {
-  state.value = 'playing';
+  if (state.value === 'ready') state.value = 'playing';
 }
 
 function fullscreen() {
@@ -28,8 +29,9 @@ function fullscreen() {
 </script>
 
 <template>
-  <figure class="monitor">
-    <div class="bezel">
+  <figure class="crt">
+    <div class="monitor">
+      <!-- The screen sits under the monitor image, whose screen is cut out; the bezel masks its edges. -->
       <div class="screen">
         <iframe
           v-if="state === 'playing'"
@@ -45,48 +47,71 @@ function fullscreen() {
         </button>
         <div v-else class="screen-button idle">
           <span class="play">PLEASE WAIT…</span>
-          <span class="hint">{{ state === 'checking' ? 'Loading' : 'The office is being tidied. A playable intro is on its way.' }}</span>
+          <span class="hint">{{ state === 'checking' ? 'Warming up the tube' : 'The office is being tidied. A playable intro is on its way.' }}</span>
         </div>
       </div>
-    </div>
-    <figcaption>
+      <img class="bezel" :src="MONITOR_URL" alt="" width="1448" height="1086" draggable="false" />
       <span class="led" :class="{ on: state === 'playing' }" aria-hidden="true" />
-      <span>BENNE-TRON 3000</span>
-      <button v-if="state === 'playing'" type="button" class="fs" @click="fullscreen">⛶ Fullscreen</button>
+      <button
+        type="button"
+        class="power"
+        :disabled="state !== 'ready'"
+        :aria-label="state === 'playing' ? 'Power (on)' : 'Power on and play'"
+        :title="state === 'ready' ? 'Power on' : undefined"
+        @click="play"
+      />
+    </div>
+    <figcaption v-if="state === 'playing'">
+      <button type="button" class="fs" @click="fullscreen">⛶ Fullscreen</button>
     </figcaption>
   </figure>
 </template>
 
 <style scoped>
-.monitor {
-  margin: 0;
+/* Positions are percentages of the 1448×1086 monitor image (public/images/crt-monitor.webp). */
+.crt {
+  margin: 0 auto;
   width: 100%;
+  max-width: 960px;
 }
 
-.bezel {
-  padding: clamp(10px, 2.5vw, 22px);
-  border-radius: 18px;
-  background: linear-gradient(160deg, var(--benne-bezel-hi), var(--benne-bezel));
-  box-shadow:
-    inset 0 -4px 0 rgba(0, 0, 0, 0.25),
-    0 18px 40px -18px rgba(0, 0, 0, 0.5);
+.monitor {
+  position: relative;
+  aspect-ratio: 1448 / 1086;
+  filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.35));
 }
 
 .screen {
-  position: relative;
-  aspect-ratio: 4 / 3;
+  /* The cut-out spans x 265–1184, y 133–769; this reaches a couple of pixels under the bezel. */
+  position: absolute;
+  left: 18.16%;
+  top: 12.06%;
+  width: 63.74%;
+  height: 58.93%;
   overflow: hidden;
-  border-radius: 10px;
-  background: #120d1f;
+  background: #000;
 }
 
 .screen::after {
-  /* Scanlines over the idle screens; the iframe sits above them while playing. */
+  /* Scanlines and a soft vignette, like glass. pointer-events: none keeps the game clickable. */
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 2;
   pointer-events: none;
-  background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 3px);
+  background:
+    radial-gradient(ellipse at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.45) 100%),
+    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px);
+}
+
+.bezel {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
 }
 
 iframe {
@@ -103,17 +128,17 @@ iframe {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 2%;
   width: 100%;
   height: 100%;
-  padding: 16px;
+  padding: 6%;
   text-align: center;
-  font-family: var(--benne-font-pixel);
-  color: #f4ecff;
+  font-family: var(--benne-font-ui);
+  color: #e4f4f2;
   background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 122, 168, 0.28), transparent 60%),
-    radial-gradient(ellipse at 50% 110%, rgba(255, 184, 77, 0.3), transparent 55%),
-    #1a1230;
+    radial-gradient(ellipse at 50% 40%, rgba(16, 144, 142, 0.45), transparent 65%),
+    radial-gradient(ellipse at 50% 115%, rgba(61, 255, 110, 0.2), transparent 55%),
+    #061317;
 }
 
 button.screen-button {
@@ -121,10 +146,11 @@ button.screen-button {
 }
 
 .play {
-  font-size: clamp(1.4rem, 4vw, 2.4rem);
-  font-weight: 700;
-  color: #ffb84d;
-  text-shadow: 3px 3px 0 #6b1d3e;
+  padding-left: 4px;
+  font-family: var(--benne-font-pixel);
+  font-size: clamp(1.25rem, 4.5vw, 2.75rem);
+  color: var(--benne-green);
+  text-shadow: -1px 0 0 var(--benne-teal), -2px 0 0 var(--benne-teal), -3px 0 0 var(--benne-teal), -4px 0 0 var(--benne-teal);
 }
 
 button.screen-button:hover .play,
@@ -133,8 +159,8 @@ button.screen-button:focus-visible .play {
 }
 
 .hint {
-  font-size: clamp(0.85rem, 2vw, 1.05rem);
-  color: #d9cdf0;
+  font-size: clamp(0.7rem, 1.8vw, 1rem);
+  color: #b9dcd8;
 }
 
 .idle .play {
@@ -145,36 +171,60 @@ button.screen-button:focus-visible .play {
   50% { opacity: 0.35; }
 }
 
+.led {
+  /* Over the image's LED, centred on (1124, 872). */
+  position: absolute;
+  z-index: 4;
+  left: 77.27%;
+  top: 79.83%;
+  width: 0.76%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background: var(--benne-green);
+  box-shadow: 0 0 6px 2px var(--benne-green);
+  transition: opacity 0.3s;
+}
+
+.led.on {
+  opacity: 1;
+}
+
+.power {
+  /* Over the image's power button, x 1154–1222, y 842–900. */
+  position: absolute;
+  z-index: 4;
+  left: 79.7%;
+  top: 77.53%;
+  width: 4.7%;
+  height: 5.34%;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.power:disabled {
+  cursor: default;
+}
+
+.power:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .play { animation: none !important; }
 }
 
 figcaption {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 0 6px;
-  font-family: var(--benne-font-pixel);
-  font-size: 0.85rem;
-  color: var(--vp-c-text-2);
-}
-
-.led {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--vp-c-text-3);
-}
-
-.led.on {
-  background: #4ade80;
-  box-shadow: 0 0 6px #4ade80;
+  justify-content: center;
+  margin-top: 8px;
 }
 
 .fs {
-  margin-left: auto;
-  font: inherit;
+  font-family: var(--benne-font-ui);
+  font-size: 0.9rem;
   color: var(--vp-c-brand-1);
   cursor: pointer;
 }

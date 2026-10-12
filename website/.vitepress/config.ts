@@ -21,15 +21,14 @@ export default defineConfig({
     },
   },
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
-    ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
-    ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
-    ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
+    ['link', { rel: 'preload', href: '/fonts/sysfont.woff2', as: 'font', type: 'font/woff2', crossorigin: '' }],
+    ['link', { rel: 'preload', href: '/fonts/ChicagoFLF.ttf', as: 'font', type: 'font/ttf', crossorigin: '' }],
     ['meta', { property: 'og:title', content: 'BENNE' }],
     ['meta', { property: 'og:description', content: 'Make point-and-click adventure games in TypeScript, in VS Code.' }],
   ],
   themeConfig: {
-    logo: { src: '/favicon.svg', alt: '' },
+    logo: { src: '/logo.svg', alt: '' },
     nav: [
       { text: 'Guide', link: '/guide/introduction', activeMatch: '/guide/' },
       { text: 'API Reference', link: '/reference/bennescript-api', activeMatch: '/reference/' },

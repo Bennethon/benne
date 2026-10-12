@@ -7,19 +7,16 @@ markdownStyles: false
 
 <div class="benne-home">
   <section class="hero">
-    <div class="pitch">
-      <BenneAcronym />
-      <p class="tagline">
-        Make point-and-click adventure games in TypeScript, with live previews in VS Code.
-        Scripts read like a screenplay. Pixels stay crisp.
-      </p>
-      <div class="actions">
-        <a class="btn primary" href="/guide/introduction">Get started</a>
-        <a class="btn" href="/guide/bennescript">Learn BenneScript</a>
-      </div>
-    </div>
-    <div class="stage">
-      <HomeGame />
+    <h1 class="title">BENNE</h1>
+    <BenneAcronym />
+    <HomeGame />
+    <p class="tagline">
+      Make point-and-click adventure games in TypeScript, with live previews in VS Code.
+      Scripts read like a screenplay. Pixels stay crisp.
+    </p>
+    <div class="actions">
+      <a class="btn primary" href="/guide/introduction">Get started</a>
+      <a class="btn" href="/guide/bennescript">Learn BenneScript</a>
     </div>
   </section>
 
@@ -59,21 +56,31 @@ markdownStyles: false
 }
 
 .benne-home .hero {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  gap: 48px;
-  align-items: center;
-}
-
-.benne-home .pitch {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 24px;
+  text-align: center;
+}
+
+.benne-home .title {
+  margin: 0;
+  /* The extrusion runs left, so pad that side to keep the word visually centred. */
+  padding-left: 10px;
+  font-family: var(--benne-font-pixel);
+  font-size: clamp(4.5rem, 17vw, 10rem);
+  font-weight: normal;
+  line-height: 1;
+  color: var(--benne-green);
+  text-shadow: -1px 0 0 var(--benne-teal), -2px 0 0 var(--benne-teal), -3px 0 0 var(--benne-teal),
+    -4px 0 0 var(--benne-teal), -5px 0 0 var(--benne-teal), -6px 0 0 var(--benne-teal),
+    -7px 0 0 var(--benne-teal), -8px 0 0 var(--benne-teal), -9px 0 0 var(--benne-teal),
+    -10px 0 0 var(--benne-teal);
 }
 
 .benne-home .tagline {
-  margin: 0;
-  max-width: 34ch;
+  margin: 8px 0 0;
+  max-width: 46ch;
   font-size: 1.125rem;
   line-height: 1.6;
   color: var(--vp-c-text-2);
@@ -81,6 +88,7 @@ markdownStyles: false
 
 .benne-home .actions {
   display: flex;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 12px;
 }
@@ -90,17 +98,17 @@ markdownStyles: false
   padding: 10px 20px;
   border: 2px solid var(--vp-c-brand-1);
   border-radius: 8px;
-  font-family: var(--benne-font-pixel);
+  font-family: var(--benne-font-ui);
   font-size: 1.05rem;
-  font-weight: 600;
   color: var(--vp-c-brand-1);
   box-shadow: 3px 3px 0 var(--benne-shadow);
   transition: transform 0.1s, box-shadow 0.1s;
 }
 
 .benne-home .btn.primary {
-  color: var(--vp-c-white);
-  background: var(--vp-c-brand-1);
+  border-color: var(--benne-teal);
+  color: #000;
+  background: var(--benne-green);
 }
 
 .benne-home .btn:hover {
@@ -111,10 +119,6 @@ markdownStyles: false
 .benne-home .btn:active {
   transform: translate(2px, 2px);
   box-shadow: 1px 1px 0 var(--benne-shadow);
-}
-
-.dark .benne-home .btn.primary {
-  color: #15111f;
 }
 
 .benne-home .features {
@@ -141,7 +145,8 @@ markdownStyles: false
 
 .benne-home .feature h2 {
   margin: 0 0 8px;
-  font-family: var(--benne-font-pixel);
+  font-family: var(--benne-font-ui);
+  font-weight: normal;
   font-size: 1.15rem;
   line-height: 1.3;
   color: var(--vp-c-brand-1);
@@ -162,10 +167,6 @@ markdownStyles: false
 }
 
 @media (max-width: 960px) {
-  .benne-home .hero {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 32px;
-  }
   .benne-home .features {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
