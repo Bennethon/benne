@@ -812,4 +812,4 @@ Callbacks passed to other functions (`array.forEach`, `setTimeout`) are **not** 
 | `parts.forEach(p => handOver(p))` | `for (const p of parts) handOver(p)` |
 | A name ends in `_` (a prop called `wait` becomes `wait_`) | It clashes with a BenneScript name. Give it a `"scriptName"` in its JSON. |
 
-The full list of every name and property, with what waits and what doesn't, is the **BenneScript API reference** (`docs/bennescript-api.md` in the BENNE repository).
+The full list of every name and property, with what waits and what doesn't, is the [BenneScript API reference](../reference/bennescript-api).

@@ -20,7 +20,7 @@ See [the regression testing guide](docs/testing.md) for setup, suite commands, C
 ## Documentation
 
 - [`docs/architecture.md`](docs/architecture.md): how the engine and editor fit together.
-- [`docs/public/`](docs/public/) and [`docs/bennescript-api.md`](docs/bennescript-api.md): user guides and the scripting API.
+- [`website/guide/`](website/guide/) (served at [benne.games](https://benne.games)) and [`docs/bennescript-api.md`](docs/bennescript-api.md): user guides and the scripting API.
 - [`docs/bennescript-ergonomics-refactor.md`](docs/bennescript-ergonomics-refactor.md): the BenneScript design record and its decisions.
 - [`docs/roadmap.md`](docs/roadmap.md): open work and ideas.
 - [`docs/history/`](docs/history/README.md): dated reviews and logs, kept for background only.

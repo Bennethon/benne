@@ -2,7 +2,7 @@
 
 _Written 2026-10-05. **Status: implemented** (Phases 0–7, 2026-10-05 to 2026-10-06, branch `bennescript-refactor`). Open design questions were resolved on 2026-10-05; every decision and deviation made while building it is in §13, and the sections carry "As built" notes where the result differs from the proposal._
 
-> **This is now the design record.** The "TODAY" examples show the old `register*Script` / `B` API, which no longer exists; read them as history. For writing scripts, use the guide (`docs/public/bennescript.md`), the API reference generated from the code (`docs/bennescript-api.md`), and the `bennescript` agent skill (`.agents/skills/bennescript/SKILL.md`). How the pieces fit inside the engine is in `docs/architecture.md` §7. Progress per phase: `docs/history/2026-10-05-bennescript-refactor-log.md`.
+> **This is now the design record.** The "TODAY" examples show the old `register*Script` / `B` API, which no longer exists; read them as history. For writing scripts, use the guide (`website/guide/bennescript.md`), the API reference generated from the code (`docs/bennescript-api.md`), and the `bennescript` agent skill (`.agents/skills/bennescript/SKILL.md`). How the pieces fit inside the engine is in `docs/architecture.md` §7. Progress per phase: `docs/history/2026-10-05-bennescript-refactor-log.md`.
 
 This document describes a redesign of BenneScript that **stays in TypeScript** but:
 

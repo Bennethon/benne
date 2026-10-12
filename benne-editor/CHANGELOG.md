@@ -6,9 +6,9 @@ All notable changes to BENNE. The format follows [Keep a Changelog](https://keep
 
 ### Breaking: game scripts are BenneScript
 
-The `register*Script` / `B.` scripting API is gone. Game scripts are now **BenneScript**: TypeScript whose lines run in the order you write them without `await`, with a typed name for everything in your game (`battery`, `items.soda`, `sfx.sodaPour`) instead of quoted IDs, and dialogue written as ``Hank: `I hope this works.` ``. Read the [BenneScript guide](https://github.com/Bennethon/benne/blob/master/docs/public/bennescript.md) before updating an existing game.
+The `register*Script` / `B.` scripting API is gone. Game scripts are now **BenneScript**: TypeScript whose lines run in the order you write them without `await`, with a typed name for everything in your game (`battery`, `items.soda`, `sfx.sodaPour`) instead of quoted IDs, and dialogue written as ``Hank: `I hope this works.` ``. Read the [BenneScript guide](https://github.com/Bennethon/benne/blob/master/website/guide/bennescript.md) before updating an existing game.
 
-**Updating a game made with 0.0.x:** after **BENNE: Update Engine**, scripts written for the old API no longer compile and have to be rewritten in BenneScript. Commit your game first so you can compare. Update Engine now also deletes engine files that the new engine no longer ships, including the old `src/engine/scripting/` folder and your game's `src/game/boot/` folder, whose loaders moved into the engine. Nothing else under `src/game/` is touched. See [Updating BENNE](https://github.com/Bennethon/benne/blob/master/docs/public/updating-benne.md).
+**Updating a game made with 0.0.x:** after **BENNE: Update Engine**, scripts written for the old API no longer compile and have to be rewritten in BenneScript. Commit your game first so you can compare. Update Engine now also deletes engine files that the new engine no longer ships, including the old `src/engine/scripting/` folder and your game's `src/game/boot/` folder, whose loaders moved into the engine. Nothing else under `src/game/` is touched. See [Updating BENNE](https://github.com/Bennethon/benne/blob/master/website/guide/updating-benne.md).
 
 ### Added
 

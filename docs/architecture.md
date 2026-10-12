@@ -449,7 +449,7 @@ registerGameContent (*.room.ts factories [lazy], *.character.ts, *.gui.ts, *.inv
 
 Game logic is written in **BenneScript**: TypeScript script files in which each statement waits for the one above it, every content reference is a generated, typed handle, and `Hank: "…"` labels are speech lines. The engine stays data-first: verb dispatch still emits canonical scoped event ids on `gameEvents` (`verb:room:office:prop:desk:look`, …), and BenneScript is the layer that subscribes to them.
 
-- **Authoring guide**: [`docs/public/bennescript.md`](public/bennescript.md). **API reference** (generated from the JSDoc by `npm run docs:api`): [`docs/bennescript-api.md`](bennescript-api.md). **Design and decisions**: [`docs/bennescript-ergonomics-refactor.md`](bennescript-ergonomics-refactor.md) (§5 sequencing rules, §6 the transform, §13 every decision).
+- **Authoring guide**: [`website/guide/bennescript.md`](../website/guide/bennescript.md). **API reference** (generated from the JSDoc by `npm run docs:api`): [`docs/bennescript-api.md`](bennescript-api.md). **Design and decisions**: [`docs/bennescript-ergonomics-refactor.md`](bennescript-ergonomics-refactor.md) (§5 sequencing rules, §6 the transform, §13 every decision).
 
 ```ts
 // AI Apocalypse: rooms/club/club.room.ts

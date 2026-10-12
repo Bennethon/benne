@@ -2,13 +2,15 @@
 
 Every name a BENNE script can use, with what it does and whether the script waits for it.
 
-- New to BenneScript? Start with the guide, [`docs/public/bennescript.md`](public/bennescript.md).
+- New to BenneScript? Start with the guide, [`website/guide/bennescript.md`](../website/guide/bennescript.md).
 - How it works inside (the build transform, the step runtime, the handle generator): [`docs/architecture.md` §7](architecture.md#7-scripting--interaction-system-bennescript).
 - Why it is designed this way, and every decision made while building it: [`docs/bennescript-ergonomics-refactor.md`](bennescript-ergonomics-refactor.md).
 
 The second half of this page, from [Actions](#actions) on, is **generated from the source** of `@benne/script` (`src/engine/bennescript/`) by `npm run docs:api`: each row is a public member and the first paragraph of its JSDoc. `npm run check` fails when it is out of date, so change the JSDoc and regenerate rather than editing those tables by hand.
 
 ---
+<!-- website/reference/bennescript-api.md publishes this region at benne.games -->
+<!-- #region site -->
 
 ## Reading the tables
 
@@ -96,7 +98,7 @@ display("The door is locked.")                 // narration
 
 **Labels.** A label followed by a string (or template, or any expression) is a speech line. The ID and the display name are both normalised (letters and digits only, any case) before matching, so `BOTTi3:` matches the display name `BOTT-i3`. An unknown label in front of a string is a build error ("Unknown speaker `Hnak`. Did you mean `Hank`?"); a label that matches two characters is a build error listing both. A label needs statement position: write `() => { Hank: "Hi" }`, not `() => Hank: "Hi"`.
 
-**Voice IDs.** A line may start with `|number|`: `Hank: "|17| Hello."` plays `assets/audio/voice/hank17.*`. The editor's **Process Game Voice IDs** command fills them in. See [Sound, voice and video](public/sound-voice-and-video.md).
+**Voice IDs.** A line may start with `|number|`: `Hank: "|17| Hello."` plays `assets/audio/voice/hank17.*`. The editor's **Process Game Voice IDs** command fills them in. See [Sound, voice and video](https://benne.games/guide/sound-voice-and-video#process-game-voice-ids).
 
 ---
 
@@ -800,6 +802,7 @@ type EventName = EngineEventName | (string & {})
 
 <!-- END GENERATED -->
 
+<!-- #endregion site -->
 ---
 
 ## Source files

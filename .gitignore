@@ -55,3 +55,7 @@ game-templates/**/*.ids.ts
 
 # LLM context pack, regenerated with `npm run snapshot`
 benne-snapshot.md
+
+# benne.games docs site (website/): VitePress cache and Wrangler state; the build goes to website/.vitepress/dist
+website/.vitepress/cache
+website/.wrangler

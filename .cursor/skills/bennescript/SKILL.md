@@ -244,4 +244,4 @@ fallbacks.onItemUnhandled(() => { Player: `That doesn't work.` })
 
 **Check your work** with `npm run typecheck` (regenerates handles first): unknown handles, verbs and animation tags are type errors. `npm run lint` reports timed actions where nothing waits for them (callbacks, `onUpdate`, expressions, plain `.ts` files) and `await` in handlers. Speaker labels are plain TypeScript labels to `tsc`; the build transform (`npm run build`, the dev server) rejects unknown speakers ("Unknown speaker `Hnak`. Did you mean `Hank`?"), speech outside a handler and step functions passed to `forEach`, and the editor shows the speaker errors as you type.
 
-Full reference: `docs/bennescript-api.md`; guide: `docs/public/bennescript.md` (in the BENNE repository).
+Full reference: `docs/bennescript-api.md`; guide: `website/guide/bennescript.md` (in the BENNE repository).
