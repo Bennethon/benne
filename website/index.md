@@ -50,8 +50,7 @@ markdownStyles: false
 
 <style>
 .benne-home {
-  max-width: 1152px;
-  margin: 0 auto;
+  /* The hero spans the window so the monitor can grow; the feature cards keep a 1152px column. */
   padding: 32px 24px 96px;
 }
 
@@ -61,6 +60,13 @@ markdownStyles: false
   align-items: center;
   gap: 24px;
   text-align: center;
+}
+
+/* The monitor's backdrop (stars, dither) spreads behind the title, acronym and tagline. It is
+   positioned, so lift the text above it; the monitor itself (.crt) stays in its own layer. */
+.benne-home .hero > :not(.crt) {
+  position: relative;
+  z-index: 1;
 }
 
 .benne-home .title {
@@ -126,7 +132,8 @@ markdownStyles: false
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-  margin-top: 72px;
+  max-width: 1152px;
+  margin: 72px auto 0;
 }
 
 .benne-home .feature {

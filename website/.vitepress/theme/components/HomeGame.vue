@@ -52,6 +52,7 @@ function fullscreen() {
           <span class="hint">{{ state === 'checking' ? 'Warming up the tube' : 'The office is being tidied. A playable intro is on its way.' }}</span>
         </div>
       </div>
+      <span class="floor" aria-hidden="true" />
       <img class="bezel" :src="MONITOR_URL" alt="" width="1448" height="1086" draggable="false" />
       <span class="led" :class="{ on: state === 'playing' }" aria-hidden="true" />
       <button
@@ -72,9 +73,12 @@ function fullscreen() {
 <style scoped>
 /* Positions are percentages of the 1448×1086 monitor image (public/images/crt-monitor.webp). */
 .crt {
+  /* As big as the window allows while the whole game screen stays above the fold: the screen's
+     bottom edge is 0.533 × the monitor's width below its top, and about 340px of nav, title and
+     acronym sit above the monitor. The stand may run below the fold. Never smaller than 960px
+     (the window permitting), even if the screen then dips below the fold on short windows. */
   margin: 0 auto;
-  width: 100%;
-  max-width: 960px;
+  width: min(100%, clamp(960px, (100svh - 340px) * 1.875, 1440px));
 }
 
 .monitor {
@@ -114,7 +118,20 @@ function fullscreen() {
   height: 100%;
   pointer-events: none;
   user-select: none;
-  filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.35));
+  /* Light and teal-tinted, so it deepens the backdrop's greens instead of greying them. */
+  filter: drop-shadow(0 6px 12px rgba(6, 64, 63, 0.2));
+}
+
+.floor {
+  /* A contact shadow under the stand (x 345–1105, bottom ≈ y 1050) grounds the monitor. */
+  position: absolute;
+  z-index: 2;
+  left: 20%;
+  width: 60%;
+  top: 92%;
+  height: 9%;
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgba(6, 40, 40, 0.38), rgba(6, 40, 40, 0.12) 60%, transparent);
 }
 
 iframe {
