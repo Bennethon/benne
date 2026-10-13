@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { withBase } from 'vitepress';
+import MonitorBackdrop from './MonitorBackdrop.vue';
 
 // The homepage game is a separate BENNE project. Its web build (`npm run build:itch`, unzipped)
 // goes in website/public/play/. Until it is there, the monitor shows a "coming soon" screen.
@@ -31,6 +32,7 @@ function fullscreen() {
 <template>
   <figure class="crt">
     <div class="monitor">
+      <MonitorBackdrop />
       <!-- The screen sits under the monitor image, whose screen is cut out; the bezel masks its edges. -->
       <div class="screen">
         <iframe
@@ -78,7 +80,6 @@ function fullscreen() {
 .monitor {
   position: relative;
   aspect-ratio: 1448 / 1086;
-  filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.35));
 }
 
 .screen {
@@ -88,6 +89,7 @@ function fullscreen() {
   top: 12.06%;
   width: 63.74%;
   height: 58.93%;
+  z-index: 1;
   overflow: hidden;
   background: #000;
 }
@@ -112,6 +114,7 @@ function fullscreen() {
   height: 100%;
   pointer-events: none;
   user-select: none;
+  filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.35));
 }
 
 iframe {

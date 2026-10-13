@@ -65,13 +65,13 @@ onBeforeUnmount(() => clearTimeout(timer));
 <template>
   <p class="acronym">
     <button type="button" class="word b-word" :class="{ spinning }" title="Click to spin again" @click="spin([word])">
-      <span class="initial">B</span><span class="rest" aria-live="polite">{{ word.slice(1) }}</span>
+      B<span class="rest" aria-live="polite">{{ word.slice(1) }}</span>
     </button>
-    <span class="word"><span class="initial">E</span>ngine</span>
-    <span class="word for">for</span>
-    <span class="word"><span class="initial">N</span>ifty</span>
-    <span class="word"><span class="initial">N</span>arrative</span>
-    <span class="word"><span class="initial">E</span>xperiences</span>
+    <span class="word">Engine</span>
+    <span class="word">for</span>
+    <span class="word">Nifty</span>
+    <span class="word">Narrative</span>
+    <span class="word">Experiences</span>
   </p>
 </template>
 
@@ -93,17 +93,6 @@ onBeforeUnmount(() => clearTimeout(timer));
   white-space: nowrap;
 }
 
-.initial {
-  /* Room on the left for the extrusion. */
-  margin-left: 3px;
-  color: var(--benne-green);
-  text-shadow: -1px 0 0 var(--benne-teal), -2px 0 0 var(--benne-teal), -3px 0 0 var(--benne-teal);
-}
-
-.for {
-  color: var(--vp-c-text-2);
-}
-
 .b-word {
   font: inherit;
   cursor: pointer;
@@ -111,10 +100,6 @@ onBeforeUnmount(() => clearTimeout(timer));
   padding: 0 0.15em;
   margin: 0 -0.15em;
   transition: background-color 0.2s;
-}
-
-.b-word .rest {
-  color: var(--benne-accent-text);
 }
 
 .b-word:hover {

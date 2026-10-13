@@ -64,7 +64,8 @@ markdownStyles: false
 }
 
 .benne-home .title {
-  margin: 0;
+  /* sysfont has no descenders here, so pull the acronym up into the empty space below the caps. */
+  margin: 0 0 -0.22em;
   /* The extrusion runs left, so pad that side to keep the word visually centred. */
   padding-left: 10px;
   font-family: var(--benne-font-pixel);
@@ -75,7 +76,7 @@ markdownStyles: false
   text-shadow: -1px 0 0 var(--benne-teal), -2px 0 0 var(--benne-teal), -3px 0 0 var(--benne-teal),
     -4px 0 0 var(--benne-teal), -5px 0 0 var(--benne-teal), -6px 0 0 var(--benne-teal),
     -7px 0 0 var(--benne-teal), -8px 0 0 var(--benne-teal), -9px 0 0 var(--benne-teal),
-    -10px 0 0 var(--benne-teal);
+    -10px 0 0 var(--benne-teal), -11px 0 0 var(--benne-teal), -12px 0 0 var(--benne-teal);
 }
 
 .benne-home .tagline {
