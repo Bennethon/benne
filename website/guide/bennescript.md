@@ -5,30 +5,30 @@ outline: deep
 
 # BenneScript
 
-**BenneScript** is how you bring a BENNE game to life: what happens when the player looks at the door, talks to the barista or uses the soda on the battery. It is TypeScript, so you get autocomplete, type checking, the debugger and AI assistants, with three conveniences on top:
+**BenneScript** is how you bring a BENNE game to life: what happens when the player looks at the door, talks to Penny or gives her a sandwich. It is TypeScript, so you get autocomplete, type checking, the debugger and AI assistants, with three conveniences on top:
 
 - **Lines run in the order you write them.** A walk finishes before the next line of dialogue starts, and a flag set after a speech line is set after the line has been spoken. You never type `await`.
-- **Everything in your game has a name.** Rooms, props, characters, items, dialog options, GUI controls, sounds and verbs are typed names generated from your content (`battery`, `items.soda`, `sfx.sodaPour`), so a typo is a red squiggle, not a silent bug.
-- **Dialogue reads like a script.** ``Hank: `I hope this works.` `` is a line of dialogue. Backticks let a line contain `"` and `'` freely, and `${…}` drops in a value.
+- **Everything in your game has a name.** Rooms, props, characters, items, dialog options, GUI controls, sounds and verbs are typed names generated from your content (`door`, `items.key`, `sfx.doorOpen`), so a typo is a red squiggle, not a silent bug.
+- **Dialogue reads like a script.** ``Hank: `Let's see if this fits.` `` is a line of dialogue. Backticks let a line contain `"` and `'` freely, and `${…}` drops in a value.
 
-Here is a real handler from the jam game *AI Apocalypse*. The player uses the soda on a corroded car battery:
+Here is a handler for the apartment door in the 9-verb template, where the player uses the key on the locked door:
 
 ```ts
-battery.onUseItem(items.soda, () => {
-  if (!flags.askedAboutBattery) unhandled()   // not yet: "That doesn't work."
+door.onUseItem(items.key, () => {
+  if (flags.unlockedDoor) unhandled()   // already open: "That doesn't work."
   walkToClicked()
-  Hank: `I hope this works.`
-  inventory.remove(items.soda)
-  sfx.sodaPour.play()
+  Hank: `Let's see if this fits.`
+  inventory.remove(items.key)
+  sfx.doorOpen.play()
   wait(0.75)
-  Hank: `Hey! The corrosion is gone.`
-  Hank: `Now I need to tighten that cable.`
-  dialogs.driver.options.wrench.on()
-  flags.batteryClean = true
+  door.animation = 'Door-open'
+  Hank: `It's open!`
+  dialogs.chatwithpenny.options.door.off()
+  flags.unlockedDoor = true
 })
 ```
 
-Hank walks over, says his line, the soda leaves the inventory, the sound plays, the script waits three quarters of a second, Hank speaks again, a new dialog option appears and the flag is set, each step after the one before.
+Hank walks over, says his line, the key leaves the inventory, the sound plays, the script waits three quarters of a second, the door opens, Hank speaks again, the dialog option about the locked door disappears and the flag is set, each step after the one before.
 
 ## How a script runs
 
@@ -38,10 +38,10 @@ Inside a handler, each line starts when the line above it has finished. Some lin
 
 | Takes time (the script waits) | Instant |
 |---|---|
-| `walkToClicked()`, `player.walkTo(…)`, `jensen.walkTo(…)`, `face(…)` | `player.moveTo(…)` (teleport), `door.alpha = …` |
-| ``Hank: `…` ``, `` say`…` ``, `jensen.say(…)`, `display(…)` | `flags.x = …`, `vars.x = …`, any read |
+| `walkToClicked()`, `player.walkTo(…)`, `henry.walkTo(…)`, `face(…)` | `player.moveTo(…)` (teleport), `door.alpha = …` |
+| ``Hank: `…` ``, `` say`…` ``, `penny.say(…)`, `display(…)` | `flags.x = …`, `vars.x = …`, any read |
 | `wait(…)`, `waitForClick()` | `inventory.add(…)`, `inventory.remove(…)` |
-| `door.play('door-open')` (one-shot animation) | `door.animation = …`, `door.show()`, `door.hide()` |
+| `door.play('Door-opening')` (one-shot animation) | `door.animation = …`, `door.show()`, `door.hide()` |
 | `door.fade(…)`, `door.slideTo(…)`, `control.fadeTo(…)` | `sfx.x.play()`, `music.x.play()`, `music.stop()` |
 | `fadeOut()`, `fadeIn()`, `camera.focus(…)`, `camera.zoom(…)` | `camera.shake()` |
 | `sfx.x.playAndWait()`, `video.x.playAndWait()` | `options.x.on()`, `guis.x.show()` |
@@ -64,10 +64,10 @@ Each kind of content has its own script file, next to its JSON. You write handle
 
 | File | What goes in it |
 |---|---|
-| `rooms/club/club.room.ts` | The room: what happens on entering and leaving, and verbs on its props, hotspots and characters |
-| `characters/jensen/jensen.character.ts` | Handlers for Jensen in every room he appears in |
-| `inventory/magnet/magnet.inventory.ts` | The magnet: verbs on its inventory row, and other items used on it |
-| `dialogs/botti3/botti3.dialog.ts` | What each choice in the conversation does |
+| `rooms/apartment/apartment.room.ts` | The room: what happens on entering and leaving, and verbs on its props, hotspots and characters |
+| `characters/henry/henry.character.ts` | Handlers for Henry in every room he appears in |
+| `inventory/PB/PB.inventory.ts` | The peanut butter: verbs on its inventory row, and other items used on it |
+| `dialogs/chatwithpenny/chatwithpenny.dialog.ts` | What each choice in the conversation does |
 | `guis/save-menu/save-menu.gui.ts` | The GUI's buttons, sliders and lists |
 | `globalScript.ts` | Fallback lines for verbs nothing else handles, and hooks for every room |
 | `state.ts` | Your game's flags and variables |
@@ -80,19 +80,19 @@ The editor creates these files for you when you add content, and the Inspector c
 Names come from three places. The editor's auto-import adds the import lines as you type a name.
 
 ```ts
-// src/game/rooms/club/club.room.ts
+// src/game/rooms/apartment/apartment.room.ts
 import { faceClicked, inventory, player, unhandled, wait, walkToClicked } from '@benne/script'
 import { dialogs, flags, items, music, rooms, sfx } from '@game'
-import { room, antenna, battery, driver, hank, points, regions } from './club.ids'
+import { room, couch, door, hank, knife, penny, regions, windowHotspot } from './apartment.ids'
 ```
 
 - **`@benne/script`**: the engine's actions and objects: `walkToClicked`, `wait`, `say`, `inventory`, `player`, `camera`, `cutscene`, `saves`, `settings`, `game`, …
 - **`@game`**: everything in your game, by kind: `rooms`, `characters`, `items`, `dialogs`, `guis`, `sfx`, `music`, `video`, `verbs`, `fallbacks`, `flags`, `vars`.
-- **`./club.ids`**: this room's own things, as plain names: `room`, its props (`antenna`), hotspots (`battery`), characters (`driver`, `hank`), plus `points`, `regions` and `walkables`. A dialog script imports `dialog` and `options` from its `.ids` module; a GUI script imports `gui` and its controls.
+- **`./apartment.ids`**: this room's own things, as plain names: `room`, its props (`couch`, `door`, `knife`), hotspots (`windowHotspot`), characters (`hank`, `penny`), plus `points`, `regions` and `walkables`. A dialog script imports `dialog` and `options` from its `.ids` module; a GUI script imports `gui` and its controls.
 
-The `.ids` modules and `@game` are **generated** from your JSON whenever it changes. Names are your IDs in camelCase, with the room's prefix dropped: the hotspot `club-hotspot-battery` is `battery`, the point `plaza-point-first-visit-jensen` is `points.firstVisitJensen`, the dialog option `what about AI` is `options.whatAboutAI`. If two things would get the same name, or a name clashes with a BenneScript name, give one of them a `"scriptName"` in its JSON (a character can't take a BenneScript name such as `camera` or `dialog` as its `scriptName` at all, because its name is used on its own in room scripts) (AI Apocalypse's game menu has a button with `"scriptName": "settingsBtn"`, because `settings` is taken).
+The `.ids` modules and `@game` are **generated** from your JSON whenever it changes. Names are your IDs in camelCase: the prop `PeanutButter` is `peanutButter`, the item `PB` is `items.pb`, the point `henry-fountain` is `points.henryFountain`, and a dialog option `what about the key` would be `options.whatAboutTheKey`. A room's own ID and the kind of thing are dropped from the front, so a hotspot `outside-hotspot-door` would be plain `door`. If two things would get the same name, or a name clashes with a BenneScript name, give one of them a `"scriptName"` in its JSON (a character can't take a BenneScript name such as `camera` or `dialog` as its `scriptName` at all, because its name is used on its own in room scripts) (the templates' game menu has a button with `"scriptName": "settingsBtn"`, because `settings` is taken).
 
-Things in a room are plain names because you use them constantly. Everything else is grouped (`items.antenna`), because an item, a prop and a dialog can easily share a name: in AI Apocalypse, `antenna` is both a prop in the garage and an inventory item.
+Things in a room are plain names because you use them constantly. Everything else is grouped (`items.knife`), because an item, a prop and a dialog can easily share a name: in the 9-verb template, the knife on the table is the prop `knife`, and the one in the inventory is `items.knife`.
 
 ## Rooms
 
@@ -104,7 +104,7 @@ room.onEnter(() => {            // before the fade-in: set the scene up, invisib
 })
 
 room.onEnterAfterFade(() => {   // after the fade-in: music, entrances, cutscenes
-  music.garage.play()
+  music.myCatIsCrazy.play()
 })
 
 room.onLeave(() => { … })       // before the next room loads
@@ -116,30 +116,27 @@ room.onLoaded(() => { … })      // only when a save loads into this room, inst
 Where the player came from, and how often they've been here:
 
 ```ts
+// rooms/outside/outside.room.ts
 room.onEnter(() => {
-  if (room.cameFrom(rooms.hallway)) {
-    hank.moveTo(points.enterFromHall)
-    if (room.isFirstVisit) {
-      flags.leftMitFirstTime = true
-      jensen.moveTo(points.enterFromHallJensen)
-    }
-  } else if (room.cameFrom(rooms.gallery)) {
-    hank.moveTo(points.enterFromGallery)
-    hank.face('D')
+  if (room.cameFrom(rooms.apartment)) {
+    hank.moveTo(points.enterFromDoor)
+    hank.face('R')
   }
-  jensen.show()
+  if (room.isFirstVisit) {
+    henry.moveTo(points.henryFountain)
+  }
 })
 ```
 
-`room.visitCount`, `room.hasVisited`, `room.last` (the previous room) and `rooms.plaza.visitCount` (any room) are there too.
+`room.visitCount`, `room.hasVisited`, `room.last` (the previous room) and `rooms.outside.visitCount` (any room) are there too.
 
 ### Changing rooms
 
 ```ts
 door.onUse(() => {
   walkToClicked()
-  sfx.doorBells.play()
-  rooms.plaza.goTo()
+  sfx.doorOpen.play()
+  rooms.outside.goTo()
 })
 ```
 
@@ -148,11 +145,12 @@ door.onUse(() => {
 **Play From** in BENNE Play starts a room in a prepared state, so you can test the end of a puzzle without playing up to it. Write the setup at the top level of the room script:
 
 ```ts
-playFrom('fix battery', () => {
-  flags.askedAboutBattery = true
-  flags.batteryClean = true
-  inventory.add(items.wrench)
-  battery.active = true
+playFrom('make sandwich', () => {
+  inventory.add(items.bread)
+  inventory.add(items.knife)
+  items.knife.animation = 'Knife-PB'
+  bread.hide()
+  knife.hide()
 })
 ```
 
@@ -160,20 +158,18 @@ The name is what appears in the Play From menu. `room.visitCount` and `room.last
 
 ## Verbs on things
 
-Handlers are named after the verbs in your `game-config.json`. AI Apocalypse has `take`, `use`, `look`, `clean`, `talkTo` and `move`, so its props, hotspots and characters have `onTake`, `onUse`, `onLook`, `onClean`, `onTalkTo` and `onMove`. A 9-verb game gets `onOpen`, `onClose`, `onPush`, `onPull`, `onPickUp`, `onGive` and the rest. Custom verbs work the same way: add a verb to the config and its method appears. A verb your game doesn't have is a type error.
+Handlers are named after the verbs in your `game-config.json`. The 9-verb template has `give`, `pickUp`, `use`, `open`, `look`, `push`, `close`, `talkTo` and `pull`, so its props, hotspots and characters have `onGive`, `onPickUp`, `onUse`, `onOpen` and the rest. The 2-click template has only `look` and `use`, so it has `onLook` and `onUse`. Custom verbs work the same way: add a verb to the config and its method appears. A verb your game doesn't have is a type error. [Verbs](./verbs) covers how a click becomes a verb, item verbs, and the order handlers are tried in.
 
 ```ts
-antenna.onLook(() => {
+knife.onLook(() => {
   faceClicked()
-  Hank: `A broken off car antenna.`
+  Hank: `It's a knife.`
 })
 
-antenna.onTake(() => {
+knife.onPickUp(() => {
   walkToClicked()
-  hank.play('ReachR')        // one-shot animation; waits for it
-  antenna.hide()
-  sfx.whip.play()
-  inventory.add(items.antenna)
+  inventory.add(items.knife)
+  knife.hide()
 })
 ```
 
@@ -182,19 +178,19 @@ antenna.onTake(() => {
 **One handler for several verbs:**
 
 ```ts
-cleaningStuff.on(['use', 'take', 'clean'], () => {
-  faceClicked()
-  Hank: `I'm not on the job here.`
+rockMoved.on(['pull', 'push'], () => {
+  walkToClicked()
+  Hank: `Let's see what this does...`
 })
 ```
 
 **Falling through.** `unhandled()` ends the handler and passes the click on, as if this handler didn't exist: to the character's own script, then to the global fallback ("That doesn't work."). Use it when a handler only applies sometimes:
 
 ```ts
-battery.onUseItem(items.wrench, () => {
-  if (!flags.askedAboutBattery || !flags.batteryClean) unhandled()
+penny.onGiveItem(items.sammich, () => {
+  if (!flags.askedPennyForKey) unhandled()   // she hasn't asked for one yet
   walkToClicked()
-  Hank: `Ok I'll tighten 'er up here.`
+  Hank: `Here, Penny! Have a sandwich.`
   // …
 })
 ```
@@ -204,11 +200,11 @@ A plain `return` ends the handler without falling through.
 **Changing things.** Props, hotspots and characters have properties you can set at any time. They take effect at once and are saved:
 
 ```ts
-battery.active = true                  // hotspots: can be hovered and clicked
+windowHotspot.active = false          // hotspots: can't be hovered or clicked
 door.clickable = false                 // props and characters
-door.description = 'A broken door'     // the name shown when hovering
-filingCabinet.animation = 'filingCabinet-over'
-jensen.visible = false                 // or jensen.hide() / jensen.show()
+door.description = 'broken door'       // the name shown when hovering
+door.animation = 'Door-open'
+penny.visible = false                  // or penny.hide() / penny.show()
 ```
 
 ## Talking
@@ -217,28 +213,28 @@ jensen.visible = false                 // or jensen.hide() / jensen.show()
 
 ```ts
 Hank: `What the...?`
-JENSEN: `NOT GREAT!`
-Player: `I have to find a way home!`
+PENNY: `MAKE ME A SANDWICH!`
+Player: `I have to find a way out!`
 ```
 
-Names with punctuation or spaces drop it: the character `BOTT-i3 Disembodied` is `BOTTi3Disembodied:`. If you mistype a name, the build stops with "Unknown speaker `Hnak`. Did you mean `Hank`?".
+Names with punctuation or spaces drop it: if Henry's display name were `Henry Jr.`, his lines could start `HenryJr:`. If you mistype a name, the build stops with "Unknown speaker `Hnak`. Did you mean `Hank`?".
 
 Use backticks to put values in a line:
 
 ```ts
-Hank: `I've got ${inventory.count(items.coin)} coins.`
+Hank: `I've been out here ${rooms.outside.visitCount} times.`
 ```
 
 **A conversation** reads well as a `say` block. Inside one, names can be written exactly as in the JSON, and lines need no quotes:
 
 ```ts
-gallery.onLook(() => {
+couch.onLook(() => {
   faceClicked()
   say`
-    Hank: Looks like a fancy futuristic museum or something.
-    Jensen: It's an AI art gallery. All the art created by robots!
-    Hank: Looks nice.
-    Jensen: Of course it looks nice. That's how they get you.
+    Hank: It's my weird, magical, poorly drawn couch.
+    Penny: It's OUR couch.
+    Hank: It's our weird, magical, poorly drawn couch.
+    Penny: Thank you.
   `
 })
 ```
@@ -246,8 +242,8 @@ gallery.onLook(() => {
 **The method form** is for a speaker you pick at runtime, or for options:
 
 ```ts
-const speaker = flags.metBotti ? characters.botti3 : characters.botti3Disembodied
-speaker.say("Hello, Hank.")
+const speaker = penny.visible ? penny : hank
+speaker.say("Is anyone there?")
 player.say("Uh, whatever.", { clickToSkip: false })
 ```
 
@@ -258,12 +254,12 @@ player.say("Uh, whatever.", { clickToSkip: false })
 ## Inventory
 
 ```ts
-inventory.add(items.wrench)
-inventory.remove(items.soda)
-inventory.add(items.coin, 3)
-if (inventory.has(items.relay)) { … }
-inventory.count(items.coin)
-jensen.inventory.add(items.timeonium)   // another character's bag
+inventory.add(items.knife)
+inventory.remove(items.sammich)
+inventory.add(items.bread, 3)           // three, if Bread is stackable
+if (inventory.has(items.key)) { … }
+inventory.count(items.bread)
+penny.inventory.add(items.sammich)      // another character's bag
 ```
 
 ### Using an item on something
@@ -271,23 +267,19 @@ jensen.inventory.add(items.timeonium)   // another character's bag
 When the player uses an item on a prop, hotspot or character, the matching `on<Verb>Item` handler runs:
 
 ```ts
-toolChest.onUseItem(items.magnetStick, () => {
+table.onUseItem(items.broom, () => {
   walkToClicked()
-  sfx.metalScrape.play()
-  wait(0.5)
-  inventory.remove(items.magnetStick)
-  sfx.whip.play()
-  inventory.add(items.wrench)
-  Hank: `Ah, got it!`
+  sfx.sweeping.playAndWait()
+  Player: `I cleaned the table.`
 })
 ```
 
 Items with no handler on that target fall through to the global "That doesn't work." line. For one line covering every other item on a target, use `onAnyItem`:
 
 ```ts
-jensen.onAnyItem(() => {
+henry.onAnyItem(() => {
   faceClicked()
-  Hank: `I don't want to give anything to him yet.`
+  Hank: `Henry doesn't need that.`
 })
 ```
 
@@ -300,23 +292,21 @@ After an item is used, it stays selected or is put back depending on the item's 
 An item's own script handles verbs on its inventory row, and other items used on it:
 
 ```ts
-// inventory/magnet/magnet.inventory.ts
-items.magnet.onLook(() => {
-  Hank: `A cute promotional magnet for the friendly AI overlord.`
+// inventory/Bread/Bread.inventory.ts
+items.bread.onLook(() => {
+  Hank: `It's some bread.`
 })
 
-items.magnet.onCombine(items.antenna, () => {
-  inventory.remove(items.antenna)
-  inventory.remove(items.magnet)
-  sfx.whip.play()
-  inventory.add(items.magnetStick)
-  Hank: `Cool!`
+items.bread.onCombine(items.knife, () => {
+  inventory.remove(items.bread)
+  inventory.add(items.sammich)
+  Hank: `This looks delicious!`
 })
 ```
 
-Using an item verb on an inventory row (`Use` on the magnet) selects the item, so the player can then click a target. That happens after the item's `onUse` handler, if it has one. To handle `Use` on the row without selecting the item, register the handler with `items.magnet.onUse.doNotActivate(() => { … })`.
+Using an item verb on an inventory row (`Use` on the bread) selects the item, so the player can then click a target. That happens after the item's `onUse` handler, if it has one. To handle `Use` on the row without selecting the item, register the handler with `items.sammich.onUse.doNotActivate(() => { … })`, as the 9-verb template's sandwich does.
 
-An item's icon, cursor and name can change: `items.coffee.animation = 'coffee-full'`, `items.key.cursorAnimation = 'key-alt'`, `items.key.description = 'A bent key'`.
+An item's icon, cursor and name can change: `items.lantern.animation = 'Lantern-glowing'`, `items.key.cursorAnimation = 'Key-bent'`, `items.key.description = 'bent key'`.
 
 ## Flags, variables and visits
 
@@ -326,27 +316,25 @@ Declare your game's state once, with defaults, in `src/game/state.ts`:
 import { defineFlags, defineVars } from '@benne/script'
 
 export const flags = defineFlags({
-  askedAboutBattery: false,
-  batteryClean: false,
-  batteryFixed: false,
-  gotRegulator: false,
+  unlockedDoor: false,
+  turnedOnFountain: false,
+  askedPennyForKey: false,
 })
 
 export const vars = defineVars({
-  coins: 0,
-  timesAskedJensen: 0,
+  timesAskedPenny: 0,
 })
 ```
 
 Then use them anywhere (`@game` exports them):
 
 ```ts
-flags.batteryClean = true
-if (flags.askedAboutBattery && !flags.batteryClean) { … }
-vars.timesAskedJensen += 1
+flags.unlockedDoor = true
+if (flags.unlockedDoor && !flags.turnedOnFountain) { … }
+vars.timesAskedPenny += 1
 ```
 
-Flags are true or false. Variables hold numbers, strings, booleans, and arrays or objects of those. Both are saved. A misspelt flag is a type error, so you can't set `flags.batteryClaen` by accident.
+Flags are true or false. Variables hold numbers, strings, booleans, and arrays or objects of those. Both are saved. A misspelt flag is a type error, so you can't set `flags.unlockedDor` by accident.
 
 The BENNE Editor's **State** view adds, renames and changes flags and variables without opening `state.ts` (see [BENNE Editor → State](./benne-editor#state)).
 
@@ -354,42 +342,46 @@ If you rename a flag after players have saves, keep the old name for the save wi
 
 ## Dialogs
 
-A dialog's options are written in its JSON; its script says what each choice does. The player says the option's text first, then the handler runs.
+A dialog's options are written in its JSON; its script says what each choice does. The player says the option's text first, then the handler runs. [Creating a dialog](./creating-a-dialog) walks through building one.
 
 ```ts
-// dialogs/jensen-in-hallway/jensen-in-hallway.dialog.ts
+// dialogs/chatwithpenny/chatwithpenny.dialog.ts
 import { wait } from '@benne/script'
-import { jensen } from '../../rooms/hallway/hallway.ids'
-import { dialog, options } from './jensen-in-hallway.ids'
+import { flags } from '@game'
+import { penny } from '../../rooms/apartment/apartment.ids'
+import { dialog, options } from './chatwithpenny.ids'
 
 options.greeting.onChooseOnce(() => {
-  Jensen: `HOW'S IT GOING?!`
-  Jensen: `The world has been taken over by an evil, totalitarian artificial intelligence and you ask me how's it going?!`
-  wait(0.75)
-  Jensen: `NOT GREAT!`
-  options.whatAboutAI.on()
+  Penny: `Fine.`
+  options.door.on()
 })
 
-options.itsTheFuture.onChooseOnce(() => {
-  wait(1)
-  Jensen: `WHAT ARE YOU TALKING ABOUT?!`
-  Jensen: `GO AWAY!`
-  jensen.face('U')
+options.door.onChoose(() => {
+  Player: `I want to go outside.`
+  Penny: `I want a sandwich.`
+  wait(0.5)
+  Penny: `Make me a sandwich and I'll give you the key.`
+  flags.askedPennyForKey = true
+})
+
+options.bye.onChoose(() => {
+  Penny: `Bye!`
+  penny.face('D')
   dialog.end()
 })
 ```
 
 - `onChoose` runs each time the option is chosen; `onChooseOnce` also removes the option afterwards.
-- `options.x.on()` / `off()` show and hide options. From another script: `dialogs.driver.options.wrench.on()`.
+- `options.x.on()` / `off()` show and hide options. From another script: `dialogs.chatwithpenny.options.door.on()`.
 - `dialog.end()` closes the conversation and ends the handler, so put anything that should still happen above it.
 - `dialog.onStart(() => { … })` runs each time the conversation opens, to decide which options to show.
 
 **Starting a conversation** waits until it ends:
 
 ```ts
-driver.onTalkTo(() => {
+penny.onTalkTo(() => {
   walkToClicked()
-  dialogs.driver.start()
+  dialogs.chatwithpenny.start()
   // anything here runs after the player leaves the conversation
 })
 ```
@@ -397,16 +389,16 @@ driver.onTalkTo(() => {
 **Sub-conversations.** Starting a dialog from a choice opens it on top; when it ends, the first one comes back:
 
 ```ts
-// botti3.dialog.ts
-options.aroundHere.onChoose(() => {
-  Botti3: `Sure. What would you like to know?`
-  dialogs.botti3LocalArea.start()     // back to these choices when it ends
+// chatwithpenny.dialog.ts
+options.neighbours.onChoose(() => {
+  Penny: `Sure. Who do you want to know about?`
+  dialogs.pennyGossip.start()       // back to these choices when it ends
 })
 
-// botti3-local-area.dialog.ts
+// penny-gossip.dialog.ts
 options.thatsAll.onChoose(() => {
-  Botti3: `Okay!`
-  dialog.end()                        // back to the botti3 choices
+  Penny: `Okay!`
+  dialog.end()                      // back to the chatwithpenny choices
 })
 ```
 
@@ -433,30 +425,30 @@ In its own script a character is imported from its `.ids` file, like a room's th
 **Moving and facing:**
 
 ```ts
-player.walkTo(points.timeChamber)    // a point in the room
-player.walkTo(couch)                 // a prop, hotspot or character's walk-to point
+player.walkTo(points.henryFountain) // a point in the room
+player.walkTo(fountainOff)           // a prop, hotspot or character's walk-to point
 player.walkTo({ x: 120, y: 160 })    // room pixels
 player.face('L')                     // 'U', 'D', 'L' or 'R'; waits for the turn
-player.moveTo(points.standBack)      // teleport
-jensen.walkTo(points.hallwayPoint2)
-jensen.startFollowing(player, { minDistance: 60 })
-jensen.stopFollowing()
+player.moveTo(points.enterFromDoor)  // teleport
+henry.walkTo(points.henryFountain)
+henry.startFollowing(player, { minDistance: 60 })
+henry.stopFollowing()
 henry.startFacing(hank)              // keep turning toward Hank as he moves
-player.switchTo(penny)               // the player now controls Penny
+player.switchTo(penny)               // the player now controls Penny (in the apartment)
 ```
 
 `player` is whoever the player controls; `hank` (from the room) is Hank specifically.
 
-**Opacity:** `jensen.alpha = 0.5` sets it at once (and is saved); `jensen.fade(0, 1)` fades over a second and waits.
+**Opacity:** `penny.alpha = 0.5` sets it at once (and is saved); `penny.fade(0, 1)` fades over a second and waits.
 
-**Animation:** `jensen.animation = 'WorkingU'` sets an animation that stays (and is saved) until `jensen.stopAnimation()`. `jensen.play('Wave')` plays one once and waits for it. Animation names come from the Aseprite file, so the editor completes them.
+**Animation:** `henry.animation = 'IdleU'` sets an animation that stays (and is saved) until `henry.stopAnimation()`. `henry.play('Wave')` plays one once and waits for it, for a `Wave` tag you've drawn. Animation names come from the Aseprite file, so the editor completes them.
 
 ## Props
 
 | | |
 |---|---|
-| `door.animation = 'door-open'` | Change the looping animation. Instant, saved. |
-| `door.play('door-opening')` | Play an animation once and wait for it, then go back to the looping one. |
+| `door.animation = 'Door-open'` | Change the looping animation. Instant, saved. |
+| `door.play('Door-opening')` | Play an animation once and wait for it, then go back to the looping one. |
 | `door.show()` / `door.hide()` | Instant, saved. |
 | `door.fade(0, 1.5)` | Fade to invisible over 1.5 seconds, and wait. |
 | `door.alpha = 0.5` | Set the opacity (0 to 1) instantly. Saved. |
@@ -465,13 +457,13 @@ player.switchTo(penny)               // the player now controls Penny
 
 A prop (or hotspot) can be changed from another room's script too: import it from its room's `.ids` module and set it. The change is saved for that room and shows when you go there. Fades and slides from another room happen at once, and `play` only works in the prop's own room.
 
-If both rooms have a `door`, import the other room's module under its name and write `outside.door`:
+If both rooms have a `door` (in the 9-verb template, the apartment's door is a prop and the street's is a hotspot), import the other room's module under its name and write `outside.door`:
 
 ```ts
 import * as outside from '../outside/outside.ids';
 
-door.hide()           // this room's door
-outside.door.show()   // the one outside
+door.hide()                    // this room's door
+outside.door.active = false    // the one outside
 ```
 
 The editor suggests `outside.door` when you type `door`, and adds the import when you pick it.
@@ -481,22 +473,22 @@ The editor suggests `outside.door` when you type `door`, and adds the import whe
 ```ts
 sfx.doorOpen.play()             // starts the sound and goes on
 sfx.doorClose.playAndWait()     // waits until it ends
-sfx.click.play({ volume: 0.5 })
+sfx.sweeping.play({ volume: 0.5 })
 
-music.lab.play()                // crossfades as set in the config
+music.halloweenSpooky.play()    // crossfades as set in the config
 music.stop()
-if (!music.isPlaying) music.plaza.play()
+if (!music.isPlaying) music.myCatIsCrazy.play()
 
-camera.focus(timeChamber)       // pan; waits
+camera.focus(fountainOff)       // pan; waits
 camera.zoom(2, 1)               // 2× over 1 second; waits
-camera.zoomTo(points.endingZoom, 1.5, 2)
+camera.zoomTo(fountainOff, 1.5, 0.6)
 camera.shake(0.3)
 camera.reset()
 
 fadeOut()                       // fade the screen to black; waits
 fadeIn()
 
-video.intro.playAndWait()
+video.intro.playAndWait()       // a video you've added as assets/videos/intro.mp4
 ```
 
 Sound and music names come from the files in `assets/audio/sfx/` and `assets/audio/music/`. See [Sound, Voice & Video](./sound-voice-and-video).
@@ -506,19 +498,19 @@ Sound and music names come from the files in `assets/audio/sfx/` and `assets/aud
 Wrap a scene in `cutscene(…)` to make it skippable:
 
 ```ts
-jensen.onUseItem(items.mop, () => {
+rockMoved.on(['pull', 'push'], () => {
   walkToClicked()
   cutscene(() => {
-    Hank: `I'm going home.`
-    sfx.smack.play()
-    smack.play('smack-play')
-    jensen.hide()
-    wait(0.9)
-    music.stop()
+    Hank: `Let's see what this does...`
+    rockMoved.hide()
+    leverPulled.show()
+    fountainOff.hide()
+    fountainOn.show()
     wait(0.75)
-    Hank: `Sorry, Jensen.`
-    music.gallery.play()
+    Henry: `WOO HOO! IT'S WORKING!`
+    music.halloweenSpooky.play()
   })
+  flags.turnedOnFountain = true
 })
 ```
 
@@ -528,24 +520,14 @@ To turn off skipping for one cutscene, pass `{ skippable: false }`: `cutscene(()
 
 **Locking out the player** without a cutscene: `input.disabled = true` … `input.disabled = false`, or `withInputDisabled(() => { … })`, which turns input back on when the block ends, even if the room changes.
 
-**Waiting for a click:** `waitForClick({ timeout: 10 })` waits for a click, or ten seconds. AI Apocalypse's opening crawl:
+**Waiting for a click:** `waitForClick({ timeout: 10 })` waits for a click, or ten seconds:
 
 ```ts
-room.onEnterAfterFade(() => {
-  music.intro.play()
-  const text = guis.openingText.controls.text
-  text.alpha = 0
-  guis.openingText.show()
-
-  cutscene(() => {
-    for (const paragraph of paragraphs) {
-      text.text = paragraph
-      text.fadeTo(1, 1.2, { clickToSkip: true })
-      waitForClick({ timeout: 10 })
-      text.fadeTo(0, 1.2, { clickToSkip: true })
-    }
-  })
-  rooms.hallway27.goTo()
+fountainOff.onLook(() => {
+  faceClicked()
+  camera.zoomTo(fountainOff, 1.5, 0.6)
+  waitForClick({ timeout: 10 })   // look as long as you like
+  camera.reset()
 })
 ```
 
@@ -554,9 +536,9 @@ room.onEnterAfterFade(() => {
 By default each line waits. To overlap actions, start the one you don't want to wait for with `.now`, **before** the one you do:
 
 ```ts
-// Jensen and Hank set off together; the scene goes on when Hank arrives.
-jensen.walkTo.now(points.firstVisitJensen)
-player.walkTo(points.firstVisit)
+// Henry and Hank set off together; the scene goes on when Hank arrives.
+henry.walkTo.now(points.henryFountain)
+player.walkTo(fountainOff)
 wait(0.5)
 ```
 
@@ -564,22 +546,22 @@ wait(0.5)
 |---|---|
 | A and B to start together, then go on when B finishes | `a.now(…)`, then `b(…)` |
 | A and B to start together, then go on when both finish | `together(() => a(…), () => b(…))` |
-| A to start now, and wait for it later | `const walk = jensen.walkTo.now(…)` … `walk.wait()` |
+| A to start now, and wait for it later | `const walk = henry.walkTo.now(…)` … `walk.wait()` |
 | A sequence running alongside the scene | `background(() => { … })` |
 
 ```ts
 together(
-  () => player.walkTo(points.timeChamber),
-  () => camera.focus(timeChamber),
+  () => player.walkTo(fountainOff),
+  () => camera.focus(fountainOff),
 )
 
 background(() => {
   for (let i = 0; i < 3; i++) {
-    sfx.click.play()
+    sfx.sweeping.play()
     wait(0.33)
   }
 })
-Jensen: `Why isn't this working?`
+Henry: `Why isn't this working?`
 ```
 
 Any action that takes time has a `.now` form. Sounds and music never wait, so they don't need one.
@@ -589,21 +571,23 @@ Any action that takes time has a `.now` form. Sounds and music never wait, so th
 Regions are areas of the floor that react when someone walks in or out:
 
 ```ts
-regions.leave.onEnter(() => {
-  rooms.plaza.goTo()
+// apartment.room.ts
+regions.darkness.onEnter(() => {
+  Hank: `It's dark over here.`
 })
 
-// Jensen steps aside when Hank comes close. Hank doesn't wait for him.
-regions.jensenMoveRight.onEnter((who) => {
+// outside.room.ts: Henry heads back to the fountain when Hank walks into the distance.
+// Hank doesn't wait for him.
+regions.distance.onEnter((who) => {
   if (who === hank) {
-    jensen.walkTo.now(points.jensenRightSide)
+    henry.walkTo.now(points.henryFountain)
   }
 })
 ```
 
-Regions fire for every character, so check `who` (or `who.isPlayer`). A region handler counts as an interaction, which is why the example uses `.now`: without it, the player couldn't click anything while Jensen walks.
+Regions fire for every character, so check `who` (or `who.isPlayer`). A region handler counts as an interaction, which is why the example uses `.now`: without it, the player couldn't click anything while Henry walks.
 
-`regions.enterCloset.active = false` switches a region off; `walkables.upperLedge.active = false` makes an area of floor unwalkable. Both are saved.
+`regions.darkness.active = false` switches a region off; `walkables.walk1.active = false` makes an area of floor unwalkable. Both are saved.
 
 ## GUIs
 
@@ -612,8 +596,8 @@ A GUI's script handles its controls, which are plain names in the script:
 ```ts
 // guis/game-menu/game-menu.gui.ts
 import { game } from '@benne/script'
-import { guis, rooms } from '@game'
-import { gui, load, quit, resume, save, settingsBtn, titleScreen } from './game-menu.ids'
+import { guis } from '@game'
+import { gui, load, quit, resume, save, settingsBtn } from './game-menu.ids'
 
 gui.onShow(() => {
   quit.visible = game.isDesktop   // Quit only makes sense in the desktop app
@@ -627,7 +611,15 @@ save.onClick(() => {
   gui.hide()
 })
 
-titleScreen.onClick(() => rooms.title.goTo())
+load.onClick(() => {
+  guis.loadMenu.show()
+  gui.hide()
+})
+
+settingsBtn.onClick(() => {
+  guis.settingsMenu.show()
+  gui.hide()
+})
 ```
 
 | Control | Read and set | Handlers |
@@ -640,15 +632,16 @@ titleScreen.onClick(() => rooms.title.goTo())
 | Text input | `text`, `enabled`, `focused` | `onChange((text) => …)`, `onSubmit((text) => …)` |
 | List box | `selectedIndex`, `setRowText(i, text)`, `rowCount` | `onSelect((i) => …)`, `onActivate((i) => …)` |
 
-The GUI itself has `show()`, `hide()`, `fadeIn()`, `fadeOut()`, `onBuilt` (each time a room builds it), `onShow`, `onHide` and `onAnyClick`. From other scripts, reach a GUI through `guis`: `guis.verbs.hide()`, `guis.openingText.controls.text`.
+The GUI itself has `show()`, `hide()`, `fadeIn()`, `fadeOut()`, `onBuilt` (each time a room builds it), `onShow`, `onHide` and `onAnyClick`. From other scripts, reach a GUI through `guis`: `guis.verbs.hide()`, `guis.gameMenu.controls.save`.
 
-**A verb bar.** `pointer` tells a GUI what the player is pointing at, and `pointer.sentence` is the ready-made "Use Coffee with Coffee maker" line:
+**A verb bar.** `pointer` tells a GUI what the player is pointing at, and `pointer.sentence` is the ready-made "Use Knife with Bread" line:
 
 ```ts
 // guis/verbs/verbs.gui.ts
 const buttons = new Map([
-  [verbs.look, lookAtBtn], [verbs.use, useBtn], [verbs.take, takeBtn],
-  [verbs.talkTo, talkToBtn], [verbs.move, moveBtn], [verbs.clean, cleanBtn],
+  [verbs.give, giveBtn], [verbs.pickUp, pickUpBtn], [verbs.use, useBtn],
+  [verbs.open, openBtn], [verbs.look, lookAtBtn], [verbs.push, pushBtn],
+  [verbs.close, closeBtn], [verbs.talkTo, talkToBtn], [verbs.pull, pullBtn],
 ])
 
 for (const [verb, button] of buttons) button.onClick(() => verb.select())
@@ -673,14 +666,14 @@ GUI handlers don't take the interaction lock, so menus work during a cutscene.
 ## Saving, loading and settings
 
 ```ts
-saves.save(2, 'Before the lab')    // slot 2, with a name
+saves.save(2, 'Before the fountain') // slot 2, with a name
 saves.save('checkpoint')           // a named save
 saves.load(2)                      // ends the handler; the game reloads
 saves.get(2)?.name
 saves.list()                       // [{ slot, name, timestamp }]
 saves.delete(2)
 saves.autosave()                   // saves 'Autosave' as soon as saving is allowed
-game.newGame(rooms.opening)        // fresh state; ends the handler
+game.newGame(rooms.apartment)      // fresh state; ends the handler
 game.quit()                        // desktop only
 ```
 
@@ -714,10 +707,10 @@ import { fallbacks } from '@game'
 
 fallbacks.onLook(() => { Player: `Nothing special about that.` })
 fallbacks.onUse(() => { Player: `That doesn't work.` })
-fallbacks.onTake(() => { Player: `I can't take that.` })
+fallbacks.onPickUp(() => { Player: `I can't take that.` })
 fallbacks.onTalkTo(() => { Player: `I don't have anything to say to that.` })
-fallbacks.onClean(() => { Player: `I don't need to clean that.` })
-fallbacks.onMove(() => { Player: `It doesn't move.` })
+fallbacks.onPush(() => { Player: `It won't move.` })
+fallbacks.onPull(() => { Player: `It won't move.` })
 
 fallbacks.onAnyVerb(() => { Player: game.config.defaultFallbackLine ?? "That doesn't work." })
 fallbacks.onItemUnhandled(() => { Player: `That doesn't work.` })
@@ -729,12 +722,12 @@ Hooks for every room also go here: `game.onEnterAnyRoom((from) => { … })`, `ga
 
 ## Every frame
 
-`onUpdate` runs a function every frame, for things like a blinking light:
+`onUpdate` runs a function every frame, for things like shimmering water:
 
 ```ts
 onUpdate(() => {
   if (game.currentRoom !== room) return
-  alarmLight.visible = flags.alarmOn && Math.sin(game.time * 6) > 0
+  fountainOn.alpha = 0.8 + 0.2 * Math.sin(game.time * 6)
 })
 ```
 
@@ -744,12 +737,12 @@ Most things that take time have an instant form you can use there instead:
 
 ```ts
 onUpdate(() => {
-  lamp.alpha = 0.5 + 0.5 * Math.sin(game.time * 6)  // not lamp.fade(…)
+  fountainOn.alpha = 0.8 + 0.2 * Math.sin(game.time * 6)  // not fountainOn.fade(…)
 })
 henry.startFacing(hank)  // once, not in onUpdate: Henry keeps turning toward Hank
 ```
 
-To turn a character from a frame check, read `facing` and turn in a `background` block only when it needs to change: `if (jensen.facing !== 'L') background(() => jensen.face('L'))`. To save from one, use `saves.autosave()`, guarded like a `background` block so it runs once.
+To turn a character from a frame check, read `facing` and turn in a `background` block only when it needs to change: `if (henry.facing !== 'L') background(() => henry.face('L'))`. To save from one, use `saves.autosave()`, guarded like a `background` block so it runs once.
 
 ## Events
 
@@ -757,11 +750,11 @@ To turn a character from a frame check, read `facing` and turn in a `background`
 
 ```ts
 events.on('gameState:inventoryChanged', () => {
-  coins.text = `${inventory.count(items.coin)}`
+  if (inventory.has(items.sammich)) dialogs.chatwithpenny.options.door.off()
 })
 
-events.on('alarm', (level: number) => { Hank: `Alarm level ${level}!` })
-events.emit('alarm', 3)
+events.on('sandwichMade', (filling: string) => { Hank: `One ${filling} sandwich!` })
+events.emit('sandwichMade', 'peanut butter')
 ```
 
 In a room script, a listener is active only while the player is in that room.
@@ -771,24 +764,23 @@ In a room script, a listener is active only while the player is in that room.
 Scripts are TypeScript: constants, functions, loops and npm packages all work. Functions you write in a script file are sequenced like handlers, so calling one waits for it:
 
 ```ts
-function gotLens() {
-  inventory.add(items.lens)
-  flags.gotLens = true
-  dialogs.jensenInPlaza.options.foundLens.on()
+function makeSandwich() {
+  inventory.remove(items.bread)
+  inventory.add(items.sammich)
+  dialogs.chatwithpenny.options.door.off()
 }
 
-playFrom('got lens', () => {
-  gotLens()
+playFrom('made sandwich', () => {
+  makeSandwich()
 })
 ```
 
 Loops are sequenced too:
 
 ```ts
-for (const part of [items.relay, items.regulator, items.lens, items.timeonium]) {
+for (const ingredient of [items.bread, items.pb, items.knife]) {
   wait(0.5)
-  sfx.whip.play()
-  inventory.remove(part)
+  inventory.remove(ingredient)
 }
 ```
 
@@ -803,12 +795,12 @@ Callbacks passed to other functions (`array.forEach`, `setTimeout`) are **not** 
 | You wrote | Fix |
 |---|---|
 | ``() => Hank: `Hi` `` | Add braces: ``() => { Hank: `Hi` }`` |
-| `await jensen.walkTo(…)` | Drop the `await`: lines already wait, and `await` stops this one from waiting. |
-| `ready && jensen.walkTo(…)` | Only a call on its own line waits: `if (ready) jensen.walkTo(…)` |
+| `await henry.walkTo(…)` | Drop the `await`: lines already wait, and `await` stops this one from waiting. |
+| `ready && henry.walkTo(…)` | Only a call on its own line waits: `if (ready) henry.walkTo(…)` |
 | `Hank: Hi there` | Quote it: ``Hank: `Hi there` ``, or use a `` say`…` `` block |
 | Code after `rooms.x.goTo()` | It never runs. Move it above, or into the next room's `onEnter`. |
 | Code after `dialog.end()` | Same: move it above. |
-| `jensen.walkTo(…)` in a region handler | Use `jensen.walkTo.now(…)`, or the player is locked out while Jensen walks. |
+| `henry.walkTo(…)` in a region handler | Use `henry.walkTo.now(…)`, or the player is locked out while Henry walks. |
 | `parts.forEach(p => handOver(p))` | `for (const p of parts) handOver(p)` |
 | A name ends in `_` (a prop called `wait` becomes `wait_`) | It clashes with a BenneScript name. Give it a `"scriptName"` in its JSON. |
 

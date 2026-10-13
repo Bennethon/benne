@@ -36,19 +36,19 @@ Type names in the signatures: `VerbId` is the union of your game's verb IDs, `An
 |---|---|
 | `@benne/script` | Actions, blocks and game-wide objects: `walkToClicked`, `faceClicked`, `wait`, `waitForClick`, `say`, `display`, `fadeOut`, `fadeIn`, `unhandled`, `cutscene`, `together`, `background`, `withInputDisabled`, `input`, `player`, `inventory`, `camera`, `game`, `settings`, `pointer`, `saves`, `events`, `playFrom`, `onUpdate`, `defineFlags`, `defineVars`, `flag` |
 | `@game` (generated) | Game-wide content: `rooms`, `characters`, `items`, `dialogs`, `guis`, `sfx`, `music`, `video`, `verbs`, `fallbacks`, `flags`, `vars` |
-| `./<room>.ids` (generated, next to the room script) | `room`; the room's props, hotspots and characters as flat names (`door`, `battery`, `jensen`); `points`, `regions`, `walkables` |
+| `./<room>.ids` (generated, next to the room script) | `room`; the room's props, hotspots and characters as flat names (`door`, `windowHotspot`, `penny`); `points`, `regions`, `walkables` |
 | `./<dialog>.ids` (generated) | `dialog`, `options` |
 | `./<gui>.ids` (generated) | `gui`; the GUI's controls as flat names (`saveBtn`, `savedList`) |
 
-A dialog or GUI script that changes a room imports that room's module too (`import { jensen, points } from '../../rooms/hallway/hallway.ids'`). The editor's auto-import adds import lines as you type a name.
+A dialog or GUI script that changes a room imports that room's module too (`import { henry, points } from '../../rooms/outside/outside.ids'`). The editor's auto-import adds import lines as you type a name.
 
 ### Script files and handler scope
 
 | File | Runs | Its handlers apply |
 |---|---|---|
 | `rooms/<id>/<id>.room.ts` | When the room first loads (lazily) | In that room. A room's handler wins over a character script's for the same verb. |
-| `characters/<id>/<id>.character.ts` | At game start | To that character (`jensen.onLook(…)`, `jensen` from `./jensen.ids`) in every room that spawns it |
-| `inventory/<id>/<id>.inventory.ts` | At game start | To that item's inventory row (`items.magnet.onLook(…)`), and item-on-item (`onCombine`) |
+| `characters/<id>/<id>.character.ts` | At game start | To that character (`henry.onLook(…)`, `henry` from `./henry.ids`) in every room that spawns it |
+| `inventory/<id>/<id>.inventory.ts` | At game start | To that item's inventory row (`items.sammich.onLook(…)`), and item-on-item (`onCombine`) |
 | `dialogs/<id>/<id>.dialog.ts` | At game start | To that dialog's options (`options.greeting.onChoose(…)`) |
 | `guis/<id>/<id>.gui.ts` | At game start | To that GUI's controls, in every room that shows it |
 | `globalScript.ts` | At game start | Everywhere: `fallbacks.*`, `game.onEnterAnyRoom(…)`, `onUpdate(…)` |
@@ -82,21 +82,21 @@ Script files are TypeScript that the build transform (`vite-plugin-bennescript.t
 
 ```ts
 Hank: "What the...?"                    // one line: label = character ID or display name
-BOTTi3Disembodied: "Hello, Hank."       // display name "BOTT-i3 Disembodied", punctuation dropped
+HenryJr: "Hello, Hank."                 // display name "Henry Jr.", punctuation dropped
 Player: "That doesn't work."            // the active player
-Hank: `I've got ${inventory.count(items.coin)} coins.`
+Hank: `I've been out here ${rooms.outside.visitCount} times.`
 
 say`
-  botti3: Ten years ago, you plugged me in!
-  Hank: You're that little computer box from the lab?
-  BOTT-i3 Disembodied: Names as in the JSON, hyphens and spaces allowed.
+  penny: Make me a sandwich and I'll give you the key.
+  Hank: Uhh...
+  Henry Jr.: Names as in the JSON, spaces and punctuation allowed.
 `
 
-jensen.say("Humph!", { clickToSkip: false })   // method form: a variable speaker, or options
+penny.say("Humph!", { clickToSkip: false })    // method form: a variable speaker, or options
 display("The door is locked.")                 // narration
 ```
 
-**Labels.** A label followed by a string (or template, or any expression) is a speech line. The ID and the display name are both normalised (letters and digits only, any case) before matching, so `BOTTi3:` matches the display name `BOTT-i3`. An unknown label in front of a string is a build error ("Unknown speaker `Hnak`. Did you mean `Hank`?"); a label that matches two characters is a build error listing both. A label needs statement position: write `() => { Hank: "Hi" }`, not `() => Hank: "Hi"`.
+**Labels.** A label followed by a string (or template, or any expression) is a speech line. The ID and the display name are both normalised (letters and digits only, any case) before matching, so `HenryJr:` matches the display name `Henry Jr.`. An unknown label in front of a string is a build error ("Unknown speaker `Hnak`. Did you mean `Hank`?"); a label that matches two characters is a build error listing both. A label needs statement position: write `() => { Hank: "Hi" }`, not `() => Hank: "Hi"`.
 
 **Voice IDs.** A line may start with `|number|`: `Hank: "|17| Hello."` plays `assets/audio/voice/hank17.*`. The editor's **Process Game Voice IDs** command fills them in. See [Sound, voice and video](https://benne.games/guide/sound-voice-and-video#process-game-voice-ids).
 
@@ -119,25 +119,25 @@ display("The door is locked.")                 // narration
 
 **Naming.**
 
-- IDs become camelCase: `what about AI` → `whatAboutAI`, `botti3-disembodied` → `botti3Disembodied`. An all-capitals first word is lower-cased (`AI problem` → `aiProblem`).
-- In a room module, the room's own ID and the kind word are stripped: `club-hotspot-battery` → `battery`, `plaza-point-first-visit-jensen` → `points.firstVisitJensen`, `cafe-walk` → `walkables.walk`. When what's left doesn't start with a letter, the whole ID is kept (`lab-point-1` → `points.labPoint1`).
+- IDs become camelCase: `what about the key` → `whatAboutTheKey`, `enter-from-door` → `enterFromDoor`. An all-capitals first word is lower-cased (`PB` → `pb`, `PB open` → `pbOpen`).
+- In a room module, the room's own ID and the kind word are stripped: `outside-hotspot-door` → `door`, `outside-point-henry-fountain` → `points.henryFountain`, `apartment-walk` → `walkables.walk`. When what's left doesn't start with a letter, the whole ID is kept (`outside-point-1` → `points.outsidePoint1`).
 - Two IDs that give the same name in one scope fail generation. Add `"scriptName": "otherName"` to one of them in its JSON (rooms, props, hotspots, points, regions, walkable polygons, characters, items, dialogs, options, GUIs and controls take it). Sound, music and video files that collide must be renamed.
-- A flat name that is a JavaScript reserved word or shadows a BenneScript name (`wait`, `room`, `settings`, …) gets a trailing `_` and a warning; a `scriptName` is the cleaner fix (AI Apocalypse's game menu names its `settings` button `settingsBtn`). A name that shadows a browser global (`window`, `close`) only warns.
+- A flat name that is a JavaScript reserved word or shadows a BenneScript name (`wait`, `room`, `settings`, …) gets a trailing `_` and a warning; a `scriptName` is the cleaner fix (the templates' game menu names its `settings` button `settingsBtn`). A name that shadows a browser global (`window`, `close`) only warns.
 - `stop`, `isPlaying` and `current` are reserved in `music`; `stopAll` in `sfx`; `pause`, `resume`, `seek`, `stop`, `isPlaying` and `current` in `video`.
 
-**One object per thing.** `dialogs.botti3.options.bye` and `options.bye` in `botti3.dialog.ts` are the same object, as are `guis.saveMenu.controls.saveBtn` and `saveBtn` in `save-menu.gui.ts`. A room's `jensen` and `characters.jensen` differ only in scope: handlers on the room's handle apply in that room, handlers on `characters.jensen` wherever Jensen is. In `jensen.character.ts`, `jensen` from `./jensen.ids` *is* `characters.jensen`.
+**One object per thing.** `dialogs.chatwithpenny.options.bye` and `options.bye` in `chatwithpenny.dialog.ts` are the same object, as are `guis.saveMenu.controls.saveBtn` and `saveBtn` in `save-menu.gui.ts`. A room's `penny` and `characters.penny` differ only in scope: handlers on the room's handle apply in that room, handlers on `characters.penny` wherever Penny is. In `penny.character.ts`, `penny` from `./penny.ids` *is* `characters.penny`.
 
 ### Generated verb methods
 
 The verbs in `game-config.json` are the only source of verb handlers; the engine knows no verb names. For each verb `V` (method name: `on` + the ID in PascalCase, so `talkTo` → `onTalkTo`, `pick-up` → `onPickUp`):
 
-| On | Generated | Example (AI Apocalypse: `take`, `use`, `look`, `clean`, `talkTo`, `move`) |
+| On | Generated | Example (the 9-verb template: `give`, `pickUp`, `use`, `open`, `look`, `push`, `close`, `talkTo`, `pull`) |
 |---|---|---|
-| Props, hotspots, characters | `on<V>(fn)` | `battery.onClean(() => { … })` |
-| Inventory items (verb on the inventory row) | `on<V>(fn)` | `items.magnet.onLook(() => { … })` |
-| Clickables and items, for `usesItem` verbs | `on<V>Item(item, fn, options?)` | `battery.onUseItem(items.soda, () => { … })` |
-| Items, for `usesItem` verbs | `on<V>.doNotActivate(fn)` | `items.key.onUse.doNotActivate(() => { … })`: the item isn't armed afterwards |
-| `fallbacks` | `on<V>(fn)`; `on<V>Item((item, target) => …)` for `usesItem` verbs | `fallbacks.onClean(() => { Player: "I don't need to clean that." })` |
+| Props, hotspots, characters | `on<V>(fn)` | `rock.onPush(() => { … })` |
+| Inventory items (verb on the inventory row) | `on<V>(fn)` | `items.pb.onOpen(() => { … })` |
+| Clickables and items, for `usesItem` verbs | `on<V>Item(item, fn, options?)` | `door.onUseItem(items.key, () => { … })` |
+| Items, for `usesItem` verbs | `on<V>.doNotActivate(fn)` | `items.sammich.onUse.doNotActivate(() => { … })`: the item isn't armed afterwards |
+| `fallbacks` | `on<V>(fn)`; `on<V>Item((item, target) => …)` for `usesItem` verbs | `fallbacks.onPush(() => { Player: "It won't move." })` |
 | `verbs` | `verbs.<V>` (a [`VerbHandle`](#verbs-verbsx)) | `verbs.look.select()` |
 
 Built-in methods next to the generated ones: `x.on(['use', 'take'], fn)` (several verbs, one handler), `x.onItem(item, fn)` (any item verb), `x.onAnyItem((item, verb) => …)` (any item without its own handler), `items.x.onCombine(item, fn)` (same as `onItem`, for item-on-item).
@@ -181,12 +181,12 @@ In a room script a listener is live only while that room is active; anywhere els
 | `Hnak: "Hi"` | Build error: unknown speaker, with a suggestion | Fix the name |
 | `Hank: "Hi"` outside any handler | Build error: it would never run | Put it in a handler |
 | `parts.forEach(handOver)` (a step function) | Build error: `forEach` doesn't wait | `for (const p of parts) handOver(p)` |
-| `jensen.say(greet())` (a step function called inside another call) | Build error | Call it on its own line first: `const g = greet()` |
+| `penny.say(greet())` (a step function called inside another call) | Build error | Call it on its own line first: `const g = greet()` |
 | `wait(1)`, a walk, `face` or a fade inside `onUpdate` | Runtime error `TimedActionInUpdateError` (logged once); lint error | Start a `background(() => …)` block from it, once (guard with a flag) |
-| `await jensen.walkTo(p)` | Doesn't wait (the blocking form isn't a promise); lint error | Drop the `await` |
-| `ready && jensen.walkTo(p)`, `setTimeout(() => wait(1))` | Starts without waiting: only a call on its own line in a handler waits; lint error | `if (ready) jensen.walkTo(p)`, or `.now(…)` when not waiting is what you want |
+| `await henry.walkTo(p)` | Doesn't wait (the blocking form isn't a promise); lint error | Drop the `await` |
+| `ready && henry.walkTo(p)`, `setTimeout(() => wait(1))` | Starts without waiting: only a call on its own line in a handler waits; lint error | `if (ready) henry.walkTo(p)`, or `.now(…)` when not waiting is what you want |
 | Code after `rooms.x.goTo()` | Never runs (greyed out) | Put it before, or in the next room's `onEnter` |
-| `jensen.walkTo(…)` in a region handler | Holds the gameplay lock while Jensen walks | `jensen.walkTo.now(…)` |
+| `henry.walkTo(…)` in a region handler | Holds the gameplay lock while Henry walks | `henry.walkTo.now(…)` |
 | A handle named `window` | Works, but shadows the browser global (warning) | Add a `scriptName` |
 | `emitter.on('x', fn)` on a non-BenneScript object | `fn` becomes a step function (async), because of its `on` name | Define `fn` outside the call, or move the code to an ordinary `.ts` file |
 
@@ -241,7 +241,7 @@ Written at the top level of a script file.
 | `onUpdate(fn: (deltaSeconds: number) => void)` | handler | Runs `fn` every frame with the seconds since the last one. Not sequenced: a timed action started here throws (`TimedActionInUpdateError`); start a `background(…)` block from a frame check instead. |
 | `defineFlags(defaults: T)` | instant | Declares the game's flags with defaults, in `src/game/state.ts`. Reads and writes go straight to the game state at that line. Each flag is stored under its name, or its `saveKey`. |
 | `defineVars(defaults: T)` | instant | Declares the game's variables with defaults, in `src/game/state.ts`. Reads and writes go straight to the game state. An array or object default is copied into the state the first time it is read, so changing it in place is saved too. |
-| `flag(defaultValue: boolean, options?: { saveKey?: string })` | instant | `escapedCloset: flag(false, { saveKey: 'escaped closet' })` |
+| `flag(defaultValue: boolean, options?: { saveKey?: string })` | instant | `unlockedDoor: flag(false, { saveKey: 'unlocked door' })` |
 
 ## Game-wide objects
 
@@ -285,7 +285,7 @@ The active player character. In `src/engine/bennescript/actions.ts`.
 
 The active player's inventory. In `src/engine/bennescript/actions.ts`.
 
-The active player's bag. `jensen.inventory` is another character's, with the same members.
+The active player's bag. `penny.inventory` is another character's, with the same members.
 
 | Member | | Description |
 |---|---|---|
@@ -398,7 +398,7 @@ Generated handles are instances of these classes. Verb handlers (`onLook`, `onUs
 
 | Member | | Description |
 |---|---|---|
-| `id: string` | read-only | The room's ID (`'plaza'`). |
+| `id: string` | read-only | The room's ID (`'apartment'`). |
 | `onEnter(handler: StepHandler, options?: CutsceneOptions)` | handler | Before the fade-in: invisible setup. The fade-in waits for it. Like every enter hook it runs as a cutscene; `{ skippable: false }` keeps ESC from skipping it. |
 | `onEnterAfterFade(handler: StepHandler, options?: CutsceneOptions)` | handler | After the fade-in: visible entrances, cutscenes. `{ skippable: false }` keeps ESC from skipping it. |
 | `onLeave(handler: StepHandler)` | handler | Each time the player leaves this room, before the next room loads. |
@@ -417,7 +417,7 @@ A prop, hotspot or character: things the player clicks. Room `.ids` modules crea
 | Member | | Description |
 |---|---|---|
 | `id: string` | read-only | The content ID from the room or character JSON. |
-| `on(verbs: VerbId \| readonly VerbId[], handler: StepHandler)` | handler | One handler for one or several verbs (`cleaningStuff.on(['use', 'take'], …)`). |
+| `on(verbs: VerbId \| readonly VerbId[], handler: StepHandler)` | handler | One handler for one or several verbs (`door.on(['open', 'use'], …)`). |
 | `onVerbItem(verb: VerbId, item: ItemRef, handler: StepHandler, options?: ItemHandlerOptions)` | handler | `verb` with `item` on this target. Generated item-verb methods (`onUseItem`) call this. `{ doNotClear: true }` keeps the item armed afterwards, whatever the drop policy says. |
 | `onItem(item: ItemRef, handler: StepHandler, options?: ItemHandlerOptions)` | handler | `item` with any item verb on this target. |
 | `onAnyItem(handler: (item: ItemRef, verb: { readonly id: VerbId }) => void, options?: ItemHandlerOptions)` | handler | Any item without a handler of its own, any item verb, on this target. On `characters.x` (a character script) it applies in every room, after the room's own item handlers. |
@@ -440,7 +440,7 @@ A prop. Its state lives in its own room: in that room, reads and writes go throu
 | `moveTo(point: Point2)` | instant | Teleports to room pixels (instant). From another room, the position is saved for it. |
 | `slideTo(point: Point2, seconds: number)` | waits · `.now` | Moves to room pixels over `seconds`. Waits. From another room, it moves there at once. |
 
-### Hotspots: `battery`
+### Hotspots: `windowHotspot`
 
 A hotspot. Like a prop, its state lives in its own room: from another room, reads and writes go to that room's saved state. `HotspotHandle` in `src/engine/bennescript/handles.ts`. Also has everything on `ClickableHandle`.
 
@@ -450,7 +450,7 @@ A hotspot. Like a prop, its state lives in its own room: from another room, read
 | `clickable: boolean` | settable | Same as `active`. |
 | `description: string` | settable | The hover / verb-line name. Saved. |
 
-### Characters: `jensen`, `characters.jensen`
+### Characters: `penny`, `characters.penny`
 
 `CharacterHandle` in `src/engine/bennescript/handles.ts`. Also has everything on `ClickableHandle`.
 
@@ -538,7 +538,7 @@ A walkable polygon in a room (`walkables.x`). Like a region, its state lives in 
 | Member | | Description |
 |---|---|---|
 | `id: string` | read-only | The dialog's ID. |
-| `options: { [name]: DialogOptionHandle }` | read-only | This dialog's options by handle name (`dialogs.barista.options.dirtyDishes`). |
+| `options: { [name]: DialogOptionHandle }` | read-only | This dialog's options by handle name (`dialogs.chatwithpenny.options.greeting`). |
 | `start()` | waits · `.now` | Opens the conversation and waits until it ends. Started from a choice handler, it is a sub-dialog: its parent comes back when it ends. `.now` opens it without waiting. |
 | `end()` | ends the handler | Ends this conversation (back to the parent, if it is a sub-dialog) and ends the handler. |
 | `onStart(handler: StepHandler)` | handler | Runs each time the conversation opens, before the player picks: set up which options show. |
@@ -613,7 +613,7 @@ A verb, as `verbs.<id>` in `@game`. `VerbHandle` in `src/engine/bennescript/hand
 |---|---|---|
 | `id: VerbId` | read-only | The verb's ID in `game-config.json`. |
 | `label: string` | read-only | The verb bar's text (`'Look at'`). |
-| `preposition: string \| null` | read-only | `'with'` in "Use coffee with coffee maker", or `null`. |
+| `preposition: string \| null` | read-only | `'with'` in "Use knife with bread", or `null`. |
 | `usesItem: boolean` | read-only | True for verbs that use an inventory item on a target (`usesItem` in the config). |
 | `select()` | instant | Makes this the active verb, as clicking its button in a verb bar does. |
 | `isActive: boolean` | read-only | True while this is the armed verb. |

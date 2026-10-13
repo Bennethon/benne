@@ -85,3 +85,63 @@ html {
 .VPNavBarTitle .logo {
   image-rendering: pixelated;
 }
+
+/* Diagrams drawn as inline SVG in the guides (the puzzle chart page). Theme colours, so they
+   follow light and dark mode. */
+.pdc-figure {
+  margin: 24px 0;
+}
+
+.pdc-figure svg {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  margin: 0 auto;
+}
+
+.pdc-figure figcaption {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+}
+
+.pdc-figure .pdc-group {
+  fill: var(--vp-c-brand-soft);
+  stroke: var(--vp-c-brand-3);
+  stroke-dasharray: 5 4;
+}
+
+.pdc-figure .pdc-group-label {
+  font-family: var(--benne-font-ui);
+  font-size: 14px;
+  fill: var(--benne-accent-text);
+}
+
+.pdc-figure .pdc-nodes rect {
+  fill: var(--vp-c-bg);
+  stroke: var(--vp-c-text-3);
+}
+
+.pdc-figure .pdc-nodes rect.pdc-goal {
+  stroke: var(--vp-c-brand-1);
+  stroke-width: 2;
+}
+
+.pdc-figure .pdc-nodes text {
+  font-family: var(--vp-font-family-base);
+  font-size: 12.5px;
+  text-anchor: middle;
+  fill: var(--vp-c-text-1);
+}
+
+.pdc-figure .pdc-edges line {
+  stroke: var(--vp-c-text-2);
+  stroke-width: 1.5;
+  marker-end: url(#pdc-demo-arrow);
+}
+
+.pdc-figure .pdc-arrowhead {
+  fill: var(--vp-c-text-2);
+}

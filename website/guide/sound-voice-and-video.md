@@ -12,7 +12,7 @@ BENNE supports four media paths for authored games:
 - **Voice** clips attached to lines of dialogue.
 - **Video** for full-screen cinematics.
 
-All media files live under `src/game/assets/` and are discovered at build time. Each sound, music track and video gets a name in your scripts, made from its file name: `door-close.mp3` is `sfx.doorClose`, `apartment-theme.ogg` is `music.apartmentTheme`. The editor completes them, and a misspelt name is an error.
+All media files live under `src/game/assets/` and are discovered at build time. Each sound, music track and video gets a name in your scripts, made from its file name: `door-close.mp3` is `sfx.doorClose`, `my-cat-is-crazy.mp3` is `music.myCatIsCrazy`. The editor completes them, and a misspelt name is an error.
 
 ## File Locations
 
@@ -21,7 +21,7 @@ Put files in these folders:
 | Media | Folder | Supported extensions | Example file | In scripts |
 |-------|--------|----------------------|--------------|------------|
 | SFX | `src/game/assets/audio/sfx/` | `.mp3`, `.ogg`, `.wav`, `.m4a` | `doorClose.mp3` | `sfx.doorClose` |
-| Music | `src/game/assets/audio/music/` | `.mp3`, `.ogg`, `.wav`, `.m4a` | `apartment-theme.ogg` | `music.apartmentTheme` |
+| Music | `src/game/assets/audio/music/` | `.mp3`, `.ogg`, `.wav`, `.m4a` | `my-cat-is-crazy.mp3` | `music.myCatIsCrazy` |
 | Voice | `src/game/assets/audio/voice/` | `.mp3`, `.ogg`, `.wav`, `.m4a` | `hank42.mp3` | `Hank: "\|42\| …"` |
 | Video | `src/game/assets/videos/` | `.mp4`, `.webm` | `intro.mp4` | `video.intro` |
 
@@ -33,7 +33,7 @@ Two files whose names give the same script name (`door-close.mp3` and `doorClose
 
 ```ts
 sfx.doorClose.play()
-sfx.sparkle.play({ volume: 0.5 })
+sfx.sweeping.play({ volume: 0.5 })
 ```
 
 `play()` starts the sound and lets the script go on at once. Use `playAndWait()` when the next line should wait for the clip to finish:
@@ -46,9 +46,9 @@ rooms.outside.goTo()
 Stop one sound, or every sound:
 
 ```ts
-sfx.alarm.stop()
+sfx.sweeping.stop()
 sfx.stopAll()
-if (sfx.alarm.isPlaying) { … }
+if (sfx.sweeping.isPlaying) { … }
 ```
 
 Inside a cutscene that the player skips, one-shot sounds don't play.
@@ -57,22 +57,22 @@ Inside a cutscene that the player skips, one-shot sounds don't play.
 
 ```ts
 if (!music.isPlaying) {
-  music.apartmentTheme.play()
+  music.myCatIsCrazy.play()
 }
 ```
 
-There is one music slot. Starting a new track replaces the current one. Music continues across room changes unless you stop or replace it. `music.current` is the track playing now (or `null`), and `music.plaza.isPlaying` checks one track.
+There is one music slot. Starting a new track replaces the current one. Music continues across room changes unless you stop or replace it. `music.current` is the track playing now (or `null`), and `music.halloweenSpooky.isPlaying` checks one track.
 
 Music can crossfade:
 
 ```ts
-music.outsideNight.play({ fadeSeconds: 2 })
+music.halloweenSpooky.play({ fadeSeconds: 2 })
 ```
 
-If two music tracks are alternate versions of the same cue, `sync: true` asks BENNE to align the incoming playback position with the outgoing track when the browser exposes that timing:
+If two music tracks are alternate versions of the same cue (say you add a spookier `halloween-spooky-full.mp3` alongside `halloween-spooky.mp3`), `sync: true` asks BENNE to align the incoming playback position with the outgoing track when the browser exposes that timing:
 
 ```ts
-music.battleHigh.play({ fadeSeconds: 1.5, sync: true })
+music.halloweenSpookyFull.play({ fadeSeconds: 1.5, sync: true })
 ```
 
 Stop music with:
@@ -110,7 +110,7 @@ A spoken line can start with a voice marker:
 ```ts
 Player: "|42| The old key fits perfectly."
 Hank: "|17| This case just got a lot more complicated."
-jensen.say("|3| Humph!")
+penny.say("|3| Humph!")
 ```
 
 The marker is not shown to the player. BENNE strips it from the text, resolves the speaking character id, and plays a voice file from:
@@ -150,7 +150,7 @@ Open the BENNE sidebar, make sure nothing is selected in the main tree, then run
    - **Yes** opens VS Code diffs for the planned edits before applying.
    - **No** writes the changes immediately.
 
-The command scans `src/game/**/*.ts`, updates speech lines (`Hank: "…"`), `jensen.say(…)` calls and `say` blocks, and stores per-character high-water marks in:
+The command scans `src/game/**/*.ts`, updates speech lines (`Hank: "…"`), `penny.say(…)` calls and `say` blocks, and stores per-character high-water marks in:
 
 ```text
 .benne/voice-ids.json

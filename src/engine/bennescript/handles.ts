@@ -150,7 +150,7 @@ export class ClickableHandle<V extends string = string> {
     this.id = id;
   }
 
-  /** One handler for one or several verbs (`cleaningStuff.on(['use', 'take'], …)`). */
+  /** One handler for one or several verbs (`door.on(['open', 'use'], …)`). */
   on(verbs: V | readonly V[], handler: StepHandler): void {
     for (const verb of verbList(verbs)) {
       if (this.roomId == null) {
@@ -731,7 +731,7 @@ export class VerbHandle<V extends string = string> {
   readonly id: V;
   /** The verb bar's text (`'Look at'`). */
   readonly label: string;
-  /** `'with'` in "Use coffee with coffee maker", or `null`. */
+  /** `'with'` in "Use knife with bread", or `null`. */
   readonly preposition: string | null;
   /** True for verbs that use an inventory item on a target (`usesItem` in the config). */
   readonly usesItem: boolean;
@@ -895,7 +895,7 @@ export class WalkableHandle {
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 
 export class RoomHandle {
-  /** The room's ID (`'plaza'`). */
+  /** The room's ID (`'apartment'`). */
   readonly id: string;
 
   constructor(id: string) {
@@ -1160,10 +1160,10 @@ export class DialogOptionHandle {
 export class DialogHandle<Options extends Record<string, string> = Record<string, string>> {
   /** The dialog's ID. */
   readonly id: string;
-  /** This dialog's options by handle name (`dialogs.barista.options.dirtyDishes`). */
+  /** This dialog's options by handle name (`dialogs.chatwithpenny.options.greeting`). */
   readonly options: { readonly [K in keyof Options]: DialogOptionHandle };
 
-  /** `options` maps handle names to option ids (`{ dirtyDishes: 'dirty dishes' }`). */
+  /** `options` maps handle names to option ids (`{ whatAboutTheKey: 'what about the key' }`). */
   constructor(id: string, options: Options) {
     this.id = id;
     const handles: Record<string, DialogOptionHandle> = {};
@@ -1698,7 +1698,7 @@ export interface FlagSpec {
   readonly saveKey?: string;
 }
 
-/** `escapedCloset: flag(false, { saveKey: 'escaped closet' })` */
+/** `unlockedDoor: flag(false, { saveKey: 'unlocked door' })` */
 export function flag(defaultValue: boolean, options: { saveKey?: string } = {}): FlagSpec {
   return { default: defaultValue, saveKey: options.saveKey };
 }

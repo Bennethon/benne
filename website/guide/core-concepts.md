@@ -13,12 +13,11 @@ This page introduces the fundamental ideas that shape how BENNE games are built 
 
 A room typically contains:
 
-- Background artwork
 - Walkable areas (defined as polygons)
-- Props, hotspots, characters, and regions
+- Props (all of the room's art, background included), hotspots, characters, and regions
 - Its own dedicated script that runs when the room is loaded
 
-Moving the player from one room to another is done with `rooms.hallway.goTo()`. The engine automatically handles screen fading, cleanup of the previous room, and running the appropriate enter/leave lifecycle hooks so you don’t have to manage transitions manually.
+Moving the player from one room to another is done with `rooms.outside.goTo()`. The engine automatically handles screen fading, cleanup of the previous room, and running the appropriate enter/leave lifecycle hooks so you don’t have to manage transitions manually.
 
 Rooms are designed to be relatively self-contained. This makes it easier to reason about state, test individual areas, and keep your project organized as it grows.
 
@@ -59,11 +58,11 @@ door.onUse(() => {
   player.walkTo(door)
   Hank: "I wonder where this leads..."
   wait(0.5)
-  rooms.hallway.goTo()
+  rooms.outside.goTo()
 })
 ```
 
-Every name in that handler (`door`, `rooms.hallway`, even the speaker `Hank`) is generated from your content, so the editor completes them and catches typos before you run the game. When you want two things to happen at once, you say so explicitly (`jensen.walkTo.now(…)` starts Jensen walking without waiting). See [BenneScript](./bennescript).
+Every name in that handler (`door`, `rooms.outside`, even the speaker `Hank`) is generated from your content, so the editor completes them and catches typos before you run the game. When you want two things to happen at once, you say so explicitly (`henry.walkTo.now(…)` starts Henry walking without waiting). See [BenneScript](./bennescript).
 
 ## Game State
 

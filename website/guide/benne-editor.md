@@ -5,78 +5,93 @@ outline: deep
 
 # BENNE Editor
 
-The **BENNE Editor** is a Visual Studio Code extension and the recommended way to build BENNE games. It gives you a visual tree of your entire game, live previews that render exactly like the shipped runtime, property inspectors, polygon editing, and one-click scaffolding for rooms, characters, GUIs, inventory items, dialogs, and puzzle charts.
+The **BENNE Editor** is a Visual Studio Code extension and the recommended way to build BENNE games. It gives you a visual tree of your entire game, live previews that render exactly like the shipped runtime, property inspectors, polygon editing, a puzzle chart editor, and one-click scaffolding for rooms, characters, GUIs, inventory items, dialogs and handlers.
 
 While every piece of content is ultimately plain JSON and TypeScript that you *can* edit by hand, the editor removes the tedium: it places files in the right locations, keeps ids consistent, wires up script handlers, and shows you what your game looks like without leaving VS Code.
+
+This page is a tour of the editor itself. For step-by-step guides to making each kind of content, see:
+
+- [Creating a room](./creating-a-room): art, props, walkable areas, hotspots, points, regions and characters.
+- [Creating a character](./creating-a-character): animations, feet, talk points and placing them in rooms.
+- [Creating an inventory item](./creating-an-inventory-item): icons, combining and using items.
+- [Creating a dialog](./creating-a-dialog): options, replies and branching conversations.
+- [Creating a GUI](./creating-a-gui): controls, fonts and menus.
+- [Puzzle dependency charts](./puzzle-dependency-charts): planning puzzles in the chart editor.
 
 ## Overview
 
 When the extension is installed, a **BENNE** icon appears in the VS Code Activity Bar. Clicking it reveals the BENNE sidebar, which contains three views:
 
-- **BENNE** (the main tree) — A structured outline of your whole game: rooms, characters, GUIs, inventory, dialogs, and puzzle charts, each expandable down to individual props, hotspots, regions, points, walkable areas, and controls.
-- **Actions** — Buttons for rebuilding preview bundles (room, character, GUI, inventory, dialog/inspector, and BENNE Play), plus workspace-level helpers such as **Process Game Voice IDs**.
-- **State** — Your game's flags and variables, with their defaults (see [State](#state)).
+- **BENNE** (the main tree): a structured outline of your whole game: rooms, characters, GUIs, inventory, dialogs and puzzle charts, each expandable down to individual props, hotspots, regions, points, walkable areas and controls.
+- **Actions**: buttons for rebuilding preview bundles, plus workspace-level helpers such as **Process Game Voice IDs**.
+- **State**: your game's flags and variables, with their defaults (see [State](#state)).
 
 The **Inspector**, which shows editable properties for whatever you've selected in the tree, sits on the other side of the window in the **Secondary Side Bar**. Selecting something in the tree opens the Secondary Side Bar on the Inspector if it's closed or showing another view, such as Chat. Turn that off with the `benneEditor.layout.revealInspector` setting. **BENNE: Show BENNE Sidebar** opens both. Like any VS Code view, you can drag any of them somewhere else.
 
-From the sidebar title bars and right-click context menus you can create new content, add elements to a room, scaffold script handlers, import from Aseprite tags, play from a room, update the engine, and delete entities.
-
 ::: tip Previews are the real renderer
-The editor's previews use the **same** Phaser renderer configuration as the shipped game and BENNE Play. What you see in a room, character, GUI, or inventory preview is what your players see — same scaling, pixel snapping, and bitmap font rendering.
+The editor's previews use the **same** Phaser renderer configuration as the shipped game and BENNE Play. What you see in a room, character, GUI, or inventory preview is what your players see: same scaling, pixel snapping, and bitmap font rendering.
 :::
 
-## Main Treeview
+## The BENNE tree
 
-The main **BENNE** tree is your map of the game. At the top is the workspace (your game project), and beneath it are grouped sections:
+The main **BENNE** tree is your map of the game. At the top is the workspace (your game project), and beneath it:
 
-- **Rooms** — Each room expands to show its **props**, **hotspots**, **points**, **regions**, **walkable areas** (with holes), and **spawned characters**.
-- **Characters** — Each character and its animations.
-- **GUIs** — Each GUI and its controls.
-- **Inventory** — Each inventory item.
-- **Dialogs** — Each dialog and its options.
-- **Puzzle Charts** — Each puzzle dependency chart.
+- **Game Config** opens `game-config.json` (see [Game configuration](./game-configuration)).
+- **Global Script** opens `globalScript.ts`, home of the [fallbacks](./verbs#fallbacks).
+- **Rooms**: each room expands to its **props**, **hotspots**, **points**, **regions**, **walkable areas** (with their holes) and **characters**.
+- **Characters**, **GUIs** (with their controls), **Inventory**, **Dialogs** and **Puzzle Dependency Charts**.
 
-### Working from the tree
+### Selecting things
 
-Selecting a node populates the **Inspector** with its properties and (where relevant) opens or focuses the matching preview. Right-clicking a node offers context-appropriate actions, for example:
+Selecting something in the tree arranges the window for it: its preview opens on top, its script underneath, and its properties in the Inspector. Selecting a prop, hotspot or region inside a room selects it in the room preview too, ready to edit. Selecting something new closes the editors that were open for the previous selection. With `benneEditor.layout.closePanelOnOpen`, it also closes the bottom panel to give the preview and script the full height.
 
-- On a **room**: Play from here, Add Prop, Add Hotspot, Add Point, Add Region, Add Walkable Area, Add Hole, Add Spawned Character, Add Play From method, Import Props from Aseprite Tags, Delete.
-- On a **prop / hotspot / character**: add verb handlers (which edit both the JSON and the script), make it clickable, reveal or add an "item used on this" handler (`onAnyItem`), Delete.
-- On the **workspace root**: Update Engine.
+### Creating and changing content
 
-### Creating content
+Right-click a node for what you can do with it:
 
-The tree's title bar and group context menus expose the **create** commands:
+| Right-click | To |
+|---|---|
+| The workspace, or a group (**Rooms**, **Characters**, …) | Create a room, character, GUI, inventory item, dialog or puzzle chart. These are also in the BENNE view's title bar. |
+| A room | Play from here, add a prop, hotspot, point, region, walkable area, hole, character or Play From setup, import props from the room's Aseprite tags, open its art folder. |
+| A walkable area | Add another walkable area or a hole. |
+| A character | Import animations from Aseprite tags, open its art folder. |
+| **Inventory**, or an item | Import inventory items from Aseprite tags. |
+| A GUI | Add a control, open its art folder. |
+| Almost anything | **Delete…**. The editor tells you where scripts still use it first. |
+| The workspace | **Update Engine** (see [Updating BENNE](./updating-benne)). |
 
-- **Create New Room**
-- **Create Character**
-- **Create GUI**
-- **Create Inventory Item**
-- **Create Dialog**
-- **Create Puzzle Chart**
-
-Each command scaffolds the JSON definition, a matching script file, and the folder structure, then adds the new entity to the tree.
+Each create command makes the JSON, the script and the art folder in the right places, and regenerates the [script names](./bennescript#names-and-imports) so the new thing can be used straight away.
 
 ### Filtering
 
-For larger games, the tree supports a **filter**: use **Filter BENNE tree** to narrow it to matching entities, and **Clear BENNE tree filter** to reset.
+For larger games, the tree supports a **filter**: use **Filter BENNE tree** in its title bar to narrow it to matching entities, and **Clear BENNE tree filter** to reset.
 
 ## Inspector
 
-The **Inspector** is a webview panel that edits the properties of the currently selected tree node. Instead of hand-editing JSON, you adjust fields and the editor writes valid changes back to the underlying definition file.
+The **Inspector** edits the properties of whatever is selected in the tree. Instead of hand-editing JSON, you change fields and the editor writes valid changes back to the definition file, when you leave a field or click **Save**. **Open raw JSON** shows the file itself.
 
-What the Inspector shows depends on the selection. Examples:
+What the Inspector shows depends on the selection:
 
-- **Room** — size, scroll bounds, and links to its sub-elements.
-- **Prop** — id, Aseprite tag, animations, z-index, visibility, alpha, collider, walk-to point, look-at point, baseline, description, default verb, and clickability.
-- **Hotspot / Region** — id, active state, polygon, walk-to / look-at points, descriptions; regions add tint and tint-alpha for atmospheric effects.
-- **Character** — name, walk speed, feet/talk/walk-to points, animations, collider, speech color.
-- **GUI control** — type-specific fields (text, font, colors, state tags, sizes, etc.).
-- **Inventory item** — name, description, enabled verbs, stackability, animations, cursor animation.
+- **Room**: its size and scroll bounds, buttons for its `onEnter`, `onEnterAfterFade`, `onLoaded` and `onUpdate` hooks, and its Play From setups.
+- **Prop**: tag, animations, z-index, visibility, alpha, collider, walk-to and look-at points, baseline, description, default verb and clickability.
+- **Hotspot / Region**: active state, polygon, walk-to and look-at points and description; regions add scaling, tint and their onEnter and onExit handlers.
+- **Character**: name, walk speed, feet, talk and walk-to points, animations, collider and speech colour.
+- **Inventory item**: name, description, stacking, animations and cursor.
+- **Dialog**: its options, which you can add, edit, reorder and remove.
+- **GUI and GUI controls**: type-specific fields (text, font, colours, state tags, sizes and so on).
 
-A major convenience: from the Inspector and the tree, you can **scaffold script handlers** for an entity. For example, adding a "Use" handler to a prop edits the room JSON to mark the prop clickable *and* adds a `door.onUse(() => { … })` stub (with its imports) to the end of the room script, then reveals it so you can fill in behavior. You can also reveal an existing handler to jump straight to it.
+### Adding handlers from the Inspector
 
-The editor also helps while you write scripts: it completes every generated name (rooms, props, items, sounds, …), offers `Hank: ""` when you start a line with a character's name, completes animation tags and facing letters with their quotes, flags unknown speaker names as you type, and **Go to Definition** on a name like `battery` opens the JSON it came from.
+The Inspector writes script handlers as well as JSON. Selecting a prop, hotspot, character or item shows a [verb chip](./verbs#verbs-in-the-editor) for each verb in your game: **⚡** means a handler exists (click to jump to it) and **+** means it doesn't (click to add one). For example, clicking **+ use** on a prop marks it clickable in the room JSON *and* adds a `door.onUse(() => { … })` stub, with its imports, to the end of the room script, then shows it to you. Rooms, regions, dialog options and GUI controls have the same kind of buttons for their own handlers (`onEnter`, `onChoose`, `onClick`, …).
+
+### Writing scripts
+
+The editor also helps while you write scripts:
+
+- It completes every generated name: rooms, props, items, sounds, verbs, dialog options and GUI controls.
+- Typing a character's name and a colon at the start of a line (`Hank:`) inserts backticks for the line of dialogue and puts the cursor inside. Turn this off with `benneEditor.dialogue.autoInsertBackticks`.
+- It completes animation tags and facing letters with their quotes, and flags unknown speaker names as you type.
+- **Go to Definition** on a name like `couch` opens the JSON it came from.
 
 ## State
 
@@ -90,112 +105,34 @@ The **State** view lists the flags and variables declared in `src/game/state.ts`
 
 Comments and the order of entries in `state.ts` are kept. An entry whose value isn't a plain value (a function call, say) is shown greyed out; edit it in `state.ts`.
 
-## Rooms
+## Previews
 
-Rooms are where most authoring happens, and the room preview is the editor's most powerful surface. Selecting a room opens a **live preview** of the room rendered with the actual engine, on top of which you can directly edit the room's geometry.
+Each kind of content has a live preview, rendered by the game engine:
 
-### Polygon editing
+| Preview | Opens when you select | What you do there |
+|---|---|---|
+| **Room** | A room or anything in it | Draw walkable areas, hotspots, regions and colliders; place props, points and characters; drag baselines. See [Creating a room](./creating-a-room). |
+| **Character** | A character | Play any animation; drag the feet, walk-to point, talk point and collider. See [Creating a character](./creating-a-character#4-set-the-feet-walk-to-point-talk-point-and-collider). |
+| **GUI** | A GUI or a control | See the GUI as the game draws it; move controls. |
+| **Inventory** | An inventory item | See its icon as an inventory panel shows it. |
+| **Puzzle chart** | A puzzle chart | Edit the chart. See [Puzzle dependency charts](./puzzle-dependency-charts#using-the-editor). |
 
-Most of a room's interactive geometry is defined as **polygons**, and you edit them visually in the preview:
+In the room and character previews, the mouse wheel zooms around the pointer, a middle-button drag pans, and **F** fits everything back in view. Geometry you change in a preview is written to the JSON when you click **Save to JSON** in the preview's toolbar; until then it is only in the preview. The toolbar's hint line says what you can do with the current selection.
 
-- **Walkable areas** — Polygons describing where the player can walk. Each walkable area can contain **holes** (e.g. a table the player must walk around). The example apartment room defines a single walkable polygon with one hole.
-- **Hotspots** — Clickable polygonal areas with no sprite of their own (a window, a sign, a patch of floor). Each can have a `walkToPoint` and `lookAtPoint`.
-- **Regions** — Polygonal zones used for triggers (`regions.x.onEnter` / `onExit` in the room script), perspective scaling, and character tinting. A region can carry a `tint` and `tintAlpha` to darken or color characters standing in it.
-- **Prop colliders** — The clickable shape of a prop (only when the prop is clickable).
-- **Prop / hotspot baseline** — A horizontal line used for depth sorting against walking characters. Clickable props and hotspots show it alongside collider/polygon editing; **non-clickable props** still get this line so you can walk around scenery correctly.
+The room preview's top bar also has **GUIs**, **Characters** and **Outlines** checkboxes, which show or hide the HUD, the room's characters, and the walkable area, region and collider outlines. They only change the preview, never the room.
 
-You draw and reshape these polygons by dragging vertices in the preview, with real-time feedback. The preview's top bar always has **Play from** and **Play** at the left, whatever you have selected, so you can launch BENNE Play from any editing mode. Tick **Mute** beside **Play** to playtest without audio. At the right, the **GUIs**, **Characters** and **Outlines** checkboxes show or hide the HUD, the room's characters, and the walkable / region / prop collider outlines. They only change the preview, never the room.
+## BENNE Play
 
-### Props
+**BENNE Play** runs your whole game in a VS Code tab, with the full runtime: walking, scripts, dialogs, saving and all. The room preview's top bar always has two buttons for it on the left:
 
-Props are the room's sprites — furniture, doors, items, animated background elements. A prop references an **Aseprite tag** for its art and defines a z-index for layering, an optional baseline (for depth sorting against the player), a description, and — when clickable — a collider, a walk-to point, a look-at point, and an optional `defaultVerb`.
+- **Play** starts the game from its starting room, as a new player would.
+- **Play from** starts in the current room. Its menu lists the room's **Play From** setups, which put the game into a prepared state first, such as "the player already has the key". You write them in the room script with `playFrom('gotKey', () => { … })`; the room Inspector's **+ playFrom** button adds one. See [Creating a room → Test it](./creating-a-room#11-test-it).
 
-You can add props one at a time (**Add Prop**) or **Import Props from Aseprite Tags** to create multiple props at once from a tagged sheet.
+Tick **Mute** beside **Play** to playtest without sound. Right-clicking a room in the tree and choosing **Play from here** does the same as **Play from**.
 
-### Points, spawned characters, and "Play From"
+While BENNE Play is open, its bar has an **Inventory** menu and a **Give** button that put any item straight into the player's inventory, for testing a puzzle without fetching its pieces. While it is open, BENNE Play rebuilds when you save a script or content file and restarts from where you launched it, so you can change a line and try it again straight away.
 
-- **Points** are named room coordinates you can walk or move characters to by id.
-- **Spawned characters** place character instances into the room (with position, initial facing, initial animation, visibility, and z-index).
-- **Play From methods** let you define named entry points with setup code (e.g. "start here with the key already in inventory"), then launch the game from that state using **Play from here** or the preview's **Play from** menu. In the Inspector, the room's hook row has a **+ playFrom** button to add one and a button per existing setup to jump to it.
-
-## Characters
-
-A character definition (`*.character.json`) describes a person/creature the engine can place in rooms and animate:
-
-- **Identity** — `id`, `name`, `description`.
-- **Movement** — `walkSpeed`, a `feet` anchor, a `walkToPoint`, and a `talkPoint` (where speech text appears).
-- **Animations** — Directional Aseprite tags for idle, walk, and talk (e.g. `IdleL`, `WalkU`, `TalkD`), each with loop and frame-duration options. BENNE resolves the right directional clip from a base name plus facing.
-- **Collider** — The clickable shape.
-- **`speechColor`** — The color of this character's spoken text.
-- **`clickable`** — Whether the character can be interacted with.
-
-The **character preview** renders the character with its animations so you can verify tags, facing, and timing. Use **Import Animations from Aseprite Tags** to pull animation definitions directly from a tagged sheet.
-
-One character is designated the player at game start (via `startingPlayerCharacter` in `game-config.json`), but you can switch control between characters at runtime with `player.switchTo(penny)`.
-
-## GUIs
-
-**GUIs** are JSON-defined overlays that sit on top of the game world — verb bars, inventory panels, dialog choice strips, menus (save/load/settings), and custom HUD elements. New projects ship with a working set of GUIs you can study and adapt.
-
-A GUI (`*.gui.json`) has an `id`, a `name`, a default `visible` state, a `display` (for Aseprite-backed art), and an array of **controls**. Control types include:
-
-- **image** — Static or 9-slice background art, with anchoring (e.g. to the screen).
-- **button** — Clickable buttons with per-state Aseprite tags (`hover`, `pressed`, `disabled`), bitmap-font labels, colors, and per-state text colors.
-- **checkbox**, **slider**, **listBox**, **textInput** — Standard interactive controls.
-- **inventoryPanel** — A grid that displays the player's inventory with configurable rows/columns, slot sizes, spacing, scroll direction, and back/forward buttons.
-- **text** — Bitmap-font text display.
-
-The **GUI preview** renders the overlay live. You can add controls via **Add GUI Control** (from a GUI's context menu) and edit each control's properties in the Inspector.
-
-Behavior lives in the GUI's script (`*.gui.ts`), where each control is a name you can use directly: `saveBtn.onClick(…)`, `musicVolume.onChange((v) => …)` for sliders and checkboxes, `saveName.onSubmit((text) => …)` for text inputs, `savedList.onSelect((i) => …)` for list boxes, and `gui.onShow(…)` for the GUI itself. See [BenneScript → GUIs](./bennescript#guis) for the full surface.
-
-## Inventory
-
-**Inventory items** (`*.inventory.json`) are the objects the player collects and uses. Each item defines:
-
-| Field | Description |
-|-------|-------------|
-| `id` / `name` | Identifier and display name. |
-| `description` | Optional flavor/look text. |
-| `onVerb` | Which verbs the item row responds to (e.g. `look`, `use`). |
-| `stackable` | Whether multiple copies stack into a quantity. |
-| `animations` | Aseprite tags for the item's icon. |
-| `display` | How the item's art is sourced (e.g. a shared Aseprite sheet). |
-| `cursorAnimation` | The cursor clip shown when this item is armed for "use on target". |
-
-The **inventory preview** renders item icons as they'll appear in an inventory panel. **Import Inventory Items from Aseprite Tags** lets you create many items at once from a tagged sheet.
-
-Item behavior is written in the item's script (`*.inventory.ts`): verbs on its inventory row (`items.key.onLook(…)`) and other items used on it (`items.magnet.onCombine(items.antenna, …)`). Where an item is *used on a world target* (use the key on the door), that logic lives in the room or character script: `door.onUseItem(items.key, …)`. See [BenneScript → Inventory](./bennescript#inventory).
-
-## Dialogs
-
-**Dialogs** power branching conversations. A dialog definition (`*.dialog.json`) is intentionally simple: an `id`, a `displayName`, and a list of **options** the player can choose:
-
-```json
-{
-  "id": "chatwithpenny",
-  "displayName": "ChatWithPenny",
-  "options": [
-    { "id": "greeting", "text": "How's it goin?" },
-    { "id": "door",     "text": "The door is locked. How do I get out?" },
-    { "id": "bye",      "text": "Ok, bye!" }
-  ]
-}
-```
-
-The conversation logic lives in the dialog's script (`*.dialog.ts`), where each option gets a handler: `options.greeting.onChoose(…)`, or `onChooseOnce(…)` to remove the option once chosen. Inside a handler you write the back-and-forth as lines of dialogue (`Penny: "Hi!"`), show or hide other options with `options.door.on()` / `off()` to model conversation state, and end the conversation with `dialog.end()`. Options the player has already used are visually dimmed (color configurable via the `dialog.usedColor` setting).
-
-You start a dialog from gameplay with `dialogs.chatwithpenny.start()`, for example from a character's "Talk to" handler; the handler waits there until the conversation ends. The choice UI itself is a normal GUI, so its appearance (including how many choices are visible before scrolling) is configurable. See [BenneScript → Dialogs](./bennescript#dialogs).
-
-## Puzzle Dependency Charts
-
-**Puzzle Dependency Charts (PDCs)** are a planning tool, not runtime content. Borrowed from the classic adventure-design technique, a PDC is a node-and-arrow graph that lays out the puzzles in your game and the dependencies between them — which steps must be completed before others become possible.
-
-Create one with **Create Puzzle Chart**. The editor opens a graph editor where you add labeled nodes (e.g. "Get knife", "Use knife on bread to make sammich", "Give sammich to Penny to get key", "Use key on door") and connect them with directional edges. Nodes can be grouped (for example, by room) so you can see how puzzles cluster across your game.
-
-Because a PDC captures the *intended* solution path and its prerequisites, it's invaluable for designing fair puzzles, spotting dead ends or softlocks, and keeping a large game's logic coherent. PDCs are stored as `*.pdc.json` alongside the rest of your content but have no effect on the running game.
-
-## Previews and Rebuilding Bundles
+## Rebuilding preview bundles
 
 The editor's live previews are powered by prebuilt bundles. In a standalone game project, you can rebuild them from the **Actions** view or via npm scripts when a preview looks stale after engine or content changes:
 
@@ -205,9 +142,21 @@ The editor's live previews are powered by prebuilt bundles. In a standalone game
 - `npm run build:inventory-preview`
 - `npm run build:benne-play` (and `npm run watch:benne-play` for auto-reload)
 
-The matching **Rebuild …** buttons in the Actions view trigger these for you. The room preview reloads automatically on a successful rebuild.
+The matching **Rebuild …** buttons in the Actions view trigger these for you, and **Rebuild Editor Preview Bundles** in the BENNE view's title bar rebuilds them all. The room preview reloads automatically on a successful rebuild. With `benneEditor.roomPreview.autoRebuildOnGameConfigChange`, the room preview also rebuilds itself when `game-config.json` changes.
 
-The Actions view also includes voice authoring helpers when nothing is selected in the main tree. **Process Game Voice IDs** scans `src/game/**/*.ts`, adds or rewrites `|number|` voice markers on supported `say` lines, and can show VS Code diffs before applying changes. **Export Speaking Text as CSV** writes those same supported speaking lines to a spreadsheet with Character, ID, Script, and Line columns. See [Sound, Voice, and Video](./sound-voice-and-video#process-game-voice-ids).
+## Voice tools
+
+The Actions view also includes voice authoring helpers when nothing is selected in the main tree. **Process Game Voice IDs** scans `src/game/**/*.ts`, adds or rewrites `|number|` voice markers on lines of dialogue, and can show VS Code diffs before applying changes. **Export Speaking Text as CSV** writes those same lines to a spreadsheet with Character, ID, Script and Line columns. See [Sound, voice and video](./sound-voice-and-video#process-game-voice-ids).
+
+## Settings
+
+| Setting | What it does |
+|---|---|
+| `benneEditor.layout.revealInspector` | Open the Secondary Side Bar on the Inspector when you select something. On by default. |
+| `benneEditor.layout.closePanelOnOpen` | Close the bottom panel (Terminal, Output, Problems) when an item opens, so the preview and script get the full height. |
+| `benneEditor.dialogue.autoInsertBackticks` | Insert backticks after `Hank:` at the start of a line in a script. |
+| `benneEditor.roomPreview.autoRebuildOnGameConfigChange` | Rebuild the room preview when `game-config.json` changes. |
+| `benneEditor.roomPreview.autoRebuildDebounceMs` | How long to wait after the last change before that rebuild starts. |
 
 ---
 

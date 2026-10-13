@@ -69,58 +69,29 @@ A few important points:
   { "id": "look",    "label": "Look at" },
   { "id": "talkTo",  "label": "Talk to" }
 ],
-"defaultVerb": "look"
-```
-
-The `verbs` array defines **which verbs exist in your game**. This is where BENNE's flexibility shines: you can build a full 9-verb SCUMM bar, a minimalist two-verb scheme, or anything in between, simply by editing this list.
-
-Each verb has:
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `id` | ✅ | The verb's identifier. Scripts get a handler method named after it: `look` → `onLook`, `talkTo` → `onTalkTo`, `pickUp` → `onPickUp`. |
-| `label` | ✅ | The display text shown in the GUI verb bar and hover line (e.g. “Use”). |
-| `preposition` | optional | Connector word for “use X **with** Y” / “give X **to** Y” style hover lines. |
-| `usesItem` | optional | `true` for verbs that use an inventory item on a target (“Use key with door”, “Give coffee to Penny”). Defaults to `true` when the verb has a `preposition`. |
-
-The top-level **`defaultVerb`** is what a plain click on a prop, hotspot or character uses when it has no `defaultVerb` of its own. When omitted, it is `look` if your game has a `look` verb, otherwise the first verb in the list.
-
-### Verb ids and script handlers
-
-Your verbs are the only verbs BENNE knows. Each one becomes a handler method on everything the player can click, named after its `id`:
-
-```ts
-door.onLook(() => { … })
-door.onPickUp(() => { … })
-door.onUseItem(items.key, () => { … })     // `use` has usesItem, so it gets onUseItem too
-fallbacks.onLook(() => { Player: "Nothing special about that." })
-```
-
-Custom verbs work the same way: add `{ "id": "clean", "label": "Clean" }` and every prop gets `onClean`. Renaming or removing a verb turns every handler that used it into a type error, so nothing silently stops working.
-
-A few ids are reserved because their methods would clash with built-in ones: `walkTo`, `defaultVerb`, `item`, `anyItem`, `combine` and `verbItem`. Verb ids must start with a letter. See the [BenneScript](./bennescript#verbs-on-things) page for details.
-
-### The input profile
-
-```json
+"defaultVerb": "look",
 "inputProfile": {
   "primaryButtonVerb": "walkTo",
   "secondaryButtonVerb": "defaultVerb"
-}
+},
+"dropWhenInventoryUsed": true,
+"defaultFallbackLine": "That doesn't seem to work."
 ```
 
-The `inputProfile` controls what a left-click and right-click do in the world. Common patterns:
+The `verbs` array defines **which verbs exist in your game**, and every verb handler in your scripts is named after one (`talkTo` → `onTalkTo`). A full 9-verb SCUMM bar, a two-verb scheme, or anything in between is just a different list. [Verbs](./verbs) covers all of this in depth; in short:
 
-- **`walkTo`** — clicking walks the player toward the clicked point/target.
-- **`defaultVerb`** — uses the target's authored `defaultVerb` (set per prop/hotspot/character in their JSON), enabling Sierra-style "smart" interactions.
-- **A specific verb id** — always perform that verb.
+| Field | Description |
+|-------|-------------|
+| `verbs[].id` | The verb's name in scripts. Must start with a letter; `walkTo`, `defaultVerb`, `item`, `anyItem`, `combine` and `verbItem` are reserved. |
+| `verbs[].label` | The text shown on verb buttons and in the hover line (“Use”). |
+| `verbs[].preposition` | The joining word for item lines: “Use key **with** door”. |
+| `verbs[].usesItem` | `true` for verbs that use an inventory item on something. Defaults to `true` when the verb has a `preposition`. |
+| `defaultVerb` | What a "default verb" click does on something with no `defaultVerb` of its own. When omitted: `look` if the game has it, otherwise the first verb. |
+| `inputProfile` | What the left (`primaryButtonVerb`) and right (`secondaryButtonVerb`) mouse buttons do on a target: a verb id, `walkTo` (walk to it) or `defaultVerb` (the target's default verb). See [What a click does](./verbs#what-a-click-does). |
+| `dropWhenInventoryUsed` | When `true`, an item in the player's hand goes back to the inventory after it's used on something. When `false` or left out, it stays in hand so the player can try it on something else. Items can override it with `dropWhenUsed`. See [Verbs → When the item leaves the player's hand](./verbs#when-the-item-leaves-the-players-hand). |
+| `defaultFallbackLine` | A catch-all line for a verb used on something with no handler anywhere. Scripts read it as `game.config.defaultFallbackLine`; the templates' `globalScript.ts` says it from `fallbacks.onAnyVerb` (see [Verbs → Fallbacks](./verbs#fallbacks)). |
 
-This is how you tune the game between LucasArts-style direct control, Sierra-style verb-first interaction, or hybrid schemes — without changing engine code.
-
-### Related verb settings
-
-- **`dropWhenInventoryUsed`** — When `true`, the armed inventory item is automatically unarmed after the player clicks a target with it (“use X on Y”).
-- **`defaultFallbackLine`** — A catch-all line for a verb used on something with no matching handler anywhere. Scripts read it as `game.config.defaultFallbackLine`; the templates' `globalScript.ts` says it from `fallbacks.onAnyVerb`, next to per-verb fallbacks (see [BenneScript → The global script](./bennescript#the-global-script)).
+Renaming or removing a verb turns every handler that used it into a type error, so nothing silently stops working.
 
 ## Cursor Setup
 
@@ -147,7 +118,7 @@ BENNE replaces the system cursor with a custom, animated, sprite-based cursor au
 | `animations` | Per-tag options such as `loop`, matching the Aseprite tags on your cursor sheet. |
 | `display.aseprite` | Marks the cursor as an Aseprite-sourced sprite sheet. |
 
-Individual inventory items can also override the cursor when armed (via their `cursorAnimation`), so “using the key on the door” can show a key-shaped cursor. See [Inventory](./benne-editor#inventory) and `items.key.cursorAnimation` in [BenneScript](./bennescript#item-scripts).
+Individual inventory items can also override the cursor when armed (via their `cursorAnimation`), so “using the key on the door” can show a key-shaped cursor. See [Creating an inventory item](./creating-an-inventory-item#3-set-it-up) and [Verbs → Cursors](./verbs#cursors).
 
 ## Starting State
 
@@ -192,7 +163,7 @@ These fields define where a brand-new game begins:
 }
 ```
 
-The `speech` block controls how spoken lines (`Hank: "…"`, `` say`…` ``, `jensen.say(…)`) are timed and displayed:
+The `speech` block controls how spoken lines (`Hank: "…"`, `` say`…` ``, `penny.say(…)`) are timed and displayed:
 
 | Field | Description |
 |-------|-------------|

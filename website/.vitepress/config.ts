@@ -46,8 +46,25 @@ export default defineConfig({
       {
         text: 'Building games',
         items: [
-          { text: 'BenneScript', link: '/guide/bennescript' },
           { text: 'BENNE Editor', link: '/guide/benne-editor' },
+          { text: 'Verbs', link: '/guide/verbs' },
+          { text: 'Puzzle dependency charts', link: '/guide/puzzle-dependency-charts' },
+        ],
+      },
+      {
+        text: 'Creating content',
+        items: [
+          { text: 'Creating a room', link: '/guide/creating-a-room' },
+          { text: 'Creating a character', link: '/guide/creating-a-character' },
+          { text: 'Creating an inventory item', link: '/guide/creating-an-inventory-item' },
+          { text: 'Creating a dialog', link: '/guide/creating-a-dialog' },
+          { text: 'Creating a GUI', link: '/guide/creating-a-gui' },
+        ],
+      },
+      {
+        text: 'Scripting and settings',
+        items: [
+          { text: 'BenneScript', link: '/guide/bennescript' },
           { text: 'Game configuration', link: '/guide/game-configuration' },
           { text: 'Sound, voice and video', link: '/guide/sound-voice-and-video' },
         ],
