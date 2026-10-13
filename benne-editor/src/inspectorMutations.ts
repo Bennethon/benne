@@ -4,7 +4,6 @@ import {
     readInspectorJsonText,
     writeInspectorJsonData
 } from './inspectorJsonDocument';
-import { readPngDimensions } from './inspectorPngDimensions';
 
 const DEFAULT_W = 352;
 const DEFAULT_H = 198;
@@ -83,37 +82,6 @@ export function applyScrollBounds(
 
 export function clearScrollBounds(data: Record<string, unknown>): void {
     delete data.scrollBounds;
-}
-
-export async function applyFitBackground(
-    data: Record<string, unknown>,
-    roomJsonUri: vscode.Uri
-): Promise<{ ok: true } | { ok: false; message: string }> {
-    const bg = data.background;
-    if (!bg || typeof bg !== 'object') {
-        return { ok: false, message: 'No background image in room JSON.' };
-    }
-    const rel = typeof (bg as { image?: unknown }).image === 'string' ? (bg as { image: string }).image.trim() : '';
-    if (!rel) {
-        return { ok: false, message: 'No background.image path.' };
-    }
-    const folder = vscode.workspace.getWorkspaceFolder(roomJsonUri);
-    if (!folder) {
-        return { ok: false, message: 'No workspace folder.' };
-    }
-    const abs = vscode.Uri.joinPath(folder.uri, 'src', 'game', 'assets', ...rel.split('/'));
-    let bytes: Uint8Array;
-    try {
-        bytes = await vscode.workspace.fs.readFile(abs);
-    } catch {
-        return { ok: false, message: 'Could not read background image file.' };
-    }
-    const dim = readPngDimensions(bytes);
-    if (!dim) {
-        return { ok: false, message: 'Background file is not a PNG or is too small.' };
-    }
-    data.size = { width: dim.width, height: dim.height };
-    return { ok: true };
 }
 
 export function setWalkableRowActive(

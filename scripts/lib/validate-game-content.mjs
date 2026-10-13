@@ -105,7 +105,6 @@ export async function validateGameContent(root) {
       ids(file, 'walkable.polygons', value.walkable?.polygons);
       for (const [i, polygon] of entries(value.walkable?.polygons)) ids(file, `walkable.polygons[${i}].holes`, polygon.holes);
       for (const [i, spawn] of entries(value.characters)) if (!files.has(`characters/${spawn.definition}`)) add(file, `characters[${i}].definition`, `Missing character definition: ${spawn.definition}`);
-      if (value.background?.image) await asset(file, 'background.image', value.background.image);
     }
     if (kind === 'character' && value.display?.aseprite !== true) await asset(file, 'display.defaultImage', value.display?.defaultImage);
     if (kind === 'gui') {

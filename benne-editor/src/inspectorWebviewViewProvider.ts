@@ -6,7 +6,6 @@ import { buildInspectorState, type InspectorStatePayload } from './inspectorStat
 import {
     addWalkableHole,
     addWalkablePolygon,
-    applyFitBackground,
     updateCharacterAnimationFields,
     updateCharacterFields,
     updateGuiControlPayload,
@@ -959,26 +958,6 @@ export class InspectorWebviewViewProvider implements vscode.WebviewViewProvider,
                 return;
             }
             await runAddGuiControlWizard(uri, controlKind);
-            this.refreshMainAndActions();
-            await this.pushState();
-            return;
-        }
-
-        if (msg.action === 'fitBackground') {
-            if (focusKind !== 'room') {
-                return;
-            }
-            const data = await loadRoomData(uri);
-            if (!data) {
-                return;
-            }
-            const r = await applyFitBackground(data, uri);
-            if (!r.ok) {
-                void vscode.window.showWarningMessage(r.message);
-                return;
-            }
-            await writeRoomJson(uri, data);
-            this.roomPreview.onWorkspaceRoomJsonChanged(uri);
             this.refreshMainAndActions();
             await this.pushState();
             return;

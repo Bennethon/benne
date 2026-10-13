@@ -109,8 +109,6 @@ type InspectorRoomState = {
     displayName: string;
     size: { width: number; height: number } | null;
     scrollBounds: { x: number; y: number; width: number; height: number } | null;
-    backgroundImageRelative: string | null;
-    canFitBackground: boolean;
     walkableRows: InspectorWalkableRow[];
     props: InspectorPropCard[];
     hotspots: InspectorHotspotCard[];
@@ -1036,7 +1034,7 @@ function renderRoom(state: InspectorRoomState): string {
             const propClickableCls = p.clickable ? ' benne-card--prop-clickable' : '';
             const propActions = `<div class="benne-card-actions">
         <div class="benne-card-actions-inner">
-          <button type="button" class="btn-link" data-edit-preview="prop" data-id="${esc(p.id)}">Edit in Preview →</button>
+          <button type="button" class="btn-link" data-edit-preview="prop" data-id="${esc(p.id)}">Edit in Preview</button>
         </div>
       </div>`;
             const summary = `<div class="benne-card-titles">
@@ -1120,7 +1118,7 @@ function renderRoom(state: InspectorRoomState): string {
       ${verbHtml}
       <div class="benne-card-actions">
         <div class="benne-card-actions-inner">
-          <button type="button" class="btn-link" data-edit-preview="hotspot" data-id="${esc(h.id)}">Edit in Preview →</button>
+          <button type="button" class="btn-link" data-edit-preview="hotspot" data-id="${esc(h.id)}">Edit in Preview</button>
         </div>
       </div>`;
             return renderInspectorItem(state, 'hotspot', h.id, ' benne-card--hotspot', summary, body);
@@ -1174,7 +1172,7 @@ function renderRoom(state: InspectorRoomState): string {
       ${verbHtml}`;
             const charActions = `<div class="benne-card-actions">
         <div class="benne-card-actions-inner">
-          <button type="button" class="btn-link" data-edit-preview="character" data-id="${esc(c.instanceId)}">Edit in Preview →</button>
+          <button type="button" class="btn-link" data-edit-preview="character" data-id="${esc(c.instanceId)}">Edit in Preview</button>
         </div>
       </div>`;
             return renderInspectorItem(state, 'character', c.instanceId, ' benne-card--character', summary, `${body}${charActions}`);
@@ -1195,7 +1193,7 @@ function renderRoom(state: InspectorRoomState): string {
       </div>
       <div class="benne-card-actions">
         <div class="benne-card-actions-inner">
-          <button type="button" class="btn-link" data-edit-preview="point" data-id="${esc(pt.id)}">Edit in Preview →</button>
+          <button type="button" class="btn-link" data-edit-preview="point" data-id="${esc(pt.id)}">Edit in Preview</button>
         </div>
       </div>`;
             return renderInspectorItem(state, 'point', pt.id, ' benne-card--point', summary, body);
@@ -1231,7 +1229,7 @@ function renderRoom(state: InspectorRoomState): string {
       ${renderRegionScriptHandlerChips(r)}
       <div class="benne-card-actions">
         <div class="benne-card-actions-inner">
-          <button type="button" class="btn-link" data-edit-preview="region" data-id="${esc(r.id)}">Edit in Preview →</button>
+          <button type="button" class="btn-link" data-edit-preview="region" data-id="${esc(r.id)}">Edit in Preview</button>
         </div>
       </div>`;
             return renderInspectorItem(state, 'region', r.id, ' benne-card--region', summary, body);
@@ -1261,7 +1259,6 @@ function renderRoom(state: InspectorRoomState): string {
         <div style="margin-top:4px;">
           <button type="button" class="btn-link" data-edit-preview="roomSize">Edit in Preview</button>
         </div>
-        <button type="button" class="btn-secondary" id="btn-fit-bg" ${state.canFitBackground ? '' : 'disabled'} title="Set room size from PNG background dimensions">Fit to background</button>
         <div class="benne-scroll-bounds-label muted small">Scroll bounds (leave blank to omit)</div>
         <div class="benne-dim-grid" role="group" aria-label="Scroll bounds">
           <span class="benne-dim-lbl">X</span>
@@ -2458,10 +2455,6 @@ function mountHandlers(state: InspectorRoomState): void {
 
     document.getElementById('btn-open-json')?.addEventListener('click', () => {
         post('openRawJson', { roomJsonUri: state.roomJsonUri });
-    });
-
-    document.getElementById('btn-fit-bg')?.addEventListener('click', () => {
-        post('fitBackground', { roomJsonUri: state.roomJsonUri });
     });
 
     document.getElementById('btn-clear-sb')?.addEventListener('click', () => {

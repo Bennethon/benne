@@ -29,7 +29,7 @@ it('reports malformed JSON, duplicate controls and broken grid references with l
 });
 it('rejects missing manifest entries and path traversal assets', async () => {
   const { root, write } = await fixture();
-  await write('rooms/hall/hall.room.json', { id: 'hall', background: { image: '../secret.png' } });
+  await write('characters/hero/hero.character.json', { id: 'hero', display: { defaultImage: '../secret.png' } });
   await write('rooms/rooms.manifest.json', { rooms: [{ id: 'bad', definition: 'bad.room.json' }] });
   const diagnostics = await validateGameContent(root);
   expect(diagnostics.some(d => d.message.includes('escapes'))).toBe(true);

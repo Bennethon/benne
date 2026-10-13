@@ -72,7 +72,6 @@ export interface RoomPropSpawn {
 
 export interface RoomSceneStartData {
   room: RoomData;
-  backgroundTextureKey: string | null;
   characters: RoomCharacterSpawn[];
   props: RoomPropSpawn[];
   /** Aseprite key for `room.props`; null when the room has no props. */

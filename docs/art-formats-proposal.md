@@ -28,7 +28,6 @@ Art is found by convention under `src/game/assets/images/`, and each content typ
 | Inventory (per item) | `inventory/<id>/<id>.{png,json}` | `display.aseprite: true` | `aseprite:inventory:<id>` | `invitem:<id>:<tag>` | scene-global, once per game |
 | Inventory (shared) | `inventory/inventory.{png,json}` | `display.aseprite: "shared"` | `aseprite:inventory:shared` | `inventory:<tag>` | scene-global, once per game |
 | Cursor | `cursor/cursor.{png,json}` | `game-config.json` `cursor.display.aseprite` | `CURSOR_TEXTURE_KEY` | `cursor:<tag>` | scene-global |
-| Room background | any image path | `room.background.image` | `bg:<roomId>` | (none) | (none) |
 
 Path and key helpers: [characterAseprite.ts](../src/engine/content/characterAseprite.ts), [roomAseprite.ts](../src/engine/content/roomAseprite.ts), [guiAseprite.ts](../src/engine/content/guiAseprite.ts), [inventoryAseprite.ts](../src/engine/content/inventoryAseprite.ts), [cursorAseprite.ts](../src/engine/content/cursorAseprite.ts), [asepritePhaserAnimationKeys.ts](../src/engine/content/asepritePhaserAnimationKeys.ts).
 

@@ -100,15 +100,6 @@ export async function buildPreviewManifest(
     const assetsBase = joinGameWebviewUri(gameRootWebviewUri, 'assets');
     const loads: PreviewLoadEntry[] = [];
 
-    const backgroundTextureKey = room.background?.image ? `bg:${room.id}` : null;
-    if (room.background?.image && backgroundTextureKey) {
-        loads.push({
-            kind: 'image',
-            key: backgroundTextureKey,
-            url: joinGameWebviewUri(assetsBase, room.background.image),
-        });
-    }
-
     let sheetTagNames: readonly string[] = [];
     let roomPropsTextureKey: string | null = null;
 
@@ -193,7 +184,6 @@ export async function buildPreviewManifest(
 
     const startData: RoomSceneStartData = {
         room,
-        backgroundTextureKey,
         characters: spawns,
         props: propSpawns,
         roomPropsTextureKey,

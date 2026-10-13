@@ -23,7 +23,6 @@ import {
     type RoomPropEntry
 } from './gameDiscovery';
 import { readInspectorJsonText } from './inspectorJsonDocument';
-import { readPngDimensions } from './inspectorPngDimensions';
 import {
     buildInventoryVerbChips,
     buildCharacterVerbChips,
@@ -150,8 +149,6 @@ export type InspectorRoomState = {
     displayName: string;
     size: { width: number; height: number } | null;
     scrollBounds: { x: number; y: number; width: number; height: number } | null;
-    backgroundImageRelative: string | null;
-    canFitBackground: boolean;
     walkableRows: InspectorWalkableRow[];
     props: InspectorPropCard[];
     hotspots: InspectorHotspotCard[];
@@ -839,23 +836,6 @@ async function buildRoomInspectorState(
               }
             : null;
 
-    const bg = data.background;
-    let backgroundImageRelative: string | null = null;
-    if (bg && typeof bg === 'object' && typeof (bg as { image?: unknown }).image === 'string') {
-        backgroundImageRelative = (bg as { image: string }).image.trim() || null;
-    }
-
-    let canFitBackground = false;
-    if (backgroundImageRelative) {
-        const abs = vscode.Uri.joinPath(folder.uri, 'src', 'game', 'assets', ...backgroundImageRelative.split('/'));
-        try {
-            const imgBytes = await vscode.workspace.fs.readFile(abs);
-            canFitBackground = readPngDimensions(imgBytes) !== undefined;
-        } catch {
-            canFitBackground = false;
-        }
-    }
-
     const walkableRows: InspectorWalkableRow[] = [];
     const walk = data.walkable;
     if (walk && typeof walk === 'object') {
@@ -1191,8 +1171,6 @@ async function buildRoomInspectorState(
         displayName,
         size,
         scrollBounds,
-        backgroundImageRelative,
-        canFitBackground,
         walkableRows,
         props,
         hotspots,

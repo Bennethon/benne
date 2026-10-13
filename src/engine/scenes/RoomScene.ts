@@ -804,12 +804,6 @@ export class RoomScene extends Phaser.Scene {
     const roomW = data.room.size?.width ?? vW;
     const roomH = data.room.size?.height ?? vH;
 
-    if (data.backgroundTextureKey) {
-      // Render the background at its natural pixel dimensions — room.size controls camera
-      // bounds and walkable extent, not how large the art appears.
-      this.add.image(0, 0, data.backgroundTextureKey).setOrigin(0, 0);
-    }
-
     this.spawnRoomProps(data);
 
     const sortedHotspots = [...data.room.hotspots].sort(

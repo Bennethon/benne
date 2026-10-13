@@ -17,7 +17,6 @@ import type { RoomCharacterSpawn, RoomPropSpawn, RoomSceneStartData } from './Bo
  * Build {@link RoomSceneStartData} for a **resolved** `room` (same shape as the shipped {@link import('./BootScene.js').BootScene} loader path).
  */
 export function buildRoomSceneStartDataFromRoomData(room: RoomData): RoomSceneStartData {
-  const backgroundTextureKey = room.background?.image ? `bg:${room.id}` : null;
   const sheetTagNames = room.props?.length ? getAsepriteFrameTagNames('room', room.id) : [];
   const sheetTagSet = new Set(sheetTagNames);
 
@@ -67,7 +66,6 @@ export function buildRoomSceneStartDataFromRoomData(room: RoomData): RoomSceneSt
 
   return {
     room,
-    backgroundTextureKey,
     characters: spawns,
     props: propSpawns,
     roomPropsTextureKey,
@@ -76,16 +74,12 @@ export function buildRoomSceneStartDataFromRoomData(room: RoomData): RoomSceneSt
 
 /**
  * Queues the same **room-local** assets the shipped boot path loads for a given {@link RoomSceneStartData}:
- * background, room props Aseprite, and per-character image / Aseprite.
+ * room props Aseprite and per-character image / Aseprite.
  */
 export function queueRoomSceneAssetLoads(scene: Phaser.Scene, data: RoomSceneStartData): void {
-  const { room, backgroundTextureKey, roomPropsTextureKey, characters } = data;
+  const { room, roomPropsTextureKey, characters } = data;
   const tex = scene.textures;
   const load = scene.load;
-
-  if (room.background?.image && backgroundTextureKey && !tex.exists(backgroundTextureKey)) {
-    load.image(backgroundTextureKey, resolveGameAssetUrl(room.background.image));
-  }
 
   if (roomPropsTextureKey && (room.props?.length ?? 0) > 0 && !tex.exists(roomPropsTextureKey)) {
     const paths = getRoomAsepriteAssetPaths(room.id);

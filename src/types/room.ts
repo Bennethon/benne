@@ -234,15 +234,8 @@ export interface RoomData {
   scriptName?: string;
   name: string;
   /**
-   * Optional static backdrop under props. When omitted, only props (and game backgroundColor) show.
-   */
-  background?: {
-    /** Path under `src/game/assets/` (e.g. `images/backgrounds/office.png`). Resolved by Vite at build time. */
-    image: string;
-  };
-  /**
    * Explicit room dimensions in pixels. When omitted the room is assumed to be the same size as the
-   * game viewport (e.g. 352x198). Set this when the background or prop sheet is wider or taller than
+   * game viewport (e.g. 352x198). Set this when the prop sheet is wider or taller than
    * the game resolution so the camera can scroll.
    */
   size?: { width: number; height: number };
