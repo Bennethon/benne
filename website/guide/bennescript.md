@@ -60,7 +60,7 @@ GUI buttons keep working during an interaction, so the player can always open th
 
 ## Script files
 
-Each kind of content has its own script file, next to its JSON. You write handlers at the top level of the file; there's nothing to register.
+Each kind of content has its own script file, next to its JSON.
 
 | File | What goes in it |
 |---|---|

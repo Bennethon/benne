@@ -80,18 +80,17 @@ export default defineConfig({
         text: 'Reference',
         items: [{ text: 'BenneScript API', link: '/reference/bennescript-api' }],
       },
+      {
+        text: 'About',
+        items: [
+          { text: 'Roadmap', link: '/about/roadmap' },
+          { text: 'Acknowledgements', link: '/about/acknowledgements' },
+          { text: 'License', link: '/about/license' },
+        ],
+      },
     ],
     search: { provider: 'local' },
     socialLinks: [{ icon: 'github', link: repo }],
-    editLink: {
-      // The API reference page only includes docs/bennescript-api.md, so edits go to that file.
-      // VitePress ships this function to the browser on its own, so it can't use `repo`.
-      pattern: ({ filePath }) =>
-        filePath === 'reference/bennescript-api.md'
-          ? 'https://github.com/Bennethon/benne/edit/master/docs/bennescript-api.md'
-          : `https://github.com/Bennethon/benne/edit/master/website/${filePath}`,
-      text: 'Edit this page on GitHub',
-    },
     footer: {
       message: 'BENNE is MIT licensed. Point, click, adventure.',
       copyright: '© 2026 Bennethon',
