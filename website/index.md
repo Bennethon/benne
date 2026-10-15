@@ -11,7 +11,7 @@ markdownStyles: false
     <BenneAcronym />
     <HomeGame />
     <p class="tagline">
-      Make point-and-click adventure games in TypeScript, with live previews in VS Code.
+      Make point-and-click adventure games in TypeScript, with live previews in VS Code.<br>
       Scripts read like a screenplay. Pixels stay crisp.
     </p>
     <div class="actions">
@@ -21,9 +21,9 @@ markdownStyles: false
   </section>
 
   <section class="features">
-    <a class="feature" href="/guide/bennescript">
-      <h2>Scripts that read like a screenplay</h2>
-      <p>Lines run in the order you write them. No <code>await</code>. Dialogue is just <code>Hank: `Hello!`</code>.</p>
+    <a class="feature" href="/guide/introduction">
+      <h2>Make your own adventure</h2>
+      <p>Everything you need to build a classic point-and-click adventure, powered by modern web technology.</p>
     </a>
     <a class="feature" href="/guide/benne-editor">
       <h2>An editor that lives in VS Code</h2>
@@ -125,7 +125,6 @@ html:not(.dark) .benne-home .title::before {
 
 .benne-home .tagline {
   margin: 8px 0 0;
-  max-width: 46ch;
   font-size: 1.125rem;
   line-height: 1.6;
   color: var(--vp-c-text-2);

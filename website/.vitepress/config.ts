@@ -92,7 +92,7 @@ export default defineConfig({
     search: { provider: 'local' },
     socialLinks: [{ icon: 'github', link: repo }],
     footer: {
-      message: 'BENNE is MIT licensed. Point, click, adventure.',
+      message: 'BENNE is MIT licensed.',
       copyright: '© 2026 Bennethon',
     },
   },
