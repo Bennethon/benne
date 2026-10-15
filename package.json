@@ -36,6 +36,7 @@
     "template:status": "node scripts/switch-game-template.mjs status",
     "set-template:2-click": "node scripts/switch-game-template.mjs set-template 2-click",
     "set-template:9-verb": "node scripts/switch-game-template.mjs set-template 9-verb",
+    "set-template:blank": "node scripts/switch-game-template.mjs set-template blank",
     "set-template:ai-apocalypse": "node scripts/switch-game-template.mjs set-template ai-apocalypse",
     "bundle:scaffold": "node scripts/bundle-extension-scaffold.mjs",
     "package:extension": "node scripts/package-extension.mjs",

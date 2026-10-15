@@ -2,6 +2,12 @@
 
 All notable changes to BENNE. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). BENNE has one version number, the extension's: it covers the editor, the engine and the game templates. Releases before 0.1.0 have their builds on the [GitHub releases page](https://github.com/Bennethon/benne/releases).
 
+## [Unreleased]
+
+### Added
+
+- **Blank template.** **BENNE: Create New Game** offers a third template, **Blank**: one empty room with Hank as the player, the 2-click look / use controls, and the speech, message and dialog GUIs the engine needs. No props, items, dialogs or menus.
+
 ## [0.1.0] - 2026-10-09
 
 ### Breaking: game scripts are BenneScript

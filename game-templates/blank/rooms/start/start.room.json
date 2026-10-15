@@ -1,0 +1,56 @@
+{
+  "id": "start",
+  "name": "Start",
+  "size": {
+    "width": 320,
+    "height": 180
+  },
+  "scrollBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 320,
+    "height": 180
+  },
+  "walkable": {
+    "polygons": [
+      {
+        "id": "walk-1",
+        "active": true,
+        "points": [
+          {
+            "x": 16,
+            "y": 120
+          },
+          {
+            "x": 304,
+            "y": 120
+          },
+          {
+            "x": 304,
+            "y": 172
+          },
+          {
+            "x": 16,
+            "y": 172
+          }
+        ]
+      }
+    ]
+  },
+  "hotspots": [],
+  "points": [],
+  "regions": [],
+  "props": [],
+  "characters": [
+    {
+      "instanceId": "hank-1",
+      "definition": "hank/hank.character.json",
+      "x": 160,
+      "y": 150,
+      "initialFacing": "D",
+      "initialAnimation": "Idle",
+      "visible": true,
+      "zIndex": 1
+    }
+  ]
+}

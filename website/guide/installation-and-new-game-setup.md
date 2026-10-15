@@ -42,10 +42,11 @@ With the extension installed:
 2. **Pick a template.** BENNE includes starter templates that set up a complete, playable game with different interaction styles:
    - **9-verb** — A classic LucasArts-style verb bar (Give, Pick up, Use, Open, Look at, Push, Close, Talk to, Pull) reminiscent of SCUMM-era adventures.
    - **2-click** — A minimalist, modern two-button scheme (typically walk/interact with one button and look/examine with the other).
+   - **Blank** — An empty game to build from scratch: one empty room with Hank as the player, the 2-click look/use controls, and the speech, message and dialog GUIs the engine needs. There are no props, items, dialogs or menus. **Not recommended for new users!**
 3. **Name your project** and **choose a parent folder** where the new game directory will be created.
 4. The extension scaffolds the project: it copies the engine and editor runtime, writes your `package.json`, `README.md`, `.vscode/settings.json`, and a `.benne-project` metadata file, then automatically runs **`npm install`** to fetch Phaser, TypeScript, and Vite.
 
-When it finishes, open the newly created folder in VS Code. You'll have a fully functional game you can run immediately — both templates ship with rooms, characters, inventory items, GUIs, a dialog, and example scripts you can learn from and modify.
+When it finishes, open the newly created folder in VS Code. You'll have a game you can run immediately. The 9-verb and 2-click templates ship with rooms, characters, inventory items, GUIs, a dialog, and example scripts you can learn from and modify; the blank template runs but has nothing to do yet.
 
 ## Project Structure
 

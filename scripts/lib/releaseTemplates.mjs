@@ -17,4 +17,8 @@ export const RELEASE_TEMPLATES = {
     displayName: '9-Verb SCUMM-style',
     description: 'Classic verb wheel with give, pick up, use, open, and more.',
   },
+  blank: {
+    displayName: 'Blank',
+    description: 'An empty game: one empty room, Hank as the player and the look / use verbs.',
+  },
 };

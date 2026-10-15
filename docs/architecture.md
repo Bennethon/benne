@@ -893,7 +893,7 @@ The repo can hold **multiple authored game layouts** (e.g. a two-button verb gam
 
 | Path | Role |
 |------|------|
-| **`game-templates/<template-id>/`** | Complete template tree: `game-config.json`, `globalScript.ts`, `assets/`, `rooms/`, `characters/`, `guis/`, `inventory/`, etc. Each folder is one switchable template (**`2-click`**, **`9-verb`**, **`ai-apocalypse`**). |
+| **`game-templates/<template-id>/`** | Complete template tree: `game-config.json`, `globalScript.ts`, `assets/`, `rooms/`, `characters/`, `guis/`, `inventory/`, etc. Each folder is one switchable template (**`2-click`**, **`9-verb`**, **`blank`**, **`ai-apocalypse`**). |
 | **`src/game/`** | Whatever template is active right now: `game-config.json` and `globalScript.ts` at the root alongside content folders — same shape as a shipped game folder. It holds only content; the code that loads it is the engine's (**`src/engine/content/`**). **Git tracks nothing in `src/game/`**, so switching templates leaves the working tree clean, and template edits reach git when **`sync-template-down`** (or **`set-template`**) copies them into **`game-templates/<name>/`**. **`git clean -x`** deletes unsynced edits there. |
 
 **`game-config.json` → `name`**
@@ -907,7 +907,7 @@ Implementation: **[`scripts/switch-game-template.mjs`](../scripts/switch-game-te
 | Command | Effect |
 |---------|--------|
 | **`npm run sync-template-down`** | Read **`name`** from **`src/game/game-config.json`**, then mirror **template** files from **`src/game/`** → **`game-templates/<name>/`**. |
-| **`npm run set-template -- <name>`** | Save the **current** live tree (template sync-down), then **replace** everything in **`src/game/`** with the contents of **`game-templates/<name>/`**. Shorthands: **`npm run set-template:2-click`**, **`npm run set-template:9-verb`**, **`npm run set-template:ai-apocalypse`**. It finishes by rebuilding the editor preview bundles (**`build:previews`**) from the new game. After switching, **`npm run test:playthrough`** plays the new template's tests (`tests/playthrough/<name>/`). |
+| **`npm run set-template -- <name>`** | Save the **current** live tree (template sync-down), then **replace** everything in **`src/game/`** with the contents of **`game-templates/<name>/`**. Shorthands: **`npm run set-template:2-click`**, **`npm run set-template:9-verb`**, **`npm run set-template:blank`**, **`npm run set-template:ai-apocalypse`**. It finishes by rebuilding the editor preview bundles (**`build:previews`**) from the new game. After switching, **`npm run test:playthrough`** plays the new template's tests (`tests/playthrough/<name>/`). |
 | **`npm run template:status`** | Show whether **`src/game/`** has edits not yet in **`game-templates/<name>/`** (exits 1 if so). **`npm run check`** runs it as a warning (**`check:template-sync`**). |
 | **`ensure-template [name]`** | Run by **`npm install`** (**`postinstall`**): when **`src/game/`** holds no template (a fresh clone, CI), copy in **`ai-apocalypse`** (or **`name`**). Does nothing when one is loaded. |
 
@@ -915,7 +915,7 @@ Each mirror builds a **plan** (new / modified / unchanged / orphan deletes), pri
 
 **Release templates vs development templates**
 
-Only the templates listed in **[`scripts/lib/releaseTemplates.mjs`](../scripts/lib/releaseTemplates.mjs)** (**`2-click`**, **`9-verb`**) ship: **`bundle:scaffold`** bundles just those into the VSIX's New Game picker, and **`test:artifacts`** fails if the scaffold holds anything else. **`ai-apocalypse`** (a complete game, with only the art it loads) stays in this repo as a development baseline: it swaps in with **`set-template`**, gets content validation like the others, and is played by the template tests.
+Only the templates listed in **[`scripts/lib/releaseTemplates.mjs`](../scripts/lib/releaseTemplates.mjs)** (**`2-click`**, **`9-verb`**, **`blank`**) ship: **`bundle:scaffold`** bundles just those into the VSIX's New Game picker, and **`test:artifacts`** fails if the scaffold holds anything else. **`ai-apocalypse`** (a complete game, with only the art it loads) stays in this repo as a development baseline: it swaps in with **`set-template`**, gets content validation like the others, and is played by the template tests.
 
 **What counts as “template”**
 

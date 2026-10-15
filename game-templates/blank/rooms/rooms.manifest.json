@@ -1,0 +1,9 @@
+{
+  "startRoomId": "start",
+  "rooms": [
+    {
+      "id": "start",
+      "definition": "start/start.room.json"
+    }
+  ]
+}

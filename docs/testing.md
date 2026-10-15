@@ -30,7 +30,7 @@ On headless Linux, run extension and Electron tests through `xvfb-run -a`. Playw
 | `npm run test:extension` | Real VS Code extension-host integration tests |
 | `npm run test:e2e` | Real Phaser runtime and pointer input in Chromium |
 | `npm run test:playthrough` | The template in `src/game` (whichever `set-template` swapped in) on the Vite dev server, running its tests (`tests/playthrough/<template>/`). Each template is played start to finish through the dev/test hooks (`src/engine/testing/benneTestHooks.ts`): every spoken line in order, flags, inventory, prop state, the active player and the menus. `ai-apocalypse` also covers real mouse clicks on an inventory slot, and a smoke test for every Play From entry point in BENNE Play |
-| `npm run test:templates` | Every template with tests (`2-click`, `9-verb`, `ai-apocalypse`), each in a throwaway workspace (`scripts/template-workspace.mjs`) so `src/game` is untouched, played the same way. `-- --project <template>` plays one |
+| `npm run test:templates` | Every template with tests (`2-click`, `9-verb`, `ai-apocalypse`, `blank`), each in a throwaway workspace (`scripts/template-workspace.mjs`) so `src/game` is untouched, played the same way. `-- --project <template>` plays one |
 | `npm run test:artifacts -- --vsix` | Temporary production/template builds, web ZIP structure, extracted VSIX and plugin resolution |
 | `npm run test:nightly` | Local aggregate of fast, host, browser and artifact suites |
 | `npm run test:release` | Local aggregate including VSIX checks |

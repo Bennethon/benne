@@ -1,0 +1,95 @@
+{
+  "name": "blank",
+  "resolution": {
+    "width": 320,
+    "height": 180
+  },
+  "verbs": [
+    {
+      "id": "look",
+      "label": "Look at"
+    },
+    {
+      "id": "use",
+      "label": "Use",
+      "preposition": "with",
+      "usesItem": true
+    }
+  ],
+  "defaultVerb": "look",
+  "inputProfile": {
+    "primaryButtonVerb": "use",
+    "secondaryButtonVerb": "look"
+  },
+  "dropWhenInventoryUsed": false,
+  "cutscenesSkippable": true,
+  "defaultFallbackLine": "You can't do that.",
+  "startingPlayerCharacter": "hank",
+  "startingRoomId": "start",
+  "audio": {
+    "masterVolume": 1,
+    "sfxVolume": 1,
+    "musicVolume": 0.75,
+    "dialogueVolume": 1
+  },
+  "debug": {
+    "showWalkable": false,
+    "showPropOutlines": false,
+    "showGuiOutlines": false,
+    "showRegionOutlines": false
+  },
+  "initialGameState": {
+    "flags": {},
+    "variables": {},
+    "inventory": []
+  },
+  "camera": {
+    "minZoom": 0.5,
+    "maxZoom": 2.5,
+    "defaultTransitionSeconds": 0.4,
+    "shake": {
+      "intensity": 0.02,
+      "durationSeconds": 0.35,
+      "falloff": true
+    }
+  },
+  "cursor": {
+    "idleAnimation": "Idle",
+    "activeAnimation": "Active",
+    "hotspot": "center",
+    "animations": {
+      "Idle": {
+        "loop": true
+      },
+      "Active": {
+        "loop": true
+      },
+      "Talk": {
+        "loop": true
+      }
+    },
+    "display": {
+      "aseprite": true
+    }
+  },
+  "speech": {
+    "clickToSkip": true,
+    "showText": true,
+    "defaultTalkOffset": {
+      "x": 0,
+      "y": 0
+    },
+    "minDurationMs": 800,
+    "msPerCharacter": 80,
+    "maxDurationMs": 4500,
+    "durationMultiplier": 1
+  },
+  "dialog": {
+    "choiceOptionsViewportHeightPx": 47,
+    "usedColor": "#888888"
+  },
+  "perspective": {
+    "minWalkScale": 0.3,
+    "walkScalePower": 0.8
+  }
+}
