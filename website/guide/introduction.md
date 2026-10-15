@@ -14,6 +14,7 @@ Built on Phaser 4 with a TypeScript core and Vite-powered workflow, BENNE runs i
 BENNE makes deliberate choices that keep the experience focused and the visual output consistently crisp:
 
 - **Aseprite-only art pipeline** — All characters, props, cursors, and GUI elements are authored as Aseprite sprite sheets with tagged animations. The engine expects and optimizes for this workflow.
+  - Additional sprite import workflows are on [the roadmap!](/about/roadmap)
 - **Bitmap fonts only** — Text is rendered exclusively with bitmap fonts for perfect pixel alignment and authentic retro feel. No TrueType or system fonts appear in gameplay.
 - **Low internal resolution focus** — Games are designed around classic resolutions (typically 320×240 up to 640×480) with crisp integer or near-integer scaling. Pixel-perfect rendering is a core priority.
 - **Polygon-based world geometry** — Walkable areas, hotspots, regions, and prop colliders are defined with polygons rather than tile maps or grids.
