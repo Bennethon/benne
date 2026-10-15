@@ -33,6 +33,7 @@ Sources: **ER** = [engine review](history/2026-10-03-engine-review.md), **CS** =
 - **One Vite dev server with HMR for previews and BENNE Play**, instead of five prebuilt bundles. (ER 4.1)
 - **Inspector**: `inspectorMain.ts` is about 3,950 lines of string-built HTML; host and webview messages have no shared typed contract. (ER 4.2, CS 13)
 - **Workspace content index** so a change refreshes only what it affects. Script parsing is already syntax-aware (`benne-editor/src/bennescript/scriptModel.ts`). (CS 12)
+- **State view: the "new var" field keeps its name after adding.** Typing a name and pressing Enter adds the var to `state.ts`, but the name stays in the field. Likely cause: `submit()` in `benne-editor/src/state/stateMain.ts` clears the draft and calls `render()` while the field still has focus, and `render()` puts the focused input's text back. The flag row probably does the same. (Seen while taking the BENNE Editor guide's screenshots, 2026-10-14)
 - **Extension structure**: `extension.ts` is about 1,750 lines; `package.json` still lists 47 `onCommand:` activation events that VS Code generates itself; `benne-editor/vsc-extension-quickstart.md` is leftover. (ER 4.5)
 
 ## Performance (measure first)
