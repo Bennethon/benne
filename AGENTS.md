@@ -9,6 +9,11 @@ Current docs:
 - `docs/bennescript-ergonomics-refactor.md`: the BenneScript design record. Code comments cite its sections (`§4.10`) and decisions (`decision 53`). Record new scripting design decisions in its decision table.
 - `docs/roadmap.md`: open work and ideas.
 - `docs/testing.md`, `docs/publishing.md`.
+- `docs/doc-screenshots.md`: how the website guides' editor screenshots are taken, and what each one shows.
+
+## Screenshots in the website guides
+
+When a change to the editor alters something a guide's screenshot shows, retake that screenshot as part of the change. Take it with `scripts/doc-screenshots/` and follow the rules in `docs/doc-screenshots.md`, so the set stays consistent. Never screenshot the user's own desktop.
 
 `docs/history/` holds dated reviews, studies and work logs. **They are not current guidance**: they describe the code as it was, and several use the old `register*Script` / `B` API, which no longer exists. Read them only for background on why something was done. See `docs/history/README.md` for what each one was and the conventions for adding to it.
 
