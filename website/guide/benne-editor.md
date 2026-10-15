@@ -152,7 +152,7 @@ Tick **Mute** beside **Play** to playtest without sound. Right-clicking a room i
 
 While BENNE Play is open, its bar has an **Inventory** menu and a **Give** button that put any item straight into the player's inventory, for testing a puzzle without fetching its pieces. While it is open, BENNE Play rebuilds when you save a script or content file and restarts from where you launched it, so you can change a line and try it again straight away.
 
-<DocShot src="/images/benne-editor/play.webp" alt="BENNE Play running the 9-verb template in a VS Code tab: Penny says Hi! to Hank in the apartment, above the nine-verb bar and inventory. An Inventory menu and Give button sit above the game." :width="896" :height="566" caption="BENNE Play, mid-conversation. The walkable area and region outlines are on because the 9-verb template turns on its `debug` settings." />
+<DocShot src="/images/benne-editor/play.webp" alt="BENNE Play running the 9-verb template in a VS Code tab: Penny says Hi! to Hank in the apartment, above the nine-verb bar and inventory. An Inventory menu and Give button sit above the game." :width="896" :height="566" caption="BENNE Play, mid-conversation." />
 
 ## Rebuilding preview bundles
 

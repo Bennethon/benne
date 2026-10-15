@@ -68,6 +68,8 @@ Every control has `x`, `y`, `visible` and `zIndex` (the order within the GUI, hi
 
 Select a control in the tree to edit it in the Inspector and drag it in the **GUI preview**, which renders the GUI exactly as the game will. Positions are in game pixels, from the top-left of the screen.
 
+<DocShot src="/images/guides/gui-control.webp" alt="The game menu’s Resume button selected: a red and green gizmo on it in the GUI preview, and the Inspector showing its text, font and fontSize, text colours, Position and size, Grid placement and an On Click button." :width="1193" :height="882" caption="The game menu’s Resume button." legend="Drag the gizmo to move the control.|Its label and bitmap font.|Its position and size, in game pixels.|Its cell, when it sits in a grid.|Add its `onClick` handler, or jump to it." />
+
 For tidy menus, add a **Grid** and place controls in its cells: give a control a `gridPlacement` naming the grid, a row, a column and an alignment (such as `center` or `center-left`). The template game menu is a one-column grid with a title and five buttons.
 
 ### GUI settings
@@ -81,6 +83,8 @@ Select the GUI itself to set:
 | `zIndex` | Order among GUIs: higher is in front. The template menus are 100 and above. |
 | `x`, `y` | Where the whole GUI starts. A bar can start off screen (`"y": -34`) and slide in from a script. |
 | `fixedControls` | Ids of controls that stay put when a script moves the whole GUI. |
+
+<DocShot src="/images/guides/gui.webp" alt="The game menu GUI selected: its controls listed in the BENNE tree, the menu drawn in the GUI preview at the game’s 352 by 198 resolution, the Inspector with visible off, modal on and zIndex 100 and chips for gui.onBuilt, gui.onShow and gui.onHide, and game-menu.gui.ts underneath." :width="1548" :height="724" caption="The template’s game menu." legend="Its controls, in the tree.|The GUI preview, which draws it as the game does.|A menu: hidden at first, modal, and in front of the HUD.|Its own handlers.|A control’s handler in the GUI’s script." />
 
 ## Text and fonts
 

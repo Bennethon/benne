@@ -43,6 +43,8 @@ Select the dialog in the tree. The Inspector lists its options, and **Add option
 
 Drag the **⋮⋮** handle to reorder options; the list on screen follows the same order. Changes are written to the JSON when you leave a field.
 
+<DocShot src="/images/guides/dialog.webp" alt="The ChatWithPenny dialog selected: its script open with handlers for greeting, door and bye, and the Inspector listing the three options with door expanded to show its id, text, enabled, used and say line fields and a Script button." :width="1193" :height="820" caption="Penny’s dialog, with the `door` option open in the Inspector." legend="Add an option.|What the player sees and says.|Whether it is in the list from the start.|Whether the player says it before the handler runs.|Add the handler, or jump to it.|The handler for `door`." />
+
 Penny's dialog has three options:
 
 ```json
@@ -221,6 +223,8 @@ options.thatsAll.onChoose(() => {
 ## How it looks
 
 The list of choices is drawn by a GUI, `src/game/guis/dialog/dialog.gui.json`, so its font, colours, background and position are yours to change (see [Creating a GUI](./creating-a-gui)). When the list is taller than the space for it, it scrolls; `dialog.choiceOptionsViewportHeightPx` in `game-config.json` sets that height.
+
+<DocShot src="/images/guides/dialog-play.webp" alt="Penny’s dialog in BENNE Play: Hank and Penny stand by the couch, and below the room the three options are listed: How’s it goin?, The door is locked. How do I get out?, and Ok, bye!" :width="872" :height="546" caption="Penny’s options in the 9-verb template." />
 
 A dialog can use a different choice GUI, for a character whose conversations look different, by naming it in the Inspector's **GUI id** field (`guiId` in the JSON).
 

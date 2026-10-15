@@ -44,10 +44,14 @@ Any other tag is an animation you play from scripts, such as a `Wave` or a `Shru
 
 ## 3. Import the animations
 
+<DocShot src="/images/guides/character-animations.webp" alt="Hank’s animations in the Inspector: an Import Animations from Aseprite Tags button, then IdleD, IdleL, IdleU, TalkD, TalkL, TalkU and WalkD, and WalkL expanded to show loop ticked and frameDuration 80." :width="276" :height="710" legend="Import more tags at any time.|Each clip’s loop and frame duration.">
+
 Right-click the character in the tree and choose **Import Animations from Aseprite Tags**. Pick the tags; each one gets an entry in the character's `animations`, set to loop. Then adjust them in the Inspector:
 
 - **Loop** should be on for `Idle`, `Walk` and `Talk`, and off for one-off animations such as a wave, which play once and return to idle.
 - **Frame duration** sets milliseconds per frame for the whole tag, instead of the timings drawn in Aseprite. Hank walks left at 80 ms per frame and up and down at 60.
+
+</DocShot>
 
 ## 4. Set the feet, walk-to point, talk point and collider
 
@@ -61,6 +65,8 @@ Selecting a character opens the **character preview**. Pick any animation from t
 | **Collider** (magenta) | The clickable shape. Click three times to start one, double-click an edge to add a point, and press **Delete** to remove a selected point. Without a collider, a clickable character is clicked anywhere on their frame. |
 
 Click **Save to JSON** to keep the changes. The mouse wheel zooms, a middle-button drag pans, and **F** fits the character back in view.
+
+<DocShot src="/images/guides/character-preview.webp" alt="Hank in the character preview, zoomed in: a magenta collider around him with yellow points, Talk above his head, Feet between his shoes and Walk to beside him. The Inspector shows his name, walkSpeed 88, clickable, movable, speech colour, and walkToPoint, talkPoint and feet fields." :width="1193" :height="620" caption="Hank in the character preview." legend="Pick an animation to play.|The collider (magenta).|The handles you drag, as numbers: `walkToPoint`, `talkPoint` and `feet`.|His `speechColor`." />
 
 ## 5. Fill in the details
 

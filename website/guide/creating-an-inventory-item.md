@@ -63,6 +63,8 @@ Select the item in the tree to edit it in the Inspector, with its icon shown in 
 
 The Inspector's [verb chips](./verbs#verbs-in-the-editor) list your game's verbs for the item: **+** adds a handler to its script, **⚡** jumps to one.
 
+<DocShot src="/images/guides/inventory-item.webp" alt="The PB item selected: the inventory preview showing the peanut butter jar icon, PB.inventory.ts underneath with its onOpen and onUseItem handlers, and the Inspector with its name, stackable, shared sheet, default frame tag, description, verb chips with open handled, and its PB and PB-open animations." :width="1193" :height="864" caption="The peanut butter jar." legend="Its icon, as an inventory panel shows it.|Its script, `PB.inventory.ts`.|⚡ open: the jar has an `onOpen` handler.|Its two looks, `PB` and `PB-open`." />
+
 ## 4. Give it to the player
 
 Items reach the inventory from scripts:
@@ -85,6 +87,8 @@ To start a new game with items already in the inventory, list their ids in `game
 ```
 
 The player sees their items in an **inventory panel**, a GUI control that fills itself with whatever the player is carrying. Both templates include one: a panel beside the verb bar in 9-verb, and a bar that slides down from the top of the screen in 2-click. See [Creating a GUI](./creating-a-gui#controls).
+
+<DocShot src="/images/guides/inventory-play.webp" alt="The 9-verb template running in BENNE Play: the verb buttons and, beside them, the inventory panel holding a broom, a lantern, a key and bread. Above the game, BENNE Play’s Inventory menu and Give button." :width="872" :height="546" caption="The 9-verb inventory panel in BENNE Play, with the template’s starting items and some bread from the **Give** button." />
 
 ## 5. Make it do things
 
