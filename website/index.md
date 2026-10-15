@@ -85,6 +85,44 @@ markdownStyles: false
     -10px 0 0 var(--benne-teal), -11px 0 0 var(--benne-teal), -12px 0 0 var(--benne-teal);
 }
 
+/* Light mode: the green word barely shows on white, so it sits on a green strip instead, as wide
+   as the feature cards and dithered away at both ends. */
+html:not(.dark) .benne-home .title {
+  /* Clear the strip's bottom edge. */
+  margin-bottom: -0.1em;
+  padding-left: 0;
+  color: #0b1519;
+  text-shadow: none;
+}
+
+html:not(.dark) .benne-home .title::before {
+  /* The caps run from 0.15em to 0.825em down the line box; the strip adds two font pixels
+     (0.075em each) above and below them. */
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 50%;
+  width: min(100vw - 48px, 1152px);
+  height: 0.975em;
+  transform: translateX(-50%);
+  background: var(--benne-green);
+  /* The end images are dither masks, one pixel per 4px cell. Their last cells are solid, so the
+     middle overlaps two of them: edges that only meet leave a faint seam off the pixel grid. */
+  mask:
+    url('/images/title-strip-left.png') left top / 256px 16px repeat-y,
+    url('/images/title-strip-right.png') right top / 256px 16px repeat-y,
+    linear-gradient(#000, #000) center / calc(100% - 496px) 100% no-repeat;
+  image-rendering: pixelated;
+}
+
+@media (max-width: 640px) {
+  html:not(.dark) .benne-home .title::before {
+    width: calc(100vw - 32px);
+    mask-size: 128px 8px, 128px 8px, calc(100% - 248px) 100%;
+  }
+}
+
 .benne-home .tagline {
   margin: 8px 0 0;
   max-width: 46ch;
