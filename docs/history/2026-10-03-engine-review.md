@@ -226,7 +226,7 @@ There's a second cost: each queued API needs a `.now` twin (`BlockingWithNow`, `
 **Options, in order of preference**
 
 1. **`async`/`await`** — handlers become `async () => { await B.walkToClicked(); await B.say\`…\`; B.state.setFlag(…) }`. Execution order matches the source. `.now` is simply "don't await" (`B.sound.play('x')` without `await`, or an explicit `B.parallel(…)`). Cost: authors must remember `await`. Mitigate with the **`@typescript-eslint/no-floating-promises`** rule set up in game projects plus the TS plugin you already ship, so a missing `await` is flagged in the editor.
-2. **Generator coroutines** (`function* () { yield B.walkTo('Door'); … }`). This is how Ren'Py, Unity and PowerQuest do it. It's also friendly to cancellation and cutscene skipping (the runner just stops resuming), and to saving mid-cutscene. The syntax is slightly less familiar.
+2. **Generator coroutines** (`function* () { yield B.walkTo('Door'); … }`). This is how Ren'Py and Unity do it. It's also friendly to cancellation and cutscene skipping (the runner just stops resuming), and to saving mid-cutscene. The syntax is slightly less familiar.
 3. **Keep the queue, but make it consistent**: queue *every* side effect, including `B.state.set*`, and add `B.then(() => …)` for arbitrary code. This is the smallest change, but you're still fighting JS control flow.
 
 Whichever you pick, add a **compatibility shim and a codemod** (via the TS AST — see §4.3) so existing game scripts migrate automatically. Skipping cutscenes (`f265648`) is also simpler with options 1 or 2: you can pass an `AbortSignal` / "fast-forward" flag through the awaited calls instead of draining a queue.

@@ -10,7 +10,7 @@ import {
  *
  * **Algorithm**: classical **visibility graph + A\***. This is the textbook shortest-path
  * approach for simple polygons with holes and is what most modern adventure-game engines
- * (Adventure Creator, Wintermute-family, PowerQuest) use for their polygon walk meshes.
+ * (Adventure Creator, Wintermute-family) use for their polygon walk meshes.
  * The result is the **exact Euclidean shortest path** that hugs concave corners and bends
  * cleanly around hole rings — the classic LucasArts walk look.
  *

@@ -7,7 +7,7 @@ outline: deep
 
 BENNE (Bennethon Engine for Nifty Narrative Experiences) is a modern, web-based engine for building point-and-click adventure games. It gives developers a complete, opinionated-but-extensible framework for rooms, characters, inventory, dialogs, and custom interfaces so you can focus on story, puzzles, and atmosphere instead of reinventing input systems, rendering pipelines, or save/load logic.
 
-Built on Phaser 4 with a TypeScript core and Vite-powered workflow, BENNE runs in any modern browser and feels familiar to anyone who has worked with classic adventure tools. It draws direct inspiration from **Adventure Game Studio (AGS)**, **PowerQuest**, and the timeless interaction patterns of LucasArts’ SCUMM engine, while bringing those ideas into a contemporary web stack with live previews, polygon editing, and strong editor integration.
+Built on Phaser 4 with a TypeScript core and Vite-powered workflow, BENNE runs in any modern browser and feels familiar to anyone who has worked with classic adventure tools. It draws direct inspiration from **Adventure Game Studio (AGS)** and the timeless interaction patterns of LucasArts’ SCUMM engine, while bringing those ideas into a contemporary web stack with live previews, polygon editing, and strong editor integration.
 
 ## BENNE is Opinionated
 
