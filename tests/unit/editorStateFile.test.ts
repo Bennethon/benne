@@ -64,7 +64,10 @@ describe('parseStateFile', () => {
       const file = parse(text);
       expect(file.flags, name).not.toBeNull();
       expect(file.vars, name).not.toBeNull();
-      expect(file.flags!.entries.length, name).toBeGreaterThan(0);
+      // The blank template defines no flags; every other template should yield some.
+      if (!/defineFlags\(\{\s*\}\)/.test(text)) {
+        expect(file.flags!.entries.length, name).toBeGreaterThan(0);
+      }
       for (const e of [...file.flags!.entries, ...file.vars!.entries]) {
         expect(e.editable, `${name}: ${e.name}`).toBe(true);
         expect(text.slice(e.nameStart, e.nameEnd)).toBe(e.name);
