@@ -32,6 +32,7 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/introduction', activeMatch: '/guide/' },
       { text: 'API Reference', link: '/reference/bennescript-api', activeMatch: '/reference/' },
+      { text: 'About', link: '/about/about-benne', activeMatch: '/about/' },
       { text: 'Releases', link: `${repo}/releases` },
     ],
     sidebar: [
@@ -83,6 +84,7 @@ export default defineConfig({
       {
         text: 'About',
         items: [
+          { text: 'About BENNE', link: '/about/about-benne' },
           { text: 'Roadmap', link: '/about/roadmap' },
           { text: 'Acknowledgements', link: '/about/acknowledgements' },
           { text: 'License', link: '/about/license' },
