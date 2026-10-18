@@ -201,6 +201,18 @@ export async function readGameConfigVerbs(gameRoot: vscode.Uri): Promise<GameCon
     }
 }
 
+/** `name` from `src/game/game-config.json`, or undefined when the file or field is unusable. */
+export async function readGameConfigName(gameRoot: vscode.Uri): Promise<string | undefined> {
+    const uri = vscode.Uri.joinPath(gameRoot, 'src', 'game', 'game-config.json');
+    try {
+        const raw = await vscode.workspace.fs.readFile(uri);
+        const name = (JSON.parse(new TextDecoder('utf-8').decode(raw)) as { name?: unknown }).name;
+        return typeof name === 'string' && name.trim().length > 0 ? name.trim() : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 /**
  * When `game-config.json` is missing or has no valid `resolution`, matches prior editor scaffolding
  * and the internal size called out in docs.

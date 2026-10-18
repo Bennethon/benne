@@ -60,7 +60,7 @@ Keep this list up to date: when you add, retake or remove a screenshot, change i
 
 | File | Section | Set-up | Crop | Callouts |
 |---|---|---|---|---|
-| `overview` | Overview | Apartment selected; all three side bar views open at their default heights; default editor split. | Whole window. | Labelled boxes 1–6: BENNE tree, Actions, State, Room preview, Room script, Inspector. |
+| `overview` | Overview | Fresh start; Apartment selected; all three side bar views open, sashes dragged so Actions starts at y 364 and State at y 658 (State with no scrollbar); default editor split. | Whole window. | Labelled boxes 1–6: BENNE tree, Actions, State, Room preview, Room script, Inspector. |
 | `tree` | The BENNE tree | Apartment and its Props expanded, Door selected; Actions and State collapsed. | Side bar, 880 tall. | 1 the filter and create buttons in the title bar; 2 a room's groups (Walkable areas to Regions); 3 the selected Door row. |
 | `context` | Creating and changing content (also Creating a room §3) | Apartment selected, then right-clicked on its label. | The Apartment row and its menu; the preview's edge behind the menu's right side painted over with the side bar colour. | None. |
 | `inspector` | Inspector | Door selected. | The Inspector, full height. | Badges and legend: 1 a ⚡ verb chip, 2 a + verb chip, 3 Save and Open raw JSON. |
@@ -88,5 +88,5 @@ Keep this list up to date: when you add, retake or remove a screenshot, change i
 | `inventory-play` | Inventory item → 4. give it to the player | BENNE Play from the Apartment (Mute); Give Bread. | The BENNE Play webview (x 410, y 66, w 872, h 546). | 1 the inventory panel; 2 the Inventory menu and Give button. |
 | `dialog` | Dialog → 2. write the options | ChatWithPenny selected; its `door` option expanded (click the option's row, not Add option). | Script and Inspector (h 820). | Badges and legend 1–6: Add option, text, enabled, say line, Script…, the `door` handler. |
 | `dialog-play` | Dialog → How it looks | BENNE Play; Talk to Penny; wait for the choices. | As `inventory-play`. | 1 the list of options. |
-| `gui` | GUI → GUI settings | Game Menu selected (its controls show in the tree); preview 540. | Side bar, editors and Inspector (x 48, w 1548, h 724). | Badges and legend 1–5: controls in the tree, preview, visible/modal/zIndex, GUI handler chips, a control handler in the script. |
+| `gui` | GUI → GUI settings | Outside expanded, Apartment collapsed; Game Menu selected and expanded (its controls show in the tree); preview 544 (at 540 the GUI preview gets scrollbars); Inspector scrolled to the top. | Side bar, editors and Inspector (x 48, w 1548, h 724). | Badges and legend 1–5: controls in the tree, preview, visible/modal/zIndex, GUI handler chips, a control handler in the script. |
 | `gui-control` | GUI → Arranging controls | Game Menu → `button (resume)` selected. | Preview, script and Inspector (h 882). | Badges and legend 1–5: gizmo, text and font, position and size, grid placement, On Click. |

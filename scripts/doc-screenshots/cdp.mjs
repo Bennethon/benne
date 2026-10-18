@@ -219,10 +219,14 @@ export async function connect() {
       await click(r.lx + r.lw / 2, r.y + r.h / 2);
       await sleep(wait);
     },
-    /** Expands or collapses the BENNE side bar's views: panes({ BENNE: true, Actions: false }). */
+    /**
+     * Expands or collapses the BENNE side bar's views: panes({ BENNE: true, Actions: false }).
+     * `BENNE` is the main tree, the first view, which is titled with the game's name.
+     */
     async panes(/** @type {Record<string, boolean>} */ want) {
       for (const [title, expanded] of Object.entries(want)) {
-        const h = await js(`(() => { const h = [...document.querySelectorAll('#workbench\\\\.parts\\\\.sidebar .pane-header')].find((h) => h.querySelector('.title')?.textContent === ${JSON.stringify(title)});
+        const h = await js(`(() => { const hs = [...document.querySelectorAll('#workbench\\\\.parts\\\\.sidebar .pane-header')];
+          const h = ${JSON.stringify(title)} === 'BENNE' ? hs[0] : hs.find((h) => h.querySelector('.title')?.textContent === ${JSON.stringify(title)});
           if (!h) return null; const r = h.getBoundingClientRect(); return { x: r.x + 30, y: r.y + r.height / 2, expanded: h.getAttribute('aria-expanded') === 'true' }; })()`);
         if (!h) throw new Error(`No "${title}" view in the side bar. Run c.command('BENNE: Show BENNE Sidebar') first.`);
         if (h.expanded !== expanded) {

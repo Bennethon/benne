@@ -24,7 +24,7 @@ This page is a tour of the editor itself. For step-by-step guides to making each
 
 When the extension is installed, a **BENNE** icon appears in the VS Code Activity Bar. Clicking it reveals the BENNE sidebar, which contains three views:
 
-- **BENNE** (the main tree): a structured outline of your whole game: rooms, characters, GUIs, inventory, dialogs and puzzle charts, each expandable down to individual props, hotspots, regions, points, walkable areas and controls.
+- **The BENNE tree**, titled with your game's `name` from `game-config.json`: a structured outline of your whole game: rooms, characters, GUIs, inventory, dialogs and puzzle charts, each expandable down to individual props, hotspots, regions, points, walkable areas and controls.
 - **Actions**: buttons for rebuilding preview bundles, plus workspace-level helpers such as **Process Game Voice IDs**.
 - **State**: your game's flags and variables, with their defaults (see [State](#state)).
 

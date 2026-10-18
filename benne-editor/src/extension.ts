@@ -39,12 +39,14 @@ import {
 import { addCharacterVerbEvent, makeCharacterClickable } from './characterVerbScaffolding';
 import { addInventoryVerbEvent } from './inventoryVerbScaffolding';
 import {
+    findBenneGameFolders,
     getCharacterIdFromCharacterJsonUri,
     getDialogIdFromDialogJsonUri,
     getGuiIdFromGuiJsonUri,
     getPdcIdFromPdcJsonUri,
     getInventoryIdFromInventoryJsonUri,
     getRoomIdFromRoomJsonUri,
+    readGameConfigName,
     readRoomProps
 } from './gameDiscovery';
 import { addRoomCharacterVerbEvent } from './roomCharacterVerbScaffolding';
@@ -197,6 +199,15 @@ export function activate(context: vscode.ExtensionContext): void {
     };
 
     void syncMainTreeFilterUi();
+
+    /** With one game open, the main view is titled with its game-config.json `name`. */
+    const syncMainTreeTitle = async (): Promise<void> => {
+        const gameFolders = await findBenneGameFolders();
+        const name = gameFolders.length === 1 ? await readGameConfigName(gameFolders[0].uri) : undefined;
+        mainTreeView.title = name ?? 'BENNE';
+    };
+
+    void syncMainTreeTitle();
 
     const actionsTreeView = vscode.window.createTreeView('benne-editor.actions', {
         treeDataProvider: actionsProvider,
@@ -562,6 +573,7 @@ export function activate(context: vscode.ExtensionContext): void {
         mainProvider.refresh();
         actionsProvider.refresh();
         void syncMainTreeFilterUi();
+        void syncMainTreeTitle();
         void inspectorProvider.pushState();
         scheduleGenerateGameIds(hintUri);
     };
@@ -1619,6 +1631,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const gameConfigWatcher = vscode.workspace.createFileSystemWatcher('**/src/game/game-config.json');
     context.subscriptions.push(
+        vscode.workspace.onDidChangeWorkspaceFolders(() => void syncMainTreeTitle()),
         gameConfigWatcher,
         gameConfigWatcher.onDidChange((uri) => {
             scheduleAutoRoomPreviewRebuild(uri);
