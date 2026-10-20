@@ -41,3 +41,9 @@ See [the regression testing guide](docs/testing.md) for setup, suite commands, C
 ## AI guidance
 
 See `AGENTS.md` for which docs are current, and `.cursor/rules/benne.mdc` for project-wide conventions.
+
+## License and contributions
+
+BENNE is released under the [MIT License](LICENSE). Use it, fork it and change it however you like.
+
+This is my personal engine, shared as-is. Bug reports and questions are welcome as issues. I'm not trying to build a contributor community around it, so pull requests may not be reviewed or merged.
