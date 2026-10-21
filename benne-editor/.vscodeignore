@@ -6,6 +6,8 @@ node_modules/**
 !node_modules/benne-room-id-completions/package.json
 # Extension TS sources (compiled to dist/extension.js). Do not use **/*.ts — it strips scaffold/shared.
 src/**
+# Shipped as node_modules/benne-room-id-completions/ (see .npmrc).
+ts-plugin/**
 .gitignore
 .yarnrc
 webpack.config.js

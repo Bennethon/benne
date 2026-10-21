@@ -10,6 +10,7 @@
  * Default: patch bump.
  */
 import { spawnSync } from 'node:child_process';
+import { lstatSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -101,6 +102,15 @@ async function main() {
         const releases = Object.keys(RELEASE_TEMPLATES).join(', ');
         console.error(`src/game is template "${active}", which does not ship (release templates: ${releases}).`);
         console.error('Swap one in first, e.g. `npm run set-template:9-verb`, then package.');
+        process.exit(1);
+    }
+
+    // VS Code loads the TS server plugin from node_modules/benne-room-id-completions in the VSIX, and
+    // vsce ships a symlinked dependency elsewhere. benne-editor/.npmrc installs it as a copy; an
+    // install from before that is still a symlink.
+    if (lstatSync(path.join(EXTENSION_DIR, 'node_modules', 'benne-room-id-completions')).isSymbolicLink()) {
+        console.error('benne-editor/node_modules/benne-room-id-completions is a symlink, so the VSIX would lack the TS plugin.');
+        console.error('Fix: rm benne-editor/node_modules/benne-room-id-completions && npm --prefix benne-editor install');
         process.exit(1);
     }
 
