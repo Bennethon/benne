@@ -4,7 +4,7 @@ title: Roadmap
 
 # Roadmap
 
-There is no roadmap!
+There is no official roadmap!
 
 But there is a list of enhancements that I would like to make to BENNE. This list will be continuously updated over time:
 

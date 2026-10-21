@@ -42,6 +42,14 @@ See [the regression testing guide](docs/testing.md) for setup, suite commands, C
 
 See `AGENTS.md` for which docs are current, and `.cursor/rules/benne.mdc` for project-wide conventions.
 
+## AI Usage
+
+I built BENNE with the help of AI tools. ChatGPT, Grok, and Claude wrote much of the code, while I provided the architecture, direction, and feature design. I also designed the user experience for the BENNE Editor.
+
+My goal was to spend less time building a game engine and more time doing what I love: making adventure games.
+
+Some of my game artwork is AI-assisted and hand-edited.
+
 ## License and contributions
 
 BENNE is released under the [MIT License](LICENSE). Use it, fork it and change it however you like.

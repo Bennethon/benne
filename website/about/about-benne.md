@@ -18,6 +18,14 @@ BENNE (Bennethon Engine for Nifty Narrative Experiences) is a web-based engine a
 - **[Vitest](https://vitest.dev)** and **[Playwright](https://playwright.dev)**: unit and end-to-end tests.
 - **[VitePress](https://vitepress.dev)**: this website.
 
+## AI Usage
+
+I built BENNE with the help of AI tools. ChatGPT, Grok, and Claude wrote much of the code, while I provided the architecture, direction, and feature design. I also designed the user experience for the BENNE Editor.
+
+My goal was to spend less time building a game engine and more time doing what I love: making adventure games.
+
+Some of my game artwork is AI-assisted and hand-edited.
+
 ## Contact
 
 - **X**: [@Bennethon](https://x.com/Bennethon)
