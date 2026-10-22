@@ -28,7 +28,7 @@ try {
   for (const dir of ['src', 'electron', 'scripts', 'game-templates']) await cp(path.join(repo, dir), path.join(root, dir), { recursive: true });
   for (const entry of await readdir(repo)) if (/^(package.*\.json|tsconfig\.json|vite.*\.(ts|mjs)|.*\.html|electron-builder\.config\.cjs)$/.test(entry)) await cp(path.join(repo, entry), path.join(root, entry));
   await mkdir(path.join(root, 'benne-editor'), { recursive: true });
-  for (const entry of ['src', 'ts-plugin', 'media', 'package.json', 'package-lock.json', 'webpack.config.js', 'tsconfig.json', '.vscodeignore', 'README.md', 'LICENSE']) {
+  for (const entry of ['src', 'ts-plugin', 'media', 'package.json', 'package-lock.json', '.npmrc', 'webpack.config.js', 'tsconfig.json', '.vscodeignore', 'README.md', 'LICENSE']) {
     await cp(path.join(repo, 'benne-editor', entry), path.join(root, 'benne-editor', entry), { recursive: true }).catch(error => { if (entry !== 'LICENSE') throw error; });
   }
   await symlink(path.join(repo, 'node_modules'), path.join(root, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
@@ -73,7 +73,7 @@ try {
   if (process.argv.includes('--vsix')) {
     await run('npm', ['exec', '--', 'vsce', 'package', '--follow-symlinks', '--out', path.join(logs, 'benne-editor.vsix')], path.join(root, 'benne-editor'));
     const list = await run('unzip', ['-Z1', path.join(logs, 'benne-editor.vsix')], root);
-    for (const required of ['extension/dist/extension.js', 'extension/dist/room-script-id-ts-plugin.js', 'extension/ts-plugin/index.js', 'extension/scaffold/shared/src/engine/Game.ts', 'extension/media/benne-play/benne-play.js']) assert.ok(list.split('\n').includes(required), `VSIX missing ${required}`);
+    for (const required of ['extension/dist/extension.js', 'extension/dist/room-script-id-ts-plugin.js', 'extension/node_modules/benne-room-id-completions/index.js', 'extension/scaffold/shared/src/engine/Game.ts', 'extension/media/benne-play/benne-play.js']) assert.ok(list.split('\n').includes(required), `VSIX missing ${required}`);
     const installed = path.join(root, 'installed');
     await run('unzip', ['-q', path.join(logs, 'benne-editor.vsix'), '-d', installed], root);
     const installedRequire = createRequire(path.join(installed, 'extension/package.json'));
