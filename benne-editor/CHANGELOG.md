@@ -4,10 +4,6 @@ All notable changes to BENNE. The format follows [Keep a Changelog](https://keep
 
 ## [Unreleased]
 
-### Added
-
-- **Blank template.** **BENNE: Create New Game** offers a third template, **Blank**: one empty room with Hank as the player, the 2-click look / use controls, and the speech, message and dialog GUIs the engine needs. No props, items, dialogs or menus.
-
 ## [0.1.0] - 2026-10-09
 
 ### Breaking: game scripts are BenneScript
@@ -18,6 +14,7 @@ The `register*Script` / `B.` scripting API is gone. Game scripts are now **Benne
 
 ### Added
 
+- **Blank template.** **BENNE: Create New Game** offers a third template, **Blank**: one empty room with Hank as the player, the 2-click look / use controls, and the speech, message and dialog GUIs the engine needs. No props, items, dialogs or menus.
 - **Typed names for game content.** Each room, character, item, dialog and GUI gets a generated `.ids.ts` file, so a misspelt prop or sound is a red squiggle, not a silent bug.
 - **Scripting features:** cutscenes the player can skip, running actions together or in the background, cancelling or finishing an action now (`task.cancel()`, `finishNow()`), `onUpdate` handlers, and fallbacks for interactions nothing else handles (`unhandled()`).
 - **Editor help for scripts:** speaker name completions and checks, go to a handle's JSON definition, and offers of another room's handles (`outside.door`) with the import written for you.
