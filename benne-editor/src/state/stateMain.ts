@@ -365,7 +365,7 @@ function addRow(kind: StateSectionKind): HTMLTableRowElement {
         errors[kind] = undefined;
         drafts[kind] = { ...draft, name: '', value: '', checked: false };
         post({ action: 'add', kind, name, value });
-        render();
+        render({ keepText: false });
         (app.querySelector(`[data-focus="add-name:${kind}"]`) as HTMLInputElement | null)?.focus();
     };
     nameInput.addEventListener('input', () => {
@@ -379,7 +379,7 @@ function addRow(kind: StateSectionKind): HTMLTableRowElement {
         } else if (e.key === 'Escape') {
             drafts[kind].name = '';
             errors[kind] = undefined;
-            render();
+            render({ keepText: false });
         }
     });
     const addBtn = h('button', { class: 'icon-btn', title: kind === 'flags' ? 'Add flag' : 'Add var', 'aria-label': kind === 'flags' ? 'Add flag' : 'Add var' }, '+');
@@ -465,11 +465,14 @@ function section(kind: StateSectionKind, entries: StateViewEntry[]): HTMLElement
 
 // ─── Render ──────────────────────────────────────────────────────────────────
 
-/** Re-renders, keeping focus, the typed text and the caret in whichever field had them. */
-function render(): void {
+/**
+ * Re-renders, keeping focus, the typed text and the caret in whichever field had them. Without
+ * `keepText` the field shows its draft instead: the add row empties after adding or Escape.
+ */
+function render({ keepText = true }: { keepText?: boolean } = {}): void {
     const active = document.activeElement as HTMLInputElement | null;
     const focusKey = active?.getAttribute('data-focus') ?? null;
-    const typed = active && 'value' in active && active.type !== 'checkbox' ? active.value : null;
+    const typed = keepText && active && 'value' in active && active.type !== 'checkbox' ? active.value : null;
     const caret = active && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null;
 
     rendering = true;

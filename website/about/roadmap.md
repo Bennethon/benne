@@ -12,6 +12,8 @@ But there is a list of enhancements that I would like to make to BENNE. This lis
 - Add additional export types (Mac, Linux, etc.)
 - Support character turning animation
 - Verb Coin starter template
+- Footsteps sound effects
+- Events on animations
 - Lighting and other visual effects
 - Core code architecture improvements
 - BENNE Editor UX improvements
