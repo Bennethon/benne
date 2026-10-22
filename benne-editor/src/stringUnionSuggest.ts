@@ -6,6 +6,9 @@ import { isBenneScriptFile } from './bennescript/tsPluginFeatures';
  * string union: `hank.face(` → `'U'`, `'D'`, …; `door.animation = ` → its tags
  * (docs/bennescript-ergonomics-refactor.md §9). VS Code only asks for completions there when the
  * user types a quote; the TS server plugin already puts the quoted values first.
+ *
+ * A completion that inserted `face()` with the cursor inside (the plugin's `addCallParentheses`)
+ * also gets the parameter hints VS Code shows when `(` is typed.
  */
 const QUOTED = /^(['"]).*\1$/;
 
@@ -13,19 +16,25 @@ function labelText(item: vscode.CompletionItem): string {
     return typeof item.label === 'string' ? item.label : item.label.label;
 }
 
-function triggerFor(doc: vscode.TextDocument, change: vscode.TextDocumentContentChangeEvent): vscode.Position | undefined {
+function triggerFor(
+    doc: vscode.TextDocument,
+    change: vscode.TextDocumentContentChangeEvent
+): { position: vscode.Position; completed: boolean } | undefined {
+    const start = change.range.start;
+    if (/^[\w$]+\(\)$/.test(change.text)) {
+        return { position: start.translate(0, change.text.length - 1), completed: true };
+    }
     if (change.rangeLength !== 0) {
         return undefined;
     }
-    const start = change.range.start;
     if (change.text === '(' || change.text === '()') {
-        return start.translate(0, 1);
+        return { position: start.translate(0, 1), completed: false };
     }
     if (change.text === ' ' && start.character > 0) {
         const before = doc.lineAt(start.line).text.slice(0, start.character);
         // `x = ` but not `==`, `!=`, `<=`, `=>`.
         if (/[^=!<>]=$/.test(before)) {
-            return start.translate(0, 1);
+            return { position: start.translate(0, 1), completed: false };
         }
     }
     return undefined;
@@ -39,11 +48,12 @@ export function registerStringUnionSuggest(context: vscode.ExtensionContext): vo
             if (doc.languageId !== 'typescript' || event.contentChanges.length !== 1 || !isBenneScriptFile(doc.uri.fsPath)) {
                 return;
             }
-            const position = triggerFor(doc, event.contentChanges[0]);
+            const trigger = triggerFor(doc, event.contentChanges[0]);
             const editor = vscode.window.activeTextEditor;
-            if (!position || !editor || editor.document !== doc) {
+            if (!trigger || !editor || editor.document !== doc) {
                 return;
             }
+            const { position, completed } = trigger;
             const mine = ++generation;
             const list = await vscode.commands.executeCommand<vscode.CompletionList>(
                 'vscode.executeCompletionItemProvider',
@@ -52,6 +62,9 @@ export function registerStringUnionSuggest(context: vscode.ExtensionContext): vo
             );
             if (mine !== generation || !editor.selection.active.isEqual(position)) {
                 return;
+            }
+            if (completed) {
+                await vscode.commands.executeCommand('editor.action.triggerParameterHints');
             }
             if (list?.items.some((item) => QUOTED.test(labelText(item)))) {
                 await vscode.commands.executeCommand('editor.action.triggerSuggest');

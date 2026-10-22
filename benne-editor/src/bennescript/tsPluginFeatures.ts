@@ -6,6 +6,7 @@
  * - speaker completions: `Hank: "|"` at the start of a statement;
  * - string-union completions: TypeScript already offers `'U'`, `'D'`, … at `face(` or
  *   `animation =`; they are moved to the top and match without the quote;
+ * - call completions: `walkToClicked` inserts `walkToClicked()`, `hank.face` inserts `face(|)`;
  * - go to definition from a generated handle (`battery`, `items.soda`, `options.bye`) to its JSON;
  * - another room's handle whose name the script already uses (`door`) as `outside.door`, adding
  *   `import * as outside from '../outside/outside.ids'`. TypeScript doesn't offer it at all.
@@ -290,6 +291,177 @@ export function promoteStringLiteralEntries(ts: typeof TS, info: TS.CompletionIn
         }
         changed = true;
         return { ...entry, sortText: `0${entry.sortText}`, filterText: m[2], isRecommended: undefined };
+    });
+    return changed ? { ...info, entries } : info;
+}
+
+/** Entry kinds that can name a function value; classes, types and keywords never get parentheses. */
+const CALLABLE_KINDS = new Set<string>([
+    'function',
+    'local function',
+    'method',
+    'const',
+    'let',
+    'var',
+    'local var',
+    'alias',
+    'property',
+    'parameter',
+]);
+
+/** `(` or a tagged template right after the word at `position`: the call is already written. */
+function callFollows(sf: TS.SourceFile, position: number): boolean {
+    let end = position;
+    while (end < sf.text.length && /[\w$]/.test(sf.text[end])) {
+        end++;
+    }
+    return /^\s*[(`<]/.test(sf.text.slice(end, end + 40));
+}
+
+/** Whether a value written at `position` is expected to be a function itself (a handler, a callback). */
+function expectsFunction(ts: typeof TS, checker: TS.TypeChecker, sf: TS.SourceFile, position: number, word: TS.Node | undefined): boolean {
+    let expected: TS.Type | undefined;
+    if (word && ts.isIdentifier(word)) {
+        expected = checker.getContextualType(word);
+    } else {
+        // Nothing typed yet: an argument of `cutscene(|)` or `hank.onLook(x, |)`.
+        const at = findNodeAt(ts, sf, Math.max(0, position - 1));
+        const call = at && (ts.isCallExpression(at) || ts.isNewExpression(at)) ? at : undefined;
+        const signature = call ? checker.getResolvedSignature(call) : undefined;
+        if (call && signature) {
+            const index = (call.arguments ?? []).filter((a) => a.getEnd() < position).length;
+            const params = signature.getParameters();
+            const param = params[Math.min(index, params.length - 1)];
+            expected = param ? checker.getTypeOfSymbolAtLocation(param, call) : undefined;
+        }
+    }
+    if (!expected) {
+        return false;
+    }
+    const parts = expected.isUnion() ? expected.types : [expected];
+    return parts.some((t) => t.getCallSignatures().length > 0);
+}
+
+/**
+ * The parentheses to complete a function with: `()` when no signature takes parameters, else a
+ * snippet with the cursor between them; undefined when the value isn't called (or is a template tag, `say`).
+ */
+function callSuffix(ts: typeof TS, checker: TS.TypeChecker, symbol: TS.Symbol, at: TS.Node): '()' | '($1)$0' | undefined {
+    const target = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+    if (!(target.flags & (ts.SymbolFlags.Function | ts.SymbolFlags.Method | ts.SymbolFlags.Variable | ts.SymbolFlags.Property))) {
+        return undefined;
+    }
+    const signatures = checker.getTypeOfSymbolAtLocation(target, at).getCallSignatures();
+    if (signatures.length === 0) {
+        return undefined;
+    }
+    let takesArguments = false;
+    for (const signature of signatures) {
+        const params = signature.getParameters();
+        const first = params[0] && checker.getTypeOfSymbolAtLocation(params[0], at);
+        if (first?.getSymbol()?.name === 'TemplateStringsArray') {
+            return undefined;
+        }
+        // `timed` actions are `(...args: A)`; `walkToClicked` has `A = []`.
+        const emptyRest =
+            params.length === 1 &&
+            signature.getDeclaration() !== undefined &&
+            first !== undefined &&
+            checker.isTupleType(first) &&
+            (first as TS.TupleTypeReference).target.fixedLength === 0 &&
+            !(first as TS.TupleTypeReference).target.hasRestElement;
+        if (params.length > 0 && !emptyRest) {
+            takesArguments = true;
+        }
+    }
+    return takesArguments ? '($1)$0' : '()';
+}
+
+/**
+ * Functions complete with their call: `walkToClicked` inserts `walkToClicked()`, and `hank.face`
+ * inserts `hank.face(|)` with the cursor inside. Script statements are calls far more often than
+ * references. Left alone in imports and types, before a `(` already typed, where a function is
+ * expected (`cutscene(|)`, a handler argument) and for template tags (`` say`…` ``).
+ */
+export function addCallParentheses(
+    ts: typeof TS,
+    program: TS.Program | undefined,
+    sf: TS.SourceFile,
+    position: number,
+    info: TS.CompletionInfo,
+): TS.CompletionInfo {
+    const checker = program?.getTypeChecker();
+    if (!checker || callFollows(sf, position)) {
+        return info;
+    }
+    const before = findNodeAt(ts, sf, Math.max(0, position - 1));
+    const word = before && ts.isIdentifier(before) && before.getStart(sf) < position ? before : undefined;
+    let access: TS.PropertyAccessExpression | undefined;
+    for (let n: TS.Node | undefined = before; n; n = n.parent) {
+        if (
+            ts.isImportDeclaration(n) ||
+            ts.isExportDeclaration(n) ||
+            ts.isExportAssignment(n) ||
+            ts.isTypeNode(n) ||
+            ts.isShorthandPropertyAssignment(n) ||
+            ts.isHeritageClause(n)
+        ) {
+            return info;
+        }
+        if (!access && ts.isPropertyAccessExpression(n) && position > n.expression.getEnd()) {
+            access = n;
+        }
+        if (ts.isStatement(n)) {
+            break;
+        }
+    }
+    if (info.isMemberCompletion && !access) {
+        // `{ |}` property names in an object literal or a destructuring pattern.
+        return info;
+    }
+    const at = word ?? before ?? sf;
+    if (expectsFunction(ts, checker, sf, position, word)) {
+        return info;
+    }
+    let inScope: Map<string, TS.Symbol> | undefined;
+    const symbolOf = (entry: TS.CompletionEntry): TS.Symbol | undefined => {
+        if (access) {
+            const type = checker.getTypeAtLocation(access.expression);
+            return type.getProperty(entry.name) ?? checker.getApparentType(type).getProperty(entry.name);
+        }
+        if (entry.source) {
+            const data = entry.data;
+            const moduleFile = data?.fileName ? program!.getSourceFile(data.fileName) : undefined;
+            const moduleSymbol = moduleFile && checker.getSymbolAtLocation(moduleFile);
+            return moduleSymbol && data?.exportName ? checker.tryGetMemberInModuleExports(data.exportName, moduleSymbol) : undefined;
+        }
+        if (!inScope) {
+            inScope = new Map();
+            for (const s of checker.getSymbolsInScope(at, ts.SymbolFlags.Value | ts.SymbolFlags.Alias)) {
+                if (!inScope.has(s.name)) {
+                    inScope.set(s.name, s);
+                }
+            }
+        }
+        const symbol = inScope.get(entry.name);
+        // Not the DOM's `alert`, `onabort`, … (members such as `Math.random` still get them).
+        const declarations = symbol?.declarations ?? [];
+        return declarations.some((d) => !program!.isSourceFileDefaultLibrary(d.getSourceFile())) ? symbol : undefined;
+    };
+    let changed = false;
+    const entries = info.entries.map((entry) => {
+        if (entry.insertText !== undefined || !CALLABLE_KINDS.has(entry.kind) || !/^[\w$]+$/.test(entry.name)) {
+            return entry;
+        }
+        const symbol = symbolOf(entry);
+        const suffix = symbol && callSuffix(ts, checker, symbol, at);
+        if (!suffix) {
+            return entry;
+        }
+        changed = true;
+        return suffix === '()'
+            ? { ...entry, insertText: `${entry.name}()` }
+            : { ...entry, insertText: `${entry.name.replace(/\$/g, '\\$')}${suffix}`, isSnippet: true as const };
     });
     return changed ? { ...info, entries } : info;
 }

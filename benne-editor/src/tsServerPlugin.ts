@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import type * as ts from 'typescript/lib/tsserverlibrary';
 import { IdsIndex } from './bennescript/idsIndex';
 import {
+    addCallParentheses,
     explainArrowSpeechErrors,
     inStringLiteral,
     isBenneScriptFile,
@@ -24,8 +25,9 @@ import {
  * TypeScript server plugin for BENNE games (docs/bennescript-ergonomics-refactor.md §9).
  *
  * BenneScript: speaker completions and diagnostics, string-union completions that insert their
- * quotes, other rooms' handles whose names are taken (`outside.door`), and go to definition from
- * generated handles to their JSON (`./bennescript/tsPluginFeatures`).
+ * quotes, function completions that insert their parentheses, other rooms' handles whose names
+ * are taken (`outside.door`), and go to definition from generated handles to their JSON
+ * (`./bennescript/tsPluginFeatures`).
  */
 
 export function init(modules: { typescript: typeof ts }): { create(info: ts.server.PluginCreateInfo): ts.LanguageService } {
@@ -145,7 +147,9 @@ export function init(modules: { typescript: typeof ts }): { create(info: ts.serv
                 const invoked = options?.triggerKind === 1 /* CompletionTriggerKind.Invoked */;
                 const speakers = speakerCompletionEntries(typescript, sf, position, speakerTable(gameRoot), invoked);
                 const otherRooms = result ? otherRoomCompletionEntries(typescript, sf, position, result, idsIndex(gameRoot)) : [];
-                const base = result ? promoteStringLiteralEntries(typescript, result) : undefined;
+                const base = result
+                    ? addCallParentheses(typescript, info.languageService.getProgram(), sf, position, promoteStringLiteralEntries(typescript, result))
+                    : undefined;
                 if (speakers.length === 0 && otherRooms.length === 0) {
                     return base;
                 }

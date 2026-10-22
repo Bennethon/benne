@@ -148,6 +148,35 @@ describe('BENNE TS plugin', { timeout: 60000 }, () => {
     expect(faces.map((e) => e.name)).toEqual(expect.arrayContaining(["'U'", "'D'", "'L'", "'R'"]));
   });
 
+  it('completes functions with their parentheses', () => {
+    const complete = (body: string, name: string, preferences: ts.GetCompletionsAtPositionOptions = {}) => {
+      const { text, at } = withHandler(body);
+      const entry = pluginService({ [apartmentScript]: text }).getCompletionsAtPosition(apartmentScript, at, preferences)?.entries.find((e) => e.name === name && !e.source?.startsWith('benne-other-room/'));
+      return entry && (entry.isSnippet ? `snippet ${entry.insertText}` : entry.insertText ?? entry.name);
+    };
+    expect(complete('walkToC|', 'walkToClicked')).toBe('walkToClicked()');
+    expect(complete('hank.fa|', 'face')).toBe('snippet face($1)$0');
+    expect(complete('hank.|', 'walkTo')).toBe('snippet walkTo($1)$0');
+    expect(complete('wai|', 'wait')).toBe('snippet wait($1)$0');
+    expect(complete('walkToClicked.n|', 'now')).toBe('now()');
+    expect(complete('hank.sh|', 'show')).toBe('show()');
+    // Not imported yet: the auto-import gets them too.
+    expect(complete('faceCl|', 'faceClicked', { includeCompletionsForModuleExports: true })).toBe('faceClicked()');
+    // Values, template tags, callbacks and calls already written stay as they are.
+    expect(complete('hank.|', 'facing')).toBe('facing');
+    expect(complete('cou|', 'couch')).toBe('couch');
+    expect(complete('sa|', 'say', { includeCompletionsForModuleExports: true })).toBe('say');
+    expect(complete("playFrom('x', walkToC|)", 'walkToClicked')).toBe('walkToClicked');
+    expect(complete("playFrom('x', |)", 'walkToClicked')).toBe('walkToClicked');
+    expect(complete('couch.onLook(|)', 'walkToClicked')).toBe('walkToClicked');
+    expect(complete('walkToC|()', 'walkToClicked')).toBe('walkToClicked');
+    expect(complete('const o = { walkToC| }', 'walkToClicked')).toBe('walkToClicked');
+    const imported = `import { walkToC } from '@benne/script';\n${apartmentText}`;
+    const at = imported.indexOf('walkToC') + 7;
+    const inImport = pluginService({ [apartmentScript]: imported }).getCompletionsAtPosition(apartmentScript, at, {})?.entries.find((e) => e.name === 'walkToClicked');
+    expect(inImport?.insertText).toBeUndefined();
+  });
+
   it("offers another room's handle whose name the script already uses", () => {
     const apply = (text: string, changes: readonly ts.TextChange[]) =>
       [...changes]

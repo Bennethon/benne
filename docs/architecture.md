@@ -659,7 +659,7 @@ hideZone.onMouseLeave(() => {
 
 ### Editor support
 
-The VS Code extension's BenneScript layer is `benne-editor/src/bennescript/` (no `vscode` imports, shared with the TS server plugin): a **ScriptModel** over the TypeScript AST (registrations, speech lines, handle references), resolved through the generated modules by **`IdsIndex`**, drives the Inspector's handler chips, "add handler" / "reveal handler", Play From discovery, voice ids and the speaking-text CSV; the **TS server plugin** adds speaker diagnostics and completions, quoted string-union completions, and go-to-definition from a handle to its JSON. See design doc §9 and **§8**.
+The VS Code extension's BenneScript layer is `benne-editor/src/bennescript/` (no `vscode` imports, shared with the TS server plugin): a **ScriptModel** over the TypeScript AST (registrations, speech lines, handle references), resolved through the generated modules by **`IdsIndex`**, drives the Inspector's handler chips, "add handler" / "reveal handler", Play From discovery, voice ids and the speaking-text CSV; the **TS server plugin** adds speaker diagnostics and completions, quoted string-union completions, function completions that insert their parentheses, and go-to-definition from a handle to its JSON. See design doc §9 and **§8**.
 
 ### Core files
 

@@ -103,6 +103,7 @@ The editor also helps while you write scripts:
 - It completes every generated name: rooms, props, items, sounds, verbs, dialog options and GUI controls.
 - Typing a character's name and a colon at the start of a line (`Hank:`) inserts backticks for the line of dialogue and puts the cursor inside. Turn this off with `benneEditor.dialogue.autoInsertBackticks`.
 - It completes animation tags and facing letters with their quotes, and flags unknown speaker names as you type.
+- It completes actions with their parentheses: `walkToClicked()`, or `hank.face()` with the cursor inside.
 - **Go to Definition** on a name like `couch` opens the JSON it came from.
 
 <DocShot src="/images/benne-editor/script.webp" alt="The apartment room script with a completion list open after items., listing bread, broom, key, knife, lantern, pb and sammich. Lines of dialogue such as Hank: `Hey Penny!` are boxed." :width="896" :height="465" caption="Completing `items.` lists every inventory item in the game." />
