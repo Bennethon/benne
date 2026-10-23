@@ -4,6 +4,13 @@ All notable changes to BENNE. The format follows [Keep a Changelog](https://keep
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-22
+
+### Fixed
+
+- **BENNE: Create New Game** names the new game in its `game-config.json` after the project name you type, not after the template you picked.
+- The **9-verb** template no longer starts with its walkable areas and region outlines drawn over the game. Every template now ships with all debug overlays off.
+
 ## [0.1.0] - 2026-10-09
 
 ### Breaking: game scripts are BenneScript
