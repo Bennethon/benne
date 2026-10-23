@@ -13,6 +13,7 @@ import {
     mergeGamePackageJson,
     readScaffoldManifest,
     removeObsoleteEngineFiles,
+    setGameConfigName,
 } from '../scaffoldPayload';
 import { readRoomPlayFromNamesFromSource } from '../playFromDiscovery';
 
@@ -37,6 +38,16 @@ suite('Authoring and update contracts', () => {
             assert.equal(actual.dependencies.custom, '1.0.0');
             assert.equal(actual.dependencies.phaser, expected.dependencies.phaser);
             assert.equal(actual.devDependencies.helper, '2.0.0');
+        } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
+    });
+    test('a new game is named in its game-config.json, not after its template', async () => {
+        const root = await fs.mkdtemp(path.join(os.tmpdir(), 'benne-create-'));
+        try {
+            const config = path.join(root, 'src', 'game', 'game-config.json');
+            await fs.mkdir(path.dirname(config), { recursive: true });
+            await fs.writeFile(config, JSON.stringify({ name: '9-verb', resolution: { width: 352, height: 198 } }));
+            await setGameConfigName(root, 'my-game');
+            assert.deepEqual(JSON.parse(await fs.readFile(config, 'utf8')), { name: 'my-game', resolution: { width: 352, height: 198 } });
         } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
     });
     test('engine update keeps a game\'s own lint script and adds the template one when missing', async () => {

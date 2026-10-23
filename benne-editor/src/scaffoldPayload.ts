@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { cp, readdir, rm, rmdir, writeFile } from 'node:fs/promises';
+import { cp, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
@@ -334,6 +334,14 @@ export function scaffoldPackageJsonTemplate(projectName: string): Record<string,
 
 export function buildPackageJson(projectName: string): string {
     return `${JSON.stringify(scaffoldPackageJsonTemplate(projectName), null, 2)}\n`;
+}
+
+/** Names a new game in its `src/game/game-config.json`, which still holds the template's name. */
+export async function setGameConfigName(gameRoot: string, name: string): Promise<void> {
+    const configPath = path.join(gameRoot, 'src', 'game', 'game-config.json');
+    const config = JSON.parse(await readFile(configPath, 'utf8')) as Record<string, unknown>;
+    config.name = name;
+    await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
 }
 
 /** A new game's `eslint.config.mjs`: the BenneScript rules, which Update Engine refreshes in `scripts/lib/`. */

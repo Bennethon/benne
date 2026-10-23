@@ -8,6 +8,7 @@ import {
     readScaffoldManifest,
     runNpmScript,
     scaffoldRoot,
+    setGameConfigName,
     type BenneProjectFile,
     type ScaffoldManifest,
 } from './scaffoldPayload';
@@ -171,6 +172,7 @@ export async function runCreateGameWizard(extensionPath: string, extensionVersio
             await mkdir(destPath, { recursive: true });
             await copyTreeNonDestructive(sharedSrc, destPath);
             await copyTreeNonDestructive(templateSrc, path.join(destPath, 'src', 'game'));
+            await setGameConfigName(destPath, projectName);
 
             const benneProject: BenneProjectFile = {
                 scaffoldVersion: manifest.scaffoldVersion,
