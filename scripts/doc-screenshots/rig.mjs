@@ -135,7 +135,7 @@ function makeWorkspace(/** @type {string} */ template) {
   symlinkSync(path.join(repo, 'node_modules'), path.join(workspace, 'node_modules'), 'dir');
   execFileSync(process.execPath, ['scripts/generate-game-ids.mjs', '--quiet'], { cwd: workspace, stdio: 'inherit' });
 
-  // The templates turn on debug outlines; the screenshots show the game as players see it.
+  // The screenshots show the game as players see it, even if a template is saved with debug outlines on.
   const configFile = path.join(workspace, 'src', 'game', 'game-config.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   for (const k of Object.keys(config.debug ?? {})) config.debug[k] = false;
