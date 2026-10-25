@@ -1606,7 +1606,11 @@ export function withMusicControls<T extends Record<string, MusicHandle>>(tracks:
     MusicControls<T[keyof T]>;
 }
 
-/** A video under `assets/videos/` (`video.x`). */
+/**
+ * A video under `assets/videos/` (`video.x`). `VideoPlayOptions`: `loop`, `volume` (0–1),
+ * `clickToSkip`, `ignoreCameraZoom` (fill the screen even while the camera is zoomed in) and
+ * `onComplete`.
+ */
 export class VideoHandle {
   /** The video's file name, without the extension. */
   readonly id: string;

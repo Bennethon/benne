@@ -668,7 +668,7 @@ A verb, as `verbs.<id>` in `@game`. `VerbHandle` in `src/engine/bennescript/hand
 
 ### Videos: `video.x`
 
-A video under `assets/videos/` (`video.x`). `VideoHandle` in `src/engine/bennescript/handles.ts`.
+A video under `assets/videos/` (`video.x`). `VideoPlayOptions`: `loop`, `volume` (0–1), `clickToSkip`, `ignoreCameraZoom` (fill the screen even while the camera is zoomed in) and `onComplete`. `VideoHandle` in `src/engine/bennescript/handles.ts`.
 
 | Member | | Description |
 |---|---|---|

@@ -553,6 +553,12 @@ export class RoomScene extends Phaser.Scene {
   /** Whether the active video should stop on the next primary click/tap. */
   private roomVideoClickToSkip = false;
 
+  /** `options.ignoreCameraZoom` for the current playback; see {@link syncRoomVideoZoomCompensation}. */
+  private roomVideoIgnoreCameraZoom = false;
+
+  /** Letterbox-fit display size of the current video at gameplay zoom 1, once its frame is ready. */
+  private roomVideoFitSize: { w: number; h: number } | null = null;
+
   /** Resolvers for outstanding `playAndWait` promises on the current playback. */
   private roomVideoCompleteResolvers: Array<() => void> = [];
 
@@ -1663,9 +1669,38 @@ export class RoomScene extends Phaser.Scene {
     const nativeH = video.height;
     if (nativeW > 0 && nativeH > 0) {
       const scale = Math.min(getInternalWidth() / nativeW, getInternalHeight() / nativeH);
-      video.setDisplaySize(nativeW * scale, nativeH * scale);
+      this.roomVideoFitSize = { w: nativeW * scale, h: nativeH * scale };
     }
-    video.setPosition(getInternalWidth() / 2, getInternalHeight() / 2);
+    this.syncRoomVideoZoomCompensation();
+  }
+
+  /**
+   * Places the video layer for the current gameplay zoom. `scrollFactor 0` ignores camera scroll
+   * but not zoom, so with `ignoreCameraZoom` this divides `scriptGameplayZoom` back out around the
+   * drawing camera's origin (screen center on the main camera, top-left on the editor / hi-DPI UI
+   * camera), leaving the display zoom alone. Otherwise, and when idle, the layer sits at its plain
+   * fit. Sets absolute values each call, so calling it repeatedly never compounds.
+   */
+  private syncRoomVideoZoomCompensation(): void {
+    const g = this.roomVideoIgnoreCameraZoom && this.roomVideoActiveKey !== null
+      ? Math.max(this.scriptGameplayZoom, 0.001)
+      : 1;
+    const cam = this.editorUiCamera ?? this.cameras.main;
+    const ox = cam.width * cam.originX;
+    const oy = cam.height * cam.originY;
+    this.roomVideoBackdrop?.setPosition(ox - ox / g, oy - oy / g).setScale(1 / g);
+    const video = this.roomVideo;
+    if (!video) {
+      return;
+    }
+    video.setPosition(
+      ox + (getInternalWidth() / 2 - ox) / g,
+      oy + (getInternalHeight() / 2 - oy) / g,
+    );
+    const fit = this.roomVideoFitSize;
+    if (fit) {
+      video.setDisplaySize(fit.w / g, fit.h / g);
+    }
   }
 
   /**
@@ -1706,6 +1741,7 @@ export class RoomScene extends Phaser.Scene {
     this.roomVideoActiveKey = key;
     this.roomVideoOnComplete = options?.onComplete ?? null;
     this.roomVideoClickToSkip = options?.clickToSkip === true;
+    this.roomVideoIgnoreCameraZoom = options?.ignoreCameraZoom === true;
 
     // Hide HUD GUIs (verbs/menus/dialog) for the cinematic; Speaking/Display Text overlays are not in
     // `genericGuiOverlays`, so they keep working over the video. Restored in `finalizeRoomVideo`.
@@ -1740,10 +1776,13 @@ export class RoomScene extends Phaser.Scene {
     this.roomVideoActiveKey = null;
     this.roomVideoOnComplete = null;
     this.roomVideoClickToSkip = false;
+    this.roomVideoIgnoreCameraZoom = false;
+    this.roomVideoFitSize = null;
     this.roomVideoCompleteResolvers = [];
 
     this.roomVideo?.setVisible(false);
     this.roomVideoBackdrop?.setVisible(false);
+    this.syncRoomVideoZoomCompensation();
     this.restoreGenericGuisAfterVideo();
     this.lastCustomCursorVisualKey = null;
     this.refreshCustomCursor(this.input.activePointer);
@@ -4322,6 +4361,7 @@ export class RoomScene extends Phaser.Scene {
     const displayZoom = this.resolveDisplayCameraZoom();
     this.cameras.main.setZoom(displayZoom * this.scriptGameplayZoom);
     this.syncEditorUiCameraToMain();
+    this.syncRoomVideoZoomCompensation();
   }
 
   private killScriptCameraPan(): void {
@@ -4476,6 +4516,14 @@ export class RoomScene extends Phaser.Scene {
     this.scriptCameraFocusActive = true;
     const point = this.resolveCameraFocusWorldPoint(target);
     this.scriptCameraFocusPoint = { x: point.x, y: point.y };
+    const instant = this.cutsceneSkipFastForwardActive || !((transitionSeconds ?? 0) > 0);
+    if (instant) {
+      // Zoom first: `centerOn` clamps scroll to the bounds at the current zoom, so panning at the
+      // old zoom would pull the camera back toward the room center before the zoom jumps.
+      const zoomed = this.queueCameraGameplayZoomTo(zoom, transitionSeconds);
+      const panned = this.queueCameraPan(point.x, point.y, transitionSeconds);
+      return Promise.all([zoomed, panned]).then(() => undefined);
+    }
     return Promise.all([
       this.queueCameraPan(point.x, point.y, transitionSeconds),
       this.queueCameraGameplayZoomTo(zoom, transitionSeconds),
@@ -4780,6 +4828,7 @@ export class RoomScene extends Phaser.Scene {
     uiCam.setViewport(main.x, main.y, main.width, main.height);
     uiCam.setZoom(main.zoomX, main.zoomY);
     uiCam.setScroll(0, 0);
+    this.syncRoomVideoZoomCompensation();
   }
 
   /**

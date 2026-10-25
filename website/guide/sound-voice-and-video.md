@@ -211,6 +211,7 @@ video.intro.play({
   volume: 0.8,
   loop: false,
   clickToSkip: true,
+  ignoreCameraZoom: false,
   onComplete: () => {
     flags.watchedIntro = true
   },
@@ -220,6 +221,16 @@ video.intro.play({
 `onComplete` is a plain callback: it runs when the video ends, outside the script's sequence, so keep it to instant work such as setting a flag. To run a scene after the video, use `playAndWait()` and write the scene below it.
 
 Video volume is `audio.masterVolume` multiplied by the per-playback `volume` option. `clickToSkip` defaults to `false`; when set to `true`, a primary click or tap stops the video. There is no separate video volume slider in the current engine.
+
+The video is drawn over the room, so camera zoom magnifies it too. Set `ignoreCameraZoom: true` to keep it filling the screen whatever the zoom, for example to zoom into a screen in the room, play the video, then zoom back out:
+
+```ts
+camera.zoomTo(points.computerZoom, 10, 0.75)
+video.demo.playAndWait({ ignoreCameraZoom: true })
+camera.resetZoom(0.75)
+```
+
+It defaults to `false`, and it holds while the zoom changes during the video.
 
 ::: warning VS Code video audio
 BENNE Play runs inside a VS Code webview, whose codec support can differ from Chrome, Edge, or Brave. Some MP4 files show video frames but play no audio in VS Code when the audio track uses AAC.

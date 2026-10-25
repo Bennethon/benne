@@ -4,6 +4,14 @@ All notable changes to BENNE. The format follows [Keep a Changelog](https://keep
 
 ## [Unreleased]
 
+### Added
+
+- **`ignoreCameraZoom` video option.** `video.x.play({ ignoreCameraZoom: true })` and `playAndWait(…)` keep the video filling the screen while the camera is zoomed in. By default videos are still zoomed with the camera.
+
+### Fixed
+
+- An instant `camera.zoomTo(point, zoom, 0)` (or one in a skipped cutscene) now centers on `point`. In a room no bigger than the screen it used to zoom into the middle of the room.
+
 ## [0.1.2] - 2026-10-22
 
 ### Fixed

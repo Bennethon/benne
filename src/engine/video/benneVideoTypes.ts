@@ -6,6 +6,8 @@ export interface VideoPlayOptions {
   volume?: number;
   /** When true, a primary click/tap stops the active video. Defaults to `false`. */
   clickToSkip?: boolean;
+  /** When true, the video fills the screen regardless of camera zoom. Defaults to `false` (the video is affected by camera zoom, as today). */
+  ignoreCameraZoom?: boolean;
   /** Invoked once when the video finishes or is stopped. */
   onComplete?: () => void;
 }
