@@ -1,6 +1,7 @@
 /** What the B in BENNE stands for on this visit. The first entry is the one the HTML is built with. */
 export const B_WORDS = [
   'Bennethon',
+  'BENNE',
   'Bombastic',
   'Bodacious',
   'Beautiful',
