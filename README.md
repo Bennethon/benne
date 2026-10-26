@@ -54,4 +54,6 @@ Some of my game artwork is AI-assisted and hand-edited.
 
 BENNE is released under the [MIT License](LICENSE). Use it, fork it and change it however you like.
 
+Third-party assets keep their own licenses. The fonts in `game-templates/*/assets/fonts/` are CC BY-NC-SA 3.0, which forbids commercial use, so replace them before you sell a game made from a template.
+
 This is my personal engine, shared as-is. Bug reports and questions are welcome as issues. I'm not trying to build a contributor community around it, so pull requests may not be reviewed or merged.
