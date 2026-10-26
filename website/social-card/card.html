@@ -1,0 +1,192 @@
+<!doctype html>
+<!-- The link-preview card for benne.games (public/images/social-card.png). Render it with
+     `npm run social-card`; see website/README.md. It reuses the homepage's fonts, colours and monitor. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face {
+  font-family: 'sysfont';
+  src: url('../public/fonts/sysfont.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'ChicagoFLF';
+  src: url('../public/fonts/ChicagoFLF.ttf') format('truetype');
+}
+
+:root {
+  --green: #3dff6e;
+  --teal: #10908e;
+}
+
+html,
+body {
+  margin: 0;
+  width: 1200px;
+  height: 630px;
+  overflow: hidden;
+  background: #0b1519;
+}
+
+canvas {
+  position: absolute;
+  inset: 0;
+  image-rendering: pixelated;
+}
+
+.text {
+  position: absolute;
+  left: 76px;
+  top: 0;
+  bottom: 0;
+  width: 520px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 22px;
+}
+
+.title {
+  margin: 0 0 -0.2em;
+  padding-left: 10px;
+  font-family: 'sysfont';
+  font-size: 156px;
+  font-weight: normal;
+  line-height: 1;
+  color: var(--green);
+  text-shadow: -1px 0 0 var(--teal), -2px 0 0 var(--teal), -3px 0 0 var(--teal), -4px 0 0 var(--teal),
+    -5px 0 0 var(--teal), -6px 0 0 var(--teal), -7px 0 0 var(--teal), -8px 0 0 var(--teal),
+    -9px 0 0 var(--teal), -10px 0 0 var(--teal), -11px 0 0 var(--teal), -12px 0 0 var(--teal);
+}
+
+.acronym {
+  margin: 0;
+  font-family: 'sysfont';
+  font-size: 38px;
+  line-height: 1.2;
+  color: #fffff5;
+}
+
+.tagline {
+  margin: 8px 0 0;
+  font-family: 'ChicagoFLF';
+  font-size: 25px;
+  line-height: 1.45;
+  color: #b9dcd8;
+}
+
+.url {
+  margin: 0;
+  font-family: 'ChicagoFLF';
+  font-size: 25px;
+  color: var(--green);
+}
+
+/* The monitor, laid out as on the homepage (HomeGame.vue): positions are percentages of the
+   1448×1086 image, whose screen is cut out. */
+.monitor {
+  position: absolute;
+  right: 36px;
+  top: 50%;
+  width: 600px;
+  aspect-ratio: 1448 / 1086;
+  transform: translateY(-46%);
+}
+
+.screen {
+  position: absolute;
+  left: 18.16%;
+  top: 12.06%;
+  width: 63.74%;
+  height: 58.93%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(16, 144, 142, 0.45), transparent 65%),
+    radial-gradient(ellipse at 50% 115%, rgba(61, 255, 110, 0.2), transparent 55%),
+    #061317;
+}
+
+.screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.45) 100%),
+    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px);
+}
+
+.play {
+  padding-left: 4px;
+  font-family: 'sysfont';
+  font-size: 46px;
+  color: var(--green);
+  text-shadow: -1px 0 0 var(--teal), -2px 0 0 var(--teal), -3px 0 0 var(--teal), -4px 0 0 var(--teal);
+}
+
+.hint {
+  font-family: 'ChicagoFLF';
+  font-size: 15px;
+  color: #b9dcd8;
+}
+
+.bezel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.floor {
+  position: absolute;
+  left: 20%;
+  width: 60%;
+  top: 92%;
+  height: 9%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.15) 60%, transparent);
+}
+</style>
+</head>
+<body>
+<canvas width="300" height="158"></canvas>
+<div class="text">
+  <h1 class="title">BENNE</h1>
+  <p class="acronym">Beautiful Engine for<br>Noble Narrative Experiences</p>
+  <p class="tagline">Point-and-click adventures<br>in TypeScript, in VS Code.</p>
+  <p class="url">benne.games</p>
+</div>
+<div class="monitor">
+  <span class="floor"></span>
+  <div class="screen">
+    <span class="play">▶ PLAY</span>
+    <span class="hint">Walk around my office. Try the computer.</span>
+  </div>
+  <img class="bezel" src="../public/images/crt-monitor.webp" alt="">
+</div>
+<script>
+// A still of the homepage's dark-mode star field: 4px pixel stars, thicker towards the monitor.
+const canvas = document.querySelector('canvas');
+canvas.style.width = '1200px';
+canvas.style.height = '632px';
+const ctx = canvas.getContext('2d');
+let seed = 7;
+const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const colors = ['255, 255, 255', '61, 255, 110', '120, 230, 228'];
+const cx = 222;
+const cy = 82;
+for (let i = 0; i < 420; i++) {
+  const x = Math.floor(random() * canvas.width);
+  const y = Math.floor(random() * canvas.height);
+  const near = 1 - Math.min(1, Math.hypot((x - cx) / 160, (y - cy) / 110));
+  if (random() > 0.25 + near * 0.75) continue;
+  const color = random() < 0.7 ? colors[0] : colors[1 + Math.floor(random() * 2)];
+  ctx.fillStyle = `rgba(${color}, ${(0.15 + random() * 0.5 * (0.4 + near)).toFixed(2)})`;
+  ctx.fillRect(x, y, 1, 1);
+}
+</script>
+</body>
+</html>

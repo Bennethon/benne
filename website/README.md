@@ -24,6 +24,12 @@ The homepage monitor plays whatever is in `public/play/`. It shows a "coming soo
 
 Workers static assets refuse files over 25 MiB, so keep every file in the build under that. Video registers at boot but only streams when it plays, so the tutorial recording on the game's computer (about 19 MB) is fine here. Audio is downloaded before the game starts, so encode music as MP3 rather than WAV. A video that outgrows the limit belongs on Cloudflare Stream or R2.
 
+## The link-preview card
+
+Links to benne.games show a large card on X, Discord, Bluesky, LinkedIn and the rest: the Open Graph and `twitter:*` tags are in `.vitepress/config.ts`, and every page shares one image, `public/images/social-card.png`. The image is rendered from `social-card/card.html`, so after changing the branding, edit that page and run `npm run social-card` (needs Chromium; set `CHROME` if it is not `chromium` on the PATH).
+
+Platforms cache previews. After changing the card, refresh X's and LinkedIn's with their [Card Validator](https://cards-dev.x.com/validator) and [Post Inspector](https://www.linkedin.com/post-inspector/); on Discord, a link posted with `?v=2` on the end gets a fresh embed.
+
 ## Deploy
 
 `wrangler.jsonc` serves `.vitepress/dist` as the `benne-games` Worker on the `benne.games` custom domain.

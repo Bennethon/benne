@@ -1,6 +1,10 @@
 import { defineConfig } from 'vitepress';
 
 const repo = 'https://github.com/Bennethon/benne';
+const siteUrl = 'https://benne.games';
+const socialDescription = 'Make point-and-click adventure games in TypeScript, in VS Code.';
+const socialCardAlt =
+  'BENNE: Beautiful Engine for Noble Narrative Experiences. Point-and-click adventures in TypeScript, in VS Code. A beige CRT monitor shows a PLAY screen.';
 
 export default defineConfig({
   title: 'BENNE',
@@ -24,9 +28,35 @@ export default defineConfig({
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
     ['link', { rel: 'preload', href: '/fonts/sysfont.woff2', as: 'font', type: 'font/woff2', crossorigin: '' }],
     ['link', { rel: 'preload', href: '/fonts/ChicagoFLF.ttf', as: 'font', type: 'font/ttf', crossorigin: '' }],
-    ['meta', { property: 'og:title', content: 'BENNE' }],
-    ['meta', { property: 'og:description', content: 'Make point-and-click adventure games in TypeScript, in VS Code.' }],
+    // Link previews. Open Graph covers Discord, Facebook, LinkedIn, Slack, Bluesky, Mastodon and
+    // the messengers; X reads it too but needs twitter:card for the large card, which Discord also
+    // checks before showing the image full width. The card is rendered from social-card/card.html.
+    ['meta', { name: 'theme-color', content: '#3dff6e' }],
+    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { property: 'og:site_name', content: 'BENNE' }],
+    ['meta', { property: 'og:image', content: `${siteUrl}/images/social-card.png` }],
+    ['meta', { property: 'og:image:type', content: 'image/png' }],
+    ['meta', { property: 'og:image:width', content: '1200' }],
+    ['meta', { property: 'og:image:height', content: '630' }],
+    ['meta', { property: 'og:image:alt', content: socialCardAlt }],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:image', content: `${siteUrl}/images/social-card.png` }],
+    ['meta', { name: 'twitter:image:alt', content: socialCardAlt }],
   ],
+  // Each page's own title, description and address in its link preview.
+  transformHead({ pageData }) {
+    const home = pageData.relativePath === 'index.md';
+    const title = home ? 'BENNE' : `${pageData.title} | BENNE`;
+    const description = pageData.frontmatter.description ?? socialDescription;
+    const path = pageData.relativePath.replace(/(^|\/)index\.md$/, '$1').replace(/\.md$/, '');
+    return [
+      ['meta', { property: 'og:title', content: title }],
+      ['meta', { name: 'twitter:title', content: title }],
+      ['meta', { property: 'og:description', content: description }],
+      ['meta', { name: 'twitter:description', content: description }],
+      ['meta', { property: 'og:url', content: `${siteUrl}/${path}` }],
+    ];
+  },
   themeConfig: {
     logo: { src: '/logo.svg', alt: '' },
     nav: [
