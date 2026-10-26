@@ -24,6 +24,12 @@ function play() {
   if (state.value === 'ready') state.value = 'playing';
 }
 
+// Powering off removes the iframe, which stops the game and its audio; powering on starts afresh.
+function togglePower() {
+  if (state.value === 'playing') state.value = 'ready';
+  else play();
+}
+
 function fullscreen() {
   frame.value?.requestFullscreen?.();
 }
@@ -58,11 +64,14 @@ function fullscreen() {
       <button
         type="button"
         class="power"
-        :disabled="state !== 'ready'"
-        :aria-label="state === 'playing' ? 'Power (on)' : 'Power on and play'"
-        :title="state === 'ready' ? 'Power on' : undefined"
-        @click="play"
-      />
+        :disabled="state !== 'ready' && state !== 'playing'"
+        aria-label="Power"
+        :aria-pressed="state === 'playing'"
+        :title="state === 'playing' ? 'Power off' : state === 'ready' ? 'Power on' : undefined"
+        @click="togglePower"
+      >
+        <span class="power-face" :style="{ backgroundImage: `url(${MONITOR_URL})` }" aria-hidden="true" />
+      </button>
     </div>
     <figcaption v-if="state === 'playing'">
       <button type="button" class="fs" @click="fullscreen">⛶ Fullscreen</button>
@@ -135,12 +144,17 @@ function fullscreen() {
 }
 
 iframe {
+  /* The screen is 1.442:1 (922.96 × 639.98 image pixels) and the game is 4:3, which it would
+     pillarbox. So the frame is 4:3 and stretched 8.16% wider to fill the glass, like a CRT's
+     horizontal size knob. The game never sees the transform, and fullscreen drops it. */
   position: relative;
   z-index: 1;
   display: block;
-  width: 100%;
+  width: 92.455%;
   height: 100%;
   border: 0;
+  transform: scaleX(1.0816);
+  transform-origin: left;
 }
 
 .screen-button {
@@ -225,6 +239,42 @@ button.screen-button:focus-visible .play {
 
 .power:disabled {
   cursor: default;
+}
+
+/* The key's face inside its outline, x 1157–1220, y 845–898 (63×53 of the 68×58 button). The face
+   is a copy of that part of the monitor image, so at rest it matches the picture underneath. */
+.power::before,
+.power-face {
+  position: absolute;
+  left: 4.41%;
+  top: 5.17%;
+  width: 92.65%;
+  height: 91.38%;
+  border-radius: 7% / 8%;
+}
+
+/* The hole the key sinks into, darkest under the case's top lip. Only shown while pressed. */
+.power::before {
+  content: '';
+  opacity: 0;
+  background: linear-gradient(#24221e, #4a463f 45%, #6e695f);
+}
+
+.power-face {
+  background-repeat: no-repeat;
+  /* The whole image scaled to this box, with the face's top-left corner at the box's. */
+  background-size: 2298.4% 2049.1%;
+  background-position: 83.538% 81.801%;
+  transition: transform 0.06s, filter 0.06s;
+}
+
+.power:active:not(:disabled)::before {
+  opacity: 1;
+}
+
+.power:active:not(:disabled) .power-face {
+  transform: translateY(3%) scale(0.92);
+  filter: brightness(0.88);
 }
 
 .power:focus-visible {

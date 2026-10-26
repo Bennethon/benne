@@ -11,8 +11,7 @@ markdownStyles: false
     <BenneAcronym />
     <HomeGame />
     <p class="tagline">
-      Make point-and-click adventure games in TypeScript, with live previews in VS Code.<br>
-      Scripts read like a screenplay. Pixels stay crisp.
+      Point-and-click adventures, built with TypeScript and the web.<br>Built on ideas from the great adventure engines before it, and shared in case it helps you too.
     </p>
     <div class="actions">
       <a class="btn primary" href="/guide/introduction">Get started</a>

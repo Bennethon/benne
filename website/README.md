@@ -22,7 +22,7 @@ npm run preview
 
 The homepage monitor plays whatever is in `public/play/`. It shows a "coming soon" screen until `public/play/index.html` exists. The intro game is a separate BENNE project. To update it here, run `npm run build:itch` in the game's project, unzip the result into `public/play/` and commit it.
 
-Large video, such as the tutorial recording shown on the game's computer, belongs on Cloudflare Stream or R2, not here. Workers static assets refuse files over 25 MiB.
+Workers static assets refuse files over 25 MiB, so keep every file in the build under that. Video registers at boot but only streams when it plays, so the tutorial recording on the game's computer (about 19 MB) is fine here. Audio is downloaded before the game starts, so encode music as MP3 rather than WAV. A video that outgrows the limit belongs on Cloudflare Stream or R2.
 
 ## Deploy
 
