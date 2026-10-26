@@ -4,6 +4,8 @@
 
 Web-based point-and-click adventure engine (Phaser 4 + TypeScript + Vite). Internal resolution and other bootstrap settings live in **`src/game/game-config.json`** (default **352×198**).
 
+**To make games with BENNE, start at [benne.games](https://benne.games).** It has the user guides, from the [introduction](https://benne.games/guide/introduction) and [installation and new game setup](https://benne.games/guide/installation-and-new-game-setup), and the [BenneScript API reference](https://benne.games/reference/bennescript-api). The rest of this README is about working on the engine itself.
+
 ## Scripts
 
 ```bash
@@ -19,8 +21,8 @@ See [the regression testing guide](docs/testing.md) for setup, suite commands, C
 
 ## Documentation
 
+- [benne.games](https://benne.games): the user guides and the scripting API, and the main place for usage documentation. Their source is [`website/guide/`](website/guide/) and [`docs/bennescript-api.md`](docs/bennescript-api.md).
 - [`docs/architecture.md`](docs/architecture.md): how the engine and editor fit together.
-- [`website/guide/`](website/guide/) (served at [benne.games](https://benne.games)) and [`docs/bennescript-api.md`](docs/bennescript-api.md): user guides and the scripting API.
 - [`docs/bennescript-ergonomics-refactor.md`](docs/bennescript-ergonomics-refactor.md): the BenneScript design record and its decisions.
 - [`docs/roadmap.md`](docs/roadmap.md): open work and ideas.
 - [`docs/history/`](docs/history/README.md): dated reviews and logs, kept for background only.
