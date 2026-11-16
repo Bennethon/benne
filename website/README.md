@@ -28,7 +28,7 @@ Workers static assets refuse files over 25 MiB, so keep every file in the build 
 
 Links to benne.games show a large card on X, Discord, Bluesky, LinkedIn and the rest: the Open Graph and `twitter:*` tags are in `.vitepress/config.ts`, and every page shares one image, `public/images/social-card.png`. The image is rendered from `social-card/card.html`, so after changing the branding, edit that page and run `npm run social-card` (needs Chromium; set `CHROME` if it is not `chromium` on the PATH).
 
-Platforms cache previews. After changing the card, refresh X's and LinkedIn's with their [Card Validator](https://cards-dev.x.com/validator) and [Post Inspector](https://www.linkedin.com/post-inspector/); on Discord, a link posted with `?v=2` on the end gets a fresh embed.
+Platforms cache previews. After changing the card, refresh LinkedIn's with its [Post Inspector](https://www.linkedin.com/post-inspector/). X has no validator any more: paste the link into a new post to see its card in the composer. On X and Discord, a link with `?v=2` on the end gets a fresh preview.
 
 ## Deploy
 
