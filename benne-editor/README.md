@@ -4,6 +4,8 @@ Visual authoring tools for [BENNE](https://github.com/bennethon/BENNE) — a web
 
 Install this extension to create new games, edit rooms/characters/GUIs/inventory/dialogs in VS Code, and preview or play your game without leaving the editor.
 
+**Documentation: [benne.games](https://benne.games)** has the guides, the BenneScript API reference and walkthroughs for every part of the editor.
+
 ## Getting started
 
 ### Create a new game
@@ -60,7 +62,15 @@ Standalone projects (created via **Create New Game**) write output to `.benne/pr
 
 ## Documentation
 
-Engine architecture and authoring conventions live in the BENNE repo under `docs/`. Packaging and distribution are described in `docs/publishing.md`.
+The full documentation is at **[benne.games](https://benne.games)**:
+
+- [Installation and new game setup](https://benne.games/guide/installation-and-new-game-setup)
+- [The BENNE Editor](https://benne.games/guide/benne-editor)
+- [BenneScript](https://benne.games/guide/bennescript) and the [BenneScript API reference](https://benne.games/reference/bennescript-api)
+- [Publishing games](https://benne.games/guide/publishing-games)
+- [Updating BENNE](https://benne.games/guide/updating-benne)
+
+How the engine and the editor are built is described in the BENNE repo under `docs/`.
 
 ## Release notes
 
