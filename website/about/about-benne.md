@@ -28,5 +28,6 @@ Some of my game artwork is AI-assisted and hand-edited.
 
 ## Contact
 
+- **Website**: [bennethon.com](https://bennethon.com)
 - **X**: [@Bennethon](https://x.com/Bennethon)
 - **GitHub**: [Bennethon/benne](https://github.com/Bennethon/benne)

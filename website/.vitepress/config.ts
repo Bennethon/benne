@@ -62,6 +62,7 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/introduction', activeMatch: '/guide/' },
       { text: 'API Reference', link: '/reference/bennescript-api', activeMatch: '/reference/' },
+      { text: 'Games', link: '/games' },
       { text: 'About', link: '/about/about-benne', activeMatch: '/about/' },
       { text: 'Releases', link: `${repo}/releases` },
     ],
@@ -122,10 +123,21 @@ export default defineConfig({
       },
     ],
     search: { provider: 'local' },
-    socialLinks: [{ icon: 'github', link: repo }],
+    socialLinks: [
+      { icon: 'github', link: repo },
+      // The author's site. A globe, since there is no built-in icon for a personal site; drawn
+      // with fills, because VitePress fills social icons.
+      {
+        icon: {
+          svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>bennethon.com</title><path fill-rule="evenodd" d="M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20zm0 2a8 8 0 1 1 0 16 8 8 0 1 1 0-16z"/><path fill-rule="evenodd" d="M12 2c-2.8 2.6-4.5 6.2-4.5 10s1.7 7.4 4.5 10c2.8-2.6 4.5-6.2 4.5-10S14.8 4.6 12 2zm0 2.9c1.6 2 2.5 4.5 2.5 7.1s-.9 5.1-2.5 7.1c-1.6-2-2.5-4.5-2.5-7.1s.9-5.1 2.5-7.1z"/><path d="M3 11h18v2H3z"/></svg>',
+        },
+        link: 'https://bennethon.com',
+        ariaLabel: 'bennethon.com',
+      },
+    ],
     footer: {
       message: 'BENNE is MIT licensed.',
-      copyright: '© 2026 Bennethon',
+      copyright: '© 2026 <a href="https://bennethon.com">Bennethon</a>',
     },
   },
 });
