@@ -1,4 +1,15 @@
-import { defineConfig } from 'vitepress';
+import { readFileSync } from 'node:fs';
+import { defineConfigWithTheme, type DefaultTheme } from 'vitepress';
+
+/** The theme config, plus the current BENNE version (`useData().theme.version` in pages). */
+interface BenneThemeConfig extends DefaultTheme.Config {
+  version: string;
+}
+
+// BENNE has one version, the extension's (see docs/publishing.md), so the site shows that one.
+const version: string = JSON.parse(
+  readFileSync(new URL('../../benne-editor/package.json', import.meta.url), 'utf8'),
+).version;
 
 const repo = 'https://github.com/Bennethon/benne';
 const siteUrl = 'https://benne.games';
@@ -6,7 +17,7 @@ const socialDescription = 'Make point-and-click adventure games in TypeScript, i
 const socialCardAlt =
   'BENNE: Beautiful Engine for Noble Narrative Experiences. Point-and-click adventures in TypeScript, in VS Code. A beige CRT monitor shows a PLAY screen.';
 
-export default defineConfig({
+export default defineConfigWithTheme<BenneThemeConfig>({
   title: 'BENNE',
   description: 'A web-based engine and VS Code editor for point-and-click adventure games.',
   lang: 'en-US',
@@ -58,13 +69,20 @@ export default defineConfig({
     ];
   },
   themeConfig: {
+    version,
     logo: { src: '/logo.svg', alt: '' },
     nav: [
       { text: 'Guide', link: '/guide/introduction', activeMatch: '/guide/' },
       { text: 'API Reference', link: '/reference/bennescript-api', activeMatch: '/reference/' },
       { text: 'Games', link: '/games' },
       { text: 'About', link: '/about/about-benne', activeMatch: '/about/' },
-      { text: 'Releases', link: `${repo}/releases` },
+      {
+        text: `v${version}`,
+        items: [
+          { text: 'Changelog', link: '/about/changelog' },
+          { text: 'Releases', link: `${repo}/releases` },
+        ],
+      },
     ],
     sidebar: [
       {
@@ -117,6 +135,7 @@ export default defineConfig({
         items: [
           { text: 'About BENNE', link: '/about/about-benne' },
           { text: 'Roadmap', link: '/about/roadmap' },
+          { text: 'Changelog', link: '/about/changelog' },
           { text: 'Acknowledgements', link: '/about/acknowledgements' },
           { text: 'License', link: '/about/license' },
         ],

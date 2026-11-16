@@ -74,6 +74,4 @@ How the engine and the editor are built is described in the BENNE repo under `do
 
 ## Release notes
 
-### 0.0.1
-
-- Initial extension-as-SDK release: **Create New Game**, bundled engine/templates, and VS Code authoring for BENNE projects.
+The current release is **0.1.3**. What changed in each release is on this extension's **Changelog** tab and at [benne.games/about/changelog](https://benne.games/about/changelog).

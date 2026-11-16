@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * One-command extension release: bump benne-editor/package.json version, then run
+ * One-command extension release: bump benne-editor/package.json version (and the version named in
+ * benne-editor/README.md's release notes), turn the changelog's [Unreleased] section into the new
+ * version's, then run
  * `vsce package` (which triggers vscode:prepublish → bundle scaffold, preview builds, webpack).
  *
  * Usage (from repo root):
@@ -20,6 +22,12 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, '..');
 const EXTENSION_DIR = path.join(REPO_ROOT, 'benne-editor');
 const EXTENSION_PKG = path.join(EXTENSION_DIR, 'package.json');
+const EXTENSION_README = path.join(EXTENSION_DIR, 'README.md');
+const EXTENSION_CHANGELOG = path.join(EXTENSION_DIR, 'CHANGELOG.md');
+/** Changes waiting for a release. The heading exists only while there are some. */
+const CHANGELOG_UNRELEASED = '## [Unreleased]';
+/** The README's "Release notes" line, which names the current version. */
+const README_VERSION_LINE = /The current release is \*\*[^*]+\*\*\./;
 
 /** @typedef {'patch' | 'minor' | 'major'} BumpKind */
 
@@ -124,6 +132,26 @@ async function main() {
         pkg.version = newVersion;
         await writeFile(EXTENSION_PKG, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
         console.log(`Version: ${oldVersion} → ${newVersion}`);
+
+        // The README is the extension's Details page; keep its release line on the new version.
+        const readme = await readFile(EXTENSION_README, 'utf8');
+        if (README_VERSION_LINE.test(readme)) {
+            const line = `The current release is **${newVersion}**.`;
+            await writeFile(EXTENSION_README, readme.replace(README_VERSION_LINE, line), 'utf8');
+        } else {
+            console.warn('benne-editor/README.md has no "The current release is **…**." line to update.');
+        }
+
+        // The changes collected under [Unreleased] become this release's notes.
+        const changelog = await readFile(EXTENSION_CHANGELOG, 'utf8');
+        if (changelog.includes(CHANGELOG_UNRELEASED)) {
+            const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
+            const heading = `## [${newVersion}] - ${today}`;
+            await writeFile(EXTENSION_CHANGELOG, changelog.replace(CHANGELOG_UNRELEASED, heading), 'utf8');
+            console.log(`Changelog: [Unreleased] → [${newVersion}] - ${today}`);
+        } else {
+            console.warn(`benne-editor/CHANGELOG.md has no "${CHANGELOG_UNRELEASED}" section, so ${newVersion} has no release notes.`);
+        }
     } else {
         console.log(`Version: ${oldVersion} (unchanged)`);
     }

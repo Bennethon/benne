@@ -12,7 +12,8 @@ npm run package:extension
 
 That single command:
 
-1. **Increments** `benne-editor/package.json` `version` by one **patch** (e.g. `0.0.1` → `0.0.2`)
+1. **Increments** `benne-editor/package.json` `version` by one **patch** (e.g. `0.0.1` → `0.0.2`), and the version named in the Release notes of `benne-editor/README.md` (the extension's Details page). benne.games reads the version from `benne-editor/package.json` when it builds, so the site follows once the bump is pushed to master.
+   It also renames the `## [Unreleased]` section of `benne-editor/CHANGELOG.md` to `## [<version>] - <today>`. Between releases, note each change under `## [Unreleased]` at the top of the changelog, adding that heading if it isn't there: the file has no empty Unreleased section, because the changelog ships in the VSIX and is shown on benne.games.
 2. **Bundles** engine, editor runtime, Vite configs, and game templates into `benne-editor/scaffold/`
 3. **Builds** all editor preview bundles into `benne-editor/media/`
 4. **Webpacks** the extension (`dist/extension.js`, Inspector, PDC editor)

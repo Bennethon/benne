@@ -2,8 +2,6 @@
 
 All notable changes to BENNE. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). BENNE has one version number, the extension's: it covers the editor, the engine and the game templates. Releases before 0.1.0 have their builds on the [GitHub releases page](https://github.com/Bennethon/benne/releases).
 
-## [Unreleased]
-
 ## [0.1.3] - 2026-10-24
 
 ### Added

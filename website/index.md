@@ -5,6 +5,12 @@ titleTemplate: Point-and-click adventures in TypeScript
 markdownStyles: false
 ---
 
+<script setup>
+import { useData } from 'vitepress';
+
+const { theme } = useData();
+</script>
+
 <div class="benne-home">
   <section class="hero">
     <h1 class="title">BENNE</h1>
@@ -17,6 +23,7 @@ markdownStyles: false
       <a class="btn primary" href="/guide/introduction">Get started</a>
       <a class="btn" href="/guide/bennescript">Learn BenneScript</a>
     </div>
+    <p class="release">Version {{ theme.version }} · <a href="/about/changelog">What's new</a></p>
   </section>
 
   <section class="features">
@@ -134,6 +141,16 @@ html:not(.dark) .benne-home .title::before {
   justify-content: center;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.benne-home .release {
+  margin: -8px 0 0;
+  font-size: 0.9rem;
+  color: var(--vp-c-text-2);
+}
+
+.benne-home .release a {
+  color: var(--vp-c-brand-1);
 }
 
 .benne-home .btn {
