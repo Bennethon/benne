@@ -74,4 +74,4 @@ How the engine and the editor are built is described in the BENNE repo under `do
 
 ## Release notes
 
-The current release is **0.1.3**. What changed in each release is on this extension's **Changelog** tab and at [benne.games/about/changelog](https://benne.games/about/changelog).
+The current release is **0.1.4**. What changed in each release is on this extension's **Changelog** tab and at [benne.games/about/changelog](https://benne.games/about/changelog).
